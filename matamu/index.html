@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matamu Pro - Simulasi Optik Realistis V8.0</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" crossorigin="anonymous">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- HTML-to-Image -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        header: 'var(--header-bg)', editor: 'var(--editor-bg)', preview: 'var(--preview-bg)',
+                        footer: 'var(--footer-bg)', theme: 'var(--border-color)', main: 'var(--text-main)', dim: 'var(--text-dim)',
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'], }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --header-bg: #ffffff; --editor-bg: #ffffff; --preview-bg: #f8fafc; --footer-bg: #ffffff;
+            --border-color: #e2e8f0; --text-main: #0f172a; --text-dim: #64748b;
+        }
+        html.dark {
+            --header-bg: #0d1117; --editor-bg: #161b22; --preview-bg: #010409; --footer-bg: #0d1117;
+            --border-color: #30363d; --text-main: #e6edf3; --text-dim: #8b949e; color-scheme: dark;
+        }
+        body { background-color: var(--preview-bg); color: var(--text-main); font-family: 'Inter', sans-serif; overflow: hidden; margin: 0; padding: 0; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: 1px solid var(--border-color); border-radius: 4px; }
+
+        /* KINEMATIKA INVERS UNTUK ANIMASI KACAMATA */
+        .glasses-parent {
+            transform: translateY(120vh) rotateX(-75deg) scale(0.85); opacity: 0;
+            transition: transform 0.9s cubic-bezier(0.25, 1, 0.35, 1), opacity 0.6s ease-out;
+            transform-origin: bottom center; transform-style: preserve-3d; perspective: 1500px;
+        }
+        .glasses-parent.is-worn { transform: translateY(0) rotateX(0deg) scale(1); opacity: 1; }
+        .glasses-child-inverse {
+            transform: scale(1.17) rotateX(75deg) translateY(-120vh);
+            transition: transform 0.9s cubic-bezier(0.25, 1, 0.35, 1);
+            transform-origin: bottom center; transform-style: preserve-3d;
+        }
+        .glasses-parent.is-worn .glasses-child-inverse { transform: scale(1) rotateX(0deg) translateY(0); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect, useRef, Component } = React;
+
+        class ErrorBoundary extends Component {
+            constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+            static getDerivedStateFromError(error) { return { hasError: true, error }; }
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="flex flex-col items-center justify-center h-screen bg-red-900 text-white p-10 font-mono">
+                            <h1 className="text-3xl font-bold mb-4">ENGINE CRASHED</h1>
+                            <p className="bg-black p-4 rounded text-sm w-full max-w-2xl overflow-auto text-red-400 whitespace-pre-wrap">{this.state.error.toString()}</p>
+                            <button onClick={() => window.location.reload()} className="mt-6 px-4 py-2 bg-white text-red-900 font-bold rounded">Muat Ulang Aplikasi</button>
+                        </div>
+                    );
+                }
+                return this.props.children; 
+            }
+        }
+
+        // --- ICONS ---
+        const SunIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>;
+        const MoonIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>;
+        const GlassesIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="6" cy="15" r="4"/><circle cx="18" cy="15" r="4"/><path d="M14 15a2 2 0 0 0-2-2 2 2 0 0 0-2 2"/><path d="M2.5 13 5 7c.7-1.3 1.4-2 3-2"/><path d="M21.5 13 19 7c-.7-1.3-1.5-2-3-2"/></svg>;
+        const CameraIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>;
+
+        // --- CONTROLS ---
+        const CompactSlider = ({ label, value, min, max, step, onChange, unit, disabled }) => (
+            <div className={`flex flex-col py-1 transition-opacity ${disabled ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                <div className="flex justify-between items-center mb-1">
+                    <label className="text-[10px] font-medium text-main">{label}</label>
+                    <span className="text-[9px] font-bold font-mono bg-preview text-blue-500 px-1 rounded border border-theme">
+                        {value > 0 && !unit.includes('%') && !unit.includes('°') && !unit.includes('Δ') ? '+' : ''}{value}{unit}
+                    </span>
+                </div>
+                <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(parseFloat(e.target.value))} disabled={disabled} className="w-full h-1 bg-theme rounded-full appearance-none cursor-pointer accent-blue-500" />
+            </div>
+        );
+
+        const CompactToggle = ({ label, checked, onChange, disabled }) => (
+            <div className={`flex justify-between items-center py-1 transition-opacity ${disabled ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                <label className="text-[10px] font-medium text-main">{label}</label>
+                <button onClick={() => onChange(!checked)} className={`relative inline-flex h-3 w-5 items-center rounded-full transition-colors ${checked ? 'bg-blue-500' : 'bg-slate-400'}`}>
+                    <span className={`inline-block h-2 w-2 transform rounded-full bg-white transition-transform ${checked ? 'translate-x-[10px]' : 'translate-x-[2px]'}`} />
+                </button>
+            </div>
+        );
+
+        const ColorInput = ({ label, value, onChange, disabled }) => (
+            <div className={`flex justify-between items-center py-1 transition-opacity ${disabled ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                <label className="text-[10px] font-medium text-main">{label}</label>
+                <input type="color" value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} className="w-4 h-4 rounded cursor-pointer border-0 bg-transparent p-0" />
+            </div>
+        );
+
+        const DirtyLensSmudge = () => (
+            <div className="absolute inset-0 z-30 pointer-events-none mix-blend-screen opacity-70">
+                <svg width="100%" height="100%" preserveAspectRatio="none">
+                    <filter id="smudgeNoise"><feTurbulence type="fractalNoise" baseFrequency="0.025" numOctaves="4" result="noise" /><feColorMatrix type="matrix" values="1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0.5 0" in="noise" result="coloredNoise" /></filter>
+                    <rect width="100%" height="100%" filter="url(#smudgeNoise)" opacity="0.4" />
+                    <ellipse cx="30%" cy="40%" rx="6%" ry="10%" fill="rgba(255,255,255,0.25)" filter="blur(5px)" transform="rotate(25 300 400)" />
+                    <ellipse cx="75%" cy="60%" rx="5%" ry="9%" fill="rgba(255,255,255,0.2)" filter="blur(4px)" transform="rotate(-30 750 600)" />
+                    <ellipse cx="45%" cy="20%" rx="3%" ry="5%" fill="rgba(255,255,255,0.15)" filter="blur(2px)" transform="rotate(10 450 200)" />
+                    <path d="M 30% 50% Q 40% 30% 50% 60%" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5%" fill="none" filter="blur(1px)"/>
+                </svg>
+            </div>
+        );
+
+        const Floaters = ({ intensity, mouseDeltaRef }) => {
+            const containerRef = useRef(null);
+            const shapes = [
+                <g><path d="M 20,20 Q 35,40 30,60 T 50,90" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" opacity="0.1"/><path d="M 20,20 Q 35,40 30,60 T 50,90" fill="none" stroke="#000" strokeWidth="0.5" strokeLinecap="round" opacity="0.3"/></g>,
+                <g><circle cx="30" cy="30" r="7" fill="#000" opacity="0.1"/><circle cx="30" cy="30" r="2.5" fill="#000" opacity="0.2"/><circle cx="45" cy="38" r="5" fill="#000" opacity="0.1"/><circle cx="45" cy="38" r="2" fill="#000" opacity="0.2"/><circle cx="54" cy="55" r="8" fill="#000" opacity="0.1"/><circle cx="54" cy="55" r="2.5" fill="#000" opacity="0.2"/></g>,
+                <g><path d="M 30,30 C 50,20 70,50 40,60 C 20,70 50,80 60,70" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" opacity="0.1"/><path d="M 30,30 C 50,20 70,50 40,60 C 20,70 50,80 60,70" fill="none" stroke="#000" strokeWidth="0.5" strokeLinecap="round" opacity="0.25"/></g>,
+                <g><circle cx="50" cy="50" r="18" fill="none" stroke="#000" strokeWidth="1.5" opacity="0.1"/><circle cx="50" cy="50" r="18" fill="none" stroke="#000" strokeWidth="0.5" opacity="0.2"/><circle cx="38" cy="38" r="3" fill="#000" opacity="0.2"/></g>
+            ];
+
+            const floatersList = useMemo(() => {
+                const count = Math.ceil(intensity * 1.5); 
+                return Array.from({ length: count }).map((_, i) => ({
+                    id: i, baseX: (5 + (i * 47) % 90), baseY: (5 + (i * 31) % 90), x: 0, y: 0, vx: 0, vy: 0, rot: Math.random() * 360, vRot: 0,
+                    scale: (0.2 + (i % 4) * 0.15) * (1 + intensity/250), opacity: 0.15 + (i % 3) * 0.15, blur: 1.0 + (i % 3) * 0.8, mass: 1.2 + (i % 4) * 0.6, shapeIndex: i % shapes.length, el: null 
+                }));
+            }, [intensity]);
+
+            const activeFloatersRef = useRef(floatersList);
+            useEffect(() => { activeFloatersRef.current = floatersList; }, [floatersList]);
+
+            useEffect(() => {
+                let frameId; let lastTime = performance.now();
+                const animate = (time) => {
+                    const dt = Math.min((time - lastTime) / 1000, 0.05); lastTime = time;
+                    const md = mouseDeltaRef.current;
+                    const dragX = md.dx * 6.0; const dragY = md.dy * 6.0;
+                    md.dx *= 0.4; md.dy *= 0.4;
+
+                    activeFloatersRef.current.forEach(f => {
+                        if(!f.el) return; 
+                        const distFromCenter = Math.sqrt(f.x*f.x + f.y*f.y);
+                        const springStrength = (distFromCenter > 250) ? (0.005 / f.mass) : (0.0001 / f.mass);
+                        const damping = 0.95; const gravity = 0.008 * f.mass; 
+                        const driftX = Math.sin(time / 2000 + f.id) * 0.05;
+                        const driftY = Math.cos(time / 2500 + f.id) * 0.05;
+
+                        f.vx += ((dragX / f.mass) - (f.x * springStrength) + driftX) * dt * 60;
+                        f.vy += ((dragY / f.mass) - (f.y * springStrength) + gravity + driftY) * dt * 60;
+                        f.vRot += ((dragX - dragY) * 0.01) / f.mass; f.vRot *= 0.97; f.rot += f.vRot * dt * 60;
+                        f.vx *= damping; f.vy *= damping;
+                        f.x += f.vx * dt * 60; f.y += f.vy * dt * 60;
+
+                        f.el.style.transform = `translate(${f.x}px, ${f.y}px) scale(${f.scale}) rotate(${f.rot}deg)`;
+                    });
+                    frameId = requestAnimationFrame(animate);
+                };
+                frameId = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(frameId);
+            }, [mouseDeltaRef]);
+
+            if (intensity === 0) return null;
+            return (
+                <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden" ref={containerRef}>
+                    {floatersList.map((f, i) => (
+                        <svg key={i} ref={el => { f.el = el; }} width="100" height="100" viewBox="0 0 100 100" className="absolute drop-shadow-sm"
+                             style={{ left: `${f.baseX}%`, top: `${f.baseY}%`, filter: `blur(${f.blur}px)`, opacity: f.opacity, willChange: 'transform' }}>
+                            {shapes[f.shapeIndex]}
+                        </svg>
+                    ))}
+                </div>
+            );
+        };
+
+        // --- MAIN APPLICATION ---
+        const App = () => {
+            const [darkMode, setDarkMode] = useState(() => typeof window !== 'undefined' ? localStorage.getItem('theme') === 'dark' : false);
+            useEffect(() => {
+                if (darkMode) { document.documentElement.classList.add('dark'); localStorage.setItem('theme', 'dark'); } 
+                else { document.documentElement.classList.remove('dark'); localStorage.setItem('theme', 'light'); }
+            }, [darkMode]);
+
+            // Base Image
+            const imageUrl = "https://ik.trn.asia/uploads/2022/03/1647007269306.jpeg";
+
+            const targetPan = useRef({ x: 0, y: 0 }); 
+            const currentPan = useRef({ x: 0, y: 0 });
+            
+            const lastMousePos = useRef({ x: null, y: null });
+            const mouseDeltaRef = useRef({ dx: 0, dy: 0 });
+            const panoAreaRef = useRef(null);
+            
+            // Mata Fisik
+            const [eyeSph, setEyeSph] = useState(0); 
+            const [eyeCyl, setEyeCyl] = useState(0); 
+            const [eyeAxis, setEyeAxis] = useState(0); 
+            
+            // Penyakit
+            const [cataract, setCataract] = useState(0); 
+            const [glaucoma, setGlaucoma] = useState(0); 
+            const [floaters, setFloaters] = useState(0); 
+
+            // Kacamata
+            const [wearGlasses, setWearGlasses] = useState(false);
+            const [glassesSph, setGlassesSph] = useState(0);
+            const [glassesCyl, setGlassesCyl] = useState(0);
+            const [glassesAxis, setGlassesAxis] = useState(0);
+
+            // Shading & Extras
+            const [tintColor, setTintColor] = useState("#000000"); 
+            const [tintOpacity, setTintOpacity] = useState(0); 
+            const [filterUV, setFilterUV] = useState(false);
+            const [filterBlue, setFilterBlue] = useState(false);
+            const [filterPolar, setFilterPolar] = useState(false);
+            const [isSmudged, setIsSmudged] = useState(false);
+
+            const [isCapturing, setIsCapturing] = useState(false);
+
+            const handleDownload = async () => {
+                const node = document.getElementById('pano-view-area');
+                if (!node || !window.htmlToImage) return;
+                setIsCapturing(true);
+                try {
+                    const dataUrl = await window.htmlToImage.toPng(node, { quality: 0.95, pixelRatio: 2, fontEmbedCSS: '' });
+                    const link = document.createElement('a');
+                    link.download = `Matamu-Simulasi-${new Date().getTime()}.png`;
+                    link.href = dataUrl; link.click();
+                } catch (error) {
+                    alert('Gagal mengunduh gambar akibat batasan CORS.');
+                } finally { setIsCapturing(false); }
+            };
+
+            const calcSM = (D) => (1 + (D * 0.015)) / (1 - (D * 0.015));
+            const lensScale = wearGlasses ? Math.max(0.5, Math.min(2.0, calcSM(glassesSph))) : 1;
+
+            const netSph = eyeSph - (wearGlasses ? glassesSph : 0);
+            const netCyl = eyeCyl - (wearGlasses ? glassesCyl : 0);
+            const netAxis = eyeAxis - (wearGlasses ? glassesAxis : 0);
+            const abbeNumber = 30;
+            const caFactor = Math.abs(glassesSph) / (abbeNumber * 40);
+
+            useEffect(() => {
+                let frame;
+                const loop = () => {
+                    currentPan.current.x += (targetPan.current.x - currentPan.current.x) * 0.15;
+                    currentPan.current.y += (targetPan.current.y - currentPan.current.y) * 0.15;
+                    if (panoAreaRef.current) {
+                        panoAreaRef.current.style.setProperty('--pan-nx', currentPan.current.x);
+                        panoAreaRef.current.style.setProperty('--pan-ny', currentPan.current.y);
+                    }
+                    frame = requestAnimationFrame(loop);
+                };
+                frame = requestAnimationFrame(loop);
+                return () => cancelAnimationFrame(frame);
+            }, []); 
+
+            const handleMouseMove = (e) => {
+                let movementX = 0; let movementY = 0;
+                if (lastMousePos.current.x !== null) {
+                    movementX = e.clientX - lastMousePos.current.x;
+                    movementY = e.clientY - lastMousePos.current.y;
+                }
+                lastMousePos.current = { x: e.clientX, y: e.clientY };
+                mouseDeltaRef.current.dx += movementX; mouseDeltaRef.current.dy += movementY;
+
+                const rect = e.currentTarget.getBoundingClientRect();
+                targetPan.current = { x: (e.clientX - rect.left) / rect.width - 0.5, y: (e.clientY - rect.top) / rect.height - 0.5 };
+            };
+
+            const handleMouseLeave = () => {
+                lastMousePos.current = { x: null, y: null }; 
+                targetPan.current = { x: 0, y: 0 };
+            };
+
+            const resetNormal = () => {
+                setEyeSph(0); setEyeCyl(0); setEyeAxis(0); setCataract(0); setGlaucoma(0); setFloaters(0);
+                setWearGlasses(false); setGlassesSph(0); setGlassesCyl(0); setGlassesAxis(0);
+                setTintOpacity(0); setFilterUV(false); setFilterBlue(false); setFilterPolar(false); setIsSmudged(false);
+            };
+
+            const setAutoCorrect = () => {
+                setWearGlasses(true); setGlassesSph(eyeSph); setGlassesCyl(eyeCyl); setGlassesAxis(eyeAxis);
+            };
+
+            const glaucomaInner = 100 - (glaucoma * 0.85); 
+            const glaucomaOuter = 150 - (glaucoma * 1.3);  
+            const glassesPath = "M 0.02 0.35 C 0.03 0.05, 0.47 0.05, 0.48 0.32 C 0.49 0.36, 0.51 0.36, 0.52 0.32 C 0.53 0.05, 0.97 0.05, 0.98 0.35 C 0.98 0.78, 0.85 0.98, 0.7 0.98 C 0.55 0.98, 0.51 0.65, 0.51 0.45 C 0.50 0.42, 0.50 0.42, 0.49 0.45 C 0.49 0.65, 0.45 0.98, 0.3 0.98 C 0.15 0.98, 0.02 0.78, 0.02 0.35 Z";
+
+            const renderAstigmatismLayer = (sph, cyl, axis, isCorrected) => {
+                const bSph = Math.abs(sph) * 0.8 + (cataract * 0.05); 
+                const bCyl = Math.abs(cyl) * 1.5;
+                const diseaseFilter = `sepia(${cataract * 0.4}%) contrast(${100 - (cataract * 0.25)}%) brightness(${100 + (cataract * 0.1)}%) `;
+                
+                const baseOpacity = 1;
+                const baseScale = isCorrected ? lensScale : 1;
+                const scale = 1.25 * baseScale; 
+
+                const tx = `calc(var(--pan-nx, 0) * ${-120 / baseScale}px)`;
+                const ty = `calc(var(--pan-ny, 0) * ${-80 / baseScale}px)`;
+
+                if (bCyl < 0.2) {
+                    return (
+                        <img src={imageUrl} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover origin-center" 
+                            style={{ transform: `scale(${scale}) translate(${tx}, ${ty})`, filter: `blur(${bSph}px) ${diseaseFilter}`.trim(), opacity: baseOpacity, willChange: 'transform' }} alt="Pano" />
+                    );
+                }
+
+                const rad = axis * (Math.PI / 180);
+                const layers = [];
+                layers.push(<img key="base" src={imageUrl} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover origin-center" 
+                            style={{ transform: `scale(${scale}) translate(${tx}, ${ty})`, filter: `blur(${bSph}px) ${diseaseFilter}`.trim(), opacity: baseOpacity, willChange: 'transform' }} alt="Pano Base" />);
+
+                for(let i=1; i<=3; i++) {
+                    const dx1 = i * bCyl * 1.5 * Math.cos(rad); const dy1 = i * bCyl * 1.5 * Math.sin(rad);
+                    const dx2 = -i * bCyl * 1.5 * Math.cos(rad); const dy2 = -i * bCyl * 1.5 * Math.sin(rad);
+
+                    const t1x = `calc(var(--pan-nx, 0) * ${-120 / baseScale}px + ${dx1}px)`;
+                    const t1y = `calc(var(--pan-ny, 0) * ${-80 / baseScale}px + ${dy1}px)`;
+                    const t2x = `calc(var(--pan-nx, 0) * ${-120 / baseScale}px + ${dx2}px)`;
+                    const t2y = `calc(var(--pan-ny, 0) * ${-80 / baseScale}px + ${dy2}px)`;
+
+                    layers.push(<img key={`p${i}`} src={imageUrl} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover origin-center" 
+                                style={{ transform: `scale(${scale}) translate(${t1x}, ${t1y})`, filter: `blur(${bSph + i*0.5}px) ${diseaseFilter}`.trim(), opacity: baseOpacity * 0.15, mixBlendMode: 'screen', willChange: 'transform' }} alt="Pano Astig" />);
+                    layers.push(<img key={`n${i}`} src={imageUrl} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover origin-center" 
+                                style={{ transform: `scale(${scale}) translate(${t2x}, ${t2y})`, filter: `blur(${bSph + i*0.5}px) ${diseaseFilter}`.trim(), opacity: baseOpacity * 0.15, mixBlendMode: 'screen', willChange: 'transform' }} alt="Pano Astig" />);
+                }
+                return <>{layers}</>;
+            };
+
+            const renderChromaticAberration = () => {
+                const baseScale = lensScale; const scale = 1.25 * baseScale; 
+                const tx = `calc(var(--pan-nx, 0) * ${-120 / baseScale}px)`;
+                const ty = `calc(var(--pan-ny, 0) * ${-80 / baseScale}px)`;
+                const diseaseFilter = `sepia(${cataract * 0.4}%) contrast(${100 - (cataract * 0.25)}%) brightness(${100 + (cataract * 0.1)}%) `;
+                
+                return (
+                    <div className="absolute inset-0 bg-black pointer-events-none">
+                        <img src={imageUrl} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover origin-center mix-blend-screen" 
+                            style={{ transform: `scale(${scale * (1 + caFactor)}) translate(${tx}, ${ty})`, filter: `url(#filter-red) ${diseaseFilter}`, willChange: 'transform' }} alt="CA Red" />
+                        <img src={imageUrl} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover origin-center mix-blend-screen" 
+                            style={{ transform: `scale(${scale}) translate(${tx}, ${ty})`, filter: `url(#filter-green) ${diseaseFilter}`, willChange: 'transform' }} alt="CA Green" />
+                        <img src={imageUrl} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover origin-center mix-blend-screen" 
+                            style={{ transform: `scale(${scale * (1 - caFactor)}) translate(${tx}, ${ty})`, filter: `url(#filter-blue) ${diseaseFilter}`, willChange: 'transform' }} alt="CA Blue" />
+                    </div>
+                );
+            };
+
+            return (
+                <div className="h-screen flex flex-col bg-preview text-main font-sans select-none">
+                    <svg width="0" height="0" className="absolute pointer-events-none">
+                        <clipPath id="glassesClip" clipPathUnits="objectBoundingBox"><path d={glassesPath} /></clipPath>
+                        <filter id="filter-red"><feColorMatrix type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" /></filter>
+                        <filter id="filter-green"><feColorMatrix type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" /></filter>
+                        <filter id="filter-blue"><feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" /></filter>
+                    </svg>
+
+                    <header className="flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 h-12 shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <span className="bg-gradient-to-r from-blue-500 to-teal-400 bg-clip-text text-transparent font-bold text-base">Matamu Pro</span>
+                            <span className="text-[9px] font-mono text-dim italic mt-1 border px-1 rounded">v8.0 Minimalist Focus</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <button onClick={handleDownload} disabled={isCapturing} className={`px-3 py-1.5 rounded text-[10px] font-bold border flex items-center gap-1.5 transition ${isCapturing ? 'bg-slate-700 text-slate-400 border-slate-600' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'}`}>
+                                <CameraIcon /> {isCapturing ? 'Menyimpan...' : 'Foto'}
+                            </button>
+                            <div className="w-px h-6 bg-theme mx-1 self-center"></div>
+                            <button onClick={() => setDarkMode(!darkMode)} className="p-1.5 rounded hover:bg-theme text-dim hover:text-main transition-colors" title="Toggle Tema">
+                                {darkMode ? <SunIcon /> : <MoonIcon />}
+                            </button>
+                        </div>
+                    </header>
+
+                    <main className="flex-1 relative overflow-hidden flex flex-col">
+                        <div className="bg-editor border-b border-theme z-40 flex-shrink-0 shadow-sm relative">
+                            <div className="flex flex-col lg:flex-row px-4 py-3 gap-4 items-center">
+                                <div className="flex flex-wrap w-full lg:w-auto lg:pr-4 lg:border-r border-theme gap-2 justify-center">
+                                    <button onClick={resetNormal} className="px-3 py-1.5 rounded text-[10px] font-bold border border-theme bg-preview hover:bg-theme text-main transition">Normal</button>
+                                    <button onClick={() => setWearGlasses(!wearGlasses)} className={`px-3 py-1.5 rounded text-[10px] font-bold border gap-1.5 flex items-center transition ${wearGlasses ? 'bg-blue-600 text-white border-blue-600' : 'bg-preview text-main border-theme hover:bg-theme'}`}>
+                                        <GlassesIcon /> {wearGlasses ? 'Lepas' : 'Pakai'}
+                                    </button>
+                                </div>
+
+                                <div className="flex-1 w-full overflow-x-auto pb-1 lg:pb-0">
+                                    <div className="flex gap-4 min-w-[1100px]">
+                                        <div className="w-52">
+                                            <div className="text-[9px] text-dim font-bold tracking-widest mb-2">MATA FISIK</div>
+                                            <div className="space-y-1 border-l-2 border-theme pl-2">
+                                                <CompactSlider label="Miopia/Hiper (SPH)" value={eyeSph} min={-10} max={10} step={0.25} unit=" D" onChange={setEyeSph} />
+                                                <div className="flex gap-2">
+                                                    <div className="flex-1"><CompactSlider label="Silinder (CYL)" value={eyeCyl} min={-5} max={0} step={0.25} unit=" D" onChange={setEyeCyl} /></div>
+                                                    <div className="w-16"><CompactSlider label="Axis" value={eyeAxis} min={0} max={180} step={5} unit="°" onChange={setEyeAxis} disabled={eyeCyl===0}/></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className={`w-52 transition-opacity duration-300 ${wearGlasses ? 'opacity-100' : 'opacity-40'}`}>
+                                            <div className="flex justify-between items-center mb-1.5">
+                                                <div className="text-[9px] text-blue-500 font-bold tracking-widest">KACAMATA</div>
+                                                <button onClick={setAutoCorrect} disabled={!wearGlasses} className="text-[8px] bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-300 px-1.5 py-0.5 rounded">⚡ Auto Resep</button>
+                                            </div>
+                                            <div className="space-y-1 border-l-2 border-blue-500/30 pl-2">
+                                                <CompactSlider label="Sferis Kacamata" value={glassesSph} min={-10} max={10} step={0.25} unit=" D" disabled={!wearGlasses} onChange={setGlassesSph} />
+                                                <div className="flex gap-2">
+                                                    <div className="flex-1"><CompactSlider label="Silinder (CYL)" value={glassesCyl} min={-5} max={5} step={0.25} unit=" D" disabled={!wearGlasses} onChange={setGlassesCyl} /></div>
+                                                    <div className="w-16"><CompactSlider label="Axis" value={glassesAxis} min={0} max={180} step={5} unit="°" disabled={!wearGlasses || glassesCyl===0} onChange={setGlassesAxis} /></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className={`w-52 transition-opacity duration-300 ${wearGlasses ? 'opacity-100' : 'opacity-40'}`}>
+                                            <div className="text-[9px] text-purple-500 font-bold tracking-widest mb-2">SHADING & COATING</div>
+                                            <div className="space-y-0 border-l-2 border-purple-500/30 pl-2">
+                                                <div className="flex gap-2 items-center">
+                                                    <div className="flex-1"><ColorInput label="Warna Tint" value={tintColor} onChange={setTintColor} disabled={!wearGlasses} /></div>
+                                                    <div className="w-20 pt-1"><CompactSlider label="Reduce" value={tintOpacity} min={0} max={100} step={5} unit="%" disabled={!wearGlasses} onChange={setTintOpacity} /></div>
+                                                </div>
+                                                <CompactToggle label="Lensa Kotor (Smudge)" checked={isSmudged} onChange={setIsSmudged} disabled={!wearGlasses} />
+                                                <CompactToggle label="UV & Glare" checked={filterUV} onChange={setFilterUV} disabled={!wearGlasses} />
+                                                <CompactToggle label="Anti Radiasi" checked={filterBlue} onChange={setFilterBlue} disabled={!wearGlasses} />
+                                                <CompactToggle label="Polarizer" checked={filterPolar} onChange={setFilterPolar} disabled={!wearGlasses} />
+                                            </div>
+                                        </div>
+
+                                        <div className="w-36">
+                                            <div className="text-[9px] text-orange-500 font-bold tracking-widest mb-2">PATOLOGI</div>
+                                            <div className="space-y-1 border-l-2 border-orange-500/30 pl-2">
+                                                <CompactSlider label="Katarak" value={cataract} min={0} max={100} step={1} unit="%" onChange={setCataract} />
+                                                <CompactSlider label="Glaukoma" value={glaucoma} min={0} max={100} step={1} unit="%" onChange={setGlaucoma} />
+                                                <CompactSlider label="Floaters" value={floaters} min={0} max={100} step={1} unit="%" onChange={setFloaters} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* PANO VIEW AREA */}
+                        <div id="pano-view-area" 
+                             className="flex-1 relative bg-black overflow-hidden cursor-crosshair"
+                             ref={panoAreaRef} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+                            
+                            <div className="absolute inset-0">
+                                <div className="absolute inset-0 z-0">
+                                    {renderAstigmatismLayer(eyeSph, eyeCyl, eyeAxis, false)}
+                                </div>
+
+                                <div className={`absolute inset-0 z-10 pointer-events-none flex items-center justify-center glasses-parent ${wearGlasses ? 'is-worn' : ''}`}>
+                                    
+                                    <div className="absolute inset-0 z-10 overflow-hidden" style={{ clipPath: 'url(#glassesClip)', WebkitClipPath: 'url(#glassesClip)' }}>
+                                        <div className="absolute inset-0 w-full h-full glasses-child-inverse">
+                                            {caFactor > 0.002 ? (
+                                                renderChromaticAberration()
+                                            ) : (
+                                                renderAstigmatismLayer(netSph, netCyl, netAxis, true)
+                                            )}
+                                        </div>
+
+                                        {isSmudged && <DirtyLensSmudge />}
+
+                                        {tintOpacity > 0 && <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: tintColor, opacity: tintOpacity / 100, mixBlendMode: 'multiply' }}></div>}
+                                        {filterBlue && <div className="absolute inset-0 pointer-events-none bg-orange-500 mix-blend-multiply opacity-15"></div>}
+                                        {filterUV && <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/10 via-transparent to-emerald-400/10 mix-blend-screen pointer-events-none opacity-50"></div>}
+                                        {filterPolar && <div className="absolute inset-0 pointer-events-none mix-blend-overlay bg-black/10"></div>}
+                                        <div className="absolute inset-0 bg-blue-300/5 mix-blend-overlay pointer-events-none"></div>
+                                    </div>
+                                    
+                                    <div className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ filter: 'blur(8px)' }}>
+                                        <svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">
+                                            <path d={glassesPath} fill="none" stroke="#000" strokeWidth="0.04" strokeLinejoin="round" />
+                                            <path d="M 0.02 0.35 L -0.05 0.30" stroke="#000" strokeWidth="0.05"/>
+                                            <path d="M 0.98 0.35 L 1.05 0.30" stroke="#000" strokeWidth="0.05"/>
+                                        </svg>
+                                    </div>
+                                    <div className="absolute inset-0 w-full h-full pointer-events-none z-20" style={{ filter: 'blur(1px) drop-shadow(0 15px 25px rgba(0,0,0,0.8))' }}>
+                                        <svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">
+                                            <path d={glassesPath} fill="none" stroke={darkMode ? "#111" : "#222"} strokeWidth="0.018" strokeLinejoin="round" />
+                                            <path d={glassesPath} fill="none" stroke="#b89947" strokeWidth="0.005" strokeLinejoin="round" />
+                                            <path d={glassesPath} fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="0.003" strokeLinejoin="round" transform="translate(0, 0.003)" />
+                                            <path d="M 0.02 0.35 L -0.05 0.30" stroke={darkMode ? "#111" : "#222"} strokeWidth="0.02"/>
+                                            <path d="M 0.98 0.35 L 1.05 0.30" stroke={darkMode ? "#111" : "#222"} strokeWidth="0.02"/>
+                                            <path d="M 0.02 0.35 L -0.05 0.30" stroke="#b89947" strokeWidth="0.005"/>
+                                            <path d="M 0.98 0.35 L 1.05 0.30" stroke="#b89947" strokeWidth="0.005"/>
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="absolute inset-0 pointer-events-none z-30" style={{ background: `radial-gradient(ellipse at 50% 50%, transparent ${glaucomaInner}%, rgba(0,0,0,0.98) ${glaucomaOuter}%)` }} />
+                            
+                            <div className="pointer-events-none">
+                                <Floaters intensity={floaters} mouseDeltaRef={mouseDeltaRef} />
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ErrorBoundary><App /></ErrorBoundary>);
+    </script>
+</body>
+</html>
