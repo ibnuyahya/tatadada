@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Super Maria Bros - TATADADA Framework</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        header: 'var(--header-bg)',
+                        editor: 'var(--editor-bg)',
+                        preview: 'var(--preview-bg)',
+                        footer: 'var(--footer-bg)',
+                        dim: 'var(--text-dim)',
+                    },
+                    borderColor: {
+                        theme: 'var(--border-color)',
+                    },
+                    textColor: {
+                        main: 'var(--text-main)',
+                        dim: 'var(--text-dim)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Three.js & Post-Processing (Shader) Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/TextGeometry.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+    <style>
+        /* CSS TOKENS (TATADADA FRAMEWORK) */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        /* CUSTOM SCROLLBAR */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: var(--text-dim); }
+
+        /* GAME UI OVERLAYS OVERRIDE */
+        #hud-stats {
+            position: absolute; top: 20px; right: 20px; 
+            background: var(--header-bg); border: 2px solid var(--border-color); 
+            padding: 8px 16px; border-radius: 8px; color: var(--text-main);
+            font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: bold;
+            pointer-events: none; z-index: 10; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        
+        #reset-btn {
+            position: absolute; top: 75px; right: 20px; background: rgba(229, 37, 33, 0.9);
+            border: 2px solid var(--border-color); padding: 8px 16px; border-radius: 8px; 
+            color: #FFF; font-size: 1rem; font-weight: bold; cursor: pointer; z-index: 10; 
+            display: none; box-shadow: 0 4px 10px rgba(0,0,0,0.4); transition: transform 0.1s;
+        }
+        #reset-btn:hover { transform: scale(1.05); }
+        #reset-btn:active { transform: scale(0.95); }
+
+        #wasd-container {
+            position: absolute; bottom: 30px; left: 30px; display: flex; flex-direction: column;
+            align-items: center; gap: 8px; z-index: 10; display: none; pointer-events: none;
+        }
+        .key-row { display: flex; gap: 8px; align-items: center; justify-content: center; }
+        .key {
+            width: 50px; height: 50px; background: var(--editor-bg); border: 2px solid var(--border-color);
+            border-radius: 10px; color: var(--text-dim); font-size: 20px; font-weight: bold;
+            display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 4px 0 var(--border-color); transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .key.active {
+            background: #FFD700; color: #000; border-color: #FFF; transform: translateY(4px);
+            box-shadow: 0 0 0 transparent, 0 0 15px #FFD700, inset 0 0 10px rgba(255,255,255,0.8);
+        }
+
+        .loader {
+            width: 60px; height: 60px; border: 6px solid var(--border-color); border-top-color: #E52521;
+            border-radius: 50%; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .group:hover .tooltip { display: block; }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER -->
+    <header class="flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 h-14">
+        <!-- Branding -->
+        <div class="flex items-center space-x-3">
+            <h1 class="text-lg font-bold bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent">
+                Super Maria Bros
+            </h1>
+            <span class="text-[10px] font-mono text-dim italic mt-1">v4.0 MegaWorld</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 mt-1 ml-2 transition-colors">
+                by AhmadDanial
+            </a>
+            <!-- Tooltip Help -->
+            <div class="relative group ml-2 mt-1 cursor-help">
+                <i data-lucide="help-circle" class="w-4 h-4 text-dim hover:text-main transition-colors"></i>
+                <div class="tooltip hidden absolute top-full left-0 mt-2 w-72 p-3 bg-editor border border-theme rounded shadow-xl text-xs text-main z-50">
+                    <p data-i18n="help_text">Gunakan W, A, S, D untuk bergerak. Tekan SHIFT untuk lari cepat, dan SPACE untuk meloncat menyundul koin. Temukan Hutan, Rumah Penduduk & Checkpoint!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center space-x-4">
+            <button id="lang-toggle" class="flex items-center justify-center w-8 h-8 rounded hover:bg-preview text-dim hover:text-main transition-colors text-sm font-bold" title="Toggle Language">ID</button>
+            <button id="theme-toggle" class="flex items-center justify-center w-8 h-8 rounded hover:bg-preview text-dim hover:text-main transition-colors" title="Toggle Theme">
+                <i data-lucide="sun" id="theme-icon"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 relative overflow-hidden bg-preview" id="workspace">
+        
+        <!-- UI START LAYER OVERLAY -->
+        <div id="ui-layer" class="absolute inset-0 flex flex-col items-center justify-center bg-header/80 backdrop-blur-md z-40 transition-opacity duration-500">
+            <div id="loader-container" class="flex flex-col items-center">
+                <div class="loader"></div>
+                <div id="loading-text" class="mt-5 font-bold tracking-[2px] text-[#E52521] drop-shadow-sm" data-i18n="loading">MEMUAT DUNIA 3D...</div>
+            </div>
+            
+            <div class="text-center mt-4">
+                <h2 id="title" class="text-4xl font-bold mb-4 text-[#E52521] tracking-wide" style="display: none; text-shadow: 2px 2px 0 #FFF, 4px 4px 0 #000;">Petualangan Siang & Malam</h2>
+                <div id="desc" class="text-sm text-main mb-8 max-w-lg mx-auto bg-editor p-4 rounded-xl border border-theme shadow-lg leading-relaxed text-left" style="display: none;">
+                    <b data-i18n="controls_title" class="block text-center mb-2">KONTROL KARAKTER:</b>
+                    <b class="text-blue-500">W/S/A/D</b> - <span data-i18n="ctrl_move">Bergerak</span><br>
+                    <b class="text-blue-500">SHIFT</b> - <span data-i18n="ctrl_run">Lari Cepat</span><br>
+                    <b class="text-blue-500">SPACE</b> - <span data-i18n="ctrl_jump">Loncat / Sundul Koin</span><br>
+                </div>
+                <button id="start-btn" class="px-8 py-3 text-lg font-bold text-white bg-[#43B047] border-2 border-green-800 rounded-lg cursor-pointer shadow-[0_6px_0_#2A732D] hover:-translate-y-1 hover:shadow-[0_10px_0_#2A732D] active:translate-y-1 active:shadow-none transition-all hidden" data-i18n="start_btn">
+                    Mulai Petualangan
+                </button>
+            </div>
+        </div>
+
+        <!-- GAME OVERLAYS -->
+        <div id="hud-stats">
+            <span id="score-val" class="text-yellow-500 font-black">0</span> Pts |
+            <span data-i18n="distance">Jarak</span>: <span id="distance-val" class="text-blue-500">0</span> m
+        </div>
+        <button id="reset-btn">🔄 <span data-i18n="reset">Reset Posisi</span></button>
+        
+        <div id="wasd-container">
+            <div class="key-row">
+                <div class="key !w-auto px-3 text-sm" id="key-shift">SHIFT</div>
+                <div class="key" id="key-w">W</div>
+                <div class="key !w-auto px-3 text-sm" id="key- ">SPACE</div>
+            </div>
+            <div class="key-row">
+                <div class="key" id="key-a">A</div>
+                <div class="key" id="key-s">S</div>
+                <div class="key" id="key-d">D</div>
+            </div>
+        </div>
+
+        <!-- WEBGL CANVAS CONTAINER -->
+        <div id="canvas-container" class="w-full h-full cursor-crosshair outline-none"></div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 h-8">
+        <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            <span data-i18n="status">Engine Ready</span>
+        </div>
+        <div class="font-mono">WebGL 3D Context (Forest & Village)</div>
+    </footer>
+
+    <!-- LOGIKA TATADADA UI (Dark Mode & i18n) -->
+    <script>
+        lucide.createIcons();
+
+        const html = document.documentElement;
+        const themeBtn = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+
+        function updateThemeIcon(isDark) {
+            themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+            lucide.createIcons();
+        }
+
+        const savedTheme = localStorage.getItem('tatadada-theme');
+        let isDark = true; 
+        if (savedTheme) { isDark = savedTheme === 'dark'; } 
+        else { isDark = window.matchMedia('(prefers-color-scheme: dark)').matches; }
+
+        if (isDark) html.classList.add('dark'); else html.classList.remove('dark');
+        updateThemeIcon(isDark);
+
+        themeBtn.addEventListener('click', () => {
+            isDark = !isDark;
+            html.classList.toggle('dark', isDark);
+            localStorage.setItem('tatadada-theme', isDark ? 'dark' : 'light');
+            updateThemeIcon(isDark);
+        });
+
+        const langToggle = document.getElementById('lang-toggle');
+        const i18nData = {
+            id: {
+                help_text: "Gunakan W, A, S, D untuk bergerak. Tekan SHIFT untuk lari cepat, dan SPACE untuk meloncat menyundul koin. Temukan Hutan, Rumah Penduduk & Checkpoint!",
+                loading: "MEMUAT DUNIA 3D...",
+                controls_title: "KONTROL KARAKTER:",
+                ctrl_move: "Bergerak",
+                ctrl_run: "Lari Cepat",
+                ctrl_jump: "Loncat / Sundul Koin",
+                start_btn: "Mulai Petualangan",
+                distance: "Jarak",
+                reset: "Reset Posisi",
+                status: "Engine Ready"
+            },
+            en: {
+                help_text: "Use W, A, S, D to move. Press SHIFT to sprint, and SPACE to jump and hit coins. Discover Dense Forests, Villages & Checkpoints!",
+                loading: "LOADING 3D WORLD...",
+                controls_title: "CHARACTER CONTROLS:",
+                ctrl_move: "Move",
+                ctrl_run: "Sprint Fast",
+                ctrl_jump: "Jump / Hit Coin",
+                start_btn: "Start Adventure",
+                distance: "Distance",
+                reset: "Reset Position",
+                status: "Engine Ready"
+            }
+        };
+
+        let currentLang = localStorage.getItem('tatadada-lang') || 'id';
+        
+        function applyLang(lang) {
+            langToggle.innerText = lang.toUpperCase();
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18nData[lang] && i18nData[lang][key]) {
+                    el.innerText = i18nData[lang][key];
+                }
+            });
+        }
+        applyLang(currentLang);
+
+        langToggle.addEventListener('click', () => {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            localStorage.setItem('tatadada-lang', currentLang);
+            applyLang(currentLang);
+        });
+    </script>
+
+    <!-- LOGIKA BISNIS APLIKASI UTAMA (Three.js Engine) -->
+    <script>
+        // === 1. SETUP DASAR & RENDERER ===
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        
+        // Warna Siang & Malam untuk interpolasi
+        const colorSkyDay = new THREE.Color(0x33A1FF);
+        const colorSkyNight = new THREE.Color(0x050515);
+        scene.background = colorSkyDay.clone(); 
+        scene.fog = new THREE.FogExp2(0x33A1FF, 0.0001); 
+
+        let cWidth = container.clientWidth;
+        let cHeight = container.clientHeight;
+
+        // Jarak pandang kamera diperjauh (far clipping plane menjadi 20000)
+        const camera = new THREE.PerspectiveCamera(70, cWidth / cHeight, 1, 20000);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(cWidth, cHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.NoToneMapping;
+        container.appendChild(renderer.domElement);
+
+        const renderScene = new THREE.RenderPass(scene, camera);
+        const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(cWidth, cHeight), 1.2, 0.4, 0.85);
+        const composer = new THREE.EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        // === 2. PENCAHAYAAN & SIKLUS WAKTU ===
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffeedd, 1.5);
+        sunLight.castShadow = true;
+        sunLight.shadow.camera.left = -4000; sunLight.shadow.camera.right = 4000;
+        sunLight.shadow.camera.top = 4000; sunLight.shadow.camera.bottom = -4000;
+        sunLight.shadow.camera.far = 10000; sunLight.shadow.bias = -0.0005;
+        sunLight.shadow.mapSize.width = 2048; sunLight.shadow.mapSize.height = 2048;
+        scene.add(sunLight);
+        scene.add(sunLight.target); // Tambahkan target cahaya ke scene agar bisa mengikuti pemain
+
+        const sunMat = new THREE.MeshBasicMaterial({ color: 0xFFFFAA });
+        // Ukuran matahari diperbesar karena akan diposisikan sangat jauh
+        const sun = new THREE.Mesh(new THREE.SphereGeometry(800, 32, 32), sunMat);
+        scene.add(sun);
+
+
+        // === 3. TEXTURE & TERRAIN ===
+        function createGrassTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512; const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#32CD32'; ctx.fillRect(0, 0, 512, 512); 
+            for(let i=0; i<8000; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? '#228B22' : '#3CB371';
+                ctx.fillRect(Math.random()*512, Math.random()*512, 4, 4);
+            }
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 2;
+            for(let i=0; i<=512; i+=64) {
+                ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,512); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(512,i); ctx.stroke();
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(80, 80);
+            return tex;
+        }
+
+        function getTerrainHeight(x, z) {
+            let y = Math.sin(x * 0.0004) * Math.cos(z * 0.0004) * 900;
+            y += Math.sin(x * 0.0015) * 200;
+            y += Math.cos(z * 0.001) * 300;
+            return y - 400; 
+        }
+
+        const groundMat = new THREE.MeshStandardMaterial({ map: createGrassTexture(), roughness: 0.9, metalness: 0.05 });
+        const groundGeo = new THREE.PlaneGeometry(40000, 40000, 150, 150);
+        const posAttr = groundGeo.attributes.position;
+        for(let i=0; i<posAttr.count; i++) {
+            posAttr.setZ(i, getTerrainHeight(posAttr.getX(i), posAttr.getY(i)));
+        }
+        groundGeo.computeVertexNormals();
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Pegunungan Horizon
+        const mountMat = new THREE.MeshStandardMaterial({ color: 0x2A732D, roughness: 1 });
+        const HORIZON_RADIUS = 12000; 
+        const mountainsData = []; 
+        for(let i=0; i<60; i++) {
+            const angle = (i / 60) * Math.PI * 2;
+            const radius = HORIZON_RADIUS + (Math.random() * 1000); 
+            const x = Math.cos(angle) * radius; const z = Math.sin(angle) * radius;
+            const height = 2000 + Math.random() * 3000; const width = 1500 + Math.random() * 1000;
+            const mountain = new THREE.Mesh(new THREE.ConeGeometry(width, height, 16), mountMat);
+            mountain.position.set(x, getTerrainHeight(x, z) + height/2 - 500, z);
+            mountain.castShadow = true; mountain.receiveShadow = true;
+            
+            const snow = new THREE.Mesh(new THREE.ConeGeometry(width*0.35, height*0.35, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 }));
+            snow.position.y = height / 2; mountain.add(snow);
+            scene.add(mountain);
+            mountainsData.push({ position: mountain.position.clone(), height: height, radius: width });
+        }
+
+
+        // === 4. ORNAMEN: HUTAN, RUMAH, KOIN, CHECKPOINT & HEWAN ===
+        const decorGroup = new THREE.Group();
+        scene.add(decorGroup);
+        const npcs = []; 
+        const coins = []; 
+        const checkpoints = [];
+
+        function createBrickTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256; const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#B22222'; ctx.fillRect(0, 0, 256, 256); ctx.fillStyle = '#DDDDDD';
+            ctx.fillRect(0, 0, 256, 8); ctx.fillRect(0, 128, 256, 8);
+            ctx.fillRect(124, 8, 8, 120); ctx.fillRect(60, 136, 8, 120); ctx.fillRect(188, 136, 8, 120);
+            return new THREE.CanvasTexture(canvas);
+        }
+        function createPipeTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256; const ctx = canvas.getContext('2d');
+            const grd = ctx.createLinearGradient(0, 0, 256, 0);
+            grd.addColorStop(0, "#005500"); grd.addColorStop(0.5, "#55FF55"); grd.addColorStop(1, "#003300");
+            ctx.fillStyle = grd; ctx.fillRect(0, 0, 256, 256);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const pipeMat = new THREE.MeshStandardMaterial({ map: createPipeTexture(), roughness: 0.4 });
+        const brickMat = new THREE.MeshStandardMaterial({ map: createBrickTexture(), roughness: 0.9 });
+        const treeTrunkMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.9 });
+        const treeLeafMat = new THREE.MeshStandardMaterial({ color: 0x228B22, roughness: 0.8 });
+        const coinMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.8, roughness: 0.2 });
+        const cpMat = new THREE.MeshStandardMaterial({ color: 0xCC0000, metalness: 0.5, roughness: 0.5 });
+        const flagMat = new THREE.MeshBasicMaterial({ color: 0xFFDD00 });
+
+        const sheepBodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0 });
+        const sheepFaceMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
+        const catMat = new THREE.MeshStandardMaterial({ color: 0xFF8C00, roughness: 0.8 });
+
+        // Generate 3000 objek untuk dunia yang lebih padat & kaya
+        for(let i=0; i<3000; i++) {
+            const rx = (Math.random()-0.5) * 30000; 
+            const rz = (Math.random()-0.5) * 30000;
+            const ty = getTerrainHeight(rx, rz);
+            const rand = Math.random();
+            
+            // Logika Hutan (Math Noise) - Membentuk klaster/pulau pepohonan
+            const isForest = Math.sin(rx * 0.0002) * Math.cos(rz * 0.0002) > 0.2;
+
+            if (rand > 0.995) {
+                // Checkpoint Pad (~15 buah)
+                const cp = new THREE.Mesh(new THREE.CylinderGeometry(50, 50, 10, 16), cpMat);
+                cp.position.set(rx, ty + 5, rz);
+                cp.receiveShadow = true;
+                
+                const pole = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 150, 8), new THREE.MeshStandardMaterial({color: 0x888888}));
+                pole.position.y = 75; cp.add(pole);
+                const flag = new THREE.Mesh(new THREE.BoxGeometry(40, 30, 2), flagMat);
+                flag.position.set(20, 130, 0); cp.add(flag);
+                
+                decorGroup.add(cp);
+                checkpoints.push({ mesh: cp, active: false });
+
+            } else if (isForest) {
+                // ZONA HUTAN
+                if (rand > 0.2) {
+                    // 80% Pohon di zona hutan
+                    const trunkHeight = 100 + Math.random()*80;
+                    const tree = new THREE.Group();
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(15, 20, trunkHeight, 8), treeTrunkMat);
+                    trunk.position.y = trunkHeight/2; trunk.castShadow = true; tree.add(trunk);
+                    
+                    const leaves = new THREE.Mesh(new THREE.SphereGeometry(60 + Math.random()*20, 16, 16), treeLeafMat);
+                    leaves.position.y = trunkHeight + 20; leaves.castShadow = true; tree.add(leaves); 
+                    tree.position.set(rx, ty - 10, rz);
+                    decorGroup.add(tree);
+                } else {
+                    // 20% Koin di zona hutan
+                    const coin = new THREE.Mesh(new THREE.CylinderGeometry(20, 20, 8, 16), coinMat);
+                    coin.rotation.x = Math.PI / 2; 
+                    coin.position.set(rx, ty + 60 + Math.random()*100, rz); // Lebih bervariasi tingginya
+                    coin.castShadow = true; decorGroup.add(coin);
+                    coins.push({ mesh: coin, active: true, respawnTime: 0 });
+                }
+            } else {
+                // ZONA NORMAL (Permukiman, Pipa, dll)
+                if (rand > 0.90) {
+                    const pipeHeight = 150 + Math.random() * 100;
+                    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(40, 40, pipeHeight, 16), pipeMat);
+                    pipe.position.set(rx, ty + pipeHeight/2 - 20, rz);
+                    pipe.castShadow = true; pipe.receiveShadow = true;
+                    const lip = new THREE.Mesh(new THREE.CylinderGeometry(45, 45, 30, 16), pipeMat);
+                    lip.position.y = pipeHeight/2; pipe.add(lip);
+                    decorGroup.add(pipe);
+                } else if (rand > 0.80) {
+                    const brick = new THREE.Mesh(new THREE.BoxGeometry(80, 80, 80), brickMat);
+                    brick.position.set(rx, ty + 150 + Math.random()*150, rz);
+                    brick.castShadow = true; brick.receiveShadow = true;
+                    decorGroup.add(brick);
+                } else if (rand > 0.65) {
+                    // RUMAH PENDUDUK (Ukurannya dibesarkan 2x lipat)
+                    const wallHeight = 100 + Math.random() * 60;
+                    const wallSize = 150 + Math.random() * 50;
+                    const house = new THREE.Group();
+                    
+                    const wallColor = Math.random() > 0.5 ? 0xFFFFFF : (Math.random() > 0.5 ? 0xFFE4C4 : 0xFFB6C1);
+                    const wall = new THREE.Mesh(new THREE.BoxGeometry(wallSize, wallHeight, wallSize), new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.9 }));
+                    wall.position.y = wallHeight / 2; wall.castShadow = true; wall.receiveShadow = true;
+                    house.add(wall);
+                    
+                    const roofColors = [0xDC143C, 0x8B0000, 0x1E90FF, 0xDAA520, 0x8B4513];
+                    const roof = new THREE.Mesh(new THREE.ConeGeometry(wallSize * 0.8, 80, 4), new THREE.MeshStandardMaterial({ color: roofColors[Math.floor(Math.random() * roofColors.length)], roughness: 0.8 }));
+                    roof.rotation.y = Math.PI / 4; 
+                    roof.position.y = wallHeight + 40; roof.castShadow = true; house.add(roof);
+
+                    const door = new THREE.Mesh(new THREE.BoxGeometry(40, 60, 4), new THREE.MeshStandardMaterial({ color: 0x4A2311 }));
+                    door.position.set(0, 30, wallSize / 2); house.add(door);
+
+                    house.position.set(rx, ty, rz);
+                    decorGroup.add(house);
+                } else if (rand > 0.45) {
+                    // Pohon Jarang
+                    const tree = new THREE.Group();
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(15, 20, 120, 8), treeTrunkMat);
+                    trunk.position.y = 60; trunk.castShadow = true; tree.add(trunk);
+                    const leaves = new THREE.Mesh(new THREE.SphereGeometry(60, 16, 16), treeLeafMat);
+                    leaves.position.y = 140; leaves.castShadow = true; tree.add(leaves); 
+                    tree.position.set(rx, ty - 10, rz); decorGroup.add(tree);
+                } else if (rand > 0.15) {
+                    // Koin (Mendominasi sisa ruang, mudah diambil)
+                    const coin = new THREE.Mesh(new THREE.CylinderGeometry(20, 20, 8, 16), coinMat);
+                    coin.rotation.x = Math.PI / 2; 
+                    coin.position.set(rx, ty + 80 + Math.random()*50, rz);
+                    coin.castShadow = true; decorGroup.add(coin);
+                    coins.push({ mesh: coin, active: true, respawnTime: 0 });
+                } else if (rand > 0.08) {
+                    // Domba
+                    const sheep = new THREE.Group();
+                    const body = new THREE.Mesh(new THREE.SphereGeometry(20, 8, 8), sheepBodyMat);
+                    body.position.y = 20; body.castShadow = true; sheep.add(body);
+                    const head = new THREE.Mesh(new THREE.BoxGeometry(15, 15, 15), sheepFaceMat);
+                    head.position.set(0, 25, 15); head.castShadow = true; sheep.add(head);
+                    sheep.position.set(rx, ty, rz);
+                    sheep.userData = { isAnimal: true, speed: Math.random()*0.5 + 0.2, turnWait: 0 };
+                    scene.add(sheep); npcs.push(sheep);
+                } else {
+                    // Kucing
+                    const cat = new THREE.Group();
+                    const body = new THREE.Mesh(new THREE.BoxGeometry(10, 10, 20), catMat);
+                    body.position.y = 10; body.castShadow = true; cat.add(body);
+                    const head = new THREE.Mesh(new THREE.BoxGeometry(12, 10, 12), catMat);
+                    head.position.set(0, 15, 12); head.castShadow = true; cat.add(head);
+                    const tail = new THREE.Mesh(new THREE.BoxGeometry(2, 15, 2), catMat);
+                    tail.position.set(0, 15, -10); tail.rotation.x = Math.PI/4; cat.add(tail);
+                    cat.position.set(rx, ty, rz);
+                    cat.userData = { isAnimal: true, speed: Math.random()*1 + 0.5, turnWait: 0 };
+                    scene.add(cat); npcs.push(cat);
+                }
+            }
+        }
+
+
+        // === 5. KARAKTER 3RD PERSON, FISIKA & SENTER ===
+        const player = new THREE.Group();
+        player.position.set(0, 1000, 0); 
+        scene.add(player);
+
+        const marioGroup = new THREE.Group();
+        player.add(marioGroup);
+
+        let velocityY = 0;
+        const gravity = -0.8;
+        const jumpForce = 18;
+        let isGrounded = false;
+        let respawnPoint = new THREE.Vector3(0, 0, 0);
+
+        const shirtMat = new THREE.MeshStandardMaterial({ color: 0xE52521, roughness: 0.7 });
+        const overallMat = new THREE.MeshStandardMaterial({ color: 0x00439C, roughness: 0.8 });
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0xFFCC99, roughness: 0.6 });
+        const gloveMat = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.9 });
+        const shoeMat = new THREE.MeshStandardMaterial({ color: 0x663300, roughness: 0.8 });
+        const goldMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, roughness: 0.3, metalness: 0.8 }); 
+
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(14, 16, 25, 16), overallMat);
+        body.position.y = 25; body.castShadow = true; marioGroup.add(body);
+        const shirt = new THREE.Mesh(new THREE.SphereGeometry(15, 16, 16), shirtMat);
+        shirt.position.y = 38; shirt.castShadow = true; marioGroup.add(shirt);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(12, 16, 16), skinMat);
+        head.position.set(0, 53, -2); head.castShadow = true; marioGroup.add(head);
+        const hat = new THREE.Mesh(new THREE.SphereGeometry(12.5, 16, 16, 0, Math.PI*2, 0, Math.PI/2), shirtMat);
+        hat.position.set(0, 55, -2); hat.castShadow = true; marioGroup.add(hat);
+        const brim = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 2, 16), shirtMat);
+        brim.position.set(0, 54, -9); brim.castShadow = true; marioGroup.add(brim);
+
+        const armGeo = new THREE.CylinderGeometry(4, 5, 18, 16); 
+        const leftArmPivot = new THREE.Group(); leftArmPivot.position.set(-18, 38, 0);
+        const leftArm = new THREE.Mesh(armGeo, shirtMat); leftArm.position.set(0, -9, 0); leftArm.castShadow = true; leftArmPivot.add(leftArm);
+        marioGroup.add(leftArmPivot);
+        const rightArmPivot = new THREE.Group(); rightArmPivot.position.set(18, 38, 0);
+        const rightArm = new THREE.Mesh(armGeo, shirtMat); rightArm.position.set(0, -9, 0); rightArm.castShadow = true; rightArmPivot.add(rightArm);
+        marioGroup.add(rightArmPivot);
+
+        const legGeo = new THREE.CylinderGeometry(5, 4, 15, 16); 
+        const leftLegPivot = new THREE.Group(); leftLegPivot.position.set(-8, 15, 0);
+        const leftLeg = new THREE.Mesh(legGeo, overallMat); leftLeg.position.set(0, -7.5, 0); leftLeg.castShadow = true; leftLegPivot.add(leftLeg);
+        const leftShoe = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 14), shoeMat); leftShoe.position.set(0, -15, -3); leftLegPivot.add(leftShoe);
+        marioGroup.add(leftLegPivot);
+        const rightLegPivot = new THREE.Group(); rightLegPivot.position.set(8, 15, 0);
+        const rightLeg = new THREE.Mesh(legGeo, overallMat); rightLeg.position.set(0, -7.5, 0); rightLeg.castShadow = true; rightLegPivot.add(rightLeg);
+        const rightShoe = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 14), shoeMat); rightShoe.position.set(0, -15, -3); rightLegPivot.add(rightShoe);
+        marioGroup.add(rightLegPivot);
+
+        // Senter
+        const flashlight = new THREE.SpotLight(0xffffff, 0.0, 1000, Math.PI/4, 0.5, 1);
+        flashlight.position.set(0, 40, 10);
+        player.add(flashlight);
+        const targetObj = new THREE.Object3D();
+        targetObj.position.set(0, 20, -100); 
+        player.add(targetObj);
+        flashlight.target = targetObj;
+
+
+        // === 6. TEKS, BANNER, JEJAK KAKI & KEMBANG API ===
+        let bannerGroup = new THREE.Group();
+        scene.add(bannerGroup);
+        const floaters = [];
+        
+        const fontLoader = new THREE.FontLoader();
+        fontLoader.load('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/fonts/optimer_bold.typeface.json', (font) => {
+            const cuteColors = [0xFF6B6B, 0x4ECDC4, 0xFFE66D, 0x9B5DE5, 0xF15BB5, 0x00BBF9, 0xFF9F1C];
+            mountainsData.forEach((m, idx) => {
+                if (idx % 7 === 0) { 
+                    const mTextGeo = new THREE.TextGeometry('HBD Bu Irma', { font: font, size: 250, height: 40 });
+                    mTextGeo.center();
+                    const randColor = cuteColors[Math.floor(Math.random() * cuteColors.length)];
+                    const mText = new THREE.Mesh(mTextGeo, new THREE.MeshStandardMaterial({ color: randColor, emissive: randColor, emissiveIntensity: 0.4, roughness: 0.2 }));
+                    mText.position.copy(m.position); mText.position.y += m.height * 0.15; 
+                    const toCenter = new THREE.Vector3(-m.position.x, 0, -m.position.z).normalize().multiplyScalar(m.radius * 0.85);
+                    mText.position.add(toCenter); mText.lookAt(0, mText.position.y, 0); 
+                    mText.castShadow = true; scene.add(mText);
+                }
+            });
+
+            const bannerBg = new THREE.Mesh(new THREE.BoxGeometry(1200, 250, 20), new THREE.MeshStandardMaterial({ color: 0xD2B48C, roughness: 1 }));
+            const textGeo = new THREE.TextGeometry('HBD Bu Irma', { font: font, size: 120, height: 25 });
+            textGeo.center();
+            const textMesh = new THREE.Mesh(textGeo, new THREE.MeshStandardMaterial({ color: 0xE52521, emissive: 0x220000 }));
+            textMesh.position.z = 20; 
+            const planeMesh = new THREE.Mesh(new THREE.BoxGeometry(200, 100, 200), new THREE.MeshStandardMaterial({color: 0x00439C}));
+            planeMesh.position.set(-800, 0, 0); 
+
+            bannerGroup.add(bannerBg); bannerGroup.add(textMesh); bannerGroup.add(planeMesh);
+            bannerGroup.position.set(0, 3000, -6000);
+
+            document.getElementById('loader-container').style.display = 'none';
+            document.getElementById('title').style.display = 'block';
+            document.getElementById('desc').style.display = 'block';
+            document.getElementById('start-btn').style.display = 'inline-block'; 
+        });
+
+        const footprints = [];
+        const fpGeo = new THREE.PlaneGeometry(8, 12);
+        const fpMat = new THREE.MeshBasicMaterial({ color: 0x114411, transparent: true, opacity: 0.5 });
+        let lastFpTime = 0;
+
+        const fireworks = [];
+        function triggerFirework(origin) {
+            const particleCount = 150;
+            const posArray = new Float32Array(particleCount * 3);
+            const velArray = [];
+            for(let i=0; i<particleCount; i++) {
+                posArray[i*3] = origin.x; posArray[i*3+1] = origin.y + 100; posArray[i*3+2] = origin.z;
+                velArray.push(new THREE.Vector3((Math.random()-0.5)*30, Math.random()*30, (Math.random()-0.5)*30));
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff];
+            const mat = new THREE.PointsMaterial({ color: colors[Math.floor(Math.random()*colors.length)], size: 15, transparent: true, blending: THREE.AdditiveBlending });
+            const points = new THREE.Points(geo, mat);
+            scene.add(points);
+            fireworks.push({ mesh: points, velocities: velArray, life: 1.0 });
+        }
+
+        // === 6.5. AUDIO & SOUND EFFECTS (WEB AUDIO API SYNTH) ===
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx, noiseBuffer;
+
+        const sfx = {
+            musicPlaying: false,
+            init: function() {
+                if (!audioCtx) {
+                    audioCtx = new AudioContext();
+                    const bufferSize = audioCtx.sampleRate * 2;
+                    noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                    const output = noiseBuffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; }
+                }
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+            },
+            playMusic: function() {
+                if (!audioCtx || this.musicPlaying) return;
+                this.musicPlaying = true;
+                let noteIdx = 0;
+                // Melodi Ceria (C major arpeggio)
+                const melody = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 261.63, 196.00]; 
+                
+                const nextNote = () => {
+                    if(audioCtx.state === 'suspended') return;
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    
+                    const now = audioCtx.currentTime;
+                    osc.frequency.setValueAtTime(melody[noteIdx], now);
+                    
+                    // Suara BGM di-set sangat pelan (0.015) agar tidak menutupi SFX
+                    gain.gain.setValueAtTime(0.015, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                    
+                    osc.start(now); osc.stop(now + 0.2);
+                    noteIdx = (noteIdx + 1) % melody.length;
+                    setTimeout(nextNote, 250); // Tempo
+                };
+                nextNote();
+            },
+            playJump: function() {
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.2);
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+            },
+            playCoin: function() {
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+                osc.frequency.setValueAtTime(987.77, now);
+                gain.gain.setValueAtTime(0.05, now); gain.gain.setValueAtTime(0.0, now + 0.08);
+                osc.frequency.setValueAtTime(1318.51, now + 0.1);
+                gain.gain.setValueAtTime(0.05, now + 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            },
+            playStep: function() {
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(50, now + 0.05);
+                gain.gain.setValueAtTime(0.02, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+                osc.start(now); osc.stop(now + 0.05);
+            },
+            playFirework: function() {
+                if (!audioCtx || !noiseBuffer) return;
+                const noiseSource = audioCtx.createBufferSource();
+                noiseSource.buffer = noiseBuffer;
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass'; filter.frequency.value = 1000;
+                const gain = audioCtx.createGain();
+                noiseSource.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+                filter.frequency.exponentialRampToValueAtTime(100, now + 1);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 1);
+                noiseSource.start(now); noiseSource.stop(now + 1);
+            }
+        };
+
+        // === 7. KONTROL WASD + SHIFT + SPACE ===
+        let isPlaying = false;
+        let distanceFlown = 0;
+        let playerScore = 0;
+        
+        const keys = { w: false, a: false, s: false, d: false, shift: false, " ": false };
+
+        window.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if(keys.hasOwnProperty(k)) {
+                keys[k] = true;
+                const elId = k === " " ? "key- " : "key-" + k;
+                const el = document.getElementById(elId);
+                if(el) el.classList.add('active');
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            if(keys.hasOwnProperty(k)) {
+                keys[k] = false;
+                const elId = k === " " ? "key- " : "key-" + k;
+                const el = document.getElementById(elId);
+                if(el) el.classList.remove('active');
+            }
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('ui-layer').style.opacity = '0';
+            document.getElementById('hud-stats').style.display = 'block'; 
+            document.getElementById('wasd-container').style.display = 'flex'; 
+            document.getElementById('reset-btn').style.display = 'block'; 
+            setTimeout(() => { document.getElementById('ui-layer').style.display = 'none'; isPlaying = true; }, 500);
+            respawnPoint.set(0, getTerrainHeight(0,0), 0);
+            
+            sfx.init();
+            sfx.playMusic(); // Mainkan BGM
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            player.position.copy(respawnPoint);
+            player.rotation.set(0, 0, 0);
+            marioGroup.rotation.z = 0;
+            velocityY = 0;
+            Object.keys(keys).forEach(k => keys[k] = false);
+            document.querySelectorAll('.key').forEach(el => el.classList.remove('active'));
+        });
+
+
+        // === 8. LOGIKA ANIMASI ===
+        const clock = new THREE.Clock();
+        let dayTime = 0; 
+        const colorSunrise = new THREE.Color(0xFF7F50); 
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+            const delta = Math.min(clock.getDelta(), 0.1); 
+
+            dayTime += delta * 0.15; 
+            const sunY = Math.sin(dayTime);
+            const sunX = Math.cos(dayTime);
+            
+            // Vektor arah cahaya matahari
+            const sunDirection = new THREE.Vector3(sunX, sunY, -0.8).normalize();
+
+            // 1. Posisi Cahaya (DirectionalLight) mengikuti pemain agar bayangan tidak terpotong saat jalan jauh
+            sunLight.position.copy(player.position).add(sunDirection.clone().multiplyScalar(5000));
+            sunLight.target.position.copy(player.position);
+            sunLight.target.updateMatrixWorld();
+
+            // 2. Posisi Visual Matahari (Mesh) dipasang menempel pada pandangan ujung kamera
+            // Ini membuat matahari bertindak seperti "langit" (Skybox) yang tidak bisa dicapai
+            sun.position.copy(camera.position).add(sunDirection.clone().multiplyScalar(15000));
+            
+            const currentSkyColor = new THREE.Color();
+            let mixFactor = Math.max(0, Math.min(1, sunY + 0.3)); 
+
+            if (sunY > 0.2) {
+                 let t = Math.min(1, (sunY - 0.2) / 0.8);
+                 currentSkyColor.copy(colorSunrise).lerp(colorSkyDay, t);
+            } else if (sunY > -0.2) {
+                 let t = (sunY + 0.2) / 0.4;
+                 currentSkyColor.copy(colorSkyNight).lerp(colorSunrise, t);
+            } else {
+                 currentSkyColor.copy(colorSkyNight);
+            }
+            
+            scene.background.copy(currentSkyColor);
+            scene.fog.color.copy(currentSkyColor);
+            
+            sunLight.color.setHSL(0.1 + mixFactor * 0.05, 1.0, 0.5 + mixFactor * 0.5);
+            sunLight.intensity = Math.max(0, sunY * 1.5);
+            ambientLight.intensity = 0.2 + mixFactor * 0.4;
+            
+            if (mixFactor < 0.4) { flashlight.intensity = 3.0; } 
+            else { flashlight.intensity = 0.0; }
+
+
+            if (isPlaying) {
+                const turnSpeed = 0.05;
+                const baseSpeed = 10;
+                const speed = keys.shift ? baseSpeed * 2.5 : baseSpeed; 
+                let isMoving = false;
+                
+                if (keys.a) player.rotation.y += turnSpeed;
+                if (keys.d) player.rotation.y -= turnSpeed;
+                
+                if (keys.w) { player.translateZ(-speed); isMoving = true; }
+                if (keys.s) { player.translateZ(speed * 0.6); isMoving = true; }
+
+                if (keys[" "] && isGrounded) {
+                    velocityY = jumpForce;
+                    isGrounded = false;
+                    sfx.playJump(); 
+                }
+
+                velocityY += gravity;
+                player.position.y += velocityY;
+
+                const currentGround = getTerrainHeight(player.position.x, player.position.z);
+                
+                if (player.position.y <= currentGround) {
+                    player.position.y = currentGround;
+                    velocityY = 0;
+                    isGrounded = true;
+                    
+                    if (isMoving && time - lastFpTime > (keys.shift ? 0.1 : 0.2)) {
+                        const fp = new THREE.Mesh(fpGeo, fpMat);
+                        fp.rotation.x = -Math.PI/2;
+                        fp.rotation.z = player.rotation.y;
+                        fp.position.set(player.position.x, currentGround + 2, player.position.z);
+                        scene.add(fp);
+                        footprints.push({ mesh: fp, life: 1.0 });
+                        lastFpTime = time;
+                        sfx.playStep(); 
+                    }
+                } else {
+                    isGrounded = false;
+                }
+
+                if (isMoving && isGrounded) {
+                    distanceFlown += (speed / 20);
+                    document.getElementById('distance-val').innerText = Math.floor(distanceFlown);
+                    
+                    const walkCycle = Math.sin(time * (keys.shift ? 20 : 12)) * 0.8; 
+                    leftLegPivot.rotation.x = walkCycle; rightLegPivot.rotation.x = -walkCycle;
+                    leftArmPivot.rotation.x = -walkCycle; rightArmPivot.rotation.x = walkCycle;
+                    marioGroup.rotation.z = Math.sin(time * 10) * 0.05;
+                } else {
+                    leftLegPivot.rotation.x += (0 - leftLegPivot.rotation.x) * 0.2;
+                    rightLegPivot.rotation.x += (0 - rightLegPivot.rotation.x) * 0.2;
+                    leftArmPivot.rotation.x += (0 - leftArmPivot.rotation.x) * 0.2;
+                    rightArmPivot.rotation.x += (0 - rightArmPivot.rotation.x) * 0.2;
+                    marioGroup.rotation.z += (0 - marioGroup.rotation.z) * 0.1;
+                }
+
+                const MAX_RADIUS = 10000;
+                const distFromCenter = Math.hypot(player.position.x, player.position.z);
+                if (distFromCenter > MAX_RADIUS) {
+                    const angleFromCenter = Math.atan2(player.position.z, player.position.x);
+                    player.position.x = Math.cos(angleFromCenter) * MAX_RADIUS;
+                    player.position.z = Math.sin(angleFromCenter) * MAX_RADIUS;
+                }
+
+                const idealCamPos = new THREE.Vector3(0, 150, 300);
+                idealCamPos.applyQuaternion(player.quaternion);
+                idealCamPos.add(player.position);
+                
+                const camGroundHeight = getTerrainHeight(idealCamPos.x, idealCamPos.z);
+                if (idealCamPos.y < camGroundHeight + 50) idealCamPos.y = camGroundHeight + 50;
+                
+                camera.position.lerp(idealCamPos, 0.1);
+                const idealLookAt = player.position.clone().add(new THREE.Vector3(0, 50, 0));
+                const currentLookAt = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).add(camera.position);
+                currentLookAt.lerp(idealLookAt, 0.1);
+                camera.lookAt(currentLookAt);
+
+                // -- Koleksi Koin (Sundulan & Respawn) --
+                for (let i = 0; i < coins.length; i++) {
+                    let coinData = coins[i];
+                    
+                    // Cek koin yang sedang non-aktif (menunggu respawn)
+                    if (!coinData.active) {
+                        if (time > coinData.respawnTime) {
+                            coinData.active = true;
+                            coinData.mesh.visible = true; // Muncul kembali
+                        }
+                        continue;
+                    }
+                    
+                    coinData.mesh.rotation.z += 0.05; 
+                    
+                    // Hitbox diperlebar agar sangat mudah diambil
+                    if (Math.abs(player.position.x - coinData.mesh.position.x) < 50 && 
+                        Math.abs(player.position.z - coinData.mesh.position.z) < 50 &&
+                        Math.abs((player.position.y + 40) - coinData.mesh.position.y) < 80) {
+                        
+                        coinData.active = false;
+                        coinData.mesh.visible = false;
+                        coinData.respawnTime = time + 10; // Akan respawn 10 detik lagi
+                        
+                        playerScore += 100;
+                        document.getElementById('score-val').innerText = playerScore;
+                        
+                        triggerFirework(coinData.mesh.position);
+                        sfx.playCoin(); 
+                    }
+                }
+
+                checkpoints.forEach(cp => {
+                    if (!cp.active && Math.hypot(player.position.x - cp.mesh.position.x, player.position.z - cp.mesh.position.z) < 60) {
+                        cp.active = true;
+                        cp.mesh.material.color.setHex(0x00FF00); 
+                        respawnPoint.copy(cp.mesh.position);
+                        triggerFirework(cp.mesh.position); 
+                        sfx.playFirework(); 
+                    }
+                });
+
+            } else {
+                camera.position.x = Math.sin(time * 0.3) * 600;
+                camera.position.z = Math.cos(time * 0.3) * 600;
+                const idleGround = getTerrainHeight(camera.position.x, camera.position.z);
+                camera.position.y = idleGround + 800;
+                camera.lookAt(0, 0, 0);
+            }
+
+            if (bannerGroup) {
+                const bSpeed = time * 0.15;
+                bannerGroup.position.x = Math.sin(bSpeed) * 4000;
+                bannerGroup.position.z = Math.cos(bSpeed) * 4000;
+                bannerGroup.rotation.y = bSpeed + Math.PI/2; 
+            }
+            
+            npcs.forEach(npc => {
+                if (npc.userData.isAnimal) {
+                    npc.translateZ(npc.userData.speed);
+                    npc.position.y = getTerrainHeight(npc.position.x, npc.position.z);
+                    if (time > npc.userData.turnWait) {
+                        npc.rotation.y += (Math.random() - 0.5) * Math.PI;
+                        npc.userData.turnWait = time + 2 + Math.random() * 3;
+                    }
+                }
+            });
+
+            for (let i = footprints.length - 1; i >= 0; i--) {
+                let fp = footprints[i];
+                fp.life -= delta * 0.3; 
+                if (fp.life <= 0) {
+                    scene.remove(fp.mesh);
+                    footprints.splice(i, 1);
+                } else {
+                    fp.mesh.material.opacity = fp.life * 0.5;
+                }
+            }
+
+            for (let i = fireworks.length - 1; i >= 0; i--) {
+                let fw = fireworks[i];
+                fw.life -= delta * 0.8;
+                if (fw.life <= 0) {
+                    scene.remove(fw.mesh);
+                    fw.mesh.geometry.dispose();
+                    fireworks.splice(i, 1);
+                } else {
+                    const posAttr = fw.mesh.geometry.attributes.position;
+                    const arr = posAttr.array;
+                    for(let j=0; j<fw.velocities.length; j++) {
+                        arr[j*3] += fw.velocities[j].x * delta;
+                        arr[j*3+1] += fw.velocities[j].y * delta;
+                        arr[j*3+2] += fw.velocities[j].z * delta;
+                        fw.velocities[j].y -= 15 * delta; 
+                    }
+                    posAttr.needsUpdate = true;
+                    fw.mesh.material.opacity = fw.life;
+                }
+            }
+
+            composer.render();
+        }
+
+        window.addEventListener('resize', () => {
+            cWidth = container.clientWidth;
+            cHeight = container.clientHeight;
+            camera.aspect = cWidth / cHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(cWidth, cHeight);
+            composer.setSize(cWidth, cHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
