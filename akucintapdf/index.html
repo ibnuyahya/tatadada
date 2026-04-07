@@ -1,0 +1,2041 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  UploadCloud, File as FileIcon, Trash2, ArrowLeft, Download, 
+  Layers, Split, GripVertical, Settings, CheckCircle2, AlertCircle, 
+  Maximize2, X, Sun, Moon, HelpCircle, ZoomIn, ZoomOut, RotateCcw, RotateCw,
+  Minimize, ArrowRight, Image as ImageIcon, Frame, Stamp
+} from 'lucide-react';
+
+// ==========================================
+// STYLES INJECTION (TATADADA FRAMEWORK)
+// ==========================================
+const TataStyles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+    
+    :root {
+      --header-bg: #ffffff;
+      --editor-bg: #ffffff;
+      --preview-bg: #f8fafc;
+      --footer-bg: #ffffff;
+      --border-color: #e2e8f0;
+      --text-main: #0f172a;
+      --text-dim: #64748b;
+      --stripe-color: rgba(0, 0, 0, 0.02);
+      --freeze-bg: #f8fafc; 
+      --freeze-bg-even: #f1f5f9;
+      --freeze-hover: #eff6ff;
+    }
+    html.dark {
+      --header-bg: #161b22;
+      --editor-bg: #0d1117;
+      --preview-bg: #010409;
+      --footer-bg: #161b22;
+      --border-color: #30363d;
+      --text-main: #e6edf3;
+      --text-dim: #8b949e;
+      --stripe-color: rgba(255, 255, 255, 0.03);
+      --freeze-bg: #010409;
+      --freeze-bg-even: #0d1117;
+      --freeze-hover: rgba(59, 130, 246, 0.1);
+      color-scheme: dark;
+    }
+    body { 
+      background-color: var(--preview-bg); 
+      color: var(--text-main); 
+      font-family: 'Inter', sans-serif; 
+      overflow: hidden; 
+      margin: 0;
+    }
+    
+    .bg-header { background-color: var(--header-bg); }
+    .bg-editor { background-color: var(--editor-bg); }
+    .bg-preview { background-color: var(--preview-bg); }
+    .bg-footer { background-color: var(--footer-bg); }
+    .border-theme { border-color: var(--border-color); }
+    .text-main { color: var(--text-main); }
+    .text-dim { color: var(--text-dim); }
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+    
+    .tata-input {
+      background-color: var(--preview-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+    .tata-input:focus {
+      border-color: #ef4444; /* red-500 */
+      outline: none;
+    }
+  `}</style>
+);
+
+// ==========================================
+// UTILS & DICTIONARY (I18N)
+// ==========================================
+const formatBytes = (bytes, decimals = 2) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
+const i18n = {
+  id: {
+    appDesc: "Proses file PDF Anda dengan aman. 100% diproses di browser Anda, tanpa perlu mengunggah ke server mana pun. Privasi terjamin.",
+    helpTooltip: "Pilih alat yang dibutuhkan. Upload file PDF. Ikuti instruksi di layar. Semua proses aman 100% di perangkat Anda.",
+    mergeTitle: "Gabungkan PDF",
+    mergeDesc: "Gabungkan beberapa file PDF menjadi satu dokumen dengan mudah dan cepat.",
+    splitTitle: "Pisahkan PDF",
+    splitDesc: "Ekstrak halaman tertentu atau pisahkan setiap halaman menjadi file PDF terpisah.",
+    arrangeTitle: "Atur Halaman",
+    arrangeDesc: "Ubah urutan halaman dalam PDF Anda dengan antarmuka tarik dan lepas (drag & drop).",
+    rotateTitle: "Putar PDF",
+    rotateDesc: "Putar halaman dokumen PDF Anda secara individual atau semuanya sekaligus.",
+    compressTitle: "Kompres PDF",
+    compressDesc: "Perkecil ukuran file PDF Anda dengan opsi rasio kualitas yang bisa disesuaikan.",
+    pdfToPngTitle: "PDF ke PNG",
+    pdfToPngDesc: "Konversi halaman PDF menjadi gambar PNG berkualitas tinggi secara instan.",
+    backHome: "Kembali ke Beranda",
+    uploadPrompt: "Pilih File PDF",
+    uploadOr: "atau tarik dan lepas ke sini",
+    mergeNow: "Gabungkan PDF Sekarang",
+    selectPages: "Pilih Halaman",
+    selectAll: "Pilih Semua",
+    clearSelection: "Hapus Pilihan",
+    done: "Selesai",
+    extractRange: "Ekstrak Rentang",
+    extractRangeDesc: "Pilih halaman spesifik untuk digabung jadi 1 file baru.",
+    splitAll: "Pisahkan Semua",
+    splitAllDesc: "Setiap halaman akan menjadi 1 file PDF (Diunduh sbg ZIP).",
+    splitNow: "Ekstrak PDF",
+    splitZip: "Pisahkan & Unduh ZIP",
+    arrangeApply: "Terapkan & Unduh PDF",
+    rotateAllLeft: "Semua Kiri",
+    rotateAllRight: "Semua Kanan",
+    rotateApply: "Terapkan & Unduh",
+    compressNow: "Kompres PDF Sekarang",
+    convertNow: "Konversi Sekarang",
+    compressLevelDesc: "Pilih tingkat kompresi. Semakin tinggi tingkatannya, semakin kecil ukuran file.",
+    qualityLevelDesc: "Pilih kualitas gambar (Resolusi). Semakin tinggi kualitasnya, semakin tajam gambarnya.",
+    sizeBefore: "Ukuran Asli",
+    sizeAfter: "Ukuran Baru",
+    savings: "Lebih Hemat",
+    estimated: "Estimasi Hasil",
+    previewFinal: "Pratinjau Hasil",
+    skipped: "Dilewati",
+    pages: "Halaman",
+    replaceFile: "Ganti File",
+    page: "Hal",
+    processing: "Memproses...",
+    resetOrder: "Reset Urutan",
+    original: "Asli",
+    c_native: "Native (Teks Asli)", c_nativeD: "Format tetap vektor. Kompresi ringan.",
+    c_minimal: "Minimal", c_minimalD: "Kualitas tinggi, file lumayan besar.",
+    c_standar: "Standar", c_standarD: "Keseimbangan terbaik ukuran & kualitas.",
+    c_max: "Maksimal", c_maxD: "Fokus pada pengecilan ukuran file.",
+    c_ekstrim: "Ekstrim", c_ekstrimD: "Sangat kecil, teks bisa sedikit buram.",
+    q_low: "Rendah (1x)", q_lowD: "Resolusi bawaan dokumen asli.",
+    q_med: "Menengah (1.5x)", q_medD: "Tajam untuk ditampilkan di layar.",
+    q_high: "Tinggi (2x)", q_highD: "Resolusi HD, cocok untuk dicetak.",
+    downloadZip: "Unduh ZIP",
+    downloadPng: "Unduh PNG",
+    reformatTitle: "Ubah Ukuran Kertas",
+    reformatDesc: "Deteksi dan ubah ukuran semua halaman PDF ke format standar (A4, Letter, dll).",
+    detectedSize: "Ukuran Terdeteksi",
+    targetSize: "Pilih Ukuran Baru",
+    reformatNow: "Ubah Ukuran Sekarang",
+    watermarkTitle: "Watermark PDF",
+    watermarkDesc: "Tambahkan cap air (watermark) teks ke dokumen PDF Anda.",
+    wm_preset: "Preset Standar",
+    wm_custom: "Teks Kustom",
+    wm_draft: "DRAFT",
+    wm_confid: "RAHASIA",
+    wm_placeholder: "Ketik watermark (Maks 30 kar)",
+    watermarkNow: "Tambahkan Watermark",
+    wm_opacity: "Transparansi",
+    wm_size: "Ukuran Teks",
+    wm_color: "Warna Teks",
+    wm_red: "Merah",
+    wm_gray: "Abu-abu",
+    preview: "Pratinjau"
+  },
+  en: {
+    appDesc: "Process your PDF files securely. 100% processed in your browser, without uploading to any server. Privacy guaranteed.",
+    helpTooltip: "Select a tool. Upload PDFs. Follow on-screen instructions. 100% Secure local processing.",
+    mergeTitle: "Merge PDF",
+    mergeDesc: "Combine multiple PDF files into one document easily and quickly.",
+    splitTitle: "Split PDF",
+    splitDesc: "Extract specific pages or split each page into a separate PDF file.",
+    arrangeTitle: "Arrange Pages",
+    arrangeDesc: "Change the page order in your PDF with a drag and drop interface.",
+    rotateTitle: "Rotate PDF",
+    rotateDesc: "Rotate your PDF pages individually or all at once.",
+    compressTitle: "Compress PDF",
+    compressDesc: "Reduce the file size of your PDF with adjustable quality ratios.",
+    pdfToPngTitle: "PDF to PNG",
+    pdfToPngDesc: "Convert PDF pages into high-quality PNG images instantly.",
+    backHome: "Back to Home",
+    uploadPrompt: "Select PDF File",
+    uploadOr: "or drag and drop here",
+    mergeNow: "Merge PDF Now",
+    selectPages: "Select Pages",
+    selectAll: "Select All",
+    clearSelection: "Clear Selection",
+    done: "Done",
+    extractRange: "Extract Range",
+    extractRangeDesc: "Select specific pages to combine into 1 new file.",
+    splitAll: "Split All",
+    splitAllDesc: "Every page will become a separate PDF (Downloaded as ZIP).",
+    splitNow: "Extract PDF",
+    splitZip: "Split & Download ZIP",
+    arrangeApply: "Apply & Download PDF",
+    rotateAllLeft: "All Left",
+    rotateAllRight: "All Right",
+    rotateApply: "Apply & Download",
+    compressNow: "Compress PDF Now",
+    convertNow: "Convert Now",
+    compressLevelDesc: "Select compression level. Higher levels mean smaller file size.",
+    qualityLevelDesc: "Select image quality (Resolution). Higher quality yields sharper images.",
+    sizeBefore: "Original Size",
+    sizeAfter: "New Size",
+    savings: "Saved",
+    estimated: "Estimated",
+    previewFinal: "Final Preview",
+    skipped: "Skipped",
+    pages: "Pages",
+    replaceFile: "Replace File",
+    page: "Pg",
+    processing: "Processing...",
+    resetOrder: "Reset Order",
+    original: "Orig",
+    c_native: "Native (Real Text)", c_nativeD: "Keeps vector format. Light compression.",
+    c_minimal: "Minimal", c_minimalD: "High quality, large file size.",
+    c_standar: "Standard", c_standarD: "Best balance of size & quality.",
+    c_max: "Maximum", c_maxD: "Focus on reducing file size.",
+    c_ekstrim: "Extreme", c_ekstrimD: "Tiny size, text may be blurry.",
+    q_low: "Low (1x)", q_lowD: "Original document resolution.",
+    q_med: "Medium (1.5x)", q_medD: "Sharp for screen displays.",
+    q_high: "High (2x)", q_highD: "HD resolution, best for printing.",
+    downloadZip: "Download ZIP",
+    downloadPng: "Download PNG",
+    reformatTitle: "Reformat Size",
+    reformatDesc: "Detect and change the size of all PDF pages to standard formats (A4, Letter, etc).",
+    detectedSize: "Detected Size",
+    targetSize: "Select New Size",
+    reformatNow: "Reformat Now",
+    watermarkTitle: "Watermark PDF",
+    watermarkDesc: "Add a text watermark to your PDF document.",
+    wm_preset: "Standard Preset",
+    wm_custom: "Custom Text",
+    wm_draft: "DRAFT",
+    wm_confid: "CONFIDENTIAL",
+    wm_placeholder: "Type watermark (Max 30 chars)",
+    watermarkNow: "Add Watermark",
+    wm_opacity: "Opacity",
+    wm_size: "Text Size",
+    wm_color: "Text Color",
+    wm_red: "Red",
+    wm_gray: "Gray",
+    preview: "Live Preview"
+  }
+};
+
+// ==========================================
+// COMPONENT: THUMBNAIL & PREVIEW
+// ==========================================
+const PdfPageThumbnail = ({ pdf, pageIndex, included, onToggle, lang }) => {
+  const canvasRef = useRef(null);
+  const t = i18n[lang];
+  
+  useEffect(() => {
+    let renderTask;
+    if (pdf && canvasRef.current) {
+      pdf.getPage(pageIndex + 1).then(page => {
+        const viewport = page.getViewport({ scale: 0.4 });
+        const canvas = canvasRef.current;
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        renderTask = page.render({ canvasContext: ctx, viewport });
+      }).catch(err => console.log("Page render error", err));
+    }
+    return () => { if (renderTask) renderTask.cancel(); };
+  }, [pdf, pageIndex]);
+
+  return (
+    <div 
+      onClick={onToggle} 
+      className={`relative cursor-pointer rounded-lg overflow-hidden border-4 transition-all bg-editor ${included ? 'border-red-500 shadow-md' : 'border-theme opacity-40 hover:opacity-70'}`}
+    >
+      <canvas ref={canvasRef} className="w-full h-auto block bg-white" />
+      <div className="absolute bottom-0 inset-x-0 bg-black/80 text-white text-xs font-bold text-center py-1.5">
+        {t.page} {pageIndex + 1}
+      </div>
+      {included && (
+        <div className="absolute top-1 right-1 bg-red-500 rounded-full p-0.5 text-white shadow-sm">
+          <CheckCircle2 className="w-4 h-4" />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CanvasPreview = ({ pdf, pageIndex, zoom = 3, rotationDelta = 0, className = "" }) => {
+  const canvasRef = useRef(null);
+  
+  useEffect(() => {
+    let renderTask;
+    if (pdf && canvasRef.current) {
+      pdf.getPage(pageIndex + 1).then(page => {
+        const scale = 0.4 + (zoom * 0.2); 
+        const originalRotation = page.rotate || 0;
+        const viewport = page.getViewport({ scale, rotation: originalRotation + rotationDelta }); 
+        const canvas = canvasRef.current;
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        renderTask = page.render({ canvasContext: ctx, viewport });
+      }).catch(err => console.log("Page render error", err));
+    }
+    return () => { if (renderTask) renderTask.cancel(); };
+  }, [pdf, pageIndex, zoom, rotationDelta]);
+
+  return <canvas ref={canvasRef} className={`bg-white ${className || 'w-full h-full object-contain pointer-events-none'}`} />;
+};
+
+// ==========================================
+// MAIN APPLICATION
+// ==========================================
+export default function App() {
+  const [view, setView] = useState('home'); 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [libsLoaded, setLibsLoaded] = useState(false);
+
+  // TATADADA Variables
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+  const [lang, setLang] = useState(localStorage.getItem('lang') || 'id');
+  const t = i18n[lang];
+
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+    if (theme === 'dark') document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+  }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('lang', lang);
+  }, [lang]);
+
+  useEffect(() => {
+    const loadScript = (src) => new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) return resolve();
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+
+    Promise.all([
+      loadScript('https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js'),
+      loadScript('https://unpkg.com/jszip@3.10.1/dist/jszip.min.js'),
+      loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
+    ]).then(() => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      setLibsLoaded(true);
+    }).catch(err => {
+      console.error("Gagal memuat library PDF", err);
+      setError("Gagal memuat library yang dibutuhkan. Periksa koneksi internet Anda.");
+    });
+  }, []);
+
+  const goHome = () => {
+    setView('home');
+    setError('');
+    setSuccess('');
+    
+    setMergeItems([]); setExpandedItem(null);
+    setSplitFile(null);
+    setArrangeFile(null); setArrangeOrder([]); setArrangePdfRef(null);
+    setRotateFile(null); setRotatePages([]); setRotatePdfRef(null);
+    
+    setCompressFile(null); setCompressResult(null);
+    if (compressPreviewUrl) { URL.revokeObjectURL(compressPreviewUrl); setCompressPreviewUrl(''); }
+    
+    setPdfToPngFile(null); setPdfToPngMeta(null);
+    setReformatFile(null); setReformatOriginalSize(''); setReformatPdfRef(null);
+    
+    setWatermarkFile(null); setWatermarkCustom(''); setWatermarkPdfRef(null);
+  };
+
+  const handleDownload = (data, filename, type = 'application/pdf') => {
+    const blob = new Blob([data], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setSuccess(`Downloaded: ${filename}`);
+  };
+
+  // ==========================================
+  // MERGE PDF LOGIC
+  // ==========================================
+  const [mergeItems, setMergeItems] = useState([]);
+  const [expandedItem, setExpandedItem] = useState(null);
+  const dragItemMerge = useRef();
+  const dragOverItemMerge = useRef();
+
+  const handleMergeUpload = async (e) => {
+    if (e.target.files && libsLoaded) {
+      setLoading(true);
+      const newItems = [];
+      for (const file of Array.from(e.target.files)) {
+        if (file.type === 'application/pdf') {
+          try {
+            const objUrl = URL.createObjectURL(file);
+            const pdf = await window.pdfjsLib.getDocument(objUrl).promise;
+            const pageCount = pdf.numPages;
+            
+            const page = await pdf.getPage(1);
+            const viewport = page.getViewport({ scale: 0.5 });
+            const canvas = document.createElement('canvas');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            const coverUrl = canvas.toDataURL();
+            
+            const pages = Array.from({length: pageCount}, (_, i) => ({ index: i, included: true }));
+            
+            newItems.push({
+              id: Math.random().toString(36).substr(2, 9),
+              file, name: file.name, pageCount, coverUrl, pages, pdfRef: pdf
+            });
+          } catch(err) { console.error("Error loading PDF preview", err); }
+        }
+      }
+      setMergeItems(prev => [...prev, ...newItems]);
+      setLoading(false);
+    }
+  };
+
+  const removeMergeItem = (index) => {
+    const newItems = [...mergeItems];
+    newItems.splice(index, 1);
+    setMergeItems(newItems);
+  };
+
+  const handleDragStartMerge = (e, index) => { dragItemMerge.current = index; };
+  const handleDragEnterMerge = (e, index) => { dragOverItemMerge.current = index; };
+  const handleDragEndMerge = () => {
+    const newItems = [...mergeItems];
+    const draggedItem = newItems.splice(dragItemMerge.current, 1)[0];
+    newItems.splice(dragOverItemMerge.current, 0, draggedItem);
+    setMergeItems(newItems);
+    dragItemMerge.current = null;
+    dragOverItemMerge.current = null;
+  };
+
+  const togglePageInclude = (itemId, pageIndex) => {
+    setMergeItems(prev => prev.map(item => {
+      if (item.id === itemId) {
+        const newPages = item.pages.map(p => p.index === pageIndex ? { ...p, included: !p.included } : p);
+        return { ...item, pages: newPages };
+      }
+      return item;
+    }));
+    if (expandedItem && expandedItem.id === itemId) {
+      setExpandedItem(prev => ({
+        ...prev,
+        pages: prev.pages.map(p => p.index === pageIndex ? { ...p, included: !p.included } : p)
+      }));
+    }
+  };
+
+  const setAllPagesInclude = (itemId, state) => {
+    setMergeItems(prev => prev.map(item => {
+      if (item.id === itemId) return { ...item, pages: item.pages.map(p => ({ ...p, included: state })) };
+      return item;
+    }));
+    if (expandedItem && expandedItem.id === itemId) {
+      setExpandedItem(prev => ({ ...prev, pages: prev.pages.map(p => ({ ...p, included: state })) }));
+    }
+  };
+
+  const processMerge = async () => {
+    if (mergeItems.length < 2) { setError(lang === 'id' ? "Pilih minimal 2 file PDF" : "Select at least 2 PDFs"); return; }
+    if (!libsLoaded) return;
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      const mergedPdf = await window.PDFLib.PDFDocument.create();
+      for (const item of mergeItems) {
+        const arrayBuffer = await item.file.arrayBuffer();
+        const pdf = await window.PDFLib.PDFDocument.load(arrayBuffer);
+        const indicesToInclude = item.pages.filter(p => p.included).map(p => p.index);
+        if (indicesToInclude.length > 0) {
+          const copiedPages = await mergedPdf.copyPages(pdf, indicesToInclude);
+          copiedPages.forEach((page) => mergedPdf.addPage(page));
+        }
+      }
+      const pdfBytes = await mergedPdf.save();
+      handleDownload(pdfBytes, 'Merged_Document.pdf');
+    } catch (err) { setError("Failed to merge PDF."); console.error(err); }
+    setLoading(false);
+  };
+
+  // ==========================================
+  // SPLIT PDF LOGIC
+  // ==========================================
+  const [splitFile, setSplitFile] = useState(null);
+  const [splitMode, setSplitMode] = useState('range'); 
+  const [splitRange, setSplitRange] = useState('');
+  const [splitPageCount, setSplitPageCount] = useState(0);
+
+  const handleSplitUpload = async (e) => {
+    if (e.target.files && e.target.files[0] && libsLoaded) {
+      const file = e.target.files[0];
+      setSplitFile(file); setLoading(true);
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await window.PDFLib.PDFDocument.load(arrayBuffer);
+        setSplitPageCount(pdf.getPageCount());
+      } catch (err) { setError("Failed reading PDF."); }
+      setLoading(false);
+    }
+  };
+
+  const processSplit = async () => {
+    if (!splitFile || !libsLoaded) return;
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      const arrayBuffer = await splitFile.arrayBuffer();
+      const pdf = await window.PDFLib.PDFDocument.load(arrayBuffer);
+      const totalPages = pdf.getPageCount();
+
+      if (splitMode === 'all') {
+        const zip = new window.JSZip();
+        for (let i = 0; i < totalPages; i++) {
+          const newPdf = await window.PDFLib.PDFDocument.create();
+          const [copiedPage] = await newPdf.copyPages(pdf, [i]);
+          newPdf.addPage(copiedPage);
+          const pdfBytes = await newPdf.save();
+          zip.file(`Page_${i + 1}.pdf`, pdfBytes);
+        }
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        handleDownload(zipBlob, `${splitFile.name.replace('.pdf', '')}_Split.zip`, 'application/zip');
+      } else {
+        let indicesToExtract = new Set();
+        const parts = splitRange.split(',');
+        for (let part of parts) {
+          part = part.trim();
+          if (part.includes('-')) {
+            const [start, end] = part.split('-').map(num => parseInt(num.trim(), 10));
+            if (!isNaN(start) && !isNaN(end) && start > 0 && end <= totalPages && start <= end) {
+              for (let i = start; i <= end; i++) indicesToExtract.add(i - 1);
+            }
+          } else {
+            const num = parseInt(part, 10);
+            if (!isNaN(num) && num > 0 && num <= totalPages) indicesToExtract.add(num - 1);
+          }
+        }
+        const finalIndices = Array.from(indicesToExtract).sort((a, b) => a - b);
+        if (finalIndices.length === 0) {
+          setError(`Invalid range. Max pages: ${totalPages}`); setLoading(false); return;
+        }
+        const newPdf = await window.PDFLib.PDFDocument.create();
+        const copiedPages = await newPdf.copyPages(pdf, finalIndices);
+        copiedPages.forEach(p => newPdf.addPage(p));
+        const pdfBytes = await newPdf.save();
+        handleDownload(pdfBytes, `Extracted_${splitFile.name}`);
+      }
+    } catch (err) { setError("Error splitting PDF."); console.error(err); }
+    setLoading(false);
+  };
+
+  // ==========================================
+  // ARRANGE PDF LOGIC
+  // ==========================================
+  const [arrangeFile, setArrangeFile] = useState(null);
+  const [arrangeOrder, setArrangeOrder] = useState([]);
+  const [arrangePdfRef, setArrangePdfRef] = useState(null);
+  const [arrangeZoom, setArrangeZoom] = useState(3);
+  const [debouncedZoom, setDebouncedZoom] = useState(3);
+  
+  const dragItemArrange = useRef();
+  const dragOverItemArrange = useRef();
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedZoom(arrangeZoom), 300);
+    return () => clearTimeout(timer);
+  }, [arrangeZoom]);
+
+  const handleArrangeUpload = async (e) => {
+    if (e.target.files && e.target.files[0] && libsLoaded) {
+      const file = e.target.files[0];
+      setArrangeFile(file); setLoading(true);
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await window.PDFLib.PDFDocument.load(arrayBuffer);
+        const count = pdf.getPageCount();
+        
+        const objUrl = URL.createObjectURL(file);
+        const pdfJsDoc = await window.pdfjsLib.getDocument(objUrl).promise;
+        setArrangePdfRef(pdfJsDoc);
+
+        const initialOrder = Array.from({ length: count }, (_, i) => ({ originalIndex: i, id: `page-${i}` }));
+        setArrangeOrder(initialOrder);
+      } catch (err) { setError("Failed to read PDF."); }
+      setLoading(false);
+    }
+  };
+
+  const handleDragStartArrange = (e, index) => { dragItemArrange.current = index; };
+  const handleDragEnterArrange = (e, index) => { dragOverItemArrange.current = index; };
+  const handleDragEndArrange = () => {
+    const newOrder = [...arrangeOrder];
+    const draggedItem = newOrder.splice(dragItemArrange.current, 1)[0];
+    newOrder.splice(dragOverItemArrange.current, 0, draggedItem);
+    setArrangeOrder(newOrder);
+    dragItemArrange.current = null; dragOverItemArrange.current = null;
+  };
+
+  const removePage = (indexToRemove) => setArrangeOrder(arrangeOrder.filter((_, idx) => idx !== indexToRemove));
+
+  const resetArrangeOrder = () => {
+    if (!arrangePdfRef) return;
+    const count = arrangePdfRef.numPages;
+    const initialOrder = Array.from({ length: count }, (_, i) => ({ originalIndex: i, id: `page-${i}` }));
+    setArrangeOrder(initialOrder);
+  };
+
+  const processArrange = async () => {
+    if (!arrangeFile || arrangeOrder.length === 0 || !libsLoaded) return;
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      const arrayBuffer = await arrangeFile.arrayBuffer();
+      const originalPdf = await window.PDFLib.PDFDocument.load(arrayBuffer);
+      const newPdf = await window.PDFLib.PDFDocument.create();
+      const indicesToCopy = arrangeOrder.map(item => item.originalIndex);
+      const copiedPages = await newPdf.copyPages(originalPdf, indicesToCopy);
+      copiedPages.forEach(p => newPdf.addPage(p));
+      const pdfBytes = await newPdf.save();
+      handleDownload(pdfBytes, `Arranged_${arrangeFile.name}`);
+    } catch (err) { setError("Error arranging pages."); console.error(err); }
+    setLoading(false);
+  };
+
+  // ==========================================
+  // ROTATE PDF LOGIC
+  // ==========================================
+  const [rotateFile, setRotateFile] = useState(null);
+  const [rotatePages, setRotatePages] = useState([]); 
+  const [rotatePdfRef, setRotatePdfRef] = useState(null);
+  const [rotateZoom, setRotateZoom] = useState(3);
+  const [debouncedRotateZoom, setDebouncedRotateZoom] = useState(3);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedRotateZoom(rotateZoom), 300);
+    return () => clearTimeout(timer);
+  }, [rotateZoom]);
+
+  const handleRotateUpload = async (e) => {
+    if (e.target.files && e.target.files[0] && libsLoaded) {
+      const file = e.target.files[0];
+      setRotateFile(file); setLoading(true);
+      try {
+        const objUrl = URL.createObjectURL(file);
+        const pdfJsDoc = await window.pdfjsLib.getDocument(objUrl).promise;
+        setRotatePdfRef(pdfJsDoc);
+        const count = pdfJsDoc.numPages;
+        setRotatePages(Array.from({ length: count }, (_, i) => ({ originalIndex: i, delta: 0 })));
+      } catch (err) { setError("Failed to read PDF."); }
+      setLoading(false);
+    }
+  };
+
+  const rotatePage = (index, dir) => {
+    setRotatePages(prev => prev.map(p => 
+      p.originalIndex === index ? { ...p, delta: (p.delta + dir) % 360 } : p
+    ));
+  };
+
+  const rotateAll = (dir) => {
+    setRotatePages(prev => prev.map(p => ({ ...p, delta: (p.delta + dir) % 360 })));
+  };
+
+  const processRotate = async () => {
+    if (!rotateFile || !libsLoaded) return;
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      const arrayBuffer = await rotateFile.arrayBuffer();
+      const pdfDoc = await window.PDFLib.PDFDocument.load(arrayBuffer);
+      
+      rotatePages.forEach(p => {
+        if (p.delta !== 0) {
+          const page = pdfDoc.getPage(p.originalIndex);
+          const currentRot = page.getRotation().angle;
+          page.setRotation(window.PDFLib.degrees(currentRot + p.delta));
+        }
+      });
+      
+      const pdfBytes = await pdfDoc.save();
+      handleDownload(pdfBytes, `Rotated_${rotateFile.name}`);
+    } catch (err) { setError("Error rotating PDF."); console.error(err); }
+    setLoading(false);
+  };
+
+  // ==========================================
+  // COMPRESS PDF LOGIC
+  // ==========================================
+  const [compressFile, setCompressFile] = useState(null);
+  const [compressLevel, setCompressLevel] = useState('standar');
+  const [compressResult, setCompressResult] = useState(null);
+  const [compressPreviewUrl, setCompressPreviewUrl] = useState('');
+
+  const COMPRESS_CONFIG = {
+    native:  { type: 'native', expectedRatio: 0.85, title: t.c_native, desc: t.c_nativeD },
+    minimal: { type: 'raster', scale: 1.5, quality: 0.85, expectedRatio: 0.80, title: t.c_minimal, desc: t.c_minimalD },
+    standar: { type: 'raster', scale: 1.2, quality: 0.65, expectedRatio: 0.50, title: t.c_standar, desc: t.c_standarD },
+    max:     { type: 'raster', scale: 0.9, quality: 0.50, expectedRatio: 0.30, title: t.c_max, desc: t.c_maxD },
+    ekstrim: { type: 'raster', scale: 0.6, quality: 0.30, expectedRatio: 0.15, title: t.c_ekstrim, desc: t.c_ekstrimD }
+  };
+
+  const handleCompressUpload = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setCompressFile(e.target.files[0]);
+      setCompressResult(null);
+      if (compressPreviewUrl) {
+        URL.revokeObjectURL(compressPreviewUrl);
+        setCompressPreviewUrl('');
+      }
+    }
+  };
+
+  const processCompress = async () => {
+    if (!compressFile || !libsLoaded) return;
+    setLoading(true); setError(''); setSuccess('');
+    
+    try {
+      const config = COMPRESS_CONFIG[compressLevel];
+      let pdfBytes;
+
+      if (config.type === 'native') {
+        const arrayBuffer = await compressFile.arrayBuffer();
+        const originalPdf = await window.PDFLib.PDFDocument.load(arrayBuffer);
+        const newPdfDoc = await window.PDFLib.PDFDocument.create();
+        const copiedPages = await newPdfDoc.copyPages(originalPdf, originalPdf.getPageIndices());
+        copiedPages.forEach(p => newPdfDoc.addPage(p));
+        pdfBytes = await newPdfDoc.save({ useObjectStreams: true });
+      } else {
+        const newPdfDoc = await window.PDFLib.PDFDocument.create();
+        const objUrl = URL.createObjectURL(compressFile);
+        const pdfJsDoc = await window.pdfjsLib.getDocument(objUrl).promise;
+        const numPages = pdfJsDoc.numPages;
+
+        for (let i = 1; i <= numPages; i++) {
+          const page = await pdfJsDoc.getPage(i);
+          
+          const viewport = page.getViewport({ scale: config.scale });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext('2d');
+          
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          
+          const imgDataUrl = canvas.toDataURL('image/jpeg', config.quality);
+          const imgObj = await newPdfDoc.embedJpg(imgDataUrl);
+          const origViewport = page.getViewport({ scale: 1 }); 
+          
+          const newPage = newPdfDoc.addPage([origViewport.width, origViewport.height]);
+          newPage.drawImage(imgObj, {
+            x: 0, y: 0, width: origViewport.width, height: origViewport.height,
+          });
+        }
+        pdfBytes = await newPdfDoc.save();
+        URL.revokeObjectURL(objUrl);
+      }
+
+      const resultBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const resultUrl = URL.createObjectURL(resultBlob);
+      
+      setCompressResult({
+        originalSize: compressFile.size,
+        newSize: resultBlob.size,
+        blob: resultBlob
+      });
+      setCompressPreviewUrl(resultUrl);
+      
+    } catch (err) {
+      setError("Error compressing PDF.");
+      console.error(err);
+    }
+    setLoading(false);
+  };
+
+  // ==========================================
+  // PDF TO PNG LOGIC
+  // ==========================================
+  const [pdfToPngFile, setPdfToPngFile] = useState(null);
+  const [pdfToPngMeta, setPdfToPngMeta] = useState(null);
+  const [pdfToPngQuality, setPdfToPngQuality] = useState('med');
+
+  const PNG_CONFIG = {
+    low:  { scale: 1.0, title: t.q_low, desc: t.q_lowD, estimateMult: 1 },
+    med:  { scale: 1.5, title: t.q_med, desc: t.q_medD, estimateMult: 2.25 },
+    high: { scale: 2.0, title: t.q_high, desc: t.q_highD, estimateMult: 4 }
+  };
+
+  const handlePdfToPngUpload = async (e) => {
+    if (e.target.files && e.target.files[0] && libsLoaded) {
+      const file = e.target.files[0];
+      setPdfToPngFile(file);
+      setLoading(true);
+      try {
+        const objUrl = URL.createObjectURL(file);
+        const pdfJsDoc = await window.pdfjsLib.getDocument(objUrl).promise;
+        const numPages = pdfJsDoc.numPages;
+        const page1 = await pdfJsDoc.getPage(1);
+        const viewport = page1.getViewport({ scale: 1 });
+        
+        setPdfToPngMeta({
+          numPages,
+          baseWidth: viewport.width,
+          baseHeight: viewport.height,
+          pdfJsDoc
+        });
+      } catch (err) {
+        setError("Gagal membaca file PDF.");
+      }
+      setLoading(false);
+    }
+  };
+
+  const processPdfToPng = async () => {
+    if (!pdfToPngFile || !pdfToPngMeta || !libsLoaded) return;
+    setLoading(true); setError(''); setSuccess('');
+    
+    try {
+      const config = PNG_CONFIG[pdfToPngQuality];
+      const { numPages, pdfJsDoc } = pdfToPngMeta;
+      
+      const zip = new window.JSZip();
+      let singleBlob = null;
+
+      for (let i = 1; i <= numPages; i++) {
+        const page = await pdfJsDoc.getPage(i);
+        const viewport = page.getViewport({ scale: config.scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        
+        if (numPages === 1) {
+          singleBlob = blob;
+        } else {
+          zip.file(`Page_${i}.png`, blob);
+        }
+      }
+
+      const baseName = pdfToPngFile.name.replace('.pdf', '');
+
+      if (numPages === 1 && singleBlob) {
+        handleDownload(singleBlob, `${baseName}.png`, 'image/png');
+      } else {
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        handleDownload(zipBlob, `${baseName}_Images.zip`, 'application/zip');
+      }
+    } catch (err) {
+      setError("Error converting PDF to PNG.");
+      console.error(err);
+    }
+    setLoading(false);
+  };
+
+  const getPngEstimation = (config) => {
+    if (!pdfToPngMeta) return 0;
+    const roughBytes = pdfToPngMeta.baseWidth * pdfToPngMeta.baseHeight * config.estimateMult * 0.35 * pdfToPngMeta.numPages;
+    return roughBytes;
+  };
+
+  // ==========================================
+  // REFORMAT PAPER SIZE LOGIC
+  // ==========================================
+  const [reformatFile, setReformatFile] = useState(null);
+  const [reformatOriginalSize, setReformatOriginalSize] = useState('');
+  const [reformatOrigIsLandscape, setReformatOrigIsLandscape] = useState(false);
+  const [reformatTargetSize, setReformatTargetSize] = useState('A4');
+  const [reformatPdfRef, setReformatPdfRef] = useState(null);
+
+  const PAPER_SIZES = {
+    A4: { width: 595.28, height: 841.89, label: 'A4', desc: '210 × 297 mm' },
+    Letter: { width: 612, height: 792, label: 'Letter', desc: '8.5 × 11 in' },
+    Legal: { width: 612, height: 1008, label: 'Legal', desc: '8.5 × 14 in' },
+    A3: { width: 841.89, height: 1190.55, label: 'A3', desc: '297 × 420 mm' },
+    A5: { width: 420.94, height: 595.28, label: 'A5', desc: '148 × 210 mm' }
+  };
+
+  const handleReformatUpload = async (e) => {
+    if (e.target.files && e.target.files[0] && libsLoaded) {
+      const file = e.target.files[0];
+      setReformatFile(file);
+      setLoading(true);
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await window.PDFLib.PDFDocument.load(arrayBuffer);
+        const page = pdf.getPage(0);
+        const { width, height } = page.getSize();
+        
+        const isL = width > height;
+        setReformatOrigIsLandscape(isL);
+
+        const wMM = Math.round(width * 25.4 / 72);
+        const hMM = Math.round(height * 25.4 / 72);
+        setReformatOriginalSize(`~ ${wMM} × ${hMM} mm`);
+
+        // Load preview pdf ref
+        const objUrl = URL.createObjectURL(file);
+        const pdfJsDoc = await window.pdfjsLib.getDocument(objUrl).promise;
+        setReformatPdfRef(pdfJsDoc);
+
+      } catch (err) {
+        setError("Gagal membaca ukuran file PDF.");
+      }
+      setLoading(false);
+    }
+  };
+
+  const processReformat = async () => {
+    if (!reformatFile || !libsLoaded) return;
+    setLoading(true); setError(''); setSuccess('');
+    
+    try {
+      const arrayBuffer = await reformatFile.arrayBuffer();
+      const originalPdf = await window.PDFLib.PDFDocument.load(arrayBuffer);
+      const newPdf = await window.PDFLib.PDFDocument.create();
+      
+      const config = PAPER_SIZES[reformatTargetSize];
+      const pageIndices = originalPdf.getPageIndices();
+      
+      for (const i of pageIndices) {
+        const originalPage = originalPdf.getPage(i);
+        const { width: origW, height: origH } = originalPage.getSize();
+        
+        const isLandscape = origW > origH;
+        const targetW = isLandscape ? Math.max(config.width, config.height) : Math.min(config.width, config.height);
+        const targetH = isLandscape ? Math.min(config.width, config.height) : Math.max(config.width, config.height);
+        
+        const embeddedPage = await newPdf.embedPage(originalPage);
+        const newPage = newPdf.addPage([targetW, targetH]);
+        
+        const scale = Math.min(targetW / origW, targetH / origH);
+        
+        const scaledW = origW * scale;
+        const scaledH = origH * scale;
+        const x = (targetW - scaledW) / 2;
+        const y = (targetH - scaledH) / 2;
+        
+        newPage.drawPage(embeddedPage, {
+          x, y, xScale: scale, yScale: scale
+        });
+      }
+      
+      const pdfBytes = await newPdf.save();
+      const baseName = reformatFile.name.replace('.pdf', '');
+      handleDownload(pdfBytes, `${baseName}_${reformatTargetSize}.pdf`);
+    } catch (err) {
+      setError("Terjadi kesalahan saat memformat ulang ukuran PDF.");
+      console.error(err);
+    }
+    setLoading(false);
+  };
+
+  // ==========================================
+  // WATERMARK PDF LOGIC
+  // ==========================================
+  const [watermarkFile, setWatermarkFile] = useState(null);
+  const [watermarkMode, setWatermarkMode] = useState('preset'); 
+  const [watermarkPreset, setWatermarkPreset] = useState('DRAFT');
+  const [watermarkCustom, setWatermarkCustom] = useState('');
+  const [watermarkOpacity, setWatermarkOpacity] = useState(0.2); // Default 20%
+  const [watermarkSize, setWatermarkSize] = useState(50); // Scale 10% to 150% (Default 50%)
+  const [watermarkColor, setWatermarkColor] = useState('gray'); // 'gray' or 'red'
+  const [watermarkPdfRef, setWatermarkPdfRef] = useState(null);
+
+  const handleWatermarkUpload = async (e) => {
+    if (e.target.files && e.target.files[0] && libsLoaded) {
+      const file = e.target.files[0];
+      setWatermarkFile(file);
+      setLoading(true);
+      try {
+        const objUrl = URL.createObjectURL(file);
+        const pdfJsDoc = await window.pdfjsLib.getDocument(objUrl).promise;
+        setWatermarkPdfRef(pdfJsDoc);
+      } catch (err) {
+        setError("Gagal memuat pratinjau file.");
+      }
+      setLoading(false);
+    }
+  };
+
+  const processWatermark = async () => {
+    if (!watermarkFile || !libsLoaded) return;
+    setLoading(true); setError(''); setSuccess('');
+
+    try {
+      const arrayBuffer = await watermarkFile.arrayBuffer();
+      const pdfDoc = await window.PDFLib.PDFDocument.load(arrayBuffer);
+      const helveticaFont = await pdfDoc.embedFont(window.PDFLib.StandardFonts.HelveticaBold);
+
+      const pages = pdfDoc.getPages();
+      let text = watermarkMode === 'preset' ? (watermarkPreset === 'DRAFT' ? t.wm_draft : t.wm_confid) : watermarkCustom;
+      if (text.trim() === '') text = 'WATERMARK';
+
+      const colorRGB = watermarkColor === 'red' ? window.PDFLib.rgb(0.8, 0.1, 0.1) : window.PDFLib.rgb(0.6, 0.6, 0.6);
+
+      pages.forEach(page => {
+        const { width, height } = page.getSize();
+        
+        // Font size responsif berdasarkan lebar kertas dan setting slider
+        const baseFontSize = width * 0.12; 
+        const fontSize = baseFontSize * (watermarkSize / 50);
+        
+        const textWidth = helveticaFont.widthOfTextAtSize(text, fontSize);
+        
+        // Asumsi nilai tinggi baseline (titik tengah visual huruf kapital)
+        const visualHeightOffset = fontSize / 3;
+
+        const angle = 45;
+        const angleRad = angle * Math.PI / 180;
+
+        // Kalkulasi matematika untuk penempatan (origin) yang benar-benar ditengah
+        const x = width / 2 - (textWidth / 2) * Math.cos(angleRad) + visualHeightOffset * Math.sin(angleRad);
+        const y = height / 2 - (textWidth / 2) * Math.sin(angleRad) - visualHeightOffset * Math.cos(angleRad);
+
+        page.drawText(text, {
+          x, y,
+          size: fontSize,
+          font: helveticaFont,
+          color: colorRGB, 
+          opacity: watermarkOpacity,
+          rotate: window.PDFLib.degrees(angle),
+        });
+      });
+
+      const pdfBytes = await pdfDoc.save();
+      const baseName = watermarkFile.name.replace('.pdf', '');
+      handleDownload(pdfBytes, `${baseName}_Watermarked.pdf`);
+    } catch (err) {
+      setError("Terjadi kesalahan saat menambahkan watermark.");
+      console.error(err);
+    }
+    setLoading(false);
+  };
+
+
+  // ==========================================
+  // RENDER VIEWS
+  // ==========================================
+  const renderHome = () => (
+    <div className="max-w-5xl mx-auto p-4 md:p-8">
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-extrabold text-main mb-4 tracking-tight">
+          AkuCinta<span className="text-red-600">PDF</span>
+        </h1>
+        <p className="text-lg text-dim max-w-2xl mx-auto">
+          {t.appDesc}
+        </p>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+        <div onClick={() => setView('merge')} className="bg-editor rounded-xl p-4 border border-theme shadow-sm hover:border-red-400 transition-all cursor-pointer group flex flex-col items-center text-center">
+          <div className="bg-red-500/10 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform">
+            <Layers className="w-6 h-6 text-red-600" />
+          </div>
+          <h2 className="text-sm font-bold text-main mb-1.5">{t.mergeTitle}</h2>
+          <p className="text-dim text-[11px] leading-relaxed hidden sm:block">{t.mergeDesc}</p>
+        </div>
+        
+        <div onClick={() => setView('split')} className="bg-editor rounded-xl p-4 border border-theme shadow-sm hover:border-red-400 transition-all cursor-pointer group flex flex-col items-center text-center">
+          <div className="bg-red-500/10 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform">
+            <Split className="w-6 h-6 text-red-600" />
+          </div>
+          <h2 className="text-sm font-bold text-main mb-1.5">{t.splitTitle}</h2>
+          <p className="text-dim text-[11px] leading-relaxed hidden sm:block">{t.splitDesc}</p>
+        </div>
+        
+        <div onClick={() => setView('arrange')} className="bg-editor rounded-xl p-4 border border-theme shadow-sm hover:border-red-400 transition-all cursor-pointer group flex flex-col items-center text-center">
+          <div className="bg-red-500/10 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform">
+            <Settings className="w-6 h-6 text-red-600" />
+          </div>
+          <h2 className="text-sm font-bold text-main mb-1.5">{t.arrangeTitle}</h2>
+          <p className="text-dim text-[11px] leading-relaxed hidden sm:block">{t.arrangeDesc}</p>
+        </div>
+        
+        <div onClick={() => setView('rotate')} className="bg-editor rounded-xl p-4 border border-theme shadow-sm hover:border-red-400 transition-all cursor-pointer group flex flex-col items-center text-center">
+          <div className="bg-red-500/10 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform">
+            <RotateCw className="w-6 h-6 text-red-600" />
+          </div>
+          <h2 className="text-sm font-bold text-main mb-1.5">{t.rotateTitle}</h2>
+          <p className="text-dim text-[11px] leading-relaxed hidden sm:block">{t.rotateDesc}</p>
+        </div>
+        
+        <div onClick={() => setView('compress')} className="bg-editor rounded-xl p-4 border border-theme shadow-sm hover:border-red-400 transition-all cursor-pointer group flex flex-col items-center text-center">
+          <div className="bg-red-500/10 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform">
+            <Minimize className="w-6 h-6 text-red-600" />
+          </div>
+          <h2 className="text-sm font-bold text-main mb-1.5">{t.compressTitle}</h2>
+          <p className="text-dim text-[11px] leading-relaxed hidden sm:block">{t.compressDesc}</p>
+        </div>
+
+        <div onClick={() => setView('pdftopng')} className="bg-editor rounded-xl p-4 border border-theme shadow-sm hover:border-red-400 transition-all cursor-pointer group flex flex-col items-center text-center">
+          <div className="bg-red-500/10 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform">
+            <ImageIcon className="w-6 h-6 text-red-600" />
+          </div>
+          <h2 className="text-sm font-bold text-main mb-1.5">{t.pdfToPngTitle}</h2>
+          <p className="text-dim text-[11px] leading-relaxed hidden sm:block">{t.pdfToPngDesc}</p>
+        </div>
+
+        <div onClick={() => setView('reformat')} className="bg-editor rounded-xl p-4 border border-theme shadow-sm hover:border-red-400 transition-all cursor-pointer group flex flex-col items-center text-center">
+          <div className="bg-red-500/10 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform">
+            <Frame className="w-6 h-6 text-red-600" />
+          </div>
+          <h2 className="text-sm font-bold text-main mb-1.5">{t.reformatTitle}</h2>
+          <p className="text-dim text-[11px] leading-relaxed hidden sm:block">{t.reformatDesc}</p>
+        </div>
+
+        <div onClick={() => setView('watermark')} className="bg-editor rounded-xl p-4 border border-theme shadow-sm hover:border-red-400 transition-all cursor-pointer group flex flex-col items-center text-center">
+          <div className="bg-red-500/10 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform">
+            <Stamp className="w-6 h-6 text-red-600" />
+          </div>
+          <h2 className="text-sm font-bold text-main mb-1.5">{t.watermarkTitle}</h2>
+          <p className="text-dim text-[11px] leading-relaxed hidden sm:block">{t.watermarkDesc}</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const getGridColsClass = (zoom) => {
+    switch(zoom) {
+      case 1: return 'grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12';
+      case 2: return 'grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10';
+      case 3: return 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8';
+      case 4: return 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
+      case 5: return 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5';
+      case 6: return 'grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
+      case 7: return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'; 
+      case 8: return 'grid-cols-1 sm:grid-cols-1 md:grid-cols-2'; 
+      default: return 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8';
+    }
+  };
+
+  const renderMerge = () => ( /* ... existing Merge ... */ 
+    <div className="max-w-4xl mx-auto p-4 md:p-6">
+      <button onClick={goHome} className="flex items-center text-dim hover:text-red-500 mb-6 font-medium transition-colors">
+        <ArrowLeft className="w-4 h-4 mr-2" /> {t.backHome}
+      </button>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-main flex items-center mb-2">
+          <Layers className="w-6 h-6 mr-3 text-red-600" /> {t.mergeTitle}
+        </h2>
+        <p className="text-dim text-sm">{t.mergeDesc}</p>
+      </div>
+
+      <div className="bg-editor p-6 rounded-xl border border-theme">
+        <label className="border-2 border-dashed border-theme rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--stripe-color)] transition-colors mb-6">
+          <UploadCloud className="w-10 h-10 text-dim mb-3" />
+          <span className="text-base font-medium text-main mb-1">{loading ? t.processing : t.uploadPrompt}</span>
+          <span className="text-xs text-dim">{t.uploadOr}</span>
+          <input type="file" multiple accept="application/pdf" className="hidden" onChange={handleMergeUpload} disabled={loading} />
+        </label>
+
+        {mergeItems.length > 0 && (
+          <div className="mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {mergeItems.map((item, index) => {
+                const includedCount = item.pages.filter(p => p.included).length;
+                return (
+                  <div key={item.id} draggable onDragStart={(e) => handleDragStartMerge(e, index)} onDragEnter={(e) => handleDragEnterMerge(e, index)} onDragEnd={handleDragEndMerge} onDragOver={(e) => e.preventDefault()}
+                    className="group relative bg-preview border border-theme rounded-xl overflow-hidden hover:border-red-400 transition-all cursor-grab active:cursor-grabbing flex flex-col"
+                  >
+                    <div className="relative aspect-[1/1.4] bg-white border-b border-theme">
+                      <img src={item.coverUrl} alt="Cover" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                        <button onClick={() => setExpandedItem(item)} className="bg-editor text-main text-xs px-3 py-1.5 rounded font-medium flex items-center shadow-sm hover:bg-preview">
+                          <Maximize2 className="w-3 h-3 mr-1" /> {t.selectPages}
+                        </button>
+                        <button onClick={() => removeMergeItem(index)} className="bg-red-600 text-white text-xs px-3 py-1.5 rounded font-medium flex items-center shadow-sm hover:bg-red-700">
+                          <Trash2 className="w-3 h-3 mr-1" /> Remove
+                        </button>
+                      </div>
+                      {includedCount === 0 && (
+                        <div className="absolute inset-0 bg-editor/80 flex items-center justify-center backdrop-blur-sm">
+                          <span className="bg-black text-white text-xs px-2 py-1 rounded font-bold">{t.skipped}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-2">
+                      <div className="flex items-center mb-1">
+                        <GripVertical className="w-3 h-3 text-dim mr-1 shrink-0" />
+                        <h4 className="font-medium text-xs text-main truncate" title={item.name}>{item.name}</h4>
+                      </div>
+                      <p className="text-[10px] text-dim text-center mt-1 font-medium">{includedCount} / {item.pageCount} {t.pages}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {error && <div className="p-3 mb-4 text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center text-sm"><AlertCircle className="w-4 h-4 mr-2"/> {error}</div>}
+        {success && <div className="p-3 mb-4 text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center text-sm"><CheckCircle2 className="w-4 h-4 mr-2"/> {success}</div>}
+
+        <button onClick={processMerge} disabled={loading || mergeItems.length === 0}
+          className={`w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all ${
+            loading || mergeItems.length === 0 ? 'bg-preview text-dim cursor-not-allowed border border-theme' : 'bg-red-600 text-white hover:bg-red-700'
+          }`}
+        >
+          {loading ? t.processing : <><Layers className="w-4 h-4 mr-2" /> {t.mergeNow}</>}
+        </button>
+      </div>
+
+      {/* MODAL EXPAND */}
+      {expandedItem && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-editor border border-theme rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-theme flex justify-between items-center bg-header">
+              <div>
+                <h3 className="font-bold text-lg text-main flex items-center"><Settings className="w-4 h-4 mr-2 text-red-600" /> {t.selectPages}</h3>
+                <p className="text-xs text-dim mt-0.5">{expandedItem.name}</p>
+              </div>
+              <button onClick={() => setExpandedItem(null)} className="p-1.5 text-dim hover:text-main rounded-md transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-5 py-3 border-b border-theme flex gap-2 bg-preview">
+              <button onClick={() => setAllPagesInclude(expandedItem.id, true)} className="px-3 py-1.5 text-xs font-semibold bg-editor border border-theme hover:border-red-400 text-main rounded transition-colors">{t.selectAll}</button>
+              <button onClick={() => setAllPagesInclude(expandedItem.id, false)} className="px-3 py-1.5 text-xs font-semibold bg-editor border border-theme hover:border-red-400 text-main rounded transition-colors">{t.clearSelection}</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 bg-preview">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-5">
+                {expandedItem.pages.map((p) => (
+                  <PdfPageThumbnail key={p.index} pdf={expandedItem.pdfRef} pageIndex={p.index} included={p.included} lang={lang} onToggle={() => togglePageInclude(expandedItem.id, p.index)} />
+                ))}
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-theme bg-header flex justify-end">
+              <button onClick={() => setExpandedItem(null)} className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg shadow-sm">{t.done}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderSplit = () => (
+    <div className="max-w-4xl mx-auto p-4 md:p-6">
+      <button onClick={goHome} className="flex items-center text-dim hover:text-red-500 mb-6 font-medium transition-colors">
+        <ArrowLeft className="w-4 h-4 mr-2" /> {t.backHome}
+      </button>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-main flex items-center mb-2">
+          <Split className="w-6 h-6 mr-3 text-red-600" /> {t.splitTitle}
+        </h2>
+        <p className="text-dim text-sm">{t.splitDesc}</p>
+      </div>
+
+      <div className="bg-editor p-6 rounded-xl border border-theme">
+        {!splitFile ? (
+          <label className="border-2 border-dashed border-theme rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--stripe-color)] transition-colors">
+            <UploadCloud className="w-10 h-10 text-dim mb-3" />
+            <span className="text-base font-medium text-main mb-1">{t.uploadPrompt}</span>
+            <input type="file" accept="application/pdf" className="hidden" onChange={handleSplitUpload} />
+          </label>
+        ) : (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between bg-preview p-4 rounded-lg border border-theme">
+              <div className="flex items-center">
+                <FileIcon className="w-6 h-6 text-red-500 mr-3" />
+                <div>
+                  <h3 className="font-semibold text-main text-sm">{splitFile.name}</h3>
+                  <p className="text-xs text-dim">Total: {splitPageCount} {t.pages}</p>
+                </div>
+              </div>
+              <button onClick={() => { setSplitFile(null); setSplitPageCount(0); }} className="text-xs text-red-600 hover:text-red-500 font-medium">
+                {t.replaceFile}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div onClick={() => setSplitMode('range')} className={`p-4 border rounded-xl cursor-pointer transition-all ${splitMode === 'range' ? 'border-red-500 bg-red-500/5' : 'border-theme hover:border-red-300'}`}>
+                <h4 className="font-bold text-main mb-1 text-sm">{t.extractRange}</h4>
+                <p className="text-xs text-dim">{t.extractRangeDesc}</p>
+              </div>
+              <div onClick={() => setSplitMode('all')} className={`p-4 border rounded-xl cursor-pointer transition-all ${splitMode === 'all' ? 'border-red-500 bg-red-500/5' : 'border-theme hover:border-red-300'}`}>
+                <h4 className="font-bold text-main mb-1 text-sm">{t.splitAll}</h4>
+                <p className="text-xs text-dim">{t.splitAllDesc}</p>
+              </div>
+            </div>
+
+            {splitMode === 'range' && (
+              <div className="mt-2">
+                <label className="block text-xs font-semibold text-main mb-2">e.g., 1, 3-5, 8</label>
+                <input type="text" value={splitRange} onChange={(e) => setSplitRange(e.target.value)} placeholder="1, 4-7, 10"
+                  className="w-full p-2.5 rounded-lg tata-input text-sm"
+                />
+              </div>
+            )}
+
+            {error && <div className="p-3 text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center text-sm"><AlertCircle className="w-4 h-4 mr-2"/> {error}</div>}
+            {success && <div className="p-3 text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center text-sm"><CheckCircle2 className="w-4 h-4 mr-2"/> {success}</div>}
+
+            <button onClick={processSplit} disabled={loading || (splitMode === 'range' && !splitRange.trim())}
+              className={`w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all ${
+                loading || (splitMode === 'range' && !splitRange.trim()) ? 'bg-preview text-dim cursor-not-allowed border border-theme' : 'bg-red-600 text-white hover:bg-red-700'
+              }`}
+            >
+              {loading ? t.processing : <><Split className="w-4 h-4 mr-2" /> {splitMode === 'all' ? t.splitZip : t.splitNow}</>}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderArrange = () => (
+    <div className="max-w-5xl mx-auto p-4 md:p-6">
+      <button onClick={goHome} className="flex items-center text-dim hover:text-red-500 mb-6 font-medium transition-colors">
+        <ArrowLeft className="w-4 h-4 mr-2" /> {t.backHome}
+      </button>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-main flex items-center mb-2">
+          <Settings className="w-6 h-6 mr-3 text-red-600" /> {t.arrangeTitle}
+        </h2>
+        <p className="text-dim text-sm">{t.arrangeDesc}</p>
+      </div>
+
+      <div className="bg-editor p-6 rounded-xl border border-theme">
+        {!arrangeFile ? (
+          <label className="border-2 border-dashed border-theme rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--stripe-color)] transition-colors">
+            <UploadCloud className="w-10 h-10 text-dim mb-3" />
+            <span className="text-base font-medium text-main mb-1">{t.uploadPrompt}</span>
+            <input type="file" accept="application/pdf" className="hidden" onChange={handleArrangeUpload} />
+          </label>
+        ) : (
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-theme">
+              <h3 className="font-semibold text-main text-sm truncate max-w-[50%]">{arrangeFile.name}</h3>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                <button onClick={resetArrangeOrder} title={t.resetOrder} className="flex items-center text-xs text-dim hover:text-main font-medium bg-preview px-3 py-1.5 rounded-lg border border-theme transition-colors">
+                  <RotateCcw className="w-3.5 h-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">{t.resetOrder}</span>
+                </button>
+
+                <div className="flex items-center gap-2 bg-preview px-3 py-1.5 rounded-lg border border-theme">
+                  <ZoomOut className="w-4 h-4 text-dim" />
+                  <input type="range" min="1" max="8" value={arrangeZoom} onChange={e => setArrangeZoom(Number(e.target.value))} className="w-16 sm:w-24 accent-red-500" />
+                  <ZoomIn className="w-4 h-4 text-dim" />
+                </div>
+                
+                <button onClick={() => { setArrangeFile(null); setArrangeOrder([]); setArrangePdfRef(null); }} className="text-xs text-red-600 hover:text-red-500 font-medium whitespace-nowrap px-1">
+                  {t.replaceFile}
+                </button>
+              </div>
+            </div>
+
+            <div className={`grid gap-3 mb-6 transition-all duration-300 ${getGridColsClass(arrangeZoom)}`}>
+              {arrangeOrder.map((page, index) => (
+                <div key={page.id} draggable onDragStart={(e) => handleDragStartArrange(e, index)} onDragEnter={(e) => handleDragEnterArrange(e, index)} onDragEnd={handleDragEndArrange} onDragOver={(e) => e.preventDefault()}
+                  className="relative group aspect-[1/1.4] bg-preview border-2 border-theme rounded-lg overflow-hidden flex flex-col items-center justify-center cursor-grab active:cursor-grabbing hover:border-red-400 hover:shadow-lg transition-all"
+                >
+                  <button onClick={() => removePage(index)} className="absolute top-1 right-1 z-10 bg-editor border border-theme text-red-500 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white shadow-sm">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                  
+                  <div className="absolute top-1 left-1 z-10 bg-black/60 text-white text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded backdrop-blur-[2px] font-medium shadow-sm pointer-events-none">
+                    {t.original} {page.originalIndex + 1}
+                  </div>
+                  
+                  {arrangePdfRef ? (
+                    <CanvasPreview pdf={arrangePdfRef} pageIndex={page.originalIndex} zoom={debouncedZoom} />
+                  ) : (
+                    <FileIcon className="w-6 h-6 text-dim mb-1 opacity-50" />
+                  )}
+                  
+                  <div className="absolute bottom-0 inset-x-0 bg-black/70 py-1 flex justify-center backdrop-blur-[2px]">
+                    <span className="text-[10px] sm:text-xs font-bold text-white text-center px-1 truncate">
+                      {t.page} {index + 1}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {error && <div className="p-3 mb-4 text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center text-sm"><AlertCircle className="w-4 h-4 mr-2"/> {error}</div>}
+            {success && <div className="p-3 mb-4 text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center text-sm"><CheckCircle2 className="w-4 h-4 mr-2"/> {success}</div>}
+
+            <button onClick={processArrange} disabled={loading || arrangeOrder.length === 0}
+              className={`w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all ${
+                loading || arrangeOrder.length === 0 ? 'bg-preview text-dim cursor-not-allowed border border-theme' : 'bg-red-600 text-white hover:bg-red-700'
+              }`}
+            >
+              {loading ? t.processing : <><Download className="w-4 h-4 mr-2" /> {t.arrangeApply}</>}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderRotate = () => (
+    <div className="max-w-5xl mx-auto p-4 md:p-6">
+      <button onClick={goHome} className="flex items-center text-dim hover:text-red-500 mb-6 font-medium transition-colors">
+        <ArrowLeft className="w-4 h-4 mr-2" /> {t.backHome}
+      </button>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-main flex items-center mb-2">
+          <RotateCw className="w-6 h-6 mr-3 text-red-600" /> {t.rotateTitle}
+        </h2>
+        <p className="text-dim text-sm">{t.rotateDesc}</p>
+      </div>
+
+      <div className="bg-editor p-6 rounded-xl border border-theme">
+        {!rotateFile ? (
+          <label className="border-2 border-dashed border-theme rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--stripe-color)] transition-colors">
+            <UploadCloud className="w-10 h-10 text-dim mb-3" />
+            <span className="text-base font-medium text-main mb-1">{t.uploadPrompt}</span>
+            <input type="file" accept="application/pdf" className="hidden" onChange={handleRotateUpload} />
+          </label>
+        ) : (
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-theme">
+              <h3 className="font-semibold text-main text-sm truncate max-w-[40%]">{rotateFile.name}</h3>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                <button onClick={() => rotateAll(-90)} title={t.rotateAllLeft} className="flex items-center text-xs text-dim hover:text-main font-medium bg-preview px-3 py-1.5 rounded-lg border border-theme transition-colors">
+                  <RotateCcw className="w-3.5 h-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">{t.rotateAllLeft}</span>
+                </button>
+                <button onClick={() => rotateAll(90)} title={t.rotateAllRight} className="flex items-center text-xs text-dim hover:text-main font-medium bg-preview px-3 py-1.5 rounded-lg border border-theme transition-colors">
+                  <RotateCw className="w-3.5 h-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">{t.rotateAllRight}</span>
+                </button>
+
+                <div className="flex items-center gap-2 bg-preview px-3 py-1.5 rounded-lg border border-theme">
+                  <ZoomOut className="w-4 h-4 text-dim" />
+                  <input type="range" min="1" max="8" value={rotateZoom} onChange={e => setRotateZoom(Number(e.target.value))} className="w-16 sm:w-20 accent-red-500" />
+                  <ZoomIn className="w-4 h-4 text-dim" />
+                </div>
+                
+                <button onClick={() => { setRotateFile(null); setRotatePages([]); setRotatePdfRef(null); }} className="text-xs text-red-600 hover:text-red-500 font-medium whitespace-nowrap px-1">
+                  {t.replaceFile}
+                </button>
+              </div>
+            </div>
+
+            <div className={`grid gap-3 mb-6 transition-all duration-300 ${getGridColsClass(rotateZoom)}`}>
+              {rotatePages.map((page) => (
+                <div key={page.originalIndex} className="relative group aspect-square bg-preview border-2 border-theme rounded-lg overflow-hidden flex flex-col items-center justify-center hover:border-red-400 hover:shadow-lg transition-all p-3">
+                  
+                  <div className="absolute top-2 inset-x-2 flex justify-between z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => rotatePage(page.originalIndex, -90)} className="bg-editor border border-theme text-main rounded-full p-2 hover:bg-slate-200 hover:text-red-500 shadow-md transition-colors">
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => rotatePage(page.originalIndex, 90)} className="bg-editor border border-theme text-main rounded-full p-2 hover:bg-slate-200 hover:text-red-500 shadow-md transition-colors">
+                      <RotateCw className="w-4 h-4" />
+                    </button>
+                  </div>
+                  
+                  {rotatePdfRef ? (
+                    <CanvasPreview pdf={rotatePdfRef} pageIndex={page.originalIndex} zoom={debouncedRotateZoom} rotationDelta={page.delta} />
+                  ) : (
+                    <FileIcon className="w-6 h-6 text-dim mb-1 opacity-50" />
+                  )}
+                  
+                  <div className="absolute bottom-0 inset-x-0 bg-black/70 py-1 flex justify-center backdrop-blur-[2px]">
+                    <span className="text-[10px] sm:text-xs font-bold text-white text-center px-1 truncate">
+                      {t.page} {page.originalIndex + 1}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {error && <div className="p-3 mb-4 text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center text-sm"><AlertCircle className="w-4 h-4 mr-2"/> {error}</div>}
+            {success && <div className="p-3 mb-4 text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center text-sm"><CheckCircle2 className="w-4 h-4 mr-2"/> {success}</div>}
+
+            <button onClick={processRotate} disabled={loading || rotatePages.length === 0}
+              className={`w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all ${
+                loading || rotatePages.length === 0 ? 'bg-preview text-dim cursor-not-allowed border border-theme' : 'bg-red-600 text-white hover:bg-red-700'
+              }`}
+            >
+              {loading ? t.processing : <><Download className="w-4 h-4 mr-2" /> {t.rotateApply}</>}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderCompress = () => (
+    <div className="max-w-4xl mx-auto p-4 md:p-6">
+      <button onClick={goHome} className="flex items-center text-dim hover:text-red-500 mb-6 font-medium transition-colors">
+        <ArrowLeft className="w-4 h-4 mr-2" /> {t.backHome}
+      </button>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-main flex items-center mb-2">
+          <Minimize className="w-6 h-6 mr-3 text-red-600" /> {t.compressTitle}
+        </h2>
+        <p className="text-dim text-sm">{t.compressDesc}</p>
+      </div>
+
+      <div className="bg-editor p-6 rounded-xl border border-theme">
+        {!compressFile ? (
+          <label className="border-2 border-dashed border-theme rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--stripe-color)] transition-colors">
+            <UploadCloud className="w-10 h-10 text-dim mb-3" />
+            <span className="text-base font-medium text-main mb-1">{t.uploadPrompt}</span>
+            <input type="file" accept="application/pdf" className="hidden" onChange={handleCompressUpload} />
+          </label>
+        ) : (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-preview p-4 rounded-lg border border-theme gap-4">
+              <div className="flex items-center">
+                <FileIcon className="w-6 h-6 text-red-500 mr-3 shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-main text-sm truncate">{compressFile.name}</h3>
+                  <div className="text-xs mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
+                    <span className="text-dim">{t.sizeBefore}: <strong className="text-main">{formatBytes(compressFile.size)}</strong></span>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => { setCompressFile(null); setCompressResult(null); }} className="text-xs text-red-600 hover:text-red-500 font-medium whitespace-nowrap shrink-0">
+                {t.replaceFile}
+              </button>
+            </div>
+
+            {!compressResult && (
+              <>
+                <div>
+                  <h4 className="font-semibold text-sm mb-3 text-main">{t.compressLevelDesc}</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {Object.entries(COMPRESS_CONFIG).map(([key, config]) => (
+                      <div 
+                        key={key} 
+                        onClick={() => setCompressLevel(key)}
+                        className={`p-4 border rounded-xl cursor-pointer transition-all flex flex-col justify-between h-full ${
+                          compressLevel === key ? 'border-red-500 bg-red-500/5 shadow-[0_0_0_1px_rgba(239,68,68,1)]' : 'border-theme hover:border-red-300 bg-preview'
+                        }`}
+                      >
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className={`font-bold text-sm ${compressLevel === key ? 'text-red-600' : 'text-main'}`}>{config.title}</h4>
+                            <div className={`w-4 h-4 rounded-full border shrink-0 flex items-center justify-center ${compressLevel === key ? 'border-red-500 bg-red-500' : 'border-theme'}`}>
+                              {compressLevel === key && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                            </div>
+                          </div>
+                          <p className="text-[11px] leading-relaxed text-dim">{config.desc}</p>
+                        </div>
+                        <div className="mt-auto pt-3 border-t border-theme border-opacity-50 flex justify-between items-center">
+                          <span className="text-[10px] font-medium text-dim">{t.estimated}</span>
+                          <span className={`text-xs font-bold ${compressLevel === key ? 'text-red-600' : 'text-green-600'}`}>
+                            ~{formatBytes(compressFile.size * config.expectedRatio)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {error && <div className="p-3 text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center text-sm"><AlertCircle className="w-4 h-4 mr-2"/> {error}</div>}
+
+                <button onClick={processCompress} disabled={loading}
+                  className={`w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all ${
+                    loading ? 'bg-preview text-dim cursor-not-allowed border border-theme' : 'bg-red-600 text-white hover:bg-red-700 shadow-sm'
+                  }`}
+                >
+                  {loading ? t.processing : <><Minimize className="w-4 h-4 mr-2" /> {t.compressNow}</>}
+                </button>
+              </>
+            )}
+
+            {compressResult && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1 bg-preview p-4 rounded-xl border border-theme text-center">
+                    <p className="text-xs text-dim mb-1 uppercase tracking-wider font-semibold">{t.sizeBefore}</p>
+                    <p className="text-xl font-bold text-main font-mono">{formatBytes(compressResult.originalSize)}</p>
+                  </div>
+                  <div className="hidden sm:flex items-center justify-center">
+                    <ArrowRight className="text-dim w-6 h-6" />
+                  </div>
+                  <div className="flex-1 bg-green-500/10 p-4 rounded-xl border border-green-500/30 text-center">
+                    <p className="text-xs text-green-700 mb-1 uppercase tracking-wider font-semibold">{t.sizeAfter}</p>
+                    <p className="text-xl font-bold text-green-600 font-mono">{formatBytes(compressResult.newSize)}</p>
+                  </div>
+                  <div className="flex-1 bg-preview p-4 rounded-xl border border-theme text-center flex flex-col justify-center">
+                    <p className="text-xs text-dim mb-1 uppercase tracking-wider font-semibold">{t.savings}</p>
+                    <p className="text-lg font-bold text-red-500 font-mono">
+                      {Math.round((1 - (compressResult.newSize / compressResult.originalSize)) * 100)}%
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border border-theme rounded-xl overflow-hidden bg-preview">
+                  <div className="bg-header border-b border-theme px-4 py-2 text-xs font-semibold text-main">
+                    {t.previewFinal}
+                  </div>
+                  <iframe 
+                    src={`${compressPreviewUrl}#toolbar=0&navpanes=0`} 
+                    className="w-full h-[50vh] sm:h-[60vh] bg-preview" 
+                    title="PDF Preview"
+                  />
+                </div>
+
+                <button onClick={() => handleDownload(compressResult.blob, `Compressed_${compressFile.name}`)}
+                  className="w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all bg-green-600 text-white hover:bg-green-700 shadow-sm"
+                >
+                  <Download className="w-4 h-4 mr-2" /> Download PDF ({formatBytes(compressResult.newSize)})
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderPdfToPng = () => (
+    <div className="max-w-4xl mx-auto p-4 md:p-6">
+      <button onClick={goHome} className="flex items-center text-dim hover:text-red-500 mb-6 font-medium transition-colors">
+        <ArrowLeft className="w-4 h-4 mr-2" /> {t.backHome}
+      </button>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-main flex items-center mb-2">
+          <ImageIcon className="w-6 h-6 mr-3 text-red-600" /> {t.pdfToPngTitle}
+        </h2>
+        <p className="text-dim text-sm">{t.pdfToPngDesc}</p>
+      </div>
+
+      <div className="bg-editor p-6 rounded-xl border border-theme">
+        {!pdfToPngFile ? (
+          <label className="border-2 border-dashed border-theme rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--stripe-color)] transition-colors">
+            <UploadCloud className="w-10 h-10 text-dim mb-3" />
+            <span className="text-base font-medium text-main mb-1">{t.uploadPrompt}</span>
+            <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfToPngUpload} />
+          </label>
+        ) : (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-preview p-4 rounded-lg border border-theme gap-4">
+              <div className="flex items-center">
+                <FileIcon className="w-6 h-6 text-red-500 mr-3 shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-main text-sm truncate">{pdfToPngFile.name}</h3>
+                  <div className="text-xs mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
+                    <span className="text-dim">{t.sizeBefore}: <strong className="text-main">{formatBytes(pdfToPngFile.size)}</strong></span>
+                    <span className="text-dim">Total: <strong className="text-main">{pdfToPngMeta?.numPages || 0} {t.pages}</strong></span>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => { setPdfToPngFile(null); setPdfToPngMeta(null); }} className="text-xs text-red-600 hover:text-red-500 font-medium whitespace-nowrap shrink-0">
+                {t.replaceFile}
+              </button>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-sm mb-3 text-main">{t.qualityLevelDesc}</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {Object.entries(PNG_CONFIG).map(([key, config]) => (
+                  <div 
+                    key={key} 
+                    onClick={() => setPdfToPngQuality(key)}
+                    className={`p-4 border rounded-xl cursor-pointer transition-all flex flex-col justify-between h-full ${
+                      pdfToPngQuality === key ? 'border-red-500 bg-red-500/5 shadow-[0_0_0_1px_rgba(239,68,68,1)]' : 'border-theme hover:border-red-300 bg-preview'
+                    }`}
+                  >
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className={`font-bold text-sm ${pdfToPngQuality === key ? 'text-red-600' : 'text-main'}`}>{config.title}</h4>
+                        <div className={`w-4 h-4 rounded-full border shrink-0 flex items-center justify-center ${pdfToPngQuality === key ? 'border-red-500 bg-red-500' : 'border-theme'}`}>
+                          {pdfToPngQuality === key && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                        </div>
+                      </div>
+                      <p className="text-[11px] leading-relaxed text-dim">{config.desc}</p>
+                    </div>
+                    <div className="mt-auto pt-3 border-t border-theme border-opacity-50 flex justify-between items-center">
+                      <span className="text-[10px] font-medium text-dim">{t.estimated}</span>
+                      <span className={`text-xs font-bold ${pdfToPngQuality === key ? 'text-red-600' : 'text-main'}`}>
+                        ~{formatBytes(getPngEstimation(config))}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {error && <div className="p-3 text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center text-sm"><AlertCircle className="w-4 h-4 mr-2"/> {error}</div>}
+
+            <button onClick={processPdfToPng} disabled={loading}
+              className={`w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all ${
+                loading ? 'bg-preview text-dim cursor-not-allowed border border-theme' : 'bg-red-600 text-white hover:bg-red-700 shadow-sm'
+              }`}
+            >
+              {loading ? t.processing : (
+                <><ImageIcon className="w-4 h-4 mr-2" /> {pdfToPngMeta?.numPages === 1 ? t.downloadPng : t.downloadZip}</>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderReformat = () => {
+    // Menghitung aspect ratio proporsional untuk pratinjau CSS
+    const rTargetConfig = PAPER_SIZES[reformatTargetSize];
+    const isL = reformatOrigIsLandscape;
+    const rTargetW = isL ? Math.max(rTargetConfig.width, rTargetConfig.height) : Math.min(rTargetConfig.width, rTargetConfig.height);
+    const rTargetH = isL ? Math.min(rTargetConfig.width, rTargetConfig.height) : Math.max(rTargetConfig.width, rTargetConfig.height);
+    const rAspect = rTargetW / rTargetH;
+
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-6">
+        <button onClick={goHome} className="flex items-center text-dim hover:text-red-500 mb-6 font-medium transition-colors">
+          <ArrowLeft className="w-4 h-4 mr-2" /> {t.backHome}
+        </button>
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-main flex items-center mb-2">
+            <Frame className="w-6 h-6 mr-3 text-red-600" /> {t.reformatTitle}
+          </h2>
+          <p className="text-dim text-sm">{t.reformatDesc}</p>
+        </div>
+
+        <div className="bg-editor p-6 rounded-xl border border-theme">
+          {!reformatFile ? (
+            <label className="border-2 border-dashed border-theme rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--stripe-color)] transition-colors">
+              <UploadCloud className="w-10 h-10 text-dim mb-3" />
+              <span className="text-base font-medium text-main mb-1">{t.uploadPrompt}</span>
+              <input type="file" accept="application/pdf" className="hidden" onChange={handleReformatUpload} />
+            </label>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-preview p-4 rounded-lg border border-theme gap-4">
+                <div className="flex items-center">
+                  <FileIcon className="w-6 h-6 text-red-500 mr-3 shrink-0" />
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-main text-sm truncate">{reformatFile.name}</h3>
+                    <div className="text-xs mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
+                      <span className="text-dim">{t.detectedSize}: <strong className="text-main">{reformatOriginalSize}</strong></span>
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => { setReformatFile(null); setReformatOriginalSize(''); }} className="text-xs text-red-600 hover:text-red-500 font-medium whitespace-nowrap shrink-0">
+                  {t.replaceFile}
+                </button>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-6">
+                <div className="flex-1 space-y-4">
+                  <h4 className="font-semibold text-sm text-main">{t.targetSize}</h4>
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    {Object.entries(PAPER_SIZES).map(([key, config]) => (
+                      <div 
+                        key={key} 
+                        onClick={() => setReformatTargetSize(key)}
+                        className={`p-3 border rounded-xl cursor-pointer transition-all flex flex-col justify-center text-center h-full ${
+                          reformatTargetSize === key ? 'border-red-500 bg-red-500/5 shadow-[0_0_0_1px_rgba(239,68,68,1)]' : 'border-theme hover:border-red-300 bg-preview'
+                        }`}
+                      >
+                        <h4 className={`font-bold text-sm mb-0.5 ${reformatTargetSize === key ? 'text-red-600' : 'text-main'}`}>{config.label}</h4>
+                        <p className="text-[10px] text-dim">{config.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Preview Reformat Aspek Rasio (CSS Only) */}
+                <div className="w-full md:w-1/3 md:shrink-0 flex flex-col">
+                  <h4 className="font-semibold text-sm text-main mb-3">{t.preview}</h4>
+                  <div className="flex-1 bg-preview border-2 border-dashed border-theme rounded-xl flex items-center justify-center p-4 min-h-[220px] relative overflow-hidden">
+                    <div 
+                      className="bg-white shadow-lg border border-theme flex items-center justify-center overflow-hidden transition-all duration-300 relative"
+                      style={{ aspectRatio: rAspect, height: '100%' }}
+                    >
+                      {reformatPdfRef && <CanvasPreview pdf={reformatPdfRef} pageIndex={0} zoom={2} className="max-w-full max-h-full object-contain" />}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {error && <div className="p-3 text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center text-sm"><AlertCircle className="w-4 h-4 mr-2"/> {error}</div>}
+
+              <button onClick={processReformat} disabled={loading}
+                className={`w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all ${
+                  loading ? 'bg-preview text-dim cursor-not-allowed border border-theme' : 'bg-red-600 text-white hover:bg-red-700 shadow-sm'
+                }`}
+              >
+                {loading ? t.processing : <><Frame className="w-4 h-4 mr-2" /> {t.reformatNow}</>}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderWatermark = () => {
+    let wmTextToDisplay = watermarkMode === 'preset' ? (watermarkPreset === 'DRAFT' ? t.wm_draft : t.wm_confid) : watermarkCustom;
+    if (wmTextToDisplay.trim() === '') wmTextToDisplay = 'WATERMARK';
+
+    return (
+      <div className="max-w-5xl mx-auto p-4 md:p-6">
+        <button onClick={goHome} className="flex items-center text-dim hover:text-red-500 mb-6 font-medium transition-colors">
+          <ArrowLeft className="w-4 h-4 mr-2" /> {t.backHome}
+        </button>
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-main flex items-center mb-2">
+            <Stamp className="w-6 h-6 mr-3 text-red-600" /> {t.watermarkTitle}
+          </h2>
+          <p className="text-dim text-sm">{t.watermarkDesc}</p>
+        </div>
+
+        <div className="bg-editor p-6 rounded-xl border border-theme">
+          {!watermarkFile ? (
+            <label className="border-2 border-dashed border-theme rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--stripe-color)] transition-colors">
+              <UploadCloud className="w-10 h-10 text-dim mb-3" />
+              <span className="text-base font-medium text-main mb-1">{t.uploadPrompt}</span>
+              <input type="file" accept="application/pdf" className="hidden" onChange={handleWatermarkUpload} />
+            </label>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-preview p-4 rounded-lg border border-theme gap-4">
+                <div className="flex items-center">
+                  <FileIcon className="w-6 h-6 text-red-500 mr-3 shrink-0" />
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-main text-sm truncate">{watermarkFile.name}</h3>
+                  </div>
+                </div>
+                <button onClick={() => { setWatermarkFile(null); setWatermarkPdfRef(null); }} className="text-xs text-red-600 hover:text-red-500 font-medium whitespace-nowrap shrink-0">
+                  {t.replaceFile}
+                </button>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-8">
+                {/* Left: Settings */}
+                <div className="flex-1 space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div 
+                      onClick={() => setWatermarkMode('preset')}
+                      className={`p-4 border rounded-xl cursor-pointer transition-all ${watermarkMode === 'preset' ? 'border-red-500 bg-red-500/5' : 'border-theme hover:border-red-300'}`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-bold text-main text-sm">{t.wm_preset}</h4>
+                        <div className={`w-4 h-4 rounded-full border shrink-0 flex items-center justify-center ${watermarkMode === 'preset' ? 'border-red-500 bg-red-500' : 'border-theme'}`}>
+                          {watermarkMode === 'preset' && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                        </div>
+                      </div>
+                      <select 
+                        value={watermarkPreset} 
+                        onChange={(e) => setWatermarkPreset(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full p-2.5 rounded-lg tata-input text-sm cursor-pointer"
+                        disabled={watermarkMode !== 'preset'}
+                      >
+                        <option value="DRAFT">{t.wm_draft}</option>
+                        <option value="CONFIDENTIAL">{t.wm_confid}</option>
+                      </select>
+                    </div>
+
+                    <div 
+                      onClick={() => setWatermarkMode('custom')}
+                      className={`p-4 border rounded-xl cursor-pointer transition-all ${watermarkMode === 'custom' ? 'border-red-500 bg-red-500/5' : 'border-theme hover:border-red-300'}`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-bold text-main text-sm">{t.wm_custom}</h4>
+                        <div className={`w-4 h-4 rounded-full border shrink-0 flex items-center justify-center ${watermarkMode === 'custom' ? 'border-red-500 bg-red-500' : 'border-theme'}`}>
+                          {watermarkMode === 'custom' && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                        </div>
+                      </div>
+                      <input 
+                        type="text" 
+                        value={watermarkCustom} 
+                        onChange={(e) => setWatermarkCustom(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        maxLength={30}
+                        placeholder={t.wm_placeholder}
+                        className="w-full p-2.5 rounded-lg tata-input text-sm"
+                        disabled={watermarkMode !== 'custom'}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-preview p-5 rounded-xl border border-theme space-y-5">
+                    <div>
+                      <label className="text-sm font-semibold text-main flex justify-between">
+                        {t.wm_size} <span className="text-dim">{watermarkSize}%</span>
+                      </label>
+                      <input 
+                        type="range" min="10" max="150" 
+                        value={watermarkSize} 
+                        onChange={e => setWatermarkSize(Number(e.target.value))} 
+                        className="w-full accent-red-500 mt-2" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-main flex justify-between">
+                        {t.wm_opacity} <span className="text-dim">{Math.round(watermarkOpacity * 100)}%</span>
+                      </label>
+                      <input 
+                        type="range" min="5" max="100" 
+                        value={watermarkOpacity * 100} 
+                        onChange={e => setWatermarkOpacity(e.target.value / 100)} 
+                        className="w-full accent-red-500 mt-2" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-main mb-2 block">{t.wm_color}</label>
+                      <div className="flex gap-6">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
+                          <input type="radio" checked={watermarkColor === 'gray'} onChange={() => setWatermarkColor('gray')} className="accent-red-500 w-4 h-4" />
+                          {t.wm_gray}
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
+                          <input type="radio" checked={watermarkColor === 'red'} onChange={() => setWatermarkColor('red')} className="accent-red-500 w-4 h-4" />
+                          {t.wm_red}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Live Preview */}
+                <div className="w-full md:w-2/5 flex flex-col">
+                  <h4 className="font-semibold text-sm text-main mb-3">{t.preview}</h4>
+                  <div 
+                    className="relative aspect-[1/1.414] bg-white border border-theme rounded-xl overflow-hidden shadow-sm flex items-center justify-center pointer-events-none select-none"
+                    style={{ containerType: 'inline-size' }}
+                  >
+                    {watermarkPdfRef && <CanvasPreview pdf={watermarkPdfRef} pageIndex={0} zoom={2} />}
+                    
+                    {/* CSS Overlay Watermark Preview (Super Fast, No Re-render needed) */}
+                    <div 
+                      className="absolute inset-0 overflow-hidden mix-blend-multiply"
+                      style={{ opacity: watermarkOpacity }}
+                    >
+                      <span 
+                        className="absolute top-1/2 left-1/2 font-bold text-center uppercase tracking-widest break-words whitespace-nowrap"
+                        style={{
+                          color: watermarkColor === 'red' ? '#ef4444' : '#9ca3af',
+                          transform: `translate(-50%, -50%) rotate(-45deg) scale(${watermarkSize / 50})`,
+                          transformOrigin: 'center center',
+                          fontSize: '12cqw'
+                        }}
+                      >
+                        {wmTextToDisplay}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {error && <div className="p-3 text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center text-sm"><AlertCircle className="w-4 h-4 mr-2"/> {error}</div>}
+
+              <button onClick={processWatermark} disabled={loading || (watermarkMode === 'custom' && !watermarkCustom.trim())}
+                className={`w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all ${
+                  loading || (watermarkMode === 'custom' && !watermarkCustom.trim()) ? 'bg-preview text-dim cursor-not-allowed border border-theme' : 'bg-red-600 text-white hover:bg-red-700 shadow-sm'
+                }`}
+              >
+                {loading ? t.processing : <><Stamp className="w-4 h-4 mr-2" /> {t.watermarkNow}</>}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="h-screen flex flex-col text-main bg-preview font-sans overflow-hidden">
+      <TataStyles />
+
+      {/* HEADER (TATADADA h-14) */}
+      <header className="flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 h-14">
+        {/* Left: Branding */}
+        <div className="flex items-center gap-2 cursor-pointer" onClick={goHome}>
+          <Layers className="w-5 h-5 text-red-600" />
+          <div className="flex flex-col justify-center">
+            <div className="flex items-baseline gap-1.5">
+              <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent font-extrabold text-sm tracking-tight">AkuCintaPDF</span>
+              <span className="text-[10px] font-mono text-dim italic">v1.4</span>
+              <div className="relative group ml-1 flex items-center cursor-help">
+                <HelpCircle className="w-3 h-3 text-dim hover:text-main transition-colors" />
+                <div className="absolute left-0 top-full mt-2 w-64 p-2.5 bg-editor border border-theme text-main text-[10px] rounded-lg shadow-xl whitespace-normal leading-relaxed opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[60]">
+                  {t.helpTooltip}
+                </div>
+              </div>
+            </div>
+            <a href="https://danial.my.id" target="_blank" rel="noreferrer" className="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-red-500 transition-colors">
+              by AhmadDanial
+            </a>
+          </div>
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setLang(lang === 'id' ? 'en' : 'id')}
+            className="text-[10px] font-bold text-dim hover:text-main px-2 py-1 bg-preview border border-theme rounded flex items-center transition-colors"
+          >
+            {lang === 'id' ? '🇮🇩 ID' : '🇬🇧 EN'}
+          </button>
+          <button 
+            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} 
+            className="p-1.5 text-dim hover:text-main bg-preview border border-theme rounded transition-colors"
+          >
+            {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+      </header>
+
+      {/* MAIN WORKSPACE (TATADADA Skenario 2: Single View) */}
+      <main className="flex-1 relative overflow-auto p-2 md:p-6 bg-preview">
+        {view === 'home' && renderHome()}
+        {view === 'merge' && renderMerge()}
+        {view === 'split' && renderSplit()}
+        {view === 'arrange' && renderArrange()}
+        {view === 'rotate' && renderRotate()}
+        {view === 'compress' && renderCompress()}
+        {view === 'pdftopng' && renderPdfToPng()}
+        {view === 'reformat' && renderReformat()}
+        {view === 'watermark' && renderWatermark()}
+      </main>
+
+      {/* FOOTER (TATADADA h-8) */}
+      <footer className="flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 h-8">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></div>
+          <span className="font-medium tracking-wide">Engine Ready</span>
+        </div>
+        <div>
+          <span>100% Client-Side Processing</span>
+        </div>
+      </footer>
+    </div>
+  );
+}
