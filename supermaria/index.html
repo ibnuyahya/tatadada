@@ -119,6 +119,15 @@
         #reset-btn:hover { transform: scale(1.05); }
         #reset-btn:active { transform: scale(0.95); }
 
+        #capture-btn {
+            position: absolute; top: 125px; right: 20px; background: rgba(59, 130, 246, 0.9);
+            border: 2px solid var(--border-color); padding: 8px 16px; border-radius: 8px; 
+            color: #FFF; font-size: 1rem; font-weight: bold; cursor: pointer; z-index: 10; 
+            display: none; box-shadow: 0 4px 10px rgba(0,0,0,0.4); transition: transform 0.1s;
+        }
+        #capture-btn:hover { transform: scale(1.05); }
+        #capture-btn:active { transform: scale(0.95); }
+
         #wasd-container {
             position: absolute; bottom: 30px; left: 30px; display: flex; flex-direction: column;
             align-items: center; gap: 8px; z-index: 10; display: none; pointer-events: none;
@@ -153,7 +162,7 @@
             <h1 class="text-lg font-bold bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent">
                 Super Maria Bros
             </h1>
-            <span class="text-[10px] font-mono text-dim italic mt-1">v4.0 MegaWorld</span>
+            <span class="text-[10px] font-mono text-dim italic mt-1">v4.1 MegaWorld</span>
             <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 mt-1 ml-2 transition-colors">
                 by AhmadDanial
             </a>
@@ -205,6 +214,7 @@
             <span data-i18n="distance">Jarak</span>: <span id="distance-val" class="text-blue-500">0</span> m
         </div>
         <button id="reset-btn">🔄 <span data-i18n="reset">Reset Posisi</span></button>
+        <button id="capture-btn">📸 <span data-i18n="capture">Ambil Foto</span></button>
         
         <div id="wasd-container">
             <div class="key-row">
@@ -273,6 +283,7 @@
                 start_btn: "Mulai Petualangan",
                 distance: "Jarak",
                 reset: "Reset Posisi",
+                capture: "Ambil Foto",
                 status: "Engine Ready"
             },
             en: {
@@ -285,6 +296,7 @@
                 start_btn: "Start Adventure",
                 distance: "Distance",
                 reset: "Reset Position",
+                capture: "Capture",
                 status: "Engine Ready"
             }
         };
@@ -311,6 +323,19 @@
 
     <!-- LOGIKA BISNIS APLIKASI UTAMA (Three.js Engine) -->
     <script>
+        // === 0. DECODE URL PARAMETER (Untuk Banner & Gunung) ===
+        const urlParams = new URLSearchParams(window.location.search);
+        let displayMessage = "Welcome to Maria World"; // Default Text
+        const msgParam = urlParams.get('msg');
+        if (msgParam) {
+            try {
+                // Decode base64 dan escape untuk mendeteksi karakter khusus (UTF-8) dengan aman
+                displayMessage = decodeURIComponent(escape(window.atob(msgParam)));
+            } catch(e) {
+                console.warn("Gagal decode param msg, kembali menggunakan default.", e);
+            }
+        }
+
         // === 1. SETUP DASAR & RENDERER ===
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
@@ -324,10 +349,10 @@
         let cWidth = container.clientWidth;
         let cHeight = container.clientHeight;
 
-        // Jarak pandang kamera diperjauh (far clipping plane menjadi 20000)
         const camera = new THREE.PerspectiveCamera(70, cWidth / cHeight, 1, 20000);
         
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        // preserveDrawingBuffer diaktifkan (WAJIB) untuk mengizinkan screenshot via canvas.toDataURL()
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
         renderer.setSize(cWidth, cHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.shadowMap.enabled = true;
@@ -352,10 +377,9 @@
         sunLight.shadow.camera.far = 10000; sunLight.shadow.bias = -0.0005;
         sunLight.shadow.mapSize.width = 2048; sunLight.shadow.mapSize.height = 2048;
         scene.add(sunLight);
-        scene.add(sunLight.target); // Tambahkan target cahaya ke scene agar bisa mengikuti pemain
+        scene.add(sunLight.target); 
 
         const sunMat = new THREE.MeshBasicMaterial({ color: 0xFFFFAA });
-        // Ukuran matahari diperbesar karena akan diposisikan sangat jauh
         const sun = new THREE.Mesh(new THREE.SphereGeometry(800, 32, 32), sunMat);
         scene.add(sun);
 
@@ -452,18 +476,15 @@
         const sheepFaceMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
         const catMat = new THREE.MeshStandardMaterial({ color: 0xFF8C00, roughness: 0.8 });
 
-        // Generate 3000 objek untuk dunia yang lebih padat & kaya
         for(let i=0; i<3000; i++) {
             const rx = (Math.random()-0.5) * 30000; 
             const rz = (Math.random()-0.5) * 30000;
             const ty = getTerrainHeight(rx, rz);
             const rand = Math.random();
             
-            // Logika Hutan (Math Noise) - Membentuk klaster/pulau pepohonan
             const isForest = Math.sin(rx * 0.0002) * Math.cos(rz * 0.0002) > 0.2;
 
             if (rand > 0.995) {
-                // Checkpoint Pad (~15 buah)
                 const cp = new THREE.Mesh(new THREE.CylinderGeometry(50, 50, 10, 16), cpMat);
                 cp.position.set(rx, ty + 5, rz);
                 cp.receiveShadow = true;
@@ -477,9 +498,7 @@
                 checkpoints.push({ mesh: cp, active: false });
 
             } else if (isForest) {
-                // ZONA HUTAN
                 if (rand > 0.2) {
-                    // 80% Pohon di zona hutan
                     const trunkHeight = 100 + Math.random()*80;
                     const tree = new THREE.Group();
                     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(15, 20, trunkHeight, 8), treeTrunkMat);
@@ -490,15 +509,13 @@
                     tree.position.set(rx, ty - 10, rz);
                     decorGroup.add(tree);
                 } else {
-                    // 20% Koin di zona hutan
                     const coin = new THREE.Mesh(new THREE.CylinderGeometry(20, 20, 8, 16), coinMat);
                     coin.rotation.x = Math.PI / 2; 
-                    coin.position.set(rx, ty + 60 + Math.random()*100, rz); // Lebih bervariasi tingginya
+                    coin.position.set(rx, ty + 60 + Math.random()*100, rz); 
                     coin.castShadow = true; decorGroup.add(coin);
                     coins.push({ mesh: coin, active: true, respawnTime: 0 });
                 }
             } else {
-                // ZONA NORMAL (Permukiman, Pipa, dll)
                 if (rand > 0.90) {
                     const pipeHeight = 150 + Math.random() * 100;
                     const pipe = new THREE.Mesh(new THREE.CylinderGeometry(40, 40, pipeHeight, 16), pipeMat);
@@ -513,7 +530,6 @@
                     brick.castShadow = true; brick.receiveShadow = true;
                     decorGroup.add(brick);
                 } else if (rand > 0.65) {
-                    // RUMAH PENDUDUK (Ukurannya dibesarkan 2x lipat)
                     const wallHeight = 100 + Math.random() * 60;
                     const wallSize = 150 + Math.random() * 50;
                     const house = new THREE.Group();
@@ -534,7 +550,6 @@
                     house.position.set(rx, ty, rz);
                     decorGroup.add(house);
                 } else if (rand > 0.45) {
-                    // Pohon Jarang
                     const tree = new THREE.Group();
                     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(15, 20, 120, 8), treeTrunkMat);
                     trunk.position.y = 60; trunk.castShadow = true; tree.add(trunk);
@@ -542,14 +557,12 @@
                     leaves.position.y = 140; leaves.castShadow = true; tree.add(leaves); 
                     tree.position.set(rx, ty - 10, rz); decorGroup.add(tree);
                 } else if (rand > 0.15) {
-                    // Koin (Mendominasi sisa ruang, mudah diambil)
                     const coin = new THREE.Mesh(new THREE.CylinderGeometry(20, 20, 8, 16), coinMat);
                     coin.rotation.x = Math.PI / 2; 
                     coin.position.set(rx, ty + 80 + Math.random()*50, rz);
                     coin.castShadow = true; decorGroup.add(coin);
                     coins.push({ mesh: coin, active: true, respawnTime: 0 });
                 } else if (rand > 0.08) {
-                    // Domba
                     const sheep = new THREE.Group();
                     const body = new THREE.Mesh(new THREE.SphereGeometry(20, 8, 8), sheepBodyMat);
                     body.position.y = 20; body.castShadow = true; sheep.add(body);
@@ -559,7 +572,6 @@
                     sheep.userData = { isAnimal: true, speed: Math.random()*0.5 + 0.2, turnWait: 0 };
                     scene.add(sheep); npcs.push(sheep);
                 } else {
-                    // Kucing
                     const cat = new THREE.Group();
                     const body = new THREE.Mesh(new THREE.BoxGeometry(10, 10, 20), catMat);
                     body.position.y = 10; body.castShadow = true; cat.add(body);
@@ -645,7 +657,7 @@
             const cuteColors = [0xFF6B6B, 0x4ECDC4, 0xFFE66D, 0x9B5DE5, 0xF15BB5, 0x00BBF9, 0xFF9F1C];
             mountainsData.forEach((m, idx) => {
                 if (idx % 7 === 0) { 
-                    const mTextGeo = new THREE.TextGeometry('HBD Bu Irma', { font: font, size: 250, height: 40 });
+                    const mTextGeo = new THREE.TextGeometry(displayMessage, { font: font, size: 250, height: 40 });
                     mTextGeo.center();
                     const randColor = cuteColors[Math.floor(Math.random() * cuteColors.length)];
                     const mText = new THREE.Mesh(mTextGeo, new THREE.MeshStandardMaterial({ color: randColor, emissive: randColor, emissiveIntensity: 0.4, roughness: 0.2 }));
@@ -657,7 +669,7 @@
             });
 
             const bannerBg = new THREE.Mesh(new THREE.BoxGeometry(1200, 250, 20), new THREE.MeshStandardMaterial({ color: 0xD2B48C, roughness: 1 }));
-            const textGeo = new THREE.TextGeometry('HBD Bu Irma', { font: font, size: 120, height: 25 });
+            const textGeo = new THREE.TextGeometry(displayMessage, { font: font, size: 120, height: 25 });
             textGeo.center();
             const textMesh = new THREE.Mesh(textGeo, new THREE.MeshStandardMaterial({ color: 0xE52521, emissive: 0x220000 }));
             textMesh.position.z = 20; 
@@ -696,7 +708,7 @@
             fireworks.push({ mesh: points, velocities: velArray, life: 1.0 });
         }
 
-        // === 6.5. AUDIO & SOUND EFFECTS (WEB AUDIO API SYNTH) ===
+        // === 6.5. AUDIO & SOUND EFFECTS ===
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         let audioCtx, noiseBuffer;
 
@@ -716,7 +728,6 @@
                 if (!audioCtx || this.musicPlaying) return;
                 this.musicPlaying = true;
                 let noteIdx = 0;
-                // Melodi Ceria (C major arpeggio)
                 const melody = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 261.63, 196.00]; 
                 
                 const nextNote = () => {
@@ -729,14 +740,12 @@
                     
                     const now = audioCtx.currentTime;
                     osc.frequency.setValueAtTime(melody[noteIdx], now);
-                    
-                    // Suara BGM di-set sangat pelan (0.015) agar tidak menutupi SFX
                     gain.gain.setValueAtTime(0.015, now);
                     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
                     
                     osc.start(now); osc.stop(now + 0.2);
                     noteIdx = (noteIdx + 1) % melody.length;
-                    setTimeout(nextNote, 250); // Tempo
+                    setTimeout(nextNote, 250); 
                 };
                 nextNote();
             },
@@ -796,10 +805,11 @@
             }
         };
 
-        // === 7. KONTROL WASD + SHIFT + SPACE ===
+        // === 7. KONTROL & EVENT LISTENERS ===
         let isPlaying = false;
         let distanceFlown = 0;
         let playerScore = 0;
+        let needsCapture = false; // Flag untuk Screenshot
         
         const keys = { w: false, a: false, s: false, d: false, shift: false, " ": false };
 
@@ -828,11 +838,12 @@
             document.getElementById('hud-stats').style.display = 'block'; 
             document.getElementById('wasd-container').style.display = 'flex'; 
             document.getElementById('reset-btn').style.display = 'block'; 
+            document.getElementById('capture-btn').style.display = 'block'; 
             setTimeout(() => { document.getElementById('ui-layer').style.display = 'none'; isPlaying = true; }, 500);
             respawnPoint.set(0, getTerrainHeight(0,0), 0);
             
             sfx.init();
-            sfx.playMusic(); // Mainkan BGM
+            sfx.playMusic(); 
         });
 
         document.getElementById('reset-btn').addEventListener('click', () => {
@@ -844,10 +855,13 @@
             document.querySelectorAll('.key').forEach(el => el.classList.remove('active'));
         });
 
+        document.getElementById('capture-btn').addEventListener('click', () => {
+            needsCapture = true; // Aktifkan flag, penangkapan dilakukan setelah composer.render()
+        });
+
 
         // === 8. LOGIKA ANIMASI ===
         const clock = new THREE.Clock();
-        let dayTime = 0; 
         const colorSunrise = new THREE.Color(0xFF7F50); 
 
         function animate() {
@@ -855,20 +869,17 @@
             const time = clock.getElapsedTime();
             const delta = Math.min(clock.getDelta(), 0.1); 
 
-            dayTime += delta * 0.15; 
+            // Siklus Siang Malam - Menggunakan ElapsedTime langsung agar jaminan berputar tidak nyangkut
+            const dayTime = time * 0.2; 
             const sunY = Math.sin(dayTime);
             const sunX = Math.cos(dayTime);
             
-            // Vektor arah cahaya matahari
             const sunDirection = new THREE.Vector3(sunX, sunY, -0.8).normalize();
 
-            // 1. Posisi Cahaya (DirectionalLight) mengikuti pemain agar bayangan tidak terpotong saat jalan jauh
             sunLight.position.copy(player.position).add(sunDirection.clone().multiplyScalar(5000));
             sunLight.target.position.copy(player.position);
             sunLight.target.updateMatrixWorld();
 
-            // 2. Posisi Visual Matahari (Mesh) dipasang menempel pada pandangan ujung kamera
-            // Ini membuat matahari bertindak seperti "langit" (Skybox) yang tidak bisa dicapai
             sun.position.copy(camera.position).add(sunDirection.clone().multiplyScalar(15000));
             
             const currentSkyColor = new THREE.Color();
@@ -974,29 +985,25 @@
                 currentLookAt.lerp(idealLookAt, 0.1);
                 camera.lookAt(currentLookAt);
 
-                // -- Koleksi Koin (Sundulan & Respawn) --
                 for (let i = 0; i < coins.length; i++) {
                     let coinData = coins[i];
-                    
-                    // Cek koin yang sedang non-aktif (menunggu respawn)
                     if (!coinData.active) {
                         if (time > coinData.respawnTime) {
                             coinData.active = true;
-                            coinData.mesh.visible = true; // Muncul kembali
+                            coinData.mesh.visible = true; 
                         }
                         continue;
                     }
                     
                     coinData.mesh.rotation.z += 0.05; 
                     
-                    // Hitbox diperlebar agar sangat mudah diambil
                     if (Math.abs(player.position.x - coinData.mesh.position.x) < 50 && 
                         Math.abs(player.position.z - coinData.mesh.position.z) < 50 &&
                         Math.abs((player.position.y + 40) - coinData.mesh.position.y) < 80) {
                         
                         coinData.active = false;
                         coinData.mesh.visible = false;
-                        coinData.respawnTime = time + 10; // Akan respawn 10 detik lagi
+                        coinData.respawnTime = time + 10; 
                         
                         playerScore += 100;
                         document.getElementById('score-val').innerText = playerScore;
@@ -1075,6 +1082,65 @@
             }
 
             composer.render();
+
+            // Tangkapan Layar (Screenshot) resolusi 1080p dengan Watermark Custom
+            if (needsCapture) {
+                const targetW = 1920;
+                const targetH = 1080;
+                const oldAspect = camera.aspect;
+
+                // Sementara ubah ukuran renderer ke 1080p
+                camera.aspect = targetW / targetH;
+                camera.updateProjectionMatrix();
+                renderer.setSize(targetW, targetH);
+                composer.setSize(targetW, targetH);
+                composer.render(); // Render ulang di resolusi tinggi
+
+                const canvas2d = document.createElement('canvas');
+                canvas2d.width = targetW;
+                canvas2d.height = targetH;
+                const ctx = canvas2d.getContext('2d');
+                
+                // Salin isi WebGL ke Canvas 2D
+                ctx.drawImage(renderer.domElement, 0, 0, targetW, targetH);
+
+                // Tambahkan teks Watermark (Kecil, transparan, gradasi biru-indigo)
+                const watermarkText = "Super Maria Bros by AhmadDanial";
+                ctx.font = "bold 20px 'Inter', sans-serif"; // Ukuran relatif kecil untuk 1080p
+                ctx.textAlign = "right";
+                ctx.textBaseline = "bottom";
+                
+                const textWidth = ctx.measureText(watermarkText).width;
+                const padX = 40;
+                const padY = 40;
+                const posX = targetW - padX;
+                const posY = targetH - padY;
+
+                // Gradasi dari blue-400 (#60a5fa) ke indigo-600 (#4f46e5) dengan opacity 0.75
+                const gradient = ctx.createLinearGradient(posX - textWidth, 0, posX, 0);
+                gradient.addColorStop(0, "rgba(96, 165, 250, 0.75)");
+                gradient.addColorStop(1, "rgba(79, 70, 229, 0.75)");
+
+                ctx.fillStyle = gradient;
+                // Shadow putih sangat tipis agar tetap terbaca jika langit kebetulan gelap
+                ctx.shadowColor = "rgba(255, 255, 255, 0.3)"; 
+                ctx.shadowBlur = 4;
+                ctx.fillText(watermarkText, posX, posY);
+
+                // Download gambar
+                const link = document.createElement('a');
+                link.download = 'super-maria-bros-1080p.png';
+                link.href = canvas2d.toDataURL('image/png');
+                link.click();
+                
+                // Kembalikan ukuran renderer ke ukuran layar (container) semula
+                camera.aspect = oldAspect;
+                camera.updateProjectionMatrix();
+                renderer.setSize(cWidth, cHeight);
+                composer.setSize(cWidth, cHeight);
+
+                needsCapture = false;
+            }
         }
 
         window.addEventListener('resize', () => {
