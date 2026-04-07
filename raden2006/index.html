@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Raden2026</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* TATADADA CSS TOKENS */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+        }
+
+        /* TATADADA BASE STYLES */
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            margin: 0;
+            padding: 0;
+        }
+
+        /* CUSTOM SCROLLBAR */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: var(--border-color);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: var(--text-dim);
+        }
+
+        /* =========================================
+           GAME INTERNAL STYLES (STEAMPUNK OVERHAUL)
+           ========================================= */
+        #game-container {
+            position: relative; 
+            width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            
+            /* -- STEAMPUNK TEXTURE BACKGROUND -- */
+            background-color: #1c140f; /* Deep Rust / Dark Copper */
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(180, 83, 9, 0.1) 0%, #0a0604 100%),
+                repeating-linear-gradient(45deg, rgba(0,0,0,0.3) 0px, rgba(0,0,0,0.3) 3px, transparent 3px, transparent 12px),
+                linear-gradient(90deg, rgba(0,0,0,0.5) 0%, transparent 10%, transparent 90%, rgba(0,0,0,0.5) 100%);
+            /* ---------------------------------- */
+            
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+            overflow: hidden;
+        }
+
+        /* KANVAS SEBAGAI JENDELA KOKPIT */
+        canvas {
+            background: #000;
+            
+            /* -- BRASS/COPPER BORDER & GLOW -- */
+            border: 6px solid #92400e; 
+            border-radius: 12px;
+            box-shadow: 
+                0 0 0 3px #451a03, /* Outer dark ring */
+                inset 0 0 30px rgba(0,0,0,0.9), /* Internal glass shadow */
+                0 15px 50px rgba(0,0,0,0.8), /* Drop shadow di atas mesin */
+                0 0 40px rgba(217, 119, 6, 0.2); /* Brass glow */
+            /* -------------------------- */
+            
+            max-width: 100%; max-height: 100%; cursor: none;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* ELEMEN DEKORASI STEAMPUNK */
+        .steampunk-pipe {
+            position: absolute;
+            top: -5%; bottom: -5%;
+            width: 45px;
+            background: linear-gradient(90deg, #271c19 0%, #b45309 30%, #fcd34d 50%, #b45309 70%, #271c19 100%);
+            border-left: 3px solid #1a0f0a;
+            border-right: 3px solid #1a0f0a;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.9), 10px 0 20px rgba(0,0,0,0.8);
+            z-index: 5;
+        }
+        .pipe-left { left: calc(50% - 280px); } 
+        .pipe-right { right: calc(50% - 280px); transform: scaleX(-1); }
+        
+        .steampunk-pipe::before, .steampunk-pipe::after {
+            content: ''; position: absolute; left: -8px; right: -8px; height: 25px;
+            background: linear-gradient(90deg, #1c1917, #92400e, #fcd34d, #92400e, #1c1917);
+            border: 2px solid #271c19;
+            border-radius: 4px;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.7);
+        }
+        .steampunk-pipe::before { top: 25%; }
+        .steampunk-pipe::after { bottom: 25%; }
+
+        .steampunk-gear { 
+            position: absolute; width: 160px; height: 160px; z-index: 2; opacity: 0.8; 
+            filter: drop-shadow(5px 10px 10px rgba(0,0,0,0.8));
+        }
+        .gear-tl { top: -40px; left: calc(50% - 360px); animation: spin 15s linear infinite; }
+        .gear-br { bottom: -40px; right: calc(50% - 360px); animation: spin 20s linear infinite reverse; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* UI Overlays */
+        #ui-overlay {
+            position: absolute; top: 20px; left: 20px; right: 20px;
+            pointer-events: none; display: flex; justify-content: space-between; z-index: 20;
+        }
+        #menu-overlay, #pause-overlay {
+            position: absolute; inset: 0; background: rgba(10, 5, 2, 0.9);
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; z-index: 50;
+        }
+        #pause-overlay { display: none; }
+        
+        .game-btn { 
+            background: linear-gradient(135deg, #b45309, #78350f);
+            padding: 14px 45px; border-radius: 4px; font-weight: 900;
+            cursor: pointer; transition: all 0.3s ease;
+            margin-top: 25px; box-shadow: 0 5px 0 #451a03, 0 10px 20px rgba(0,0,0,0.5);
+            pointer-events: auto; text-transform: uppercase; letter-spacing: 2px;
+            border: 2px solid #fcd34d;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
+        .game-btn:hover { transform: translateY(2px); box-shadow: 0 3px 0 #451a03, 0 5px 10px rgba(0,0,0,0.5); filter: brightness(1.2); }
+        .game-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #451a03; }
+
+        #boss-ui {
+            position: absolute; top: 85px; left: 50%; transform: translateX(-50%);
+            width: 85%; display: none; z-index: 20;
+        }
+        .progress-container {
+            width: 180px; height: 8px; background: #271c19;
+            border-radius: 2px; margin-top: 6px; overflow: hidden; border: 1px solid #78350f;
+        }
+        #stage-progress-bar { width: 0%; height: 100%; background: linear-gradient(to right, #b45309, #fcd34d); transition: width 0.4s; }
+        .heart-icon { transition: all 0.6s ease; display: inline-block; margin-right: 3px; filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.5)); }
+        .heart-lost { opacity: 0.15; transform: scale(0.6) translateY(5px); filter: grayscale(1) blur(1px); }
+        .pause-hint { position: absolute; bottom: 20px; left: 20px; font-size: 10px; color: #92400e; letter-spacing: 2px; font-weight: bold; z-index: 20;}
+        
+        .title-glow {
+            text-shadow: 0 5px 15px rgba(0,0,0,0.8), 0 0 30px rgba(217, 119, 6, 0.6);
+            animation: pulse 2s infinite alternate;
+        }
+        @keyframes pulse {
+            from { opacity: 0.85; transform: scale(1); }
+            to { opacity: 1; transform: scale(1.02); }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER -->
+    <header class="flex items-center justify-between px-6 h-14 border-b shrink-0 relative z-50" style="background-color: var(--header-bg); border-color: var(--border-color);">
+        <div class="flex items-center gap-3">
+            <h1 class="text-xl font-black bg-gradient-to-r from-amber-600 to-yellow-500 bg-clip-text text-transparent italic tracking-tighter">Raden2026</h1>
+            <span class="text-[10px] font-mono italic" style="color: var(--text-dim);">v2.0 SP</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] hover:text-amber-500 transition-colors" style="color: var(--text-dim);">by AhmadDanial</a>
+            
+            <div class="group relative flex items-center justify-center cursor-help ml-2 hover:text-amber-500 transition-colors" style="color: var(--text-dim);">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+                <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-3 border rounded shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-[10px]" 
+                     style="background-color: var(--header-bg); border-color: var(--border-color); color: var(--text-main);"
+                     data-i18n="help-tooltip">
+                    Geser/Sentuh untuk menggerakkan pesawat. Senjata menembak otomatis. Hancurkan armada dan Boss untuk menembus sektor berikutnya. Tekan 'P' untuk Jeda taktis.
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-5">
+            <button id="langToggle" class="text-sm font-bold flex items-center gap-1 hover:opacity-70 transition-opacity" style="color: var(--text-main);">
+                <span id="langIcon">🇮🇩</span> <span id="langText">ID</span>
+            </button>
+            <button id="themeToggle" class="hover:opacity-70 transition-opacity" style="color: var(--text-main);">
+                <i data-lucide="sun" id="themeIcon" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 relative overflow-hidden" style="background-color: var(--preview-bg);">
+        <!-- GAME WRAPPER -->
+        <div id="game-container">
+            
+            <!-- STEAMPUNK DECORATIONS -->
+            <div class="steampunk-pipe pipe-left"></div>
+            <div class="steampunk-pipe pipe-right"></div>
+            
+            <!-- Gear SVG 1 -->
+            <div class="steampunk-gear gear-tl">
+                <svg viewBox="0 0 100 100" fill="#92400e" stroke="#271c19" stroke-width="1.5">
+                    <path d="M50 10 L56 22 A30 30 0 0 1 68 27 L80 18 L88 28 L78 38 A30 30 0 0 1 82 50 L94 54 L90 68 L78 64 A30 30 0 0 1 70 76 L76 88 L62 94 L56 82 A30 30 0 0 1 44 82 L38 94 L24 88 L30 76 A30 30 0 0 1 22 64 L10 68 L6 54 L18 50 A30 30 0 0 1 22 38 L10 28 L18 18 L32 27 A30 30 0 0 1 44 22 L50 10 Z" />
+                    <circle cx="50" cy="50" r="18" fill="#1c140f" stroke="#fcd34d" stroke-width="2"/>
+                    <circle cx="50" cy="50" r="6" fill="#92400e" />
+                </svg>
+            </div>
+            
+            <!-- Gear SVG 2 -->
+            <div class="steampunk-gear gear-br">
+                <svg viewBox="0 0 100 100" fill="#b45309" stroke="#451a03" stroke-width="2">
+                    <path d="M50 5 L55 20 A35 35 0 0 1 70 25 L85 15 L95 30 L80 40 A35 35 0 0 1 85 55 L100 60 L90 75 L75 70 A35 35 0 0 1 60 85 L65 100 L45 100 L50 85 A35 35 0 0 1 35 80 L20 90 L10 75 L25 65 A35 35 0 0 1 20 50 L5 45 L15 30 L30 35 A35 35 0 0 1 40 20 L35 5 Z" />
+                    <circle cx="50" cy="50" r="20" fill="#271c19" stroke="#92400e" stroke-width="3"/>
+                    <circle cx="50" cy="35" r="4" fill="#fcd34d"/>
+                    <circle cx="50" cy="65" r="4" fill="#fcd34d"/>
+                    <circle cx="35" cy="50" r="4" fill="#fcd34d"/>
+                    <circle cx="65" cy="50" r="4" fill="#fcd34d"/>
+                </svg>
+            </div>
+
+            <!-- THE GAME CANVAS -->
+            <canvas id="gameCanvas"></canvas>
+            
+            <!-- In-Game UI Overlay -->
+            <div id="ui-overlay">
+                <div>
+                    <div class="text-3xl font-black italic text-amber-500 drop-shadow-lg tracking-tighter">SKOR: <span id="scoreVal">0</span></div>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="text-[9px] font-bold text-red-500 uppercase tracking-widest opacity-80" data-i18n="game-hull">Unit Integritas:</span>
+                        <div id="lives-icons" class="flex text-red-500 text-xl"></div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-xl font-black text-amber-100 uppercase tracking-widest italic"><span data-i18n="game-sector">SEKTOR</span> <span id="stageVal">1</span></div>
+                    <div class="progress-container"><div id="stage-progress-bar"></div></div>
+                    <div id="upgrade-msg" class="text-[9px] text-amber-500 mt-2 uppercase font-black tracking-widest animate-pulse">Sistem: Normal</div>
+                </div>
+            </div>
+
+            <!-- Boss UI -->
+            <div id="boss-ui">
+                <div class="text-center text-[11px] font-black text-red-500 mb-2 tracking-[0.4em] uppercase" data-i18n="game-boss">WARNING: LEVIATHAN DETECTED</div>
+                <div class="w-full h-3 bg-black border border-red-900/50 rounded-sm overflow-hidden shadow-[0_0_15px_rgba(239,68,68,0.4)]">
+                    <div id="boss-hp-bar" class="h-full bg-gradient-to-r from-red-700 via-yellow-500 to-red-700 w-full"></div>
+                </div>
+            </div>
+
+            <!-- Main Menu Overlay -->
+            <div id="menu-overlay">
+                <h1 class="text-7xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-amber-200 via-amber-600 to-yellow-900 mb-2 title-glow">RADEN2026</h1>
+                <p class="text-amber-500 font-bold tracking-[0.5em] text-[10px] uppercase mb-10 opacity-90">Steampunk Armada</p>
+                <div id="start-btn" class="game-btn text-white" data-i18n="game-start">Nyalakan Mesin</div>
+            </div>
+
+            <!-- Pause Overlay -->
+            <div id="pause-overlay">
+                <h2 class="text-4xl font-black italic text-amber-400 mb-6 drop-shadow-lg" data-i18n="game-pause-title">KATUP TERKUNCI (JEDA)</h2>
+                <div id="resume-btn" class="game-btn text-white" data-i18n="game-resume">Lepas Katup</div>
+            </div>
+
+            <div class="pause-hint uppercase" data-i18n="game-pause-hint">P: Kunci Katup (Jeda)</div>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="flex items-center justify-between px-6 h-8 border-t shrink-0 z-50 text-[10px]" style="background-color: var(--footer-bg); border-color: var(--border-color); color: var(--text-dim);">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span data-i18n="footer-status">Tekanan Uap Stabil</span>
+        </div>
+        <div>
+            <span data-i18n="footer-stats" class="font-mono">Teleskop Ruang: AKTIF</span>
+        </div>
+        <button id="termsBtn" class="hover:underline hover:text-blue-500 transition-colors" data-i18n="footer-terms">Terms of Use</button>
+    </footer>
+
+    <!-- TERMS MODAL -->
+    <div id="termsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm justify-center items-center z-[100] hidden">
+        <div class="border p-6 rounded-lg max-w-md w-full shadow-2xl relative" style="background-color: var(--header-bg); border-color: var(--border-color);">
+            <h2 class="text-lg font-bold mb-4" style="color: var(--text-main);" data-i18n="terms-title">Ketentuan Penggunaan</h2>
+            <p class="text-sm mb-6 leading-relaxed" style="color: var(--text-dim);" data-i18n="terms-content">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
+            </p>
+            <div class="flex justify-end">
+                <button id="closeTermsBtn" class="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2 rounded text-xs font-bold transition-colors" data-i18n="terms-close">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TATADADA FRAMEWORK JS -->
+    <script>
+        lucide.createIcons();
+
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const htmlElement = document.documentElement;
+
+        const applyTheme = (isDark) => {
+            if (isDark) {
+                htmlElement.classList.add('dark');
+                themeIcon.setAttribute('data-lucide', 'sun');
+            } else {
+                htmlElement.classList.remove('dark');
+                themeIcon.setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons();
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        };
+
+        const savedTheme = localStorage.getItem('theme');
+        applyTheme(savedTheme === 'dark');
+
+        themeToggle.addEventListener('click', () => {
+            applyTheme(!htmlElement.classList.contains('dark'));
+        });
+
+        const langToggle = document.getElementById('langToggle');
+        const langIcon = document.getElementById('langIcon');
+        const langText = document.getElementById('langText');
+
+        const i18n = {
+            'id': {
+                'icon': '🇮🇩', 'text': 'ID',
+                'help-tooltip': "Geser/Sentuh untuk menggerakkan pesawat. Senjata menembak otomatis. Hancurkan armada dan Boss untuk menembus sektor berikutnya. Tekan 'P' untuk Jeda taktis.",
+                'footer-status': 'Tekanan Uap Stabil',
+                'footer-stats': 'Teleskop Ruang: AKTIF',
+                'footer-terms': 'Ketentuan',
+                'terms-title': 'Ketentuan Penggunaan',
+                'terms-content': "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+                'terms-close': 'Tutup',
+                'game-hull': 'Integritas Lambung:',
+                'game-sector': 'SEKTOR',
+                'game-boss': 'WARNING: LEVIATHAN DETECTED',
+                'game-start': 'Nyalakan Mesin',
+                'game-pause-title': 'KATUP TERKUNCI (JEDA)',
+                'game-resume': 'Lepas Katup',
+                'game-pause-hint': 'P: Kunci Katup (Jeda)'
+            },
+            'en': {
+                'icon': '🇬🇧', 'text': 'EN',
+                'help-tooltip': "Drag/Touch to move the ship. Auto-fire. Destroy enemy fleets and Boss to breach the next sector. Press 'P' for tactical Pause.",
+                'footer-status': 'Steam Pressure Stable',
+                'footer-stats': 'Space Telescope: ACTIVE',
+                'footer-terms': 'Terms',
+                'terms-title': 'Terms of Use',
+                'terms-content': "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                'terms-close': 'Close',
+                'game-hull': 'Hull Integrity:',
+                'game-sector': 'SECTOR',
+                'game-boss': 'WARNING: LEVIATHAN DETECTED',
+                'game-start': 'Ignite Engine',
+                'game-pause-title': 'VALVE LOCKED (PAUSED)',
+                'game-resume': 'Release Valve',
+                'game-pause-hint': 'P: Lock Valve (Pause)'
+            }
+        };
+
+        const applyLang = (langCode) => {
+            langIcon.textContent = i18n[langCode].icon;
+            langText.textContent = i18n[langCode].text;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[langCode][key]) el.textContent = i18n[langCode][key];
+            });
+            localStorage.setItem('lang', langCode);
+        };
+
+        let currentLang = localStorage.getItem('lang') || 'id';
+        applyLang(currentLang);
+
+        langToggle.addEventListener('click', () => {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            applyLang(currentLang);
+        });
+
+        const termsBtn = document.getElementById('termsBtn');
+        const closeTermsBtn = document.getElementById('closeTermsBtn');
+        const termsModal = document.getElementById('termsModal');
+
+        termsBtn.addEventListener('click', () => {
+            termsModal.classList.remove('hidden');
+            termsModal.classList.add('flex');
+        });
+
+        closeTermsBtn.addEventListener('click', () => {
+            termsModal.classList.add('hidden');
+            termsModal.classList.remove('flex');
+        });
+    </script>
+
+    <!-- =========================================
+         GAME LOGIC & AUDIO SYNTHESIZER SCRIPT 
+         ========================================= -->
+    <script>
+        // --- AUDIO SYNTHESIZER (WEB AUDIO API) ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        const sfx = {
+            playTone: (freq, type, duration, vol=0.1, slide=0) => {
+                if(!audioCtx || audioCtx.state !== 'running') return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                if(slide !== 0) osc.frequency.exponentialRampToValueAtTime(freq * slide, audioCtx.currentTime + duration);
+                
+                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            },
+            shoot: () => sfx.playTone(600, 'square', 0.1, 0.05, 0.5), // Pew pew
+            missile: () => sfx.playTone(300, 'sawtooth', 0.3, 0.08, 0.2), // Whoosh
+            explode: () => {
+                sfx.playTone(100, 'square', 0.3, 0.1, 0.1);
+                setTimeout(() => sfx.playTone(50, 'sawtooth', 0.4, 0.1, 0.1), 30);
+            },
+            powerup: () => {
+                sfx.playTone(400, 'sine', 0.1, 0.1);
+                setTimeout(() => sfx.playTone(600, 'sine', 0.1, 0.1), 100);
+                setTimeout(() => sfx.playTone(800, 'sine', 0.2, 0.1), 200);
+            },
+            hit: () => sfx.playTone(150, 'sawtooth', 0.2, 0.1, 0.5), // Ouch
+            bossWarning: () => {
+                sfx.playTone(400, 'square', 0.5, 0.1);
+                setTimeout(() => sfx.playTone(300, 'square', 0.5, 0.1), 500);
+            },
+            
+            // Background Music (Chiptune Arpeggio)
+            bgmInterval: null,
+            startBGM: () => {
+                if(sfx.bgmInterval) return;
+                // Simple pentatonic scale notes
+                const notes = [220, 261, 329, 392, 440, 329, 261, 196];
+                let step = 0;
+                sfx.bgmInterval = setInterval(() => {
+                    if(!gameActive || isPaused) return;
+                    // Lower volume bassline
+                    sfx.playTone(notes[step % notes.length]/2, 'square', 0.15, 0.03); 
+                    step++;
+                }, 200);
+            },
+            stopBGM: () => {
+                clearInterval(sfx.bgmInterval);
+                sfx.bgmInterval = null;
+            }
+        };
+
+        // --- GAME LOGIC ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const scoreEl = document.getElementById('scoreVal'), livesIcons = document.getElementById('lives-icons');
+        const stageEl = document.getElementById('stageVal'), progressBar = document.getElementById('stage-progress-bar');
+        const bossUI = document.getElementById('boss-ui'), bossHPBar = document.getElementById('boss-hp-bar');
+        const upgradeMsg = document.getElementById('upgrade-msg'), menuOverlay = document.getElementById('menu-overlay');
+        const pauseOverlay = document.getElementById('pause-overlay'), startBtn = document.getElementById('start-btn'), resumeBtn = document.getElementById('resume-btn');
+
+        const GAME_WIDTH = 450, GAME_HEIGHT = 700;
+        let gameActive = false, isPaused = false;
+        let score = 0, lives = 5, currentStage = 1, stageProgress = 0;
+        const MAX_LIVES = 8, STAGE_GOAL = 1500;
+        
+        let particles = [], bullets = [], enemyBullets = [], enemies = [], stars = [], missiles = [], powerups = [], nebulas = [], galaxies = [], planets = [];
+        let currentBoss = null;
+
+        function resize() {
+            const container = document.getElementById('game-container');
+            const ratio = GAME_WIDTH / GAME_HEIGHT;
+            let w = container.clientWidth, h = container.clientHeight;
+            if (w / h > ratio) w = h * ratio; else h = w / ratio;
+            canvas.width = GAME_WIDTH; canvas.height = GAME_HEIGHT;
+            canvas.style.width = `${w}px`; canvas.style.height = `${h}px`;
+        }
+        window.addEventListener('resize', resize); resize();
+
+        function createStar() {
+            const layers = [{size: 0.5, speed: 0.5, alpha: 0.2}, {size: 1, speed: 1.5, alpha: 0.4}, {size: 1.5, speed: 3.5, alpha: 0.7}];
+            const layer = layers[Math.floor(Math.random() * layers.length)];
+            return { x: Math.random() * GAME_WIDTH, y: Math.random() * GAME_HEIGHT, ...layer };
+        }
+
+        function createNebula() {
+            const colors = ['#0ea5e922', '#8b5cf622', '#ec489922', '#ef444422'];
+            const color = colors[Math.min(colors.length-1, currentStage-1)];
+            return { x: Math.random() * GAME_WIDTH, y: -500 - Math.random() * 1000, size: 200 + Math.random() * 400, color: color, speed: 0.4 + Math.random() * 0.4, rotation: Math.random() * Math.PI * 2 };
+        }
+
+        function createGalaxy() {
+            return { x: Math.random() * GAME_WIDTH, y: -1000 - Math.random() * 2000, size: 200 + Math.random() * 300, speed: 0.15, color: `hsla(${Math.random() * 360}, 70%, 80%, 0.05)`, angle: Math.random() * Math.PI * 2 };
+        }
+
+        function createPlanet() {
+            const types = [
+                { name: 'Ice', c1: '#bae6fd', c2: '#0ea5e9', atmospheric: '#7dd3fc33' },
+                { name: 'Fire', c1: '#f87171', c2: '#991b1b', atmospheric: '#fca5a533' },
+                { name: 'Gas', c1: '#ddd6fe', c2: '#7c3aed', atmospheric: '#c4b5fd33' }
+            ];
+            const type = types[Math.floor(Math.random() * types.length)];
+            return { x: Math.random() * GAME_WIDTH, y: -1000 - Math.random() * 2500, size: 50 + Math.random() * 120, speed: 0.2 + Math.random() * 0.2, ...type, rotation: 0, rotationSpeed: 0.001 + Math.random() * 0.002 };
+        }
+
+        for (let i = 0; i < 150; i++) stars.push(createStar());
+        for (let i = 0; i < 4; i++) nebulas.push(createNebula());
+        galaxies.push(createGalaxy());
+        planets.push(createPlanet());
+
+        const player = {
+            x: GAME_WIDTH / 2, y: GAME_HEIGHT - 100, w: 32, h: 36,
+            targetX: GAME_WIDTH / 2, targetY: GAME_HEIGHT - 100,
+            speed: 0.18, fireRate: 11, fireTimer: 0, missileRate: 65, missileTimer: 0,
+            powerLevel: 1, shieldRotation: 0, invuln: 0
+        };
+
+        function handleInput(e) {
+            if (isPaused || !gameActive) return;
+            let cx, cy;
+            if (e.touches) { cx = e.touches[0].clientX; cy = e.touches[0].clientY; }
+            else { cx = e.clientX; cy = e.clientY; }
+            const r = canvas.getBoundingClientRect();
+            player.targetX = (cx - r.left) * (canvas.width / r.width);
+            player.targetY = (cy - r.top) * (canvas.height / r.height);
+        }
+        canvas.addEventListener('mousemove', handleInput);
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleInput(e); }, { passive: false });
+        window.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'p' || e.key === 'Escape') togglePause(); });
+
+        function togglePause() {
+            if (!gameActive) return;
+            isPaused = !isPaused;
+            pauseOverlay.style.display = isPaused ? 'flex' : 'none';
+            // Audio toggle
+            if(isPaused) {
+                if(audioCtx) audioCtx.suspend();
+            } else {
+                if(audioCtx) audioCtx.resume();
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color, scale = 1) {
+                this.x = x; this.y = y; this.color = color;
+                this.size = Math.random() * 3 + 1;
+                this.vx = (Math.random() - 0.5) * 8 * scale;
+                this.vy = (Math.random() - 0.5) * 8 * scale;
+                this.life = 1.0; this.decay = Math.random() * 0.03 + 0.02;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.life -= this.decay; }
+            draw() { ctx.globalAlpha = this.life; ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+        }
+
+        class PowerUp {
+            constructor(x, y) { this.x = x; this.y = y; this.vy = 2.4; this.angle = 0; }
+            update() { this.y += this.vy; this.angle += 0.07; this.x += Math.sin(this.angle) * 2; }
+            draw() {
+                ctx.save(); ctx.translate(this.x, this.y); ctx.shadowBlur = 20; ctx.shadowColor = '#ef4444'; ctx.fillStyle = '#ef4444';
+                ctx.beginPath(); ctx.moveTo(0, 10); ctx.bezierCurveTo(-15, -8, -15, -20, 0, -8); ctx.bezierCurveTo(15, -20, 15, -8, 0, 10); ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class Missile {
+            constructor(x, y, angle) {
+                this.x = x; this.y = y; this.vx = Math.cos(angle) * 2.5; this.vy = Math.sin(angle) * 2.5;
+                this.speed = 7.5; this.target = null; this.life = 180;
+            }
+            update() {
+                this.life--;
+                let targets = currentBoss ? [currentBoss] : enemies;
+                if (!this.target || (!enemies.includes(this.target) && this.target !== currentBoss)) {
+                    let minDist = 2500;
+                    targets.forEach(e => { const d = Math.hypot(e.x - this.x, e.y - this.y); if (d < minDist) { minDist = d; this.target = e; } });
+                }
+                if (this.target) {
+                    const angleTo = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+                    const currAngle = Math.atan2(this.vy, this.vx);
+                    let diff = angleTo - currAngle;
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    this.vx = Math.cos(currAngle + diff * 0.22) * this.speed;
+                    this.vy = Math.sin(currAngle + diff * 0.22) * this.speed;
+                }
+                this.x += this.vx; this.y += this.vy;
+            }
+            draw() {
+                ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(Math.atan2(this.vy, this.vx) + Math.PI/2);
+                ctx.fillStyle = '#fcd34d'; ctx.fillRect(-3, -12, 6, 18);
+                ctx.restore();
+            }
+        }
+
+        class Enemy {
+            constructor(type) {
+                this.type = type;
+                this.x = Math.random() * (GAME_WIDTH - 60) + 30; this.y = -80;
+                this.w = type === 2 ? 65 : 42;
+                this.hp = type === 2 ? 8 + currentStage * 1.5 : (type === 4 ? 4 : (type === 3 ? 2 : 1));
+                this.speed = (type === 4 ? 5.8 : (type === 3 ? 5.2 : (type === 2 ? 1.8 : 2.8))) + (currentStage * 0.15);
+                this.fireTimer = Math.random() * 60;
+                this.color = ['#f43f5e', '#a855f7', '#fbbf24', '#334155'][type-1];
+                this.sine = 0;
+            }
+            update() {
+                this.y += this.speed;
+                if (this.type === 3) { this.sine += 0.06; this.x += Math.sin(this.sine) * 4; }
+                this.fireTimer++;
+                let fr = this.type === 4 ? 70 : 120;
+                if (this.fireTimer > fr - (currentStage * 4)) {
+                    enemyBullets.push({ x: this.x, y: this.y + 20, vx: 0, vy: (this.type === 4 ? 8.5 : 5.5 + currentStage * 0.4) });
+                    this.fireTimer = 0;
+                }
+            }
+            draw() {
+                ctx.save(); ctx.translate(this.x, this.y);
+                ctx.shadowBlur = 15; ctx.shadowColor = this.color;
+                ctx.fillStyle = this.color;
+                if (this.type === 1) {
+                    ctx.beginPath(); ctx.moveTo(0, 22); ctx.lineTo(-20, -10); ctx.lineTo(0, -4); ctx.lineTo(20, -10); ctx.closePath(); ctx.fill();
+                } else if (this.type === 2) {
+                    ctx.beginPath(); ctx.roundRect(-28, -16, 56, 32, 6); ctx.fill();
+                    ctx.fillStyle = '#f43f5e'; ctx.beginPath(); ctx.arc(0, 5, 8, 0, Math.PI*2); ctx.fill();
+                } else if (this.type === 3) {
+                    ctx.beginPath(); ctx.moveTo(0, 26); ctx.lineTo(-18, -18); ctx.lineTo(0, -8); ctx.lineTo(18, -18); ctx.closePath(); ctx.fill();
+                } else {
+                    ctx.fillStyle = '#111827'; ctx.beginPath(); ctx.moveTo(0, 24); ctx.lineTo(-30, -14); ctx.lineTo(0, -4); ctx.lineTo(30, -14); ctx.closePath(); ctx.fill();
+                    ctx.strokeStyle = '#ef4444'; ctx.stroke();
+                }
+                ctx.restore();
+            }
+        }
+
+        class Boss {
+            constructor(stage) {
+                this.x = GAME_WIDTH / 2; this.y = -250; this.targetY = 180;
+                this.maxHp = 50 + (stage * 60); this.hp = this.maxHp;
+                this.fireTimer = 0; this.moveTimer = 0; this.state = 'entering';
+                this.colors = ['#1e40af', '#6b21a8', '#be185d', '#991b1b', '#111827'];
+                this.color = this.colors[Math.min(this.colors.length-1, stage-1)];
+            }
+            update() {
+                if (this.state === 'entering') { this.y += 2; if (this.y >= this.targetY) this.state = 'active'; }
+                else if (this.state === 'active') {
+                    this.moveTimer++; this.x += Math.sin(this.moveTimer * 0.012) * 3.5;
+                    this.fireTimer++;
+                    let fr = Math.max(18, 95 - currentStage * 9);
+                    if (this.fireTimer > fr) { this.firePattern(); this.fireTimer = 0; }
+                }
+                bossHPBar.style.width = (this.hp / this.maxHp * 100) + '%';
+            }
+            firePattern() {
+                let count = 9 + currentStage;
+                for (let i = 0; i < count; i++) {
+                    const angle = (Math.PI * 2 / count) * i + (this.moveTimer * 0.05);
+                    enemyBullets.push({ x: this.x, y: this.y + 40, vx: Math.cos(angle) * 4.5, vy: Math.sin(angle) * 4.5 });
+                }
+            }
+            draw() {
+                ctx.save(); ctx.translate(this.x, this.y);
+                ctx.shadowBlur = 50; ctx.shadowColor = '#ef4444';
+                ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.moveTo(-110, -30); ctx.lineTo(-150, 50); ctx.lineTo(-70, 20); ctx.closePath(); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(110, -30); ctx.lineTo(150, 50); ctx.lineTo(70, 20); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath(); ctx.moveTo(-90, -50); ctx.lineTo(90, -50); ctx.lineTo(100, 30); ctx.lineTo(0, 100); ctx.lineTo(-100, 30); ctx.closePath(); ctx.fill();
+                const pulse = 25 + Math.sin(Date.now() * 0.007) * 8;
+                ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(0, 25, pulse, 0, Math.PI * 2); ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function initGame() {
+            // Init Audio Context User Gesture
+            if (!audioCtx) audioCtx = new AudioContext();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            score = 0; lives = 5; currentStage = 1; stageProgress = 0;
+            enemies = []; bullets = []; enemyBullets = []; missiles = []; particles = []; powerups = [];
+            currentBoss = null; player.powerLevel = 1; isPaused = false;
+            updateUI(); bossUI.style.display = 'none'; menuOverlay.style.display = 'none';
+            gameActive = true; spawnEnemy();
+            
+            sfx.startBGM(); // Start Background Music
+        }
+
+        function updateUI() {
+            scoreEl.innerText = score;
+            stageEl.innerText = currentStage;
+            progressBar.style.width = Math.min(100, (stageProgress/STAGE_GOAL)*100) + '%';
+            let h = '';
+            for(let i=0; i<MAX_LIVES; i++) h += `<span class="heart-icon ${i >= lives ? 'heart-lost' : ''}">&#10084;</span>`;
+            livesIcons.innerHTML = h;
+        }
+
+        function spawnEnemy() {
+            if (!gameActive) return; 
+            if (!isPaused && !currentBoss) {
+                let t = 1; const r = Math.random();
+                if (currentStage >= 4 && r > 0.82) t = 4;
+                else if (currentStage >= 3 && r > 0.7) t = 3;
+                else if (currentStage >= 2 && r > 0.55) t = 2;
+                enemies.push(new Enemy(t));
+            }
+            setTimeout(spawnEnemy, Math.max(250, 1600 - (currentStage * 90)) + Math.random() * 600);
+        }
+
+        function startBossFight() {
+            currentBoss = new Boss(currentStage); bossUI.style.display = 'block';
+            sfx.bossWarning(); // Sound Trigger
+        }
+
+        function nextStage() {
+            currentStage++; stageProgress = 0; currentBoss = null; bossUI.style.display = 'none';
+            lives = Math.min(lives + 1, MAX_LIVES); updateUI();
+        }
+
+        function hitPlayer() {
+            if (player.invuln > 0) return;
+            lives--; updateUI();
+            sfx.hit(); // Sound Trigger
+            createExplosion(player.x, player.y, '#38bdf8', 60, 2.8);
+            player.invuln = 120;
+            if (lives <= 0) gameOver();
+        }
+
+        function createExplosion(x, y, color, count, scale) { 
+            sfx.explode(); // Sound Trigger
+            for (let i = 0; i < count; i++) particles.push(new Particle(x, y, color, scale)); 
+        }
+
+        function update() {
+            if (!gameActive || isPaused) return;
+
+            player.x += (player.targetX - player.x) * player.speed;
+            player.y += (player.targetY - player.y) * player.speed;
+            player.x = Math.max(20, Math.min(GAME_WIDTH - 20, player.x));
+            player.y = Math.max(20, Math.min(GAME_HEIGHT - 20, player.y));
+            player.shieldRotation += 0.1;
+            if (player.invuln > 0) player.invuln--;
+
+            // Background Update
+            stars.forEach(s => { s.y += s.speed; if (s.y > GAME_HEIGHT) s.y = -10; });
+            nebulas.forEach((n, i) => { n.y += n.speed; if (n.y > GAME_HEIGHT + 400) nebulas.splice(i, 1, createNebula()); });
+            galaxies.forEach((g, i) => { g.y += g.speed; g.angle += 0.001; if (g.y > GAME_HEIGHT + 400) galaxies.splice(i, 1, createGalaxy()); });
+            planets.forEach((p, i) => { p.y += p.speed; p.rotation += p.rotationSpeed; if (p.y > GAME_HEIGHT + 400) planets.splice(i, 1, createPlanet()); });
+
+            player.fireTimer++;
+            if (player.fireTimer > player.fireRate) {
+                bullets.push({ x: player.x, y: player.y - 25, vx: 0, vy: -16 });
+                sfx.shoot(); // Sound Trigger
+                if (player.powerLevel >= 2) {
+                    bullets.push({ x: player.x - 18, y: player.y - 8, vx: -3, vy: -15 });
+                    bullets.push({ x: player.x + 18, y: player.y - 8, vx: 3, vy: -15 });
+                }
+                player.fireTimer = 0;
+            }
+
+            if (player.powerLevel >= 2) {
+                player.missileTimer++;
+                if (player.missileTimer > player.missileRate) {
+                    missiles.push(new Missile(player.x - 20, player.y, -Math.PI * 0.98));
+                    missiles.push(new Missile(player.x + 20, player.y, -Math.PI * 0.02));
+                    sfx.missile(); // Sound Trigger
+                    player.missileTimer = 0;
+                }
+            }
+
+            bullets.forEach((b, i) => { b.x += b.vx; b.y += b.vy; if (b.y < -40) bullets.splice(i, 1); });
+            missiles.forEach((m, i) => { m.update(); if (m.life <= 0) missiles.splice(i, 1); });
+            powerups.forEach((pu, i) => {
+                pu.update();
+                if (Math.hypot(pu.x - player.x, pu.y - player.y) < 30) { 
+                    sfx.powerup(); // Sound trigger
+                    lives = Math.min(lives + 1, MAX_LIVES); updateUI(); powerups.splice(i, 1); 
+                }
+                else if (pu.y > GAME_HEIGHT + 50) powerups.splice(i, 1);
+            });
+
+            if (currentBoss) currentBoss.update();
+
+            enemyBullets.forEach((eb, i) => {
+                eb.x += eb.vx || 0; eb.y += eb.vy;
+                if (player.powerLevel >= 3) {
+                    const sX = player.x + Math.cos(player.shieldRotation) * 60, sY = player.y + Math.sin(player.shieldRotation) * 60;
+                    if (Math.hypot(eb.x - sX, eb.y - sY) < 25) { enemyBullets.splice(i, 1); return; }
+                }
+                if (Math.hypot(eb.x - player.x, eb.y - player.y) < 18) { enemyBullets.splice(i, 1); hitPlayer(); }
+                if (eb.y > GAME_HEIGHT + 60 || eb.y < -200) enemyBullets.splice(i, 1);
+            });
+
+            enemies.forEach((e, ei) => {
+                e.update();
+                if (Math.hypot(e.x - player.x, e.y - player.y) < 35) { enemies.splice(ei, 1); hitPlayer(); }
+                bullets.forEach((b, bi) => {
+                    if (Math.hypot(e.x - b.x, e.y - b.y) < e.w/2 + 10) {
+                        e.hp--; bullets.splice(bi, 1);
+                        if (e.hp <= 0) {
+                            score += 150; stageProgress += 80; updateUI();
+                            createExplosion(e.x, e.y, e.color, 30, 1.6);
+                            if (Math.random() < 0.08) powerups.push(new PowerUp(e.x, e.y));
+                            enemies.splice(ei, 1);
+                            if (stageProgress >= STAGE_GOAL && !currentBoss) startBossFight();
+                        }
+                    }
+                });
+                if (e.y > GAME_HEIGHT + 120) enemies.splice(ei, 1);
+            });
+
+            if (currentBoss && currentBoss.state === 'active') {
+                bullets.forEach((b, bi) => { if (Math.abs(b.x - currentBoss.x) < 100 && Math.abs(b.y - currentBoss.y) < 60) { currentBoss.hp--; bullets.splice(bi, 1); } });
+                missiles.forEach((m, mi) => { if (Math.hypot(currentBoss.x - m.x, currentBoss.y - m.y) < 80) { currentBoss.hp -= 5; missiles.splice(mi, 1); createExplosion(m.x, m.y, '#fcd34d', 12, 2.2); } });
+                if (currentBoss.hp <= 0) { score += 7500; createExplosion(currentBoss.x, currentBoss.y, '#ef4444', 200, 6); nextStage(); }
+            }
+            particles.forEach((p, i) => { p.update(); if (p.life <= 0) particles.splice(i, 1); });
+            
+            if (score > 8000 && player.powerLevel < 2) { player.powerLevel = 2; upgradeMsg.innerText = "Sistem: Offensive Upgrade"; }
+            if (score > 25000 && player.powerLevel < 3) { player.powerLevel = 3; upgradeMsg.innerText = "Sistem: Tactical Shield"; }
+        }
+
+        function gameOver() { 
+            gameActive = false; menuOverlay.style.display = 'flex'; 
+            sfx.stopBGM(); // Stop music when game over
+        }
+
+        function draw() {
+            ctx.fillStyle = '#000108'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // --- Background Render ---
+            ctx.globalCompositeOperation = 'lighter';
+            nebulas.forEach(n => {
+                ctx.save(); ctx.translate(n.x, n.y); ctx.rotate(n.rotation);
+                const g = ctx.createRadialGradient(0, 0, 0, 0, 0, n.size);
+                g.addColorStop(0, n.color); g.addColorStop(0.5, n.color.replace('0.22', '0.05')); g.addColorStop(1, 'transparent');
+                ctx.fillStyle = g; ctx.beginPath();
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i / 6) * Math.PI * 2;
+                    const dist = n.size * (0.8 + Math.random() * 0.4);
+                    ctx.lineTo(Math.cos(angle) * dist, Math.sin(angle) * dist);
+                }
+                ctx.closePath(); ctx.fill(); ctx.restore();
+            });
+            ctx.globalCompositeOperation = 'source-over';
+
+            galaxies.forEach(g => {
+                ctx.save(); ctx.translate(g.x, g.y); ctx.rotate(g.angle); ctx.fillStyle = g.color;
+                for (let i = 0; i < 200; i++) {
+                    const a = i * 0.1; const r = Math.pow(a, 1.5) * (g.size / 50);
+                    const x = Math.cos(a) * r + (Math.random() - 0.5) * 20; const y = Math.sin(a) * r + (Math.random() - 0.5) * 20;
+                    const s = Math.random() * 2; ctx.globalAlpha = Math.random() * 0.5; ctx.fillRect(x, y, s, s);
+                }
+                ctx.globalAlpha = 1; ctx.restore();
+            });
+
+            stars.forEach(s => { ctx.globalAlpha = s.alpha; ctx.fillStyle = 'white'; ctx.fillRect(s.x, s.y, s.size, s.size); });
+            ctx.globalAlpha = 1;
+
+            planets.forEach(p => {
+                ctx.save(); ctx.translate(p.x, p.y);
+                const glow = ctx.createRadialGradient(0, 0, p.size, 0, 0, p.size + 15);
+                glow.addColorStop(0, p.atmospheric); glow.addColorStop(1, 'transparent');
+                ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0, 0, p.size + 15, 0, Math.PI * 2); ctx.fill();
+                ctx.rotate(p.rotation);
+                const grad = ctx.createRadialGradient(-p.size/3, -p.size/3, 0, 0, 0, p.size);
+                grad.addColorStop(0, p.c1); grad.addColorStop(1, p.c2);
+                ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.fill();
+                ctx.rotate(-p.rotation);
+                const shadow = ctx.createRadialGradient(p.size/2, p.size/2, p.size/2, p.size/2, p.size/2, p.size * 1.5);
+                shadow.addColorStop(0, 'transparent'); shadow.addColorStop(1, 'rgba(0,0,0,0.8)');
+                ctx.fillStyle = shadow; ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.fill();
+                ctx.restore();
+            });
+
+            if (!gameActive) { requestAnimationFrame(draw); return; }
+
+            // Game Objects Render
+            ctx.fillStyle = '#0ea5e9'; bullets.forEach(b => ctx.fillRect(b.x-2, b.y-16, 4, 24));
+            missiles.forEach(m => m.draw());
+            ctx.fillStyle = '#f43f5e'; enemyBullets.forEach(eb => { ctx.beginPath(); ctx.arc(eb.x, eb.y, 5, 0, Math.PI*2); ctx.fill(); });
+            enemies.forEach(e => e.draw());
+            if (currentBoss) currentBoss.draw();
+            powerups.forEach(pu => pu.draw());
+            particles.forEach(p => p.draw());
+
+            if (player.powerLevel >= 3) {
+                const sX = player.x + Math.cos(player.shieldRotation) * 60, sY = player.y + Math.sin(player.shieldRotation) * 60;
+                ctx.shadowBlur = 20; ctx.shadowColor = '#a855f7';
+                ctx.fillStyle = 'rgba(168, 85, 247, 0.7)'; ctx.beginPath(); ctx.arc(sX, sY, 12, 0, Math.PI*2); ctx.fill(); 
+                ctx.shadowBlur = 0;
+            }
+
+            // --- THE PLAYER RESTORED ---
+            ctx.save(); ctx.translate(player.x, player.y);
+            if (player.invuln % 10 > 5) ctx.globalAlpha = 0.4;
+            ctx.shadowBlur = 15; ctx.shadowColor = '#0ea5e9';
+            
+            // Wings
+            ctx.fillStyle = '#64748b';
+            ctx.beginPath(); ctx.moveTo(-22, 10); ctx.lineTo(-38, 24); ctx.lineTo(-15, 20); ctx.closePath(); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(22, 10); ctx.lineTo(38, 24); ctx.lineTo(15, 20); ctx.closePath(); ctx.fill();
+            
+            // Hull
+            ctx.fillStyle = '#f8fafc';
+            ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(-20, 16); ctx.lineTo(0, 8); ctx.lineTo(20, 16); ctx.closePath(); ctx.fill();
+            
+            // Cannon Ports (Detail Restored)
+            ctx.fillStyle = '#0ea5e9'; 
+            ctx.fillRect(-20, 6, 5, 14); 
+            ctx.fillRect(15, 6, 5, 14);
+            
+            // High-Tech Canopy (Detail Restored)
+            ctx.fillStyle = '#0f172a'; 
+            ctx.beginPath(); ctx.ellipse(0, -8, 7, 16, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#38bdf8'; 
+            ctx.beginPath(); ctx.ellipse(0, -10, 4, 10, 0, 0, Math.PI*2); ctx.fill();
+            
+            // Thrusters
+            ctx.fillStyle = '#38bdf8'; let fl = isPaused ? 4 : (18 + Math.random()*20);
+            ctx.beginPath(); ctx.moveTo(-10, 16); ctx.lineTo(-14, 16 + fl); ctx.lineTo(-6, 16); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(10, 16); ctx.lineTo(14, 16 + fl); ctx.lineTo(6, 16); ctx.fill();
+            ctx.restore();
+
+            requestAnimationFrame(draw);
+        }
+
+        startBtn.onclick = initGame; resumeBtn.onclick = togglePause;
+        draw(); setInterval(update, 1000/60);
+    </script>
+</body>
+</html>
