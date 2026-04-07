@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sayapku - Aerodynamics Simulator</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Tailwind Config & TATADADA CSS Tokens -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        header: 'var(--header-bg)',
+                        editor: 'var(--editor-bg)',
+                        preview: 'var(--preview-bg)',
+                        footer: 'var(--footer-bg)',
+                        theme: 'var(--border-color)',
+                        main: 'var(--text-main)',
+                        dim: 'var(--text-dim)',
+                        freeze: 'var(--freeze-bg)',
+                        freezeEven: 'var(--freeze-bg-even)',
+                        freezeHover: 'var(--freeze-hover)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* TATADADA CSS Variables */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+        }
+        
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+        }
+        
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+
+        /* TATADADA Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Tooltip & Glass Panel Settings */
+        .glass-panel {
+            background: var(--header-bg);
+            opacity: 0.95;
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .tooltip-text {
+            visibility: hidden; opacity: 0; transition: opacity 0.2s;
+        }
+        .has-tooltip:hover .tooltip-text {
+            visibility: visible; opacity: 1;
+        }
+        
+        /* Range Slider */
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: #3b82f6; cursor: pointer; margin-top: -6px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: var(--border-color); border-radius: 2px;
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER (Tinggi Tetap: h-14) -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50">
+        <!-- Branding Kiri -->
+        <div class="flex items-baseline gap-3">
+            <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent">Sayapku</h1>
+            <span class="text-[10px] font-mono text-dim italic">v2.0</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 transition-colors">by AhmadDanial</a>
+            
+            <!-- Help Tooltip -->
+            <div class="relative has-tooltip ml-2 flex items-center cursor-help">
+                <i data-lucide="help-circle" class="w-4 h-4 text-dim hover:text-main"></i>
+                <div class="tooltip-text absolute left-6 top-0 w-64 bg-editor border border-theme text-main text-[11px] p-3 rounded shadow-lg z-50">
+                    <p id="langHelp" class="leading-relaxed">Geser slider pada panel untuk mengubah geometri dan kecepatan aliran. Warna biru menandakan area tekanan rendah (kecepatan tinggi).</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aksi Kanan -->
+        <div class="flex items-center gap-4">
+            <!-- 4K Download Button -->
+            <button id="btnDownload4K" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded transition-colors shadow-sm">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <span id="langBtnDownload">Unduh 4K</span>
+            </button>
+            
+            <div class="w-px h-6 bg-theme"></div>
+
+            <!-- Language Toggle -->
+            <button onclick="toggleLanguage()" class="flex items-center justify-center w-8 h-8 rounded hover:bg-preview text-xs font-bold text-dim transition-colors" title="Toggle Language">
+                <span id="langFlag">ID</span>
+            </button>
+
+            <!-- Theme Toggle -->
+            <button onclick="toggleTheme()" class="flex items-center justify-center w-8 h-8 rounded hover:bg-preview text-dim transition-colors" title="Toggle Dark/Light Mode">
+                <i id="themeIcon" data-lucide="sun" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE (Skenario 2: Single View Apps) -->
+    <main id="mainWorkspace" class="flex-1 relative overflow-hidden bg-preview">
+        <!-- Canvas Simulasi -->
+        <canvas id="glCanvas" class="absolute inset-0 w-full h-full"></canvas>
+        <canvas id="boundaryCanvas" style="display:none;"></canvas>
+
+        <!-- Floating Glass Panel UI untuk Parameter -->
+        <div class="absolute top-6 right-6 w-80 glass-panel rounded-xl p-5 z-10 flex flex-col gap-5">
+            <div>
+                <h2 class="text-sm font-bold text-main" id="langPanelTitle">Parameter Aerodinamika</h2>
+                <p class="text-[10px] text-dim font-mono mt-0.5">LBM D2Q9 SOLVER</p>
+            </div>
+
+            <div class="space-y-4">
+                <!-- Sudut Serang -->
+                <div>
+                    <div class="flex justify-between mb-1 text-xs">
+                        <label class="text-main font-semibold" id="langLblAoA">Sudut Serang (AoA)</label>
+                        <span id="aoaValue" class="font-mono text-blue-500 font-bold">5°</span>
+                    </div>
+                    <input type="range" id="aoaSlider" min="-10" max="25" value="5" class="w-full">
+                </div>
+
+                <!-- Kecepatan Inlet -->
+                <div>
+                    <div class="flex justify-between mb-1 text-xs">
+                        <label class="text-main font-semibold" id="langLblSpeed">Kecepatan Inlet</label>
+                        <span id="speedValue" class="font-mono text-blue-500 font-bold">0.06</span>
+                    </div>
+                    <input type="range" id="speedSlider" min="0.02" max="0.12" step="0.01" value="0.06" class="w-full">
+                </div>
+
+                <!-- Viskositas -->
+                <div>
+                    <div class="flex justify-between mb-1 text-xs">
+                        <label class="text-main font-semibold" id="langLblVisc">Reynolds / Viskositas</label>
+                        <span id="viscValue" class="font-mono text-blue-500 font-bold">Transisi</span>
+                    </div>
+                    <input type="range" id="tauSlider" min="0.52" max="0.70" step="0.01" value="0.55" class="w-full">
+                </div>
+            </div>
+
+            <!-- Legenda Tekanan -->
+            <div class="pt-3 border-t border-theme">
+                <div class="text-[10px] text-dim mb-1 flex justify-between font-semibold tracking-wide">
+                    <span id="langHighPress">Tekanan Tinggi</span>
+                    <span id="langLowPress">Rendah</span>
+                </div>
+                <div class="h-2 w-full rounded bg-gradient-to-r from-red-600 via-green-400 to-blue-600"></div>
+            </div>
+        </div>
+
+        <div id="errorMsg" class="hidden absolute inset-0 bg-editor z-50 flex items-center justify-center p-10 text-center">
+            <div>
+                <h2 class="text-xl text-red-500 font-bold mb-2">WebGL 2.0 Error</h2>
+                <p class="text-dim text-sm">Browser Anda tidak mendukung ekstensi Float Texture yang dibutuhkan simulasi ini.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER (Tinggi Tetap: h-8) -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 relative z-50">
+        <!-- Kiri: Status -->
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            <span id="langStatus" class="font-medium">Engine Ready</span>
+        </div>
+
+        <!-- Tengah: Statistik -->
+        <div class="font-mono">
+            FPS: <span id="fpsVal" class="text-main font-bold">--</span> 
+            <span class="mx-2 opacity-50">|</span> 
+            GRID: <span class="text-main font-bold">1024x512</span>
+        </div>
+
+        <!-- Kanan: Terms -->
+        <button onclick="toggleModal('termsModal')" class="hover:text-blue-500 transition-colors font-medium" id="langTermsLink">Terms of Use</button>
+    </footer>
+
+    <!-- MODAL TERMS OF USE -->
+    <div id="termsModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[100] backdrop-blur-sm opacity-0 transition-opacity">
+        <div class="bg-editor border border-theme rounded-lg shadow-xl w-full max-w-md p-6 transform scale-95 transition-transform duration-200">
+            <div class="flex justify-between items-center mb-4 border-b border-theme pb-2">
+                <h2 class="text-base font-bold text-main" id="langModalTitle">Disclaimer & Terms of Use</h2>
+                <button onclick="toggleModal('termsModal')" class="text-dim hover:text-red-500 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <p id="langModalBody" class="text-sm text-dim leading-relaxed mb-6">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
+            </p>
+            <div class="flex justify-end">
+                <button onclick="toggleModal('termsModal')" class="px-4 py-2 bg-editor border border-theme text-main text-xs font-semibold rounded hover:bg-preview transition-colors" id="langModalBtn">Mengerti</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- =============== SHADERS GLSL (LBM 2D HD) =============== -->
+    <script id="vs-quad" type="x-shader/x-vertex">
+        #version 300 es
+        in vec2 a_position;
+        out vec2 v_uv;
+        void main() {
+            v_uv = a_position * 0.5 + 0.5;
+            gl_Position = vec4(a_position, 0.0, 1.0);
+        }
+    </script>
+
+    <script id="fs-init" type="x-shader/x-fragment">
+        #version 300 es
+        precision highp float;
+        layout(location=0) out vec4 f0;
+        layout(location=1) out vec4 f1;
+        layout(location=2) out vec4 f2;
+        uniform vec2 u_inlet;
+        
+        void main() {
+            vec2 u = vec2(u_inlet.x, 0.0);
+            float rho = 1.0;
+            float u2 = dot(u, u);
+            
+            float w0 = 4.0/9.0; float w1 = 1.0/9.0; float w2 = 1.0/36.0;
+            float eu1 = u.x; float eu2 = u.y; float eu3 = -u.x; float eu4 = -u.y;
+            float eu5 = u.x + u.y; float eu6 = -u.x + u.y; float eu7 = -u.x - u.y; float eu8 = u.x - u.y;
+
+            f0 = vec4(w0*rho*(1.0-1.5*u2), w1*rho*(1.0+3.0*eu1+4.5*eu1*eu1-1.5*u2), w1*rho*(1.0+3.0*eu2+4.5*eu2*eu2-1.5*u2), w1*rho*(1.0+3.0*eu3+4.5*eu3*eu3-1.5*u2));
+            f1 = vec4(w1*rho*(1.0+3.0*eu4+4.5*eu4*eu4-1.5*u2), w2*rho*(1.0+3.0*eu5+4.5*eu5*eu5-1.5*u2), w2*rho*(1.0+3.0*eu6+4.5*eu6*eu6-1.5*u2), w2*rho*(1.0+3.0*eu7+4.5*eu7*eu7-1.5*u2));
+            f2 = vec4(w2*rho*(1.0+3.0*eu8+4.5*eu8*eu8-1.5*u2), u.x, u.y, rho);
+        }
+    </script>
+
+    <script id="fs-lbm" type="x-shader/x-fragment">
+        #version 300 es
+        precision highp float;
+        in vec2 v_uv;
+        layout(location=0) out vec4 out_f0; layout(location=1) out vec4 out_f1; layout(location=2) out vec4 out_f2;
+
+        uniform sampler2D tex_f0; uniform sampler2D tex_f1; uniform sampler2D tex_f2; uniform sampler2D tex_boundary;
+        uniform vec2 u_res; uniform float u_omega; uniform float u_inlet_vel;
+
+        void main() {
+            vec2 px = 1.0 / u_res; vec2 p = v_uv;
+            float f0 = texture(tex_f0, p).x;
+            float f1 = texture(tex_f0, p + vec2(-px.x, 0.0)).y; 
+            float f2 = texture(tex_f0, p + vec2(0.0, -px.y)).z; 
+            float f3 = texture(tex_f0, p + vec2(px.x, 0.0)).w; 
+            float f4 = texture(tex_f1, p + vec2(0.0, px.y)).x; 
+            float f5 = texture(tex_f1, p + vec2(-px.x, -px.y)).y; 
+            float f6 = texture(tex_f1, p + vec2(px.x, -px.y)).z; 
+            float f7 = texture(tex_f1, p + vec2(px.x, px.y)).w; 
+            float f8 = texture(tex_f2, p + vec2(-px.x, px.y)).x; 
+
+            bool isSolid = texture(tex_boundary, p).r > 0.5;
+            if (isSolid) {
+                out_f0 = vec4(f0, f3, f4, f1); out_f1 = vec4(f2, f7, f8, f5); out_f2 = vec4(f6, 0.0, 0.0, 1.0); 
+                return;
+            }
+
+            float rho = f0 + f1 + f2 + f3 + f4 + f5 + f6 + f7 + f8;
+            vec2 u = vec2(f1 + f5 + f8 - (f3 + f6 + f7), f2 + f5 + f6 - (f4 + f7 + f8)) / max(rho, 0.1);
+            float current_omega = u_omega;
+
+            if (p.x < 3.0*px.x || p.x > 1.0-3.0*px.x || p.y < 3.0*px.y || p.y > 1.0-3.0*px.y) {
+                u = vec2(u_inlet_vel, 0.0); rho = 1.0; current_omega = 1.0; 
+            } else {
+                rho = clamp(rho, 0.4, 2.5); u.x = clamp(u.x, -0.5, 0.5); u.y = clamp(u.y, -0.5, 0.5);
+            }
+
+            float u2 = dot(u, u);
+            float w0 = 4.0/9.0; float w1 = 1.0/9.0; float w2 = 1.0/36.0;
+            float eu1=u.x; float eu2=u.y; float eu3=-u.x; float eu4=-u.y;
+            float eu5=u.x+u.y; float eu6=-u.x+u.y; float eu7=-u.x-u.y; float eu8=u.x-u.y;
+
+            float feq0 = w0*rho*(1.0-1.5*u2); float feq1 = w1*rho*(1.0+3.0*eu1+4.5*eu1*eu1-1.5*u2);
+            float feq2 = w1*rho*(1.0+3.0*eu2+4.5*eu2*eu2-1.5*u2); float feq3 = w1*rho*(1.0+3.0*eu3+4.5*eu3*eu3-1.5*u2);
+            float feq4 = w1*rho*(1.0+3.0*eu4+4.5*eu4*eu4-1.5*u2); float feq5 = w2*rho*(1.0+3.0*eu5+4.5*eu5*eu5-1.5*u2);
+            float feq6 = w2*rho*(1.0+3.0*eu6+4.5*eu6*eu6-1.5*u2); float feq7 = w2*rho*(1.0+3.0*eu7+4.5*eu7*eu7-1.5*u2);
+            float feq8 = w2*rho*(1.0+3.0*eu8+4.5*eu8*eu8-1.5*u2);
+
+            f0 = mix(f0, feq0, current_omega); f1 = mix(f1, feq1, current_omega); f2 = mix(f2, feq2, current_omega);
+            f3 = mix(f3, feq3, current_omega); f4 = mix(f4, feq4, current_omega); f5 = mix(f5, feq5, current_omega);
+            f6 = mix(f6, feq6, current_omega); f7 = mix(f7, feq7, current_omega); f8 = mix(f8, feq8, current_omega);
+
+            out_f0 = vec4(f0, f1, f2, f3); out_f1 = vec4(f4, f5, f6, f7); out_f2 = vec4(f8, u.x, u.y, rho);
+        }
+    </script>
+
+    <script id="fs-render" type="x-shader/x-fragment">
+        #version 300 es
+        precision highp float;
+        in vec2 v_uv; out vec4 fragColor;
+        uniform sampler2D tex_f2; uniform sampler2D tex_boundary;
+        uniform float u_inlet_vel; uniform float u_time; uniform vec2 u_res;
+
+        vec4 getLinear(sampler2D tex, vec2 uv, vec2 res) {
+            vec2 px = uv * res - 0.5; vec2 p0 = floor(px); vec2 f = fract(px);
+            vec2 p00 = clamp(p0 + vec2(0.5, 0.5), vec2(0.5), res - 0.5) / res;
+            vec2 p10 = clamp(p0 + vec2(1.5, 0.5), vec2(0.5), res - 0.5) / res;
+            vec2 p01 = clamp(p0 + vec2(0.5, 1.5), vec2(0.5), res - 0.5) / res;
+            vec2 p11 = clamp(p0 + vec2(1.5, 1.5), vec2(0.5), res - 0.5) / res;
+            vec4 c00 = texture(tex, p00); vec4 c10 = texture(tex, p10);
+            vec4 c01 = texture(tex, p01); vec4 c11 = texture(tex, p11);
+            return mix(mix(c00, c10, f.x), mix(c01, c11, f.x), f.y);
+        }
+
+        vec3 colorMap(float t) {
+            vec3 c = vec3(0.0);
+            if (t < 0.25) c = mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 1.0, 0.0), t/0.25);
+            else if (t < 0.5) c = mix(vec3(1.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), (t-0.25)/0.25);
+            else if (t < 0.75) c = mix(vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 1.0), (t-0.5)/0.25);
+            else c = mix(vec3(0.0, 1.0, 1.0), vec3(0.0, 0.2, 1.0), min((t-0.75)/0.25, 1.0));
+            return c;
+        }
+
+        void main() {
+            vec4 macro = getLinear(tex_f2, v_uv, u_res);
+            vec2 vel = macro.yz;
+            float speed = length(vel);
+            float normSpeed = clamp(speed / (u_inlet_vel * 1.5), 0.0, 1.0);
+            vec3 baseColor = colorMap(normSpeed);
+            
+            float yCoord = v_uv.y - vel.y * 1.2; 
+            float linePhase = yCoord * 60.0; 
+            float lineDist = abs(fract(linePhase) - 0.5); 
+            float localX = fract(v_uv.x * 35.0 - u_time * 2.5);
+            
+            float isTail = smoothstep(0.0, 0.1, localX);
+            float isHead = smoothstep(0.7, 0.9, localX);
+            float isTip  = step(localX, 0.9); 
+            
+            float width = 0.015 + isHead * 0.10; width *= isTip;
+            float arrowAlpha = smoothstep(width, max(0.0, width - 0.015), lineDist) * isTail * isTip;
+            vec3 finalColor = mix(baseColor * 0.75, vec3(1.0), arrowAlpha * 0.85);
+
+            float isSolid = texture(tex_boundary, v_uv).r;
+            float crispSolid = smoothstep(0.3, 0.7, isSolid);
+            
+            if (crispSolid > 0.5) {
+                vec3 wingColor = vec3(0.35) + vec3(v_uv.y * 0.25); 
+                fragColor = vec4(wingColor, 1.0);
+            } else {
+                fragColor = vec4(finalColor, 1.0);
+            }
+        }
+    </script>
+
+
+    <!-- =============== JS LOGIC (Framework & Simulation) =============== -->
+    <script>
+        // Init Lucide Icons
+        lucide.createIcons();
+
+        // ==========================================
+        // 1. TATADADA UI FRAMEWORK LOGIC
+        // ==========================================
+        
+        // Theme Logic
+        const themeIcon = document.getElementById('themeIcon');
+        const isDark = localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) {
+            document.documentElement.classList.add('dark');
+            themeIcon.setAttribute('data-lucide', 'moon');
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                themeIcon.setAttribute('data-lucide', 'sun');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                themeIcon.setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons();
+        }
+
+        // Language Logic
+        let currentLang = localStorage.getItem('lang') || 'ID';
+        const langData = {
+            'ID': {
+                flag: 'ID',
+                help: 'Geser slider pada panel untuk mengubah geometri dan kecepatan aliran. Warna biru menandakan area tekanan rendah (kecepatan tinggi).',
+                download: 'Unduh 4K',
+                panelTitle: 'Parameter Aerodinamika',
+                lblAoA: 'Sudut Serang (AoA)',
+                lblSpeed: 'Kecepatan Inlet',
+                lblVisc: 'Reynolds / Viskositas',
+                highPress: 'Tekanan Tinggi',
+                lowPress: 'Rendah',
+                status: 'Engine Ready',
+                termsLink: 'Terms of Use',
+                modalTitle: 'Disclaimer & Terms of Use',
+                modalBody: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+                modalBtn: 'Mengerti'
+            },
+            'EN': {
+                flag: 'EN',
+                help: 'Slide the panel controls to change geometry and flow speed. Blue colors indicate low pressure (high speed) areas.',
+                download: '4K Download',
+                panelTitle: 'Aerodynamics Parameters',
+                lblAoA: 'Angle of Attack (AoA)',
+                lblSpeed: 'Inlet Velocity',
+                lblVisc: 'Reynolds / Viscosity',
+                highPress: 'High Pressure',
+                lowPress: 'Low',
+                status: 'Engine Ready',
+                termsLink: 'Terms of Use',
+                modalTitle: 'Disclaimer & Terms of Use',
+                modalBody: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                modalBtn: 'I Understand'
+            }
+        };
+
+        function updateLanguage() {
+            const t = langData[currentLang];
+            document.getElementById('langFlag').innerText = t.flag;
+            document.getElementById('langHelp').innerText = t.help;
+            document.getElementById('langBtnDownload').innerText = t.download;
+            document.getElementById('langPanelTitle').innerText = t.panelTitle;
+            document.getElementById('langLblAoA').innerText = t.lblAoA;
+            document.getElementById('langLblSpeed').innerText = t.lblSpeed;
+            document.getElementById('langLblVisc').innerText = t.lblVisc;
+            document.getElementById('langHighPress').innerText = t.highPress;
+            document.getElementById('langLowPress').innerText = t.lowPress;
+            document.getElementById('langStatus').innerText = t.status;
+            document.getElementById('langTermsLink').innerText = t.termsLink;
+            document.getElementById('langModalTitle').innerText = t.modalTitle;
+            document.getElementById('langModalBody').innerText = t.modalBody;
+            document.getElementById('langModalBtn').innerText = t.modalBtn;
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'ID' ? 'EN' : 'ID';
+            localStorage.setItem('lang', currentLang);
+            updateLanguage();
+            // Re-render viscValue text based on language if needed
+            let evt = new Event('input');
+            document.getElementById('tauSlider').dispatchEvent(evt);
+        }
+        
+        // Modal Logic
+        function toggleModal(id) {
+            const modal = document.getElementById(id);
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.querySelector('div').classList.remove('scale-95');
+                }, 10);
+            } else {
+                modal.classList.add('opacity-0');
+                modal.querySelector('div').classList.add('scale-95');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }, 200);
+            }
+        }
+
+        // Initialize UI
+        updateLanguage();
+
+
+        // ==========================================
+        // 2. SIMULATION LOGIC (LBM 2D HD GPU)
+        // ==========================================
+        const canvasGL = document.getElementById('glCanvas');
+        // preserveDrawingBuffer true required to extract image cleanly via toDataURL later
+        const gl = canvasGL.getContext('webgl2', { antialias: false, preserveDrawingBuffer: true });
+        
+        if (!gl || !gl.getExtension("EXT_color_buffer_float")) {
+            document.getElementById('errorMsg').classList.remove('hidden');
+            throw new Error("WebGL 2.0 Float Textures not supported.");
+        }
+
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+        // HD Grid
+        const SIM_W = 1024;
+        const SIM_H = 512;
+        
+        let aoa = 5; 
+        let u_inlet = 0.06; 
+        let tau = 0.55; 
+        
+        document.getElementById('aoaSlider').addEventListener('input', (e) => {
+            aoa = parseFloat(e.target.value); document.getElementById('aoaValue').innerText = aoa + '°';
+            updateBoundaryTexture(); initLBM(); 
+        });
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            u_inlet = parseFloat(e.target.value); document.getElementById('speedValue').innerText = u_inlet.toFixed(2);
+        });
+        document.getElementById('tauSlider').addEventListener('input', (e) => {
+            tau = parseFloat(e.target.value); 
+            let lblID = tau < 0.54 ? "Turbulen (Stall+)" : tau < 0.58 ? "Transisi" : "Laminar (Viscous)";
+            let lblEN = tau < 0.54 ? "Turbulent (Stall+)" : tau < 0.58 ? "Transition" : "Laminar (Viscous)";
+            document.getElementById('viscValue').innerText = currentLang === 'ID' ? lblID : lblEN;
+        });
+
+        function compileShader(type, id) {
+            const src = document.getElementById(id).text.trim();
+            const s = gl.createShader(type);
+            gl.shaderSource(s, src); gl.compileShader(s);
+            if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(id, gl.getShaderInfoLog(s));
+            return s;
+        }
+
+        function createProgram(vsId, fsId) {
+            const p = gl.createProgram();
+            gl.attachShader(p, compileShader(gl.VERTEX_SHADER, vsId));
+            gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fsId));
+            gl.linkProgram(p); return p;
+        }
+
+        const quadBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+        const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+        gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+        const prgInit = createProgram('vs-quad', 'fs-init');
+        const prgLBM = createProgram('vs-quad', 'fs-lbm');
+        const prgRender = createProgram('vs-quad', 'fs-render');
+
+        function createPingPongSet() {
+            const set = { fb: gl.createFramebuffer(), tex: [] };
+            gl.bindFramebuffer(gl.FRAMEBUFFER, set.fb);
+            const attachments = [gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1, gl.COLOR_ATTACHMENT2];
+            for (let i = 0; i < 3; i++) {
+                const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, SIM_W, SIM_H, 0, gl.RGBA, gl.FLOAT, null);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, attachments[i], gl.TEXTURE_2D, tex, 0);
+                set.tex.push(tex);
+            }
+            gl.drawBuffers(attachments); return set;
+        }
+
+        let fbA = createPingPongSet(); let fbB = createPingPongSet();
+        
+        const texBoundary = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texBoundary);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        const bCanvas = document.getElementById('boundaryCanvas');
+        const bCtx = bCanvas.getContext('2d', { willReadFrequently: true });
+        bCanvas.width = SIM_W; bCanvas.height = SIM_H;
+
+        function updateBoundaryTexture() {
+            bCtx.fillStyle = 'black'; bCtx.fillRect(0, 0, SIM_W, SIM_H);
+            let chord = SIM_W * 0.22; let cx = SIM_W * 0.35; let cy = SIM_H * 0.55; 
+            let m = 0.04, p = 0.4, t = 0.12;
+
+            let pts = []; let rad = aoa * Math.PI / 180; 
+            let cosA = Math.cos(rad), sinA = Math.sin(rad);
+
+            for(let step = 0; step <= 1; step+=0.005) pts.push(calcNaca(step, true, m, p, t)); 
+            for(let step = 1; step >= 0; step-=0.005) pts.push(calcNaca(step, false, m, p, t));
+
+            bCtx.fillStyle = 'red'; bCtx.beginPath();
+            for(let i=0; i<pts.length; i++) {
+                let x_c = (pts[i].x - 0.25) * chord; let y_c = -pts[i].y * chord; 
+                let xr = x_c * cosA - y_c * sinA + cx; let yr = x_c * sinA + y_c * cosA + cy;
+                if(i===0) bCtx.moveTo(xr, yr); else bCtx.lineTo(xr, yr);
+            }
+            bCtx.fill();
+
+            gl.bindTexture(gl.TEXTURE_2D, texBoundary);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bCanvas);
+        }
+
+        function calcNaca(xc, isUpper, m, p, t) {
+            let yt = 5*t*(0.2969*Math.sqrt(xc) - 0.1260*xc - 0.3516*xc*xc + 0.2843*Math.pow(xc,3) - 0.1015*Math.pow(xc,4));
+            let yc = 0, dy = 0;
+            if (xc <= p) { yc = (m/(p*p))*(2*p*xc - xc*xc); dy = (2*m/(p*p))*(p-xc); } 
+            else { yc = (m/Math.pow(1-p,2))*((1-2*p)+2*p*xc - xc*xc); dy = (2*m/Math.pow(1-p,2))*(p-xc); }
+            let th = Math.atan(dy);
+            return { x: isUpper ? xc - yt*Math.sin(th) : xc + yt*Math.sin(th), y: isUpper ? yc + yt*Math.cos(th) : yc - yt*Math.cos(th) };
+        }
+
+        function initLBM() {
+            gl.useProgram(prgInit); gl.uniform2f(gl.getUniformLocation(prgInit, "u_inlet"), u_inlet, 0);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbA.fb); gl.viewport(0, 0, SIM_W, SIM_H); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbB.fb); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        }
+
+        const mainWorkspace = document.getElementById('mainWorkspace');
+        function resize() {
+            if(canvasGL.width !== mainWorkspace.clientWidth || canvasGL.height !== mainWorkspace.clientHeight){
+                canvasGL.width = mainWorkspace.clientWidth;
+                canvasGL.height = mainWorkspace.clientHeight;
+            }
+        }
+
+        let frameCount = 0; let lastTime = performance.now(); let simTime = 0;
+
+        function forceRenderPass(width, height) {
+            gl.useProgram(prgRender);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null); 
+            gl.viewport(0, 0, width, height);
+
+            gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[2]);
+            gl.uniform1i(gl.getUniformLocation(prgRender, "tex_f2"), 0);
+            
+            gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texBoundary);
+            gl.uniform1i(gl.getUniformLocation(prgRender, "tex_boundary"), 1);
+
+            gl.uniform1f(gl.getUniformLocation(prgRender, "u_inlet_vel"), u_inlet);
+            gl.uniform1f(gl.getUniformLocation(prgRender, "u_time"), simTime * 0.01);
+            gl.uniform2f(gl.getUniformLocation(prgRender, "u_res"), SIM_W, SIM_H);
+
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        }
+
+        function render() {
+            resize();
+            let stepsPerFrame = 25; 
+            
+            gl.useProgram(prgLBM);
+            gl.uniform2f(gl.getUniformLocation(prgLBM, "u_res"), SIM_W, SIM_H);
+            gl.uniform1f(gl.getUniformLocation(prgLBM, "u_omega"), 1.0 / tau);
+            gl.uniform1f(gl.getUniformLocation(prgLBM, "u_inlet_vel"), u_inlet);
+
+            gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, texBoundary);
+            gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_boundary"), 3);
+
+            for (let i = 0; i < stepsPerFrame; i++) {
+                gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[0]);
+                gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[1]);
+                gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[2]);
+                gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_f0"), 0);
+                gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_f1"), 1);
+                gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_f2"), 2);
+
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fbB.fb);
+                gl.viewport(0, 0, SIM_W, SIM_H);
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+                let temp = fbA; fbA = fbB; fbB = temp;
+                simTime++;
+            }
+
+            forceRenderPass(canvasGL.width, canvasGL.height);
+
+            frameCount++; let now = performance.now();
+            if(now - lastTime >= 1000) {
+                document.getElementById('fpsVal').innerText = frameCount;
+                frameCount = 0; lastTime = now;
+            }
+            requestAnimationFrame(render);
+        }
+
+        updateBoundaryTexture();
+        initLBM();
+        requestAnimationFrame(render);
+
+
+        // ==========================================
+        // 3. FEATURE: 4K PNG DOWNLOAD LOGIC
+        // ==========================================
+        document.getElementById('btnDownload4K').addEventListener('click', () => {
+            const originalW = canvasGL.width;
+            const originalH = canvasGL.height;
+
+            // Target 4K UHD Resolution
+            const targetW = 3840;
+            const targetH = 2160;
+
+            // Resize canvas to 4K momentarily
+            canvasGL.width = targetW;
+            canvasGL.height = targetH;
+            
+            // Force a high-res render pass directly to the screen buffer
+            forceRenderPass(targetW, targetH);
+
+            // Extract image data
+            const dataURL = canvasGL.toDataURL('image/png');
+
+            // Create download link
+            const link = document.createElement('a');
+            link.download = `Sayapku_4K_Simulation_${Date.now()}.png`;
+            link.href = dataURL;
+            link.click();
+
+            // Restore canvas
+            canvasGL.width = originalW;
+            canvasGL.height = originalH;
+            // The next standard requestAnimationFrame will fix the viewport naturally
+        });
+
+    </script>
+</body>
+</html>
