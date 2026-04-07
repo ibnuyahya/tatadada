@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IngfoPDF - Verifikator PDF BSrE</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- External Libraries (Crypto, PDF, QR) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+    <style>
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+        }
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+        }
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: var(--freeze-bg-even); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Utilitas untuk menyembunyikan elemen */
+        .hidden-el { display: none !important; }
+    </style>
+</head>
+<body class="h-screen flex flex-col font-sans transition-colors duration-200">
+
+    <!-- HEADER -->
+    <header class="flex items-center justify-between px-6 border-b border-[var(--border-color)] bg-[var(--header-bg)] shrink-0 h-14 relative z-50">
+        <div class="flex items-center gap-3">
+            <h1 class="bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent font-bold text-lg">
+                IngfoPDF
+            </h1>
+            <span class="text-[10px] font-mono text-[var(--text-dim)] italic mt-1">v2.0</span>
+            <span class="text-[var(--border-color)]">|</span>
+            <a href="https://danial.my.id" target="_blank" rel="noreferrer" class="lowercase font-bold tracking-[0.25em] text-[8px] text-[var(--text-dim)] hover:text-blue-500 mt-1">
+                by AhmadDanial
+            </a>
+            
+            <div class="relative group cursor-pointer ml-2">
+                <i data-lucide="help-circle" class="w-[14px] h-[14px] text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors"></i>
+                <div id="tooltip-help" class="absolute left-0 top-6 w-64 p-3 bg-[var(--editor-bg)] border border-[var(--border-color)] shadow-xl rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] text-xs text-[var(--text-dim)]">
+                    <!-- Text Injected via JS -->
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div id="btn-upload-other" class="relative group cursor-pointer hidden-el">
+                <input type="file" accept=".pdf" class="file-input absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                <div class="bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-1.5 flex items-center gap-2 transition-colors">
+                    <i data-lucide="upload-cloud" class="w-[14px] h-[14px]"></i>
+                    <span id="lbl-upload-other" class="font-semibold text-xs">Unggah Dokumen Lain</span>
+                </div>
+            </div>
+            <button id="btn-lang" class="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors">
+                <i data-lucide="globe" class="w-[14px] h-[14px]"></i>
+                <span id="lbl-lang">ID</span>
+            </button>
+            <button id="btn-theme" class="text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors">
+                <i id="icon-theme" data-lucide="moon" class="w-[16px] h-[16px]"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 overflow-auto p-4 md:p-6 bg-[var(--preview-bg)] relative">
+        
+        <!-- EMPTY STATE (Upload Box) -->
+        <div id="empty-state" class="h-full flex items-center justify-center">
+            <div id="loading-engines" class="animate-pulse text-[var(--text-dim)] font-medium text-sm flex flex-col items-center gap-3">
+                <div class="w-8 h-8 border-2 border-t-blue-500 border-[var(--border-color)] rounded-full animate-spin"></div>
+                <span id="lbl-engine-prep">Menyiapkan Engine Kriptografi, PDF.js, & Pemindai QR...</span>
+            </div>
+
+            <div id="upload-box" class="relative group cursor-pointer max-w-lg w-full hidden-el">
+                <input type="file" accept=".pdf" class="file-input absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                <div class="border-2 border-dashed border-[var(--border-color)] rounded-xl bg-[var(--editor-bg)] group-hover:border-blue-400 group-hover:bg-[var(--freeze-hover)] transition-all p-12 flex flex-col items-center justify-center gap-4 shadow-sm">
+                    <div class="h-16 w-16 bg-[var(--freeze-bg-even)] rounded-full flex items-center justify-center">
+                        <i data-lucide="file-text" class="w-8 h-8 text-blue-500 group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <div class="text-[var(--text-main)] font-medium text-lg text-center">
+                        <span id="lbl-upload-main" class="text-blue-500 font-bold">Pilih Dokumen PDF</span> <br class="sm:hidden" /> <span id="lbl-upload-sub">atau seret ke sini</span>
+                    </div>
+                    <p id="lbl-supported" class="text-xs text-[var(--text-dim)]">Mendukung format ETSI.CAdES / BSrE</p>
+                    <span id="lbl-processing" class="text-xs text-blue-500 font-bold animate-pulse mt-2 hidden-el">Memproses & Memindai Dokumen...</span>
+                </div>
+                <div id="error-box" class="mt-4 p-3 bg-red-500/10 text-red-500 text-xs rounded-lg border border-red-500/20 flex items-center justify-center gap-2 hidden-el">
+                    <i data-lucide="alert-circle" class="w-[14px] h-[14px]"></i> <span id="error-msg"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- SPLIT VIEW STATE (Results) -->
+        <div id="results-state" class="flex-col lg:flex-row gap-6 items-start h-full max-w-7xl mx-auto hidden-el">
+            
+            <!-- LEFT COLUMN: Signatures Panel -->
+            <div class="w-full lg:w-1/3 flex flex-col gap-4 h-full">
+                <div id="success-badge" class="bg-emerald-600 rounded-lg px-4 py-3 flex items-center gap-3 text-white shadow-sm shrink-0 hidden-el">
+                    <i data-lucide="check-circle-2" class="w-[20px] h-[20px] text-emerald-100 shrink-0"></i>
+                    <div>
+                        <h3 id="lbl-verify-success" class="font-bold text-xs tracking-wide">VERIFIKASI BERHASIL</h3>
+                        <p id="lbl-verify-sub" class="text-[10px] text-emerald-100 mt-0.5">Dokumen memiliki tanda tangan elektronik yang sah.</p>
+                    </div>
+                </div>
+
+                <div id="no-sign-badge" class="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-6 text-center shadow-sm shrink-0 hidden-el">
+                    <i data-lucide="alert-circle" class="w-[36px] h-[36px] text-yellow-600 mx-auto mb-3"></i>
+                    <h3 id="lbl-no-crypto" class="font-bold text-[var(--text-main)] text-sm mb-2">Tanda Tangan Kriptografi Tidak Ditemukan</h3>
+                    <p id="lbl-no-crypto-desc" class="text-xs text-[var(--text-dim)] leading-relaxed">Dokumen ini tampaknya merupakan salinan pratinjau (flattened)...</p>
+                </div>
+
+                <div id="signatures-list" class="flex-1 overflow-y-auto pr-1 space-y-4 pb-10 custom-scrollbar">
+                    <!-- Signatures HTML injected here -->
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: PDF Preview & QR Banner -->
+            <div class="w-full lg:w-2/3 bg-[var(--editor-bg)] rounded-xl shadow-sm border border-[var(--border-color)] overflow-hidden h-full flex flex-col relative">
+                <div class="bg-[var(--freeze-bg-even)] px-5 py-4 flex items-center justify-between shrink-0 border-b border-[var(--border-color)] z-20">
+                    <span class="text-sm font-bold text-[var(--text-main)] flex items-center gap-2">
+                        <i data-lucide="image" class="w-[18px] h-[18px] text-blue-500"></i> <span id="lbl-preview-title">Pratinjau Halaman Tanda Tangan</span>
+                    </span>
+                    <span id="lbl-pdf-engine" class="text-[10px] text-[var(--text-dim)] bg-[var(--editor-bg)] px-2 py-1 rounded border border-[var(--border-color)] uppercase font-bold tracking-wider">
+                        PDF.js Render Engine
+                    </span>
+                </div>
+
+                <!-- QR Banner -->
+                <div id="qr-banner" class="bg-indigo-500/10 border-b border-indigo-500/20 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0 z-10 hidden-el">
+                    <div class="flex items-start gap-4 overflow-hidden w-full">
+                        <div class="p-3 bg-indigo-500/20 rounded-xl shrink-0">
+                            <i data-lucide="qr-code" class="w-[24px] h-[24px] text-indigo-600"></i>
+                        </div>
+                        <div class="overflow-hidden flex-1">
+                            <p id="lbl-qr-detected" class="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">Tautan QR Ditemukan:</p>
+                            <p id="qr-url-text" class="text-base sm:text-lg font-bold text-[var(--text-main)] truncate"></p>
+                        </div>
+                    </div>
+                    <a id="qr-url-btn" href="#" target="_blank" rel="noreferrer" class="shrink-0 w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm">
+                        <span id="lbl-open-link">Buka</span> <i data-lucide="external-link" class="w-[18px] h-[18px]"></i>
+                    </a>
+                </div>
+
+                <!-- Filter Info -->
+                <div id="filter-banner" class="bg-blue-500/10 text-blue-600 text-xs py-2 px-4 text-center font-semibold border-b border-blue-500/10 shrink-0 hidden-el">
+                    <span id="lbl-filter-info">Hanya menampilkan halaman yang mengandung visual TTD/QR.</span>
+                </div>
+                
+                <!-- Canvas Area -->
+                <div class="flex-grow overflow-y-auto p-4 sm:p-8 flex flex-col items-center pb-20 relative z-0 custom-scrollbar">
+                    <div id="canvas-loading" class="flex flex-col items-center justify-center h-full text-center mt-20 hidden-el">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
+                        <p id="lbl-painting" class="text-[var(--text-dim)] text-xs font-medium">Melukis Halaman Dokumen...</p>
+                    </div>
+                    
+                    <div id="canvas-error" class="flex flex-col items-center justify-center h-full text-[var(--text-dim)] mt-20 hidden-el">
+                        <i data-lucide="alert-circle" class="w-[32px] h-[32px] mb-3 opacity-50"></i>
+                        <p id="lbl-no-page" class="text-xs">Dokumen tidak memiliki halaman atau gagal dirender.</p>
+                    </div>
+
+                    <div id="canvas-container" class="relative flex justify-center w-full hidden-el">
+                        <div id="canvas-page-badge" class="absolute -left-2 sm:-left-8 top-4 bg-[var(--text-main)] text-[var(--editor-bg)] text-[10px] font-bold py-1 px-2 rounded-md shadow-md z-10">
+                            Hal. 1
+                        </div>
+                        <canvas id="pdf-canvas" class="shadow-xl border border-[var(--border-color)] max-w-full h-auto bg-white rounded-sm" style="width: 100%;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="flex items-center justify-between px-6 border-t border-[var(--border-color)] bg-[var(--footer-bg)] text-[10px] text-[var(--text-dim)] shrink-0 h-8">
+        <div class="flex items-center gap-2">
+            <div id="engine-status-dot" class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
+            <span id="lbl-engine-status">Booting...</span>
+        </div>
+        <div id="lbl-stats" class="hidden sm:block">Menunggu Dokumen...</div>
+        <button id="btn-terms" class="hover:text-[var(--text-main)] underline transition-colors cursor-pointer">
+            Terms of Use
+        </button>
+    </footer>
+
+    <!-- MODAL TERMS OF USE -->
+    <div id="modal-terms" class="fixed inset-0 flex items-center justify-center bg-black/60 z-[100] p-4 backdrop-blur-sm hidden-el">
+        <div class="bg-[var(--editor-bg)] border border-[var(--border-color)] rounded-xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col">
+            <div class="px-5 py-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--freeze-bg-even)]">
+                <h3 id="lbl-terms-title" class="font-bold text-[var(--text-main)] text-sm">Syarat & Ketentuan Penggunaan</h3>
+                <button id="btn-close-terms-x" class="text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors">
+                    <i data-lucide="x" class="w-[16px] h-[16px]"></i>
+                </button>
+            </div>
+            <div id="lbl-terms-text" class="p-5 text-xs text-[var(--text-dim)] leading-relaxed">
+                <!-- Text Injected via JS -->
+            </div>
+            <div class="p-4 border-t border-[var(--border-color)] flex justify-end">
+                <button id="btn-close-terms" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold transition-colors">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- JAVASCRIPT LOGIC -->
+    <!-- ========================================== -->
+    <script>
+        // TRANSLATIONS
+        const translations = {
+            ID: {
+                helpTooltip: "Unggah PDF lokal untuk memverifikasi tanda tangan elektronik PAdES (BSrE) & melihat pratinjau halamannya. 100% diproses di browser tanpa mengirim data ke server.",
+                uploadMain: "Pilih Dokumen PDF",
+                uploadSub: "atau seret ke sini",
+                uploadOther: "Unggah Dokumen Lain",
+                enginePreparing: "Menyiapkan Engine Kriptografi, PDF.js, & Pemindai QR...",
+                processing: "Memproses & Memindai Dokumen...",
+                supported: "Mendukung format ETSI.CAdES / BSrE",
+                errNeedPdf: "Harap unggah berkas PDF.",
+                errProcess: "Gagal memproses dokumen: ",
+                statusReady: "Engine Ready",
+                statusWait: "Menunggu Dokumen...",
+                statusFound: "Tanda Tangan Ditemukan: ",
+                termsBtn: "Terms of Use",
+                termsTitle: "Syarat & Ketentuan Penggunaan",
+                termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+                close: "Tutup",
+                verifySuccess: "VERIFIKASI BERHASIL",
+                verifySuccessSub: "Dokumen memiliki tanda tangan elektronik yang sah.",
+                noCryptoSign: "Tanda Tangan Kriptografi Tidak Ditemukan",
+                noCryptoSignDesc: "Dokumen ini tampaknya merupakan salinan pratinjau (flattened) atau hasil pindaian cetak. Namun, kami tetap memindai tautan QR visual jika tersedia.",
+                signedByRev: "Rev. {idx}: Ditandatangani Oleh",
+                unknownName: "Nama Tidak Diketahui",
+                unknownOrg: "Organisasi Tidak Terdaftar",
+                unknownNik: "NIP/NIK tidak tersedia",
+                bsreId: "ID Transaksi BSrE",
+                ca: "Otoritas Sertifikat",
+                signTime: "Waktu Tanda Tangan",
+                noTime: "Waktu tidak terekam di dokumen",
+                validity: "Masa Berlaku Identitas",
+                to: "s.d",
+                logsTitle: "Log Ekstraksi PAdES",
+                previewTitle: "Pratinjau Halaman Tanda Tangan",
+                pdfEngine: "PDF.js Render Engine",
+                painting: "Melukis Halaman Dokumen...",
+                noPage: "Dokumen tidak memiliki halaman atau gagal dirender secara visual.",
+                renderErr: "Gagal merender gambar pratinjau halaman ini",
+                hal: "Hal.",
+                qrDetected: "Tautan QR Ditemukan:",
+                openLink: "Buka",
+                pageFilterInfo: "Hanya menampilkan halaman yang mengandung visual TTD/QR.",
+                cryptoDetails: "Detail Kriptografi",
+                nik: "NIP / NIK"
+            },
+            EN: {
+                helpTooltip: "Upload a local PDF to verify PAdES (BSrE) electronic signatures & preview pages. 100% processed in your browser without sending data to servers.",
+                uploadMain: "Select PDF Document",
+                uploadSub: "or drag here",
+                uploadOther: "Upload Another Document",
+                enginePreparing: "Preparing Crypto Engine, PDF.js, & QR Scanner...",
+                processing: "Processing & Scanning Document...",
+                supported: "Supports ETSI.CAdES / BSrE formats",
+                errNeedPdf: "Please upload a PDF file.",
+                errProcess: "Failed to process document: ",
+                statusReady: "Engine Ready",
+                statusWait: "Awaiting Document...",
+                statusFound: "Signatures Found: ",
+                termsBtn: "Terms of Use",
+                termsTitle: "Terms & Conditions",
+                termsText: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                close: "Close",
+                verifySuccess: "VERIFICATION SUCCESSFUL",
+                verifySuccessSub: "The document has a valid electronic signature.",
+                noCryptoSign: "Cryptographic Signature Not Found",
+                noCryptoSignDesc: "This document appears to be a flattened preview copy or a scanned printout. We still scanned for visual QR links if available.",
+                signedByRev: "Rev. {idx}: Signed By",
+                unknownName: "Unknown Name",
+                unknownOrg: "Unregistered Organization",
+                unknownNik: "NIP/NIK unavailable",
+                bsreId: "BSrE Transaction ID",
+                ca: "Certificate Authority",
+                signTime: "Signing Time",
+                noTime: "Time not recorded in document",
+                validity: "Identity Validity",
+                to: "to",
+                logsTitle: "PAdES Extraction Logs",
+                previewTitle: "Signature Page Preview",
+                pdfEngine: "PDF.js Render Engine",
+                painting: "Painting Document Pages...",
+                noPage: "Document has no pages or failed to render visually.",
+                renderErr: "Failed to render preview image of this page",
+                hal: "Pg.",
+                qrDetected: "QR Link Detected:",
+                openLink: "Open",
+                pageFilterInfo: "Showing only the page containing the signature/QR visual.",
+                cryptoDetails: "Cryptographic Details",
+                nik: "NIP / NIK"
+            }
+        };
+
+        const OID_MAP = {
+            '2.5.4.3': 'Common Name (CN)',
+            '2.5.4.10': 'Organization (O)',
+            '2.5.4.11': 'Organizational Unit (OU)',
+            '2.5.4.6': 'Country (C)',
+            '2.5.4.8': 'State (ST)',
+            '2.5.4.7': 'Locality (L)',
+            '2.5.4.5': 'Serial Number (NIK/NIP)',
+            '2.5.4.42': 'Given Name',
+            '2.5.4.4': 'Surname',
+            '2.5.4.12': 'Title',
+            '2.5.4.13': 'ID Transaksi / BSrE ID',
+            '1.2.840.113549.1.9.1': 'Email Address',
+            '0.9.2342.19200300.100.1.1': 'User ID (UID)',
+            '1.2.840.113549.1.9.3': 'Content Type',
+            '1.2.840.113549.1.9.4': 'Message Digest (Hash)',
+            '1.2.840.113549.1.9.5': 'Signing Time (Waktu TTD)',
+        };
+
+        // STATE
+        let currentTheme = localStorage.getItem('theme') || 'light';
+        let currentLang = localStorage.getItem('lang') || 'ID';
+        let enginesLoaded = false;
+        let isProcessing = false;
+        let documentSignatures = [];
+
+        // DOM ELEMENTS
+        const el = {
+            html: document.documentElement,
+            btnTheme: document.getElementById('btn-theme'),
+            iconTheme: document.getElementById('icon-theme'),
+            btnLang: document.getElementById('btn-lang'),
+            lblLang: document.getElementById('lbl-lang'),
+            btnTerms: document.getElementById('btn-terms'),
+            btnCloseTerms: document.getElementById('btn-close-terms'),
+            btnCloseTermsX: document.getElementById('btn-close-terms-x'),
+            modalTerms: document.getElementById('modal-terms'),
+            
+            // Workflow States
+            emptyState: document.getElementById('empty-state'),
+            resultsState: document.getElementById('results-state'),
+            loadingEngines: document.getElementById('loading-engines'),
+            uploadBox: document.getElementById('upload-box'),
+            errorBox: document.getElementById('error-box'),
+            errorMsg: document.getElementById('error-msg'),
+            fileInputs: document.querySelectorAll('.file-input'),
+            lblProcessing: document.getElementById('lbl-processing'),
+            btnUploadOther: document.getElementById('btn-upload-other'),
+            
+            // Results Panel Elements
+            successBadge: document.getElementById('success-badge'),
+            noSignBadge: document.getElementById('no-sign-badge'),
+            signaturesList: document.getElementById('signatures-list'),
+            qrBanner: document.getElementById('qr-banner'),
+            qrUrlText: document.getElementById('qr-url-text'),
+            qrUrlBtn: document.getElementById('qr-url-btn'),
+            filterBanner: document.getElementById('filter-banner'),
+            canvasLoading: document.getElementById('canvas-loading'),
+            canvasError: document.getElementById('canvas-error'),
+            canvasContainer: document.getElementById('canvas-container'),
+            pdfCanvas: document.getElementById('pdf-canvas'),
+            canvasPageBadge: document.getElementById('canvas-page-badge'),
+
+            // Footer
+            engineStatusDot: document.getElementById('engine-status-dot'),
+            lblEngineStatus: document.getElementById('lbl-engine-status'),
+            lblStats: document.getElementById('lbl-stats'),
+        };
+
+        // HELPERS
+        const t = (key) => translations[currentLang][key] || key;
+        
+        const updateText = () => {
+            document.getElementById('tooltip-help').textContent = t('helpTooltip');
+            document.getElementById('lbl-upload-other').textContent = t('uploadOther');
+            document.getElementById('lbl-engine-prep').textContent = t('enginePreparing');
+            document.getElementById('lbl-upload-main').textContent = t('uploadMain');
+            document.getElementById('lbl-upload-sub').textContent = t('uploadSub');
+            document.getElementById('lbl-supported').textContent = t('supported');
+            document.getElementById('lbl-processing').textContent = t('processing');
+            document.getElementById('lbl-verify-success').textContent = t('verifySuccess');
+            document.getElementById('lbl-verify-sub').textContent = t('verifySuccessSub');
+            document.getElementById('lbl-no-crypto').textContent = t('noCryptoSign');
+            document.getElementById('lbl-no-crypto-desc').textContent = t('noCryptoSignDesc');
+            document.getElementById('lbl-preview-title').textContent = t('previewTitle');
+            document.getElementById('lbl-pdf-engine').textContent = t('pdfEngine');
+            document.getElementById('lbl-qr-detected').textContent = t('qrDetected');
+            document.getElementById('lbl-open-link').innerHTML = `${t('openLink')} <i data-lucide="external-link" class="w-[18px] h-[18px]"></i>`;
+            document.getElementById('lbl-filter-info').textContent = t('pageFilterInfo');
+            document.getElementById('lbl-painting').textContent = t('painting');
+            document.getElementById('lbl-no-page').textContent = t('noPage');
+            document.getElementById('lbl-terms-title').textContent = t('termsTitle');
+            document.getElementById('lbl-terms-text').textContent = t('termsText');
+            document.getElementById('btn-close-terms').textContent = t('close');
+            document.getElementById('btn-terms').textContent = t('termsBtn');
+
+            el.lblEngineStatus.textContent = enginesLoaded ? t('statusReady') : 'Booting...';
+            if (documentSignatures.length > 0) {
+                el.lblStats.textContent = `${t('statusFound')} ${documentSignatures.length}`;
+            } else {
+                el.lblStats.textContent = t('statusWait');
+            }
+            lucide.createIcons(); // Refresh icons inside text injections
+        };
+
+        const safeString = (val) => {
+            if (val === null || val === undefined) return null;
+            if (typeof val === 'object') {
+                try { return JSON.stringify(val); } catch (e) { return '[Data Objek Kompleks]'; }
+            }
+            return String(val);
+        };
+
+        const getAttrValue = (attrs, oidMapName, oidStr) => {
+            const found = attrs?.find(a => (a.name && a.name.includes(oidMapName)) || a.oid === oidStr);
+            return found ? safeString(found.value) : null;
+        };
+
+        const mapAttributes = (attributes) => attributes.map(attr => ({
+            oid: attr.type,
+            name: OID_MAP[attr.type] || attr.name || 'Atribut Kustom',
+            value: attr.value
+        }));
+
+        const formatDate = (dateString) => {
+            try {
+                return new Date(dateString).toLocaleString(currentLang === 'ID' ? 'id-ID' : 'en-US', {
+                    day: 'numeric', month: 'long', year: 'numeric', 
+                    hour: '2-digit', minute: '2-digit', second: '2-digit'
+                }) + (currentLang === 'ID' ? ' WIB' : '');
+            } catch (e) { return dateString; }
+        };
+
+        // INITIALIZATION
+        function init() {
+            if(currentTheme === 'dark') el.html.classList.add('dark');
+            el.iconTheme.setAttribute('data-lucide', currentTheme === 'light' ? 'moon' : 'sun');
+            el.lblLang.textContent = currentLang;
+            
+            updateText();
+            lucide.createIcons();
+            checkEngines();
+        }
+
+        function checkEngines() {
+            const check = setInterval(() => {
+                if (window.forge && window.pdfjsLib && window.jsQR) {
+                    clearInterval(check);
+                    enginesLoaded = true;
+                    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+                    
+                    el.loadingEngines.classList.add('hidden-el');
+                    el.uploadBox.classList.remove('hidden-el');
+                    el.engineStatusDot.classList.replace('bg-yellow-500', 'bg-green-500');
+                    el.engineStatusDot.classList.remove('animate-pulse');
+                    updateText();
+                }
+            }, 500);
+        }
+
+        // EVENT LISTENERS
+        el.btnTheme.addEventListener('click', () => {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            localStorage.setItem('theme', currentTheme);
+            el.html.classList.toggle('dark', currentTheme === 'dark');
+            el.iconTheme.setAttribute('data-lucide', currentTheme === 'light' ? 'moon' : 'sun');
+            lucide.createIcons();
+        });
+
+        el.btnLang.addEventListener('click', () => {
+            currentLang = currentLang === 'ID' ? 'EN' : 'ID';
+            localStorage.setItem('lang', currentLang);
+            el.lblLang.textContent = currentLang;
+            updateText();
+            if(documentSignatures.length > 0) renderSignaturesList(); // Re-render translations in results
+        });
+
+        const toggleModal = (show) => el.modalTerms.classList.toggle('hidden-el', !show);
+        el.btnTerms.addEventListener('click', () => toggleModal(true));
+        el.btnCloseTerms.addEventListener('click', () => toggleModal(false));
+        el.btnCloseTermsX.addEventListener('click', () => toggleModal(false));
+
+        el.fileInputs.forEach(input => {
+            input.addEventListener('change', handleFileUpload);
+        });
+
+        // CORE PDF PROCESSING
+        const prepareAndValidatePayload = (rawHex) => {
+            const logs = [];
+            const cleanedForHex = rawHex.replace(/[^0-9a-fA-F]/g, '');
+            logs.push(`Mengekstrak ${cleanedForHex.length} karakter hex.`);
+
+            if (cleanedForHex.length % 2 !== 0) throw new Error("Payload rusak (panjang ganjil).");
+
+            const binaryArray = new Uint8Array(cleanedForHex.length / 2);
+            for (let i = 0; i < cleanedForHex.length; i += 2) {
+                binaryArray[i / 2] = parseInt(cleanedForHex.substr(i, 2), 16);
+            }
+
+            let validLength = binaryArray.length;
+            while (validLength > 0 && binaryArray[validLength - 1] === 0x00) {
+                validLength--;
+            }
+
+            const finalBinaryArray = binaryArray.slice(0, validLength);
+            logs.push(`Membersihkan ${binaryArray.length - validLength} byte trailing padding (\\x00).`);
+
+            if (finalBinaryArray.length === 0) throw new Error("Payload kosong.");
+
+            let binaryStr = '';
+            const chunkSize = 8192; 
+            for (let i = 0; i < finalBinaryArray.length; i += chunkSize) {
+                binaryStr += String.fromCharCode.apply(null, finalBinaryArray.slice(i, i + chunkSize));
+            }
+            return { binaryStr, logs };
+        };
+
+        async function processSignatures(arrayBuffer) {
+            const decoder = new TextDecoder('latin1');
+            const pdfText = decoder.decode(arrayBuffer);
+            const foundSignatures = [];
+            const contentsTag = '/Contents';
+            let searchIndex = 0;
+
+            while ((searchIndex = pdfText.indexOf(contentsTag, searchIndex)) !== -1) {
+                const startBracketIndex = pdfText.indexOf('<', searchIndex);
+                if (startBracketIndex !== -1 && startBracketIndex - searchIndex < 50) {
+                    const endBracketIndex = pdfText.indexOf('>', startBracketIndex);
+                    if (endBracketIndex !== -1) {
+                        const rawHex = pdfText.substring(startBracketIndex + 1, endBracketIndex);
+                        if (rawHex.length > 500) {
+                            let debugLogs = [];
+                            try {
+                                const { binaryStr, logs } = prepareAndValidatePayload(rawHex);
+                                debugLogs = logs;
+
+                                const asn1Obj = window.forge.asn1.fromDer(binaryStr);
+                                const p7 = window.forge.pkcs7.messageFromAsn1(asn1Obj);
+
+                                const certs = (p7.certificates || []).map(cert => ({
+                                    subject: mapAttributes(cert.subject.attributes),
+                                    issuer: mapAttributes(cert.issuer.attributes),
+                                    validFrom: cert.validity.notBefore.toString(),
+                                    validTo: cert.validity.notAfter.toString(),
+                                    serialNumber: cert.serialNumber
+                                }));
+
+                                const signerInfos = (p7.signerInfos || []).map(signer => {
+                                    const authAttrs = (signer.authenticatedAttributes || []).map(attr => {
+                                        let rawValue = 'N/A';
+                                        if (attr.value && Array.isArray(attr.value) && attr.value.length > 0) {
+                                            const v = attr.value[0];
+                                            if (v.type === window.forge.asn1.Type.UTCTIME || v.type === window.forge.asn1.Type.GENERALIZEDTIME) {
+                                                rawValue = formatDate(v.value);
+                                            } else if (typeof v.value === 'string') {
+                                                rawValue = window.forge.util.bytesToHex(v.value);
+                                            }
+                                        }
+                                        return { oid: attr.type, name: OID_MAP[attr.type] || 'Atribut CMS', value: rawValue };
+                                    });
+                                    return { authAttrs };
+                                });
+
+                                debugLogs.push("Rantai Sertifikat berhasil dibedah.");
+                                foundSignatures.push({ id: foundSignatures.length + 1, debugLogs, certificates: certs, signerInfos, error: null });
+                            } catch (parseErr) {
+                                foundSignatures.push({ id: foundSignatures.length + 1, error: parseErr.message, debugLogs: [...debugLogs, `ERROR: ${parseErr.message}`], certificates: [] });
+                            }
+                        }
+                    }
+                }
+                searchIndex += contentsTag.length;
+            }
+
+            return foundSignatures.filter(s => s.certificates.length > 0 || s.error);
+        }
+
+        async function scanPageForSignatureAndQR(pdf) {
+            let bestPageNum = pdf.numPages; 
+            let foundQrUrl = null;
+
+            const scanCanvas = document.createElement('canvas');
+            const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+
+            for (let i = pdf.numPages; i >= 1; i--) {
+                try {
+                    const page = await pdf.getPage(i);
+                    const annotations = await page.getAnnotations();
+                    
+                    if (window.jsQR) {
+                        const viewport = page.getViewport({ scale: 2.0 });
+                        scanCanvas.width = viewport.width;
+                        scanCanvas.height = viewport.height;
+                        
+                        await page.render({ canvasContext: scanCtx, viewport }).promise;
+                        const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+                        
+                        const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+                            inversionAttempts: "dontInvert"
+                        });
+                        
+                        if (code && code.data) {
+                            foundQrUrl = code.data;
+                            bestPageNum = i;
+                            break; 
+                        }
+                    }
+
+                    if (annotations.some(a => a.fieldType === 'Sig')) {
+                        bestPageNum = i;
+                    }
+                } catch (err) {
+                    console.warn(`Gagal memindai halaman ${i}:`, err);
+                }
+            }
+
+            return { bestPageNum, foundQrUrl };
+        }
+
+        function renderSignaturesList() {
+            let html = '';
+            documentSignatures.forEach((sig, idx) => {
+                if (sig.error) return;
+
+                const leafCert = sig.certificates.find(cert => {
+                    const certCN = getAttrValue(cert.subject, 'Common Name', '2.5.4.3');
+                    if (!certCN) return false;
+                    const isIssuerForAnother = sig.certificates.some(otherCert => {
+                        if (otherCert === cert) return false;
+                        return getAttrValue(otherCert.issuer, 'Common Name', '2.5.4.3') === certCN;
+                    });
+                    return !isIssuerForAnother;
+                }) || sig.certificates[sig.certificates.length - 1];
+                
+                const signerName = getAttrValue(leafCert.subject, 'Common Name', '2.5.4.3');
+                const signerOrg = getAttrValue(leafCert.subject, 'Organization', '2.5.4.10');
+                const signerNik = getAttrValue(leafCert.subject, 'Serial Number', '2.5.4.5');
+                const bsreId = getAttrValue(leafCert.subject, 'Description', '2.5.4.13');
+                const issuerName = getAttrValue(leafCert.issuer, 'Common Name', '2.5.4.3');
+
+                let signingTime = null;
+                if (sig.signerInfos && sig.signerInfos.length > 0) {
+                    signingTime = getAttrValue(sig.signerInfos[0].authAttrs, 'Signing Time', '1.2.840.113549.1.9.5');
+                }
+
+                html += `
+                <div class="bg-[var(--editor-bg)] rounded-xl shadow-sm border border-[var(--border-color)] overflow-hidden">
+                    <div class="bg-[var(--freeze-bg-even)] border-b border-[var(--border-color)] p-5">
+                        <p class="text-xs font-bold text-[var(--text-dim)] uppercase tracking-wider mb-1">
+                            ${t('signedByRev').replace('{idx}', idx + 1)}
+                        </p>
+                        <h3 class="text-2xl font-bold text-[var(--text-main)]">${signerName || t('unknownName')}</h3>
+                        <div class="flex items-center gap-2 mt-2 text-sm text-[var(--text-dim)] font-medium">
+                            <i data-lucide="building" class="w-[16px] h-[16px] shrink-0"></i>
+                            <span class="line-clamp-2">${signerOrg || t('unknownOrg')}</span>
+                        </div>
+                    </div>
+                    <div class="p-5 space-y-5">
+                        ${bsreId ? `
+                        <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 flex gap-3 items-start">
+                            <i data-lucide="fingerprint" class="w-[24px] h-[24px] text-indigo-500 mt-1 shrink-0"></i>
+                            <div class="overflow-hidden">
+                                <p class="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">${t('bsreId')}</p>
+                                <p class="text-base font-mono font-bold text-[var(--text-main)] break-all">${bsreId}</p>
+                            </div>
+                        </div>` : ''}
+
+                        <details class="group border border-[var(--border-color)] rounded-xl overflow-hidden">
+                            <summary class="px-4 py-3 bg-[var(--freeze-bg-even)] text-xs font-bold text-[var(--text-main)] cursor-pointer flex items-center justify-between hover:bg-[var(--freeze-hover)] list-none">
+                                <span class="flex items-center gap-2"><i data-lucide="shield-check" class="w-[16px] h-[16px] text-blue-500"></i> ${t('cryptoDetails')}</span>
+                                <i data-lucide="chevron-down" class="w-[16px] h-[16px] text-[var(--text-dim)] group-open:rotate-180 transition-transform"></i>
+                            </summary>
+                            <div class="p-4 space-y-4 border-t border-[var(--border-color)] bg-[var(--editor-bg)]">
+                                <div><p class="text-[10px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('nik')}</p><p class="text-sm font-semibold text-[var(--text-main)] break-all">${signerNik || t('unknownNik')}</p></div>
+                                <div><p class="text-[10px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('ca')}</p><p class="text-sm font-semibold text-[var(--text-main)]">${issuerName}</p></div>
+                                <div><p class="text-[10px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('signTime')}</p><p class="text-sm font-semibold text-[var(--text-main)]">${signingTime || t('noTime')}</p></div>
+                                <div><p class="text-[10px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('validity')}</p><p class="text-sm font-medium text-[var(--text-dim)]">${formatDate(leafCert.validFrom)} <span class="mx-1 font-bold text-[var(--text-main)]">${t('to')}</span> ${formatDate(leafCert.validTo)}</p></div>
+                            </div>
+                        </details>
+
+                        <details class="group border border-[var(--border-color)] rounded-xl overflow-hidden mt-4">
+                            <summary class="px-4 py-3 bg-[var(--freeze-bg-even)] text-xs font-bold text-[var(--text-main)] cursor-pointer flex items-center justify-between hover:bg-[var(--freeze-hover)] list-none">
+                                <span class="flex items-center gap-2"><i data-lucide="terminal" class="w-[16px] h-[16px] text-[var(--text-dim)]"></i> ${t('logsTitle')}</span>
+                                <i data-lucide="chevron-down" class="w-[16px] h-[16px] text-[var(--text-dim)] group-open:rotate-180 transition-transform"></i>
+                            </summary>
+                            <div class="p-4 bg-[#0d1117] text-green-400 font-mono text-[10px] leading-relaxed max-h-48 overflow-y-auto border-t border-[var(--border-color)] custom-scrollbar">
+                                ${sig.debugLogs.map(log => `<div class="mb-1">&gt; ${log}</div>`).join('')}
+                            </div>
+                        </details>
+                    </div>
+                </div>
+                `;
+            });
+            el.signaturesList.innerHTML = html;
+            lucide.createIcons();
+        }
+
+        async function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file || file.type !== 'application/pdf') {
+                showError(t('errNeedPdf'));
+                return;
+            }
+
+            // Reset States
+            documentSignatures = [];
+            isProcessing = true;
+            el.errorBox.classList.add('hidden-el');
+            el.lblProcessing.classList.remove('hidden-el');
+            
+            // Switch to Workspace Loading State
+            el.emptyState.classList.add('hidden-el');
+            el.resultsState.classList.remove('hidden-el');
+            el.btnUploadOther.classList.add('hidden-el');
+            el.canvasLoading.classList.remove('hidden-el');
+            el.canvasError.classList.add('hidden-el');
+            el.canvasContainer.classList.add('hidden-el');
+            el.qrBanner.classList.add('hidden-el');
+            el.filterBanner.classList.add('hidden-el');
+            el.successBadge.classList.add('hidden-el');
+            el.noSignBadge.classList.add('hidden-el');
+            el.signaturesList.innerHTML = '';
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+
+                // 1. Ekstrak Signatures
+                documentSignatures = await processSignatures(arrayBuffer.slice(0));
+                
+                if(documentSignatures.length > 0) {
+                    el.successBadge.classList.remove('hidden-el');
+                    renderSignaturesList();
+                } else {
+                    el.noSignBadge.classList.remove('hidden-el');
+                }
+
+                updateText(); // update footer stats
+
+                // 2. Render Visual & QR Scan
+                if (window.pdfjsLib) {
+                    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+                    const { bestPageNum, foundQrUrl } = await scanPageForSignatureAndQR(pdf);
+                    
+                    if (foundQrUrl) {
+                        el.qrUrlText.textContent = foundQrUrl;
+                        el.qrUrlText.title = foundQrUrl;
+                        el.qrUrlBtn.href = foundQrUrl;
+                        el.qrBanner.classList.remove('hidden-el');
+                    }
+
+                    if (pdf.numPages > 1) {
+                        el.filterBanner.classList.remove('hidden-el');
+                    }
+
+                    // Render to Canvas
+                    el.canvasLoading.classList.add('hidden-el');
+                    try {
+                        const page = await pdf.getPage(bestPageNum);
+                        const viewport = page.getViewport({ scale: 1.5 });
+                        const ctx = el.pdfCanvas.getContext('2d');
+                        el.pdfCanvas.height = viewport.height;
+                        el.pdfCanvas.width = viewport.width;
+                        await page.render({ canvasContext: ctx, viewport }).promise;
+                        
+                        el.canvasPageBadge.textContent = `${t('hal')} ${bestPageNum}`;
+                        el.canvasContainer.classList.remove('hidden-el');
+                    } catch(renderErr) {
+                        console.error(renderErr);
+                        el.canvasError.classList.remove('hidden-el');
+                    }
+                }
+
+            } catch (err) {
+                console.error(err);
+                // Kembalikan ke halaman awal dengan pesan error
+                el.emptyState.classList.remove('hidden-el');
+                el.resultsState.classList.add('hidden-el');
+                showError(t('errProcess') + err.message);
+            } finally {
+                isProcessing = false;
+                el.lblProcessing.classList.add('hidden-el');
+                el.btnUploadOther.classList.remove('hidden-el');
+                // Reset semua input file
+                el.fileInputs.forEach(i => i.value = '');
+            }
+        }
+
+        function showError(msg) {
+            el.errorMsg.textContent = msg;
+            el.errorBox.classList.remove('hidden-el');
+        }
+
+        // START
+        init();
+
+    </script>
+</body>
+</html>
