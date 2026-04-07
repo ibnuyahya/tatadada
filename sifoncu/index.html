@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SiFoncu - Fancy Text Generator by AhmadDanial</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Tailwind Config for TATADADA Framework -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        header: 'var(--header-bg)',
+                        editor: 'var(--editor-bg)',
+                        preview: 'var(--preview-bg)',
+                        footer: 'var(--footer-bg)',
+                        bordercolor: 'var(--border-color)',
+                        main: 'var(--text-main)',
+                        dim: 'var(--text-dim)',
+                        stripe: 'var(--stripe-color)',
+                        freezebg: 'var(--freeze-bg)',
+                        freezebgeven: 'var(--freeze-bg-even)',
+                        freezehover: 'var(--freeze-hover)',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* TATADADA CSS Tokens */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+        }
+
+        /* Base Reset */
+        * { box-sizing: border-box; }
+        
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { 
+            background: var(--border-color); 
+            border-radius: 4px; 
+        }
+        ::-webkit-scrollbar-thumb:hover { 
+            background: var(--text-dim); 
+        }
+
+        /* Input Textarea Specifics */
+        textarea.editor-input {
+            font-family: 'JetBrains Mono', monospace;
+            white-space: pre;
+            overflow-x: auto;
+            resize: none;
+        }
+
+        /* App Specific Styles */
+        .fancy-card {
+            transition: all 0.2s ease;
+        }
+        .fancy-card:hover {
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .notification {
+            position: fixed;
+            bottom: 3rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: none;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translate(-50%, 100%); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        
+        /* Tooltip */
+        .tooltip-content {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .has-tooltip:hover .tooltip-content {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER (Mandatory - h-14) -->
+    <header class="flex items-center justify-between px-6 border-b border-bordercolor bg-header shrink-0 relative z-50 h-14">
+        <!-- Kiri: Branding -->
+        <div class="flex items-center gap-3">
+            <div class="flex flex-col">
+                <div class="flex items-center gap-2">
+                    <span class="text-2xl font-black tracking-tighter drop-shadow-sm bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent">
+                        SiFoncu
+                    </span>
+                    <span class="text-[10px] font-mono text-dim italic mt-1">v1.5</span>
+                </div>
+                <a href="https://danial.my.id" target="_blank" rel="noopener noreferrer" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 transition-colors -mt-1 w-max">
+                    by AhmadDanial
+                </a>
+            </div>
+            
+            <!-- Help Tooltip -->
+            <div class="relative has-tooltip ml-2 cursor-help text-dim hover:text-blue-500">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+                <div class="tooltip-content absolute left-0 top-full mt-2 w-64 p-3 bg-editor border border-bordercolor shadow-lg rounded-md text-xs text-main z-50 pointer-events-none">
+                    <p data-i18n="helpTooltip">Ketik teks di panel atas, klik tombol salin pada hasil di panel bawah.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kanan: Actions -->
+        <div class="flex items-center gap-3">
+            <button id="langToggleBtn" onclick="toggleLang()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-preview border border-transparent hover:border-bordercolor transition-all text-xs font-bold text-dim hover:text-main">
+                <span id="langFlag">🇮🇩</span>
+                <span id="langLabel">ID</span>
+            </button>
+            
+            <div class="w-px h-5 bg-bordercolor mx-1"></div>
+
+            <button onclick="toggleTheme()" class="p-2 hover:bg-preview text-dim hover:text-blue-500 rounded-full transition-colors border border-transparent hover:border-bordercolor" aria-label="Toggle Dark Mode">
+                <i data-lucide="moon" id="theme-icon-dark" class="w-4 h-4 hidden"></i>
+                <i data-lucide="sun" id="theme-icon-light" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE (Scenario 1: Top-Down Split Pane) -->
+    <main class="flex-1 relative overflow-hidden bg-preview flex flex-col">
+        
+        <!-- Top Pane: Area Input -->
+        <div id="topPane" class="flex flex-col bg-editor" style="height: 35%;">
+            <div class="px-4 py-2 border-b border-bordercolor flex justify-between items-center bg-header shrink-0">
+                <span class="text-xs font-bold uppercase tracking-widest text-dim" data-i18n="inputTextLabel">Input Teks Normal</span>
+                <button onclick="clearInput()" class="text-[10px] text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 px-2 py-1 rounded transition-colors font-bold" data-i18n="clearBtn">
+                    HAPUS SEMUA
+                </button>
+            </div>
+            <textarea 
+                id="inputText" 
+                class="editor-input flex-1 p-4 bg-transparent outline-none text-main text-base"
+                placeholder="Ketik teks di sini..."
+                oninput="generateFancyText()"
+            ></textarea>
+        </div>
+
+        <!-- Horizontal Resizer -->
+        <div id="resizer" class="h-1 cursor-row-resize bg-bordercolor hover:bg-blue-500 transition-colors shrink-0 z-10 flex items-center justify-center">
+            <div class="w-8 h-[2px] bg-white/50 rounded-full pointer-events-none opacity-0 hover:opacity-100 transition-opacity"></div>
+        </div>
+
+        <!-- Bottom Pane: Area Output -->
+        <div id="bottomPane" class="flex-1 overflow-auto bg-preview p-6 space-y-4">
+            <div class="flex flex-col items-center justify-center h-full text-center opacity-40" id="emptyState">
+                <i data-lucide="sparkles" class="w-12 h-12 mb-4"></i>
+                <p class="font-bold italic" data-i18n="emptyState">Tunggu keajaiban SiFoncu muncul di sini...</p>
+            </div>
+            <div id="outputArea" class="flex flex-col gap-4 hidden">
+                <!-- Hasil di-generate via JS -->
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER (Mandatory - h-8) -->
+    <footer class="flex items-center justify-between px-6 border-t border-bordercolor bg-footer text-[10px] text-dim shrink-0 h-8">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+            <span data-i18n="engineReady">Engine Ready</span>
+        </div>
+        
+        <div class="flex items-center gap-4 font-mono">
+            <span id="charCountLabel"><span data-i18n="statChars">Karakter</span>: <span id="charCount">0</span></span>
+            <span id="wordCountLabel"><span data-i18n="statWords">Kata</span>: <span id="wordCount">0</span></span>
+        </div>
+
+        <button onclick="openModal()" class="hover:text-blue-500 transition-colors underline decoration-dotted underline-offset-2" data-i18n="terms">
+            Terms of Use
+        </button>
+    </footer>
+
+    <!-- MODAL TERMS OF USE (Mandatory) -->
+    <div id="termsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-[100] opacity-0 transition-opacity duration-300">
+        <div class="bg-editor border border-bordercolor rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 transform scale-95 transition-transform duration-300" id="termsModalContent">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-main" data-i18n="termsTitle">Syarat Penggunaan</h3>
+                <button onclick="closeModal()" class="text-dim hover:text-red-500 transition-colors p-1 rounded-md hover:bg-preview">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="text-sm text-dim leading-relaxed mb-6">
+                <p data-i18n="termsText">Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.</p>
+            </div>
+            <div class="flex justify-end">
+                <button onclick="closeModal()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-md transition-all active:scale-95" data-i18n="close">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="copyToast" class="notification px-6 py-3 bg-emerald-600 text-white rounded-full shadow-lg font-bold text-sm flex items-center gap-2">
+        <i data-lucide="check-circle" class="w-4 h-4"></i>
+        <span data-i18n="copied">Teks berhasil disalin!</span>
+    </div>
+
+    <script>
+        // ==========================================
+        // TATADADA FRAMEWORK CORE LOGIC
+        // ==========================================
+
+        // 1. Theme Management
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+            updateThemeIcons();
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            updateThemeIcons();
+        }
+
+        function updateThemeIcons() {
+            const isDark = document.documentElement.classList.contains('dark');
+            document.getElementById('theme-icon-dark').classList.toggle('hidden', !isDark);
+            document.getElementById('theme-icon-light').classList.toggle('hidden', isDark);
+        }
+
+        // 2. Localization (ID/EN)
+        const translations = {
+            id: {
+                helpTooltip: "Ketik teks di panel atas, klik tombol salin pada hasil di panel bawah.",
+                inputTextLabel: "Input Teks Normal",
+                clearBtn: "HAPUS SEMUA",
+                emptyState: "Tunggu keajaiban SiFoncu muncul di sini...",
+                engineReady: "Engine Ready",
+                statChars: "Karakter",
+                statWords: "Kata",
+                terms: "Syarat Penggunaan",
+                termsTitle: "Syarat Penggunaan",
+                termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+                close: "Tutup",
+                copied: "Teks berhasil disalin!",
+                placeholder: "Ketik teks di sini..."
+            },
+            en: {
+                helpTooltip: "Type text in the top panel, click the copy button on the results in the bottom panel.",
+                inputTextLabel: "Normal Text Input",
+                clearBtn: "CLEAR ALL",
+                emptyState: "Wait for SiFoncu magic to appear here...",
+                engineReady: "Engine Ready",
+                statChars: "Chars",
+                statWords: "Words",
+                terms: "Terms of Use",
+                termsTitle: "Terms of Use",
+                termsText: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                close: "Close",
+                copied: "Text copied to clipboard!",
+                placeholder: "Type your text here..."
+            }
+        };
+
+        let currentLang = localStorage.getItem('lang') || 'id';
+
+        function initLang() {
+            updateLanguageUI();
+        }
+
+        function toggleLang() {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            localStorage.setItem('lang', currentLang);
+            updateLanguageUI();
+        }
+
+        function updateLanguageUI() {
+            // Update button label
+            document.getElementById('langFlag').innerText = currentLang === 'id' ? '🇮🇩' : '🇬🇧';
+            document.getElementById('langLabel').innerText = currentLang.toUpperCase();
+
+            // Update text contents
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[currentLang][key]) {
+                    el.innerText = translations[currentLang][key];
+                }
+            });
+
+            // Update placeholders
+            document.getElementById('inputText').placeholder = translations[currentLang].placeholder;
+
+            // Regenerate list if exists to apply language to generated cards if needed
+            if (document.getElementById('inputText').value.trim() !== '') {
+                generateFancyText();
+            }
+        }
+
+        // 3. Modal Logic
+        const modal = document.getElementById('termsModal');
+        const modalContent = document.getElementById('termsModalContent');
+
+        function openModal() {
+            modal.classList.remove('hidden');
+            // Small delay to allow display block to apply before animating opacity
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModal() {
+            modal.classList.add('opacity-0');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300); // match transition duration
+        }
+
+        // Close modal on outside click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        // 4. Split Pane Resizer Logic
+        function initResizer() {
+            const topPane = document.getElementById('topPane');
+            const resizer = document.getElementById('resizer');
+            const container = topPane.parentElement;
+            let isResizing = false;
+
+            resizer.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                document.body.style.cursor = 'row-resize';
+                document.body.style.userSelect = 'none'; // Prevent text selection
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                
+                const containerRect = container.getBoundingClientRect();
+                let newHeight = e.clientY - containerRect.top;
+                
+                // Constraints: 10% to 85%
+                const minHeight = containerRect.height * 0.1;
+                const maxHeight = containerRect.height * 0.85;
+                
+                if (newHeight < minHeight) newHeight = minHeight;
+                if (newHeight > maxHeight) newHeight = maxHeight;
+                
+                topPane.style.height = `${(newHeight / containerRect.height) * 100}%`;
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    document.body.style.cursor = 'default';
+                    document.body.style.userSelect = '';
+                }
+            });
+        }
+
+
+        // ==========================================
+        // SIFONCU APP SPECIFIC LOGIC
+        // ==========================================
+        
+        const maps = {
+            "Fraktur Bold": {"a":"𝖆","b":"𝖇","c":"𝖈","d":"𝖉","e":"𝖊","f":"𝖋","g":"𝖌","h":"𝖍","i":"𝖎","j":"𝖏","k":"𝖐","l":"𝖑","m":"𝖒","n":"𝖓","o":"𝖔","p":"𝖕","q":"𝖖","r":"𝖗","s":"𝖘","t":"𝖙","u":"𝖚","v":"𝖛","w":"𝖜","x":"𝖝","y":"𝖞","z":"𝖟","A":"𝕬","B":"𝕭","C":"𝕮","D":"𝕯","E":"𝕰","F":"𝕱","G":"𝕲","H":"𝕳","I":"𝕴","J":"𝕵","K":"𝕶","L":"𝕷","M":"𝕸","N":"𝕹","O":"𝕺","P":"𝕻","Q":"𝕼","R":"𝕽","S":"𝕾","T":"𝕿","U":"𝖀","V":"𝖁","W":"𝖂","X":"𝖃","Y":"𝖄","Z":"𝖅"},
+            "Royal Script": {"a":"𝓪","b":"𝓫","c":"𝓬","d":"𝓭","e":"𝓮","f":"𝓯","g":"𝓰","h":"𝓱","i":"𝓲","j":"𝓳","k":"𝓴","l":"𝓵","m":"𝓶","n":"𝓷","o":"𝓸","p":"𝓹","q":"𝓺","r":"𝓻","s":"𝓼","t":"𝓽","u":"𝓾","v":"𝓿","w":"𝔀","x":"𝔁","y":"𝔂","z":"𝔃","A":"𝓐","B":"𝓑","C":"𝓒","D":"𝓓","E":"𝓔","F":"𝓕","G":"𝓖","H":"𝓗","I":"𝓘","J":"𝓙","K":"𝓚","L":"𝓛","M":"𝓜","N":"𝓝","O":"𝓞","P":"𝓟","Q":"𝓠","R":"𝓡","S":"𝓢","T":"𝓣","U":"𝓤","V":"𝓥","W":"𝓦","X":"𝓧","Y":"𝓨","Z":"𝓩"},
+            "Old Typewriter": {"a":"𝚊","b":"𝚋","c":"𝚌","d":"𝚍","e":"𝚎","f":"𝚏","g":"𝚐","h":"𝚑","i":"𝚒","j":"𝚓","k":"𝚔","l":"𝚕","m":"𝚖","n":"𝚗","o":"𝚘","p":"𝚙","q":"𝚚","r":"𝚛","s":"𝚜","t":"𝚝","u":"𝚞","v":"𝚟","w":"𝚠","x":"𝚡","y":"𝚢","z":"𝚣","A":"𝙰","B":"𝙱","C":"𝙲","D":"𝙳","E":"𝙴","F":"𝙵","G":"𝙶","H":"𝙷","I":"𝙸","J":"𝙹","K":"𝙺","L":"𝙻","M":"𝙼","N":"𝙽","O":"𝙾","P":"𝙿","Q":"𝚀","R":"𝚁","S":"𝚂","T":"𝚃","U":"𝚄","V":"𝚅","W":"𝚆","X":"𝚇","Y":"𝚈","Z":"𝚉"},
+            "Double Struck": {"a":"𝕒","b":"𝕓","c":"𝕔","d":"𝕕","e":"𝕖","f":"𝕗","g":"𝕘","h":"𝕙","i":"𝕚","j":"𝕛","k":"𝕜","l":"𝕝","m":"𝕞","n":"𝕟","o":"𝕠","p":"𝕡","q":"𝕢","r":"𝕣","s":"𝕤","t":"𝕥","u":"𝕦","v":"𝕧","w":"𝕨","x":"𝕩","y":"𝕪","z":"𝕫","A":"𝔸","B":"𝔹","C":"ℂ","D":"𝔻","E":"𝔼","F":"𝔽","G":"𝔾","H":"ℍ","I":"𝕀","J":"𝕁","K":"𝕂","L":"𝕃","M":"𝕄","N":"ℕ","O":"𝕆","P":"ℙ","Q":"ℚ","R":"ℝ","S":"𝕊","T":"𝕋","U":"𝕌","V":"𝕍","W":"𝕎","X":"𝕏","Y":"𝕐","Z":"ℤ"},
+            "Bubbles (White)": {"a":"ⓐ","b":"ⓑ","c":"ⓒ","d":"ⓓ","e":"ⓔ","f":"ⓕ","g":"ⓖ","h":"ⓗ","i":"ⓘ","j":"ⓙ","k":"ⓚ","l":"ⓛ","m":"ⓜ","n":"ⓝ","o":"ⓞ","p":"ⓟ","q":"ⓠ","r":"ⓡ","s":"ⓢ","t":"ⓣ","u":"ⓤ","v":"ⓥ","w":"ⓦ","x":"ⓧ","y":"ⓨ","z":"ⓩ","A":"Ⓐ","B":"Ⓑ","C":"Ⓒ","D":"Ⓓ","E":"Ⓔ","F":"Ⓕ","G":"Ⓖ","H":"Ⓗ","I":"Ⓘ","J":"Ⓙ","K":"Ⓚ","L":"Ⓛ","M":"Ⓜ","N":"Ⓝ","O":"Ⓞ","P":"Ⓟ","Q":"Ⓠ","R":"Ⓡ","S":"Ⓢ","T":"Ⓣ","U":"Ⓤ","V":"Ⓥ","W":"Ⓦ","X":"Ⓧ","Y":"Ⓨ","Z":"Ⓩ"},
+            "Squares (Black)": {"a":"🅰","b":"🅱","c":"🅲","d":"🅳","e":"🅴","f":"🅵","g":"🅶","h":"🅷","i":"🅸","j":"🅹","k":"🅺","l":"🅻","m":"🅼","n":"🅽","o":"🅾","p":"🅿","q":"🆀","r":"🆁","s":"🆂","t":"🆃","u":"🆄","v":"🆅","w":"🆆","x":"🆇","y":"🆈","z":"🆉","A":"🅰","B":"🅱","C":"🅲","D":"🅳","E":"🅴","F":"🅵","G":"🅶","H":"🅷","I":"🅸","J":"𝅓","K":"🅺","L":"🅻","M":"🅼","N":"🅽","O":"🅾","P":"🅿","Q":"🆀","R":"🆁","S":"🆂","T":"🆃","U":"𝅓","V":"🆅","W":"🆆","X":"🆇","Y":"🆈","Z":"🆉"},
+        };
+
+        const flipMap = {"a":"ɐ","b":"q","c":"ɔ","d":"p","e":"ǝ","f":"ɟ","g":"ɓ","h":"ɥ","i":"ı","j":"ɾ","k":"ʞ","l":"l","m":"ɯ","n":"u","r":"ɹ","t":"ʇ","v":"ʌ","w":"ʍ","y":"ʎ","A":"∀","B":"ᙠ","C":"Ɔ","D":"ᗡ","E":"Ǝ","F":"Ⅎ","G":"⅁","J":"ſ","K":"⋊",1:"⇂",2:"ᄅ",3:"Ɛ",4:"ㄣ",5:"ގ",6:"9",7:"ㄥ","?":"¿","!":"¡","'":",","(":")",")":"(", "[":"]", "]":"["};
+
+        const flourishes = [
+            "★·.·´¯`·.·★ [[text]] ★·.·´¯`·.·★",
+            "°°°·.°·..·°¯°·._.· [[text]] ·._.·°¯°·.·° .·°°°",
+            "ıllıllı [[text]] ıllıllı",
+            "×º°”˜`”°º× [[text]] ×º°”˜`”°º×",
+            "•]••´º´•» [[text]] «•´º´••[•",
+            "╰☆☆ [[text]] ☆☆╮"
+        ];
+
+        function applyMap(text, map) {
+            return text.split('').map(char => map[char] || map[char.toLowerCase()] || char).join('');
+        }
+
+        function flipText(text) {
+            return text.split('').reverse().map(c => flipMap[c] || flipMap[c.toLowerCase()] || c).join('');
+        }
+
+        function vaporwave(text) {
+            const fullWidth = {" ":"　","!":"！","\"":"”","#":"＃","$":"＄","%":"％","&":"＆","'":"’","(":"（",")":"）","*":"＊","+":"＋",",":"，","-":"－",".":"．","/":"／","0":"０","1":"１","2":"２","3":"３","4":"４","5":"５","6":"６","7":"７","8":"８","9":"９",":":"：",";":"；","<":"＜","=":"＝",">":"＞","?":"？","@":"＠","A":"Ａ","B":"Ｂ","C":"Ｃ","D":"Ｄ","E":"Ｅ","F":"Ｆ","G":"Ｇ","H":"Ｈ","I":"Ｉ","J":"Ｊ","K":"Ｋ","L":"Ｌ","M":"Ｍ","N":"Ｎ","O":"Ｏ","P":"Ｐ","Q":"Ｑ","R":"Ｒ","S":"Ｓ","T":"Ｔ","U":"Ｕ","V":"Ｖ","W":"Ｗ","X":"Ｘ","Y":"Ｙ","Z":"Ｚ","[":"［","\\":"＼","]":"］","^":"＾","_":"＿","`":"｀","a":"ａ","b":"ｂ","c":"ｃ","d":"ｄ","e":"ｅ","f":"ｆ","g":"ｇ","h":"ｈ","i":"ｉ","j":"ｊ","k":"ｋ","l":"ｌ","m":"ｍ","n":"ｎ","o":"ｏ","p":"ｐ","q":"ｑ","r":"ｒ","s":"ｓ","t":"ｔ","u":"ｕ","v":"ｖ","w":"ｗ","x":"ｘ","y":"ｙ","z":"ｚ","{":"｛","|":"｜","}":"｝","~":"～"};
+            return text.split('').map(c => fullWidth[c] || c).join('');
+        }
+
+        function zalgo(text, level = 8) {
+            const diacritics = [768, 769, 770, 771, 772, 773, 774, 775, 776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788, 789];
+            return text.split('').map(c => {
+                if (c === ' ' || c === '\n') return c; // Don't zalgo spaces
+                let s = c;
+                for(let i=0; i<level; i++) s += String.fromCharCode(diacritics[Math.floor(Math.random() * diacritics.length)]);
+                return s;
+            }).join('');
+        }
+
+        function clearInput() {
+            document.getElementById('inputText').value = '';
+            generateFancyText();
+        }
+
+        function copyToClipboard(text) {
+            const el = document.createElement('textarea');
+            el.value = text;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+
+            const toast = document.getElementById('copyToast');
+            toast.style.display = 'flex';
+            setTimeout(() => toast.style.display = 'none', 2000);
+        }
+
+        function generateFancyText() {
+            const input = document.getElementById('inputText').value;
+            const outputArea = document.getElementById('outputArea');
+            const emptyState = document.getElementById('emptyState');
+            
+            document.getElementById('charCount').innerText = input.length;
+            document.getElementById('wordCount').innerText = input.trim() ? input.trim().split(/\s+/).length : 0;
+
+            if (!input.trim()) {
+                outputArea.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                outputArea.innerHTML = '';
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            outputArea.classList.remove('hidden');
+            outputArea.innerHTML = '';
+            
+            const results = [];
+
+            for (let [name, map] of Object.entries(maps)) {
+                results.push({ name, text: applyMap(input, map) });
+            }
+
+            results.push({ name: "Vaporwave (Aesthetic)", text: vaporwave(input) });
+            results.push({ name: "Flip / Terbalik", text: flipText(input) });
+            results.push({ name: "Glitch / Zalgo", text: zalgo(input) });
+
+            flourishes.forEach((f, index) => {
+                // Determine label based on language if needed, but keeping it simple
+                const labelName = currentLang === 'id' ? `Hiasan ${index+1}` : `Flourish ${index+1}`;
+                results.push({ name: labelName, text: f.replace("[[text]]", input) });
+            });
+
+            results.push({ name: "Kirby Hug", text: `(っ◔◡◔)っ ♥ ${input} ♥` });
+
+            results.forEach(res => {
+                const card = document.createElement('div');
+                card.className = "fancy-card p-4 rounded-xl flex flex-col gap-2 relative group bg-header border border-bordercolor";
+                
+                const label = document.createElement('span');
+                label.className = "text-[10px] font-bold uppercase tracking-widest text-dim";
+                label.innerText = res.name;
+
+                const content = document.createElement('div');
+                content.className = "text-xl break-words pr-12 font-medium text-main";
+                content.innerText = res.text;
+
+                const copyBtn = document.createElement('button');
+                copyBtn.className = "absolute right-3 top-1/2 -translate-y-1/2 p-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-md active:scale-95";
+                copyBtn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i>';
+                copyBtn.title = currentLang === 'id' ? "Salin" : "Copy";
+                copyBtn.onclick = () => copyToClipboard(res.text);
+
+                card.appendChild(label);
+                card.appendChild(content);
+                card.appendChild(copyBtn);
+                outputArea.appendChild(card);
+            });
+
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // INITIALIZATION
+        // ==========================================
+        window.onload = () => {
+            initTheme();
+            initLang();
+            initResizer();
+            lucide.createIcons();
+            
+            // Check if there is existing text on reload
+            if (document.getElementById('inputText').value.trim() !== '') {
+                generateFancyText();
+            }
+        };
+    </script>
+</body>
+</html>
