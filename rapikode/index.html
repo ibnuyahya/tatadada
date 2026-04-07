@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapikode - Content-Safe Smart Tidier</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* CSS TOKENS & VARIABLES */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --accent: #4f46e5;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --accent: #58a6ff;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            color-scheme: dark;
+        }
+
+        body {
+            background-color: var(--preview-bg);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bg-header { background-color: var(--header-bg); }
+        .bg-editor { background-color: var(--editor-bg); }
+        .bg-preview { background-color: var(--preview-bg); }
+        .bg-footer { background-color: var(--footer-bg); }
+        .border-theme { border-color: var(--border-color); }
+        .text-dim { color: var(--text-dim); }
+
+        /* Scrollbar Customization */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        textarea {
+            resize: none;
+            outline: none;
+            white-space: pre;
+            overflow-wrap: normal;
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.6;
+        }
+
+        .tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
+        .tooltip-text {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        #resizer { transition: background 0.2s; }
+        #resizer:hover { background: var(--accent) !important; }
+
+        /* Toggle Switch Styling */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 32px;
+            height: 18px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #cbd5e1;
+            transition: .4s;
+            border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 12px; width: 12px;
+            left: 3px; bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(14px); }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <!-- HEADER -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm">
+        <div class="flex items-center gap-4">
+            <div class="flex flex-col leading-tight">
+                <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent">
+                    Rapikode
+                </h1>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-mono text-dim italic">v1.9.0</span>
+                    <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500">by AhmadDanial</a>
+                </div>
+            </div>
+            
+            <div class="relative tooltip ml-2">
+                <i data-lucide="help-circle" class="w-4 h-4 text-dim cursor-help"></i>
+                <div class="tooltip-text absolute top-full left-0 mt-2 w-72 p-3 bg-white dark:bg-slate-800 shadow-xl border border-theme rounded-lg text-xs z-[100] pointer-events-none">
+                    <p id="help-text">Tempel kode/log apa saja. Sistem merapikan spasi dan indentasi tanpa menghapus konten asli (termasuk timestamp).</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <div id="format-badge-header" class="hidden md:flex items-center px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest border border-indigo-200 dark:border-indigo-800">
+                Unknown
+            </div>
+            
+            <div class="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
+            <button id="lang-toggle" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1">
+                <span id="lang-flag" class="text-sm">🇮🇩</span>
+                <span class="text-xs font-bold uppercase" id="lang-label">ID</span>
+            </button>
+
+            <button id="theme-toggle" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <i data-lucide="sun" id="sun-icon" class="w-5 h-5 hidden"></i>
+                <i data-lucide="moon" id="moon-icon" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main id="workspace" class="flex-1 flex flex-col relative overflow-hidden bg-preview">
+        
+        <!-- TOP PANE -->
+        <div id="top-pane" class="flex flex-col bg-editor overflow-hidden" style="height: 40%;">
+            <div class="h-10 flex items-center justify-between px-4 border-b border-theme shrink-0 bg-header/50">
+                <span class="text-[10px] font-bold uppercase tracking-widest text-dim flex items-center gap-2">
+                    <i data-lucide="terminal" class="w-3 h-3"></i> 
+                    <span data-i18n="input_label">Input Code / Log</span>
+                </span>
+                <button onclick="clearInput()" class="text-[10px] text-red-500 hover:underline flex items-center gap-1 font-semibold">
+                    <i data-lucide="trash-2" class="w-3 h-3"></i> <span data-i18n="clear">Bersihkan</span>
+                </button>
+            </div>
+            <textarea id="input-editor" class="flex-1 p-4 bg-transparent text-sm" placeholder="Paste your code here..."></textarea>
+        </div>
+
+        <!-- RESIZER -->
+        <div id="resizer" class="h-1 bg-slate-200 dark:bg-slate-800 cursor-row-resize shrink-0"></div>
+
+        <!-- BOTTOM PANE -->
+        <div id="bottom-pane" class="flex-1 flex flex-col overflow-hidden">
+            <div class="h-10 flex items-center justify-between px-4 border-b border-theme shrink-0 bg-header/50">
+                <div class="flex items-center gap-4">
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-dim flex items-center gap-2">
+                        <i data-lucide="sparkles" class="w-3 h-3 text-amber-500"></i> 
+                        <span data-i18n="output_label">Processed Output</span>
+                    </span>
+                    <div class="flex items-center gap-2 border-l border-theme pl-4">
+                        <!-- Detected format display bottom -->
+                        <span id="detected-format-bottom" class="text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded uppercase hidden"></span>
+                        
+                        <span class="text-[10px] font-bold text-dim uppercase" data-i18n="auto_indent">Smart Scoping</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggle-indent" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <span id="file-suggestion" class="text-[10px] font-mono bg-indigo-50 dark:bg-indigo-900/40 px-2 py-0.5 rounded text-indigo-600 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800 hidden italic"></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="copyOutput()" id="btn-copy" class="text-[10px] bg-slate-100 dark:bg-slate-800 border border-theme px-3 py-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1">
+                        <i data-lucide="clipboard" class="w-3 h-3"></i> <span data-i18n="copy">Salin</span>
+                    </button>
+                    <button onclick="downloadOutput()" id="btn-download" class="text-[10px] bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-500 transition-colors flex items-center gap-1 font-bold shadow-sm">
+                        <i data-lucide="download" class="w-3 h-3"></i> <span data-i18n="download">Unduh</span>
+                    </button>
+                </div>
+            </div>
+            <textarea id="output-editor" readonly class="flex-1 p-4 bg-transparent text-sm opacity-95" placeholder="Result will appear here..."></textarea>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-1.5">
+                <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                <span data-i18n="engine_ready">Smart Engine Active</span>
+            </div>
+            <div id="stats" class="hidden md:block opacity-60">
+                <span data-i18n="lines">0 Baris</span> | <span data-i18n="chars">0 Karakter</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <button onclick="openModal()" class="hover:text-blue-500 transition-colors underline decoration-dotted font-semibold uppercase tracking-tighter" data-i18n="terms">Terms</button>
+        </div>
+    </footer>
+
+    <!-- MODAL TERMS -->
+    <div id="modal-terms" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-900 border border-theme rounded-2xl shadow-2xl max-w-md w-full p-6 overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-lg" data-i18n="modal_title">Disclaimer & Terms</h3>
+                <button onclick="closeModal()" class="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="text-sm leading-relaxed text-dim mb-6" id="modal-content"></div>
+            <button onclick="closeModal()" class="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition-colors" data-i18n="modal_close">Saya Mengerti</button>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA & STATE ---
+        let currentLang = localStorage.getItem('rapikode_lang') || 'ID';
+        let currentTheme = localStorage.getItem('rapikode_theme') || 'light';
+        let suggestedFileName = "processed_code.txt";
+
+        const i18n = {
+            ID: {
+                help_text: "Tempel kode apa saja. Sistem merapikan spasi dan indentasi tanpa menghapus konten asli (termasuk timestamp).",
+                input_label: "Input Kode / Log",
+                output_label: "Hasil Olahan Rapi",
+                auto_indent: "Smart Scoping",
+                clear: "Bersihkan",
+                copy: "Salin",
+                download: "Unduh",
+                engine_ready: "Sistem Aktif",
+                lines: " Baris",
+                chars: " Karakter",
+                terms: "Ketentuan",
+                modal_title: "Ketentuan Penggunaan",
+                modal_close: "Saya Mengerti",
+                modal_text: "Aplikasi ini disediakan 'as-is'. Pembuatan aplikasi dibantu oleh AI tools. Pengguna bertanggung jawab penuh atas penggunaan data hasil olahan aplikasi ini tanpa penghapusan konten asli."
+            },
+            EN: {
+                help_text: "Paste any code. The system tidies whitespace and indentation without deleting any original content (including timestamps).",
+                input_label: "Input Code / Log",
+                output_label: "Processed Output",
+                auto_indent: "Smart Scoping",
+                clear: "Clear",
+                copy: "Copy",
+                download: "Download",
+                engine_ready: "System Active",
+                lines: " Lines",
+                chars: " Chars",
+                terms: "Terms",
+                modal_title: "Disclaimer & Terms",
+                modal_close: "I Understand",
+                modal_text: "This app is provided 'as-is'. AI tools assisted development. Users are solely responsible for the usage of the processed data without original content loss."
+            }
+        };
+
+        // --- ENHANCED SMART SCOPING LOGIC (CONTENT SAFE) ---
+        function applySmartIndent(text, format) {
+            if (!document.getElementById('toggle-indent').checked) return text;
+            
+            const lines = text.split('\n');
+            let indentLevel = 0;
+            const indentSize = "    "; // 4 spaces
+            
+            const result = lines.map(line => {
+                const trimmed = line.trim();
+                if (!trimmed) return "";
+
+                // Detection rules for indentation changes
+                const isClosing = /^(\}|\]|\)|\<\/)/.test(trimmed);
+                const isOpening = /[\{\[\(\<]$/.test(trimmed);
+                const isPythonOpening = /:$/.test(trimmed) && format === 'Python';
+                const isSelfClosing = /\/\>$/.test(trimmed);
+
+                // Decrease indent before printing closing bracket
+                if (isClosing) {
+                    indentLevel = Math.max(0, indentLevel - 1);
+                }
+
+                // Create the indented line (ONLY LEADING WHITESPACE IS MODIFIED)
+                // We use trim() here to get the core content, but we don't delete any characters.
+                const currentLine = indentSize.repeat(indentLevel) + trimmed;
+
+                // Increase indent for the next line
+                if (isOpening || isPythonOpening) {
+                    if (!isSelfClosing) indentLevel++;
+                }
+
+                return currentLine;
+            });
+
+            return result.join('\n');
+        }
+
+        function smartProcess(text) {
+            const trimmed = text.trim();
+            if (!trimmed) return { processed: "", format: "unknown", filename: "file.txt" };
+
+            let format = "Text";
+            let processed = text;
+            let ext = "txt";
+            let name = "code_" + new Date().getTime().toString().slice(-5);
+
+            // Log Detection Logic
+            const mt5LogDetect = /^\d{4}\.\d{2}\.\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3}\tCore\s\d+/m;
+            
+            if (mt5LogDetect.test(text)) {
+                format = "MT5 Log"; ext = "log";
+                const summaryMatch = text.match(/=== Summary (.*?) ===/);
+                if (summaryMatch) name = summaryMatch[1].trim().replace(/\s+/g, '_');
+                
+                // NO CONTENT DELETION - Only tidy trailing whitespace per line
+                processed = text.split('\n').map(line => line.trimEnd()).join('\n');
+            }
+            else if (/^import\s|def\s\w+\(|if\s__name__\s==/m.test(text)) {
+                format = "Python"; ext = "py";
+                processed = applySmartIndent(processed, format);
+            }
+            else if (/<\?php|namespace\s\w+|public\sfunction/m.test(text)) {
+                format = "PHP"; ext = "php";
+                processed = applySmartIndent(processed, format);
+            }
+            else if (/public\sclass\s\w+|#include\s<|const\s\w+\s=|function\s\w+\(/m.test(text)) {
+                if (text.includes('#include')) { format = "C++"; ext = "cpp"; }
+                else if (text.includes('class ')) { format = "Java"; ext = "java"; }
+                else { format = "JavaScript"; ext = "js"; }
+                processed = applySmartIndent(processed, format);
+            }
+            else if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+                format = "JSON"; ext = "json"; name = "data";
+                processed = applySmartIndent(processed, format);
+            }
+            else if (/<html|<div|<body|<\!DOCTYPE/i.test(text)) {
+                format = "HTML"; ext = "html";
+                processed = applySmartIndent(processed, format);
+            }
+            else if (/^\[\w+\]|^[\w.-]+\s*=\s*/m.test(text)) {
+                format = "TOML/INI"; ext = "toml";
+                processed = applySmartIndent(processed, format);
+            }
+            else if (/^#+\s|\[.*?\]\(.*?\)/m.test(text)) {
+                format = "Markdown"; ext = "md";
+            }
+
+            return { processed, format, filename: `${name}.${ext}` };
+        }
+
+        // --- UI ACTIONS ---
+        const inputEditor = document.getElementById('input-editor');
+        const outputEditor = document.getElementById('output-editor');
+        const formatBadgeHeader = document.getElementById('format-badge-header');
+        const formatBadgeBottom = document.getElementById('detected-format-bottom');
+        const fileSuggestion = document.getElementById('file-suggestion');
+        const toggleIndent = document.getElementById('toggle-indent');
+
+        function triggerProcess() {
+            const result = smartProcess(inputEditor.value);
+            outputEditor.value = result.processed;
+            
+            if (result.format !== 'Text') {
+                formatBadgeHeader.innerText = result.format;
+                formatBadgeHeader.classList.remove('hidden');
+                
+                formatBadgeBottom.innerText = result.format;
+                formatBadgeBottom.classList.remove('hidden');
+
+                fileSuggestion.innerText = result.filename;
+                fileSuggestion.classList.remove('hidden');
+                suggestedFileName = result.filename;
+            } else {
+                formatBadgeHeader.classList.add('hidden');
+                formatBadgeBottom.classList.add('hidden');
+                fileSuggestion.classList.add('hidden');
+            }
+
+            const activeLines = result.processed.split('\n').filter(l => l.trim()).length;
+            const charCount = result.processed.length;
+            document.querySelector('[data-i18n="lines"]').innerText = `${activeLines} ${i18n[currentLang].lines}`;
+            document.querySelector('[data-i18n="chars"]').innerText = `${charCount} ${i18n[currentLang].chars}`;
+        }
+
+        inputEditor.addEventListener('input', triggerProcess);
+        toggleIndent.addEventListener('change', triggerProcess);
+
+        function clearInput() {
+            inputEditor.value = "";
+            outputEditor.value = "";
+            formatBadgeHeader.classList.add('hidden');
+            formatBadgeBottom.classList.add('hidden');
+            fileSuggestion.classList.add('hidden');
+            inputEditor.focus();
+            triggerProcess();
+        }
+
+        function copyOutput() {
+            const btn = document.getElementById('btn-copy');
+            const originalHTML = btn.innerHTML;
+            outputEditor.select();
+            document.execCommand('copy');
+            btn.innerHTML = `<i data-lucide="check" class="w-3 h-3 text-green-500"></i> Done`;
+            lucide.createIcons();
+            setTimeout(() => { btn.innerHTML = originalHTML; lucide.createIcons(); }, 2000);
+        }
+
+        function downloadOutput() {
+            if (!outputEditor.value) return;
+            const blob = new Blob([outputEditor.value], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = suggestedFileName;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // --- SYSTEM CORE ---
+        function applyTheme() {
+            if (currentTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+                document.getElementById('sun-icon').classList.remove('hidden');
+                document.getElementById('moon-icon').classList.add('hidden');
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.getElementById('sun-icon').classList.add('hidden');
+                document.getElementById('moon-icon').classList.remove('hidden');
+            }
+        }
+
+        function applyLang() {
+            document.getElementById('lang-flag').innerText = currentLang === 'ID' ? '🇮🇩' : '🇬🇧';
+            document.getElementById('lang-label').innerText = currentLang;
+            document.getElementById('help-text').innerText = i18n[currentLang].help_text;
+            document.getElementById('modal-content').innerText = i18n[currentLang].modal_text;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[currentLang][key]) el.innerText = i18n[currentLang][key];
+            });
+            triggerProcess();
+        }
+
+        document.getElementById('theme-toggle').onclick = () => {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            localStorage.setItem('rapikode_theme', currentTheme);
+            applyTheme();
+        };
+
+        document.getElementById('lang-toggle').onclick = () => {
+            currentLang = currentLang === 'ID' ? 'EN' : 'ID';
+            localStorage.setItem('rapikode_lang', currentLang);
+            applyLang();
+        };
+
+        const resizer = document.getElementById('resizer');
+        const topPane = document.getElementById('top-pane');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', () => isResizing = true);
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const containerHeight = document.getElementById('workspace').offsetHeight;
+            let newTopHeight = (e.clientY - 56) / containerHeight * 100;
+            if (newTopHeight < 10) newTopHeight = 10;
+            if (newTopHeight > 85) newTopHeight = 85;
+            topPane.style.height = `${newTopHeight}%`;
+        });
+        document.addEventListener('mouseup', () => isResizing = false);
+
+        function openModal() { document.getElementById('modal-terms').classList.remove('hidden'); }
+        function closeModal() { document.getElementById('modal-terms').classList.add('hidden'); }
+
+        window.onload = () => {
+            lucide.createIcons();
+            applyTheme();
+            applyLang();
+        };
+    </script>
+</body>
+</html>
