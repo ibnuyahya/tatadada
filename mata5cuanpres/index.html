@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MATA5CUANPRES - MT5 Log Compactor</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS (via CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        theme: {
+                            bg: 'var(--preview-bg)',
+                            text: 'var(--text-main)',
+                            dim: 'var(--text-dim)',
+                            border: 'var(--border-color)',
+                            editor: 'var(--editor-bg)',
+                            header: 'var(--header-bg)',
+                            footer: 'var(--footer-bg)'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- TATADADA Framework CSS Tokens -->
+    <style>
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-dim);
+        }
+
+        /* Tabel Data Components */
+        .matowy-table {
+            border-collapse: separate;
+            border-spacing: 0;
+            table-layout: fixed;
+            width: max-content;
+            min-width: 100%;
+        }
+        .matowy-table th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background-color: var(--freeze-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.75rem 1.25rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+        .matowy-table td {
+            padding: 0.75rem 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+        }
+        .matowy-table tr:hover td {
+            background-color: var(--freeze-hover);
+        }
+        /* Freeze First Column */
+        .matowy-table th:first-child {
+            left: 0;
+            z-index: 20;
+        }
+        .matowy-table td:first-child {
+            position: sticky;
+            left: 0;
+            background-color: var(--editor-bg);
+            z-index: 5;
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+        }
+        .matowy-table tr:hover td:first-child {
+            background-color: var(--freeze-hover);
+        }
+
+        /* Utility classes */
+        .hidden-view { display: none !important; }
+        
+        /* Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: var(--border-color);
+            border-radius: 2px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -6px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: var(--border-color);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col selection:bg-blue-500/30">
+
+    <!-- HEADER (WAJIB TATADADA) -->
+    <header class="flex items-center justify-between px-6 border-b border-theme-border bg-theme-header shrink-0 h-14 relative z-50">
+        <div class="flex items-center gap-3">
+            <h1 class="font-bold text-lg bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent">MATA5CUANPRES</h1>
+            <span class="text-[10px] font-mono text-theme-dim italic">v1.0.1</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-theme-dim hover:text-blue-500 transition-colors">by AhmadDanial</a>
+            
+            <div class="group relative flex items-center justify-center cursor-help ml-1">
+                <i data-lucide="help-circle" class="w-4 h-4 text-theme-dim hover:text-blue-500 transition-colors"></i>
+                <!-- Tooltip -->
+                <div class="absolute left-0 top-full mt-2 w-64 p-3 bg-theme-editor border border-theme-border rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-xs text-theme-text font-mono" id="help-tooltip" data-i18n="helpText">
+                    <!-- Loaded via i18n -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <button id="btn-reset" class="hidden text-sm flex items-center gap-2 text-theme-dim hover:text-blue-500 transition-colors">
+                <i data-lucide="trash-2" class="w-4 h-4"></i> <span data-i18n="btnReset">Reset File</span>
+            </button>
+            <button id="btn-lang" class="text-theme-dim hover:text-blue-500 font-bold text-xs transition-colors px-2 border border-theme-border rounded h-6 flex items-center justify-center" title="Toggle Language">ID</button>
+            <button id="btn-theme" class="text-theme-dim hover:text-blue-500 transition-colors" title="Toggle Dark/Light Mode">
+                <i data-lucide="moon" id="icon-theme" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE (Single View Apps) -->
+    <main class="flex-1 relative overflow-auto p-6 bg-theme-bg" id="workspace">
+        <div class="max-w-6xl mx-auto space-y-6">
+
+            <!-- 1. VIEW UPLOAD -->
+            <div id="view-upload" class="flex flex-col items-center justify-center border-2 border-dashed border-theme-border bg-theme-editor rounded-xl p-16 text-center cursor-pointer hover:border-blue-500 hover:bg-theme-border/20 transition-all group">
+                <i data-lucide="upload-cloud" class="w-16 h-16 text-theme-dim mb-4 group-hover:text-blue-500 transition-colors"></i>
+                <h3 class="text-xl font-medium text-theme-text mb-2" data-i18n="uploadTitle">Unggah File Log MT5</h3>
+                <p class="text-theme-dim max-w-md font-mono text-sm" data-i18n="uploadDesc">Format: .log, .txt. Diproses secara lokal 100% di browser Anda.</p>
+                <input type="file" id="file-input" class="hidden" accept=".log,.txt">
+            </div>
+
+            <!-- 2. VIEW PROCESSING -->
+            <div id="view-processing" class="hidden-view flex flex-col items-center justify-center p-16 space-y-4">
+                <i data-lucide="loader-2" class="w-8 h-8 text-blue-500 animate-spin"></i>
+                <span class="text-theme-text font-mono text-sm" data-i18n="processingText">Membaca dan Menganalisis Baris Log...</span>
+            </div>
+
+            <!-- 3. VIEW DASHBOARD -->
+            <div id="view-dashboard" class="hidden-view space-y-6 animate-in fade-in duration-500">
+                
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="bg-theme-editor p-5 rounded-xl border border-theme-border">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm text-theme-dim" data-i18n="rawSizeTitle">Ukuran File Asli</p>
+                                <h4 class="text-xl font-bold text-theme-text mt-1" id="stat-raw-size">0 KB</h4>
+                                <p class="text-xs text-theme-dim mt-1 font-mono"><span id="stat-raw-lines">0</span> <span data-i18n="statLines">baris</span></p>
+                            </div>
+                            <i data-lucide="file-text" class="w-5 h-5 text-theme-dim"></i>
+                        </div>
+                    </div>
+
+                    <div class="bg-theme-editor p-5 rounded-xl border border-blue-500/30 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                        <div class="flex justify-between items-start relative">
+                            <div>
+                                <p class="text-sm text-blue-500 font-medium" data-i18n="compactSizeTitle">Ukuran Hasil Compactor</p>
+                                <h4 class="text-xl font-bold text-theme-text mt-1" id="stat-compact-size">0 KB</h4>
+                                <p class="text-xs text-theme-dim mt-1 font-mono"><span id="stat-compact-lines">0</span> <span data-i18n="statLines">baris</span> (<span id="stat-saving-pct" class="text-green-500">0%</span>)</p>
+                            </div>
+                            <i data-lucide="check-circle" class="w-5 h-5 text-blue-500"></i>
+                        </div>
+                    </div>
+
+                    <div class="bg-theme-editor p-5 rounded-xl border border-theme-border">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm text-theme-dim" data-i18n="totalTradesTitle">Total Trades (Summary)</p>
+                                <h4 class="text-xl font-bold text-theme-text mt-1" id="stat-total-trades">0</h4>
+                            </div>
+                            <i data-lucide="bar-chart-2" class="w-5 h-5 text-indigo-500"></i>
+                        </div>
+                    </div>
+
+                    <div class="bg-theme-editor p-5 rounded-xl border border-theme-border" id="error-card">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm text-theme-dim" data-i18n="errorsTitle">Error Ditemukan</p>
+                                <h4 class="text-xl font-bold mt-1 text-theme-text" id="stat-errors">0</h4>
+                            </div>
+                            <i data-lucide="alert-triangle" id="icon-errors" class="w-5 h-5 text-theme-dim"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Compression Control Panel -->
+                <div class="bg-theme-editor rounded-xl border border-theme-border p-6 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="sliders" class="w-5 h-5 text-blue-500"></i>
+                            <h3 class="text-lg font-medium text-theme-text" data-i18n="sliderTitle">Tingkat Kompresi Log (Lossy Control)</h3>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-8 px-2">
+                        <input type="range" id="compression-slider" min="0" max="100" value="0" class="w-full">
+                        <div class="flex justify-between text-[10px] font-mono text-theme-dim mt-3">
+                            <span id="label-0" data-i18n="lblLossless">0% (Lossless Normal)</span>
+                            <span>50%</span>
+                            <span id="label-100" data-i18n="lblSuper">100% (Super Compact)</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Left Panel: Normal Download -->
+                        <div class="bg-theme-bg p-4 rounded-lg border border-theme-border flex flex-col justify-between">
+                            <div>
+                                <p class="text-sm text-theme-text font-medium mb-1"><span data-i18n="statusPrefix">Status: </span> <span class="text-blue-500" id="status-pct">0% Compressed</span></p>
+                                <p class="text-xs text-theme-dim leading-relaxed" id="status-desc">
+                                    <!-- Rendered via JS based on selected language -->
+                                </p>
+                            </div>
+                            <button id="btn-download-level" class="mt-4 flex items-center justify-center space-x-2 px-4 py-2 bg-theme-border hover:bg-theme-dim/20 text-theme-text text-sm font-medium rounded-lg transition-colors w-full">
+                                <i data-lucide="download" class="w-4 h-4"></i>
+                                <span id="btn-download-text" data-i18n="btnDlLevel">Unduh Level Ini</span>
+                            </button>
+                        </div>
+
+                        <!-- Right Panel: Super Compact with Hover Tooltip -->
+                        <div class="group relative bg-blue-500/10 p-4 rounded-lg border border-blue-500/30 flex flex-col justify-between">
+                            
+                            <!-- Tooltip Preview Content -->
+                            <div class="absolute bottom-full right-0 mb-3 w-[28rem] p-4 bg-theme-editor border border-theme-border rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 flex flex-col">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <i data-lucide="eye" class="w-4 h-4 text-amber-500"></i>
+                                    <span class="text-xs font-bold text-theme-text" data-i18n="previewTitle">Preview Isi Super Compact</span>
+                                </div>
+                                <div class="bg-theme-bg p-3 rounded-lg border border-theme-border overflow-x-auto overflow-y-auto max-h-64">
+                                    <pre id="super-compact-preview" class="text-[10px] text-theme-text font-mono whitespace-pre leading-relaxed"></pre>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex items-center space-x-2 mb-1">
+                                    <i data-lucide="zap" class="w-4 h-4 text-amber-500"></i>
+                                    <p class="text-sm text-theme-text font-medium flex items-center gap-1"><span data-i18n="recSuper">Rekomendasi: Super Compact</span> <i data-lucide="info" class="w-3 h-3 text-theme-dim cursor-help"></i></p>
+                                </div>
+                                <p class="text-xs text-theme-dim leading-relaxed" data-i18n="recDesc">
+                                    Sangat kecil & rapi. Membuang seluruh detail order. Hanya menampilkan hasil EA, Monthly, dan Error tanpa timestamp terminal di kiri. (Arahkan kursor ke sini untuk mengintip)
+                                </p>
+                            </div>
+                            <button id="btn-download-super" class="mt-4 flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-blue-500/20 w-full">
+                                <i data-lucide="zap" class="w-4 h-4"></i>
+                                <span data-i18n="btnSetSuper">Set & Unduh Super Compact</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analysis Tables (MATOWY Table Data) -->
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    
+                    <!-- Engine Stats -->
+                    <div class="bg-theme-editor rounded-xl border border-theme-border flex flex-col">
+                        <div class="px-5 py-4 border-b border-theme-border bg-theme-header rounded-t-xl shrink-0">
+                            <h3 class="font-medium text-theme-text" data-i18n="tblTitleEngine">Ringkasan Engine (Terakhir)</h3>
+                        </div>
+                        <div class="flex-1 overflow-auto rounded-b-xl" style="max-height: 300px;">
+                            <table class="matowy-table" id="table-engine">
+                                <thead>
+                                    <tr>
+                                        <th data-i18n="thEngine">Engine</th>
+                                        <th data-i18n="thTrades">Trades</th>
+                                        <th data-i18n="thNet">Net Profit</th>
+                                        <th data-i18n="thWr">Win Rate</th>
+                                        <th data-i18n="thPf">Profit Factor</th>
+                                        <th data-i18n="thEv">EV / Trade</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Rendered via JS -->
+                                </tbody>
+                            </table>
+                            <div id="empty-engine" class="hidden-view p-8 text-center text-theme-dim font-mono text-sm" data-i18n="emptyEngine">Tidak ada data Engine ditemukan.</div>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Stats -->
+                    <div class="bg-theme-editor rounded-xl border border-theme-border flex flex-col">
+                        <div class="px-5 py-4 border-b border-theme-border bg-theme-header rounded-t-xl shrink-0">
+                            <h3 class="font-medium text-theme-text" data-i18n="tblTitleMonth">Ringkasan Bulanan</h3>
+                        </div>
+                        <div class="flex-1 overflow-auto rounded-b-xl" style="max-height: 300px;">
+                            <table class="matowy-table" id="table-monthly">
+                                <thead>
+                                    <tr>
+                                        <th data-i18n="thMonth">Bulan</th>
+                                        <th data-i18n="thEngA">Eng A (Net)</th>
+                                        <th data-i18n="thEngB">Eng B (Net)</th>
+                                        <th data-i18n="thTot">Total Net</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Rendered via JS -->
+                                </tbody>
+                            </table>
+                            <div id="empty-monthly" class="hidden-view p-8 text-center text-theme-dim font-mono text-sm" data-i18n="emptyMonth">Tidak ada data bulanan ditemukan.</div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Error Viewer -->
+                <div id="error-viewer" class="hidden-view bg-red-500/10 border border-red-500/30 rounded-xl p-5">
+                    <h3 class="font-medium text-red-500 mb-3 flex items-center gap-2">
+                        <i data-lucide="alert-triangle" class="w-4 h-4"></i> <span data-i18n="errTitle">Peringatan / Error Terdeteksi</span>
+                    </h3>
+                    <div id="error-list" class="max-h-40 overflow-y-auto text-xs font-mono text-red-400 space-y-1 bg-theme-bg p-3 rounded border border-theme-border">
+                        <!-- Rendered via JS -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER (WAJIB TATADADA) -->
+    <footer class="flex items-center justify-between px-6 border-t border-theme-border bg-theme-footer text-[10px] text-theme-dim shrink-0 h-8 relative z-50">
+        <div class="flex items-center gap-2 font-mono flex-1">
+            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse" id="footer-indicator"></span>
+            <span id="footer-status" data-i18n="footerReady">Engine Ready - Menunggu file log</span>
+        </div>
+        <div class="font-mono text-[9px] flex-1 text-center" id="footer-stats">
+            MATA5CUANPRES v1.0.1
+        </div>
+        <div class="flex-1 text-right">
+            <button id="btn-terms" class="hover:text-blue-500 transition-colors underline decoration-dotted underline-offset-2" data-i18n="termsLink">Terms of Use</button>
+        </div>
+    </footer>
+
+    <!-- MODAL TERMS OF USE (WAJIB TATADADA) -->
+    <div id="modal-terms" class="fixed inset-0 bg-black/60 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-theme-editor border border-theme-border rounded-xl shadow-2xl max-w-md w-full p-6 relative">
+            <h3 class="text-lg font-bold text-theme-text mb-4" data-i18n="termsTitle">Syarat Penggunaan (Terms of Use)</h3>
+            <p class="text-sm text-theme-dim leading-relaxed mb-6" data-i18n="termsText">
+                <!-- Text loaded via JS -->
+            </p>
+            <div class="flex justify-end">
+                <button id="btn-close-terms" class="px-4 py-2 bg-theme-border hover:bg-theme-dim/20 text-theme-text rounded-lg text-sm transition-colors font-medium" data-i18n="btnClose">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIC APPLICATION -->
+    <script>
+        // --- 1. LOKALISASI (LANGUAGE) IMPLEMENTATION ---
+        const i18n = {
+            id: {
+                helpText: "<strong class='font-sans block mb-1'>Cara Pakai:</strong>1. Unggah file .log MT5<br>2. Analyzer akan mengekstrak data EA<br>3. Atur slider kompresi<br>4. Unduh log yang sudah diperkecil (Super Compact disarankan)",
+                btnReset: "Reset File",
+                uploadTitle: "Unggah File Log MT5",
+                uploadDesc: "Format: .log, .txt. Diproses secara lokal 100% di browser Anda.",
+                processingText: "Membaca dan Menganalisis Baris Log...",
+                rawSizeTitle: "Ukuran File Asli",
+                statLines: "baris",
+                compactSizeTitle: "Ukuran Hasil Compactor",
+                totalTradesTitle: "Total Trades (Summary)",
+                errorsTitle: "Error Ditemukan",
+                sliderTitle: "Tingkat Kompresi Log (Lossy Control)",
+                lblLossless: "0% (Lossless Normal)",
+                lblSuper: "100% (Super Compact)",
+                statusPrefix: "Status: ",
+                statusCompressed: "Compressed",
+                descLossless: "Lossless: Hanya spam terminal MT5 yang dibuang. Semua aktivitas trading normal dan info EA dipertahankan.",
+                descSuper: "Super Compact: SANGAT KECIL. Semua log aktivitas per-trade dibuang. HANYA menyisakan kesimpulan hasil EA, Monthly, dan Error.",
+                descLossy: "Lossy: Membuang {level}% dari log aktivitas trading biasa. Kesimpulan EA dan Error tetap aman 100%.",
+                btnDlLevel: "Unduh Level Ini",
+                recSuper: "Rekomendasi: Super Compact",
+                previewTitle: "Preview Isi Super Compact",
+                recDesc: "Sangat kecil & rapi. Membuang seluruh detail order. Hanya menampilkan hasil EA, Monthly, dan Error tanpa timestamp terminal di kiri. (Arahkan kursor ke sini untuk mengintip)",
+                btnSetSuper: "Set & Unduh Super Compact",
+                tblTitleEngine: "Ringkasan Engine (Terakhir)",
+                tblTitleMonth: "Ringkasan Bulanan",
+                thEngine: "Engine",
+                thTrades: "Trades",
+                thNet: "Net Profit",
+                thWr: "Win Rate",
+                thPf: "Profit Factor",
+                thEv: "EV / Trade",
+                thMonth: "Bulan",
+                thEngA: "Eng A (Net)",
+                thEngB: "Eng B (Net)",
+                thTot: "Total Net",
+                emptyEngine: "Tidak ada data Engine ditemukan.",
+                emptyMonth: "Tidak ada data bulanan ditemukan.",
+                errTitle: "Peringatan / Error Terdeteksi",
+                footerReady: "Engine Ready - Menunggu file log",
+                footerProcessing: "Membaca file...",
+                footerDone: "Analisis Selesai",
+                termsTitle: "Syarat Penggunaan (Terms of Use)",
+                termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+                termsLink: "Terms of Use",
+                btnClose: "Tutup"
+            },
+            en: {
+                helpText: "<strong class='font-sans block mb-1'>How to use:</strong>1. Upload MT5 .log file<br>2. Analyzer extracts EA data<br>3. Adjust compression slider<br>4. Download minified log (Super Compact recommended)",
+                btnReset: "Reset File",
+                uploadTitle: "Upload MT5 Log File",
+                uploadDesc: "Format: .log, .txt. Processed locally 100% in your browser.",
+                processingText: "Reading and Analyzing Log Lines...",
+                rawSizeTitle: "Original File Size",
+                statLines: "lines",
+                compactSizeTitle: "Compactor Result Size",
+                totalTradesTitle: "Total Trades (Summary)",
+                errorsTitle: "Errors Found",
+                sliderTitle: "Log Compression Level (Lossy Control)",
+                lblLossless: "0% (Lossless Normal)",
+                lblSuper: "100% (Super Compact)",
+                statusPrefix: "Status: ",
+                statusCompressed: "Compressed",
+                descLossless: "Lossless: Only MT5 terminal spam is removed. All normal trading activity and EA info are retained.",
+                descSuper: "Super Compact: VERY SMALL. All per-trade log activities are removed. ONLY leaves EA conclusions, Monthly, and Errors.",
+                descLossy: "Lossy: Removes {level}% of normal trading logs. EA conclusions and Errors remain 100% safe.",
+                btnDlLevel: "Download This Level",
+                recSuper: "Recommended: Super Compact",
+                previewTitle: "Super Compact Preview",
+                recDesc: "Very small & clean. Removes all order details. Only displays EA results, Monthly, and Errors without left terminal timestamps. (Hover here to peek)",
+                btnSetSuper: "Set & Download Super Compact",
+                tblTitleEngine: "Engine Summary (Last)",
+                tblTitleMonth: "Monthly Summary",
+                thEngine: "Engine",
+                thTrades: "Trades",
+                thNet: "Net Profit",
+                thWr: "Win Rate",
+                thPf: "Profit Factor",
+                thEv: "EV / Trade",
+                thMonth: "Month",
+                thEngA: "Eng A (Net)",
+                thEngB: "Eng B (Net)",
+                thTot: "Total Net",
+                emptyEngine: "No Engine data found.",
+                emptyMonth: "No monthly data found.",
+                errTitle: "Warning / Error Detected",
+                footerReady: "Engine Ready - Waiting for log file",
+                footerProcessing: "Reading file...",
+                footerDone: "Analysis Complete",
+                termsTitle: "Terms of Use",
+                termsText: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                termsLink: "Terms of Use",
+                btnClose: "Close"
+            }
+        };
+
+        const btnLang = document.getElementById('btn-lang');
+        let currentLang = localStorage.getItem('tatadada-lang') || 'id';
+
+        function applyTranslations() {
+            // Update Toggle Button UI
+            btnLang.innerText = currentLang === 'id' ? 'ID' : 'EN';
+            
+            // Translate all nodes with data-i18n
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[currentLang][key]) {
+                    el.innerHTML = i18n[currentLang][key];
+                }
+            });
+
+            // Update Dynamic UI
+            updateCompressionUI(Number(slider.value));
+
+            // Footer dynamic fallback
+            if (!viewUpload.classList.contains('hidden-view')) {
+                footerStatus.innerText = i18n[currentLang].footerReady;
+            } else if (!viewDashboard.classList.contains('hidden-view')) {
+                footerStatus.innerText = i18n[currentLang].footerDone;
+            }
+        }
+
+        btnLang.addEventListener('click', () => {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            localStorage.setItem('tatadada-lang', currentLang);
+            applyTranslations();
+        });
+
+
+        // --- 2. TATADADA DARK MODE IMPLEMENTATION ---
+        const btnTheme = document.getElementById('btn-theme');
+        const htmlRoot = document.documentElement;
+        
+        function updateThemeIcon() {
+            const isDark = htmlRoot.classList.contains('dark');
+            btnTheme.innerHTML = isDark ? '<i data-lucide="sun" class="w-5 h-5"></i>' : '<i data-lucide="moon" class="w-5 h-5"></i>';
+            lucide.createIcons();
+        }
+
+        // Initialize Theme (Default to Light Mode according to TATADADA framework)
+        const savedTheme = localStorage.getItem('tatadada-theme');
+        if (savedTheme === 'dark') {
+            htmlRoot.classList.add('dark');
+        } else {
+            htmlRoot.classList.remove('dark'); // Default Light
+        }
+        updateThemeIcon();
+
+        btnTheme.addEventListener('click', () => {
+            htmlRoot.classList.toggle('dark');
+            const isDark = htmlRoot.classList.contains('dark');
+            localStorage.setItem('tatadada-theme', isDark ? 'dark' : 'light');
+            updateThemeIcon();
+        });
+
+
+        // --- 3. MODAL TERMS OF USE ---
+        const modalTerms = document.getElementById('modal-terms');
+        const btnTerms = document.getElementById('btn-terms');
+        const btnCloseTerms = document.getElementById('btn-close-terms');
+
+        btnTerms.addEventListener('click', (e) => {
+            e.preventDefault();
+            modalTerms.classList.remove('hidden');
+        });
+
+        btnCloseTerms.addEventListener('click', () => {
+            modalTerms.classList.add('hidden');
+        });
+
+        modalTerms.addEventListener('click', (e) => {
+            if (e.target === modalTerms) {
+                modalTerms.classList.add('hidden');
+            }
+        });
+
+
+        // --- 4. LOGIC STATE VARIABLES ---
+        let currentFileName = "";
+        let rawFileSize = 0;
+        let rawTotalLines = 0;
+        let parsedLinesData = [];
+        let filteredContentText = "";
+        let filteredContentSize = 0;
+        let filteredLinesCount = 0;
+
+        // Keywords & Regex
+        const noiseKeywords = [
+            "preliminary downloading", "ticks data begins", "agent process started",
+            "connecting to", "connected", "authorization", "authorized",
+            "genetic pass", "common synchronization", "avx2", "ping", "login (build"
+        ];
+
+        const summaryKeywords = [
+            "=== summary", "[session]", "[capital]", "[config]", 
+            "[engine", "[monthly]", "[combined]", 
+            "bars generated", "total time from login", "memory used including"
+        ];
+
+        const engineRegex = /\[ENGINE_(A|B)\] Trades:\s*(\d+)\s*\|\s*Net:\s*\$?([+-]?[\d.]+)\s*\|\s*WR:\s*([\d.]+)%\s*\|\s*PF:\s*([\d.]+)(?:\s*\|\s*EV:\s*\$?([+-]?[\d.]+))?/;
+        const monthlyRegex = /\[MONTHLY\]\s+([A-Za-z]+)\s+\|\s+(?:Eng-)?A:\s*\$?([+-]?[\d.]+)\((\d+)t\)\s+\|\s+(?:Eng-)?B:\s*\$?([+-]?[\d.]+)\((\d+)t\)\s+\|\s+Tot(?:al)?:\s*\$?([+-]?[\d.]+)/i;
+
+
+        // --- 5. DOM ELEMENTS BINDING ---
+        const viewUpload = document.getElementById('view-upload');
+        const viewProcessing = document.getElementById('view-processing');
+        const viewDashboard = document.getElementById('view-dashboard');
+        
+        const fileInput = document.getElementById('file-input');
+        const btnReset = document.getElementById('btn-reset');
+        
+        // Footer & UI
+        const footerStatus = document.getElementById('footer-status');
+        const footerIndicator = document.getElementById('footer-indicator');
+        const footerStats = document.getElementById('footer-stats');
+
+        // Stats Elements
+        const statRawSize = document.getElementById('stat-raw-size');
+        const statRawLines = document.getElementById('stat-raw-lines');
+        const statCompactSize = document.getElementById('stat-compact-size');
+        const statCompactLines = document.getElementById('stat-compact-lines');
+        const statSavingPct = document.getElementById('stat-saving-pct');
+        const statTotalTrades = document.getElementById('stat-total-trades');
+        const statErrors = document.getElementById('stat-errors');
+        const iconErrors = document.getElementById('icon-errors');
+        const errorCard = document.getElementById('error-card');
+
+        // Compression Elements
+        const slider = document.getElementById('compression-slider');
+        const statusPct = document.getElementById('status-pct');
+        const statusDesc = document.getElementById('status-desc');
+        const btnDownloadLevel = document.getElementById('btn-download-level');
+        const btnDownloadText = document.getElementById('btn-download-text');
+        const btnDownloadSuper = document.getElementById('btn-download-super');
+        const label0 = document.getElementById('label-0');
+        const label100 = document.getElementById('label-100');
+        const superCompactPreview = document.getElementById('super-compact-preview');
+
+        // Format Helper
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+
+        // --- 6. CORE APP LOGIC ---
+
+        // File Uploader Event Listeners
+        viewUpload.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileUpload);
+        
+        // Drag and drop support
+        viewUpload.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            viewUpload.classList.add('border-blue-500', 'bg-theme-border/20');
+        });
+        viewUpload.addEventListener('dragleave', () => {
+            viewUpload.classList.remove('border-blue-500', 'bg-theme-border/20');
+        });
+        viewUpload.addEventListener('drop', (e) => {
+            e.preventDefault();
+            viewUpload.classList.remove('border-blue-500', 'bg-theme-border/20');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileUpload();
+            }
+        });
+
+        function handleFileUpload() {
+            if (!fileInput.files.length) return;
+            const file = fileInput.files[0];
+            currentFileName = file.name;
+            
+            // UI Transition
+            viewUpload.classList.add('hidden-view');
+            viewProcessing.classList.remove('hidden-view');
+            footerStatus.innerText = i18n[currentLang].footerProcessing;
+            footerIndicator.className = "w-2 h-2 rounded-full bg-yellow-500 animate-pulse";
+            btnReset.classList.remove('hidden');
+
+            const reader = new FileReader();
+            reader.onload = (e) => processLogFile(e.target.result, file.size);
+            reader.readAsText(file);
+        }
+
+        function processLogFile(text, size) {
+            rawFileSize = size;
+            const lines = text.split(/\r?\n/);
+            rawTotalLines = lines.length;
+
+            const engines = {};
+            const months = [];
+            const errors = [];
+            parsedLinesData = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (!line.trim()) continue;
+
+                const parts = line.split('\t');
+                let message = line;
+                
+                // Parsing format tabulasi MT5 Terminal / Log File
+                if (parts.length >= 5 && (parts[1] === '0' || parts[1] === '1' || parts[1] === '2')) {
+                    message = parts.slice(4).join('\t');
+                } else if (parts.length >= 3 && /\d{4}\.\d{2}\.\d{2}/.test(parts[0])) {
+                    message = parts.slice(2).join('\t');
+                } else if (parts.length >= 2 && message.includes('Core ')) {
+                    message = parts[parts.length - 1]; 
+                }
+
+                const msgLower = message.toLowerCase();
+                
+                // Analytics
+                const isError = msgLower.includes('error') || msgLower.includes('failed');
+                if (isError) {
+                    errors.push({ lineNum: i + 1, text: message });
+                }
+
+                const engineMatch = message.match(engineRegex);
+                if (engineMatch) {
+                    engines[`Engine ${engineMatch[1]}`] = {
+                        trades: engineMatch[2],
+                        net: engineMatch[3],
+                        winRate: engineMatch[4],
+                        profitFactor: engineMatch[5],
+                        ev: engineMatch[6] || "N/A"
+                    };
+                }
+
+                const monthMatch = message.match(monthlyRegex);
+                if (monthMatch) {
+                    months.push({
+                        month: monthMatch[1],
+                        netA: monthMatch[2],
+                        tradesA: monthMatch[3],
+                        netB: monthMatch[4],
+                        tradesB: monthMatch[5],
+                        totalNet: monthMatch[6]
+                    });
+                }
+
+                // Classification
+                const isSpam = noiseKeywords.some(kw => msgLower.includes(kw.toLowerCase()));
+                const isSummary = summaryKeywords.some(kw => msgLower.includes(kw));
+                const isEssential = isError || isSummary;
+                
+                parsedLinesData.push({
+                    text: line,
+                    cleanMessage: message,
+                    size: line.length + 1,
+                    isSpam,
+                    isEssential,
+                    isNormal: !isSpam && !isEssential
+                });
+            }
+
+            renderDashboard(engines, months, errors);
+            
+            // Generate Preview string for Super Compact Tooltip (100% compression dry-run)
+            const previewLines = parsedLinesData
+                .filter(item => !item.isSpam && item.isEssential)
+                .map(item => item.cleanMessage); // Using cleanMessage since it's Super Compact mode
+            
+            superCompactPreview.textContent = previewLines.join('\n');
+
+            // Initial Compression calculation
+            slider.value = 0;
+            applyCompressionLevel();
+
+            // UI Transition
+            setTimeout(() => {
+                viewProcessing.classList.add('hidden-view');
+                viewDashboard.classList.remove('hidden-view');
+                footerStatus.innerText = i18n[currentLang].footerDone;
+                footerIndicator.className = "w-2 h-2 rounded-full bg-blue-500";
+            }, 300); // slight delay for smooth UI
+        }
+
+        // --- 7. COMPRESSION ENGINE ---
+        slider.addEventListener('input', applyCompressionLevel);
+
+        function applyCompressionLevel() {
+            const level = Number(slider.value);
+            const keepRatio = 1 - (level / 100);
+            
+            let contentArr = [];
+            let currentSize = 0;
+            let dropAccumulator = 0;
+
+            for (const item of parsedLinesData) {
+                if (item.isSpam) continue;
+
+                let keep = false;
+                let outputText = item.text;
+
+                if (item.isEssential) {
+                    keep = true;
+                    if (level === 100) {
+                        outputText = item.cleanMessage; // Super compact removes left timestamp
+                    }
+                } else if (item.isNormal) {
+                    dropAccumulator += keepRatio;
+                    if (dropAccumulator >= 1) {
+                        keep = true;
+                        dropAccumulator -= 1;
+                    }
+                }
+
+                if (keep) {
+                    contentArr.push(outputText);
+                    currentSize += outputText.length + 1;
+                }
+            }
+
+            filteredContentText = contentArr.join('\n');
+            filteredContentSize = currentSize;
+            filteredLinesCount = contentArr.length;
+
+            updateCompressionUI(level);
+        }
+
+        function updateCompressionUI(level) {
+            // Stats
+            statRawSize.innerText = formatBytes(rawFileSize);
+            statRawLines.innerText = rawTotalLines.toLocaleString();
+            
+            statCompactSize.innerText = formatBytes(filteredContentSize);
+            statCompactLines.innerText = filteredLinesCount.toLocaleString();
+            
+            const savings = rawFileSize > 0 ? (((rawFileSize - filteredContentSize) / rawFileSize) * 100).toFixed(1) : 0;
+            statSavingPct.innerText = `-${savings}%`;
+            footerStats.innerText = `Filtered: ${filteredLinesCount} lines | Saved: ${savings}%`;
+
+            // Slider UI
+            statusPct.innerText = `${level}% ${i18n[currentLang].statusCompressed}`;
+            label0.className = level === 0 ? "text-blue-500 font-bold" : "text-theme-dim";
+            label100.className = level === 100 ? "text-blue-500 font-bold" : "text-theme-dim";
+
+            if (level === 0) {
+                statusDesc.innerText = i18n[currentLang].descLossless;
+            } else if (level === 100) {
+                statusDesc.innerText = i18n[currentLang].descSuper;
+            } else {
+                statusDesc.innerText = i18n[currentLang].descLossy.replace('{level}', level);
+            }
+
+            btnDownloadText.innerText = `${i18n[currentLang].btnDlLevel} (${formatBytes(filteredContentSize)})`;
+        }
+
+        // --- 8. RENDER DASHBOARD TABLES ---
+        function renderDashboard(engines, months, errors) {
+            const tbodyEngine = document.querySelector('#table-engine tbody');
+            const tbodyMonthly = document.querySelector('#table-monthly tbody');
+            const emptyEngine = document.getElementById('empty-engine');
+            const emptyMonthly = document.getElementById('empty-monthly');
+            const errViewer = document.getElementById('error-viewer');
+            const errList = document.getElementById('error-list');
+
+            // Render Engine
+            const engineKeys = Object.keys(engines);
+            let totalTradesSum = 0;
+            tbodyEngine.innerHTML = '';
+            
+            if (engineKeys.length > 0) {
+                emptyEngine.classList.add('hidden-view');
+                engineKeys.forEach(name => {
+                    const d = engines[name];
+                    totalTradesSum += parseInt(d.trades);
+                    const netClass = parseFloat(d.net) >= 0 ? 'text-green-500 font-bold' : 'text-red-500 font-bold';
+                    const evTxt = d.ev !== "N/A" ? `$${d.ev}` : "-";
+                    
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${name}</td>
+                        <td>${d.trades}</td>
+                        <td class="${netClass}">$${d.net}</td>
+                        <td>${d.winRate}%</td>
+                        <td>${d.profitFactor}</td>
+                        <td class="text-blue-500">${evTxt}</td>
+                    `;
+                    tbodyEngine.appendChild(tr);
+                });
+            } else {
+                emptyEngine.classList.remove('hidden-view');
+            }
+            statTotalTrades.innerText = totalTradesSum;
+
+            // Render Monthly
+            tbodyMonthly.innerHTML = '';
+            if (months.length > 0) {
+                emptyMonthly.classList.add('hidden-view');
+                months.forEach(m => {
+                    const netAClass = parseFloat(m.netA) >= 0 ? 'text-green-500' : 'text-red-500';
+                    const netBClass = parseFloat(m.netB) >= 0 ? 'text-green-500' : 'text-red-500';
+                    const totalClass = parseFloat(m.totalNet) >= 0 ? 'text-green-500 font-bold' : 'text-red-500 font-bold';
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${m.month}</td>
+                        <td><span class="${netAClass}">$${m.netA}</span> <span class="text-theme-dim text-xs ml-1">(${m.tradesA}t)</span></td>
+                        <td><span class="${netBClass}">$${m.netB}</span> <span class="text-theme-dim text-xs ml-1">(${m.tradesB}t)</span></td>
+                        <td class="${totalClass}">$${m.totalNet}</td>
+                    `;
+                    tbodyMonthly.appendChild(tr);
+                });
+            } else {
+                emptyMonthly.classList.remove('hidden-view');
+            }
+
+            // Render Errors
+            statErrors.innerText = errors.length;
+            if (errors.length > 0) {
+                statErrors.classList.add('text-red-500');
+                iconErrors.classList.remove('text-theme-dim');
+                iconErrors.classList.add('text-red-500');
+                errorCard.classList.add('border-red-500/50');
+                
+                errViewer.classList.remove('hidden-view');
+                errList.innerHTML = errors.map(e => `<div><span class="text-red-500/50 mr-2">Line ${e.lineNum}:</span> ${e.text}</div>`).join('');
+            } else {
+                statErrors.classList.remove('text-red-500');
+                iconErrors.classList.add('text-theme-dim');
+                iconErrors.classList.remove('text-red-500');
+                errorCard.classList.remove('border-red-500/50');
+                
+                errViewer.classList.add('hidden-view');
+                errList.innerHTML = '';
+            }
+        }
+
+        // --- 9. DOWNLOAD BUTTONS ---
+        function triggerDownload(suffix) {
+            if (!filteredContentText) return;
+            const blob = new Blob([filteredContentText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `[${suffix}]_${currentFileName}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        btnDownloadLevel.addEventListener('click', () => {
+            triggerDownload(`Compacted-${slider.value}pct`);
+        });
+
+        btnDownloadSuper.addEventListener('click', () => {
+            slider.value = 100;
+            applyCompressionLevel();
+            setTimeout(() => triggerDownload('SuperCompact'), 100);
+        });
+
+        // --- 10. RESET APP ---
+        btnReset.addEventListener('click', () => {
+            fileInput.value = "";
+            currentFileName = "";
+            parsedLinesData = [];
+            filteredContentText = "";
+            
+            viewDashboard.classList.add('hidden-view');
+            viewUpload.classList.remove('hidden-view');
+            btnReset.classList.add('hidden');
+            
+            footerStatus.innerText = i18n[currentLang].footerReady;
+            footerIndicator.className = "w-2 h-2 rounded-full bg-green-500 animate-pulse";
+            footerStats.innerText = "MATA5CUANPRES v1.0.1";
+        });
+
+        // Initializations
+        lucide.createIcons();
+        applyTranslations(); // Apply default language bindings
+
+    </script>
+</body>
+</html>
