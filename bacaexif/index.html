@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BacaEXIF - Metadata Inspector</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS & Tailwind Config -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Exif.js -->
+    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+
+    <!-- TATADADA CSS Tokens -->
+    <style>
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+        }
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+        }
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            margin: 0;
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        @keyframes shimmer { 100% { transform: translateX(100%); } }
+        .shimmer-bg {
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- A. HEADER -->
+    <header class="flex items-center justify-between px-6 h-14 border-b border-[var(--border-color)] bg-[var(--header-bg)] shrink-0 relative z-50">
+        <div class="flex items-center gap-3">
+            <span class="font-bold text-lg bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent">BacaEXIF</span>
+            <span class="text-[10px] font-mono text-[var(--text-dim)] italic mt-1">v2.2.0 (Vanilla)</span>
+            <a href="https://danial.my.id" target="_blank" rel="noopener noreferrer" class="lowercase font-bold tracking-[0.25em] text-[8px] text-[var(--text-dim)] hover:text-blue-500 transition-colors mt-1">
+                by AhmadDanial
+            </a>
+            
+            <div class="group relative ml-2 cursor-help flex items-center">
+                <i data-lucide="help-circle" class="w-3.5 h-3.5 text-[var(--text-dim)] hover:text-blue-500 transition-colors"></i>
+                <div class="absolute left-0 top-full mt-3 w-64 p-4 bg-[var(--editor-bg)] border border-[var(--border-color)] shadow-xl rounded-xl text-xs text-[var(--text-main)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <p id="t-helpTitle" class="font-semibold mb-2 text-sm border-b border-[var(--border-color)] pb-2">Cara Pakai:</p>
+                    <ol class="list-decimal pl-4 space-y-1.5 text-[var(--text-dim)]">
+                        <li id="t-help1">Seret & lepas foto berformat JPG ke area unggah.</li>
+                        <li id="t-help2">Tunggu indikator pemrosesan ekstraksi selesai.</li>
+                        <li id="t-help3">Gulir ke bawah untuk melihat detail Kamera, Eksposur, hingga Lokasi GPS.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button id="btn-reset" class="hidden flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-[var(--freeze-bg)] border border-[var(--border-color)] hover:bg-[var(--freeze-hover)] text-[var(--text-main)] transition-colors mr-2">
+                <i data-lucide="refresh-ccw" class="w-3.5 h-3.5"></i> <span id="t-changePhoto">Ganti Foto</span>
+            </button>
+            
+            <button id="btn-lang" class="flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-[var(--freeze-bg)] text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors font-semibold text-xs">
+                <span id="flag-icon" class="text-base leading-none">🇮🇩</span>
+                <span id="lang-text">ID</span>
+            </button>
+
+            <button id="btn-theme" class="p-1.5 rounded-md hover:bg-[var(--freeze-bg)] text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors">
+                <i id="icon-sun" data-lucide="sun" class="w-4.5 h-4.5 hidden"></i>
+                <i id="icon-moon" data-lucide="moon" class="w-4.5 h-4.5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- B. MAIN WORKSPACE -->
+    <main class="flex-1 relative overflow-auto p-4 md:p-8 bg-[var(--preview-bg)]">
+        <div class="max-w-5xl mx-auto space-y-6 pb-10">
+            
+            <!-- Error Notification -->
+            <div id="alert-error" class="hidden bg-red-500/10 border-l-4 border-red-500 p-4 rounded-r-xl flex items-start gap-3">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-red-500 mt-0.5 shrink-0"></i>
+                <div>
+                    <h3 id="t-errorTitle" class="text-red-500 font-semibold text-sm">Terjadi Kesalahan</h3>
+                    <p id="error-message" class="text-red-400/90 text-sm mt-1"></p>
+                </div>
+            </div>
+
+            <!-- View: Upload Area -->
+            <div id="view-upload" class="transition-all duration-200 ease-in-out border-2 border-dashed rounded-2xl p-12 md:p-20 text-center flex flex-col items-center justify-center cursor-pointer bg-[var(--editor-bg)] border-[var(--border-color)] hover:border-blue-400">
+                <input type="file" id="file-input" accept=".jpg, .jpeg" class="hidden" />
+                <div id="upload-icon-box" class="p-4 rounded-full mb-4 bg-[var(--freeze-bg)] text-[var(--text-dim)]">
+                    <i data-lucide="upload-cloud" class="w-10 h-10"></i>
+                </div>
+                <h3 id="t-uploadTitle" class="text-xl font-bold text-[var(--text-main)] mb-2">Unggah Foto JPG</h3>
+                <p id="t-uploadDesc" class="text-[var(--text-dim)] text-sm max-w-xs">Seret & lepas file ke area ini, atau klik untuk menelusuri dari perangkat.</p>
+            </div>
+
+            <!-- View: Loading -->
+            <div id="view-loading" class="hidden bg-[var(--editor-bg)] p-8 rounded-2xl border border-[var(--border-color)] shadow-sm max-w-md mx-auto w-full flex flex-col items-center animate-in zoom-in-95 duration-300">
+                <div class="w-24 h-24 mb-4 rounded-xl overflow-hidden border-2 border-[var(--border-color)] relative">
+                    <img id="loading-img" src="" class="w-full h-full object-cover" />
+                    <div class="absolute inset-0 bg-black/20"></div>
+                </div>
+                <h3 id="loading-filename" class="text-[var(--text-main)] font-semibold mb-1 truncate w-full text-center px-4"></h3>
+                <p id="loading-text" class="text-sm text-[var(--text-dim)] mb-6 animate-pulse"></p>
+                
+                <div class="w-full bg-[var(--freeze-bg)] h-2 rounded-full overflow-hidden mb-2">
+                    <div id="loading-bar" class="bg-blue-600 h-full rounded-full transition-all duration-300 ease-out relative w-0">
+                        <div class="absolute top-0 bottom-0 left-0 right-0 shimmer-bg -translate-x-full"></div>
+                    </div>
+                </div>
+                <div class="w-full flex justify-between text-xs font-medium text-[var(--text-dim)]">
+                    <span id="loading-percentage">0%</span>
+                    <span id="t-pleaseWait">Mohon tunggu</span>
+                </div>
+            </div>
+
+            <!-- View: Results -->
+            <div id="view-results" class="hidden animate-in fade-in duration-500 space-y-6">
+                <!-- Summary Header -->
+                <div class="flex items-center gap-3 bg-[var(--editor-bg)] p-4 rounded-xl border border-[var(--border-color)]">
+                    <div class="bg-emerald-500/10 p-2 rounded-full">
+                        <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500"></i>
+                    </div>
+                    <div>
+                        <h2 id="result-filename" class="font-semibold text-[var(--text-main)] line-clamp-1"></h2>
+                        <p id="t-analysisComplete" class="text-xs text-[var(--text-dim)] font-medium">Analisis Selesai</p>
+                    </div>
+                </div>
+
+                <!-- No EXIF Warning -->
+                <div id="no-exif-warning" class="hidden bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl flex items-start gap-3">
+                    <i data-lucide="info" class="w-5 h-5 text-amber-500 shrink-0 mt-0.5"></i>
+                    <div>
+                        <h3 id="t-noExif" class="text-amber-600 font-semibold text-sm">Tidak Ada Metadata EXIF</h3>
+                        <p id="t-noExifDesc" class="text-[var(--text-dim)] text-sm mt-1">Sistem tidak dapat menemukan data kamera atau lokasi pada file ini. Gambar mungkin telah dikompresi (misal dari WhatsApp) yang menghapus metadata bawaan.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                    <!-- Kiri: Preview & Info File -->
+                    <div class="lg:col-span-1 space-y-6 lg:sticky lg:top-0">
+                        <div class="bg-[var(--editor-bg)] p-2 rounded-xl border border-[var(--border-color)]">
+                            <div class="bg-[var(--preview-bg)] rounded-lg overflow-hidden flex items-center justify-center relative min-h-[200px]">
+                                <img id="result-img" src="" class="w-full h-auto max-h-[400px] object-contain" />
+                            </div>
+                        </div>
+                        <div id="hist-container"></div>
+                        <div id="fileInfo-container"></div>
+                    </div>
+
+                    <!-- Kanan: Exif Data -->
+                    <div class="lg:col-span-2" id="exif-data-column">
+                        <div id="smart-container"></div>
+                        <div id="basic-container"></div>
+                        <div id="camera-container"></div>
+                        <div id="exposure-container"></div>
+                        <div id="advanced-container"></div>
+                        <div id="gps-container"></div>
+                        
+                        <!-- Raw Data -->
+                        <div id="raw-container" class="hidden bg-[var(--editor-bg)] rounded-xl border border-[var(--border-color)] overflow-hidden transition-all duration-300">
+                            <button id="btn-toggle-raw" class="w-full flex items-center justify-between px-5 py-4 hover:bg-[var(--freeze-hover)] transition-colors focus:outline-none">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-1.5 bg-[var(--freeze-bg)] rounded-md border border-[var(--border-color)]">
+                                        <i data-lucide="database" class="w-4 h-4 text-[var(--text-dim)]"></i>
+                                    </div>
+                                    <div class="text-left">
+                                        <h3 id="t-rawData" class="font-semibold text-sm text-[var(--text-main)]">Data Mentah (Raw EXIF)</h3>
+                                        <p id="t-rawDesc" class="text-[10px] text-[var(--text-dim)] font-medium">Buka untuk melihat format JSON asli</p>
+                                    </div>
+                                </div>
+                                <div class="text-[var(--text-dim)]">
+                                    <i id="raw-icon" data-lucide="chevron-right" class="w-4.5 h-4.5"></i>
+                                </div>
+                            </button>
+                            
+                            <div id="raw-content" class="hidden p-5 border-t border-[var(--border-color)] bg-[var(--freeze-bg)]">
+                                <div class="flex justify-end mb-3">
+                                    <button id="btn-copy-raw" class="flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--editor-bg)] border border-[var(--border-color)] rounded-md shadow-sm text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors focus:outline-none">
+                                        <i id="icon-copy" data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                        <span id="text-copy" class="text-[10px] font-semibold">Salin Data</span>
+                                    </button>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <pre id="raw-pre" class="text-xs text-[var(--text-dim)] font-mono leading-relaxed whitespace-pre-wrap break-all"></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- C. FOOTER -->
+    <footer class="flex items-center justify-between px-6 h-8 border-t border-[var(--border-color)] bg-[var(--footer-bg)] text-[10px] text-[var(--text-dim)] shrink-0">
+        <div class="flex items-center gap-2 flex-1">
+            <span id="engine-dot" class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+            <span id="t-engineStatus">Loading Engine...</span>
+        </div>
+        <div class="flex gap-4 flex-1 justify-center">
+            <span id="f-size" class="hidden">Size: 0 MB</span>
+            <span id="f-exif" class="hidden">EXIF: -</span>
+        </div>
+        <div class="flex-1 text-right">
+            <button id="btn-terms" class="hover:text-blue-500 underline decoration-dotted underline-offset-2 transition-colors focus:outline-none">
+                Disclaimer
+            </button>
+        </div>
+    </footer>
+
+    <!-- D. MODAL TERMS OF USE -->
+    <div id="modal-terms" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div class="bg-[var(--editor-bg)] border border-[var(--border-color)] rounded-xl shadow-2xl max-w-md w-full animate-in zoom-in-95 duration-200 overflow-hidden">
+            <div class="flex items-center justify-between p-4 border-b border-[var(--border-color)] bg-[var(--freeze-bg)]">
+                <h3 id="t-termsTitle" class="font-semibold text-[var(--text-main)] text-sm">Syarat & Ketentuan</h3>
+                <button id="btn-close-modal-x" class="text-[var(--text-dim)] hover:text-red-500 transition-colors focus:outline-none">
+                    <i data-lucide="x" class="w-4.5 h-4.5"></i>
+                </button>
+            </div>
+            <div class="p-5">
+                <p id="t-termsText" class="text-sm text-[var(--text-dim)] leading-relaxed text-justify">
+                    <!-- Text injected via JS based on lang -->
+                </p>
+            </div>
+            <div class="p-4 border-t border-[var(--border-color)] flex justify-end bg-[var(--freeze-bg)]">
+                <button id="btn-close-modal" class="px-5 py-2 bg-[var(--editor-bg)] border border-[var(--border-color)] rounded-lg text-sm font-semibold text-[var(--text-main)] hover:bg-[var(--freeze-hover)] transition-colors focus:outline-none">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN JAVASCRIPT -->
+    <script>
+        // --- TRANSLATION DICTIONARY ---
+        const T = {
+          id: {
+            helpTitle: "Cara Pakai:", help1: "Seret & lepas foto berformat JPG ke area unggah.", help2: "Tunggu indikator pemrosesan ekstraksi selesai.", help3: "Gulir ke bawah untuk melihat detail Kamera, Eksposur, hingga Lokasi GPS.",
+            changePhoto: "Ganti Foto", errorTitle: "Terjadi Kesalahan", uploadTitle: "Unggah Foto JPG", uploadDesc: "Seret & lepas file ke area ini, atau klik untuk menelusuri dari perangkat.",
+            loadingImg: "Memuat gambar...", analyzing: "Menganalisis metadata EXIF...", structuring: "Menyusun struktur data...", done: "Selesai!", pleaseWait: "Mohon tunggu",
+            analysisComplete: "Analisis Selesai", noExif: "Tidak Ada Metadata EXIF", noExifDesc: "Sistem tidak dapat menemukan data kamera atau lokasi pada file ini. Gambar mungkin telah dikompresi yang menghapus metadata bawaan.",
+            fileInfo: "Informasi File", smartAnalysis: "Analisis Cerdas AI", basicInfo: "Informasi Dasar", cameraDev: "Perangkat Kamera", exposure: "Pengaturan Gambar (Eksposur)", advanced: "Karakteristik & Lanjutan",
+            gpsLoc: "Lokasi GPS", openMaps: "Buka di Maps", rawData: "Data Mentah (Raw EXIF)", rawDesc: "Buka untuk melihat format JSON asli",
+            engineReady: "Engine Ready", loadingEngine: "Loading Engine...", available: "Tersedia", none: "Tidak Ada", hiddenBinary: "[Data Biner Disembunyikan]", arrayLen: (len) => `[Array ${len} elemen]`,
+            histogram: "Grafik Histogram", histogramDesc: "Distribusi Rona Warna (RGB)", termsTitle: "Syarat & Ketentuan", termsLink: "Disclaimer", termsClose: "Tutup", copyData: "Salin Data", copied: "Tersalin!",
+            termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+            k_fileName: "Nama File", k_size: "Ukuran", k_fileType: "Tipe File", k_modified: "Dimodifikasi", k_res: "Resolusi", k_megaPixel: "Megapixel", k_time: "Waktu Pengambilan", k_color: "Ruang Warna", k_ori: "Orientasi",
+            k_desc: "Deskripsi", k_artist: "Pembuat (Artist)", k_copy: "Hak Cipta", k_mfg: "Produsen", k_model: "Model Kamera", k_soft: "Perangkat Lunak", k_bodySN: "Nomor Seri Bodi", k_lensMod: "Model Lensa", k_lensMfg: "Produsen Lensa",
+            k_aper: "Bukaan (Aperture)", k_shut: "Kecepatan Rana (Shutter)", k_focal: "Jarak Fokus", k_flash: "Flash", k_expBias: "Kompensasi Eksposur", k_expProg: "Program Eksposur", k_meter: "Mode Pengukuran", k_wb: "White Balance", k_focal35: "Fokus (Ekuivalen 35mm)",
+            k_dZoom: "Digital Zoom", k_scene: "Tipe Scene", k_contrast: "Kontras", k_sat: "Saturasi", k_sharp: "Ketajaman", k_lat: "Latitude", k_lng: "Longitude", k_mapLink: "Tautan Peta", k_alt: "Ketinggian (Altitude)", k_gpsDate: "Tanggal GPS",
+            k_imgType: "Karakteristik Foto", k_timeOfDay: "Waktu Pengambilan",
+            v_fired: "Menyala", v_notFired: "Tidak Menyala", v_firedMulti: "Menyala (Beragam Mode)", v_unknown: "Tidak Diketahui", v_manual: "Manual", v_normal: "Normal", v_soft: "Lembut", v_hard: "Keras", v_low: "Rendah", v_high: "Tinggi",
+            a_pano: "Panorama", a_360: "Foto 360° (Spherical)", a_drone: "Drone / Foto Udara", a_longExp: "Long Exposure", a_action: "Aksi (Kecepatan Tinggi)", a_uWide: "Ultra-Wide", a_tele: "Telefoto", a_macro: "Makro / Jarak Dekat", a_standard: "Foto Standar",
+            a_morning: "Pagi Hari", a_day: "Siang Hari", a_afternoon: "Sore Hari", a_night: "Malam Hari"
+          },
+          en: {
+            helpTitle: "How to use:", help1: "Drag & drop a JPG photo to the upload area.", help2: "Wait for the extraction indicator to finish.", help3: "Scroll down to view Camera, Exposure, and GPS details.",
+            changePhoto: "Change Photo", errorTitle: "An Error Occurred", uploadTitle: "Upload JPG Photo", uploadDesc: "Drag & drop files here, or click to browse from your device.",
+            loadingImg: "Loading image...", analyzing: "Analyzing EXIF metadata...", structuring: "Structuring data...", done: "Done!", pleaseWait: "Please wait",
+            analysisComplete: "Analysis Complete", noExif: "No EXIF Metadata", noExifDesc: "The system could not find camera or location data on this file. The image may have been compressed which removes built-in metadata.",
+            fileInfo: "File Information", smartAnalysis: "AI Smart Analysis", basicInfo: "Basic Information", cameraDev: "Camera Device", exposure: "Image Settings (Exposure)", advanced: "Characteristics & Advanced",
+            gpsLoc: "GPS Location", openMaps: "Open in Maps", rawData: "Raw Data (Raw EXIF)", rawDesc: "Open to view original JSON format",
+            engineReady: "Engine Ready", loadingEngine: "Loading Engine...", available: "Available", none: "None", hiddenBinary: "[Binary Data Hidden]", arrayLen: (len) => `[Array of ${len} elements]`,
+            histogram: "Histogram Graph", histogramDesc: "Color Tone Distribution (RGB)", termsTitle: "Terms of Use", termsLink: "Disclaimer", termsClose: "Close", copyData: "Copy Data", copied: "Copied!",
+            termsText: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+            k_fileName: "File Name", k_size: "Size", k_fileType: "File Type", k_modified: "Modified", k_res: "Resolution", k_megaPixel: "Megapixel", k_time: "Capture Time", k_color: "Color Space", k_ori: "Orientation",
+            k_desc: "Description", k_artist: "Artist", k_copy: "Copyright", k_mfg: "Manufacturer", k_model: "Camera Model", k_soft: "Software", k_bodySN: "Body Serial Number", k_lensMod: "Lens Model", k_lensMfg: "Lens Manufacturer",
+            k_aper: "Aperture", k_shut: "Shutter Speed", k_focal: "Focal Length", k_flash: "Flash", k_expBias: "Exposure Bias", k_expProg: "Exposure Program", k_meter: "Metering Mode", k_wb: "White Balance", k_focal35: "Focal Length (35mm Eq)",
+            k_dZoom: "Digital Zoom", k_scene: "Scene Type", k_contrast: "Contrast", k_sat: "Saturation", k_sharp: "Sharpness", k_lat: "Latitude", k_lng: "Longitude", k_mapLink: "Map Link", k_alt: "Altitude", k_gpsDate: "GPS Date",
+            k_imgType: "Photo Characteristics", k_timeOfDay: "Time of Day",
+            v_fired: "Fired", v_notFired: "Did not fire", v_firedMulti: "Fired (Multiple Modes)", v_unknown: "Unknown", v_manual: "Manual", v_normal: "Normal", v_soft: "Soft", v_hard: "Hard", v_low: "Low", v_high: "High",
+            a_pano: "Panorama", a_360: "360° Photo (Spherical)", a_drone: "Drone / Aerial", a_longExp: "Long Exposure", a_action: "Action (High Speed)", a_uWide: "Ultra-Wide", a_tele: "Telephoto", a_macro: "Macro / Close-up", a_standard: "Standard Photo",
+            a_morning: "Morning", a_day: "Daytime", a_afternoon: "Afternoon", a_night: "Night"
+          }
+        };
+
+        // --- GLOBAL STATE ---
+        const state = {
+            lang: localStorage.getItem('language') || 'id',
+            isDark: localStorage.getItem('theme') === 'dark',
+            engineReady: false,
+            file: null,
+            previewUrl: null,
+            rawExifCache: null,
+            metadata: null,
+            histogramData: null,
+            cameraImgUrl: null,
+            actualWidth: 0,
+            actualHeight: 0
+        };
+
+        // --- UTILITIES ---
+        const formatBytes = (bytes) => {
+            if (!+bytes) return '0 Bytes';
+            const k = 1024, dm = 2, sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        };
+
+        const convertDMSToDD = (dmsArray, ref) => {
+            try {
+                if (!dmsArray || dmsArray.length !== 3) return null;
+                const getVal = (val) => (val && typeof val.numerator !== 'undefined') ? val.numerator / val.denominator : Number(val);
+                const dd = getVal(dmsArray[0]) + (getVal(dmsArray[1]) / 60) + (getVal(dmsArray[2]) / 3600);
+                if (isNaN(dd)) return null;
+                return (ref === "S" || ref === "W") ? (dd * -1).toFixed(6) : dd.toFixed(6);
+            } catch (e) { return null; }
+        };
+
+        const getOrientationText = (val, lang) => {
+            const mapID = { 1: 'Horizontal (Normal)', 2: 'Dicerminkan horizontal', 3: 'Diputar 180°', 4: 'Dicerminkan vertikal', 5: 'Dicerminkan & Diputar 270°', 6: 'Diputar 90° Searah Jarum Jam', 7: 'Dicerminkan & Diputar 90°', 8: 'Diputar 270° Searah Jarum Jam' };
+            const mapEN = { 1: 'Horizontal (Normal)', 2: 'Mirrored horizontally', 3: 'Rotated 180°', 4: 'Mirrored vertically', 5: 'Mirrored & Rotated 270°', 6: 'Rotated 90° CW', 7: 'Mirrored & Rotated 90°', 8: 'Rotated 270° CW' };
+            return lang === 'en' ? (mapEN[val] || val) : (mapID[val] || val);
+        };
+
+        const calculateHistogram = (image) => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            const scale = Math.min(300 / image.width, 300 / image.height, 1);
+            canvas.width = Math.floor(image.width * scale) || 1;
+            canvas.height = Math.floor(image.height * scale) || 1;
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+            const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            const r = new Array(256).fill(0), g = new Array(256).fill(0), b = new Array(256).fill(0);
+            for (let i = 0; i < data.length; i += 4) { r[data[i]]++; g[data[i+1]]++; b[data[i+2]]++; }
+            return { r, g, b };
+        };
+
+        // --- DOM ELEMENTS & INIT ---
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            
+            // Init Engine
+            if (window.EXIF) {
+                state.engineReady = true;
+                updateEngineStatus();
+            } else {
+                showError("Gagal memuat pustaka EXIF / EXIF library load failed.");
+            }
+
+            // Init Theme
+            if (state.isDark) {
+                document.documentElement.classList.add('dark');
+                document.getElementById('icon-sun').classList.remove('hidden');
+                document.getElementById('icon-moon').classList.add('hidden');
+            }
+
+            // Init Localization
+            updateStaticTranslations();
+
+            // Event Listeners
+            document.getElementById('btn-theme').addEventListener('click', toggleTheme);
+            document.getElementById('btn-lang').addEventListener('click', toggleLang);
+            document.getElementById('btn-reset').addEventListener('click', resetAll);
+            document.getElementById('btn-terms').addEventListener('click', () => toggleModal(true));
+            document.getElementById('btn-close-modal').addEventListener('click', () => toggleModal(false));
+            document.getElementById('btn-close-modal-x').addEventListener('click', () => toggleModal(false));
+            document.getElementById('btn-toggle-raw').addEventListener('click', toggleRawData);
+            document.getElementById('btn-copy-raw').addEventListener('click', copyRawData);
+
+            // Drag & Drop
+            const dropZone = document.getElementById('view-upload');
+            const fileInput = document.getElementById('file-input');
+            
+            dropZone.addEventListener('click', () => fileInput.click());
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-blue-500', 'bg-[var(--freeze-hover)]', 'scale-[1.01]');
+                document.getElementById('upload-icon-box').classList.replace('text-[var(--text-dim)]', 'text-blue-500');
+                document.getElementById('upload-icon-box').classList.replace('bg-[var(--freeze-bg)]', 'bg-blue-500/20');
+            });
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-blue-500', 'bg-[var(--freeze-hover)]', 'scale-[1.01]');
+                document.getElementById('upload-icon-box').classList.replace('text-blue-500', 'text-[var(--text-dim)]');
+                document.getElementById('upload-icon-box').classList.replace('bg-blue-500/20', 'bg-[var(--freeze-bg)]');
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-blue-500', 'bg-[var(--freeze-hover)]', 'scale-[1.01]');
+                if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+            });
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length) handleFile(e.target.files[0]);
+            });
+        });
+
+        // --- APP LOGIC ---
+        function toggleTheme() {
+            state.isDark = !state.isDark;
+            document.documentElement.classList.toggle('dark', state.isDark);
+            localStorage.setItem('theme', state.isDark ? 'dark' : 'light');
+            document.getElementById('icon-sun').classList.toggle('hidden', !state.isDark);
+            document.getElementById('icon-moon').classList.toggle('hidden', state.isDark);
+        }
+
+        function toggleLang() {
+            state.lang = state.lang === 'id' ? 'en' : 'id';
+            localStorage.setItem('language', state.lang);
+            updateStaticTranslations();
+            if (state.file && state.rawExifCache) {
+                processMetadata();
+                renderResults();
+            }
+        }
+
+        function updateStaticTranslations() {
+            const t = T[state.lang];
+            document.getElementById('flag-icon').textContent = state.lang === 'id' ? '🇮🇩' : '🇬🇧';
+            document.getElementById('lang-text').textContent = state.lang === 'id' ? 'ID' : 'EN';
+            
+            // Header / Modals
+            document.getElementById('t-helpTitle').textContent = t.helpTitle;
+            document.getElementById('t-help1').textContent = t.help1;
+            document.getElementById('t-help2').textContent = t.help2;
+            document.getElementById('t-help3').textContent = t.help3;
+            document.getElementById('t-changePhoto').textContent = t.changePhoto;
+            document.getElementById('t-errorTitle').textContent = t.errorTitle;
+            document.getElementById('t-uploadTitle').textContent = t.uploadTitle;
+            document.getElementById('t-uploadDesc').textContent = t.uploadDesc;
+            document.getElementById('t-pleaseWait').textContent = t.pleaseWait;
+            document.getElementById('t-analysisComplete').textContent = t.analysisComplete;
+            document.getElementById('t-noExif').textContent = t.noExif;
+            document.getElementById('t-noExifDesc').textContent = t.noExifDesc;
+            document.getElementById('t-rawData').textContent = t.rawData;
+            document.getElementById('t-rawDesc').textContent = t.rawDesc;
+            document.getElementById('btn-terms').textContent = t.termsLink;
+            document.getElementById('t-termsTitle').textContent = t.termsTitle;
+            document.getElementById('t-termsText').textContent = t.termsText;
+            document.getElementById('btn-close-modal').textContent = t.termsClose;
+            document.getElementById('text-copy').textContent = t.copyData;
+            
+            updateEngineStatus();
+        }
+
+        function updateEngineStatus() {
+            const t = T[state.lang];
+            const dot = document.getElementById('engine-dot');
+            const txt = document.getElementById('t-engineStatus');
+            if (state.engineReady) {
+                dot.className = "w-2 h-2 rounded-full bg-emerald-500";
+                txt.textContent = t.engineReady;
+            } else {
+                dot.className = "w-2 h-2 rounded-full bg-amber-500 animate-pulse";
+                txt.textContent = t.loadingEngine;
+            }
+        }
+
+        function toggleModal(show) {
+            document.getElementById('modal-terms').classList.toggle('hidden', !show);
+        }
+
+        function toggleRawData() {
+            const content = document.getElementById('raw-content');
+            const icon = document.getElementById('raw-icon');
+            const isHidden = content.classList.contains('hidden');
+            content.classList.toggle('hidden', !isHidden);
+            icon.setAttribute('data-lucide', isHidden ? 'chevron-down' : 'chevron-right');
+            lucide.createIcons();
+        }
+
+        function copyRawData() {
+            const t = T[state.lang];
+            const txt = JSON.stringify(state.rawExifCache, null, 2);
+            const textArea = document.createElement("textarea");
+            textArea.value = txt;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                document.getElementById('icon-copy').setAttribute('data-lucide', 'check');
+                document.getElementById('icon-copy').classList.add('text-emerald-500');
+                document.getElementById('text-copy').textContent = t.copied;
+                lucide.createIcons();
+                setTimeout(() => {
+                    document.getElementById('icon-copy').setAttribute('data-lucide', 'copy');
+                    document.getElementById('icon-copy').classList.remove('text-emerald-500');
+                    document.getElementById('text-copy').textContent = t.copyData;
+                    lucide.createIcons();
+                }, 2000);
+            } catch (err) {}
+            document.body.removeChild(textArea);
+        }
+
+        function showError(msg) {
+            document.getElementById('alert-error').classList.remove('hidden');
+            document.getElementById('error-message').textContent = msg;
+        }
+        function hideError() {
+            document.getElementById('alert-error').classList.add('hidden');
+        }
+
+        function resetAll() {
+            state.file = null;
+            if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
+            state.previewUrl = null;
+            state.metadata = null;
+            state.rawExifCache = null;
+            state.histogramData = null;
+            state.cameraImgUrl = null;
+            
+            document.getElementById('view-upload').classList.remove('hidden');
+            document.getElementById('view-loading').classList.add('hidden');
+            document.getElementById('view-results').classList.add('hidden');
+            document.getElementById('btn-reset').classList.add('hidden');
+            document.getElementById('f-size').classList.add('hidden');
+            document.getElementById('f-exif').classList.add('hidden');
+            document.getElementById('raw-content').classList.add('hidden');
+            document.getElementById('raw-icon').setAttribute('data-lucide', 'chevron-right');
+            hideError();
+            lucide.createIcons();
+        }
+
+        // --- EXIF PROCESSING ---
+        function handleFile(file) {
+            if (!file) return;
+            if (!file.type.match('image/jpeg') && !file.type.match('image/jpg')) {
+                showError(state.lang === 'id' ? 'Harap unggah file JPG/JPEG.' : 'Please upload a JPG/JPEG file.');
+                return;
+            }
+            hideError();
+            state.file = file;
+            state.previewUrl = URL.createObjectURL(file);
+            
+            document.getElementById('view-upload').classList.add('hidden');
+            document.getElementById('view-loading').classList.remove('hidden');
+            document.getElementById('loading-img').src = state.previewUrl;
+            document.getElementById('loading-filename').textContent = file.name;
+            
+            updateProgress(15, T[state.lang].loadingImg);
+
+            const img = new Image();
+            img.onload = () => {
+                state.actualWidth = img.width;
+                state.actualHeight = img.height;
+                
+                // Off-thread histogram
+                setTimeout(() => { state.histogramData = calculateHistogram(img); }, 0);
+
+                setTimeout(() => {
+                    updateProgress(45, T[state.lang].analyzing);
+                    if (window.EXIF) {
+                        EXIF.getData(file, function() {
+                            state.rawExifCache = EXIF.getAllTags(this) || {};
+                            updateProgress(80, T[state.lang].structuring);
+                            setTimeout(() => {
+                                processMetadata();
+                                fetchWikipediaImage(() => {
+                                    updateProgress(100, T[state.lang].done);
+                                    setTimeout(() => showResults(), 300);
+                                });
+                            }, 400);
+                        });
+                    } else {
+                        showError(state.lang === 'id' ? 'Sistem EXIF belum siap.' : 'EXIF system not ready.');
+                        document.getElementById('view-loading').classList.add('hidden');
+                        document.getElementById('view-upload').classList.remove('hidden');
+                    }
+                }, 400);
+            };
+            img.src = state.previewUrl;
+        }
+
+        function updateProgress(percent, text) {
+            document.getElementById('loading-bar').style.width = `${percent}%`;
+            document.getElementById('loading-percentage').textContent = `${percent}%`;
+            document.getElementById('loading-text').textContent = text;
+        }
+
+        function processMetadata() {
+            const tl = T[state.lang];
+            const exifData = state.rawExifCache;
+            
+            const data = {
+                hasExif: Object.keys(exifData).length > 0,
+                fileInfo: {
+                    [tl.k_fileName]: state.file.name,
+                    [tl.k_size]: formatBytes(state.file.size),
+                    [tl.k_fileType]: state.file.type || 'image/jpeg',
+                    [tl.k_modified]: new Date(state.file.lastModified).toLocaleString(state.lang === 'id' ? 'id-ID' : 'en-US')
+                },
+                smart: {}, basic: {}, camera: {}, exposure: {}, advanced: {}, gps: {}
+            };
+
+            if (data.hasExif) {
+                const width = state.actualWidth || exifData.PixelXDimension || exifData.ImageWidth;
+                const height = state.actualHeight || exifData.PixelYDimension || exifData.ImageLength;
+                const make = String(exifData.Make || "").toLowerCase();
+                const model = String(exifData.Model || "").toLowerCase();
+                const software = String(exifData.Software || "").toLowerCase();
+                const desc = String(exifData.ImageDescription || "").toLowerCase();
+                let photoTypes = [];
+
+                if (width && height) {
+                    const ratio = Math.max(width, height) / Math.min(width, height);
+                    if (ratio >= 1.9 && ratio <= 2.1) {
+                        if (make.includes('dji') || make.includes('ricoh') || make.includes('insta360') || make.includes('gopro') || software.includes('spherical') || software.includes('panorama') || desc.includes('panorama') || desc.includes('360')) {
+                            photoTypes.push(tl.a_360);
+                        } else photoTypes.push(tl.a_pano);
+                    } else if (ratio >= 2.15 || desc.includes('panorama') || desc.includes('pan')) {
+                        photoTypes.push(tl.a_pano);
+                    }
+                }
+
+                if (make.includes('dji') || make.includes('parrot') || make.includes('yuneec') || model.includes('drone')) photoTypes.push(tl.a_drone);
+
+                if (exifData.ExposureTime) {
+                    const et = Number(exifData.ExposureTime);
+                    if (et >= 1) photoTypes.push(tl.a_longExp);
+                    if (et <= 0.001) photoTypes.push(tl.a_action);
+                }
+
+                if (exifData.FocalLengthIn35mmFilm) {
+                    if (exifData.FocalLengthIn35mmFilm <= 24) photoTypes.push(tl.a_uWide);
+                    if (exifData.FocalLengthIn35mmFilm >= 100) photoTypes.push(tl.a_tele);
+                } else if (exifData.FocalLength) {
+                    if (exifData.FocalLength <= 14) photoTypes.push(tl.a_uWide);
+                    if (exifData.FocalLength >= 85) photoTypes.push(tl.a_tele);
+                }
+
+                data.smart[tl.k_imgType] = photoTypes.length > 0 ? photoTypes.join(", ") : tl.a_standard;
+
+                if (exifData.DateTimeOriginal) {
+                    const match = String(exifData.DateTimeOriginal).match(/ (\d{2}):/);
+                    if (match && match[1]) {
+                        const h = parseInt(match[1], 10);
+                        let tod = tl.a_night;
+                        if (h >= 5 && h < 11) tod = tl.a_morning;
+                        else if (h >= 11 && h < 15) tod = tl.a_day;
+                        else if (h >= 15 && h < 18) tod = tl.a_afternoon;
+                        data.smart[tl.k_timeOfDay] = tod;
+                    }
+                }
+
+                if (width && height) {
+                    data.basic[tl.k_res] = `${width} x ${height} px`;
+                    data.basic[tl.k_megaPixel] = `${((width * height) / 1000000).toFixed(1)} MP`;
+                }
+                if (exifData.DateTimeOriginal || exifData.DateTime) data.basic[tl.k_time] = exifData.DateTimeOriginal || exifData.DateTime;
+                if (exifData.ColorSpace) data.basic[tl.k_color] = exifData.ColorSpace === 1 ? 'sRGB' : 'Uncalibrated';
+                if (exifData.Orientation) data.basic[tl.k_ori] = getOrientationText(exifData.Orientation, state.lang);
+                if (exifData.ImageDescription) data.basic[tl.k_desc] = String(exifData.ImageDescription);
+                if (exifData.Artist) data.basic[tl.k_artist] = String(exifData.Artist);
+                if (exifData.Copyright) data.basic[tl.k_copy] = String(exifData.Copyright);
+
+                if (exifData.Make) data.camera[tl.k_mfg] = exifData.Make;
+                if (exifData.Model) data.camera[tl.k_model] = exifData.Model;
+                if (exifData.Software) data.camera[tl.k_soft] = exifData.Software;
+                if (exifData.BodySerialNumber) data.camera[tl.k_bodySN] = exifData.BodySerialNumber;
+                if (exifData.LensModel) data.camera[tl.k_lensMod] = exifData.LensModel;
+                if (exifData.LensMake) data.camera[tl.k_lensMfg] = exifData.LensMake;
+
+                if (exifData.FNumber) data.exposure[tl.k_aper] = `f/${Number(exifData.FNumber).toFixed(1)}`;
+                if (exifData.ExposureTime) {
+                    const et = Number(exifData.ExposureTime);
+                    data.exposure[tl.k_shut] = et < 1 ? `1/${Math.round(1/et)} s` : `${et} s`;
+                }
+                if (exifData.ISOSpeedRatings) data.exposure["ISO"] = exifData.ISOSpeedRatings;
+                if (exifData.FocalLength) data.exposure[tl.k_focal] = `${Number(exifData.FocalLength).toFixed(1)} mm`;
+                if (exifData.Flash !== undefined) {
+                    const fStr = String(exifData.Flash).toLowerCase();
+                    data.exposure[tl.k_flash] = fStr.includes('fire') ? tl.v_fired : (exifData.Flash > 0 ? tl.v_firedMulti : tl.v_notFired);
+                }
+                if (exifData.ExposureBias !== undefined) data.exposure[tl.k_expBias] = `${exifData.ExposureBias} EV`;
+                if (exifData.ExposureProgram) {
+                    const progs = [tl.v_unknown, tl.v_manual, "Program Normal", "Aperture Priority", "Shutter Priority", "Creative", "Action", "Portrait Mode", "Landscape Mode"];
+                    data.exposure[tl.k_expProg] = progs[exifData.ExposureProgram] || exifData.ExposureProgram;
+                }
+
+                if (exifData.MeteringMode) {
+                    const meters = [tl.v_unknown, "Average", "Center Weighted Average", "Spot", "Multi-Spot", "Pattern", "Partial"];
+                    data.advanced[tl.k_meter] = meters[exifData.MeteringMode] || exifData.MeteringMode;
+                }
+                if (exifData.WhiteBalance !== undefined) data.advanced[tl.k_wb] = exifData.WhiteBalance === 1 ? tl.v_manual : 'Auto';
+                if (exifData.FocalLengthIn35mmFilm) data.advanced[tl.k_focal35] = `${exifData.FocalLengthIn35mmFilm} mm`;
+                if (exifData.DigitalZoomRatio) data.advanced[tl.k_dZoom] = `${exifData.DigitalZoomRatio}x`;
+                if (exifData.SceneCaptureType !== undefined) {
+                    const scenes = ["Standard", "Landscape", "Portrait", "Night Scene"];
+                    data.advanced[tl.k_scene] = scenes[exifData.SceneCaptureType] || exifData.SceneCaptureType;
+                }
+                if (exifData.Contrast !== undefined) data.advanced[tl.k_contrast] = exifData.Contrast === 1 ? tl.v_soft : (exifData.Contrast === 2 ? tl.v_hard : tl.v_normal);
+                if (exifData.Saturation !== undefined) data.advanced[tl.k_sat] = exifData.Saturation === 1 ? tl.v_low : (exifData.Saturation === 2 ? tl.v_high : tl.v_normal);
+                if (exifData.Sharpness !== undefined) data.advanced[tl.k_sharp] = exifData.Sharpness === 1 ? tl.v_soft : (exifData.Sharpness === 2 ? tl.v_hard : tl.v_normal);
+
+                if (exifData.GPSLatitude && exifData.GPSLongitude) {
+                    const lat = convertDMSToDD(exifData.GPSLatitude, exifData.GPSLatitudeRef);
+                    const lng = convertDMSToDD(exifData.GPSLongitude, exifData.GPSLongitudeRef);
+                    if (lat && lng) {
+                        data.gps[tl.k_lat] = lat;
+                        data.gps[tl.k_lng] = lng;
+                        data.gps[tl.k_mapLink] = `https://www.google.com/maps?q=${lat},${lng}`;
+                        data.mapCoords = { lat, lng }; 
+                    }
+                }
+                if (exifData.GPSAltitude) {
+                    const alt = Number(exifData.GPSAltitude.numerator / exifData.GPSAltitude.denominator).toFixed(1);
+                    const ref = exifData.GPSAltitudeRef === 1 ? (state.lang === 'id' ? 'Di bawah' : 'Below') : (state.lang === 'id' ? 'Di atas' : 'Above');
+                    data.gps[tl.k_alt] = `${alt} m (${ref} sea level)`;
+                }
+                if (exifData.GPSDateStamp) data.gps[tl.k_gpsDate] = exifData.GPSDateStamp;
+            }
+            state.metadata = data;
+        }
+
+        function fetchWikipediaImage(callback) {
+            state.cameraImgUrl = null;
+            if (!state.metadata || !state.metadata.hasExif) return callback();
+            
+            const make = state.rawExifCache.Make ? String(state.rawExifCache.Make).trim() : '';
+            const model = state.rawExifCache.Model ? String(state.rawExifCache.Model).trim() : '';
+            if (!make && !model) return callback();
+
+            let query = `${make} ${model}`.trim();
+            if (model.toLowerCase().includes(make.toLowerCase())) query = model;
+
+            const endpoint = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&prop=pageimages&format=json&pithumbsize=400&origin=*`;
+            
+            fetch(endpoint).then(res => res.json()).then(data => {
+                const pages = data.query?.pages;
+                if (pages) {
+                    const p = Object.values(pages).find(pg => pg.thumbnail?.source);
+                    if (p) state.cameraImgUrl = p.thumbnail.source;
+                }
+                callback();
+            }).catch(() => callback());
+        }
+
+        // --- RENDER UI STRING BUILDER ---
+        function buildSectionCard(icon, title, dataObj, imgUrl) {
+            if (!dataObj || Object.keys(dataObj).length === 0) return '';
+            const t = T[state.lang];
+            let itemsHtml = '';
+            
+            Object.entries(dataObj).forEach(([key, val]) => {
+                let valHtml = `<span class="text-sm text-[var(--text-main)] font-semibold break-words">${val}</span>`;
+                if (key === t.k_mapLink) {
+                    valHtml = `<a href="${val}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-400 hover:underline flex items-center gap-1.5 w-max text-sm font-medium transition-colors">${t.openMaps} <i data-lucide="external-link" class="w-3.5 h-3.5"></i></a>`;
+                }
+                itemsHtml += `
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1">${key}</span>
+                        ${valHtml}
+                    </div>`;
+            });
+
+            let imgHtml = '';
+            if (imgUrl) {
+                imgHtml = `
+                    <div class="w-full sm:w-32 md:w-40 flex-shrink-0 flex items-center justify-center bg-white rounded-xl border border-slate-200 p-2 h-32 sm:h-auto self-start shadow-sm">
+                        <img src="${imgUrl}" alt="${title}" class="object-contain w-full h-full max-h-32" />
+                    </div>`;
+            }
+
+            return `
+                <div class="bg-[var(--editor-bg)] rounded-xl shadow-sm border border-[var(--border-color)] overflow-hidden mb-6 transition-colors">
+                    <div class="flex items-center gap-2 px-5 py-3 border-b border-[var(--border-color)] bg-[var(--freeze-bg)]">
+                        <i data-lucide="${icon}" class="w-4 h-4 text-blue-500"></i>
+                        <h3 class="font-semibold text-[var(--text-main)] text-sm tracking-tight">${title}</h3>
+                    </div>
+                    <div class="p-5 flex flex-col sm:flex-row gap-6">
+                        <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 content-start">
+                            ${itemsHtml}
+                        </div>
+                        ${imgHtml}
+                    </div>
+                </div>`;
+        }
+
+        function buildHistogram(histData) {
+            if (!histData) return '';
+            const t = T[state.lang];
+            const maxVal = Math.max(...histData.r, ...histData.g, ...histData.b);
+            if (!maxVal) return '';
+
+            const makePath = (cData) => {
+                let p = `M 0 100 `;
+                for (let i = 0; i <= 255; i++) { p += `L ${i} ${100 - (cData[i] / maxVal) * 100} `; }
+                return p + `L 255 100 Z`;
+            };
+
+            return `
+                <div class="bg-[var(--editor-bg)] rounded-xl shadow-sm border border-[var(--border-color)] overflow-hidden mb-6 transition-colors">
+                    <div class="flex items-center gap-2 px-5 py-3 border-b border-[var(--border-color)] bg-[var(--freeze-bg)]">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4 text-blue-500"></i>
+                        <h3 class="font-semibold text-[var(--text-main)] text-sm tracking-tight">${t.histogram}</h3>
+                    </div>
+                    <div class="p-5">
+                        <div class="w-full relative bg-[var(--freeze-bg-even)] rounded-lg border border-[var(--border-color)] overflow-hidden aspect-[2.5/1]">
+                            <svg viewBox="0 0 255 100" preserveAspectRatio="none" class="w-full h-full absolute inset-0 mix-blend-multiply dark:mix-blend-screen opacity-90">
+                                <path d="${makePath(histData.r)}" fill="#ef4444" class="opacity-70" />
+                                <path d="${makePath(histData.g)}" fill="#22c55e" class="opacity-70" />
+                                <path d="${makePath(histData.b)}" fill="#3b82f6" class="opacity-70" />
+                            </svg>
+                        </div>
+                        <p class="text-[10px] text-center text-[var(--text-dim)] mt-3 font-medium uppercase tracking-widest">${t.histogramDesc}</p>
+                    </div>
+                </div>`;
+        }
+
+        function renderResults() {
+            const tl = T[state.lang];
+            const m = state.metadata;
+
+            // Render Header & Image
+            document.getElementById('result-filename').textContent = state.file.name;
+            document.getElementById('result-img').src = state.previewUrl;
+            
+            // Toggle No EXIF warning
+            document.getElementById('no-exif-warning').classList.toggle('hidden', m.hasExif);
+            
+            // Render Left Col
+            document.getElementById('hist-container').innerHTML = buildHistogram(state.histogramData);
+            document.getElementById('fileInfo-container').innerHTML = buildSectionCard('file-text', tl.fileInfo, m.fileInfo);
+
+            // Render Right Col
+            document.getElementById('smart-container').innerHTML = m.hasExif ? buildSectionCard('sparkles', tl.smartAnalysis, m.smart) : '';
+            document.getElementById('basic-container').innerHTML = m.hasExif ? buildSectionCard('info', tl.basicInfo, m.basic) : '';
+            document.getElementById('camera-container').innerHTML = m.hasExif ? buildSectionCard('camera', tl.cameraDev, m.camera, state.cameraImgUrl) : '';
+            document.getElementById('exposure-container').innerHTML = m.hasExif ? buildSectionCard('settings', tl.exposure, m.exposure) : '';
+            document.getElementById('advanced-container').innerHTML = m.hasExif ? buildSectionCard('sliders', tl.advanced, m.advanced) : '';
+            
+            // Maps Custom Render
+            let gpsHtml = '';
+            if (m.hasExif && Object.keys(m.gps).length > 0) {
+                let gpsItems = '';
+                Object.entries(m.gps).forEach(([k, v]) => {
+                    if (k === tl.k_mapLink) return;
+                    gpsItems += `<div class="flex flex-col"><span class="text-[10px] font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1">${k}</span><span class="text-sm text-[var(--text-main)] font-semibold">${v}</span></div>`;
+                });
+                gpsItems += `<div class="flex flex-col"><span class="text-[10px] font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1">${tl.k_mapLink}</span><a href="${m.gps[tl.k_mapLink]}" target="_blank" class="text-blue-500 hover:underline flex items-center gap-1.5 w-max text-sm font-medium">${tl.openMaps} <i data-lucide="external-link" class="w-3.5 h-3.5"></i></a></div>`;
+                
+                let mapIframe = m.mapCoords ? `<div class="w-full h-64 bg-[var(--freeze-bg)] rounded-lg overflow-hidden border border-[var(--border-color)]"><iframe width="100%" height="100%" style="border:0;" loading="lazy" allowfullscreen src="https://maps.google.com/maps?q=${m.mapCoords.lat},${m.mapCoords.lng}&t=&z=15&ie=UTF8&iwloc=&output=embed"></iframe></div>` : '';
+                
+                gpsHtml = `
+                    <div class="bg-[var(--editor-bg)] rounded-xl border border-[var(--border-color)] overflow-hidden mb-6">
+                        <div class="flex items-center gap-2 px-5 py-3 border-b border-[var(--border-color)] bg-[var(--freeze-bg)]">
+                            <i data-lucide="map-pin" class="w-4 h-4 text-blue-500"></i><h3 class="font-semibold text-[var(--text-main)] text-sm">${tl.gpsLoc}</h3>
+                        </div>
+                        <div class="p-5"><div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">${gpsItems}</div>${mapIframe}</div>
+                    </div>`;
+            }
+            document.getElementById('gps-container').innerHTML = gpsHtml;
+
+            // Raw Data Render
+            document.getElementById('raw-container').classList.toggle('hidden', !m.hasExif);
+            if (m.hasExif) {
+                const rawStr = JSON.stringify(state.rawExifCache, (key, value) => {
+                    if (key === 'MakerNote' || key === 'thumbnail') return tl.hiddenBinary;
+                    if (Array.isArray(value) && value.length > 50) return tl.arrayLen(value.length);
+                    return value;
+                }, 2);
+                document.getElementById('raw-pre').textContent = rawStr;
+            }
+
+            // Footer Update
+            document.getElementById('f-size').textContent = `Size: ${formatBytes(state.file.size)}`;
+            document.getElementById('f-exif').textContent = `EXIF: ${m.hasExif ? tl.available : tl.none}`;
+
+            lucide.createIcons();
+        }
+
+        function showResults() {
+            document.getElementById('view-loading').classList.add('hidden');
+            document.getElementById('view-results').classList.remove('hidden');
+            document.getElementById('btn-reset').classList.remove('hidden');
+            document.getElementById('f-size').classList.remove('hidden');
+            document.getElementById('f-exif').classList.remove('hidden');
+            renderResults();
+        }
+    </script>
+</body>
+</html>
