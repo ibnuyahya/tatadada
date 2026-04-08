@@ -1,146 +1,114 @@
 <!DOCTYPE html>
-<html lang="id" class="">
+<html lang="id" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TATADADA PORTAL</title>
+    
     <!-- Framework & Fonts -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Three.js for 3D Earth Background -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
     
     <style>
-        /* 2. CSS TOKENS & DARK MODE */
+        /* 2. CSS TOKENS & RETINA DISPLAY TWEAKS */
         :root {
-            --header-bg: rgba(255, 255, 255, 0.6);
-            --footer-bg: rgba(255, 255, 255, 0.6);
-            --border-color: rgba(229, 229, 234, 0.5);
-            --text-main: #000000;
-            --text-dim: #8e8e93;
-            /* Live Wallpaper Colors - Light Mode */
-            --bg-base: #f2f2f7;
-            --blob-1: #ffb1c1; /* Soft pink */
-            --blob-2: #80c8ff; /* Soft blue */
-            --blob-3: #d1b3ff; /* Soft purple */
-        }
-        html.dark {
-            --header-bg: rgba(28, 28, 30, 0.6);
-            --footer-bg: rgba(28, 28, 30, 0.6);
-            --border-color: rgba(56, 56, 58, 0.5);
+            /* Glass Colors - Optimized for Dark Space Background */
+            --header-bg: rgba(20, 20, 20, 0.4);
+            --drawer-bg: rgba(15, 15, 18, 0.45);
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --glass-highlight: rgba(255, 255, 255, 0.25);
             --text-main: #ffffff;
-            --text-dim: #8e8e93;
-            /* Live Wallpaper Colors - Dark Mode */
+            --text-dim: #98989d;
             --bg-base: #000000;
-            --blob-1: #4a00e0; /* Deep indigo */
-            --blob-2: #8e2de2; /* Deep violet */
-            --blob-3: #1a2a6c; /* Deep navy */
-            color-scheme: dark;
         }
+        
         body { 
             background-color: var(--bg-base); 
             color: var(--text-main); 
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
             overflow: hidden; 
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
         }
 
-        /* Utility Classes */
-        .border-theme { border-color: var(--border-color); }
-        .bg-header { background-color: var(--header-bg); }
-        .bg-footer { background-color: var(--footer-bg); }
         .text-dim { color: var(--text-dim); }
+        .hairline-b { box-shadow: 0 0.5px 0 var(--glass-border); }
+        .hairline-t { box-shadow: 0 -0.5px 0 var(--glass-border); }
+        
+        /* Ultra Blur for Glass Elements */
+        .glass-blur {
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+        }
 
-        /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(142, 142, 147, 0.3); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(142, 142, 147, 0.6); }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
 
-        /* Branding Gradient */
         .brand-gradient {
-            background: linear-gradient(135deg, #007aff, #5856d6);
+            background: linear-gradient(135deg, #ffffff, #80c8ff);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
-        /* Alphabet Bar */
         .alpha-btn.active {
-            background-color: #007aff;
-            color: white;
-            border-color: #007aff;
-            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+            background-color: #ffffff;
+            color: #000000;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.3), inset 0 1px 1px rgba(255,255,255,0.8);
+            border: none;
         }
 
-        /* LIVE WALLPAPER - Soft Blurry Aesthetic */
-        .wallpaper-container {
+        /* 3D CANVAS CONTAINER */
+        #space-canvas {
             position: fixed;
-            inset: 0;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
             z-index: 0;
-            overflow: hidden;
             pointer-events: none;
-            background-color: var(--bg-base);
-        }
-        .blob {
-            position: absolute;
-            filter: blur(100px);
-            opacity: 0.7;
-            border-radius: 50%;
-            animation: float 20s infinite alternate ease-in-out;
-            transform-origin: center center;
-        }
-        html.dark .blob { opacity: 0.5; }
-        .blob-1 { top: -10%; left: -10%; width: 60vw; height: 60vw; background: var(--blob-1); }
-        .blob-2 { bottom: -20%; right: -10%; width: 70vw; height: 70vw; background: var(--blob-2); animation-delay: -5s; animation-duration: 25s; }
-        .blob-3 { top: 20%; left: 30%; width: 50vw; height: 50vw; background: var(--blob-3); animation-delay: -10s; animation-duration: 22s; }
-
-        @keyframes float {
-            0% { transform: translate(0, 0) scale(1) rotate(0deg); }
-            50% { transform: translate(5%, 10%) scale(1.05) rotate(5deg); }
-            100% { transform: translate(-5%, 5%) scale(0.95) rotate(-5deg); }
         }
 
-        /* GLASS DRAWER CONTAINER (iOS 17 Aesthetic) */
+        /* FROSTED GLASS DRAWER */
         .glass-drawer {
-            background: rgba(255, 255, 255, 0.4);
-            backdrop-filter: blur(40px);
-            -webkit-backdrop-filter: blur(40px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.6);
-            border-radius: 44px;
-        }
-        html.dark .glass-drawer {
-            background: rgba(28, 28, 30, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            background: var(--drawer-bg);
+            box-shadow: 
+                0 0 0 0.5px var(--glass-border),
+                inset 0 1px 1px rgba(255, 255, 255, 0.1),
+                0 40px 60px -15px rgba(0, 0, 0, 0.8);
+            border-radius: 48px;
+            transition: all 0.3s ease;
         }
 
-        /* Premium Mesh Gradients (iOS 17 Aesthetic) */
-        .mesh-0 { background-color: #ff2d55; background-image: radial-gradient(at 80% 100%, #c135ff 0%, transparent 70%), radial-gradient(at 0% 0%, #ff9500 0%, transparent 70%); --shadow-color: rgba(255, 45, 85, 0.4); }
-        .mesh-1 { background-color: #007aff; background-image: radial-gradient(at 80% 100%, #5856d6 0%, transparent 70%), radial-gradient(at 0% 0%, #32ade6 0%, transparent 70%); --shadow-color: rgba(0, 122, 255, 0.4); }
-        .mesh-2 { background-color: #af52de; background-image: radial-gradient(at 80% 100%, #ff2d55 0%, transparent 70%), radial-gradient(at 0% 0%, #5856d6 0%, transparent 70%); --shadow-color: rgba(175, 82, 222, 0.4); }
-        .mesh-3 { background-color: #34c759; background-image: radial-gradient(at 80% 100%, #007aff 0%, transparent 70%), radial-gradient(at 0% 0%, #ffcc00 0%, transparent 70%); --shadow-color: rgba(52, 199, 89, 0.4); }
-        .mesh-4 { background-color: #ff9500; background-image: radial-gradient(at 80% 100%, #ff2d55 0%, transparent 70%), radial-gradient(at 0% 0%, #ffcc00 0%, transparent 70%); --shadow-color: rgba(255, 149, 0, 0.4); }
-        .mesh-5 { background-color: #2c2c2e; background-image: radial-gradient(at 80% 100%, #1c1c1e 0%, transparent 70%), radial-gradient(at 0% 0%, #8e8e93 0%, transparent 70%); --shadow-color: rgba(44, 44, 46, 0.4); }
-        .mesh-6 { background-color: #ff375f; background-image: radial-gradient(at 80% 100%, #ff9500 0%, transparent 70%), radial-gradient(at 0% 0%, #ffcc00 0%, transparent 70%); --shadow-color: rgba(255, 55, 95, 0.4); }
-        .mesh-7 { background-color: #32ade6; background-image: radial-gradient(at 80% 100%, #007aff 0%, transparent 70%), radial-gradient(at 0% 0%, #34c759 0%, transparent 70%); --shadow-color: rgba(50, 173, 230, 0.4); }
-        .mesh-8 { background-color: #ffcc00; background-image: radial-gradient(at 80% 100%, #ff9500 0%, transparent 70%), radial-gradient(at 0% 0%, #34c759 0%, transparent 70%); --shadow-color: rgba(255, 204, 0, 0.4); }
-        .mesh-9 { background-color: #5856d6; background-image: radial-gradient(at 80% 100%, #af52de 0%, transparent 70%), radial-gradient(at 0% 0%, #007aff 0%, transparent 70%); --shadow-color: rgba(88, 86, 214, 0.4); }
+        /* =========================================
+           ULTRA PREMIUM CRYSTAL ICONS (Glassmorphism 2.0)
+           ========================================= */
+        .mesh-0 { background: linear-gradient(135deg, #ff2a6d, #ff6b00); --glow: rgba(255, 42, 109, 0.6); }
+        .mesh-1 { background: linear-gradient(135deg, #05d5ff, #0055ff); --glow: rgba(5, 213, 255, 0.6); }
+        .mesh-2 { background: linear-gradient(135deg, #b026ff, #5511ff); --glow: rgba(176, 38, 255, 0.6); }
+        .mesh-3 { background: linear-gradient(135deg, #00f260, #0575e6); --glow: rgba(0, 242, 96, 0.6); }
+        .mesh-4 { background: linear-gradient(135deg, #ffcc00, #ff5e62); --glow: rgba(255, 204, 0, 0.6); }
+        .mesh-5 { background: linear-gradient(135deg, #8e9eab, #eef2f3); --glow: rgba(142, 158, 171, 0.6); }
+        .mesh-6 { background: linear-gradient(135deg, #f12711, #f5af19); --glow: rgba(241, 39, 17, 0.6); }
+        .mesh-7 { background: linear-gradient(135deg, #00c6ff, #0072ff); --glow: rgba(0, 198, 255, 0.6); }
 
-        /* iOS Aesthetic */
         .ios-card {
-            transition: all 0.4s cubic-bezier(0.2, 1, 0.2, 1);
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
             background: transparent;
+            text-decoration: none;
+            position: relative;
         }
-        .ios-card:hover {
-            transform: scale(1.02);
-        }
-        .ios-card:active {
-            transform: scale(0.95);
-            opacity: 0.7;
-        }
+        .ios-card:hover { transform: scale(1.08) translateY(-4px); z-index: 20; }
+        .ios-card:active { transform: scale(0.95); opacity: 0.8; }
 
-        /* Ultra Premium iOS Icon Shape (Squircle) */
         .icon-squircle {
             border-radius: 22.5%; 
             aspect-ratio: 1/1;
@@ -148,74 +116,158 @@
             align-items: center;
             justify-content: center;
             position: relative;
-            /* Inner glow + colored drop shadow for depth */
+            z-index: 1;
+            /* Deep 3D Shadow + Colored Ambient Glow */
             box-shadow: 
-                inset 0 1px 2px rgba(255, 255, 255, 0.6), 
-                inset 0 -2px 5px rgba(0, 0, 0, 0.15), 
-                0 15px 25px -5px var(--shadow-color, rgba(0,0,0,0.1)),
-                0 8px 10px -6px var(--shadow-color, rgba(0,0,0,0.1));
-            transition: all 0.4s cubic-bezier(0.2, 1, 0.2, 1);
+                0 15px 25px -5px var(--glow),
+                0 8px 10px -6px rgba(0,0,0,0.5),
+                inset 0 3px 6px rgba(255, 255, 255, 0.8), /* Strong top highlight */
+                inset 0 -5px 10px rgba(0, 0, 0, 0.4);    /* Strong bottom shadow */
+            transition: all 0.4s ease;
         }
         
+        .ios-card:hover .icon-squircle {
+            box-shadow: 
+                0 25px 35px -5px var(--glow),
+                0 12px 15px -6px rgba(0,0,0,0.6),
+                inset 0 4px 8px rgba(255, 255, 255, 0.9), 
+                inset 0 -6px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Diagonal Crystal Reflection */
         .icon-squircle::before {
-            /* Secondary glassy shine */
             content: '';
             position: absolute;
             inset: 0;
             border-radius: inherit;
-            background: radial-gradient(120% 100% at 50% 0%, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 50%);
+            background: linear-gradient(135deg, 
+                rgba(255,255,255,0.6) 0%, 
+                rgba(255,255,255,0.15) 35%, 
+                rgba(255,255,255,0) 45%, 
+                rgba(0,0,0,0.1) 100%);
             pointer-events: none;
+            z-index: 2;
         }
 
+        /* Glass Bevel (Outer Shell) */
         .icon-squircle::after {
-            /* Bevel border overlay */
             content: '';
             position: absolute;
             inset: 0;
             border-radius: inherit;
-            background: linear-gradient(180deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 40%, rgba(0,0,0,0.1) 100%);
-            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
             pointer-events: none;
+            z-index: 3;
         }
 
-        /* Icon Drop Shadow */
+        /* SVG Icon Inner Emboss */
         .icon-squircle svg {
-            filter: drop-shadow(0 3px 5px rgba(0,0,0,0.35));
+            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.4)) drop-shadow(0 -1px 1px rgba(255,255,255,0.5));
             position: relative;
             z-index: 10;
         }
+        
+        .app-title {
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
 
+        /* =========================================
+           PEEK PREVIEW MODAL (Hover Info)
+           ========================================= */
+        .peek-preview {
+            position: absolute;
+            bottom: 120%; /* Show above icon */
+            left: 50%;
+            transform: translateX(-50%) translateY(10px) scale(0.95);
+            background: rgba(20, 20, 22, 0.85);
+            backdrop-filter: blur(30px) saturate(150%);
+            -webkit-backdrop-filter: blur(30px) saturate(150%);
+            border: 0.5px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            width: 280px;
+            padding: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(255,255,255,0.1);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 100;
+            pointer-events: none;
+            text-align: left;
+        }
+
+        .peek-preview.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0) scale(1);
+        }
+
+        .peek-preview::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 8px;
+            border-style: solid;
+            border-color: rgba(20, 20, 22, 0.85) transparent transparent transparent;
+        }
+
+        .preview-img-container {
+            width: 100%;
+            height: 140px;
+            border-radius: 12px;
+            background: #000;
+            margin-top: 12px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 0 0 0.5px rgba(255,255,255,0.2);
+        }
+
+        .preview-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        
+        .preview-img.loaded { opacity: 1; }
+        
+        .loading-skeleton {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, #222 25%, #333 50%, #222 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="h-screen flex flex-col">
 
-    <!-- LIVE WALLPAPER CONTAINER -->
-    <div class="wallpaper-container">
-        <div class="blob blob-1"></div>
-        <div class="blob blob-2"></div>
-        <div class="blob blob-3"></div>
-    </div>
+    <!-- 3D SPACE CANVAS -->
+    <canvas id="space-canvas"></canvas>
 
     <!-- 3.A HEADER (Glassy) -->
-    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header backdrop-blur-xl shrink-0 relative z-50">
+    <header class="h-14 flex items-center justify-between px-6 glass-blur hairline-b bg-[var(--header-bg)] shrink-0 relative z-50">
         <div class="flex items-center gap-4">
             <div class="flex flex-col">
                 <div class="flex items-center gap-2">
-                    <h1 class="text-xl font-extrabold brand-gradient tracking-tight italic">TATADADA</h1>
-                    <span class="text-[9px] font-mono text-dim italic mt-1 px-1.5 py-0.5 border border-theme rounded backdrop-blur-md" id="build-time">...</span>
+                    <h1 class="text-[19px] font-extrabold brand-gradient tracking-tight italic">TATADADA</h1>
+                    <span class="text-[9px] font-mono text-dim italic mt-1 px-1.5 py-0.5 rounded shadow-[0_0_0_0.5px_var(--glass-border)] bg-white/10 backdrop-blur-md" id="build-time">...</span>
                 </div>
-                <a href="https://danial.my.id" target="_blank" class="font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 transition-colors">
+                <a href="https://danial.my.id" target="_blank" class="font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-400 transition-colors">
                     AHMADDANIAL
                 </a>
             </div>
             
-            <div class="relative help-trigger">
-                <button class="p-1 text-dim hover:text-main transition-colors">
+            <div class="relative help-trigger group">
+                <button class="p-1 text-dim hover:text-white transition-colors">
                     <i data-lucide="info" class="w-4 h-4"></i>
                 </button>
-                <div class="help-tooltip hidden absolute left-0 top-full mt-2 w-64 p-4 bg-header backdrop-blur-xl border border-theme rounded-2xl shadow-2xl text-[12px] leading-relaxed z-[100]">
+                <div class="help-tooltip hidden group-hover:block absolute left-0 top-full mt-2 w-64 p-4 glass-blur bg-[var(--header-bg)] shadow-[0_0_0_0.5px_var(--glass-border),0_10px_30px_rgba(0,0,0,0.5)] rounded-2xl text-[12px] leading-relaxed z-[100]">
                     <p id="help-text">Memuat panduan...</p>
                 </div>
             </div>
@@ -225,94 +277,83 @@
             <div class="relative hidden lg:block">
                 <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-dim"></i>
                 <input type="text" id="searchInput" 
-                    class="pl-9 pr-4 py-1.5 bg-black/5 dark:bg-white/10 border border-theme rounded-full text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-64 transition-all"
+                    class="pl-9 pr-4 py-1.5 bg-white/10 shadow-[inset_0_0_0_0.5px_var(--glass-border)] rounded-full text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 w-64 transition-all text-white placeholder-gray-400"
                     placeholder="Cari...">
             </div>
-
-            <div class="h-4 w-[1px] bg-theme mx-1"></div>
-
-            <button onclick="toggleLanguage()" class="px-2 py-1 text-dim hover:text-main transition-colors text-[10px] font-bold" id="lang-toggle">ID</button>
-            <button onclick="toggleDarkMode()" class="p-2 text-dim hover:text-main transition-colors">
-                <i data-lucide="sun" id="theme-icon-light" class="w-4 h-4 hidden"></i>
-                <i data-lucide="moon" id="theme-icon-dark" class="w-4 h-4"></i>
-            </button>
+            <div class="h-4 w-[1px] bg-white/20 mx-1"></div>
+            <button onclick="toggleLanguage()" class="px-2 py-1 text-dim hover:text-white transition-colors text-[10px] font-bold" id="lang-toggle">ID</button>
         </div>
     </header>
 
     <!-- 3.B MAIN WORKSPACE -->
-    <main class="flex-1 relative z-10 overflow-y-auto flex flex-col items-center py-8 px-4 sm:px-8">
+    <main class="flex-1 relative z-10 overflow-y-auto flex flex-col items-center py-6 px-4 sm:py-10 sm:px-8">
         
         <!-- GLASS DRAWER CONTAINER -->
-        <!-- Membatasi lebar maksimum untuk menampung pas 7 kolom (max-w-5xl) -->
         <div class="glass-drawer w-full max-w-5xl p-6 sm:p-10 lg:p-12 flex flex-col items-center">
             
-            <!-- Alphabet Filter Bar inside Drawer -->
-            <div class="w-full mb-10 pb-4 border-b border-theme flex justify-center">
+            <!-- Alphabet Filter Bar -->
+            <div class="w-full mb-10 pb-5 shadow-[0_0.5px_0_var(--glass-border)] flex justify-center">
                 <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full px-2">
-                    <button onclick="filterByLetter('ALL')" id="btn-ALL" class="alpha-btn active px-4 py-1.5 text-[11px] font-bold border border-theme rounded-full transition-all shrink-0">ALL</button>
+                    <button onclick="filterByLetter('ALL')" id="btn-ALL" class="alpha-btn active px-4 py-1.5 text-[11px] font-bold rounded-full transition-all shrink-0">ALL</button>
                     <div id="alphabet-container" class="flex gap-1.5"></div>
-                    <button onclick="filterByLetter('#')" id="btn-#" class="alpha-btn px-4 py-1.5 text-[11px] font-bold border border-theme rounded-full transition-all shrink-0">#</button>
+                    <button onclick="filterByLetter('#')" id="btn-#" class="alpha-btn px-4 py-1.5 text-[11px] font-bold shadow-[0_0_0_0.5px_var(--glass-border)] rounded-full transition-all hover:bg-white/10 shrink-0 text-white">#</button>
                 </div>
             </div>
 
             <!-- Status Loader -->
             <div id="statusMessage" class="mb-12 flex justify-center hidden w-full">
-                <div class="inline-flex items-center px-5 py-2.5 rounded-full bg-blue-500 text-white text-xs font-bold shadow-xl shadow-blue-500/30">
+                <div class="inline-flex items-center px-5 py-2.5 rounded-full bg-white/10 shadow-[0_0_0_0.5px_rgba(255,255,255,0.2)] text-white text-xs font-bold backdrop-blur-md">
                     <i data-lucide="loader" class="w-3.5 h-3.5 mr-2 animate-spin"></i>
                     <span id="loading-text">Syncing...</span>
                 </div>
             </div>
 
             <!-- Grid Apps Constraint -->
-            <!-- PEMBATASAN KOLOM: max 7 untuk layar lebar. Layar lebih kecil: 5, 4, atau 3 -->
-            <div id="appGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-12 justify-items-center w-full">
+            <div id="appGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-x-4 gap-y-12 sm:gap-x-6 sm:gap-y-14 justify-items-center w-full">
                 <!-- Cards injected here -->
             </div>
 
             <!-- Error States -->
             <div id="errorMessage" class="hidden py-24 text-center w-full">
-                <i data-lucide="cloud-off" class="w-16 h-16 text-red-500 mx-auto mb-4"></i>
-                <h2 class="text-xl font-bold" id="error-title">Terjadi Kesalahan</h2>
+                <i data-lucide="cloud-off" class="w-16 h-16 text-red-500 mx-auto mb-4 drop-shadow-md"></i>
+                <h2 class="text-xl font-bold text-white" id="error-title">Terjadi Kesalahan</h2>
                 <p class="text-dim text-sm mt-2" id="errorDetail"></p>
             </div>
-
             <div id="emptyState" class="hidden py-24 text-center w-full">
-                <i data-lucide="ghost" class="w-16 h-16 text-dim mx-auto mb-4"></i>
+                <i data-lucide="ghost" class="w-16 h-16 text-dim mx-auto mb-4 drop-shadow-md"></i>
                 <h2 class="text-xl font-bold text-dim" id="empty-title">Tidak Ditemukan</h2>
             </div>
         </div>
-        
     </main>
 
-    <!-- 3.C FOOTER (Glassy) -->
-    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer backdrop-blur-xl text-[10px] text-dim shrink-0 relative z-50">
+    <!-- 3.C FOOTER -->
+    <footer class="h-8 flex items-center justify-between px-6 glass-blur bg-[var(--header-bg)] hairline-t text-[10px] text-dim shrink-0 relative z-50">
         <div class="flex items-center gap-3">
             <div class="flex items-center gap-1.5 font-bold">
-                <span class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)]"></span>
-                <span id="system-status">ONLINE</span>
+                <span class="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]"></span>
+                <span id="system-status" class="text-white">ONLINE</span>
             </div>
             <span class="opacity-20">/</span>
             <span id="app-count" class="font-medium tracking-wide">0 APPS FOUND</span>
         </div>
-        
         <div class="flex items-center gap-4">
-            <span class="font-bold opacity-40 uppercase tracking-tighter" id="portal-version">Tatadada Engine v2.9</span>
-            <button onclick="toggleModal(true)" class="hover:text-blue-500 font-bold transition-colors cursor-pointer">TERMS</button>
+            <span class="font-bold opacity-40 uppercase tracking-tighter" id="portal-version">Tatadada Space Engine v4.0</span>
+            <button onclick="toggleModal(true)" class="hover:text-blue-400 font-bold transition-colors cursor-pointer">TERMS</button>
         </div>
     </footer>
 
     <!-- 3.D MODAL -->
-    <div id="termsModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-md hidden">
-        <div class="bg-header border border-theme rounded-[40px] shadow-2xl max-w-sm w-full overflow-hidden transition-all scale-95 opacity-0" id="modalContainer">
+    <div id="termsModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md hidden">
+        <div class="glass-blur bg-[var(--drawer-bg)] shadow-[0_0_0_0.5px_var(--glass-border),0_25px_50px_rgba(0,0,0,0.8)] rounded-[40px] max-w-sm w-full overflow-hidden transition-all scale-95 opacity-0" id="modalContainer">
             <div class="p-10 text-center">
-                <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center text-white mx-auto mb-6 shadow-lg shadow-blue-500/40">
-                    <i data-lucide="shield-check" class="w-8 h-8"></i>
+                <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center text-white mx-auto mb-6 shadow-[0_10px_20px_rgba(0,122,255,0.4),inset_0_2px_4px_rgba(255,255,255,0.6)]">
+                    <i data-lucide="shield-check" class="w-8 h-8 drop-shadow-md"></i>
                 </div>
-                <h3 class="text-xl font-extrabold mb-4 text-main">Legal Notice</h3>
-                <div class="text-[13px] leading-relaxed text-dim text-center space-y-4" id="terms-content"></div>
+                <h3 class="text-xl font-extrabold mb-4 text-white">Legal Notice</h3>
+                <div class="text-[13px] leading-relaxed text-dim text-center space-y-4 font-medium" id="terms-content"></div>
             </div>
-            <div class="p-6 border-t border-theme bg-black/5 dark:bg-white/5">
-                <button onclick="toggleModal(false)" class="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-2xl transition-all shadow-lg shadow-blue-500/20 active:scale-95">
+            <div class="p-6 hairline-t bg-white/5">
+                <button onclick="toggleModal(false)" class="w-full py-4 bg-white/10 hover:bg-white/20 text-white text-sm font-bold rounded-2xl transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] active:scale-95">
                     UNDERSTOOD
                 </button>
             </div>
@@ -320,6 +361,156 @@
     </div>
 
     <script>
+        // ==========================================
+        // 1. THREE.JS 3D SPACE BACKGROUND LOGIC
+        // ==========================================
+        function initSpaceBackground() {
+            const canvas = document.getElementById('space-canvas');
+            const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Retina optimization
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x020205); // Deep space black
+            
+            const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 20;
+
+            const textureLoader = new THREE.TextureLoader();
+
+            // Earth setup
+            const earthGroup = new THREE.Group();
+            scene.add(earthGroup);
+            
+            // Positioning Earth elegantly to the bottom right
+            earthGroup.position.set(6, -4, -5);
+            if(window.innerWidth < 768) earthGroup.position.set(0, -8, -10); // Adjust for mobile
+
+            const earthGeo = new THREE.SphereGeometry(6, 64, 64);
+            // Use reliable texture URLs (from unpkg three-globe or procedural fallback if fails)
+            const earthMat = new THREE.MeshStandardMaterial({
+                map: textureLoader.load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'),
+                bumpMap: textureLoader.load('https://unpkg.com/three-globe/example/img/earth-topology.png'),
+                bumpScale: 0.05,
+                roughness: 0.6,
+                metalness: 0.1
+            });
+            const earth = new THREE.Mesh(earthGeo, earthMat);
+            earthGroup.add(earth);
+
+            // Cloud Layer
+            const cloudGeo = new THREE.SphereGeometry(6.05, 64, 64);
+            const cloudMat = new THREE.MeshStandardMaterial({
+                map: textureLoader.load('https://unpkg.com/three-globe/example/img/earth-water.png'), // using water map as cloud mask trick for aesthetics
+                transparent: true,
+                opacity: 0.3,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide
+            });
+            const clouds = new THREE.Mesh(cloudGeo, cloudMat);
+            earthGroup.add(clouds);
+
+            // Moon setup (Proportional distance & size visually)
+            const moonGeo = new THREE.SphereGeometry(1.2, 32, 32);
+            const moonMat = new THREE.MeshStandardMaterial({
+                color: 0xaaaaaa,
+                roughness: 0.8,
+                bumpScale: 0.02
+            });
+            const moon = new THREE.Mesh(moonGeo, moonMat);
+            scene.add(moon);
+
+            // Starfield (Galaxies & Nebula vibes)
+            const starsGeo = new THREE.BufferGeometry();
+            const starsCount = 3000;
+            const posArray = new Float32Array(starsCount * 3);
+            const colorArray = new Float32Array(starsCount * 3);
+
+            for(let i=0; i < starsCount * 3; i+=3) {
+                // Spherical distribution
+                const r = 40 + Math.random() * 60;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                
+                posArray[i] = r * Math.sin(phi) * Math.cos(theta);
+                posArray[i+1] = r * Math.sin(phi) * Math.sin(theta);
+                posArray[i+2] = r * Math.cos(phi);
+
+                // Nebula coloring (mix of white, blue, purple, pink)
+                const rand = Math.random();
+                let color = new THREE.Color();
+                if(rand > 0.8) color.setHex(0x5581ff); // blue
+                else if(rand > 0.6) color.setHex(0xff2a6d); // pink
+                else if(rand > 0.4) color.setHex(0x8a2be2); // purple
+                else color.setHex(0xffffff); // white
+                
+                colorArray[i] = color.r;
+                colorArray[i+1] = color.g;
+                colorArray[i+2] = color.b;
+            }
+            starsGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            starsGeo.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+            
+            const starsMat = new THREE.PointsMaterial({
+                size: 0.1,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8
+            });
+            const starMesh = new THREE.Points(starsGeo, starsMat);
+            scene.add(starMesh);
+
+            // Sleek Lighting (Creating a dramatic crescent)
+            const ambientLight = new THREE.AmbientLight(0x111122, 0.5); // Dim blueish ambient
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.DirectionalLight(0xffffff, 2);
+            sunLight.position.set(-15, 5, 5); // Sun coming from left
+            scene.add(sunLight);
+            
+            const rimLight = new THREE.DirectionalLight(0x5581ff, 1);
+            rimLight.position.set(10, -10, -10); // Blue rim light for depth
+            scene.add(rimLight);
+
+            // Animation Loop
+            let time = 0;
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                // Earth rotation
+                earth.rotation.y += 0.001;
+                clouds.rotation.y += 0.0012;
+                clouds.rotation.z += 0.0001;
+                
+                // Moon orbit
+                time += 0.002;
+                const moonOrbitRadius = 18;
+                moon.position.x = earthGroup.position.x + Math.cos(time) * moonOrbitRadius;
+                moon.position.z = earthGroup.position.z + Math.sin(time) * moonOrbitRadius;
+                moon.position.y = earthGroup.position.y + Math.sin(time * 0.5) * 4;
+                moon.rotation.y += 0.005;
+
+                // Slow starfield rotation
+                starMesh.rotation.y -= 0.0002;
+                starMesh.rotation.x -= 0.0001;
+
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            // Handle Resize
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                if(window.innerWidth < 768) earthGroup.position.set(0, -8, -10);
+                else earthGroup.position.set(6, -4, -5);
+            });
+        }
+
+        // ==========================================
+        // 2. CONFIG & APP LOGIC
+        // ==========================================
         const REPO_OWNER = 'ibnuyahya';
         const REPO_NAME = 'tatadada';
         const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/`;
@@ -333,46 +524,39 @@
         
         const i18n = {
             ID: {
-                help: "Portal pusat aplikasi Tatadada. Setiap ikon dihasilkan secara unik berdasarkan nama folder. Klik untuk meluncurkan.",
-                loading: "Sinkronisasi...",
+                help: "Setiap ikon dihasilkan secara unik. Tahan kursor (hover) di atas ikon selama 1 detik untuk melihat detail dan cuplikan aplikasi.",
+                loading: "Sinkronisasi Data...",
                 search: "Cari aplikasi...",
                 error: "Gagal memuat",
                 empty: "Tidak ditemukan",
                 apps: "APLIKASI",
                 status: "AKTIF",
                 build: "Update",
-                terms: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is'. Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini."
+                terms: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is'. Pembuatan aplikasi dibantu oleh AI. Pembuat dibebaskan dari segala bentuk konsekuensi atas penggunaan aplikasi ini."
             },
             EN: {
-                help: "Tatadada central portal. Each icon is uniquely generated based on the folder name. Click to launch.",
-                loading: "Syncing data...",
+                help: "Each icon is uniquely generated. Hover over an icon for 1 second to see details and a live screenshot preview.",
+                loading: "Syncing Data...",
                 search: "Search apps...",
                 error: "Load failed",
                 empty: "No apps found",
                 apps: "APPS",
                 status: "ONLINE",
                 build: "Build",
-                terms: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app."
+                terms: "There is no coercion to use this app. This app is provided 'as-is'. The development was assisted by AI. The creator is absolved from any consequences arising from the use of this app."
             }
         };
 
-        // DETERMINISTIC HASHING (GRAVATAR STYLE)
         function getHash(str) {
             let hash = 0;
             for (let i = 0; i < str.length; i++) {
-                const char = str.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
                 hash = hash & hash;
             }
             return Math.abs(hash);
         }
 
-        const premiumGradients = [
-            'mesh-0', 'mesh-1', 'mesh-2', 'mesh-3', 
-            'mesh-4', 'mesh-5', 'mesh-6', 'mesh-7',
-            'mesh-8', 'mesh-9'
-        ];
-
+        const premiumGradients = ['mesh-0', 'mesh-1', 'mesh-2', 'mesh-3', 'mesh-4', 'mesh-5', 'mesh-6', 'mesh-7'];
         const premiumIcons = [
             'rocket', 'zap', 'box', 'layout', 'palette', 'cpu', 'database', 
             'globe', 'image', 'layers', 'package', 'settings', 'shield', 
@@ -381,23 +565,96 @@
 
         function getFancyIcon(name) {
             const hash = getHash(name.toLowerCase());
-            const gradIndex = hash % premiumGradients.length;
-            const iconIndex = hash % premiumIcons.length;
-
-            return {
-                grad: premiumGradients[gradIndex],
-                icon: premiumIcons[iconIndex]
-            };
+            return { grad: premiumGradients[hash % premiumGradients.length], icon: premiumIcons[hash % premiumIcons.length] };
         }
 
-        // CORE FUNCTIONS
+        // ==========================================
+        // 3. HOVER PEEK PREVIEW LOGIC
+        // ==========================================
+        let peekTimer = null;
+        
+        function setupHoverPreview(cardElement, appInfo) {
+            cardElement.addEventListener('mouseenter', () => {
+                peekTimer = setTimeout(() => showPeekPreview(cardElement, appInfo), 1000);
+            });
+            
+            cardElement.addEventListener('mouseleave', () => {
+                clearTimeout(peekTimer);
+                hidePeekPreview();
+            });
+        }
+
+        function showPeekPreview(card, app) {
+            let peekEl = document.getElementById('peekPreviewEl');
+            if (!peekEl) {
+                peekEl = document.createElement('div');
+                peekEl.id = 'peekPreviewEl';
+                peekEl.className = 'peek-preview';
+                document.body.appendChild(peekEl);
+            }
+
+            // Get Position relative to viewport
+            const rect = card.getBoundingClientRect();
+            peekEl.style.left = `${rect.left + (rect.width / 2)}px`;
+            peekEl.style.top = `${rect.top - 200}px`; // Position above
+
+            const t_update = currentLang === 'ID' ? 'Memeriksa...' : 'Checking...';
+            
+            peekEl.innerHTML = `
+                <div class="flex items-center gap-3 border-b border-white/10 pb-3 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white shadow-inner">
+                        <i data-lucide="${getFancyIcon(app.name).icon}" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-bold text-sm leading-tight">${app.title}</h4>
+                        <p class="text-xs text-dim font-mono mt-0.5">/${app.name}</p>
+                    </div>
+                </div>
+                <div class="text-[11px] text-dim space-y-1">
+                    <div class="flex justify-between"><span class="opacity-60">Version</span> <span class="text-white">v1.0.0</span></div>
+                    <div class="flex justify-between"><span class="opacity-60">Updated</span> <span id="peek-date-${app.name}" class="text-white">${t_update}</span></div>
+                </div>
+                <div class="preview-img-container">
+                    <div class="loading-skeleton"></div>
+                    <img src="https://image.thum.io/get/width/400/crop/600/noanimate/${app.url}" class="preview-img" onload="this.classList.add('loaded')" onerror="this.style.display='none'">
+                </div>
+            `;
+            
+            lucide.createIcons();
+            peekEl.classList.add('active');
+
+            // Fetch actual last commit date asynchronously
+            fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits?path=${app.name}&per_page=1`)
+                .then(res => res.json())
+                .then(data => {
+                    const dateEl = document.getElementById(`peek-date-${app.name}`);
+                    if(dateEl && data.length > 0) {
+                        const date = new Date(data[0].commit.author.date);
+                        dateEl.textContent = date.toLocaleDateString(currentLang === 'ID' ? 'id-ID' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+                    } else if (dateEl) {
+                        dateEl.textContent = "Unknown";
+                    }
+                }).catch(() => {
+                    const dateEl = document.getElementById(`peek-date-${app.name}`);
+                    if(dateEl) dateEl.textContent = "Offline";
+                });
+        }
+
+        function hidePeekPreview() {
+            const peekEl = document.getElementById('peekPreviewEl');
+            if (peekEl) peekEl.classList.remove('active');
+        }
+
+        // ==========================================
+        // 4. UI BUILDER LOGIC
+        // ==========================================
         function generateAlphabet() {
             const container = document.getElementById('alphabet-container');
             const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
             letters.forEach(l => {
                 const btn = document.createElement('button');
                 btn.id = `btn-${l}`;
-                btn.className = "alpha-btn px-4 py-1.5 text-[11px] font-bold border border-theme rounded-full transition-all hover:bg-black/5 dark:hover:bg-white/10 shrink-0";
+                btn.className = "alpha-btn px-4 py-1.5 text-[11px] font-bold shadow-[0_0_0_0.5px_var(--glass-border)] rounded-full transition-all hover:bg-white/10 shrink-0 text-white";
                 btn.textContent = l;
                 btn.onclick = () => filterByLetter(l);
                 container.appendChild(btn);
@@ -406,8 +663,13 @@
 
         function filterByLetter(letter) {
             currentLetter = letter;
-            document.querySelectorAll('.alpha-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(`btn-${letter}`).classList.add('active');
+            document.querySelectorAll('.alpha-btn').forEach(b => {
+                b.classList.remove('active');
+                if(b.id !== 'btn-ALL' && b.id !== 'btn-#') b.classList.add('shadow-[0_0_0_0.5px_var(--glass-border)]');
+            });
+            const activeBtn = document.getElementById(`btn-${letter}`);
+            activeBtn.classList.add('active');
+            activeBtn.classList.remove('shadow-[0_0_0_0.5px_var(--glass-border)]');
             applyFilters();
         }
 
@@ -443,25 +705,12 @@
             fetchRepoInfo(); 
         }
 
-        function toggleDarkMode() {
-            const isDark = document.documentElement.classList.toggle('dark');
-            localStorage.setItem('tatadada_theme', isDark ? 'dark' : 'light');
-            updateThemeIcons(isDark);
-        }
-
-        function updateThemeIcons(isDark) {
-            document.getElementById('theme-icon-light').classList.toggle('hidden', !isDark);
-            document.getElementById('theme-icon-dark').classList.toggle('hidden', isDark);
-        }
-
         function toggleModal(show) {
             const modal = document.getElementById('termsModal');
             const container = document.getElementById('modalContainer');
             if(show) {
                 modal.classList.remove('hidden');
-                setTimeout(() => {
-                    container.classList.remove('scale-95', 'opacity-0');
-                }, 10);
+                setTimeout(() => container.classList.remove('scale-95', 'opacity-0'), 10);
             } else {
                 container.classList.add('scale-95', 'opacity-0');
                 setTimeout(() => modal.classList.add('hidden'), 300);
@@ -524,29 +773,29 @@
                 const card = document.createElement('a');
                 card.href = app.url;
                 card.target = "_blank";
-                
-                // Explicitly set width to keep icons compact and clustered
-                card.className = 'ios-card group flex flex-col items-center gap-2 w-[72px] md:w-24';
+                card.className = 'ios-card group flex flex-col items-center gap-2.5 w-[76px] md:w-[100px] cursor-pointer';
                 
                 card.innerHTML = `
-                    <div class="w-full aspect-square icon-squircle ${config.grad} text-white group-hover:scale-105 group-hover:-translate-y-1">
-                        <i data-lucide="${config.icon}" class="w-8 h-8 md:w-11 md:h-11"></i>
+                    <div class="w-full aspect-square icon-squircle ${config.grad} text-white">
+                        <i data-lucide="${config.icon}" class="w-[45%] h-[45%]"></i>
                     </div>
-                    <h3 class="text-[10px] md:text-[13px] font-semibold text-main tracking-tight leading-tight group-hover:text-blue-500 transition-colors line-clamp-2 w-full text-center mt-1 break-words px-1 drop-shadow-sm">
+                    <h3 class="app-title text-[11px] md:text-[13px] font-semibold text-white tracking-tight leading-tight group-hover:text-blue-400 transition-colors line-clamp-2 w-full text-center px-1">
                         ${app.title}
                     </h3>
                 `;
                 appGrid.appendChild(card);
+                
+                // Attach Hover Preview Logic
+                setupHoverPreview(card, app);
             });
             lucide.createIcons();
         }
 
-        // INITIALIZE
+        // ==========================================
+        // 5. INITIALIZATION
+        // ==========================================
         window.onload = () => {
-            if (localStorage.getItem('tatadada_theme') === 'dark') {
-                document.documentElement.classList.add('dark');
-                updateThemeIcons(true);
-            }
+            initSpaceBackground(); // Start 3D rendering
             generateAlphabet();
             document.getElementById('searchInput').addEventListener('input', (e) => {
                 currentSearch = e.target.value.toLowerCase();
@@ -556,6 +805,9 @@
             fetchRepoInfo();
             fetchApps();
             lucide.createIcons();
+            
+            // Hide preview if scrolling main area
+            document.querySelector('main').addEventListener('scroll', hidePeekPreview);
         };
     </script>
 </body>
