@@ -16,12 +16,13 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <!-- PDF Libraries & Cryptography & QR Scanner -->
+    <!-- PDF Libraries & Cryptography & QR Scanner & OCR -->
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
     <!-- TATADADA Framework Styles -->
     <style>
@@ -91,10 +92,18 @@
         .drag-over { border-color: #ef4444 !important; background-color: var(--stripe-color) !important; }
         .dragging { opacity: 0.5; }
 
-        /* Custom Scrollbar for Logs */
+        /* Custom Scrollbar for Logs & Textarea */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+        /* Textarea Editor Settings */
+        textarea.tata-editor {
+            font-family: 'JetBrains Mono', monospace;
+            white-space: pre-wrap; /* allow wrap for OCR text */
+            line-height: 1.6;
+            resize: none;
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col text-main bg-preview font-sans overflow-hidden">
@@ -106,7 +115,7 @@
             <div class="flex flex-col justify-center">
                 <div class="flex items-baseline gap-1.5">
                     <span class="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent font-extrabold text-sm tracking-tight">AkuCintaPDF</span>
-                    <span class="text-[10px] font-mono text-dim italic">v1.8-Vanilla</span>
+                    <span class="text-[10px] font-mono text-dim italic">v1.9-Vanilla</span>
                     <div class="relative group ml-1 flex items-center cursor-help">
                         <i data-lucide="help-circle" class="w-3 h-3 text-dim hover:text-main transition-colors"></i>
                         <div class="absolute left-0 top-full mt-2 w-64 p-2.5 bg-editor border border-theme text-main text-[10px] rounded-lg shadow-xl whitespace-normal leading-relaxed opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[60]" data-i18n="helpTooltip"></div>
@@ -125,15 +134,16 @@
     </header>
 
     <!-- MAIN WORKSPACE -->
-    <main class="flex-1 relative overflow-auto p-6 bg-preview" id="main-workspace">
+    <main class="flex-1 relative overflow-auto p-2 md:p-6 bg-preview" id="main-workspace">
         
         <!-- ================= VIEW: HOME ================= -->
-        <div id="view-home" class="view-section active max-w-5xl mx-auto">
-            <div class="text-center mb-12">
-                <h1 class="text-4xl font-extrabold text-main mb-4 tracking-tight">AkuCinta<span class="text-red-600">PDF</span></h1>
-                <p class="text-lg text-dim max-w-2xl mx-auto" data-i18n="appDesc"></p>
+        <div id="view-home" class="view-section active max-w-6xl mx-auto">
+            <div class="text-center mb-10">
+                <h1 class="text-4xl font-extrabold text-main mb-3 tracking-tight">AkuCinta<span class="text-red-600">PDF</span></h1>
+                <p class="text-sm md:text-base text-dim max-w-2xl mx-auto" data-i18n="appDesc"></p>
             </div>
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4" id="home-menu-grid">
+            <!-- Grid Diperkecil agar muat 11 fitur -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3" id="home-menu-grid">
                 <!-- Injected via JS -->
             </div>
         </div>
@@ -587,7 +597,124 @@
             </div>
         </div>
 
-        <!-- Modal Merge Select Pages -->
+        <!-- ================= VIEW: OCR PDF ================= -->
+        <div id="view-ocr" class="view-section max-w-[1400px] mx-auto">
+            <button onclick="switchView('home')" class="flex items-center text-dim hover:text-red-500 mb-6 font-medium transition-colors"><i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> <span data-i18n="backHome"></span></button>
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-main flex items-center mb-2"><i data-lucide="scan-text" class="w-6 h-6 mr-3 text-red-600"></i> <span data-i18n="ocrTitle"></span></h2>
+                <p class="text-dim text-sm" data-i18n="ocrDesc"></p>
+            </div>
+            
+            <div id="ocr-upload-box" class="bg-editor p-6 rounded-xl border border-theme">
+                <label class="border-2 border-dashed border-theme rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--stripe-color)] transition-colors">
+                    <i data-lucide="upload-cloud" class="w-10 h-10 text-dim mb-3"></i>
+                    <span class="text-base font-medium text-main mb-1" data-i18n="uploadPrompt"></span>
+                    <input type="file" accept="application/pdf" class="hidden" id="ocr-input">
+                </label>
+            </div>
+
+            <div id="ocr-active-box" class="space-y-5 hidden h-[70vh] min-h-[500px] flex flex-col">
+                <div class="flex items-center justify-between bg-preview p-4 rounded-lg border border-theme shrink-0">
+                    <div class="flex items-center">
+                        <i data-lucide="file-text" class="w-6 h-6 text-red-500 mr-3"></i>
+                        <div class="min-w-0">
+                            <h3 class="font-semibold text-main text-sm truncate" id="ocr-filename"></h3>
+                            <p class="text-xs text-dim mt-0.5" id="ocr-filesize"></p>
+                        </div>
+                    </div>
+                    <button onclick="OcrModule.reset()" class="text-xs text-red-600 hover:text-red-500 font-medium whitespace-nowrap shrink-0" data-i18n="replaceFile"></button>
+                </div>
+
+                <div class="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+                    <!-- Left: PDF Preview -->
+                    <div class="w-full lg:w-1/2 flex flex-col bg-editor border border-theme rounded-xl overflow-hidden shadow-sm h-full">
+                        <div class="bg-[var(--freeze-bg-even)] border-b border-theme p-3 flex justify-between items-center shrink-0">
+                            <span class="text-sm font-bold text-main" data-i18n="preview"></span>
+                            <div class="flex items-center gap-2 bg-preview border border-theme rounded-md p-1">
+                                <button onclick="OcrModule.changePage(-1)" class="p-1 hover:bg-editor rounded text-dim hover:text-main"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                                <span class="text-xs font-mono font-bold w-16 text-center"><span id="ocr-current-page">1</span> / <span id="ocr-total-pages">1</span></span>
+                                <button onclick="OcrModule.changePage(1)" class="p-1 hover:bg-editor rounded text-dim hover:text-main"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                            </div>
+                        </div>
+                        <div class="flex-1 bg-preview p-4 overflow-auto custom-scrollbar flex justify-center items-center">
+                            <canvas id="ocr-canvas" class="max-w-full h-auto shadow-md border border-theme bg-white"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Right: OCR Output & Controls -->
+                    <div class="w-full lg:w-1/2 flex flex-col gap-4 h-full">
+                        <div class="flex gap-3 shrink-0">
+                            <select id="ocr-lang-select" class="tata-input p-3 rounded-lg text-sm flex-1 font-medium">
+                                <option value="eng">English</option>
+                                <option value="ind">Indonesian</option>
+                                <option value="eng+ind">English + Indonesian</option>
+                            </select>
+                            <button id="btn-process-ocr" class="bg-red-600 hover:bg-red-700 text-white px-5 py-3 rounded-lg font-bold text-sm shadow-sm transition-colors flex items-center shrink-0">
+                                <i data-lucide="scan-text" class="w-4 h-4 mr-2"></i> <span data-i18n="ocr_scanBtn"></span>
+                            </button>
+                        </div>
+                        
+                        <div id="ocr-msg"></div>
+                        
+                        <div class="flex-1 flex flex-col border border-theme rounded-xl overflow-hidden bg-editor shadow-sm min-h-[200px]">
+                            <div class="bg-[var(--freeze-bg-even)] border-b border-theme p-3 flex justify-between items-center shrink-0">
+                                <span class="text-sm font-bold text-main" data-i18n="ocr_result"></span>
+                                <button onclick="OcrModule.copyText()" class="text-xs text-dim hover:text-main font-medium flex items-center"><i data-lucide="copy" class="w-3.5 h-3.5 mr-1"></i> <span data-i18n="url_copy"></span></button>
+                            </div>
+                            <textarea id="ocr-textarea" class="tata-editor flex-1 w-full p-4 bg-transparent border-none text-sm text-main custom-scrollbar outline-none" placeholder="Teks akan muncul di sini..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= VIEW: EXTRACT URL ================= -->
+        <div id="view-extract-url" class="view-section max-w-4xl mx-auto">
+            <button onclick="switchView('home')" class="flex items-center text-dim hover:text-red-500 mb-6 font-medium transition-colors"><i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> <span data-i18n="backHome"></span></button>
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-main flex items-center mb-2"><i data-lucide="link-2" class="w-6 h-6 mr-3 text-red-600"></i> <span data-i18n="urlTitle"></span></h2>
+                <p class="text-dim text-sm" data-i18n="urlDesc"></p>
+            </div>
+            
+            <div id="url-upload-box" class="bg-editor p-6 rounded-xl border border-theme">
+                <label class="border-2 border-dashed border-theme rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--stripe-color)] transition-colors">
+                    <i data-lucide="upload-cloud" class="w-10 h-10 text-dim mb-3"></i>
+                    <span class="text-base font-medium text-main mb-1" data-i18n="uploadPrompt"></span>
+                    <input type="file" accept="application/pdf" class="hidden" id="url-input">
+                </label>
+            </div>
+
+            <div id="url-active-box" class="space-y-5 hidden">
+                <div class="flex items-center justify-between bg-preview p-4 rounded-lg border border-theme">
+                    <div class="flex items-center">
+                        <i data-lucide="file-text" class="w-6 h-6 text-red-500 mr-3"></i>
+                        <div class="min-w-0">
+                            <h3 class="font-semibold text-main text-sm truncate" id="url-filename"></h3>
+                            <p class="text-xs text-dim mt-0.5" id="url-filesize"></p>
+                        </div>
+                    </div>
+                    <button onclick="UrlModule.reset()" class="text-xs text-red-600 hover:text-red-500 font-medium whitespace-nowrap shrink-0" data-i18n="replaceFile"></button>
+                </div>
+
+                <button id="btn-process-url" class="w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all bg-red-600 text-white hover:bg-red-700 shadow-sm">
+                    <i data-lucide="search" class="w-4 h-4 mr-2"></i> <span data-i18n="url_extractBtn"></span>
+                </button>
+                
+                <div id="url-msg"></div>
+
+                <div id="url-result-box" class="hidden border border-theme rounded-xl overflow-hidden bg-editor shadow-sm">
+                    <div class="bg-[var(--freeze-bg-even)] border-b border-theme p-4 flex justify-between items-center">
+                        <span class="text-sm font-bold text-main">Daftar Tautan (<span id="url-count">0</span>)</span>
+                        <button onclick="UrlModule.copyAll()" class="text-xs bg-editor border border-theme shadow-sm px-3 py-1.5 rounded text-main hover:border-red-400 font-medium flex items-center"><i data-lucide="copy" class="w-3.5 h-3.5 mr-1.5"></i> <span data-i18n="url_copy"></span></button>
+                    </div>
+                    <div class="max-h-[300px] overflow-y-auto p-4 custom-scrollbar bg-preview">
+                        <ul id="url-list" class="space-y-2 font-mono text-[11px] sm:text-xs"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Merge Select Pages (Existing) -->
         <div id="modal-merge" class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 hidden">
             <div class="bg-editor border border-theme rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden">
                 <div class="px-5 py-4 border-b border-theme flex justify-between items-center bg-header">
@@ -660,6 +787,8 @@
                 reformatTitle: "Ubah Ukuran Kertas", reformatDesc: "Deteksi dan ubah ukuran semua halaman PDF ke format standar (A4, Letter, dll).",
                 watermarkTitle: "Watermark PDF", watermarkDesc: "Tambahkan cap air (watermark) teks ke dokumen PDF Anda.",
                 infoTitle: "Info PDF", infoDesc: "Lihat metadata, memverifikasi tanda tangan elektronik PAdES (BSrE), & melihat pratinjau halaman dengan QR.",
+                ocrTitle: "OCR PDF", ocrDesc: "Ekstrak teks dari gambar/dokumen pindaian (scan) menggunakan Kecerdasan Buatan (AI).",
+                urlTitle: "Ekstrak URL", urlDesc: "Kumpulkan semua tautan/link yang ada di dalam seluruh halaman dokumen PDF.",
                 
                 backHome: "Kembali ke Beranda", uploadPrompt: "Pilih File PDF", uploadOr: "atau tarik dan lepas ke sini",
                 mergeNow: "Gabungkan PDF Sekarang", selectPages: "Pilih Halaman", selectAll: "Pilih Semua", clearSelection: "Hapus Pilihan", done: "Selesai",
@@ -698,6 +827,9 @@
                 meta_signature: "Tanda Tangan Digital", meta_signed: "Tandatangan Terdeteksi", meta_unsigned: "Tidak Ada",
                 meta_fonts: "Estimasi Jumlah Font", meta_images: "Estimasi Jumlah Gambar",
 
+                ocr_scanBtn: "Pindai OCR Halaman Ini", ocr_result: "Hasil Ekstraksi Teks",
+                url_extractBtn: "Ekstrak Semua Tautan", url_empty: "Tidak ada tautan ditemukan.", url_copy: "Salin",
+
                 termsBtn: "Terms of Use", termsTitle: "Syarat & Ketentuan Penggunaan", closeBtn: "Tutup",
                 termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini."
             },
@@ -713,6 +845,8 @@
                 reformatTitle: "Reformat Size", reformatDesc: "Detect and change the size of all PDF pages to standard formats (A4, Letter, etc).",
                 watermarkTitle: "Watermark PDF", watermarkDesc: "Add a text watermark to your PDF document.",
                 infoTitle: "PDF Info", infoDesc: "View metadata, verify PAdES electronic signatures (BSrE), & preview pages with QR.",
+                ocrTitle: "OCR PDF", ocrDesc: "Extract text from scanned images/documents using Artificial Intelligence (AI).",
+                urlTitle: "Extract URLs", urlDesc: "Gather all hyperlinks embedded within the entire PDF document pages.",
                 
                 backHome: "Back to Home", uploadPrompt: "Select PDF File", uploadOr: "or drag and drop here",
                 mergeNow: "Merge PDF Now", selectPages: "Select Pages", selectAll: "Select All", clearSelection: "Clear Selection", done: "Done",
@@ -750,6 +884,9 @@
                 meta_keywords: "Keywords", meta_linearized: "Fast Web View (Linearized)", 
                 meta_signature: "Digital Signature", meta_signed: "Signature Detected", meta_unsigned: "None",
                 meta_fonts: "Estimated Fonts", meta_images: "Estimated Images",
+
+                ocr_scanBtn: "Scan OCR on this Page", ocr_result: "Extracted Text Result",
+                url_extractBtn: "Extract All Links", url_empty: "No links found.", url_copy: "Copy",
 
                 termsBtn: "Terms of Use", termsTitle: "Terms & Conditions", closeBtn: "Close",
                 termsText: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app."
@@ -802,6 +939,7 @@
             document.getElementById('btnToggleLang').innerHTML = lang === 'id' ? '🇮🇩 ID' : '🇬🇧 EN';
             buildHomeGrid(); 
             if(document.getElementById('view-info').classList.contains('active')) InfoModule.render();
+            if(document.getElementById('view-ocr').classList.contains('active')) OcrModule.render();
         }
 
         function toggleTheme() {
@@ -819,7 +957,7 @@
             if (viewId === 'home') {
                 InfoModule.reset(); MergeModule.reset(); SplitModule.reset(); ArrangeModule.reset();
                 RotateModule.reset(); CompressModule.reset(); PngModule.reset();
-                ReformatModule.reset(); WatermarkModule.reset();
+                ReformatModule.reset(); WatermarkModule.reset(); OcrModule.reset(); UrlModule.reset();
             }
         }
 
@@ -906,7 +1044,9 @@
             { id: 'compress', icon: 'minimize', keyTitle: 'compressTitle', keyDesc: 'compressDesc' },
             { id: 'pdftopng', icon: 'image', keyTitle: 'pdfToPngTitle', keyDesc: 'pdfToPngDesc' },
             { id: 'reformat', icon: 'frame', keyTitle: 'reformatTitle', keyDesc: 'reformatDesc' },
-            { id: 'watermark', icon: 'stamp', keyTitle: 'watermarkTitle', keyDesc: 'watermarkDesc' }
+            { id: 'watermark', icon: 'stamp', keyTitle: 'watermarkTitle', keyDesc: 'watermarkDesc' },
+            { id: 'ocr', icon: 'scan-text', keyTitle: 'ocrTitle', keyDesc: 'ocrDesc' },
+            { id: 'extract-url', icon: 'link-2', keyTitle: 'urlTitle', keyDesc: 'urlDesc' }
         ];
 
         function buildHomeGrid() {
@@ -917,7 +1057,7 @@
                         <i data-lucide="${tool.icon}" class="w-6 h-6 text-red-600"></i>
                     </div>
                     <h2 class="text-sm font-bold text-main mb-1.5">${t(tool.keyTitle)}</h2>
-                    <p class="text-dim text-[11px] leading-relaxed hidden sm:block">${t(tool.keyDesc)}</p>
+                    <p class="text-dim text-[11px] leading-relaxed hidden md:block">${t(tool.keyDesc)}</p>
                 </div>
             `).join('');
             lucide.createIcons();
@@ -1091,13 +1231,70 @@
             async processFile(file) {
                 try {
                     const arrayBuffer = await file.arrayBuffer();
+                    let rawString = '';
                     
-                    // 1. Ekstrak Signatures via Node-Forge
-                    try {
-                        this.signatures = await this.extractSignatures(arrayBuffer.slice(0));
-                    } catch(e) { this.signatures = []; }
+                    if (file.size < 30 * 1024 * 1024) { 
+                        const uint8Array = new Uint8Array(arrayBuffer);
+                        rawString = new TextDecoder('latin1').decode(uint8Array);
+                    }
 
-                    // 2. Membaca Standard Meta & Render via PDF.JS
+                    const isLinearized = rawString ? rawString.slice(0, 1024).includes('/Linearized') : false;
+                    const fontCount = rawString ? (rawString.match(/\/Type\s*\/Font\b/g) || []).length : 0;
+                    const imageCount = rawString ? (rawString.match(/\/Subtype\s*\/Image\b/g) || []).length : 0;
+
+                    let signatureText = t('meta_unsigned');
+                    
+                    const sigResult = await parseDigitalSignature(file);
+                    
+                    if (sigResult.success && sigResult.signatures.length > 0) {
+                        let sigDetails = [];
+                        sigResult.signatures.forEach(sig => {
+                            const human = sig.humanReadableValues;
+                            const issuer = sig.issuer || {};
+                            
+                            let finalName = human.CommonName || human.CN || "Unknown Signer";
+                            let label = `👤 <b class="text-main">${finalName}</b>`;
+                            
+                            let badges = [];
+                            const org = human.Organization || human.O || "";
+                            const issuerOrg = issuer.Organization || issuer.O || "";
+                            
+                            if (issuerOrg.includes('BSrE') || issuerOrg.includes('Balai Besar Sertifikasi Elektronik') || rawString.includes('BSrE')) {
+                                badges.push("BSrE Verified");
+                            }
+                            if (org.includes('Universitas Indonesia') || finalName.includes('Universitas Indonesia')) {
+                                badges.push("Universitas Indonesia");
+                            }
+                            
+                            if (badges.length > 0) {
+                                label += ` <span class="inline-block text-[9px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded ml-1 align-middle">${badges.join(' | ')}</span>`;
+                            }
+                            
+                            let extras = [];
+                            Object.keys(human).forEach(k => {
+                                if (k !== 'CommonName' && k !== 'CN') { 
+                                     let val = human[k];
+                                     if (typeof val === 'string') {
+                                         val = val.replace(/[\x00-\x1F\x7F-\x9F]/g, ""); 
+                                         extras.push(`<span class="text-[11px] text-dim break-all"><b class="font-semibold">${k}:</b> ${val}</span>`);
+                                     }
+                                }
+                            });
+                            
+                            if (extras.length > 0) {
+                                label += `<br><div class="mt-1 flex flex-col gap-0.5">${extras.join('')}</div>`;
+                            }
+                            
+                            sigDetails.push(label);
+                        });
+                        signatureText = sigDetails.join('<div class="my-2 border-t border-theme border-dashed"></div>');
+                    } else {
+                        if (rawString.includes('/adbe.pkcs7') || rawString.includes('/ETSI.CAdES.detached')) {
+                            let isBSrE = rawString.includes('BSrE') || rawString.includes('Balai Besar Sertifikasi Elektronik');
+                            signatureText = t('meta_signed') + (isBSrE ? ' <span class="inline-block text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded ml-2 align-middle">BSrE Verified</span>' : '');
+                        }
+                    }
+
                     const objUrl = URL.createObjectURL(file);
                     const loadingTask = window.pdfjsLib.getDocument(objUrl);
                     
@@ -1118,17 +1315,21 @@
                         filesize: formatBytes(file.size),
                         pages: pdf.numPages,
                         version: info.PDFFormatVersion || t('meta_unknown'),
+                        signature: signatureText,
                         title: info.Title || '-',
                         author: info.Author || '-',
                         subject: info.Subject || '-',
+                        keywords: info.Keywords || '-',
                         creator: info.Creator || '-',
                         producer: info.Producer || '-',
                         creationDate: this.parsePdfDate(info.CreationDate),
                         modDate: this.parsePdfDate(info.ModDate),
-                        acroForm: (info.IsAcroFormPresent || info.IsXFAPresent) ? t('meta_yes') : t('meta_no')
+                        acroForm: (info.IsAcroFormPresent || info.IsXFAPresent) ? t('meta_yes') : t('meta_no'),
+                        linearized: isLinearized ? t('meta_yes') : t('meta_no'),
+                        fontCount: fontCount > 0 ? fontCount : '-',
+                        imageCount: imageCount > 0 ? imageCount : '-'
                     };
 
-                    // 3. Lakukan pemindaian halaman cerdas untuk QR / Visual
                     const { bestPageNum, foundQrUrl } = await this.scanPageForSignatureAndQR(pdf);
                     this.targetPage = bestPageNum;
                     this.qrUrl = foundQrUrl;
@@ -1148,6 +1349,48 @@
                 return div.innerHTML;
             },
 
+            renderGrid() {
+                if(!this.metaData) return;
+                const grid = document.getElementById('info-data-grid');
+                grid.innerHTML = '';
+
+                const fields = [
+                    { key: 'meta_filename', val: this.metaData.filename },
+                    { key: 'meta_filesize', val: this.metaData.filesize },
+                    { key: 'meta_encrypted', val: this.metaData.encrypted ? `<span class="text-red-500 font-bold flex items-center gap-1"><i data-lucide="lock" class="w-3.5 h-3.5"></i> Terenkripsi</span>` : `<span class="text-green-600 font-bold flex items-center gap-1"><i data-lucide="unlock" class="w-3.5 h-3.5"></i> Tidak</span>` }
+                ];
+
+                if (!this.metaData.encrypted) {
+                    fields.push(
+                        { key: 'meta_signature', val: this.metaData.signature },
+                        { key: 'meta_pages', val: this.metaData.pages },
+                        { key: 'meta_version', val: `PDF ${this.metaData.version}` },
+                        { key: 'meta_title', val: this.metaData.title },
+                        { key: 'meta_author', val: this.metaData.author },
+                        { key: 'meta_subject', val: this.metaData.subject },
+                        { key: 'meta_keywords', val: this.metaData.keywords },
+                        { key: 'meta_creator', val: this.metaData.creator },
+                        { key: 'meta_producer', val: this.metaData.producer },
+                        { key: 'meta_creation', val: this.metaData.creationDate },
+                        { key: 'meta_mod', val: this.metaData.modDate },
+                        { key: 'meta_interactive', val: this.metaData.acroForm },
+                        { key: 'meta_linearized', val: this.metaData.linearized },
+                        { key: 'meta_fonts', val: this.metaData.fontCount },
+                        { key: 'meta_images', val: this.metaData.imageCount }
+                    );
+                }
+
+                fields.forEach(f => {
+                    grid.insertAdjacentHTML('beforeend', `
+                        <div class="bg-preview p-3 rounded-lg border border-theme flex flex-col justify-center">
+                            <span class="text-[10px] text-dim font-semibold uppercase tracking-wide mb-1">${t(f.key)}</span>
+                            <span class="text-sm text-main break-words font-medium leading-relaxed">${f.val}</span>
+                        </div>
+                    `);
+                });
+                lucide.createIcons();
+            },
+
             render() {
                 if (!this.file) {
                     document.getElementById('info-upload-box').classList.remove('hidden');
@@ -1156,7 +1399,6 @@
                     document.getElementById('info-upload-box').classList.add('hidden');
                     document.getElementById('info-active-box').classList.remove('hidden');
                     document.getElementById('info-filename').innerText = this.file.name;
-                    document.getElementById('info-filesize').innerText = formatBytes(this.file.size);
                     
                     const grid = document.getElementById('info-data-grid');
                     const sigContainer = document.getElementById('info-signatures-container');
@@ -1175,28 +1417,8 @@
                         return;
                     }
 
-                    // Render Standard Meta
-                    const fields = [
-                        { key: 'meta_version', val: `PDF ${this.metaData.version}` },
-                        { key: 'meta_pages', val: this.metaData.pages },
-                        { key: 'meta_title', val: this.metaData.title },
-                        { key: 'meta_author', val: this.metaData.author },
-                        { key: 'meta_creator', val: this.metaData.creator },
-                        { key: 'meta_producer', val: this.metaData.producer },
-                        { key: 'meta_encrypted', val: this.metaData.encrypted ? `<span class="text-red-500 font-bold flex items-center gap-1"><i data-lucide="lock" class="w-3.5 h-3.5"></i> Terenkripsi</span>` : `<span class="text-green-600 font-bold flex items-center gap-1"><i data-lucide="unlock" class="w-3.5 h-3.5"></i> Tidak</span>` },
-                        { key: 'meta_interactive', val: this.metaData.acroForm }
-                    ];
+                    this.renderGrid();
 
-                    fields.forEach(f => {
-                        grid.insertAdjacentHTML('beforeend', `
-                            <div class="bg-preview p-3 rounded-lg border border-theme flex flex-col justify-center">
-                                <span class="text-[10px] text-dim font-semibold uppercase tracking-wide mb-1">${t(f.key)}</span>
-                                <span class="text-sm text-main break-words font-medium leading-relaxed">${f.val}</span>
-                            </div>
-                        `);
-                    });
-
-                    // Render Signatures
                     const validSigs = this.signatures.filter(s => !s.error);
                     if (validSigs.length > 0) {
                         successBanner.innerHTML = `
@@ -1298,7 +1520,6 @@
                         });
                     }
 
-                    // Render QR Banner
                     if (this.qrUrl) {
                         qrBanner.innerHTML = `
                             <div class="bg-indigo-500/10 border-b border-indigo-500/20 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0 z-10">
@@ -1318,7 +1539,6 @@
                         `;
                     }
 
-                    // Render Canvas Preview
                     if (this.pdfDocument) {
                         previewContainer.innerHTML = `
                             <div class="relative flex justify-center w-full">
@@ -1329,13 +1549,77 @@
                             </div>
                         `;
                         const canvas = document.getElementById('info-canvas-preview');
-                        renderCanvasPdf(this.pdfDocument, this.targetPage - 1, canvas, 5); // zoom 5 ~ scale 1.4
+                        renderCanvasPdf(this.pdfDocument, this.targetPage - 1, canvas, 5); 
                     }
 
                     lucide.createIcons();
                 }
             }
         };
+        
+        async function parseDigitalSignature(file) {
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
+                const decoder = new TextDecoder('latin1');
+                const pdfString = decoder.decode(uint8Array);
+
+                const contentsRegex = /\/Contents\s*<([A-Fa-f0-9\s]+)>/g;
+                let match;
+                let signatures = [];
+
+                while ((match = contentsRegex.exec(pdfString)) !== null) {
+                    let hexString = match[1].replace(/\s+/g, '');
+                    if (hexString.length < 100) continue; 
+
+                    let derString = '';
+                    for (let i = 0; i < hexString.length; i += 2) {
+                        derString += String.fromCharCode(parseInt(hexString.substr(i, 2), 16));
+                    }
+
+                    try {
+                        const asn1 = window.forge.asn1.fromDer(derString);
+                        const p7 = window.forge.pkcs7.messageFromAsn1(asn1);
+                        
+                        if (p7.certificates && p7.certificates.length > 0) {
+                            const cert = p7.certificates[0]; 
+                            
+                            const rawOidValues = {};
+                            const humanReadableValues = {};
+                            
+                            cert.subject.attributes.forEach(attr => {
+                                const oid = attr.type;
+                                const value = attr.value;
+                                rawOidValues[oid] = value;
+                                
+                                const humanName = attr.shortName || attr.name || OID_MAP[oid] || `OID.${oid}`;
+                                humanReadableValues[humanName] = value;
+                            });
+                            
+                            const issuerHuman = {};
+                            cert.issuer.attributes.forEach(attr => {
+                                const oid = attr.type;
+                                const humanName = attr.shortName || attr.name || OID_MAP[oid] || `OID.${oid}`;
+                                issuerHuman[humanName] = attr.value;
+                            });
+
+                            signatures.push({
+                                success: true,
+                                rawOidValues,
+                                humanReadableValues,
+                                issuer: issuerHuman
+                            });
+                        }
+                    } catch (e) {
+                        console.log("Forge Parse Skip:", e.message);
+                    }
+                }
+
+                return { success: signatures.length > 0, signatures };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
 
         // ==========================================
         // 4. MERGE MODULE
@@ -2205,7 +2489,148 @@
         };
 
         // ==========================================
-        // 12. INITIALIZATION
+        // 12. OCR MODULE
+        // ==========================================
+        const OcrModule = {
+            file: null, pdfRef: null, currentPage: 1, totalPages: 1, ocrLang: 'eng+ind',
+            init() {
+                document.getElementById('ocr-input').addEventListener('change', async (e) => {
+                    if(!e.target.files.length || !libsLoaded || !window.Tesseract) return;
+                    this.file = e.target.files[0]; this.setLoading(true);
+                    try {
+                        this.pdfRef = await window.pdfjsLib.getDocument(URL.createObjectURL(this.file)).promise;
+                        this.totalPages = this.pdfRef.numPages;
+                        this.currentPage = 1;
+                        this.render();
+                    } catch(err) { showMsg('ocr-msg', true, 'Error load PDF'); }
+                    e.target.value=''; this.setLoading(false);
+                });
+                document.getElementById('btn-process-ocr').addEventListener('click', () => this.process());
+                document.getElementById('ocr-lang-select').addEventListener('change', (e) => { this.ocrLang = e.target.value; });
+            },
+            reset() { this.file=null; this.pdfRef=null; document.getElementById('ocr-textarea').value=''; showMsg('ocr-msg', false, ''); this.render(); },
+            changePage(delta) {
+                let n = this.currentPage + delta;
+                if(n < 1) n = 1; if(n > this.totalPages) n = this.totalPages;
+                this.currentPage = n;
+                this.render();
+            },
+            setLoading(isL) {
+                const btn = document.getElementById('btn-process-ocr');
+                if(isL) { btn.disabled=true; btn.innerHTML=t('processing'); btn.className="bg-preview text-dim px-5 py-3 rounded-lg font-bold text-sm cursor-not-allowed border border-theme flex items-center shrink-0"; }
+                else { btn.disabled=false; btn.className="bg-red-600 hover:bg-red-700 text-white px-5 py-3 rounded-lg font-bold text-sm shadow-sm transition-colors flex items-center shrink-0"; btn.innerHTML = `<i data-lucide="scan-text" class="w-4 h-4 mr-2"></i> ${t('ocr_scanBtn')}`; lucide.createIcons(); }
+            },
+            render() {
+                if(!this.file) { document.getElementById('ocr-upload-box').classList.remove('hidden'); document.getElementById('ocr-active-box').classList.add('hidden'); }
+                else {
+                    document.getElementById('ocr-upload-box').classList.add('hidden'); document.getElementById('ocr-active-box').classList.remove('hidden');
+                    document.getElementById('ocr-filename').innerText = this.file.name;
+                    document.getElementById('ocr-filesize').innerText = formatBytes(this.file.size);
+                    document.getElementById('ocr-current-page').innerText = this.currentPage;
+                    document.getElementById('ocr-total-pages').innerText = this.totalPages;
+                    
+                    if(this.pdfRef) renderCanvasPdf(this.pdfRef, this.currentPage-1, document.getElementById('ocr-canvas'), 3); // Zoom 3
+                    this.setLoading(false);
+                }
+            },
+            async process() {
+                if(!this.file || !this.pdfRef || !window.Tesseract) return;
+                this.setLoading(true); showMsg('ocr-msg', false, '');
+                try {
+                    // re-render canvas to a higher scale temporarily for better OCR accuracy
+                    const cvs = document.createElement('canvas');
+                    await renderCanvasPdf(this.pdfRef, this.currentPage-1, cvs, 5); // Zoom 5
+                    const imgData = cvs.toDataURL('image/png');
+                    
+                    const { data: { text } } = await window.Tesseract.recognize(imgData, this.ocrLang);
+                    document.getElementById('ocr-textarea').value = text;
+                    showMsg('ocr-msg', false, 'Success');
+                } catch(err) { showMsg('ocr-msg', true, 'OCR Error: ' + err.message); }
+                this.setLoading(false);
+            },
+            copyText() {
+                const ta = document.getElementById('ocr-textarea');
+                ta.select(); document.execCommand('copy');
+            }
+        };
+
+        // ==========================================
+        // 13. EXTRACT URL MODULE
+        // ==========================================
+        const UrlModule = {
+            file: null, pdfRef: null,
+            init() {
+                document.getElementById('url-input').addEventListener('change', async (e) => {
+                    if(!e.target.files.length || !libsLoaded) return;
+                    this.file = e.target.files[0]; this.setLoading(true);
+                    try {
+                        this.pdfRef = await window.pdfjsLib.getDocument(URL.createObjectURL(this.file)).promise;
+                        this.render();
+                    } catch(err) { showMsg('url-msg', true, 'Error load PDF'); }
+                    e.target.value=''; this.setLoading(false);
+                });
+                document.getElementById('btn-process-url').addEventListener('click', () => this.process());
+            },
+            reset() { this.file=null; this.pdfRef=null; document.getElementById('url-result-box').classList.add('hidden'); showMsg('url-msg', false, ''); this.render(); },
+            setLoading(isL) {
+                const btn = document.getElementById('btn-process-url');
+                if(isL) { btn.disabled=true; btn.innerHTML=t('processing'); btn.className="w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all bg-preview text-dim cursor-not-allowed border border-theme"; }
+                else { btn.disabled=false; btn.className="w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all bg-red-600 text-white hover:bg-red-700 shadow-sm"; btn.innerHTML = `<i data-lucide="search" class="w-4 h-4 mr-2"></i> ${t('url_extractBtn')}`; lucide.createIcons(); }
+            },
+            render() {
+                if(!this.file) { document.getElementById('url-upload-box').classList.remove('hidden'); document.getElementById('url-active-box').classList.add('hidden'); }
+                else {
+                    document.getElementById('url-upload-box').classList.add('hidden'); document.getElementById('url-active-box').classList.remove('hidden');
+                    document.getElementById('url-filename').innerText = this.file.name;
+                    document.getElementById('url-filesize').innerText = formatBytes(this.file.size);
+                    this.setLoading(false);
+                }
+            },
+            async process() {
+                if(!this.file || !this.pdfRef) return;
+                this.setLoading(true); showMsg('url-msg', false, '');
+                try {
+                    const urls = new Set();
+                    const urlRegex = /(https?:\/\/[^\s]+)/g;
+                    
+                    for(let i=1; i<=this.pdfRef.numPages; i++) {
+                        const page = await this.pdfRef.getPage(i);
+                        // 1. Get from Annotations (Clickable Links)
+                        const annots = await page.getAnnotations();
+                        annots.forEach(a => { if(a.url) urls.add(a.url); });
+                        
+                        // 2. Get from raw text
+                        const textContent = await page.getTextContent();
+                        const rawText = textContent.items.map(it => it.str).join(' ');
+                        const matches = rawText.match(urlRegex);
+                        if(matches) matches.forEach(m => urls.add(m));
+                    }
+                    
+                    const arr = Array.from(urls);
+                    const ul = document.getElementById('url-list');
+                    ul.innerHTML = '';
+                    if(arr.length === 0) {
+                        ul.innerHTML = `<li class="text-dim">${t('url_empty')}</li>`;
+                    } else {
+                        arr.forEach(u => {
+                            ul.insertAdjacentHTML('beforeend', `<li class="break-all border-b border-theme pb-2"><a href="${u}" target="_blank" class="text-blue-500 hover:underline">${u}</a></li>`);
+                        });
+                    }
+                    document.getElementById('url-count').innerText = arr.length;
+                    document.getElementById('url-result-box').classList.remove('hidden');
+                } catch(err) { showMsg('url-msg', true, 'Error extracting URLs'); }
+                this.setLoading(false);
+            },
+            copyAll() {
+                const items = document.querySelectorAll('#url-list a');
+                const text = Array.from(items).map(a => a.href).join('\n');
+                const temp = document.createElement('textarea'); temp.value = text;
+                document.body.appendChild(temp); temp.select(); document.execCommand('copy'); document.body.removeChild(temp);
+            }
+        };
+
+        // ==========================================
+        // 14. INITIALIZATION
         // ==========================================
         document.addEventListener('DOMContentLoaded', () => {
             if(window.PDFLib && window.JSZip && window.pdfjsLib) { libsLoaded = true; }
@@ -2229,6 +2654,8 @@
             PngModule.init();
             ReformatModule.init();
             WatermarkModule.init();
+            OcrModule.init();
+            UrlModule.init();
 
             updateI18n();
             switchView('home');
