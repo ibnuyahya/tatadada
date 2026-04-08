@@ -139,7 +139,7 @@
         </div>
 
         <!-- SPLIT VIEW STATE (Results) -->
-        <div id="results-state" class="flex-col lg:flex-row gap-6 items-start h-full max-w-7xl mx-auto hidden-el">
+        <div id="results-state" class="flex flex-col lg:flex-row gap-6 items-start h-full max-w-7xl mx-auto hidden-el">
             
             <!-- LEFT COLUMN: Signatures Panel -->
             <div class="w-full lg:w-1/3 flex flex-col gap-4 h-full">
@@ -364,9 +364,13 @@
             '1.2.840.113549.1.9.5': 'Signing Time (Waktu TTD)',
         };
 
-        // STATE
-        let currentTheme = localStorage.getItem('theme') || 'light';
-        let currentLang = localStorage.getItem('lang') || 'ID';
+        // STATE (Safe Fallbacks to prevent crash)
+        let _rawTheme = localStorage.getItem('theme');
+        let currentTheme = (_rawTheme === 'dark') ? 'dark' : 'light';
+        
+        let _rawLang = localStorage.getItem('lang');
+        let currentLang = (_rawLang && translations[_rawLang.toUpperCase()]) ? _rawLang.toUpperCase() : 'ID';
+
         let enginesLoaded = false;
         let isProcessing = false;
         let documentSignatures = [];
@@ -415,7 +419,12 @@
         };
 
         // HELPERS
-        const t = (key) => translations[currentLang][key] || key;
+        const t = (key) => {
+            if (translations[currentLang] && translations[currentLang][key]) {
+                return translations[currentLang][key];
+            }
+            return key; // Tampilkan key jika terjemahan belum ada (fallback logis)
+        };
         
         const updateText = () => {
             document.getElementById('tooltip-help').textContent = t('helpTooltip');
