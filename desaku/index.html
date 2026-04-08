@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PakMan</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* TATADADA CSS TOKENS */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+            
+            /* Game specific tokens */
+            --neon-blue: #0ff;
+            --neon-pink: #f0f;
+            --neon-yellow: #ff0;
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+        }
+
+        /* TATADADA BASE STYLES */
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            margin: 0; padding: 0;
+            touch-action: none;
+        }
+
+        /* CUSTOM SCROLLBAR */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: var(--text-dim); }
+
+        /* =========================================
+           GAME INTERNAL STYLES (CYBERPUNK)
+           ========================================= */
+        #game-wrapper {
+            position: absolute;
+            inset: 0;
+            background-color: #050510;
+            color: #e0e0ff;
+            font-family: 'Rajdhani', sans-serif;
+            overflow: hidden;
+        }
+
+        #game-wrapper::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 30px 30px;
+            z-index: 1;
+        }
+
+        #game-wrapper::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.2) 50%,
+                rgba(0,0,0,0.2)
+            );
+            background-size: 100% 4px;
+            z-index: 50;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        #game-container {
+            position: relative; 
+            width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 5;
+        }
+
+        .neon-tube {
+            position: absolute;
+            width: 10px; height: 60%;
+            background: #fff;
+            border-radius: 5px;
+            box-shadow: 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink), 0 0 40px var(--neon-pink);
+            z-index: -1;
+            opacity: 0.7;
+        }
+        .tube-left { left: 5%; animation: flicker 3s infinite alternate; }
+        .tube-right { right: 5%; box-shadow: 0 0 10px var(--neon-blue), 0 0 20px var(--neon-blue), 0 0 40px var(--neon-blue); animation: flicker 4s infinite alternate-reverse; }
+
+        @keyframes flicker {
+            0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 0.8; }
+            20%, 24%, 55% { opacity: 0.1; }
+        }
+
+        canvas {
+            background: rgba(0, 0, 5, 0.8);
+            border: 3px solid var(--neon-blue);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.4), inset 0 0 30px rgba(0, 255, 255, 0.1);
+            max-width: 100%; max-height: 100%;
+            position: relative;
+            z-index: 10;
+        }
+
+        #ui-overlay {
+            position: absolute; top: 10px; left: 10px; right: 10px;
+            pointer-events: none; display: flex; justify-content: space-between; z-index: 20;
+            font-family: 'Orbitron', sans-serif;
+        }
+        
+        #menu-overlay, #pause-overlay {
+            position: absolute; inset: 0; background: rgba(5, 5, 15, 0.85);
+            backdrop-filter: blur(4px);
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; z-index: 50;
+        }
+        #pause-overlay { display: none; }
+        
+        .arcade-btn {
+            background: transparent;
+            color: var(--neon-yellow);
+            border: 2px solid var(--neon-yellow);
+            padding: 12px 30px; border-radius: 0; font-family: 'Orbitron', sans-serif;
+            font-weight: 900; font-size: 1.2rem;
+            cursor: pointer; transition: all 0.2s;
+            margin-top: 25px; 
+            text-transform: uppercase; letter-spacing: 3px;
+            box-shadow: 0 0 10px rgba(255, 255, 0, 0.2), inset 0 0 10px rgba(255, 255, 0, 0.2);
+            pointer-events: auto;
+        }
+        .arcade-btn:hover {
+            background: var(--neon-yellow);
+            color: #000;
+            box-shadow: 0 0 20px var(--neon-yellow);
+            transform: scale(1.05);
+        }
+
+        .title-glow {
+            text-shadow: 0 0 10px var(--neon-yellow), 0 0 20px var(--neon-yellow), 0 0 40px var(--neon-yellow);
+            animation: pulse 1.5s infinite alternate;
+        }
+        
+        @keyframes pulse {
+            from { transform: scale(1); filter: brightness(1); }
+            to { transform: scale(1.03); filter: brightness(1.3); }
+        }
+
+        .lives-container svg {
+            filter: drop-shadow(0 0 5px var(--neon-yellow));
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER (TATADADA FRAMEWORK) -->
+    <header class="flex items-center justify-between px-6 h-14 border-b shrink-0 relative z-50" style="background-color: var(--header-bg); border-color: var(--border-color);">
+        <div class="flex items-center gap-3">
+            <h1 class="text-xl font-black bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent italic tracking-tighter">PakMan</h1>
+            <span class="text-[10px] font-mono italic" style="color: var(--text-dim);">v2.1</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] hover:text-blue-500 transition-colors" style="color: var(--text-dim);">by AhmadDanial</a>
+            
+            <div class="group relative flex items-center justify-center cursor-help ml-2 hover:text-blue-500 transition-colors" style="color: var(--text-dim);">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+                <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-3 border rounded shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-[10px]" 
+                     style="background-color: var(--header-bg); border-color: var(--border-color); color: var(--text-main);"
+                     data-i18n="help-tooltip">
+                    Kontrol: Panah Keyboard atau Geser (Swipe) layar. Misi: Makan semua dot neon. Hindari program hantu kecuali setelah menelan Power Pellet. P: Jeda Sistem.
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-5">
+            <button id="langToggle" class="text-sm font-bold flex items-center gap-1 hover:opacity-70 transition-opacity" style="color: var(--text-main);">
+                <span id="langIcon">🇮🇩</span> <span id="langText">ID</span>
+            </button>
+            <button id="themeToggle" class="hover:opacity-70 transition-opacity" style="color: var(--text-main);">
+                <i data-lucide="sun" id="themeIcon" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 relative overflow-hidden" style="background-color: var(--preview-bg);">
+        <div id="game-wrapper">
+            <div id="game-container">
+                <div class="neon-tube tube-left"></div>
+                <div class="neon-tube tube-right"></div>
+                <canvas id="gameCanvas"></canvas>
+                <div id="ui-overlay">
+                    <div>
+                        <div class="text-2xl font-black text-white drop-shadow-[0_0_5px_#fff]">SCORE <br><span id="scoreVal" class="text-yellow-300 drop-shadow-[0_0_8px_#ff0]">0</span></div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xl font-black text-white drop-shadow-[0_0_5px_#fff]">HIGH SCORE <br><span id="highScoreVal" class="text-cyan-300 drop-shadow-[0_0_8px_#0ff]">0</span></div>
+                        <div class="flex justify-end gap-1 mt-2 lives-container" id="lives-icons"></div>
+                    </div>
+                </div>
+                <div id="menu-overlay">
+                    <h1 class="text-6xl md:text-8xl font-black text-yellow-300 mb-2 title-glow tracking-widest">PAKMAN</h1>
+                    <p class="text-cyan-400 font-bold tracking-[0.3em] text-sm md:text-lg mb-10">NEON PROTOCOL</p>
+                    <button id="start-btn" class="arcade-btn" data-i18n="game-start">INSERT COIN</button>
+                </div>
+                <div id="pause-overlay">
+                    <h2 class="text-5xl font-black text-cyan-400 mb-6 drop-shadow-[0_0_15px_#0ff] tracking-widest" data-i18n="game-pause">SYSTEM PAUSED</h2>
+                    <button id="resume-btn" class="arcade-btn" data-i18n="game-resume">RESUME</button>
+                </div>
+                <div id="ready-msg" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-yellow-300 font-black text-4xl tracking-widest drop-shadow-[0_0_15px_#ff0] z-30 hidden font-['Orbitron']" data-i18n="game-ready">READY!</div>
+                <div id="gameover-msg" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-red-500 font-black text-5xl tracking-widest drop-shadow-[0_0_20px_#f00] z-30 hidden font-['Orbitron']" data-i18n="game-over">GAME OVER</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="flex items-center justify-between px-6 h-8 border-t shrink-0 z-50 text-[10px]" style="background-color: var(--footer-bg); border-color: var(--border-color); color: var(--text-dim);">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span data-i18n="footer-status">Sistem Online</span>
+        </div>
+        <div><span data-i18n="footer-stats" class="font-mono">Mesin Arcade Aktif</span></div>
+        <button id="termsBtn" class="hover:underline hover:text-blue-500 transition-colors" data-i18n="footer-terms">Ketentuan</button>
+    </footer>
+
+    <!-- TERMS MODAL -->
+    <div id="termsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm justify-center items-center z-[100] hidden">
+        <div class="border p-6 rounded-lg max-w-md w-full shadow-2xl relative" style="background-color: var(--header-bg); border-color: var(--border-color);">
+            <h2 class="text-lg font-bold mb-4" style="color: var(--text-main);" data-i18n="terms-title">Ketentuan Penggunaan</h2>
+            <p class="text-sm mb-6 leading-relaxed" style="color: var(--text-dim);" data-i18n="terms-content">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is'. Pembuatan aplikasi dibantu oleh AI tools. Pembuat dibebaskan dari segala tuntutan.
+            </p>
+            <div class="flex justify-end">
+                <button id="closeTermsBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded text-xs font-bold transition-colors" data-i18n="terms-close">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TATADADA JS -->
+    <script>
+        lucide.createIcons();
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const htmlElement = document.documentElement;
+        const applyTheme = (isDark) => {
+            if (isDark) { htmlElement.classList.add('dark'); themeIcon.setAttribute('data-lucide', 'sun'); }
+            else { htmlElement.classList.remove('dark'); themeIcon.setAttribute('data-lucide', 'moon'); }
+            lucide.createIcons();
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        };
+        applyTheme(localStorage.getItem('theme') === 'dark');
+        themeToggle.addEventListener('click', () => applyTheme(!htmlElement.classList.contains('dark')));
+
+        const i18n = {
+            'id': { 'game-start': 'MASUKKAN KOIN', 'game-pause': 'SISTEM DIJEDA', 'game-resume': 'LANJUTKAN', 'game-ready': 'SIAP!', 'game-over': 'GAME OVER', 'footer-status': 'Sistem Online', 'footer-stats': 'Mesin Arcade Aktif', 'footer-terms': 'Ketentuan', 'terms-title': 'Ketentuan Penggunaan', 'terms-close': 'Tutup', 'help-tooltip': 'Kontrol: Panah atau Geser. Makan semua dot. Hindari hantu kecuali mode Power.' },
+            'en': { 'game-start': 'INSERT COIN', 'game-pause': 'SYSTEM PAUSED', 'game-resume': 'RESUME', 'game-ready': 'READY!', 'game-over': 'GAME OVER', 'footer-status': 'System Online', 'footer-stats': 'Arcade Engine Active', 'footer-terms': 'Terms', 'terms-title': 'Terms of Use', 'terms-close': 'Close', 'help-tooltip': 'Controls: Arrows or Swipe. Eat all dots. Avoid ghosts unless powered up.' }
+        };
+        const applyLang = (langCode) => {
+            document.getElementById('langIcon').textContent = langCode === 'id' ? '🇮🇩' : '🇬🇧';
+            document.getElementById('langText').textContent = langCode.toUpperCase();
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[langCode][key]) el.textContent = i18n[langCode][key];
+            });
+            localStorage.setItem('lang', langCode);
+        };
+        applyLang(localStorage.getItem('lang') || 'id');
+        document.getElementById('langToggle').addEventListener('click', () => applyLang(localStorage.getItem('lang') === 'id' ? 'en' : 'id'));
+
+        const termsModal = document.getElementById('termsModal');
+        document.getElementById('termsBtn').addEventListener('click', () => { termsModal.classList.remove('hidden'); termsModal.classList.add('flex'); });
+        document.getElementById('closeTermsBtn').addEventListener('click', () => { termsModal.classList.add('hidden'); termsModal.classList.remove('flex'); });
+    </script>
+
+    <!-- GAME LOGIC -->
+    <script>
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        const sfx = {
+            playTone: (freq, type, duration, vol=0.1, slideFreq=null) => {
+                if(!audioCtx || audioCtx.state !== 'running') return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                if(slideFreq) osc.frequency.linearRampToValueAtTime(slideFreq, audioCtx.currentTime + duration);
+                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + duration);
+            },
+            wakaInterval: null, wakaState: false,
+            startWaka: () => { if(sfx.wakaInterval) return; sfx.wakaInterval = setInterval(() => { sfx.wakaState = !sfx.wakaState; sfx.playTone(sfx.wakaState ? 300 : 200, 'triangle', 0.15, 0.05, sfx.wakaState ? 200 : 300); }, 150); },
+            stopWaka: () => { clearInterval(sfx.wakaInterval); sfx.wakaInterval = null; },
+            eatDot: () => sfx.playTone(800, 'sine', 0.05, 0.05),
+            eatPellet: () => { sfx.playTone(400, 'square', 0.1, 0.1, 800); setTimeout(() => sfx.playTone(600, 'square', 0.2, 0.1, 1200), 100); },
+            eatGhost: () => { sfx.playTone(200, 'sawtooth', 0.3, 0.1, 1000); setTimeout(() => sfx.playTone(300, 'sawtooth', 0.4, 0.1, 1500), 150); },
+            die: () => { sfx.playTone(300, 'sawtooth', 0.5, 0.1, 50); setTimeout(() => sfx.playTone(200, 'sawtooth', 0.5, 0.1, 40), 200); setTimeout(() => sfx.playTone(150, 'square', 0.8, 0.1, 20), 400); },
+            sirenOsc: null, sirenGain: null, sirenInterval: null, sirenHigh: false,
+            startSiren: () => { if(!audioCtx || sfx.sirenOsc) return; sfx.sirenOsc = audioCtx.createOscillator(); sfx.sirenGain = audioCtx.createGain(); sfx.sirenOsc.type = 'triangle'; sfx.sirenOsc.frequency.value = 150; sfx.sirenGain.gain.value = 0.03; sfx.sirenOsc.connect(sfx.sirenGain); sfx.sirenGain.connect(audioCtx.destination); sfx.sirenOsc.start(); sfx.sirenInterval = setInterval(() => { sfx.sirenHigh = !sfx.sirenHigh; sfx.sirenOsc.frequency.linearRampToValueAtTime(sfx.sirenHigh ? 200 : 150, audioCtx.currentTime + 0.3); }, 300); },
+            stopSiren: () => { if(sfx.sirenOsc) { sfx.sirenOsc.stop(); sfx.sirenOsc = null; } if(sfx.sirenInterval) { clearInterval(sfx.sirenInterval); sfx.sirenInterval = null; } },
+            powerModeOsc: null, powerModeGain: null,
+            startPowerMode: () => { sfx.stopSiren(); if(!audioCtx || sfx.powerModeOsc) return; sfx.powerModeOsc = audioCtx.createOscillator(); sfx.powerModeGain = audioCtx.createGain(); sfx.powerModeOsc.type = 'square'; sfx.powerModeOsc.frequency.value = 80; sfx.powerModeGain.gain.value = 0.04; sfx.powerModeOsc.connect(sfx.powerModeGain); sfx.powerModeGain.connect(audioCtx.destination); sfx.powerModeOsc.start(); },
+            stopPowerMode: () => { if(sfx.powerModeOsc) { sfx.powerModeOsc.stop(); sfx.powerModeOsc = null; } if(gameActive && !isPaused) sfx.startSiren(); }
+        };
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('scoreVal');
+        const highScoreEl = document.getElementById('highScoreVal');
+        const livesIcons = document.getElementById('lives-icons');
+        const menuOverlay = document.getElementById('menu-overlay');
+        const pauseOverlay = document.getElementById('pause-overlay');
+        const readyMsg = document.getElementById('ready-msg');
+        const gameoverMsg = document.getElementById('gameover-msg');
+
+        const MAP_TEMPLATE = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+            [1,3,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,3,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,0,1,0,1,1,1,1,1,0,1,0,1,1,0,1],
+            [1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+            [1,1,1,1,0,1,1,1,2,1,2,1,1,1,0,1,1,1,1],
+            [2,2,2,1,0,1,2,2,2,2,2,2,2,1,0,1,2,2,2],
+            [1,1,1,1,0,1,2,1,4,4,4,1,2,1,0,1,1,1,1],
+            [2,2,2,2,0,2,2,1,5,5,5,1,2,2,0,2,2,2,2],
+            [1,1,1,1,0,1,2,1,1,1,1,1,2,1,0,1,1,1,1],
+            [2,2,2,1,0,1,2,2,2,2,2,2,2,1,0,1,2,2,2],
+            [1,1,1,1,0,1,2,1,1,1,1,1,2,1,0,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+            [1,3,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,3,1],
+            [1,1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,1],
+            [1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+            [1,0,1,1,1,1,1,1,0,1,0,1,1,1,1,1,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+        
+        const COLS = 19, ROWS = 21;
+        let map = JSON.parse(JSON.stringify(MAP_TEMPLATE));
+        let TILE_SIZE = 24, GAME_WIDTH, GAME_HEIGHT;
+        let gameActive = false, isPaused = false, levelReady = false, score = 0, lives = 3, level = 1, dotsRemaining = 0, powerModeTimer = 0, ghostEatMultiplier = 1;
+        const DIR = { NONE: {x:0, y:0}, UP: {x:0, y:-1}, DOWN: {x:0, y:1}, LEFT: {x:-1, y:0}, RIGHT: {x:1, y:0} };
+        const GHOST_COLORS = ['#ff0000', '#ffb8ff', '#00ffff', '#ffb852'];
+        let player, ghosts = [], particles = [];
+
+        function resize() {
+            const container = document.getElementById('game-container');
+            let cw = container.clientWidth - 20, ch = container.clientHeight - 80;
+            const ratio = COLS / ROWS;
+            if (cw / ch > ratio) cw = ch * ratio; else ch = cw / ratio;
+            TILE_SIZE = Math.floor(cw / COLS);
+            GAME_WIDTH = COLS * TILE_SIZE; GAME_HEIGHT = ROWS * TILE_SIZE;
+            canvas.width = GAME_WIDTH; canvas.height = GAME_HEIGHT;
+            if(player) { player.x = player.gx * TILE_SIZE + TILE_SIZE/2; player.y = player.gy * TILE_SIZE + TILE_SIZE/2; player.speed = TILE_SIZE * 0.12; }
+            ghosts.forEach(g => { g.x = g.gx * TILE_SIZE + TILE_SIZE/2; g.y = g.gy * TILE_SIZE + TILE_SIZE/2; g.baseSpeed = TILE_SIZE * 0.09; });
+        }
+        window.addEventListener('resize', resize); resize();
+
+        class Particle {
+            constructor(x, y, color) { this.x = x; this.y = y; this.color = color; this.size = Math.random() * 3 + 1; const a = Math.random() * Math.PI * 2; const s = Math.random() * 4; this.vx = Math.cos(a)*s; this.vy = Math.sin(a)*s; this.life = 1.0; this.decay = Math.random()*0.05+0.02; }
+            update() { this.x += this.vx; this.y += this.vy; this.life -= this.decay; }
+            draw() { ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1; }
+        }
+
+        class Entity {
+            constructor(c, r) { this.gx = c; this.gy = r; this.x = c * TILE_SIZE + TILE_SIZE/2; this.y = r * TILE_SIZE + TILE_SIZE/2; this.dir = DIR.NONE; }
+            handleTunnel() { if(this.x < -TILE_SIZE/2) { this.x = GAME_WIDTH + TILE_SIZE/2; this.gx = COLS-1; } else if(this.x > GAME_WIDTH + TILE_SIZE/2) { this.x = -TILE_SIZE/2; this.gx = 0; } }
+            getValidDirs(allowGate = false) {
+                return [DIR.UP, DIR.RIGHT, DIR.DOWN, DIR.LEFT].filter(d => {
+                    if (this.dir.x === -d.x && this.dir.y === -d.y && (this.dir.x!==0 || this.dir.y!==0)) return false;
+                    const nx = this.gx + d.x, ny = this.gy + d.y;
+                    if (nx < 0 || nx >= COLS) return true; // Tunnel
+                    if (ny < 0 || ny >= ROWS) return false;
+                    const tile = map[ny][nx];
+                    if (tile === 1) return false; // Wall
+                    if (tile === 4 && !allowGate) return false; // Gate
+                    return true;
+                });
+            }
+        }
+
+        class Player extends Entity {
+            constructor(c, r) { super(c, r); this.nextDir = DIR.NONE; this.speed = TILE_SIZE * 0.12; this.mouthOpen = 0; this.mouthDir = 1; this.angle = 0; }
+            update() {
+                this.gx = Math.floor(this.x / TILE_SIZE); this.gy = Math.floor(this.y / TILE_SIZE);
+                let cx = this.gx * TILE_SIZE + TILE_SIZE/2, cy = this.gy * TILE_SIZE + TILE_SIZE/2;
+                
+                if (this.nextDir !== DIR.NONE) {
+                    const nx = this.gx + this.nextDir.x, ny = this.gy + this.nextDir.y;
+                    if (nx >=0 && nx < COLS && ny >=0 && ny < ROWS && map[ny][nx] !== 1 && map[ny][nx] !== 4) {
+                        if ((this.nextDir.x !== 0 && Math.abs(this.y - cy) <= this.speed) || (this.nextDir.y !== 0 && Math.abs(this.x - cx) <= this.speed)) {
+                            if (this.nextDir.x !== 0) this.y = cy; else this.x = cx;
+                            this.dir = this.nextDir; this.nextDir = DIR.NONE;
+                        }
+                    }
+                }
+                
+                let nextX = this.x + this.dir.x * this.speed;
+                let nextY = this.y + this.dir.y * this.speed;
+                
+                // Cek akurat apakah karakter memotong persimpangan grid (mencegah bug nembus dinding)
+                let crossedX = (this.dir.x > 0 && this.x <= cx && nextX >= cx) || (this.dir.x < 0 && this.x >= cx && nextX <= cx);
+                let crossedY = (this.dir.y > 0 && this.y <= cy && nextY >= cy) || (this.dir.y < 0 && this.y >= cy && nextY <= cy);
+                
+                let ax = this.gx + this.dir.x, ay = this.gy + this.dir.y;
+                let wall = (ax >= 0 && ax < COLS && ay >= 0 && ay < ROWS) && (map[ay][ax] === 1 || map[ay][ax] === 4);
+                
+                if (wall && (crossedX || crossedY)) {
+                    this.x = cx; this.y = cy; this.dir = DIR.NONE; sfx.stopWaka();
+                } else {
+                    this.x = nextX; this.y = nextY;
+                    if(this.dir.x !== 0 || this.dir.y !== 0) { sfx.startWaka(); this.angle = Math.atan2(this.dir.y, this.dir.x); } else sfx.stopWaka();
+                }
+                
+                this.handleTunnel();
+                this.mouthOpen += 0.15 * this.mouthDir; if(this.mouthOpen >= 0.8) this.mouthDir = -1; if(this.mouthOpen <= 0) this.mouthDir = 1;
+                
+                if(this.gx >= 0 && this.gx < COLS) {
+                    let t = map[this.gy][this.gx];
+                    if (Math.abs(this.x - cx) < TILE_SIZE/3 && Math.abs(this.y - cy) < TILE_SIZE/3) {
+                        if (t === 0) { map[this.gy][this.gx] = 2; score += 10; dotsRemaining--; sfx.eatDot(); checkWin(); }
+                        else if (t === 3) { map[this.gy][this.gx] = 2; score += 50; dotsRemaining--; sfx.eatPellet(); activatePowerMode(); checkWin(); }
+                    }
+                }
+            }
+            draw() { ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle); ctx.fillStyle = '#ff0'; ctx.beginPath(); ctx.arc(0, 0, TILE_SIZE/2 - 2, this.mouthOpen, Math.PI*2 - this.mouthOpen); ctx.lineTo(0, 0); ctx.fill(); ctx.restore(); }
+        }
+
+        class Ghost extends Entity {
+            constructor(c, r, type) { super(c, r); this.type = type; this.color = GHOST_COLORS[type]; this.state = 'HOUSE'; this.baseSpeed = TILE_SIZE * 0.09; this.dir = DIR.UP; this.bouncing = 0; this.lastDx = -1; this.lastDy = -1; }
+            update() {
+                this.gx = Math.floor(this.x / TILE_SIZE); this.gy = Math.floor(this.y / TILE_SIZE);
+                let cx = this.gx * TILE_SIZE + TILE_SIZE/2, cy = this.gy * TILE_SIZE + TILE_SIZE/2;
+                let s = this.baseSpeed; if(this.state === 'SCARED') s *= 0.6; if(this.state === 'EATEN') s *= 2.5;
+                
+                if(this.state === 'HOUSE') {
+                    this.bouncing++;
+                    if(this.bouncing > 30 + this.type * 30) { this.dir = DIR.UP; if(this.gy <= 8) this.state = 'CHASE'; }
+                    else if(this.bouncing % 20 === 0) this.dir = this.dir === DIR.UP ? DIR.DOWN : DIR.UP;
+                    this.x += this.dir.x * s; this.y += this.dir.y * s;
+                    return;
+                }
+
+                let nextX = this.x + this.dir.x * s, nextY = this.y + this.dir.y * s;
+                let crossedX = (this.dir.x > 0 && this.x <= cx && nextX >= cx) || (this.dir.x < 0 && this.x >= cx && nextX <= cx) || (this.dir.x === 0 && Math.abs(this.x - cx) < 1);
+                let crossedY = (this.dir.y > 0 && this.y <= cy && nextY >= cy) || (this.dir.y < 0 && this.y >= cy && nextY <= cy) || (this.dir.y === 0 && Math.abs(this.y - cy) < 1);
+
+                if (crossedX && crossedY && (this.gx !== this.lastDx || this.gy !== this.lastDy)) {
+                    this.x = cx; this.y = cy; this.lastDx = this.gx; this.lastDy = this.gy;
+                    if (this.state === 'EATEN' && this.gy === 9 && this.gx >= 8 && this.gx <= 10) {
+                        this.state = 'HOUSE'; this.bouncing = 0; this.dir = DIR.UP;
+                    } else {
+                        this.chooseBestDir(this.state === 'EATEN');
+                    }
+                    nextX = this.x + this.dir.x * s; nextY = this.y + this.dir.y * s;
+                }
+                this.x = nextX; this.y = nextY;
+                this.handleTunnel();
+            }
+            chooseBestDir(allowGate) {
+                let v = this.getValidDirs(allowGate);
+                if(v.length === 0) { this.dir = {x: -this.dir.x, y: -this.dir.y}; return; }
+                if(this.state === 'SCARED') { this.dir = v[Math.floor(Math.random() * v.length)]; return; }
+                let tx = player ? player.gx : 9, ty = player ? player.gy : 9;
+                if(this.state === 'EATEN') { tx = 9; ty = 9; }
+                else if(this.type === 1) { tx += (player ? player.dir.x * 4 : 0); ty += (player ? player.dir.y * 4 : 0); }
+                else if(this.type === 3 && Math.hypot(this.gx-tx, this.gy-ty) < 8) { tx = 0; ty = ROWS-1; }
+                let best = v[0], min = Infinity;
+                v.forEach(d => { let dist = Math.hypot(this.gx+d.x-tx, this.gy+d.y-ty); if(dist < min) { min = dist; best = d; } });
+                this.dir = best;
+            }
+            draw() {
+                ctx.save(); ctx.translate(this.x, this.y);
+                let c = this.state === 'SCARED' ? (powerModeTimer < 120 && Math.floor(Date.now()/100)%2 ? '#fff' : '#00f') : this.color;
+                if(this.state !== 'EATEN') {
+                    ctx.fillStyle = c; ctx.beginPath(); let r = TILE_SIZE/2 - 2; ctx.arc(0, -2, r, Math.PI, 0); ctx.lineTo(r, r); ctx.lineTo(r/2, r-4); ctx.lineTo(0, r); ctx.lineTo(-r/2, r-4); ctx.lineTo(-r, r); ctx.closePath(); ctx.fill();
+                }
+                ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-4 + this.dir.x*2, this.dir.y*2-4, 3, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(4 + this.dir.x*2, this.dir.y*2-4, 3, 0, Math.PI*2); ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function drawMap() {
+            for(let r=0; r<ROWS; r++){
+                for(let c=0; c<COLS; c++){
+                    let t = map[r][c], x = c * TILE_SIZE, y = r * TILE_SIZE, cx = x + TILE_SIZE/2, cy = y + TILE_SIZE/2;
+                    if(t === 1) { ctx.strokeStyle = '#0ff'; ctx.strokeRect(x+2, y+2, TILE_SIZE-4, TILE_SIZE-4); }
+                    else if(t === 4) { ctx.strokeStyle = '#f0f'; ctx.beginPath(); ctx.moveTo(x, cy); ctx.lineTo(x+TILE_SIZE, cy); ctx.stroke(); }
+                    else if(t === 0) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI*2); ctx.fill(); }
+                    else if(t === 3) { ctx.fillStyle = '#f0f'; ctx.beginPath(); ctx.arc(cx, cy, 5 + Math.sin(Date.now()*0.01)*2, 0, Math.PI*2); ctx.fill(); }
+                }
+            }
+        }
+
+        function initLevel() {
+            map = JSON.parse(JSON.stringify(MAP_TEMPLATE)); dotsRemaining = 0;
+            for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++) if(map[r][c] === 0 || map[r][c] === 3) dotsRemaining++;
+            player = new Player(9, 15);
+            ghosts = [new Ghost(9, 8, 0), new Ghost(9, 9, 1), new Ghost(8, 9, 2), new Ghost(10, 9, 3)];
+            levelReady = false; powerModeTimer = 0; readyMsg.classList.remove('hidden');
+            setTimeout(() => { readyMsg.classList.add('hidden'); levelReady = true; sfx.startSiren(); }, 2000);
+            updateUI();
+        }
+
+        function activatePowerMode() {
+            powerModeTimer = Math.max(100, 400 - (level*20)); ghostEatMultiplier = 1;
+            ghosts.forEach(g => { if(g.state !== 'EATEN') { g.state = 'SCARED'; g.dir = {x: -g.dir.x, y: -g.dir.y}; } });
+            sfx.startPowerMode();
+        }
+
+        function checkCollisions() {
+            if(!player) return;
+            for (let g of ghosts) {
+                if(!player) break;
+                if(Math.hypot(player.x - g.x, player.y - g.y) < TILE_SIZE * 0.7) {
+                    if(g.state === 'SCARED') { g.state = 'EATEN'; score += 200 * ghostEatMultiplier; ghostEatMultiplier *= 2; sfx.eatGhost(); }
+                    else if(g.state !== 'EATEN') { deathSequence(); break; }
+                }
+            }
+        }
+
+        function deathSequence() {
+            levelReady = false; sfx.stopWaka(); sfx.stopSiren(); sfx.stopPowerMode(); sfx.die(); player = null;
+            setTimeout(() => { lives--; updateUI(); if(lives <= 0) gameOver(); else initLevel(); }, 2000);
+        }
+
+        function checkWin() { if(dotsRemaining <= 0) { levelReady = false; sfx.stopWaka(); sfx.stopSiren(); sfx.stopPowerMode(); setTimeout(() => { level++; initLevel(); }, 1500); } }
+        function gameOver() { gameActive = false; if(score > highScore) localStorage.setItem('pakmanHS', score); gameoverMsg.classList.remove('hidden'); setTimeout(() => { gameoverMsg.classList.add('hidden'); menuOverlay.style.display = 'flex'; }, 3000); }
+        function updateUI() { scoreEl.innerText = score; let h = ''; for(let i=0; i<lives; i++) h += '<svg width="18" height="18" class="mr-1"><path fill="#ff0" d="M9,2 A7,7 0 1,1 9,16 L9,9 Z"/></svg>'; livesIcons.innerHTML = h; }
+        
+        function startGame() { if (!audioCtx) audioCtx = new AudioContext(); if (audioCtx.state === 'suspended') audioCtx.resume(); score = 0; lives = 3; level = 1; gameActive = true; menuOverlay.style.display = 'none'; initLevel(); }
+
+        function togglePause() {
+            if(!gameActive || !levelReady) return;
+            isPaused = !isPaused;
+            pauseOverlay.style.display = isPaused ? 'flex' : 'none';
+            if(isPaused) { if(audioCtx) audioCtx.suspend(); sfx.stopWaka(); sfx.stopSiren(); sfx.stopPowerMode(); }
+            else { if(audioCtx) audioCtx.resume(); if(powerModeTimer > 0) sfx.startPowerMode(); else sfx.startSiren(); }
+        }
+
+        function setPlayerDir(key) {
+            if(!gameActive || isPaused || !levelReady || !player) return;
+            if(key === 'ArrowUp' || key === 'w') player.nextDir = DIR.UP;
+            if(key === 'ArrowDown' || key === 's') player.nextDir = DIR.DOWN;
+            if(key === 'ArrowLeft' || key === 'a') player.nextDir = DIR.LEFT;
+            if(key === 'ArrowRight' || key === 'd') player.nextDir = DIR.RIGHT;
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawMap();
+            if (gameActive && !isPaused && levelReady) {
+                if(player) player.update();
+                ghosts.forEach(g => g.update());
+                if(powerModeTimer > 0) { powerModeTimer--; if(powerModeTimer === 0) { ghosts.forEach(g => { if(g.state === 'SCARED') g.state = 'CHASE'; }); sfx.stopPowerMode(); } }
+                checkCollisions();
+            }
+            particles.forEach((p, i) => { p.update(); p.draw(); if(p.life<=0) particles.splice(i,1); });
+            if(player) player.draw(); ghosts.forEach(g => g.draw());
+            requestAnimationFrame(gameLoop);
+        }
+
+        document.getElementById('start-btn').onclick = startGame;
+        document.getElementById('resume-btn').onclick = togglePause;
+        
+        window.addEventListener('keydown', e => { 
+            if(e.key.toLowerCase() === 'p') togglePause();
+            else setPlayerDir(e.key);
+        });
+
+        let touchStartX = 0, touchStartY = 0;
+        canvas.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; }, {passive: false});
+        canvas.addEventListener('touchmove', e => { e.preventDefault(); }, {passive: false});
+        canvas.addEventListener('touchend', e => {
+            if(!gameActive || isPaused || !levelReady || !player) return;
+            let dx = e.changedTouches[0].clientX - touchStartX;
+            let dy = e.changedTouches[0].clientY - touchStartY;
+            if(Math.abs(dx) > Math.abs(dy)) {
+                if(Math.abs(dx) > 30) player.nextDir = dx > 0 ? DIR.RIGHT : DIR.LEFT;
+            } else {
+                if(Math.abs(dy) > 30) player.nextDir = dy > 0 ? DIR.DOWN : DIR.UP;
+            }
+        });
+
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
