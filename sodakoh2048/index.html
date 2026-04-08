@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sodakoh 2048</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cinzel:wght@700;900&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* =========================================
+           1. TATADADA UI FRAMEWORK - CSS TOKENS
+           ========================================= */
+        :root {
+            /* Framework Tokens */
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+
+            /* Game Specific Tokens (Preserved) */
+            --gold-light: #fef08a;
+            --gold-main: #f59e0b;
+            --gold-dark: #b45309;
+            --gold-shadow: #78350f;
+            --wood-dark: #271408;
+            --velvet-green: #022c22;
+            --velvet-shadow: #01120e;
+        }
+
+        html.dark {
+            /* Framework Tokens */
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+
+            /* Game Specific Tokens (Preserved) */
+            --wood-dark: #1a0d05;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            margin: 0; padding: 0;
+            touch-action: none; 
+            transition: background-color 0.3s, color 0.3s;
+            
+            /* Premium Islamic Geometric Background blending with preview-bg */
+            background-image: 
+                radial-gradient(circle at center, rgba(6, 78, 59, 0.15) 0%, transparent 100%),
+                url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d97706' fill-opacity='0.05'%3E%3Cpath d='M40 80L20 60H0V40L20 20H0V0h20l20 20 20-20h20v20L60 40h20v20H60l-20 20zm0-28.284l-11.716 11.716-11.716-11.716L28.284 40 16.568 28.284 28.284 16.568 40 28.284l11.716-11.716 11.716 11.716L51.716 40l11.716 11.716-11.716 11.716L40 51.716zM40 56.569l8.284-8.285L40 40l-8.284 8.284L40 56.569zm0-33.138L31.716 31.716 40 40l8.284-8.284L40 23.431z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            background-attachment: fixed;
+        }
+
+        /* TATADADA Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: var(--text-dim); }
+
+        .font-arabic { font-family: 'Aref Ruqaa', serif; }
+        .font-coin { font-family: 'Cinzel', serif; }
+
+        /* =========================================
+           2. GAME SPECIFIC STYLES (AREA SAKRAL)
+           ========================================= */
+        .board-frame {
+            width: 100%;
+            max-width: 460px;
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+            border-radius: 24px;
+            position: relative;
+            background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold-main) 20%, var(--gold-dark) 50%, var(--wood-dark) 100%);
+            padding: 8px; 
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6), inset 0 2px 4px rgba(255,255,255,0.5), inset 0 -4px 8px rgba(0,0,0,0.8);
+        }
+
+        .game-container {
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, var(--velvet-green) 0%, var(--velvet-shadow) 100%);
+            border-radius: 16px;
+            position: relative;
+            padding: 12px;
+            box-sizing: border-box;
+            box-shadow: inset 0 15px 25px rgba(0,0,0,0.8), inset 0 0 10px rgba(0,0,0,0.9);
+            border: 2px solid #000;
+        }
+
+        .game-container::after {
+            content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: 16px;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+        }
+
+        .grid-bg {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+            gap: 12px;
+            width: 100%;
+            height: 100%;
+        }
+
+        .grid-cell {
+            background-color: rgba(0, 0, 0, 0.4);
+            border-radius: 50%;
+            width: 100%;
+            height: 100%;
+            box-shadow: inset 0 8px 12px rgba(0,0,0,0.8), inset 0 -2px 4px rgba(255,255,255,0.05), 0 2px 2px rgba(255,255,255,0.02);
+            border: 1px solid rgba(0,0,0,0.5);
+        }
+
+        .tile-container {
+            position: absolute; top: 12px; left: 12px; right: 12px; bottom: 12px; pointer-events: none; z-index: 10;
+        }
+
+        .tile {
+            position: absolute;
+            width: calc(25% - 9px); 
+            height: calc(25% - 9px);
+            border-radius: 50%; 
+            display: flex; justify-content: center; align-items: center;
+            transition: top 150ms cubic-bezier(0.2, 0.8, 0.2, 1), left 150ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 150ms ease-in-out;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5), inset 0 -6px 10px rgba(120, 53, 15, 0.7), inset 0 6px 10px rgba(255, 255, 255, 0.8);
+            border: 2px solid var(--gold-light);
+            z-index: 10;
+        }
+
+        .tile::before {
+            content: ''; position: absolute; inset: 6px; border-radius: 50%;
+            border: 1px solid rgba(120, 53, 15, 0.4);
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.2), 0 1px 2px rgba(255,255,255,0.5);
+            pointer-events: none;
+        }
+
+        .tile-val {
+            font-size: 2.2rem; font-weight: 900; line-height: 1; z-index: 2;
+            color: #78350f; 
+            text-shadow: 1px 1px 1px rgba(255,255,255,0.8), -1px -1px 1px rgba(0,0,0,0.6);
+        }
+        
+        @media (max-width: 400px) { .tile-val { font-size: 1.8rem; } }
+
+        .pos-c-0 { left: 0; } .pos-c-1 { left: calc(25% + 3px); } .pos-c-2 { left: calc(50% + 6px); } .pos-c-3 { left: calc(75% + 9px); }
+        .pos-r-0 { top: 0; } .pos-r-1 { top: calc(25% + 3px); } .pos-r-2 { top: calc(50% + 6px); } .pos-r-3 { top: calc(75% + 9px); }
+
+        @keyframes coinDrop {
+            0% { transform: scale(0) translateY(-50px); opacity: 0; box-shadow: 0 30px 30px rgba(0,0,0,0); }
+            60% { transform: scale(1.1) translateY(0); opacity: 1; box-shadow: 0 15px 25px rgba(0,0,0,0.4); }
+            100% { transform: scale(1) translateY(0); opacity: 1; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        }
+        .tile-new { animation: coinDrop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        
+        @keyframes coinMerge {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.15); filter: brightness(1.5); box-shadow: 0 0 30px rgba(251, 191, 36, 1), inset 0 0 15px white; z-index: 20;}
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+        .tile-merged { animation: coinMerge 0.25s ease-out forwards; }
+
+        .glass-panel {
+            background-color: var(--header-bg);
+            opacity: 0.95;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        html.dark .glass-panel { background-color: var(--editor-bg); }
+
+        .gold-btn {
+            background: linear-gradient(to bottom, #fde047, #d97706);
+            color: #451a03; border: 2px solid #fef08a; border-bottom: 4px solid #78350f;
+            border-radius: 12px; font-weight: 900; text-transform: uppercase;
+            text-shadow: 1px 1px 0 rgba(255,255,255,0.4); box-shadow: 0 6px 15px rgba(0,0,0,0.4); transition: all 0.1s;
+        }
+        .gold-btn:active { transform: translateY(4px); border-bottom-width: 0px; box-shadow: 0 2px 5px rgba(0,0,0,0.4); margin-bottom: 4px;}
+
+        .score-box {
+            background-color: var(--header-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px; padding: 8px 20px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-width: 100px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        html.dark .score-box { background-color: var(--editor-bg); box-shadow: inset 0 2px 10px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.2); }
+
+        .overlay {
+            position: absolute; inset: 0; 
+            background: rgba(2, 6, 23, 0.85); backdrop-filter: blur(16px);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 100; transition: opacity 0.3s;
+        }
+        html:not(.dark) .overlay { background: rgba(255, 255, 255, 0.85); }
+    </style>
+</head>
+<body class="h-screen flex flex-col relative">
+
+    <canvas id="fxCanvas" class="absolute inset-0 pointer-events-none z-40"></canvas>
+
+    <!-- HEADER (TATADADA FRAMEWORK) -->
+    <header class="flex items-center justify-between px-6 h-14 border-b shrink-0 relative z-50 transition-colors" style="background-color: var(--header-bg); border-color: var(--border-color);">
+        <div class="flex items-center gap-3">
+            <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent drop-shadow-sm flex items-center gap-2">
+                Sodakoh 2048
+            </h1>
+            <span class="text-[10px] font-mono italic" style="color: var(--text-dim);">v2.2</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] hover:text-blue-500 transition-colors" style="color: var(--text-dim);">by AhmadDanial</a>
+            
+            <div class="group relative flex items-center justify-center cursor-help ml-1 transition-colors" style="color: var(--text-dim);">
+                <i data-lucide="help-circle" class="w-4 h-4 hover:text-blue-500"></i>
+                <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 w-72 p-4 border rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-xs leading-relaxed" style="background-color: var(--header-bg); border-color: var(--border-color); color: var(--text-main);" data-i18n="help-tooltip">
+                    <b>Cara Bermain:</b> Geser koin emas dengan <b>Tombol Panah</b> atau <b>Usap (Swipe)</b>.<br><br>Tumpuk koin bernilai sama untuk meleburbungkannya menjadi koin yang lebih murni. Kumpulkan pahala tertinggi!
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <button id="langToggle" class="text-sm font-bold flex items-center gap-1 hover:opacity-70 transition-opacity" style="color: var(--text-main);">
+                <span id="langIcon">🇮🇩</span> <span id="langText">ID</span>
+            </button>
+            <button id="themeToggle" class="hover:text-blue-500 transition-colors" style="color: var(--text-dim);">
+                <i data-lucide="sun" id="themeIcon" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE (TATADADA FRAMEWORK) -->
+    <main class="flex-1 relative overflow-auto flex flex-col items-center justify-center p-4 md:p-8" style="background-color: var(--preview-bg);">
+        
+        <!-- TOP STATS & HUD -->
+        <div class="w-full max-w-[460px] flex justify-between items-end gap-2 z-10 mb-6">
+            <!-- Left: Current Max Coin Visual -->
+            <div class="flex flex-col items-center glass-panel p-2 md:p-3 rounded-2xl">
+                <div id="max-coin-display" class="relative w-10 h-10 md:w-14 md:h-14 flex justify-center items-center rounded-full border-2 border-yellow-200 shadow-[0_5px_15px_rgba(0,0,0,0.3),inset_0_4px_6px_rgba(255,255,255,0.6)] bg-gradient-to-br from-yellow-100 via-amber-500 to-yellow-700">
+                    <div class="absolute inset-[3px] rounded-full border border-amber-900/30 box-shadow-[inset_0_0_5px_rgba(0,0,0,0.3)]"></div>
+                    <span id="max-coin-val" class="text-lg md:text-xl font-black font-coin text-amber-900 drop-shadow-[1px_1px_1px_rgba(255,255,255,0.6)] z-10">2</span>
+                </div>
+                <span class="text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-2 text-center" style="color: var(--text-dim);" data-i18n="max-coin">Koin Murni</span>
+            </div>
+            
+            <!-- Right: Scores -->
+            <div class="flex gap-2">
+                <div class="score-box relative overflow-hidden group">
+                    <span class="text-[9px] font-black uppercase tracking-widest" style="color: var(--text-dim);" data-i18n="score">Pahala</span>
+                    <span id="scoreVal" class="text-xl md:text-2xl font-black font-coin" style="color: var(--text-main);">0</span>
+                </div>
+                <div class="score-box">
+                    <span class="text-[9px] font-black uppercase tracking-widest" style="color: var(--text-dim);" data-i18n="best">Puncak</span>
+                    <span id="bestVal" class="text-xl md:text-2xl font-black font-coin" style="color: var(--text-main);">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- CENTER: REALISTIC BOARD -->
+        <div class="board-frame z-10">
+            <div class="game-container" id="game-container">
+                <div class="grid-bg">
+                    <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+                    <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+                    <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+                    <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+                </div>
+                <!-- Interactive Gold Coins -->
+                <div class="tile-container" id="tile-container"></div>
+            </div>
+        </div>
+
+        <!-- BOTTOM CONTROLS -->
+        <div class="w-full max-w-[460px] flex justify-center gap-4 z-10 mt-6">
+            <button id="btn-restart" class="w-14 h-14 glass-panel rounded-full flex justify-center items-center hover:scale-105 active:scale-95 transition-all group" style="color: var(--text-dim);" title="Mulai Ulang">
+                <i data-lucide="rotate-ccw" class="w-6 h-6 group-hover:-rotate-90 group-hover:text-blue-500 transition-all duration-500 drop-shadow-sm"></i>
+            </button>
+        </div>
+
+        <!-- OVERLAYS -->
+        <div id="menu-overlay" class="overlay">
+            <div class="text-center mb-12 relative">
+                <h1 class="text-5xl md:text-7xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent drop-shadow-sm">Sodakoh 2048</h1>
+                <p class="text-sm md:text-md tracking-[0.4em] uppercase font-bold mb-8 font-coin" style="color: var(--text-main);" data-i18n="menu-subtitle">Premium Gold</p>
+                <div class="max-w-sm mx-auto text-sm font-medium p-6 rounded-2xl glass-panel shadow-xl leading-relaxed">
+                    <p class="italic" style="color: var(--text-dim);" data-i18n="menu-quote">"Kumpulkan kepingan emas kebaikan, satukan dan murnikan hingga menjadi sedekah yang paling berharga."</p>
+                </div>
+            </div>
+            <button id="start-btn" class="gold-btn px-10 py-4 text-lg flex items-center gap-3"><i data-lucide="sparkles" class="w-5 h-5"></i> <span data-i18n="btn-start">KUMPULKAN EMAS</span></button>
+        </div>
+
+        <div id="gameover-overlay" class="overlay" style="display: none;">
+            <div class="text-center p-8 rounded-3xl max-w-sm w-full glass-panel shadow-2xl relative overflow-hidden">
+                <div class="relative z-10">
+                    <h2 class="text-3xl font-bold mb-2" style="color: var(--text-main);" data-i18n="msg-lose-title">Wadah Penuh</h2>
+                    <p class="text-sm mb-6" style="color: var(--text-dim);" data-i18n="msg-lose">Nampan beludru sudah penuh dengan emas.</p>
+                    <div class="rounded-2xl p-4 mb-8 shadow-inner border" style="background-color: var(--preview-bg); border-color: var(--border-color);">
+                        <div class="text-xs uppercase font-bold tracking-wider" style="color: var(--text-dim);" data-i18n="total-score">Total Pahala</div>
+                        <div class="text-5xl font-black flex justify-center items-center gap-2 mt-2 font-coin" style="color: var(--text-main);">
+                            <span id="go-score">0</span>
+                        </div>
+                    </div>
+                    <button id="play-again-btn" class="gold-btn w-full text-sm py-4" data-i18n="btn-play-again">BERAMAL KEMBALI</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="win-overlay" class="overlay" style="display: none;">
+            <div class="text-center p-8 rounded-3xl max-w-sm w-full glass-panel shadow-2xl relative overflow-hidden" style="border: 2px solid var(--gold-main);">
+                <div class="relative z-10">
+                    <div class="text-7xl mb-4 animate-bounce">💎</div>
+                    <h2 class="text-4xl font-bold mb-1" style="color: var(--text-main);" data-i18n="msg-win-title">Masya Allah!</h2>
+                    <p class="text-xs font-bold uppercase tracking-widest text-yellow-500 mb-6 font-coin" data-i18n="msg-win-subtitle">Koin 2048 Tercapai</p>
+                    <p class="text-sm mb-8 leading-relaxed" style="color: var(--text-dim);" data-i18n="msg-win">Anda telah berhasil memurnikan emas hingga tingkat tertinggi.</p>
+                    
+                    <button id="continue-btn" class="gold-btn w-full text-sm py-4 mb-4" data-i18n="btn-continue">LANJUTKAN (Endless)</button>
+                    <button id="win-restart-btn" class="w-full text-sm py-3 font-bold hover:underline transition-colors" style="color: var(--text-dim);" data-i18n="btn-restart">Ulangi Pemurnian</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER (TATADADA FRAMEWORK) -->
+    <footer class="flex items-center justify-between px-6 h-8 border-t shrink-0 z-50 text-[10px] transition-colors" style="background-color: var(--footer-bg); border-color: var(--border-color); color: var(--text-dim);">
+        <div class="flex items-center gap-2 flex-1">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" style="box-shadow: 0 0 5px #10b981;"></div>
+            <span data-i18n="footer-status">Syukur Engine Online</span>
+        </div>
+        
+        <!-- TATADADA: Statistik Dinamis di Tengah -->
+        <div class="flex-1 text-center hidden md:block font-mono tracking-widest text-[9px]">
+            <span data-i18n="footer-stat-max">MAX</span>: <span id="footer-max-val" class="font-bold" style="color: var(--text-main);">2</span> &nbsp;|&nbsp; 
+            <span data-i18n="footer-stat-score">PAHALA</span>: <span id="footer-score-val" class="font-bold" style="color: var(--text-main);">0</span>
+        </div>
+
+        <div class="flex items-center justify-end flex-1">
+            <button id="termsBtn" class="hover:text-blue-500 transition-colors" data-i18n="footer-terms">Ketentuan</button>
+        </div>
+    </footer>
+
+    <!-- TERMS MODAL (TATADADA FRAMEWORK) -->
+    <div id="termsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[100] hidden opacity-0 transition-opacity duration-300">
+        <div class="p-6 rounded-xl max-w-sm w-full shadow-2xl m-4 transition-colors" style="background-color: var(--header-bg); border: 1px solid var(--border-color);">
+            <h2 class="text-lg font-bold mb-4 flex items-center gap-2" style="color: var(--text-main);"><i data-lucide="scroll" class="w-5 h-5 text-blue-500"></i> <span data-i18n="terms-title">Ketentuan</span></h2>
+            <p class="text-xs mb-6 leading-relaxed" style="color: var(--text-dim);" id="termsContent" data-i18n="terms-content">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
+            </p>
+            <div class="flex justify-end">
+                <button id="closeTermsBtn" class="px-5 py-2 rounded border text-xs font-bold transition-colors hover:bg-gray-100 dark:hover:bg-gray-800" style="color: var(--text-main); border-color: var(--border-color);" data-i18n="terms-close">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. TATADADA UI SETUP (THEME & LANG) ---
+        lucide.createIcons();
+        
+        const htmlElement = document.documentElement;
+        const themeIcon = document.getElementById('themeIcon');
+        const applyTheme = (isDark) => {
+            if (isDark) { htmlElement.classList.add('dark'); themeIcon.setAttribute('data-lucide', 'sun'); }
+            else { htmlElement.classList.remove('dark'); themeIcon.setAttribute('data-lucide', 'moon'); }
+            lucide.createIcons();
+            localStorage.setItem('tatadada_theme', isDark ? 'dark' : 'light');
+        };
+        applyTheme(localStorage.getItem('tatadada_theme') === 'dark');
+        document.getElementById('themeToggle').addEventListener('click', () => applyTheme(!htmlElement.classList.contains('dark')));
+
+        const termsModal = document.getElementById('termsModal');
+        document.getElementById('termsBtn').addEventListener('click', () => { termsModal.classList.remove('hidden'); setTimeout(()=>termsModal.classList.add('opacity-100'),10); });
+        document.getElementById('closeTermsBtn').addEventListener('click', () => { termsModal.classList.remove('opacity-100'); setTimeout(()=>termsModal.classList.add('hidden'),300); });
+
+        const i18n = {
+            'id': {
+                'help-tooltip': '<b>Cara Bermain:</b> Geser koin emas dengan <b>Tombol Panah</b> atau <b>Usap (Swipe)</b>.<br><br>Tumpuk koin bernilai sama untuk meleburbungkannya menjadi koin yang lebih murni. Kumpulkan pahala tertinggi!',
+                'max-coin': 'Koin Murni', 'score': 'Pahala', 'best': 'Puncak',
+                'menu-subtitle': 'Premium Gold', 'menu-quote': '"Kumpulkan kepingan emas kebaikan, satukan dan murnikan hingga menjadi sedekah yang paling berharga."',
+                'btn-start': 'KUMPULKAN EMAS',
+                'msg-lose-title': 'Wadah Penuh', 'msg-lose': 'Nampan beludru sudah penuh dengan emas.', 'total-score': 'Total Pahala', 'btn-play-again': 'BERAMAL KEMBALI',
+                'msg-win-title': 'Masya Allah!', 'msg-win-subtitle': 'Koin 2048 Tercapai', 'msg-win': 'Anda telah berhasil memurnikan emas hingga tingkat tertinggi.',
+                'btn-continue': 'LANJUTKAN (Endless)', 'btn-restart': 'Ulangi Pemurnian',
+                'footer-status': 'Syukur Engine Online', 'footer-terms': 'Ketentuan',
+                'footer-stat-max': 'MAX', 'footer-stat-score': 'PAHALA',
+                'terms-title': 'Ketentuan', 'terms-close': 'Tutup',
+                'terms-content': 'Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan \'as-is\' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.'
+            },
+            'en': {
+                'help-tooltip': '<b>How to Play:</b> Use <b>Arrow Keys</b> or <b>Swipe</b> to move the gold coins.<br><br>Merge coins of the same value to purify them into more valuable ones. Collect the highest reward!',
+                'max-coin': 'Pure Coin', 'score': 'Reward', 'best': 'Peak',
+                'menu-subtitle': 'Premium Gold', 'menu-quote': '"Collect pieces of golden goodness, merge and purify them into the most valuable charity."',
+                'btn-start': 'COLLECT GOLD',
+                'msg-lose-title': 'Tray Full', 'msg-lose': 'The velvet tray is full of gold.', 'total-score': 'Total Reward', 'btn-play-again': 'GIVE AGAIN',
+                'msg-win-title': 'Masya Allah!', 'msg-win-subtitle': '2048 Coin Reached', 'msg-win': 'You have successfully purified the gold to the highest level.',
+                'btn-continue': 'CONTINUE (Endless)', 'btn-restart': 'Restart Purification',
+                'footer-status': 'Syukur Engine Online', 'footer-terms': 'Terms',
+                'footer-stat-max': 'MAX', 'footer-stat-score': 'REWARD',
+                'terms-title': 'Terms of Use', 'terms-close': 'Close',
+                'terms-content': 'There is no coercion to use this app. This app is provided \'as-is\'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.'
+            }
+        };
+
+        const applyLang = (langCode) => {
+            document.getElementById('langIcon').textContent = langCode === 'id' ? '🇮🇩' : '🇬🇧';
+            document.getElementById('langText').textContent = langCode.toUpperCase();
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[langCode] && i18n[langCode][key]) el.innerHTML = i18n[langCode][key];
+            });
+            localStorage.setItem('tatadada_lang', langCode);
+            lucide.createIcons();
+        };
+        let currentLang = localStorage.getItem('tatadada_lang') || 'id';
+        applyLang(currentLang);
+        document.getElementById('langToggle').addEventListener('click', () => { currentLang = currentLang === 'id' ? 'en' : 'id'; applyLang(currentLang); });
+
+        // --- 2. GAME SPECIFIC LOGIC (AREA SAKRAL) ---
+        const TILE_THEMES = {
+            2:    { bg: 'from-orange-200 via-orange-400 to-orange-700', tc: 'text-[#5c2302]' }, 
+            4:    { bg: 'from-yellow-100 via-yellow-400 to-yellow-700', tc: 'text-[#613603]' }, 
+            8:    { bg: 'from-amber-200 via-amber-500 to-amber-800', tc: 'text-[#522500]' },    
+            16:   { bg: 'from-yellow-300 via-amber-500 to-red-800', tc: 'text-[#4a1200]' },     
+            32:   { bg: 'from-rose-200 via-rose-400 to-rose-800', tc: 'text-[#500b1d]' },       
+            64:   { bg: 'from-pink-200 via-pink-500 to-pink-900', tc: 'text-[#4d0728]' },       
+            128:  { bg: 'from-emerald-200 via-emerald-500 to-emerald-900', tc: 'text-[#023b24]' }, 
+            256:  { bg: 'from-teal-200 via-teal-500 to-teal-900', tc: 'text-[#023b3a]' },       
+            512:  { bg: 'from-cyan-200 via-cyan-500 to-blue-900', tc: 'text-[#032b4d]' },       
+            1024: { bg: 'from-indigo-200 via-indigo-500 to-indigo-900', tc: 'text-[#120b4d]' }, 
+            2048: { bg: 'from-slate-100 via-slate-300 to-slate-500 shadow-[0_0_30px_rgba(255,255,255,0.8)] border-white', tc: 'text-[#1e293b]' }, 
+            'super': { bg: 'from-purple-300 via-fuchsia-500 to-purple-900 shadow-[0_0_40px_rgba(217,70,239,0.8)]', tc: 'text-white' }
+        };
+
+        function getTheme(val) { return TILE_THEMES[val] || TILE_THEMES['super']; }
+
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        const sfx = {
+            init: () => { if(!audioCtx) audioCtx = new AudioContext(); if(audioCtx.state === 'suspended') audioCtx.resume(); },
+            playTone: (freq, type, duration, vol=0.1, slideFreq=null) => {
+                if(!audioCtx || audioCtx.state !== 'running') return;
+                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                osc.type = type; osc.frequency.value = freq;
+                if(slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, audioCtx.currentTime + duration);
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + duration);
+            },
+            move: () => sfx.playTone(150, 'sine', 0.08, 0.02),
+            merge: (val) => {
+                const baseFreq = Math.min(1500, 600 + (Math.log2(val) * 80));
+                sfx.playTone(baseFreq, 'triangle', 0.15, 0.05, baseFreq * 1.2);
+                sfx.playTone(baseFreq * 1.5, 'sine', 0.2, 0.03); 
+            },
+            win: () => { [523.25, 659.25, 783.99, 1046.50, 1318.51].forEach((f, i) => setTimeout(() => sfx.playTone(f, 'sine', 0.8, 0.1), i * 150)); },
+            lose: () => { [300, 250, 200, 150].forEach((f, i) => setTimeout(() => sfx.playTone(f, 'sawtooth', 0.6, 0.08), i * 200)); }
+        };
+
+        const canvas = document.getElementById('fxCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+
+        class Sparkle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.size = Math.random() * 3 + 1;
+                const angle = Math.random() * Math.PI * 2, speed = Math.random() * 5 + 2;
+                this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
+                this.life = 1.0; this.decay = Math.random() * 0.03 + 0.02;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.life -= this.decay; }
+            draw(ctx) {
+                if(this.life <= 0) return;
+                ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.color;
+                ctx.beginPath(); 
+                ctx.moveTo(this.x, this.y - this.size); ctx.quadraticCurveTo(this.x, this.y, this.x + this.size, this.y);
+                ctx.quadraticCurveTo(this.x, this.y, this.x, this.y + this.size); ctx.quadraticCurveTo(this.x, this.y, this.x - this.size, this.y);
+                ctx.quadraticCurveTo(this.x, this.y, this.x, this.y - this.size); ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        function animateFX() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update(); particles[i].draw(ctx);
+                if (particles[i].life <= 0) particles.splice(i, 1);
+            }
+            requestAnimationFrame(animateFX);
+        }
+        animateFX();
+
+        function spawnMergeParticles(val) {
+            const container = document.getElementById('game-container');
+            const rect = container.getBoundingClientRect();
+            const cx = rect.left + rect.width/2; const cy = rect.top + rect.height/2;
+            let color = '#fbbf24'; 
+            if (val >= 128) color = '#34d399'; if (val >= 512) color = '#60a5fa'; if (val >= 2048) color = '#ffffff'; 
+            for(let i=0; i<8; i++) particles.push(new Sparkle(cx, cy, color));
+        }
+
+        const Vector = { UP: { r: -1, c: 0 }, DOWN: { r: 1, c: 0 }, LEFT: { r: 0, c: -1 }, RIGHT: { r: 0, c: 1 } };
+
+        const Game2048 = {
+            grid: [], tiles: [], score: 0, bestScore: localStorage.getItem('sodakoh_best_gold') || 0,
+            hasWon: false, keepPlaying: false, isPlaying: false, maxTile: 2, idCounter: 0,
+            container: document.getElementById('tile-container'),
+
+            init: function() {
+                sfx.init();
+                this.grid = Array(4).fill().map(() => Array(4).fill(null));
+                this.tiles = []; this.score = 0; this.maxTile = 2; this.idCounter = 0;
+                this.hasWon = false; this.keepPlaying = false; this.isPlaying = true;
+                this.container.innerHTML = '';
+                
+                this.updateHUD();
+                this.addRandomTile(); this.addRandomTile();
+                this.renderDOM();
+
+                document.getElementById('menu-overlay').style.opacity = '0';
+                setTimeout(()=> document.getElementById('menu-overlay').style.display = 'none', 300);
+                document.getElementById('gameover-overlay').style.display = 'none';
+                document.getElementById('win-overlay').style.display = 'none';
+            },
+
+            updateHUD: function() {
+                document.getElementById('scoreVal').innerText = this.score;
+                document.getElementById('bestVal').innerText = this.bestScore;
+                
+                // Update Footer Stats (TATADADA framework)
+                document.getElementById('footer-max-val').innerText = this.maxTile;
+                document.getElementById('footer-score-val').innerText = this.score;
+                
+                const theme = getTheme(this.maxTile);
+                const maxCoinDisplay = document.getElementById('max-coin-display');
+                const maxCoinVal = document.getElementById('max-coin-val');
+                
+                maxCoinDisplay.className = `relative w-10 h-10 md:w-14 md:h-14 flex justify-center items-center rounded-full border-2 border-yellow-200 shadow-[0_5px_15px_rgba(0,0,0,0.3),inset_0_4px_6px_rgba(255,255,255,0.6)] bg-gradient-to-br ${theme.bg}`;
+                maxCoinVal.className = `text-lg md:text-xl font-black font-coin drop-shadow-[1px_1px_1px_rgba(255,255,255,0.6)] z-10 ${theme.tc}`;
+                maxCoinVal.innerText = this.maxTile;
+                
+                maxCoinDisplay.style.transform = 'scale(1.2)';
+                setTimeout(() => maxCoinDisplay.style.transform = 'scale(1)', 200);
+            },
+
+            addRandomTile: function() {
+                let empty = [];
+                for(let r=0; r<4; r++) for(let c=0; c<4; c++) if(!this.grid[r][c]) empty.push({r,c});
+                
+                if(empty.length > 0) {
+                    let pos = empty[Math.floor(Math.random() * empty.length)];
+                    let tile = { 
+                        id: ++this.idCounter, r: pos.r, c: pos.c, 
+                        val: Math.random() < 0.9 ? 2 : 4, 
+                        el: null, isNew: true, isDeleted: false, mergedThisTurn: false
+                    };
+                    this.grid[pos.r][pos.c] = tile;
+                    this.tiles.push(tile);
+                }
+            },
+
+            move: function(dirStr) {
+                if (!this.isPlaying) return;
+                
+                let vec = Vector[dirStr];
+                let moved = false; let scoreInc = 0; let highestMerge = 0;
+
+                let orderedTiles = [...this.tiles].filter(t => !t.isDeleted);
+                if (dirStr === 'UP') orderedTiles.sort((a, b) => a.r - b.r);
+                if (dirStr === 'DOWN') orderedTiles.sort((a, b) => b.r - a.r);
+                if (dirStr === 'LEFT') orderedTiles.sort((a, b) => a.c - b.c);
+                if (dirStr === 'RIGHT') orderedTiles.sort((a, b) => b.c - a.c);
+
+                orderedTiles.forEach(t => t.mergedThisTurn = false);
+
+                orderedTiles.forEach(tile => {
+                    let r = tile.r, c = tile.c;
+                    let nextR = r + vec.r, nextC = c + vec.c;
+                    
+                    while (nextR >= 0 && nextR < 4 && nextC >= 0 && nextC < 4 && !this.grid[nextR][nextC]) {
+                        r = nextR; c = nextC; nextR += vec.r; nextC += vec.c;
+                    }
+
+                    let nextTile = (nextR >= 0 && nextR < 4 && nextC >= 0 && nextC < 4) ? this.grid[nextR][nextC] : null;
+                    
+                    if (nextTile && nextTile.val === tile.val && !nextTile.mergedThisTurn && !nextTile.isDeleted) {
+                        let newVal = tile.val * 2;
+                        let newTile = { 
+                            id: ++this.idCounter, r: nextR, c: nextC, val: newVal, 
+                            el: null, isNew: false, isDeleted: false, mergedThisTurn: true, pop: true 
+                        };
+                        
+                        this.grid[tile.r][tile.c] = null;
+                        this.grid[nextR][nextC] = newTile;
+                        
+                        tile.r = nextR; tile.c = nextC; tile.isDeleted = true;
+                        nextTile.isDeleted = true;
+                        
+                        this.tiles.push(newTile);
+                        scoreInc += newVal;
+                        if(newVal > highestMerge) highestMerge = newVal;
+                        if(newVal > this.maxTile) this.maxTile = newVal;
+                        
+                        moved = true;
+                    } else if (r !== tile.r || c !== tile.c) {
+                        this.grid[tile.r][tile.c] = null;
+                        this.grid[r][c] = tile;
+                        tile.r = r; tile.c = c;
+                        moved = true;
+                    }
+                });
+
+                if (moved) {
+                    this.score += scoreInc;
+                    if (this.score > this.bestScore) {
+                        this.bestScore = this.score;
+                        localStorage.setItem('sodakoh_best_gold', this.bestScore);
+                    }
+
+                    this.renderDOM(); 
+                    
+                    if (highestMerge > 0) {
+                        sfx.merge(highestMerge);
+                        spawnMergeParticles(highestMerge);
+                    } else {
+                        sfx.move();
+                    }
+
+                    setTimeout(() => {
+                        this.cleanupDeletedTiles();
+                        this.addRandomTile();
+                        this.updateHUD();
+                        this.renderDOM(); 
+
+                        if (!this.hasWon && !this.keepPlaying && this.maxTile >= 2048) {
+                            this.hasWon = true; this.isPlaying = false; sfx.win();
+                            document.getElementById('win-overlay').style.display = 'flex';
+                        } else if (!this.canMove()) {
+                            this.isPlaying = false; sfx.lose();
+                            document.getElementById('go-score').innerText = this.score;
+                            document.getElementById('gameover-overlay').style.display = 'flex';
+                        }
+                    }, 150); 
+                }
+            },
+
+            canMove: function() {
+                for (let r = 0; r < 4; r++) {
+                    for (let c = 0; c < 4; c++) {
+                        if (!this.grid[r][c]) return true;
+                        if (c < 3 && this.grid[r][c+1] && this.grid[r][c].val === this.grid[r][c+1].val) return true;
+                        if (r < 3 && this.grid[r+1][c] && this.grid[r][c].val === this.grid[r+1][c].val) return true;
+                    }
+                }
+                return false;
+            },
+
+            renderDOM: function() {
+                this.tiles.forEach(tile => {
+                    if (!tile.el) {
+                        tile.el = document.createElement('div');
+                        tile.el.id = 't' + tile.id;
+                        this.container.appendChild(tile.el);
+                    }
+                    
+                    let theme = getTheme(tile.val);
+                    tile.el.className = `tile pos-r-${tile.r} pos-c-${tile.c} bg-gradient-to-br ${theme.bg}`;
+                    tile.el.innerHTML = `<span class="tile-val font-coin ${theme.tc}">${tile.val}</span>`;
+                    
+                    if (tile.isNew) { tile.el.classList.add('tile-new'); tile.isNew = false; }
+                    if (tile.pop) { tile.el.classList.add('tile-merged'); tile.pop = false; }
+                    
+                    if (tile.isDeleted) { tile.el.style.zIndex = 1; } 
+                    else { tile.el.style.zIndex = 10; }
+                });
+            },
+
+            cleanupDeletedTiles: function() {
+                this.tiles = this.tiles.filter(tile => {
+                    if (tile.isDeleted) {
+                        if (tile.el && tile.el.parentNode) tile.el.parentNode.removeChild(tile.el);
+                        return false;
+                    }
+                    return true;
+                });
+            }
+        };
+
+        // --- 4. INPUTS ---
+        window.addEventListener('keydown', (e) => {
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                e.preventDefault(); 
+                if (!Game2048.isPlaying) return;
+                if (e.key === 'ArrowUp') Game2048.move('UP');
+                else if (e.key === 'ArrowDown') Game2048.move('DOWN');
+                else if (e.key === 'ArrowLeft') Game2048.move('LEFT');
+                else if (e.key === 'ArrowRight') Game2048.move('RIGHT');
+            }
+        });
+
+        let touchStartX = 0, touchStartY = 0;
+        const gameContainer = document.getElementById('game-container');
+        
+        gameContainer.addEventListener('touchstart', (e) => {
+            if (!Game2048.isPlaying) return;
+            touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+            e.preventDefault(); 
+        }, {passive: false});
+
+        gameContainer.addEventListener('touchmove', (e) => e.preventDefault(), {passive: false});
+
+        gameContainer.addEventListener('touchend', (e) => {
+            if (!Game2048.isPlaying) return;
+            let dx = e.changedTouches[0].clientX - touchStartX;
+            let dy = e.changedTouches[0].clientY - touchStartY;
+            
+            if (Math.abs(dx) > 30 || Math.abs(dy) > 30) {
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    if (dx > 0) Game2048.move('RIGHT'); else Game2048.move('LEFT');
+                } else {
+                    if (dy > 0) Game2048.move('DOWN'); else Game2048.move('UP');
+                }
+            }
+        });
+
+        // Buttons
+        document.getElementById('start-btn').addEventListener('click', () => Game2048.init());
+        document.getElementById('btn-restart').addEventListener('click', () => Game2048.init());
+        document.getElementById('play-again-btn').addEventListener('click', () => Game2048.init());
+        document.getElementById('win-restart-btn').addEventListener('click', () => Game2048.init());
+        
+        document.getElementById('continue-btn').addEventListener('click', () => {
+            document.getElementById('win-overlay').style.display = 'none';
+            Game2048.keepPlaying = true;
+            Game2048.isPlaying = true;
+        });
+
+        document.getElementById('bestVal').innerText = localStorage.getItem('sodakoh_best_gold') || 0;
+
+    </script>
+</body>
+</html>
