@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tehtrus</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* TATADADA CSS TOKENS */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            
+            /* Game specific tokens (Roblox/Plastic Palette) */
+            --block-cyan: #06b6d4;
+            --block-blue: #2563eb;
+            --block-orange: #ea580c;
+            --block-yellow: #eab308;
+            --block-green: #16a34a;
+            --block-purple: #9333ea;
+            --block-red: #dc2626;
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            color-scheme: dark;
+        }
+
+        /* TATADADA BASE STYLES */
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            margin: 0; padding: 0;
+            touch-action: none; /* Prevent scroll on touch devices */
+        }
+
+        /* CUSTOM SCROLLBAR */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: var(--text-dim); }
+
+        /* =========================================
+           GAME INTERNAL STYLES (ROBLOX THEME)
+           ========================================= */
+        #game-wrapper {
+            position: absolute;
+            inset: 0;
+            /* Default Light Mode: Roblox Sky and Grass */
+            background: linear-gradient(to bottom, #74ccf4 0%, #e0f6ff 65%, #5cb85c 65%, #3d8b3d 100%);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            transition: background 0.3s;
+        }
+
+        html.dark #game-wrapper {
+            /* Dark Mode: Night Sky and Dark Grass */
+            background: linear-gradient(to bottom, #0f172a 0%, #1e293b 65%, #064e3b 65%, #022c22 100%);
+        }
+
+        /* Optional: Add some blocky studs background pattern overlay */
+        #game-wrapper::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(rgba(255,255,255,0.1) 15%, transparent 16%), radial-gradient(rgba(255,255,255,0.1) 15%, transparent 16%);
+            background-size: 60px 60px;
+            background-position: 0 0, 30px 30px;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        #game-container {
+            position: relative; 
+            width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 5;
+        }
+
+        canvas {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(4px);
+            border: 8px solid #cbd5e1;
+            border-bottom: 12px solid #94a3b8;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            max-width: 100%; max-height: 100%;
+            position: relative;
+            z-index: 10;
+        }
+
+        html.dark canvas {
+            background: rgba(15, 23, 42, 0.7);
+            border-color: #334155;
+            border-bottom-color: #1e293b;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        #ui-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; justify-content: space-between; z-index: 20;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        #menu-overlay, #pause-overlay {
+            position: absolute; inset: 0; 
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(8px);
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; z-index: 50;
+        }
+        
+        html.dark #menu-overlay, html.dark #pause-overlay {
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        #pause-overlay { display: none; }
+        
+        /* ROBLOX STYLE BUTTONS */
+        .roblox-btn {
+            background: #22c55e;
+            color: #ffffff;
+            border: 3px solid #16a34a;
+            border-bottom: 8px solid #15803d;
+            border-radius: 12px;
+            padding: 15px 40px; 
+            font-family: 'Inter', sans-serif;
+            font-weight: 900; font-size: 1.5rem;
+            cursor: pointer; transition: all 0.1s;
+            margin-top: 25px; 
+            text-transform: uppercase; letter-spacing: 2px;
+            pointer-events: auto;
+            text-shadow: 1px 1px 0px rgba(0,0,0,0.3);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .roblox-btn:active {
+            transform: translateY(5px);
+            border-bottom-width: 3px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .roblox-btn:hover {
+            background: #16a34a;
+        }
+
+        .title-blocky {
+            font-family: 'Inter', sans-serif;
+            -webkit-text-stroke: 3px #0f172a;
+            color: #ffffff;
+            text-shadow: 5px 5px 0 #0f172a;
+            transform: rotate(-2deg);
+        }
+
+        .hud-text {
+            font-family: 'Inter', sans-serif;
+            -webkit-text-stroke: 1.5px #0f172a;
+            color: #ffffff;
+            text-shadow: 3px 3px 0 #0f172a;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER (TATADADA FRAMEWORK) -->
+    <header class="flex items-center justify-between px-6 h-14 border-b shrink-0 relative z-50" style="background-color: var(--header-bg); border-color: var(--border-color);">
+        <div class="flex items-center gap-3">
+            <h1 class="text-xl font-black bg-gradient-to-r from-green-500 to-blue-500 bg-clip-text text-transparent tracking-tighter flex items-center gap-2">
+                <!-- Small Tea Icon in Header -->
+                <span>🥤</span> Tehtrus
+            </h1>
+            <span class="text-[10px] font-mono italic" style="color: var(--text-dim);">v1.2</span>
+            
+            <div class="group relative flex items-center justify-center cursor-help ml-2 hover:text-blue-500 transition-colors" style="color: var(--text-dim);">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+                <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-72 p-3 border rounded shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-[10px] leading-relaxed" 
+                     style="background-color: var(--header-bg); border-color: var(--border-color); color: var(--text-main);"
+                     data-i18n="help-tooltip">
+                    <b>Desktop:</b> Panah Kiri/Kanan (Geser), Atas (Putar), Bawah (Turun Cepat), Spasi (Jatuhkan Instan), Shift/C (Simpan Blok).<br>
+                    <b>Mobile/Touch:</b> Usap Kiri/Kanan (Geser), Ketuk (Putar), Usap Bawah (Turun Cepat), Usap Atas (Simpan Blok).<br>
+                    P: Jeda.
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-5">
+            <button id="langToggle" class="text-sm font-bold flex items-center gap-1 hover:opacity-70 transition-opacity" style="color: var(--text-main);">
+                <span id="langIcon">🇮🇩</span> <span id="langText">ID</span>
+            </button>
+            <button id="themeToggle" class="hover:opacity-70 transition-opacity" style="color: var(--text-main);">
+                <i data-lucide="sun" id="themeIcon" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 relative overflow-hidden" style="background-color: var(--preview-bg);">
+        <div id="game-wrapper">
+            <div id="game-container">
+                
+                <!-- Game Canvas (Board, Next, Hold rendered here) -->
+                <canvas id="gameCanvas"></canvas>
+                
+                <!-- HUD Overlay (Text Only) -->
+                <div id="ui-overlay" class="hidden md:flex">
+                    <div class="flex flex-col gap-4">
+                        <div class="font-black text-2xl hud-text text-white">HOLD</div>
+                        <!-- Spacer for Hold Canvas Box drawn underneath -->
+                        <div class="mt-24">
+                            <div class="font-black text-lg hud-text text-white">SCORE</div>
+                            <div id="scoreVal" class="text-3xl hud-text text-yellow-300">0</div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end gap-4">
+                        <div class="font-black text-2xl hud-text text-white">NEXT</div>
+                        <!-- Spacer for Next Canvas Box drawn underneath -->
+                        <div class="mt-24 text-right">
+                            <div class="font-black text-lg hud-text text-white">LEVEL</div>
+                            <div id="levelVal" class="text-3xl hud-text text-green-300">1</div>
+                            <div class="font-black text-lg hud-text text-white mt-4">LINES</div>
+                            <div id="linesVal" class="text-3xl hud-text text-cyan-300">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="menu-overlay">
+                    <!-- Title & Iced Tea Container -->
+                    <div class="flex items-center justify-center gap-6 mb-4 drop-shadow-2xl">
+                        <h1 class="text-6xl md:text-8xl font-black text-white title-blocky tracking-widest">TEHTRUS</h1>
+                        
+                        <!-- Iced Tea + Straw SVG Element -->
+                        <div class="w-20 h-28 md:w-28 md:h-36 relative animate-bounce" style="animation-duration: 2.5s; transform: rotate(5deg);">
+                            <svg viewBox="0 0 100 120" class="w-full h-full drop-shadow-[0_10px_10px_rgba(0,0,0,0.3)]">
+                                <!-- Straw -->
+                                <path d="M 65 30 L 80 5" stroke="#ef4444" stroke-width="6" stroke-linecap="round"/>
+                                <path d="M 65 30 L 60 90" stroke="#ef4444" stroke-width="6" stroke-linecap="round"/>
+                                <!-- Glass Back Inside -->
+                                <path d="M 25 30 L 35 110 L 65 110 L 75 30 Z" fill="rgba(255,255,255,0.4)"/>
+                                <!-- Tea/Liquid -->
+                                <path d="M 28 45 L 36 105 L 64 105 L 72 45 Z" fill="#d97706"/>
+                                <!-- Ice Cubes -->
+                                <rect x="38" y="70" width="14" height="14" fill="rgba(255,255,255,0.9)" transform="rotate(15 45 77)"/>
+                                <rect x="50" y="85" width="16" height="16" fill="rgba(255,255,255,0.85)" transform="rotate(-10 58 93)"/>
+                                <rect x="42" y="50" width="12" height="12" fill="rgba(255,255,255,0.9)" transform="rotate(45 48 56)"/>
+                                <!-- Condensation Drops -->
+                                <circle cx="35" cy="65" r="2" fill="rgba(255,255,255,0.6)"/>
+                                <circle cx="68" cy="80" r="1.5" fill="rgba(255,255,255,0.6)"/>
+                                <circle cx="45" cy="95" r="2.5" fill="rgba(255,255,255,0.6)"/>
+                                <!-- Glass Front Outline & Highlights -->
+                                <path d="M 25 30 L 35 110 L 65 110 L 75 30 Z" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="4" stroke-linejoin="round"/>
+                                <path d="M 32 40 L 40 100" stroke="rgba(255,255,255,0.8)" stroke-width="4" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <p class="text-slate-800 dark:text-slate-200 font-bold tracking-[0.2em] text-sm md:text-xl mb-10 drop-shadow-md bg-white/50 dark:bg-black/50 px-4 py-1 rounded-full">BLOCKY REALM</p>
+                    <button id="start-btn" class="roblox-btn" data-i18n="game-start">PLAY NOW</button>
+                </div>
+
+                <div id="pause-overlay">
+                    <h2 class="text-5xl font-black text-white title-blocky mb-8 tracking-widest drop-shadow-lg" data-i18n="game-pause">SYSTEM PAUSED</h2>
+                    <button id="resume-btn" class="roblox-btn" data-i18n="game-resume">RESUME</button>
+                </div>
+
+                <div id="gameover-msg" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-black text-6xl tracking-widest z-30 hidden title-blocky text-red-500 drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]" data-i18n="game-over">GAME OVER</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="flex items-center justify-between px-6 h-8 border-t shrink-0 z-50 text-[10px]" style="background-color: var(--footer-bg); border-color: var(--border-color); color: var(--text-dim);">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse" style="box-shadow: 0 0 5px var(--block-green);"></div>
+            <span data-i18n="footer-status">World Online</span>
+        </div>
+        <div><span data-i18n="footer-stats" class="font-mono">Block Engine Active</span></div>
+        <button id="termsBtn" class="hover:underline hover:text-blue-500 transition-colors" data-i18n="footer-terms">Ketentuan</button>
+    </footer>
+
+    <!-- TERMS MODAL -->
+    <div id="termsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm justify-center items-center z-[100] hidden">
+        <div class="border p-6 rounded-lg max-w-md w-full shadow-2xl relative" style="background-color: var(--header-bg); border-color: var(--border-color);">
+            <h2 class="text-lg font-bold mb-4" style="color: var(--text-main);" data-i18n="terms-title">Ketentuan Penggunaan</h2>
+            <p class="text-sm mb-6 leading-relaxed" style="color: var(--text-dim);" data-i18n="terms-content">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
+            </p>
+            <div class="flex justify-end">
+                <button id="closeTermsBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded text-xs font-bold transition-colors" data-i18n="terms-close">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TATADADA UI JS -->
+    <script>
+        lucide.createIcons();
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const htmlElement = document.documentElement;
+        
+        const applyTheme = (isDark) => {
+            if (isDark) { htmlElement.classList.add('dark'); themeIcon.setAttribute('data-lucide', 'sun'); }
+            else { htmlElement.classList.remove('dark'); themeIcon.setAttribute('data-lucide', 'moon'); }
+            lucide.createIcons();
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        };
+        applyTheme(localStorage.getItem('theme') === 'dark');
+        themeToggle.addEventListener('click', () => applyTheme(!htmlElement.classList.contains('dark')));
+
+        const i18n = {
+            'id': { 'game-start': 'MAIN SEKARANG', 'game-pause': 'DIJEDA', 'game-resume': 'LANJUTKAN', 'game-over': 'GAME OVER', 'footer-status': 'World Online', 'footer-stats': 'Block Engine Aktif', 'footer-terms': 'Ketentuan', 'terms-title': 'Ketentuan Penggunaan', 'terms-close': 'Tutup' },
+            'en': { 'game-start': 'PLAY NOW', 'game-pause': 'PAUSED', 'game-resume': 'RESUME', 'game-over': 'GAME OVER', 'footer-status': 'World Online', 'footer-stats': 'Block Engine Active', 'footer-terms': 'Terms', 'terms-title': 'Terms of Use', 'terms-close': 'Close' }
+        };
+        const applyLang = (langCode) => {
+            document.getElementById('langIcon').textContent = langCode === 'id' ? '🇮🇩' : '🇬🇧';
+            document.getElementById('langText').textContent = langCode.toUpperCase();
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[langCode][key]) el.innerHTML = i18n[langCode][key]; // innerHTML for tooltips
+            });
+            localStorage.setItem('lang', langCode);
+        };
+        applyLang(localStorage.getItem('lang') || 'id');
+        document.getElementById('langToggle').addEventListener('click', () => applyLang(localStorage.getItem('lang') === 'id' ? 'en' : 'id'));
+
+        const termsModal = document.getElementById('termsModal');
+        document.getElementById('termsBtn').addEventListener('click', () => { termsModal.classList.remove('hidden'); termsModal.classList.add('flex'); });
+        document.getElementById('closeTermsBtn').addEventListener('click', () => { termsModal.classList.add('hidden'); termsModal.classList.remove('flex'); });
+    </script>
+
+    <!-- GAME LOGIC (TEHTRUS ENGINE) -->
+    <script>
+        // --- AUDIO ENGINE ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        
+        const sfx = {
+            playTone: (freq, type, duration, vol=0.1, slideFreq=null) => {
+                if(!audioCtx || audioCtx.state !== 'running') return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                if(slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, audioCtx.currentTime + duration);
+                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + duration);
+            },
+            move: () => sfx.playTone(300, 'sine', 0.05, 0.05),
+            rotate: () => sfx.playTone(600, 'triangle', 0.1, 0.05, 800),
+            hardDrop: () => sfx.playTone(100, 'square', 0.15, 0.1, 50),
+            lock: () => sfx.playTone(200, 'sawtooth', 0.1, 0.05),
+            hold: () => sfx.playTone(400, 'sine', 0.1, 0.05, 200),
+            error: () => sfx.playTone(150, 'sawtooth', 0.1, 0.1),
+            clear: (lines) => {
+                const baseFreq = 440;
+                sfx.playTone(baseFreq, 'square', 0.3, 0.1);
+                sfx.playTone(baseFreq * 1.25, 'square', 0.3, 0.1);
+                if(lines >= 2) setTimeout(() => sfx.playTone(baseFreq * 1.5, 'square', 0.3, 0.1), 100);
+                if(lines >= 3) setTimeout(() => sfx.playTone(baseFreq * 2, 'square', 0.4, 0.1), 200);
+                if(lines === 4) { // Tetris!
+                    setTimeout(() => sfx.playTone(baseFreq * 1.5, 'square', 0.2, 0.1), 300);
+                    setTimeout(() => sfx.playTone(baseFreq * 2.5, 'square', 0.5, 0.15), 400);
+                }
+            },
+            levelUp: () => {
+                let f = 300;
+                for(let i=0; i<5; i++) {
+                    setTimeout(() => sfx.playTone(f, 'sine', 0.1, 0.1), i*100);
+                    f *= 1.2;
+                }
+            },
+            gameOver: () => {
+                sfx.playTone(300, 'sawtooth', 0.5, 0.1, 100);
+                setTimeout(() => sfx.playTone(250, 'sawtooth', 0.5, 0.1, 80), 300);
+                setTimeout(() => sfx.playTone(200, 'sawtooth', 1.0, 0.1, 50), 600);
+            }
+        };
+
+        // --- TETRIS CONSTANTS & SHAPES ---
+        const COLS = 10;
+        const ROWS = 20;
+        const SHAPES = {
+            I: { mat: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], color: '#06b6d4' }, // Cyan
+            J: { mat: [[1,0,0],[1,1,1],[0,0,0]], color: '#2563eb' }, // Blue
+            L: { mat: [[0,0,1],[1,1,1],[0,0,0]], color: '#ea580c' }, // Orange
+            O: { mat: [[1,1],[1,1]], color: '#eab308' }, // Yellow
+            S: { mat: [[0,1,1],[1,1,0],[0,0,0]], color: '#16a34a' }, // Green
+            T: { mat: [[0,1,0],[1,1,1],[0,0,0]], color: '#9333ea' }, // Purple
+            Z: { mat: [[1,1,0],[0,1,1],[0,0,0]], color: '#dc2626' }  // Red
+        };
+        const SHAPE_KEYS = Object.keys(SHAPES);
+
+        // --- GAME STATE ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        
+        let board = [];
+        let score = 0, level = 1, lines = 0;
+        let gameActive = false, isPaused = false;
+        let dropCounter = 0, dropInterval = 1000;
+        let lastTime = 0;
+        let bag = [];
+        
+        let currentPiece = null;
+        let nextPieceType = null;
+        let holdPieceType = null;
+        let canHold = true;
+        let particles = [];
+
+        // UI Elements
+        const scoreEl = document.getElementById('scoreVal');
+        const levelEl = document.getElementById('levelVal');
+        const linesEl = document.getElementById('linesVal');
+        const menuOverlay = document.getElementById('menu-overlay');
+        const pauseOverlay = document.getElementById('pause-overlay');
+        const gameoverMsg = document.getElementById('gameover-msg');
+
+        // Render Geometry
+        let BLOCK_SIZE = 30;
+        // The canvas logical size will be fixed aspect 3:4, e.g., 600x800
+        const LOGICAL_WIDTH = 600;
+        const LOGICAL_HEIGHT = 800;
+        
+        // Define regions on logical canvas
+        const BOARD_W = COLS * BLOCK_SIZE; // 300
+        const BOARD_H = ROWS * BLOCK_SIZE; // 600
+        const BOARD_X = (LOGICAL_WIDTH - BOARD_W) / 2; // 150
+        const BOARD_Y = (LOGICAL_HEIGHT - BOARD_H) / 2; // 100
+        
+        const HOLD_BOX = { x: 20, y: BOARD_Y, w: 110, h: 110 };
+        const NEXT_BOX = { x: LOGICAL_WIDTH - 130, y: BOARD_Y, w: 110, h: 110 };
+
+        // Resize handler to maintain aspect ratio
+        function resize() {
+            const container = document.getElementById('game-container');
+            let cw = container.clientWidth - 20;
+            let ch = container.clientHeight - 40;
+            
+            // Maintain 3:4 aspect ratio
+            const ratio = LOGICAL_WIDTH / LOGICAL_HEIGHT;
+            if (cw / ch > ratio) {
+                cw = ch * ratio;
+            } else {
+                ch = cw / ratio;
+            }
+            
+            canvas.style.width = `${cw}px`;
+            canvas.style.height = `${ch}px`;
+            
+            // Canvas internal resolution always constant for sharp rendering
+            canvas.width = LOGICAL_WIDTH;
+            canvas.height = LOGICAL_HEIGHT;
+            
+            // Optimize mobile HUD overlay visibility
+            const hud = document.getElementById('ui-overlay');
+            if(window.innerWidth < 768) hud.style.display = 'none';
+            else hud.style.display = 'flex';
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- CLASSES ---
+        class Piece {
+            constructor(type) {
+                this.type = type;
+                this.matrix = JSON.parse(JSON.stringify(SHAPES[type].mat)); // deep copy
+                this.color = SHAPES[type].color;
+                this.x = Math.floor(COLS / 2) - Math.floor(this.matrix[0].length / 2);
+                this.y = 0;
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.size = Math.random() * 8 + 4; // Bigger particles for blocky feel
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 10 + 2;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.life = 1.0;
+                this.decay = Math.random() * 0.05 + 0.02;
+                this.gravity = 0.4;
+            }
+            update() {
+                this.vy += this.gravity;
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= this.decay;
+            }
+            draw(ctx) {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                // Draw a simple 3D block particle
+                ctx.fillRect(this.x, this.y, this.size, this.size);
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.fillRect(this.x, this.y, this.size, this.size/4); // Highlight
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        // --- CORE LOGIC ---
+        function createMatrix(w, h) {
+            const m = [];
+            while (h--) m.push(new Array(w).fill(0));
+            return m;
+        }
+
+        function getNextBagPiece() {
+            if (bag.length === 0) {
+                bag = [...SHAPE_KEYS];
+                bag.sort(() => Math.random() - 0.5); // Shuffle
+            }
+            return bag.pop();
+        }
+
+        function spawnPiece() {
+            if (!nextPieceType) nextPieceType = getNextBagPiece();
+            currentPiece = new Piece(nextPieceType);
+            nextPieceType = getNextBagPiece();
+            currentPiece.y = 0;
+            canHold = true;
+            
+            // Check Game Over
+            if (collide(board, currentPiece)) {
+                gameOver();
+            }
+        }
+
+        function holdActivePiece() {
+            if (!canHold) return;
+            sfx.hold();
+            
+            if (holdPieceType === null) {
+                holdPieceType = currentPiece.type;
+                spawnPiece();
+            } else {
+                let temp = currentPiece.type;
+                currentPiece = new Piece(holdPieceType);
+                holdPieceType = temp;
+            }
+            canHold = false;
+        }
+
+        function collide(b, p, offsetX = 0, offsetY = 0) {
+            const m = p.matrix;
+            for (let y = 0; y < m.length; ++y) {
+                for (let x = 0; x < m[y].length; ++x) {
+                    if (m[y][x] !== 0) {
+                        const newY = p.y + y + offsetY;
+                        const newX = p.x + x + offsetX;
+                        if (newY < 0 || newY >= ROWS || newX < 0 || newX >= COLS || (newY >= 0 && b[newY][newX] !== 0)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function merge(b, p) {
+            p.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0 && p.y + y >= 0) {
+                        b[p.y + y][p.x + x] = p.color;
+                    }
+                });
+            });
+        }
+
+        function rotate(matrix, dir) {
+            // Transpose
+            for (let y = 0; y < matrix.length; ++y) {
+                for (let x = 0; x < y; ++x) {
+                    [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+                }
+            }
+            // Reverse
+            if (dir > 0) {
+                matrix.forEach(row => row.reverse());
+            } else {
+                matrix.reverse();
+            }
+        }
+
+        function playerRotate(dir) {
+            const pos = currentPiece.x;
+            let offset = 1;
+            rotate(currentPiece.matrix, dir);
+            
+            // Wall Kick (Basic SRS)
+            while (collide(board, currentPiece)) {
+                currentPiece.x += offset;
+                offset = -(offset + (offset > 0 ? 1 : -1));
+                if (offset > currentPiece.matrix[0].length) {
+                    // Rotate back if wall kick fails
+                    rotate(currentPiece.matrix, -dir);
+                    currentPiece.x = pos;
+                    sfx.error();
+                    return;
+                }
+            }
+            sfx.rotate();
+        }
+
+        function playerMove(dir) {
+            currentPiece.x += dir;
+            if (collide(board, currentPiece)) {
+                currentPiece.x -= dir;
+            } else {
+                sfx.move();
+            }
+        }
+
+        function playerDrop() {
+            currentPiece.y++;
+            if (collide(board, currentPiece)) {
+                currentPiece.y--;
+                lockPiece();
+            }
+            dropCounter = 0;
+        }
+
+        function hardDrop() {
+            let dropDist = 0;
+            while (!collide(board, currentPiece, 0, 1)) {
+                currentPiece.y++;
+                dropDist++;
+            }
+            sfx.hardDrop();
+            score += dropDist * 2; // Bonus for hard drop
+            updateUI();
+            lockPiece();
+        }
+
+        function getGhostY() {
+            let ghostY = currentPiece.y;
+            while (!collide(board, currentPiece, 0, ghostY - currentPiece.y + 1)) {
+                ghostY++;
+            }
+            return ghostY;
+        }
+
+        function lockPiece() {
+            merge(board, currentPiece);
+            sfx.lock();
+            arenaSweep();
+            spawnPiece();
+        }
+
+        function arenaSweep() {
+            let rowCount = 0;
+            outer: for (let y = ROWS - 1; y >= 0; --y) {
+                for (let x = 0; x < COLS; ++x) {
+                    if (board[y][x] === 0) continue outer;
+                }
+
+                // Create particles
+                for (let x = 0; x < COLS; ++x) {
+                    const color = board[y][x];
+                    for (let i = 0; i < 8; i++) { // Less particles, but chunkier
+                        particles.push(new Particle(
+                            BOARD_X + x * BLOCK_SIZE + BLOCK_SIZE/2, 
+                            BOARD_Y + y * BLOCK_SIZE + BLOCK_SIZE/2, 
+                            color
+                        ));
+                    }
+                }
+
+                // Remove row
+                const row = board.splice(y, 1)[0].fill(0);
+                board.unshift(row);
+                ++y;
+                rowCount++;
+            }
+
+            if (rowCount > 0) {
+                sfx.clear(rowCount);
+                lines += rowCount;
+                
+                // Scoring
+                let lineScore = 0;
+                if (rowCount === 1) lineScore = 100;
+                else if (rowCount === 2) lineScore = 300;
+                else if (rowCount === 3) lineScore = 500;
+                else if (rowCount === 4) lineScore = 800; // Tetris
+                
+                score += lineScore * level;
+                
+                // Level Up
+                if (lines >= level * 10) {
+                    level++;
+                    dropInterval = Math.max(100, 1000 - (level - 1) * 100);
+                    sfx.levelUp();
+                }
+                
+                updateUI();
+            }
+        }
+
+        function updateUI() {
+            scoreEl.innerText = score;
+            levelEl.innerText = level;
+            linesEl.innerText = lines;
+        }
+
+        function gameOver() {
+            gameActive = false;
+            sfx.gameOver();
+            gameoverMsg.classList.remove('hidden');
+            setTimeout(() => {
+                gameoverMsg.classList.add('hidden');
+                menuOverlay.style.display = 'flex';
+            }, 3000);
+        }
+
+        function startGame() {
+            if (!audioCtx) audioCtx = new AudioContext();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            board = createMatrix(COLS, ROWS);
+            score = 0; level = 1; lines = 0; dropInterval = 1000;
+            updateUI();
+            bag = [];
+            holdPieceType = null;
+            nextPieceType = null;
+            particles = [];
+            
+            spawnPiece();
+            
+            gameActive = true;
+            menuOverlay.style.display = 'none';
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function togglePause() {
+            if (!gameActive) return;
+            isPaused = !isPaused;
+            pauseOverlay.style.display = isPaused ? 'flex' : 'none';
+            if (!isPaused) {
+                lastTime = performance.now();
+                if(audioCtx) audioCtx.resume();
+                requestAnimationFrame(gameLoop);
+            } else {
+                if(audioCtx) audioCtx.suspend();
+            }
+        }
+
+        // --- RENDERING (UPDATED FOR ROBLOX/BLOCKY STYLE) ---
+        function drawBlock(ctx, x, y, size, color, isGhost = false) {
+            if (isGhost) {
+                ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.fillRect(x, y, size, size);
+                ctx.strokeRect(x, y, size, size);
+                return;
+            }
+
+            // Solid Base
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, size, size);
+            
+            // Plastic/Lego Bevel Effect
+            // Top/Left highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fillRect(x, y, size, 4); // Top edge
+            ctx.fillRect(x, y, 4, size); // Left edge
+            
+            // Bottom/Right shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.fillRect(x, y + size - 4, size, 4); // Bottom edge
+            ctx.fillRect(x + size - 4, y, 4, size); // Right edge
+
+            // Inner Square (Like a Lego Stud)
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.fillRect(x + size/4, y + size/4, size/2, size/2);
+            
+            // Outline to separate blocks
+            ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y, size, size);
+        }
+
+        function drawMatrix(matrix, offset, color, isGhost = false) {
+            matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        drawBlock(ctx, 
+                            BOARD_X + (x + offset.x) * BLOCK_SIZE, 
+                            BOARD_Y + (y + offset.y) * BLOCK_SIZE, 
+                            BLOCK_SIZE, 
+                            color, 
+                            isGhost
+                        );
+                    }
+                });
+            });
+        }
+
+        function drawUIBox(box, title, pieceType, isDark) {
+            // Box Frame (Plastic Look)
+            ctx.fillStyle = isDark ? 'rgba(30, 41, 59, 0.8)' : 'rgba(241, 245, 249, 0.8)';
+            ctx.strokeStyle = isDark ? '#475569' : '#94a3b8';
+            ctx.lineWidth = 4;
+            ctx.fillRect(box.x, box.y, box.w, box.h);
+            ctx.strokeRect(box.x, box.y, box.w, box.h);
+            
+            // Inner shadow to look recessed
+            ctx.fillStyle = 'rgba(0,0,0,0.1)';
+            ctx.fillRect(box.x, box.y, box.w, 4);
+            ctx.fillRect(box.x, box.y, 4, box.h);
+
+            // Draw Mobile/Canvas Text (fallback if HTML UI hidden)
+            if(window.innerWidth < 768) {
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 4;
+                ctx.font = '900 18px Inter';
+                ctx.textAlign = 'center';
+                // Text stroke workaround
+                ctx.strokeText(title, box.x + box.w/2, box.y - 10);
+                ctx.fillText(title, box.x + box.w/2, box.y - 10);
+            }
+
+            if (pieceType) {
+                const shape = SHAPES[pieceType].mat;
+                const color = SHAPES[pieceType].color;
+                
+                // Center piece in box
+                let pWidth = shape[0].length * BLOCK_SIZE;
+                let pHeight = shape.length * BLOCK_SIZE;
+                let offsetX = box.x + (box.w - pWidth) / 2;
+                let offsetY = box.y + (box.h - pHeight) / 2;
+
+                shape.forEach((row, y) => {
+                    row.forEach((value, x) => {
+                        if (value !== 0) {
+                            drawBlock(ctx, offsetX + x * BLOCK_SIZE, offsetY + y * BLOCK_SIZE, BLOCK_SIZE, color);
+                        }
+                    });
+                });
+            }
+        }
+
+        function draw() {
+            const isDark = document.documentElement.classList.contains('dark');
+
+            // Clear screen (Translucent background)
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Board Background
+            ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.5)';
+            ctx.fillRect(BOARD_X, BOARD_Y, BOARD_W, BOARD_H);
+            
+            // Draw Grid Lines
+            ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 0; i <= COLS; i++) {
+                ctx.moveTo(BOARD_X + i * BLOCK_SIZE, BOARD_Y);
+                ctx.lineTo(BOARD_X + i * BLOCK_SIZE, BOARD_Y + BOARD_H);
+            }
+            for (let i = 0; i <= ROWS; i++) {
+                ctx.moveTo(BOARD_X, BOARD_Y + i * BLOCK_SIZE);
+                ctx.lineTo(BOARD_X + BOARD_W, BOARD_Y + i * BLOCK_SIZE);
+            }
+            ctx.stroke();
+
+            // Draw Board Border (Thick plastic rim)
+            ctx.strokeStyle = isDark ? '#334155' : '#94a3b8';
+            ctx.lineWidth = 6;
+            ctx.strokeRect(BOARD_X - 3, BOARD_Y - 3, BOARD_W + 6, BOARD_H + 6);
+            
+            // Inner recessed shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.fillRect(BOARD_X, BOARD_Y, BOARD_W, 6);
+            ctx.fillRect(BOARD_X, BOARD_Y, 6, BOARD_H);
+
+            // Draw Locked Pieces
+            board.forEach((row, y) => {
+                row.forEach((color, x) => {
+                    if (color !== 0) {
+                        drawBlock(ctx, BOARD_X + x * BLOCK_SIZE, BOARD_Y + y * BLOCK_SIZE, BLOCK_SIZE, color);
+                    }
+                });
+            });
+
+            // Draw Active & Ghost Piece
+            if (currentPiece) {
+                // Ghost
+                let ghostY = getGhostY();
+                drawMatrix(currentPiece.matrix, { x: currentPiece.x, y: ghostY }, currentPiece.color, true);
+                // Active
+                drawMatrix(currentPiece.matrix, { x: currentPiece.x, y: currentPiece.y }, currentPiece.color, false);
+            }
+
+            // Draw UI Boxes
+            drawUIBox(HOLD_BOX, 'HOLD', holdPieceType, isDark);
+            drawUIBox(NEXT_BOX, 'NEXT', nextPieceType, isDark);
+            
+            // Draw Mobile Stats if HTML hidden
+            if(window.innerWidth < 768) {
+                ctx.font = '900 20px Inter'; 
+                ctx.textAlign = 'left';
+                
+                // Style function for text stroke
+                const strokeText = (txt, x, y, fill) => {
+                    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 5; ctx.strokeText(txt, x, y);
+                    ctx.fillStyle = fill; ctx.fillText(txt, x, y);
+                };
+
+                strokeText(`SCORE: ${score}`, 20, BOARD_Y + BOARD_H + 35, '#fde047');
+                strokeText(`LVL: ${level}`, 20, BOARD_Y + BOARD_H + 65, '#86efac');
+                strokeText(`LINES: ${lines}`, LOGICAL_WIDTH/2, BOARD_Y + BOARD_H + 65, '#67e8f9');
+            }
+
+            // Draw Particles
+            particles.forEach(p => p.draw(ctx));
+        }
+
+        function gameLoop(time = 0) {
+            if (!gameActive || isPaused) return;
+
+            const deltaTime = time - lastTime;
+            lastTime = time;
+
+            dropCounter += deltaTime;
+            if (dropCounter > dropInterval) {
+                playerDrop();
+            }
+
+            // Update particles
+            for(let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                if(particles[i].life <= 0) particles.splice(i, 1);
+            }
+
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- INPUT HANDLING ---
+        document.getElementById('start-btn').onclick = startGame;
+        document.getElementById('resume-btn').onclick = togglePause;
+
+        window.addEventListener('keydown', e => {
+            if (!gameActive) return;
+            if (e.key.toLowerCase() === 'p') { togglePause(); return; }
+            if (isPaused) return;
+
+            switch (e.key) {
+                case 'ArrowLeft': playerMove(-1); break;
+                case 'ArrowRight': playerMove(1); break;
+                case 'ArrowDown': playerDrop(); score++; updateUI(); break;
+                case 'ArrowUp': case 'w': case 'W': playerRotate(1); break;
+                case ' ': hardDrop(); break;
+                case 'Shift': case 'c': case 'C': holdActivePiece(); break;
+            }
+        });
+
+        // Touch / Swipe Handling
+        let touchStartX = 0, touchStartY = 0;
+        let lastTouchX = 0;
+        const SWIPE_THRESHOLD = 30; // Move piece every 30px swipe
+
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault();
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            lastTouchX = touchStartX;
+        }, {passive: false});
+
+        canvas.addEventListener('touchmove', e => {
+            if (!gameActive || isPaused) return;
+            e.preventDefault();
+            
+            let currentX = e.touches[0].clientX;
+            let dx = currentX - lastTouchX;
+            
+            // Continuous horizontal swipe movement
+            if (Math.abs(dx) > SWIPE_THRESHOLD) {
+                if (dx > 0) playerMove(1);
+                else playerMove(-1);
+                lastTouchX = currentX; // Reset anchor
+            }
+        }, {passive: false});
+
+        canvas.addEventListener('touchend', e => {
+            if (!gameActive || isPaused) return;
+            let touchEndX = e.changedTouches[0].clientX;
+            let touchEndY = e.changedTouches[0].clientY;
+            let dx = touchEndX - touchStartX;
+            let dy = touchEndY - touchStartY;
+
+            // Detect gestures
+            if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
+                // Tap -> Rotate
+                playerRotate(1);
+            } else if (Math.abs(dy) > Math.abs(dx)) {
+                // Vertical Swipes
+                if (dy > 40) {
+                    // Swipe Down -> Hard Drop
+                    hardDrop();
+                } else if (dy < -40) {
+                    // Swipe Up -> Hold
+                    holdActivePiece();
+                }
+            }
+        });
+
+        // Initial draw setup (needs theme applied first)
+        setTimeout(draw, 100);
+    </script>
+</body>
+</html>
