@@ -100,7 +100,7 @@
         /* Textarea Editor Settings */
         textarea.tata-editor {
             font-family: 'JetBrains Mono', monospace;
-            white-space: pre-wrap; /* allow wrap for OCR text */
+            white-space: pre-wrap;
             line-height: 1.6;
             resize: none;
         }
@@ -142,7 +142,6 @@
                 <h1 class="text-4xl font-extrabold text-main mb-3 tracking-tight">AkuCinta<span class="text-red-600">PDF</span></h1>
                 <p class="text-sm md:text-base text-dim max-w-2xl mx-auto" data-i18n="appDesc"></p>
             </div>
-            <!-- Grid Diperkecil agar muat 11 fitur -->
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3" id="home-menu-grid">
                 <!-- Injected via JS -->
             </div>
@@ -1032,6 +1031,19 @@
         function openTermsModal() { document.getElementById('modal-terms').classList.remove('hidden'); }
         function closeTermsModal() { document.getElementById('modal-terms').classList.add('hidden'); }
 
+        // Fallback Scanner Darurat (Tanpa node-forge)
+        const scanBinaryForFallback = (binaryStr) => {
+            const cnMatch = binaryStr.match(/cn=([A-Za-z0-9\s\.,_\-]+)/i);
+            const oMatch = binaryStr.match(/o=([A-Za-z0-9\s\.,_\-]+)/i);
+            if (cnMatch) {
+                return {
+                    cn: cnMatch[1].trim(),
+                    o: oMatch ? oMatch[1].trim() : null
+                };
+            }
+            return null;
+        };
+
         // ==========================================
         // 3. HOME MENU BUILDER
         // ==========================================
@@ -1129,24 +1141,38 @@
             },
 
             async extractSignatures(arrayBuffer) {
-                const decoder = new TextDecoder('latin1');
-                const pdfText = decoder.decode(arrayBuffer);
-                const foundSignatures = [];
-                const contentsTag = '/Contents';
-                let searchIndex = 0;
+                let foundSignatures = [];
+                let pdfDoc;
 
-                while ((searchIndex = pdfText.indexOf(contentsTag, searchIndex)) !== -1) {
-                    const startBracketIndex = pdfText.indexOf('<', searchIndex);
-                    if (startBracketIndex !== -1 && startBracketIndex - searchIndex < 50) {
-                        const endBracketIndex = pdfText.indexOf('>', startBracketIndex);
-                        if (endBracketIndex !== -1) {
-                            const rawHex = pdfText.substring(startBracketIndex + 1, endBracketIndex);
-                            if (rawHex.length > 500) {
-                                let debugLogs = [];
+                // 1. Prioritas Utama: Ekstraksi Hex via pdf-lib (Aman dari References)
+                try {
+                    pdfDoc = await window.PDFLib.PDFDocument.load(arrayBuffer.slice(0), { ignoreEncryption: true });
+                    const form = pdfDoc.getForm();
+                    if (form) {
+                        const sigFields = form.getFields().filter(f => f.constructor.name === 'PDFSignature');
+                        for (const sig of sigFields) {
+                            let debugLogs = [];
+                            try {
+                                const acroField = sig.acroField;
+                                const vDict = acroField.dict.get(window.PDFLib.PDFName.of('V'));
+                                if (!vDict) continue;
+
+                                const contents = vDict.get(window.PDFLib.PDFName.of('Contents'));
+                                if (!contents) continue;
+
+                                let hexString = '';
+                                if (contents.value && typeof contents.value === 'string') {
+                                    hexString = contents.value.replace(/[^0-9a-fA-F]/g, '');
+                                } else if (contents.asString) {
+                                    hexString = contents.asString().replace(/[^0-9a-fA-F]/g, '');
+                                }
+
+                                if (hexString.length < 100) continue;
+
+                                const { binaryStr, logs } = this.prepareAndValidatePayload(hexString);
+                                debugLogs = logs;
+
                                 try {
-                                    const { binaryStr, logs } = this.prepareAndValidatePayload(rawHex);
-                                    debugLogs = logs;
-
                                     const asn1Obj = window.forge.asn1.fromDer(binaryStr);
                                     const p7 = window.forge.pkcs7.messageFromAsn1(asn1Obj);
 
@@ -1174,15 +1200,108 @@
                                         return { authAttrs };
                                     });
 
-                                    debugLogs.push("Rantai Sertifikat berhasil dibedah.");
+                                    debugLogs.push("Rantai Sertifikat berhasil dibedah via PDF-LIB.");
                                     foundSignatures.push({ id: foundSignatures.length + 1, debugLogs, certificates: certs, signerInfos, error: null });
-                                } catch (parseErr) {
-                                    foundSignatures.push({ id: foundSignatures.length + 1, error: parseErr.message, debugLogs: [...debugLogs, `ERROR: ${parseErr.message}`], certificates: [] });
+                                } catch (forgeErr) {
+                                    // Bencana PKCS#7: Lakukan raw binary scan (Fallback CAdES)
+                                    const fallback = scanBinaryForFallback(binaryStr);
+                                    if (fallback) {
+                                        debugLogs.push("Forge gagal parsing CMS. Fallback Biner Berhasil.");
+                                        const certs = [{
+                                            subject: [
+                                                { oid: '2.5.4.3', name: 'Common Name (CN)', value: fallback.cn },
+                                                { oid: '2.5.4.10', name: 'Organization (O)', value: fallback.o || 'Unknown' }
+                                            ],
+                                            issuer: [], validFrom: '-', validTo: '-'
+                                        }];
+                                        foundSignatures.push({ id: foundSignatures.length + 1, debugLogs, certificates: certs, signerInfos: [], error: null });
+                                    } else {
+                                        foundSignatures.push({ id: foundSignatures.length + 1, error: forgeErr.message, debugLogs: [...debugLogs, `ERROR: ${forgeErr.message}`], certificates: [] });
+                                    }
                                 }
+
+                            } catch (parseErr) {
+                                foundSignatures.push({ id: foundSignatures.length + 1, error: parseErr.message, debugLogs: [...debugLogs, `ERROR: ${parseErr.message}`], certificates: [] });
                             }
                         }
                     }
-                    searchIndex += contentsTag.length;
+                } catch(e) {
+                    console.warn("PDF-LIB signature parsing failed", e);
+                }
+
+                // 2. Fallback Darurat: Pemindaian String Mentah (Hanya jika pdf-lib gagal mengekstrak TTD)
+                if (foundSignatures.length === 0) {
+                    const decoder = new TextDecoder('latin1');
+                    const pdfText = decoder.decode(arrayBuffer);
+                    const contentsTag = '/Contents';
+                    let searchIndex = 0;
+
+                    while ((searchIndex = pdfText.indexOf(contentsTag, searchIndex)) !== -1) {
+                        const startBracketIndex = pdfText.indexOf('<', searchIndex);
+                        if (startBracketIndex !== -1 && startBracketIndex - searchIndex < 50) {
+                            const endBracketIndex = pdfText.indexOf('>', startBracketIndex);
+                            if (endBracketIndex !== -1) {
+                                const rawHex = pdfText.substring(startBracketIndex + 1, endBracketIndex);
+                                if (rawHex.length > 500) {
+                                    let debugLogs = [];
+                                    try {
+                                        const { binaryStr, logs } = this.prepareAndValidatePayload(rawHex);
+                                        debugLogs = logs;
+
+                                        try {
+                                            const asn1Obj = window.forge.asn1.fromDer(binaryStr);
+                                            const p7 = window.forge.pkcs7.messageFromAsn1(asn1Obj);
+
+                                            const certs = (p7.certificates || []).map(cert => ({
+                                                subject: mapAttributes(cert.subject.attributes),
+                                                issuer: mapAttributes(cert.issuer.attributes),
+                                                validFrom: cert.validity.notBefore.toString(),
+                                                validTo: cert.validity.notAfter.toString(),
+                                                serialNumber: cert.serialNumber
+                                            }));
+
+                                            const signerInfos = (p7.signerInfos || []).map(signer => {
+                                                const authAttrs = (signer.authenticatedAttributes || []).map(attr => {
+                                                    let rawValue = 'N/A';
+                                                    if (attr.value && Array.isArray(attr.value) && attr.value.length > 0) {
+                                                        const v = attr.value[0];
+                                                        if (v.type === window.forge.asn1.Type.UTCTIME || v.type === window.forge.asn1.Type.GENERALIZEDTIME) {
+                                                            rawValue = formatDate(v.value);
+                                                        } else if (typeof v.value === 'string') {
+                                                            rawValue = window.forge.util.bytesToHex(v.value);
+                                                        }
+                                                    }
+                                                    return { oid: attr.type, name: OID_MAP[attr.type] || 'Atribut CMS', value: rawValue };
+                                                });
+                                                return { authAttrs };
+                                            });
+
+                                            debugLogs.push("Rantai Sertifikat berhasil dibedah via Raw String.");
+                                            foundSignatures.push({ id: foundSignatures.length + 1, debugLogs, certificates: certs, signerInfos, error: null });
+                                        } catch(forgeErr) {
+                                            const fallback = scanBinaryForFallback(binaryStr);
+                                            if (fallback) {
+                                                debugLogs.push("Forge gagal. Raw string fallback berhasil.");
+                                                const certs = [{
+                                                    subject: [
+                                                        { oid: '2.5.4.3', name: 'Common Name (CN)', value: fallback.cn },
+                                                        { oid: '2.5.4.10', name: 'Organization (O)', value: fallback.o || 'Unknown' }
+                                                    ],
+                                                    issuer: [], validFrom: '-', validTo: '-'
+                                                }];
+                                                foundSignatures.push({ id: foundSignatures.length + 1, debugLogs, certificates: certs, signerInfos: [], error: null });
+                                            } else {
+                                                throw forgeErr;
+                                            }
+                                        }
+                                    } catch (parseErr) {
+                                        foundSignatures.push({ id: foundSignatures.length + 1, error: parseErr.message, debugLogs: [...debugLogs, `ERROR: ${parseErr.message}`], certificates: [] });
+                                    }
+                                }
+                            }
+                        }
+                        searchIndex += contentsTag.length;
+                    }
                 }
                 return foundSignatures.filter(s => s.certificates.length > 0 || s.error);
             },
@@ -1241,58 +1360,26 @@
                     const isLinearized = rawString ? rawString.slice(0, 1024).includes('/Linearized') : false;
                     const fontCount = rawString ? (rawString.match(/\/Type\s*\/Font\b/g) || []).length : 0;
                     const imageCount = rawString ? (rawString.match(/\/Subtype\s*\/Image\b/g) || []).length : 0;
+                    const rawStringSigned = rawString.includes('/adbe.pkcs7') || rawString.includes('/ETSI.CAdES.detached');
 
-                    let signatureText = t('meta_unsigned');
+                    try {
+                        this.signatures = await this.extractSignatures(arrayBuffer.slice(0));
+                    } catch(e) { this.signatures = []; }
+
+                    let signatureSummary = t('meta_unsigned');
+                    const validSigs = this.signatures.filter(s => !s.error);
                     
-                    const sigResult = await parseDigitalSignature(file);
-                    
-                    if (sigResult.success && sigResult.signatures.length > 0) {
-                        let sigDetails = [];
-                        sigResult.signatures.forEach(sig => {
-                            const human = sig.humanReadableValues;
-                            const issuer = sig.issuer || {};
-                            
-                            let finalName = human.CommonName || human.CN || "Unknown Signer";
-                            let label = `👤 <b class="text-main">${finalName}</b>`;
-                            
-                            let badges = [];
-                            const org = human.Organization || human.O || "";
-                            const issuerOrg = issuer.Organization || issuer.O || "";
-                            
-                            if (issuerOrg.includes('BSrE') || issuerOrg.includes('Balai Besar Sertifikasi Elektronik') || rawString.includes('BSrE')) {
-                                badges.push("BSrE Verified");
-                            }
-                            if (org.includes('Universitas Indonesia') || finalName.includes('Universitas Indonesia')) {
-                                badges.push("Universitas Indonesia");
-                            }
-                            
-                            if (badges.length > 0) {
-                                label += ` <span class="inline-block text-[9px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded ml-1 align-middle">${badges.join(' | ')}</span>`;
-                            }
-                            
-                            let extras = [];
-                            Object.keys(human).forEach(k => {
-                                if (k !== 'CommonName' && k !== 'CN') { 
-                                     let val = human[k];
-                                     if (typeof val === 'string') {
-                                         val = val.replace(/[\x00-\x1F\x7F-\x9F]/g, ""); 
-                                         extras.push(`<span class="text-[11px] text-dim break-all"><b class="font-semibold">${k}:</b> ${val}</span>`);
-                                     }
-                                }
-                            });
-                            
-                            if (extras.length > 0) {
-                                label += `<br><div class="mt-1 flex flex-col gap-0.5">${extras.join('')}</div>`;
-                            }
-                            
-                            sigDetails.push(label);
+                    if (validSigs.length > 0) {
+                        const names = validSigs.map(sig => {
+                            const leaf = sig.certificates.find(c => {
+                                const cn = getAttrValue(c.subject, 'Common Name', '2.5.4.3');
+                                return cn && !sig.certificates.some(other => other !== c && getAttrValue(other.issuer, 'Common Name', '2.5.4.3') === cn);
+                            }) || sig.certificates[sig.certificates.length - 1];
+                            return getAttrValue(leaf.subject, 'Common Name', '2.5.4.3') || t('unknownName');
                         });
-                        signatureText = sigDetails.join('<div class="my-2 border-t border-theme border-dashed"></div>');
-                    } else {
-                        if (rawString.includes('/adbe.pkcs7') || rawString.includes('/ETSI.CAdES.detached')) {
-                            let isBSrE = rawString.includes('BSrE') || rawString.includes('Balai Besar Sertifikasi Elektronik');
-                            signatureText = t('meta_signed') + (isBSrE ? ' <span class="inline-block text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded ml-2 align-middle">BSrE Verified</span>' : '');
-                        }
+                        signatureSummary = `<span class="text-green-600 font-bold">${names.join(', ')}</span>`;
+                    } else if (rawStringSigned) {
+                        signatureSummary = `<span class="text-green-600 font-bold">${t('meta_signed')}</span>`;
                     }
 
                     const objUrl = URL.createObjectURL(file);
@@ -1315,7 +1402,7 @@
                         filesize: formatBytes(file.size),
                         pages: pdf.numPages,
                         version: info.PDFFormatVersion || t('meta_unknown'),
-                        signature: signatureText,
+                        signatureSummary: signatureSummary,
                         title: info.Title || '-',
                         author: info.Author || '-',
                         subject: info.Subject || '-',
@@ -1362,7 +1449,7 @@
 
                 if (!this.metaData.encrypted) {
                     fields.push(
-                        { key: 'meta_signature', val: this.metaData.signature },
+                        { key: 'meta_signature', val: this.metaData.signatureSummary },
                         { key: 'meta_pages', val: this.metaData.pages },
                         { key: 'meta_version', val: `PDF ${this.metaData.version}` },
                         { key: 'meta_title', val: this.metaData.title },
@@ -1399,6 +1486,7 @@
                     document.getElementById('info-upload-box').classList.add('hidden');
                     document.getElementById('info-active-box').classList.remove('hidden');
                     document.getElementById('info-filename').innerText = this.file.name;
+                    document.getElementById('info-filesize').innerText = formatBytes(this.file.size);
                     
                     const grid = document.getElementById('info-data-grid');
                     const sigContainer = document.getElementById('info-signatures-container');
@@ -1556,70 +1644,6 @@
                 }
             }
         };
-        
-        async function parseDigitalSignature(file) {
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                const uint8Array = new Uint8Array(arrayBuffer);
-                const decoder = new TextDecoder('latin1');
-                const pdfString = decoder.decode(uint8Array);
-
-                const contentsRegex = /\/Contents\s*<([A-Fa-f0-9\s]+)>/g;
-                let match;
-                let signatures = [];
-
-                while ((match = contentsRegex.exec(pdfString)) !== null) {
-                    let hexString = match[1].replace(/\s+/g, '');
-                    if (hexString.length < 100) continue; 
-
-                    let derString = '';
-                    for (let i = 0; i < hexString.length; i += 2) {
-                        derString += String.fromCharCode(parseInt(hexString.substr(i, 2), 16));
-                    }
-
-                    try {
-                        const asn1 = window.forge.asn1.fromDer(derString);
-                        const p7 = window.forge.pkcs7.messageFromAsn1(asn1);
-                        
-                        if (p7.certificates && p7.certificates.length > 0) {
-                            const cert = p7.certificates[0]; 
-                            
-                            const rawOidValues = {};
-                            const humanReadableValues = {};
-                            
-                            cert.subject.attributes.forEach(attr => {
-                                const oid = attr.type;
-                                const value = attr.value;
-                                rawOidValues[oid] = value;
-                                
-                                const humanName = attr.shortName || attr.name || OID_MAP[oid] || `OID.${oid}`;
-                                humanReadableValues[humanName] = value;
-                            });
-                            
-                            const issuerHuman = {};
-                            cert.issuer.attributes.forEach(attr => {
-                                const oid = attr.type;
-                                const humanName = attr.shortName || attr.name || OID_MAP[oid] || `OID.${oid}`;
-                                issuerHuman[humanName] = attr.value;
-                            });
-
-                            signatures.push({
-                                success: true,
-                                rawOidValues,
-                                humanReadableValues,
-                                issuer: issuerHuman
-                            });
-                        }
-                    } catch (e) {
-                        console.log("Forge Parse Skip:", e.message);
-                    }
-                }
-
-                return { success: signatures.length > 0, signatures };
-            } catch (error) {
-                return { success: false, error: error.message };
-            }
-        }
 
         // ==========================================
         // 4. MERGE MODULE
@@ -2537,9 +2561,8 @@
                 if(!this.file || !this.pdfRef || !window.Tesseract) return;
                 this.setLoading(true); showMsg('ocr-msg', false, '');
                 try {
-                    // re-render canvas to a higher scale temporarily for better OCR accuracy
                     const cvs = document.createElement('canvas');
-                    await renderCanvasPdf(this.pdfRef, this.currentPage-1, cvs, 5); // Zoom 5
+                    await renderCanvasPdf(this.pdfRef, this.currentPage-1, cvs, 5); 
                     const imgData = cvs.toDataURL('image/png');
                     
                     const { data: { text } } = await window.Tesseract.recognize(imgData, this.ocrLang);
@@ -2595,11 +2618,9 @@
                     
                     for(let i=1; i<=this.pdfRef.numPages; i++) {
                         const page = await this.pdfRef.getPage(i);
-                        // 1. Get from Annotations (Clickable Links)
                         const annots = await page.getAnnotations();
                         annots.forEach(a => { if(a.url) urls.add(a.url); });
                         
-                        // 2. Get from raw text
                         const textContent = await page.getTextContent();
                         const rawText = textContent.items.map(it => it.str).join(' ');
                         const matches = rawText.match(urlRegex);
