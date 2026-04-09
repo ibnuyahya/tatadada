@@ -115,7 +115,7 @@
             <div class="flex flex-col justify-center">
                 <div class="flex items-baseline gap-1.5">
                     <span class="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent font-extrabold text-sm tracking-tight">AkuCintaPDF</span>
-                    <span class="text-[10px] font-mono text-dim italic">v1.9-Vanilla</span>
+                    <span class="text-[10px] font-mono text-dim italic">v2.0-Vanilla</span>
                     <div class="relative group ml-1 flex items-center cursor-help">
                         <i data-lucide="help-circle" class="w-3 h-3 text-dim hover:text-main transition-colors"></i>
                         <div class="absolute left-0 top-full mt-2 w-64 p-2.5 bg-editor border border-theme text-main text-[10px] rounded-lg shadow-xl whitespace-normal leading-relaxed opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[60]" data-i18n="helpTooltip"></div>
@@ -456,6 +456,40 @@
             </div>
         </div>
 
+        <!-- ================= VIEW: IMAGE TO PDF ================= -->
+        <div id="view-imgtopdf" class="view-section max-w-5xl mx-auto">
+            <button onclick="switchView('home')" class="flex items-center text-dim hover:text-red-500 mb-6 font-medium transition-colors"><i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> <span data-i18n="backHome"></span></button>
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-main flex items-center mb-2"><i data-lucide="image-plus" class="w-6 h-6 mr-3 text-red-600"></i> <span data-i18n="imgToPdfTitle"></span></h2>
+                <p class="text-dim text-sm" data-i18n="imgToPdfDesc"></p>
+            </div>
+            <div class="bg-editor p-6 rounded-xl border border-theme">
+                <label id="imgtopdf-upload-box" class="border-2 border-dashed border-theme rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--stripe-color)] transition-colors">
+                    <i data-lucide="upload-cloud" class="w-10 h-10 text-dim mb-3"></i>
+                    <span class="text-base font-medium text-main mb-1" data-i18n="uploadPromptImg"></span>
+                    <span class="text-xs text-dim" data-i18n="uploadOr"></span>
+                    <input type="file" accept="image/png, image/jpeg, image/jpg" multiple class="hidden" id="imgtopdf-input">
+                </label>
+                <div id="imgtopdf-active-box" class="hidden">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-theme">
+                        <h3 class="font-semibold text-main text-sm truncate" id="imgtopdf-count"></h3>
+                        <div class="flex flex-wrap items-center gap-3">
+                            <label class="flex items-center text-xs text-main bg-preview border border-theme hover:border-red-400 font-medium px-3 py-1.5 rounded-lg cursor-pointer transition-colors shadow-sm">
+                                <i data-lucide="plus" class="w-3.5 h-3.5 mr-1.5"></i> <span data-i18n="addMoreImages"></span>
+                                <input type="file" accept="image/png, image/jpeg, image/jpg" multiple class="hidden" id="imgtopdf-add-input">
+                            </label>
+                            <button onclick="ImgToPdfModule.reset()" class="text-xs text-red-600 hover:text-red-500 font-medium whitespace-nowrap px-1" data-i18n="clearSelection"></button>
+                        </div>
+                    </div>
+                    <div id="imgtopdf-grid" class="grid gap-3 mb-6 transition-all duration-300 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8"></div>
+                    <div id="imgtopdf-msg"></div>
+                    <button id="btn-process-imgtopdf" class="w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all bg-red-600 text-white hover:bg-red-700">
+                        <i data-lucide="download" class="w-4 h-4 mr-2"></i> <span data-i18n="createPdfNow"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- ================= VIEW: REFORMAT ================= -->
         <div id="view-reformat" class="view-section max-w-4xl mx-auto">
             <button onclick="switchView('home')" class="flex items-center text-dim hover:text-red-500 mb-6 font-medium transition-colors"><i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> <span data-i18n="backHome"></span></button>
@@ -713,29 +747,6 @@
             </div>
         </div>
 
-        <!-- Modal Merge Select Pages (Existing) -->
-        <div id="modal-merge" class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 hidden">
-            <div class="bg-editor border border-theme rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-                <div class="px-5 py-4 border-b border-theme flex justify-between items-center bg-header">
-                    <div>
-                        <h3 class="font-bold text-lg text-main flex items-center"><i data-lucide="settings" class="w-4 h-4 mr-2 text-red-600"></i> <span data-i18n="selectPages"></span></h3>
-                        <p class="text-xs text-dim mt-0.5" id="modal-merge-filename"></p>
-                    </div>
-                    <button onclick="MergeModule.closeModal()" class="p-1.5 text-dim hover:text-main rounded-md transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
-                </div>
-                <div class="px-5 py-3 border-b border-theme flex gap-2 bg-preview">
-                    <button onclick="MergeModule.selectAll(true)" class="px-3 py-1.5 text-xs font-semibold bg-editor border border-theme hover:border-red-400 text-main rounded transition-colors" data-i18n="selectAll"></button>
-                    <button onclick="MergeModule.selectAll(false)" class="px-3 py-1.5 text-xs font-semibold bg-editor border border-theme hover:border-red-400 text-main rounded transition-colors" data-i18n="clearSelection"></button>
-                </div>
-                <div class="flex-1 overflow-y-auto p-5 bg-preview">
-                    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-5" id="modal-merge-grid"></div>
-                </div>
-                <div class="px-5 py-4 border-t border-theme bg-header flex justify-end">
-                    <button onclick="MergeModule.closeModal()" class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg shadow-sm" data-i18n="done"></button>
-                </div>
-            </div>
-        </div>
-
     </main>
 
     <!-- FOOTER (TATADADA h-8) -->
@@ -783,19 +794,21 @@
                 rotateTitle: "Putar PDF", rotateDesc: "Putar halaman dokumen PDF Anda secara individual atau semuanya sekaligus.",
                 compressTitle: "Kompres PDF", compressDesc: "Perkecil ukuran file PDF Anda dengan opsi rasio kualitas yang bisa disesuaikan.",
                 pdfToPngTitle: "PDF ke PNG", pdfToPngDesc: "Konversi halaman PDF menjadi gambar PNG berkualitas tinggi secara instan.",
+                imgToPdfTitle: "Gambar ke PDF", imgToPdfDesc: "Konversi banyak gambar (JPG/PNG) menjadi satu dokumen PDF.",
                 reformatTitle: "Ubah Ukuran Kertas", reformatDesc: "Deteksi dan ubah ukuran semua halaman PDF ke format standar (A4, Letter, dll).",
                 watermarkTitle: "Watermark PDF", watermarkDesc: "Tambahkan cap air (watermark) teks ke dokumen PDF Anda.",
                 infoTitle: "Info PDF", infoDesc: "Lihat metadata, memverifikasi tanda tangan elektronik PAdES (BSrE), & melihat pratinjau halaman dengan QR.",
                 ocrTitle: "OCR PDF", ocrDesc: "Ekstrak teks dari gambar/dokumen pindaian (scan) menggunakan Kecerdasan Buatan (AI).",
                 urlTitle: "Ekstrak URL", urlDesc: "Kumpulkan semua tautan/link yang ada di dalam seluruh halaman dokumen PDF.",
                 
-                backHome: "Kembali ke Beranda", uploadPrompt: "Pilih File PDF", uploadOr: "atau tarik dan lepas ke sini",
+                backHome: "Kembali ke Beranda", uploadPrompt: "Pilih File PDF", uploadPromptImg: "Pilih Gambar (JPG/PNG)", uploadOr: "atau tarik dan lepas ke sini",
                 mergeNow: "Gabungkan PDF Sekarang", selectPages: "Pilih Halaman", selectAll: "Pilih Semua", clearSelection: "Hapus Pilihan", done: "Selesai",
                 extractRange: "Ekstrak Rentang", extractRangeDesc: "Pilih halaman spesifik untuk digabung jadi 1 file baru.",
                 splitAll: "Pisahkan Semua", splitAllDesc: "Setiap halaman akan menjadi 1 file PDF (Diunduh sbg ZIP).",
                 splitNow: "Ekstrak PDF", splitZip: "Pisahkan & Unduh ZIP",
                 arrangeApply: "Terapkan & Unduh PDF", rotateAllLeft: "Semua Kiri", rotateAllRight: "Semua Kanan", rotateApply: "Terapkan & Unduh",
                 compressNow: "Kompres PDF Sekarang", convertNow: "Konversi Sekarang",
+                createPdfNow: "Buat PDF Sekarang", addMoreImages: "Tambah Gambar",
                 compressLevelDesc: "Pilih tingkat kompresi. Semakin tinggi tingkatannya, semakin kecil ukuran file.",
                 qualityLevelDesc: "Pilih kualitas gambar (Resolusi). Semakin tinggi kualitasnya, semakin tajam gambarnya.",
                 sizeBefore: "Ukuran Asli", sizeAfter: "Ukuran Baru", savings: "Lebih Hemat", estimated: "Estimasi Hasil", previewFinal: "Pratinjau Hasil",
@@ -841,19 +854,21 @@
                 rotateTitle: "Rotate PDF", rotateDesc: "Rotate your PDF pages individually or all at once.",
                 compressTitle: "Compress PDF", compressDesc: "Reduce the file size of your PDF with adjustable quality ratios.",
                 pdfToPngTitle: "PDF to PNG", pdfToPngDesc: "Convert PDF pages into high-quality PNG images instantly.",
+                imgToPdfTitle: "Image to PDF", imgToPdfDesc: "Convert multiple images (JPG/PNG) into a single PDF document.",
                 reformatTitle: "Reformat Size", reformatDesc: "Detect and change the size of all PDF pages to standard formats (A4, Letter, etc).",
                 watermarkTitle: "Watermark PDF", watermarkDesc: "Add a text watermark to your PDF document.",
                 infoTitle: "PDF Info", infoDesc: "View metadata, verify PAdES electronic signatures (BSrE), & preview pages with QR.",
                 ocrTitle: "OCR PDF", ocrDesc: "Extract text from scanned images/documents using Artificial Intelligence (AI).",
                 urlTitle: "Extract URLs", urlDesc: "Gather all hyperlinks embedded within the entire PDF document pages.",
                 
-                backHome: "Back to Home", uploadPrompt: "Select PDF File", uploadOr: "or drag and drop here",
+                backHome: "Back to Home", uploadPrompt: "Select PDF File", uploadPromptImg: "Select Images (JPG/PNG)", uploadOr: "or drag and drop here",
                 mergeNow: "Merge PDF Now", selectPages: "Select Pages", selectAll: "Select All", clearSelection: "Clear Selection", done: "Done",
                 extractRange: "Extract Range", extractRangeDesc: "Select specific pages to combine into 1 new file.",
                 splitAll: "Split All", splitAllDesc: "Every page will become a separate PDF (Downloaded as ZIP).",
                 splitNow: "Extract PDF", splitZip: "Split & Download ZIP",
                 arrangeApply: "Apply & Download PDF", rotateAllLeft: "All Left", rotateAllRight: "All Right", rotateApply: "Apply & Download",
                 compressNow: "Compress PDF Now", convertNow: "Convert Now",
+                createPdfNow: "Create PDF Now", addMoreImages: "Add Images",
                 compressLevelDesc: "Select compression level. Higher levels mean smaller file size.",
                 qualityLevelDesc: "Select image quality (Resolution). Higher quality yields sharper images.",
                 sizeBefore: "Original Size", sizeAfter: "New Size", savings: "Saved", estimated: "Estimated", previewFinal: "Final Preview",
@@ -939,6 +954,7 @@
             buildHomeGrid(); 
             if(document.getElementById('view-info').classList.contains('active')) InfoModule.render();
             if(document.getElementById('view-ocr').classList.contains('active')) OcrModule.render();
+            if(document.getElementById('view-imgtopdf').classList.contains('active')) ImgToPdfModule.render();
         }
 
         function toggleTheme() {
@@ -955,7 +971,7 @@
             document.getElementById(`view-${viewId}`).classList.add('active');
             if (viewId === 'home') {
                 InfoModule.reset(); MergeModule.reset(); SplitModule.reset(); ArrangeModule.reset();
-                RotateModule.reset(); CompressModule.reset(); PngModule.reset();
+                RotateModule.reset(); CompressModule.reset(); PngModule.reset(); ImgToPdfModule.reset();
                 ReformatModule.reset(); WatermarkModule.reset(); OcrModule.reset(); UrlModule.reset();
             }
         }
@@ -1055,6 +1071,7 @@
             { id: 'rotate', icon: 'rotate-cw', keyTitle: 'rotateTitle', keyDesc: 'rotateDesc' },
             { id: 'compress', icon: 'minimize', keyTitle: 'compressTitle', keyDesc: 'compressDesc' },
             { id: 'pdftopng', icon: 'image', keyTitle: 'pdfToPngTitle', keyDesc: 'pdfToPngDesc' },
+            { id: 'imgtopdf', icon: 'image-plus', keyTitle: 'imgToPdfTitle', keyDesc: 'imgToPdfDesc' },
             { id: 'reformat', icon: 'frame', keyTitle: 'reformatTitle', keyDesc: 'reformatDesc' },
             { id: 'watermark', icon: 'stamp', keyTitle: 'watermarkTitle', keyDesc: 'watermarkDesc' },
             { id: 'ocr', icon: 'scan-text', keyTitle: 'ocrTitle', keyDesc: 'ocrDesc' },
@@ -1144,7 +1161,6 @@
                 let foundSignatures = [];
                 let pdfDoc;
 
-                // 1. Prioritas Utama: Ekstraksi Hex via pdf-lib (Aman dari References)
                 try {
                     pdfDoc = await window.PDFLib.PDFDocument.load(arrayBuffer.slice(0), { ignoreEncryption: true });
                     const form = pdfDoc.getForm();
@@ -1203,7 +1219,6 @@
                                     debugLogs.push("Rantai Sertifikat berhasil dibedah via PDF-LIB.");
                                     foundSignatures.push({ id: foundSignatures.length + 1, debugLogs, certificates: certs, signerInfos, error: null });
                                 } catch (forgeErr) {
-                                    // Bencana PKCS#7: Lakukan raw binary scan (Fallback CAdES)
                                     const fallback = scanBinaryForFallback(binaryStr);
                                     if (fallback) {
                                         debugLogs.push("Forge gagal parsing CMS. Fallback Biner Berhasil.");
@@ -1229,7 +1244,6 @@
                     console.warn("PDF-LIB signature parsing failed", e);
                 }
 
-                // 2. Fallback Darurat: Pemindaian String Mentah (Hanya jika pdf-lib gagal mengekstrak TTD)
                 if (foundSignatures.length === 0) {
                     const decoder = new TextDecoder('latin1');
                     const pdfText = decoder.decode(arrayBuffer);
@@ -1486,7 +1500,6 @@
                     document.getElementById('info-upload-box').classList.add('hidden');
                     document.getElementById('info-active-box').classList.remove('hidden');
                     document.getElementById('info-filename').innerText = this.file.name;
-                    document.getElementById('info-filesize').innerText = formatBytes(this.file.size);
                     
                     const grid = document.getElementById('info-data-grid');
                     const sigContainer = document.getElementById('info-signatures-container');
@@ -2330,6 +2343,145 @@
         };
 
         // ==========================================
+        // 9.5 IMAGE TO PDF MODULE (NEW)
+        // ==========================================
+        const ImgToPdfModule = {
+            items: [], dragSrc: null, dragDest: null,
+            init() {
+                const handleUpload = (e) => {
+                    if (!e.target.files.length || !libsLoaded) return;
+                    this.setLoading(true);
+                    for (const file of Array.from(e.target.files)) {
+                        if (file.type.startsWith('image/')) {
+                            const url = URL.createObjectURL(file);
+                            this.items.push({ id: Math.random().toString(36).substr(2, 9), file, url });
+                        }
+                    }
+                    e.target.value = '';
+                    this.setLoading(false);
+                    this.render();
+                };
+                
+                document.getElementById('imgtopdf-input').addEventListener('change', handleUpload);
+                document.getElementById('imgtopdf-add-input').addEventListener('change', handleUpload);
+                document.getElementById('btn-process-imgtopdf').addEventListener('click', () => this.process());
+            },
+            reset() {
+                this.items.forEach(i => URL.revokeObjectURL(i.url));
+                this.items = []; 
+                this.render(); 
+                showMsg('imgtopdf-msg', false, '');
+            },
+            setLoading(isL) {
+                const btn = document.getElementById('btn-process-imgtopdf');
+                if(isL) { 
+                    btn.disabled=true; 
+                    btn.innerHTML = t('processing'); 
+                    btn.className = "w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all bg-preview text-dim cursor-not-allowed border border-theme"; 
+                } else { 
+                    this.renderBtn(); 
+                }
+            },
+            renderBtn() {
+                const btn = document.getElementById('btn-process-imgtopdf');
+                if(this.items.length === 0) {
+                    btn.disabled = true; 
+                    btn.className = "w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all bg-preview text-dim cursor-not-allowed border border-theme";
+                } else {
+                    btn.disabled = false; 
+                    btn.className = "w-full py-3 rounded-lg font-bold text-sm flex justify-center items-center transition-all bg-red-600 text-white hover:bg-red-700 shadow-sm";
+                }
+                btn.innerHTML = `<i data-lucide="download" class="w-4 h-4 mr-2"></i> ${t('createPdfNow')}`;
+                lucide.createIcons();
+            },
+            handleDrag(e, idx, type) {
+                if(type==='start') { this.dragSrc = idx; e.currentTarget.classList.add('dragging'); }
+                if(type==='enter') { this.dragDest = idx; e.currentTarget.classList.add('drag-over'); }
+                if(type==='leave') { e.currentTarget.classList.remove('drag-over'); }
+                if(type==='end') {
+                    e.currentTarget.classList.remove('dragging');
+                    document.querySelectorAll('#imgtopdf-grid > div').forEach(el => el.classList.remove('drag-over'));
+                    if(this.dragSrc !== null && this.dragDest !== null && this.dragSrc !== this.dragDest) {
+                        const item = this.items.splice(this.dragSrc, 1)[0];
+                        this.items.splice(this.dragDest, 0, item);
+                        this.render();
+                    }
+                    this.dragSrc = null; this.dragDest = null;
+                }
+            },
+            remove(idx) {
+                URL.revokeObjectURL(this.items[idx].url);
+                this.items.splice(idx, 1);
+                this.render();
+            },
+            render() {
+                if (this.items.length === 0) {
+                    document.getElementById('imgtopdf-upload-box').classList.remove('hidden');
+                    document.getElementById('imgtopdf-active-box').classList.add('hidden');
+                } else {
+                    document.getElementById('imgtopdf-upload-box').classList.add('hidden');
+                    document.getElementById('imgtopdf-active-box').classList.remove('hidden');
+                    document.getElementById('imgtopdf-count').innerText = `Total: ${this.items.length} Gambar`;
+                    
+                    const grid = document.getElementById('imgtopdf-grid');
+                    grid.innerHTML = '';
+                    this.items.forEach((item, idx) => {
+                        const div = document.createElement('div');
+                        div.draggable = true;
+                        div.className = "relative group aspect-[1/1.4] bg-preview border border-theme rounded-lg overflow-hidden flex flex-col items-center justify-center cursor-grab hover:border-red-400 hover:shadow-lg transition-all p-1";
+                        div.ondragstart = (e) => this.handleDrag(e, idx, 'start');
+                        div.ondragenter = (e) => this.handleDrag(e, idx, 'enter');
+                        div.ondragleave = (e) => this.handleDrag(e, idx, 'leave');
+                        div.ondragend = (e) => this.handleDrag(e, idx, 'end');
+                        div.ondragover = (e) => e.preventDefault();
+                        
+                        div.innerHTML = `
+                            <button onclick="ImgToPdfModule.remove(${idx})" class="absolute top-1 right-1 z-10 bg-editor border border-theme text-red-500 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white shadow-sm"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                            <img src="${item.url}" class="w-full h-full object-cover rounded-sm pointer-events-none">
+                            <div class="absolute bottom-0 inset-x-0 bg-black/70 py-1 flex justify-center backdrop-blur-[2px]"><span class="text-[10px] font-bold text-white text-center px-1 truncate">${idx + 1}</span></div>
+                        `;
+                        grid.appendChild(div);
+                    });
+                    lucide.createIcons();
+                    this.renderBtn();
+                }
+            },
+            async process() {
+                if(this.items.length === 0 || !libsLoaded) return;
+                this.setLoading(true); showMsg('imgtopdf-msg', false, '');
+                try {
+                    const pdfDoc = await window.PDFLib.PDFDocument.create();
+                    
+                    for (const item of this.items) {
+                        const imgBytes = await item.file.arrayBuffer();
+                        let pdfImage;
+                        
+                        if (item.file.type === 'image/jpeg' || item.file.type === 'image/jpg') {
+                            pdfImage = await pdfDoc.embedJpg(imgBytes);
+                        } else if (item.file.type === 'image/png') {
+                            pdfImage = await pdfDoc.embedPng(imgBytes);
+                        } else {
+                            continue;
+                        }
+                        
+                        const imgDims = pdfImage.scale(1);
+                        const page = pdfDoc.addPage([imgDims.width, imgDims.height]);
+                        page.drawImage(pdfImage, {
+                            x: 0, y: 0, width: imgDims.width, height: imgDims.height
+                        });
+                    }
+                    
+                    const pdfBytes = await pdfDoc.save();
+                    handleDownload(pdfBytes, 'Images_to_PDF.pdf');
+                    showMsg('imgtopdf-msg', false, 'Success');
+                } catch(err) { 
+                    showMsg('imgtopdf-msg', true, 'Error processing images to PDF'); 
+                }
+                this.setLoading(false);
+            }
+        };
+
+        // ==========================================
         // 10. REFORMAT MODULE
         // ==========================================
         const ReformatModule = {
@@ -2673,6 +2825,7 @@
             RotateModule.init();
             CompressModule.init();
             PngModule.init();
+            ImgToPdfModule.init();
             ReformatModule.init();
             WatermarkModule.init();
             OcrModule.init();
