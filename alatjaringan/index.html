@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlatJaringan - Network Diagnostics</title>
+    
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Leaflet JS (Untuk Peta GeoIP) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+        /* TATADADA CSS Tokens */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+            --blue-accent: #3b82f6;
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+        }
+
+        .bg-header { background-color: var(--header-bg); }
+        .bg-editor { background-color: var(--editor-bg); }
+        .bg-preview { background-color: var(--preview-bg); }
+        .bg-footer { background-color: var(--footer-bg); }
+        .text-main { color: var(--text-main); }
+        .text-dim { color: var(--text-dim); }
+        .border-theme { border-color: var(--border-color); }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Hide scrollbar for tab list to make it cleaner */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .font-code { font-family: 'JetBrains Mono', monospace; }
+
+        .tab-btn.active {
+            border-bottom: 2px solid var(--blue-accent);
+            color: var(--blue-accent);
+        }
+
+        /* Map Fixes for Tailwind */
+        .leaflet-container {
+            z-index: 10 !important;
+            border-radius: 0.5rem;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col transition-colors duration-200">
+
+    <!-- HEADER -->
+    <header class="flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 h-14">
+        <div class="flex items-center gap-3">
+            <div class="flex items-baseline gap-2">
+                <h1 class="text-lg font-bold bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent">AlatJaringan</h1>
+                <span class="text-[10px] font-mono text-dim italic">v4.0</span>
+            </div>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 transition-colors">by AhmadDanial</a>
+            
+            <div class="relative group flex items-center ml-1">
+                <i data-lucide="help-circle" class="w-4 h-4 text-dim cursor-help hover:text-blue-500 transition-colors"></i>
+                <div class="absolute left-0 top-full mt-2 w-72 p-3 bg-editor border border-theme rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-xs text-main" id="helpTooltip">
+                    Masukkan nama domain atau alamat IP, pilih alat, dan tekan Analisis. Kami menggunakan metode visual untuk memaparkan performa web, GeoIP interaktif, dan status.
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <button id="toggleLang" class="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-500/10 transition-colors" title="Toggle Language">
+                <span id="flagIcon" class="text-sm">🇮🇩</span>
+                <span id="langText" class="text-xs font-bold text-main">ID</span>
+            </button>
+            
+            <button id="toggleTheme" class="p-1.5 rounded text-dim hover:text-main hover:bg-slate-500/10 transition-colors" title="Toggle Theme">
+                <i data-lucide="moon" id="themeIcon" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 relative flex flex-col overflow-hidden bg-preview">
+        
+        <!-- Top Pane -->
+        <div id="topPane" class="bg-editor border-b border-theme flex flex-col" style="height: 35%; min-height: 140px;">
+            <div class="p-6 h-full flex flex-col">
+                
+                <!-- Toolbar Tabs -->
+                <div class="flex items-center justify-between border-b border-theme mb-4 pb-[-1px]">
+                    <div class="flex items-center gap-6 overflow-x-auto shrink-0 no-scrollbar">
+                        <button class="tab-btn active pb-2 text-sm font-medium text-dim hover:text-main transition-colors whitespace-nowrap" data-tool="summary">
+                            <span class="lbl-summary">Ringkasan Web</span>
+                        </button>
+                        <button class="tab-btn pb-2 text-sm font-medium text-dim hover:text-main transition-colors whitespace-nowrap" data-tool="pagespeed">
+                            <span class="lbl-pagespeed">PageSpeed</span>
+                        </button>
+                        <button class="tab-btn pb-2 text-sm font-medium text-dim hover:text-main transition-colors whitespace-nowrap" data-tool="dns">
+                            <span class="lbl-dns">Catatan DNS</span>
+                        </button>
+                        <button class="tab-btn pb-2 text-sm font-medium text-dim hover:text-main transition-colors whitespace-nowrap" data-tool="geoip">
+                            <span class="lbl-geoip">GeoIP & Peta</span>
+                        </button>
+                        <button class="tab-btn pb-2 text-sm font-medium text-dim hover:text-main transition-colors whitespace-nowrap" data-tool="whois">
+                            <span class="lbl-whois">WHOIS</span>
+                        </button>
+                        <button class="tab-btn pb-2 text-sm font-medium text-dim hover:text-main transition-colors whitespace-nowrap" data-tool="traceroute">
+                            <span class="lbl-traceroute">Traceroute</span>
+                        </button>
+                        <button class="tab-btn pb-2 text-sm font-medium text-dim hover:text-main transition-colors whitespace-nowrap" data-tool="ping">
+                            <span class="lbl-ping">Ping</span>
+                        </button>
+                        <button class="tab-btn pb-2 text-sm font-medium text-dim hover:text-main transition-colors whitespace-nowrap" data-tool="portscan">
+                            <span class="lbl-portscan">Port Scan</span>
+                        </button>
+                        <button class="tab-btn pb-2 text-sm font-medium text-dim hover:text-main transition-colors whitespace-nowrap" data-tool="subdomain">
+                            <span class="lbl-subdomain">Subdomain</span>
+                        </button>
+                        <button class="tab-btn pb-2 text-sm font-medium text-dim hover:text-main transition-colors whitespace-nowrap" data-tool="headers">
+                            <span class="lbl-headers">HTTP Headers</span>
+                        </button>
+                    </div>
+                    
+                    <button id="btnCopyJson" class="hidden mb-2 items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 border border-theme rounded text-xs font-medium text-main hover:bg-slate-200 dark:hover:bg-slate-700 transition shrink-0 ml-4">
+                        <i data-lucide="copy" class="w-3 h-3"></i>
+                        <span class="lbl-copy-json">Salin Data Raw</span>
+                    </button>
+                </div>
+
+                <!-- Input Area -->
+                <div class="flex gap-3 mt-1">
+                    <div class="relative flex-1">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-lucide="search" class="w-4 h-4 text-dim"></i>
+                        </div>
+                        <input type="text" id="targetInput" 
+                            class="w-full h-10 pl-10 pr-4 bg-preview border border-theme rounded-md text-sm text-main focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-code transition-all" 
+                            placeholder="Contoh: google.com atau 8.8.8.8" autocomplete="off" spellcheck="false">
+                    </div>
+                    <button id="analyzeBtn" class="h-10 px-6 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors flex items-center gap-2 shrink-0">
+                        <i data-lucide="zap" class="w-4 h-4"></i>
+                        <span class="lbl-btn-analyze">Analisis</span>
+                    </button>
+                </div>
+                
+                <div id="loadingIndicator" class="hidden items-center gap-2 mt-4 text-sm text-dim">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-blue-500"></i>
+                    <span id="loadingText" class="lbl-loading">Memproses data... API mungkin memakan waktu beberapa detik.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Horizontal Resizer -->
+        <div id="resizer" class="h-1 bg-transparent hover:bg-blue-500 cursor-row-resize transition-colors w-full shrink-0 relative z-40" title="Drag to resize"></div>
+
+        <!-- Bottom Pane (Output Visual) -->
+        <div id="bottomPane" class="flex-1 bg-preview overflow-auto p-6 relative">
+            <div id="outputContainer" class="w-full h-full text-main">
+                <div class="flex flex-col items-center justify-center h-full text-dim opacity-60">
+                    <i data-lucide="activity" class="w-12 h-12 mb-3"></i>
+                    <span class="italic lbl-empty-state">Menunggu input... Silakan masukkan domain/IP dan klik Analisis.</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 h-8">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-green-500" id="statusDot"></div>
+            <span id="statusText" class="lbl-status-ready">Engine Ready</span>
+        </div>
+        <div id="statsText" class="font-code hidden md:block"></div>
+        <button id="btnTerms" class="hover:text-main transition-colors hover:underline lbl-terms-link">Syarat & Ketentuan</button>
+    </footer>
+
+    <!-- MODAL TERMS OF USE -->
+    <div id="termsModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity">
+        <div class="bg-editor border border-theme rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 relative transform scale-95 transition-transform duration-200">
+            <h2 class="text-lg font-bold text-main mb-4 flex items-center gap-2">
+                <i data-lucide="shield-alert" class="w-5 h-5 text-blue-500"></i>
+                <span class="lbl-modal-title">Disclaimer & Syarat Penggunaan</span>
+            </h2>
+            <p id="termsText" class="text-sm text-dim leading-relaxed mb-6">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
+            </p>
+            <div class="flex justify-end">
+                <button id="btnCloseModal" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors lbl-modal-close">
+                    Saya Mengerti
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN JAVASCRIPT -->
+    <script>
+        lucide.createIcons();
+
+        // State Global
+        let currentRawData = null;
+        let leafletMap = null;
+        let activeTool = 'summary';
+
+        // ==========================================
+        // LOKALISASI (i18n)
+        // ==========================================
+        const translations = {
+            ID: {
+                helpTooltip: "Masukkan nama domain atau alamat IP, pilih alat, dan tekan Analisis.",
+                tabSummary: "Ringkasan Web",
+                tabPagespeed: "PageSpeed",
+                tabDns: "Catatan DNS",
+                tabGeoip: "GeoIP & Peta",
+                tabWhois: "WHOIS",
+                tabTraceroute: "Traceroute",
+                tabPing: "Ping",
+                tabPortscan: "Port Scan",
+                tabSubdomain: "Subdomain",
+                tabHeaders: "HTTP Headers",
+                copyJson: "Salin Data Raw",
+                btnAnalyze: "Analisis",
+                loading: "Memproses data... API mungkin memakan waktu.",
+                emptyState: "Menunggu input... Silakan masukkan domain/IP dan klik Analisis.",
+                statusReady: "Engine Siap",
+                statusBusy: "Sedang mengambil data...",
+                errEmpty: "Harap masukkan target domain atau IP.",
+                copied: "Disalin!",
+                domainOnly: "Fitur ini hanya optimal untuk Domain, bukan IP Address."
+            },
+            EN: {
+                helpTooltip: "Enter domain name or IP, select a tool, and press Analyze.",
+                tabSummary: "Web Summary",
+                tabPagespeed: "PageSpeed",
+                tabDns: "DNS Records",
+                tabGeoip: "GeoIP & Map",
+                tabWhois: "WHOIS",
+                tabTraceroute: "Traceroute",
+                tabPing: "Ping",
+                tabPortscan: "Port Scan",
+                tabSubdomain: "Subdomain",
+                tabHeaders: "HTTP Headers",
+                copyJson: "Copy Raw Data",
+                btnAnalyze: "Analyze",
+                loading: "Processing data... API may take a few seconds.",
+                emptyState: "Waiting for input... Please enter a domain/IP.",
+                statusReady: "Engine Ready",
+                statusBusy: "Fetching data...",
+                errEmpty: "Please enter a target domain or IP.",
+                copied: "Copied!",
+                domainOnly: "This feature is optimal for Domains, not IP Addresses."
+            }
+        };
+
+        let currentLang = localStorage.getItem('appLang') || 'ID';
+
+        function applyLanguage() {
+            const t = translations[currentLang];
+            document.getElementById('helpTooltip').innerText = t.helpTooltip;
+            document.getElementById('flagIcon').innerText = currentLang === 'ID' ? '🇮🇩' : '🇬🇧';
+            document.getElementById('langText').innerText = currentLang;
+
+            document.querySelector('.lbl-summary').innerText = t.tabSummary;
+            document.querySelector('.lbl-pagespeed').innerText = t.tabPagespeed;
+            document.querySelector('.lbl-dns').innerText = t.tabDns;
+            document.querySelector('.lbl-geoip').innerText = t.tabGeoip;
+            document.querySelector('.lbl-whois').innerText = t.tabWhois;
+            document.querySelector('.lbl-traceroute').innerText = t.tabTraceroute;
+            document.querySelector('.lbl-ping').innerText = t.tabPing;
+            document.querySelector('.lbl-portscan').innerText = t.tabPortscan;
+            document.querySelector('.lbl-subdomain').innerText = t.tabSubdomain;
+            document.querySelector('.lbl-headers').innerText = t.tabHeaders;
+            document.querySelector('.lbl-copy-json').innerText = t.copyJson;
+            document.querySelector('.lbl-btn-analyze').innerText = t.btnAnalyze;
+            document.getElementById('loadingText').innerText = t.loading;
+            
+            const emptySpan = document.querySelector('.lbl-empty-state');
+            if (emptySpan) emptySpan.innerText = t.emptyState;
+
+            document.querySelector('.lbl-status-ready').innerText = t.statusReady;
+        }
+
+        document.getElementById('toggleLang').addEventListener('click', () => {
+            currentLang = currentLang === 'ID' ? 'EN' : 'ID';
+            localStorage.setItem('appLang', currentLang);
+            applyLanguage();
+        });
+
+        // ==========================================
+        // TEMA (Dark/Light Mode)
+        // ==========================================
+        let isDark = localStorage.getItem('theme') === 'dark';
+        function applyTheme() {
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+                document.getElementById('themeIcon').setAttribute('data-lucide', 'sun');
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.getElementById('themeIcon').setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons();
+        }
+        document.getElementById('toggleTheme').addEventListener('click', () => {
+            isDark = !isDark;
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            applyTheme();
+        });
+
+        // ==========================================
+        // MODAL & UI UTILS
+        // ==========================================
+        const modal = document.getElementById('termsModal');
+        document.getElementById('btnTerms').addEventListener('click', () => {
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+            setTimeout(() => modal.querySelector('div').classList.replace('scale-95', 'scale-100'), 10);
+        });
+        document.getElementById('btnCloseModal').addEventListener('click', () => {
+            modal.querySelector('div').classList.replace('scale-100', 'scale-95');
+            setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 200);
+        });
+
+        // Split Pane Resizer
+        let isResizing = false;
+        document.getElementById('resizer').addEventListener('mousedown', (e) => { isResizing = true; e.preventDefault(); });
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const containerRect = document.querySelector('main').getBoundingClientRect();
+            let newH = ((e.clientY - containerRect.top) / containerRect.height) * 100;
+            if (newH < 20) newH = 20; if (newH > 80) newH = 80;
+            document.getElementById('topPane').style.height = `${newH}%`;
+        });
+        document.addEventListener('mouseup', () => { isResizing = false; });
+
+        // Utility
+        const isIPv4 = (str) => /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(str);
+        
+        // Copy JSON/Text Button
+        const btnCopyJson = document.getElementById('btnCopyJson');
+        btnCopyJson.addEventListener('click', () => {
+            if(!currentRawData) return;
+            let text = typeof currentRawData === 'object' ? JSON.stringify(currentRawData, null, 2) : currentRawData;
+            
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                const span = btnCopyJson.querySelector('span');
+                const orig = span.innerText;
+                span.innerText = translations[currentLang].copied;
+                setTimeout(() => span.innerText = orig, 2000);
+            } catch (err) {
+                console.error('Copy failed', err);
+            }
+            document.body.removeChild(textArea);
+        });
+
+        // Tabs Logic (Scroll into view if needed)
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active', 'border-b-2', 'border-blue-500', 'text-blue-500'));
+                const target = e.currentTarget;
+                target.classList.add('active', 'border-b-2', 'border-blue-500', 'text-blue-500');
+                activeTool = target.getAttribute('data-tool');
+                
+                // Keep tab in view
+                target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+
+                if(document.getElementById('targetInput').value.trim() !== '') runAnalysis();
+            });
+        });
+
+        // ==========================================
+        // NETWORK TOOLS LOGIC
+        // ==========================================
+        
+        // --- EXISTING TOOLS ---
+        async function fetchSummary(target) {
+            const isIp = isIPv4(target);
+            const previewUrl = isIp ? '' : `https://image.thum.io/get/width/800/crop/800/https://${target}`;
+            let httpsStatus = '<span class="text-slate-500">Checking...</span>';
+            let sslInfoRaw = {};
+            try {
+                const check = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://' + target)}`);
+                const checkData = await check.json();
+                if(checkData.status && checkData.status.http_code >= 200 && checkData.status.http_code < 400) {
+                    httpsStatus = `<span class="text-green-500 font-bold flex items-center gap-1"><i data-lucide="lock" class="w-4 h-4"></i> Aman (HTTPS Aktif)</span>`;
+                } else {
+                    httpsStatus = `<span class="text-red-500 font-bold flex items-center gap-1"><i data-lucide="unlock" class="w-4 h-4"></i> HTTP Biasa / Error</span>`;
+                }
+                sslInfoRaw = checkData;
+            } catch(e) { httpsStatus = `<span class="text-amber-500">Timeout / Tidak Terdeteksi</span>`; }
+
+            const html = `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in zoom-in duration-300">
+                    <div class="col-span-1 md:col-span-2 space-y-4">
+                        <div class="bg-editor p-5 rounded-xl border border-theme shadow-sm">
+                            <h3 class="font-bold mb-4 flex items-center gap-2"><i data-lucide="shield-check" class="w-5 h-5 text-blue-500"></i> Status Keamanan (HTTPS)</h3>
+                            <div class="flex items-center justify-between p-3 bg-preview rounded border border-theme">
+                                <span class="text-sm font-medium">Protokol Web Server:</span>
+                                <span class="text-sm">${httpsStatus}</span>
+                            </div>
+                        </div>
+                        <div class="bg-editor p-5 rounded-xl border border-theme shadow-sm">
+                            <h3 class="font-bold mb-2 flex items-center gap-2"><i data-lucide="search-check" class="w-5 h-5 text-indigo-500"></i> Index Search Engine</h3>
+                            <p class="text-xs text-dim mb-4 leading-relaxed">Pengecekan otomatis diblokir Captcha. Gunakan tombol di bawah untuk melihat perkiraan jumlah halaman di Search Engine.</p>
+                            <div class="flex flex-wrap gap-3">
+                                <a href="https://www.google.com/search?q=site:${target}" target="_blank" class="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-lg text-sm font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition">
+                                    <i data-lucide="external-link" class="w-4 h-4"></i> Index Google
+                                </a>
+                                <a href="https://www.bing.com/search?q=site:${target}" target="_blank" class="flex items-center gap-2 px-4 py-2 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800 rounded-lg text-sm font-bold hover:bg-cyan-100 dark:hover:bg-cyan-900/40 transition">
+                                    <i data-lucide="external-link" class="w-4 h-4"></i> Index Bing
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-span-1">
+                        <div class="bg-editor p-4 rounded-xl border border-theme shadow-sm h-full flex flex-col">
+                            <h3 class="font-bold text-sm mb-3 flex items-center gap-2"><i data-lucide="image" class="w-4 h-4 text-purple-500"></i> Website Preview</h3>
+                            ${isIp ? `<div class="flex-1 flex items-center justify-center bg-preview rounded border border-theme border-dashed p-4 text-center text-dim text-sm">Preview tidak tersedia untuk input IP.</div>`
+                                   : `<div class="relative flex-1 bg-preview rounded border border-theme overflow-hidden min-h-[200px]">
+                                        <img src="${previewUrl}" class="absolute inset-0 w-full h-full object-cover object-top" alt="Preview" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'flex h-full items-center justify-center text-dim text-sm\\'>Gagal memuat preview</div>';"/>
+                                      </div>`}
+                        </div>
+                    </div>
+                </div>`;
+            return { html, raw: { target, isIp, https_check: sslInfoRaw } };
+        }
+
+        async function fetchPageSpeed(target) {
+            const t = translations[currentLang];
+            if(isIPv4(target)) return { html: `<div class="p-6 text-center text-amber-500 bg-amber-50/10 border border-amber-200/20 rounded-xl">${t.domainOnly}</div>`, raw: {} };
+
+            const url = `https://${target}`;
+            const res = await fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile`);
+            const data = await res.json();
+            if(!data.lighthouseResult) throw new Error("Gagal mengambil skor. Website mungkin memblokir bot Lighthouse.");
+            
+            const metrics = data.lighthouseResult.categories;
+            const perfScore = Math.round(metrics.performance.score * 100);
+            let color = perfScore >= 90 ? 'text-green-500' : (perfScore >= 50 ? 'text-amber-500' : 'text-red-500');
+            let bgCircle = perfScore >= 90 ? 'border-green-500' : (perfScore >= 50 ? 'border-amber-500' : 'border-red-500');
+
+            const lcp = data.lighthouseResult.audits['largest-contentful-paint'].displayValue;
+            const fcp = data.lighthouseResult.audits['first-contentful-paint'].displayValue;
+            const cls = data.lighthouseResult.audits['cumulative-layout-shift'].displayValue;
+
+            const html = `
+                <div class="max-w-3xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div class="bg-editor p-8 rounded-2xl border border-theme shadow-sm text-center">
+                        <h3 class="font-bold text-xl mb-6">Mobile Performance Score</h3>
+                        <div class="inline-flex items-center justify-center w-40 h-40 rounded-full border-8 ${bgCircle} mb-4 relative shadow-inner">
+                            <span class="text-5xl font-black ${color}">${perfScore}</span>
+                        </div>
+                        <p class="text-sm text-dim mt-2">Dianalisis menggunakan Google Lighthouse API</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-editor p-4 rounded-xl border border-theme text-center">
+                            <div class="text-xs text-dim uppercase tracking-wider mb-1">First Contentful Paint</div>
+                            <div class="text-xl font-bold">${fcp}</div>
+                        </div>
+                        <div class="bg-editor p-4 rounded-xl border border-theme text-center">
+                            <div class="text-xs text-dim uppercase tracking-wider mb-1">Largest Contentful Paint</div>
+                            <div class="text-xl font-bold">${lcp}</div>
+                        </div>
+                        <div class="bg-editor p-4 rounded-xl border border-theme text-center">
+                            <div class="text-xs text-dim uppercase tracking-wider mb-1">Cumulative Layout Shift</div>
+                            <div class="text-xl font-bold">${cls}</div>
+                        </div>
+                    </div>
+                </div>`;
+            return { html, raw: data };
+        }
+
+        async function fetchDNS(target) {
+            const types = { 1: 'A', 2: 'NS', 5: 'CNAME', 15: 'MX', 16: 'TXT', 28: 'AAAA' };
+            let results = [], jsonOutput = {};
+            for (const [code, name] of Object.entries(types)) {
+                try {
+                    const res = await fetch(`https://dns.google/resolve?name=${target}&type=${code}`);
+                    const data = await res.json();
+                    jsonOutput[name] = data;
+                    if (data.Answer) data.Answer.forEach(ans => results.push({ Type: name, Name: ans.name, TTL: ans.TTL, Data: ans.data }));
+                } catch (e) { console.error(e); }
+            }
+            if (results.length === 0) return { html: "<div class='p-4 bg-editor border border-theme rounded-xl text-center'>Tidak ada catatan DNS ditemukan.</div>", raw: jsonOutput };
+            
+            const rows = results.map(r => `
+                <tr class="border-b border-theme hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                    <td class="p-3 font-bold text-blue-600 dark:text-blue-400">${r.Type}</td>
+                    <td class="p-3 text-dim text-xs">${r.TTL}s</td>
+                    <td class="p-3 break-all font-code text-xs">${r.Name}</td>
+                    <td class="p-3 break-all font-code text-xs">${r.Data}</td>
+                </tr>`).join('');
+
+            const html = `
+                <div class="bg-editor rounded-xl border border-theme shadow-sm overflow-hidden animate-in fade-in duration-300">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm whitespace-nowrap md:whitespace-normal">
+                            <thead class="bg-preview text-xs uppercase text-dim">
+                                <tr><th class="p-3 w-20">Type</th><th class="p-3 w-20">TTL</th><th class="p-3 w-1/3">Host Name</th><th class="p-3">Value / Data</th></tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                </div>`;
+            return { html, raw: jsonOutput };
+        }
+
+        async function fetchGeoIP(target) {
+            let ip = target, dnsResolveData = null;
+            if (!isIPv4(target)) {
+                const resDNS = await fetch(`https://dns.google/resolve?name=${target}&type=1`);
+                dnsResolveData = await resDNS.json();
+                if (dnsResolveData.Answer && dnsResolveData.Answer.length > 0) ip = dnsResolveData.Answer[0].data;
+                else throw new Error(`Gagal resolve IP untuk domain ${target}.`);
+            }
+            const res = await fetch(`https://get.geojs.io/v1/ip/geo/${ip}.json`);
+            if (!res.ok) throw new Error("GeoIP API error");
+            const data = await res.json();
+            const lat = parseFloat(data.latitude), lon = parseFloat(data.longitude);
+
+            const html = `
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 animate-in fade-in duration-300 h-full">
+                    <div class="lg:col-span-2 space-y-4 flex flex-col">
+                        <div class="bg-editor p-5 rounded-xl border border-theme shadow-sm">
+                            <div class="text-xs text-dim uppercase tracking-wider mb-1">Target IP</div>
+                            <div class="text-xl font-bold font-code text-blue-600 dark:text-blue-400">${data.ip}</div>
+                        </div>
+                        <div class="bg-editor p-5 rounded-xl border border-theme shadow-sm">
+                            <div class="text-xs text-dim uppercase tracking-wider mb-1">ISP / Organisasi</div>
+                            <div class="font-medium">${data.organization || data.asn || '-'}</div>
+                        </div>
+                        <div class="bg-editor p-5 rounded-xl border border-theme shadow-sm grid grid-cols-2 gap-4 flex-1">
+                            <div><div class="text-xs text-dim uppercase tracking-wider mb-1">Negara</div><div class="font-medium">${data.country || '-'}</div></div>
+                            <div><div class="text-xs text-dim uppercase tracking-wider mb-1">Kota</div><div class="font-medium">${data.city || '-'}</div></div>
+                            <div><div class="text-xs text-dim uppercase tracking-wider mb-1">Timezone</div><div class="font-medium text-sm">${data.timezone || '-'}</div></div>
+                            <div><div class="text-xs text-dim uppercase tracking-wider mb-1">Koordinat</div><div class="font-medium text-sm">${lat}, ${lon}</div></div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-3 bg-editor rounded-xl border border-theme shadow-sm overflow-hidden min-h-[300px] relative z-10">
+                        <div id="leafletMapContainer" class="w-full h-full absolute inset-0"></div>
+                    </div>
+                </div>`;
+            return { html, raw: { geo: data, dns: dnsResolveData }, onRender: () => {
+                if(leafletMap) leafletMap.remove();
+                leafletMap = L.map('leafletMapContainer').setView([lat, lon], 12);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap' }).addTo(leafletMap);
+                L.marker([lat, lon]).addTo(leafletMap).bindPopup(`<b>${data.city || 'Lokasi'}</b><br>${data.ip}`).openPopup();
+            }};
+        }
+
+        async function fetchWHOIS(target) {
+            let url = isIPv4(target) ? `https://rdap.org/ip/${target}` : `https://rdap.org/domain/${target}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(res.status === 404 ? "Data WHOIS tidak ditemukan." : `RDAP Error ${res.status}`);
+            const data = await res.json();
+            
+            let registrar = "Tidak diketahui", registrationDate = "Tidak diketahui", statusList = [];
+            if(data.entities) {
+                const regEntity = data.entities.find(e => e.roles && e.roles.includes("registrar"));
+                if(regEntity && regEntity.vcardArray) registrar = regEntity.vcardArray[1].find(v => v[0] === "fn")?.[3] || "Tidak diketahui";
+            }
+            if(data.events) {
+                const regEvent = data.events.find(e => e.eventAction === "registration");
+                if(regEvent) registrationDate = new Date(regEvent.eventDate).toLocaleString();
+            }
+            if(data.status) statusList = data.status;
+
+            const html = `
+                <div class="space-y-6 animate-in fade-in duration-300">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-editor p-5 rounded-xl border border-theme shadow-sm">
+                            <div class="text-xs text-dim uppercase tracking-wider mb-1">Pendaftar (Registrar)</div>
+                            <div class="font-bold text-lg">${registrar}</div>
+                        </div>
+                        <div class="bg-editor p-5 rounded-xl border border-theme shadow-sm">
+                            <div class="text-xs text-dim uppercase tracking-wider mb-1">Tanggal Registrasi</div>
+                            <div class="font-bold text-lg">${registrationDate}</div>
+                        </div>
+                    </div>
+                    ${statusList.length > 0 ? `
+                    <div class="bg-editor p-5 rounded-xl border border-theme shadow-sm">
+                        <div class="text-xs text-dim uppercase tracking-wider mb-3">Domain Status</div>
+                        <div class="flex flex-wrap gap-2">
+                            ${statusList.map(s => `<span class="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 border border-theme rounded text-xs font-code">${s}</span>`).join('')}
+                        </div>
+                    </div>` : ''}
+                </div>`;
+            return { html, raw: data };
+        }
+
+        // --- NEW HACKERTARGET BASED TOOLS ---
+        async function runHackerTargetAPI(target, endpoint, title, iconStr) {
+            const res = await fetch(`https://api.hackertarget.com/${endpoint}/?q=${target}`);
+            const text = await res.text();
+            
+            if (text.includes("error") || text.includes("API count exceeded")) {
+                throw new Error("API Limit HackerTarget tercapai atau terjadi kesalahan: " + text);
+            }
+
+            const safeText = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            const html = `
+                <div class="bg-editor rounded-xl border border-theme shadow-sm overflow-hidden flex flex-col h-full animate-in fade-in duration-300">
+                    <div class="p-4 border-b border-theme bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
+                        <h3 class="font-bold text-sm flex items-center gap-2"><i data-lucide="${iconStr}" class="w-4 h-4 text-blue-500"></i> ${title}</h3>
+                        <span class="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 px-2 py-0.5 rounded font-mono">Live Output</span>
+                    </div>
+                    <div class="p-4 overflow-auto flex-1 bg-preview">
+                        <pre class="font-code text-[11px] md:text-xs text-main leading-relaxed whitespace-pre-wrap">${safeText}</pre>
+                    </div>
+                </div>`;
+            return { html, raw: text };
+        }
+
+        // ==========================================
+        // MAIN EXECUTION ENGINE
+        // ==========================================
+        const inputField = document.getElementById('targetInput');
+        const btnAnalyze = document.getElementById('analyzeBtn');
+        const outputContainer = document.getElementById('outputContainer');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const statsText = document.getElementById('statsText');
+        
+        async function runAnalysis() {
+            const target = inputField.value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+            const t = translations[currentLang];
+
+            if (!target) {
+                outputContainer.innerHTML = `<div class="flex h-full items-center justify-center text-red-500 font-medium">${t.errEmpty}</div>`;
+                return;
+            }
+
+            loadingIndicator.classList.remove('hidden'); loadingIndicator.classList.add('flex');
+            btnAnalyze.disabled = true;
+            btnCopyJson.classList.add('hidden');
+            statusDot.classList.replace('bg-green-500', 'bg-amber-500');
+            statusText.innerText = t.statusBusy;
+            outputContainer.innerHTML = '';
+            statsText.innerText = '';
+            currentRawData = null;
+            
+            const startTime = performance.now();
+
+            try {
+                let result;
+                switch (activeTool) {
+                    case 'summary': result = await fetchSummary(target); break;
+                    case 'pagespeed': result = await fetchPageSpeed(target); break;
+                    case 'dns': result = await fetchDNS(target); break;
+                    case 'geoip': result = await fetchGeoIP(target); break;
+                    case 'whois': result = await fetchWHOIS(target); break;
+                    // HackerTarget Integrations
+                    case 'traceroute': result = await runHackerTargetAPI(target, 'mtr', 'MTR (My Traceroute)', 'git-commit'); break;
+                    case 'ping': result = await runHackerTargetAPI(target, 'nping', 'Network Ping ICMP', 'activity'); break;
+                    case 'portscan': result = await runHackerTargetAPI(target, 'nmap', 'Nmap Common Port Scan', 'lock'); break;
+                    case 'subdomain': result = await runHackerTargetAPI(target, 'hostsearch', 'Subdomain Lookup', 'layers'); break;
+                    case 'headers': result = await runHackerTargetAPI(target, 'httpheaders', 'HTTP Response Headers', 'file-text'); break;
+                }
+
+                outputContainer.innerHTML = result.html;
+                currentRawData = result.raw;
+                btnCopyJson.classList.remove('hidden');
+                btnCopyJson.classList.add('flex');
+                
+                if(result.onRender) {
+                    setTimeout(() => { result.onRender(); lucide.createIcons(); }, 100);
+                } else {
+                    lucide.createIcons();
+                }
+                
+                statsText.innerText = `[Latensi: ${Math.round(performance.now() - startTime)}ms]`;
+
+            } catch (error) {
+                outputContainer.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-center p-6">
+                        <i data-lucide="alert-triangle" class="w-12 h-12 text-red-500 mb-4"></i>
+                        <h3 class="font-bold text-lg text-main mb-2">Terjadi Kesalahan</h3>
+                        <p class="text-red-500 font-mono text-sm max-w-md">${error.message}</p>
+                    </div>`;
+                lucide.createIcons();
+            } finally {
+                loadingIndicator.classList.add('hidden'); loadingIndicator.classList.remove('flex');
+                btnAnalyze.disabled = false;
+                statusDot.classList.replace('bg-amber-500', 'bg-green-500');
+                statusText.innerText = t.statusReady;
+            }
+        }
+
+        btnAnalyze.addEventListener('click', runAnalysis);
+        inputField.addEventListener('keypress', (e) => { if (e.key === 'Enter') runAnalysis(); });
+
+        // INITIALIZATION
+        applyTheme();
+        applyLanguage();
+
+    </script>
+</body>
+</html>
