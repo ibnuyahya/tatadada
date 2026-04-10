@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tarik Tali Matematika</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Tailwind Config for TATADADA Framework -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        theme: 'var(--border-color)',
+                        header: 'var(--header-bg)',
+                        editor: 'var(--editor-bg)',
+                        preview: 'var(--preview-bg)',
+                        footer: 'var(--footer-bg)',
+                        main: 'var(--text-main)',
+                        dim: 'var(--text-dim)',
+                        freezebg: 'var(--freeze-bg)',
+                        freezebgeven: 'var(--freeze-bg-even)',
+                        freezehover: 'var(--freeze-hover)',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- TATADADA CSS Tokens -->
+    <style>
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-dim);
+        }
+
+        /* Help Tooltip */
+        .group:hover .tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Game specific utilities */
+        .select-none { user-select: none; -webkit-user-select: none; }
+        .touch-action-manipulation { touch-action: manipulation; }
+    </style>
+</head>
+<body class="flex flex-col h-screen select-none">
+
+    <!-- HEADER (Wajib TATADADA) -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50">
+        <div class="flex items-center gap-4">
+            <div class="flex flex-col">
+                <div class="flex items-baseline gap-2">
+                    <h1 class="font-bold text-lg bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent">
+                        Tarik Tali Matematika
+                    </h1>
+                    <span class="text-[10px] font-mono text-dim italic">v1.0.0</span>
+                </div>
+                <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 transition-colors w-max">
+                    by ahmaddanial
+                </a>
+            </div>
+            
+            <!-- Help Tooltip -->
+            <div class="relative group cursor-help ml-2 hidden sm:block">
+                <i data-lucide="circle-help" class="w-4 h-4 text-dim hover:text-main transition-colors"></i>
+                <div class="tooltip absolute top-full left-0 mt-2 w-64 bg-editor border border-theme p-3 rounded-lg shadow-xl opacity-0 visibility-hidden transition-all z-50 text-xs text-main pointer-events-none">
+                    <span id="txt-help">Pilih mode matematika, jawab soal dengan cepat menggunakan keypad untuk menarik tali ke arahmu!</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <!-- Language Toggle -->
+            <button id="lang-toggle" class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-freezebg transition-colors border border-transparent hover:border-theme text-xs font-semibold text-main">
+                <span id="lang-icon">🇮🇩</span>
+                <span id="lang-text">ID</span>
+            </button>
+            
+            <div class="w-px h-4 bg-theme"></div>
+
+            <!-- Theme Toggle -->
+            <button id="theme-toggle" class="p-1.5 rounded-md hover:bg-freezebg transition-colors border border-transparent hover:border-theme text-main">
+                <i data-lucide="moon" id="theme-icon-moon" class="w-4 h-4 hidden"></i>
+                <i data-lucide="sun" id="theme-icon-sun" class="w-4 h-4 hidden"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 relative overflow-hidden bg-preview flex flex-col justify-center items-center p-2 sm:p-6">
+        
+        <!-- VIEW 1: MENU -->
+        <div id="view-menu" class="flex flex-col items-center justify-center w-full h-full max-w-5xl mx-auto transition-opacity duration-300">
+            
+            <!-- Game Opponent Settings -->
+            <div class="flex flex-col items-center gap-3 sm:gap-4 mb-6 sm:mb-8 w-full">
+                <div class="flex bg-editor rounded-lg p-1 border border-theme shadow-sm w-max">
+                    <button id="btn-pvp" class="px-4 py-2 rounded-md bg-theme font-bold text-main transition-colors text-xs sm:text-sm">Lawan Teman</button>
+                    <button id="btn-pve" class="px-4 py-2 rounded-md font-bold text-dim hover:text-main transition-colors text-xs sm:text-sm">Lawan Bot</button>
+                </div>
+                <div id="bot-settings" class="hidden flex items-center gap-2 sm:gap-3 bg-editor border border-theme px-4 py-2 rounded-full shadow-sm">
+                    <span id="txt-bot-level" class="text-xs sm:text-sm font-semibold text-dim">Level Bot:</span>
+                    <input type="range" id="input-bot-level" min="1" max="10" value="5" class="w-24 sm:w-32 accent-blue-500">
+                    <span id="val-bot-level" class="font-bold text-main w-6 text-center text-sm">5</span>
+                </div>
+            </div>
+
+            <h2 id="txt-select-mode" class="text-xl sm:text-2xl font-bold text-dim mb-8 text-center px-4">Pilih Mode Permainan untuk Memulai</h2>
+            <div id="mode-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 w-full px-2">
+                <!-- Modes Injected via JS -->
+            </div>
+        </div>
+
+        <!-- VIEW 2: COUNTDOWN -->
+        <div id="view-countdown" class="hidden absolute inset-0 flex items-center justify-center bg-preview/90 backdrop-blur-sm z-40 transition-opacity duration-300">
+            <h2 id="countdown-number" class="text-[10rem] sm:text-[15rem] font-black text-blue-500 animate-pulse drop-shadow-2xl">3</h2>
+        </div>
+
+        <!-- VIEW 3: GAME ARENA -->
+        <div id="view-game" class="hidden flex-1 w-full max-w-7xl mx-auto flex flex-row items-stretch justify-between gap-2 sm:gap-4 md:gap-8 z-10 transition-opacity duration-300">
+            
+            <!-- PLAYER 1 PANEL -->
+            <div class="flex flex-col w-[110px] sm:w-[220px] md:w-[280px] shrink-0 bg-editor border border-theme rounded-2xl shadow-xl overflow-hidden shadow-[0_0_15px_rgba(239,68,68,0.15)] ring-2 ring-red-500/50">
+                <div class="bg-red-500 text-white text-center py-2 font-bold text-sm sm:text-lg border-b border-theme uppercase tracking-wider">
+                    Player 1
+                </div>
+                <div class="p-2 sm:p-4 flex flex-col items-center flex-1 justify-between">
+                    <div class="w-full flex-col flex gap-2">
+                        <div id="p1-question" class="w-full min-h-[50px] sm:min-h-[80px] flex items-center justify-center text-center font-black text-2xl sm:text-4xl text-main bg-freezebgeven rounded-xl p-2 border border-theme font-mono">
+                            ?
+                        </div>
+                        <div id="p1-input" class="w-full h-10 sm:h-16 border-2 border-theme rounded-xl flex items-center justify-end px-3 sm:px-4 text-2xl sm:text-4xl font-bold bg-editor text-main font-mono transition-colors">
+                            
+                        </div>
+                    </div>
+                    <div id="p1-keypad" class="grid grid-cols-3 gap-1 sm:gap-2 w-full mt-2">
+                        <!-- Keypad Injected via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- MIDDLE ARENA -->
+            <div class="flex-1 relative flex items-end justify-center rounded-3xl bg-freezebgeven border border-theme shadow-inner overflow-hidden mx-1">
+                <!-- Center Line -->
+                <div class="absolute top-0 bottom-0 left-1/2 w-px bg-theme border-l-2 border-dashed border-dim/30 -translate-x-1/2 z-0"></div>
+                
+                <!-- Rope Container (Moves) -->
+                <div id="rope-container" class="absolute bottom-10 sm:bottom-16 w-full flex items-center justify-center z-10 transition-transform duration-300 ease-out will-change-transform">
+                    <div class="absolute -translate-x-[70px] sm:-translate-x-[140px] text-5xl sm:text-7xl -scale-x-100 drop-shadow-xl z-20" style="filter: drop-shadow(0 4px 6px rgba(239,68,68,0.4));">🧑‍🚒</div>
+                    
+                    <div class="w-[140px] sm:w-[280px] h-3 sm:h-5 bg-[#8B4513] rounded-full border-y-[2px] border-[#5c2c0b] relative shadow-lg">
+                        <div class="absolute top-1/2 left-1/2 w-3 sm:w-6 h-6 sm:h-10 bg-yellow-400 border-2 border-yellow-600 rounded-sm -translate-x-1/2 -translate-y-1/2"></div>
+                    </div>
+
+                    <div class="absolute translate-x-[70px] sm:translate-x-[140px] text-5xl sm:text-7xl drop-shadow-xl z-20" style="filter: drop-shadow(0 4px 6px rgba(59,130,246,0.4));">🧑‍🚀</div>
+                </div>
+            </div>
+
+            <!-- PLAYER 2 PANEL -->
+            <div class="flex flex-col w-[110px] sm:w-[220px] md:w-[280px] shrink-0 bg-editor border border-theme rounded-2xl shadow-xl overflow-hidden shadow-[0_0_15px_rgba(59,130,246,0.15)] ring-2 ring-blue-500/50">
+                <div id="p2-header-title" class="bg-blue-500 text-white text-center py-2 font-bold text-sm sm:text-lg border-b border-theme uppercase tracking-wider">
+                    Player 2
+                </div>
+                <div class="p-2 sm:p-4 flex flex-col items-center flex-1 justify-between">
+                    <div class="w-full flex-col flex gap-2">
+                        <div id="p2-question" class="w-full min-h-[50px] sm:min-h-[80px] flex items-center justify-center text-center font-black text-2xl sm:text-4xl text-main bg-freezebgeven rounded-xl p-2 border border-theme font-mono">
+                            ?
+                        </div>
+                        <div id="p2-input" class="w-full h-10 sm:h-16 border-2 border-theme rounded-xl flex items-center justify-end px-3 sm:px-4 text-2xl sm:text-4xl font-bold bg-editor text-main font-mono transition-colors">
+                            
+                        </div>
+                    </div>
+                    <div id="p2-keypad" class="grid grid-cols-3 gap-1 sm:gap-2 w-full mt-2">
+                        <!-- Keypad Injected via JS -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- VIEW 4: FINISHED -->
+        <div id="view-finished" class="hidden absolute inset-0 flex items-center justify-center bg-preview/90 backdrop-blur-md z-40 transition-opacity duration-300">
+            <div class="bg-editor p-8 md:p-12 rounded-3xl shadow-2xl text-center border border-theme flex flex-col items-center">
+                <div class="text-7xl mb-4">🏆</div>
+                <h2 id="txt-winner" class="text-3xl sm:text-5xl font-black mb-2 text-main">PLAYER WINS!</h2>
+                <p id="txt-game-over" class="text-lg text-dim mb-8 font-medium">Permainan Selesai</p>
+                
+                <div class="flex gap-4 justify-center">
+                    <button id="btn-play-again" class="bg-green-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl text-lg sm:text-xl font-bold hover:bg-green-700 active:scale-95 transition-transform shadow-lg">
+                        Main Lagi
+                    </button>
+                    <button id="btn-change-mode" class="bg-freezebgeven border border-theme text-main px-6 sm:px-8 py-3 sm:py-4 rounded-xl text-lg sm:text-xl font-bold hover:bg-theme active:scale-95 transition-transform shadow-sm">
+                        Ganti Mode
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER (Wajib TATADADA) -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 z-50 relative">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            <span id="txt-status">Mesin Siap</span>
+        </div>
+        <div class="hidden sm:block">
+            <span id="txt-active-mode">Mode: -</span>
+        </div>
+        <div>
+            <button id="terms-btn" class="hover:text-main transition-colors underline underline-offset-2">Syarat Penggunaan</button>
+        </div>
+    </footer>
+
+    <!-- MODAL TERMS OF USE -->
+    <div id="terms-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+        <div class="bg-editor border border-theme rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden transform scale-95 transition-transform duration-300" id="terms-modal-content">
+            <div class="px-6 py-4 border-b border-theme flex justify-between items-center bg-header">
+                <h3 id="terms-title" class="font-bold text-main">Syarat Penggunaan</h3>
+                <button id="close-terms" class="text-dim hover:text-red-500 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 text-sm text-dim leading-relaxed" id="terms-text">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        /* ==========================================
+           1. I18N (LOKALISASI) & STATE
+           ========================================== */
+        const translations = {
+            ID: {
+                help: "Pilih mode matematika, jawab soal dengan cepat menggunakan keypad untuk menarik tali ke arahmu!",
+                selectMode: "Pilih Mode Permainan untuk Memulai",
+                status: "Mesin Siap",
+                termsBtn: "Syarat Penggunaan",
+                termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+                p1Win: "PLAYER 1 MENANG! 🎉",
+                p2Win: "PLAYER 2 MENANG! 🎉",
+                botWin: "BOT MENANG! 🤖",
+                gameOver: "Permainan Selesai",
+                playAgain: "Main Lagi",
+                changeMode: "Ganti Mode",
+                modeActive: "Mode Aktif:",
+                pvp: "Lawan Teman",
+                pve: "Lawan Bot",
+                botLevel: "Level Bot:",
+                modes: {
+                    '+': 'Tambah', '-': 'Kurang', '*': 'Kali', '/': 'Bagi',
+                    'campuran': 'Campuran', 'pangkat': 'Pangkat 2', 'akar': 'Akar',
+                    '+2': 'Tambah 2D', '-2': 'Kurang 2D', 'buah': 'Hitung Buah'
+                }
+            },
+            EN: {
+                help: "Select a math mode, answer questions quickly using the keypad to pull the rope to your side!",
+                selectMode: "Select Game Mode to Start",
+                status: "Engine Ready",
+                termsBtn: "Terms of Use",
+                termsText: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                p1Win: "PLAYER 1 WINS! 🎉",
+                p2Win: "PLAYER 2 WINS! 🎉",
+                botWin: "BOT WINS! 🤖",
+                gameOver: "Game Over",
+                playAgain: "Play Again",
+                changeMode: "Change Mode",
+                modeActive: "Active Mode:",
+                pvp: "Play vs Friend",
+                pve: "Play vs Bot",
+                botLevel: "Bot Level:",
+                modes: {
+                    '+': 'Addition', '-': 'Subtraction', '*': 'Multiply', '/': 'Divide',
+                    'campuran': 'Mixed', 'pangkat': 'Square', 'akar': 'Square Root',
+                    '+2': 'Add 2D', '-2': 'Sub 2D', 'buah': 'Count Fruits'
+                }
+            }
+        };
+
+        const STATE = {
+            lang: localStorage.getItem('tatadada_lang') || 'ID',
+            theme: localStorage.getItem('tatadada_theme') || 'light',
+            view: 'menu', // menu, countdown, game, finished
+            mode: null,
+            timer: 3,
+            interval: null,
+            isBotMode: false,
+            botLevel: 5,
+            botTimeoutId: null,
+            p1: { score: 0, input: '', q: '', a: 0, wrong: false },
+            p2: { score: 0, input: '', q: '', a: 0, wrong: false }
+        };
+
+        const MODES_CFG = [
+            { id: '+', icon: '+' }, { id: '-', icon: '−' }, { id: '*', icon: '×' }, { id: '/', icon: '÷' },
+            { id: 'campuran', icon: '±' }, { id: 'pangkat', icon: 'x²' }, { id: 'akar', icon: '√' },
+            { id: '+2', icon: '+2' }, { id: '-2', icon: '-2' }, { id: 'buah', icon: '🍉' },
+        ];
+        const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'Go'];
+        const WIN_DIFF = 4;
+
+        /* ==========================================
+           2. DOM ELEMENTS & INITIALIZATION
+           ========================================== */
+        const DOM = {
+            langToggle: document.getElementById('lang-toggle'),
+            langIcon: document.getElementById('lang-icon'),
+            langText: document.getElementById('lang-text'),
+            themeToggle: document.getElementById('theme-toggle'),
+            iconSun: document.getElementById('theme-icon-moon'), // Swapped logic intentionally for display
+            iconMoon: document.getElementById('theme-icon-sun'),
+            html: document.documentElement,
+            
+            btnPvp: document.getElementById('btn-pvp'),
+            btnPve: document.getElementById('btn-pve'),
+            botSettings: document.getElementById('bot-settings'),
+            txtBotLevel: document.getElementById('txt-bot-level'),
+            inputBotLevel: document.getElementById('input-bot-level'),
+            valBotLevel: document.getElementById('val-bot-level'),
+
+            termsBtn: document.getElementById('terms-btn'),
+            termsModal: document.getElementById('terms-modal'),
+            termsModalContent: document.getElementById('terms-modal-content'),
+            closeTerms: document.getElementById('close-terms'),
+            
+            views: {
+                menu: document.getElementById('view-menu'),
+                countdown: document.getElementById('view-countdown'),
+                game: document.getElementById('view-game'),
+                finished: document.getElementById('view-finished')
+            },
+            
+            modeGrid: document.getElementById('mode-grid'),
+            countdownNum: document.getElementById('countdown-number'),
+            rope: document.getElementById('rope-container'),
+            
+            p1: {
+                q: document.getElementById('p1-question'),
+                i: document.getElementById('p1-input'),
+                k: document.getElementById('p1-keypad')
+            },
+            p2: {
+                header: document.getElementById('p2-header-title'),
+                q: document.getElementById('p2-question'),
+                i: document.getElementById('p2-input'),
+                k: document.getElementById('p2-keypad')
+            }
+        };
+
+        function init() {
+            applyTheme(STATE.theme);
+            applyLang(STATE.lang);
+            renderMenu();
+            renderKeypads();
+            setupEventListeners();
+        }
+
+        function setGameMode(isBot) {
+            STATE.isBotMode = isBot;
+            if (isBot) {
+                DOM.btnPve.classList.replace('text-dim', 'text-main');
+                DOM.btnPve.classList.add('bg-theme');
+                DOM.btnPvp.classList.replace('text-main', 'text-dim');
+                DOM.btnPvp.classList.remove('bg-theme');
+                DOM.botSettings.classList.remove('hidden');
+            } else {
+                DOM.btnPvp.classList.replace('text-dim', 'text-main');
+                DOM.btnPvp.classList.add('bg-theme');
+                DOM.btnPve.classList.replace('text-main', 'text-dim');
+                DOM.btnPve.classList.remove('bg-theme');
+                DOM.botSettings.classList.add('hidden');
+            }
+            renderKeypads(); // Refresh keypad/bot UI
+        }
+
+        /* ==========================================
+           3. THEME & LANG TOGGLES
+           ========================================== */
+        function applyTheme(theme) {
+            STATE.theme = theme;
+            localStorage.setItem('tatadada_theme', theme);
+            if (theme === 'dark') {
+                DOM.html.classList.add('dark');
+                DOM.iconSun.classList.remove('hidden');
+                DOM.iconMoon.classList.add('hidden');
+            } else {
+                DOM.html.classList.remove('dark');
+                DOM.iconSun.classList.add('hidden');
+                DOM.iconMoon.classList.remove('hidden');
+            }
+        }
+
+        function applyLang(lang) {
+            STATE.lang = lang;
+            localStorage.setItem('tatadada_lang', lang);
+            DOM.langIcon.textContent = lang === 'ID' ? '🇮🇩' : '🇬🇧';
+            DOM.langText.textContent = lang;
+            
+            const t = translations[lang];
+            document.getElementById('txt-help').textContent = t.help;
+            document.getElementById('txt-select-mode').textContent = t.selectMode;
+            document.getElementById('txt-status').textContent = t.status;
+            document.getElementById('terms-btn').textContent = t.termsBtn;
+            document.getElementById('terms-title').textContent = t.termsBtn;
+            document.getElementById('terms-text').textContent = t.termsText;
+            document.getElementById('txt-game-over').textContent = t.gameOver;
+            document.getElementById('btn-play-again').textContent = t.playAgain;
+            document.getElementById('btn-change-mode').textContent = t.changeMode;
+            
+            DOM.btnPvp.textContent = t.pvp;
+            DOM.btnPve.textContent = t.pve;
+            DOM.txtBotLevel.textContent = t.botLevel;
+
+            if(STATE.mode) {
+                document.getElementById('txt-active-mode').textContent = `${t.modeActive} ${t.modes[STATE.mode]}`;
+            }
+
+            renderMenu(); // Re-render menu labels
+        }
+
+        /* ==========================================
+           4. MODAL LOGIC
+           ========================================== */
+        function toggleTermsModal(show) {
+            if (show) {
+                DOM.termsModal.classList.remove('hidden');
+                // slight delay to allow display block to apply before opacity transition
+                setTimeout(() => {
+                    DOM.termsModal.classList.remove('opacity-0');
+                    DOM.termsModalContent.classList.remove('scale-95');
+                }, 10);
+            } else {
+                DOM.termsModal.classList.add('opacity-0');
+                DOM.termsModalContent.classList.add('scale-95');
+                setTimeout(() => {
+                    DOM.termsModal.classList.add('hidden');
+                }, 300);
+            }
+        }
+
+        /* ==========================================
+           5. GAME LOGIC & UI BUILDERS
+           ========================================== */
+        function renderMenu() {
+            DOM.modeGrid.innerHTML = '';
+            const t = translations[STATE.lang].modes;
+            
+            MODES_CFG.forEach(mode => {
+                const btn = document.createElement('button');
+                btn.className = "bg-editor border border-theme rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-center gap-2 hover:border-blue-500 hover:bg-freezebhover hover:-translate-y-1 transition-all shadow-sm cursor-pointer aspect-square";
+                btn.innerHTML = `
+                    <span class="text-3xl sm:text-5xl font-black text-main">${mode.icon}</span>
+                    <span class="font-bold text-dim text-xs sm:text-sm whitespace-nowrap">${t[mode.id]}</span>
+                `;
+                btn.onclick = () => startGame(mode.id);
+                DOM.modeGrid.appendChild(btn);
+            });
+        }
+
+        function renderKeypads() {
+            [1, 2].forEach(p => {
+                const container = p === 1 ? DOM.p1.k : DOM.p2.k;
+                container.innerHTML = '';
+                
+                if (p === 2 && STATE.isBotMode) {
+                    DOM.p2.header.textContent = `BOT (Lv.${STATE.botLevel})`;
+                    container.innerHTML = `
+                        <div class="col-span-3 h-full flex flex-col items-center justify-center p-2 mt-4 text-dim animate-pulse">
+                            <span class="text-5xl sm:text-7xl drop-shadow-md mb-2">🤖</span>
+                            <span class="font-mono text-xs sm:text-sm font-bold tracking-widest uppercase">Thinking...</span>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                if (p === 2) DOM.p2.header.textContent = "Player 2"; // Reset text
+                
+                KEYS.forEach(k => {
+                    const btn = document.createElement('button');
+                    let baseClass = "h-10 sm:h-12 rounded-lg font-bold text-sm sm:text-lg active:scale-95 transition-transform border-b-[3px] touch-action-manipulation select-none ";
+                    
+                    if (k === 'Go') baseClass += "bg-green-600 text-white border-green-800";
+                    else if (k === 'C') baseClass += "bg-red-500 text-white border-red-700";
+                    else baseClass += "bg-freezebg text-main border-theme hover:bg-theme";
+                    
+                    btn.className = baseClass;
+                    btn.textContent = k;
+                    
+                    // Use pointerdown for zero-delay touch response on mobile
+                    btn.addEventListener('pointerdown', (e) => {
+                        e.preventDefault();
+                        handleKey(p, k);
+                    });
+                    
+                    container.appendChild(btn);
+                });
+            });
+        }
+
+        function generateProblem(modeParam) {
+            let q = '', a = 0;
+            let op = modeParam;
+            const allOps = ['+', '-', '*', '/'];
+
+            if (op === 'campuran') op = allOps[Math.floor(Math.random() * allOps.length)];
+
+            switch (op) {
+                case '+':
+                    const n1 = Math.floor(Math.random() * 10) + 1;
+                    const n2 = Math.floor(Math.random() * 10) + 1;
+                    q = `${n1} + ${n2} = ?`; a = n1 + n2; break;
+                case '-':
+                    let m1 = Math.floor(Math.random() * 10) + 1;
+                    let m2 = Math.floor(Math.random() * 10) + 1;
+                    q = `${Math.max(m1, m2)} - ${Math.min(m1, m2)} = ?`; a = Math.abs(m1 - m2); break;
+                case '*':
+                    const k1 = Math.floor(Math.random() * 9) + 2;
+                    const k2 = Math.floor(Math.random() * 9) + 2;
+                    q = `${k1} × ${k2} = ?`; a = k1 * k2; break;
+                case '/':
+                    a = Math.floor(Math.random() * 9) + 2;
+                    const div = Math.floor(Math.random() * 9) + 2;
+                    q = `${a * div} ÷ ${div} = ?`; break;
+                case '+2':
+                    const t1 = Math.floor(Math.random() * 90) + 10;
+                    const t2 = Math.floor(Math.random() * 90) + 10;
+                    q = `${t1} + ${t2} = ?`; a = t1 + t2; break;
+                case '-2':
+                    let min1 = Math.floor(Math.random() * 90) + 10;
+                    let min2 = Math.floor(Math.random() * 90) + 10;
+                    q = `${Math.max(min1, min2)} - ${Math.min(min1, min2)} = ?`; a = Math.abs(min1 - min2); break;
+                case 'pangkat':
+                    const p = Math.floor(Math.random() * 9) + 2;
+                    q = `${p}² = ?`; a = p * p; break;
+                case 'akar':
+                    a = Math.floor(Math.random() * 9) + 2;
+                    q = `√${a * a} = ?`; break;
+                case 'buah':
+                    const fruits = ['🍉', '🍎', '🍓', '🍇', '🍊', '🍍', '🍌'];
+                    const f = fruits[Math.floor(Math.random() * fruits.length)];
+                    a = Math.floor(Math.random() * 9) + 1;
+                    q = Array(a).fill(f).join(''); break;
+                default:
+                    q = '1 + 1 = ?'; a = 2;
+            }
+            return { q, a };
+        }
+
+        function switchView(target) {
+            STATE.view = target;
+            Object.values(DOM.views).forEach(v => {
+                v.classList.add('hidden');
+                v.classList.remove('opacity-100');
+            });
+            
+            const active = DOM.views[target];
+            active.classList.remove('hidden');
+            // Allow display block to render before triggering opacity transition
+            setTimeout(() => active.classList.add('opacity-100'), 10);
+        }
+
+        function startGame(mode) {
+            STATE.mode = mode;
+            STATE.p1 = { score: 0, input: '', ...generateProblem(mode), wrong: false };
+            STATE.p2 = { score: 0, input: '', ...generateProblem(mode), wrong: false };
+            
+            document.getElementById('txt-active-mode').textContent = `${translations[STATE.lang].modeActive} ${translations[STATE.lang].modes[mode]}`;
+            
+            updateGameStateUI();
+            
+            STATE.timer = 3;
+            DOM.countdownNum.textContent = STATE.timer;
+            switchView('countdown');
+            
+            if (STATE.interval) clearInterval(STATE.interval);
+            if (STATE.botTimeoutId) clearTimeout(STATE.botTimeoutId);
+            
+            STATE.interval = setInterval(() => {
+                STATE.timer--;
+                if (STATE.timer > 0) {
+                    DOM.countdownNum.textContent = STATE.timer;
+                } else {
+                    clearInterval(STATE.interval);
+                    DOM.countdownNum.textContent = STATE.lang === 'ID' ? 'GO!' : 'GO!';
+                    setTimeout(() => {
+                        switchView('game');
+                        scheduleBot(); // Start bot if enabled
+                    }, 500);
+                }
+            }, 1000);
+        }
+
+        function scheduleBot() {
+            if (STATE.view !== 'game' || !STATE.isBotMode) return;
+            
+            // Logika waktu tunda bot berdasarkan level (L1: lambat, L10: super cepat)
+            const delay = (6000 - (STATE.botLevel * 500)) + (Math.random() * 1000);
+
+            STATE.botTimeoutId = setTimeout(() => {
+                if (STATE.view !== 'game') return;
+
+                // Bot mengetik jawaban
+                STATE.p2.input = STATE.p2.a.toString();
+                updateGameStateUI();
+                
+                // Sedikit penundaan agar terlihat bot "menekan enter"
+                setTimeout(() => {
+                    if (STATE.view !== 'game') return;
+                    
+                    STATE.p2.score++;
+                    Object.assign(STATE.p2, generateProblem(STATE.mode));
+                    STATE.p2.input = '';
+                    checkWin();
+                    
+                    if (STATE.view === 'game') {
+                        updateGameStateUI();
+                        scheduleBot(); // Lanjut ke soal berikutnya
+                    }
+                }, 250);
+            }, delay);
+        }
+
+        function updateGameStateUI() {
+            // Update Text
+            DOM.p1.q.textContent = STATE.p1.q;
+            DOM.p2.q.textContent = STATE.p2.q;
+            DOM.p1.i.textContent = STATE.p1.input;
+            DOM.p2.i.textContent = STATE.p2.input;
+            
+            // Emoji fruit mode adjust font
+            if(STATE.mode === 'buah') {
+                DOM.p1.q.classList.replace('font-mono', 'font-sans');
+                DOM.p2.q.classList.replace('font-mono', 'font-sans');
+            } else {
+                DOM.p1.q.classList.replace('font-sans', 'font-mono');
+                DOM.p2.q.classList.replace('font-sans', 'font-mono');
+            }
+
+            // Error highlights
+            if (STATE.p1.wrong) {
+                DOM.p1.i.classList.add('border-red-500', 'bg-red-500/10', 'text-red-500');
+                DOM.p1.i.classList.remove('border-theme', 'bg-editor', 'text-main');
+            } else {
+                DOM.p1.i.classList.remove('border-red-500', 'bg-red-500/10', 'text-red-500');
+                DOM.p1.i.classList.add('border-theme', 'bg-editor', 'text-main');
+            }
+
+            if (STATE.p2.wrong) {
+                DOM.p2.i.classList.add('border-red-500', 'bg-red-500/10', 'text-red-500');
+                DOM.p2.i.classList.remove('border-theme', 'bg-editor', 'text-main');
+            } else {
+                DOM.p2.i.classList.remove('border-red-500', 'bg-red-500/10', 'text-red-500');
+                DOM.p2.i.classList.add('border-theme', 'bg-editor', 'text-main');
+            }
+
+            // Rope Physics (Max 12% per point difference)
+            const offset = (STATE.p2.score - STATE.p1.score) * 12;
+            DOM.rope.style.transform = `translateX(${offset}%)`;
+        }
+
+        function handleKey(p, key) {
+            if (STATE.view !== 'game') return;
+            if (p === 2 && STATE.isBotMode) return; // Kunci akses manusia jika mode Bot aktif
+            
+            const playerState = p === 1 ? STATE.p1 : STATE.p2;
+
+            if (key === 'C') {
+                playerState.input = '';
+            } else if (key === 'Go') {
+                if (parseInt(playerState.input) === playerState.a) {
+                    playerState.score++;
+                    Object.assign(playerState, generateProblem(STATE.mode));
+                    playerState.input = '';
+                    checkWin();
+                } else {
+                    playerState.wrong = true;
+                    playerState.input = '';
+                    updateGameStateUI();
+                    setTimeout(() => {
+                        playerState.wrong = false;
+                        updateGameStateUI();
+                    }, 300);
+                    return; // skip standard UI update below to let timeout handle it
+                }
+            } else {
+                if (playerState.input.length < 4) playerState.input += key;
+            }
+            updateGameStateUI();
+        }
+
+        function checkWin() {
+            if (STATE.p1.score - STATE.p2.score >= WIN_DIFF) {
+                endGame(1);
+            } else if (STATE.p2.score - STATE.p1.score >= WIN_DIFF) {
+                endGame(2);
+            }
+        }
+
+        function endGame(winner) {
+            if (STATE.botTimeoutId) clearTimeout(STATE.botTimeoutId);
+            
+            setTimeout(() => {
+                const t = translations[STATE.lang];
+                let winText = winner === 1 ? t.p1Win : t.p2Win;
+                if (winner === 2 && STATE.isBotMode) winText = t.botWin;
+
+                document.getElementById('txt-winner').textContent = winText;
+                document.getElementById('txt-winner').className = `text-3xl sm:text-5xl font-black mb-2 ${winner === 1 ? 'text-red-500' : 'text-blue-500'}`;
+                switchView('finished');
+            }, 500); // slight delay to show the rope fully crossing
+        }
+
+        /* ==========================================
+           6. EVENT LISTENERS SETUP
+           ========================================== */
+        function setupEventListeners() {
+            DOM.btnPvp.addEventListener('click', () => setGameMode(false));
+            DOM.btnPve.addEventListener('click', () => setGameMode(true));
+            
+            DOM.inputBotLevel.addEventListener('input', (e) => {
+                STATE.botLevel = parseInt(e.target.value);
+                DOM.valBotLevel.textContent = STATE.botLevel;
+                if(STATE.view === 'menu') renderKeypads();
+            });
+
+            DOM.themeToggle.addEventListener('click', () => {
+                applyTheme(STATE.theme === 'dark' ? 'light' : 'dark');
+            });
+
+            DOM.langToggle.addEventListener('click', () => {
+                applyLang(STATE.lang === 'ID' ? 'EN' : 'ID');
+            });
+
+            DOM.termsBtn.addEventListener('click', () => toggleTermsModal(true));
+            DOM.closeTerms.addEventListener('click', () => toggleTermsModal(false));
+            DOM.termsModal.addEventListener('click', (e) => {
+                if(e.target === DOM.termsModal) toggleTermsModal(false);
+            });
+
+            document.getElementById('btn-play-again').addEventListener('click', () => startGame(STATE.mode));
+            document.getElementById('btn-change-mode').addEventListener('click', () => {
+                if (STATE.botTimeoutId) clearTimeout(STATE.botTimeoutId);
+                STATE.mode = null;
+                document.getElementById('txt-active-mode').textContent = 'Mode: -';
+                switchView('menu');
+            });
+        }
+
+        // Boot
+        init();
+
+    </script>
+</body>
+</html>
