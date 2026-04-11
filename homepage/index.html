@@ -36,6 +36,19 @@
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
             text-rendering: optimizeLegibility;
+            /* Disable text selection everywhere */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        /* Enable text selection specifically for inputs like search */
+        input#searchInput {
+            -webkit-user-select: auto;
+            -moz-user-select: auto;
+            -ms-user-select: auto;
+            user-select: auto;
         }
 
         .text-dim { color: var(--text-dim); }
@@ -166,76 +179,6 @@
         .app-title {
             text-shadow: 0 2px 4px rgba(0,0,0,0.8);
         }
-
-        /* PEEK PREVIEW MODAL */
-        .peek-preview {
-            position: absolute;
-            bottom: 120%; 
-            left: 50%;
-            transform: translateX(-50%) translateY(10px) scale(0.95);
-            background: rgba(20, 20, 22, 0.85);
-            backdrop-filter: blur(30px) saturate(150%);
-            -webkit-backdrop-filter: blur(30px) saturate(150%);
-            border: 0.5px solid rgba(255,255,255,0.2);
-            border-radius: 20px;
-            width: 280px;
-            padding: 16px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(255,255,255,0.1);
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            z-index: 100;
-            pointer-events: none;
-            text-align: left;
-        }
-
-        .peek-preview.active {
-            opacity: 1;
-            visibility: visible;
-            transform: translateX(-50%) translateY(0) scale(1);
-        }
-
-        .peek-preview::after {
-            content: '';
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            border-width: 8px;
-            border-style: solid;
-            border-color: rgba(20, 20, 22, 0.85) transparent transparent transparent;
-        }
-
-        .preview-img-container {
-            width: 100%;
-            height: 140px;
-            border-radius: 12px;
-            background: #000;
-            margin-top: 12px;
-            overflow: hidden;
-            position: relative;
-            box-shadow: inset 0 0 0 0.5px rgba(255,255,255,0.2);
-        }
-
-        .preview-img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            object-position: top;
-            opacity: 0;
-            transition: opacity 0.5s ease;
-        }
-        
-        .preview-img.loaded { opacity: 1; }
-        
-        .loading-skeleton {
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(90deg, #222 25%, #333 50%, #222 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
-        }
-        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 
         /* CUSTOM XML ICON ELEMENTS */
         .bg-wave-ornament {
@@ -631,80 +574,7 @@
         }
 
         // ==========================================
-        // 3. HOVER PEEK PREVIEW LOGIC
-        // ==========================================
-        let peekTimer = null;
-        
-        function setupHoverPreview(cardElement, appInfo) {
-            cardElement.addEventListener('mouseenter', () => {
-                peekTimer = setTimeout(() => showPeekPreview(cardElement, appInfo), 1000);
-            });
-            
-            cardElement.addEventListener('mouseleave', () => {
-                clearTimeout(peekTimer);
-                hidePeekPreview();
-            });
-        }
-
-        function showPeekPreview(card, app) {
-            let peekEl = document.getElementById('peekPreviewEl');
-            if (!peekEl) {
-                peekEl = document.createElement('div');
-                peekEl.id = 'peekPreviewEl';
-                peekEl.className = 'peek-preview';
-                document.body.appendChild(peekEl);
-            }
-
-            const rect = card.getBoundingClientRect();
-            peekEl.style.left = `${rect.left + (rect.width / 2)}px`;
-            peekEl.style.top = `${rect.top - 200}px`;
-
-            const t_update = currentLang === 'ID' ? 'Memeriksa...' : 'Checking...';
-            const originalIcon = card.querySelector('.icon-container');
-            const clonedIcon = originalIcon.cloneNode(true);
-            clonedIcon.className = 'w-8 h-8 rounded-lg flex items-center justify-center text-white relative overflow-hidden';
-            clonedIcon.style.boxShadow = 'inset 0 1px 3px rgba(255,255,255,0.4), inset 0 -1px 3px rgba(0,0,0,0.3)';
-            
-            peekEl.innerHTML = `
-                <div class="flex items-center gap-3 border-b border-white/10 pb-3 mb-3">
-                    <div id="peek-icon-wrapper"></div>
-                    <div>
-                        <h4 class="text-white font-bold text-sm leading-tight">${app.title}</h4>
-                        <p class="text-xs text-dim font-mono mt-0.5">/${app.name}</p>
-                    </div>
-                </div>
-                <div class="text-[11px] text-dim space-y-1">
-                    <div class="flex justify-between"><span class="opacity-60">Version</span> <span class="text-white">v1.0.0</span></div>
-                    <div class="flex justify-between"><span class="opacity-60">Updated</span> <span id="peek-date-${app.name}" class="text-white">${t_update}</span></div>
-                </div>
-                <div class="preview-img-container">
-                    <div class="loading-skeleton"></div>
-                    <img src="https://image.thum.io/get/width/400/crop/600/noanimate/${app.url}" class="preview-img" onload="this.classList.add('loaded')" onerror="this.style.display='none'">
-                </div>
-            `;
-            
-            document.getElementById('peek-icon-wrapper').appendChild(clonedIcon);
-            lucide.createIcons();
-            peekEl.classList.add('active');
-
-            fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits?path=${app.name}&per_page=1`)
-                .then(res => res.json())
-                .then(data => {
-                    const dateEl = document.getElementById(`peek-date-${app.name}`);
-                    if(dateEl && data.length > 0) {
-                        const date = new Date(data[0].commit.author.date);
-                        dateEl.textContent = date.toLocaleDateString(currentLang === 'ID' ? 'id-ID' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-                    }
-                }).catch(() => {});
-        }
-
-        function hidePeekPreview() {
-            const peekEl = document.getElementById('peekPreviewEl');
-            if (peekEl) peekEl.classList.remove('active');
-        }
-
-        // ==========================================
-        // 4. UI BUILDER LOGIC
+        // 3. UI BUILDER LOGIC
         // ==========================================
         function generateAlphabet() {
             const container = document.getElementById('alphabet-container');
@@ -867,8 +737,6 @@
                         let waveHtml = ornament.includes('wave') ? `<div class="bg-wave-ornament" style="background: linear-gradient(180deg, #C13584 0%, ${colorStart} 100%);"></div>` : '';
                         iconContainer.innerHTML = `${waveHtml}<svg class="icon-svg" viewBox="0 0 100 100" fill="none" style="width: ${parseFloat(scaleStr)*100}%; height: ${parseFloat(scaleStr)*100}%; position: relative; z-index: 10;">${innerSvg}</svg>`;
                     }).catch(() => {});
-
-                setupHoverPreview(card, app);
             });
             lucide.createIcons();
         }
@@ -885,7 +753,9 @@
             fetchRepoInfo();
             fetchApps();
             lucide.createIcons();
-            document.querySelector('main').addEventListener('scroll', hidePeekPreview);
+            
+            // Disable right click (context menu) globally
+            document.addEventListener('contextmenu', event => event.preventDefault());
         };
     </script>
 </body>
