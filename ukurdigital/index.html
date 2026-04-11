@@ -1,0 +1,825 @@
+<!-- TATADADA VISUAL INTERPRETATION: Visual utama memadukan 3 alat: Mistar frosted-glass di latar belakang, rahang solid-putih jangka sorong yang mendominasi tengah, serta siluet busur derajat. Skala yang solid dengan negative-space yang elegan berlatar gradien ungu ke biru laut. -->
+<!DOCTYPE html>
+<html lang="id" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UkurDigital</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Configuration & Custom Styles -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        header: 'var(--header-bg)',
+                        editor: 'var(--editor-bg)',
+                        preview: 'var(--preview-bg)',
+                        footer: 'var(--footer-bg)',
+                        borderTheme: 'var(--border-color)',
+                        textMain: 'var(--text-main)',
+                        textDim: 'var(--text-dim)',
+                        freezeHover: 'var(--freeze-hover)',
+                        stripe: 'var(--stripe-color)'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* TATADADA CSS Tokens */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: var(--text-dim); }
+
+        /* SVG & Glassmorphism Base Styles */
+        .glass-tool { fill: rgba(255, 255, 255, 0.85); stroke: #0ea5e9; }
+        .glass-caliper { fill: rgba(255, 255, 255, 0.95); stroke: #94a3b8; }
+        .glass-vernier { fill: rgba(248, 250, 252, 0.95); stroke: #0ea5e9; }
+        
+        html.dark .glass-tool { fill: rgba(30, 41, 59, 0.85); stroke: #38bdf8; }
+        html.dark .glass-caliper { fill: rgba(15, 23, 42, 0.95); stroke: #475569; }
+        html.dark .glass-vernier { fill: rgba(30, 41, 59, 0.95); stroke: #38bdf8; }
+        
+        .tick-line { stroke: #1f2937; }
+        html.dark .tick-line { stroke: #94a3b8; }
+        
+        .text-outer { fill: #1e3a8a; }
+        html.dark .text-outer { fill: #7dd3fc; }
+        
+        .text-inner { fill: #6b7280; }
+        html.dark .text-inner { fill: #cbd5e1; }
+
+        /* Mencegah Teks Skala diseleksi kursor */
+        .unselectable {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col antialiased">
+
+    <!-- HEADER -->
+    <header class="flex items-center justify-between px-6 border-b border-borderTheme bg-header shrink-0 relative z-50 h-14">
+        <!-- Kiri: Branding -->
+        <div class="flex items-center gap-3">
+            <h1 class="text-lg font-extrabold bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
+                <i data-lucide="ruler" class="text-blue-500 w-5 h-5"></i> UkurDigital
+            </h1>
+            <div class="flex flex-col justify-center leading-none">
+                <span class="text-[10px] font-mono text-textDim italic">v2.0.0</span>
+                <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-textDim hover:text-blue-500 transition-colors">
+                    by AhmadDanial
+                </a>
+            </div>
+            
+            <!-- Tooltip Help -->
+            <div class="relative group ml-2 flex items-center cursor-help">
+                <i data-lucide="help-circle" class="w-4 h-4 text-textDim hover:text-blue-500 transition-colors"></i>
+                <div class="absolute left-0 top-full mt-2 w-72 p-3 bg-editor border border-borderTheme rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-xs text-textDim">
+                    <strong id="helpTitle" class="block mb-1 text-textMain">Cara Penggunaan:</strong>
+                    <span id="helpText">Geser alat ukur menggunakan klik kiri. Putar alat dengan menahan klik kanan (atau gunakan slider). Untuk Jangka Sorong, geser rahang kecilnya untuk mengapit benda.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kanan: Actions -->
+        <div class="flex items-center gap-4">
+            <button id="btnLang" onclick="toggleLanguage()" class="flex items-center gap-1.5 text-xs font-semibold text-textDim hover:text-textMain transition-colors">
+                <span id="flagIcon">🇮🇩</span> <span id="langText">ID</span>
+            </button>
+            <div class="w-px h-4 bg-borderTheme"></div>
+            <button id="btnTheme" onclick="toggleTheme()" class="text-textDim hover:text-blue-500 transition-colors" aria-label="Toggle Theme">
+                <i data-lucide="moon" id="themeIcon" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- WORKSPACE (Skenario 1: Split View / Side to Side) -->
+    <main class="flex-1 relative overflow-hidden flex flex-col md:flex-row w-full bg-preview">
+        <!-- AREA KANVAS (KIRI) -->
+        <div id="leftPane" class="flex-1 relative bg-editor flex flex-col min-h-[400px] md:min-h-0 unselectable">
+            <div id="canvas-container" class="w-full h-full relative overflow-hidden" style="touch-action: none;">
+                
+                <!-- Background Garis (Stripe) -->
+                <div class="absolute inset-0 pointer-events-none" style="background-image: repeating-linear-gradient(45deg, var(--stripe-color) 0, var(--stripe-color) 1px, transparent 0, transparent 50%); background-size: 20px 20px;"></div>
+
+                <!-- 1. SCENE BUSUR DERAJAT -->
+                <div id="scene-protractor" class="absolute inset-0">
+                    <svg class="w-full h-full absolute inset-0 pointer-events-none">
+                        <line id="ray1" stroke="#0369a1" stroke-width="6" stroke-linecap="round" />
+                        <line id="ray2" stroke="#0369a1" stroke-width="6" stroke-linecap="round" />
+                        <path id="angleArc" fill="none" stroke="#22c55e" stroke-width="5" stroke-linecap="round" />
+                        <circle id="vertexPoint" r="8" fill="#ef4444" />
+                    </svg>
+
+                    <div id="protractor-wrapper" class="absolute cursor-grab z-10 group" style="touch-action: none;">
+                        <div id="protractor-rotator" style="transform-origin: 190px 190px;">
+                            <svg width="380" height="200" viewBox="-190 -190 380 200" class="drop-shadow-2xl overflow-visible">
+                                <path d="M -170 0 A 170 170 0 0 1 170 0 L 25 0 A 25 25 0 0 0 -25 0 Z" fill="rgba(56, 189, 248, 0.0)" class="group-hover:fill-sky-400/10 transition-colors duration-300"/>
+                                <path d="M -170 0 A 170 170 0 0 1 170 0 L 25 0 A 25 25 0 0 0 -25 0 Z" stroke-width="3" class="glass-tool"/>
+                                <g id="protractor-ticks"></g>
+                                <line x1="-170" y1="0" x2="-25" y2="0" stroke="#0ea5e9" stroke-width="2" />
+                                <line x1="25" y1="0" x2="170" y2="0" stroke="#0ea5e9" stroke-width="2" />
+                                <circle cx="0" cy="0" r="5" fill="none" stroke="#ef4444" stroke-width="2" />
+                                <line x1="-15" y1="0" x2="-5" y2="0" stroke="#ef4444" stroke-width="2" />
+                                <line x1="5" y1="0" x2="15" y2="0" stroke="#ef4444" stroke-width="2" />
+                                <line x1="0" y1="-15" x2="0" y2="-5" stroke="#ef4444" stroke-width="2" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. SCENE PENGGARIS / MISTAR -->
+                <div id="scene-ruler" class="absolute inset-0 hidden">
+                    <svg class="w-full h-full absolute inset-0 pointer-events-none">
+                        <line id="ruler-target" stroke="#f59e0b" stroke-width="12" stroke-linecap="butt" />
+                        <circle id="ruler-target-start" r="6" fill="#b45309" />
+                        <circle id="ruler-target-end" r="6" fill="#b45309" />
+                    </svg>
+                    <div id="ruler-wrapper" class="absolute cursor-grab z-10 group" style="touch-action: none;">
+                        <div id="ruler-rotator" style="transform-origin: 50px 40px;">
+                            <svg width="650" height="80" class="drop-shadow-2xl overflow-visible">
+                                <rect width="650" height="80" rx="8" stroke-width="2" class="glass-tool"/>
+                                <circle cx="50" cy="40" r="4" fill="#ef4444" opacity="0.3" />
+                                <g id="ruler-ticks"></g>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. SCENE JANGKA SORONG -->
+                <div id="scene-caliper" class="absolute inset-0 hidden">
+                    <div id="caliper-wrapper" class="absolute z-10 cursor-grab" style="touch-action:none; transform-origin: 0 0;">
+                        <!-- Blok Target Ukur (Menyatu dalam viewport caliper agar ikut saat didrag) -->
+                        <svg width="900" height="180" class="absolute inset-0 overflow-visible pointer-events-none" style="z-index: -1;">
+                            <rect id="caliper-target" x="50" y="60" height="70" fill="#f59e0b" rx="4" stroke="#b45309" stroke-width="2" />
+                        </svg>
+
+                        <!-- Main Bar Jangka Sorong -->
+                        <svg width="900" height="150" class="drop-shadow-2xl overflow-visible">
+                            <rect x="0" y="20" width="850" height="40" rx="4" stroke-width="2" class="glass-caliper" />
+                            <path d="M 50 60 L 50 140 L 30 130 L 30 20 Z" stroke-width="2" class="glass-caliper"/>
+                            <g id="caliper-main-ticks"></g>
+                        </svg>
+                        
+                        <!-- Skala Vernier Geser -->
+                        <div id="caliper-vernier" class="absolute cursor-ew-resize drop-shadow-xl" style="top: 20px; left: 50px; touch-action:none;">
+                            <svg width="150" height="130" class="overflow-visible">
+                                <rect x="-2" y="-2" width="100" height="44" rx="4" stroke-width="2" class="glass-vernier" />
+                                <path d="M 0 42 L 0 120 L 20 110 L 20 42 Z" stroke-width="2" class="glass-vernier"/>
+                                <g id="caliper-vernier-ticks" transform="translate(0, 42)"></g>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- RESIZER (VERTIKAL) -->
+        <div id="resizerX" class="hidden md:block w-1.5 bg-borderTheme hover:bg-blue-500 cursor-col-resize shrink-0 transition-colors z-20 active:bg-blue-600"></div>
+
+        <!-- PANEL KONTROL (KANAN) -->
+        <div id="rightPane" class="w-full md:w-[320px] lg:w-[380px] shrink-0 bg-preview p-5 overflow-y-auto flex flex-col gap-4 border-t md:border-t-0 md:border-l border-borderTheme z-10 unselectable">
+            
+            <!-- Tool Tabs / Selector -->
+            <div class="flex p-1 bg-borderTheme rounded-xl mb-2">
+                <button id="tab-protractor" onclick="setMode('protractor')" class="flex-1 py-2 text-sm font-bold bg-white dark:bg-slate-800 rounded-lg shadow-sm text-blue-600 dark:text-blue-400 transition-all">Busur</button>
+                <button id="tab-ruler" onclick="setMode('ruler')" class="flex-1 py-2 text-sm font-bold text-textDim hover:bg-white/50 dark:hover:bg-slate-800/50 rounded-lg transition-all">Mistar</button>
+                <button id="tab-caliper" onclick="setMode('caliper')" class="flex-1 py-2 text-sm font-bold text-textDim hover:bg-white/50 dark:hover:bg-slate-800/50 rounded-lg transition-all">Sorong</button>
+            </div>
+
+            <!-- Putar Alat -->
+            <div id="panelRotate" class="bg-editor p-4 rounded-xl border border-borderTheme shadow-sm">
+                <label class="flex items-center gap-2 text-textMain font-bold mb-3 text-sm">
+                    <i data-lucide="rotate-cw" class="w-4 h-4"></i> <span id="lblRotate">Putar Alat (Kanan Mouse)</span>
+                </label>
+                <div class="flex items-center gap-3">
+                    <button id="btnRotLeft" class="w-10 h-10 bg-preview border border-borderTheme rounded-lg text-textMain font-bold hover:bg-borderTheme transition-colors shrink-0 flex items-center justify-center">-1°</button>
+                    <input id="sliderRotate" type="range" min="0" max="360" value="0" class="flex-1 accent-blue-500 h-2 bg-borderTheme rounded-lg appearance-none cursor-pointer" />
+                    <button id="btnRotRight" class="w-10 h-10 bg-preview border border-borderTheme rounded-lg text-textMain font-bold hover:bg-borderTheme transition-colors shrink-0 flex items-center justify-center">+1°</button>
+                </div>
+            </div>
+
+            <!-- Input & Feedback -->
+            <div class="bg-editor p-4 rounded-xl border border-borderTheme shadow-sm flex-1 flex flex-col">
+                <label id="lblQuestion" class="block text-textMain font-bold mb-3 text-center text-base">Berapa ukurannya?</label>
+                
+                <div class="flex items-center gap-2 mb-4">
+                    <input id="inputAnswer" type="text" placeholder="Ketik angka..." class="w-full text-center text-xl font-mono py-2.5 border-2 border-borderTheme bg-preview text-textMain rounded-lg focus:border-blue-500 focus:outline-none transition-colors disabled:opacity-50" />
+                    <span id="unitAddon" class="text-xl font-bold text-textDim w-12 text-left">°</span>
+                </div>
+
+                <!-- Buttons Group -->
+                <div id="actionContainer" class="flex flex-col gap-2 mt-auto">
+                    <button id="btnCheck" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                        <i data-lucide="check-circle" class="w-5 h-5"></i> <span id="lblCheck">Cek Jawaban!</span>
+                    </button>
+                    <button id="btnNext" class="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg transition-all hidden flex items-center justify-center gap-2">
+                        <i data-lucide="refresh-cw" class="w-5 h-5"></i> <span id="lblNext">Lanjut Soal Baru!</span>
+                    </button>
+                </div>
+
+                <!-- Feedback Box -->
+                <div id="feedbackBox" class="mt-4 p-3 rounded-lg border-2 hidden text-center">
+                    <p id="feedbackTitle" class="font-bold flex items-center justify-center gap-2 text-sm"></p>
+                    <p id="feedbackDesc" class="text-xs mt-1"></p>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="flex items-center justify-between px-6 border-t border-borderTheme bg-footer text-[10px] text-textDim shrink-0 h-8">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span id="txtEngineStatus">Engine Ready</span>
+        </div>
+        <div class="font-mono flex items-center gap-4">
+            <span><span id="lblStatScore">SKOR</span>: <strong id="valScore" class="text-blue-500">0</strong></span>
+            <div class="w-px h-3 bg-borderTheme"></div>
+            <span class="flex items-center gap-1"><span id="lblStatStreak">BERUNTUN</span>: <strong id="valStreak" class="text-orange-500">0</strong> <i data-lucide="award" class="w-3 h-3 text-orange-500"></i></span>
+        </div>
+        <div>
+            <button onclick="toggleTerms()" class="hover:text-textMain hover:underline transition-colors" id="btnTerms">Syarat & Ketentuan</button>
+        </div>
+    </footer>
+
+    <!-- MODAL TERMS OF USE -->
+    <div id="termsModal" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="toggleTerms()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-editor border border-borderTheme rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="p-4 border-b border-borderTheme flex items-center justify-between bg-header">
+                <h3 class="font-bold text-textMain" id="modalTitle">Syarat & Ketentuan</h3>
+                <button onclick="toggleTerms()" class="text-textDim hover:text-red-500 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 text-sm text-textDim leading-relaxed" id="modalContent">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
+            </div>
+            <div class="p-4 border-t border-borderTheme bg-preview flex justify-end">
+                <button onclick="toggleTerms()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-colors" id="btnModalClose">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN LOGIC (Vanilla JS) -->
+    <script>
+        // --- 1. LOCALIZATION (I18N) & APP STATE CONFIG ---
+        const i18n = {
+            id: {
+                langFlag: "🇮🇩", langText: "ID",
+                helpTitle: "Cara Penggunaan:",
+                helpText: "Geser alat ukur menggunakan klik kiri. Putar alat dengan menahan klik kanan (atau gunakan slider). Untuk Jangka Sorong, geser rahang kecilnya untuk mengapit benda.",
+                rotate: "Putar (Kanan Mouse)",
+                placeholder: "Ketik angka...",
+                check: "Cek Jawaban!",
+                next: "Lanjut Soal Baru!",
+                score: "SKOR",
+                streak: "BERUNTUN",
+                engine: "Mesin Siap",
+                terms: "Syarat & Ketentuan",
+                termsContent: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+                close: "Tutup",
+                correctMsg: "🎉 Hebat! Benar! 🎉",
+                correctDesc: "Jawaban tepat: ",
+                incorrectMsg: "Yah, Masih Kurang Pas.",
+                hintDesc: "Coba perhatikan skala pengukurannya lagi ya.",
+                revealDesc: "Ssst, jawabannya adalah {ans}. Ayo coba lagi!",
+                qProtractor: "Berapa besar sudutnya?",
+                qRuler: "Berapa panjang garisnya?",
+                qCaliper: "Berapa ukuran baloknya?"
+            },
+            en: {
+                langFlag: "🇬🇧", langText: "EN",
+                helpTitle: "How to Use:",
+                helpText: "Drag tools using left click. Rotate by holding right-click and moving (or use slider). For Vernier Caliper, slide the small jaw to pinch the object.",
+                rotate: "Rotate (Right Click)",
+                placeholder: "Type number...",
+                check: "Check Answer!",
+                next: "Next Question!",
+                score: "SCORE",
+                streak: "STREAK",
+                engine: "Engine Ready",
+                terms: "Terms of Use",
+                termsContent: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                close: "Close",
+                correctMsg: "🎉 Great Job! Correct! 🎉",
+                correctDesc: "Exact answer: ",
+                incorrectMsg: "Oops, Not quite right.",
+                hintDesc: "Look closely at the measurement scale again.",
+                revealDesc: "Psst, the answer is {ans}. Let's try again!",
+                qProtractor: "What is the angle?",
+                qRuler: "What is the line's length?",
+                qCaliper: "What is the block's size?"
+            }
+        };
+
+        const modeConfig = {
+            protractor: { unit: '°' },
+            ruler: { unit: 'cm' },
+            caliper: { unit: 'cm' }
+        };
+
+        let currentLang = localStorage.getItem('TATADADA_LANG') || 'id';
+
+        function applyLanguage() {
+            const t = i18n[currentLang];
+            document.getElementById('flagIcon').innerText = t.langFlag;
+            document.getElementById('langText').innerText = t.langText;
+            document.getElementById('helpTitle').innerText = t.helpTitle;
+            document.getElementById('helpText').innerText = t.helpText;
+            document.getElementById('lblRotate').innerText = t.rotate;
+            document.getElementById('inputAnswer').placeholder = t.placeholder;
+            document.getElementById('lblCheck').innerText = t.check;
+            document.getElementById('lblNext').innerText = t.next;
+            document.getElementById('lblStatScore').innerText = t.score;
+            document.getElementById('lblStatStreak').innerText = t.streak;
+            document.getElementById('txtEngineStatus').innerText = t.engine;
+            document.getElementById('btnTerms').innerText = t.terms;
+            document.getElementById('modalTitle').innerText = t.terms;
+            document.getElementById('modalContent').innerText = t.termsContent;
+            document.getElementById('btnModalClose').innerText = t.close;
+
+            // Refocus current mode question text
+            const mCaps = state.mode.charAt(0).toUpperCase() + state.mode.slice(1);
+            document.getElementById('lblQuestion').innerText = t['q' + mCaps];
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            localStorage.setItem('TATADADA_LANG', currentLang);
+            applyLanguage();
+        }
+
+        // --- 2. THEME & DARK MODE ---
+        let isDark = localStorage.getItem('TATADADA_THEME') === 'dark';
+        
+        function applyTheme() {
+            const html = document.documentElement;
+            const icon = document.getElementById('themeIcon');
+            if (isDark) {
+                html.classList.add('dark');
+                icon.setAttribute('data-lucide', 'sun');
+            } else {
+                html.classList.remove('dark');
+                icon.setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons(); // Refresh icons
+
+            // Reset UI Tab Active styling to match theme
+            setMode(state.mode); 
+        }
+
+        function toggleTheme() {
+            isDark = !isDark;
+            localStorage.setItem('TATADADA_THEME', isDark ? 'dark' : 'light');
+            applyTheme();
+        }
+
+        function toggleTerms() {
+            document.getElementById('termsModal').classList.toggle('hidden');
+        }
+
+        // --- 3. APP LOGIC & STATE (Multi-Tools) ---
+        const container = document.getElementById('canvas-container');
+        
+        const state = {
+            mode: 'protractor',
+            score: 0,
+            streak: 0,
+            attempts: 0,
+            appStatus: 'idle', // idle, correct, incorrect
+            
+            prot: { span: 0, base: 0, x: 50, y: 150, rot: 0 },
+            ruler: { lenCm: 0, angle: 0, x: 50, y: 150, rot: 0 },
+            caliper: { valMm: 0, x: 50, y: 150, vernierX: 0 }
+        };
+
+        const elInputAnswer = document.getElementById('inputAnswer');
+        const elFeedbackBox = document.getElementById('feedbackBox');
+
+        // --- 4. GENERATING SVG TICKS ---
+        function generateAllTicks() {
+            // Protractor Ticks
+            let phtml = '';
+            for (let i = 0; i <= 180; i++) {
+                const isTen = i % 10 === 0;
+                const isFive = i % 5 === 0 && !isTen;
+                const strokeW = isTen ? 1.5 : 1;
+                phtml += `<g transform="rotate(${-i})"><line x1="170" y1="0" x2="${170 - (isTen?20:isFive?12:6)}" y2="0" stroke-width="${strokeW}" class="tick-line" />`;
+                if (isTen) {
+                    phtml += `<text x="${170 - 32}" y="0" font-size="11" font-weight="bold" text-anchor="middle" alignment-baseline="middle" transform="rotate(${i}, ${170 - 32}, 0)" class="text-outer">${i}</text>`;
+                    phtml += `<text x="${170 - 50}" y="0" font-size="9" text-anchor="middle" alignment-baseline="middle" transform="rotate(${i}, ${170 - 50}, 0)" class="text-inner">${180 - i}</text>`;
+                }
+                phtml += `</g>`;
+            }
+            document.getElementById('protractor-ticks').innerHTML = phtml;
+
+            // Ruler Ticks (15cm)
+            let rhtml = '';
+            for (let i = 0; i <= 150; i++) {
+                let x = 50 + (i * 4); // 4px per mm
+                let isCm = i % 10 === 0, isHalf = i % 5 === 0 && !isCm;
+                rhtml += `<line x1="${x}" y1="0" x2="${x}" y2="${isCm?30:isHalf?20:12}" class="tick-line" stroke-width="${isCm?2:1}" />`;
+                if (isCm) rhtml += `<text x="${x}" y="48" font-size="14" font-weight="bold" text-anchor="middle" class="text-outer">${i/10}</text>`;
+            }
+            document.getElementById('ruler-ticks').innerHTML = rhtml;
+
+            // Caliper Main Ticks (80mm rendering size)
+            let cmainHtml = '';
+            for (let i = 0; i <= 800; i++) {
+                let x = 50 + (i * 10); // 10px per mm
+                let isCm = i % 10 === 0, isHalf = i % 5 === 0 && !isCm;
+                cmainHtml += `<line x1="${x}" y1="40" x2="${x}" y2="${isCm?15:isHalf?25:30}" class="tick-line" stroke-width="${isCm?2:1}" />`;
+                if (isCm) cmainHtml += `<text x="${x}" y="12" font-size="12" font-weight="bold" text-anchor="middle" class="text-outer">${i/10}</text>`;
+            }
+            document.getElementById('caliper-main-ticks').innerHTML = cmainHtml;
+
+            // Caliper Vernier Ticks (10 divisions over 9mm)
+            let cvernHtml = '';
+            for (let i = 0; i <= 10; i++) {
+                let x = i * 9; // 9px visual spacing
+                let isEnd = i === 0 || i === 10, isHalf = i === 5;
+                cvernHtml += `<line x1="${x}" y1="0" x2="${x}" y2="${isEnd?20:isHalf?15:10}" class="tick-line" stroke-width="${isEnd?2:1}" />`;
+                cvernHtml += `<text x="${x}" y="34" font-size="10" font-weight="bold" text-anchor="middle" class="text-inner">${i}</text>`;
+            }
+            document.getElementById('caliper-vernier-ticks').innerHTML = cvernHtml;
+        }
+
+        // --- 5. DRAW TARGET SCENES ---
+        function drawProtractorAngle() {
+            const w = container.clientWidth, h = container.clientHeight;
+            const cx = w / 2, cy = h / 2 + 30, lineLength = Math.max(w, h);
+            
+            const bR = (state.prot.base * Math.PI) / 180;
+            const eR = ((state.prot.base + state.prot.span) * Math.PI) / 180;
+            
+            const r1x = cx + lineLength * Math.cos(bR), r1y = cy + lineLength * Math.sin(bR);
+            const r2x = cx + lineLength * Math.cos(eR), r2y = cy + lineLength * Math.sin(eR);
+            const aRadius = 50;
+            const ax1 = cx + aRadius * Math.cos(bR), ay1 = cy + aRadius * Math.sin(bR);
+            const ax2 = cx + aRadius * Math.cos(eR), ay2 = cy + aRadius * Math.sin(eR);
+
+            document.getElementById('ray1').setAttribute('x1', cx); document.getElementById('ray1').setAttribute('y1', cy);
+            document.getElementById('ray1').setAttribute('x2', r1x); document.getElementById('ray1').setAttribute('y2', r1y);
+            document.getElementById('ray2').setAttribute('x1', cx); document.getElementById('ray2').setAttribute('y1', cy);
+            document.getElementById('ray2').setAttribute('x2', r2x); document.getElementById('ray2').setAttribute('y2', r2y);
+            document.getElementById('vertexPoint').setAttribute('cx', cx); document.getElementById('vertexPoint').setAttribute('cy', cy);
+            document.getElementById('angleArc').setAttribute('d', `M ${ax1} ${ay1} A ${aRadius} ${aRadius} 0 0 1 ${ax2} ${ay2}`);
+        }
+
+        function drawRulerTarget() {
+            const w = container.clientWidth, h = container.clientHeight;
+            const cx = w/2, cy = h/2;
+            const pxLen = state.ruler.lenCm * 40;
+            const rad = state.ruler.angle * Math.PI / 180;
+            const dx = (pxLen/2) * Math.cos(rad), dy = (pxLen/2) * Math.sin(rad);
+            
+            const line = document.getElementById('ruler-target');
+            line.setAttribute('x1', cx - dx); line.setAttribute('y1', cy - dy);
+            line.setAttribute('x2', cx + dx); line.setAttribute('y2', cy + dy);
+            
+            document.getElementById('ruler-target-start').setAttribute('cx', cx - dx);
+            document.getElementById('ruler-target-start').setAttribute('cy', cy - dy);
+            document.getElementById('ruler-target-end').setAttribute('cx', cx + dx);
+            document.getElementById('ruler-target-end').setAttribute('cy', cy + dy);
+        }
+
+        // --- 6. CORE INTERACTIONS ---
+        function updateTransforms() {
+            if (state.mode === 'protractor') {
+                document.getElementById('protractor-wrapper').style.transform = `translate(${state.prot.x}px, ${state.prot.y}px)`;
+                document.getElementById('protractor-rotator').style.transform = `rotate(${state.prot.rot}deg)`;
+                document.getElementById('sliderRotate').value = state.prot.rot;
+            } else if (state.mode === 'ruler') {
+                document.getElementById('ruler-wrapper').style.transform = `translate(${state.ruler.x}px, ${state.ruler.y}px)`;
+                document.getElementById('ruler-rotator').style.transform = `rotate(${state.ruler.rot}deg)`;
+                document.getElementById('sliderRotate').value = state.ruler.rot;
+            } else if (state.mode === 'caliper') {
+                document.getElementById('caliper-wrapper').style.transform = `translate(${state.caliper.x}px, ${state.caliper.y}px)`;
+                document.getElementById('caliper-vernier').style.transform = `translate(${state.caliper.vernierX}px, 0)`;
+            }
+        }
+
+        function bindToolEvents(wrapperId, stateRef, originX, originY, type) {
+            const wrapper = document.getElementById(wrapperId);
+            let dragStart = {x:0, y:0}, isDrag = false, isRightRot = false, sAngle = 0, sRot = 0;
+
+            wrapper.addEventListener('contextmenu', e => e.preventDefault());
+
+            wrapper.addEventListener('pointerdown', e => {
+                if (e.target.closest('#caliper-vernier') && type === 'caliper') return; // Delegasi seret ke fungsi lain
+                
+                e.preventDefault();
+                wrapper.setPointerCapture(e.pointerId);
+                const crect = container.getBoundingClientRect();
+                
+                if (e.button === 2 && type !== 'caliper') { // Rotasi Kanan Mouse
+                    isRightRot = true;
+                    wrapper.style.cursor = 'grabbing';
+                    const cx = crect.left + stateRef.x + originX;
+                    const cy = crect.top + stateRef.y + originY;
+                    sAngle = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+                    sRot = stateRef.rot;
+                } else { // Drag Kiri Mouse
+                    isDrag = true;
+                    wrapper.style.cursor = 'grabbing';
+                    dragStart.x = e.clientX - crect.left - stateRef.x;
+                    dragStart.y = e.clientY - crect.top - stateRef.y;
+                }
+            });
+
+            wrapper.addEventListener('pointermove', e => {
+                const crect = container.getBoundingClientRect();
+                if (isRightRot) {
+                    const cx = crect.left + stateRef.x + originX;
+                    const cy = crect.top + stateRef.y + originY;
+                    const cAngle = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+                    stateRef.rot = (sRot + (cAngle - sAngle)) % 360;
+                    if (stateRef.rot < 0) stateRef.rot += 360;
+                    updateTransforms();
+                } else if (isDrag) {
+                    let nx = e.clientX - crect.left - dragStart.x;
+                    let ny = e.clientY - crect.top - dragStart.y;
+                    nx = Math.max(-100, Math.min(nx, crect.width - 50));
+                    ny = Math.max(-100, Math.min(ny, crect.height - 50));
+                    stateRef.x = nx; stateRef.y = ny;
+                    updateTransforms();
+                }
+            });
+
+            const endInteraction = (e) => {
+                isDrag = false; isRightRot = false;
+                wrapper.style.cursor = 'grab';
+                wrapper.releasePointerCapture(e.pointerId);
+            };
+            wrapper.addEventListener('pointerup', endInteraction);
+            wrapper.addEventListener('pointercancel', endInteraction);
+        }
+
+        // Logic Tarik Rahang Jangka Sorong & Snapping
+        const vernier = document.getElementById('caliper-vernier');
+        let vDrag = false, vStartX = 0;
+        
+        vernier.addEventListener('pointerdown', e => {
+            e.preventDefault(); e.stopPropagation();
+            vDrag = true;
+            vernier.setPointerCapture(e.pointerId);
+            vStartX = e.clientX - state.caliper.vernierX;
+        });
+
+        vernier.addEventListener('pointermove', e => {
+            if (!vDrag) return;
+            let nx = e.clientX - vStartX;
+            if (nx < 0) nx = 0;
+            if (nx > 750) nx = 750;
+            state.caliper.vernierX = nx;
+            updateTransforms();
+        });
+
+        vernier.addEventListener('pointerup', e => {
+            vDrag = false;
+            vernier.releasePointerCapture(e.pointerId);
+            // Snap Mechanism (Kunci Magnetis jika mendekati benda target)
+            const targetPx = state.caliper.valMm * 10;
+            if (Math.abs(state.caliper.vernierX - targetPx) < 30) {
+                state.caliper.vernierX = targetPx;
+                updateTransforms();
+            }
+        });
+
+        // --- 7. WORKFLOW QUESTION & CHECKING ---
+        function setMode(mode) {
+            state.mode = mode;
+            const mCaps = mode.charAt(0).toUpperCase() + mode.slice(1);
+            
+            // Tab Styling
+            ['protractor', 'ruler', 'caliper'].forEach(m => {
+                const btn = document.getElementById(`tab-${m}`);
+                if (m === mode) {
+                    btn.className = isDark ? "flex-1 py-2 text-sm font-bold bg-slate-800 rounded-lg shadow-sm text-blue-400 transition-all" 
+                                           : "flex-1 py-2 text-sm font-bold bg-white rounded-lg shadow-sm text-blue-600 transition-all";
+                } else {
+                    btn.className = "flex-1 py-2 text-sm font-bold text-textDim hover:bg-white/50 dark:hover:bg-slate-800/50 rounded-lg transition-all";
+                }
+                document.getElementById(`scene-${m}`).classList.toggle('hidden', m !== mode);
+            });
+
+            const t = i18n[currentLang];
+            document.getElementById('lblQuestion').innerText = t[`q${mCaps}`];
+            document.getElementById('unitAddon').innerText = modeConfig[mode].unit;
+            document.getElementById('panelRotate').classList.toggle('hidden', mode === 'caliper');
+            
+            initNewQuestion();
+        }
+
+        function initNewQuestion() {
+            state.appStatus = "idle";
+            state.attempts = 0;
+            elFeedbackBox.classList.add('hidden');
+            elInputAnswer.disabled = false;
+            elInputAnswer.value = "";
+            document.getElementById('btnCheck').classList.remove('hidden');
+            document.getElementById('btnNext').classList.add('hidden');
+            elInputAnswer.focus();
+
+            const w = container.clientWidth || window.innerWidth;
+            const h = container.clientHeight || window.innerHeight;
+
+            if (state.mode === 'protractor') {
+                state.prot.span = Math.floor(Math.random() * 35 + 2) * 5; 
+                state.prot.base = Math.floor(Math.random() * 36) * 10;
+                state.prot.x = w / 2 - 190;
+                state.prot.y = h / 2 + 60;
+                state.prot.rot = 0;
+                drawProtractorAngle();
+            } 
+            else if (state.mode === 'ruler') {
+                state.ruler.lenCm = (Math.floor(Math.random() * 100) + 20) / 10;
+                state.ruler.angle = Math.floor(Math.random() * 12) * 15;
+                state.ruler.x = w / 2 - 100;
+                state.ruler.y = h / 2 + 100;
+                state.ruler.rot = 0;
+                drawRulerTarget();
+            }
+            else if (state.mode === 'caliper') {
+                // mm acak misal 23.4 mm -> 2.34 cm
+                state.caliper.valMm = (Math.floor(Math.random() * 650) + 100) / 10; 
+                state.caliper.x = w / 2 - 250;
+                state.caliper.y = h / 2 - 50;
+                state.caliper.vernierX = state.caliper.valMm * 10; // Presnapped start
+                document.getElementById('caliper-target').setAttribute('width', state.caliper.valMm * 10);
+            }
+            updateTransforms();
+        }
+
+        function checkAnswer() {
+            // Menerima input desimal koma (1,5) atau titik (1.5)
+            const valStr = elInputAnswer.value.replace(',', '.');
+            const val = parseFloat(valStr);
+            if (isNaN(val)) return;
+
+            let isCorrect = false, correctAnswer = 0, displayAnswer = "";
+
+            if (state.mode === 'protractor') {
+                correctAnswer = state.prot.span;
+                displayAnswer = correctAnswer + "°";
+                isCorrect = Math.abs(val - correctAnswer) <= 2;
+            } else if (state.mode === 'ruler') {
+                correctAnswer = state.ruler.lenCm;
+                displayAnswer = correctAnswer.toFixed(1) + " cm";
+                isCorrect = Math.abs(val - correctAnswer) <= 0.1;
+            } else if (state.mode === 'caliper') {
+                correctAnswer = state.caliper.valMm / 10; // Cek dalam cm
+                displayAnswer = correctAnswer.toFixed(2) + " cm";
+                isCorrect = Math.abs(val - correctAnswer) <= 0.02;
+            }
+
+            if (isCorrect) {
+                state.appStatus = "correct";
+                state.score += 10;
+                state.streak += 1;
+            } else {
+                state.appStatus = "incorrect";
+                state.attempts += 1;
+                state.streak = 0;
+            }
+            
+            document.getElementById('valScore').innerText = state.score;
+            document.getElementById('valStreak').innerText = state.streak;
+            
+            // Render Feedback Box
+            const t = i18n[currentLang];
+            const titleEl = document.getElementById('feedbackTitle');
+            const descEl = document.getElementById('feedbackDesc');
+            elFeedbackBox.classList.remove('hidden', 'border-green-400', 'bg-green-100', 'dark:bg-green-900/30', 'text-green-700', 'dark:text-green-400', 'border-red-400', 'bg-red-100', 'dark:bg-red-900/30', 'text-red-700', 'dark:text-red-400');
+
+            if (state.appStatus === "correct") {
+                elFeedbackBox.classList.add('border-green-400', 'bg-green-100', 'dark:bg-green-900/30', 'text-green-700', 'dark:text-green-400');
+                titleEl.innerHTML = t.correctMsg;
+                descEl.innerText = t.correctDesc + displayAnswer;
+                elInputAnswer.disabled = true;
+                document.getElementById('btnCheck').classList.add('hidden');
+                document.getElementById('btnNext').classList.remove('hidden');
+            } else {
+                elFeedbackBox.classList.add('border-red-400', 'bg-red-100', 'dark:bg-red-900/30', 'text-red-700', 'dark:text-red-400');
+                titleEl.innerHTML = `<i data-lucide="x-circle" class="w-5 h-5"></i> ${t.incorrectMsg}`;
+                descEl.innerText = state.attempts >= 3 ? t.revealDesc.replace('{ans}', displayAnswer) : t.hintDesc;
+                lucide.createIcons();
+            }
+        }
+
+        // --- 8. GLOBAL BINDINGS & INIT ---
+        document.getElementById('sliderRotate').addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            if (state.mode === 'protractor') state.prot.rot = val;
+            else if (state.mode === 'ruler') state.ruler.rot = val;
+            updateTransforms();
+        });
+        document.getElementById('btnRotLeft').addEventListener('click', () => {
+            const ref = state.mode === 'protractor' ? state.prot : state.ruler;
+            ref.rot = (ref.rot - 1 + 360) % 360; updateTransforms();
+        });
+        document.getElementById('btnRotRight').addEventListener('click', () => {
+            const ref = state.mode === 'protractor' ? state.prot : state.ruler;
+            ref.rot = (ref.rot + 1) % 360; updateTransforms();
+        });
+
+        document.getElementById('btnCheck').addEventListener('click', checkAnswer);
+        document.getElementById('btnNext').addEventListener('click', initNewQuestion);
+        elInputAnswer.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && state.appStatus !== "correct") checkAnswer();
+        });
+
+        // Resizer Logic (Split Screen)
+        let isResizingX = false;
+        document.getElementById('resizerX').addEventListener('mousedown', (e) => { isResizingX = true; document.body.style.cursor = 'col-resize'; e.preventDefault(); });
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizingX) return;
+            const nw = window.innerWidth - e.clientX;
+            if (nw > 250 && nw < 600) { document.getElementById('rightPane').style.width = `${nw}px`; if(state.mode==='protractor') drawProtractorAngle(); if(state.mode==='ruler') drawRulerTarget(); }
+        });
+        document.addEventListener('mouseup', () => { if (isResizingX) { isResizingX = false; document.body.style.cursor = ''; } });
+        window.addEventListener('resize', () => { 
+            if(state.mode==='protractor') drawProtractorAngle(); 
+            if(state.mode==='ruler') drawRulerTarget(); 
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            applyTheme();
+            applyLanguage();
+            generateAllTicks();
+            
+            // Bind Alat
+            bindToolEvents('protractor-wrapper', state.prot, 190, 190, 'protractor');
+            bindToolEvents('ruler-wrapper', state.ruler, 50, 40, 'ruler');
+            bindToolEvents('caliper-wrapper', state.caliper, 0, 0, 'caliper');
+
+            setMode('protractor');
+        });
+    </script>
+</body>
+</html>
