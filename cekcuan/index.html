@@ -15,6 +15,11 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Pustaka untuk Ekspor High Resolution -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
         
@@ -180,8 +185,21 @@
             </div>
 
             <!-- Dashboard Content (Hidden by default) -->
-            <div id="dashboard-content" class="hidden flex-col gap-6 w-full max-w-6xl mx-auto pb-8">
+            <div id="dashboard-content" class="hidden flex-col gap-6 w-full max-w-6xl mx-auto pb-8 p-4 rounded-xl transition-all">
                 
+                <!-- EXPORT ACTIONS (Visible only when processed) -->
+                <div id="export-actions" class="flex flex-wrap gap-3 justify-end border-b border-theme pb-4">
+                    <button onclick="exportPNG(this)" class="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-card border border-theme hover:bg-[var(--preview-bg)] transition-colors text-dim hover:text-blue-500 shadow-sm">
+                        <i data-lucide="image" class="w-4 h-4"></i> Save PNG
+                    </button>
+                    <button onclick="exportPDF(this)" class="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-card border border-theme hover:bg-[var(--preview-bg)] transition-colors text-dim hover:text-red-500 shadow-sm">
+                        <i data-lucide="file-text" class="w-4 h-4"></i> Save PDF
+                    </button>
+                    <button onclick="exportMD(this)" class="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-card border border-theme hover:bg-[var(--preview-bg)] transition-colors text-dim hover:text-emerald-500 shadow-sm">
+                        <i data-lucide="file-code" class="w-4 h-4"></i> Save MD
+                    </button>
+                </div>
+
                 <!-- 1. CORE METRICS -->
                 <div>
                     <h2 class="text-sm font-bold uppercase tracking-wider text-dim mb-3 flex items-center gap-2">
@@ -251,7 +269,7 @@
                         <h3 class="text-xs font-bold text-dim uppercase tracking-wider mb-4 flex items-center gap-2">
                             <span class="w-2 h-2 rounded-full bg-blue-500"></span> Balance Curve
                         </h3>
-                        <div class="relative w-full h-56 flex-1">
+                        <div class="relative w-full h-56 flex-1 bg-preview rounded border border-theme">
                             <canvas id="balanceChart"></canvas>
                         </div>
                     </div>
@@ -259,7 +277,7 @@
                         <h3 class="text-xs font-bold text-dim uppercase tracking-wider mb-4 flex items-center gap-2">
                             <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Daily Net PnL
                         </h3>
-                        <div class="relative w-full h-56 flex-1">
+                        <div class="relative w-full h-56 flex-1 bg-preview rounded border border-theme">
                             <canvas id="pnlChart"></canvas>
                         </div>
                     </div>
@@ -330,6 +348,7 @@
         let isEn = false;
         let balanceChartInstance = null;
         let pnlChartInstance = null;
+        let currentParsedData = null; // Menyimpan data terakhir untuk Export MD
 
         // --- 1. THEME & LOCALIZATION ---
         function initTheme() {
@@ -408,7 +427,6 @@
             document.getElementById('ws-desc').innerText = dict[lang].wsDesc;
             document.getElementById('foot-status').innerText = dict[lang].footStatus;
             document.getElementById('foot-terms').innerText = dict[lang].footTerms;
-            // Note: Application Name 'CekCuan' remains unchanged.
         }
 
         // --- 2. RESIZER LOGIC (Split Pane) ---
@@ -419,15 +437,13 @@
         resizer.addEventListener('mousedown', (e) => {
             isResizing = true;
             document.body.style.cursor = 'col-resize';
-            document.body.style.userSelect = 'none'; // Prevent text selection
+            document.body.style.userSelect = 'none'; 
         });
 
         document.addEventListener('mousemove', (e) => {
             if (!isResizing) return;
             const container = leftPane.parentElement;
-            // Calculate percentage
             const newWidth = (e.clientX / container.clientWidth) * 100;
-            // Constrain between 20% and 80%
             if (newWidth > 20 && newWidth < 80) {
                 leftPane.style.flex = `0 0 ${newWidth}%`;
             }
@@ -447,6 +463,7 @@
             document.getElementById('outputText').value = '';
             document.getElementById('welcome-state').classList.remove('hidden');
             document.getElementById('dashboard-content').classList.add('hidden');
+            currentParsedData = null;
         }
 
         function copyOutput() {
@@ -468,12 +485,10 @@
                 return;
             }
 
-            // CLEANER LOGIC
             const regexTimestamp = /^(?:\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d{3})?[\s\t]+(?:Core[\s\t]+\d+[\s\t]+)?)(?:\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2}:\d{2}[\s\t]+)?/gm;
             const cleanedText = rawText.replace(regexTimestamp, '');
             document.getElementById('outputText').value = cleanedText;
 
-            // PARSING LOGIC
             const parsedData = parseLog(cleanedText);
             
             if(!parsedData.valid) {
@@ -481,10 +496,13 @@
                 return;
             }
 
-            // UPDATE UI
+            // Set Data untuk Export
+            currentParsedData = parsedData;
+
+            // Update UI
             document.getElementById('welcome-state').classList.add('hidden');
             document.getElementById('dashboard-content').classList.remove('hidden');
-            document.getElementById('dashboard-content').style.display = 'flex'; // override tailwind hidden class securely
+            document.getElementById('dashboard-content').style.display = 'flex'; 
             
             updateSummarizer(parsedData);
             updateVisualizer(parsedData.dailyStats);
@@ -494,9 +512,7 @@
 
         function parseLog(text) {
             let data = { valid: false, metrics: {}, dailyStats: [] };
-            
             try {
-                // Extract Core Metrics
                 const matchTrades = text.match(/Total Trades\s*:\s*(\d+)/i);
                 const matchWinRate = text.match(/Win Rate\s*:\s*([\d.]+)%/i);
                 const matchPnL = text.match(/Net Realized PnL\s*:\s*\$([-\d.]+)/i);
@@ -522,7 +538,6 @@
                     };
                 }
 
-                // Extract Daily Breakdown
                 const dailyRegex = /(\d{4}\.\d{2}\.\d{2})\s+\(W\d+\)\s+\|\s+Trades:\s+(\d+)\s+\|\s+Net:\s+\$([-\d.]+)\s+\|\s+Bal:\s+\$([-\d.]+)/g;
                 let match;
                 while ((match = dailyRegex.exec(text)) !== null) {
@@ -534,7 +549,6 @@
                     });
                 }
 
-                // Calculate Trade Distribution & Initial Balance
                 if (data.valid) {
                     const trades = data.metrics.trades;
                     const winRate = data.metrics.winRate;
@@ -547,7 +561,6 @@
                         data.metrics.initialBal = 0;
                     }
                 }
-
             } catch (e) { console.error("Parsing error:", e); }
             return data;
         }
@@ -567,121 +580,72 @@
             pfEl.className = `text-xl font-bold font-mono ${m.pf >= 1.5 ? 'text-emerald-500' : (m.pf >= 1 ? 'text-yellow-500' : 'text-red-500')}`;
 
             document.getElementById('val-dd').innerText = '-$' + m.maxDD.toFixed(2);
-
             document.getElementById('val-initial-bal').innerText = '$' + (m.initialBal ? m.initialBal.toFixed(2) : '0.00');
             document.getElementById('val-final-bal').innerText = '$' + (m.finalBal ? m.finalBal.toFixed(2) : '0.00');
             document.getElementById('val-win-trades').innerText = m.winTrades || 0;
             document.getElementById('val-loss-trades').innerText = m.lossTrades || 0;
         }
 
-        function getChartTextColor() {
-            return isDark ? '#8b949e' : '#64748b'; // text-dim equivalent
-        }
+        function getChartTextColor() { return isDark ? '#8b949e' : '#64748b'; }
 
         function updateVisualizer(dailyStats) {
             if (dailyStats.length === 0) return;
-
-            const labels = dailyStats.map(d => d.date.substring(5)); // MMDD
+            const labels = dailyStats.map(d => d.date.substring(5)); 
             const balanceData = dailyStats.map(d => d.balance);
             const pnlData = dailyStats.map(d => d.net);
 
             Chart.defaults.font.family = "'Inter', sans-serif";
+            const commonScales = {
+                y: { grid: { color: isDark ? '#30363d' : '#e2e8f0' }, ticks: { color: getChartTextColor() } },
+                x: { grid: { display: false }, ticks: { color: getChartTextColor() } }
+            };
 
-            // Balance Chart
             if (balanceChartInstance) balanceChartInstance.destroy();
-            const ctxBal = document.getElementById('balanceChart').getContext('2d');
-            balanceChartInstance = new Chart(ctxBal, {
+            balanceChartInstance = new Chart(document.getElementById('balanceChart').getContext('2d'), {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Balance ($)',
-                        data: balanceData,
-                        borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        pointRadius: 0,
-                        pointHoverRadius: 4,
-                        tension: 0.3
+                        label: 'Balance ($)', data: balanceData, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2, fill: true, pointRadius: 0, pointHoverRadius: 4, tension: 0.3
                     }]
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: { 
-                            grid: { color: isDark ? '#30363d' : '#e2e8f0' },
-                            ticks: { color: getChartTextColor() }
-                        },
-                        x: { 
-                            grid: { display: false },
-                            ticks: { color: getChartTextColor() }
-                        }
-                    }
-                }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: commonScales }
             });
 
-            // PnL Chart
             if (pnlChartInstance) pnlChartInstance.destroy();
-            const ctxPnl = document.getElementById('pnlChart').getContext('2d');
-            pnlChartInstance = new Chart(ctxPnl, {
+            pnlChartInstance = new Chart(document.getElementById('pnlChart').getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Daily Net ($)',
-                        data: pnlData,
-                        backgroundColor: pnlData.map(val => val >= 0 ? '#10b981' : '#ef4444'),
-                        borderRadius: 2
+                        label: 'Daily Net ($)', data: pnlData,
+                        backgroundColor: pnlData.map(val => val >= 0 ? '#10b981' : '#ef4444'), borderRadius: 2
                     }]
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: { 
-                            grid: { color: isDark ? '#30363d' : '#e2e8f0' },
-                            ticks: { color: getChartTextColor() }
-                        },
-                        x: { 
-                            grid: { display: false },
-                            ticks: { color: getChartTextColor() }
-                        }
-                    }
-                }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: commonScales }
             });
         }
 
         function updateAnalyzer(data) {
             const m = data.metrics;
             const ds = data.dailyStats;
-            let html = "";
-
-            html += `<div class="mb-2"><span class="font-bold border-b border-theme pb-1">Health Check:</span><br>`;
+            let html = `<div class="mb-2"><span class="font-bold border-b border-theme pb-1">Health Check:</span><br>`;
             if (m.pf < 1.0) html += `<span class="text-red-500">Kritis.</span> Profit Factor di bawah 1. Sistem menghasilkan kerugian.`;
             else if (m.pf < 1.2) html += `<span class="text-yellow-500">Rentan.</span> Profit Factor (${m.pf}) sangat marjinal. Pelebaran spread kecil bisa mengubah sistem menjadi loss.`;
             else if (m.pf < 1.5) html += `<span class="text-emerald-500">Cukup Baik.</span> Bot profitable, tapi disarankan optimasi entry.`;
             else html += `<span class="text-emerald-500 font-bold">Sangat Baik.</span> Profit Factor kokoh.`;
             html += `</div>`;
 
-            const rrWin = m.winMFE / (m.winMAE || 1);
             html += `<div class="mb-2"><span class="font-bold border-b border-theme pb-1">Eksekusi (R:R):</span><br>`;
             html += `Rata-rata Trade Menang mengambil profit di <b class="text-emerald-500">+$${m.winMFE.toFixed(2)}</b> dengan menahan minus (MAE) <b class="text-red-500">-$${m.winMAE.toFixed(2)}</b>. `;
-            if(m.winMAE > m.winMFE) html += `<span class="text-yellow-500">Indikasi gaya Scalping/Grid.</span>`;
-            else html += `<span class="text-emerald-500">Eksekusi rasional.</span>`;
+            html += (m.winMAE > m.winMFE) ? `<span class="text-yellow-500">Indikasi gaya Scalping/Grid.</span>` : `<span class="text-emerald-500">Eksekusi rasional.</span>`;
             html += `</div>`;
 
             const winDays = ds.filter(d => d.net > 0).length;
-            const lossDays = ds.filter(d => d.net <= 0).length;
-            const totalDays = ds.length;
-            const winDayRate = totalDays > 0 ? ((winDays / totalDays) * 100).toFixed(1) : 0;
+            const winDayRate = ds.length > 0 ? ((winDays / ds.length) * 100).toFixed(1) : 0;
             html += `<div><span class="font-bold border-b border-theme pb-1">Konsistensi Harian:</span><br>`;
-            html += `Dari total ${totalDays} hari trading, bot untung di <b>${winDays} hari (${winDayRate}%)</b>. `;
-            html += `</div>`;
-
+            html += `Dari total ${ds.length} hari trading, bot untung di <b>${winDays} hari (${winDayRate}%)</b>. </div>`;
             document.getElementById('analyzerOutput').innerHTML = html;
         }
 
@@ -690,36 +654,152 @@
                 document.getElementById('predictorOutput').innerHTML = "Data harian tidak cukup untuk melakukan proyeksi. Membutuhkan min 5 hari data.";
                 return;
             }
-
             const nets = dailyStats.map(d => d.net);
-            const sumNet = nets.reduce((a, b) => a + b, 0);
-            const avgDaily = sumNet / nets.length;
+            const avgDaily = nets.reduce((a, b) => a + b, 0) / nets.length;
+            const stdDev = Math.sqrt(nets.map(val => Math.pow(val - avgDaily, 2)).reduce((a, b) => a + b, 0) / nets.length);
             
-            const squareDiffs = nets.map(value => {
-                const diff = value - avgDaily;
-                return diff * diff;
-            });
-            const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / squareDiffs.length;
-            const stdDev = Math.sqrt(avgSquareDiff);
-
             const proj30 = avgDaily * 30;
             const best30 = (avgDaily + stdDev) * 30;
             const worst30 = (avgDaily - stdDev) * 30;
 
-            let html = `Sampel historis: <b>${dailyStats.length} hari</b>.<br><br>`;
-            html += `<table class="w-full text-left border-collapse">`;
+            let html = `Sampel historis: <b>${dailyStats.length} hari</b>.<br><br><table class="w-full text-left border-collapse">`;
             html += `<tr><td class="py-1">Avg PnL Harian</td><td class="font-bold ${avgDaily>=0?'text-emerald-500':'text-red-500'} text-right">$${avgDaily.toFixed(2)}</td></tr>`;
             html += `<tr><td class="py-1">Volatilitas (StdDev)</td><td class="font-bold text-yellow-500 text-right">±$${stdDev.toFixed(2)}</td></tr>`;
             html += `<tr><td colspan="2" class="pt-4 pb-2 border-b border-theme font-bold">Estimasi 30 Hari Kedepan:</td></tr>`;
-            
             html += `<tr><td class="py-1 opacity-70">Skenario Buruk</td><td class="font-bold text-red-500 text-right">$${worst30.toFixed(2)}</td></tr>`;
             html += `<tr><td class="py-1">Proyeksi Normal</td><td class="font-bold ${proj30>=0?'text-emerald-500':'text-blue-500'} text-right">$${proj30.toFixed(2)}</td></tr>`;
-            html += `<tr><td class="py-1 opacity-70">Skenario Optimal</td><td class="font-bold text-emerald-500 text-right">$${best30.toFixed(2)}</td></tr>`;
-            html += `</table>`;
-
+            html += `<tr><td class="py-1 opacity-70">Skenario Optimal</td><td class="font-bold text-emerald-500 text-right">$${best30.toFixed(2)}</td></tr></table>`;
             html += `<div class="mt-4 text-[10px] opacity-50 italic">*Proyeksi regresi linear sederhana berdasarkan data masa lalu. Hasil masa depan bisa berbeda.</div>`;
-
             document.getElementById('predictorOutput').innerHTML = html;
+        }
+
+        // --- 5. EXPORT LOGIC ---
+        async function exportPNG(btn) {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Proses...`;
+            lucide.createIcons();
+            
+            // Sembunyikan deretan tombol aksi sebelum dirender
+            document.getElementById('export-actions').classList.add('hidden');
+            
+            setTimeout(async () => {
+                const element = document.getElementById('dashboard-content');
+                try {
+                    const bgColor = isDark ? '#0d1117' : '#f1f5f9';
+                    // Scale 4 untuk Very High Resolution
+                    const canvas = await html2canvas(element, { scale: 4, useCORS: true, backgroundColor: bgColor });
+                    const link = document.createElement('a');
+                    link.download = 'CekCuan-Analysis.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                } catch (e) {
+                    alert('Gagal mengekspor gambar.');
+                    console.error(e);
+                } finally {
+                    document.getElementById('export-actions').classList.remove('hidden');
+                    btn.innerHTML = originalHTML;
+                    lucide.createIcons();
+                }
+            }, 150);
+        }
+
+        function exportPDF(btn) {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Proses...`;
+            lucide.createIcons();
+            
+            // Sembunyikan deretan tombol aksi sebelum dirender
+            document.getElementById('export-actions').classList.add('hidden');
+
+            setTimeout(() => {
+                const element = document.getElementById('dashboard-content');
+                const bgColor = isDark ? '#0d1117' : '#f1f5f9';
+                
+                // Konfigurasi High Resolution PDF
+                const opt = {
+                    margin:       [0.4, 0.4],
+                    filename:     'CekCuan-Analysis.pdf',
+                    image:        { type: 'jpeg', quality: 1 },
+                    html2canvas:  { scale: 4, useCORS: true, backgroundColor: bgColor, letterRendering: true },
+                    jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+                };
+
+                html2pdf().set(opt).from(element).save().then(() => {
+                    document.getElementById('export-actions').classList.remove('hidden');
+                    btn.innerHTML = originalHTML;
+                    lucide.createIcons();
+                });
+            }, 150);
+        }
+
+        function exportMD(btn) {
+            if (!currentParsedData || !currentParsedData.valid) return;
+            
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Disimpan!`;
+            lucide.createIcons();
+
+            const m = currentParsedData.metrics;
+            const ds = currentParsedData.dailyStats;
+
+            let md = `# CekCuan - Quant Analysis Report\n\n`;
+            md += `*Tanggal Ekspor: ${new Date().toLocaleString()}*\n\n`;
+
+            md += `## 1. Core Metrics\n`;
+            md += `- **Total Trades:** ${m.trades}\n`;
+            md += `- **Win Rate:** ${m.winRate}%\n`;
+            md += `- **Net PnL:** $${m.pnl.toFixed(2)}\n`;
+            md += `- **Profit Factor:** ${m.pf}\n`;
+            md += `- **Max Drawdown:** -$${m.maxDD.toFixed(2)}\n\n`;
+
+            md += `## 2. Capital & Distribution\n`;
+            md += `- **Modal Awal (Before):** $${(m.initialBal || 0).toFixed(2)}\n`;
+            md += `- **Modal Akhir (After):** $${(m.finalBal || 0).toFixed(2)}\n`;
+            md += `- **Trade Profitable (Win):** ${m.winTrades || 0}\n`;
+            md += `- **Trade Loss:** ${m.lossTrades || 0}\n\n`;
+
+            md += `## 3. AI Insights\n`;
+            md += `- **Health Check:** Profit Factor is ${m.pf}. `;
+            if (m.pf < 1.0) md += `Kritis. Sistem menghasilkan kerugian.\n`;
+            else if (m.pf < 1.2) md += `Rentan. Marginal Profit Factor.\n`;
+            else if (m.pf < 1.5) md += `Cukup Baik. Profitable tapi butuh optimasi.\n`;
+            else md += `Sangat Baik!\n`;
+            
+            md += `- **Eksekusi (R:R):** Rata-rata Win +$${m.winMFE.toFixed(2)}, Max Floating (MAE) yang ditahan -$${m.winMAE.toFixed(2)}.\n`;
+            
+            const winDays = ds.filter(d => d.net > 0).length;
+            const winDayRate = ds.length > 0 ? ((winDays / ds.length) * 100).toFixed(1) : 0;
+            md += `- **Konsistensi Harian:** Profit di ${winDays} dari total ${ds.length} hari (${winDayRate}%).\n\n`;
+
+            if (ds.length >= 5) {
+                const nets = ds.map(d => d.net);
+                const avgDaily = nets.reduce((a, b) => a + b, 0) / nets.length;
+                const stdDev = Math.sqrt(nets.map(val => Math.pow(val - avgDaily, 2)).reduce((a, b) => a + b, 0) / nets.length);
+                
+                md += `## 4. 30-Day Predictor\n`;
+                md += `- **Avg Daily PnL:** $${avgDaily.toFixed(2)}\n`;
+                md += `- **Volatilitas (StdDev):** ±$${stdDev.toFixed(2)}\n`;
+                md += `- **Skenario Buruk:** $${((avgDaily - stdDev) * 30).toFixed(2)}\n`;
+                md += `- **Proyeksi Normal:** $${(avgDaily * 30).toFixed(2)}\n`;
+                md += `- **Skenario Optimal:** $${((avgDaily + stdDev) * 30).toFixed(2)}\n\n`;
+            } else {
+                md += `## 4. 30-Day Predictor\n`;
+                md += `*Data tidak mencukupi (minimal 5 hari).*\n\n`;
+            }
+
+            // Create Blob & Trigger Download
+            const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = `CekCuan-Analysis-Report.md`;
+            link.href = url;
+            link.click();
+            URL.revokeObjectURL(url);
+
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                lucide.createIcons();
+            }, 2000);
         }
 
         // Init routine
