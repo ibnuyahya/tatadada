@@ -16,8 +16,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- PptxGenJS -->
-    <script src="https://cdn.jsdelivr.net/gh/gitbrent/PptxGenJS/libs/pptxgen.bundle.js"></script>
+    <!-- PptxGenJS (Menggunakan CDN NPM yang lebih stabil) -->
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -79,12 +79,24 @@
                 <i data-lucide="layout-template" class="text-white w-5 h-5"></i>
             </div>
             <h1 class="text-lg font-extrabold tracking-tight bg-gradient-to-r from-gray-800 to-gray-500 dark:from-gray-100 dark:to-gray-400 bg-clip-text text-transparent">MDjadiPPT</h1>
-            <span class="text-[10px] italic font-medium bg-[var(--preview-bg)] text-dim px-2 py-0.5 rounded-full border border-theme">v3.0 HTML</span>
+            <span class="text-[10px] italic font-medium bg-[var(--preview-bg)] text-dim px-2 py-0.5 rounded-full border border-theme">v3.2 HTML</span>
             <span class="text-xs text-dim border-l border-theme pl-3 hidden md:block">by AhmadDanial</span>
         </div>
         
         <div class="flex items-center space-x-4">
-            <div class="flex items-center space-x-2 border-r border-theme pr-4">
+            <div class="flex items-center space-x-1 sm:space-x-2 border-r border-theme pr-2 sm:pr-4">
+                
+                <!-- Tombol Bantuan Utilitas dipindah ke Header -->
+                <button onclick="document.getElementById('modal-template').classList.remove('hidden')" class="flex items-center p-1.5 text-xs font-semibold text-[var(--theme-accent)] hover:text-white hover:bg-[var(--theme-accent)] rounded-md transition-colors" title="Template Struktur">
+                    <i data-lucide="layout-template" class="w-4 h-4 sm:mr-1"></i> <span id="txt-btn-struct" class="hidden sm:inline">Struktur</span>
+                </button>
+                <button onclick="loadDemo()" class="flex items-center p-1.5 text-xs font-semibold text-[var(--theme-accent)] hover:text-white hover:bg-[var(--theme-accent)] rounded-md transition-colors" title="Demo Tabel">
+                    <i data-lucide="table" class="w-4 h-4 sm:mr-1"></i> <span id="txt-btn-demo" class="hidden sm:inline">Demo Tabel</span>
+                </button>
+                
+                <div class="w-px h-4 bg-[var(--border-color)] mx-1"></div>
+
+                <!-- Tombol Sistem -->
                 <button onclick="alert(lang === 'ID' ? 'Aplikasi ini mengonversi teks Markdown menjadi Presentasi PPTX secara instan.' : 'Converts Markdown to PPTX instantly.')" class="p-1.5 text-dim hover:text-[var(--text-main)] hover:bg-[var(--preview-bg)] rounded-md transition-colors" title="Help">
                     <i data-lucide="help-circle" class="w-4 h-4"></i>
                 </button>
@@ -113,14 +125,6 @@
                     <i data-lucide="file-text" class="w-4 h-4 mr-2 text-[var(--theme-accent)]"></i> 
                     <span id="txt-editor-title">Editor Markdown</span>
                 </span>
-                <div class="flex space-x-2">
-                    <button onclick="document.getElementById('modal-template').classList.remove('hidden')" class="text-xs text-[var(--theme-accent)] hover:bg-[var(--preview-bg)] px-2 py-1 rounded-lg transition-colors flex items-center border border-theme">
-                        <i data-lucide="layout-template" class="w-3 h-3 mr-1"></i> <span id="txt-btn-struct">Struktur</span>
-                    </button>
-                    <button onclick="loadDemo()" class="text-xs text-[var(--theme-accent)] hover:bg-[var(--preview-bg)] px-2 py-1 rounded-lg transition-colors flex items-center border border-theme">
-                        <i data-lucide="table" class="w-3 h-3 mr-1"></i> <span id="txt-btn-demo">Demo Tabel</span>
-                    </button>
-                </div>
             </div>
             <textarea id="editor" oninput="handleInput()" class="flex-1 w-full p-6 resize-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-[var(--theme-accent)] bg-transparent text-sm font-data text-[var(--text-main)] leading-relaxed" placeholder="Tulis format markdown Anda di sini..."></textarea>
         </div>
@@ -142,26 +146,13 @@
                     </span>
                 </div>
                 
-                <!-- CONTAINER QUERIES -->
+                <!-- CONTAINER QUERIES (Area Akurat Zoom) -->
                 <div id="preview-canvas" style="container-type: inline-size;" class="aspect-video bg-[var(--preview-bg)] p-4 sm:p-8 flex items-center justify-center relative">
                     <!-- Slide content rendered here via JS -->
                     <div class="text-center text-dim">
                         <i data-lucide="layout-template" class="w-10 h-10 mx-auto mb-3 opacity-30"></i>
                         <p class="text-sm">Mulai mengetik untuk melihat pratinjau.</p>
                     </div>
-                </div>
-                
-                <!-- AI Prompt Banner -->
-                <div id="prompt-banner" class="hidden bg-purple-50 dark:bg-purple-900/20 border-t border-theme p-3 text-sm flex justify-between items-center text-purple-900 dark:text-purple-300 shrink-0">
-                    <div class="flex items-center overflow-hidden mr-4">
-                        <i data-lucide="sparkles" class="w-4 h-4 mr-2 text-purple-600 dark:text-purple-400 shrink-0"></i>
-                        <span class="font-bold mr-2 whitespace-nowrap text-xs">AI Prompt:</span>
-                        <span id="prompt-text" class="truncate italic opacity-90 text-xs font-data"></span>
-                    </div>
-                    <button onclick="copyPrompt()" class="flex items-center space-x-1 px-2 py-1 bg-purple-200 hover:bg-purple-300 dark:bg-purple-800/50 dark:hover:bg-purple-700/50 rounded-md text-purple-800 dark:text-purple-200 transition-colors shrink-0 border border-purple-300 dark:border-purple-600" title="Salin Prompt">
-                        <i data-lucide="copy" class="w-3 h-3"></i>
-                        <span class="text-[10px] font-bold uppercase">Copy</span>
-                    </button>
                 </div>
             </div>
 
@@ -259,7 +250,7 @@
         let lang = 'ID';
         let isGenerating = false;
 
-        const structureTemplate = `### **BAGIAN 1: PENGANTAR (Judul Section)**\n\n#### **SLIDE 1: Pembukaan**\n* **Judul Slide:** Selamat Datang di Modul Pembelajaran\n* **Teks Konten:**\n    * Poin pertama penjelasan Anda.\n    * Gunakan format **tebal untuk penekanan** dan *miring untuk istilah*.\n* **Prompt Ilustrasi AI:** \`Gambar profesional, gaya vektor minimalis.\`\n* **Speaker Notes:** "Halo semuanya..."\n\n#### **SLIDE 2: Tabel Analisis**\n* **Judul Slide:** Perbandingan Fitur\n* **Teks Konten:**\n    | Fitur | Sistem Lama | Sistem Baru |\n    | :--- | :--- | :--- |\n    | UI | *Flat Design* | **Vibrant Depth** |\n    | UX | Lambat | Sangat Cepat |`;
+        const structureTemplate = `### **BAGIAN 1: PENGANTAR (Judul Section)**\n\n#### **SLIDE 1: Pembukaan**\n* **Judul Slide:** Selamat Datang di Modul Pembelajaran\n* **Teks Konten:**\n    * Poin pertama penjelasan Anda.\n    * Gunakan format **tebal untuk penekanan** dan *miring untuk istilah*.\n* **Prompt Ilustrasi AI:** \`Gambar profesional, gaya vektor minimalis.\`\n* **Speaker Notes:** "Halo semuanya..."\n\n#### **SLIDE 2: Tabel Analisis**\n* **Judul Slide:** Perbandingan Fitur\n* **Teks Konten:**\n    | Fitur | Sistem Lama | Sistem Baru |\n    | :--- | :--- | :--- |\n    | UI | *Flat Design* | **Vibrant Depth** |\n    | UX | Lambat | Sangat Cepat |\n* **Prompt Ilustrasi AI:** \`Ikon skala timbangan antara UI lama dan UI baru.\``;
         document.getElementById('code-template').textContent = structureTemplate;
 
         // --- INISIALISASI ---
@@ -307,7 +298,6 @@
             lang = lang === 'ID' ? 'EN' : 'ID';
             document.getElementById('btn-lang').innerHTML = `<i data-lucide="globe" class="w-4 h-4 mr-1"></i> ${lang}`;
             
-            // Update Texts
             document.getElementById('txt-download').innerText = lang === 'ID' ? 'Unduh .pptx' : 'Download .pptx';
             document.getElementById('txt-editor-title').innerText = lang === 'ID' ? 'Editor Markdown' : 'Markdown Editor';
             document.getElementById('txt-btn-struct').innerText = lang === 'ID' ? 'Struktur' : 'Structure';
@@ -319,22 +309,20 @@
             document.getElementById('editor').placeholder = lang === 'ID' ? 'Tulis format markdown Anda di sini...' : 'Write your markdown format here...';
             
             lucide.createIcons();
-            renderPreview(); // Rerender for empty states
+            renderPreview();
         }
 
         function loadDemo() {
-            const demoText = `### **BAGIAN 1: PENGANTAR**\n\n#### **SLIDE 1: Judul & Ice Breaker**\n* **Judul Slide:** Modul Presentasi Interaktif\n* **Teks Konten:**\n    * Selamat datang di aplikasi **MDjadiPPT**!\n    * Kami mendukung *bold*, *italic*, dan integrasi tabel otomatis.\n* **Speaker Notes:** "Mari kita mulai presentasinya!"\n\n#### **SLIDE 2: Komparasi Data**\n* **Judul Slide:** Kenapa Beralih?\n* **Teks Konten:**\n    | Parameter | Cara Manual | Cara AI (MD) |\n    | :--- | :--- | :--- |\n    | Waktu | **1 Hari** | *2 Menit* |\n    | Biaya | Rp 500k | **Gratis** |\n* **Speaker Notes:** "Seperti yang Anda lihat pada tabel, efisiensinya sangat drastis."`;
+            const demoText = `### **BAGIAN 1: PENGANTAR**\n\n#### **SLIDE 1: Judul & Ice Breaker**\n* **Judul Slide:** Modul Presentasi Interaktif\n* **Teks Konten:**\n    * Selamat datang di aplikasi **MDjadiPPT**!\n    * Kami mendukung *bold*, *italic*, dan integrasi tabel otomatis.\n* **Prompt Ilustrasi AI:** \`Ilustrasi modern seorang profesional yang tersenyum.\`\n* **Speaker Notes:** "Mari kita mulai presentasinya!"\n\n#### **SLIDE 2: Komparasi Data**\n* **Judul Slide:** Kenapa Beralih?\n* **Teks Konten:**\n    | Parameter | Cara Manual | Cara AI (MD) |\n    | :--- | :--- | :--- |\n    | Waktu | **1 Hari** | *2 Menit* |\n    | Biaya | Rp 500k | **Gratis** |\n* **Prompt Ilustrasi AI:** \`Infografis perbandingan antara kalender dan ikon kilat kilat.\`\n* **Speaker Notes:** "Seperti yang Anda lihat pada tabel, efisiensinya sangat drastis."`;
             document.getElementById('editor').value = demoText;
             handleInput();
         }
 
         // --- MARKDOWN FORMATTER UTILS ---
         function formatHTML(text) {
-            // Escape basic HTML untuk keamanan
             let safeText = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            // Bold & Italic Regex
             safeText = safeText.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-[var(--theme-accent)]">$1</strong>');
-            safeText = safeText.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+            safeText = safeText.replace(/\*(.*?)\*/g, '<em class="italic text-gray-700">$1</em>');
             return safeText;
         }
 
@@ -377,7 +365,6 @@
                 else if (currentSlide && currentSlide.type === 'slide') {
                     if (trimmedLine.includes('**Judul Slide:**')) {
                         currentSlide.title = trimmedLine.split('**Judul Slide:**')[1].trim();
-                        // Bersihkan tag markdown dari judul jika terbawa
                         currentSlide.title = currentSlide.title.replace(/\*\*/g, '').replace(/\*/g, '');
                     }
                     else if (trimmedLine.includes('**Teks Konten:**')) {
@@ -396,7 +383,6 @@
                         currentSlide.prompt += ' ' + trimmedLine.replace(/(^`|`$)/g, '');
                     }
                     else if (currentMode === 'content' && trimmedLine !== '') {
-                        // Deteksi Tabel
                         if (trimmedLine.startsWith('|') || (trimmedLine.match(/\|/g) || []).length > 1) {
                             let columns = trimmedLine.split('|');
                             if (columns[0].trim() === '') columns.shift();
@@ -414,7 +400,6 @@
                                 }
                             }
                         } 
-                        // Deteksi Bullet/Teks
                         else {
                             let cleanText = trimmedLine.replace(/^[\*\-\>]\s*/, '').trim();
                             if (cleanText) {
@@ -441,47 +426,35 @@
             const counter = document.getElementById('preview-counter');
             const fCount = document.getElementById('footer-count');
             const controls = document.getElementById('controls-card');
-            const promptBanner = document.getElementById('prompt-banner');
             
             fCount.innerText = slides.length;
 
             if (slides.length === 0) {
-                // State Kosong
+                // Kosong
                 canvas.innerHTML = `
                     <div class="text-center text-dim">
                         <i data-lucide="layout-template" class="w-10 h-10 mx-auto mb-3 opacity-30"></i>
                         <p class="text-sm">${lang === 'ID' ? 'Mulai mengetik untuk melihat pratinjau.' : 'Start typing to see preview.'}</p>
                     </div>
                 `;
-                btnDownload.disabled = true;
+                btnDownload.setAttribute('disabled', 'true');
                 btnDownload.className = "flex items-center space-x-2 px-4 py-1.5 rounded-lg font-semibold text-sm transition-all shadow-sm bg-[var(--preview-bg)] text-dim cursor-not-allowed border border-theme";
                 counter.innerText = "(0 / 0)";
                 controls.classList.add('hidden');
-                promptBanner.classList.add('hidden');
                 lucide.createIcons();
                 return;
             }
 
-            // State Ada Slide
-            btnDownload.disabled = false;
-            btnDownload.className = "flex items-center space-x-2 px-4 py-1.5 rounded-lg font-semibold text-sm transition-all shadow-sm bg-gradient-to-r from-[#FF9500] to-[#FF2D55] hover:opacity-90 text-white border-none";
+            // Ada Slide
+            btnDownload.removeAttribute('disabled');
+            btnDownload.className = "flex items-center space-x-2 px-4 py-1.5 rounded-lg font-semibold text-sm transition-all shadow-sm bg-gradient-to-r from-[#FF9500] to-[#FF2D55] hover:opacity-90 text-white border-none cursor-pointer";
             counter.innerText = `(${currentSlideIdx + 1} / ${slides.length})`;
             controls.classList.remove('hidden');
 
-            // Render Navigasi
             document.getElementById('btn-prev').disabled = currentSlideIdx === 0;
             document.getElementById('btn-next').disabled = currentSlideIdx === slides.length - 1;
             document.getElementById('speaker-notes').innerHTML = formatHTML(slides[currentSlideIdx].notes) || (lang === 'ID' ? "Tidak ada catatan." : "No notes.");
 
-            // Render Prompt
-            if (slides[currentSlideIdx].prompt) {
-                promptBanner.classList.remove('hidden');
-                document.getElementById('prompt-text').innerText = slides[currentSlideIdx].prompt;
-            } else {
-                promptBanner.classList.add('hidden');
-            }
-
-            // Render Canvas Slide
             const slide = slides[currentSlideIdx];
             if (slide.type === 'section') {
                 canvas.innerHTML = `
@@ -517,13 +490,28 @@
                     }
                 });
 
+                // Inject Prompt AI ke dalam kanvas slide
+                let promptHTML = '';
+                if (slide.prompt) {
+                    promptHTML = `
+                        <div class="mt-auto bg-purple-50 border border-purple-200 rounded-[0.5cqw] p-[1.5cqw] flex items-start gap-[1cqw] text-[1.3cqw] text-purple-900 shrink-0">
+                            <i data-lucide="sparkles" class="w-[2cqw] h-[2cqw] text-purple-600 shrink-0 mt-[0.2cqw]"></i>
+                            <div>
+                                <span class="font-bold uppercase tracking-wider block mb-[0.2cqw] text-[1.1cqw]">Prompt AI (Visual):</span>
+                                <span class="italic opacity-90">${formatHTML(slide.prompt)}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
                 canvas.innerHTML = `
-                    <div class="w-full h-full bg-white shadow-lg rounded-[1cqw] flex flex-col overflow-hidden border border-theme">
+                    <div class="w-full h-full bg-white shadow-lg rounded-[1cqw] flex flex-col overflow-hidden border border-theme relative">
                         <div class="bg-[#0A3A60] text-white px-[4cqw] py-[2cqw] flex items-center shrink-0 h-[25%]">
                             <h2 class="text-[3cqw] font-bold truncate">${formatHTML(slide.title)}</h2>
                         </div>
-                        <div class="p-[4cqw] flex-1 overflow-y-auto space-y-[2cqw] bg-white">
+                        <div class="p-[4cqw] flex-1 overflow-y-auto space-y-[2cqw] bg-white flex flex-col">
                             ${contentHTML}
+                            ${promptHTML}
                         </div>
                     </div>
                 `;
@@ -535,19 +523,18 @@
         function nextSlide() { if (currentSlideIdx < slides.length - 1) { currentSlideIdx++; renderPreview(); } }
 
         // --- PPTX GENERATOR ENGINE ---
-        // Fungsi untuk mengonversi **tebal** dan *miring* ke format array objek yang diterima PptxGenJS
         function parseTextForPPTX(rawText) {
             let parts = rawText.split(/(\*\*.*?\*\*|\*.*?\*)/g);
             let textArray = [];
             
             parts.forEach(part => {
                 if (!part) return;
-                let opt = { color: '333333' }; // Base color
+                let opt = { color: '333333' }; 
                 let txt = part;
                 
                 if (txt.startsWith('**') && txt.endsWith('**')) {
                     opt.bold = true;
-                    opt.color = '3b82f6'; // Mengikuti warna theme-accent (biru) untuk penekanan di PPT
+                    opt.color = '3b82f6'; // Biru untuk **bold**
                     txt = txt.slice(2, -2);
                 } else if (txt.startsWith('*') && txt.endsWith('*')) {
                     opt.italic = true;
@@ -559,125 +546,143 @@
         }
 
         function generatePPTX() {
-            if (typeof window.PptxGenJS === 'undefined') {
-                alert("PptxGenJS library belum termuat. Cek koneksi internet Anda.");
+            if (typeof PptxGenJS === 'undefined') {
+                alert(lang === 'ID' ? "Library PptxGenJS belum termuat. Cek koneksi internet Anda." : "PptxGenJS library failed to load. Please check internet connection.");
                 return;
             }
+
+            if (isGenerating) return;
 
             const btnDownload = document.getElementById('btn-download');
             const txtDownload = document.getElementById('txt-download');
             
-            // UI Loading State
+            // Set UI State "Loading"
             isGenerating = true;
+            btnDownload.setAttribute('disabled', 'true');
             btnDownload.classList.add('opacity-50', 'cursor-wait');
             txtDownload.innerText = lang === 'ID' ? 'Memproses...' : 'Processing...';
 
-            try {
-                let pptx = new PptxGenJS();
-                pptx.layout = 'LAYOUT_16x9';
+            // Gunakan setTimeout agar peramban sempat merender pesan "Memproses..." di layar
+            setTimeout(() => {
+                try {
+                    let pptx = new PptxGenJS();
+                    pptx.layout = 'LAYOUT_16x9';
 
-                pptx.defineSlideMaster({
-                    title: 'MASTER_SLIDE',
-                    background: { color: 'FFFFFF' },
-                    objects: [
-                        { rect: { x: 0, y: 0, w: '100%', h: 1.2, fill: { color: '0A3A60' } } },
-                        { text: { text: 'Studio Mikro 2.0', options: { x: 0.5, y: 0.35, w: 4, h: 0.5, color: 'FFFFFF', fontSize: 14 } } }
-                    ]
-                });
-
-                pptx.defineSlideMaster({
-                    title: 'SECTION_MASTER',
-                    background: { color: '0A3A60' },
-                    objects: []
-                });
-
-                slides.forEach((slide) => {
-                    if (slide.type === 'section') {
-                        let pptSlide = pptx.addSlide({ masterName: 'SECTION_MASTER' });
-                        pptSlide.addText(slide.title, { x: 0.5, y: '35%', w: 9, h: 2, fontSize: 40, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle', breakLine: true });
-                    } else {
-                        let pptSlide = pptx.addSlide({ masterName: 'MASTER_SLIDE' });
-                        pptSlide.addText(slide.title, { x: 0.5, y: 0.25, w: 8.5, h: 0.8, fontSize: 28, bold: true, color: 'FFFFFF', align: 'left', valign: 'middle' });
-
-                        let currentY = 1.5;
-                        
-                        // Render Bullets
-                        const bulletsContent = slide.content.filter(item => item.type === 'bullet');
-                        if (bulletsContent.length > 0) {
-                            // Untuk paragraf berisi format inline, kita push array of object ke addText
-                            bulletsContent.forEach(item => {
-                                let formattedTextArr = parseTextForPPTX(item.text);
-                                // Set bullet parameter pada objek pertama di baris tersebut
-                                if (formattedTextArr.length > 0) {
-                                    formattedTextArr[0].options.bullet = true;
-                                    formattedTextArr[0].options.fontSize = 20;
-                                }
-                                
-                                pptSlide.addText(formattedTextArr, { 
-                                    x: 0.8, y: currentY, w: 8.5, h: 0.5, 
-                                    align: 'left', valign: 'top', fontSize: 20 
-                                });
-                                currentY += 0.6; // Spasi antar baris
-                            });
-                            currentY += 0.2; // Margin bawah
-                        }
-
-                        // Render Tables
-                        const tables = slide.content.filter(item => item.type === 'table');
-                        if (tables.length > 0) {
-                            tables.forEach((tbl) => {
-                                let tableData = tbl.rows.map((row, rIdx) => {
-                                    return row.map(cell => {
-                                        // Sel Tabel juga mensupport parse inline (Tebal/Miring)
-                                        let parsedCellText = parseTextForPPTX(cell);
-                                        // Override styling untuk header vs body
-                                        parsedCellText.forEach(pt => {
-                                            pt.options.color = rIdx === 0 ? 'FFFFFF' : (pt.options.color === '3b82f6' ? '0A3A60' : '333333');
-                                            pt.options.bold = rIdx === 0 ? true : pt.options.bold;
-                                            pt.options.fontSize = 16;
-                                        });
-
-                                        return {
-                                            text: parsedCellText,
-                                            options: {
-                                                fill: rIdx === 0 ? '0A3A60' : (rIdx % 2 === 0 ? 'F9FAFB' : 'FFFFFF'),
-                                                valign: 'middle', align: 'center', margin: 5
-                                            }
-                                        };
-                                    });
-                                });
-                                const colW = Array(tbl.rows[0].length).fill(8.5 / tbl.rows[0].length);
-                                pptSlide.addTable(tableData, { x: 0.8, y: currentY, w: 8.5, colW: colW, border: { pt: 1, color: 'CBD5E1' } });
-                                currentY += (tbl.rows.length * 0.4) + 0.5;
-                            });
-                        }
-
-                        if (slide.notes) pptSlide.addNotes(slide.notes.replace(/\*\*/g, '').replace(/\*/g, ''));
-                    }
-                });
-
-                // Proses ekspor Promise
-                pptx.writeFile({ fileName: 'Presentasi_Studio_Mikro.pptx' })
-                    .then(fileName => {
-                        console.log('Unduhan selesai: ', fileName);
-                        resetDownloadUI();
-                    })
-                    .catch(err => {
-                        console.error('Error saat menyimpan PPTX', err);
-                        alert("Terjadi kesalahan sistem saat mengekspor file.");
-                        resetDownloadUI();
+                    pptx.defineSlideMaster({
+                        title: 'MASTER_SLIDE',
+                        background: { color: 'FFFFFF' },
+                        objects: [
+                            { rect: { x: 0, y: 0, w: '100%', h: 1.2, fill: { color: '0A3A60' } } },
+                            { text: { text: 'Studio Mikro 2.0', options: { x: 0.5, y: 0.35, w: 4, h: 0.5, color: 'FFFFFF', fontSize: 14 } } }
+                        ]
                     });
 
-            } catch (error) {
-                console.error(error);
-                alert("Gagal memproses PPTX. Pastikan format teks sudah benar.");
-                resetDownloadUI();
-            }
+                    pptx.defineSlideMaster({
+                        title: 'SECTION_MASTER',
+                        background: { color: '0A3A60' },
+                        objects: []
+                    });
+
+                    slides.forEach((slide) => {
+                        if (slide.type === 'section') {
+                            let pptSlide = pptx.addSlide({ masterName: 'SECTION_MASTER' });
+                            pptSlide.addText(slide.title, { x: 0.5, y: '35%', w: 9, h: 2, fontSize: 40, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle', breakLine: true });
+                        } else {
+                            let pptSlide = pptx.addSlide({ masterName: 'MASTER_SLIDE' });
+                            pptSlide.addText(slide.title, { x: 0.5, y: 0.25, w: 8.5, h: 0.8, fontSize: 28, bold: true, color: 'FFFFFF', align: 'left', valign: 'middle' });
+
+                            let currentY = 1.5;
+                            
+                            // Render Bullets
+                            const bulletsContent = slide.content.filter(item => item.type === 'bullet');
+                            if (bulletsContent.length > 0) {
+                                bulletsContent.forEach(item => {
+                                    let formattedTextArr = parseTextForPPTX(item.text);
+                                    if (formattedTextArr.length > 0) {
+                                        formattedTextArr[0].options.bullet = true;
+                                        formattedTextArr[0].options.fontSize = 20;
+                                    }
+                                    
+                                    pptSlide.addText(formattedTextArr, { 
+                                        x: 0.8, y: currentY, w: 8.5, h: 0.5, 
+                                        align: 'left', valign: 'top', fontSize: 20 
+                                    });
+                                    currentY += 0.6;
+                                });
+                                currentY += 0.2; 
+                            }
+
+                            // Render Tables
+                            const tables = slide.content.filter(item => item.type === 'table');
+                            if (tables.length > 0) {
+                                tables.forEach((tbl) => {
+                                    let tableData = tbl.rows.map((row, rIdx) => {
+                                        return row.map(cell => {
+                                            let parsedCellText = parseTextForPPTX(cell);
+                                            parsedCellText.forEach(pt => {
+                                                pt.options.color = rIdx === 0 ? 'FFFFFF' : (pt.options.color === '3b82f6' ? '0A3A60' : '333333');
+                                                pt.options.bold = rIdx === 0 ? true : pt.options.bold;
+                                                pt.options.fontSize = 16;
+                                            });
+
+                                            return {
+                                                text: parsedCellText,
+                                                options: {
+                                                    fill: { color: rIdx === 0 ? '0A3A60' : (rIdx % 2 === 0 ? 'F9FAFB' : 'FFFFFF') },
+                                                    valign: 'middle', align: 'center', margin: 5
+                                                }
+                                            };
+                                        });
+                                    });
+                                    const colW = Array(tbl.rows[0].length).fill(8.5 / tbl.rows[0].length);
+                                    pptSlide.addTable(tableData, { x: 0.8, y: currentY, w: 8.5, colW: colW, border: { pt: 1, color: 'CBD5E1' } });
+                                    currentY += (tbl.rows.length * 0.4) + 0.5;
+                                });
+                            }
+
+                            // Render AI Prompt inside PPTX slide
+                            if (slide.prompt) {
+                                pptSlide.addText([
+                                    { text: "Prompt AI: ", options: { bold: true, color: "6B21A8" } },
+                                    { text: slide.prompt, options: { italic: true, color: "6B21A8" } }
+                                ], {
+                                    shape: pptx.ShapeType ? pptx.ShapeType.rect : 'rect',
+                                    fill: { color: "F3E8FF" }, 
+                                    line: { color: "D8B4FE", width: 1 }, 
+                                    x: 0.8, y: 4.6, w: 8.4, h: 0.6,
+                                    fontSize: 12,
+                                    valign: "middle",
+                                    margin: 10
+                                });
+                            }
+
+                            if (slide.notes) pptSlide.addNotes(slide.notes.replace(/\*\*/g, '').replace(/\*/g, ''));
+                        }
+                    });
+
+                    pptx.writeFile({ fileName: 'Presentasi_Studio_Mikro.pptx' })
+                        .then(fileName => {
+                            console.log('Unduhan selesai: ', fileName);
+                            resetDownloadUI();
+                        })
+                        .catch(err => {
+                            console.error('Error saat menyimpan PPTX', err);
+                            alert(lang === 'ID' ? "Terjadi kesalahan sistem saat mengekspor file." : "System error while exporting file.");
+                            resetDownloadUI();
+                        });
+
+                } catch (error) {
+                    console.error("Runtime Error generating PPTX: ", error);
+                    alert(lang === 'ID' ? "Gagal memproses PPTX. Pastikan format teks sudah benar." : "Failed processing PPTX. Ensure your format is valid.");
+                    resetDownloadUI();
+                }
+            }, 100);
         }
 
         function resetDownloadUI() {
             isGenerating = false;
             const btnDownload = document.getElementById('btn-download');
+            btnDownload.removeAttribute('disabled');
             btnDownload.classList.remove('opacity-50', 'cursor-wait');
             document.getElementById('txt-download').innerText = lang === 'ID' ? 'Unduh .pptx' : 'Download .pptx';
         }
@@ -694,11 +699,6 @@
             textArea.select();
             try { document.execCommand('copy'); } catch (err) { console.error('Fallback Copy Error:', err); }
             document.body.removeChild(textArea);
-        }
-
-        function copyPrompt() {
-            const text = document.getElementById('prompt-text').innerText;
-            fallbackCopyTextToClipboard(text);
         }
 
         function copyTemplate() {
