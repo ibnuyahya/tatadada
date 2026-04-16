@@ -131,10 +131,11 @@ yang melambangkan transformasi wadah/format. Aksen petir emas menegaskan perform
                                 <i data-lucide="upload-cloud" class="w-7 h-7 text-dim group-hover:text-violet-500 transition-colors"></i>
                             </div>
                             <h2 id="drop-text" class="text-lg font-bold mb-1 text-main">Pilih File Video</h2>
-                            <p id="drop-subtext" class="text-xs text-dim">Mendukung MKV, MOV, dan WEBM (Maks 2GB)</p>
+                            <p id="drop-subtext" class="text-xs text-dim">Mendukung MKV, MOV, WEBM (Maks 2GB). Bisa multi-file (Merge).</p>
                             <p id="file-name-display" class="mt-4 font-bold text-sm text-violet-600 dark:text-violet-400 hidden bg-violet-50 dark:bg-violet-900/20 inline-block px-3 py-1 rounded-lg"></p>
                         </div>
-                        <input type="file" id="fileInput" class="hidden" accept=".mkv,.mov,.webm,video/x-matroska,video/quicktime,video/webm" onchange="handleFileSelect(event)">
+                        <!-- FIX: Tambahkan atribut 'multiple' agar jendela file explorer mengizinkan seleksi lebih dari 1 file -->
+                        <input type="file" id="fileInput" class="hidden" multiple accept=".mkv,.mov,.webm,video/x-matroska,video/quicktime,video/webm" onchange="handleFileSelect(event)">
                     </div>
 
                     <!-- Convert Button -->
@@ -298,22 +299,22 @@ yang melambangkan transformasi wadah/format. Aksen petir emas menegaskan perform
         const i18n = {
             id: {
                 dropText: "Pilih File Video",
-                dropSub: "Mendukung MKV, MOV, dan WEBM (Maks 2GB)",
+                dropSub: "Mendukung MKV, MOV, WEBM (Maks 2GB). Bisa multi-file (Merge).",
                 btnText: "Mulai Konversi",
                 processing: "Memproses...",
                 reading: "Membaca file...",
-                tooltip: "Mode <b>Smart Copy</b> aktif. Proses MKV/MOV sangat cepat (Stream Copy).",
+                tooltip: "Mode <b>Smart Copy</b> aktif. Bisa menggabungkan (merge) multi-file dengan cepat. Syarat: resolusi dan codec tiap file harus identik.",
                 statTitle: "Statistik Proses",
                 prog: "Progres",
                 success: "Konversi Selesai!"
             },
             en: {
-                dropText: "Select Video File",
-                dropSub: "Supports MKV, MOV, and WEBM (Max 2GB)",
+                dropText: "Select Video File(s)",
+                dropSub: "Supports MKV, MOV, WEBM (Max 2GB). Multi-file allowed (Merge).",
                 btnText: "Start Conversion",
                 processing: "Processing...",
                 reading: "Reading file...",
-                tooltip: "<b>Smart Copy</b> mode active. MKV/MOV processed instantly via Stream Copy.",
+                tooltip: "<b>Smart Copy</b> mode active. Merging multi-files is supported and fast. Requirement: files must have identical resolution and codecs.",
                 statTitle: "Process Stats",
                 prog: "Progress",
                 success: "Conversion Complete!"
@@ -355,8 +356,8 @@ yang melambangkan transformasi wadah/format. Aksen petir emas menegaskan perform
         // FFMPEG LOGIC (UTUH SESUAI ATURAN #6.1)
         const { createFFmpeg } = FFmpeg;
         let ffmpeg = null;
-        let selectedFile = null;
-        let fileBuffer = null;
+        let selectedFiles = []; // FIX: Diubah menjadi array untuk menampung banyak file
+        let fileBuffers = [];   // FIX: Diubah menjadi array
 
         const dropzone = document.getElementById('dropzone');
         const logArea = document.getElementById('logArea');
@@ -373,52 +374,73 @@ yang melambangkan transformasi wadah/format. Aksen petir emas menegaskan perform
             logArea.scrollTop = logArea.scrollHeight;
         }
 
-        function handleFileSelect(event) {
-            const file = event.target.files[0];
-            if (file) {
-                if (!file.name.match(/\.(mkv|mov|webm)$/i)) {
+        async function handleFileSelect(event) {
+            const files = event.target.files || (event.dataTransfer && event.dataTransfer.files);
+            if (files && files.length > 0) {
+                const fileArray = Array.from(files);
+                let totalSize = 0;
+                let isValid = true;
+
+                for (let f of fileArray) {
+                    // FIX: Murni hanya menerima format modern. Tolak WMV agar browser tidak crash!
+                    if (!f.name.match(/\.(mkv|mov|webm)$/i)) {
+                        isValid = false;
+                        break;
+                    }
+                    totalSize += f.size;
+                }
+
+                if (!isValid) {
                     appendLog("Error: Format file tidak didukung.");
                     alert("Format tidak didukung. Harap pilih file .MKV, .MOV, atau .WEBM");
                     return;
                 }
 
                 const maxSizeBytes = 2 * 1024 * 1024 * 1024; // 2 GB Physical Limit
-                if (file.size > maxSizeBytes) {
-                    appendLog("Error: File size exceeds 2GB WebAssembly limit.");
-                    alert("File terlalu besar. Karena keterbatasan memori fisik browser (32-bit architecture), batas maksimal adalah 2 GB.");
+                if (totalSize > maxSizeBytes) {
+                    appendLog("Error: Total file size exceeds 2GB WebAssembly limit.");
+                    alert("Total file terlalu besar. Karena keterbatasan memori fisik browser, batas maksimal total adalah 2 GB.");
                     return;
                 }
 
-                selectedFile = file;
-                document.getElementById('file-name-display').innerText = file.name;
+                selectedFiles = fileArray;
+                const displayName = fileArray.length > 1 ? `${fileArray.length} File Terpilih (Gabung/Merge)` : fileArray[0].name;
+                document.getElementById('file-name-display').innerText = displayName;
                 document.getElementById('file-name-display').classList.remove('hidden');
-                document.getElementById('total-size-stat').innerText = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+                document.getElementById('total-size-stat').innerText = (totalSize / (1024 * 1024)).toFixed(2) + " MB";
                 
                 convertBtn.disabled = true;
                 const btnLabel = document.getElementById('btn-text');
                 btnLabel.innerText = i18n[currentLang].reading;
-                appendLog(`Selected: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
+                appendLog(`Selected: ${fileArray.length} file(s) - Total ${(totalSize / (1024 * 1024)).toFixed(2)} MB`);
 
-                // Baca file secara sinkron untuk menghindari NotReadableError
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    fileBuffer = new Uint8Array(e.target.result);
+                // Baca file secara asinkron/berurutan ke dalam RAM
+                fileBuffers = [];
+                try {
+                    for (let f of fileArray) {
+                        const buffer = await new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = e => resolve(new Uint8Array(e.target.result));
+                            reader.onerror = e => reject(e);
+                            reader.readAsArrayBuffer(f);
+                        });
+                        fileBuffers.push(buffer);
+                    }
+                    
                     convertBtn.disabled = false;
                     btnLabel.innerText = i18n[currentLang].btnText;
-                    appendLog("File successfully loaded into RAM buffer.");
+                    appendLog("All files successfully loaded into RAM buffers.");
                     statusPill.innerText = "READY";
                     statusPill.className = "font-data text-[9px] font-bold px-2 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-400 uppercase tracking-wider";
-                };
-                reader.onerror = function() {
-                    appendLog("Error: FileReader failed to read the file.");
-                    alert("Gagal membaca file. Pastikan ukuran di bawah 2GB dan memori PC Anda cukup.");
-                };
-                reader.readAsArrayBuffer(file);
+                } catch (e) {
+                    appendLog("Error: FileReader failed to read files.");
+                    alert("Gagal membaca file. Pastikan ukuran total di bawah 2GB dan memori PC Anda cukup.");
+                }
             }
         }
 
         async function startConversion() {
-            if (!selectedFile || !fileBuffer) return;
+            if (selectedFiles.length === 0 || fileBuffers.length === 0) return;
 
             convertBtn.disabled = true;
             document.getElementById('btn-text').innerText = i18n[currentLang].processing;
@@ -447,23 +469,48 @@ yang melambangkan transformasi wadah/format. Aksen petir emas menegaskan perform
                     appendLog("Engine loaded successfully.");
                 }
 
-                const ext = selectedFile.name.split('.').pop().toLowerCase();
-                const inputFileName = `input.${ext}`;
                 const outputFileName = 'output.mp4'; 
-
-                appendLog("Writing file to Virtual File System...");
-                ffmpeg.FS('writeFile', inputFileName, fileBuffer);
-                // Langsung kosongkan RAM agar tidak terjadi bad memory allocation!
-                fileBuffer = null; 
-
                 let ffmpegArgs = [];
+                let inputNames = [];
+
+                appendLog(`Writing ${selectedFiles.length} file(s) to Virtual File System...`);
                 
-                // LOGIKA CERDAS: Murni hanya Fast Stream Copy
-                appendLog("Modern format detected. Switching to Stream Copy mode...");
-                modeStat.innerText = "Stream Copy";
-                modeStat.className = "font-data font-bold text-xs text-blue-500";
-                ffmpegArgs = ['-i', inputFileName, '-c', 'copy', outputFileName];
-                
+                if (selectedFiles.length === 1) {
+                    const ext = selectedFiles[0].name.split('.').pop().toLowerCase();
+                    const inputFileName = `input_0.${ext}`;
+                    inputNames.push(inputFileName);
+                    
+                    ffmpeg.FS('writeFile', inputFileName, fileBuffers[0]);
+                    
+                    appendLog("Single file mode detected. Switching to Stream Copy...");
+                    modeStat.innerText = "Stream Copy";
+                    modeStat.className = "font-data font-bold text-xs text-blue-500";
+                    ffmpegArgs = ['-i', inputFileName, '-c', 'copy', outputFileName];
+                } else {
+                    // MULTI-FILE MERGE (CONCAT) LOGIC
+                    appendLog("Multiple files detected. Creating concat list for Merge mode...");
+                    modeStat.innerText = "Merge Copy";
+                    modeStat.className = "font-data font-bold text-xs text-violet-500";
+                    
+                    let listTxt = "";
+                    for (let i = 0; i < selectedFiles.length; i++) {
+                        const ext = selectedFiles[i].name.split('.').pop().toLowerCase();
+                        const inName = `input_${i}.${ext}`;
+                        inputNames.push(inName);
+                        
+                        ffmpeg.FS('writeFile', inName, fileBuffers[i]);
+                        listTxt += `file '${inName}'\n`;
+                    }
+                    // Tulis file list.txt ke VFS
+                    ffmpeg.FS('writeFile', 'list.txt', new TextEncoder().encode(listTxt));
+                    inputNames.push('list.txt');
+                    
+                    ffmpegArgs = ['-f', 'concat', '-safe', '0', '-i', 'list.txt', '-c', 'copy', outputFileName];
+                }
+
+                // Langsung kosongkan RAM awal agar aman
+                fileBuffers = []; 
+
                 appendLog(`Executing command: ffmpeg ${ffmpegArgs.join(' ')}`);
                 await ffmpeg.run(...ffmpegArgs);
 
@@ -472,14 +519,16 @@ yang melambangkan transformasi wadah/format. Aksen petir emas menegaskan perform
                 
                 // Validasi output
                 if (data.byteLength === 0) {
-                    throw new Error("Hasil output 0 Byte. Codec video asli tidak kompatibel dengan mode ini.");
+                    throw new Error("Hasil output 0 Byte. Jika sedang Merge, pastikan resolusi & codec semua file identik.");
                 }
 
                 const videoBlob = new Blob([data], { type: 'video/mp4' });
                 const videoUrl = URL.createObjectURL(videoBlob);
                 
                 document.getElementById('downloadLink').href = videoUrl;
-                document.getElementById('downloadLink').download = selectedFile.name.replace(/\.[^/.]+$/, "") + "_converted.mp4";
+                
+                const finalName = selectedFiles.length > 1 ? "merged_video.mp4" : selectedFiles[0].name.replace(/\.[^/.]+$/, "") + "_converted.mp4";
+                document.getElementById('downloadLink').download = finalName;
                 
                 document.getElementById('resultArea').classList.remove('hidden');
                 convertBtn.classList.add('hidden');
@@ -490,7 +539,7 @@ yang melambangkan transformasi wadah/format. Aksen petir emas menegaskan perform
 
                 // Pembersihan Agresif RAM
                 try {
-                    ffmpeg.FS('unlink', inputFileName);
+                    inputNames.forEach(name => ffmpeg.FS('unlink', name));
                     ffmpeg.FS('unlink', outputFileName);
                     ffmpeg.exit();
                 } catch (e) {
