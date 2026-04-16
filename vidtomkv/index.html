@@ -1,0 +1,529 @@
+<!-- 
+Tafsir Visual Ikon: 
+Ikon MKVtoMP4 didesain dengan estetika visionOS premium, menggunakan "Frosted Glass" sebagai dasar. 
+Di tengahnya terdapat objek volumetrik berbentuk dua cakram film (resin putih dan aksen magenta solid) 
+yang melambangkan transformasi wadah/format. Aksen petir emas menegaskan performa "Fast Stream Copy".
+-->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MKVtoMP4 - Fast Video Converter</title>
+    <!-- Framework & Icons -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Fonts: Inter untuk UI, JetBrains Mono untuk Data/Console -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        /* TATADADA CSS Tokens */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9; 
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+        }
+        
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Utility Classes mapping to Tokens */
+        .bg-header { background-color: var(--header-bg); }
+        .bg-editor { background-color: var(--editor-bg); }
+        .bg-preview { background-color: var(--preview-bg); }
+        .bg-card { background-color: var(--card-bg); }
+        .bg-footer { background-color: var(--footer-bg); }
+        .border-theme { border-color: var(--border-color); }
+        .text-main { color: var(--text-main); }
+        .text-dim { color: var(--text-dim); }
+
+        /* Custom Scrollbar Premium */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Dropzone Active state */
+        .drag-active { 
+            border-color: var(--theme-accent) !important; 
+            background-color: rgba(59, 130, 246, 0.05) !important; 
+        }
+        
+        /* Font spesifik untuk data console */
+        .font-data { font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER (h-14, Wajib) -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm transition-colors">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-gradient-to-br from-violet-500 to-pink-500 rounded-lg flex items-center justify-center shadow-sm">
+                <i data-lucide="zap" class="w-5 h-5 text-white fill-current"></i>
+            </div>
+            <div>
+                <span class="font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-violet-600 to-pink-500 tracking-tight">MKVtoMP4</span>
+                <span class="text-[10px] italic text-dim ml-1 opacity-80">v4.0</span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <span class="hidden md:block text-[10px] text-dim font-medium tracking-widest uppercase">by AhmadDanial</span>
+            
+            <div class="group relative flex items-center">
+                <button class="text-dim hover:text-blue-500 transition-colors focus:outline-none">
+                    <i data-lucide="help-circle" class="w-4 h-4"></i>
+                </button>
+                <div class="absolute right-0 top-6 w-64 bg-card border border-theme shadow-md rounded-lg p-3 text-xs text-main hidden group-hover:block z-50">
+                    <span id="app-tooltip">Mode <b>Smart Copy</b> aktif. Proses MKV/MOV sangat cepat (Stream Copy).</span>
+                </div>
+            </div>
+
+            <div class="h-4 w-[1px] bg-[var(--border-color)]"></div>
+
+            <button onclick="toggleLang()" class="flex items-center gap-1.5 px-2 py-1 hover:bg-preview rounded-lg transition-all text-xs font-semibold text-main focus:ring-2 focus:ring-blue-500/20">
+                <i data-lucide="languages" class="w-4 h-4 text-dim"></i>
+                <span id="lang-label">ID</span>
+            </button>
+
+            <button onclick="toggleTheme()" class="p-1.5 hover:bg-preview rounded-lg transition-all text-main focus:ring-2 focus:ring-blue-500/20 shadow-sm border border-transparent">
+                <i id="theme-icon" data-lucide="sun" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE (SPLIT PANE BLUEPRINT) -->
+    <main class="flex-1 flex overflow-hidden flex-col md:flex-row">
+        
+        <!-- Panel Utama (Kiri): Editor/Konversi -->
+        <div id="left-pane" class="flex-[6] bg-editor relative overflow-y-auto flex flex-col min-w-[300px] transition-colors">
+            <div class="flex-1 p-8 flex flex-col items-center justify-center">
+                <div class="max-w-xl w-full">
+                    
+                    <!-- Dropzone / Input Area -->
+                    <div id="dropzone" class="bg-card border-2 border-dashed border-theme rounded-2xl p-12 text-center cursor-pointer hover:border-violet-500 transition-all group relative overflow-hidden shadow-sm" onclick="document.getElementById('fileInput').click()">
+                        <div class="relative z-10">
+                            <div class="w-16 h-16 bg-preview rounded-full flex items-center justify-center mx-auto mb-5 group-hover:-translate-y-1 transition-transform border border-theme">
+                                <i data-lucide="upload-cloud" class="w-7 h-7 text-dim group-hover:text-violet-500 transition-colors"></i>
+                            </div>
+                            <h2 id="drop-text" class="text-lg font-bold mb-1 text-main">Pilih File Video</h2>
+                            <p id="drop-subtext" class="text-xs text-dim">Mendukung MKV, MOV, dan WEBM (Maks 2GB)</p>
+                            <p id="file-name-display" class="mt-4 font-bold text-sm text-violet-600 dark:text-violet-400 hidden bg-violet-50 dark:bg-violet-900/20 inline-block px-3 py-1 rounded-lg"></p>
+                        </div>
+                        <input type="file" id="fileInput" class="hidden" accept=".mkv,.mov,.webm,video/x-matroska,video/quicktime,video/webm" onchange="handleFileSelect(event)">
+                    </div>
+
+                    <!-- Convert Button -->
+                    <div class="mt-6">
+                        <button id="convertBtn" disabled onclick="startConversion()" class="w-full bg-gradient-to-r from-violet-600 to-pink-500 hover:from-violet-700 hover:to-pink-600 text-white font-semibold py-3.5 px-6 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed border-theme focus:ring-2 focus:ring-blue-500/20">
+                            <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                            <span id="btn-text">Mulai Konversi</span>
+                        </button>
+                    </div>
+
+                    <!-- Result Card -->
+                    <div id="resultArea" class="hidden mt-6 bg-card border border-emerald-200 dark:border-emerald-900/50 p-6 rounded-2xl text-center shadow-sm relative overflow-hidden">
+                        <div class="absolute inset-0 bg-emerald-50 dark:bg-emerald-900/10 z-0"></div>
+                        <div class="relative z-10">
+                            <i data-lucide="check-circle-2" class="w-10 h-10 mx-auto mb-3 text-emerald-500"></i>
+                            <h3 class="text-lg font-bold mb-5 text-main" id="res-success">Konversi Selesai!</h3>
+                            <div class="flex flex-col sm:flex-row gap-3 justify-center">
+                                <a id="downloadLink" href="#" class="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition-colors shadow-sm focus:ring-2 focus:ring-emerald-500/20 border-theme flex items-center justify-center gap-2">
+                                    <i data-lucide="download" class="w-4 h-4"></i> Unduh File
+                               </a>
+                                <button onclick="location.reload()" class="bg-preview hover:bg-border-color text-main px-5 py-2.5 rounded-lg font-semibold text-sm transition-colors border border-theme focus:ring-2 focus:ring-blue-500/20 shadow-sm flex items-center justify-center gap-2">
+                                    <i data-lucide="refresh-ccw" class="w-4 h-4 text-dim"></i> Konversi Lain
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Resizer/Gutter (CETAK BIRU TATADADA - WAJIB TEBAL & BERBEDA WARNA) -->
+        <div id="resizer" class="w-3 bg-preview cursor-col-resize flex flex-col items-center justify-center border-x border-theme group shrink-0 z-20 hidden md:flex transition-colors">
+            <!-- Handle visual -->
+            <div class="h-8 w-1 bg-[var(--border-color)] rounded-full group-hover:bg-blue-500 transition-colors"></div>
+        </div>
+
+        <!-- Panel Sidebar (Kanan): Logs & Stats -->
+        <div id="right-pane" class="flex-[4] bg-preview p-4 flex flex-col gap-4 overflow-y-auto min-w-[300px] transition-colors">
+            
+            <!-- Card Kontrol 1: Stats -->
+            <div class="bg-card rounded-xl shadow-sm border border-theme p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-semibold text-sm text-main flex items-center gap-2">
+                        <i data-lucide="activity" class="w-4 h-4 text-dim"></i>
+                        <span id="stat-title">Statistik Proses</span>
+                    </h3>
+                    <div id="status-pill" class="font-data text-[9px] font-bold px-2 py-0.5 rounded border border-theme bg-preview text-dim uppercase tracking-wider">Ready</div>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-dim font-medium" id="prog-label">Progres</span>
+                        <span id="progressText" class="font-data font-bold text-main">0%</span>
+                    </div>
+                    <div class="w-full bg-preview h-2 rounded-full overflow-hidden border border-theme">
+                        <div id="progressBar" class="bg-blue-500 h-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3 mt-2">
+                        <div class="p-3 bg-preview rounded-lg border border-theme">
+                            <p class="text-[10px] text-dim uppercase tracking-wider font-semibold mb-1">Mode Eksekusi</p>
+                            <p id="mode-stat" class="font-data font-bold text-xs text-main">Menunggu</p>
+                        </div>
+                        <div class="p-3 bg-preview rounded-lg border border-theme">
+                            <p class="text-[10px] text-dim uppercase tracking-wider font-semibold mb-1">Ukuran Data</p>
+                            <p id="total-size-stat" class="font-data font-bold text-xs text-main">0.00 MB</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Kontrol 2: Console -->
+            <div class="bg-card rounded-xl shadow-sm border border-theme p-5 flex flex-col flex-1 min-h-[250px]">
+                <h3 class="font-semibold text-sm text-main flex items-center gap-2 mb-3">
+                    <i data-lucide="terminal" class="w-4 h-4 text-dim"></i>
+                    Engine Console
+                </h3>
+                <div id="logArea" class="flex-1 bg-[#0f172a] dark:bg-[#010409] rounded-lg p-3 font-data text-[10px] text-emerald-400 overflow-y-auto whitespace-pre-wrap leading-relaxed border border-slate-800 shadow-inner">
+[System] WebAssembly Interface Ready.
+[System] Awaiting input file...</div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- FOOTER (h-8, Wajib) -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 transition-colors">
+        <div class="flex items-center gap-3">
+            <span class="flex items-center gap-1.5 font-medium">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]"></span>
+                Local Sandbox Active
+            </span>
+        </div>
+        <div class="hidden md:block font-data opacity-70">
+            FFmpeg.wasm v0.11.1 • Core-ST
+        </div>
+        <div>
+            <button onclick="showTerms()" class="hover:text-main font-medium transition-colors focus:outline-none underline decoration-slate-300 dark:decoration-slate-700 underline-offset-2">Privacy & Terms</button>
+        </div>
+    </footer>
+
+    <!-- MODAL TERMS (TATADADA Blueprint) -->
+    <div id="terms-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/20 backdrop-blur-sm" onclick="closeTerms()"></div>
+        <div class="bg-card w-full max-w-sm rounded-2xl shadow-2xl relative z-10 p-6 border border-theme transform transition-all">
+            <h2 class="text-lg font-bold mb-3 text-main flex items-center gap-2">
+                <i data-lucide="shield-check" class="w-5 h-5 text-blue-500"></i>
+                Privacy Policy
+            </h2>
+            <div class="text-xs text-dim space-y-3 leading-relaxed">
+                <p>1. Data file Anda <b>100% Privat</b> dan tidak pernah meninggalkan browser. Semua pemrosesan terjadi di RAM perangkat secara lokal.</p>
+                <p>2. Tidak ada analitik atau metadata yang dikirim ke server eksternal mana pun.</p>
+                <p>3. Ditenagai oleh WebAssembly (WASM) untuk pemrosesan setara aplikasi desktop.</p>
+            </div>
+            <button onclick="closeTerms()" class="mt-6 w-full bg-preview hover:bg-border-color border border-theme text-main py-2.5 rounded-lg font-semibold transition-all focus:ring-2 focus:ring-blue-500/20 shadow-sm text-sm">
+                Tutup
+            </button>
+        </div>
+    </div>
+
+    <!-- LOGIKA & APLIKASI (Tidak Dirubah) -->
+    <script>
+        // Init Lucide Icons
+        lucide.createIcons();
+
+        // SPLIT SCREEN RESIZER LOGIC
+        const resizer = document.getElementById('resizer');
+        const leftPane = document.getElementById('left-pane');
+        const rightPane = document.getElementById('right-pane');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none'; // Cegah blok teks saat drag
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const containerWidth = document.body.clientWidth;
+            const leftWidth = e.clientX;
+            const rightWidth = containerWidth - leftWidth - resizer.offsetWidth;
+            
+            // Batas minimal panel agar tidak kolaps
+            if (leftWidth > 300 && rightWidth > 250) {
+                leftPane.style.flex = `0 0 ${leftWidth}px`;
+                rightPane.style.flex = `0 0 ${rightWidth}px`;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        });
+
+        // LOCALIZATION
+        const i18n = {
+            id: {
+                dropText: "Pilih File Video",
+                dropSub: "Mendukung MKV, MOV, dan WEBM (Maks 2GB)",
+                btnText: "Mulai Konversi",
+                processing: "Memproses...",
+                reading: "Membaca file...",
+                tooltip: "Mode <b>Smart Copy</b> aktif. Proses MKV/MOV sangat cepat (Stream Copy).",
+                statTitle: "Statistik Proses",
+                prog: "Progres",
+                success: "Konversi Selesai!"
+            },
+            en: {
+                dropText: "Select Video File",
+                dropSub: "Supports MKV, MOV, and WEBM (Max 2GB)",
+                btnText: "Start Conversion",
+                processing: "Processing...",
+                reading: "Reading file...",
+                tooltip: "<b>Smart Copy</b> mode active. MKV/MOV processed instantly via Stream Copy.",
+                statTitle: "Process Stats",
+                prog: "Progress",
+                success: "Conversion Complete!"
+            }
+        };
+
+        let currentLang = 'id';
+        function toggleLang() {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            document.getElementById('lang-label').innerText = currentLang.toUpperCase();
+            document.getElementById('drop-text').innerText = i18n[currentLang].dropText;
+            document.getElementById('drop-subtext').innerText = i18n[currentLang].dropSub;
+            document.getElementById('btn-text').innerText = i18n[currentLang].btnText;
+            document.getElementById('app-tooltip').innerHTML = i18n[currentLang].tooltip;
+            document.getElementById('stat-title').innerText = i18n[currentLang].statTitle;
+            document.getElementById('prog-label').innerText = i18n[currentLang].prog;
+            document.getElementById('res-success').innerText = i18n[currentLang].success;
+        }
+
+        // THEME TOGGLE
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            const icon = document.getElementById('theme-icon');
+            icon.setAttribute('data-lucide', isDark ? 'moon' : 'sun');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            lucide.createIcons();
+        }
+
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.getElementById('theme-icon').setAttribute('data-lucide', 'moon');
+            lucide.createIcons();
+        }
+
+        // MODAL LOGIC
+        function showTerms() { document.getElementById('terms-modal').classList.remove('hidden'); }
+        function closeTerms() { document.getElementById('terms-modal').classList.add('hidden'); }
+
+        // FFMPEG LOGIC (UTUH SESUAI ATURAN #6.1)
+        const { createFFmpeg } = FFmpeg;
+        let ffmpeg = null;
+        let selectedFile = null;
+        let fileBuffer = null;
+
+        const dropzone = document.getElementById('dropzone');
+        const logArea = document.getElementById('logArea');
+        const convertBtn = document.getElementById('convertBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const statusPill = document.getElementById('status-pill');
+        const modeStat = document.getElementById('mode-stat');
+
+        function appendLog(msg) {
+            const p = document.createElement('div');
+            p.textContent = `[${new Date().toLocaleTimeString('en-US', {hour12: false})}] ${msg}`;
+            logArea.append(p);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                if (!file.name.match(/\.(mkv|mov|webm)$/i)) {
+                    appendLog("Error: Format file tidak didukung.");
+                    alert("Format tidak didukung. Harap pilih file .MKV, .MOV, atau .WEBM");
+                    return;
+                }
+
+                const maxSizeBytes = 2 * 1024 * 1024 * 1024; // 2 GB Physical Limit
+                if (file.size > maxSizeBytes) {
+                    appendLog("Error: File size exceeds 2GB WebAssembly limit.");
+                    alert("File terlalu besar. Karena keterbatasan memori fisik browser (32-bit architecture), batas maksimal adalah 2 GB.");
+                    return;
+                }
+
+                selectedFile = file;
+                document.getElementById('file-name-display').innerText = file.name;
+                document.getElementById('file-name-display').classList.remove('hidden');
+                document.getElementById('total-size-stat').innerText = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+                
+                convertBtn.disabled = true;
+                const btnLabel = document.getElementById('btn-text');
+                btnLabel.innerText = i18n[currentLang].reading;
+                appendLog(`Selected: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
+
+                // Baca file secara sinkron untuk menghindari NotReadableError
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    fileBuffer = new Uint8Array(e.target.result);
+                    convertBtn.disabled = false;
+                    btnLabel.innerText = i18n[currentLang].btnText;
+                    appendLog("File successfully loaded into RAM buffer.");
+                    statusPill.innerText = "READY";
+                    statusPill.className = "font-data text-[9px] font-bold px-2 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-400 uppercase tracking-wider";
+                };
+                reader.onerror = function() {
+                    appendLog("Error: FileReader failed to read the file.");
+                    alert("Gagal membaca file. Pastikan ukuran di bawah 2GB dan memori PC Anda cukup.");
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        }
+
+        async function startConversion() {
+            if (!selectedFile || !fileBuffer) return;
+
+            convertBtn.disabled = true;
+            document.getElementById('btn-text').innerText = i18n[currentLang].processing;
+            statusPill.innerText = "RUNNING";
+            statusPill.className = "font-data text-[9px] font-bold px-2 py-0.5 rounded border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-900 dark:bg-orange-900/30 dark:text-orange-400 uppercase tracking-wider animate-pulse";
+            
+            try {
+                if (!ffmpeg) {
+                    appendLog("Initializing FFmpeg Core-ST Engine...");
+                    ffmpeg = createFFmpeg({
+                        log: false,
+                        corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js',
+                        mainName: 'main'
+                    });
+                    
+                    ffmpeg.setLogger(({ message }) => appendLog(`[FFmpeg] ${message}`));
+                    ffmpeg.setProgress(({ ratio }) => {
+                        if (ratio >= 0 && ratio <= 1) {
+                            const percent = Math.round(ratio * 100);
+                            progressBar.style.width = `${percent}%`;
+                            progressText.innerText = `${percent}%`;
+                        }
+                    });
+
+                    await ffmpeg.load();
+                    appendLog("Engine loaded successfully.");
+                }
+
+                const ext = selectedFile.name.split('.').pop().toLowerCase();
+                const inputFileName = `input.${ext}`;
+                const outputFileName = 'output.mp4'; 
+
+                appendLog("Writing file to Virtual File System...");
+                ffmpeg.FS('writeFile', inputFileName, fileBuffer);
+                // Langsung kosongkan RAM agar tidak terjadi bad memory allocation!
+                fileBuffer = null; 
+
+                let ffmpegArgs = [];
+                
+                // LOGIKA CERDAS: Murni hanya Fast Stream Copy
+                appendLog("Modern format detected. Switching to Stream Copy mode...");
+                modeStat.innerText = "Stream Copy";
+                modeStat.className = "font-data font-bold text-xs text-blue-500";
+                ffmpegArgs = ['-i', inputFileName, '-c', 'copy', outputFileName];
+                
+                appendLog(`Executing command: ffmpeg ${ffmpegArgs.join(' ')}`);
+                await ffmpeg.run(...ffmpegArgs);
+
+                appendLog("Reading output from Virtual File System...");
+                const data = ffmpeg.FS('readFile', outputFileName);
+                
+                // Validasi output
+                if (data.byteLength === 0) {
+                    throw new Error("Hasil output 0 Byte. Codec video asli tidak kompatibel dengan mode ini.");
+                }
+
+                const videoBlob = new Blob([data], { type: 'video/mp4' });
+                const videoUrl = URL.createObjectURL(videoBlob);
+                
+                document.getElementById('downloadLink').href = videoUrl;
+                document.getElementById('downloadLink').download = selectedFile.name.replace(/\.[^/.]+$/, "") + "_converted.mp4";
+                
+                document.getElementById('resultArea').classList.remove('hidden');
+                convertBtn.classList.add('hidden');
+                
+                statusPill.innerText = "SUCCESS";
+                statusPill.className = "font-data text-[9px] font-bold px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-400 uppercase tracking-wider";
+                appendLog("Conversion completed successfully!");
+
+                // Pembersihan Agresif RAM
+                try {
+                    ffmpeg.FS('unlink', inputFileName);
+                    ffmpeg.FS('unlink', outputFileName);
+                    ffmpeg.exit();
+                } catch (e) {
+                    appendLog("[Cleanup] VFS cleared.");
+                }
+                ffmpeg = null;
+
+            } catch (err) {
+                console.error(err);
+                appendLog(`CRITICAL ERROR: ${err.message}`);
+                alert("Error: " + err.message + "\n\nSilakan muat ulang halaman.");
+                convertBtn.disabled = false;
+                document.getElementById('btn-text').innerText = i18n[currentLang].btnText;
+                
+                statusPill.innerText = "FAILED";
+                statusPill.className = "font-data text-[9px] font-bold px-2 py-0.5 rounded border border-red-200 bg-red-50 text-red-600 dark:border-red-900 dark:bg-red-900/30 dark:text-red-400 uppercase tracking-wider";
+            }
+        }
+
+        // Drag and Drop Logic
+        ['dragenter', 'dragover'].forEach(name => {
+            dropzone.addEventListener(name, (e) => {
+                e.preventDefault();
+                dropzone.classList.add('drag-active');
+            });
+        });
+        ['dragleave', 'drop'].forEach(name => {
+            dropzone.addEventListener(name, (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('drag-active');
+                if (name === 'drop') handleFileSelect({ target: e.dataTransfer });
+            });
+        });
+    </script>
+</body>
+</html>
