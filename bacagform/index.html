@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BacaGForm - Executive Analyzer</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        theme: 'var(--border-color)',
+                        main: 'var(--text-main)',
+                        dim: 'var(--text-dim)',
+                        card: 'var(--card-bg)',
+                        preview: 'var(--preview-bg)',
+                        header: 'var(--header-bg)',
+                        footer: 'var(--footer-bg)',
+                        editor: 'var(--editor-bg)',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- HTML2PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        /* TATADADA Framework Tokens */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9; 
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #8b5cf6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --theme-accent: #a78bfa;
+        }
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            overflow: hidden; 
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+        
+        .animation-fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Print Specific CSS */
+        @media print {
+           body { overflow: visible !important; }
+           .no-print { display: none !important; }
+           #report-document { box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; }
+        }
+        
+        /* html2pdf Page Break Class */
+        .pdf-page-break { page-break-before: always; }
+    </style>
+</head>
+<body class="h-screen flex flex-col font-sans transition-colors duration-200">
+
+    <!-- HEADER -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm no-print">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-emerald-500 flex items-center justify-center shadow-inner">
+                <i data-lucide="file-text" class="w-4 h-4 text-white"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-emerald-500 tracking-tight leading-none">
+                    BacaGForm <span class="text-xs font-normal italic text-dim text-slate-400">Executive</span>
+                </h1>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <button class="text-dim hover:text-main flex items-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded-md hover:bg-preview transition-colors">
+                <i data-lucide="help-circle" class="w-4 h-4"></i> <span class="hidden sm:inline">Bantuan</span>
+            </button>
+            <div class="w-px h-4 bg-theme"></div>
+            <button class="text-dim hover:text-main flex items-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded-md hover:bg-preview transition-colors">
+                <i data-lucide="globe" class="w-4 h-4"></i> <span class="hidden sm:inline">ID</span>
+            </button>
+            <button id="themeToggle" class="w-8 h-8 flex items-center justify-center rounded-full bg-preview text-dim hover:text-main border border-theme transition-all focus:ring-2 focus:ring-purple-500/20">
+                <i data-lucide="moon" class="w-4 h-4" id="themeIcon"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 flex overflow-hidden">
+        
+        <!-- Kanvas Area (Full Width) -->
+        <div class="flex-1 bg-editor relative overflow-y-auto custom-scrollbar flex flex-col p-6 sm:p-10" id="mainCanvas">
+            <div class="max-w-6xl mx-auto w-full">
+                
+                <!-- TOP TABS (Segmented Control - Hanya Muncul Saat Data Aktif) -->
+                <div id="topTabs" class="hidden flex flex-col sm:flex-row justify-between items-center mb-8 no-print animation-fade-in gap-4">
+                    <div class="bg-preview p-1.5 rounded-xl border border-theme inline-flex gap-1 shadow-inner">
+                        <button id="nav-input" onclick="switchTab('input')" class="nav-btn px-5 py-2 rounded-lg text-sm font-bold transition-all text-purple-700 bg-card shadow-sm dark:text-purple-400 flex items-center gap-2">
+                            <i data-lucide="clipboard-paste" class="w-4 h-4"></i> Ganti Data
+                        </button>
+                        <button id="nav-preview" onclick="switchTab('preview')" class="nav-btn px-5 py-2 rounded-lg text-sm font-bold transition-all text-dim hover:text-main flex items-center gap-2">
+                            <i data-lucide="table" class="w-4 h-4"></i> Tabel Data
+                        </button>
+                        <button id="nav-analysis" onclick="switchTab('analysis')" class="nav-btn px-5 py-2 rounded-lg text-sm font-bold transition-all text-dim hover:text-main flex items-center gap-2">
+                            <i data-lucide="pie-chart" class="w-4 h-4"></i> Laporan
+                        </button>
+                    </div>
+                    <button onclick="resetData()" class="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors border border-red-200 dark:bg-red-900/20 dark:border-red-800/50">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> Bersihkan Area
+                    </button>
+                </div>
+
+                <!-- TAB INPUT -->
+                <div id="tab-input" class="bg-card rounded-2xl shadow-xl border border-theme p-8 animation-fade-in block">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-bold text-main flex items-center gap-2">
+                            <i data-lucide="zap" class="text-amber-500 w-6 h-6 fill-amber-500"></i> Smart Paste
+                        </h2>
+                        <p class="text-dim text-sm mt-1">Sistem akan otomatis memproses data begitu Anda melakukan paste (Ctrl+V / Cmd+V) di kotak bawah ini.</p>
+                    </div>
+
+                    <div id="errorBox" class="hidden bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-5 rounded-xl mb-6 flex items-start gap-4 border border-red-200 dark:border-red-800/50">
+                        <i data-lucide="alert-octagon" class="w-6 h-6 shrink-0 mt-0.5"></i>
+                        <div>
+                            <p id="errorMsg" class="text-base font-bold"></p>
+                            <p id="errorSubMsg" class="text-sm mt-1 font-medium opacity-80 leading-relaxed"></p>
+                        </div>
+                    </div>
+
+                    <textarea id="rawData" class="w-full h-80 p-6 rounded-xl border-2 border-dashed border-theme bg-preview text-main focus:border-purple-500 focus:ring-4 focus:ring-purple-500/20 transition-all outline-none resize-none font-mono text-[15px] whitespace-pre" placeholder="Silakan klik di area ini dan tekan Ctrl+V...&#10;&#10;Pastikan Anda meng-copy langsung dari tabel Responses (Google Sheets/Excel) beserta baris judul (Header)-nya." onpaste="handlePaste(event)"></textarea>
+                </div>
+
+                <!-- TAB PREVIEW -->
+                <div id="tab-preview" class="animation-fade-in hidden">
+                    <div class="flex justify-between items-end mb-6">
+                        <div>
+                            <h2 class="text-2xl font-bold text-main">Data Terstruktur</h2>
+                            <p class="text-dim text-sm mt-1" id="previewSubtitle"></p>
+                        </div>
+                    </div>
+                    <div class="bg-card rounded-2xl shadow-xl border border-theme overflow-hidden border-separate border-spacing-0">
+                        <div class="overflow-x-auto max-h-[600px] custom-scrollbar">
+                            <table class="w-full text-left text-sm whitespace-nowrap" id="dataTable">
+                                <thead class="bg-preview sticky top-0 z-10" id="dataHead"></thead>
+                                <tbody class="divide-y divide-theme" id="dataBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="previewNotice" class="hidden p-4 text-center text-xs font-medium text-dim bg-preview border-t border-theme">
+                            Menampilkan top 100 baris. Seluruh data tetap dikalkulasi.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB ANALYSIS -->
+                <div id="tab-analysis" class="animation-fade-in hidden relative">
+                    
+                    <!-- Toolbar -->
+                    <div class="flex justify-between items-center bg-card rounded-2xl p-4 border border-theme shadow-sm mb-6 no-print">
+                        <p class="text-sm font-medium text-dim flex items-center gap-2">
+                            <i data-lucide="bar-chart-3" class="w-4 h-4 text-purple-500"></i> Siap untuk presentasi.
+                        </p>
+                        <button onclick="downloadPDF()" id="pdfBtn" class="bg-preview border border-theme hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 text-main px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                            <i data-lucide="file-down" class="w-4 h-4" id="pdfIcon"></i> 
+                            <span id="pdfText">Unduh A4 PDF</span>
+                        </button>
+                    </div>
+
+                    <!-- AREA PDF (Di dalam container ini semuanya akan diprint menjadi A4) -->
+                    <div id="pdf-wrapper" class="mx-auto w-full bg-card rounded-2xl shadow-xl border border-theme overflow-hidden relative">
+                        <div id="report-document" class="p-8 sm:p-12 text-main bg-card">
+                            
+                            <!-- HEADER HALAMAN 1 -->
+                            <div class="border-b-2 border-theme pb-6 mb-8 flex justify-between items-end">
+                                <div>
+                                    <h1 class="text-3xl font-extrabold text-main mb-2 tracking-tight">Executive Report</h1>
+                                    <p class="text-dim text-sm font-medium" id="reportDate"></p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-3xl font-bold text-purple-600 font-mono leading-none" id="bigTotalRows">0</p>
+                                    <p class="text-[10px] text-dim uppercase tracking-widest font-bold mt-1">Total Responden</p>
+                                </div>
+                            </div>
+
+                            <!-- Narasi Eksekutif -->
+                            <div class="mb-10 bg-purple-50/50 dark:bg-purple-900/10 rounded-2xl p-6 sm:p-8 border border-purple-100 dark:border-purple-800/30">
+                                <h2 class="text-lg font-bold text-purple-800 dark:text-purple-300 mb-4 flex items-center gap-2">
+                                    <i data-lucide="file-text" class="w-5 h-5"></i> Gambaran Besar & Temuan Utama
+                                </h2>
+                                <div id="narrativeContainer" class="space-y-3 text-[14px] leading-relaxed text-main font-medium">
+                                    <!-- Narasi diinjeksi via JS -->
+                                </div>
+                            </div>
+
+                            <!-- VISUALISASI UTAMA -->
+                            <h3 class="text-lg font-bold text-main mb-6 border-l-4 border-emerald-500 pl-3">Visualisasi Profil & Persepsi</h3>
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-6">
+                                
+                                <!-- Chart 1: Pie/Doughnut -->
+                                <div class="border border-theme rounded-2xl p-6 bg-[var(--preview-bg)] flex flex-col items-center">
+                                    <h4 id="chart1Title" class="font-bold text-main mb-1 text-center w-full">Profil Responden</h4>
+                                    <p id="chart1Sub" class="text-xs text-dim mb-4 text-center w-full">Proporsi Kategori</p>
+                                    <div class="relative w-full max-w-[280px] aspect-square flex-1 flex items-center justify-center">
+                                        <canvas id="pieChart"></canvas>
+                                    </div>
+                                </div>
+
+                                <!-- Chart 2: Bar/Histogram -->
+                                <div class="border border-theme rounded-2xl p-6 bg-[var(--preview-bg)] flex flex-col">
+                                    <h4 id="chart2Title" class="font-bold text-main mb-1 text-center w-full">Skala Penilaian Utama</h4>
+                                    <p id="chart2Sub" class="text-xs text-dim mb-4 text-center w-full">Sebaran Skor Nilai</p>
+                                    <div class="relative w-full flex-1 min-h-[250px]">
+                                        <canvas id="barChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ================= PAGE BREAK UNTUK PDF ================= -->
+                            <div class="html2pdf__page-break"></div>
+                            <div class="pdf-page-break pt-8"></div>
+                            
+                            <!-- Lanjutan Visualisasi -->
+                            <div id="scatterContainer" class="border border-theme rounded-2xl p-6 bg-[var(--preview-bg)] w-full hidden flex-col mb-10 mt-4">
+                                <h4 id="chart3Title" class="font-bold text-main mb-1 text-center w-full">Korelasi Indikator Skala</h4>
+                                <p id="chart3Sub" class="text-xs text-dim mb-4 text-center w-full">Pola Hubungan Antar Parameter Penilaian</p>
+                                <div class="relative w-full flex-1 min-h-[280px]">
+                                    <canvas id="scatterChart"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Tabel Ringkasan Parameter -->
+                            <h3 class="text-lg font-bold text-main mb-6 border-l-4 border-purple-500 pl-3">Direktori Keseluruhan Metrik</h3>
+                            <div class="border border-theme rounded-xl bg-[var(--preview-bg)] p-1">
+                                <table class="w-full text-[13px] text-left">
+                                    <thead>
+                                        <tr>
+                                            <th class="py-2 px-3 font-bold text-dim border-b border-theme">Parameter Evaluasi</th>
+                                            <th class="py-2 px-3 font-bold text-dim border-b border-theme text-center w-24">Sifat Data</th>
+                                            <th class="py-2 px-3 font-bold text-dim border-b border-theme">Intisari Temuan</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="summaryTableBody" class="divide-y divide-theme">
+                                        <!-- Diisi oleh JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="mt-10 pt-4 border-t border-theme text-center text-dim text-[10px] uppercase tracking-widest font-bold">
+                                — Digenerasi oleh Smart Analyzer —
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] font-medium text-dim shrink-0 no-print z-50">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            Data Engine Active
+        </div>
+        <div>TATADADA Executive Build</div>
+        <div class="cursor-pointer hover:text-main transition-colors">Privacy Policy</div>
+    </footer>
+
+    <script>
+        // --- GLOBAL STATE ---
+        let rawData = '';
+        let parsedData = [];
+        let columns = [];
+        let analysisStats = {};
+        let chartInstances = {};
+
+        // Inisialisasi Icon & Tanggal
+        document.getElementById('reportDate').innerText = `Diperbarui: ${new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}`;
+        lucide.createIcons();
+
+        // --- THEME LOGIC ---
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        
+        let isDark = localStorage.getItem('tatadada-theme') === 'dark';
+        if(isDark) document.documentElement.classList.add('dark');
+        updateThemeIcon();
+
+        themeToggle.addEventListener('click', () => {
+            isDark = !isDark;
+            if(isDark) {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('tatadada-theme', 'dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('tatadada-theme', 'light');
+            }
+            updateThemeIcon();
+            
+            if(parsedData.length > 0 && document.getElementById('tab-analysis').classList.contains('block')){
+                renderAnalysis(); 
+            }
+        });
+
+        function updateThemeIcon() {
+            themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+            lucide.createIcons();
+        }
+
+        // --- NAVIGATION LOGIC ---
+        function switchTab(tabId) {
+            ['input', 'preview', 'analysis'].forEach(id => {
+                document.getElementById(`tab-${id}`).classList.remove('block');
+                document.getElementById(`tab-${id}`).classList.add('hidden');
+                
+                let btn = document.getElementById(`nav-${id}`);
+                if(btn) {
+                    btn.classList.remove('bg-card', 'shadow-sm', 'text-purple-700', 'dark:text-purple-400');
+                    btn.classList.add('text-dim', 'hover:text-main');
+                }
+            });
+
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabId}`).classList.add('block');
+            
+            let activeBtn = document.getElementById(`nav-${tabId}`);
+            if(activeBtn) {
+                activeBtn.classList.remove('text-dim', 'hover:text-main');
+                activeBtn.classList.add('bg-card', 'shadow-sm', 'text-purple-700', 'dark:text-purple-400');
+            }
+
+            if(tabId === 'analysis') {
+                renderAnalysis();
+            }
+        }
+
+        // --- DATA PROCESSING LOGIC ---
+        function handlePaste(e) {
+            // Beri waktu 100ms agar OS selesai menempelkan teks ke dalam textarea
+            setTimeout(() => {
+                processData();
+            }, 100);
+        }
+
+        function processData() {
+            const raw = document.getElementById('rawData').value.trim();
+            const errBox = document.getElementById('errorBox');
+            const errMsg = document.getElementById('errorMsg');
+            const errSubMsg = document.getElementById('errorSubMsg');
+
+            if (!raw) return;
+
+            errBox.classList.add('hidden');
+
+            try {
+                const rows = raw.split('\n');
+                if (rows.length < 2) {
+                    throw new Error("Data Terlalu Sedikit");
+                }
+
+                // VALIDASI KETAT: Memastikan ada karakter Tab (\t) ala spreadsheet
+                const firstRowCols = rows[0].split('\t');
+                if (firstRowCols.length < 2 && !raw.includes('\t')) {
+                    throw new Error("Format Tabel Tidak Valid");
+                }
+
+                columns = firstRowCols.map(h => h.trim() || 'Kolom Tanpa Nama');
+                parsedData = [];
+
+                for (let i = 1; i < rows.length; i++) {
+                    const cells = rows[i].split('\t');
+                    if (cells.length === 1 && cells[0].trim() === '') continue;
+
+                    let rowObj = {};
+                    columns.forEach((header, idx) => {
+                        rowObj[header] = cells[idx] ? cells[idx].trim() : '';
+                    });
+                    parsedData.push(rowObj);
+                }
+
+                // Tampilkan Menu Tab & Total Rows
+                document.getElementById('topTabs').classList.remove('hidden');
+                document.getElementById('bigTotalRows').innerText = parsedData.length.toLocaleString('id-ID');
+
+                renderTable();
+                calculateStats();
+                switchTab('analysis'); 
+
+            } catch (error) {
+                if(error.message === "Format Tabel Tidak Valid") {
+                    errMsg.innerText = "Data tidak dikenali sebagai format Tabel Spreadsheet.";
+                    errSubMsg.innerText = "Sistem gagal menemukan pemisah antar-kolom (Tab). Pastikan Anda benar-benar memblok area sel (termasuk judul) di Google Sheets atau Excel, lalu Paste kemari. Dilarang meng-copy dari Notepad/teks biasa.";
+                } else if(error.message === "Data Terlalu Sedikit") {
+                    errMsg.innerText = "Data Kurang Lengkap.";
+                    errSubMsg.innerText = "Sistem mendeteksi kurang dari 2 baris. Syarat analisis adalah minimal ada 1 baris Judul Kolom (Header) dan 1 baris Isi Data.";
+                } else {
+                    errMsg.innerText = "Gagal memproses data.";
+                    errSubMsg.innerText = "Terjadi kesalahan internal saat membaca format mentah.";
+                }
+                
+                errBox.classList.remove('hidden');
+                document.getElementById('topTabs').classList.add('hidden');
+                
+                // Refresh icon untuk muncul
+                lucide.createIcons();
+            }
+        }
+
+        function resetData() {
+            document.getElementById('rawData').value = '';
+            parsedData = [];
+            columns = [];
+            
+            document.getElementById('topTabs').classList.add('hidden');
+            
+            Object.values(chartInstances).forEach(c => c.destroy());
+            chartInstances = {};
+
+            switchTab('input');
+        }
+
+        function renderTable() {
+            document.getElementById('previewSubtitle').innerText = `Memproses ${parsedData.length} baris data dan ${columns.length} variabel.`;
+            
+            let thead = '<tr><th class="p-3 border-b border-r border-theme text-dim font-bold text-center w-12">#</th>';
+            columns.forEach(col => {
+                thead += `<th class="p-3 border-b border-theme font-bold text-main max-w-xs truncate" title="${col}">${col}</th>`;
+            });
+            thead += '</tr>';
+            document.getElementById('dataHead').innerHTML = thead;
+
+            let tbody = '';
+            const limit = Math.min(parsedData.length, 100);
+            for(let i=0; i<limit; i++) {
+                let row = parsedData[i];
+                tbody += `<tr class="hover:bg-[var(--preview-bg)] transition-colors font-mono text-[12px]">
+                    <td class="p-3 border-r border-theme text-dim text-center">${i+1}</td>`;
+                columns.forEach(col => {
+                    let cellVal = row[col] || '-';
+                    tbody += `<td class="p-3 text-main max-w-xs truncate" title="${cellVal}">${cellVal}</td>`;
+                });
+                tbody += `</tr>`;
+            }
+            document.getElementById('dataBody').innerHTML = tbody;
+
+            const notice = document.getElementById('previewNotice');
+            if(parsedData.length > 100) notice.classList.remove('hidden');
+            else notice.classList.add('hidden');
+        }
+
+        // --- STATS & SMART ANALYSIS (HEURISTIC) ---
+        function calculateStats() {
+            analysisStats = {};
+            const totalRows = parsedData.length;
+
+            columns.forEach(col => {
+                let colLower = col.toLowerCase();
+                
+                // Heuristik mendeteksi Metadata (No HP, NIP, Email, Nama, Timestamp)
+                let isMetadata = colLower.includes('wa') || colLower.includes('nomor') || colLower.includes('nip') || 
+                                 colLower.includes('telp') || colLower.includes('hp') || colLower.includes('email') || 
+                                 colLower.includes('nama') || colLower.includes('timestamp') || colLower.includes('waktu');
+
+                let isNumeric = !isMetadata; // Jika metadata, paksa jangan jadi numerik (seperti no hp)
+                let sum = 0, validNumCount = 0;
+                let min = Infinity, max = -Infinity;
+                let valueCounts = {};
+                let numericVals = [];
+
+                parsedData.forEach(row => {
+                    let val = row[col];
+                    if (val !== undefined && val !== null && val !== '') {
+                        valueCounts[val] = (valueCounts[val] || 0) + 1;
+                        
+                        if(isNumeric) {
+                            let numStr = String(val).replace(/,/g, '').replace(/\./g, '').trim();
+                            let num = Number(numStr);
+                            if (!isNaN(num) && numStr !== '') {
+                                sum += num;
+                                if (num < min) min = num;
+                                if (num > max) max = num;
+                                validNumCount++;
+                                numericVals.push(num);
+                            } else {
+                                isNumeric = false;
+                            }
+                        }
+                    }
+                });
+
+                let uniqueValues = Object.keys(valueCounts).length;
+                let type = 'text';
+                let isLikert = false;
+
+                // Tentukan tipe data
+                if (isMetadata) {
+                    type = 'metadata';
+                } else if (isNumeric && validNumCount > 0 && uniqueValues > 1) {
+                    type = 'numeric';
+                    // Deteksi skala Likert (biasanya max 10 atau 100)
+                    if (max <= 100 && min >= 0) isLikert = true; 
+                } else if (uniqueValues > 0 && uniqueValues <= Math.max(15, totalRows * 0.4)) {
+                    type = 'categorical';
+                } else if (uniqueValues > 1) {
+                    // Cek apakah ini multi-value text (dipisahkan koma), spt daftar aplikasi
+                    let sampleVal = Object.keys(valueCounts)[0] || '';
+                    if (sampleVal.includes(',')) type = 'multi-categorical';
+                }
+
+                let sortedCats = Object.entries(valueCounts).sort((a,b) => b[1] - a[1]);
+                let avg = 0;
+
+                let temuan = '';
+                if(type === 'numeric') {
+                    avg = sum / validNumCount;
+                    temuan = `Rata-rata: ${avg.toLocaleString('id-ID', {maximumFractionDigits:1})} (Rentang: ${min}-${max})`;
+                } else if(type === 'categorical') {
+                    let porsi = ((sortedCats[0][1] / totalRows) * 100).toFixed(1);
+                    temuan = `Didominasi oleh "${sortedCats[0][0]}" (${porsi}%)`;
+                } else if(type === 'metadata') {
+                    temuan = `Data unik administratif (${uniqueValues} entri)`;
+                } else {
+                    // Text atau Multi-categorical
+                    temuan = `Ragam teks bebas (${uniqueValues} variasi jawaban)`;
+                }
+
+                analysisStats[col] = {
+                    type,
+                    isLikert,
+                    isMetadata,
+                    uniqueValues,
+                    totalValid: validNumCount || Object.values(valueCounts).reduce((a,b)=>a+b,0),
+                    counts: sortedCats,
+                    numericVals,
+                    min: min !== Infinity ? min : 0,
+                    max: max !== -Infinity ? max : 0,
+                    avg,
+                    temuan
+                };
+            });
+        }
+
+        // --- RENDER VISUALISASI EXECUTIVE ---
+        function renderAnalysis() {
+            Object.values(chartInstances).forEach(c => c.destroy());
+            chartInstances = {};
+
+            const textColor = isDark ? '#e6edf3' : '#0f172a';
+            const gridColor = isDark ? '#30363d' : '#e2e8f0';
+            Chart.defaults.color = textColor;
+            Chart.defaults.font.family = "'Inter', sans-serif";
+
+            // Pisahkan kolom cerdas (Abaikan metadata 100% unik)
+            let smartCols = columns.filter(c => analysisStats[c].type !== 'metadata' && analysisStats[c].uniqueValues > 1);
+            
+            let numCols = smartCols.filter(c => analysisStats[c].type === 'numeric');
+            let likertCols = numCols.filter(c => analysisStats[c].isLikert);
+            let catCols = smartCols.filter(c => analysisStats[c].type === 'categorical');
+            let textCols = columns.filter(c => analysisStats[c].type === 'text' || analysisStats[c].type === 'multi-categorical');
+
+            // 1. SMART NARRATIVE GENERATOR
+            let narasiHtml = `<p>Sistem telah memindai <strong>${parsedData.length} respon</strong> yang dihimpun. Melalui penyaringan metrik non-administratif, kami mengekstraksi wawasan substantif berikut:</p>`;
+            
+            // Temukan demografi
+            if(catCols.length > 0) {
+                // Pilih categorical yg distribusinya menarik (bukan 100% sama jika memungkinkan)
+                let bestCat = catCols.find(c => (analysisStats[c].counts[0][1] / parsedData.length) < 0.95) || catCols[0];
+                let topCatVal = analysisStats[bestCat].counts[0][0];
+                let topCatPorsi = ((analysisStats[bestCat].counts[0][1] / parsedData.length) * 100).toFixed(0);
+                narasiHtml += `<p>• <strong>Profil Kelompok:</strong> Dari sisi latar belakang (${bestCat}), sebagian besar responden terkonsentrasi pada segmen <strong>"${topCatVal}"</strong> sebanyak ${topCatPorsi}% dari total sampel.</p>`;
+            }
+
+            // Temukan skor / likert (Persepsi/Sikap)
+            if(likertCols.length > 0) {
+                let bestLikert = likertCols[0];
+                let score = analysisStats[bestLikert].avg.toFixed(1);
+                narasiHtml += `<p>• <strong>Indikator Kuantitatif Utama:</strong> Pada parameter penilaian "<em>${bestLikert}</em>", skor sentralitas data berada pada angka <strong>${score}</strong> (dari skala maksimal ${analysisStats[bestLikert].max}). Hal ini mengindikasikan tendensi penilaian yang spesifik pada aspek ini.</p>`;
+            }
+
+            // Temukan kolom tools/aplikasi (heuristic: contains 'aplikasi', 'tools')
+            let appCol = textCols.find(c => c.toLowerCase().includes('aplikasi') || c.toLowerCase().includes('software'));
+            if(appCol) {
+                // Parse kata terbanyak
+                let allText = parsedData.map(r => String(r[appCol])).join(', ');
+                let words = allText.split(/[,;\n]+/).map(w => w.trim()).filter(w => w.length > 2);
+                let wCount = {};
+                words.forEach(w => wCount[w] = (wCount[w] || 0) + 1);
+                let topWord = Object.entries(wCount).sort((a,b)=>b[1]-a[1])[0];
+                if(topWord && topWord[1] > 1) {
+                     narasiHtml += `<p>• <strong>Preferensi Penggunaan:</strong> Analisis teks bebas mengenai penggunaan instrumen/aplikasi menggarisbawahi <strong>"${topWord[0]}"</strong> sebagai kata kunci atau platform yang paling dominan muncul.</p>`;
+                }
+            }
+            document.getElementById('narrativeContainer').innerHTML = narasiHtml;
+
+            // Generate Summary Table (ALL Columns)
+            let tbody = '';
+            columns.forEach(col => {
+                let stat = analysisStats[col];
+                let typeColor = stat.type === 'numeric' ? 'text-blue-600 dark:text-blue-400' : 
+                               (stat.type === 'categorical' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400');
+                let displayType = stat.isLikert ? 'SKALA/SKOR' : stat.type.toUpperCase();
+                
+                tbody += `
+                    <tr class="hover:bg-card transition-colors">
+                        <td class="py-2.5 px-3 font-semibold text-main truncate max-w-[200px]" title="${col}">${col}</td>
+                        <td class="py-2.5 px-3 font-bold ${typeColor} text-center text-[10px] tracking-wider">${displayType}</td>
+                        <td class="py-2.5 px-3 text-[12px] text-dim">${stat.temuan}</td>
+                    </tr>
+                `;
+            });
+            document.getElementById('summaryTableBody').innerHTML = tbody;
+
+            // CHART COLOR PALETTE
+            const chartColors = ['#8b5cf6', '#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#14b8a6'];
+
+            // 2. CHART 1: PIE CHART (Cari Categorical Terbaik)
+            const ctxPie = document.getElementById('pieChart').getContext('2d');
+            let targetPieCol = catCols.find(c => (analysisStats[c].counts[0][1] / parsedData.length) < 0.90) || catCols[0] || columns[0];
+            
+            document.getElementById('chart1Title').innerText = targetPieCol;
+            
+            let pieLabels = [];
+            let pieData = [];
+            if(analysisStats[targetPieCol]) {
+                let counts = analysisStats[targetPieCol].counts;
+                let totalLainnya = 0;
+                counts.forEach((item, index) => {
+                    if(index < 4) {
+                        pieLabels.push(item[0] || 'N/A');
+                        pieData.push(item[1]);
+                    } else {
+                        totalLainnya += item[1];
+                    }
+                });
+                if(totalLainnya > 0) { pieLabels.push('Lainnya'); pieData.push(totalLainnya); }
+            }
+
+            chartInstances.pie = new Chart(ctxPie, {
+                type: 'doughnut',
+                data: {
+                    labels: pieLabels,
+                    datasets: [{
+                        data: pieData,
+                        backgroundColor: chartColors,
+                        borderWidth: isDark ? 2 : 1,
+                        borderColor: isDark ? '#0d1117' : '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, font: {size: 11} } }
+                    },
+                    cutout: '55%'
+                }
+            });
+
+            // 3. CHART 2: BAR CHART (Cari Likert/Skor Terbaik)
+            const ctxBar = document.getElementById('barChart').getContext('2d');
+            let targetBarCol = likertCols.length > 0 ? likertCols[0] : (numCols.length > 0 ? numCols[0] : targetPieCol);
+            document.getElementById('chart2Title').innerText = targetBarCol;
+            
+            let barLabels = [];
+            let barData = [];
+
+            if(analysisStats[targetBarCol].type === 'numeric') {
+                let s = analysisStats[targetBarCol];
+                // Buat Bins
+                if(s.min === s.max) {
+                    barLabels.push(`Skor ${s.min}`); barData.push(s.numericVals.length);
+                } else if (s.isLikert && s.max <= 10) {
+                    // Jika skala kecil (1-5), grouping exact value
+                    let valMap = {};
+                    s.numericVals.forEach(v => valMap[v] = (valMap[v]||0)+1);
+                    Object.keys(valMap).sort((a,b)=>a-b).forEach(k => {
+                        barLabels.push(`Nilai ${k}`);
+                        barData.push(valMap[k]);
+                    });
+                } else {
+                    // Bin biasa
+                    let binSize = (s.max - s.min) / 5;
+                    let bins = [0,0,0,0,0];
+                    s.numericVals.forEach(v => {
+                        let b = Math.floor((v - s.min) / binSize);
+                        if(b >= 5) b = 4;
+                        bins[b]++;
+                    });
+                    bins.forEach((count, i) => {
+                        barLabels.push(`${(s.min + i*binSize).toFixed(0)}-${(s.min + (i+1)*binSize).toFixed(0)}`);
+                        barData.push(count);
+                    });
+                }
+            } else {
+                let countsBar = analysisStats[targetBarCol].counts.slice(0, 5);
+                countsBar.forEach(item => { barLabels.push(item[0]); barData.push(item[1]); });
+            }
+
+            chartInstances.bar = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: barLabels,
+                    datasets: [{
+                        label: 'Frekuensi Responden',
+                        data: barData,
+                        backgroundColor: 'rgba(139, 92, 246, 0.85)',
+                        borderColor: '#8b5cf6',
+                        borderWidth: 0,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: gridColor }, ticks: { stepSize: 1 } },
+                        x: { grid: { display: false } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            // 4. CHART 3: SCATTER PLOT (Korelasi antar Skor)
+            const scatterCont = document.getElementById('scatterContainer');
+            if (likertCols.length >= 2 || numCols.length >= 2) {
+                scatterCont.classList.remove('hidden');
+                scatterCont.classList.add('flex');
+                
+                let sourceArray = likertCols.length >= 2 ? likertCols : numCols;
+                let colX = sourceArray[0];
+                let colY = sourceArray[1];
+                document.getElementById('chart3Title').innerText = `${colX} vs ${colY}`;
+
+                let scatterPoints = [];
+                // Untuk mencegah titik menumpuk (overlapping) di skala likert 1-5, kita tambahkan sedikit jitter
+                parsedData.forEach(row => {
+                    let xVal = parseFloat(String(row[colX]).replace(/,/g, '').replace(/\./g, ''));
+                    let yVal = parseFloat(String(row[colY]).replace(/,/g, '').replace(/\./g, ''));
+                    if(!isNaN(xVal) && !isNaN(yVal)) {
+                        // Add jitter [-0.1 to 0.1] so dots on same integer dont overlap perfectly
+                        let jitterX = (Math.random() - 0.5) * 0.2;
+                        let jitterY = (Math.random() - 0.5) * 0.2;
+                        scatterPoints.push({x: xVal + jitterX, y: yVal + jitterY});
+                    }
+                });
+
+                const ctxScatter = document.getElementById('scatterChart').getContext('2d');
+                chartInstances.scatter = new Chart(ctxScatter, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [{
+                            label: 'Distribusi Responden',
+                            data: scatterPoints,
+                            backgroundColor: 'rgba(16, 185, 129, 0.6)', 
+                            borderColor: '#10b981',
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: { 
+                                title: { display: true, text: 'Sumbu X: ' + colX, font: {size: 10} }, 
+                                grid: { color: gridColor } 
+                            },
+                            y: { 
+                                title: { display: true, text: 'Sumbu Y: ' + colY, font: {size: 10} }, 
+                                grid: { color: gridColor } 
+                            }
+                        },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            } else {
+                scatterCont.classList.add('hidden');
+                scatterCont.classList.remove('flex');
+            }
+        }
+
+        // --- EXPORT PDF LOGIC (A4 FIX) ---
+        function downloadPDF() {
+            const btn = document.getElementById('pdfBtn');
+            const icon = document.getElementById('pdfIcon');
+            const text = document.getElementById('pdfText');
+            
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+            icon.setAttribute('data-lucide', 'refresh-cw');
+            icon.classList.add('animate-spin');
+            text.innerText = 'Merender A4...';
+            lucide.createIcons();
+
+            const element = document.getElementById('report-document');
+            // Fix width for perfect A4 scaling regardless of window size
+            element.style.width = '800px'; 
+            
+            const opt = {
+                margin:       [0.4, 0.4, 0.4, 0.4], // inches (Top, Left, Bottom, Right)
+                filename:     'Laporan_Eksekutif_A4.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
+                // Enable CSS pagebreaks for clean multipage PDFs
+                pagebreak:    { mode: ['css', 'legacy'] }
+            };
+            
+            // Switch ke Light Mode agar Background PDF Putih Bersih
+            const wasDark = isDark;
+            if(wasDark) {
+                document.documentElement.classList.remove('dark');
+                renderAnalysis();
+            }
+
+            setTimeout(() => {
+                html2pdf().set(opt).from(element).save().then(() => {
+                    // Reset UI
+                    element.style.width = 'auto'; // kembalikan ke full width
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50');
+                    icon.setAttribute('data-lucide', 'file-down');
+                    icon.classList.remove('animate-spin');
+                    text.innerText = 'Unduh A4 PDF';
+                    lucide.createIcons();
+
+                    if(wasDark) {
+                        document.documentElement.classList.add('dark');
+                        renderAnalysis();
+                    }
+                });
+            }, 800); // Beri waktu Chart JS menyesuaikan dimensi
+        }
+    </script>
+</body>
+</html>
