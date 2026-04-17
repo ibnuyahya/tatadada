@@ -13,8 +13,13 @@ async function loadAIModel() {
     try {
         console.log("Memulai inisialisasi ONNX Runtime Web...");
         const options = { executionProviders: ['webgpu', 'wasm'], graphOptimizationLevel: 'all' };
-        // Path ke model INT8 Anda
-        const modelPath = './models/real-esrgan-x4-int8.onnx'; 
+        
+        // HAPUS BARIS LAMA:
+        // const modelPath = './models/real-esrgan-x4-int8.onnx'; 
+        
+        // GANTI DENGAN LINK RESOLVE HUGGINGFACE INI (Perhatikan kata /resolve/ di tengah URL):
+        const modelPath = 'https://huggingface.co/AXERA-TECH/Real-ESRGAN/resolve/main/onnx/realesrgan-x4.onnx'; 
+        
         aiSession = await ort.InferenceSession.create(modelPath, options);
         isModelLoaded = true;
         console.log("Model AI berhasil dimuat!");
