@@ -1,0 +1,971 @@
+<!-- Visual Tafsir: Ikon pintu portal 3D bercahaya oranye neon di ujung lorong labirin yang gelap, melambangkan tujuan untuk 'pulang' menuju rumah. -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MauPulang 3D</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    /* TATADADA Framework CSS Variables */
+    :root {
+      --header-bg: #ffffff;
+      --editor-bg: #ffffff;
+      --preview-bg: #f1f5f9;
+      --card-bg: #ffffff;
+      --footer-bg: #ffffff;
+      --border-color: #e2e8f0;
+      --text-main: #0f172a;
+      --text-dim: #64748b;
+      --theme-accent: #3b82f6;
+    }
+    html.dark {
+      --header-bg: #161b22;
+      --editor-bg: #0d1117;
+      --preview-bg: #010409;
+      --card-bg: #0d1117;
+      --footer-bg: #161b22;
+      --border-color: #30363d;
+      --text-main: #e6edf3;
+      --text-dim: #8b949e;
+    }
+    body { 
+      background-color: var(--preview-bg); 
+      color: var(--text-main); 
+      font-family: 'Inter', sans-serif; 
+      overflow: hidden; 
+      margin: 0;
+    }
+    
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+    /* Custom classes */
+    .bg-header { background-color: var(--header-bg); }
+    .bg-editor { background-color: var(--editor-bg); }
+    .bg-preview { background-color: var(--preview-bg); }
+    .bg-card { background-color: var(--card-bg); }
+    .bg-footer { background-color: var(--footer-bg); }
+    .border-theme { border-color: var(--border-color); }
+    .text-main { color: var(--text-main); }
+    .text-dim { color: var(--text-dim); }
+  </style>
+</head>
+<body class="h-screen flex flex-col relative">
+
+  <!-- HEADER -->
+  <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm">
+    <div class="flex items-center gap-3">
+      <h1 class="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-purple-600 tracking-tight">
+        MauPulang 3D
+      </h1>
+      <span class="text-xs italic text-dim border-l border-theme pl-3">v4.5 (Cinematic Start & Fireworks)</span>
+    </div>
+    
+    <div class="flex items-center gap-4 text-sm font-medium">
+      <span class="text-xs text-dim hidden sm:block">by AhmadDanial</span>
+      
+      <!-- Tooltip -->
+      <div class="group relative cursor-help">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-dim hover:text-[var(--theme-accent)] transition-colors"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="absolute right-0 mt-2 w-64 bg-card border border-theme text-main text-xs p-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50" id="help-tooltip">
+          Atur tingkat kesulitan dan klik EXPLORE 3D untuk bermain layar penuh. Gunakan Spasi untuk Melompat.
+        </div>
+      </div>
+
+      <!-- Lang Toggle -->
+      <button id="btn-lang" class="px-2 py-1 rounded bg-preview border border-theme text-xs hover:bg-[var(--border-color)] transition-colors text-main">ID</button>
+
+      <!-- Theme Toggle -->
+      <button id="btn-theme" class="text-dim hover:text-main transition-colors">
+        <svg id="icon-moon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg id="icon-sun" class="hidden" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE (2D) -->
+  <main class="flex-1 flex overflow-hidden w-full relative z-10">
+    
+    <!-- Panel Utama (Kiri) -->
+    <div id="left-pane" class="flex-[7] bg-editor relative overflow-hidden flex flex-col items-center justify-center min-w-[300px]">
+      <div id="view-2d" class="w-full h-full flex items-center justify-center p-8 transition-opacity duration-500 opacity-100">
+        <canvas id="canvas-2d" width="1024" height="1024" class="max-w-full max-h-full rounded-lg shadow-sm border border-theme object-contain bg-card"></canvas>
+      </div>
+    </div>
+
+    <!-- Resizer -->
+    <div id="resizer" class="w-3 bg-preview cursor-col-resize flex items-center justify-center border-x border-theme group shrink-0 z-30">
+      <div class="h-8 w-1 bg-[var(--border-color)] group-hover:bg-blue-500 transition-colors rounded-full"></div>
+    </div>
+
+    <!-- Panel Sidebar (Kanan) -->
+    <div id="right-pane" class="flex-[3] bg-preview p-6 flex flex-col gap-5 overflow-y-auto min-w-[300px]">
+      
+      <!-- Card 1: Pengaturan -->
+      <div class="bg-card rounded-xl shadow-sm border border-theme p-5">
+        <h3 class="font-semibold text-sm mb-4 text-main flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-dim"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span id="label-config">Konfigurasi Labirin</span>
+        </h3>
+        
+        <div class="flex flex-col gap-3">
+          <label class="text-xs font-medium text-dim" id="label-level">Tingkat Kesulitan</label>
+          <select id="select-level" class="w-full bg-editor border border-theme text-main text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm">
+            <option value="4" selected>Level 1: Sangat Mudah (4x4)</option>
+            <option value="10">Level 2: Mudah (10x10)</option>
+            <option value="15">Level 3: Sedang (15x15)</option>
+            <option value="25">Level 4: Sulit (25x25)</option>
+            <option value="35">Level 5: Sangat Sulit (35x35)</option>
+          </select>
+          
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            <button id="btn-random" class="bg-editor hover:bg-[var(--preview-bg)] border border-theme text-main text-xs font-semibold py-2.5 rounded-lg shadow-sm transition-all disabled:opacity-50">
+              Acak Pola
+            </button>
+            <button id="btn-download" class="bg-editor hover:bg-[var(--preview-bg)] border border-theme text-main text-xs font-semibold py-2.5 rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              PNG
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: Mode Permainan -->
+      <div class="bg-card rounded-xl shadow-sm border border-[var(--theme-accent)] p-5 relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-16 h-16 bg-[var(--theme-accent)] opacity-10 rounded-bl-full -mr-4 -mt-4"></div>
+        <h3 class="font-semibold text-sm mb-4 text-main flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--theme-accent)]"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span id="label-action">Mode Aksi Realistik</span>
+        </h3>
+        
+        <p class="text-xs text-dim mb-4 leading-relaxed" id="label-desc">
+          Terjun ke dalam simulasi labirin 3D. Hati-hati dengan gerbang yang akan tertutup di belakang Anda! Temukan jalan keluar.
+        </p>
+
+        <button id="btn-explore" class="w-full bg-[var(--text-main)] hover:bg-[var(--text-dim)] text-[var(--editor-bg)] font-bold text-sm py-3.5 rounded-lg shadow-md transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+          EXPLORE 3D
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 relative z-10">
+    <div id="status-text">Status: Idle (2D Preview)</div>
+    <div class="font-mono" id="stats-text">Grid: 4x4</div>
+    <div class="cursor-pointer hover:text-[var(--theme-accent)] transition-colors" id="label-terms">
+      Syarat & Ketentuan
+    </div>
+  </footer>
+
+  <!-- TAMPILAN 3D FULLSCREEN LAYER (Di Atas Semuanya) -->
+  <div id="view-3d" class="fixed inset-0 z-[100] transition-opacity duration-1000 opacity-0 pointer-events-none bg-black">
+    <div id="container-3d" class="w-full h-full cursor-crosshair"></div>
+    
+    <!-- UI Overlay 3D -->
+    <div class="absolute top-6 left-6 right-6 flex justify-between items-start pointer-events-none">
+      <div class="bg-black/70 backdrop-blur-md text-white px-5 py-4 rounded-xl border border-white/10 pointer-events-auto shadow-2xl transition-colors duration-500" id="ui-mission-box">
+        <h3 class="font-bold text-base text-orange-400 mb-2 transition-colors duration-500" id="ui-mission">Misi: Cari Jalan Keluar</h3>
+        <p class="text-sm opacity-90 mb-1">Gerak: <span class="font-mono text-yellow-300">W A S D</span></p>
+        <p class="text-sm opacity-90 mb-1">Lompat: <span class="font-mono text-yellow-300">SPACE</span></p>
+        <p class="text-sm opacity-90 mb-1">Kamera: Geser Mouse</p>
+      </div>
+      
+      <button id="btn-exit-3d" class="bg-red-600 hover:bg-red-500 backdrop-blur text-white text-sm font-bold py-3 px-6 rounded-xl border border-red-400/50 pointer-events-auto transition-all shadow-xl">
+        KEMBALI KE 2D (EXIT)
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // --- STATE & UI LOGIC ---
+    let currentSize = 4; // Default level 1
+    let mazeGrid = [];
+    let isDark = false;
+    let lang = 'ID';
+    let viewMode = '2d'; 
+    let animationId = null;
+
+    // DOM Elements
+    const canvas2d = document.getElementById('canvas-2d');
+    const ctx2d = canvas2d.getContext('2d');
+    const selectLevel = document.getElementById('select-level');
+    const btnRandom = document.getElementById('btn-random');
+    const btnDownload = document.getElementById('btn-download');
+    const btnExplore = document.getElementById('btn-explore');
+    const btnExit3D = document.getElementById('btn-exit-3d');
+    const view2d = document.getElementById('view-2d');
+    const view3d = document.getElementById('view-3d');
+    const container3d = document.getElementById('container-3d');
+    const statusText = document.getElementById('status-text');
+    const statsText = document.getElementById('stats-text');
+
+    // Theme Logic
+    const toggleTheme = () => {
+      isDark = !isDark;
+      document.documentElement.classList.toggle('dark', isDark);
+      document.getElementById('icon-moon').classList.toggle('hidden', isDark);
+      document.getElementById('icon-sun').classList.toggle('hidden', !isDark);
+      drawMaze2D();
+    };
+    document.getElementById('btn-theme').addEventListener('click', toggleTheme);
+
+    // Language Logic
+    const toggleLang = () => {
+      lang = lang === 'ID' ? 'EN' : 'ID';
+      document.getElementById('btn-lang').innerText = lang;
+      document.getElementById('help-tooltip').innerText = lang === 'ID' ? 'Atur tingkat kesulitan dan klik EXPLORE 3D. Gunakan Spasi untuk Melompat.' : 'Set difficulty and click EXPLORE 3D. Use Space to Jump.';
+      document.getElementById('label-config').innerText = lang === 'ID' ? 'Konfigurasi Labirin' : 'Maze Configuration';
+      document.getElementById('label-level').innerText = lang === 'ID' ? 'Tingkat Kesulitan' : 'Difficulty Level';
+      document.getElementById('btn-random').innerText = lang === 'ID' ? 'Acak Pola' : 'Randomize';
+      document.getElementById('label-action').innerText = lang === 'ID' ? 'Mode Aksi Realistik' : 'Realistic Action Mode';
+      document.getElementById('label-desc').innerText = lang === 'ID' ? 'Terjun ke dalam simulasi labirin 3D. Hati-hati dengan gerbang yang akan tertutup di belakang Anda! Temukan jalan keluar.' : 'Dive into 3D maze simulation. Beware of the gate closing behind you! Find the exit.';
+      document.getElementById('ui-mission').innerText = lang === 'ID' ? 'Misi: Cari Jalan Keluar' : 'Mission: Find the Exit';
+      document.getElementById('btn-exit-3d').innerText = lang === 'ID' ? 'KEMBALI KE 2D (EXIT)' : 'BACK TO 2D (EXIT)';
+      document.getElementById('label-terms').innerText = lang === 'ID' ? 'Syarat & Ketentuan' : 'Terms of Service';
+      drawMaze2D();
+    };
+    document.getElementById('btn-lang').addEventListener('click', toggleLang);
+
+    // Resizer Logic
+    const resizer = document.getElementById('resizer');
+    const leftPane = document.getElementById('left-pane');
+    const rightPane = document.getElementById('right-pane');
+    let isResizing = false;
+
+    resizer.addEventListener('mousedown', () => { isResizing = true; document.body.style.cursor = 'col-resize'; });
+    window.addEventListener('mousemove', (e) => {
+      if (!isResizing || viewMode === '3d') return;
+      const containerWidth = document.body.clientWidth;
+      const newLeftWidth = (e.clientX / containerWidth) * 100;
+      if (newLeftWidth > 20 && newLeftWidth < 80) {
+        leftPane.style.flex = `${newLeftWidth}`;
+        rightPane.style.flex = `${100 - newLeftWidth}`;
+      }
+    });
+    window.addEventListener('mouseup', () => { isResizing = false; document.body.style.cursor = 'default'; });
+
+    // --- AUDIO SYNTHESIZER ENGINE ---
+    let audioCtx;
+    let bgmOscillators = [];
+    let isAudioReady = false;
+
+    function initAudio() {
+      if (audioCtx) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      isAudioReady = true;
+    }
+
+    function playFootstep() {
+      if (!isAudioReady) return;
+      const bufferSize = audioCtx.sampleRate * 0.1;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize / 3)); 
+      const noise = audioCtx.createBufferSource(); noise.buffer = buffer;
+      const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 1000;
+      const gain = audioCtx.createGain(); gain.gain.value = 0.5;
+      noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+      noise.start();
+    }
+
+    function playJump() {
+      if (!isAudioReady) return;
+      const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+    }
+
+    // New Audio: Pintu Tertutup (Debum)
+    function playThudSound() {
+      if (!isAudioReady) return;
+      const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(60, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.3);
+      gain.gain.setValueAtTime(1.5, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+    }
+
+    // New Audio: Kembang Api
+    function playExplosionSound() {
+      if (!isAudioReady) return;
+      const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+      gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.6);
+    }
+
+    function startAmbientBGM() {
+      if (!isAudioReady) return;
+      const osc1 = audioCtx.createOscillator(); osc1.type = 'sine'; osc1.frequency.value = 55; 
+      const gain1 = audioCtx.createGain(); gain1.gain.value = 0.1;
+      osc1.connect(gain1).connect(audioCtx.destination);
+      osc1.start(); bgmOscillators.push(osc1);
+
+      const cricketOsc = audioCtx.createOscillator(); cricketOsc.type = 'square'; cricketOsc.frequency.value = 4500;
+      const cricketLFO = audioCtx.createOscillator(); cricketLFO.type = 'square'; cricketLFO.frequency.value = 15; 
+      const lfoGain = audioCtx.createGain(); lfoGain.gain.value = 4000;
+      cricketLFO.connect(lfoGain).connect(cricketOsc.frequency);
+      const cricketVol = audioCtx.createGain(); cricketVol.gain.value = 0.01; 
+      cricketOsc.connect(cricketVol).connect(audioCtx.destination);
+      cricketOsc.start(); cricketLFO.start();
+      bgmOscillators.push(cricketOsc, cricketLFO);
+
+      setInterval(() => {
+        if (viewMode !== '3d') return;
+        if (Math.random() > 0.3) {
+          const bird = audioCtx.createOscillator(); const bGain = audioCtx.createGain();
+          bird.type = 'sine';
+          bird.frequency.setValueAtTime(2000 + Math.random()*1000, audioCtx.currentTime);
+          bird.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.2);
+          bGain.gain.setValueAtTime(0, audioCtx.currentTime);
+          bGain.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + 0.05);
+          bGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+          bird.connect(bGain).connect(audioCtx.destination);
+          bird.start(); bird.stop(audioCtx.currentTime + 0.25);
+        }
+      }, 3000);
+    }
+
+    function stopAmbientBGM() {
+      bgmOscillators.forEach(o => { try{ o.stop(); }catch(e){} });
+      bgmOscillators = [];
+    }
+
+    // --- PROCEDURAL TEXTURES ---
+    function createBrickWallTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#b0a89d'; ctx.fillRect(0, 0, 512, 512);
+
+      const rows = 12; const cols = 6;
+      const brickH = 512 / rows; const brickW = 512 / cols; const gap = 6;
+
+      for (let r = 0; r < rows; r++) {
+        const offset = (r % 2 === 0) ? 0 : brickW / 2;
+        for (let c = -1; c <= cols; c++) {
+          const x = c * brickW + offset + gap/2; const y = r * brickH + gap/2;
+          const w = brickW - gap; const h = brickH - gap;
+          const shade = 180 + Math.random() * 50;
+          ctx.fillStyle = `rgb(${shade}, ${shade * 0.5}, ${shade * 0.3})`; ctx.fillRect(x, y, w, h);
+          ctx.fillStyle = 'rgba(0,0,0,0.1)';
+          for(let i=0; i<20; i++) ctx.fillRect(x + Math.random()*w, y + Math.random()*h, 2, 2);
+        }
+      }
+
+      for(let i=0; i<150; i++) {
+        const vx = Math.random() * 512; const vy = Math.random() * 512;
+        const size = 15 + Math.random() * 20;
+        ctx.beginPath(); ctx.arc(vx, vy, size, 0, Math.PI*2);
+        ctx.fillStyle = `rgb(${20 + Math.random()*30}, ${80 + Math.random()*60}, ${20 + Math.random()*20})`; ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
+        ctx.moveTo(vx - size/2, vy); ctx.lineTo(vx + size/2, vy); ctx.stroke();
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
+      return texture;
+    }
+
+    function createMarbleFloorTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#dcdad5'; ctx.fillRect(0, 0, 512, 512);
+
+      for(let i=0; i<5000; i++){
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+        ctx.fillRect(Math.random()*512, Math.random()*512, 4, 4);
+      }
+
+      ctx.strokeStyle = 'rgba(100, 100, 105, 0.3)'; ctx.lineWidth = 3;
+      for(let i=0; i<10; i++) {
+        ctx.beginPath(); let x = Math.random() * 512; let y = 0;
+        ctx.moveTo(x, y);
+        while(y < 512) { x += (Math.random() - 0.5) * 40; y += 20 + Math.random() * 20; ctx.lineTo(x, y); }
+        ctx.stroke();
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(50, 50); 
+      return texture;
+    }
+
+    function createSkyTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      const grad = ctx.createLinearGradient(0, 0, 0, 512);
+      grad.addColorStop(0, '#1e4877'); grad.addColorStop(0.5, '#4584b4'); grad.addColorStop(1, '#e0eaf5'); 
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, 1024, 512);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      for(let i=0; i<100; i++) {
+        const cx = Math.random() * 1024; const cy = 300 + Math.random() * 200; 
+        const cr = 20 + Math.random() * 80;
+        ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI*2); ctx.fill();
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+      return texture;
+    }
+
+    function createFootprintTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,64,128);
+      ctx.fillStyle = 'rgba(30, 20, 15, 0.5)';
+      ctx.beginPath(); ctx.ellipse(32, 90, 12, 18, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(32, 35, 18, 28, 0, 0, Math.PI*2); ctx.fill();
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    // --- 2D MAZE LOGIC ---
+    function generateMaze(size) {
+      let grid = [];
+      for (let r = 0; r < size; r++) {
+        let row = [];
+        for (let c = 0; c < size; c++) {
+          row.push({ r, c, visited: false, walls: { top: true, right: true, bottom: true, left: true } });
+        }
+        grid.push(row);
+      }
+
+      let current = grid[0][0]; current.visited = true; let stack = [current];
+
+      const getUnvisitedNeighbors = (cell) => {
+        let neighbors = []; let { r, c } = cell;
+        if (r > 0 && !grid[r - 1][c].visited) neighbors.push({ cell: grid[r - 1][c], dir: 'top' });
+        if (c < size - 1 && !grid[r][c + 1].visited) neighbors.push({ cell: grid[r][c + 1], dir: 'right' });
+        if (r < size - 1 && !grid[r + 1][c].visited) neighbors.push({ cell: grid[r + 1][c], dir: 'bottom' });
+        if (c > 0 && !grid[r][c - 1].visited) neighbors.push({ cell: grid[r][c - 1], dir: 'left' });
+        return neighbors;
+      };
+
+      while (stack.length > 0) {
+        current = stack[stack.length - 1];
+        let neighbors = getUnvisitedNeighbors(current);
+        if (neighbors.length > 0) {
+          let nextNeighbor = neighbors[Math.floor(Math.random() * neighbors.length)];
+          let nextCell = nextNeighbor.cell; let dir = nextNeighbor.dir;
+          if (dir === 'top') { current.walls.top = false; nextCell.walls.bottom = false; }
+          else if (dir === 'right') { current.walls.right = false; nextCell.walls.left = false; }
+          else if (dir === 'bottom') { current.walls.bottom = false; nextCell.walls.top = false; }
+          else if (dir === 'left') { current.walls.left = false; nextCell.walls.right = false; }
+          nextCell.visited = true; stack.push(nextCell);
+        } else {
+          stack.pop();
+        }
+      }
+      grid[0][0].walls.top = false; grid[size - 1][size - 1].walls.bottom = false;
+      return grid;
+    }
+
+    function drawMaze2D() {
+      const width = canvas2d.width; const height = canvas2d.height;
+      const padding = 40; 
+      const drawWidth = width - (padding * 2); const drawHeight = height - (padding * 2);
+      const cellW = drawWidth / currentSize; const cellH = drawHeight / currentSize;
+
+      ctx2d.fillStyle = isDark ? '#0d1117' : '#ffffff'; ctx2d.fillRect(0, 0, width, height);
+      ctx2d.strokeStyle = isDark ? '#8b949e' : '#0f172a'; 
+      ctx2d.lineWidth = Math.max(2, 80 / currentSize); ctx2d.lineCap = 'square';
+
+      ctx2d.beginPath();
+      for (let r = 0; r < currentSize; r++) {
+        for (let c = 0; c < currentSize; c++) {
+          let cell = mazeGrid[r][c];
+          let x = padding + (c * cellW); let y = padding + (r * cellH);
+          if (cell.walls.top) { ctx2d.moveTo(x, y); ctx2d.lineTo(x + cellW, y); }
+          if (cell.walls.right) { ctx2d.moveTo(x + cellW, y); ctx2d.lineTo(x + cellW, y + cellH); }
+          if (cell.walls.bottom) { ctx2d.moveTo(x, y + cellH); ctx2d.lineTo(x + cellW, y + cellH); }
+          if (cell.walls.left) { ctx2d.moveTo(x, y); ctx2d.lineTo(x, y + cellH); }
+        }
+      }
+      ctx2d.stroke();
+
+      ctx2d.fillStyle = isDark ? '#e6edf3' : '#000000';
+      ctx2d.font = `bold ${Math.max(12, 240 / currentSize)}px sans-serif`;
+      ctx2d.textAlign = 'center'; ctx2d.textBaseline = 'bottom';
+      ctx2d.fillText(lang === 'ID' ? 'MASUK' : 'START', padding + (cellW / 2), padding - 5);
+      ctx2d.textBaseline = 'top';
+      ctx2d.fillText(lang === 'ID' ? 'PULANG' : 'HOME', padding + drawWidth - (cellW / 2), padding + drawHeight + 5);
+      
+      statsText.innerText = `Grid: ${currentSize}x${currentSize}`;
+    }
+
+    mazeGrid = generateMaze(currentSize); drawMaze2D();
+
+    selectLevel.addEventListener('change', (e) => { currentSize = parseInt(e.target.value); mazeGrid = generateMaze(currentSize); drawMaze2D(); });
+    btnRandom.addEventListener('click', () => { mazeGrid = generateMaze(currentSize); drawMaze2D(); });
+    btnDownload.addEventListener('click', () => {
+      const link = document.createElement('a');
+      link.href = canvas2d.toDataURL('image/png'); link.download = `MauPulang-${currentSize}x${currentSize}.png`;
+      link.click();
+    });
+
+    // --- 3D ENGINE & ADVANCED KINEMATICS PHYSICS LOGIC ---
+    let renderer, scene, camera, footprintMesh;
+    let footprintCount = 0;
+    const MAX_FOOTPRINTS = 1000;
+    const dummyFootprint = new THREE.Object3D();
+    
+    // Physics Configuration 
+    const PHYS = {
+      accelForce: 70.0,       
+      maxSpeed: 25.0,         
+      friction: 5.5,          
+      gravity: -35.0,         
+      jumpForce: 14.0,        
+      terminalVelocity: -40.0,
+      playerHeight: 4.0,      
+      playerRadius: 1.5,      
+      cellSize: 12.0,         
+      wallThick: 3.0          
+    };
+
+    let hasWon = false;
+    let fireworks = [];
+    let isGateClosed = false;
+
+    function triggerFireworks() {
+      const colors = [0xff3333, 0x33ff33, 0x3333ff, 0xffff33, 0xff33ff, 0x33ffff];
+      // Tembakkan serentetan kembang api
+      for(let i=0; i<8; i++) {
+          setTimeout(() => {
+              if (viewMode !== '3d' || !scene) return;
+              const geometry = new THREE.BufferGeometry();
+              const particleCount = 300;
+              const positions = new Float32Array(particleCount * 3);
+              const velocities = [];
+              
+              // Tembak dari area luar labirin di ujung
+              const originX = (currentSize - 0.5) * PHYS.cellSize + (Math.random() - 0.5) * 20;
+              const originY = 16 + 10 + Math.random() * 15;
+              const originZ = (currentSize - 0.5) * PHYS.cellSize + (Math.random() - 0.5) * 20;
+
+              for(let j=0; j<particleCount; j++) {
+                  positions[j*3] = originX;
+                  positions[j*3+1] = originY;
+                  positions[j*3+2] = originZ;
+                  const spread = 20;
+                  velocities.push(
+                      (Math.random() - 0.5) * spread,
+                      (Math.random() - 0.5) * spread,
+                      (Math.random() - 0.5) * spread
+                  );
+              }
+              geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+              const material = new THREE.PointsMaterial({
+                  color: colors[Math.floor(Math.random() * colors.length)],
+                  size: 0.8,
+                  transparent: true,
+                  opacity: 1,
+                  blending: THREE.AdditiveBlending
+              });
+              const particleSystem = new THREE.Points(geometry, material);
+              scene.add(particleSystem);
+              fireworks.push({ mesh: particleSystem, velocities: velocities, age: 0 });
+              playExplosionSound();
+          }, i * 450); // Ledakan bertahap
+      }
+    }
+
+    function start3D() {
+      initAudio(); 
+      hasWon = false;
+      fireworks = [];
+      isGateClosed = false;
+
+      // Update UI Text Reset
+      const missionText = document.getElementById('ui-mission');
+      missionText.innerText = lang === 'ID' ? 'Misi: Cari Jalan Keluar' : 'Mission: Find the Exit';
+      missionText.classList.remove('text-green-400');
+      missionText.classList.add('text-orange-400');
+
+      viewMode = '3d';
+      view3d.classList.replace('opacity-0', 'opacity-100');
+      view3d.classList.remove('pointer-events-none');
+      statusText.innerText = 'Status: Running Engine (3D Physics Enabled)';
+
+      const paneWidth = window.innerWidth;
+      const paneHeight = window.innerHeight;
+
+      scene = new THREE.Scene();
+      
+      const skyTexture = createSkyTexture();
+      const skyGeo = new THREE.SphereGeometry(500, 32, 15);
+      const skyMat = new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide });
+      const skyMesh = new THREE.Mesh(skyGeo, skyMat); 
+      scene.add(skyMesh);
+      
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+      hemiLight.position.set(0, 200, 0); scene.add(hemiLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+      dirLight.position.set(100, 200, 50); dirLight.castShadow = true;
+      dirLight.shadow.camera.top = 200; dirLight.shadow.camera.bottom = -200;
+      dirLight.shadow.camera.left = -200; dirLight.shadow.camera.right = 200;
+      scene.add(dirLight);
+
+      camera = new THREE.PerspectiveCamera(75, paneWidth / paneHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(paneWidth, paneHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      
+      container3d.innerHTML = '';
+      container3d.appendChild(renderer.domElement);
+
+      const WALL_HEIGHT = 16;
+
+      const floorTex = createMarbleFloorTexture();
+      const floorGeo = new THREE.PlaneGeometry(currentSize * PHYS.cellSize * 4, currentSize * PHYS.cellSize * 4);
+      const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.2, metalness: 0.1 });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
+      scene.add(floor);
+
+      const fpTex = createFootprintTexture();
+      const fpGeo = new THREE.PlaneGeometry(1.5, 3);
+      fpGeo.rotateX(-Math.PI / 2); 
+      const fpMat = new THREE.MeshBasicMaterial({ map: fpTex, transparent: true, opacity: 0.4, depthWrite: false });
+      footprintMesh = new THREE.InstancedMesh(fpGeo, fpMat, MAX_FOOTPRINTS);
+      footprintMesh.position.y = 0.05; 
+      scene.add(footprintMesh);
+      footprintCount = 0;
+
+      // Gerbang Jebakan (Awalnya melayang di atas, di belakang kita)
+      const gateGeo = new THREE.BoxGeometry(PHYS.cellSize, WALL_HEIGHT, PHYS.wallThick);
+      const gateMat = new THREE.MeshStandardMaterial({ color: 0x2d1a10, metalness: 0.8, roughness: 0.6 }); // Besi berkarat
+      const entranceGate = new THREE.Mesh(gateGeo, gateMat);
+      // Di belakang pemain (sumbu -Z adalah luar maze sesuai algoritma sebelumnya)
+      entranceGate.position.set(0, WALL_HEIGHT * 2, -PHYS.cellSize / 2); 
+      scene.add(entranceGate);
+
+      // Pembangunan Instanced Dinding
+      const wallTex = createBrickWallTexture();
+      let wallCount = 0;
+      for (let r = 0; r < currentSize; r++) {
+        for (let c = 0; c < currentSize; c++) {
+          if (mazeGrid[r][c].walls.top) wallCount++;
+          if (mazeGrid[r][c].walls.left) wallCount++;
+          if (r === currentSize - 1 && mazeGrid[r][c].walls.bottom) wallCount++;
+          if (c === currentSize - 1 && mazeGrid[r][c].walls.right) wallCount++;
+        }
+      }
+
+      const wallGeo = new THREE.BoxGeometry(PHYS.cellSize + PHYS.wallThick, WALL_HEIGHT, PHYS.wallThick);
+      const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.8 });
+      const wallInstancedMesh = new THREE.InstancedMesh(wallGeo, wallMat, wallCount);
+      wallInstancedMesh.castShadow = true; wallInstancedMesh.receiveShadow = true;
+
+      let wallIndex = 0; const dummy = new THREE.Object3D();
+      const addWall = (x, z, isVertical) => {
+        dummy.position.set(x, WALL_HEIGHT / 2, z);
+        dummy.rotation.y = isVertical ? Math.PI / 2 : 0;
+        dummy.updateMatrix();
+        wallInstancedMesh.setMatrixAt(wallIndex++, dummy.matrix);
+      };
+
+      for (let r = 0; r < currentSize; r++) {
+        for (let c = 0; c < currentSize; c++) {
+          let x = c * PHYS.cellSize; let z = r * PHYS.cellSize; let cell = mazeGrid[r][c];
+          if (cell.walls.top) addWall(x, z - PHYS.cellSize/2, false);
+          if (cell.walls.left) addWall(x - PHYS.cellSize/2, z, true);
+          if (r === currentSize - 1 && cell.walls.bottom) addWall(x, z + PHYS.cellSize/2, false);
+          if (c === currentSize - 1 && cell.walls.right) addWall(x + PHYS.cellSize/2, z, true);
+        }
+      }
+      scene.add(wallInstancedMesh);
+
+      // Visual Pintu Keluar: Kristal Melayang (Bukan lagi pilar kotak raksasa)
+      const endGeo = new THREE.OctahedronGeometry(2.5, 0);
+      const endMat = new THREE.MeshBasicMaterial({ color: 0xff9500, wireframe: true }); 
+      const endMesh = new THREE.Mesh(endGeo, endMat);
+      
+      // Inti kristal bercahaya
+      const innerGeo = new THREE.OctahedronGeometry(1.5, 0);
+      const innerMat = new THREE.MeshBasicMaterial({ color: 0xffddaa });
+      const innerMesh = new THREE.Mesh(innerGeo, innerMat);
+      endMesh.add(innerMesh);
+
+      endMesh.position.set((currentSize - 1) * PHYS.cellSize, 4, (currentSize - 1) * PHYS.cellSize);
+      scene.add(endMesh);
+      const endLight = new THREE.PointLight(0xff9500, 3, 40);
+      endLight.position.copy(endMesh.position); scene.add(endLight);
+
+      // --- KINEMATICS PHYSICS SYSTEM SETUP ---
+      // Posisi di sel (0,0) menghadap ke dalam labirin (+Z)
+      camera.position.set(0, PHYS.playerHeight, 0);
+      let pitch = 0; let yaw = Math.PI; // 180 derajat (hadap selatan/ke dalam lorong)
+      camera.rotation.set(pitch, yaw, 0, 'YXZ');
+      
+      const keys = { w: false, a: false, s: false, d: false, space: false };
+      let velocityXZ = new THREE.Vector2(0, 0);
+      let velocityY = 0;                        
+      let isGrounded = true;
+      let stepDistance = 0; let isLeftFoot = true;
+      const clock = new THREE.Clock(); 
+
+      const onKeyDown = (e) => { 
+        if (e.key === 'w' || e.key === 'ArrowUp') keys.w = true;
+        if (e.key === 's' || e.key === 'ArrowDown') keys.s = true;
+        if (e.key === 'a' || e.key === 'ArrowLeft') keys.a = true;
+        if (e.key === 'd' || e.key === 'ArrowRight') keys.d = true;
+        if (e.key === ' ') { keys.space = true; e.preventDefault(); }
+      };
+      const onKeyUp = (e) => { 
+        if (e.key === 'w' || e.key === 'ArrowUp') keys.w = false;
+        if (e.key === 's' || e.key === 'ArrowDown') keys.s = false;
+        if (e.key === 'a' || e.key === 'ArrowLeft') keys.a = false;
+        if (e.key === 'd' || e.key === 'ArrowRight') keys.d = false;
+        if (e.key === ' ') keys.space = false;
+      };
+      
+      const onMouseMove = (e) => {
+        if (document.pointerLockElement === container3d) {
+          yaw -= e.movementX * 0.002; pitch -= e.movementY * 0.002;
+          pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch));
+          camera.rotation.set(pitch, yaw, 0, 'YXZ');
+        }
+      };
+
+      window.addEventListener('keydown', onKeyDown);
+      window.addEventListener('keyup', onKeyUp);
+      window.addEventListener('mousemove', onMouseMove);
+      container3d.addEventListener('click', () => {
+        if (viewMode === '3d') container3d.requestPointerLock();
+      });
+
+      // --- PER-AXIS AABB COLLISION DETECTION ---
+      const checkCollisionPerAxis = (oldX, oldZ, dx, dz) => {
+        let newX = oldX + dx;
+        let newZ = oldZ + dz;
+        const bound = (PHYS.cellSize / 2) - (PHYS.wallThick / 2) - PHYS.playerRadius;
+
+        let c = Math.round(oldX / PHYS.cellSize);
+        let r = Math.round(oldZ / PHYS.cellSize);
+        // Pemain bebas keluar labirin
+        if (r < 0 || r >= currentSize || c < 0 || c >= currentSize) return { x: newX, z: newZ, hitX: false, hitZ: false };
+
+        let cell = mazeGrid[r][c];
+        let cellCenterX = c * PHYS.cellSize;
+        let cellCenterZ = r * PHYS.cellSize;
+
+        let hitX = false;
+        let hitZ = false;
+
+        if (dx < 0 && cell.walls.left && newX < cellCenterX - bound) { newX = cellCenterX - bound; hitX = true; }
+        if (dx > 0 && cell.walls.right && newX > cellCenterX + bound) { newX = cellCenterX + bound; hitX = true; }
+        if (dz < 0 && cell.walls.top && newZ < cellCenterZ - bound) { newZ = cellCenterZ - bound; hitZ = true; }
+        if (dz > 0 && cell.walls.bottom && newZ > cellCenterZ + bound) { newZ = cellCenterZ + bound; hitZ = true; }
+
+        return { x: newX, z: newZ, hitX, hitZ };
+      };
+
+      const raycaster = new THREE.Raycaster();
+      startAmbientBGM();
+
+      window.onWindowResize = () => {
+        if (viewMode === '3d' && camera && renderer) {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+      };
+
+      // MAIN PHYSICS LOOP
+      const animate = () => {
+        // SAFETY GUARD: Mencegah crash jika loop berjalan setelah memori dibersihkan
+        if (viewMode !== '3d' || !camera) return;
+        animationId = requestAnimationFrame(animate);
+
+        const dt = Math.min(clock.getDelta(), 0.1); 
+
+        // Animasi Gerbang Jatuh (Jebakan Masuk)
+        if (!isGateClosed && entranceGate) {
+            entranceGate.position.y -= 40 * dt; // Jatuh cepat
+            if (entranceGate.position.y <= WALL_HEIGHT / 2) {
+                entranceGate.position.y = WALL_HEIGHT / 2;
+                mazeGrid[0][0].walls.top = true; // Kunci algoritma fisika secara logis (Anda terperangkap)
+                playThudSound();
+                isGateClosed = true;
+            }
+        }
+
+        // Efek Blur (Depth of Field) & Rotasi Langit
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const intersects = raycaster.intersectObject(wallInstancedMesh);
+        if (intersects.length > 0) {
+            const dist = intersects[0].distance;
+            if (dist < 3.0) {
+                const blurPx = Math.max(0, (3.0 - dist) * 4); 
+                renderer.domElement.style.filter = `blur(${blurPx}px)`;
+            } else {
+                renderer.domElement.style.filter = 'none';
+            }
+        } else {
+            renderer.domElement.style.filter = 'none';
+        }
+        skyMesh.rotation.y += 0.015 * dt; 
+
+        // Animasi Kristal Pintu Keluar
+        if (endMesh) {
+            endMesh.rotation.y += 1.5 * dt;
+            endMesh.rotation.z += 1.0 * dt;
+            endMesh.position.y = 4 + Math.sin(clock.getElapsedTime() * 3) * 0.5;
+        }
+
+        // Manajemen Animasi Kembang Api (Fireworks)
+        for(let i = fireworks.length - 1; i >= 0; i--) {
+            let fw = fireworks[i];
+            fw.age += dt;
+            let positions = fw.mesh.geometry.attributes.position.array;
+            for(let j=0; j<positions.length/3; j++) {
+                positions[j*3] += fw.velocities[j*3] * dt;
+                positions[j*3+1] += fw.velocities[j*3+1] * dt;
+                positions[j*3+1] -= 8 * dt; // Gravitasi partikel jatuh
+                positions[j*3+2] += fw.velocities[j*3+2] * dt;
+            }
+            fw.mesh.geometry.attributes.position.needsUpdate = true;
+            fw.mesh.material.opacity = Math.max(0, 1 - fw.age / 2); // Pudar pelan
+            if (fw.age > 2) { // Hapus kembang api setelah 2 detik
+                scene.remove(fw.mesh);
+                fireworks.splice(i, 1);
+            }
+        }
+
+        velocityXZ.multiplyScalar(1 - PHYS.friction * dt);
+
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        forward.y = 0; forward.normalize();
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        right.y = 0; right.normalize();
+
+        let inputVector = new THREE.Vector2(0, 0);
+        if (keys.w) inputVector.y += 1;
+        if (keys.s) inputVector.y -= 1;
+        if (keys.a) inputVector.x -= 1;
+        if (keys.d) inputVector.x += 1;
+
+        if (inputVector.lengthSq() > 0) {
+          inputVector.normalize();
+          let accelX = (right.x * inputVector.x + forward.x * inputVector.y) * PHYS.accelForce;
+          let accelZ = (right.z * inputVector.x + forward.z * inputVector.y) * PHYS.accelForce;
+          
+          velocityXZ.x += accelX * dt;
+          velocityXZ.y += accelZ * dt;
+        }
+
+        if (velocityXZ.length() > PHYS.maxSpeed) velocityXZ.clampLength(0, PHYS.maxSpeed);
+
+        let dx = velocityXZ.x * dt;
+        let dz = velocityXZ.y * dt;
+
+        const newPos = checkCollisionPerAxis(camera.position.x, camera.position.z, dx, dz);
+        
+        if (newPos.hitX) velocityXZ.x = 0; 
+        if (newPos.hitZ) velocityXZ.y = 0;
+
+        if (isGrounded && (Math.abs(dx) > 0.001 || Math.abs(dz) > 0.001)) {
+             const distMoved = Math.sqrt(Math.pow(newPos.x - camera.position.x, 2) + Math.pow(newPos.z - camera.position.z, 2));
+             stepDistance += distMoved;
+             if (stepDistance > 3.0) {
+               stepDistance = 0; playFootstep();
+               if (footprintCount < MAX_FOOTPRINTS) {
+                 dummyFootprint.position.set(camera.position.x, 0, camera.position.z);
+                 const offset = isLeftFoot ? -0.5 : 0.5;
+                 dummyFootprint.position.x += right.x * offset; dummyFootprint.position.z += right.z * offset;
+                 dummyFootprint.rotation.set(0, Math.atan2(velocityXZ.x, velocityXZ.y) + Math.PI, 0); 
+                 dummyFootprint.updateMatrix();
+                 footprintMesh.setMatrixAt(footprintCount, dummyFootprint.matrix);
+                 footprintMesh.instanceMatrix.needsUpdate = true;
+                 footprintCount++; isLeftFoot = !isLeftFoot;
+               }
+             }
+        }
+
+        camera.position.x = newPos.x; 
+        camera.position.z = newPos.z;
+
+        // NEW WIN CONDITION: Bebas jalan di luar + Kembang Api (Tidak Auto-Exit)
+        if (!hasWon && camera.position.z > (currentSize - 1) * PHYS.cellSize && camera.position.x > (currentSize - 1) * PHYS.cellSize) {
+             hasWon = true;
+             triggerFireworks();
+             missionText.innerText = lang === 'ID' ? 'MISI SELESAI!' : 'MISSION COMPLETE!';
+             missionText.classList.remove('text-orange-400');
+             missionText.classList.add('text-green-400');
+        }
+
+        velocityY += PHYS.gravity * dt;
+        if (velocityY < PHYS.terminalVelocity) velocityY = PHYS.terminalVelocity;
+        camera.position.y += velocityY * dt;
+
+        if (camera.position.y <= PHYS.playerHeight) {
+          camera.position.y = PHYS.playerHeight;
+          if (!isGrounded) { isGrounded = true; playFootstep(); }
+          velocityY = 0; 
+        } else {
+          isGrounded = false;
+        }
+
+        if (keys.space && isGrounded) {
+          velocityY = PHYS.jumpForce;
+          isGrounded = false; playJump(); keys.space = false; 
+        }
+
+        // Final Safety render
+        if (viewMode === '3d' && camera && renderer) {
+            renderer.render(scene, camera);
+        }
+      };
+
+      animate();
+    }
+
+    btnExplore.addEventListener('click', start3D);
+
+    btnExit3D.addEventListener('click', () => {
+      viewMode = '2d';
+      if (document.pointerLockElement) document.exitPointerLock();
+      if (animationId) cancelAnimationFrame(animationId);
+      
+      stopAmbientBGM();
+
+      view3d.classList.replace('opacity-100', 'opacity-0');
+      view3d.classList.add('pointer-events-none');
+      statusText.innerText = 'Status: Idle (2D Preview)';
+      
+      if (renderer) renderer.domElement.style.filter = 'none'; 
+      container3d.innerHTML = '';
+      
+      // Hapus memori objek mencegah leak/crash
+      scene = null; camera = null; renderer = null; 
+    });
+
+  </script>
+</body>
+</html>
