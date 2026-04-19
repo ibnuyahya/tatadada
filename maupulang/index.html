@@ -147,7 +147,7 @@
         </h3>
         
         <p class="text-xs text-dim mb-4 leading-relaxed" id="label-desc">
-          Terjun ke dalam simulasi labirin 3D dengan cuaca badai petir. Temukan jalan keluar sebelum tersesat dalam hujan!
+          Terjun ke dalam simulasi labirin 3D. Hati-hati dengan gerbang besi yang akan tertutup di belakang Anda! Temukan jalan keluar secepatnya.
         </p>
 
         <button id="btn-explore" class="w-full bg-[var(--text-main)] hover:bg-[var(--text-dim)] text-[var(--editor-bg)] font-bold text-sm py-3.5 rounded-lg shadow-md transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
@@ -800,7 +800,9 @@
       dirLight.castShadow = true;
       dirLight.shadow.mapSize.width = 2048;
       dirLight.shadow.mapSize.height = 2048;
-      dirLight.shadow.bias = -0.001; 
+      // FIX PETER PANNING (Sinar Tembus Bawah Dinding): Sesuaikan bias dan tambahkan normalBias
+      dirLight.shadow.bias = -0.0005; 
+      dirLight.shadow.normalBias = 0.05; 
       dirLight.shadow.camera.top = 200; dirLight.shadow.camera.bottom = -200;
       dirLight.shadow.camera.left = -200; dirLight.shadow.camera.right = 200;
       scene.add(dirLight);
@@ -946,22 +948,22 @@
           let x = c * PHYS.cellSize; let z = r * PHYS.cellSize; let cell = mazeGrid[r][c];
           
           if (cell.walls.top) {
-            dummy.position.set(x, WALL_HEIGHT / 2, z - PHYS.cellSize/2); dummy.updateMatrix();
+            dummy.position.set(x, (WALL_HEIGHT / 2) - 0.5, z - PHYS.cellSize/2); dummy.updateMatrix();
             hWallMesh.setMatrixAt(hIdx++, dummy.matrix);
             addCollisionBox(x, z - PHYS.cellSize/2, false);
           }
           if (cell.walls.left) {
-            dummy.position.set(x - PHYS.cellSize/2, WALL_HEIGHT / 2, z); dummy.updateMatrix();
+            dummy.position.set(x - PHYS.cellSize/2, (WALL_HEIGHT / 2) - 0.5, z); dummy.updateMatrix();
             vWallMesh.setMatrixAt(vIdx++, dummy.matrix);
             addCollisionBox(x - PHYS.cellSize/2, z, true);
           }
           if (r === currentSize - 1 && cell.walls.bottom) {
-            dummy.position.set(x, WALL_HEIGHT / 2, z + PHYS.cellSize/2); dummy.updateMatrix();
+            dummy.position.set(x, (WALL_HEIGHT / 2) - 0.5, z + PHYS.cellSize/2); dummy.updateMatrix();
             hWallMesh.setMatrixAt(hIdx++, dummy.matrix);
             addCollisionBox(x, z + PHYS.cellSize/2, false);
           }
           if (c === currentSize - 1 && cell.walls.right) {
-            dummy.position.set(x + PHYS.cellSize/2, WALL_HEIGHT / 2, z); dummy.updateMatrix();
+            dummy.position.set(x + PHYS.cellSize/2, (WALL_HEIGHT / 2) - 0.5, z); dummy.updateMatrix();
             vWallMesh.setMatrixAt(vIdx++, dummy.matrix);
             addCollisionBox(x + PHYS.cellSize/2, z, true);
           }
@@ -970,7 +972,7 @@
 
       for (let r = 0; r <= currentSize; r++) {
         for (let c = 0; c <= currentSize; c++) {
-            dummy.position.set(c * PHYS.cellSize - PHYS.cellSize/2, WALL_HEIGHT / 2, r * PHYS.cellSize - PHYS.cellSize/2);
+            dummy.position.set(c * PHYS.cellSize - PHYS.cellSize/2, (WALL_HEIGHT / 2) - 0.5, r * PHYS.cellSize - PHYS.cellSize/2);
             dummy.updateMatrix();
             pWallMesh.setMatrixAt(pIdx++, dummy.matrix);
         }
@@ -993,13 +995,14 @@
       endMesh.position.set((currentSize - 1) * PHYS.cellSize, 4, (currentSize - 1) * PHYS.cellSize);
       scene.add(endMesh);
       
-      // FIX CAHAYA TEMBUS: Radius cahaya dibatasi 25 dan Shadow Map diaktifkan
+      // FIX CAHAYA TEMBUS (PointLight): Optimasi bayangan lokal kristal agar rapat dengan lantai
       const endLight = new THREE.PointLight(0xff9500, 3, 25);
       endLight.position.copy(endMesh.position); 
       endLight.castShadow = true; 
-      endLight.shadow.mapSize.width = 512;
-      endLight.shadow.mapSize.height = 512;
-      endLight.shadow.bias = -0.002; 
+      endLight.shadow.mapSize.width = 1024; // Resolusi dinaikkan untuk akurasi ujung dinding
+      endLight.shadow.mapSize.height = 1024;
+      endLight.shadow.bias = -0.0005; // Kurangi toleransi jebol
+      endLight.shadow.normalBias = 0.05; // Teknik terbaik Three.js atasi bocor tanpa flickering
       scene.add(endLight);
 
       // --- KINEMATICS PHYSICS SYSTEM SETUP ---
@@ -1119,8 +1122,8 @@
         // Pagar Masuk Anti Tembus
         if (!isGateClosed && entranceGate) {
             entranceGate.position.y -= 60 * dt; 
-            if (entranceGate.position.y <= 0) { 
-                entranceGate.position.y = 0;
+            if (entranceGate.position.y <= -0.5) { 
+                entranceGate.position.y = -0.5;
                 
                 physicalWalls.push({
                     minX: -PHYS.cellSize/2 + PHYS.wallThick/2,
