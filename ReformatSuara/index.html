@@ -1,0 +1,585 @@
+<!-- TATADADA UI Visual Tafsir: ReformatSuara ikon menggabungkan gelombang suara (soundwaves) berwarna-warni yang menembus piringan kaca (frosted glass), merepresentasikan transformasi data audio mentah menjadi format MP3 yang jernih. Palet warna sunset memberi kesan dinamis, modern, dan premium. -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReformatSuara - Audio to MP3 Converter</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- LameJS untuk encoding MP3 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
+
+    <!-- CSS Variables (TATADADA Design Tokens) -->
+    <style>
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #161b22;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --theme-accent: #3b82f6;
+        }
+
+        body {
+            background-color: var(--preview-bg);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+        }
+
+        /* Utility Classes Mapping */
+        .bg-header { background-color: var(--header-bg); }
+        .bg-editor { background-color: var(--editor-bg); }
+        .bg-preview { background-color: var(--preview-bg); }
+        .bg-card { background-color: var(--card-bg); }
+        .bg-footer { background-color: var(--footer-bg); }
+        .border-theme { border-color: var(--border-color); }
+        .text-main { color: var(--text-main); }
+        .text-dim { color: var(--text-dim); }
+        
+        /* Font JetBrains */
+        .font-data { font-family: 'JetBrains Mono', monospace; }
+
+        /* Custom Drag Styling */
+        .drag-active {
+            border-color: var(--theme-accent) !important;
+            background-color: rgba(59, 130, 246, 0.05) !important;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Hiding specific default elements carefully */
+        .card-hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- A. HEADER (Wajib h-14) -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm transition-colors duration-300">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <i data-lucide="audio-lines" class="w-6 h-6 text-blue-500"></i>
+                <h1 class="font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
+                    ReformatSuara
+                </h1>
+            </div>
+            <span class="text-[11px] font-medium italic text-dim px-2 py-0.5 border border-theme rounded-full">v2.0.0</span>
+            <span class="text-[11px] text-dim hidden md:inline">by AhmadDanial</span>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <button id="helpBtn" title="Bantuan: Konversi file audio lokal tanpa internet" class="p-2 text-dim hover:text-main rounded-lg hover:bg-preview transition-colors">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+            </button>
+            <div class="h-4 w-px bg-border-color border-theme border-l"></div>
+            <button class="text-xs font-medium text-dim hover:text-main flex items-center gap-1 transition-colors">
+                <span>ID</span> <i data-lucide="chevron-down" class="w-3 h-3"></i>
+            </button>
+            <button id="themeToggle" class="p-2 text-dim hover:text-main rounded-lg hover:bg-preview transition-colors">
+                <i data-lucide="moon" class="w-4 h-4" id="themeIcon"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- B. MAIN WORKSPACE (Split Pane Kiri-Kanan) -->
+    <main class="flex-1 flex overflow-hidden">
+        
+        <!-- Panel Utama (Kiri): Editor/Dropzone -->
+        <div id="left-pane" class="flex-[6] bg-editor relative overflow-hidden flex flex-col justify-center items-center p-8 transition-all">
+            <div id="dropzone" class="w-full max-w-2xl h-full max-h-[500px] border-2 border-dashed border-theme rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-preview transition-all relative group">
+                <input type="file" id="fileInput" accept="audio/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                <div class="flex flex-col items-center pointer-events-none p-6 text-center">
+                    <div class="w-20 h-20 bg-card border border-theme rounded-2xl shadow-sm flex items-center justify-center mb-6 group-hover:scale-105 transition-transform duration-300">
+                        <i data-lucide="upload-cloud" class="w-10 h-10 text-blue-500"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-main mb-2">Tarik File Audio Ke Sini</h2>
+                    <p class="text-sm text-dim">Mendukung M4A, OGG, WAV, AAC, WMA, dll.<br/>Batas optimal ~50MB.</p>
+                </div>
+            </div>
+            <p class="text-xs text-dim mt-6 flex items-center gap-2">
+                <i data-lucide="shield-check" class="w-4 h-4 text-green-500"></i>
+                100% Aman. Diproses lokal di browser. Tidak ada file yang diunggah ke server.
+            </p>
+        </div>
+
+        <!-- Resizer/Gutter: WAJIB TEBAL & BERBEDA WARNA -->
+        <div id="resizer" class="w-3 bg-preview cursor-col-resize flex items-center justify-center border-x border-theme group shrink-0 z-20">
+            <div class="h-8 w-1 bg-gray-300 dark:bg-gray-600 rounded-full group-hover:bg-blue-500 transition-colors"></div>
+        </div>
+
+        <!-- Panel Sidebar (Kanan): Kontrol & Hasil -->
+        <div id="right-pane" class="flex-[4] bg-preview p-6 flex flex-col gap-4 overflow-y-auto">
+            
+            <!-- Card Kontrol: Pengaturan -->
+            <div class="bg-card rounded-xl shadow-sm border border-theme p-5 transition-colors">
+                <div class="flex items-center gap-2 mb-4 text-main">
+                    <i data-lucide="sliders-horizontal" class="w-4 h-4 text-blue-500"></i>
+                    <h3 class="font-semibold text-sm">Pengaturan Output</h3>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <label for="bitrate" class="text-xs font-medium text-dim">Kualitas Bitrate MP3</label>
+                    <select id="bitrate" class="bg-editor border border-theme rounded-lg p-2.5 text-sm text-main focus:ring-2 focus:ring-blue-500/20 outline-none shadow-sm transition-all appearance-none cursor-pointer">
+                        <option value="128">128 kbps (Standar)</option>
+                        <option value="192" selected>192 kbps (Bagus - Disarankan)</option>
+                        <option value="256">256 kbps (Tinggi)</option>
+                        <option value="320">320 kbps (Terbaik - Studio)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Card Kontrol: File Info -->
+            <div id="fileInfoCard" class="card-hidden bg-card rounded-xl shadow-sm border border-theme p-5 transition-colors">
+                <div class="flex items-center gap-2 mb-4 text-main">
+                    <i data-lucide="file-audio" class="w-4 h-4 text-purple-500"></i>
+                    <h3 class="font-semibold text-sm">File Terpilih</h3>
+                </div>
+                <div class="bg-preview rounded-lg p-3 border border-theme mb-4 flex justify-between items-center overflow-hidden">
+                    <div class="flex flex-col truncate pr-4">
+                        <span id="fileName" class="text-sm font-semibold text-main truncate font-data">audio_file.m4a</span>
+                        <span id="fileSize" class="text-xs text-dim mt-0.5">0 MB</span>
+                    </div>
+                    <i data-lucide="check-circle-2" class="w-5 h-5 text-green-500 shrink-0"></i>
+                </div>
+                <button id="convertBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-medium transition-all shadow-sm flex items-center justify-center gap-2">
+                    <i data-lucide="zap" class="w-4 h-4"></i>
+                    <span>Mulai Konversi</span>
+                </button>
+            </div>
+
+            <!-- Card Kontrol: Proses -->
+            <div id="progressCard" class="card-hidden bg-card rounded-xl shadow-sm border border-theme p-5 transition-colors">
+                <div class="flex items-center gap-2 mb-4 text-main">
+                    <i data-lucide="loader-2" class="w-4 h-4 text-blue-500 animate-spin"></i>
+                    <h3 class="font-semibold text-sm">Memproses Audio</h3>
+                </div>
+                <div class="flex justify-between text-xs font-medium mb-2">
+                    <span id="progressStatus" class="text-dim">Mempersiapkan mesin...</span>
+                    <span id="progressPercent" class="text-blue-500 font-data">0%</span>
+                </div>
+                <div class="w-full bg-preview rounded-full h-2 overflow-hidden border border-theme">
+                    <div id="progressBar" class="bg-blue-500 h-full rounded-full relative" style="width: 0%; transition: width 0.1s linear;">
+                        <!-- Animated glare -->
+                        <div class="absolute top-0 left-0 bottom-0 w-full bg-white/20 animate-pulse"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Kontrol: Hasil Akhir -->
+            <div id="resultCard" class="card-hidden bg-card rounded-xl border border-green-500/30 p-5 shadow-[0_0_15px_rgba(34,197,94,0.1)] transition-colors relative overflow-hidden">
+                <!-- Decorative background blob -->
+                <div class="absolute -top-10 -right-10 w-32 h-32 bg-green-500/10 rounded-full blur-2xl"></div>
+                
+                <div class="flex items-center gap-2 mb-4 text-green-600 relative z-10">
+                    <i data-lucide="party-popper" class="w-5 h-5"></i>
+                    <h3 class="font-semibold text-sm">Konversi Selesai!</h3>
+                </div>
+                
+                <div class="relative z-10">
+                    <audio id="audioPlayer" controls class="w-full h-10 mb-4 rounded-lg bg-preview border border-theme"></audio>
+                    <a id="downloadBtn" href="#" download="converted.mp3" class="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg font-medium transition-all shadow-sm flex items-center justify-center gap-2">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        <span>Unduh MP3</span>
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- C. FOOTER (Wajib h-8) -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 transition-colors duration-300">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+            <span>Sistem Siap</span>
+        </div>
+        <div>
+            Client-Side Processing (LameJS)
+        </div>
+        <button id="openTermsModal" class="hover:text-main transition-colors underline decoration-dashed underline-offset-2">
+            Ketentuan & Privasi
+        </button>
+    </footer>
+
+    <!-- MODAL TERMS (WAJIB) -->
+    <div id="modal-terms" class="fixed inset-0 z-[100] hidden items-center justify-center backdrop-blur-sm bg-black/20 p-4 opacity-0 transition-opacity duration-300">
+        <div class="bg-card w-full max-w-md rounded-2xl shadow-2xl p-6 border border-theme transform scale-95 transition-transform duration-300">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-main">Ketentuan & Privasi</h2>
+                <button id="closeTermsModal" class="text-dim hover:text-main p-1 rounded-lg hover:bg-preview">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="text-sm text-dim space-y-3 max-h-60 overflow-y-auto pr-2">
+                <p>1. <strong>Privasi Penuh:</strong> ReformatSuara dirancang menggunakan Web Audio API. Seluruh proses dekode dan enkoding audio terjadi di memori (RAM) browser perangkat Anda.</p>
+                <p>2. <strong>Tanpa Server:</strong> File audio Anda sama sekali tidak dikirim, diunggah, atau disimpan ke server manapun.</p>
+                <p>3. <strong>Hak Cipta:</strong> Anda bertanggung jawab atas file yang Anda konversi. Pastikan Anda memiliki hak yang sah atas materi audio tersebut.</p>
+            </div>
+            <div class="mt-6 pt-4 border-t border-theme flex justify-end">
+                <button id="acceptTermsModal" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
+                    Mengerti
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIKA JAVASCRIPT (Murni Vanilla) -->
+    <script>
+        // Inisialisasi ikon Lucide
+        lucide.createIcons();
+
+        /* ========================================================
+           1. DARK MODE & LOKALISASI LOGIC
+           ======================================================== */
+        const html = document.documentElement;
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+
+        // Check Local Storage
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            html.classList.add('dark');
+            themeIcon.setAttribute('data-lucide', 'sun');
+        } else {
+            themeIcon.setAttribute('data-lucide', 'moon');
+        }
+        lucide.createIcons();
+
+        themeToggle.addEventListener('click', () => {
+            html.classList.toggle('dark');
+            const isDark = html.classList.contains('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            
+            themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+            lucide.createIcons();
+        });
+
+        /* ========================================================
+           2. RESIZER SPLIT PANE LOGIC
+           ======================================================== */
+        const resizer = document.getElementById('resizer');
+        const leftPane = document.getElementById('left-pane');
+        const rightPane = document.getElementById('right-pane');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', () => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const containerWidth = document.body.clientWidth;
+            // Prevent pane from becoming too small
+            if(e.clientX < 300 || e.clientX > containerWidth - 300) return; 
+            
+            const newLeftFlex = (e.clientX / containerWidth) * 10;
+            leftPane.style.flex = newLeftFlex;
+            rightPane.style.flex = 10 - newLeftFlex;
+        });
+
+        document.addEventListener('mouseup', () => {
+            if(isResizing) {
+                isResizing = false;
+                document.body.style.cursor = 'default';
+            }
+        });
+
+        /* ========================================================
+           3. MODAL TERMS LOGIC
+           ======================================================== */
+        const modalTerms = document.getElementById('modal-terms');
+        const modalContent = modalTerms.querySelector('.bg-card');
+        const openTermsBtn = document.getElementById('openTermsModal');
+        const closeTermsBtn = document.getElementById('closeTermsModal');
+        const acceptTermsBtn = document.getElementById('acceptTermsModal');
+
+        const openModal = () => {
+            modalTerms.classList.remove('hidden');
+            // Small delay to allow display:block to apply before animating opacity
+            setTimeout(() => {
+                modalTerms.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+            }, 10);
+        };
+
+        const closeModal = () => {
+            modalTerms.classList.add('opacity-0');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => {
+                modalTerms.classList.add('hidden');
+            }, 300);
+        };
+
+        openTermsBtn.addEventListener('click', openModal);
+        closeTermsBtn.addEventListener('click', closeModal);
+        acceptTermsBtn.addEventListener('click', closeModal);
+
+        /* ========================================================
+           4. CORE LOGIC - AUDIO TO MP3 (DO NOT REMOVE)
+           ======================================================== */
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        
+        // Card Containers
+        const fileInfoCard = document.getElementById('fileInfoCard');
+        const progressCard = document.getElementById('progressCard');
+        const resultCard = document.getElementById('resultCard');
+
+        // Elements inside cards
+        const fileNameEl = document.getElementById('fileName');
+        const fileSizeEl = document.getElementById('fileSize');
+        const convertBtn = document.getElementById('convertBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressStatus = document.getElementById('progressStatus');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const bitrateSelect = document.getElementById('bitrate');
+
+        let selectedFile = null;
+
+        // Event Drag and Drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => dropzone.classList.add('drag-active'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => dropzone.classList.remove('drag-active'), false);
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        });
+
+        fileInput.addEventListener('change', function() {
+            handleFiles(this.files);
+        });
+
+        // Menangani file yang dipilih
+        function handleFiles(files) {
+            if (files.length > 0) {
+                const file = files[0];
+                
+                // Validasi tipe (secara longgar karena format audio bervariasi)
+                if (!file.type.startsWith('audio/') && !file.name.match(/\.(m4a|ogg|wav|weba|aac|flac|wma)$/i)) {
+                    alert('Harap pilih file audio yang valid.');
+                    return;
+                }
+
+                selectedFile = file;
+                
+                // Update UI
+                fileNameEl.textContent = file.name;
+                fileSizeEl.textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+                
+                fileInfoCard.classList.remove('card-hidden');
+                resultCard.classList.add('card-hidden');
+                progressCard.classList.add('card-hidden');
+            }
+        }
+
+        // Event Klik Konversi
+        convertBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            // Persiapan UI
+            convertBtn.disabled = true;
+            convertBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Memulai...</span>`;
+            convertBtn.classList.add('opacity-70', 'cursor-not-allowed');
+            lucide.createIcons();
+            
+            progressCard.classList.remove('card-hidden');
+            resultCard.classList.add('card-hidden');
+            
+            try {
+                await processAudioConversion(selectedFile);
+            } catch (error) {
+                console.error("Kesalahan saat konversi:", error);
+                alert("Terjadi kesalahan saat mengonversi file: " + error.message);
+                
+                // Reset UI on error
+                progressCard.classList.add('card-hidden');
+                convertBtn.disabled = false;
+                convertBtn.innerHTML = `<i data-lucide="zap" class="w-4 h-4"></i><span>Mulai Konversi</span>`;
+                convertBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                lucide.createIcons();
+            }
+        });
+
+        // Fungsi utama konversi (Asli dari LameJS, dipertahankan)
+        async function processAudioConversion(file) {
+            updateProgress(0, "Membaca file audio...");
+
+            // 1. Baca file menjadi ArrayBuffer
+            const arrayBuffer = await file.arrayBuffer();
+
+            updateProgress(10, "Mendekode audio (mungkin butuh waktu)...");
+
+            // 2. Dekode audio menggunakan Web Audio API
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const audioCtx = new AudioContext();
+            
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            
+            updateProgress(30, "Mempersiapkan encoder MP3...");
+
+            // 3. Konfigurasi LameJS
+            const channels = audioBuffer.numberOfChannels;
+            const sampleRate = audioBuffer.sampleRate;
+            const kbps = parseInt(bitrateSelect.value);
+            
+            // Inisialisasi Encoder (lamejs)
+            const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, kbps);
+            const mp3Data = [];
+
+            // 4. Ambil data PCM dan konversi dari Float32 (-1.0 ke 1.0) menjadi Int16
+            const leftData = audioBuffer.getChannelData(0);
+            const rightData = channels > 1 ? audioBuffer.getChannelData(1) : leftData;
+            const length = audioBuffer.length;
+            
+            const sampleBlockSize = 1152; 
+            const chunkSize = sampleBlockSize * 100; // Proses dalam blok besar
+            
+            let offset = 0;
+
+            // Fungsi rekursif asinkron untuk memproses chunk
+            const encodeChunk = () => {
+                return new Promise(resolve => {
+                    const end = Math.min(offset + chunkSize, length);
+                    
+                    const leftChunk = new Int16Array(end - offset);
+                    const rightChunk = new Int16Array(end - offset);
+
+                    for (let i = offset; i < end; i++) {
+                        let l = leftData[i];
+                        leftChunk[i - offset] = l < 0 ? l * 0x8000 : l * 0x7FFF;
+
+                        if (channels > 1) {
+                            let r = rightData[i];
+                            rightChunk[i - offset] = r < 0 ? r * 0x8000 : r * 0x7FFF;
+                        }
+                    }
+
+                    let mp3buf;
+                    if (channels > 1) {
+                        mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+                    } else {
+                        mp3buf = mp3encoder.encodeBuffer(leftChunk);
+                    }
+
+                    if (mp3buf.length > 0) {
+                        mp3Data.push(mp3buf);
+                    }
+
+                    offset = end;
+                    
+                    const encodeProgress = 30 + Math.round((offset / length) * 65);
+                    updateProgress(encodeProgress, `Mengonversi ke MP3...`);
+
+                    if (offset < length) {
+                        setTimeout(() => resolve(encodeChunk()), 0);
+                    } else {
+                        resolve();
+                    }
+                });
+            };
+
+            await encodeChunk();
+
+            updateProgress(95, "Menyelesaikan file...");
+
+            // 5. Finalisasi file MP3
+            const mp3bufFinal = mp3encoder.flush();
+            if (mp3bufFinal.length > 0) {
+                mp3Data.push(mp3bufFinal);
+            }
+
+            // 6. Buat Blob dan URL
+            const blob = new Blob(mp3Data, { type: 'audio/mp3' });
+            const url = window.URL.createObjectURL(blob);
+            
+            const originalName = file.name;
+            const newName = originalName.substring(0, originalName.lastIndexOf('.')) + '.mp3';
+
+            updateProgress(100, "Selesai!");
+
+            // 7. Tampilkan hasil
+            setTimeout(() => {
+                showResult(url, newName);
+            }, 600);
+        }
+
+        function updateProgress(percent, text) {
+            progressBar.style.width = `${percent}%`;
+            progressPercent.textContent = `${percent}%`;
+            if (text) {
+                progressStatus.textContent = text;
+            }
+        }
+
+        function showResult(url, filename) {
+            progressCard.classList.add('card-hidden');
+            resultCard.classList.remove('card-hidden');
+            fileInfoCard.classList.add('card-hidden'); // Sembunyikan card info agar fokus ke hasil
+            
+            audioPlayer.src = url;
+            
+            downloadBtn.href = url;
+            downloadBtn.download = filename;
+            
+            // Kembalikan tombol konversi untuk file baru
+            convertBtn.disabled = false;
+            convertBtn.innerHTML = `<i data-lucide="zap" class="w-4 h-4"></i><span>Mulai Konversi</span>`;
+            convertBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+            lucide.createIcons();
+        }
+
+    </script>
+</body>
+</html>
