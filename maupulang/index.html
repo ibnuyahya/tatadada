@@ -71,7 +71,7 @@
       <h1 class="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-purple-600 tracking-tight">
         MauPulang 3D
       </h1>
-      <span class="text-xs italic text-dim border-l border-theme pl-3">v5.5 (Progresi Level & Jejak Tanpa Batas)</span>
+      <span class="text-xs italic text-dim border-l border-theme pl-3">v6.0 (Perfect Physics & Flora)</span>
     </div>
     
     <div class="flex items-center gap-4 text-sm font-medium">
@@ -174,18 +174,23 @@
     
     <!-- UI Overlay 3D -->
     <div class="absolute top-6 left-6 right-6 flex justify-between items-start pointer-events-none">
-      <div class="bg-black/70 backdrop-blur-md text-white px-5 py-4 rounded-xl border border-white/10 pointer-events-auto shadow-2xl transition-colors duration-500 w-80" id="ui-mission-box">
-        <div class="flex justify-between items-center mb-2">
-            <h3 class="font-bold text-base text-orange-400 transition-colors duration-500" id="ui-mission">Misi: Cari Jalan Keluar</h3>
-            <span id="ui-timer" class="font-mono text-sm bg-white/20 px-2 py-1 rounded shadow-inner text-white">00:00</span>
+      <div class="flex flex-col gap-2 pointer-events-auto">
+        <!-- Main compact box (Redesain Kapsul Transparan Minimalis) -->
+        <div class="bg-black/20 backdrop-blur-md px-3 py-2 rounded-full border border-white/20 shadow-lg flex items-center gap-3 transition-colors duration-500" id="ui-mission-box">
+          <span id="ui-timer" class="font-mono text-sm font-bold text-white tracking-wider">00:00</span>
+          <span id="ui-mission" class="font-bold text-xs text-green-400 hidden">MISI SELESAI!</span>
+          <button id="btn-hint-toggle" class="w-6 h-6 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center text-xs font-bold transition-all cursor-pointer" title="Cara Main">?</button>
         </div>
-        <p class="text-sm opacity-90 mb-1">Gerak: <span class="font-mono text-yellow-300">W A S D</span> | Lari: <span class="font-mono text-yellow-300">SHIFT</span></p>
-        <p class="text-sm opacity-90 mb-1">Jongkok: <span class="font-mono text-yellow-300">CTRL</span> | Lompat: <span class="font-mono text-yellow-300">SPACE</span></p>
-        <p class="text-sm opacity-90 mb-1">Kamera: <span class="font-mono text-yellow-300">Mouse</span></p>
+        <!-- Hint box (Sembunyi secara default, muncul jika diklik '?') -->
+        <div id="ui-hint-panel" class="hidden bg-black/60 backdrop-blur-md text-white px-4 py-3 rounded-xl border border-white/10 shadow-lg text-xs transition-opacity mt-1">
+          <p class="opacity-90 mb-1.5">Gerak: <span class="text-yellow-300 font-mono">WASD</span> | Lari: <span class="text-yellow-300 font-mono">SHIFT</span></p>
+          <p class="opacity-90 mb-1.5">Jongkok: <span class="text-yellow-300 font-mono">CTRL</span> | Lompat: <span class="text-yellow-300 font-mono">SPACE</span></p>
+          <p class="opacity-90 m-0">Kamera: <span class="text-yellow-300 font-mono">Mouse</span></p>
+        </div>
       </div>
       
-      <button id="btn-exit-3d" class="bg-red-600 hover:bg-red-500 backdrop-blur text-white text-sm font-bold py-3 px-6 rounded-xl border border-red-400/50 pointer-events-auto transition-all shadow-xl">
-        KEMBALI KE 2D (EXIT)
+      <button id="btn-exit-3d" class="bg-red-600 hover:bg-red-500 backdrop-blur text-white text-sm font-bold py-2 px-5 rounded-full border border-red-400/50 pointer-events-auto transition-all shadow-xl">
+        EXIT (2D)
       </button>
     </div>
   </div>
@@ -212,6 +217,13 @@
     const container3d = document.getElementById('container-3d');
     const statusText = document.getElementById('status-text');
     const statsText = document.getElementById('stats-text');
+    const btnHintToggle = document.getElementById('btn-hint-toggle');
+    const uiHintPanel = document.getElementById('ui-hint-panel');
+
+    // Toggle Hint Panel
+    btnHintToggle.addEventListener('click', () => {
+        uiHintPanel.classList.toggle('hidden');
+    });
 
     // Menghasilkan opsi level 4 sampai 35 secara dinamis
     function updateLevelOptions() {
@@ -251,8 +263,8 @@
       document.getElementById('btn-random').innerText = lang === 'ID' ? 'Acak Pola' : 'Randomize';
       document.getElementById('label-action').innerText = lang === 'ID' ? 'Mode Aksi Realistik' : 'Realistic Action Mode';
       document.getElementById('label-desc').innerText = lang === 'ID' ? 'Terjun ke dalam simulasi labirin 3D. Hati-hati dengan gerbang besi yang akan tertutup di belakang Anda! Temukan jalan keluar secepatnya.' : 'Dive into 3D maze simulation. Beware of the iron gate closing behind you! Find the exit as fast as you can.';
-      document.getElementById('ui-mission').innerText = lang === 'ID' ? 'Misi: Cari Jalan Keluar' : 'Mission: Find the Exit';
-      document.getElementById('btn-exit-3d').innerText = lang === 'ID' ? 'KEMBALI KE 2D (EXIT)' : 'BACK TO 2D (EXIT)';
+      document.getElementById('ui-mission').innerText = lang === 'ID' ? 'MISI SELESAI!' : 'MISSION COMPLETE!';
+      document.getElementById('btn-exit-3d').innerText = lang === 'ID' ? 'EXIT (2D)' : 'EXIT (2D)';
       document.getElementById('label-terms').innerText = lang === 'ID' ? 'Syarat & Ketentuan' : 'Terms of Service';
       updateLevelOptions();
       drawMaze2D();
@@ -387,13 +399,105 @@
         }
       }
 
-      for(let i=0; i<150; i++) {
-        const vx = Math.random() * 512; const vy = Math.random() * 512;
-        const size = 15 + Math.random() * 20;
-        ctx.beginPath(); ctx.arc(vx, vy, size, 0, Math.PI*2);
-        ctx.fillStyle = `rgb(${20 + Math.random()*30}, ${80 + Math.random()*60}, ${20 + Math.random()*20})`; ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
-        ctx.moveTo(vx - size/2, vy); ctx.lineTo(vx + size/2, vy); ctx.stroke();
+      // Pohon Dolar / Ivy Vines super lebat + Bunga
+      const numVines = 20;
+      for(let v = 0; v < numVines; v++) {
+          let currentX = Math.random() * 512;
+          ctx.beginPath();
+          ctx.moveTo(currentX, 0);
+          
+          let points = [];
+          for(let y = 0; y <= 512; y += 20) {
+              currentX += (Math.random() - 0.5) * 30; // Sulur berkelok
+              points.push({x: currentX, y: y});
+              ctx.lineTo(currentX, y);
+          }
+          ctx.strokeStyle = 'rgba(25, 45, 15, 0.9)';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+
+          for(let p = 0; p < points.length - 1; p++) {
+              let pt = points[p];
+              // Lebatkan Daun (Lebih banyak daun per node)
+              for(let l = 0; l < 6; l++) {
+                  let lx = pt.x + (Math.random() - 0.5) * 45;
+                  let ly = pt.y + (Math.random() - 0.5) * 45;
+                  let angle = Math.random() * Math.PI * 2;
+                  let size = 12 + Math.random() * 18;
+                  let color = `rgb(${10 + Math.random()*30}, ${70 + Math.random()*70}, ${10 + Math.random()*20})`;
+                  
+                  const drawLeaf = (x, y) => {
+                      ctx.save();
+                      ctx.translate(x, y);
+                      ctx.rotate(angle);
+                      
+                      // Bayangan
+                      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                      ctx.shadowBlur = 3;
+                      ctx.shadowOffsetY = 2;
+
+                      // Bentuk Daun (Kurva Bezier Tetesan Air/Almond)
+                      ctx.fillStyle = color;
+                      ctx.beginPath();
+                      ctx.moveTo(0, -size/1.5);
+                      ctx.quadraticCurveTo(size/2, 0, 0, size/1.5);
+                      ctx.quadraticCurveTo(-size/2, 0, 0, -size/1.5);
+                      ctx.fill();
+                      
+                      ctx.shadowColor = 'transparent';
+                      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                      ctx.lineWidth = 0.5;
+                      ctx.stroke();
+                      
+                      // Tulang daun tengah
+                      ctx.beginPath();
+                      ctx.moveTo(0, -size/1.5);
+                      ctx.lineTo(0, size/1.5);
+                      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                      ctx.stroke();
+                      
+                      ctx.restore();
+                  };
+                  
+                  drawLeaf(lx, ly);
+                  // Seamless wrap manual agar tidak terpotong di tepi kanvas
+                  if(lx < size) drawLeaf(lx + 512, ly);
+                  if(lx > 512 - size) drawLeaf(lx - 512, ly);
+              }
+
+              // Bunga (Peluang 25% tumbuh)
+              if (Math.random() < 0.25) {
+                  let fx = pt.x + (Math.random() - 0.5) * 30;
+                  let fy = pt.y + (Math.random() - 0.5) * 30;
+                  let fColors = ['#ff3366', '#ffea00', '#33ccff', '#ff6600', '#cc33ff', '#ffffff'];
+                  let fColor = fColors[Math.floor(Math.random() * fColors.length)];
+                  
+                  const drawFlower = (x, y) => {
+                      ctx.save();
+                      ctx.translate(x, y);
+                      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                      ctx.shadowBlur = 3;
+                      ctx.shadowOffsetY = 2;
+                      
+                      // Kelopak
+                      ctx.fillStyle = fColor;
+                      for(let f=0; f<5; f++){
+                          ctx.rotate((Math.PI*2)/5);
+                          ctx.beginPath();
+                          ctx.ellipse(0, 5, 4, 7, 0, 0, Math.PI*2);
+                          ctx.fill();
+                      }
+                      ctx.shadowColor = 'transparent';
+                      // Inti Bunga
+                      ctx.fillStyle = '#ffee00'; 
+                      ctx.beginPath(); ctx.arc(0,0, 3.5, 0, Math.PI*2); ctx.fill();
+                      ctx.restore();
+                  }
+                  drawFlower(fx, fy);
+                  if(fx < 15) drawFlower(fx + 512, fy);
+                  if(fx > 497) drawFlower(fx - 512, fy);
+              }
+          }
       }
 
       const texture = new THREE.CanvasTexture(canvas);
@@ -417,6 +521,34 @@
         ctx.moveTo(x, y);
         while(y < 512) { x += (Math.random() - 0.5) * 40; y += 20 + Math.random() * 20; ctx.lineTo(x, y); }
         ctx.stroke();
+      }
+
+      // Ratusan Daun Kering Berjatuhan di Lantai
+      for(let i=0; i<250; i++) {
+          let lx = Math.random() * 512;
+          let ly = Math.random() * 512;
+          let angle = Math.random() * Math.PI * 2;
+          let size = 6 + Math.random() * 6; // Lebih kecil/natural di lantai
+          let colors = ['#8b5a2b', '#a0522d', '#cd853f', '#d2691e', '#808000', '#556b2f', '#8b0000']; 
+          let color = colors[Math.floor(Math.random() * colors.length)];
+          
+          ctx.save();
+          ctx.translate(lx, ly);
+          ctx.rotate(angle);
+          ctx.fillStyle = color;
+          ctx.globalAlpha = 0.85; // Sedikit lebih solid agar terlihat
+          
+          ctx.beginPath();
+          ctx.moveTo(0, -size/1.5);
+          ctx.quadraticCurveTo(size/2, 0, 0, size/1.5);
+          ctx.quadraticCurveTo(-size/2, 0, 0, -size/1.5);
+          ctx.fill();
+          
+          ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0, -size/1.5); ctx.lineTo(0, size/1.5); ctx.stroke();
+          ctx.restore();
       }
 
       const texture = new THREE.CanvasTexture(canvas);
@@ -448,7 +580,8 @@
       const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 128;
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0,0,64,128);
-      ctx.fillStyle = 'rgba(25, 20, 15, 0.85)'; 
+      // Sepatu manusia yang pekat dan berdebu
+      ctx.fillStyle = 'rgba(20, 15, 10, 0.9)'; 
       ctx.beginPath(); ctx.ellipse(32, 90, 12, 18, 0, 0, Math.PI*2); ctx.fill();
       ctx.beginPath(); ctx.ellipse(32, 35, 18, 28, 0, 0, Math.PI*2); ctx.fill();
       return new THREE.CanvasTexture(canvas);
@@ -541,7 +674,6 @@
     // --- 3D ENGINE & ADVANCED KINEMATICS PHYSICS LOGIC ---
     let renderer, scene, camera, footprintMesh, entranceGate;
     let footprintCount = 0;
-    // RING BUFFER: Batas memori jejak kaki ditambah menjadi 15.000 untuk mencegah hilangnya jejak sejarah
     const MAX_FOOTPRINTS = 15000; 
     const dummyFootprint = new THREE.Object3D();
     
@@ -624,10 +756,9 @@
       elapsedTime = 0;
 
       const missionText = document.getElementById('ui-mission');
-      missionText.innerText = lang === 'ID' ? 'Misi: Cari Jalan Keluar' : 'Mission: Find the Exit';
-      missionText.classList.remove('text-green-400');
-      missionText.classList.add('text-orange-400');
+      missionText.classList.add('hidden'); 
       document.getElementById('ui-timer').innerText = '00:00';
+      uiHintPanel.classList.add('hidden'); 
 
       viewMode = '3d';
       view3d.classList.replace('opacity-0', 'opacity-100');
@@ -649,7 +780,12 @@
       hemiLight.position.set(0, 200, 0); scene.add(hemiLight);
 
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-      dirLight.position.set(100, 200, 50); dirLight.castShadow = true;
+      dirLight.position.set(100, 200, 50); 
+      dirLight.castShadow = true;
+      // FIX SHADOW ACNE & RESOLUTION: Agar pilar tidak terlihat berkedip dengan bayangan jeruji gerbang
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.bias = -0.001; 
       dirLight.shadow.camera.top = 200; dirLight.shadow.camera.bottom = -200;
       dirLight.shadow.camera.left = -200; dirLight.shadow.camera.right = 200;
       scene.add(dirLight);
@@ -673,12 +809,16 @@
       scene.add(floor);
 
       const fpTex = createFootprintTexture();
-      const fpGeo = new THREE.PlaneGeometry(1.5, 3);
+      // Ukuran lebih proporsional sepatu manusia (1.0m x 2.2m)
+      const fpGeo = new THREE.PlaneGeometry(1.0, 2.2); 
       fpGeo.rotateX(-Math.PI / 2); 
-      const fpMat = new THREE.MeshBasicMaterial({ map: fpTex, transparent: true, opacity: 0.7, depthWrite: false });
+      // FIX NGAMBANG: Gunakan polygonOffset GPU alih-alih menaikkan position.y fisik
+      const fpMat = new THREE.MeshBasicMaterial({ 
+          map: fpTex, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false,
+          polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
+      });
       footprintMesh = new THREE.InstancedMesh(fpGeo, fpMat, MAX_FOOTPRINTS);
-      footprintMesh.position.y = 0.02; 
-      // Set render count to 0 so no random footprints appear at origin initially
+      footprintMesh.position.y = 0; // MENEMPEL SEMPURNA KE LANTAI MARMER Y=0
       footprintMesh.count = 0;
       scene.add(footprintMesh);
 
@@ -703,43 +843,49 @@
           gateGroup.add(tip);
       }
       
-      const hBarGeo = new THREE.BoxGeometry(PHYS.cellSize, barRadius * 2, barRadius * 2);
+      const hBarGeo = new THREE.BoxGeometry(PHYS.cellSize - PHYS.wallThick, barRadius * 2, barRadius * 2);
       const hBar1 = new THREE.Mesh(hBarGeo, ironMat); hBar1.position.set(0, WALL_HEIGHT * 0.2, 0); hBar1.castShadow = true; gateGroup.add(hBar1);
       const hBar2 = new THREE.Mesh(hBarGeo, ironMat); hBar2.position.set(0, WALL_HEIGHT * 0.8, 0); hBar2.castShadow = true; gateGroup.add(hBar2);
-
-      const frameGeo = new THREE.BoxGeometry(PHYS.wallThick, WALL_HEIGHT, PHYS.wallThick);
-      const leftFrame = new THREE.Mesh(frameGeo, ironMat); leftFrame.position.set(-PHYS.cellSize/2, WALL_HEIGHT/2, 0); leftFrame.castShadow = true; gateGroup.add(leftFrame);
-      const rightFrame = new THREE.Mesh(frameGeo, ironMat); rightFrame.position.set(PHYS.cellSize/2, WALL_HEIGHT/2, 0); rightFrame.castShadow = true; gateGroup.add(rightFrame);
 
       entranceGate = gateGroup;
       entranceGate.position.set(0, WALL_HEIGHT * 3, -PHYS.cellSize / 2); 
       scene.add(entranceGate);
 
-      // Pembangunan Instanced Dinding Maze & Registrasi Fisika Box (AABB)
+      // Pembangunan Dinding Maze & Registrasi Fisika (Metode Segmen + Pilar)
       const wallTex = createBrickWallTexture();
-      let wallCount = 0;
+      const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.8 });
+
+      let hWallCount = 0, vWallCount = 0;
       for (let r = 0; r < currentSize; r++) {
         for (let c = 0; c < currentSize; c++) {
-          if (mazeGrid[r][c].walls.top) wallCount++;
-          if (mazeGrid[r][c].walls.left) wallCount++;
-          if (r === currentSize - 1 && mazeGrid[r][c].walls.bottom) wallCount++;
-          if (c === currentSize - 1 && mazeGrid[r][c].walls.right) wallCount++;
+          if (mazeGrid[r][c].walls.top) hWallCount++;
+          if (mazeGrid[r][c].walls.left) vWallCount++;
+          if (r === currentSize - 1 && mazeGrid[r][c].walls.bottom) hWallCount++;
+          if (c === currentSize - 1 && mazeGrid[r][c].walls.right) vWallCount++;
         }
       }
+      const pillarCount = (currentSize + 1) * (currentSize + 1);
 
-      const wallGeo = new THREE.BoxGeometry(PHYS.cellSize + PHYS.wallThick, WALL_HEIGHT, PHYS.wallThick);
-      const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.8 });
-      const wallInstancedMesh = new THREE.InstancedMesh(wallGeo, wallMat, wallCount);
-      wallInstancedMesh.castShadow = true; wallInstancedMesh.receiveShadow = true;
+      const hLen = PHYS.cellSize - PHYS.wallThick;
+      const vLen = PHYS.cellSize - PHYS.wallThick;
 
-      let wallIndex = 0; const dummy = new THREE.Object3D();
-      const addWall = (x, z, isVertical) => {
-        dummy.position.set(x, WALL_HEIGHT / 2, z);
-        dummy.rotation.y = isVertical ? Math.PI / 2 : 0;
-        dummy.updateMatrix();
-        wallInstancedMesh.setMatrixAt(wallIndex++, dummy.matrix);
+      const hWallGeo = new THREE.BoxGeometry(hLen, WALL_HEIGHT, PHYS.wallThick);
+      const vWallGeo = new THREE.BoxGeometry(PHYS.wallThick, WALL_HEIGHT, vLen);
+      const pWallGeo = new THREE.BoxGeometry(PHYS.wallThick, WALL_HEIGHT, PHYS.wallThick);
 
-        // Register AABB Box untuk dinding padat
+      const hWallMesh = new THREE.InstancedMesh(hWallGeo, wallMat, hWallCount);
+      hWallMesh.castShadow = true; hWallMesh.receiveShadow = true;
+
+      const vWallMesh = new THREE.InstancedMesh(vWallGeo, wallMat, vWallCount);
+      vWallMesh.castShadow = true; vWallMesh.receiveShadow = true;
+
+      const pWallMesh = new THREE.InstancedMesh(pWallGeo, wallMat, pillarCount);
+      pWallMesh.castShadow = true; pWallMesh.receiveShadow = true;
+
+      let hIdx = 0, vIdx = 0, pIdx = 0; 
+      const dummy = new THREE.Object3D();
+
+      const addCollisionBox = (x, z, isVertical) => {
         let w = isVertical ? PHYS.wallThick : PHYS.cellSize + PHYS.wallThick;
         let d = isVertical ? PHYS.cellSize + PHYS.wallThick : PHYS.wallThick;
         physicalWalls.push({
@@ -751,13 +897,41 @@
       for (let r = 0; r < currentSize; r++) {
         for (let c = 0; c < currentSize; c++) {
           let x = c * PHYS.cellSize; let z = r * PHYS.cellSize; let cell = mazeGrid[r][c];
-          if (cell.walls.top) addWall(x, z - PHYS.cellSize/2, false);
-          if (cell.walls.left) addWall(x - PHYS.cellSize/2, z, true);
-          if (r === currentSize - 1 && cell.walls.bottom) addWall(x, z + PHYS.cellSize/2, false);
-          if (c === currentSize - 1 && cell.walls.right) addWall(x + PHYS.cellSize/2, z, true);
+          
+          if (cell.walls.top) {
+            dummy.position.set(x, WALL_HEIGHT / 2, z - PHYS.cellSize/2); dummy.updateMatrix();
+            hWallMesh.setMatrixAt(hIdx++, dummy.matrix);
+            addCollisionBox(x, z - PHYS.cellSize/2, false);
+          }
+          if (cell.walls.left) {
+            dummy.position.set(x - PHYS.cellSize/2, WALL_HEIGHT / 2, z); dummy.updateMatrix();
+            vWallMesh.setMatrixAt(vIdx++, dummy.matrix);
+            addCollisionBox(x - PHYS.cellSize/2, z, true);
+          }
+          if (r === currentSize - 1 && cell.walls.bottom) {
+            dummy.position.set(x, WALL_HEIGHT / 2, z + PHYS.cellSize/2); dummy.updateMatrix();
+            hWallMesh.setMatrixAt(hIdx++, dummy.matrix);
+            addCollisionBox(x, z + PHYS.cellSize/2, false);
+          }
+          if (c === currentSize - 1 && cell.walls.right) {
+            dummy.position.set(x + PHYS.cellSize/2, WALL_HEIGHT / 2, z); dummy.updateMatrix();
+            vWallMesh.setMatrixAt(vIdx++, dummy.matrix);
+            addCollisionBox(x + PHYS.cellSize/2, z, true);
+          }
         }
       }
-      scene.add(wallInstancedMesh);
+
+      for (let r = 0; r <= currentSize; r++) {
+        for (let c = 0; c <= currentSize; c++) {
+            dummy.position.set(c * PHYS.cellSize - PHYS.cellSize/2, WALL_HEIGHT / 2, r * PHYS.cellSize - PHYS.cellSize/2);
+            dummy.updateMatrix();
+            pWallMesh.setMatrixAt(pIdx++, dummy.matrix);
+        }
+      }
+
+      scene.add(hWallMesh);
+      scene.add(vWallMesh);
+      scene.add(pWallMesh);
 
       // Visual Pintu Keluar
       const endGeo = new THREE.OctahedronGeometry(2.5, 0);
@@ -821,7 +995,7 @@
         if (viewMode === '3d') container3d.requestPointerLock();
       });
 
-      // --- NEW PER-AXIS AABB SOLID COLLISION ---
+      // --- PER-AXIS SOLID AABB COLLISION ---
       const checkCollisionPerAxis = (oldX, oldZ, dx, dz) => {
         let newX = oldX + dx;
         let newZ = oldZ + dz;
@@ -829,13 +1003,14 @@
         let hitZ = false;
         let pr = PHYS.playerRadius;
 
-        // X-AXIS CHECK
+        // X-AXIS CHECK (Dynamic Mutator untuk mencegah selip dinding hook)
         let boxX = { minX: newX - pr, maxX: newX + pr, minZ: oldZ - pr, maxZ: oldZ + pr };
         for(let w of physicalWalls) {
             if(intersectBox(boxX, w)) {
                 if(dx > 0) newX = w.minX - pr - 0.001;
                 else if(dx < 0) newX = w.maxX + pr + 0.001;
                 hitX = true;
+                boxX.minX = newX - pr; boxX.maxX = newX + pr;
             }
         }
 
@@ -846,10 +1021,10 @@
                 if(dz > 0) newZ = w.minZ - pr - 0.001;
                 else if(dz < 0) newZ = w.maxZ + pr + 0.001;
                 hitZ = true;
+                boxZ.minZ = newZ - pr; boxZ.maxZ = newZ + pr;
             }
         }
 
-        // VIRTUAL BOUNDS (Luar Labirin)
         const minBoundX = -PHYS.cellSize; 
         const maxBoundX = (currentSize + 1.5) * PHYS.cellSize;
         const minBoundZ = -PHYS.cellSize;
@@ -874,14 +1049,12 @@
         }
       };
 
-      // MAIN PHYSICS LOOP
       const animate = () => {
         if (viewMode !== '3d' || !camera) return;
         animationId = requestAnimationFrame(animate);
 
         const dt = Math.min(clock.getDelta(), 0.1); 
 
-        // Update Timer UI
         if (!hasWon) {
             elapsedTime = (performance.now() - startTime) / 1000;
             let m = Math.floor(elapsedTime / 60).toString().padStart(2, '0');
@@ -889,18 +1062,18 @@
             document.getElementById('ui-timer').innerText = `${m}:${s}`;
         }
 
-        // Animasi Gerbang Besi Jatuh (Jebakan Masuk)
+        // Pagar Masuk Anti Tembus
         if (!isGateClosed && entranceGate) {
             entranceGate.position.y -= 60 * dt; 
             if (entranceGate.position.y <= 0) { 
                 entranceGate.position.y = 0;
                 
-                // Daftarkan Gerbang ke Physical Walls agar tak bisa ditembus dari dalam atau luar
+                // Mendaftarkan Box Solid AABB Fisika Gerbang 
                 physicalWalls.push({
-                    minX: -PHYS.cellSize/2 - PHYS.wallThick/2,
-                    maxX: PHYS.cellSize/2 + PHYS.wallThick/2,
-                    minZ: -PHYS.cellSize/2 - PHYS.wallThick/2,
-                    maxZ: -PHYS.cellSize/2 + PHYS.wallThick/2
+                    minX: -PHYS.cellSize/2 + PHYS.wallThick/2,
+                    maxX: PHYS.cellSize/2 - PHYS.wallThick/2,
+                    minZ: -PHYS.cellSize/2 - PHYS.wallThick/4,
+                    maxZ: -PHYS.cellSize/2 + PHYS.wallThick/4
                 });
                 
                 playThudSound();
@@ -908,9 +1081,8 @@
             }
         }
 
-        // Efek Blur (Depth of Field) & Rotasi Langit
         raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-        const intersects = raycaster.intersectObject(wallInstancedMesh);
+        const intersects = raycaster.intersectObjects([hWallMesh, vWallMesh, pWallMesh]);
         if (intersects.length > 0) {
             const dist = intersects[0].distance;
             if (dist < 3.0) {
@@ -924,14 +1096,12 @@
         }
         skyMesh.rotation.y += 0.015 * dt; 
 
-        // Animasi Kristal Pintu Keluar
         if (endMesh) {
             endMesh.rotation.y += 1.5 * dt;
             endMesh.rotation.z += 1.0 * dt;
             endMesh.position.y = 4 + Math.sin(clock.getElapsedTime() * 3) * 0.5;
         }
 
-        // Manajemen Kembang Api
         for(let i = fireworks.length - 1; i >= 0; i--) {
             let fw = fireworks[i];
             fw.age += dt;
@@ -939,7 +1109,7 @@
             for(let j=0; j<positions.length/3; j++) {
                 positions[j*3] += fw.velocities[j*3] * dt;
                 positions[j*3+1] += fw.velocities[j*3+1] * dt;
-                positions[j*3+1] -= 8 * dt; // Gravitasi partikel
+                positions[j*3+1] -= 8 * dt; 
                 positions[j*3+2] += fw.velocities[j*3+2] * dt;
             }
             fw.mesh.geometry.attributes.position.needsUpdate = true;
@@ -963,7 +1133,6 @@
         if (keys.a) inputVector.x -= 1;
         if (keys.d) inputVector.x += 1;
 
-        // Modifikasi Kecepatan (Lari & Jongkok)
         let speedMult = 1.0;
         if (keys.shift) speedMult = 1.8;
         if (keys.ctrl) speedMult = 0.5;
@@ -993,10 +1162,10 @@
         if (isGrounded && (Math.abs(dx) > 0.001 || Math.abs(dz) > 0.001)) {
              const distMoved = Math.sqrt(Math.pow(newPos.x - camera.position.x, 2) + Math.pow(newPos.z - camera.position.z, 2));
              stepDistance += distMoved;
-             if (stepDistance > 3.0) {
+             // Jarak deteksi suara sepatu dibuat lebih rapat
+             if (stepDistance > 2.0) {
                stepDistance = 0; playFootstep();
                
-               // Implementasi Ring Buffer untuk Jejak Kaki
                const fpIndex = footprintCount % MAX_FOOTPRINTS;
                dummyFootprint.position.set(camera.position.x, 0, camera.position.z);
                const offset = isLeftFoot ? -0.5 : 0.5;
@@ -1007,7 +1176,6 @@
                footprintMesh.instanceMatrix.needsUpdate = true;
                
                footprintCount++;
-               // Update render count limit (berguna di awal game)
                footprintMesh.count = Math.min(footprintCount, MAX_FOOTPRINTS);
                isLeftFoot = !isLeftFoot;
              }
@@ -1020,14 +1188,11 @@
              hasWon = true;
              triggerFireworks();
              const missionText = document.getElementById('ui-mission');
-             missionText.innerText = lang === 'ID' ? 'MISI SELESAI!' : 'MISSION COMPLETE!';
-             missionText.classList.remove('text-orange-400');
-             missionText.classList.add('text-green-400');
+             missionText.classList.remove('hidden'); 
         }
 
-        // Kalkulasi Ketinggian Kamera Dinamis (Efek Jongkok)
         let targetHeight = keys.ctrl ? PHYS.crouchHeight : PHYS.playerHeight;
-        currentCameraHeight += (targetHeight - currentCameraHeight) * 10 * dt; // Lerping mulus
+        currentCameraHeight += (targetHeight - currentCameraHeight) * 10 * dt; 
 
         velocityY += PHYS.gravity * dt;
         if (velocityY < PHYS.terminalVelocity) velocityY = PHYS.terminalVelocity;
@@ -1041,7 +1206,6 @@
           isGrounded = false;
         }
 
-        // Pemain hanya bisa lompat jika berdiri di tanah dan TIDAK sedang jongkok
         if (keys.space && isGrounded && !keys.ctrl) {
           velocityY = PHYS.jumpForce;
           isGrounded = false; playJump(); keys.space = false; 
