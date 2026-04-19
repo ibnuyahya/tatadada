@@ -40,6 +40,9 @@
       font-family: 'Inter', sans-serif; 
       overflow: hidden; 
       margin: 0;
+      /* Mencegah user memblokir teks / elemen secara tidak sengaja */
+      user-select: none; 
+      -webkit-user-select: none;
     }
     
     /* Scrollbar */
@@ -59,7 +62,8 @@
     .text-dim { color: var(--text-dim); }
   </style>
 </head>
-<body class="h-screen flex flex-col relative">
+<!-- Matikan fungsi klik kanan (context menu) secara global -->
+<body class="h-screen flex flex-col relative" oncontextmenu="return false;">
 
   <!-- HEADER -->
   <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm">
@@ -67,7 +71,7 @@
       <h1 class="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-purple-600 tracking-tight">
         MauPulang 3D
       </h1>
-      <span class="text-xs italic text-dim border-l border-theme pl-3">v4.5 (Cinematic Start & Fireworks)</span>
+      <span class="text-xs italic text-dim border-l border-theme pl-3">v5.5 (Progresi Level & Jejak Tanpa Batas)</span>
     </div>
     
     <div class="flex items-center gap-4 text-sm font-medium">
@@ -76,8 +80,8 @@
       <!-- Tooltip -->
       <div class="group relative cursor-help">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-dim hover:text-[var(--theme-accent)] transition-colors"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <div class="absolute right-0 mt-2 w-64 bg-card border border-theme text-main text-xs p-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50" id="help-tooltip">
-          Atur tingkat kesulitan dan klik EXPLORE 3D untuk bermain layar penuh. Gunakan Spasi untuk Melompat.
+        <div class="absolute right-0 mt-2 w-72 bg-card border border-theme text-main text-xs p-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50" id="help-tooltip">
+          Atur tingkat kesulitan dan klik EXPLORE 3D. <br><br>Gunakan WASD untuk bergerak, SHIFT untuk lari, CTRL untuk jongkok, dan SPASI untuk melompat.
         </div>
       </div>
 
@@ -119,12 +123,8 @@
         
         <div class="flex flex-col gap-3">
           <label class="text-xs font-medium text-dim" id="label-level">Tingkat Kesulitan</label>
+          <!-- Pilihan level di-generate secara dinamis di JS dari 4x4 hingga 35x35 -->
           <select id="select-level" class="w-full bg-editor border border-theme text-main text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm">
-            <option value="4" selected>Level 1: Sangat Mudah (4x4)</option>
-            <option value="10">Level 2: Mudah (10x10)</option>
-            <option value="15">Level 3: Sedang (15x15)</option>
-            <option value="25">Level 4: Sulit (25x25)</option>
-            <option value="35">Level 5: Sangat Sulit (35x35)</option>
           </select>
           
           <div class="grid grid-cols-2 gap-2 mt-2">
@@ -148,7 +148,7 @@
         </h3>
         
         <p class="text-xs text-dim mb-4 leading-relaxed" id="label-desc">
-          Terjun ke dalam simulasi labirin 3D. Hati-hati dengan gerbang yang akan tertutup di belakang Anda! Temukan jalan keluar.
+          Terjun ke dalam simulasi labirin 3D. Hati-hati dengan gerbang besi yang akan tertutup di belakang Anda! Temukan jalan keluar secepatnya.
         </p>
 
         <button id="btn-explore" class="w-full bg-[var(--text-main)] hover:bg-[var(--text-dim)] text-[var(--editor-bg)] font-bold text-sm py-3.5 rounded-lg shadow-md transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
@@ -174,11 +174,14 @@
     
     <!-- UI Overlay 3D -->
     <div class="absolute top-6 left-6 right-6 flex justify-between items-start pointer-events-none">
-      <div class="bg-black/70 backdrop-blur-md text-white px-5 py-4 rounded-xl border border-white/10 pointer-events-auto shadow-2xl transition-colors duration-500" id="ui-mission-box">
-        <h3 class="font-bold text-base text-orange-400 mb-2 transition-colors duration-500" id="ui-mission">Misi: Cari Jalan Keluar</h3>
-        <p class="text-sm opacity-90 mb-1">Gerak: <span class="font-mono text-yellow-300">W A S D</span></p>
-        <p class="text-sm opacity-90 mb-1">Lompat: <span class="font-mono text-yellow-300">SPACE</span></p>
-        <p class="text-sm opacity-90 mb-1">Kamera: Geser Mouse</p>
+      <div class="bg-black/70 backdrop-blur-md text-white px-5 py-4 rounded-xl border border-white/10 pointer-events-auto shadow-2xl transition-colors duration-500 w-80" id="ui-mission-box">
+        <div class="flex justify-between items-center mb-2">
+            <h3 class="font-bold text-base text-orange-400 transition-colors duration-500" id="ui-mission">Misi: Cari Jalan Keluar</h3>
+            <span id="ui-timer" class="font-mono text-sm bg-white/20 px-2 py-1 rounded shadow-inner text-white">00:00</span>
+        </div>
+        <p class="text-sm opacity-90 mb-1">Gerak: <span class="font-mono text-yellow-300">W A S D</span> | Lari: <span class="font-mono text-yellow-300">SHIFT</span></p>
+        <p class="text-sm opacity-90 mb-1">Jongkok: <span class="font-mono text-yellow-300">CTRL</span> | Lompat: <span class="font-mono text-yellow-300">SPACE</span></p>
+        <p class="text-sm opacity-90 mb-1">Kamera: <span class="font-mono text-yellow-300">Mouse</span></p>
       </div>
       
       <button id="btn-exit-3d" class="bg-red-600 hover:bg-red-500 backdrop-blur text-white text-sm font-bold py-3 px-6 rounded-xl border border-red-400/50 pointer-events-auto transition-all shadow-xl">
@@ -210,6 +213,24 @@
     const statusText = document.getElementById('status-text');
     const statsText = document.getElementById('stats-text');
 
+    // Menghasilkan opsi level 4 sampai 35 secara dinamis
+    function updateLevelOptions() {
+        const currentVal = selectLevel.value || 4;
+        selectLevel.innerHTML = '';
+        for (let i = 4; i <= 35; i++) {
+            const opt = document.createElement('option');
+            opt.value = i;
+            let descID = i < 10 ? 'Sangat Mudah' : (i < 20 ? 'Mudah' : (i < 30 ? 'Sedang' : 'Sulit'));
+            let descEN = i < 10 ? 'Very Easy' : (i < 20 ? 'Easy' : (i < 30 ? 'Normal' : 'Hard'));
+            let descText = lang === 'ID' ? descID : descEN;
+            
+            opt.innerText = `Level ${i - 3} - ${descText} (${i}x${i})`;
+            if (i == currentVal) opt.selected = true;
+            selectLevel.appendChild(opt);
+        }
+    }
+    updateLevelOptions(); // Panggil saat inisialisasi
+
     // Theme Logic
     const toggleTheme = () => {
       isDark = !isDark;
@@ -224,15 +245,16 @@
     const toggleLang = () => {
       lang = lang === 'ID' ? 'EN' : 'ID';
       document.getElementById('btn-lang').innerText = lang;
-      document.getElementById('help-tooltip').innerText = lang === 'ID' ? 'Atur tingkat kesulitan dan klik EXPLORE 3D. Gunakan Spasi untuk Melompat.' : 'Set difficulty and click EXPLORE 3D. Use Space to Jump.';
+      document.getElementById('help-tooltip').innerHTML = lang === 'ID' ? 'Atur tingkat kesulitan dan klik EXPLORE 3D. <br><br>Gunakan WASD untuk bergerak, SHIFT untuk lari, CTRL untuk jongkok, dan SPASI untuk melompat.' : 'Set difficulty and click EXPLORE 3D. <br><br>Use WASD to move, SHIFT to sprint, CTRL to crouch, and SPACE to jump.';
       document.getElementById('label-config').innerText = lang === 'ID' ? 'Konfigurasi Labirin' : 'Maze Configuration';
       document.getElementById('label-level').innerText = lang === 'ID' ? 'Tingkat Kesulitan' : 'Difficulty Level';
       document.getElementById('btn-random').innerText = lang === 'ID' ? 'Acak Pola' : 'Randomize';
       document.getElementById('label-action').innerText = lang === 'ID' ? 'Mode Aksi Realistik' : 'Realistic Action Mode';
-      document.getElementById('label-desc').innerText = lang === 'ID' ? 'Terjun ke dalam simulasi labirin 3D. Hati-hati dengan gerbang yang akan tertutup di belakang Anda! Temukan jalan keluar.' : 'Dive into 3D maze simulation. Beware of the gate closing behind you! Find the exit.';
+      document.getElementById('label-desc').innerText = lang === 'ID' ? 'Terjun ke dalam simulasi labirin 3D. Hati-hati dengan gerbang besi yang akan tertutup di belakang Anda! Temukan jalan keluar secepatnya.' : 'Dive into 3D maze simulation. Beware of the iron gate closing behind you! Find the exit as fast as you can.';
       document.getElementById('ui-mission').innerText = lang === 'ID' ? 'Misi: Cari Jalan Keluar' : 'Mission: Find the Exit';
       document.getElementById('btn-exit-3d').innerText = lang === 'ID' ? 'KEMBALI KE 2D (EXIT)' : 'BACK TO 2D (EXIT)';
       document.getElementById('label-terms').innerText = lang === 'ID' ? 'Syarat & Ketentuan' : 'Terms of Service';
+      updateLevelOptions();
       drawMaze2D();
     };
     document.getElementById('btn-lang').addEventListener('click', toggleLang);
@@ -291,7 +313,6 @@
       osc.start(); osc.stop(audioCtx.currentTime + 0.3);
     }
 
-    // New Audio: Pintu Tertutup (Debum)
     function playThudSound() {
       if (!isAudioReady) return;
       const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
@@ -304,7 +325,6 @@
       osc.start(); osc.stop(audioCtx.currentTime + 0.3);
     }
 
-    // New Audio: Kembang Api
     function playExplosionSound() {
       if (!isAudioReady) return;
       const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
@@ -319,19 +339,11 @@
 
     function startAmbientBGM() {
       if (!isAudioReady) return;
+      // Hanya Drone & Burung
       const osc1 = audioCtx.createOscillator(); osc1.type = 'sine'; osc1.frequency.value = 55; 
       const gain1 = audioCtx.createGain(); gain1.gain.value = 0.1;
       osc1.connect(gain1).connect(audioCtx.destination);
       osc1.start(); bgmOscillators.push(osc1);
-
-      const cricketOsc = audioCtx.createOscillator(); cricketOsc.type = 'square'; cricketOsc.frequency.value = 4500;
-      const cricketLFO = audioCtx.createOscillator(); cricketLFO.type = 'square'; cricketLFO.frequency.value = 15; 
-      const lfoGain = audioCtx.createGain(); lfoGain.gain.value = 4000;
-      cricketLFO.connect(lfoGain).connect(cricketOsc.frequency);
-      const cricketVol = audioCtx.createGain(); cricketVol.gain.value = 0.01; 
-      cricketOsc.connect(cricketVol).connect(audioCtx.destination);
-      cricketOsc.start(); cricketLFO.start();
-      bgmOscillators.push(cricketOsc, cricketLFO);
 
       setInterval(() => {
         if (viewMode !== '3d') return;
@@ -436,7 +448,7 @@
       const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 128;
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0,0,64,128);
-      ctx.fillStyle = 'rgba(30, 20, 15, 0.5)';
+      ctx.fillStyle = 'rgba(25, 20, 15, 0.85)'; 
       ctx.beginPath(); ctx.ellipse(32, 90, 12, 18, 0, 0, Math.PI*2); ctx.fill();
       ctx.beginPath(); ctx.ellipse(32, 35, 18, 28, 0, 0, Math.PI*2); ctx.fill();
       return new THREE.CanvasTexture(canvas);
@@ -527,20 +539,22 @@
     });
 
     // --- 3D ENGINE & ADVANCED KINEMATICS PHYSICS LOGIC ---
-    let renderer, scene, camera, footprintMesh;
+    let renderer, scene, camera, footprintMesh, entranceGate;
     let footprintCount = 0;
-    const MAX_FOOTPRINTS = 1000;
+    // RING BUFFER: Batas memori jejak kaki ditambah menjadi 15.000 untuk mencegah hilangnya jejak sejarah
+    const MAX_FOOTPRINTS = 15000; 
     const dummyFootprint = new THREE.Object3D();
     
     // Physics Configuration 
     const PHYS = {
-      accelForce: 70.0,       
-      maxSpeed: 25.0,         
+      accelForce: 60.0,       
+      maxSpeed: 20.0,         
       friction: 5.5,          
       gravity: -35.0,         
       jumpForce: 14.0,        
       terminalVelocity: -40.0,
       playerHeight: 4.0,      
+      crouchHeight: 2.0,      
       playerRadius: 1.5,      
       cellSize: 12.0,         
       wallThick: 3.0          
@@ -549,10 +563,17 @@
     let hasWon = false;
     let fireworks = [];
     let isGateClosed = false;
+    let physicalWalls = []; 
+    let startTime = 0;
+    let elapsedTime = 0;
+
+    const intersectBox = (a, b) => {
+        return (a.minX < b.maxX && a.maxX > b.minX) &&
+               (a.minZ < b.maxZ && a.maxZ > b.minZ);
+    };
 
     function triggerFireworks() {
       const colors = [0xff3333, 0x33ff33, 0x3333ff, 0xffff33, 0xff33ff, 0x33ffff];
-      // Tembakkan serentetan kembang api
       for(let i=0; i<8; i++) {
           setTimeout(() => {
               if (viewMode !== '3d' || !scene) return;
@@ -561,7 +582,6 @@
               const positions = new Float32Array(particleCount * 3);
               const velocities = [];
               
-              // Tembak dari area luar labirin di ujung
               const originX = (currentSize - 0.5) * PHYS.cellSize + (Math.random() - 0.5) * 20;
               const originY = 16 + 10 + Math.random() * 15;
               const originZ = (currentSize - 0.5) * PHYS.cellSize + (Math.random() - 0.5) * 20;
@@ -589,7 +609,7 @@
               scene.add(particleSystem);
               fireworks.push({ mesh: particleSystem, velocities: velocities, age: 0 });
               playExplosionSound();
-          }, i * 450); // Ledakan bertahap
+          }, i * 450); 
       }
     }
 
@@ -598,12 +618,16 @@
       hasWon = false;
       fireworks = [];
       isGateClosed = false;
+      physicalWalls = []; 
+      footprintCount = 0;
+      startTime = performance.now();
+      elapsedTime = 0;
 
-      // Update UI Text Reset
       const missionText = document.getElementById('ui-mission');
       missionText.innerText = lang === 'ID' ? 'Misi: Cari Jalan Keluar' : 'Mission: Find the Exit';
       missionText.classList.remove('text-green-400');
       missionText.classList.add('text-orange-400');
+      document.getElementById('ui-timer').innerText = '00:00';
 
       viewMode = '3d';
       view3d.classList.replace('opacity-0', 'opacity-100');
@@ -651,21 +675,47 @@
       const fpTex = createFootprintTexture();
       const fpGeo = new THREE.PlaneGeometry(1.5, 3);
       fpGeo.rotateX(-Math.PI / 2); 
-      const fpMat = new THREE.MeshBasicMaterial({ map: fpTex, transparent: true, opacity: 0.4, depthWrite: false });
+      const fpMat = new THREE.MeshBasicMaterial({ map: fpTex, transparent: true, opacity: 0.7, depthWrite: false });
       footprintMesh = new THREE.InstancedMesh(fpGeo, fpMat, MAX_FOOTPRINTS);
-      footprintMesh.position.y = 0.05; 
+      footprintMesh.position.y = 0.02; 
+      // Set render count to 0 so no random footprints appear at origin initially
+      footprintMesh.count = 0;
       scene.add(footprintMesh);
-      footprintCount = 0;
 
-      // Gerbang Jebakan (Awalnya melayang di atas, di belakang kita)
-      const gateGeo = new THREE.BoxGeometry(PHYS.cellSize, WALL_HEIGHT, PHYS.wallThick);
-      const gateMat = new THREE.MeshStandardMaterial({ color: 0x2d1a10, metalness: 0.8, roughness: 0.6 }); // Besi berkarat
-      const entranceGate = new THREE.Mesh(gateGeo, gateMat);
-      // Di belakang pemain (sumbu -Z adalah luar maze sesuai algoritma sebelumnya)
-      entranceGate.position.set(0, WALL_HEIGHT * 2, -PHYS.cellSize / 2); 
+      // --- GERBANG BESI VICTORIAN ---
+      const gateGroup = new THREE.Group();
+      const ironMat = new THREE.MeshStandardMaterial({ color: 0x151515, metalness: 0.8, roughness: 0.4 });
+      const barRadius = 0.25;
+      const numBars = 9;
+      const barSpacing = PHYS.cellSize / (numBars + 1);
+
+      for(let i = 1; i <= numBars; i++) {
+          const barX = -PHYS.cellSize/2 + i * barSpacing;
+          const vBarGeo = new THREE.CylinderGeometry(barRadius, barRadius, WALL_HEIGHT, 8);
+          const vBar = new THREE.Mesh(vBarGeo, ironMat);
+          vBar.position.set(barX, WALL_HEIGHT/2, 0);
+          vBar.castShadow = true;
+          gateGroup.add(vBar);
+
+          const tipGeo = new THREE.ConeGeometry(barRadius * 1.5, 1.5, 8);
+          const tip = new THREE.Mesh(tipGeo, ironMat);
+          tip.position.set(barX, WALL_HEIGHT + 0.75, 0);
+          gateGroup.add(tip);
+      }
+      
+      const hBarGeo = new THREE.BoxGeometry(PHYS.cellSize, barRadius * 2, barRadius * 2);
+      const hBar1 = new THREE.Mesh(hBarGeo, ironMat); hBar1.position.set(0, WALL_HEIGHT * 0.2, 0); hBar1.castShadow = true; gateGroup.add(hBar1);
+      const hBar2 = new THREE.Mesh(hBarGeo, ironMat); hBar2.position.set(0, WALL_HEIGHT * 0.8, 0); hBar2.castShadow = true; gateGroup.add(hBar2);
+
+      const frameGeo = new THREE.BoxGeometry(PHYS.wallThick, WALL_HEIGHT, PHYS.wallThick);
+      const leftFrame = new THREE.Mesh(frameGeo, ironMat); leftFrame.position.set(-PHYS.cellSize/2, WALL_HEIGHT/2, 0); leftFrame.castShadow = true; gateGroup.add(leftFrame);
+      const rightFrame = new THREE.Mesh(frameGeo, ironMat); rightFrame.position.set(PHYS.cellSize/2, WALL_HEIGHT/2, 0); rightFrame.castShadow = true; gateGroup.add(rightFrame);
+
+      entranceGate = gateGroup;
+      entranceGate.position.set(0, WALL_HEIGHT * 3, -PHYS.cellSize / 2); 
       scene.add(entranceGate);
 
-      // Pembangunan Instanced Dinding
+      // Pembangunan Instanced Dinding Maze & Registrasi Fisika Box (AABB)
       const wallTex = createBrickWallTexture();
       let wallCount = 0;
       for (let r = 0; r < currentSize; r++) {
@@ -688,6 +738,14 @@
         dummy.rotation.y = isVertical ? Math.PI / 2 : 0;
         dummy.updateMatrix();
         wallInstancedMesh.setMatrixAt(wallIndex++, dummy.matrix);
+
+        // Register AABB Box untuk dinding padat
+        let w = isVertical ? PHYS.wallThick : PHYS.cellSize + PHYS.wallThick;
+        let d = isVertical ? PHYS.cellSize + PHYS.wallThick : PHYS.wallThick;
+        physicalWalls.push({
+            minX: x - w/2, maxX: x + w/2,
+            minZ: z - d/2, maxZ: z + d/2
+        });
       };
 
       for (let r = 0; r < currentSize; r++) {
@@ -701,12 +759,11 @@
       }
       scene.add(wallInstancedMesh);
 
-      // Visual Pintu Keluar: Kristal Melayang (Bukan lagi pilar kotak raksasa)
+      // Visual Pintu Keluar
       const endGeo = new THREE.OctahedronGeometry(2.5, 0);
       const endMat = new THREE.MeshBasicMaterial({ color: 0xff9500, wireframe: true }); 
       const endMesh = new THREE.Mesh(endGeo, endMat);
       
-      // Inti kristal bercahaya
       const innerGeo = new THREE.OctahedronGeometry(1.5, 0);
       const innerMat = new THREE.MeshBasicMaterial({ color: 0xffddaa });
       const innerMesh = new THREE.Mesh(innerGeo, innerMat);
@@ -718,12 +775,12 @@
       endLight.position.copy(endMesh.position); scene.add(endLight);
 
       // --- KINEMATICS PHYSICS SYSTEM SETUP ---
-      // Posisi di sel (0,0) menghadap ke dalam labirin (+Z)
-      camera.position.set(0, PHYS.playerHeight, 0);
-      let pitch = 0; let yaw = Math.PI; // 180 derajat (hadap selatan/ke dalam lorong)
+      let currentCameraHeight = PHYS.playerHeight;
+      camera.position.set(0, currentCameraHeight, 0);
+      let pitch = 0; let yaw = Math.PI; 
       camera.rotation.set(pitch, yaw, 0, 'YXZ');
       
-      const keys = { w: false, a: false, s: false, d: false, space: false };
+      const keys = { w: false, a: false, s: false, d: false, space: false, shift: false, ctrl: false };
       let velocityXZ = new THREE.Vector2(0, 0);
       let velocityY = 0;                        
       let isGrounded = true;
@@ -736,6 +793,8 @@
         if (e.key === 'a' || e.key === 'ArrowLeft') keys.a = true;
         if (e.key === 'd' || e.key === 'ArrowRight') keys.d = true;
         if (e.key === ' ') { keys.space = true; e.preventDefault(); }
+        if (e.key === 'Shift') keys.shift = true;
+        if (e.key === 'Control') keys.ctrl = true;
       };
       const onKeyUp = (e) => { 
         if (e.key === 'w' || e.key === 'ArrowUp') keys.w = false;
@@ -743,6 +802,8 @@
         if (e.key === 'a' || e.key === 'ArrowLeft') keys.a = false;
         if (e.key === 'd' || e.key === 'ArrowRight') keys.d = false;
         if (e.key === ' ') keys.space = false;
+        if (e.key === 'Shift') keys.shift = false;
+        if (e.key === 'Control') keys.ctrl = false;
       };
       
       const onMouseMove = (e) => {
@@ -760,28 +821,44 @@
         if (viewMode === '3d') container3d.requestPointerLock();
       });
 
-      // --- PER-AXIS AABB COLLISION DETECTION ---
+      // --- NEW PER-AXIS AABB SOLID COLLISION ---
       const checkCollisionPerAxis = (oldX, oldZ, dx, dz) => {
         let newX = oldX + dx;
         let newZ = oldZ + dz;
-        const bound = (PHYS.cellSize / 2) - (PHYS.wallThick / 2) - PHYS.playerRadius;
-
-        let c = Math.round(oldX / PHYS.cellSize);
-        let r = Math.round(oldZ / PHYS.cellSize);
-        // Pemain bebas keluar labirin
-        if (r < 0 || r >= currentSize || c < 0 || c >= currentSize) return { x: newX, z: newZ, hitX: false, hitZ: false };
-
-        let cell = mazeGrid[r][c];
-        let cellCenterX = c * PHYS.cellSize;
-        let cellCenterZ = r * PHYS.cellSize;
-
         let hitX = false;
         let hitZ = false;
+        let pr = PHYS.playerRadius;
 
-        if (dx < 0 && cell.walls.left && newX < cellCenterX - bound) { newX = cellCenterX - bound; hitX = true; }
-        if (dx > 0 && cell.walls.right && newX > cellCenterX + bound) { newX = cellCenterX + bound; hitX = true; }
-        if (dz < 0 && cell.walls.top && newZ < cellCenterZ - bound) { newZ = cellCenterZ - bound; hitZ = true; }
-        if (dz > 0 && cell.walls.bottom && newZ > cellCenterZ + bound) { newZ = cellCenterZ + bound; hitZ = true; }
+        // X-AXIS CHECK
+        let boxX = { minX: newX - pr, maxX: newX + pr, minZ: oldZ - pr, maxZ: oldZ + pr };
+        for(let w of physicalWalls) {
+            if(intersectBox(boxX, w)) {
+                if(dx > 0) newX = w.minX - pr - 0.001;
+                else if(dx < 0) newX = w.maxX + pr + 0.001;
+                hitX = true;
+            }
+        }
+
+        // Z-AXIS CHECK
+        let boxZ = { minX: newX - pr, maxX: newX + pr, minZ: newZ - pr, maxZ: newZ + pr };
+        for(let w of physicalWalls) {
+            if(intersectBox(boxZ, w)) {
+                if(dz > 0) newZ = w.minZ - pr - 0.001;
+                else if(dz < 0) newZ = w.maxZ + pr + 0.001;
+                hitZ = true;
+            }
+        }
+
+        // VIRTUAL BOUNDS (Luar Labirin)
+        const minBoundX = -PHYS.cellSize; 
+        const maxBoundX = (currentSize + 1.5) * PHYS.cellSize;
+        const minBoundZ = -PHYS.cellSize;
+        const maxBoundZ = (currentSize + 1.5) * PHYS.cellSize;
+
+        if (newX < minBoundX + pr) { newX = minBoundX + pr; hitX = true; }
+        if (newX > maxBoundX - pr) { newX = maxBoundX - pr; hitX = true; }
+        if (newZ < minBoundZ + pr) { newZ = minBoundZ + pr; hitZ = true; }
+        if (newZ > maxBoundZ - pr) { newZ = maxBoundZ - pr; hitZ = true; }
 
         return { x: newX, z: newZ, hitX, hitZ };
       };
@@ -799,18 +876,33 @@
 
       // MAIN PHYSICS LOOP
       const animate = () => {
-        // SAFETY GUARD: Mencegah crash jika loop berjalan setelah memori dibersihkan
         if (viewMode !== '3d' || !camera) return;
         animationId = requestAnimationFrame(animate);
 
         const dt = Math.min(clock.getDelta(), 0.1); 
 
-        // Animasi Gerbang Jatuh (Jebakan Masuk)
+        // Update Timer UI
+        if (!hasWon) {
+            elapsedTime = (performance.now() - startTime) / 1000;
+            let m = Math.floor(elapsedTime / 60).toString().padStart(2, '0');
+            let s = Math.floor(elapsedTime % 60).toString().padStart(2, '0');
+            document.getElementById('ui-timer').innerText = `${m}:${s}`;
+        }
+
+        // Animasi Gerbang Besi Jatuh (Jebakan Masuk)
         if (!isGateClosed && entranceGate) {
-            entranceGate.position.y -= 40 * dt; // Jatuh cepat
-            if (entranceGate.position.y <= WALL_HEIGHT / 2) {
-                entranceGate.position.y = WALL_HEIGHT / 2;
-                mazeGrid[0][0].walls.top = true; // Kunci algoritma fisika secara logis (Anda terperangkap)
+            entranceGate.position.y -= 60 * dt; 
+            if (entranceGate.position.y <= 0) { 
+                entranceGate.position.y = 0;
+                
+                // Daftarkan Gerbang ke Physical Walls agar tak bisa ditembus dari dalam atau luar
+                physicalWalls.push({
+                    minX: -PHYS.cellSize/2 - PHYS.wallThick/2,
+                    maxX: PHYS.cellSize/2 + PHYS.wallThick/2,
+                    minZ: -PHYS.cellSize/2 - PHYS.wallThick/2,
+                    maxZ: -PHYS.cellSize/2 + PHYS.wallThick/2
+                });
+                
                 playThudSound();
                 isGateClosed = true;
             }
@@ -839,7 +931,7 @@
             endMesh.position.y = 4 + Math.sin(clock.getElapsedTime() * 3) * 0.5;
         }
 
-        // Manajemen Animasi Kembang Api (Fireworks)
+        // Manajemen Kembang Api
         for(let i = fireworks.length - 1; i >= 0; i--) {
             let fw = fireworks[i];
             fw.age += dt;
@@ -847,12 +939,12 @@
             for(let j=0; j<positions.length/3; j++) {
                 positions[j*3] += fw.velocities[j*3] * dt;
                 positions[j*3+1] += fw.velocities[j*3+1] * dt;
-                positions[j*3+1] -= 8 * dt; // Gravitasi partikel jatuh
+                positions[j*3+1] -= 8 * dt; // Gravitasi partikel
                 positions[j*3+2] += fw.velocities[j*3+2] * dt;
             }
             fw.mesh.geometry.attributes.position.needsUpdate = true;
-            fw.mesh.material.opacity = Math.max(0, 1 - fw.age / 2); // Pudar pelan
-            if (fw.age > 2) { // Hapus kembang api setelah 2 detik
+            fw.mesh.material.opacity = Math.max(0, 1 - fw.age / 2); 
+            if (fw.age > 2) { 
                 scene.remove(fw.mesh);
                 fireworks.splice(i, 1);
             }
@@ -871,16 +963,24 @@
         if (keys.a) inputVector.x -= 1;
         if (keys.d) inputVector.x += 1;
 
+        // Modifikasi Kecepatan (Lari & Jongkok)
+        let speedMult = 1.0;
+        if (keys.shift) speedMult = 1.8;
+        if (keys.ctrl) speedMult = 0.5;
+
+        let currentAccel = PHYS.accelForce * speedMult;
+        let currentMaxSpeed = PHYS.maxSpeed * speedMult;
+
         if (inputVector.lengthSq() > 0) {
           inputVector.normalize();
-          let accelX = (right.x * inputVector.x + forward.x * inputVector.y) * PHYS.accelForce;
-          let accelZ = (right.z * inputVector.x + forward.z * inputVector.y) * PHYS.accelForce;
+          let accelX = (right.x * inputVector.x + forward.x * inputVector.y) * currentAccel;
+          let accelZ = (right.z * inputVector.x + forward.z * inputVector.y) * currentAccel;
           
           velocityXZ.x += accelX * dt;
           velocityXZ.y += accelZ * dt;
         }
 
-        if (velocityXZ.length() > PHYS.maxSpeed) velocityXZ.clampLength(0, PHYS.maxSpeed);
+        if (velocityXZ.length() > currentMaxSpeed) velocityXZ.clampLength(0, currentMaxSpeed);
 
         let dx = velocityXZ.x * dt;
         let dz = velocityXZ.y * dt;
@@ -895,49 +995,58 @@
              stepDistance += distMoved;
              if (stepDistance > 3.0) {
                stepDistance = 0; playFootstep();
-               if (footprintCount < MAX_FOOTPRINTS) {
-                 dummyFootprint.position.set(camera.position.x, 0, camera.position.z);
-                 const offset = isLeftFoot ? -0.5 : 0.5;
-                 dummyFootprint.position.x += right.x * offset; dummyFootprint.position.z += right.z * offset;
-                 dummyFootprint.rotation.set(0, Math.atan2(velocityXZ.x, velocityXZ.y) + Math.PI, 0); 
-                 dummyFootprint.updateMatrix();
-                 footprintMesh.setMatrixAt(footprintCount, dummyFootprint.matrix);
-                 footprintMesh.instanceMatrix.needsUpdate = true;
-                 footprintCount++; isLeftFoot = !isLeftFoot;
-               }
+               
+               // Implementasi Ring Buffer untuk Jejak Kaki
+               const fpIndex = footprintCount % MAX_FOOTPRINTS;
+               dummyFootprint.position.set(camera.position.x, 0, camera.position.z);
+               const offset = isLeftFoot ? -0.5 : 0.5;
+               dummyFootprint.position.x += right.x * offset; dummyFootprint.position.z += right.z * offset;
+               dummyFootprint.rotation.set(0, Math.atan2(velocityXZ.x, velocityXZ.y) + Math.PI, 0); 
+               dummyFootprint.updateMatrix();
+               footprintMesh.setMatrixAt(fpIndex, dummyFootprint.matrix);
+               footprintMesh.instanceMatrix.needsUpdate = true;
+               
+               footprintCount++;
+               // Update render count limit (berguna di awal game)
+               footprintMesh.count = Math.min(footprintCount, MAX_FOOTPRINTS);
+               isLeftFoot = !isLeftFoot;
              }
         }
 
         camera.position.x = newPos.x; 
         camera.position.z = newPos.z;
 
-        // NEW WIN CONDITION: Bebas jalan di luar + Kembang Api (Tidak Auto-Exit)
         if (!hasWon && camera.position.z > (currentSize - 1) * PHYS.cellSize && camera.position.x > (currentSize - 1) * PHYS.cellSize) {
              hasWon = true;
              triggerFireworks();
+             const missionText = document.getElementById('ui-mission');
              missionText.innerText = lang === 'ID' ? 'MISI SELESAI!' : 'MISSION COMPLETE!';
              missionText.classList.remove('text-orange-400');
              missionText.classList.add('text-green-400');
         }
 
+        // Kalkulasi Ketinggian Kamera Dinamis (Efek Jongkok)
+        let targetHeight = keys.ctrl ? PHYS.crouchHeight : PHYS.playerHeight;
+        currentCameraHeight += (targetHeight - currentCameraHeight) * 10 * dt; // Lerping mulus
+
         velocityY += PHYS.gravity * dt;
         if (velocityY < PHYS.terminalVelocity) velocityY = PHYS.terminalVelocity;
         camera.position.y += velocityY * dt;
 
-        if (camera.position.y <= PHYS.playerHeight) {
-          camera.position.y = PHYS.playerHeight;
+        if (camera.position.y <= currentCameraHeight) {
+          camera.position.y = currentCameraHeight;
           if (!isGrounded) { isGrounded = true; playFootstep(); }
           velocityY = 0; 
         } else {
           isGrounded = false;
         }
 
-        if (keys.space && isGrounded) {
+        // Pemain hanya bisa lompat jika berdiri di tanah dan TIDAK sedang jongkok
+        if (keys.space && isGrounded && !keys.ctrl) {
           velocityY = PHYS.jumpForce;
           isGrounded = false; playJump(); keys.space = false; 
         }
 
-        // Final Safety render
         if (viewMode === '3d' && camera && renderer) {
             renderer.render(scene, camera);
         }
@@ -962,8 +1071,7 @@
       if (renderer) renderer.domElement.style.filter = 'none'; 
       container3d.innerHTML = '';
       
-      // Hapus memori objek mencegah leak/crash
-      scene = null; camera = null; renderer = null; 
+      scene = null; camera = null; renderer = null; physicalWalls = [];
     });
 
   </script>
