@@ -1,0 +1,1192 @@
+<!-- Tafsir visual: Ikon dirancang dengan estetika visionOS menggunakan frosted-glass. Objek tengah adalah cincin orbit (mewakili Newton) dengan inti rongga resin gelap (mewakili tekanan fluida Pascal/Bernoulli), dan titik energi kuning terang. Warna Violet-Sian merepresentasikan dinamika ilmu sains futuristik. -->
+<!DOCTYPE html>
+<html lang="id" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AkuSukaFisika - Lab Virtual</title>
+    
+    <!-- Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind & Lucide Icons -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Tailwind Configuration (CSS Tokens Integration) -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        theme: 'var(--border-color)',
+                        main: 'var(--text-main)',
+                        dim: 'var(--text-dim)',
+                        header: 'var(--header-bg)',
+                        editor: 'var(--editor-bg)',
+                        preview: 'var(--preview-bg)',
+                        card: 'var(--card-bg)',
+                        footer: 'var(--footer-bg)',
+                        accent: 'var(--theme-accent)'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- CSS Variables (TATADADA Rules) -->
+    <style>
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #f8fafc; /* Latar Canvas Terang */
+            --preview-bg: #e2e8f0; /* Gutter / Latar Panel Kanan */
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #cbd5e1;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #161b22;
+            --footer-bg: #0d1117;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --theme-accent: #3b82f6;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Custom input ranges matching UI framework */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: var(--theme-accent);
+            cursor: pointer;
+            margin-top: -7px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            border: 2px solid white;
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:active {
+            transform: scale(1.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+        
+        /* Math block gradient text */
+        .math-gradient {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER (Wajib) -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm">
+        <div class="flex items-center gap-4">
+            <h1 class="text-lg font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent tracking-tight">
+                AkuSukaFisika
+            </h1>
+            <span class="text-xs italic text-dim border-l border-theme pl-4">v2.1</span>
+            <span class="text-xs font-medium text-dim">by AhmadDanial</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <button class="p-2 rounded-lg hover:bg-preview text-dim hover:text-main transition-colors" title="Bantuan / Help">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+            </button>
+            <button id="langToggle" class="px-2 py-1 text-xs font-semibold rounded border border-theme bg-card hover:bg-preview transition-colors shadow-sm">
+                ID / EN
+            </button>
+            <button id="themeToggle" class="p-2 rounded-lg hover:bg-preview text-dim hover:text-main transition-colors">
+                <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+                <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE: Split Pane Laying -->
+    <main class="flex-1 flex overflow-hidden">
+        
+        <!-- Panel Kiri: Canvas Fisika (Pure Visual Workspace) -->
+        <div id="left-pane" class="flex-[6] bg-editor relative overflow-hidden flex flex-col min-w-[300px]">
+            <!-- Subtle Grid Background for Depth -->
+            <div class="absolute inset-0 z-0 opacity-20 pointer-events-none" style="background-image: radial-gradient(var(--border-color) 1px, transparent 1px); background-size: 30px 30px;"></div>
+            
+            <canvas id="simCanvas" class="block w-full h-full relative z-10 cursor-crosshair"></canvas>
+            
+            <!-- Quick HUD (Very compact) -->
+            <div class="absolute bottom-4 left-4 z-20 flex gap-2">
+                <div class="bg-card/80 backdrop-blur border border-theme text-xs font-mono px-3 py-1.5 rounded-full shadow-sm text-dim">
+                    Modul Aktif: <span id="hud-module-name" class="font-bold text-main">Dongkrak Hidrolik</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Resizer / Gutter (Wajib Tebal) -->
+        <div id="resizer" class="w-3 bg-preview cursor-col-resize flex items-center justify-center border-x border-theme group shrink-0 z-20">
+            <div class="h-10 w-1 bg-theme rounded-full group-hover:bg-blue-500 transition-colors"></div>
+        </div>
+        
+        <!-- Panel Kanan: Sidebar Menu & Controls -->
+        <div id="right-pane" class="flex-[4] bg-preview p-5 flex flex-col gap-5 overflow-y-auto min-w-[320px]">
+            
+            <!-- Card 1: Informasi Modul & Live Data -->
+            <div class="bg-card rounded-2xl shadow-sm border border-theme flex flex-col shrink-0 overflow-hidden">
+                <div class="p-5 border-b border-theme bg-header">
+                    <h2 id="info-title" class="text-lg font-bold text-main mb-2">Judul Modul</h2>
+                    <p id="info-desc" class="text-xs text-dim leading-relaxed">Deskripsi interaktif akan muncul di sini. Silakan berinteraksi dengan kontrol di bawah.</p>
+                </div>
+                <div class="p-4 bg-preview/30 flex items-center justify-center border-b border-theme">
+                    <div id="info-math" class="text-base font-mono font-bold math-gradient tracking-wide">
+                        Rumus
+                    </div>
+                </div>
+                <div class="p-5">
+                    <h3 class="text-[10px] font-bold uppercase tracking-widest text-dim mb-3">Live Telemetry</h3>
+                    <div id="live-data" class="text-sm font-mono text-emerald-600 dark:text-emerald-400 space-y-1.5 bg-editor p-3 rounded-lg border border-theme shadow-inner">
+                        --
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2: Alat Kontrol Parameter -->
+            <div class="bg-card rounded-2xl shadow-sm border border-theme p-5 shrink-0 relative">
+                <h3 class="font-semibold text-xs text-main uppercase tracking-wider mb-5 flex items-center gap-2">
+                    <i data-lucide="sliders-horizontal" class="w-4 h-4 text-blue-500"></i> Panel Kontrol
+                </h3>
+                <div id="controls" class="flex flex-col gap-5">
+                    <!-- Controls injected via JS -->
+                </div>
+            </div>
+
+            <!-- Card 3: Navigasi Kategori Fisika -->
+            <div class="bg-card rounded-2xl shadow-sm border border-theme p-4 shrink-0 mb-4">
+                <h3 class="font-semibold text-xs text-dim uppercase tracking-wider mb-3 px-2 flex items-center gap-2">
+                    <i data-lucide="compass" class="w-4 h-4"></i> Navigasi Modul
+                </h3>
+                <div class="space-y-1" id="menu-container">
+                    
+                    <div class="text-[10px] font-bold text-main mt-4 mb-2 px-2 uppercase opacity-60">Hukum Pascal</div>
+                    <button onclick="loadSim('pascal_jack')" class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-preview text-dim hover:text-main transition-colors border border-transparent flex items-center gap-3 menu-item active:scale-95">
+                        <div class="w-6 h-6 rounded bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400"><i data-lucide="arrow-up-to-line" class="w-3.5 h-3.5"></i></div>
+                        Dongkrak Hidrolik
+                    </button>
+                    <button onclick="loadSim('pascal_brake')" class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-preview text-dim hover:text-main transition-colors border border-transparent flex items-center gap-3 menu-item active:scale-95">
+                        <div class="w-6 h-6 rounded bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400"><i data-lucide="disc" class="w-3.5 h-3.5"></i></div>
+                        Rem Cakram Hidrolik
+                    </button>
+                    <button onclick="loadSim('pascal_syringe')" class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-preview text-dim hover:text-main transition-colors border border-transparent flex items-center gap-3 menu-item active:scale-95">
+                        <div class="w-6 h-6 rounded bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400"><i data-lucide="syringe" class="w-3.5 h-3.5"></i></div>
+                        Sistem Suntikan
+                    </button>
+
+                    <div class="text-[10px] font-bold text-main mt-5 mb-2 px-2 uppercase opacity-60">Hukum Bernoulli</div>
+                    <button onclick="loadSim('bernoulli_venturi')" class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-preview text-dim hover:text-main transition-colors border border-transparent flex items-center gap-3 menu-item active:scale-95">
+                        <div class="w-6 h-6 rounded bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-600 dark:text-purple-400"><i data-lucide="wind" class="w-3.5 h-3.5"></i></div>
+                        Pipa Venturi
+                    </button>
+                    <button onclick="loadSim('bernoulli_airfoil')" class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-preview text-dim hover:text-main transition-colors border border-transparent flex items-center gap-3 menu-item active:scale-95">
+                        <div class="w-6 h-6 rounded bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-600 dark:text-purple-400"><i data-lucide="plane" class="w-3.5 h-3.5"></i></div>
+                        Gaya Angkat Sayap
+                    </button>
+                    <button onclick="loadSim('bernoulli_spray')" class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-preview text-dim hover:text-main transition-colors border border-transparent flex items-center gap-3 menu-item active:scale-95">
+                        <div class="w-6 h-6 rounded bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-600 dark:text-purple-400"><i data-lucide="spray-can" class="w-3.5 h-3.5"></i></div>
+                        Semprotan Fluida
+                    </button>
+
+                    <div class="text-[10px] font-bold text-main mt-5 mb-2 px-2 uppercase opacity-60">Hukum Newton</div>
+                    <button onclick="loadSim('newton_1')" class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-preview text-dim hover:text-main transition-colors border border-transparent flex items-center gap-3 menu-item active:scale-95">
+                        <div class="w-6 h-6 rounded bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400"><i data-lucide="box" class="w-3.5 h-3.5"></i></div>
+                        Hukum I (Inersia)
+                    </button>
+                    <button onclick="loadSim('newton_2')" class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-preview text-dim hover:text-main transition-colors border border-transparent flex items-center gap-3 menu-item active:scale-95">
+                        <div class="w-6 h-6 rounded bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400"><i data-lucide="fast-forward" class="w-3.5 h-3.5"></i></div>
+                        Hukum II (F = ma)
+                    </button>
+                    <button onclick="loadSim('newton_3')" class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-preview text-dim hover:text-main transition-colors border border-transparent flex items-center gap-3 menu-item active:scale-95">
+                        <div class="w-6 h-6 rounded bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400"><i data-lucide="bomb" class="w-3.5 h-3.5"></i></div>
+                        Hukum III (Aksi-Reaksi)
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- FOOTER (Wajib) -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 relative z-50">
+        <div>Engine: JS Physics <span class="text-green-500 font-bold ml-1">● Aktif</span></div>
+        <div class="font-mono">60 FPS | Hardware Accel</div>
+        <button onclick="document.getElementById('termsModal').classList.remove('hidden')" class="hover:text-main underline cursor-pointer transition-colors">Syarat & Ketentuan</button>
+    </footer>
+
+    <!-- MODAL TERMS (Wajib TATADADA) -->
+    <div id="termsModal" class="hidden fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-card border border-theme rounded-2xl shadow-2xl p-6 w-full max-w-md transform transition-all">
+            <div class="flex justify-between items-center mb-4 border-b border-theme pb-3">
+                <h2 class="text-lg font-bold text-main">Syarat & Ketentuan</h2>
+                <button onclick="document.getElementById('termsModal').classList.add('hidden')" class="p-1 hover:bg-preview rounded text-dim hover:text-main transition-colors">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="text-sm text-dim space-y-3 mb-6 h-40 overflow-y-auto pr-2">
+                <p>1. Parameter fisika dalam simulasi ini telah diskalakan (scaled) demi kenyamanan visual pada layar monitor, sehingga bukan merupakan rasio 1:1 di dunia nyata.</p>
+                <p>2. Gaya gesek udara (drag) diabaikan pada beberapa simulasi mekanika murni kecuali secara eksplisit tercantum dalam deskripsi.</p>
+                <p>3. Didesain secara spesifik menggunakan panduan TATADADA UI Framework.</p>
+            </div>
+            <div class="flex justify-end">
+                <button onclick="document.getElementById('termsModal').classList.add('hidden')" class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-md active:scale-95">Saya Mengerti</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    /**
+     * UI & WORKSPACE LOGIC (TATADADA FRAMEWORK)
+     */
+    const themeToggle = document.getElementById('themeToggle');
+    const htmlEl = document.documentElement;
+    if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        htmlEl.classList.add('dark');
+    }
+    themeToggle.addEventListener('click', () => {
+        htmlEl.classList.toggle('dark');
+        localStorage.theme = htmlEl.classList.contains('dark') ? 'dark' : 'light';
+    });
+
+    const resizer = document.getElementById('resizer');
+    const leftPane = document.getElementById('left-pane');
+    let isResizing = false;
+
+    resizer.addEventListener('mousedown', () => {
+        isResizing = true;
+        document.body.style.cursor = 'col-resize';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        const containerWidth = document.body.clientWidth;
+        let newFlexBase = (e.clientX / containerWidth) * 100;
+        if (newFlexBase < 30) newFlexBase = 30; // Limit min
+        if (newFlexBase > 75) newFlexBase = 75; // Limit max
+        leftPane.style.flex = `0 0 ${newFlexBase}%`;
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.cursor = 'default';
+        }
+    });
+
+    /**
+     * CORE PHYSICS ENGINE & CANVAS RENDERER 2.0
+     */
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    let width, height;
+    let currentSim = null;
+    let animationId;
+    let lastTime = 0;
+
+    const resizeObserver = new ResizeObserver(entries => {
+        for (let entry of entries) {
+            width = canvas.width = entry.contentRect.width;
+            height = canvas.height = entry.contentRect.height;
+        }
+    });
+    resizeObserver.observe(leftPane);
+
+    // Advanced Drawing Utilities
+    const drawUtils = {
+        // Fallback for roundRect if not natively supported, though modern browsers do
+        roundRect: (x, y, w, h, r) => {
+            if (ctx.roundRect) {
+                ctx.beginPath();
+                ctx.roundRect(x, y, w, h, r);
+                return;
+            }
+            // Polyfill basic
+            r = Array.isArray(r) ? r[0] : r;
+            if (w < 2 * r) r = w / 2; if (h < 2 * r) r = h / 2;
+            ctx.beginPath(); ctx.moveTo(x + r, y);
+            ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+            ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+        },
+        
+        metallicCylinder: (x, y, w, h, isHorizontal = false, style='metal') => {
+            let grad;
+            if (isHorizontal) grad = ctx.createLinearGradient(x, y, x, y + h);
+            else grad = ctx.createLinearGradient(x, y, x + w, y);
+
+            if (style === 'metal') {
+                grad.addColorStop(0, '#334155');
+                grad.addColorStop(0.2, '#94a3b8');
+                grad.addColorStop(0.4, '#f8fafc');
+                grad.addColorStop(0.7, '#64748b');
+                grad.addColorStop(1, '#1e293b');
+            } else if (style === 'glass') {
+                grad.addColorStop(0, 'rgba(255,255,255,0.1)');
+                grad.addColorStop(0.1, 'rgba(255,255,255,0.8)'); // highlight
+                grad.addColorStop(0.3, 'rgba(255,255,255,0.05)');
+                grad.addColorStop(0.9, 'rgba(255,255,255,0.2)');
+                grad.addColorStop(1, 'rgba(255,255,255,0.4)');
+            }
+            
+            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            ctx.shadowBlur = 8;
+            ctx.shadowOffsetY = 4;
+            
+            ctx.fillStyle = grad;
+            drawUtils.roundRect(x, y, w, h, 4);
+            ctx.fill();
+            
+            ctx.shadowBlur = 0; // reset
+            ctx.shadowOffsetY = 0;
+            
+            ctx.strokeStyle = style === 'metal' ? '#0f172a' : 'rgba(255,255,255,0.5)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        },
+
+        fluid: (x, y, w, h, hue='cyan') => {
+            let colorBase = hue === 'cyan' ? '6, 182, 212' : '236, 72, 153';
+            
+            // Add inner glow feel
+            const grad = ctx.createLinearGradient(x, y, x+w, y);
+            grad.addColorStop(0, `rgba(${colorBase}, 0.6)`);
+            grad.addColorStop(0.5, `rgba(${colorBase}, 0.9)`);
+            grad.addColorStop(1, `rgba(${colorBase}, 0.5)`);
+            
+            ctx.fillStyle = grad;
+            ctx.fillRect(x, y, w, h);
+            
+            // Surface line (meniscus highlight)
+            if (h > 2) {
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.fillRect(x, y, w, 2);
+            }
+        },
+        
+        arrow: (fromx, fromy, tox, toy, color = '#ef4444', lineWidth = 4) => {
+            const headlen = 12; 
+            const dx = tox - fromx; const dy = toy - fromy;
+            const angle = Math.atan2(dy, dx);
+            
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 5;
+            
+            ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = lineWidth;
+            ctx.moveTo(fromx, fromy); ctx.lineTo(tox, toy); ctx.stroke();
+            
+            ctx.beginPath(); ctx.fillStyle = color;
+            ctx.moveTo(tox, toy);
+            ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.fill();
+            
+            ctx.shadowBlur = 0; // reset
+        },
+        
+        wheel: (x, y, radius, angle, style='modern') => {
+            ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+            ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 3;
+            
+            // Tire
+            ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#1e293b'; ctx.fill();
+            ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; // Reset shadow for inners
+            
+            // Rim
+            if (style === 'modern') {
+                ctx.beginPath(); ctx.arc(0, 0, radius * 0.6, 0, Math.PI * 2);
+                const rimGrad = ctx.createRadialGradient(0,0,0, 0,0,radius*0.6);
+                rimGrad.addColorStop(0, '#f8fafc'); rimGrad.addColorStop(1, '#94a3b8');
+                ctx.fillStyle = rimGrad; ctx.fill();
+                
+                // Spokes
+                ctx.strokeStyle = '#334155'; ctx.lineWidth = radius * 0.15;
+                for(let i=0; i<5; i++) {
+                    ctx.beginPath(); ctx.moveTo(0,0);
+                    ctx.lineTo(radius*0.6 * Math.cos(i*Math.PI*2/5), radius*0.6 * Math.sin(i*Math.PI*2/5));
+                    ctx.stroke();
+                }
+                // Center cap
+                ctx.beginPath(); ctx.arc(0, 0, radius * 0.15, 0, Math.PI * 2);
+                ctx.fillStyle = '#0f172a'; ctx.fill();
+            } else {
+                // Wooden wheel (Newton 3)
+                ctx.beginPath(); ctx.arc(0, 0, radius * 0.8, 0, Math.PI * 2);
+                ctx.fillStyle = '#78350f'; ctx.fill(); // Brown
+                ctx.strokeStyle = '#451a03'; ctx.lineWidth = 4;
+                for(let i=0; i<8; i++) {
+                    ctx.beginPath(); ctx.moveTo(0,0);
+                    ctx.lineTo(radius*0.8 * Math.cos(i*Math.PI/4), radius*0.8 * Math.sin(i*Math.PI/4));
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        },
+
+        car: (x, y) => {
+            // Modern Stylized Car drawing
+            ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 8;
+            
+            // Body (Red sports car)
+            ctx.fillStyle = '#ef4444';
+            drawUtils.roundRect(x - 70, y - 30, 140, 35, 10);
+            ctx.fill();
+            
+            // Roof
+            drawUtils.roundRect(x - 35, y - 60, 70, 35, [15, 15, 0, 0]);
+            ctx.fill();
+            
+            ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; // reset
+            
+            // Windows
+            ctx.fillStyle = '#0f172a'; // dark tint
+            drawUtils.roundRect(x - 30, y - 55, 28, 25, [10, 0, 0, 0]); ctx.fill();
+            drawUtils.roundRect(x + 2, y - 55, 28, 25, [0, 10, 0, 0]); ctx.fill();
+            
+            // Headlights / Taillights
+            ctx.fillStyle = '#fef08a'; drawUtils.roundRect(x + 60, y - 25, 10, 10, [0, 5, 5, 0]); ctx.fill(); // Front
+            ctx.fillStyle = '#991b1b'; drawUtils.roundRect(x - 70, y - 25, 10, 10, [5, 0, 0, 5]); ctx.fill(); // Back
+
+            // Wheels
+            drawUtils.wheel(x - 40, y + 5, 16, 0);
+            drawUtils.wheel(x + 40, y + 5, 16, 0);
+        }
+    };
+
+    /**
+     * SIMULATION CLASSES (Canvas 2.0 Overhauled)
+     */
+
+    // --- HUKUM PASCAL 1: Dongkrak Hidrolik ---
+    class PascalJack {
+        constructor() {
+            this.A1 = 20; this.A2 = 100; this.F1 = 50; this.mass = 500; this.g = 9.8;
+            this.y1 = 0; this.y2 = 0; this.isPushing = false;
+        }
+        setupUI() {
+            return `
+                <div class="flex flex-col gap-2 w-full"><label class="text-xs font-semibold text-dim">Gaya Tekan (F₁) = <span id="valF1" class="text-main font-mono bg-preview px-2 py-0.5 rounded ml-1">50 N</span></label><input type="range" id="F1" min="0" max="200" value="50"></div>
+                <div class="flex flex-col gap-2 w-full mt-3"><label class="text-xs font-semibold text-dim">Luas Pipa 1 (A₁) = <span id="valA1" class="text-main font-mono bg-preview px-2 py-0.5 rounded ml-1">20 cm²</span></label><input type="range" id="A1" min="10" max="40" value="20"></div>
+                <div class="flex flex-col gap-2 w-full mt-3"><label class="text-xs font-semibold text-dim">Luas Pipa 2 (A₂) = <span id="valA2" class="text-main font-mono bg-preview px-2 py-0.5 rounded ml-1">100 cm²</span></label><input type="range" id="A2" min="50" max="200" value="100"></div>
+                <button class="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-2" onmousedown="sim.isPushing=true" onmouseup="sim.isPushing=false" onmouseleave="sim.isPushing=false" ontouchstart="sim.isPushing=true" ontouchend="sim.isPushing=false"><i data-lucide="mouse-pointer-click" class="w-4 h-4"></i> TAHAN UNTUK MENEKAN</button>
+            `;
+        }
+        updateUI() {
+            this.F1 = parseFloat(document.getElementById('F1').value);
+            this.A1 = parseFloat(document.getElementById('A1').value);
+            this.A2 = parseFloat(document.getElementById('A2').value);
+            document.getElementById('valF1').innerText = this.F1 + " N";
+            document.getElementById('valA1').innerText = this.A1 + " cm²";
+            document.getElementById('valA2').innerText = this.A2 + " cm²";
+            const P = this.F1 / this.A1; const F2 = P * this.A2;
+            document.getElementById('live-data').innerHTML = `Tekanan (P) = <span class="text-main">${(P).toFixed(2)} N/cm²</span><br>Gaya Angkat (F₂) = <span class="text-main">${F2.toFixed(2)} N</span><br>Berat Mobil (W) = <span class="text-main">${(this.mass * this.g).toFixed(2)} N</span>`;
+        }
+        update(dt) {
+            const P = this.F1 / this.A1; const F2 = P * this.A2; const W = this.mass * this.g;
+            if (this.isPushing && F2 > W) { this.y1 += 60 * dt; if (this.y1 > 150) this.y1 = 150; } 
+            else if (!this.isPushing) { this.y1 -= 60 * dt; if (this.y1 < 0) this.y1 = 0; }
+            this.y2 = (this.y1 * this.A1) / this.A2; // Konservasi Volume
+        }
+        draw() {
+            // Dynamic centering
+            const cx = width / 2; const cy = height / 2 + 120;
+            
+            // Bottom connect pipe
+            drawUtils.metallicCylinder(cx - 180, cy, 360 + this.A2/2, 40, true);
+            drawUtils.fluid(cx - 176, cy + 4, 352 + this.A2/2, 32, 'cyan');
+
+            // Left Pipe (Input)
+            drawUtils.metallicCylinder(cx - 180 - this.A1/2, cy - 200, this.A1, 200, false);
+            drawUtils.fluid(cx - 180 - this.A1/2 + 4, cy - 200 + this.y1, this.A1 - 8, 200 - this.y1, 'cyan');
+            
+            // Left Piston
+            ctx.fillStyle = '#1e293b'; drawUtils.roundRect(cx - 180 - this.A1/2 + 2, cy - 200 + this.y1 - 20, this.A1 - 4, 20, 4); ctx.fill();
+            // Piston shaft
+            drawUtils.metallicCylinder(cx - 180 - 6, cy - 280 + this.y1, 12, 80, false); 
+            // Handle top
+            ctx.fillStyle = '#b91c1c'; drawUtils.roundRect(cx - 180 - 25, cy - 280 + this.y1 - 10, 50, 10, 4); ctx.fill();
+            
+            // Right Pipe (Output)
+            drawUtils.metallicCylinder(cx + 180 - this.A2/2, cy - 200, this.A2, 200, false);
+            drawUtils.fluid(cx + 180 - this.A2/2 + 4, cy - 200 - this.y2, this.A2 - 8, 200 + this.y2, 'cyan');
+            
+            // Right Piston / Lift Platform
+            ctx.fillStyle = '#1e293b'; drawUtils.roundRect(cx + 180 - this.A2/2 - 20, cy - 200 - this.y2 - 20, this.A2 + 40, 20, 5); ctx.fill();
+            
+            // The Car
+            drawUtils.car(cx + 180, cy - 200 - this.y2 - 35);
+
+            // Force Arrows
+            if (this.isPushing) drawUtils.arrow(cx - 180, cy - 320 + this.y1, cx - 180, cy - 290 + this.y1, '#3b82f6', 5); // Blue down
+            if (this.y2 > 0.1) drawUtils.arrow(cx + 180, cy - 200 - this.y2 - 120, cx + 180, cy - 200 - this.y2 - 160, '#10b981', 6); // Green up
+        }
+    }
+
+    // --- HUKUM PASCAL 2: Rem Cakram Hidrolik ---
+    class PascalBrake {
+        constructor() { this.angle = 0; this.speed = 10; this.brakeForce = 0; this.padDistance = 30; }
+        setupUI() {
+            return `
+                <div class="flex flex-col gap-2 w-full"><label class="text-xs font-semibold text-dim">Injak Pedal Rem</label><input type="range" id="pedal" min="0" max="100" value="0"></div>
+                <button class="mt-6 w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-xl font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-2" onclick="sim.speed = 20; document.getElementById('pedal').value=0"><i data-lucide="zap" class="w-4 h-4"></i> PUTAR RODA CAKRAM</button>
+            `;
+        }
+        updateUI() {
+            const pedal = parseFloat(document.getElementById('pedal').value);
+            this.brakeForce = pedal; 
+            document.getElementById('live-data').innerHTML = `Tekanan Fluida = <span class="text-main">${(pedal * 2.5).toFixed(1)} kPa</span><br>Kecepatan Roda = <span class="text-main">${(this.speed*10).toFixed(1)} RPM</span>`;
+        }
+        update(dt) {
+            this.angle += this.speed * dt;
+            this.padDistance = 25 - (this.brakeForce / 100) * 23; // Min distance 2
+            if (this.padDistance <= 3) {
+                // Braking friction
+                this.speed -= (this.brakeForce/100) * 30 * dt;
+                // Add glowing spark effect randomly if braking hard
+            } else {
+                this.speed -= 0.2 * dt; // Natural friction
+            }
+            if (this.speed < 0) this.speed = 0;
+        }
+        draw() {
+            const cx = width / 2; const cy = height / 2;
+            
+            // Hydraulic Line
+            drawUtils.metallicCylinder(cx - 250, cy - 150, 300, 14, true); 
+            drawUtils.metallicCylinder(cx + 43, cy - 150, 14, 100, false); 
+            
+            // Fluid turns red based on pressure
+            const fluidColor = `rgba(${50 + this.brakeForce*2}, 100, 250, 0.9)`;
+            ctx.fillStyle = fluidColor;
+            ctx.fillRect(cx - 248, cy - 148, 296, 10);
+            ctx.fillRect(cx + 45, cy - 148, 10, 96);
+
+            // Master Cylinder / Pedal area
+            drawUtils.metallicCylinder(cx - 280, cy - 165, 40, 44, false); // Master tube
+            const pistonX = cx - 280 + (this.brakeForce/100)*15;
+            ctx.fillStyle = '#0f172a'; drawUtils.roundRect(pistonX, cy - 160, 10, 34, 3); ctx.fill(); // Piston
+            ctx.fillRect(pistonX - 40, cy - 146, 40, 6); // Rod
+            ctx.fillStyle = '#ef4444'; drawUtils.roundRect(pistonX - 45, cy - 165, 12, 44, 4); ctx.fill(); // Pedal
+
+            // Disc Brake (Cakram)
+            ctx.save(); ctx.translate(cx, cy); ctx.rotate(this.angle);
+            ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 10;
+            ctx.beginPath(); ctx.arc(0, 0, 100, 0, Math.PI*2);
+            ctx.fillStyle = '#94a3b8'; ctx.fill(); // Metallic disc
+            ctx.shadowBlur = 0;
+            // Drilled holes for aesthetics
+            ctx.fillStyle = '#1e293b';
+            for(let i=0; i<12; i++){
+                ctx.beginPath(); ctx.arc(70 * Math.cos(i*Math.PI/6), 70 * Math.sin(i*Math.PI/6), 5, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.restore();
+            
+            // Hub cap
+            drawUtils.wheel(cx, cy, 30, this.angle);
+
+            // Brembo Caliper (Red)
+            ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 8;
+            ctx.fillStyle = '#dc2626'; 
+            drawUtils.roundRect(cx - 40, cy - 110, 80, 50, 10); ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Brake Pads (Yellow)
+            ctx.fillStyle = '#eab308';
+            drawUtils.roundRect(cx - 25, cy - 105 - this.padDistance, 50, 12, 3); ctx.fill(); // Outer Pad
+            drawUtils.roundRect(cx - 25, cy - 90 + this.padDistance + 12, 50, 12, 3); ctx.fill(); // Inner Pad (visual slice)
+        }
+    }
+
+    // --- HUKUM PASCAL 3: Suntikan Ganda ---
+    class PascalSyringe {
+        constructor() { this.A1 = 40; this.A2 = 80; this.pos1 = 50; }
+        setupUI() {
+            return `
+                <div class="flex flex-col gap-2 w-full mt-1"><label class="text-xs font-semibold text-dim">Luas Tabung Kiri (A₁)</label><input type="range" id="A1" min="30" max="100" value="40"></div>
+                <div class="flex flex-col gap-2 w-full mt-3"><label class="text-xs font-semibold text-dim">Luas Tabung Kanan (A₂)</label><input type="range" id="A2" min="30" max="100" value="80"></div>
+                <div class="flex flex-col gap-3 w-full mt-6 p-4 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800"><label class="text-xs font-bold text-blue-600 dark:text-blue-400">Tekan Piston Kiri</label><input type="range" id="pos1" min="0" max="100" value="50"></div>
+            `;
+        }
+        updateUI() {
+            this.A1 = parseFloat(document.getElementById('A1').value);
+            this.A2 = parseFloat(document.getElementById('A2').value);
+            this.pos1 = parseFloat(document.getElementById('pos1').value);
+            this.pos2 = 100 - (this.pos1 * this.A1 / this.A2); 
+            document.getElementById('live-data').innerHTML = `Prinsip: Volume yang dipindahkan sama.<br>Posisi Kiri = <span class="text-main">${this.pos1.toFixed(1)}%</span><br>Posisi Kanan = <span class="text-main">${Math.max(0, 100-this.pos2).toFixed(1)}%</span>`;
+        }
+        update(dt) { }
+        draw() {
+            const cx = width / 2; const cy = height / 2;
+            
+            // Connecting glass tube
+            drawUtils.metallicCylinder(cx - 150, cy - 10, 300, 20, true, 'glass');
+            drawUtils.fluid(cx - 150, cy - 6, 300, 12, 'pink');
+
+            // Left Syringe
+            drawUtils.metallicCylinder(cx - 200, cy - this.A1/2, 50, this.A1, false, 'glass');
+            const fill1 = (100 - this.pos1)/100 * 50;
+            drawUtils.fluid(cx - 150 - fill1, cy - this.A1/2 + 2, fill1, this.A1 - 4, 'pink');
+            
+            // Left Plunger
+            ctx.fillStyle = '#0f172a'; // Rubber stopper
+            drawUtils.roundRect(cx - 150 - fill1 - 12, cy - this.A1/2 + 2, 12, this.A1 - 4, 3); ctx.fill();
+            drawUtils.metallicCylinder(cx - 150 - fill1 - 80, cy - 4, 70, 8, true); // Plastic push rod
+            ctx.fillStyle = '#f8fafc'; drawUtils.roundRect(cx - 150 - fill1 - 85, cy - 15, 10, 30, 3); ctx.fill(); // Thumb rest
+
+            // Right Syringe
+            drawUtils.metallicCylinder(cx + 150, cy - this.A2/2, 50, this.A2, false, 'glass');
+            let pos2_clamped = Math.max(0, Math.min(100, this.pos2));
+            const fill2 = (100 - pos2_clamped)/100 * 50;
+            drawUtils.fluid(cx + 150, cy - this.A2/2 + 2, fill2, this.A2 - 4, 'pink');
+            
+            // Right Plunger
+            ctx.fillStyle = '#0f172a'; // Rubber stopper
+            drawUtils.roundRect(cx + 150 + fill2, cy - this.A2/2 + 2, 12, this.A2 - 4, 3); ctx.fill();
+            drawUtils.metallicCylinder(cx + 150 + fill2 + 10, cy - 4, 70, 8, true); // Plastic push rod
+            ctx.fillStyle = '#f8fafc'; drawUtils.roundRect(cx + 150 + fill2 + 75, cy - 15, 10, 30, 3); ctx.fill(); // Thumb rest
+        }
+    }
+
+    // --- HUKUM BERNOULLI 1: Pipa Venturi ---
+    class BernoulliVenturi {
+        constructor() { this.v1 = 2; this.A1 = 120; this.A2 = 40; this.particles = []; for(let i=0; i<150; i++) this.particles.push({x: Math.random()*800, y: Math.random()}); }
+        setupUI() {
+            return `
+                <div class="flex flex-col gap-2 w-full"><label class="text-xs font-semibold text-dim">Kecepatan Aliran (v₁)</label><input type="range" id="v1" min="1" max="5" value="2" step="0.1"></div>
+                <div class="flex flex-col gap-2 w-full mt-4"><label class="text-xs font-semibold text-dim">Lebar Leher Pipa (A₂)</label><input type="range" id="A2" min="20" max="80" value="40"></div>
+            `;
+        }
+        updateUI() {
+            this.v1 = parseFloat(document.getElementById('v1').value);
+            this.A2 = parseFloat(document.getElementById('A2').value);
+            this.v2 = this.v1 * (this.A1 / this.A2); 
+            this.deltaP = 0.5 * 1000 * (this.v2**2 - this.v1**2) / 1000; 
+            document.getElementById('live-data').innerHTML = `v₁ (Normal) = <span class="text-main">${this.v1.toFixed(1)} m/s</span><br>v₂ (di Leher) = <span class="text-main">${this.v2.toFixed(1)} m/s</span><br>Penurunan Tekanan = <span class="text-main">${this.deltaP.toFixed(1)} kPa</span>`;
+        }
+        update(dt) {
+            this.particles.forEach(p => {
+                let speed = this.v1;
+                if (p.x > width/2 - 100 && p.x < width/2 + 100) speed = this.v2;
+                else if (p.x >= width/2 - 150 && p.x <= width/2 - 100) speed = this.v1 + (this.v2 - this.v1) * ((p.x - (width/2 - 150))/50);
+                else if (p.x >= width/2 + 100 && p.x <= width/2 + 150) speed = this.v2 - (this.v2 - this.v1) * ((p.x - (width/2 + 100))/50);
+                p.x += speed * 50 * dt;
+                if (p.x > width + 50) p.x = -50;
+            });
+        }
+        draw() {
+            const cx = width / 2; const cy = height / 2;
+            
+            // Draw Main Tube Fluid (Gradient Cyan)
+            const fluidGrad = ctx.createLinearGradient(0, cy - this.A1/2, 0, cy + this.A1/2);
+            fluidGrad.addColorStop(0, 'rgba(6, 182, 212, 0.4)');
+            fluidGrad.addColorStop(0.5, 'rgba(6, 182, 212, 0.7)');
+            fluidGrad.addColorStop(1, 'rgba(6, 182, 212, 0.4)');
+            ctx.fillStyle = fluidGrad;
+            
+            ctx.beginPath();
+            ctx.moveTo(0, cy - this.A1/2);
+            ctx.lineTo(cx - 150, cy - this.A1/2); ctx.lineTo(cx - 100, cy - this.A2/2);
+            ctx.lineTo(cx + 100, cy - this.A2/2); ctx.lineTo(cx + 150, cy - this.A1/2);
+            ctx.lineTo(width, cy - this.A1/2); ctx.lineTo(width, cy + this.A1/2);
+            ctx.lineTo(cx + 150, cy + this.A1/2); ctx.lineTo(cx + 100, cy + this.A2/2);
+            ctx.lineTo(cx - 100, cy + this.A2/2); ctx.lineTo(cx - 150, cy + this.A1/2);
+            ctx.lineTo(0, cy + this.A1/2); ctx.closePath();
+            ctx.fill();
+
+            // Glass Pipe Outline
+            ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 6;
+            ctx.shadowColor = 'rgba(0,0,0,0.2)'; ctx.shadowBlur = 10;
+            ctx.beginPath(); ctx.moveTo(0, cy - this.A1/2); ctx.lineTo(cx - 150, cy - this.A1/2); ctx.lineTo(cx - 100, cy - this.A2/2);
+            ctx.lineTo(cx + 100, cy - this.A2/2); ctx.lineTo(cx + 150, cy - this.A1/2); ctx.lineTo(width, cy - this.A1/2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, cy + this.A1/2); ctx.lineTo(cx - 150, cy + this.A1/2); ctx.lineTo(cx - 100, cy + this.A2/2);
+            ctx.lineTo(cx + 100, cy + this.A2/2); ctx.lineTo(cx + 150, cy + this.A1/2); ctx.lineTo(width, cy + this.A1/2); ctx.stroke();
+            ctx.shadowBlur = 0; // reset
+
+            // Particles
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.shadowColor = '#06b6d4'; ctx.shadowBlur = 5;
+            this.particles.forEach(p => {
+                let yOffset = p.y - 0.5; let currentA = this.A1;
+                if (p.x > cx - 100 && p.x < cx + 100) currentA = this.A2;
+                else if (p.x >= cx - 150 && p.x <= cx - 100) currentA = this.A1 - (this.A1 - this.A2) * ((p.x - (cx - 150))/50);
+                else if (p.x >= cx + 100 && p.x <= cx + 150) currentA = this.A2 + (this.A1 - this.A2) * ((p.x - (cx + 100))/50);
+                let drawY = cy + yOffset * (currentA - 10); // padding
+                ctx.beginPath(); ctx.arc(p.x, drawY, 2, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.shadowBlur = 0;
+
+            // Manometer U-Tube
+            const manY = cy - this.A1/2 - 120;
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 14;
+            ctx.beginPath(); ctx.moveTo(cx - 200, cy - this.A1/2 + 5); ctx.lineTo(cx - 200, manY); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(cx, cy - this.A2/2 + 5); ctx.lineTo(cx, manY); ctx.stroke();
+            
+            // Manometer Fluid
+            ctx.fillStyle = '#06b6d4'; // Cyan
+            let h1 = 100; let h2 = Math.max(10, 100 - this.deltaP * 2); 
+            ctx.fillRect(cx - 206, cy - this.A1/2 - h1, 12, h1);
+            ctx.fillRect(cx - 6, cy - this.A2/2 - h2, 12, h2);
+        }
+    }
+
+    // --- HUKUM BERNOULLI 2: Airfoil (Sayap Pesawat) ---
+    class BernoulliAirfoil {
+        constructor() { this.windSpeed = 50; this.angle = 10; this.y = 0; this.lift = 0; this.time = 0; }
+        setupUI() {
+            return `
+                <div class="flex flex-col gap-2 w-full"><label class="text-xs font-semibold text-dim">Kecepatan Angin (v)</label><input type="range" id="wind" min="10" max="150" value="50"></div>
+                <div class="flex flex-col gap-2 w-full mt-4"><label class="text-xs font-semibold text-dim">Sudut Serang (α)</label><input type="range" id="angle" min="-5" max="25" value="10"></div>
+            `;
+        }
+        updateUI() {
+            this.windSpeed = parseFloat(document.getElementById('wind').value);
+            this.angle = parseFloat(document.getElementById('angle').value);
+            let cl = this.angle * 0.1; if (this.angle > 18) cl -= (this.angle - 18) * 0.2; 
+            this.lift = 0.5 * 1.2 * (this.windSpeed**2) * 1 * cl / 100; 
+            document.getElementById('live-data').innerHTML = `Koefisien Angkat (C_L) ≈ <span class="text-main">${cl.toFixed(2)}</span><br>Total Gaya Angkat (L) = <span class="text-main">${this.lift.toFixed(0)} N</span>`;
+        }
+        update(dt) {
+            this.time += dt;
+            const targetY = -this.lift * 0.5;
+            this.y += (targetY - this.y) * 5 * dt; 
+        }
+        draw() {
+            const cx = width / 2; const cy = height / 2 + this.y;
+
+            // Animated Wind Streamlines (Glowing)
+            ctx.lineWidth = 2;
+            for (let i = -5; i <= 5; i++) {
+                if(i===0) continue; // Skip exact middle so it hits airfoil smoothly
+                let startY = cy - this.y + i * 35;
+                ctx.beginPath(); ctx.moveTo(0, startY);
+                for(let x=0; x<width; x+=15) {
+                    let sy = startY; let dist = Math.abs(x - cx);
+                    if (dist < 180) {
+                        let effect = Math.cos((dist/180) * Math.PI/2);
+                        if (i < 0) sy -= effect * (60 + this.angle*2); // Over
+                        else sy += effect * (30 - this.angle); // Under
+                    }
+                    
+                    // Dash pattern calculation
+                    if (Math.sin((x - this.windSpeed*this.time*12)*0.08) > 0) {
+                        ctx.lineTo(x, sy);
+                        // Make top stream lines faster/redder
+                        ctx.strokeStyle = i < 0 ? `rgba(236, 72, 153, ${0.1 + (this.windSpeed/200)})` : `rgba(59, 130, 246, 0.4)`; 
+                        ctx.shadowColor = i < 0 ? '#ec4899' : '#3b82f6';
+                        ctx.shadowBlur = 4;
+                    } else {
+                        ctx.moveTo(x, sy);
+                    }
+                }
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0; // reset
+
+            // Sleek Metallic Airfoil
+            ctx.save(); ctx.translate(cx, cy); ctx.rotate(-this.angle * Math.PI / 180);
+            ctx.beginPath(); ctx.moveTo(-120, 0); ctx.bezierCurveTo(-60, -50, 60, -25, 120, 0);
+            ctx.bezierCurveTo(60, 15, -60, 10, -120, 0);
+            
+            const grad = ctx.createLinearGradient(-100, -50, 100, 20);
+            grad.addColorStop(0, '#f8fafc'); grad.addColorStop(0.5, '#94a3b8'); grad.addColorStop(1, '#334155');
+            ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 15; ctx.shadowOffsetY = 10;
+            ctx.fillStyle = grad; ctx.fill();
+            
+            ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1; ctx.stroke();
+            ctx.restore();
+            ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+            // Lift Arrow
+            if (this.lift > 0) {
+                drawUtils.arrow(cx, cy - 20, cx, cy - 20 - this.lift * 0.4, '#10b981', 5);
+            }
+        }
+    }
+
+    // --- HUKUM BERNOULLI 3: Semprotan (Atomizer) ---
+    class BernoulliSpray {
+        constructor() { this.isSqueezing = false; this.airSpeed = 0; this.particles = []; }
+        setupUI() {
+            return `
+                <button class="w-full bg-pink-500 hover:bg-pink-600 text-white py-5 rounded-2xl font-bold tracking-wide transition-all shadow-lg active:scale-95 flex flex-col items-center justify-center" onmousedown="sim.isSqueezing=true" onmouseup="sim.isSqueezing=false" onmouseleave="sim.isSqueezing=false" ontouchstart="sim.isSqueezing=true" ontouchend="sim.isSqueezing=false">
+                    <i data-lucide="wind" class="w-6 h-6 mb-1"></i> PENCET POMPA
+                </button>
+            `;
+        }
+        updateUI() {
+            if (this.isSqueezing) this.airSpeed = Math.min(this.airSpeed + 5, 45);
+            else this.airSpeed = Math.max(this.airSpeed - 2, 0);
+            let dP = 0.5 * 1.2 * (this.airSpeed**2);
+            document.getElementById('live-data').innerHTML = `Kecepatan Angin (v) = <span class="text-main">${this.airSpeed.toFixed(1)} m/s</span><br>Penurunan Tekanan (ΔP) = <span class="text-main">${dP.toFixed(1)} Pa</span>`;
+        }
+        update(dt) {
+            if (this.airSpeed > 15 && Math.random() < 0.6) {
+                for(let i=0; i<4; i++) this.particles.push({ 
+                    x: width/2 + 25, y: height/2 - 60, 
+                    vx: this.airSpeed * 0.6 + Math.random()*8, vy: (Math.random() - 0.5) * 8, 
+                    life: 1.0, size: Math.random() * 3 + 1
+                });
+            }
+            for (let i = this.particles.length - 1; i >= 0; i--) {
+                let p = this.particles[i];
+                p.x += p.vx * dt * 25; p.y += p.vy * dt * 25 + 1; p.life -= dt * 0.6; // fall slower
+                if (p.life <= 0) this.particles.splice(i, 1);
+            }
+        }
+        draw() {
+            const cx = width / 2; const cy = height / 2;
+
+            // Beautiful Perfume Bottle (Glass)
+            drawUtils.metallicCylinder(cx - 60, cy, 120, 140, false, 'glass');
+            
+            const fluidLevel = 90;
+            drawUtils.fluid(cx - 56, cy + 140 - fluidLevel, 112, fluidLevel, 'pink');
+
+            // Straw
+            drawUtils.metallicCylinder(cx - 6, cy - 60, 12, 195, false, 'glass');
+            let rise = this.airSpeed > 0 ? (this.airSpeed**2) * 0.12 : 0;
+            if (rise > 145) rise = 145 + Math.random()*5; 
+            drawUtils.fluid(cx - 4, cy + 140 - fluidLevel - rise, 8, fluidLevel + rise, 'pink');
+
+            // Air Pipe
+            drawUtils.metallicCylinder(cx - 160, cy - 70, 185, 20, true, 'metal');
+            
+            // Rubber Squeeze Bulb
+            ctx.beginPath();
+            ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 8;
+            if (this.isSqueezing) ctx.ellipse(cx - 170, cy - 60, 20, 35, 0, 0, Math.PI*2);
+            else ctx.arc(cx - 170, cy - 60, 35, 0, Math.PI*2);
+            ctx.fillStyle = '#be185d'; // Deep pink
+            ctx.fill();
+            // Highlight on bulb
+            ctx.beginPath(); ctx.arc(cx - 180, cy - 70, 8, 0, Math.PI*2); ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Glowing Spray Particles
+            this.particles.forEach(p => {
+                ctx.fillStyle = `rgba(236, 72, 153, ${p.life})`;
+                ctx.shadowColor = '#fbcfe8'; ctx.shadowBlur = 6;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    // --- HUKUM NEWTON 1: Inersia ---
+    class Newton1 {
+        constructor() { this.cartX = 100; this.cartV = 0; this.boxX = 100; this.boxV = 0; this.friction = 0.1; }
+        setupUI() {
+            return `
+                <div class="flex flex-col gap-2 w-full"><label class="text-xs font-semibold text-dim">Koefisien Gesek (μ)</label><input type="range" id="fric" min="0" max="0.5" step="0.05" value="0.1"></div>
+                <div class="flex gap-3 mt-5">
+                    <button class="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold transition-all shadow active:scale-95" onclick="sim.cartV = 400;">GAS MAJU</button>
+                    <button class="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold transition-all shadow active:scale-95" onclick="sim.cartV = 0;">REM TOTAL</button>
+                </div>
+                <button class="mt-3 w-full bg-editor border border-theme hover:bg-preview text-main py-2.5 rounded-xl font-medium transition-all" onclick="sim.cartX = 100; sim.boxX = 100; sim.cartV = 0; sim.boxV = 0;">Reset Posisi</button>
+            `;
+        }
+        updateUI() {
+            this.friction = parseFloat(document.getElementById('fric').value);
+            document.getElementById('live-data').innerHTML = `v Gerobak = <span class="text-main">${(this.cartV).toFixed(0)} px/s</span><br>v Box = <span class="text-main">${(this.boxV).toFixed(0)} px/s</span><br>Interaksi = <span class="text-main">${this.cartV === this.boxV ? "Ikut (v konstan)" : (this.friction>0 ? "Tergelincir (Ada μ)" : "Inersia Murni (Diam)")}</span>`;
+        }
+        update(dt) {
+            this.cartX += this.cartV * dt;
+            if (this.boxV < this.cartV) { this.boxV += this.friction * 1000 * dt; if (this.boxV > this.cartV) this.boxV = this.cartV; } 
+            else if (this.boxV > this.cartV) { this.boxV -= this.friction * 1000 * dt; if (this.boxV < this.cartV) this.boxV = this.cartV; }
+            this.boxX += this.boxV * dt;
+            if (this.boxX < this.cartX - 40 || this.boxX > this.cartX + 80) { // Fall off
+                this.boxV -= Math.sign(this.boxV) * 0.8 * 1000 * dt; // Hard floor friction
+                if (Math.abs(this.boxV) < 15) this.boxV = 0;
+            }
+        }
+        draw() {
+            const cy = height / 2 + 100;
+            
+            // Rich Floor
+            ctx.fillStyle = '#1e293b'; ctx.fillRect(0, cy, width, height - cy);
+            ctx.strokeStyle = '#334155'; ctx.lineWidth = 2;
+            for(let i=0; i<width; i+=40) { ctx.beginPath(); ctx.moveTo(i, cy); ctx.lineTo(i-20, height); ctx.stroke(); }
+            
+            // Stop Wall
+            drawUtils.metallicCylinder(width - 40, cy - 150, 40, 150, false);
+
+            // Wood Cart
+            ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 8;
+            const cartGrad = ctx.createLinearGradient(0, cy - 30, 0, cy - 10);
+            cartGrad.addColorStop(0, '#d97706'); cartGrad.addColorStop(1, '#92400e');
+            ctx.fillStyle = cartGrad; drawUtils.roundRect(this.cartX, cy - 35, 120, 20, 4); ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            drawUtils.wheel(this.cartX + 25, cy - 15, 14, this.cartX*0.05);
+            drawUtils.wheel(this.cartX + 95, cy - 15, 14, this.cartX*0.05);
+
+            // Box (Vibrant Violet)
+            ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 6;
+            let drawBoxY = cy - 35 - 40;
+            if (this.boxX < this.cartX - 40 || this.boxX > this.cartX + 120) drawBoxY = cy - 40; 
+            ctx.fillStyle = '#8b5cf6'; drawUtils.roundRect(this.boxX + 40, drawBoxY, 40, 40, 6); ctx.fill();
+            // Box inner detail
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 2; ctx.strokeRect(this.boxX + 45, drawBoxY + 5, 30, 30);
+            ctx.shadowBlur = 0;
+
+            // Inertia Vector Arrow
+            if (this.boxV > 0) drawUtils.arrow(this.boxX + 60, drawBoxY - 15, this.boxX + 60 + this.boxV * 0.2, drawBoxY - 15, '#c084fc');
+        }
+    }
+
+    // --- HUKUM NEWTON 2: F = m*a ---
+    class Newton2 {
+        constructor() { this.x = 100; this.v = 0; this.mass = 10; this.force = 0; }
+        setupUI() {
+            return `
+                <div class="flex flex-col gap-2 w-full"><label class="text-xs font-semibold text-dim">Massa Balok (m) = <span id="valM" class="text-main font-mono bg-preview px-2 py-0.5 rounded ml-1">10 kg</span></label><input type="range" id="mass" min="5" max="50" value="10"></div>
+                <div class="flex flex-col gap-2 w-full mt-4"><label class="text-xs font-semibold text-dim">Gaya Dorong (F) = <span id="valF" class="text-main font-mono bg-preview px-2 py-0.5 rounded ml-1">0 N</span></label><input type="range" id="force" min="-100" max="100" value="0"></div>
+                <button class="mt-6 w-full bg-editor border border-theme hover:bg-preview text-main py-3 rounded-xl font-medium transition-all shadow-sm active:scale-95" onclick="sim.x = 100; sim.v = 0; document.getElementById('force').value=0;">Hentikan Laju & Reset</button>
+            `;
+        }
+        updateUI() {
+            this.mass = parseFloat(document.getElementById('mass').value);
+            this.force = parseFloat(document.getElementById('force').value);
+            document.getElementById('valM').innerText = this.mass + " kg";
+            document.getElementById('valF').innerText = this.force + " N";
+            const a = this.force / this.mass;
+            document.getElementById('live-data').innerHTML = `Percepatan (a) = <span class="text-main">${a.toFixed(2)} m/s²</span><br>Kecepatan (v) = <span class="text-main">${(this.v).toFixed(1)} m/s</span>`;
+        }
+        update(dt) {
+            const a = this.force / this.mass;
+            this.v += a * dt * 10; this.x += this.v * dt * 10;
+            if (this.x > width + 50) this.x = -50;
+            if (this.x < -50) this.x = width + 50;
+        }
+        draw() {
+            const cy = height / 2;
+            
+            // Sci-fi Grid Floor
+            ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2; ctx.globalAlpha = 0.3;
+            ctx.beginPath(); ctx.moveTo(0, cy+50); ctx.lineTo(width, cy+50); ctx.stroke();
+            for(let i=0; i<width; i+=80) {
+                let offset = (i - (this.x*0.1) % 80);
+                ctx.beginPath(); ctx.moveTo(offset, cy+50); ctx.lineTo(offset - 40, cy+150); ctx.stroke();
+            }
+            ctx.globalAlpha = 1.0;
+
+            const size = 30 + this.mass;
+            
+            // Holographic Block
+            ctx.shadowColor = '#0ea5e9'; ctx.shadowBlur = 15;
+            const blockGrad = ctx.createLinearGradient(this.x - size/2, cy+50-size, this.x + size/2, cy+50);
+            blockGrad.addColorStop(0, '#38bdf8'); blockGrad.addColorStop(1, '#0284c7');
+            ctx.fillStyle = blockGrad;
+            drawUtils.roundRect(this.x - size/2, cy + 50 - size, size, size, 8); ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Inter'; ctx.textAlign = 'center';
+            ctx.fillText(`${this.mass} kg`, this.x, cy + 50 - size/2 + 5);
+            ctx.textAlign = 'left';
+
+            // Vectors
+            if (this.force !== 0) {
+                const fLen = this.force * 1.5;
+                drawUtils.arrow(this.x, cy + 50 - size/2, this.x + fLen, cy + 50 - size/2, '#ef4444', 5);
+            }
+
+            if (Math.abs(this.v) > 0.1) {
+                drawUtils.arrow(this.x, cy + 70, this.x + this.v, cy + 70, '#10b981', 4);
+            }
+        }
+    }
+
+    // --- HUKUM NEWTON 3: Aksi Reaksi (Meriam) ---
+    class Newton3 {
+        constructor() { this.cannonX = width/2; this.cannonV = 0; this.cannonMass = 500; this.ballX = width/2; this.ballV = 0; this.ballMass = 10; this.fired = false; this.particles = []; }
+        setupUI() {
+            return `
+                <div class="flex flex-col gap-2 w-full"><label class="text-xs font-semibold text-dim">Massa Peluru (m_p) = <span id="valMb" class="text-main font-mono bg-preview px-2 py-0.5 rounded ml-1">10 kg</span></label><input type="range" id="massB" min="1" max="50" value="10"></div>
+                <div class="flex flex-col gap-2 w-full mt-4"><label class="text-xs font-semibold text-dim">Daya Ledak Mesiu</label><input type="range" id="velB" min="50" max="350" value="200"></div>
+                <button class="mt-6 w-full bg-orange-500 hover:bg-orange-600 text-white py-4 rounded-2xl font-bold tracking-widest transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2" onclick="sim.fire()"><i data-lucide="flame" class="w-5 h-5"></i> TEMBAKKAN !</button>
+                <button class="mt-3 w-full bg-editor border border-theme hover:bg-preview text-main py-2.5 rounded-xl font-medium transition-all" onclick="sim.reset()">Muat Ulang Meriam</button>
+            `;
+        }
+        updateUI() {
+            if(!this.fired) { this.ballMass = parseFloat(document.getElementById('massB').value); document.getElementById('valMb').innerText = this.ballMass + " kg"; }
+            let pB = this.ballMass * Math.abs(this.ballV); let pC = this.cannonMass * Math.abs(this.cannonV);
+            document.getElementById('live-data').innerHTML = `Momentum Bola (p₁) = <span class="text-main">${pB.toFixed(0)} kg.m/s</span><br>Momentum Meriam (p₂) = <span class="text-main">${pC.toFixed(0)} kg.m/s</span><br>Total Keseluruhan = <span class="text-main">${(pB - pC).toFixed(0)}</span> (Kekekalan)`;
+        }
+        fire() {
+            if(this.fired) return;
+            this.fired = true; const vEmit = parseFloat(document.getElementById('velB').value); this.ballV = vEmit;
+            this.cannonV = -(this.ballMass * this.ballV) / this.cannonMass;
+            for(let i=0; i<80; i++) this.particles.push({ x: this.cannonX + 90, y: height/2 - 20, vx: Math.random() * 150 + 50, vy: (Math.random() - 0.5) * 120, life: 1.0, color: Math.random() > 0.4 ? '#f59e0b' : '#ef4444', size: Math.random()*8+3 });
+        }
+        reset() { this.fired = false; this.cannonX = width/2; this.cannonV = 0; this.ballX = width/2; this.ballV = 0; this.particles = []; }
+        update(dt) {
+            if(this.fired) {
+                this.ballX += this.ballV * dt; this.cannonX += this.cannonV * dt; this.cannonV *= 0.96;
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    let p = this.particles[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt * 2.5;
+                    p.size *= 0.95; // shrink
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                }
+            } else { this.ballX = this.cannonX; }
+        }
+        draw() {
+            const cy = height / 2;
+            
+            // Stone/Dirt Floor
+            ctx.fillStyle = '#292524'; ctx.fillRect(0, cy + 20, width, height - cy);
+            ctx.fillStyle = '#44403c'; ctx.fillRect(0, cy + 20, width, 5);
+
+            // Back wheel
+            drawUtils.wheel(this.cannonX - 30, cy + 5, 25, this.cannonX*0.05, 'wood');
+            
+            // Cannon Body (Bronze/Iron)
+            ctx.save(); ctx.translate(this.cannonX, cy - 20);
+            ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 5;
+            
+            // Barrel
+            const barrelGrad = ctx.createLinearGradient(0,-20, 0,20);
+            barrelGrad.addColorStop(0, '#52525b'); barrelGrad.addColorStop(0.5, '#a1a1aa'); barrelGrad.addColorStop(1, '#27272a');
+            ctx.fillStyle = barrelGrad; 
+            ctx.beginPath(); ctx.moveTo(-60, 20); ctx.lineTo(90, 10); ctx.lineTo(90, -10); ctx.lineTo(-60, -20); ctx.arc(-60, 0, 20, Math.PI/2, Math.PI*1.5); ctx.fill();
+            
+            // Base/Carriage
+            ctx.fillStyle = '#78350f'; drawUtils.roundRect(-50, 5, 80, 20, 5); ctx.fill();
+            ctx.restore();
+            ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+            // Front wheel
+            drawUtils.wheel(this.cannonX + 30, cy + 5, 25, this.cannonX*0.05, 'wood');
+
+            // Cannonball (Iron)
+            if (this.fired) {
+                const ballR = this.ballMass * 0.4 + 6;
+                const ballGrad = ctx.createRadialGradient(this.ballX + 90 - ballR/3, cy - 20 - ballR/3, 2, this.ballX + 90, cy - 20, ballR);
+                ballGrad.addColorStop(0, '#94a3b8'); ballGrad.addColorStop(1, '#0f172a');
+                ctx.fillStyle = ballGrad; ctx.beginPath();
+                ctx.arc(this.ballX + 90, cy - 20, ballR, 0, Math.PI*2); ctx.fill();
+            }
+
+            // Explosion Particles
+            this.particles.forEach(p => {
+                ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.color;
+                ctx.shadowColor = p.color; ctx.shadowBlur = 10;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
+
+            if (this.fired && Math.abs(this.cannonV) > 1) {
+                drawUtils.arrow(this.cannonX, cy - 80, this.cannonX + this.cannonV * 2, cy - 80, '#3b82f6', 5);
+                drawUtils.arrow(this.ballX + 90, cy - 80, this.ballX + 90 + this.ballV * 0.3, cy - 80, '#ef4444', 5);
+            }
+        }
+    }
+
+    /**
+     * SYSTEM CONTROLLER (Routing)
+     */
+    const simulations = {
+        'pascal_jack': { class: PascalJack, title: "Dongkrak Hidrolik", desc: "Tekanan yang diberikan pada cairan di ruang tertutup diteruskan sama besar ke segala arah. Perhatikan bagaimana tuas kecil mengangkat mobil yang berat.", math: "P = F₁/A₁ = F₂/A₂" },
+        'pascal_brake': { class: PascalBrake, title: "Rem Cakram Hidrolik", desc: "Putar roda cakram, lalu injak pedal. Tekanan fluida disalurkan seketika ke kaliper rem (Brembo merah) untuk menjepit cakram yang sedang berputar.", math: "Tekanan Master = Tekanan Slave" },
+        'pascal_syringe': { class: PascalSyringe, title: "Sistem Suntikan Ganda", desc: "Mendorong piston kecil memindahkan volume cairan tertentu. Piston besar akan terdorong lebih pendek karena luas permukaannya memecah volume tersebut secara proporsional.", math: "Volume = A₁·d₁ = A₂·d₂" },
+        'bernoulli_venturi': { class: BernoulliVenturi, title: "Pipa Venturi", desc: "Partikel air mengalir di dalam tabung kaca. Di bagian leher pipa yang menyempit, kecepatan partikel meningkat drastis. Sebagai akibatnya, kolom air di manometer bagian tengah turun drastis menandakan anjloknya tekanan.", math: "P₁ + ½ρv₁² = P₂ + ½ρv₂²" },
+        'bernoulli_airfoil': { class: BernoulliAirfoil, title: "Gaya Angkat Aerodinamika", desc: "Profil sayap aerodinamis membelah angin. Udara yang melengkung melewati sisi atas sayap bergerak lebih cepat, menghasilkan zona tekanan rendah yang sukses mengangkat keseluruhan objek (Lift).", math: "Lift = ½·ρ·v²·A·C_L" },
+        'bernoulli_spray': { class: BernoulliSpray, title: "Semprotan Parfum (Atomizer)", desc: "Saat karet dipencet, hembusan udara kencang melewati ujung atas sedotan kaca. Tekanan di atas sedotan anjlok mendekati vakum ringan, membuat cairan ditarik ke atas lalu terdispersi.", math: "Kecepatan Udara ↑ = Tekanan ↓" },
+        'newton_1': { class: Newton1, title: "Hukum I Newton (Inersia)", desc: "Massa cenderung mempertahankan posisinya. Saat gerobak digas mendadak, kotak ungu terasa 'tertinggal'. Saat direm mendadak, kotak ungu akan terlempar meluncur ke depan karena Inersia-nya.", math: "ΣF = 0 ⇒ v = Konstan" },
+        'newton_2': { class: Newton2, title: "Hukum II Newton (F = ma)", desc: "Simulasi interaktif akselerasi linier murni. Anda memberikan gaya konstan, balok holografik akan terus mengalami percepatan. Semakin berat massanya, semakin lambat akselerasinya.", math: "ΣF = m · a" },
+        'newton_3': { class: Newton3, title: "Hukum III Newton (Aksi-Reaksi)", desc: "Daya ledak mesiu memberikan gaya tolakan brutal ke peluru besi. Sebagai respon universal, bodi meriam akan tersentak (recoil) ke belakang untuk menyeimbangkan momentum total sistem.", math: "F_aksi = -F_reaksi" }
+    };
+
+    function loadSim(id) {
+        // UI Reset
+        document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active', 'bg-slate-100', 'dark:bg-slate-800', 'border-theme', 'shadow-sm'));
+        const activeItem = document.querySelector(`[onclick="loadSim('${id}')"]`);
+        if (activeItem) {
+            activeItem.classList.add('active', 'bg-slate-100', 'dark:bg-slate-800', 'border-theme', 'shadow-sm');
+        }
+        
+        const simData = simulations[id];
+        document.getElementById('info-title').innerText = simData.title;
+        document.getElementById('hud-module-name').innerText = simData.title;
+        document.getElementById('info-desc').innerText = simData.desc;
+        document.getElementById('info-math').innerText = simData.math;
+        
+        // Start Engine
+        sim = new simData.class();
+        document.getElementById('controls').innerHTML = sim.setupUI();
+        lucide.createIcons();
+    }
+
+    // Main Engine Loop
+    function loop(timestamp) {
+        if (!lastTime) lastTime = timestamp;
+        let dt = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+        if (dt > 0.1) dt = 0.1; 
+
+        ctx.clearRect(0, 0, width, height);
+
+        if (sim && width > 0 && height > 0) {
+            sim.updateUI();
+            sim.update(dt);
+            sim.draw();
+        }
+
+        animationId = requestAnimationFrame(loop);
+    }
+
+    // Init App
+    let sim = null;
+    loadSim('pascal_jack');
+    requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>
