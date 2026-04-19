@@ -86,6 +86,34 @@
 
         /* Hiding specific default elements carefully */
         .card-hidden { display: none !important; }
+
+        /* Unified Timeline & Trim Slider (Jangka Sorong Terintegrasi) */
+        .timeline-wrapper { position: relative; width: 100%; height: 24px; display: flex; align-items: center; }
+        .timeline-track-bg { position: absolute; width: 100%; height: 6px; background: var(--border-color); border-radius: 3px; overflow: hidden; pointer-events: none; }
+        .timeline-trim-area { position: absolute; height: 100%; background: rgba(59, 130, 246, 0.2); border-left: 2px solid var(--theme-accent); border-right: 2px solid var(--theme-accent); border-radius: 2px; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+        .timeline-progress { position: absolute; height: 100%; background: var(--theme-accent); width: 0%; pointer-events: none; border-radius: 3px; transition: width 0.1s linear; }
+        
+        .timeline-input { position: absolute; width: 100%; top: 0; left: 0; height: 100%; -webkit-appearance: none; background: transparent; margin: 0; outline: none; }
+        
+        /* Seek Playhead (Z-index 10) */
+        #seekSlider { z-index: 10; cursor: pointer; }
+        #seekSlider::-webkit-slider-thumb { -webkit-appearance: none; width: 4px; height: 20px; background: var(--text-main); border-radius: 2px; box-shadow: var(--shadow-sm); transition: transform 0.1s; }
+        #seekSlider::-webkit-slider-thumb:hover { transform: scaleY(1.2); }
+        #seekSlider::-moz-range-thumb { width: 4px; height: 20px; background: var(--text-main); border-radius: 2px; border: none; box-shadow: var(--shadow-sm); transition: transform 0.1s; }
+        #seekSlider::-moz-range-thumb:hover { transform: scaleY(1.2); }
+        .dark #seekSlider::-webkit-slider-thumb { background: #fff; }
+        .dark #seekSlider::-moz-range-thumb { background: #fff; }
+
+        /* Trim Thumbs (Z-index 20/21) - Pointer Events Magic */
+        .trim-input { z-index: 20; pointer-events: none; } /* Meneruskan klik track ke seekSlider */
+        .trim-input::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--theme-accent); cursor: ew-resize; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: transform 0.1s; }
+        .trim-input::-webkit-slider-thumb:hover { transform: scale(1.15); }
+        .trim-input::-moz-range-thumb { pointer-events: auto; width: 16px; height: 16px; border-radius: 50%; background: var(--theme-accent); cursor: ew-resize; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: transform 0.1s; }
+        .dark .trim-input::-webkit-slider-thumb { border-color: var(--card-bg); }
+        .dark .trim-input::-moz-range-thumb { border-color: var(--card-bg); }
+        
+        .trim-hidden { visibility: hidden; opacity: 0; }
+        .trim-active .timeline-trim-area { opacity: 1; }
     </style>
 </head>
 <body>
@@ -99,7 +127,7 @@
                     ReformatSuara
                 </h1>
             </div>
-            <span class="text-[11px] font-medium italic text-dim px-2 py-0.5 border border-theme rounded-full">v2.0.0</span>
+            <span class="text-[11px] font-medium italic text-dim px-2 py-0.5 border border-theme rounded-full">v2.1.0</span>
             <span class="text-[11px] text-dim hidden md:inline">by AhmadDanial</span>
         </div>
         
@@ -120,19 +148,93 @@
     <!-- B. MAIN WORKSPACE (Split Pane Kiri-Kanan) -->
     <main class="flex-1 flex overflow-hidden">
         
-        <!-- Panel Utama (Kiri): Editor/Dropzone -->
+        <!-- Panel Utama (Kiri): Editor/Dropzone & Visualizer -->
         <div id="left-pane" class="flex-[6] bg-editor relative overflow-hidden flex flex-col justify-center items-center p-8 transition-all">
+            
+            <!-- Dropzone Area -->
             <div id="dropzone" class="w-full max-w-2xl h-full max-h-[500px] border-2 border-dashed border-theme rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-preview transition-all relative group">
-                <input type="file" id="fileInput" accept="audio/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                <input type="file" id="fileInput" accept="audio/*,video/mp4,video/webm,video/x-matroska,video/avi,.mp4,.mkv,.avi,.m4a,.ogg,.wav,.weba,.aac,.flac,.wma" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
                 <div class="flex flex-col items-center pointer-events-none p-6 text-center">
                     <div class="w-20 h-20 bg-card border border-theme rounded-2xl shadow-sm flex items-center justify-center mb-6 group-hover:scale-105 transition-transform duration-300">
                         <i data-lucide="upload-cloud" class="w-10 h-10 text-blue-500"></i>
                     </div>
-                    <h2 class="text-2xl font-bold text-main mb-2">Tarik File Audio Ke Sini</h2>
-                    <p class="text-sm text-dim">Mendukung M4A, OGG, WAV, AAC, WMA, dll.<br/>Batas optimal ~50MB.</p>
+                    <h2 class="text-2xl font-bold text-main mb-2">Tarik File Audio / Video Ke Sini</h2>
+                    <p class="text-sm text-dim">Mendukung MP4, MKV, M4A, OGG, WAV, AAC, dll.<br/>Batas optimal ~50MB.</p>
                 </div>
             </div>
-            <p class="text-xs text-dim mt-6 flex items-center gap-2">
+
+            <!-- Preview & Visualizer Container (Hidden initially) -->
+            <div id="previewContainer" class="hidden w-full max-w-2xl h-full max-h-[500px] bg-card border border-theme rounded-2xl shadow-lg flex flex-col items-center justify-center p-8 relative overflow-hidden">
+                <!-- Ornamen Latar -->
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5 z-0 pointer-events-none"></div>
+                
+                <h3 class="text-main font-semibold mb-6 z-10 flex items-center gap-2">
+                    <i data-lucide="activity" class="w-5 h-5 text-purple-500"></i> Analisis Gelombang Suara
+                </h3>
+
+                <!-- Equalizer Canvas -->
+                <canvas id="visualizerCanvas" class="w-full h-48 z-10 max-w-lg"></canvas>
+                
+                <!-- Native Video (Replaces Audio to support MP4 previews) -->
+                <video id="previewMedia" class="hidden w-full max-h-48 z-10 bg-black/5 rounded-lg object-contain shadow-inner" crossorigin="anonymous" playsinline></video>
+
+                <!-- NEW: Unified Seek & Trim Slider (Timeline) -->
+                <div class="z-20 w-full max-w-lg mt-6 flex flex-col gap-1">
+                    <div class="flex items-center gap-3">
+                        <span id="currentTimeDisplay" class="text-xs font-data w-12 text-right text-main">0:00</span>
+                        
+                        <div id="timelineWrapper" class="timeline-wrapper flex-1">
+                            <!-- Background & Visual Tracks -->
+                            <div class="timeline-track-bg">
+                                <div id="playbackProgress" class="timeline-progress"></div>
+                            </div>
+                            <!-- Highlight Area untuk Trim -->
+                            <div id="trimHighlight" class="timeline-trim-area" style="left: 0%; width: 100%;"></div>
+                            
+                            <!-- Input Range Asli -->
+                            <input type="range" id="seekSlider" class="timeline-input" value="0" min="0" step="0.1">
+                            <input type="range" id="trimStartSlider" class="timeline-input trim-input trim-hidden" value="0" min="0" step="0.1">
+                            <input type="range" id="trimEndSlider" class="timeline-input trim-input trim-hidden" value="100" min="0" step="0.1" style="z-index: 21;">
+                        </div>
+                        
+                        <span id="totalTimeDisplay" class="text-xs font-data w-12 text-main">0:00</span>
+                    </div>
+
+                    <!-- Detail Info Trim (Muncul saat Mode Trim Aktif) -->
+                    <div id="trimInfoDisplay" class="hidden flex justify-between items-center px-[3.25rem] mt-1 transition-opacity">
+                        <div class="flex items-center gap-1.5 text-[10px] font-medium text-green-600 dark:text-green-400">
+                            <i data-lucide="arrow-right-to-line" class="w-3 h-3"></i>
+                            <span id="trimStartDisplay" class="font-data">0:00</span>
+                        </div>
+                        <span id="trimDurationDisplay" class="text-[10px] font-bold text-blue-600 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20 shadow-sm">
+                            Durasi: 0:00
+                        </span>
+                        <div class="flex items-center gap-1.5 text-[10px] font-medium text-red-500">
+                            <span id="trimEndDisplay" class="font-data">0:00</span>
+                            <i data-lucide="arrow-left-to-line" class="w-3 h-3"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Custom Audio Controls -->
+                <div class="z-20 mt-6 flex items-center gap-6">
+                    <button id="resetFileBtn" class="p-3 text-dim hover:text-main bg-editor rounded-full shadow-sm border border-theme transition-transform hover:scale-110" title="Ganti File">
+                        <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                    </button>
+                    
+                    <button id="playPauseBtn" class="w-16 h-16 bg-gradient-to-r from-purple-600 to-orange-500 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition-transform">
+                        <i data-lucide="play" class="w-7 h-7 ml-1" id="playIcon"></i>
+                    </button>
+                    
+                    <!-- Toggle Trim Button -->
+                    <button id="toggleTrimBtn" class="p-3 text-dim hover:text-main bg-editor rounded-full shadow-sm border border-theme transition-transform hover:scale-110" title="Mode Potong (Trim)">
+                        <i data-lucide="scissors" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pesan Aman -->
+            <p id="safeNotice" class="text-xs text-dim mt-6 flex items-center gap-2 transition-opacity">
                 <i data-lucide="shield-check" class="w-4 h-4 text-green-500"></i>
                 100% Aman. Diproses lokal di browser. Tidak ada file yang diunggah ke server.
             </p>
@@ -155,11 +257,24 @@
                 <div class="flex flex-col gap-2">
                     <label for="bitrate" class="text-xs font-medium text-dim">Kualitas Bitrate MP3</label>
                     <select id="bitrate" class="bg-editor border border-theme rounded-lg p-2.5 text-sm text-main focus:ring-2 focus:ring-blue-500/20 outline-none shadow-sm transition-all appearance-none cursor-pointer">
+                        <option value="wa" class="font-semibold text-green-600">WhatsApp-Safe (Smart Fit &lt; 16MB)</option>
+                        <option value="32">32 kbps (Sangat Rendah)</option>
+                        <option value="64">64 kbps (Rendah - Podcast)</option>
+                        <option value="96">96 kbps (Cukup)</option>
                         <option value="128">128 kbps (Standar)</option>
                         <option value="192" selected>192 kbps (Bagus - Disarankan)</option>
                         <option value="256">256 kbps (Tinggi)</option>
                         <option value="320">320 kbps (Terbaik - Studio)</option>
                     </select>
+                    
+                    <!-- Area Estimasi Ukuran -->
+                    <div id="estimateContainer" class="hidden mt-2 p-3 bg-blue-500/5 border border-blue-500/20 rounded-lg flex items-start gap-2 transition-all">
+                        <i data-lucide="hard-drive" class="w-4 h-4 text-blue-500 shrink-0 mt-0.5"></i>
+                        <div class="flex flex-col">
+                            <span id="estimateText" class="text-sm font-semibold text-blue-600 font-data">Estimasi: ~0 MB</span>
+                            <span id="estimateDetail" class="text-[10px] text-dim">Menghitung durasi...</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -270,7 +385,6 @@
         const themeToggle = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
 
-        // Check Local Storage
         if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             html.classList.add('dark');
             themeIcon.setAttribute('data-lucide', 'sun');
@@ -286,6 +400,9 @@
             
             themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
             lucide.createIcons();
+            
+            // Redraw visualizer if needed to adjust colors
+            if(isPlaying) drawVisualizer();
         });
 
         /* ========================================================
@@ -304,7 +421,6 @@
         document.addEventListener('mousemove', (e) => {
             if (!isResizing) return;
             const containerWidth = document.body.clientWidth;
-            // Prevent pane from becoming too small
             if(e.clientX < 300 || e.clientX > containerWidth - 300) return; 
             
             const newLeftFlex = (e.clientX / containerWidth) * 10;
@@ -316,6 +432,8 @@
             if(isResizing) {
                 isResizing = false;
                 document.body.style.cursor = 'default';
+                // Adjust canvas size when layout changes
+                if(visualizerCanvas) resizeCanvas();
             }
         });
 
@@ -330,7 +448,6 @@
 
         const openModal = () => {
             modalTerms.classList.remove('hidden');
-            // Small delay to allow display:block to apply before animating opacity
             setTimeout(() => {
                 modalTerms.classList.remove('opacity-0');
                 modalContent.classList.remove('scale-95');
@@ -350,30 +467,316 @@
         acceptTermsBtn.addEventListener('click', closeModal);
 
         /* ========================================================
-           4. CORE LOGIC - AUDIO TO MP3 (DO NOT REMOVE)
+           4. VISUALIZER, TRIM, & PREVIEW AUDIO LOGIC
+           ======================================================== */
+        const previewContainer = document.getElementById('previewContainer');
+        const visualizerCanvas = document.getElementById('visualizerCanvas');
+        const previewMedia = document.getElementById('previewMedia');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const playIcon = document.getElementById('playIcon');
+        const resetFileBtn = document.getElementById('resetFileBtn');
+        
+        // Unified Timeline UI
+        const timelineWrapper = document.getElementById('timelineWrapper');
+        const playbackProgress = document.getElementById('playbackProgress');
+        const seekSlider = document.getElementById('seekSlider');
+        const currentTimeDisplay = document.getElementById('currentTimeDisplay');
+        const totalTimeDisplay = document.getElementById('totalTimeDisplay');
+
+        // Trim UI
+        const toggleTrimBtn = document.getElementById('toggleTrimBtn');
+        const trimHighlight = document.getElementById('trimHighlight');
+        const trimStartSlider = document.getElementById('trimStartSlider');
+        const trimEndSlider = document.getElementById('trimEndSlider');
+        const trimInfoDisplay = document.getElementById('trimInfoDisplay');
+        const trimStartDisplay = document.getElementById('trimStartDisplay');
+        const trimEndDisplay = document.getElementById('trimEndDisplay');
+        const trimDurationDisplay = document.getElementById('trimDurationDisplay');
+
+        const canvasCtx = visualizerCanvas.getContext('2d');
+
+        let previewAudioCtx, analyser, audioSource;
+        let isPlaying = false;
+        let animationId;
+        let visualizerInitialized = false;
+        
+        // Core State
+        let inputDuration = 0; 
+        let trimStart = 0;
+        let trimEnd = 0;
+        let isTrimActive = false;
+
+        function formatTime(seconds) {
+            if(isNaN(seconds)) return "0:00";
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function resizeCanvas() {
+            visualizerCanvas.width = visualizerCanvas.clientWidth * window.devicePixelRatio;
+            visualizerCanvas.height = visualizerCanvas.clientHeight * window.devicePixelRatio;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function initVisualizer() {
+            if (!visualizerInitialized) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                previewAudioCtx = new AudioContext();
+                analyser = previewAudioCtx.createAnalyser();
+                analyser.fftSize = 256;
+                audioSource = previewAudioCtx.createMediaElementSource(previewMedia);
+                audioSource.connect(analyser);
+                analyser.connect(previewAudioCtx.destination);
+                visualizerInitialized = true;
+                resizeCanvas();
+            }
+        }
+
+        function drawVisualizer() {
+            if(!analyser) return;
+            animationId = requestAnimationFrame(drawVisualizer);
+            
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteFrequencyData(dataArray);
+
+            const width = visualizerCanvas.width;
+            const height = visualizerCanvas.height;
+            canvasCtx.clearRect(0, 0, width, height);
+            
+            const barWidth = (width / bufferLength) * 2.5;
+            let barHeight;
+            let x = 0;
+
+            let gradient = canvasCtx.createLinearGradient(0, height, 0, 0);
+            gradient.addColorStop(0, '#8A2387');
+            gradient.addColorStop(0.5, '#E94057');
+            gradient.addColorStop(1, '#F27121');
+
+            for(let i = 0; i < bufferLength; i++) {
+                barHeight = (dataArray[i] / 255) * height * 0.8;
+                if(barHeight < 2) barHeight = 2; 
+                
+                canvasCtx.fillStyle = gradient;
+                canvasCtx.beginPath();
+                if (canvasCtx.roundRect) {
+                    canvasCtx.roundRect(x, height - barHeight, barWidth - 4, barHeight, [8, 8, 0, 0]);
+                } else {
+                    canvasCtx.fillRect(x, height - barHeight, barWidth - 4, barHeight);
+                }
+                canvasCtx.fill();
+
+                x += barWidth;
+            }
+        }
+
+        // Toggle Play/Pause
+        playPauseBtn.addEventListener('click', () => {
+            if (!previewMedia.src) return;
+            
+            if (visualizerInitialized && previewAudioCtx.state === 'suspended') {
+                previewAudioCtx.resume();
+            }
+            if (!visualizerInitialized && !previewMedia.classList.contains('hidden')) {
+                // Inisialisasi analyser biarpun video
+                initVisualizer();
+            } else if (!visualizerInitialized) {
+                initVisualizer();
+            }
+
+            if (isPlaying) {
+                previewMedia.pause();
+                playIcon.setAttribute('data-lucide', 'play');
+                playIcon.classList.add('ml-1');
+            } else {
+                // Ensure we don't play outside trimmed area
+                if (previewMedia.currentTime < trimStart || previewMedia.currentTime >= trimEnd) {
+                    previewMedia.currentTime = trimStart;
+                }
+                previewMedia.play();
+                playIcon.setAttribute('data-lucide', 'pause');
+                playIcon.classList.remove('ml-1');
+                if(!previewMedia.classList.contains('hidden') === false) drawVisualizer(); 
+            }
+            lucide.createIcons();
+            isPlaying = !isPlaying;
+        });
+
+        // Toggle Trim UI Mode
+        toggleTrimBtn.addEventListener('click', () => {
+            isTrimActive = !isTrimActive;
+            if(isTrimActive) {
+                // Tampilkan thumbs trim & Highlight
+                trimStartSlider.classList.remove('trim-hidden');
+                trimEndSlider.classList.remove('trim-hidden');
+                timelineWrapper.classList.add('trim-active');
+                trimInfoDisplay.classList.remove('hidden');
+                toggleTrimBtn.classList.add('bg-blue-500/20', 'text-blue-600', 'border-blue-500');
+                
+                // Pastikan nilai trim mengikuti slider saat ini jika belum pernah di-set
+                updateDualSliderUI();
+            } else {
+                // Sembunyikan trim
+                trimStartSlider.classList.add('trim-hidden');
+                trimEndSlider.classList.add('trim-hidden');
+                timelineWrapper.classList.remove('trim-active');
+                trimInfoDisplay.classList.add('hidden');
+                toggleTrimBtn.classList.remove('bg-blue-500/20', 'text-blue-600', 'border-blue-500');
+                
+                // Reset trim ke full duration
+                if (inputDuration > 0) {
+                    trimStart = 0;
+                    trimEnd = inputDuration;
+                    trimStartSlider.value = trimStart;
+                    trimEndSlider.value = trimEnd;
+                    updateDualSliderUI();
+                }
+            }
+        });
+
+        // Seek Event Listener
+        seekSlider.addEventListener('input', () => {
+            let seekTo = parseFloat(seekSlider.value);
+            
+            // Jika mode trim aktif, jangan biarkan playhead keluar batas trim
+            if (isTrimActive) {
+                if (seekTo < trimStart) seekTo = trimStart;
+                if (seekTo > trimEnd) seekTo = trimEnd;
+                seekSlider.value = seekTo;
+            }
+            
+            previewMedia.currentTime = seekTo;
+            currentTimeDisplay.textContent = formatTime(seekTo);
+            playbackProgress.style.width = (seekTo / inputDuration * 100) + '%';
+        });
+
+        function updateDualSliderUI() {
+            if(!inputDuration) return;
+            
+            let val1 = parseFloat(trimStartSlider.value);
+            let val2 = parseFloat(trimEndSlider.value);
+            
+            // Mencegah thumb saling menyeberang (jangka sorong menabrak)
+            if (val1 >= val2) {
+                if (document.activeElement === trimStartSlider) {
+                    val1 = val2 - 0.1;
+                    trimStartSlider.value = val1;
+                } else {
+                    val2 = val1 + 0.1;
+                    trimEndSlider.value = val2;
+                }
+            }
+
+            trimStart = val1;
+            trimEnd = val2;
+            
+            let percent1 = (trimStart / inputDuration) * 100;
+            let percent2 = (trimEnd / inputDuration) * 100;
+            
+            // Update Area Sorot Biru
+            trimHighlight.style.left = percent1 + '%';
+            trimHighlight.style.width = (percent2 - percent1) + '%';
+            
+            // Tarik otomatis Playhead jika di luar area trim
+            if (previewMedia.currentTime < trimStart) {
+                previewMedia.currentTime = trimStart;
+                seekSlider.value = trimStart;
+            } else if (previewMedia.currentTime > trimEnd) {
+                previewMedia.currentTime = trimEnd;
+                seekSlider.value = trimEnd;
+            }
+            
+            trimStartDisplay.textContent = formatTime(trimStart);
+            trimEndDisplay.textContent = formatTime(trimEnd);
+            const duration = trimEnd - trimStart;
+            trimDurationDisplay.textContent = `Durasi: ${formatTime(duration)}`;
+            updateEstimate(); 
+        }
+
+        // Trim Start Slider Listener
+        trimStartSlider.addEventListener('input', updateDualSliderUI);
+
+        // Trim End Slider Listener
+        trimEndSlider.addEventListener('input', updateDualSliderUI);
+
+        // Loop / Stop logika di waktu yang sedang berjalan
+        previewMedia.addEventListener('timeupdate', () => {
+            if(!inputDuration) return;
+            const current = previewMedia.currentTime;
+            
+            seekSlider.value = current;
+            currentTimeDisplay.textContent = formatTime(current);
+            playbackProgress.style.width = (current / inputDuration * 100) + '%';
+
+            // Loop back otomatis jika di mode Trim dan melampaui batas akhir
+            if(isTrimActive && current >= trimEnd && isPlaying) {
+                previewMedia.currentTime = trimStart;
+            }
+        });
+
+        previewMedia.addEventListener('ended', () => {
+            isPlaying = false;
+            playIcon.setAttribute('data-lucide', 'play');
+            playIcon.classList.add('ml-1');
+            lucide.createIcons();
+            cancelAnimationFrame(animationId);
+            canvasCtx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+            
+            previewMedia.currentTime = trimStart;
+            seekSlider.value = trimStart;
+            currentTimeDisplay.textContent = formatTime(trimStart);
+            playbackProgress.style.width = (trimStart / inputDuration * 100) + '%';
+        });
+
+        resetFileBtn.addEventListener('click', () => {
+            if(isPlaying) playPauseBtn.click();
+            selectedFile = null;
+            inputDuration = 0;
+            isTrimActive = false;
+            
+            previewContainer.classList.add('hidden');
+            dropzone.classList.remove('hidden');
+            fileInfoCard.classList.add('card-hidden');
+            resultCard.classList.add('card-hidden');
+            estimateContainer.classList.add('hidden');
+            trimInfoDisplay.classList.add('hidden');
+            trimStartSlider.classList.add('trim-hidden');
+            trimEndSlider.classList.add('trim-hidden');
+            timelineWrapper.classList.remove('trim-active');
+            toggleTrimBtn.classList.remove('bg-blue-500/20', 'text-blue-600', 'border-blue-500');
+            playbackProgress.style.width = '0%';
+            fileInput.value = ''; 
+        });
+
+        /* ========================================================
+           5. CORE LOGIC - ESTIMATION & ENCODING
            ======================================================== */
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
         
-        // Card Containers
         const fileInfoCard = document.getElementById('fileInfoCard');
         const progressCard = document.getElementById('progressCard');
         const resultCard = document.getElementById('resultCard');
+        const estimateContainer = document.getElementById('estimateContainer');
 
-        // Elements inside cards
         const fileNameEl = document.getElementById('fileName');
         const fileSizeEl = document.getElementById('fileSize');
         const convertBtn = document.getElementById('convertBtn');
         const progressBar = document.getElementById('progressBar');
         const progressPercent = document.getElementById('progressPercent');
         const progressStatus = document.getElementById('progressStatus');
-        const audioPlayer = document.getElementById('audioPlayer');
+        const audioPlayerResult = document.getElementById('audioPlayer');
         const downloadBtn = document.getElementById('downloadBtn');
         const bitrateSelect = document.getElementById('bitrate');
+        
+        const estimateText = document.getElementById('estimateText');
+        const estimateDetail = document.getElementById('estimateDetail');
 
         let selectedFile = null;
+        let finalSmartKbps = 192; 
+        const standardBitrates = [32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
 
-        // Event Drag and Drop
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dropzone.addEventListener(eventName, preventDefaults, false);
         });
@@ -392,43 +795,143 @@
         });
 
         dropzone.addEventListener('drop', (e) => {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            handleFiles(files);
+            handleFiles(e.dataTransfer.files);
         });
 
         fileInput.addEventListener('change', function() {
             handleFiles(this.files);
         });
 
-        // Menangani file yang dipilih
         function handleFiles(files) {
             if (files.length > 0) {
                 const file = files[0];
                 
-                // Validasi tipe (secara longgar karena format audio bervariasi)
-                if (!file.type.startsWith('audio/') && !file.name.match(/\.(m4a|ogg|wav|weba|aac|flac|wma)$/i)) {
-                    alert('Harap pilih file audio yang valid.');
+                // Cek format (Support Video Container spt MP4, WebM untuk diekstrak audionya)
+                if (!file.type.startsWith('audio/') && !file.type.startsWith('video/') && !file.name.match(/\.(m4a|ogg|wav|weba|aac|flac|wma|mp4|webm|mkv|avi)$/i)) {
+                    alert('Harap pilih file audio atau video yang valid.');
                     return;
                 }
 
                 selectedFile = file;
+                const isVideo = file.type.startsWith('video/');
                 
-                // Update UI
                 fileNameEl.textContent = file.name;
                 fileSizeEl.textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
                 
                 fileInfoCard.classList.remove('card-hidden');
                 resultCard.classList.add('card-hidden');
                 progressCard.classList.add('card-hidden');
+                
+                dropzone.classList.add('hidden');
+                previewContainer.classList.remove('hidden');
+                
+                // Toggle Video vs Audio Visualizer
+                if (isVideo) {
+                    visualizerCanvas.classList.add('hidden');
+                    previewMedia.classList.remove('hidden');
+                } else {
+                    visualizerCanvas.classList.remove('hidden');
+                    previewMedia.classList.add('hidden');
+                    resizeCanvas();
+                }
+                
+                if(isPlaying) playPauseBtn.click();
+                previewMedia.src = URL.createObjectURL(file);
+                
+                estimateContainer.classList.remove('hidden');
+                estimateText.textContent = "Menghitung...";
+                estimateDetail.textContent = "Membaca Metadata";
+
+                previewMedia.onloadedmetadata = () => {
+                    inputDuration = previewMedia.duration;
+                    totalTimeDisplay.textContent = formatTime(inputDuration);
+                    
+                    // Setup Setup
+                    seekSlider.max = inputDuration;
+                    seekSlider.value = 0;
+                    currentTimeDisplay.textContent = "0:00";
+                    playbackProgress.style.width = '0%';
+                    
+                    // Setup Trim
+                    trimStart = 0;
+                    trimEnd = inputDuration;
+                    trimStartSlider.max = inputDuration;
+                    trimEndSlider.max = inputDuration;
+                    trimStartSlider.value = 0;
+                    trimEndSlider.value = inputDuration;
+                    
+                    trimHighlight.style.left = '0%';
+                    trimHighlight.style.width = '100%';
+                    
+                    trimStartDisplay.textContent = formatTime(trimStart);
+                    trimEndDisplay.textContent = formatTime(trimEnd);
+                    trimDurationDisplay.textContent = `Durasi: ${formatTime(inputDuration)}`;
+                    updateEstimate();
+                };
             }
         }
 
-        // Event Klik Konversi
+        function updateEstimate() {
+            if (!inputDuration) return;
+            const selectedOpt = bitrateSelect.value;
+            // Gunakan rentang waktu trim jika diaktifkan
+            const activeDurationToProcess = trimEnd - trimStart; 
+            
+            let estBytes = 0;
+            let targetKbps = 192;
+            let warningMsg = "";
+
+            if (selectedOpt === 'wa') {
+                const maxBytes = 15.5 * 1024 * 1024;
+                const calcKbps = (maxBytes * 8) / (activeDurationToProcess * 1000);
+                
+                let bestWaKbps = 32; 
+                for (let i = standardBitrates.length - 1; i >= 0; i--) {
+                    if (standardBitrates[i] <= calcKbps) {
+                        bestWaKbps = standardBitrates[i];
+                        break;
+                    }
+                }
+                
+                if (calcKbps < 32) {
+                    bestWaKbps = 32;
+                    warningMsg = "Durasi sangat panjang. Output mungkin melebihi 16MB.";
+                }
+                
+                targetKbps = bestWaKbps;
+                finalSmartKbps = bestWaKbps; 
+                estBytes = (targetKbps * 1000 / 8) * activeDurationToProcess;
+                
+            } else {
+                targetKbps = parseInt(selectedOpt);
+                finalSmartKbps = targetKbps;
+                estBytes = (targetKbps * 1000 / 8) * activeDurationToProcess;
+            }
+
+            const estMB = (estBytes / (1024 * 1024)).toFixed(2);
+            
+            estimateText.textContent = `Estimasi: ~${estMB} MB`;
+            
+            if (warningMsg) {
+                estimateDetail.textContent = warningMsg;
+                estimateContainer.classList.replace('bg-blue-500/5', 'bg-red-500/5');
+                estimateContainer.classList.replace('border-blue-500/20', 'border-red-500/20');
+                estimateText.classList.replace('text-blue-600', 'text-red-600');
+            } else {
+                estimateDetail.textContent = `Menggunakan Bitrate: ${targetKbps} kbps`;
+                estimateContainer.classList.replace('bg-red-500/5', 'bg-blue-500/5');
+                estimateContainer.classList.replace('border-red-500/20', 'border-blue-500/20');
+                estimateText.classList.replace('text-red-600', 'text-blue-600');
+            }
+        }
+
+        bitrateSelect.addEventListener('change', updateEstimate);
+
         convertBtn.addEventListener('click', async () => {
             if (!selectedFile) return;
 
-            // Persiapan UI
+            if(isPlaying) playPauseBtn.click();
+
             convertBtn.disabled = true;
             convertBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Memulai...</span>`;
             convertBtn.classList.add('opacity-70', 'cursor-not-allowed');
@@ -438,12 +941,11 @@
             resultCard.classList.add('card-hidden');
             
             try {
-                await processAudioConversion(selectedFile);
+                await processAudioConversion(selectedFile, finalSmartKbps);
             } catch (error) {
                 console.error("Kesalahan saat konversi:", error);
                 alert("Terjadi kesalahan saat mengonversi file: " + error.message);
                 
-                // Reset UI on error
                 progressCard.classList.add('card-hidden');
                 convertBtn.disabled = false;
                 convertBtn.innerHTML = `<i data-lucide="zap" class="w-4 h-4"></i><span>Mulai Konversi</span>`;
@@ -452,51 +954,48 @@
             }
         });
 
-        // Fungsi utama konversi (Asli dari LameJS, dipertahankan)
-        async function processAudioConversion(file) {
+        async function processAudioConversion(file, encodeKbps) {
             updateProgress(0, "Membaca file audio...");
 
-            // 1. Baca file menjadi ArrayBuffer
             const arrayBuffer = await file.arrayBuffer();
 
-            updateProgress(10, "Mendekode audio (mungkin butuh waktu)...");
+            updateProgress(10, "Mendekode sumber audio...");
 
-            // 2. Dekode audio menggunakan Web Audio API
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             const audioCtx = new AudioContext();
             
             const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
             
-            updateProgress(30, "Mempersiapkan encoder MP3...");
+            updateProgress(30, "Mempersiapkan engine MP3...");
 
-            // 3. Konfigurasi LameJS
             const channels = audioBuffer.numberOfChannels;
             const sampleRate = audioBuffer.sampleRate;
-            const kbps = parseInt(bitrateSelect.value);
             
-            // Inisialisasi Encoder (lamejs)
-            const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, kbps);
+            const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, encodeKbps);
             const mp3Data = [];
 
-            // 4. Ambil data PCM dan konversi dari Float32 (-1.0 ke 1.0) menjadi Int16
             const leftData = audioBuffer.getChannelData(0);
             const rightData = channels > 1 ? audioBuffer.getChannelData(1) : leftData;
-            const length = audioBuffer.length;
+            
+            // TRIM LOGIC
+            const startOffset = Math.floor(trimStart * sampleRate);
+            const endOffset = Math.floor(trimEnd * sampleRate);
+            const lengthToProcess = endOffset - startOffset;
             
             const sampleBlockSize = 1152; 
-            const chunkSize = sampleBlockSize * 100; // Proses dalam blok besar
+            const chunkSize = sampleBlockSize * 100; 
             
-            let offset = 0;
+            let offset = startOffset;
 
-            // Fungsi rekursif asinkron untuk memproses chunk
             const encodeChunk = () => {
                 return new Promise(resolve => {
-                    const end = Math.min(offset + chunkSize, length);
-                    
-                    const leftChunk = new Int16Array(end - offset);
-                    const rightChunk = new Int16Array(end - offset);
+                    const chunkEnd = Math.min(offset + chunkSize, endOffset);
+                    const currentChunkLen = chunkEnd - offset;
 
-                    for (let i = offset; i < end; i++) {
+                    const leftChunk = new Int16Array(currentChunkLen);
+                    const rightChunk = new Int16Array(currentChunkLen);
+
+                    for (let i = offset; i < chunkEnd; i++) {
                         let l = leftData[i];
                         leftChunk[i - offset] = l < 0 ? l * 0x8000 : l * 0x7FFF;
 
@@ -517,13 +1016,14 @@
                         mp3Data.push(mp3buf);
                     }
 
-                    offset = end;
+                    offset = chunkEnd;
                     
-                    const encodeProgress = 30 + Math.round((offset / length) * 65);
-                    updateProgress(encodeProgress, `Mengonversi ke MP3...`);
+                    const processed = offset - startOffset;
+                    const encodeProgress = 30 + Math.round((processed / lengthToProcess) * 65);
+                    updateProgress(encodeProgress, `Merender ke MP3...`);
 
-                    if (offset < length) {
-                        setTimeout(() => resolve(encodeChunk()), 0);
+                    if (offset < endOffset) {
+                        setTimeout(() => resolve(encodeChunk()), 0); 
                     } else {
                         resolve();
                     }
@@ -534,22 +1034,22 @@
 
             updateProgress(95, "Menyelesaikan file...");
 
-            // 5. Finalisasi file MP3
             const mp3bufFinal = mp3encoder.flush();
             if (mp3bufFinal.length > 0) {
                 mp3Data.push(mp3bufFinal);
             }
 
-            // 6. Buat Blob dan URL
             const blob = new Blob(mp3Data, { type: 'audio/mp3' });
             const url = window.URL.createObjectURL(blob);
             
+            // HEURISTIK PENAMAAN FILE (e.g. video_rapat.mp4 -> video_rapat_Reformat.mp3)
             const originalName = file.name;
-            const newName = originalName.substring(0, originalName.lastIndexOf('.')) + '.mp3';
+            const dotIndex = originalName.lastIndexOf('.');
+            const baseName = dotIndex !== -1 ? originalName.substring(0, dotIndex) : originalName;
+            const newName = `${baseName}_Reformat.mp3`;
 
-            updateProgress(100, "Selesai!");
+            updateProgress(100, "Konversi Selesai!");
 
-            // 7. Tampilkan hasil
             setTimeout(() => {
                 showResult(url, newName);
             }, 600);
@@ -566,16 +1066,15 @@
         function showResult(url, filename) {
             progressCard.classList.add('card-hidden');
             resultCard.classList.remove('card-hidden');
-            fileInfoCard.classList.add('card-hidden'); // Sembunyikan card info agar fokus ke hasil
+            fileInfoCard.classList.add('card-hidden'); 
             
-            audioPlayer.src = url;
+            audioPlayerResult.src = url;
             
             downloadBtn.href = url;
             downloadBtn.download = filename;
             
-            // Kembalikan tombol konversi untuk file baru
             convertBtn.disabled = false;
-            convertBtn.innerHTML = `<i data-lucide="zap" class="w-4 h-4"></i><span>Mulai Konversi</span>`;
+            convertBtn.innerHTML = `<i data-lucide="zap" class="w-4 h-4"></i><span>Mulai Konversi Ulang</span>`;
             convertBtn.classList.remove('opacity-70', 'cursor-not-allowed');
             lucide.createIcons();
         }
