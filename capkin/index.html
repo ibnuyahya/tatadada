@@ -1,0 +1,533 @@
+<!-- 
+  TAFSIR VISUAL IKON: 
+  Ikon dirancang menggunakan palet hijau Emerald dan Teal untuk mencerminkan "Performa" dan "Pencapaian" (KPI/IKU). 
+  Objek utama adalah grafik batang 3 dimensi dengan bilah tertinggi terbuat dari resin hijau solid bernuansa zamrud, 
+  dilengkapi lensa target (bullseye) di atasnya berbahan glossy-white. Fondasi ikon diletakkan di atas piringan 
+  kaca (frosted-glass) untuk menciptakan kesan elemen melayang dalam ruang dimensi visionOS.
+-->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CapKin Studio - Indikator Kinerja</title>
+    
+    <!-- Framework & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        /* CSS TOKENS: VIBRANT DEPTH TATADADA FRAMEWORK */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9; /* Gutter & Selokan */
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #10b981; /* Emerald/Teal vibe untuk CapKin */
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #161b22;
+            --footer-bg: #0d1117;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --theme-accent: #10b981;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+
+        /* Utility Classes based on Tokens */
+        .bg-header { background-color: var(--header-bg); }
+        .bg-editor { background-color: var(--editor-bg); }
+        .bg-preview { background-color: var(--preview-bg); }
+        .bg-card { background-color: var(--card-bg); }
+        .bg-footer { background-color: var(--footer-bg); }
+        .border-theme { border-color: var(--border-color); }
+        .text-dim { color: var(--text-dim); }
+        .text-theme { color: var(--text-main); }
+        .accent-text { color: var(--theme-accent); }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-dim);
+        }
+
+        /* Modal Blur */
+        .modal-backdrop {
+            backdrop-filter: blur(4px);
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+        
+        /* Table Aesthetics */
+        .data-table th, .data-table td {
+            border-bottom: 1px solid var(--border-color);
+        }
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col antialiased transition-colors duration-200">
+
+    <!-- HEADER (h-14) -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm transition-colors duration-200">
+        <div class="flex items-center gap-3">
+            <div class="p-1.5 bg-emerald-500 text-white rounded-lg shadow-inner">
+                <i data-lucide="target" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base leading-tight bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">CapKin Studio</h1>
+                <p class="text-[10px] text-dim italic -mt-0.5" id="app-subtitle">Capaian Kinerja Pro v2.0</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div class="text-xs font-medium text-dim hidden sm:block">by AhmadDanial</div>
+            <div class="h-4 w-px bg-[var(--border-color)] hidden sm:block"></div>
+            
+            <button class="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-dim transition-colors group relative" title="Help">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+                <div class="absolute right-0 top-10 w-48 p-2 bg-card border border-theme shadow-lg rounded-lg text-[10px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                    <span id="help-text">Simulasi komparasi IKU. Ubah angka untuk melihat "Whale Effect".</span>
+                </div>
+            </button>
+
+            <button id="lang-toggle" class="px-2 py-1 text-xs font-semibold rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-theme transition-colors border border-theme shadow-sm">
+                ID
+            </button>
+
+            <button id="theme-toggle" class="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-dim transition-colors">
+                <i data-lucide="moon" class="w-4 h-4 hidden dark:block" id="icon-moon"></i>
+                <i data-lucide="sun" class="w-4 h-4 block dark:hidden" id="icon-sun"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 flex overflow-hidden">
+        
+        <!-- PANEL KIRI (Data Input) -->
+        <div id="left-pane" class="flex-[6] bg-editor relative overflow-hidden flex flex-col transition-colors duration-200">
+            <div class="p-6 flex-1 overflow-y-auto">
+                <div class="max-w-4xl mx-auto space-y-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div>
+                            <h2 class="text-lg font-bold text-theme" id="title-editor">Komponen Pembelajaran Digital</h2>
+                            <p class="text-xs text-dim" id="subtitle-editor">Data Baseline vs Proyeksi Capaian</p>
+                        </div>
+                        <label class="flex items-center gap-2 cursor-pointer bg-card px-3 py-1.5 rounded-lg border border-theme shadow-sm hover:opacity-80 transition-opacity">
+                            <input type="checkbox" id="equal-weight-cb" class="w-4 h-4 accent-emerald-500 rounded" checked>
+                            <span class="font-medium text-xs text-theme" id="lbl-weight">Bobot Rata (25%)</span>
+                        </label>
+                    </div>
+
+                    <!-- TABEL DATA -->
+                    <div class="border-separate border-spacing-0 rounded-xl border border-theme bg-card shadow-sm overflow-x-auto">
+                        <table class="w-full text-left text-sm data-table">
+                            <thead>
+                                <tr class="bg-preview text-dim font-medium text-xs uppercase tracking-wider">
+                                    <th class="p-4 w-1/3" id="th-comp">Komponen</th>
+                                    <th class="p-4" id="th-prev">Tahun 2025</th>
+                                    <th class="p-4" id="th-now">Proyeksi 2026</th>
+                                    <th class="p-4" id="th-growth">Capaian</th>
+                                    <th class="p-4 w-24 text-right" id="th-weight">Bobot (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body" class="text-theme">
+                                <!-- Baris dirender via Vanilla JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div id="weight-alert" class="hidden p-3 mt-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 flex items-center gap-2">
+                        <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                        <span id="txt-weight-alert">Total bobot tidak sama dengan 100%.</span>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+        
+        <!-- RESIZER (Tebal & Berdimensi) -->
+        <div id="resizer" class="w-3 bg-preview cursor-col-resize flex items-center justify-center border-x border-theme group shrink-0 z-20 transition-colors">
+            <div class="h-12 w-1 bg-[var(--border-color)] rounded-full group-hover:bg-emerald-500 transition-colors shadow-sm"></div>
+        </div>
+        
+        <!-- PANEL KANAN (Hasil & Analitik) -->
+        <div id="right-pane" class="flex-[4] bg-preview p-4 flex flex-col gap-4 overflow-y-auto transition-colors duration-200">
+            
+            <!-- Card Skenario 1 -->
+            <div class="bg-card rounded-xl shadow-md border border-theme p-5 relative overflow-hidden flex-1 flex flex-col min-h-[220px]">
+                <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                <h3 class="font-bold text-sm text-theme flex items-center gap-2 mb-1" id="title-sc1">Skenario 1: Rata-rata Bobot</h3>
+                <p class="text-[11px] text-dim mb-4" id="desc-sc1">Dihitung per komponen lalu dirata-rata sesuai porsi bobot.</p>
+                
+                <div class="mt-auto bg-slate-50 dark:bg-slate-800/50 rounded-xl p-5 flex flex-col items-center justify-center text-center border border-theme">
+                    <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1" id="lbl-res1">Nilai Akhir</span>
+                    <span class="text-4xl font-extrabold text-theme" id="val-scenario-1">0.00%</span>
+                </div>
+            </div>
+
+            <!-- Card Skenario 2 -->
+            <div class="bg-card rounded-xl shadow-md border border-theme p-5 relative overflow-hidden flex-1 flex flex-col min-h-[220px]">
+                <div class="absolute top-0 left-0 w-1 h-full bg-teal-600"></div>
+                <h3 class="font-bold text-sm text-theme flex items-center gap-2 mb-1" id="title-sc2">Skenario 2: Agregat Total</h3>
+                <p class="text-[11px] text-dim mb-4" id="desc-sc2">Seluruh volume ditotal sebelum persentase dihitung.</p>
+                
+                <div class="mt-auto bg-slate-50 dark:bg-slate-800/50 rounded-xl p-5 flex flex-col items-center justify-center text-center border border-theme">
+                    <span class="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider mb-1" id="lbl-res2">Nilai Akhir</span>
+                    <span class="text-4xl font-extrabold text-theme" id="val-scenario-2">0.00%</span>
+                    <div class="text-[10px] text-dim mt-2 font-medium" id="val-totals">
+                        Tot 2025: 0 &rarr; Tot 2026: 0
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- FOOTER (h-8) -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 transition-colors duration-200">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span id="footer-status">Sistem Siap & Kalkulasi Real-time</span>
+        </div>
+        <div class="font-mono" id="footer-stats">Data: 4 Baris</div>
+        <button onclick="openModal()" class="hover:text-emerald-500 transition-colors" id="footer-terms">Syarat & Ketentuan</button>
+    </footer>
+
+    <!-- MODAL TERMS -->
+    <div id="terms-modal" class="fixed inset-0 z-[100] modal-backdrop flex items-center justify-center opacity-0 invisible transition-all duration-300">
+        <div class="bg-card w-full max-w-md rounded-2xl shadow-2xl p-6 border border-theme transform scale-95 transition-transform duration-300" id="modal-content">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-theme" id="modal-title">Panduan Kalkulasi</h3>
+                <button onclick="closeModal()" class="p-1 rounded-md text-dim hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="space-y-3 text-sm text-dim leading-relaxed" id="modal-body">
+                <p>Kalkulator ini mensimulasikan efek pembobotan IKU.</p>
+                <ul class="list-disc pl-5 space-y-1">
+                    <li><strong>Skenario 1:</strong> Bersifat adil, tidak terpengaruh perbedaan volume transaksi.</li>
+                    <li><strong>Skenario 2:</strong> Mengakibatkan <em>Whale Effect</em>, di mana metrik dengan volume terbesar akan mendominasi nilai akhir.</li>
+                    <li>Sistem otomatis mengasumsikan nilai capaian sebesar 100% apabila <i>baseline</i> tahun sebelumnya bernilai 0 namun terdapat peningkatan.</li>
+                </ul>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg shadow-sm transition-colors text-sm" id="btn-mengerti">
+                    Mengerti
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIKA VANILLA JS PENGGERAK UI -->
+    <script>
+        // Init Icons
+        lucide.createIcons();
+
+        // --- 1. STATE & DATA ---
+        let appData = [
+            { id: '1', name: 'Open Online Course', prev: 118, now: 120, weight: 25 },
+            { id: '2', name: 'Kelas EMAS', prev: 5350, now: 5500, weight: 25 },
+            { id: '3', name: 'Non Degree Program', prev: 12, now: 15, weight: 25 },
+            { id: '4', name: 'Kelas KPB', prev: 5, now: 5, weight: 25 }
+        ];
+        let isEqualWeight = true;
+        let lang = 'id';
+
+        // --- 2. DARK MODE LOGIC ---
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const htmlEl = document.documentElement;
+        
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                htmlEl.classList.add('dark');
+            } else {
+                htmlEl.classList.remove('dark');
+            }
+        }
+        
+        themeToggleBtn.addEventListener('click', () => {
+            htmlEl.classList.toggle('dark');
+            const isDark = htmlEl.classList.contains('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        });
+        initTheme();
+
+        // --- 3. RESIZER LOGIC ---
+        const resizer = document.getElementById('resizer');
+        const leftPane = document.getElementById('left-pane');
+        const rightPane = document.getElementById('right-pane');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            // Disable selection while dragging
+            document.body.style.userSelect = 'none';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const containerWidth = document.body.clientWidth;
+            // Limit bounds (min 300px each side)
+            let newLeftWidth = (e.clientX / containerWidth) * 100;
+            if (newLeftWidth < 20) newLeftWidth = 20;
+            if (newLeftWidth > 80) newLeftWidth = 80;
+            
+            leftPane.style.flex = `${newLeftWidth}`;
+            rightPane.style.flex = `${100 - newLeftWidth}`;
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = 'default';
+                document.body.style.userSelect = 'auto';
+            }
+        });
+
+        // --- 4. DATA LOGIC & RENDER ---
+        const tableBody = document.getElementById('table-body');
+        const weightAlert = document.getElementById('weight-alert');
+        const cbEqualWeight = document.getElementById('equal-weight-cb');
+
+        function calculateMetrics() {
+            let totalWeight = 0;
+            let totalPrev = 0;
+            let totalNow = 0;
+            let finalScen1 = 0;
+
+            const processedData = appData.map(item => {
+                let growth = 0;
+                if (item.prev === 0) {
+                    growth = item.now > 0 ? 100 : 0; // Asumsi 100% jika naik dari 0
+                } else {
+                    growth = ((item.now - item.prev) / item.prev) * 100;
+                }
+                
+                totalWeight += item.weight;
+                totalPrev += item.prev;
+                totalNow += item.now;
+                finalScen1 += (growth * (item.weight / 100));
+
+                return { ...item, growth };
+            });
+
+            // Skenario 2 Math
+            let finalScen2 = 0;
+            if (totalPrev === 0) {
+                finalScen2 = totalNow > 0 ? 100 : 0;
+            } else {
+                finalScen2 = ((totalNow - totalPrev) / totalPrev) * 100;
+            }
+
+            return { processedData, totalWeight, totalPrev, totalNow, finalScen1, finalScen2 };
+        }
+
+        function renderUI() {
+            const metrics = calculateMetrics();
+            
+            // Validate Weight
+            if (!isEqualWeight && Math.abs(metrics.totalWeight - 100) > 0.1) {
+                weightAlert.classList.remove('hidden');
+            } else {
+                weightAlert.classList.add('hidden');
+            }
+
+            // Render Table
+            tableBody.innerHTML = metrics.processedData.map(row => `
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td class="p-4 font-semibold">${row.name}</td>
+                    <td class="p-3">
+                        <input type="number" min="0" data-id="${row.id}" data-field="prev" value="${row.prev}" 
+                            class="w-full p-2 text-sm border-theme rounded-lg bg-card focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all shadow-sm font-mono border">
+                    </td>
+                    <td class="p-3">
+                        <input type="number" min="0" data-id="${row.id}" data-field="now" value="${row.now}" 
+                            class="w-full p-2 text-sm border-theme rounded-lg bg-card focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all shadow-sm font-mono border">
+                    </td>
+                    <td class="p-4">
+                        <div class="font-bold ${row.growth < 0 ? 'text-red-500' : 'text-emerald-500'}">
+                            ${row.growth > 0 ? '+' : ''}${row.growth.toFixed(2)}%
+                        </div>
+                    </td>
+                    <td class="p-3 text-right">
+                        <input type="number" min="0" max="100" data-id="${row.id}" data-field="weight" value="${row.weight}" ${isEqualWeight ? 'disabled' : ''}
+                            class="w-16 p-2 text-sm border-theme rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all shadow-sm font-mono text-center border ${isEqualWeight ? 'bg-preview text-dim cursor-not-allowed opacity-70' : 'bg-card'}">
+                    </td>
+                </tr>
+            `).join('');
+
+            // Update Cards
+            document.getElementById('val-scenario-1').textContent = metrics.finalScen1.toFixed(2) + '%';
+            document.getElementById('val-scenario-2').textContent = metrics.finalScen2.toFixed(2) + '%';
+            document.getElementById('val-totals').innerHTML = `Tot 2025: <b>${metrics.totalPrev.toLocaleString('id-ID')}</b> &rarr; Tot 2026: <b>${metrics.totalNow.toLocaleString('id-ID')}</b>`;
+        }
+
+        // Handle Inputs
+        tableBody.addEventListener('input', (e) => {
+            if (e.target.tagName === 'INPUT') {
+                const id = e.target.dataset.id;
+                const field = e.target.dataset.field;
+                const val = parseFloat(e.target.value) || 0;
+                
+                appData = appData.map(item => {
+                    if (item.id === id) {
+                        return { ...item, [field]: val };
+                    }
+                    return item;
+                });
+                renderUI();
+            }
+        });
+
+        // Handle Toggle Equal Weight
+        cbEqualWeight.addEventListener('change', (e) => {
+            isEqualWeight = e.target.checked;
+            if (isEqualWeight) {
+                const eqW = 100 / appData.length;
+                appData = appData.map(item => ({ ...item, weight: eqW }));
+            }
+            renderUI();
+        });
+
+        // --- 5. LOKALISASI LOGIC ---
+        const btnLang = document.getElementById('lang-toggle');
+        const dictionary = {
+            id: {
+                subtitle: 'Capaian Kinerja Pro v2.0',
+                help: 'Simulasi komparasi IKU. Ubah angka untuk melihat "Whale Effect".',
+                titleEditor: 'Komponen Pembelajaran Digital',
+                subEditor: 'Data Baseline vs Proyeksi Capaian',
+                lblWeight: 'Bobot Rata (25%)',
+                thComp: 'Komponen', thPrev: 'Tahun 2025', thNow: 'Proyeksi 2026', thGrowth: 'Capaian', thWeight: 'Bobot (%)',
+                alertWeight: 'Total bobot tidak sama dengan 100%.',
+                sc1Title: 'Skenario 1: Rata-rata Bobot',
+                sc1Desc: 'Dihitung per komponen lalu dirata-rata sesuai porsi bobot.',
+                sc2Title: 'Skenario 2: Agregat Total',
+                sc2Desc: 'Seluruh volume ditotal sebelum persentase dihitung.',
+                lblRes: 'Nilai Akhir',
+                footReady: 'Sistem Siap & Kalkulasi Real-time',
+                footTerms: 'Syarat & Ketentuan',
+                modTitle: 'Panduan Kalkulasi',
+                modBody: '<p>Kalkulator ini mensimulasikan efek pembobotan IKU.</p><ul class="list-disc pl-5 space-y-1"><li><strong>Skenario 1:</strong> Bersifat adil, tidak terpengaruh perbedaan volume transaksi.</li><li><strong>Skenario 2:</strong> Mengakibatkan <em>Whale Effect</em>, di mana metrik dengan volume terbesar akan mendominasi nilai akhir.</li></ul>',
+                btnOk: 'Mengerti'
+            },
+            en: {
+                subtitle: 'Performance Achievement Pro v2.0',
+                help: 'KPI Comparison Simulation. Change values to observe "Whale Effect".',
+                titleEditor: 'Digital Learning Components',
+                subEditor: 'Baseline Data vs Projection',
+                lblWeight: 'Equal Weight (25%)',
+                thComp: 'Component', thPrev: 'Year 2025', thNow: 'Proj. 2026', thGrowth: 'Achieved', thWeight: 'Weight (%)',
+                alertWeight: 'Total weight does not equal 100%.',
+                sc1Title: 'Scenario 1: Weighted Average',
+                sc1Desc: 'Calculated per component then averaged according to weight.',
+                sc2Title: 'Scenario 2: Total Aggregate',
+                sc2Desc: 'All volumes are totaled before percentage is calculated.',
+                lblRes: 'Final Score',
+                footReady: 'System Ready & Real-time Calc',
+                footTerms: 'Terms & Conditions',
+                modTitle: 'Calculation Guide',
+                modBody: '<p>This calculator simulates the effect of KPI weighting.</p><ul class="list-disc pl-5 space-y-1"><li><strong>Scenario 1:</strong> Fair, unaffected by transaction volume differences.</li><li><strong>Scenario 2:</strong> Causes a <em>Whale Effect</em>, where the metric with the largest volume dominates the final score.</li></ul>',
+                btnOk: 'Understood'
+            }
+        };
+
+        btnLang.addEventListener('click', () => {
+            lang = lang === 'id' ? 'en' : 'id';
+            btnLang.textContent = lang.toUpperCase();
+            applyLanguage();
+        });
+
+        function applyLanguage() {
+            const dict = dictionary[lang];
+            document.getElementById('app-subtitle').textContent = dict.subtitle;
+            document.getElementById('help-text').textContent = dict.help;
+            document.getElementById('title-editor').textContent = dict.titleEditor;
+            document.getElementById('subtitle-editor').textContent = dict.subEditor;
+            document.getElementById('lbl-weight').textContent = dict.lblWeight;
+            
+            document.getElementById('th-comp').textContent = dict.thComp;
+            document.getElementById('th-prev').textContent = dict.thPrev;
+            document.getElementById('th-now').textContent = dict.thNow;
+            document.getElementById('th-growth').textContent = dict.thGrowth;
+            document.getElementById('th-weight').textContent = dict.thWeight;
+            
+            document.getElementById('txt-weight-alert').textContent = dict.alertWeight;
+            
+            document.getElementById('title-sc1').textContent = dict.sc1Title;
+            document.getElementById('desc-sc1').textContent = dict.sc1Desc;
+            document.getElementById('title-sc2').textContent = dict.sc2Title;
+            document.getElementById('desc-sc2').textContent = dict.sc2Desc;
+            
+            document.getElementById('lbl-res1').textContent = dict.lblRes;
+            document.getElementById('lbl-res2').textContent = dict.lblRes;
+            
+            document.getElementById('footer-status').textContent = dict.footReady;
+            document.getElementById('footer-terms').textContent = dict.footTerms;
+            
+            document.getElementById('modal-title').textContent = dict.modTitle;
+            document.getElementById('modal-body').innerHTML = dict.modBody;
+            document.getElementById('btn-mengerti').textContent = dict.btnOk;
+            
+            renderUI(); // Re-render to update dynamic texts if needed
+        }
+
+        // --- 6. MODAL LOGIC ---
+        const modal = document.getElementById('terms-modal');
+        const modalContent = document.getElementById('modal-content');
+
+        function openModal() {
+            modal.classList.remove('opacity-0', 'invisible');
+            modalContent.classList.remove('scale-95');
+            modalContent.classList.add('scale-100');
+        }
+
+        function closeModal() {
+            modal.classList.add('opacity-0', 'invisible');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+        }
+
+        // Tutup modal jika klik di luar area konten
+        modal.addEventListener('click', (e) => {
+            if(e.target === modal) closeModal();
+        });
+
+        // Initialize App
+        renderUI();
+
+    </script>
+</body>
+</html>
