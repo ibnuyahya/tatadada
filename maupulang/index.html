@@ -60,9 +60,32 @@
     .border-theme { border-color: var(--border-color); }
     .text-main { color: var(--text-main); }
     .text-dim { color: var(--text-dim); }
+
+    /* Slider Kustom */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: transparent;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      background: var(--theme-accent);
+      cursor: pointer;
+      margin-top: -6px;
+      box-shadow: 0 0 4px rgba(0,0,0,0.3);
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 4px;
+      cursor: pointer;
+      background: var(--border-color);
+      border-radius: 2px;
+    }
+    .dark input[type=range]::-webkit-slider-runnable-track { background: #30363d; }
   </style>
 </head>
-<!-- Matikan fungsi klik kanan (context menu) secara global -->
 <body class="h-screen flex flex-col relative" oncontextmenu="return false;">
 
   <!-- HEADER -->
@@ -71,7 +94,7 @@
       <h1 class="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-purple-600 tracking-tight">
         MauPulang 3D
       </h1>
-      <span class="text-xs italic text-dim border-l border-theme pl-3">v8.0 (Sunset Shower)</span>
+      <span class="text-xs italic text-dim border-l border-theme pl-3">v9.5 (Pillars Architecture & Perfect Foliage)</span>
     </div>
     
     <div class="flex items-center gap-4 text-sm font-medium">
@@ -123,6 +146,7 @@
         
         <div class="flex flex-col gap-3">
           <label class="text-xs font-medium text-dim" id="label-level">Tingkat Kesulitan</label>
+          <!-- Pilihan level di-generate secara dinamis di JS dari 4x4 hingga 35x35 -->
           <select id="select-level" class="w-full bg-editor border border-theme text-main text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm">
           </select>
           
@@ -146,9 +170,20 @@
           <span id="label-action">Mode Aksi Realistik</span>
         </h3>
         
-        <p class="text-xs text-dim mb-4 leading-relaxed" id="label-desc">
-          Terjun ke dalam simulasi labirin 3D. Hati-hati dengan gerbang besi yang akan tertutup di belakang Anda! Temukan jalan keluar secepatnya.
-        </p>
+        <!-- NEW FEATURE: Weather & Time Slider -->
+        <div class="mb-4">
+            <div class="flex justify-between items-center mb-2">
+                <label class="text-xs font-bold text-dim" id="lbl-weather-title">Waktu & Cuaca</label>
+                <span id="val-weather" class="text-xs font-bold text-[var(--theme-accent)]">Sore Hujan</span>
+            </div>
+            <input type="range" id="slider-weather" min="0" max="3" value="2" step="1" class="w-full transition-all">
+            <div class="flex justify-between text-[10px] text-dim font-medium mt-1 px-1">
+                <span id="lbl-pagi">Pagi</span>
+                <span id="lbl-siang">Siang</span>
+                <span id="lbl-sore">Sore</span>
+                <span id="lbl-malam">Malam</span>
+            </div>
+        </div>
 
         <button id="btn-explore" class="w-full bg-[var(--text-main)] hover:bg-[var(--text-dim)] text-[var(--editor-bg)] font-bold text-sm py-3.5 rounded-lg shadow-md transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
@@ -167,14 +202,14 @@
     </div>
   </footer>
 
-  <!-- TAMPILAN 3D FULLSCREEN LAYER (Di Atas Semuanya) -->
+  <!-- TAMPILAN 3D FULLSCREEN LAYER -->
   <div id="view-3d" class="fixed inset-0 z-[100] transition-opacity duration-1000 opacity-0 pointer-events-none bg-black">
     <div id="container-3d" class="w-full h-full cursor-crosshair"></div>
     
     <!-- UI Overlay 3D -->
     <div class="absolute top-6 left-6 right-6 flex justify-between items-start pointer-events-none">
       <div class="flex flex-col gap-2 pointer-events-auto">
-        <div class="bg-black/20 backdrop-blur-md px-3 py-2 rounded-full border border-white/20 shadow-lg flex items-center gap-3 transition-colors duration-500" id="ui-mission-box">
+        <div class="bg-black/40 backdrop-blur-md px-3 py-2 rounded-full border border-white/10 shadow-lg flex items-center gap-3 transition-colors duration-500" id="ui-mission-box">
           <span id="ui-timer" class="font-mono text-sm font-bold text-white tracking-wider">00:00</span>
           <span id="ui-mission" class="font-bold text-xs text-green-400 hidden">MISI SELESAI!</span>
           <button id="btn-hint-toggle" class="w-6 h-6 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center text-xs font-bold transition-all cursor-pointer" title="Cara Main">?</button>
@@ -200,6 +235,7 @@
     let lang = 'ID';
     let viewMode = '2d'; 
     let animationId = null;
+    let weatherCondition = 2; // 0: Pagi, 1: Siang, 2: Sore Hujan, 3: Malam
 
     const canvas2d = document.getElementById('canvas-2d');
     const ctx2d = canvas2d.getContext('2d');
@@ -215,8 +251,18 @@
     const statsText = document.getElementById('stats-text');
     const btnHintToggle = document.getElementById('btn-hint-toggle');
     const uiHintPanel = document.getElementById('ui-hint-panel');
+    const sliderWeather = document.getElementById('slider-weather');
+    const valWeather = document.getElementById('val-weather');
 
     btnHintToggle.addEventListener('click', () => { uiHintPanel.classList.toggle('hidden'); });
+
+    const weatherLabelsID = ["Pagi Cerah", "Siang Berawan", "Sore Hujan", "Malam Gelap"];
+    const weatherLabelsEN = ["Clear Morning", "Cloudy Day", "Stormy Sunset", "Dark Night"];
+
+    sliderWeather.addEventListener('input', (e) => {
+        weatherCondition = parseInt(e.target.value);
+        valWeather.innerText = lang === 'ID' ? weatherLabelsID[weatherCondition] : weatherLabelsEN[weatherCondition];
+    });
 
     function updateLevelOptions() {
         const currentVal = selectLevel.value || 4;
@@ -251,7 +297,12 @@
       document.getElementById('label-level').innerText = lang === 'ID' ? 'Tingkat Kesulitan' : 'Difficulty Level';
       document.getElementById('btn-random').innerText = lang === 'ID' ? 'Acak Pola' : 'Randomize';
       document.getElementById('label-action').innerText = lang === 'ID' ? 'Mode Aksi Realistik' : 'Realistic Action Mode';
-      document.getElementById('label-desc').innerText = lang === 'ID' ? 'Terjun ke dalam simulasi labirin 3D di sore hari yang mendung. Temukan jalan keluar di tengah hujan senja!' : 'Dive into 3D maze simulation in an overcast late afternoon. Find the exit in the sunset rain!';
+      document.getElementById('lbl-weather-title').innerText = lang === 'ID' ? 'Waktu & Cuaca' : 'Time & Weather';
+      valWeather.innerText = lang === 'ID' ? weatherLabelsID[weatherCondition] : weatherLabelsEN[weatherCondition];
+      document.getElementById('lbl-pagi').innerText = lang === 'ID' ? 'Pagi' : 'Morn';
+      document.getElementById('lbl-siang').innerText = lang === 'ID' ? 'Siang' : 'Day';
+      document.getElementById('lbl-sore').innerText = lang === 'ID' ? 'Sore' : 'Dusk';
+      document.getElementById('lbl-malam').innerText = lang === 'ID' ? 'Malam' : 'Night';
       document.getElementById('ui-mission').innerText = lang === 'ID' ? 'MISI SELESAI!' : 'MISSION COMPLETE!';
       document.getElementById('btn-exit-3d').innerText = lang === 'ID' ? 'EXIT (2D)' : 'EXIT (2D)';
       document.getElementById('label-terms').innerText = lang === 'ID' ? 'Syarat & Ketentuan' : 'Terms of Service';
@@ -280,6 +331,7 @@
     let bgmOscillators = [];
     let isAudioReady = false;
     let rainNoiseSource = null;
+    let birdInterval = null;
 
     function initAudio() {
       if (audioCtx) return;
@@ -356,39 +408,62 @@
       noise.start();
     }
 
-    function startAmbientBGM() {
+    function startAmbientBGM(cond) {
       if (!isAudioReady) return;
-      // Ambient Hujan (White noise di-filter bandpass agar terdengar seperti rintik hujan)
-      const bufferSize = audioCtx.sampleRate * 3;
-      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
       
-      rainNoiseSource = audioCtx.createBufferSource();
-      rainNoiseSource.buffer = buffer;
-      rainNoiseSource.loop = true;
-      
-      const filter = audioCtx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.value = 1000;
-      
-      const gain = audioCtx.createGain();
-      gain.gain.value = 0.2; // Volume hujan
-      
-      rainNoiseSource.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
-      rainNoiseSource.start();
+      if (cond === 2) {
+          const bufferSize = audioCtx.sampleRate * 3;
+          const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+          
+          rainNoiseSource = audioCtx.createBufferSource();
+          rainNoiseSource.buffer = buffer;
+          rainNoiseSource.loop = true;
+          
+          const filter = audioCtx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 1000;
+          const gain = audioCtx.createGain(); gain.gain.value = 0.2; 
+          rainNoiseSource.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+          rainNoiseSource.start();
+      } else {
+          const osc1 = audioCtx.createOscillator(); osc1.type = 'sine'; osc1.frequency.value = 55; 
+          const gain1 = audioCtx.createGain(); gain1.gain.value = 0.05;
+          osc1.connect(gain1).connect(audioCtx.destination);
+          osc1.start(); bgmOscillators.push(osc1);
+
+          if (cond === 0 || cond === 1) {
+              birdInterval = setInterval(() => {
+                if (viewMode !== '3d') return;
+                if (Math.random() > 0.3) {
+                  const bird = audioCtx.createOscillator(); const bGain = audioCtx.createGain();
+                  bird.type = 'sine';
+                  bird.frequency.setValueAtTime(2000 + Math.random()*1000, audioCtx.currentTime);
+                  bird.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.2);
+                  bGain.gain.setValueAtTime(0, audioCtx.currentTime);
+                  bGain.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + 0.05);
+                  bGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+                  bird.connect(bGain).connect(audioCtx.destination);
+                  bird.start(); bird.stop(audioCtx.currentTime + 0.25);
+                }
+              }, 3000);
+          }
+      }
     }
 
     function stopAmbientBGM() {
       if(rainNoiseSource) { rainNoiseSource.stop(); rainNoiseSource = null; }
+      if(birdInterval) { clearInterval(birdInterval); birdInterval = null; }
+      bgmOscillators.forEach(o => { try{ o.stop(); }catch(e){} });
+      bgmOscillators = [];
     }
 
     // --- PROCEDURAL TEXTURES ---
-    function createBrickWallTexture() {
+    function createBrickWallTexture(cond) {
       const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
       const ctx = canvas.getContext('2d');
-      // Batu bata basah (lebih gelap dari versi sebelumnya)
-      ctx.fillStyle = '#8a7d6d'; ctx.fillRect(0, 0, 512, 512);
+      let isDarkEnv = (cond === 2 || cond === 3);
+      ctx.fillStyle = isDarkEnv ? '#8a7d6d' : '#a89885'; 
+      ctx.fillRect(0, 0, 512, 512);
 
       const rows = 12; const cols = 6;
       const brickH = 512 / rows; const brickW = 512 / cols; const gap = 6;
@@ -398,14 +473,15 @@
         for (let c = -1; c <= cols; c++) {
           const x = c * brickW + offset + gap/2; const y = r * brickH + gap/2;
           const w = brickW - gap; const h = brickH - gap;
-          const shade = 140 + Math.random() * 40; // Lebih gelap
+          const shade = (isDarkEnv ? 140 : 180) + Math.random() * 40; 
           ctx.fillStyle = `rgb(${shade}, ${shade * 0.4}, ${shade * 0.2})`; ctx.fillRect(x, y, w, h);
-          ctx.fillStyle = 'rgba(0,0,0,0.2)'; // Noise air
+          ctx.fillStyle = isDarkEnv ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.1)'; 
           for(let i=0; i<20; i++) ctx.fillRect(x + Math.random()*w, y + Math.random()*h, 2, 2);
         }
       }
 
-      const numVines = 20;
+      // FIX FOLIAGE BUG: Menggunakan bezierCurveTo yang membentuk ujung lancip dan pangkal membulat
+      const numVines = 22;
       for(let v = 0; v < numVines; v++) {
           let currentX = Math.random() * 512;
           ctx.beginPath(); ctx.moveTo(currentX, 0);
@@ -419,19 +495,27 @@
 
           for(let p = 0; p < points.length - 1; p++) {
               let pt = points[p];
-              for(let l = 0; l < 6; l++) {
-                  let lx = pt.x + (Math.random() - 0.5) * 45; let ly = pt.y + (Math.random() - 0.5) * 45;
-                  let angle = Math.random() * Math.PI * 2; let size = 12 + Math.random() * 18;
-                  let color = `rgb(${10 + Math.random()*20}, ${50 + Math.random()*50}, ${10 + Math.random()*15})`; // Hijau gelap basah
+              // Lebatkan Daun
+              for(let l = 0; l < 7; l++) {
+                  let lx = pt.x + (Math.random() - 0.5) * 50; let ly = pt.y + (Math.random() - 0.5) * 50;
+                  let angle = Math.random() * Math.PI * 2; let size = 10 + Math.random() * 15;
+                  let color = `rgb(${10 + Math.random()*20}, ${60 + Math.random()*60}, ${10 + Math.random()*20})`; 
                   
                   const drawLeaf = (x, y) => {
                       ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
-                      ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 2;
-                      ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(0, -size/1.5);
-                      ctx.quadraticCurveTo(size/2, 0, 0, size/1.5); ctx.quadraticCurveTo(-size/2, 0, 0, -size/1.5);
+                      
+                      ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 2;
+                      ctx.fillStyle = color; 
+                      
+                      // Gambar Daun Alami dengan Bezier Curve
+                      ctx.beginPath();
+                      ctx.moveTo(0, -size);
+                      ctx.bezierCurveTo(size/1.5, -size/2, size/1.5, size/2, 0, size/1.5);
+                      ctx.bezierCurveTo(-size/1.5, size/2, -size/1.5, -size/2, 0, -size);
                       ctx.fill();
+                      
                       ctx.shadowColor = 'transparent'; ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 0.5; ctx.stroke();
-                      ctx.beginPath(); ctx.moveTo(0, -size/1.5); ctx.lineTo(0, size/1.5); ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.stroke();
+                      ctx.beginPath(); ctx.moveTo(0, -size); ctx.lineTo(0, size/1.5); ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.stroke();
                       ctx.restore();
                   };
                   
@@ -439,6 +523,7 @@
                   if(lx < size) drawLeaf(lx + 512, ly);
                   if(lx > 512 - size) drawLeaf(lx - 512, ly);
               }
+              // Bunga 
               if (Math.random() < 0.25) {
                   let fx = pt.x + (Math.random() - 0.5) * 30; let fy = pt.y + (Math.random() - 0.5) * 30;
                   let fColors = ['#ff3366', '#ffea00', '#33ccff', '#ff6600', '#cc33ff', '#ffffff'];
@@ -464,7 +549,6 @@
     function createMarbleFloorTexture() {
       const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
       const ctx = canvas.getContext('2d');
-      // Marmer Gelap Basah
       ctx.fillStyle = '#b8b6b0'; ctx.fillRect(0, 0, 512, 512);
 
       for(let i=0; i<5000; i++){
@@ -480,45 +564,41 @@
         ctx.stroke();
       }
 
-      for(let i=0; i<250; i++) {
+      // Daun Kering (Ratusan)
+      for(let i=0; i<300; i++) {
           let lx = Math.random() * 512; let ly = Math.random() * 512;
           let angle = Math.random() * Math.PI * 2; let size = 6 + Math.random() * 6; 
           let colors = ['#5a3a1b', '#70321d', '#9d551f', '#8b4513', '#4a4b10', '#354b1f', '#5b0000']; 
           let color = colors[Math.floor(Math.random() * colors.length)];
           
           ctx.save(); ctx.translate(lx, ly); ctx.rotate(angle); ctx.fillStyle = color; ctx.globalAlpha = 0.85; 
-          ctx.beginPath(); ctx.moveTo(0, -size/1.5); ctx.quadraticCurveTo(size/2, 0, 0, size/1.5); ctx.quadraticCurveTo(-size/2, 0, 0, -size/1.5); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(0, -size); ctx.bezierCurveTo(size/1.5, -size/2, size/1.5, size/2, 0, size/1.5); ctx.bezierCurveTo(-size/1.5, size/2, -size/1.5, -size/2, 0, -size); ctx.fill();
           ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 0.5; ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(0, -size/1.5); ctx.lineTo(0, size/1.5); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0, -size); ctx.lineTo(0, size/1.5); ctx.stroke();
           ctx.restore();
       }
 
       const texture = new THREE.CanvasTexture(canvas);
       texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
-      texture.repeat.set(currentSize/2, currentSize/2); // Skala menyesuaikan ukuran maze
+      texture.repeat.set(currentSize/2, currentSize/2); 
       return texture;
     }
 
-    // TEKSTUR BARU: Padang Rumput Super Realistis untuk Area Luar
     function createGrassTexture() {
       const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
       const ctx = canvas.getContext('2d');
-      // Tanah basah pekat
       ctx.fillStyle = '#0f170a'; ctx.fillRect(0, 0, 1024, 1024);
       
-      // Helaian Rumput (Puluhan Ribu)
       for(let i=0; i<80000; i++){
           let x = Math.random() * 1024; 
           let y = Math.random() * 1024;
-          let h = 15 + Math.random() * 30; // Tinggi rumput
+          let h = 15 + Math.random() * 30; 
           let w = 1.5 + Math.random() * 2;
           
           ctx.beginPath();
           ctx.moveTo(x, y);
-          // Kurva helaian melengkung
           ctx.quadraticCurveTo(x + (Math.random()-0.5)*20, y - h/2, x + (Math.random()-0.5)*30, y - h);
           
-          // Variasi warna rumput basah
           let gMix = 40 + Math.random() * 80;
           ctx.strokeStyle = `rgb(${10 + Math.random()*20}, ${gMix}, ${10 + Math.random()*20})`;
           ctx.lineWidth = w;
@@ -526,54 +606,77 @@
       }
       const texture = new THREE.CanvasTexture(canvas);
       texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
-      texture.repeat.set(150, 150); // Di-tile sangat rapat agar realistis
+      texture.repeat.set(150, 150); 
       return texture;
     }
 
-    // TEKSTUR BARU: Langit Pemandangan Gunung Badai & Awan Tinggi
-    function createSkyTexture() {
+    function createSkyTexture(cond) {
       const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 512;
       const ctx = canvas.getContext('2d');
       
-      // Latar Langit Sore Mendung (Sunset 5 PM)
       const grad = ctx.createLinearGradient(0, 0, 0, 512);
-      grad.addColorStop(0, '#4a5568'); // Zenith abu-abu kebiruan mendung
-      grad.addColorStop(0.5, '#8c7361'); // Tengah abu-abu kecoklatan
-      grad.addColorStop(1, '#d97743'); // Horizon oranye senja
+      if (cond === 0) {
+          // Pagi
+          grad.addColorStop(0, '#4facfe'); grad.addColorStop(0.5, '#00f2fe'); grad.addColorStop(1, '#a1c4fd');
+      } else if (cond === 1) {
+          // Siang
+          grad.addColorStop(0, '#1e3c72'); grad.addColorStop(0.5, '#2a5298'); grad.addColorStop(1, '#8ca8d9');
+      } else if (cond === 2) {
+          // Sore Hujan
+          grad.addColorStop(0, '#4a5568'); grad.addColorStop(0.5, '#8c7361'); grad.addColorStop(1, '#d97743');
+      } else {
+          // Malam Gelap
+          grad.addColorStop(0, '#020205'); grad.addColorStop(0.6, '#0a0d1c'); grad.addColorStop(1, '#111827');
+      }
       ctx.fillStyle = grad; ctx.fillRect(0, 0, 1024, 512);
 
-      // Matahari Senja
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(300, 380, 35, 0, Math.PI*2); // Posisi matahari agak turun di cakrawala
-      ctx.fillStyle = '#ffdf91';
-      ctx.shadowColor = '#ff8800';
-      ctx.shadowBlur = 60;
-      ctx.fill();
-      // Glow ekstra matahari
-      ctx.beginPath();
-      ctx.arc(300, 380, 80, 0, Math.PI*2);
-      ctx.fillStyle = 'rgba(255, 150, 0, 0.2)';
-      ctx.fill();
+      if (cond === 0 || cond === 1) { 
+          ctx.beginPath(); ctx.arc(300, cond === 0 ? 250 : 150, 40, 0, Math.PI*2);
+          ctx.fillStyle = '#fffae6'; ctx.shadowColor = '#ffffcc'; ctx.shadowBlur = 80; ctx.fill();
+          ctx.beginPath(); ctx.arc(300, cond === 0 ? 250 : 150, 100, 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255, 255, 200, 0.2)'; ctx.fill();
+      } else if (cond === 2) { 
+          ctx.beginPath(); ctx.arc(300, 380, 35, 0, Math.PI*2); 
+          ctx.fillStyle = '#ffdf91'; ctx.shadowColor = '#ff8800'; ctx.shadowBlur = 60; ctx.fill();
+          ctx.beginPath(); ctx.arc(300, 380, 80, 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255, 150, 0, 0.2)'; ctx.fill();
+      } else if (cond === 3) { 
+          ctx.beginPath(); ctx.arc(300, 150, 30, 0, Math.PI*2);
+          ctx.fillStyle = '#eef2f5'; ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 40; ctx.fill();
+          for(let i=0; i<400; i++) {
+              ctx.beginPath(); ctx.arc(Math.random()*1024, Math.random()*350, Math.random()*1.5, 0, Math.PI*2);
+              ctx.fillStyle = `rgba(255,255,255,${Math.random()})`; ctx.fill();
+          }
+      }
       ctx.restore();
 
-      // Awan Mendung di Atas (Y < 250)
-      ctx.fillStyle = 'rgba(100, 90, 100, 0.4)'; // Awan lebih gelap/kelabu
-      for(let i=0; i<150; i++) {
-        const cx = Math.random() * 1024; 
-        const cy = Math.random() * 250; 
-        const cr = 40 + Math.random() * 120;
-        ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI*2); ctx.fill();
+      if (cond !== 3) {
+          ctx.fillStyle = cond === 2 ? 'rgba(100, 90, 100, 0.4)' : 'rgba(255, 255, 255, 0.3)'; 
+          let cloudCount = cond === 1 ? 250 : 150;
+          for(let i=0; i<cloudCount; i++) {
+            const cx = Math.random() * 1024; const cy = Math.random() * 250; const cr = 40 + Math.random() * 120;
+            ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI*2); ctx.fill();
+          }
+      } else {
+          ctx.fillStyle = 'rgba(20, 25, 40, 0.2)';
+          for(let i=0; i<50; i++) {
+            const cx = Math.random() * 1024; const cy = Math.random() * 300; const cr = 50 + Math.random() * 100;
+            ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI*2); ctx.fill();
+          }
       }
 
-      // Barisan Pegunungan Hutan (Siluet Senja)
       for(let layer=0; layer<4; layer++) {
-          ctx.fillStyle = `hsl(20, 15%, ${10 + layer*5}%)`; // Warna siluet kecoklatan
+          let lightness = 10 + layer*5;
+          if (cond === 3) lightness -= 5;
+          if (cond === 0 || cond === 1) lightness += 10;
+          let hue = cond === 2 ? 20 : (cond === 3 ? 220 : 120); 
+          ctx.fillStyle = `hsl(${hue}, 20%, ${lightness}%)`; 
           ctx.beginPath();
           ctx.moveTo(0, 512);
           let y = 400 + layer * 25; 
           for(let x=0; x<=1024; x+=15) {
-              y += (Math.random() - 0.5) * 35; // Puncak-puncak gunung acak
+              y += (Math.random() - 0.5) * 35; 
               if (y > 512) y = 512;
               ctx.lineTo(x, y);
           }
@@ -590,7 +693,7 @@
       const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 128;
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0,0,64,128);
-      ctx.fillStyle = 'rgba(10, 15, 10, 0.85)'; // Sangat gelap (jejak lumpur)
+      ctx.fillStyle = 'rgba(10, 15, 10, 0.85)'; 
       ctx.beginPath(); ctx.ellipse(32, 90, 12, 18, 0, 0, Math.PI*2); ctx.fill();
       ctx.beginPath(); ctx.ellipse(32, 35, 18, 28, 0, 0, Math.PI*2); ctx.fill();
       return new THREE.CanvasTexture(canvas);
@@ -681,7 +784,7 @@
     });
 
     // --- 3D ENGINE & ADVANCED KINEMATICS PHYSICS LOGIC ---
-    let renderer, scene, camera, footprintMesh, entranceGate, rainLines, lightningLight;
+    let renderer, scene, camera, footprintMesh, entranceGate, rainLines, lightningLight, skyMesh;
     let footprintCount = 0;
     const MAX_FOOTPRINTS = 15000; 
     const RAIN_COUNT = 15000;
@@ -781,38 +884,73 @@
       const paneHeight = window.innerHeight;
 
       scene = new THREE.Scene();
-      // Kabut Sore Mendung
-      scene.fog = new THREE.FogExp2(0x7a6352, 0.035);
       
-      const skyTexture = createSkyTexture();
+      if (weatherCondition === 0) scene.fog = new THREE.FogExp2(0x99ccff, 0.015);
+      else if (weatherCondition === 1) scene.fog = new THREE.FogExp2(0x77bbee, 0.01);
+      else if (weatherCondition === 2) scene.fog = new THREE.FogExp2(0x7a6352, 0.035);
+      else scene.fog = new THREE.FogExp2(0x050a15, 0.06); 
+      
+      const skyTexture = createSkyTexture(weatherCondition);
       const skyGeo = new THREE.SphereGeometry(500, 32, 15);
       const skyMat = new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide });
-      const skyMesh = new THREE.Mesh(skyGeo, skyMat); 
+      skyMesh = new THREE.Mesh(skyGeo, skyMat); 
       scene.add(skyMesh);
       
-      // Pencahayaan Ambien Senja Mendung
-      const hemiLight = new THREE.HemisphereLight(0xffcc88, 0x333344, 0.45);
+      let hemiLight, dirLight;
+      if (weatherCondition === 0) {
+          hemiLight = new THREE.HemisphereLight(0xffffff, 0x445533, 0.6);
+          dirLight = new THREE.DirectionalLight(0xffffee, 1.2);
+      } else if (weatherCondition === 1) {
+          hemiLight = new THREE.HemisphereLight(0xffffff, 0x445544, 0.7);
+          dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      } else if (weatherCondition === 2) {
+          hemiLight = new THREE.HemisphereLight(0xffcc88, 0x333344, 0.45);
+          dirLight = new THREE.DirectionalLight(0xff9944, 0.7);
+      } else {
+          hemiLight = new THREE.HemisphereLight(0x112233, 0x020205, 0.1);
+          dirLight = new THREE.DirectionalLight(0x224488, 0.1); 
+      }
+      
       hemiLight.position.set(0, 200, 0); scene.add(hemiLight);
+      
+      const mazeWorldSize = currentSize * PHYS.cellSize;
+      
+      // FIX PETER PANNING UTAMA (Kamera bayangan pas ukuran Maze)
+      dirLight.position.set(mazeWorldSize/2 - 100, 150, mazeWorldSize/2 - 200); 
+      dirLight.target.position.set(mazeWorldSize/2, 0, mazeWorldSize/2);
+      scene.add(dirLight.target);
 
-      // Sinar Matahari Senja (Cahaya Utama)
-      const dirLight = new THREE.DirectionalLight(0xff9944, 0.7);
-      dirLight.position.set(-100, 80, -200); 
       dirLight.castShadow = true;
       dirLight.shadow.mapSize.width = 2048;
       dirLight.shadow.mapSize.height = 2048;
-      // FIX PETER PANNING (Sinar Tembus Bawah Dinding): Sesuaikan bias dan tambahkan normalBias
-      dirLight.shadow.bias = -0.0005; 
-      dirLight.shadow.normalBias = 0.05; 
-      dirLight.shadow.camera.top = 200; dirLight.shadow.camera.bottom = -200;
-      dirLight.shadow.camera.left = -200; dirLight.shadow.camera.right = 200;
+      dirLight.shadow.bias = -0.0005; // Bias Presisi
+
+      const d = mazeWorldSize / 2 + 20; 
+      dirLight.shadow.camera.left = -d;
+      dirLight.shadow.camera.right = d;
+      dirLight.shadow.camera.top = d;
+      dirLight.shadow.camera.bottom = -d;
+      dirLight.shadow.camera.near = 0.1;
+      dirLight.shadow.camera.far = 500;
       scene.add(dirLight);
 
-      // Cahaya Kilat Petir (Hangat)
-      lightningLight = new THREE.DirectionalLight(0xffeedd, 0);
-      lightningLight.position.set(-100, 300, -100);
-      scene.add(lightningLight);
+      if (weatherCondition === 2) {
+          lightningLight = new THREE.DirectionalLight(0xffeedd, 0);
+          lightningLight.position.set(-100, 300, -100);
+          scene.add(lightningLight);
+      }
 
       camera = new THREE.PerspectiveCamera(75, paneWidth / paneHeight, 0.1, 1000);
+      
+      if (weatherCondition === 3) {
+          const flashLight = new THREE.SpotLight(0xffffee, 2.0, 150, Math.PI / 5, 0.5, 1);
+          flashLight.position.set(0.5, -0.5, 0); 
+          camera.add(flashLight);
+          flashLight.target.position.set(0, 0, -1);
+          camera.add(flashLight.target);
+      }
+      scene.add(camera); 
+
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(paneWidth, paneHeight);
       renderer.shadowMap.enabled = true;
@@ -821,29 +959,25 @@
       container3d.innerHTML = '';
       container3d.appendChild(renderer.domElement);
 
-      const WALL_HEIGHT = 16;
-      const mazeWorldSize = currentSize * PHYS.cellSize;
+      const WALL_HEIGHT = 20; 
+      const PILLAR_HEIGHT = 21; // Pilar sedikit lebih tinggi
 
-      // 1. LANTAI LUAR: Padang Rumput Raksasa
       const grassTex = createGrassTexture();
-      const grassGeo = new THREE.PlaneGeometry(mazeWorldSize * 10, mazeWorldSize * 10);
+      const grassGeo = new THREE.BoxGeometry(mazeWorldSize * 10, 2, mazeWorldSize * 10);
       const grassMat = new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.9, metalness: 0 });
       const grassFloor = new THREE.Mesh(grassGeo, grassMat);
-      grassFloor.rotation.x = -Math.PI / 2; 
+      grassFloor.position.set(mazeWorldSize/2, -1.0, mazeWorldSize/2); 
       grassFloor.receiveShadow = true;
       scene.add(grassFloor);
 
-      // 2. LANTAI DALAM: Marmer diletakkan persis seukuran Maze dan sedikit terangkat dari rumput
       const floorTex = createMarbleFloorTexture();
-      const floorGeo = new THREE.PlaneGeometry(mazeWorldSize, mazeWorldSize);
+      const floorGeo = new THREE.BoxGeometry(mazeWorldSize, 2, mazeWorldSize);
       const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.2, metalness: 0.1 });
       const marbleFloor = new THREE.Mesh(floorGeo, floorMat);
-      marbleFloor.rotation.x = -Math.PI / 2; 
-      marbleFloor.position.set(mazeWorldSize/2 - PHYS.cellSize/2, 0.01, mazeWorldSize/2 - PHYS.cellSize/2); // Center ke tengah grid maze
+      marbleFloor.position.set(mazeWorldSize/2 - PHYS.cellSize/2, -0.99, mazeWorldSize/2 - PHYS.cellSize/2); 
       marbleFloor.receiveShadow = true;
       scene.add(marbleFloor);
 
-      // Jejak Kaki
       const fpTex = createFootprintTexture();
       const fpGeo = new THREE.PlaneGeometry(1.0, 2.2); 
       fpGeo.rotateX(-Math.PI / 2); 
@@ -852,28 +986,29 @@
           polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
       });
       footprintMesh = new THREE.InstancedMesh(fpGeo, fpMat, MAX_FOOTPRINTS);
-      footprintMesh.position.y = 0.02; // Di atas marmer
+      footprintMesh.position.y = 0.02; 
       footprintMesh.count = 0;
       scene.add(footprintMesh);
 
-      // Sistem Tetesan Hujan Badai (LineSegments)
-      const rainGeo = new THREE.BufferGeometry();
-      const rainPos = new Float32Array(RAIN_COUNT * 6);
-      for(let i=0; i<RAIN_COUNT; i++) {
-          let x = (Math.random() - 0.5) * 400; // Radius hujan luas
-          let y = Math.random() * 200;
-          let z = (Math.random() - 0.5) * 400;
-          rainPos[i*6] = x; rainPos[i*6+1] = y; rainPos[i*6+2] = z;
-          rainPos[i*6+3] = x; rainPos[i*6+4] = y - 3; rainPos[i*6+5] = z; // Tetesan memanjang
+      if (weatherCondition === 2) {
+          const rainGeo = new THREE.BufferGeometry();
+          const rainPos = new Float32Array(RAIN_COUNT * 6);
+          for(let i=0; i<RAIN_COUNT; i++) {
+              let x = (Math.random() - 0.5) * 400; 
+              let y = Math.random() * 200;
+              let z = (Math.random() - 0.5) * 400;
+              rainPos[i*6] = x; rainPos[i*6+1] = y; rainPos[i*6+2] = z;
+              rainPos[i*6+3] = x; rainPos[i*6+4] = y - 3; rainPos[i*6+5] = z; 
+          }
+          rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+          const rainMat = new THREE.LineBasicMaterial({color: 0x99ccff, transparent: true, opacity: 0.4});
+          rainLines = new THREE.LineSegments(rainGeo, rainMat);
+          scene.add(rainLines);
       }
-      rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
-      const rainMat = new THREE.LineBasicMaterial({color: 0x99ccff, transparent: true, opacity: 0.4});
-      rainLines = new THREE.LineSegments(rainGeo, rainMat);
-      scene.add(rainLines);
 
       // --- GERBANG BESI VICTORIAN ---
       const gateGroup = new THREE.Group();
-      const ironMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.2 }); // Besi pekat basah
+      const ironMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.2 }); 
       const barRadius = 0.25;
       const numBars = 9;
       const barSpacing = PHYS.cellSize / (numBars + 1);
@@ -900,9 +1035,9 @@
       entranceGate.position.set(0, WALL_HEIGHT * 3, -PHYS.cellSize / 2); 
       scene.add(entranceGate);
 
-      // Pembangunan Dinding Maze & Registrasi Fisika 
-      const wallTex = createBrickWallTexture();
-      const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.6 }); // Dinding basah
+      // --- ARSITEKTUR PILAR & SEGMEN DINDING (ANTI Z-FIGHTING) ---
+      const wallTex = createBrickWallTexture(weatherCondition);
+      const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.6 }); 
 
       let hWallCount = 0, vWallCount = 0;
       for (let r = 0; r < currentSize; r++) {
@@ -915,12 +1050,12 @@
       }
       const pillarCount = (currentSize + 1) * (currentSize + 1);
 
-      const hLen = PHYS.cellSize - PHYS.wallThick;
-      const vLen = PHYS.cellSize - PHYS.wallThick;
-
-      const hWallGeo = new THREE.BoxGeometry(hLen, WALL_HEIGHT, PHYS.wallThick);
-      const vWallGeo = new THREE.BoxGeometry(PHYS.wallThick, WALL_HEIGHT, vLen);
-      const pWallGeo = new THREE.BoxGeometry(PHYS.wallThick, WALL_HEIGHT, PHYS.wallThick);
+      // Panjang Dinding mengikuti ukuran cell, Lebar pilar lebih tebal (3.6 vs 3.0) 
+      // agar dinding tertanam cantik ke dalam pilar tanpa overlapping mukanya.
+      const pThick = PHYS.wallThick + 0.6; 
+      const hWallGeo = new THREE.BoxGeometry(PHYS.cellSize, WALL_HEIGHT, PHYS.wallThick);
+      const vWallGeo = new THREE.BoxGeometry(PHYS.wallThick, WALL_HEIGHT, PHYS.cellSize);
+      const pWallGeo = new THREE.BoxGeometry(pThick, PILLAR_HEIGHT, pThick);
 
       const hWallMesh = new THREE.InstancedMesh(hWallGeo, wallMat, hWallCount);
       hWallMesh.castShadow = true; hWallMesh.receiveShadow = true;
@@ -934,9 +1069,10 @@
       let hIdx = 0, vIdx = 0, pIdx = 0; 
       const dummy = new THREE.Object3D();
 
+      // Fisika Box Tetap utuh (AABB)
       const addCollisionBox = (x, z, isVertical) => {
-        let w = isVertical ? PHYS.wallThick : PHYS.cellSize + PHYS.wallThick;
-        let d = isVertical ? PHYS.cellSize + PHYS.wallThick : PHYS.wallThick;
+        let w = isVertical ? PHYS.wallThick : PHYS.cellSize;
+        let d = isVertical ? PHYS.cellSize : PHYS.wallThick;
         physicalWalls.push({
             minX: x - w/2, maxX: x + w/2,
             minZ: z - d/2, maxZ: z + d/2
@@ -947,23 +1083,24 @@
         for (let c = 0; c < currentSize; c++) {
           let x = c * PHYS.cellSize; let z = r * PHYS.cellSize; let cell = mazeGrid[r][c];
           
+          // Tenggelamkan sejauh 4 meter ke tanah untuk Block Light Bleeding Peter Panning
           if (cell.walls.top) {
-            dummy.position.set(x, (WALL_HEIGHT / 2) - 0.5, z - PHYS.cellSize/2); dummy.updateMatrix();
+            dummy.position.set(x, (WALL_HEIGHT / 2) - 4.0, z - PHYS.cellSize/2); dummy.updateMatrix();
             hWallMesh.setMatrixAt(hIdx++, dummy.matrix);
             addCollisionBox(x, z - PHYS.cellSize/2, false);
           }
           if (cell.walls.left) {
-            dummy.position.set(x - PHYS.cellSize/2, (WALL_HEIGHT / 2) - 0.5, z); dummy.updateMatrix();
+            dummy.position.set(x - PHYS.cellSize/2, (WALL_HEIGHT / 2) - 4.0, z); dummy.updateMatrix();
             vWallMesh.setMatrixAt(vIdx++, dummy.matrix);
             addCollisionBox(x - PHYS.cellSize/2, z, true);
           }
           if (r === currentSize - 1 && cell.walls.bottom) {
-            dummy.position.set(x, (WALL_HEIGHT / 2) - 0.5, z + PHYS.cellSize/2); dummy.updateMatrix();
+            dummy.position.set(x, (WALL_HEIGHT / 2) - 4.0, z + PHYS.cellSize/2); dummy.updateMatrix();
             hWallMesh.setMatrixAt(hIdx++, dummy.matrix);
             addCollisionBox(x, z + PHYS.cellSize/2, false);
           }
           if (c === currentSize - 1 && cell.walls.right) {
-            dummy.position.set(x + PHYS.cellSize/2, (WALL_HEIGHT / 2) - 0.5, z); dummy.updateMatrix();
+            dummy.position.set(x + PHYS.cellSize/2, (WALL_HEIGHT / 2) - 4.0, z); dummy.updateMatrix();
             vWallMesh.setMatrixAt(vIdx++, dummy.matrix);
             addCollisionBox(x + PHYS.cellSize/2, z, true);
           }
@@ -972,9 +1109,17 @@
 
       for (let r = 0; r <= currentSize; r++) {
         for (let c = 0; c <= currentSize; c++) {
-            dummy.position.set(c * PHYS.cellSize - PHYS.cellSize/2, (WALL_HEIGHT / 2) - 0.5, r * PHYS.cellSize - PHYS.cellSize/2);
+            dummy.position.set(c * PHYS.cellSize - PHYS.cellSize/2, (PILLAR_HEIGHT / 2) - 4.0, r * PHYS.cellSize - PHYS.cellSize/2);
             dummy.updateMatrix();
             pWallMesh.setMatrixAt(pIdx++, dummy.matrix);
+            
+            // Tambah Fisika khusus Pilar karena ukurannya lebih besar
+            let px = c * PHYS.cellSize - PHYS.cellSize/2;
+            let pz = r * PHYS.cellSize - PHYS.cellSize/2;
+            physicalWalls.push({
+                minX: px - pThick/2, maxX: px + pThick/2,
+                minZ: pz - pThick/2, maxZ: pz + pThick/2
+            });
         }
       }
 
@@ -995,14 +1140,12 @@
       endMesh.position.set((currentSize - 1) * PHYS.cellSize, 4, (currentSize - 1) * PHYS.cellSize);
       scene.add(endMesh);
       
-      // FIX CAHAYA TEMBUS (PointLight): Optimasi bayangan lokal kristal agar rapat dengan lantai
       const endLight = new THREE.PointLight(0xff9500, 3, 25);
       endLight.position.copy(endMesh.position); 
       endLight.castShadow = true; 
-      endLight.shadow.mapSize.width = 1024; // Resolusi dinaikkan untuk akurasi ujung dinding
+      endLight.shadow.mapSize.width = 1024; 
       endLight.shadow.mapSize.height = 1024;
-      endLight.shadow.bias = -0.0005; // Kurangi toleransi jebol
-      endLight.shadow.normalBias = 0.05; // Teknik terbaik Three.js atasi bocor tanpa flickering
+      endLight.shadow.bias = -0.002; 
       scene.add(endLight);
 
       // --- KINEMATICS PHYSICS SYSTEM SETUP ---
@@ -1060,7 +1203,6 @@
         let hitZ = false;
         let pr = PHYS.playerRadius;
 
-        // X-AXIS CHECK 
         let boxX = { minX: newX - pr, maxX: newX + pr, minZ: oldZ - pr, maxZ: oldZ + pr };
         for(let w of physicalWalls) {
             if(intersectBox(boxX, w)) {
@@ -1071,7 +1213,6 @@
             }
         }
 
-        // Z-AXIS CHECK
         let boxZ = { minX: newX - pr, maxX: newX + pr, minZ: newZ - pr, maxZ: newZ + pr };
         for(let w of physicalWalls) {
             if(intersectBox(boxZ, w)) {
@@ -1096,7 +1237,7 @@
       };
 
       const raycaster = new THREE.Raycaster();
-      startAmbientBGM();
+      startAmbientBGM(weatherCondition);
 
       window.onWindowResize = () => {
         if (viewMode === '3d' && camera && renderer) {
@@ -1119,7 +1260,6 @@
             document.getElementById('ui-timer').innerText = `${m}:${s}`;
         }
 
-        // Pagar Masuk Anti Tembus
         if (!isGateClosed && entranceGate) {
             entranceGate.position.y -= 60 * dt; 
             if (entranceGate.position.y <= -0.5) { 
@@ -1137,8 +1277,7 @@
             }
         }
 
-        // Animasi Hujan Badai
-        if (rainLines) {
+        if (weatherCondition === 2 && rainLines) {
             let rPos = rainLines.geometry.attributes.position.array;
             for(let i=0; i<RAIN_COUNT; i++) {
                 rPos[i*6+1] -= 80 * dt; 
@@ -1148,7 +1287,6 @@
                     rPos[i*6+1] = resetY;
                     rPos[i*6+4] = resetY - 3;
                     
-                    // Rain follows the player globally
                     let px = camera.position.x + (Math.random()-0.5)*300;
                     let pz = camera.position.z + (Math.random()-0.5)*300;
                     rPos[i*6] = px; rPos[i*6+2] = pz;
@@ -1158,15 +1296,16 @@
             rainLines.geometry.attributes.position.needsUpdate = true;
         }
 
-        // Logika Petir (Kilat & Suara Guntur Delay)
-        if (lightningFlash > 0) {
-            lightningFlash -= dt * 15;
-            lightningLight.intensity = Math.max(0, lightningFlash);
-        }
-        if (Math.random() < 0.002 && lightningFlash <= 0) { // Probabilitas petir langka
-            lightningFlash = 3.0 + Math.random() * 5; 
-            lightningLight.intensity = lightningFlash;
-            setTimeout(playThunderSound, 400 + Math.random() * 1000); // Guntur menyusul kilat
+        if (weatherCondition === 2) {
+            if (lightningFlash > 0) {
+                lightningFlash -= dt * 15;
+                lightningLight.intensity = Math.max(0, lightningFlash);
+            }
+            if (Math.random() < 0.002 && lightningFlash <= 0) { 
+                lightningFlash = 3.0 + Math.random() * 5; 
+                lightningLight.intensity = lightningFlash;
+                setTimeout(playThunderSound, 400 + Math.random() * 1000); 
+            }
         }
 
         raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
@@ -1182,7 +1321,9 @@
         } else {
             renderer.domElement.style.filter = 'none';
         }
-        skyMesh.rotation.y += 0.015 * dt; 
+        
+        let skySpeed = weatherCondition === 2 ? 0.02 : (weatherCondition === 1 ? 0.015 : 0.005);
+        skyMesh.rotation.y += skySpeed * dt; 
 
         if (endMesh) {
             endMesh.rotation.y += 1.5 * dt;
