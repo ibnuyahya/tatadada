@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TATADADA PORTAL</title>
+    
+    <!-- Framework & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Three.js for 3D Earth Background -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Font Righteous, Pacifico, dan Space Grotesk untuk Icon XML v5.0 -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,700;1,400&family=Pacifico&family=Righteous&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* 2. CSS TOKENS & RETINA DISPLAY TWEAKS */
+        :root {
+            --header-bg: rgba(20, 20, 20, 0.4);
+            --drawer-bg: rgba(15, 15, 18, 0.45);
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --glass-highlight: rgba(255, 255, 255, 0.25);
+            --text-main: #ffffff;
+            --text-dim: #98989d;
+            --bg-base: #000000;
+        }
+        
+        body { 
+            background-color: var(--bg-base); 
+            color: var(--text-main); 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+            overflow: hidden; 
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+            /* Disable text selection everywhere */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        /* Enable text selection specifically for inputs like search */
+        input#searchInput {
+            -webkit-user-select: auto;
+            -moz-user-select: auto;
+            -ms-user-select: auto;
+            user-select: auto;
+        }
+
+        .text-dim { color: var(--text-dim); }
+        .hairline-b { box-shadow: 0 0.5px 0 var(--glass-border); }
+        .hairline-t { box-shadow: 0 -0.5px 0 var(--glass-border); }
+        
+        /* Ultra Blur for Glass Elements */
+        .glass-blur {
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
+
+        .brand-gradient {
+            background: linear-gradient(135deg, #ffffff, #80c8ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .alpha-btn.active {
+            background-color: #ffffff;
+            color: #000000;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.3), inset 0 1px 1px rgba(255,255,255,0.8);
+            border: none;
+        }
+
+        /* 3D CANVAS CONTAINER */
+        #space-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* FROSTED GLASS DRAWER */
+        .glass-drawer {
+            background: var(--drawer-bg);
+            box-shadow: 
+                0 0 0 0.5px var(--glass-border),
+                inset 0 1px 1px rgba(255, 255, 255, 0.1),
+                0 40px 60px -15px rgba(0, 0, 0, 0.8);
+            border-radius: 48px;
+            transition: all 0.3s ease;
+        }
+
+        /* =========================================
+           ULTRA PREMIUM CRYSTAL ICONS (Glassmorphism 2.0)
+           ========================================= */
+        .mesh-0 { background: linear-gradient(135deg, #ff2a6d, #ff6b00); --glow: rgba(255, 42, 109, 0.6); }
+        .mesh-1 { background: linear-gradient(135deg, #05d5ff, #0055ff); --glow: rgba(5, 213, 255, 0.6); }
+        .mesh-2 { background: linear-gradient(135deg, #b026ff, #5511ff); --glow: rgba(176, 38, 255, 0.6); }
+        .mesh-3 { background: linear-gradient(135deg, #00f260, #0575e6); --glow: rgba(0, 242, 96, 0.6); }
+        .mesh-4 { background: linear-gradient(135deg, #ffcc00, #ff5e62); --glow: rgba(255, 204, 0, 0.6); }
+        .mesh-5 { background: linear-gradient(135deg, #8e9eab, #eef2f3); --glow: rgba(142, 158, 171, 0.6); }
+        .mesh-6 { background: linear-gradient(135deg, #f12711, #f5af19); --glow: rgba(241, 39, 17, 0.6); }
+        .mesh-7 { background: linear-gradient(135deg, #00c6ff, #0072ff); --glow: rgba(0, 198, 255, 0.6); }
+
+        .ios-card {
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            background: transparent;
+            text-decoration: none;
+            position: relative;
+        }
+        .ios-card:hover { transform: scale(1.08) translateY(-4px); z-index: 20; }
+        .ios-card:active { transform: scale(0.95); opacity: 0.8; }
+
+        .icon-squircle {
+            border-radius: 22.5%; 
+            aspect-ratio: 1/1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+            box-shadow: 
+                0 15px 25px -5px var(--glow),
+                0 8px 10px -6px rgba(0,0,0,0.5),
+                inset 0 3px 6px rgba(255, 255, 255, 0.8), 
+                inset 0 -5px 10px rgba(0, 0, 0, 0.4);
+            transition: all 0.4s ease;
+        }
+        
+        .ios-card:hover .icon-squircle {
+            box-shadow: 
+                0 25px 35px -5px var(--glow),
+                0 12px 15px -6px rgba(0,0,0,0.6),
+                inset 0 4px 8px rgba(255, 255, 255, 0.9), 
+                inset 0 -6px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .icon-squircle::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            background: linear-gradient(135deg, 
+                rgba(255,255,255,0.6) 0%, 
+                rgba(255,255,255,0.15) 35%, 
+                rgba(255,255,255,0) 45%, 
+                rgba(0,0,0,0.1) 100%);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .icon-squircle::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .icon-squircle svg {
+            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.4)) drop-shadow(0 -1px 1px rgba(255,255,255,0.5));
+            position: relative;
+            z-index: 10;
+        }
+        
+        .app-title {
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+
+        /* CUSTOM XML ICON ELEMENTS */
+        .bg-wave-ornament {
+            position: absolute; bottom: -10%; left: -20%; width: 150%; height: 60%;
+            background: linear-gradient(180deg, #C13584 0%, #FD1D1D 50%, #F56040 100%);
+            border-radius: 40% 60% 30% 70% / 60% 40% 70% 40%;
+            filter: blur(8px); opacity: 0.85; mix-blend-mode: color-dodge;
+            transform: rotate(-15deg); transition: all 0.4s ease;
+        }
+        .icon-svg {
+            z-index: 10;
+            filter: drop-shadow(0px 10px 15px rgba(0,0,0,0.4)) drop-shadow(0px 4px 6px rgba(0,0,0,0.2));
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        .frosted-glass {
+            fill: url(#glass-fill);
+            stroke: rgba(255, 255, 255, 0.6);
+            stroke-width: 1.5px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        /* STATUS BAR RETINA */
+        .status-bar {
+            height: 28px;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            background: rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            position: relative;
+            z-index: 100;
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- SYSTEM STATUS BAR (iPhone Style) -->
+    <div class="status-bar shrink-0 hairline-b">
+        <div class="flex items-center gap-2">
+            <span id="system-time">00:00</span>
+            <span id="system-date" class="opacity-60 font-medium ml-1">...</span>
+        </div>
+        <!-- Dynamic Island Spacer Center (Optional) -->
+        <div class="hidden md:block w-32 h-5 bg-black/40 rounded-full border border-white/5"></div>
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1">
+                <i data-lucide="signal" class="w-3 h-3"></i>
+                <span class="text-[10px]">LTE</span>
+            </div>
+            <i data-lucide="wifi" class="w-3 h-3"></i>
+            <div class="flex items-center gap-0.5 border border-white/20 rounded-[2px] px-[2px] h-3">
+                <div class="bg-white h-2 w-3.5 rounded-[1px]"></div>
+                <div class="bg-white/40 h-1 w-0.5 rounded-r-[1px]"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GLOBAL SVG DEFS FOR CUSTOM ICONS -->
+    <svg style="width:0;height:0;position:absolute;" aria-hidden="true" focusable="false">
+        <defs>
+            <linearGradient id="glossy-white" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#FFFFFF" />
+                <stop offset="100%" stop-color="#E5E5EA" />
+            </linearGradient>
+            <linearGradient id="glossy-dark" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#48484a" />
+                <stop offset="100%" stop-color="#1c1c1e" />
+            </linearGradient>
+            <linearGradient id="glass-fill" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="rgba(255,255,255,0.25)" />
+                <stop offset="100%" stop-color="rgba(255,255,255,0.02)" />
+            </linearGradient>
+            <filter id="inner-shadow">
+                <feOffset dx="0" dy="2"/>
+                <feGaussianBlur stdDeviation="1.5" result="offset-blur"/>
+                <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/>
+                <feFlood flood-color="black" flood-opacity="0.25" result="color"/>
+                <feComposite operator="in" in="color" in2="inverse" result="shadow"/>
+                <feComposite operator="over" in="shadow" in2="SourceGraphic"/>
+            </filter>
+            <filter id="drop-shadow-sm">
+                <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="black" flood-opacity="0.35"/>
+            </filter>
+        </defs>
+    </svg>
+
+    <!-- 3D SPACE CANVAS -->
+    <canvas id="space-canvas"></canvas>
+
+    <!-- 3.A HEADER (Glassy) -->
+    <header class="h-14 flex items-center justify-between px-6 glass-blur hairline-b bg-[var(--header-bg)] shrink-0 relative z-50">
+        <div class="flex items-center gap-4">
+            <div class="flex flex-col">
+                <div class="flex items-center gap-2">
+                    <h1 class="text-[19px] font-extrabold brand-gradient tracking-tight italic">TATADADA</h1>
+                    <span class="text-[9px] font-mono text-dim italic mt-1 px-1.5 py-0.5 rounded shadow-[0_0_0_0.5px_var(--glass-border)] bg-white/10 backdrop-blur-md" id="build-time">...</span>
+                </div>
+                <a href="https://danial.my.id" target="_blank" class="font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-400 transition-colors">
+                    AHMADDANIAL
+                </a>
+            </div>
+            
+            <div class="relative help-trigger group">
+                <button class="p-1 text-dim hover:text-white transition-colors">
+                    <i data-lucide="info" class="w-4 h-4"></i>
+                </button>
+                <div class="help-tooltip hidden group-hover:block absolute left-0 top-full mt-2 w-64 p-4 glass-blur bg-[var(--header-bg)] shadow-[0_0_0_0.5px_var(--glass-border),0_10px_30px_rgba(0,0,0,0.5)] rounded-2xl text-[12px] leading-relaxed z-[100]">
+                    <p id="help-text">Memuat panduan...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <div class="relative hidden lg:block">
+                <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-dim"></i>
+                <input type="text" id="searchInput" 
+                    class="pl-9 pr-4 py-1.5 bg-white/10 shadow-[inset_0_0_0_0.5px_var(--glass-border)] rounded-full text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 w-64 transition-all text-white placeholder-gray-400"
+                    placeholder="Cari...">
+            </div>
+            <div class="h-4 w-[1px] bg-white/20 mx-1"></div>
+            <button onclick="toggleLanguage()" class="px-2 py-1 text-dim hover:text-white transition-colors text-[10px] font-bold" id="lang-toggle">ID</button>
+        </div>
+    </header>
+
+    <!-- 3.B MAIN WORKSPACE -->
+    <main class="flex-1 relative z-10 overflow-y-auto flex flex-col items-center py-6 px-4 sm:py-10 sm:px-8">
+        
+        <!-- GLASS DRAWER CONTAINER -->
+        <div class="glass-drawer glass-blur w-full max-w-5xl p-6 sm:p-10 lg:p-12 flex flex-col items-center">
+            
+            <!-- Alphabet Filter Bar -->
+            <div class="w-full mb-10 pb-5 shadow-[0_0.5px_0_var(--glass-border)] flex justify-center">
+                <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full px-2">
+                    <button onclick="filterByLetter('ALL')" id="btn-ALL" class="alpha-btn active px-4 py-1.5 text-[11px] font-bold rounded-full transition-all shrink-0">ALL</button>
+                    <div id="alphabet-container" class="flex gap-1.5"></div>
+                    <button onclick="filterByLetter('#')" id="btn-#" class="alpha-btn px-4 py-1.5 text-[11px] font-bold shadow-[0_0_0_0.5px_var(--glass-border)] rounded-full transition-all hover:bg-white/10 shrink-0 text-white">#</button>
+                </div>
+            </div>
+
+            <!-- Status Loader -->
+            <div id="statusMessage" class="mb-12 flex justify-center hidden w-full">
+                <div class="inline-flex items-center px-5 py-2.5 rounded-full bg-white/10 shadow-[0_0_0_0.5px_rgba(255,255,255,0.2)] text-white text-xs font-bold backdrop-blur-md">
+                    <i data-lucide="loader" class="w-3.5 h-3.5 mr-2 animate-spin"></i>
+                    <span id="loading-text">Syncing...</span>
+                </div>
+            </div>
+
+            <!-- Grid Apps Constraint -->
+            <div id="appGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-x-4 gap-y-12 sm:gap-x-6 sm:gap-y-14 justify-items-center w-full">
+                <!-- Cards injected here -->
+            </div>
+
+            <!-- States -->
+            <div id="errorMessage" class="hidden py-24 text-center w-full">
+                <i data-lucide="cloud-off" class="w-16 h-16 text-red-500 mx-auto mb-4 drop-shadow-md"></i>
+                <h2 class="text-xl font-bold text-white" id="error-title">Terjadi Kesalahan</h2>
+                <p class="text-dim text-sm mt-2" id="errorDetail"></p>
+            </div>
+            <div id="emptyState" class="hidden py-24 text-center w-full">
+                <i data-lucide="ghost" class="w-16 h-16 text-dim mx-auto mb-4 drop-shadow-md"></i>
+                <h2 class="text-xl font-bold text-dim" id="empty-title">Tidak Ditemukan</h2>
+            </div>
+        </div>
+    </main>
+
+    <!-- 3.C FOOTER -->
+    <footer class="h-8 flex items-center justify-between px-6 glass-blur bg-[var(--header-bg)] hairline-t text-[10px] text-dim shrink-0 relative z-50">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5 font-bold">
+                <span class="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]"></span>
+                <span id="system-status" class="text-white">ONLINE</span>
+            </div>
+            <span class="opacity-20">/</span>
+            <span id="app-count" class="font-medium tracking-wide">0 APPS FOUND</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="font-bold opacity-40 uppercase tracking-tighter" id="portal-version">Tatadada Space Engine v4.0</span>
+            <button onclick="toggleModal(true)" class="hover:text-blue-400 font-bold transition-colors cursor-pointer">TERMS</button>
+        </div>
+    </footer>
+
+    <!-- 3.D MODAL -->
+    <div id="termsModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md hidden">
+        <div class="glass-blur bg-[var(--drawer-bg)] shadow-[0_0_0_0.5px_var(--glass-border),0_25px_50px_rgba(0,0,0,0.8)] rounded-[40px] max-w-sm w-full overflow-hidden transition-all scale-95 opacity-0" id="modalContainer">
+            <div class="p-10 text-center">
+                <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center text-white mx-auto mb-6 shadow-[0_10px_20px_rgba(0,122,255,0.4),inset_0_2px_4px_rgba(255,255,255,0.6)]">
+                    <i data-lucide="shield-check" class="w-8 h-8 drop-shadow-md"></i>
+                </div>
+                <h3 class="text-xl font-extrabold mb-4 text-white">Legal Notice</h3>
+                <div class="text-[13px] leading-relaxed text-dim text-center space-y-4 font-medium" id="terms-content"></div>
+            </div>
+            <div class="p-6 hairline-t bg-white/5">
+                <button onclick="toggleModal(false)" class="w-full py-4 bg-white/10 hover:bg-white/20 text-white text-sm font-bold rounded-2xl transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] active:scale-95">
+                    UNDERSTOOD
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. THREE.JS 3D SPACE BACKGROUND LOGIC
+        // ==========================================
+        function initSpaceBackground() {
+            const canvas = document.getElementById('space-canvas');
+            const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x020205);
+            
+            const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 20;
+
+            const textureLoader = new THREE.TextureLoader();
+            const earthGroup = new THREE.Group();
+            scene.add(earthGroup);
+            
+            earthGroup.position.set(6, -4, -5);
+            if(window.innerWidth < 768) earthGroup.position.set(0, -8, -10);
+
+            const earthGeo = new THREE.SphereGeometry(6, 64, 64);
+            const earthMat = new THREE.MeshStandardMaterial({
+                map: textureLoader.load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'),
+                bumpMap: textureLoader.load('https://unpkg.com/three-globe/example/img/earth-topology.png'),
+                bumpScale: 0.05,
+                roughness: 0.6,
+                metalness: 0.1
+            });
+            const earth = new THREE.Mesh(earthGeo, earthMat);
+            earthGroup.add(earth);
+
+            const cloudGeo = new THREE.SphereGeometry(6.05, 64, 64);
+            const cloudMat = new THREE.MeshStandardMaterial({
+                map: textureLoader.load('https://unpkg.com/three-globe/example/img/earth-water.png'),
+                transparent: true,
+                opacity: 0.3,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide
+            });
+            const clouds = new THREE.Mesh(cloudGeo, cloudMat);
+            earthGroup.add(clouds);
+
+            const moonGeo = new THREE.SphereGeometry(1.2, 32, 32);
+            const moonMat = new THREE.MeshStandardMaterial({
+                color: 0xaaaaaa,
+                roughness: 0.8,
+                bumpScale: 0.02
+            });
+            const moon = new THREE.Mesh(moonGeo, moonMat);
+            scene.add(moon);
+
+            const starsGeo = new THREE.BufferGeometry();
+            const starsCount = 3000;
+            const posArray = new Float32Array(starsCount * 3);
+            const colorArray = new Float32Array(starsCount * 3);
+
+            for(let i=0; i < starsCount * 3; i+=3) {
+                const r = 40 + Math.random() * 60;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                posArray[i] = r * Math.sin(phi) * Math.cos(theta);
+                posArray[i+1] = r * Math.sin(phi) * Math.sin(theta);
+                posArray[i+2] = r * Math.cos(phi);
+                const rand = Math.random();
+                let color = new THREE.Color();
+                if(rand > 0.8) color.setHex(0x5581ff);
+                else if(rand > 0.6) color.setHex(0xff2a6d);
+                else if(rand > 0.4) color.setHex(0x8a2be2);
+                else color.setHex(0xffffff);
+                colorArray[i] = color.r;
+                colorArray[i+1] = color.g;
+                colorArray[i+2] = color.b;
+            }
+            starsGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            starsGeo.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+            const starsMat = new THREE.PointsMaterial({ size: 0.1, vertexColors: true, transparent: true, opacity: 0.8 });
+            const starMesh = new THREE.Points(starsGeo, starsMat);
+            scene.add(starMesh);
+
+            const ambientLight = new THREE.AmbientLight(0x111122, 0.5);
+            scene.add(ambientLight);
+            const sunLight = new THREE.DirectionalLight(0xffffff, 2);
+            sunLight.position.set(-15, 5, 5);
+            scene.add(sunLight);
+            const rimLight = new THREE.DirectionalLight(0x5581ff, 1);
+            rimLight.position.set(10, -10, -10);
+            scene.add(rimLight);
+
+            let time = 0;
+            function animate() {
+                requestAnimationFrame(animate);
+                earth.rotation.y += 0.001;
+                clouds.rotation.y += 0.0012;
+                clouds.rotation.z += 0.0001;
+                time += 0.002;
+                const moonOrbitRadius = 18;
+                moon.position.x = earthGroup.position.x + Math.cos(time) * moonOrbitRadius;
+                moon.position.z = earthGroup.position.z + Math.sin(time) * moonOrbitRadius;
+                moon.position.y = earthGroup.position.y + Math.sin(time * 0.5) * 4;
+                moon.rotation.y += 0.005;
+                starMesh.rotation.y -= 0.0002;
+                starMesh.rotation.x -= 0.0001;
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                if(window.innerWidth < 768) earthGroup.position.set(0, -8, -10);
+                else earthGroup.position.set(6, -4, -5);
+            });
+        }
+
+        // ==========================================
+        // 2. CONFIG & APP LOGIC
+        // ==========================================
+        const REPO_OWNER = 'ibnuyahya';
+        const REPO_NAME = 'tatadada';
+        const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/`;
+        const REPO_INFO_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
+        
+        // BASE_PAGES_URL diperbarui untuk menggunakan custom domain Anda
+        const BASE_PAGES_URL = `https://danial.my.id/`;
+
+        let allApps = [];
+        let currentLetter = 'ALL';
+        let currentSearch = '';
+        let currentLang = localStorage.getItem('tatadada_lang') || 'ID';
+        
+        const i18n = {
+            ID: {
+                help: "Setiap ikon dihasilkan secara unik. Tahan kursor (hover) di atas ikon selama 1 detik untuk melihat detail dan cuplikan aplikasi.",
+                loading: "Sinkronisasi Data...",
+                search: "Cari aplikasi...",
+                error: "Gagal memuat",
+                empty: "Tidak ditemukan",
+                apps: "APLIKASI",
+                status: "AKTIF",
+                build: "Update",
+                terms: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is'. Pembuatan aplikasi dibantu oleh AI. Pembuat dibebaskan dari segala bentuk konsekuensi atas penggunaan aplikasi ini."
+            },
+            EN: {
+                help: "Each icon is uniquely generated. Hover over an icon for 1 second to see details and a live screenshot preview.",
+                loading: "Syncing Data...",
+                search: "Search apps...",
+                error: "Load failed",
+                empty: "No apps found",
+                apps: "APPS",
+                status: "ONLINE",
+                build: "Build",
+                terms: "There is no coercion to use this app. This app is provided 'as-is'. The development was assisted by AI. The creator is absolved from any consequences arising from the use of this app."
+            }
+        };
+
+        // SYSTEM CLOCK LOGIC
+        function updateClock() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+            const dateStr = now.toLocaleDateString(currentLang === 'ID' ? 'id-ID' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+            
+            document.getElementById('system-time').textContent = timeStr;
+            document.getElementById('system-date').textContent = dateStr;
+        }
+
+        function getHash(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash = hash & hash;
+            }
+            return Math.abs(hash);
+        }
+
+        const premiumGradients = ['mesh-0', 'mesh-1', 'mesh-2', 'mesh-3', 'mesh-4', 'mesh-5', 'mesh-6', 'mesh-7'];
+        const premiumIcons = [
+            'rocket', 'zap', 'box', 'layout', 'palette', 'cpu', 'database', 
+            'globe', 'image', 'layers', 'package', 'settings', 'shield', 
+            'sparkles', 'tool', 'wrench', 'zap-off', 'album', 'briefcase', 'cloud'
+        ];
+
+        function getFancyIcon(name) {
+            const hash = getHash(name.toLowerCase());
+            return { grad: premiumGradients[hash % premiumGradients.length], icon: premiumIcons[hash % premiumIcons.length] };
+        }
+
+        // ==========================================
+        // 3. UI BUILDER LOGIC
+        // ==========================================
+        function generateAlphabet() {
+            const container = document.getElementById('alphabet-container');
+            const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+            letters.forEach(l => {
+                const btn = document.createElement('button');
+                btn.id = `btn-${l}`;
+                btn.className = "alpha-btn px-4 py-1.5 text-[11px] font-bold shadow-[0_0_0_0.5px_var(--glass-border)] rounded-full transition-all hover:bg-white/10 shrink-0 text-white";
+                btn.textContent = l;
+                btn.onclick = () => filterByLetter(l);
+                container.appendChild(btn);
+            });
+        }
+
+        function filterByLetter(letter) {
+            currentLetter = letter;
+            document.querySelectorAll('.alpha-btn').forEach(b => {
+                b.classList.remove('active');
+                if(b.id !== 'btn-ALL' && b.id !== 'btn-#') b.classList.add('shadow-[0_0_0_0.5px_var(--glass-border)]');
+            });
+            const activeBtn = document.getElementById(`btn-${letter}`);
+            activeBtn.classList.add('active');
+            activeBtn.classList.remove('shadow-[0_0_0_0.5px_var(--glass-border)]');
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const filtered = allApps.filter(app => {
+                const matchesSearch = app.name.toLowerCase().includes(currentSearch) || app.title.toLowerCase().includes(currentSearch);
+                const firstChar = app.name.charAt(0).toUpperCase();
+                let matchesLetter = true;
+                if (currentLetter === '#') matchesLetter = !/[A-Z]/.test(firstChar);
+                else if (currentLetter !== 'ALL') matchesLetter = firstChar === currentLetter;
+                return matchesSearch && matchesLetter;
+            });
+            renderApps(filtered);
+        }
+
+        function updateUIStrings() {
+            const t = i18n[currentLang];
+            document.getElementById('help-text').textContent = t.help;
+            document.getElementById('loading-text').textContent = t.loading;
+            document.getElementById('searchInput').placeholder = t.search;
+            document.getElementById('error-title').textContent = t.error;
+            document.getElementById('empty-title').textContent = t.empty;
+            document.getElementById('lang-toggle').textContent = currentLang;
+            document.getElementById('system-status').textContent = t.status;
+            document.getElementById('terms-content').innerHTML = `<p>${t.terms}</p>`;
+            updateClock();
+            applyFilters();
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'ID' ? 'EN' : 'ID';
+            localStorage.setItem('tatadada_lang', currentLang);
+            updateUIStrings();
+            fetchRepoInfo(); 
+        }
+
+        function toggleModal(show) {
+            const modal = document.getElementById('termsModal');
+            const container = document.getElementById('modalContainer');
+            if(show) {
+                modal.classList.remove('hidden');
+                setTimeout(() => container.classList.remove('scale-95', 'opacity-0'), 10);
+            } else {
+                container.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            }
+        }
+
+        async function fetchRepoInfo() {
+            try {
+                const response = await fetch(REPO_INFO_URL);
+                if (response.ok) {
+                    const data = await response.json();
+                    const date = new Date(data.pushed_at);
+                    const formatted = date.toLocaleDateString(currentLang === 'ID' ? 'id-ID' : 'en-US', { day: 'numeric', month: 'short' });
+                    document.getElementById('build-time').textContent = `${i18n[currentLang].build}: ${formatted}`;
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        async function fetchApps() {
+            const statusMessage = document.getElementById('statusMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            statusMessage.classList.remove('hidden');
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) throw new Error('API Rate Limit');
+                const data = await response.json();
+                allApps = data
+                    .filter(item => item.type === 'dir' && !item.name.startsWith('.'))
+                    .map(folder => ({
+                        name: folder.name,
+                        url: `${BASE_PAGES_URL}${folder.name}/index.html`,
+                        githubUrl: folder.html_url,
+                        title: folder.name.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+                    }))
+                    .sort((a, b) => a.name.localeCompare(b.name));
+                document.getElementById('app-count').textContent = `${allApps.length} ${i18n[currentLang].apps}`;
+                applyFilters();
+            } catch (error) {
+                errorMessage.classList.remove('hidden');
+                document.getElementById('errorDetail').textContent = error.message;
+            } finally {
+                statusMessage.classList.add('hidden');
+            }
+        }
+
+        function renderApps(apps) {
+            const appGrid = document.getElementById('appGrid');
+            const emptyState = document.getElementById('emptyState');
+            appGrid.innerHTML = '';
+            
+            if (apps.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            apps.forEach(app => {
+                const config = getFancyIcon(app.name);
+                const card = document.createElement('a');
+                card.href = app.url;
+                card.target = "_blank";
+                card.className = 'ios-card group flex flex-col items-center gap-2.5 w-[76px] md:w-[100px] cursor-pointer';
+                
+                card.innerHTML = `
+                    <div class="icon-container w-full aspect-square icon-squircle ${config.grad} text-white transition-all duration-500">
+                        <i data-lucide="${config.icon}" class="w-[45%] h-[45%]"></i>
+                    </div>
+                    <h3 class="app-title text-[11px] md:text-[13px] font-semibold text-white tracking-tight leading-tight group-hover:text-blue-400 transition-colors line-clamp-2 w-full text-center px-1">
+                        ${app.title}
+                    </h3>
+                `;
+                appGrid.appendChild(card);
+                
+                fetch(`${BASE_PAGES_URL}${app.name}/icon.xml`)
+                    .then(res => res.ok ? res.text() : Promise.reject())
+                    .then(xmlStr => {
+                        const xmlDoc = new DOMParser().parseFromString(xmlStr, "text/xml");
+                        const colorStart = xmlDoc.querySelector('color_start')?.textContent || '#007AFF';
+                        const colorEnd = xmlDoc.querySelector('color_end')?.textContent || '#5856D6';
+                        const scaleStr = xmlDoc.querySelector('icon_scale')?.textContent || '0.75';
+                        const ornament = xmlDoc.querySelector('ornament')?.textContent || 'none';
+                        const svgElementsNode = xmlDoc.querySelector('svg_elements');
+                        let innerSvg = '';
+                        if (svgElementsNode) {
+                            const serializer = new XMLSerializer();
+                            Array.from(svgElementsNode.childNodes).forEach(node => { if (node.nodeType === 1) innerSvg += serializer.serializeToString(node); });
+                        }
+                        const iconContainer = card.querySelector('.icon-container');
+                        iconContainer.className = 'icon-container w-full aspect-square icon-squircle text-white transition-all duration-500';
+                        iconContainer.style.setProperty('--bg-start', colorStart);
+                        iconContainer.style.setProperty('--bg-end', colorEnd);
+                        iconContainer.style.background = `linear-gradient(135deg, ${colorStart} 0%, ${colorEnd} 100%)`;
+                        iconContainer.style.setProperty('--glow', colorStart + '99');
+                        let waveHtml = ornament.includes('wave') ? `<div class="bg-wave-ornament" style="background: linear-gradient(180deg, #C13584 0%, ${colorStart} 100%);"></div>` : '';
+                        iconContainer.innerHTML = `${waveHtml}<svg class="icon-svg" viewBox="0 0 100 100" fill="none" style="width: ${parseFloat(scaleStr)*100}%; height: ${parseFloat(scaleStr)*100}%; position: relative; z-index: 10;">${innerSvg}</svg>`;
+                    }).catch(() => {});
+            });
+            lucide.createIcons();
+        }
+
+        window.onload = () => {
+            initSpaceBackground();
+            generateAlphabet();
+            setInterval(updateClock, 1000);
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                currentSearch = e.target.value.toLowerCase();
+                applyFilters();
+            });
+            updateUIStrings();
+            fetchRepoInfo();
+            fetchApps();
+            lucide.createIcons();
+            
+            // Disable right click (context menu) globally
+            document.addEventListener('contextmenu', event => event.preventDefault());
+        };
+    </script>
+</body>
+</html>
