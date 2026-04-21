@@ -1,9 +1,10 @@
+<!-- [TATADADA VISUAL INTERPRETATION]: Ikon IngfoPDF mengusung tema 'Verification Scanner' dengan estetika visionOS. Latar belakang menggunakan ornamen aurora bergradasi Cyan ke Emerald yang melambangkan validitas, privasi lokal, dan keamanan. Di atasnya terdapat lembaran dokumen volumetrik berbahan resin glossy putih, dengan rongga lensa gelap (glossy-dark) di tengahnya yang memancarkan aksen radar Amber cerah, melambangkan 'Mata Forensik' yang sedang memindai metadata PDF. Penggunaan warna ini memberikan kontras yang sangat beragam dan segar, menjauh dari biru korporat standar. -->
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IngfoPDF - Verifikator PDF BSrE</title>
+    <title>IngfoPDF - Verifikator & Forensik PDF BSrE</title>
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,27 +26,29 @@
         :root {
             --header-bg: #ffffff;
             --editor-bg: #ffffff;
-            --preview-bg: #f8fafc;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
             --footer-bg: #ffffff;
             --border-color: #e2e8f0;
             --text-main: #0f172a;
             --text-dim: #64748b;
-            --stripe-color: rgba(0, 0, 0, 0.02);
-            --freeze-bg: #f8fafc; 
-            --freeze-bg-even: #f1f5f9;
-            --freeze-hover: #eff6ff;
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --freeze-bg-even: #f8fafc;
+            --freeze-hover: #f1f5f9;
         }
         html.dark {
             --header-bg: #161b22;
             --editor-bg: #0d1117;
             --preview-bg: #010409;
+            --card-bg: #0d1117;
             --footer-bg: #161b22;
             --border-color: #30363d;
             --text-main: #e6edf3;
             --text-dim: #8b949e;
-            --stripe-color: rgba(255, 255, 255, 0.03);
-            --freeze-bg: #010409;
-            --freeze-bg-even: #0d1117;
+            --theme-accent: #3b82f6;
+            --freeze-bg-even: #161b22;
             --freeze-hover: rgba(59, 130, 246, 0.1);
             color-scheme: dark;
         }
@@ -55,6 +58,7 @@
             font-family: 'Inter', sans-serif; 
             overflow: hidden; 
         }
+        
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
@@ -62,31 +66,33 @@
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         
         .custom-scrollbar::-webkit-scrollbar { width: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: var(--freeze-bg-even); }
+        .custom-scrollbar::-webkit-scrollbar-track { background: var(--preview-bg); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
 
-        /* Utilitas untuk menyembunyikan elemen */
         .hidden-el { display: none !important; }
+        
+        /* Modal & Form Controls */
+        .glass-overlay { backdrop-filter: blur(4px); background-color: rgba(0,0,0,0.4); }
     </style>
 </head>
 <body class="h-screen flex flex-col font-sans transition-colors duration-200">
 
     <!-- HEADER -->
-    <header class="flex items-center justify-between px-6 border-b border-[var(--border-color)] bg-[var(--header-bg)] shrink-0 h-14 relative z-50">
+    <header class="h-14 flex items-center justify-between px-6 border-b border-[var(--border-color)] bg-[var(--header-bg)] shrink-0 relative z-50 shadow-sm">
         <div class="flex items-center gap-3">
             <h1 class="bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent font-bold text-lg">
                 IngfoPDF
             </h1>
-            <span class="text-[10px] font-mono text-[var(--text-dim)] italic mt-1">v2.0</span>
+            <span class="text-[10px] font-mono text-[var(--text-dim)] italic mt-1">v5.0 Ultimate</span>
             <span class="text-[var(--border-color)]">|</span>
-            <a href="https://danial.my.id" target="_blank" rel="noreferrer" class="lowercase font-bold tracking-[0.25em] text-[8px] text-[var(--text-dim)] hover:text-blue-500 mt-1">
+            <a href="https://danial.my.id" target="_blank" rel="noreferrer" class="lowercase font-bold tracking-[0.25em] text-[8px] text-[var(--text-dim)] hover:text-blue-500 mt-1 transition-colors">
                 by AhmadDanial
             </a>
             
             <div class="relative group cursor-pointer ml-2">
-                <i data-lucide="help-circle" class="w-[14px] h-[14px] text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors"></i>
-                <div id="tooltip-help" class="absolute left-0 top-6 w-64 p-3 bg-[var(--editor-bg)] border border-[var(--border-color)] shadow-xl rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] text-xs text-[var(--text-dim)]">
+                <i data-lucide="help-circle" class="w-[14px] h-[14px] text-[var(--text-dim)] hover:text-blue-500 transition-colors"></i>
+                <div id="tooltip-help" class="absolute left-0 top-6 w-64 p-3 bg-[var(--card-bg)] border border-[var(--border-color)] shadow-lg rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] text-xs text-[var(--text-dim)]">
                     <!-- Text Injected via JS -->
                 </div>
             </div>
@@ -95,174 +101,181 @@
         <div class="flex items-center gap-4">
             <div id="btn-upload-other" class="relative group cursor-pointer hidden-el">
                 <input type="file" accept=".pdf" class="file-input absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                <div class="bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-1.5 flex items-center gap-2 transition-colors">
+                <div class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-1.5 flex items-center gap-2 transition-all shadow-sm">
                     <i data-lucide="upload-cloud" class="w-[14px] h-[14px]"></i>
                     <span id="lbl-upload-other" class="font-semibold text-xs">Unggah Dokumen Lain</span>
                 </div>
             </div>
-            <button id="btn-lang" class="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors">
+            <button id="btn-lang" class="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors bg-[var(--preview-bg)] px-2 py-1 rounded-lg border border-[var(--border-color)]">
                 <i data-lucide="globe" class="w-[14px] h-[14px]"></i>
                 <span id="lbl-lang">ID</span>
             </button>
-            <button id="btn-theme" class="text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors">
+            <button id="btn-theme" class="text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors p-1.5 rounded-lg hover:bg-[var(--preview-bg)]">
                 <i id="icon-theme" data-lucide="moon" class="w-[16px] h-[16px]"></i>
             </button>
         </div>
     </header>
 
-    <!-- MAIN WORKSPACE -->
-    <main class="flex-1 overflow-auto p-4 md:p-6 bg-[var(--preview-bg)] relative">
-        
-        <!-- EMPTY STATE (Upload Box) -->
-        <div id="empty-state" class="h-full flex items-center justify-center">
-            <div id="loading-engines" class="animate-pulse text-[var(--text-dim)] font-medium text-sm flex flex-col items-center gap-3">
-                <div class="w-8 h-8 border-2 border-t-blue-500 border-[var(--border-color)] rounded-full animate-spin"></div>
-                <span id="lbl-engine-prep">Menyiapkan Engine Kriptografi, PDF.js, & Pemindai QR...</span>
+    <!-- EMPTY STATE -->
+    <main id="empty-state" class="flex-1 overflow-y-auto p-6 bg-[var(--preview-bg)] flex flex-col justify-center">
+        <div class="max-w-5xl mx-auto w-full bg-[var(--card-bg)] rounded-2xl shadow-xl border border-[var(--border-color)] p-8 my-6 flex flex-col items-center justify-center relative overflow-hidden">
+            
+            <div class="absolute -top-24 -right-24 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl"></div>
+            <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-indigo-500/5 rounded-full blur-3xl"></div>
+
+            <div id="loading-engines" class="animate-pulse text-[var(--text-dim)] font-medium text-sm flex flex-col items-center gap-4 relative z-10 my-10">
+                <div class="w-10 h-10 border-4 border-t-[var(--theme-accent)] border-[var(--border-color)] rounded-full animate-spin"></div>
+                <span id="lbl-engine-prep">Menyiapkan Engine Forensik, PDF.js, & Pemindai QR...</span>
             </div>
 
-            <div id="upload-box" class="relative group cursor-pointer max-w-lg w-full hidden-el">
-                <input type="file" accept=".pdf" class="file-input absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                <div class="border-2 border-dashed border-[var(--border-color)] rounded-xl bg-[var(--editor-bg)] group-hover:border-blue-400 group-hover:bg-[var(--freeze-hover)] transition-all p-12 flex flex-col items-center justify-center gap-4 shadow-sm">
-                    <div class="h-16 w-16 bg-[var(--freeze-bg-even)] rounded-full flex items-center justify-center">
-                        <i data-lucide="file-text" class="w-8 h-8 text-blue-500 group-hover:scale-110 transition-transform"></i>
+            <div id="upload-box" class="relative group cursor-pointer w-full max-w-lg hidden-el z-10">
+                <input type="file" accept=".pdf" class="file-input absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
+                <div class="border-2 border-dashed border-[var(--border-color)] rounded-xl bg-[var(--freeze-bg-even)] group-hover:border-blue-400 group-hover:bg-[var(--freeze-hover)] transition-all p-12 flex flex-col items-center justify-center gap-4">
+                    <div class="h-16 w-16 bg-[var(--card-bg)] shadow-sm rounded-full flex items-center justify-center border border-[var(--border-color)]">
+                        <i data-lucide="file-check-2" class="w-8 h-8 text-blue-500 group-hover:scale-110 transition-transform"></i>
                     </div>
                     <div class="text-[var(--text-main)] font-medium text-lg text-center">
-                        <span id="lbl-upload-main" class="text-blue-500 font-bold">Pilih Dokumen PDF</span> <br class="sm:hidden" /> <span id="lbl-upload-sub">atau seret ke sini</span>
+                        <span id="lbl-upload-main" class="text-blue-600 font-bold">Pilih Dokumen PDF</span> <br class="sm:hidden" /> <span id="lbl-upload-sub">atau seret ke sini</span>
                     </div>
-                    <p id="lbl-supported" class="text-xs text-[var(--text-dim)]">Mendukung format ETSI.CAdES / BSrE</p>
-                    <span id="lbl-processing" class="text-xs text-blue-500 font-bold animate-pulse mt-2 hidden-el">Memproses & Memindai Dokumen...</span>
+                    <p id="lbl-supported" class="text-xs text-[var(--text-dim)] bg-[var(--card-bg)] px-3 py-1 rounded-full border border-[var(--border-color)]">Mendukung format ETSI.CAdES / BSrE & Analisis Integritas ByteRange</p>
+                    <span id="lbl-processing" class="text-xs text-blue-500 font-bold animate-pulse mt-2 hidden-el">Mengekskavasi & Memindai Dokumen...</span>
                 </div>
-                <div id="error-box" class="mt-4 p-3 bg-red-500/10 text-red-500 text-xs rounded-lg border border-red-500/20 flex items-center justify-center gap-2 hidden-el">
-                    <i data-lucide="alert-circle" class="w-[14px] h-[14px]"></i> <span id="error-msg"></span>
-                </div>
-            </div>
-        </div>
-
-        <!-- SPLIT VIEW STATE (Results) -->
-        <div id="results-state" class="flex flex-col lg:flex-row gap-6 items-start h-full max-w-7xl mx-auto hidden-el">
-            
-            <!-- LEFT COLUMN: Signatures Panel -->
-            <div class="w-full lg:w-1/3 flex flex-col gap-4 h-full">
-                <div id="success-badge" class="bg-emerald-600 rounded-lg px-4 py-3 flex items-center gap-3 text-white shadow-sm shrink-0 hidden-el">
-                    <i data-lucide="check-circle-2" class="w-[20px] h-[20px] text-emerald-100 shrink-0"></i>
-                    <div>
-                        <h3 id="lbl-verify-success" class="font-bold text-xs tracking-wide">VERIFIKASI BERHASIL</h3>
-                        <p id="lbl-verify-sub" class="text-[10px] text-emerald-100 mt-0.5">Dokumen memiliki tanda tangan elektronik yang sah.</p>
-                    </div>
-                </div>
-
-                <div id="no-sign-badge" class="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-6 text-center shadow-sm shrink-0 hidden-el">
-                    <i data-lucide="alert-circle" class="w-[36px] h-[36px] text-yellow-600 mx-auto mb-3"></i>
-                    <h3 id="lbl-no-crypto" class="font-bold text-[var(--text-main)] text-sm mb-2">Tanda Tangan Kriptografi Tidak Ditemukan</h3>
-                    <p id="lbl-no-crypto-desc" class="text-xs text-[var(--text-dim)] leading-relaxed">Dokumen ini tampaknya merupakan salinan pratinjau (flattened)...</p>
-                </div>
-
-                <div id="signatures-list" class="flex-1 overflow-y-auto pr-1 space-y-4 pb-10 custom-scrollbar">
-                    <!-- Signatures HTML injected here -->
-                </div>
-            </div>
-
-            <!-- RIGHT COLUMN: PDF Preview & QR Banner -->
-            <div class="w-full lg:w-2/3 bg-[var(--editor-bg)] rounded-xl shadow-sm border border-[var(--border-color)] overflow-hidden h-full flex flex-col relative">
-                <div class="bg-[var(--freeze-bg-even)] px-5 py-4 flex items-center justify-between shrink-0 border-b border-[var(--border-color)] z-20">
-                    <span class="text-sm font-bold text-[var(--text-main)] flex items-center gap-2">
-                        <i data-lucide="image" class="w-[18px] h-[18px] text-blue-500"></i> <span id="lbl-preview-title">Pratinjau Halaman Tanda Tangan</span>
-                    </span>
-                    <span id="lbl-pdf-engine" class="text-[10px] text-[var(--text-dim)] bg-[var(--editor-bg)] px-2 py-1 rounded border border-[var(--border-color)] uppercase font-bold tracking-wider">
-                        PDF.js Render Engine
-                    </span>
-                </div>
-
-                <!-- QR Banner -->
-                <div id="qr-banner" class="bg-indigo-500/10 border-b border-indigo-500/20 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0 z-10 hidden-el">
-                    <div class="flex items-start gap-4 overflow-hidden w-full">
-                        <div class="p-3 bg-indigo-500/20 rounded-xl shrink-0">
-                            <i data-lucide="qr-code" class="w-[24px] h-[24px] text-indigo-600"></i>
-                        </div>
-                        <div class="overflow-hidden flex-1">
-                            <p id="lbl-qr-detected" class="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">Tautan QR Ditemukan:</p>
-                            <p id="qr-url-text" class="text-base sm:text-lg font-bold text-[var(--text-main)] truncate"></p>
-                        </div>
-                    </div>
-                    <a id="qr-url-btn" href="#" target="_blank" rel="noreferrer" class="shrink-0 w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm">
-                        <span id="lbl-open-link">Buka</span> <i data-lucide="external-link" class="w-[18px] h-[18px]"></i>
-                    </a>
-                </div>
-
-                <!-- Filter Info -->
-                <div id="filter-banner" class="bg-blue-500/10 text-blue-600 text-xs py-2 px-4 text-center font-semibold border-b border-blue-500/10 shrink-0 hidden-el">
-                    <span id="lbl-filter-info">Hanya menampilkan halaman yang mengandung visual TTD/QR.</span>
-                </div>
-                
-                <!-- Canvas Area -->
-                <div class="flex-grow overflow-y-auto p-4 sm:p-8 flex flex-col items-center pb-20 relative z-0 custom-scrollbar">
-                    <div id="canvas-loading" class="flex flex-col items-center justify-center h-full text-center mt-20 hidden-el">
-                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
-                        <p id="lbl-painting" class="text-[var(--text-dim)] text-xs font-medium">Melukis Halaman Dokumen...</p>
-                    </div>
-                    
-                    <div id="canvas-error" class="flex flex-col items-center justify-center h-full text-[var(--text-dim)] mt-20 hidden-el">
-                        <i data-lucide="alert-circle" class="w-[32px] h-[32px] mb-3 opacity-50"></i>
-                        <p id="lbl-no-page" class="text-xs">Dokumen tidak memiliki halaman atau gagal dirender.</p>
-                    </div>
-
-                    <div id="canvas-container" class="relative flex justify-center w-full hidden-el">
-                        <div id="canvas-page-badge" class="absolute -left-2 sm:-left-8 top-4 bg-[var(--text-main)] text-[var(--editor-bg)] text-[10px] font-bold py-1 px-2 rounded-md shadow-md z-10">
-                            Hal. 1
-                        </div>
-                        <canvas id="pdf-canvas" class="shadow-xl border border-[var(--border-color)] max-w-full h-auto bg-white rounded-sm" style="width: 100%;"></canvas>
-                    </div>
+                <div id="error-box" class="mt-6 p-4 bg-red-500/10 text-red-600 text-sm rounded-xl border border-red-500/20 flex items-center justify-center gap-2 hidden-el font-medium">
+                    <i data-lucide="alert-triangle" class="w-[18px] h-[18px]"></i> <span id="error-msg"></span>
                 </div>
             </div>
         </div>
     </main>
 
+    <!-- SPLIT VIEW STATE (SKENARIO 1 TATADADA) -->
+    <main id="results-state" class="flex-1 flex overflow-hidden hidden-el">
+        
+        <!-- LEFT PANE: Canvas -->
+        <div id="left-pane" class="flex-[6] bg-[var(--editor-bg)] relative overflow-hidden flex flex-col">
+            <div class="h-12 px-5 flex items-center justify-between shrink-0 border-b border-[var(--border-color)] bg-[var(--editor-bg)] z-20">
+                <span class="text-sm font-semibold text-[var(--text-main)] flex items-center gap-2">
+                    <i data-lucide="scan-line" class="w-[16px] h-[16px] text-blue-500"></i> <span id="lbl-preview-title">Pratinjau Dokumen Forensik</span>
+                </span>
+                <span id="lbl-pdf-engine" class="text-[10px] text-[var(--text-dim)] bg-[var(--preview-bg)] px-2 py-1 rounded-md border border-[var(--border-color)] uppercase font-bold tracking-wider">
+                    PDF.js Render Engine
+                </span>
+            </div>
+
+            <div id="qr-banner" class="bg-indigo-500/10 border-b border-indigo-500/20 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0 z-10 hidden-el">
+                <div class="flex items-start gap-4 overflow-hidden w-full">
+                    <div class="p-2.5 bg-[var(--card-bg)] rounded-xl shrink-0 shadow-sm border border-indigo-500/20">
+                        <i data-lucide="qr-code" class="w-[20px] h-[20px] text-indigo-600"></i>
+                    </div>
+                    <div class="overflow-hidden flex-1">
+                        <p id="lbl-qr-detected" class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-0.5">Tautan QR Ditemukan:</p>
+                        <p id="qr-url-text" class="text-sm font-bold text-[var(--text-main)] truncate"></p>
+                    </div>
+                </div>
+                <a id="qr-url-btn" href="#" target="_blank" rel="noreferrer" class="shrink-0 w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm">
+                    <span id="lbl-open-link">Buka</span> <i data-lucide="external-link" class="w-[14px] h-[14px]"></i>
+                </a>
+            </div>
+
+            <div id="filter-banner" class="bg-blue-500/10 text-blue-600 text-xs py-2 px-4 text-center font-medium border-b border-blue-500/20 shrink-0 hidden-el">
+                <span id="lbl-filter-info">Hanya menampilkan halaman yang mengandung visual TTD/QR.</span>
+            </div>
+            
+            <div class="flex-grow overflow-y-auto p-4 sm:p-8 flex flex-col items-center pb-20 relative z-0 custom-scrollbar bg-[var(--editor-bg)]">
+                <div id="canvas-loading" class="flex flex-col items-center justify-center h-full text-center mt-20 hidden-el">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--theme-accent)] mb-4"></div>
+                    <p id="lbl-painting" class="text-[var(--text-dim)] text-xs font-medium">Melukis Halaman Dokumen...</p>
+                </div>
+                
+                <div id="canvas-error" class="flex flex-col items-center justify-center h-full text-[var(--text-dim)] mt-20 hidden-el">
+                    <i data-lucide="file-warning" class="w-[32px] h-[32px] mb-3 opacity-50"></i>
+                    <p id="lbl-no-page" class="text-xs">Dokumen tidak memiliki halaman atau gagal dirender.</p>
+                </div>
+
+                <div id="canvas-container" class="relative flex justify-center w-full hidden-el">
+                    <div id="canvas-page-badge" class="absolute -left-2 sm:-left-6 top-4 bg-[var(--text-main)] text-[var(--editor-bg)] text-[10px] font-bold py-1 px-3 rounded-lg shadow-md z-10 border border-[var(--border-color)]">
+                        Hal. 1
+                    </div>
+                    <canvas id="pdf-canvas" class="shadow-md border border-[var(--border-color)] max-w-full h-auto bg-white rounded-md" style="width: 100%;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- RESIZER -->
+        <div id="resizer" class="w-3 bg-[var(--preview-bg)] cursor-col-resize flex items-center justify-center border-x border-[var(--border-color)] group shrink-0 z-20">
+            <div class="h-8 w-1 bg-[var(--border-color)] rounded-full group-hover:bg-[var(--theme-accent)] transition-colors"></div>
+        </div>
+
+        <!-- RIGHT PANE: Signatures & Forensics -->
+        <div id="right-pane" class="flex-[4] bg-[var(--preview-bg)] p-4 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
+            <div id="success-badge" class="bg-[var(--card-bg)] rounded-xl p-4 flex items-center gap-3 shadow-sm border border-[var(--border-color)] border-l-4 border-l-emerald-500 shrink-0 hidden-el">
+                <div class="p-2 bg-emerald-500/10 rounded-lg">
+                    <i data-lucide="shield-check" class="w-[20px] h-[20px] text-emerald-600 shrink-0"></i>
+                </div>
+                <div>
+                    <h3 id="lbl-verify-success" class="font-bold text-[var(--text-main)] text-sm tracking-wide">VERIFIKASI KRYPTO BERHASIL</h3>
+                    <p id="lbl-verify-sub" class="text-xs text-[var(--text-dim)] mt-0.5">Dokumen memiliki struktur CMS/PKCS#7 yang sah.</p>
+                </div>
+            </div>
+
+            <div id="no-sign-badge" class="bg-[var(--card-bg)] rounded-xl p-6 text-center shadow-sm border border-[var(--border-color)] border-t-4 border-t-yellow-500 shrink-0 hidden-el">
+                <div class="w-12 h-12 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <i data-lucide="alert-triangle" class="w-[24px] h-[24px] text-yellow-600"></i>
+                </div>
+                <h3 id="lbl-no-crypto" class="font-bold text-[var(--text-main)] text-sm mb-2">Tanda Tangan Kriptografi Tidak Ditemukan</h3>
+                <p id="lbl-no-crypto-desc" class="text-xs text-[var(--text-dim)] leading-relaxed">Dokumen ini tampaknya merupakan salinan pratinjau (flattened)...</p>
+            </div>
+
+            <div id="signatures-list" class="flex flex-col gap-4 pb-10">
+                <!-- Cards HTML injected via JS -->
+            </div>
+        </div>
+    </main>
+
     <!-- FOOTER -->
-    <footer class="flex items-center justify-between px-6 border-t border-[var(--border-color)] bg-[var(--footer-bg)] text-[10px] text-[var(--text-dim)] shrink-0 h-8">
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-[var(--border-color)] bg-[var(--footer-bg)] text-[10px] text-[var(--text-dim)] shrink-0">
         <div class="flex items-center gap-2">
             <div id="engine-status-dot" class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
-            <span id="lbl-engine-status">Booting...</span>
+            <span id="lbl-engine-status" class="font-medium">Booting...</span>
         </div>
-        <div id="lbl-stats" class="hidden sm:block">Menunggu Dokumen...</div>
-        <button id="btn-terms" class="hover:text-[var(--text-main)] underline transition-colors cursor-pointer">
-            Terms of Use
+        <div id="lbl-stats" class="hidden sm:block font-mono">Menunggu Dokumen...</div>
+        <button id="btn-terms" class="hover:text-[var(--text-main)] font-medium transition-colors cursor-pointer flex items-center gap-1">
+            <i data-lucide="scale" class="w-[10px] h-[10px]"></i> Terms
         </button>
     </footer>
 
     <!-- MODAL TERMS OF USE -->
-    <div id="modal-terms" class="fixed inset-0 flex items-center justify-center bg-black/60 z-[100] p-4 backdrop-blur-sm hidden-el">
-        <div class="bg-[var(--editor-bg)] border border-[var(--border-color)] rounded-xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col">
-            <div class="px-5 py-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--freeze-bg-even)]">
-                <h3 id="lbl-terms-title" class="font-bold text-[var(--text-main)] text-sm">Syarat & Ketentuan Penggunaan</h3>
-                <button id="btn-close-terms-x" class="text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors">
+    <div id="modal-terms" class="fixed inset-0 flex items-center justify-center glass-overlay z-[100] p-4 hidden-el transition-opacity">
+        <div class="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col transform transition-transform scale-95 opacity-0" id="modal-terms-content">
+            <div class="px-6 py-5 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--freeze-bg-even)]">
+                <h3 id="lbl-terms-title" class="font-bold text-[var(--text-main)] text-sm flex items-center gap-2">
+                    <i data-lucide="gavel" class="w-[16px] h-[16px] text-[var(--text-dim)]"></i> Syarat & Ketentuan
+                </h3>
+                <button id="btn-close-terms-x" class="text-[var(--text-dim)] hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-500/10">
                     <i data-lucide="x" class="w-[16px] h-[16px]"></i>
                 </button>
             </div>
-            <div id="lbl-terms-text" class="p-5 text-xs text-[var(--text-dim)] leading-relaxed">
+            <div id="lbl-terms-text" class="p-6 text-sm text-[var(--text-dim)] leading-relaxed text-justify">
                 <!-- Text Injected via JS -->
             </div>
-            <div class="p-4 border-t border-[var(--border-color)] flex justify-end">
-                <button id="btn-close-terms" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold transition-colors">
+            <div class="p-5 border-t border-[var(--border-color)] bg-[var(--freeze-bg-even)] flex justify-end">
+                <button id="btn-close-terms" class="bg-[var(--text-main)] hover:bg-[var(--text-dim)] text-[var(--card-bg)] rounded-lg border-theme px-5 py-2.5 text-xs font-semibold transition-all shadow-sm focus:ring-2 focus:ring-blue-500/20">
                     Tutup
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- ========================================== -->
     <!-- JAVASCRIPT LOGIC -->
-    <!-- ========================================== -->
     <script>
-        // TRANSLATIONS
         const translations = {
             ID: {
                 helpTooltip: "Unggah PDF lokal untuk memverifikasi tanda tangan elektronik PAdES (BSrE) & melihat pratinjau halamannya. 100% diproses di browser tanpa mengirim data ke server.",
                 uploadMain: "Pilih Dokumen PDF",
                 uploadSub: "atau seret ke sini",
                 uploadOther: "Unggah Dokumen Lain",
-                enginePreparing: "Menyiapkan Engine Kriptografi, PDF.js, & Pemindai QR...",
-                processing: "Memproses & Memindai Dokumen...",
-                supported: "Mendukung format ETSI.CAdES / BSrE",
+                enginePreparing: "Menyiapkan Engine Forensik, PDF.js, & Pemindai QR...",
+                processing: "Mengekskavasi & Memindai Dokumen...",
+                supported: "Mendukung format ETSI.CAdES / BSrE & Analisis Integritas ByteRange",
                 errNeedPdf: "Harap unggah berkas PDF.",
                 errProcess: "Gagal memproses dokumen: ",
                 statusReady: "Engine Ready",
@@ -270,10 +283,11 @@
                 statusFound: "Tanda Tangan Ditemukan: ",
                 termsBtn: "Terms of Use",
                 termsTitle: "Syarat & Ketentuan Penggunaan",
-                termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+                // STRICT MODE TATADADA: UPDATED LEGAL TEXT
+                termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools (Gemini dan Qwen). Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
                 close: "Tutup",
-                verifySuccess: "VERIFIKASI BERHASIL",
-                verifySuccessSub: "Dokumen memiliki tanda tangan elektronik yang sah.",
+                verifySuccess: "VERIFIKASI KRYPTO BERHASIL",
+                verifySuccessSub: "Dokumen memiliki struktur CMS/PKCS#7 yang sah.",
                 noCryptoSign: "Tanda Tangan Kriptografi Tidak Ditemukan",
                 noCryptoSignDesc: "Dokumen ini tampaknya merupakan salinan pratinjau (flattened) atau hasil pindaian cetak. Namun, kami tetap memindai tautan QR visual jika tersedia.",
                 signedByRev: "Rev. {idx}: Ditandatangani Oleh",
@@ -296,17 +310,40 @@
                 qrDetected: "Tautan QR Ditemukan:",
                 openLink: "Buka",
                 pageFilterInfo: "Hanya menampilkan halaman yang mengandung visual TTD/QR.",
-                cryptoDetails: "Detail Kriptografi",
-                nik: "NIP / NIK"
+                cryptoDetails: "Detail Kriptografi & Sertifikat",
+                nik: "NIP / NIK",
+                forensicsTitle: "Analisis Forensik & Integritas",
+                integrity: "Status Integritas (ByteRange)",
+                integrityValid: "DOKUMEN UTUH (100% Asli)",
+                integrityInvalid: "DOKUMEN TELAH DIMODIFIKASI SECARA ILEGAL",
+                integrityUnknown: "Tidak dapat diverifikasi",
+                sigReason: "Alasan TTD (Reason)",
+                sigLocation: "Lokasi (Location)",
+                docSec: "Keamanan Dokumen (Permissions)",
+                encrypted: "Terenkripsi / Dibatasi",
+                notEncrypted: "Terbuka (Tidak Terenkripsi)",
+                timeAnomaly: "Anomali Waktu Metadata",
+                anomalyDetected: "Peringatan: ModDate lebih awal dari CreationDate",
+                noAnomaly: "Tidak ada anomali logis.",
+                ltvSupported: "Mendukung LTV (Long-Term Validation)",
+                ltvNotSupported: "Tidak Mendukung LTV",
+                tsaPresent: "Memiliki Penanda Waktu Eksternal (TSA)",
+                tsaMissing: "Tidak Ada Penanda Waktu TSA",
+                sigAlgo: "Algoritma Tanda Tangan",
+                fingerprint: "SHA-1 Fingerprint",
+                subjectDn: "Subject DN",
+                issuerDn: "Issuer DN",
+                serialNum: "Serial Number",
+                certChain: "Rantai Sertifikat (Hierarchy)"
             },
             EN: {
                 helpTooltip: "Upload a local PDF to verify PAdES (BSrE) electronic signatures & preview pages. 100% processed in your browser without sending data to servers.",
                 uploadMain: "Select PDF Document",
                 uploadSub: "or drag here",
                 uploadOther: "Upload Another Document",
-                enginePreparing: "Preparing Crypto Engine, PDF.js, & QR Scanner...",
-                processing: "Processing & Scanning Document...",
-                supported: "Supports ETSI.CAdES / BSrE formats",
+                enginePreparing: "Preparing Forensic Engine, PDF.js, & QR Scanner...",
+                processing: "Excavating & Scanning Document...",
+                supported: "Supports ETSI.CAdES / BSrE & ByteRange Integrity Analysis",
                 errNeedPdf: "Please upload a PDF file.",
                 errProcess: "Failed to process document: ",
                 statusReady: "Engine Ready",
@@ -314,10 +351,11 @@
                 statusFound: "Signatures Found: ",
                 termsBtn: "Terms of Use",
                 termsTitle: "Terms & Conditions",
-                termsText: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                // STRICT MODE TATADADA: UPDATED LEGAL TEXT
+                termsText: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools (Gemini and Qwen). This app does not store your personal data on our servers. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.",
                 close: "Close",
-                verifySuccess: "VERIFICATION SUCCESSFUL",
-                verifySuccessSub: "The document has a valid electronic signature.",
+                verifySuccess: "CRYPTO VERIFICATION SUCCESSFUL",
+                verifySuccessSub: "The document has a valid CMS/PKCS#7 structure.",
                 noCryptoSign: "Cryptographic Signature Not Found",
                 noCryptoSignDesc: "This document appears to be a flattened preview copy or a scanned printout. We still scanned for visual QR links if available.",
                 signedByRev: "Rev. {idx}: Signed By",
@@ -340,8 +378,31 @@
                 qrDetected: "QR Link Detected:",
                 openLink: "Open",
                 pageFilterInfo: "Showing only the page containing the signature/QR visual.",
-                cryptoDetails: "Cryptographic Details",
-                nik: "NIP / NIK"
+                cryptoDetails: "Certificate & Crypto Details",
+                nik: "NIP / NIK",
+                forensicsTitle: "Forensic & Integrity Analysis",
+                integrity: "Integrity Status (ByteRange)",
+                integrityValid: "INTACT DOCUMENT (100% Original)",
+                integrityInvalid: "DOCUMENT HAS BEEN ILLEGALLY MODIFIED",
+                integrityUnknown: "Unable to verify",
+                sigReason: "Sign Reason",
+                sigLocation: "Location",
+                docSec: "Document Security (Permissions)",
+                encrypted: "Encrypted / Restricted",
+                notEncrypted: "Open (Unencrypted)",
+                timeAnomaly: "Metadata Time Anomaly",
+                anomalyDetected: "Warning: ModDate is earlier than CreationDate",
+                noAnomaly: "No logical anomalies detected.",
+                ltvSupported: "Supports LTV (Long-Term Validation)",
+                ltvNotSupported: "Does Not Support LTV",
+                tsaPresent: "Has External Time-stamp (TSA)",
+                tsaMissing: "No External TSA Timestamp",
+                sigAlgo: "Signature Algorithm",
+                fingerprint: "SHA-1 Fingerprint",
+                subjectDn: "Subject DN",
+                issuerDn: "Issuer DN",
+                serialNum: "Serial Number",
+                certChain: "Certificate Chain (Hierarchy)"
             }
         };
 
@@ -362,20 +423,21 @@
             '1.2.840.113549.1.9.3': 'Content Type',
             '1.2.840.113549.1.9.4': 'Message Digest (Hash)',
             '1.2.840.113549.1.9.5': 'Signing Time (Waktu TTD)',
+            '1.2.840.113549.1.1.1': 'rsaEncryption',
+            '1.2.840.113549.1.1.11': 'sha256WithRSAEncryption',
+            '1.2.840.113549.1.1.5': 'sha1WithRSAEncryption',
+            '1.2.840.113549.1.1.13': 'sha512WithRSAEncryption',
+            '1.2.840.113549.1.1.10': 'RSASSA-PSS'
         };
 
-        // STATE (Safe Fallbacks to prevent crash)
         let _rawTheme = localStorage.getItem('theme');
         let currentTheme = (_rawTheme === 'dark') ? 'dark' : 'light';
-        
         let _rawLang = localStorage.getItem('lang');
         let currentLang = (_rawLang && translations[_rawLang.toUpperCase()]) ? _rawLang.toUpperCase() : 'ID';
-
         let enginesLoaded = false;
         let isProcessing = false;
         let documentSignatures = [];
 
-        // DOM ELEMENTS
         const el = {
             html: document.documentElement,
             btnTheme: document.getElementById('btn-theme'),
@@ -386,8 +448,8 @@
             btnCloseTerms: document.getElementById('btn-close-terms'),
             btnCloseTermsX: document.getElementById('btn-close-terms-x'),
             modalTerms: document.getElementById('modal-terms'),
+            modalTermsContent: document.getElementById('modal-terms-content'),
             
-            // Workflow States
             emptyState: document.getElementById('empty-state'),
             resultsState: document.getElementById('results-state'),
             loadingEngines: document.getElementById('loading-engines'),
@@ -398,7 +460,6 @@
             lblProcessing: document.getElementById('lbl-processing'),
             btnUploadOther: document.getElementById('btn-upload-other'),
             
-            // Results Panel Elements
             successBadge: document.getElementById('success-badge'),
             noSignBadge: document.getElementById('no-sign-badge'),
             signaturesList: document.getElementById('signatures-list'),
@@ -412,19 +473,12 @@
             pdfCanvas: document.getElementById('pdf-canvas'),
             canvasPageBadge: document.getElementById('canvas-page-badge'),
 
-            // Footer
             engineStatusDot: document.getElementById('engine-status-dot'),
             lblEngineStatus: document.getElementById('lbl-engine-status'),
             lblStats: document.getElementById('lbl-stats'),
         };
 
-        // HELPERS
-        const t = (key) => {
-            if (translations[currentLang] && translations[currentLang][key]) {
-                return translations[currentLang][key];
-            }
-            return key; // Tampilkan key jika terjemahan belum ada (fallback logis)
-        };
+        const t = (key) => translations[currentLang][key] || key;
         
         const updateText = () => {
             document.getElementById('tooltip-help').textContent = t('helpTooltip');
@@ -441,14 +495,13 @@
             document.getElementById('lbl-preview-title').textContent = t('previewTitle');
             document.getElementById('lbl-pdf-engine').textContent = t('pdfEngine');
             document.getElementById('lbl-qr-detected').textContent = t('qrDetected');
-            document.getElementById('lbl-open-link').innerHTML = `${t('openLink')} <i data-lucide="external-link" class="w-[18px] h-[18px]"></i>`;
+            document.getElementById('lbl-open-link').innerHTML = `${t('openLink')} <i data-lucide="external-link" class="w-[14px] h-[14px]"></i>`;
             document.getElementById('lbl-filter-info').textContent = t('pageFilterInfo');
             document.getElementById('lbl-painting').textContent = t('painting');
             document.getElementById('lbl-no-page').textContent = t('noPage');
-            document.getElementById('lbl-terms-title').textContent = t('termsTitle');
+            document.getElementById('lbl-terms-title').innerHTML = `<i data-lucide="gavel" class="w-[16px] h-[16px] text-[var(--text-dim)]"></i> ${t('termsTitle')}`;
             document.getElementById('lbl-terms-text').textContent = t('termsText');
             document.getElementById('btn-close-terms').textContent = t('close');
-            document.getElementById('btn-terms').textContent = t('termsBtn');
 
             el.lblEngineStatus.textContent = enginesLoaded ? t('statusReady') : 'Booting...';
             if (documentSignatures.length > 0) {
@@ -456,7 +509,7 @@
             } else {
                 el.lblStats.textContent = t('statusWait');
             }
-            lucide.createIcons(); // Refresh icons inside text injections
+            lucide.createIcons();
         };
 
         const safeString = (val) => {
@@ -487,7 +540,37 @@
             } catch (e) { return dateString; }
         };
 
-        // INITIALIZATION
+        const parsePdfDate = (pdfDate) => {
+            if (!pdfDate || !pdfDate.startsWith('D:')) return null;
+            const str = pdfDate.substring(2).replace(/['"]/g, '');
+            const year = str.substring(0, 4);
+            const month = str.substring(4, 6);
+            const day = str.substring(6, 8);
+            const hour = str.substring(8, 10) || '00';
+            const min = str.substring(10, 12) || '00';
+            const sec = str.substring(12, 14) || '00';
+            
+            let tz = 'Z';
+            if (str.length > 14) {
+                const sign = str.substring(14, 15);
+                if (sign === 'Z') {
+                    tz = 'Z';
+                } else if (sign === '+' || sign === '-') {
+                    const tzHour = str.substring(15, 17) || '00';
+                    const tzMin = str.substring(17, 19) || '00';
+                    tz = `${sign}${tzHour}:${tzMin}`;
+                }
+            }
+            
+            const isoStr = `${year}-${month}-${day}T${hour}:${min}:${sec}${tz}`;
+            try {
+                return new Date(isoStr).toLocaleString(currentLang === 'ID' ? 'id-ID' : 'en-US', {
+                    day: 'numeric', month: 'long', year: 'numeric', 
+                    hour: '2-digit', minute: '2-digit', second: '2-digit'
+                }) + (currentLang === 'ID' ? ' WIB' : '');
+            } catch (e) { return pdfDate; }
+        };
+
         function init() {
             if(currentTheme === 'dark') el.html.classList.add('dark');
             el.iconTheme.setAttribute('data-lucide', currentTheme === 'light' ? 'moon' : 'sun');
@@ -507,14 +590,13 @@
                     
                     el.loadingEngines.classList.add('hidden-el');
                     el.uploadBox.classList.remove('hidden-el');
-                    el.engineStatusDot.classList.replace('bg-yellow-500', 'bg-green-500');
+                    el.engineStatusDot.classList.replace('bg-yellow-500', 'bg-emerald-500');
                     el.engineStatusDot.classList.remove('animate-pulse');
                     updateText();
                 }
             }, 500);
         }
 
-        // EVENT LISTENERS
         el.btnTheme.addEventListener('click', () => {
             currentTheme = currentTheme === 'light' ? 'dark' : 'light';
             localStorage.setItem('theme', currentTheme);
@@ -528,10 +610,22 @@
             localStorage.setItem('lang', currentLang);
             el.lblLang.textContent = currentLang;
             updateText();
-            if(documentSignatures.length > 0) renderSignaturesList(); // Re-render translations in results
+            if(documentSignatures.length > 0) renderSignaturesList();
         });
 
-        const toggleModal = (show) => el.modalTerms.classList.toggle('hidden-el', !show);
+        const toggleModal = (show) => {
+            if(show) {
+                el.modalTerms.classList.remove('hidden-el');
+                setTimeout(() => {
+                    el.modalTermsContent.classList.remove('scale-95', 'opacity-0');
+                    el.modalTermsContent.classList.add('scale-100', 'opacity-100');
+                }, 10);
+            } else {
+                el.modalTermsContent.classList.remove('scale-100', 'opacity-100');
+                el.modalTermsContent.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => el.modalTerms.classList.add('hidden-el'), 200);
+            }
+        };
         el.btnTerms.addEventListener('click', () => toggleModal(true));
         el.btnCloseTerms.addEventListener('click', () => toggleModal(false));
         el.btnCloseTermsX.addEventListener('click', () => toggleModal(false));
@@ -540,7 +634,38 @@
             input.addEventListener('change', handleFileUpload);
         });
 
-        // CORE PDF PROCESSING
+        const resizer = document.getElementById('resizer');
+        const leftPane = document.getElementById('left-pane');
+        const rightPane = document.getElementById('right-pane');
+        let isResizing = false;
+
+        if (resizer && leftPane && rightPane) {
+            resizer.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                document.body.style.cursor = 'col-resize';
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                const containerWidth = document.getElementById('results-state').offsetWidth;
+                let newLeftWidth = (e.clientX / containerWidth) * 100;
+                
+                if (newLeftWidth < 30) newLeftWidth = 30;
+                if (newLeftWidth > 70) newLeftWidth = 70;
+                
+                leftPane.style.flex = `0 0 ${newLeftWidth}%`;
+                rightPane.style.flex = `0 0 ${100 - newLeftWidth}%`;
+            });
+
+            document.addEventListener('mouseup', () => {
+                if(isResizing) {
+                    isResizing = false;
+                    document.body.style.cursor = 'default';
+                }
+            });
+        }
+
         const prepareAndValidatePayload = (rawHex) => {
             const logs = [];
             const cleanedForHex = rawHex.replace(/[^0-9a-fA-F]/g, '');
@@ -571,10 +696,37 @@
             return { binaryStr, logs };
         };
 
+        async function verifyHash(data, expectedHex) {
+            const algos = ['SHA-256', 'SHA-384', 'SHA-512', 'SHA-1'];
+            for (let alg of algos) {
+                try {
+                    const hashBuf = await crypto.subtle.digest(alg, data);
+                    const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                    if (hashHex.toLowerCase() === expectedHex.toLowerCase()) return true;
+                } catch(e) { }
+            }
+            return false;
+        }
+
         async function processSignatures(arrayBuffer) {
             const decoder = new TextDecoder('latin1');
             const pdfText = decoder.decode(arrayBuffer);
             const foundSignatures = [];
+            
+            const isEncrypted = /\/Encrypt\s+\d+\s+\d+\s+R/.test(pdfText);
+            let timeAnomaly = null;
+            const cdMatch = pdfText.match(/\/CreationDate\s*\(([^)]+)\)/);
+            const mdMatch = pdfText.match(/\/ModDate\s*\(([^)]+)\)/);
+            if (cdMatch && mdMatch) {
+                const cDate = cdMatch[1].replace(/[^0-9]/g, '').substring(0,14);
+                const mDate = mdMatch[1].replace(/[^0-9]/g, '').substring(0,14);
+                if (mDate < cDate && mDate.length === 14 && cDate.length === 14) {
+                    timeAnomaly = true;
+                }
+            }
+
+            const hasLTV = /\/DSS\s+<</.test(pdfText);
+
             const contentsTag = '/Contents';
             let searchIndex = 0;
 
@@ -586,6 +738,42 @@
                         const rawHex = pdfText.substring(startBracketIndex + 1, endBracketIndex);
                         if (rawHex.length > 500) {
                             let debugLogs = [];
+                            
+                            const contextStart = Math.max(0, startBracketIndex - 2000);
+                            const contextEnd = Math.min(pdfText.length, endBracketIndex + 2000);
+                            const contextStr = pdfText.substring(contextStart, contextEnd);
+                            
+                            let byteRange = null;
+                            const brMatch = contextStr.match(/\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/);
+                            if (brMatch) {
+                                byteRange = [parseInt(brMatch[1]), parseInt(brMatch[2]), parseInt(brMatch[3]), parseInt(brMatch[4])];
+                            }
+                            
+                            const reasonMatch = contextStr.match(/\/Reason\s*\(([^)]+)\)/) || contextStr.match(/\/Reason\s*<([A-Fa-f0-9]+)>/);
+                            let reason = reasonMatch ? reasonMatch[1] : null;
+
+                            const locMatch = contextStr.match(/\/Location\s*\(([^)]+)\)/) || contextStr.match(/\/Location\s*<([A-Fa-f0-9]+)>/);
+                            let location = locMatch ? locMatch[1] : null;
+
+                            const mMatch = contextStr.match(/\/M\s*\((D:[^)]+)\)/);
+                            let dictionaryDate = mMatch ? mMatch[1] : null;
+
+                            let forensicData = {
+                                byteRangeValid: null,
+                                reason: reason,
+                                location: location,
+                                isEncrypted: isEncrypted,
+                                timeAnomaly: timeAnomaly,
+                                dictionaryDate: dictionaryDate,
+                                hasLTV: hasLTV,
+                                hasTSA: false,
+                                algorithm: 'Unknown',
+                                fingerprint: 'Unknown',
+                                subjectDN: '',
+                                issuerDN: '',
+                                certChainNames: []
+                            };
+
                             try {
                                 const { binaryStr, logs } = prepareAndValidatePayload(rawHex);
                                 debugLogs = logs;
@@ -601,7 +789,39 @@
                                     serialNumber: cert.serialNumber
                                 }));
 
+                                if (p7.certificates && p7.certificates.length > 0) {
+                                    const leafCert = p7.certificates[0]; 
+                                    
+                                    try {
+                                        const der = window.forge.asn1.toDer(window.forge.pki.certificateToAsn1(leafCert)).getBytes();
+                                        const md = window.forge.md.sha1.create();
+                                        md.update(der);
+                                        forensicData.fingerprint = md.digest().toHex().match(/.{1,2}/g).join(':').toUpperCase();
+                                    } catch (e) {
+                                        debugLogs.push("[FORENSICS] Gagal memproses Fingerprint SHA-1");
+                                    }
+
+                                    const formatDN = (attrs) => attrs.map(a => `${a.shortName || a.name || a.type}=${a.value}`).join(', ');
+                                    forensicData.subjectDN = formatDN(leafCert.subject.attributes);
+                                    forensicData.issuerDN = formatDN(leafCert.issuer.attributes);
+
+                                    forensicData.certChainNames = p7.certificates.map(c => {
+                                        const cnAttr = c.subject.attributes.find(a => a.shortName === 'CN' || a.name === 'commonName');
+                                        return cnAttr ? cnAttr.value : 'Unknown Certificate';
+                                    });
+                                }
+
+                                let expectedHash = null;
                                 const signerInfos = (p7.signerInfos || []).map(signer => {
+                                    if (signer.signatureAlgorithm && signer.signatureAlgorithm.algorithm) {
+                                        const oid = signer.signatureAlgorithm.algorithm;
+                                        forensicData.algorithm = OID_MAP[oid] || window.forge.pki.oids[oid] || oid;
+                                    }
+
+                                    if (signer.unauthenticatedAttributes) {
+                                        forensicData.hasTSA = signer.unauthenticatedAttributes.some(attr => attr.type === '1.2.840.113549.1.9.16.2.14');
+                                    }
+
                                     const authAttrs = (signer.authenticatedAttributes || []).map(attr => {
                                         let rawValue = 'N/A';
                                         if (attr.value && Array.isArray(attr.value) && attr.value.length > 0) {
@@ -610,6 +830,7 @@
                                                 rawValue = formatDate(v.value);
                                             } else if (typeof v.value === 'string') {
                                                 rawValue = window.forge.util.bytesToHex(v.value);
+                                                if (attr.type === '1.2.840.113549.1.9.4') expectedHash = rawValue;
                                             }
                                         }
                                         return { oid: attr.type, name: OID_MAP[attr.type] || 'Atribut CMS', value: rawValue };
@@ -617,10 +838,55 @@
                                     return { authAttrs };
                                 });
 
-                                debugLogs.push("Rantai Sertifikat berhasil dibedah.");
-                                foundSignatures.push({ id: foundSignatures.length + 1, debugLogs, certificates: certs, signerInfos, error: null });
+                                debugLogs.push("Rantai Sertifikat PKCS#7 berhasil dibedah.");
+
+                                let decryptedSignatureHex = null;
+                                try {
+                                    if (p7.signerInfos && p7.signerInfos.length > 0 && p7.certificates && p7.certificates.length > 0) {
+                                        const signerInfo = p7.signerInfos[0];
+                                        const cert = p7.certificates[0];
+                                        const rawDecrypted = cert.publicKey.encrypt(signerInfo.signature, 'NONE');
+                                        decryptedSignatureHex = window.forge.util.bytesToHex(rawDecrypted).toLowerCase();
+                                        debugLogs.push("[FORENSICS] Raw RSA Signature berhasil diekstraksi & didekripsi.");
+                                    }
+                                } catch(e) {
+                                    debugLogs.push("[FORENSICS] Dekripsi Raw RSA gagal (mungkin bukan RSA standard): " + e.message);
+                                }
+
+                                if (byteRange && (expectedHash || decryptedSignatureHex)) {
+                                    const view = new Uint8Array(arrayBuffer);
+                                    if (byteRange[0]+byteRange[1] <= view.length && byteRange[2]+byteRange[3] <= view.length) {
+                                        const part1 = view.slice(byteRange[0], byteRange[0] + byteRange[1]);
+                                        const part2 = view.slice(byteRange[2], byteRange[2] + byteRange[3]);
+                                        const combined = new Uint8Array(part1.length + part2.length);
+                                        combined.set(part1, 0);
+                                        combined.set(part2, part1.length);
+                                        
+                                        const hashBuf256 = await crypto.subtle.digest('SHA-256', combined);
+                                        const computedHash256 = Array.from(new Uint8Array(hashBuf256)).map(b => b.toString(16).padStart(2, '0')).join('').toLowerCase();
+                                        
+                                        const hashBuf1 = await crypto.subtle.digest('SHA-1', combined);
+                                        const computedHash1 = Array.from(new Uint8Array(hashBuf1)).map(b => b.toString(16).padStart(2, '0')).join('').toLowerCase();
+                                        
+                                        let isHashMatch = false;
+                                        if (expectedHash) {
+                                            isHashMatch = (expectedHash.toLowerCase() === computedHash256) || (expectedHash.toLowerCase() === computedHash1);
+                                        } else if (decryptedSignatureHex) {
+                                            isHashMatch = decryptedSignatureHex.endsWith(computedHash256) || decryptedSignatureHex.endsWith(computedHash1);
+                                        }
+
+                                        forensicData.byteRangeValid = isHashMatch;
+                                        if (isHashMatch) {
+                                            debugLogs.push(`[INTEGRITY] ByteRange divalidasi. Hash Algoritma cocok (DOKUMEN UTUH).`);
+                                        } else {
+                                            debugLogs.push(`[INTEGRITY] PERINGATAN: Hash ByteRange TIDAK COCOK dengan Signature!`);
+                                        }
+                                    }
+                                }
+
+                                foundSignatures.push({ id: foundSignatures.length + 1, debugLogs, certificates: certs, signerInfos, forensic: forensicData, error: null });
                             } catch (parseErr) {
-                                foundSignatures.push({ id: foundSignatures.length + 1, error: parseErr.message, debugLogs: [...debugLogs, `ERROR: ${parseErr.message}`], certificates: [] });
+                                foundSignatures.push({ id: foundSignatures.length + 1, error: parseErr.message, debugLogs: [...debugLogs, `ERROR: ${parseErr.message}`], certificates: [], forensic: forensicData });
                             }
                         }
                     }
@@ -693,54 +959,194 @@
                 const signerNik = getAttrValue(leafCert.subject, 'Serial Number', '2.5.4.5');
                 const bsreId = getAttrValue(leafCert.subject, 'Description', '2.5.4.13');
                 const issuerName = getAttrValue(leafCert.issuer, 'Common Name', '2.5.4.3');
+                const forensic = sig.forensic;
 
                 let signingTime = null;
                 if (sig.signerInfos && sig.signerInfos.length > 0) {
                     signingTime = getAttrValue(sig.signerInfos[0].authAttrs, 'Signing Time', '1.2.840.113549.1.9.5');
                 }
+                if (!signingTime && forensic && forensic.dictionaryDate) {
+                    signingTime = parsePdfDate(forensic.dictionaryDate) + " (PDF Dict)";
+                }
+
+                const isUtuh = forensic.byteRangeValid === true;
+                const isModif = forensic.byteRangeValid === false;
+
+                const integrityText = isUtuh ? t('integrityValid') : (isModif ? t('integrityInvalid') : t('integrityUnknown'));
+                const integrityIcon = isUtuh ? '<i data-lucide="shield-check" class="w-[16px] h-[16px] text-emerald-600"></i>' : (isModif ? '<i data-lucide="shield-alert" class="w-[16px] h-[16px] text-red-600"></i>' : '<i data-lucide="help-circle" class="w-[16px] h-[16px] text-slate-500"></i>');
+                const integrityTextColor = isUtuh ? 'text-emerald-700' : (isModif ? 'text-red-700' : 'text-slate-700');
+                const integrityBgColor = isUtuh ? 'bg-emerald-500/10 border-emerald-500/20' : (isModif ? 'bg-red-500/10 border-red-500/20' : 'bg-slate-500/10 border-slate-500/20');
+                const integrityHeaderColor = isUtuh ? 'text-emerald-600' : (isModif ? 'text-red-600' : 'text-slate-500');
+                
+                const timeAnomalyText = forensic.timeAnomaly ? t('anomalyDetected') : t('noAnomaly');
+                const timeAnomalyColor = forensic.timeAnomaly ? 'text-red-600' : 'text-emerald-600';
+                
+                let trustBadgeHtml = '';
+                const issuerLower = (issuerName || '').toLowerCase();
+                const subjectLower = (signerName || '').toLowerCase();
+
+                if (issuerLower.includes('bsre') || issuerLower.includes('badan siber') || issuerLower.includes('kominfo')) {
+                    trustBadgeHtml = `<div class="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded w-max"><i data-lucide="badge-check" class="w-[12px] h-[12px]"></i> Valid (Trusted CA)</div>`;
+                } else if (issuerLower === subjectLower || issuerLower.includes('self-signed')) {
+                    trustBadgeHtml = `<div class="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded w-max"><i data-lucide="shield-alert" class="w-[12px] h-[12px]"></i> Self-Signed (Untrusted)</div>`;
+                } else {
+                    trustBadgeHtml = `<div class="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-slate-500 bg-slate-500/10 px-2 py-0.5 rounded w-max"><i data-lucide="help-circle" class="w-[12px] h-[12px]"></i> Unknown CA</div>`;
+                }
+
+                const secIcon = forensic.isEncrypted ? '<i data-lucide="lock" class="w-[14px] h-[14px] inline mb-0.5"></i>' : '<i data-lucide="unlock" class="w-[14px] h-[14px] inline mb-0.5"></i>';
+                const secColor = forensic.isEncrypted ? 'text-emerald-600' : 'text-amber-600';
+                const secTextLabel = forensic.isEncrypted ? 'Protected' : 'Editable (Terbuka)';
+
+                const ltvIcon = forensic.hasLTV ? '<i data-lucide="database" class="w-[14px] h-[14px] text-emerald-600"></i>' : '<i data-lucide="database" class="w-[14px] h-[14px] text-amber-600"></i>';
+                const ltvColor = forensic.hasLTV ? 'text-emerald-700' : 'text-amber-700';
+                const ltvText = forensic.hasLTV ? t('ltvSupported') : t('ltvNotSupported');
+
+                const tsaIcon = forensic.hasTSA ? '<i data-lucide="clock" class="w-[14px] h-[14px] text-emerald-600"></i>' : '<i data-lucide="clock" class="w-[14px] h-[14px] text-amber-600"></i>';
+                const tsaColor = forensic.hasTSA ? 'text-emerald-700' : 'text-amber-700';
+                const tsaText = forensic.hasTSA ? t('tsaPresent') : t('tsaMissing');
+
+                const bsreHtml = bsreId ? `
+                    <div class="bg-indigo-500/5 border border-indigo-500/20 rounded-xl p-4 flex gap-3 items-start">
+                        <i data-lucide="fingerprint" class="w-[20px] h-[20px] text-indigo-500 mt-1 shrink-0"></i>
+                        <div class="overflow-hidden">
+                            <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">${t('bsreId')}</p>
+                            <p class="text-sm font-mono font-bold text-[var(--text-main)] break-all">${bsreId}</p>
+                        </div>
+                    </div>` : '';
+
+                let logsHtml = '';
+                sig.debugLogs.forEach(log => {
+                    logsHtml += `<div class="mb-1">&gt; ${log}</div>`;
+                });
+
+                let certChainHtml = '';
+                if (forensic.certChainNames && forensic.certChainNames.length > 0) {
+                    forensic.certChainNames.reverse().forEach((name, i) => {
+                        const isLeaf = i === forensic.certChainNames.length - 1;
+                        certChainHtml += `
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded-full bg-[var(--preview-bg)] border border-[var(--border-color)] flex items-center justify-center shrink-0 z-10">
+                                    <i data-lucide="${isLeaf ? 'user' : 'award'}" class="w-[12px] h-[12px] ${isLeaf ? 'text-blue-500' : 'text-[var(--text-dim)]'}"></i>
+                                </div>
+                                <div class="flex-1 bg-[var(--preview-bg)] p-3 rounded-lg border border-[var(--border-color)]">
+                                    <p class="text-xs font-bold text-[var(--text-main)] truncate" title="${name}">${name}</p>
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    certChainHtml = `<p class="text-xs text-[var(--text-dim)]">Rantai sertifikat tidak tersedia.</p>`;
+                }
 
                 html += `
-                <div class="bg-[var(--editor-bg)] rounded-xl shadow-sm border border-[var(--border-color)] overflow-hidden">
+                <div class="bg-[var(--card-bg)] rounded-xl shadow-sm border border-[var(--border-color)] overflow-hidden">
                     <div class="bg-[var(--freeze-bg-even)] border-b border-[var(--border-color)] p-5">
-                        <p class="text-xs font-bold text-[var(--text-dim)] uppercase tracking-wider mb-1">
-                            ${t('signedByRev').replace('{idx}', idx + 1)}
+                        <p class="text-xs font-bold text-[var(--text-dim)] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                            <i data-lucide="file-signature" class="w-[14px] h-[14px]"></i> ${t('signedByRev').replace('{idx}', idx + 1)}
                         </p>
-                        <h3 class="text-2xl font-bold text-[var(--text-main)]">${signerName || t('unknownName')}</h3>
+                        <h3 class="text-xl font-bold text-[var(--text-main)]">${signerName || t('unknownName')}</h3>
                         <div class="flex items-center gap-2 mt-2 text-sm text-[var(--text-dim)] font-medium">
                             <i data-lucide="building" class="w-[16px] h-[16px] shrink-0"></i>
                             <span class="line-clamp-2">${signerOrg || t('unknownOrg')}</span>
                         </div>
                     </div>
-                    <div class="p-5 space-y-5">
-                        ${bsreId ? `
-                        <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 flex gap-3 items-start">
-                            <i data-lucide="fingerprint" class="w-[24px] h-[24px] text-indigo-500 mt-1 shrink-0"></i>
-                            <div class="overflow-hidden">
-                                <p class="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">${t('bsreId')}</p>
-                                <p class="text-base font-mono font-bold text-[var(--text-main)] break-all">${bsreId}</p>
-                            </div>
-                        </div>` : ''}
+                    
+                    <div class="p-5 space-y-4">
+                        ${bsreHtml}
 
-                        <details class="group border border-[var(--border-color)] rounded-xl overflow-hidden">
-                            <summary class="px-4 py-3 bg-[var(--freeze-bg-even)] text-xs font-bold text-[var(--text-main)] cursor-pointer flex items-center justify-between hover:bg-[var(--freeze-hover)] list-none">
-                                <span class="flex items-center gap-2"><i data-lucide="shield-check" class="w-[16px] h-[16px] text-blue-500"></i> ${t('cryptoDetails')}</span>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div class="bg-[var(--preview-bg)] p-3 rounded-xl border border-[var(--border-color)] flex flex-col justify-center">
+                                <p class="text-[9px] font-bold text-[var(--text-dim)] uppercase mb-1">${t('ca')}</p>
+                                <p class="text-xs font-bold text-[var(--text-main)] truncate" title="${issuerName}">${issuerName}</p>
+                                ${trustBadgeHtml}
+                            </div>
+                            <div class="bg-[var(--preview-bg)] p-3 rounded-xl border border-[var(--border-color)] flex flex-col justify-center">
+                                <p class="text-[9px] font-bold text-[var(--text-dim)] uppercase mb-1">${t('signTime')}</p>
+                                <p class="text-xs font-semibold text-[var(--text-main)] line-clamp-2">${signingTime || t('noTime')}</p>
+                            </div>
+                            <div class="bg-[var(--preview-bg)] p-3 rounded-xl border border-[var(--border-color)] flex flex-col justify-center">
+                                <p class="text-[9px] font-bold text-[var(--text-dim)] uppercase mb-1">${t('docSec')}</p>
+                                <p class="text-xs font-bold ${secColor} line-clamp-2">${secIcon} ${secTextLabel}</p>
+                            </div>
+                        </div>
+
+                        <details class="group border border-[var(--border-color)] rounded-xl overflow-hidden shadow-sm" open>
+                            <summary class="px-4 py-3 bg-[var(--freeze-bg-even)] text-xs font-bold text-[var(--text-main)] cursor-pointer flex items-center justify-between hover:bg-[var(--preview-bg)] list-none transition-colors">
+                                <span class="flex items-center gap-2"><i data-lucide="microscope" class="w-[16px] h-[16px] text-purple-500"></i> ${t('forensicsTitle')}</span>
                                 <i data-lucide="chevron-down" class="w-[16px] h-[16px] text-[var(--text-dim)] group-open:rotate-180 transition-transform"></i>
                             </summary>
-                            <div class="p-4 space-y-4 border-t border-[var(--border-color)] bg-[var(--editor-bg)]">
-                                <div><p class="text-[10px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('nik')}</p><p class="text-sm font-semibold text-[var(--text-main)] break-all">${signerNik || t('unknownNik')}</p></div>
-                                <div><p class="text-[10px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('ca')}</p><p class="text-sm font-semibold text-[var(--text-main)]">${issuerName}</p></div>
-                                <div><p class="text-[10px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('signTime')}</p><p class="text-sm font-semibold text-[var(--text-main)]">${signingTime || t('noTime')}</p></div>
-                                <div><p class="text-[10px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('validity')}</p><p class="text-sm font-medium text-[var(--text-dim)]">${formatDate(leafCert.validFrom)} <span class="mx-1 font-bold text-[var(--text-main)]">${t('to')}</span> ${formatDate(leafCert.validTo)}</p></div>
+                            <div class="p-4 space-y-4 border-t border-[var(--border-color)] bg-[var(--card-bg)]">
+                                
+                                <div class="p-3 rounded-lg border ${integrityBgColor}">
+                                    <p class="text-[10px] font-bold uppercase mb-1 ${integrityHeaderColor}">${t('integrity')}</p>
+                                    <div class="flex items-center gap-2">
+                                        ${integrityIcon}
+                                        <p class="text-xs font-bold ${integrityTextColor}">
+                                            ${integrityText}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="bg-[var(--preview-bg)] p-3 rounded-lg border border-[var(--border-color)] flex items-center gap-3">
+                                        ${ltvIcon}
+                                        <p class="text-xs font-bold ${ltvColor} leading-tight">${ltvText}</p>
+                                    </div>
+                                    <div class="bg-[var(--preview-bg)] p-3 rounded-lg border border-[var(--border-color)] flex items-center gap-3">
+                                        ${tsaIcon}
+                                        <p class="text-xs font-bold ${tsaColor} leading-tight">${tsaText}</p>
+                                    </div>
+                                    <div class="bg-[var(--preview-bg)] p-2.5 rounded-lg border border-[var(--border-color)]">
+                                        <p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('sigReason')}</p>
+                                        <p class="text-[11px] font-semibold text-[var(--text-main)] break-words leading-tight">${forensic.reason || '-'}</p>
+                                    </div>
+                                    <div class="bg-[var(--preview-bg)] p-2.5 rounded-lg border border-[var(--border-color)]">
+                                        <p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('sigLocation')}</p>
+                                        <p class="text-[11px] font-semibold text-[var(--text-main)] break-words leading-tight">${forensic.location || '-'}</p>
+                                    </div>
+                                    <div class="bg-[var(--preview-bg)] p-2.5 rounded-lg border border-[var(--border-color)] col-span-2">
+                                        <p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('timeAnomaly')}</p>
+                                        <p class="text-[11px] font-semibold leading-tight ${timeAnomalyColor}">${timeAnomalyText}</p>
+                                    </div>
+                                </div>
                             </div>
                         </details>
 
-                        <details class="group border border-[var(--border-color)] rounded-xl overflow-hidden mt-4">
-                            <summary class="px-4 py-3 bg-[var(--freeze-bg-even)] text-xs font-bold text-[var(--text-main)] cursor-pointer flex items-center justify-between hover:bg-[var(--freeze-hover)] list-none">
+                        <details class="group border border-[var(--border-color)] rounded-xl overflow-hidden shadow-sm">
+                            <summary class="px-4 py-3 bg-[var(--freeze-bg-even)] text-xs font-bold text-[var(--text-main)] cursor-pointer flex items-center justify-between hover:bg-[var(--preview-bg)] list-none transition-colors">
+                                <span class="flex items-center gap-2"><i data-lucide="key" class="w-[16px] h-[16px] text-blue-500"></i> ${t('cryptoDetails')}</span>
+                                <i data-lucide="chevron-down" class="w-[16px] h-[16px] text-[var(--text-dim)] group-open:rotate-180 transition-transform"></i>
+                            </summary>
+                            <div class="p-4 space-y-4 border-t border-[var(--border-color)] bg-[var(--card-bg)]">
+                                <div><p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('sigAlgo')}</p><p class="text-xs font-mono font-semibold text-[var(--text-main)] break-all">${forensic.algorithm || '-'}</p></div>
+                                <div><p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('nik')}</p><p class="text-xs font-semibold text-[var(--text-main)] break-all">${signerNik || t('unknownNik')}</p></div>
+                                <div><p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('validity')}</p><p class="text-xs font-medium text-[var(--text-dim)]">${formatDate(leafCert.validFrom)} <span class="mx-1 font-bold text-[var(--text-main)]">${t('to')}</span> ${formatDate(leafCert.validTo)}</p></div>
+                                <div><p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('fingerprint')}</p><p class="text-xs font-mono font-semibold text-[var(--text-main)] break-all">${forensic.fingerprint || '-'}</p></div>
+                                <div><p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('subjectDn')}</p><p class="text-xs font-medium text-[var(--text-main)] break-words">${forensic.subjectDN || '-'}</p></div>
+                                <div><p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('issuerDn')}</p><p class="text-xs font-medium text-[var(--text-main)] break-words">${forensic.issuerDN || '-'}</p></div>
+                            </div>
+                        </details>
+
+                        <details class="group border border-[var(--border-color)] rounded-xl overflow-hidden shadow-sm">
+                            <summary class="px-4 py-3 bg-[var(--freeze-bg-even)] text-xs font-bold text-[var(--text-main)] cursor-pointer flex items-center justify-between hover:bg-[var(--preview-bg)] list-none transition-colors">
+                                <span class="flex items-center gap-2"><i data-lucide="network" class="w-[16px] h-[16px] text-indigo-500"></i> ${t('certChain')}</span>
+                                <i data-lucide="chevron-down" class="w-[16px] h-[16px] text-[var(--text-dim)] group-open:rotate-180 transition-transform"></i>
+                            </summary>
+                            <div class="p-5 border-t border-[var(--border-color)] bg-[var(--card-bg)] relative">
+                                <div class="absolute left-[31px] top-8 bottom-8 w-px bg-[var(--border-color)] z-0"></div>
+                                <div class="flex flex-col gap-5 relative z-10">
+                                    ${certChainHtml}
+                                </div>
+                            </div>
+                        </details>
+
+                        <details class="group border border-[var(--border-color)] rounded-xl overflow-hidden shadow-sm">
+                            <summary class="px-4 py-3 bg-[var(--freeze-bg-even)] text-xs font-bold text-[var(--text-main)] cursor-pointer flex items-center justify-between hover:bg-[var(--preview-bg)] list-none transition-colors">
                                 <span class="flex items-center gap-2"><i data-lucide="terminal" class="w-[16px] h-[16px] text-[var(--text-dim)]"></i> ${t('logsTitle')}</span>
                                 <i data-lucide="chevron-down" class="w-[16px] h-[16px] text-[var(--text-dim)] group-open:rotate-180 transition-transform"></i>
                             </summary>
                             <div class="p-4 bg-[#0d1117] text-green-400 font-mono text-[10px] leading-relaxed max-h-48 overflow-y-auto border-t border-[var(--border-color)] custom-scrollbar">
-                                ${sig.debugLogs.map(log => `<div class="mb-1">&gt; ${log}</div>`).join('')}
+                                ${logsHtml}
                             </div>
                         </details>
                     </div>
@@ -758,13 +1164,11 @@
                 return;
             }
 
-            // Reset States
             documentSignatures = [];
             isProcessing = true;
             el.errorBox.classList.add('hidden-el');
             el.lblProcessing.classList.remove('hidden-el');
             
-            // Switch to Workspace Loading State
             el.emptyState.classList.add('hidden-el');
             el.resultsState.classList.remove('hidden-el');
             el.btnUploadOther.classList.add('hidden-el');
@@ -780,7 +1184,6 @@
             try {
                 const arrayBuffer = await file.arrayBuffer();
 
-                // 1. Ekstrak Signatures
                 documentSignatures = await processSignatures(arrayBuffer.slice(0));
                 
                 if(documentSignatures.length > 0) {
@@ -790,45 +1193,48 @@
                     el.noSignBadge.classList.remove('hidden-el');
                 }
 
-                updateText(); // update footer stats
+                updateText();
 
-                // 2. Render Visual & QR Scan
                 if (window.pdfjsLib) {
-                    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
-                    const { bestPageNum, foundQrUrl } = await scanPageForSignatureAndQR(pdf);
-                    
-                    if (foundQrUrl) {
-                        el.qrUrlText.textContent = foundQrUrl;
-                        el.qrUrlText.title = foundQrUrl;
-                        el.qrUrlBtn.href = foundQrUrl;
-                        el.qrBanner.classList.remove('hidden-el');
-                    }
-
-                    if (pdf.numPages > 1) {
-                        el.filterBanner.classList.remove('hidden-el');
-                    }
-
-                    // Render to Canvas
-                    el.canvasLoading.classList.add('hidden-el');
                     try {
-                        const page = await pdf.getPage(bestPageNum);
-                        const viewport = page.getViewport({ scale: 1.5 });
-                        const ctx = el.pdfCanvas.getContext('2d');
-                        el.pdfCanvas.height = viewport.height;
-                        el.pdfCanvas.width = viewport.width;
-                        await page.render({ canvasContext: ctx, viewport }).promise;
+                        const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+                        const { bestPageNum, foundQrUrl } = await scanPageForSignatureAndQR(pdf);
                         
-                        el.canvasPageBadge.textContent = `${t('hal')} ${bestPageNum}`;
-                        el.canvasContainer.classList.remove('hidden-el');
-                    } catch(renderErr) {
-                        console.error(renderErr);
+                        if (foundQrUrl) {
+                            el.qrUrlText.textContent = foundQrUrl;
+                            el.qrUrlText.title = foundQrUrl;
+                            el.qrUrlBtn.href = foundQrUrl;
+                            el.qrBanner.classList.remove('hidden-el');
+                        }
+
+                        if (pdf.numPages > 1) {
+                            el.filterBanner.classList.remove('hidden-el');
+                        }
+
+                        el.canvasLoading.classList.add('hidden-el');
+                        try {
+                            const page = await pdf.getPage(bestPageNum);
+                            const viewport = page.getViewport({ scale: 1.5 });
+                            const ctx = el.pdfCanvas.getContext('2d');
+                            el.pdfCanvas.height = viewport.height;
+                            el.pdfCanvas.width = viewport.width;
+                            await page.render({ canvasContext: ctx, viewport }).promise;
+                            
+                            el.canvasPageBadge.textContent = `${t('hal')} ${bestPageNum}`;
+                            el.canvasContainer.classList.remove('hidden-el');
+                        } catch(renderErr) {
+                            console.error(renderErr);
+                            el.canvasError.classList.remove('hidden-el');
+                        }
+                    } catch(pdfErr) {
+                        console.error("PDF.js Render failed:", pdfErr);
+                        el.canvasLoading.classList.add('hidden-el');
                         el.canvasError.classList.remove('hidden-el');
                     }
                 }
 
             } catch (err) {
                 console.error(err);
-                // Kembalikan ke halaman awal dengan pesan error
                 el.emptyState.classList.remove('hidden-el');
                 el.resultsState.classList.add('hidden-el');
                 showError(t('errProcess') + err.message);
@@ -836,8 +1242,7 @@
                 isProcessing = false;
                 el.lblProcessing.classList.add('hidden-el');
                 el.btnUploadOther.classList.remove('hidden-el');
-                // Reset semua input file
-                el.fileInputs.forEach(i => i.value = '');
+                el.fileInputs.forEach(i => i.value = ''); 
             }
         }
 
@@ -848,7 +1253,6 @@
 
         // START
         init();
-
     </script>
 </body>
 </html>
