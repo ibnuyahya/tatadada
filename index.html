@@ -55,7 +55,7 @@
         .hairline-b { box-shadow: 0 0.5px 0 var(--glass-border); }
         .hairline-t { box-shadow: 0 -0.5px 0 var(--glass-border); }
         
-        /* Ultra Blur for Glass Elements */
+        /* Ultra Blur for Header/Footer */
         .glass-blur {
             backdrop-filter: blur(40px) saturate(180%);
             -webkit-backdrop-filter: blur(40px) saturate(180%);
@@ -90,7 +90,7 @@
             pointer-events: none;
         }
 
-        /* FROSTED GLASS DRAWER */
+        /* TRANSPARENT DRAWER (Tanpa Blur agar 3D Bumi terlihat jelas) */
         .glass-drawer {
             background: var(--drawer-bg);
             box-shadow: 
@@ -151,11 +151,7 @@
             position: absolute;
             inset: 0;
             border-radius: inherit;
-            background: linear-gradient(135deg, 
-                rgba(255,255,255,0.6) 0%, 
-                rgba(255,255,255,0.15) 35%, 
-                rgba(255,255,255,0) 45%, 
-                rgba(0,0,0,0.1) 100%);
+            background: linear-gradient(135deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.15) 35%, rgba(255,255,255,0) 45%, rgba(0,0,0,0.1) 100%);
             pointer-events: none;
             z-index: 2;
         }
@@ -228,7 +224,6 @@
             <span id="system-time">00:00</span>
             <span id="system-date" class="opacity-60 font-medium ml-1">...</span>
         </div>
-        <!-- Dynamic Island Spacer Center (Optional) -->
         <div class="hidden md:block w-32 h-5 bg-black/40 rounded-full border border-white/5"></div>
         <div class="flex items-center gap-3">
             <div class="flex items-center gap-1">
@@ -313,8 +308,8 @@
     <!-- 3.B MAIN WORKSPACE -->
     <main class="flex-1 relative z-10 overflow-y-auto flex flex-col items-center py-6 px-4 sm:py-10 sm:px-8">
         
-        <!-- GLASS DRAWER CONTAINER -->
-        <div class="glass-drawer glass-blur w-full max-w-5xl p-6 sm:p-10 lg:p-12 flex flex-col items-center">
+        <!-- DRAWER CONTAINER (Kini tanpa glass-blur) -->
+        <div class="glass-drawer w-full max-w-5xl p-6 sm:p-10 lg:p-12 flex flex-col items-center">
             
             <!-- Alphabet Filter Bar -->
             <div class="w-full mb-10 pb-5 shadow-[0_0.5px_0_var(--glass-border)] flex justify-center">
@@ -504,38 +499,44 @@
         }
 
         // ==========================================
-        // 2. CONFIG & APP LOGIC
+        // 2. CONFIG & APP LOGIC (RANTI-CRASH)
         // ==========================================
         const REPO_OWNER = 'ibnuyahya';
         const REPO_NAME = 'tatadada';
         const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/`;
         const REPO_INFO_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
         
-        // BASE_PAGES_URL diperbarui untuk menggunakan custom domain Anda
+        // BASE_PAGES_URL diperbarui tanpa trailing index.html
         const BASE_PAGES_URL = `https://danial.my.id/`;
 
         let allApps = [];
         let currentLetter = 'ALL';
         let currentSearch = '';
-        let currentLang = localStorage.getItem('tatadada_lang') || 'ID';
+        
+        // PENTING: Mencegah crash jika nilai di localStorage tidak dikenali
+        let rawLang = localStorage.getItem('tatadada_lang') || 'ID';
+        let currentLang = rawLang.toUpperCase();
+        if (currentLang !== 'ID' && currentLang !== 'EN') {
+            currentLang = 'ID';
+        }
         
         const i18n = {
             ID: {
-                help: "Setiap ikon dihasilkan secara unik. Tahan kursor (hover) di atas ikon selama 1 detik untuk melihat detail dan cuplikan aplikasi.",
+                help: "Setiap ikon dihasilkan secara unik. Klik untuk meluncurkan aplikasi.",
                 loading: "Sinkronisasi Data...",
                 search: "Cari aplikasi...",
-                error: "Gagal memuat",
-                empty: "Tidak ditemukan",
+                error: "Gagal memuat API GitHub",
+                empty: "Aplikasi tidak ditemukan",
                 apps: "APLIKASI",
                 status: "AKTIF",
                 build: "Update",
                 terms: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is'. Pembuatan aplikasi dibantu oleh AI. Pembuat dibebaskan dari segala bentuk konsekuensi atas penggunaan aplikasi ini."
             },
             EN: {
-                help: "Each icon is uniquely generated. Hover over an icon for 1 second to see details and a live screenshot preview.",
+                help: "Each icon is uniquely generated. Click to launch the application.",
                 loading: "Syncing Data...",
                 search: "Search apps...",
-                error: "Load failed",
+                error: "Failed to load GitHub API",
                 empty: "No apps found",
                 apps: "APPS",
                 status: "ONLINE",
@@ -550,8 +551,10 @@
             const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
             const dateStr = now.toLocaleDateString(currentLang === 'ID' ? 'id-ID' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short' });
             
-            document.getElementById('system-time').textContent = timeStr;
-            document.getElementById('system-date').textContent = dateStr;
+            const sysTime = document.getElementById('system-time');
+            const sysDate = document.getElementById('system-date');
+            if(sysTime) sysTime.textContent = timeStr;
+            if(sysDate) sysDate.textContent = dateStr;
         }
 
         function getHash(str) {
@@ -580,6 +583,7 @@
         // ==========================================
         function generateAlphabet() {
             const container = document.getElementById('alphabet-container');
+            if(!container) return;
             const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
             letters.forEach(l => {
                 const btn = document.createElement('button');
@@ -598,8 +602,10 @@
                 if(b.id !== 'btn-ALL' && b.id !== 'btn-#') b.classList.add('shadow-[0_0_0_0.5px_var(--glass-border)]');
             });
             const activeBtn = document.getElementById(`btn-${letter}`);
-            activeBtn.classList.add('active');
-            activeBtn.classList.remove('shadow-[0_0_0_0.5px_var(--glass-border)]');
+            if(activeBtn) {
+                activeBtn.classList.add('active');
+                activeBtn.classList.remove('shadow-[0_0_0_0.5px_var(--glass-border)]');
+            }
             applyFilters();
         }
 
@@ -616,15 +622,25 @@
         }
 
         function updateUIStrings() {
-            const t = i18n[currentLang];
-            document.getElementById('help-text').textContent = t.help;
-            document.getElementById('loading-text').textContent = t.loading;
-            document.getElementById('searchInput').placeholder = t.search;
-            document.getElementById('error-title').textContent = t.error;
-            document.getElementById('empty-title').textContent = t.empty;
-            document.getElementById('lang-toggle').textContent = currentLang;
-            document.getElementById('system-status').textContent = t.status;
-            document.getElementById('terms-content').innerHTML = `<p>${t.terms}</p>`;
+            const t = i18n[currentLang] || i18n['ID'];
+            const elHelp = document.getElementById('help-text');
+            const elLoading = document.getElementById('loading-text');
+            const elSearch = document.getElementById('searchInput');
+            const elError = document.getElementById('error-title');
+            const elEmpty = document.getElementById('empty-title');
+            const elLang = document.getElementById('lang-toggle');
+            const elStatus = document.getElementById('system-status');
+            const elTerms = document.getElementById('terms-content');
+
+            if(elHelp) elHelp.textContent = t.help;
+            if(elLoading) elLoading.textContent = t.loading;
+            if(elSearch) elSearch.placeholder = t.search;
+            if(elError) elError.textContent = t.error;
+            if(elEmpty) elEmpty.textContent = t.empty;
+            if(elLang) elLang.textContent = currentLang;
+            if(elStatus) elStatus.textContent = t.status;
+            if(elTerms) elTerms.innerHTML = `<p>${t.terms}</p>`;
+            
             updateClock();
             applyFilters();
         }
@@ -639,6 +655,7 @@
         function toggleModal(show) {
             const modal = document.getElementById('termsModal');
             const container = document.getElementById('modalContainer');
+            if(!modal || !container) return;
             if(show) {
                 modal.classList.remove('hidden');
                 setTimeout(() => container.classList.remove('scale-95', 'opacity-0'), 10);
@@ -655,7 +672,8 @@
                     const data = await response.json();
                     const date = new Date(data.pushed_at);
                     const formatted = date.toLocaleDateString(currentLang === 'ID' ? 'id-ID' : 'en-US', { day: 'numeric', month: 'short' });
-                    document.getElementById('build-time').textContent = `${i18n[currentLang].build}: ${formatted}`;
+                    const buildEl = document.getElementById('build-time');
+                    if(buildEl) buildEl.textContent = `${i18n[currentLang]?.build || 'Update'}: ${formatted}`;
                 }
             } catch (e) { console.error(e); }
         }
@@ -663,11 +681,19 @@
         async function fetchApps() {
             const statusMessage = document.getElementById('statusMessage');
             const errorMessage = document.getElementById('errorMessage');
-            statusMessage.classList.remove('hidden');
+            const errorDetail = document.getElementById('errorDetail');
+            
+            if(statusMessage) statusMessage.classList.remove('hidden');
+            
             try {
                 const response = await fetch(API_URL);
-                if (!response.ok) throw new Error('API Rate Limit');
+                if (!response.ok) throw new Error('Mencapai Limit API GitHub');
+                
                 const data = await response.json();
+                
+                // Validasi data array (Pencegah Crash)
+                if (!Array.isArray(data)) throw new Error(data.message || 'Data tidak valid');
+
                 allApps = data
                     .filter(item => item.type === 'dir' && !item.name.startsWith('.'))
                     .map(folder => ({
@@ -677,19 +703,24 @@
                         title: folder.name.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
                     }))
                     .sort((a, b) => a.name.localeCompare(b.name));
-                document.getElementById('app-count').textContent = `${allApps.length} ${i18n[currentLang].apps}`;
+                
+                const appCountEl = document.getElementById('app-count');
+                if(appCountEl) appCountEl.textContent = `${allApps.length} ${i18n[currentLang]?.apps || 'APPS'}`;
+                
                 applyFilters();
             } catch (error) {
-                errorMessage.classList.remove('hidden');
-                document.getElementById('errorDetail').textContent = error.message;
+                if(errorMessage) errorMessage.classList.remove('hidden');
+                if(errorDetail) errorDetail.textContent = error.message;
             } finally {
-                statusMessage.classList.add('hidden');
+                if(statusMessage) statusMessage.classList.add('hidden');
             }
         }
 
         function renderApps(apps) {
             const appGrid = document.getElementById('appGrid');
             const emptyState = document.getElementById('emptyState');
+            if(!appGrid || !emptyState) return;
+
             appGrid.innerHTML = '';
             
             if (apps.length === 0) {
@@ -720,43 +751,61 @@
                     .then(res => res.ok ? res.text() : Promise.reject())
                     .then(xmlStr => {
                         const xmlDoc = new DOMParser().parseFromString(xmlStr, "text/xml");
+                        if (xmlDoc.getElementsByTagName("parsererror").length > 0) return;
+                        
                         const colorStart = xmlDoc.querySelector('color_start')?.textContent || '#007AFF';
                         const colorEnd = xmlDoc.querySelector('color_end')?.textContent || '#5856D6';
                         const scaleStr = xmlDoc.querySelector('icon_scale')?.textContent || '0.75';
                         const ornament = xmlDoc.querySelector('ornament')?.textContent || 'none';
                         const svgElementsNode = xmlDoc.querySelector('svg_elements');
+                        
                         let innerSvg = '';
                         if (svgElementsNode) {
                             const serializer = new XMLSerializer();
                             Array.from(svgElementsNode.childNodes).forEach(node => { if (node.nodeType === 1) innerSvg += serializer.serializeToString(node); });
                         }
+                        
                         const iconContainer = card.querySelector('.icon-container');
                         iconContainer.className = 'icon-container w-full aspect-square icon-squircle text-white transition-all duration-500';
                         iconContainer.style.setProperty('--bg-start', colorStart);
                         iconContainer.style.setProperty('--bg-end', colorEnd);
                         iconContainer.style.background = `linear-gradient(135deg, ${colorStart} 0%, ${colorEnd} 100%)`;
                         iconContainer.style.setProperty('--glow', colorStart + '99');
+                        
                         let waveHtml = ornament.includes('wave') ? `<div class="bg-wave-ornament" style="background: linear-gradient(180deg, #C13584 0%, ${colorStart} 100%);"></div>` : '';
                         iconContainer.innerHTML = `${waveHtml}<svg class="icon-svg" viewBox="0 0 100 100" fill="none" style="width: ${parseFloat(scaleStr)*100}%; height: ${parseFloat(scaleStr)*100}%; position: relative; z-index: 10;">${innerSvg}</svg>`;
                     }).catch(() => {});
             });
-            lucide.createIcons();
+            
+            if(typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
         }
 
         window.onload = () => {
-            initSpaceBackground();
-            generateAlphabet();
+            // Error Boundaries untuk menjamin aplikasi tidak macet saat loading awal
+            try { initSpaceBackground(); } catch(e) {}
+            try { generateAlphabet(); } catch(e) {}
             setInterval(updateClock, 1000);
-            document.getElementById('searchInput').addEventListener('input', (e) => {
-                currentSearch = e.target.value.toLowerCase();
-                applyFilters();
-            });
-            updateUIStrings();
-            fetchRepoInfo();
-            fetchApps();
-            lucide.createIcons();
             
-            // Disable right click (context menu) globally
+            try {
+                const searchEl = document.getElementById('searchInput');
+                if(searchEl) {
+                    searchEl.addEventListener('input', (e) => {
+                        currentSearch = e.target.value.toLowerCase();
+                        applyFilters();
+                    });
+                }
+            } catch(e) {}
+            
+            try { updateUIStrings(); } catch(e) {}
+            try { fetchRepoInfo(); } catch(e) {}
+            try { fetchApps(); } catch(e) {}
+            
+            if(typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+            
             document.addEventListener('contextmenu', event => event.preventDefault());
         };
     </script>
