@@ -128,8 +128,7 @@
         }
         .tab-btn.active {
             color: var(--theme-accent);
-            background-color: var(--theme-accent);
-            background-opacity: 0.1;
+            background-color: rgba(59, 130, 246, 0.1);
             box-shadow: inset 0 -2px 0 var(--theme-accent);
         }
         
@@ -326,17 +325,18 @@
                     params: [{ id: 's', label: 'Panjang Sisi (s)', min: 1, max: 20, val: 10, unit: 'cm' }],
                     formulas: [{ label: 'Luas', math: 's × s' }, { label: 'Keliling', math: '4 × s' }],
                     calc: (p) => ({ Luas: p.s * p.s, Keliling: 4 * p.s }),
-                    draw: (ctx, p, scale, showLabel, accentColor, dimColor) => {
+                    draw: (ctx, p, scale) => {
                         const size = p.s * scale;
                         ctx.rect(-size/2, -size/2, size, size);
-                        if(showLabel) {
-                            ctx.fillStyle = dimColor; ctx.font = '14px Inter';
-                            // Cukup 1 label panjang sisi s & 1 tanda siku
-                            ctx.fillText(`s = ${p.s}`, 0, -size/2 - 10);
-                            ctx.beginPath();
-                            ctx.moveTo(-size/2 + 15, -size/2); ctx.lineTo(-size/2 + 15, -size/2 + 15); ctx.lineTo(-size/2, -size/2 + 15);
-                            ctx.strokeStyle = accentColor; ctx.lineWidth = 2; ctx.stroke();
-                        }
+                    },
+                    drawLabel: (ctx, p, scale, accentColor, dimColor) => {
+                        const size = p.s * scale;
+                        ctx.fillStyle = dimColor; ctx.font = '14px Inter';
+                        // Cukup 1 label panjang sisi s & 1 tanda siku
+                        ctx.fillText(`s = ${p.s}`, 0, -size/2 - 10);
+                        ctx.beginPath();
+                        ctx.moveTo(-size/2 + 15, -size/2); ctx.lineTo(-size/2 + 15, -size/2 + 15); ctx.lineTo(-size/2, -size/2 + 15);
+                        ctx.strokeStyle = accentColor; ctx.lineWidth = 2; ctx.stroke();
                     }
                 },
                 persegipanjang: {
@@ -349,17 +349,18 @@
                     ],
                     formulas: [{ label: 'Luas', math: 'p × l' }, { label: 'Keliling', math: '2 × (p + l)' }],
                     calc: (p) => ({ Luas: p.p * p.l, Keliling: 2 * (p.p + p.l) }),
-                    draw: (ctx, p, scale, showLabel, accentColor, dimColor) => {
+                    draw: (ctx, p, scale) => {
                         const w = p.p * scale; const h = p.l * scale;
                         ctx.rect(-w/2, -h/2, w, h);
-                        if(showLabel) {
-                            ctx.fillStyle = dimColor; ctx.font = '14px Inter';
-                            ctx.fillText(`p = ${p.p}`, 0, -h/2 - 10);
-                            ctx.fillText(`l = ${p.l}`, w/2 + 25, 0);
-                            ctx.beginPath();
-                            ctx.moveTo(-w/2 + 15, -h/2); ctx.lineTo(-w/2 + 15, -h/2 + 15); ctx.lineTo(-w/2, -h/2 + 15);
-                            ctx.strokeStyle = accentColor; ctx.lineWidth = 2; ctx.stroke();
-                        }
+                    },
+                    drawLabel: (ctx, p, scale, accentColor, dimColor) => {
+                        const w = p.p * scale; const h = p.l * scale;
+                        ctx.fillStyle = dimColor; ctx.font = '14px Inter';
+                        ctx.fillText(`p = ${p.p}`, 0, -h/2 - 10);
+                        ctx.fillText(`l = ${p.l}`, w/2 + 25, 0);
+                        ctx.beginPath();
+                        ctx.moveTo(-w/2 + 15, -h/2); ctx.lineTo(-w/2 + 15, -h/2 + 15); ctx.lineTo(-w/2, -h/2 + 15);
+                        ctx.strokeStyle = accentColor; ctx.lineWidth = 2; ctx.stroke();
                     }
                 },
                 lingkaran: {
@@ -369,15 +370,19 @@
                     params: [{ id: 'r', label: 'Jari-jari (r)', min: 1, max: 15, val: 7, unit: 'cm' }],
                     formulas: [{ label: 'Luas', math: 'π × r²' }, { label: 'Keliling', math: '2 × π × r' }],
                     calc: (p) => ({ Luas: (Math.PI * p.r * p.r).toFixed(2), Keliling: (2 * Math.PI * p.r).toFixed(2) }),
-                    draw: (ctx, p, scale, showLabel, accentColor, dimColor) => {
+                    draw: (ctx, p, scale) => {
                         const radius = p.r * scale;
                         ctx.arc(0, 0, radius, 0, Math.PI * 2);
-                        if(showLabel) {
-                            ctx.moveTo(0,0); ctx.lineTo(radius, 0); ctx.stroke();
-                            ctx.fillStyle = dimColor; ctx.font = '14px Inter';
-                            ctx.fillText(`r = ${p.r}`, radius/2, -10);
-                            ctx.beginPath(); ctx.arc(0,0, 3, 0, Math.PI*2); ctx.fillStyle = accentColor; ctx.fill();
-                        }
+                    },
+                    drawLabel: (ctx, p, scale, accentColor, dimColor) => {
+                        const radius = p.r * scale;
+                        ctx.beginPath();
+                        ctx.moveTo(0,0); ctx.lineTo(radius, 0);
+                        ctx.strokeStyle = dimColor; ctx.lineWidth = 1; ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
+                        
+                        ctx.fillStyle = dimColor; ctx.font = '14px Inter';
+                        ctx.fillText(`r = ${p.r}`, radius/2, -10);
+                        ctx.beginPath(); ctx.arc(0,0, 3, 0, Math.PI*2); ctx.fillStyle = accentColor; ctx.fill();
                     }
                 },
                 segin: {
@@ -394,7 +399,7 @@
                         const sisi = 2 * p.r * Math.sin(Math.PI / p.n);
                         return { Luas: (0.5 * p.n * Math.pow(p.r, 2) * Math.sin(angle)).toFixed(2), Keliling: (p.n * sisi).toFixed(2) };
                     },
-                    draw: (ctx, p, scale, showLabel, accentColor, dimColor) => {
+                    draw: (ctx, p, scale) => {
                         const r = p.r * scale;
                         ctx.moveTo(0, -r);
                         for (let i = 1; i <= p.n; i++) {
@@ -402,17 +407,17 @@
                             ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
                         }
                         ctx.closePath();
-                        
-                        if(showLabel) {
-                            ctx.fillStyle = dimColor; ctx.font = '14px Inter';
-                            const sisiValue = (2 * p.r * Math.sin(Math.PI / p.n)).toFixed(1);
-                            // Cukup satu sisi dan satu jari-jari
-                            ctx.fillText(`sisi ≈ ${sisiValue}`, 0, r + 20);
-                            ctx.beginPath(); ctx.setLineDash([5, 5]);
-                            ctx.moveTo(0,0); ctx.lineTo(0, -r); ctx.stroke();
-                            ctx.setLineDash([]);
-                            ctx.fillText(`r = ${p.r}`, 15, -r/2);
-                        }
+                    },
+                    drawLabel: (ctx, p, scale, accentColor, dimColor) => {
+                        const r = p.r * scale;
+                        ctx.fillStyle = dimColor; ctx.font = '14px Inter';
+                        const sisiValue = (2 * p.r * Math.sin(Math.PI / p.n)).toFixed(1);
+                        // Cukup satu sisi dan satu jari-jari
+                        ctx.fillText(`sisi ≈ ${sisiValue}`, 0, r + 20);
+                        ctx.beginPath(); ctx.setLineDash([4, 4]);
+                        ctx.moveTo(0,0); ctx.lineTo(0, -r); ctx.strokeStyle = dimColor; ctx.lineWidth = 1; ctx.stroke();
+                        ctx.setLineDash([]);
+                        ctx.fillText(`r = ${p.r}`, 15, -r/2);
                     }
                 }
             },
@@ -698,10 +703,16 @@
             ctx2d.beginPath();
             const scaleFactor = Math.min(canvas2dEl.width, canvas2dEl.height) / 50; 
             
-            shapeData.draw(ctx2d, activeParams, scaleFactor, showLabels, accentColor, dimColor);
+            shapeData.draw(ctx2d, activeParams, scaleFactor);
             
             ctx2d.fill(); ctx2d.stroke();
             
+            // Draw Labels Separately
+            if(showLabels && shapeData.drawLabel) {
+                ctx2d.shadowBlur = 0; // Matikan glow agar teks label tetap tajam
+                shapeData.drawLabel(ctx2d, activeParams, scaleFactor, accentColor, dimColor);
+            }
+
             ctx2d.shadowBlur = 0; ctx2d.restore();
             drawGrid();
         }
@@ -765,33 +776,31 @@
         function createTextSprite(message) {
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
-            const fontSize = 36;
+            const fontSize = 42;
             context.font = `Bold ${fontSize}px Inter, sans-serif`;
 
             const metrics = context.measureText(message);
             const textWidth = metrics.width;
-            canvas.width = textWidth + 30; // padding
-            canvas.height = fontSize + 20;
+            canvas.width = textWidth + 16; 
+            canvas.height = fontSize + 16;
             
             context.font = `Bold ${fontSize}px Inter, sans-serif`;
             
-            // Background Badge for Label
-            context.fillStyle = isDarkMode ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.9)';
-            context.strokeStyle = '#3b82f6';
-            context.lineWidth = 2;
-            context.roundRect(0, 0, canvas.width, canvas.height, 10);
-            context.fill(); context.stroke();
+            // Text Outline for readability (menggantikan background border box)
+            context.lineWidth = 6;
+            context.strokeStyle = isDarkMode ? '#0f172a' : '#ffffff';
+            context.textAlign = "center";
+            context.textBaseline = "middle";
+            context.strokeText(message, canvas.width/2, canvas.height/2 + 2);
 
             // Text
             context.fillStyle = isDarkMode ? '#ffffff' : '#0f172a';
-            context.textAlign = "center";
-            context.textBaseline = "middle";
             context.fillText(message, canvas.width/2, canvas.height/2 + 2);
 
             const texture = new THREE.CanvasTexture(canvas);
             const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false }); 
             const sprite = new THREE.Sprite(spriteMaterial);
-            sprite.scale.set(canvas.width/30, canvas.height/30, 1);
+            sprite.scale.set(canvas.width/60, canvas.height/60, 1);
             return sprite;
         }
 
