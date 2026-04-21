@@ -1,0 +1,890 @@
+<!-- 
+  TAFSIR VISUAL: 
+  Aplikasi GeoVis mematuhi standar TATADADA UI Framework versi terbaru.
+  [v] CSS Tokens Mutlak, font Inter & JetBrains Mono.
+  [v] Layout Blueprint Split-Pane dengan Gutter Resizer tebal (dimensi kedalaman).
+  [v] Modal Disclaimer dengan teks legal bilingual.
+  [v] Fitur Label Cerdas (Hanya merender 1 label untuk nilai rusuk yang sama, baik 2D maupun 3D).
+-->
+<!DOCTYPE html>
+<html lang="id" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoVis</title>
+    
+    <!-- Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        header: 'var(--header-bg)',
+                        editor: 'var(--editor-bg)',
+                        preview: 'var(--preview-bg)',
+                        card: 'var(--card-bg)',
+                        footer: 'var(--footer-bg)',
+                        theme: 'var(--border-color)',
+                        main: 'var(--text-main)',
+                        dim: 'var(--text-dim)',
+                        accent: 'var(--theme-accent)',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* CSS TOKENS MUTLAK - TATADADA UI */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9; 
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --theme-accent: #3b82f6;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            overflow: hidden; 
+        }
+
+        /* Custom Scrollbar Premium */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: var(--theme-accent);
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--theme-accent);
+            transition: all 0.2s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: var(--border-color);
+            border-radius: 2px;
+        }
+
+        /* Mode Toggle Tabs */
+        .tab-btn {
+            color: var(--text-dim);
+            transition: all 0.2s ease;
+        }
+        .tab-btn.active {
+            color: var(--theme-accent);
+            background-color: var(--theme-accent);
+            background-opacity: 0.1;
+            box-shadow: inset 0 -2px 0 var(--theme-accent);
+        }
+        
+        .shape-btn {
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+        }
+        .shape-btn:hover {
+            background-color: var(--preview-bg);
+        }
+        .shape-btn.active {
+            border-left-color: var(--theme-accent);
+            background-color: var(--preview-bg);
+            color: var(--theme-accent);
+            font-weight: 500;
+        }
+
+        .toggle-label.active {
+            background-color: var(--theme-accent);
+            color: white;
+            border-color: var(--theme-accent);
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col selection:bg-accent selection:text-white">
+
+    <!-- HEADER (h-14) -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <i data-lucide="box" class="w-6 h-6 text-accent"></i>
+                <h1 class="text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-accent to-purple-500">
+                    GeoVis
+                </h1>
+                <span class="text-xs italic text-dim ml-2 mt-1">v2.2</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="text-xs text-dim hidden md:inline-block">by AhmadDanial</span>
+            <div class="h-4 w-px bg-theme hidden md:block"></div>
+            
+            <button class="text-dim hover:text-main transition-colors group relative" title="Help">
+                <i data-lucide="help-circle" class="w-5 h-5"></i>
+                <div class="absolute right-0 top-full mt-2 w-48 p-2 bg-card border border-theme rounded-lg shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-xs text-main">
+                    ID: Geser slider parameter. Gunakan toggle Label. Tarik area 3D untuk memutar.
+                </div>
+            </button>
+            
+            <!-- Lang Toggle -->
+            <button id="lang-toggle" onclick="toggleLang()" class="flex items-center gap-1 text-sm font-medium text-dim hover:text-main transition-colors">
+                <span id="lang-label">ID</span>
+                <i data-lucide="globe" class="w-4 h-4"></i>
+            </button>
+
+            <button onclick="toggleTheme()" class="text-dim hover:text-main transition-colors">
+                <i data-lucide="moon" id="theme-icon-dark" class="w-5 h-5 hidden dark:block"></i>
+                <i data-lucide="sun" id="theme-icon-light" class="w-5 h-5 block dark:hidden"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 flex overflow-hidden">
+        
+        <!-- PANEL KIRI: EDITOR/CANVAS -->
+        <div id="left-pane" class="flex-[6] bg-editor relative overflow-hidden flex flex-col">
+            <div class="absolute top-6 left-6 z-10 pointer-events-none">
+                <h2 id="canvas-title" class="text-3xl font-bold text-main tracking-tight">Nama Bangun</h2>
+                <p id="canvas-subtitle" class="text-dim text-sm mt-1 max-w-md leading-relaxed">Deskripsi singkat</p>
+            </div>
+
+            <div id="interaction-hint" class="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 bg-card/80 backdrop-blur-md px-4 py-2 rounded-full text-xs text-dim border border-theme flex items-center gap-2 pointer-events-none shadow-sm">
+                <i data-lucide="mouse-pointer-click" class="w-4 h-4"></i> 
+                <span id="hint-text">Geser parameter untuk melihat perubahan</span>
+            </div>
+
+            <canvas id="canvas-2d" class="w-full h-full block absolute inset-0 z-0"></canvas>
+            <div id="canvas-3d-container" class="w-full h-full block absolute inset-0 z-0 hidden"></div>
+        </div>
+        
+        <!-- RESIZER/GUTTER (WAJIB TEBAL) -->
+        <div id="resizer" class="w-3 bg-preview cursor-col-resize flex items-center justify-center border-x border-theme group shrink-0 z-20">
+            <div class="h-8 w-1 bg-theme group-hover:bg-accent rounded-full transition-colors"></div>
+        </div>
+        
+        <!-- PANEL KANAN: KONTROL -->
+        <div id="right-pane" class="flex-[4] min-w-[320px] bg-preview p-5 flex flex-col gap-5 overflow-y-auto hidden-scrollbar">
+            
+            <!-- CARD 1 -->
+            <div class="bg-card rounded-xl shadow-sm border border-theme flex flex-col overflow-hidden shrink-0">
+                <div class="flex border-b border-theme bg-preview/50">
+                    <button id="btn-2d" onclick="setMode('2d')" class="tab-btn flex-1 py-3 text-sm font-medium active">
+                        <i data-lucide="square" class="inline w-4 h-4 mr-1 -mt-1"></i> 2D Datar
+                    </button>
+                    <button id="btn-3d" onclick="setMode('3d')" class="tab-btn flex-1 py-3 text-sm font-medium">
+                        <i data-lucide="box" class="inline w-4 h-4 mr-1 -mt-1"></i> 3D Ruang
+                    </button>
+                </div>
+                <div class="p-2 max-h-48 overflow-y-auto hidden-scrollbar">
+                    <div id="shape-list" class="grid grid-cols-2 gap-1">
+                        <!-- Generated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 2 -->
+            <div class="bg-card rounded-xl shadow-sm border border-theme p-5 shrink-0">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-semibold text-sm text-main flex items-center gap-2">
+                        <i data-lucide="sliders-horizontal" class="w-4 h-4 text-accent"></i> Parameter
+                    </h3>
+                    <!-- TOGGLE LABEL -->
+                    <button id="label-toggle-btn" onclick="toggleLabels()" class="toggle-label px-3 py-1 text-xs font-medium border border-theme text-dim rounded-md transition-colors flex items-center gap-1 shadow-sm">
+                        <i data-lucide="tag" class="w-3 h-3"></i> Label Geometri
+                    </button>
+                </div>
+                <div id="parameters-container" class="space-y-5">
+                    <!-- Generated by JS -->
+                </div>
+            </div>
+
+            <!-- CARD 3 -->
+            <div class="bg-card rounded-xl shadow-sm border border-theme p-5 flex-1 flex flex-col min-h-[250px]">
+                <h3 class="font-semibold text-sm mb-4 text-main flex items-center gap-2">
+                    <i data-lucide="calculator" class="w-4 h-4 text-accent"></i> Rumus & Hasil
+                </h3>
+                
+                <div id="results-container" class="grid grid-cols-2 gap-3 mb-5">
+                    <!-- Generated by JS -->
+                </div>
+                
+                <div class="mt-auto bg-preview rounded-lg p-4 border border-theme">
+                    <h4 class="text-xs font-semibold text-dim mb-2 uppercase tracking-wider">Penjelasan Singkat</h4>
+                    <p id="explanation-text" class="text-sm text-main leading-relaxed text-justify font-sans">
+                        <!-- Generated by JS -->
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- FOOTER (h-8) -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 relative z-50">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span>Engine Ready</span>
+        </div>
+        <div class="hidden md:block">
+            Mode: <span id="footer-mode-status" class="font-mono text-accent">2D Canvas</span>
+        </div>
+        <div>
+            <button onclick="document.getElementById('terms-modal').classList.remove('hidden')" class="hover:text-main transition-colors hover:underline">
+                Terms & Geometry Rules
+            </button>
+        </div>
+    </footer>
+
+    <!-- MODAL TERMS (STRICT TATADADA UI) -->
+    <div id="terms-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/20 backdrop-blur-sm" onclick="document.getElementById('terms-modal').classList.add('hidden')"></div>
+        <div class="relative w-full max-w-md bg-card rounded-2xl shadow-2xl p-6 border border-theme">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-main">Terms of Use / Disclaimer</h3>
+                <button onclick="document.getElementById('terms-modal').classList.add('hidden')" class="text-dim hover:text-main">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="text-sm text-dim space-y-3 font-sans leading-relaxed">
+                <!-- Legal Text (Bilingual Switchable) -->
+                <p id="terms-text-id" class="block">"Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya."</p>
+                <p id="terms-text-en" class="hidden">"There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app does not store your personal data on our servers. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms."</p>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="document.getElementById('terms-modal').classList.add('hidden')" class="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm focus:ring-2 focus:ring-blue-500/20">
+                    I Agree
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        let showLabels = false;
+        let isEnglish = false;
+
+        // --- DATA BANGUN DATAR & RUANG ---
+        const geometryData = {
+            '2d': {
+                persegi: {
+                    name: 'Persegi', icon: 'square',
+                    desc: 'Bangun datar 2 dimensi bersisi 4 yang sama panjang.',
+                    explanation: 'Persegi memiliki 4 sisi yang sama panjang dan 4 sudut siku-siku (90°).',
+                    params: [{ id: 's', label: 'Panjang Sisi (s)', min: 1, max: 20, val: 10, unit: 'cm' }],
+                    formulas: [{ label: 'Luas', math: 's × s' }, { label: 'Keliling', math: '4 × s' }],
+                    calc: (p) => ({ Luas: p.s * p.s, Keliling: 4 * p.s }),
+                    draw: (ctx, p, scale, showLabel, accentColor, dimColor) => {
+                        const size = p.s * scale;
+                        ctx.rect(-size/2, -size/2, size, size);
+                        if(showLabel) {
+                            ctx.fillStyle = dimColor; ctx.font = '14px Inter';
+                            // Cukup 1 label panjang sisi s & 1 tanda siku
+                            ctx.fillText(`s = ${p.s}`, 0, -size/2 - 10);
+                            ctx.beginPath();
+                            ctx.moveTo(-size/2 + 15, -size/2); ctx.lineTo(-size/2 + 15, -size/2 + 15); ctx.lineTo(-size/2, -size/2 + 15);
+                            ctx.strokeStyle = accentColor; ctx.lineWidth = 2; ctx.stroke();
+                        }
+                    }
+                },
+                persegipanjang: {
+                    name: 'Persegi Panjang', icon: 'rectangle-horizontal',
+                    desc: 'Bangun datar bersisi 4 dengan sisi berhadapan sama panjang.',
+                    explanation: 'Persegi panjang memiliki dua pasang sisi yang sejajar dan sama panjang.',
+                    params: [
+                        { id: 'p', label: 'Panjang (p)', min: 1, max: 30, val: 15, unit: 'cm' },
+                        { id: 'l', label: 'Lebar (l)', min: 1, max: 30, val: 8, unit: 'cm' }
+                    ],
+                    formulas: [{ label: 'Luas', math: 'p × l' }, { label: 'Keliling', math: '2 × (p + l)' }],
+                    calc: (p) => ({ Luas: p.p * p.l, Keliling: 2 * (p.p + p.l) }),
+                    draw: (ctx, p, scale, showLabel, accentColor, dimColor) => {
+                        const w = p.p * scale; const h = p.l * scale;
+                        ctx.rect(-w/2, -h/2, w, h);
+                        if(showLabel) {
+                            ctx.fillStyle = dimColor; ctx.font = '14px Inter';
+                            ctx.fillText(`p = ${p.p}`, 0, -h/2 - 10);
+                            ctx.fillText(`l = ${p.l}`, w/2 + 25, 0);
+                            ctx.beginPath();
+                            ctx.moveTo(-w/2 + 15, -h/2); ctx.lineTo(-w/2 + 15, -h/2 + 15); ctx.lineTo(-w/2, -h/2 + 15);
+                            ctx.strokeStyle = accentColor; ctx.lineWidth = 2; ctx.stroke();
+                        }
+                    }
+                },
+                lingkaran: {
+                    name: 'Lingkaran', icon: 'circle',
+                    desc: 'Himpunan semua titik berjarak sama dari pusat.',
+                    explanation: 'Jarak dari pusat ke tepi disebut jari-jari (r).',
+                    params: [{ id: 'r', label: 'Jari-jari (r)', min: 1, max: 15, val: 7, unit: 'cm' }],
+                    formulas: [{ label: 'Luas', math: 'π × r²' }, { label: 'Keliling', math: '2 × π × r' }],
+                    calc: (p) => ({ Luas: (Math.PI * p.r * p.r).toFixed(2), Keliling: (2 * Math.PI * p.r).toFixed(2) }),
+                    draw: (ctx, p, scale, showLabel, accentColor, dimColor) => {
+                        const radius = p.r * scale;
+                        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                        if(showLabel) {
+                            ctx.moveTo(0,0); ctx.lineTo(radius, 0); ctx.stroke();
+                            ctx.fillStyle = dimColor; ctx.font = '14px Inter';
+                            ctx.fillText(`r = ${p.r}`, radius/2, -10);
+                            ctx.beginPath(); ctx.arc(0,0, 3, 0, Math.PI*2); ctx.fillStyle = accentColor; ctx.fill();
+                        }
+                    }
+                },
+                segin: {
+                    name: 'Segi-n Beraturan', icon: 'hexagon',
+                    desc: 'Poligon dengan n-sisi dan sudut yang sama besar.',
+                    explanation: 'Dapat dibagi menjadi n segitiga sama kaki.',
+                    params: [
+                        { id: 'n', label: 'Jumlah Sisi (n)', min: 3, max: 12, val: 6, unit: ' sisi' },
+                        { id: 'r', label: 'Jari-jari (r)', min: 2, max: 15, val: 8, unit: 'cm' }
+                    ],
+                    formulas: [{ label: 'Luas', math: 'n/2 × r² × sin(360/n)' }, { label: 'Keliling', math: 'n × 2r × sin(180/n)' }],
+                    calc: (p) => {
+                        const angle = 2 * Math.PI / p.n;
+                        const sisi = 2 * p.r * Math.sin(Math.PI / p.n);
+                        return { Luas: (0.5 * p.n * Math.pow(p.r, 2) * Math.sin(angle)).toFixed(2), Keliling: (p.n * sisi).toFixed(2) };
+                    },
+                    draw: (ctx, p, scale, showLabel, accentColor, dimColor) => {
+                        const r = p.r * scale;
+                        ctx.moveTo(0, -r);
+                        for (let i = 1; i <= p.n; i++) {
+                            const a = (i * 2 * Math.PI) / p.n - Math.PI/2;
+                            ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+                        }
+                        ctx.closePath();
+                        
+                        if(showLabel) {
+                            ctx.fillStyle = dimColor; ctx.font = '14px Inter';
+                            const sisiValue = (2 * p.r * Math.sin(Math.PI / p.n)).toFixed(1);
+                            // Cukup satu sisi dan satu jari-jari
+                            ctx.fillText(`sisi ≈ ${sisiValue}`, 0, r + 20);
+                            ctx.beginPath(); ctx.setLineDash([5, 5]);
+                            ctx.moveTo(0,0); ctx.lineTo(0, -r); ctx.stroke();
+                            ctx.setLineDash([]);
+                            ctx.fillText(`r = ${p.r}`, 15, -r/2);
+                        }
+                    }
+                }
+            },
+            '3d': {
+                kubus: {
+                    name: 'Kubus', icon: 'box',
+                    desc: 'Bangun ruang 3D dibatasi 6 sisi persegi.',
+                    explanation: 'Memiliki 12 rusuk sama panjang dan 8 titik sudut.',
+                    params: [{ id: 's', label: 'Panjang Rusuk (s)', min: 1, max: 15, val: 8, unit: 'cm' }],
+                    formulas: [{ label: 'Volume', math: 's³' }, { label: 'Luas P.', math: '6 × s²' }],
+                    calc: (p) => ({ Volume: p.s ** 3, 'L. Permukaan': 6 * (p.s ** 2) }),
+                    createGeo: (p) => new THREE.BoxGeometry(p.s, p.s, p.s)
+                },
+                balok: {
+                    name: 'Balok', icon: 'layers',
+                    desc: 'Bangun ruang 3 pasang sisi persegi panjang.',
+                    explanation: 'Sisi-sisi yang berhadapan memiliki luas yang sama.',
+                    params: [
+                        { id: 'p', label: 'Panjang (p)', min: 1, max: 20, val: 12, unit: 'cm' },
+                        { id: 'l', label: 'Lebar (l)', min: 1, max: 20, val: 6, unit: 'cm' },
+                        { id: 't', label: 'Tinggi (t)', min: 1, max: 20, val: 8, unit: 'cm' }
+                    ],
+                    formulas: [{ label: 'Volume', math: 'p × l × t' }, { label: 'Luas P.', math: '2(pl+pt+lt)' }],
+                    calc: (p) => ({ Volume: p.p * p.l * p.t, 'L. Permukaan': 2 * ((p.p*p.l) + (p.p*p.t) + (p.l*p.t)) }),
+                    createGeo: (p) => new THREE.BoxGeometry(p.p, p.t, p.l)
+                },
+                prisma_n: {
+                    name: 'Prisma Segi-n', icon: 'cylinder',
+                    desc: 'Prisma dengan bentuk alas segi-n beraturan.',
+                    explanation: 'Terdiri dari alas segi-n, tutup segi-n, dan n buah sisi tegak berbentuk segiempat.',
+                    params: [
+                        { id: 'n', label: 'Jumlah Sisi Alas (n)', min: 3, max: 12, val: 6, unit: ' sisi' },
+                        { id: 'r', label: 'Jari-jari Alas (r)', min: 1, max: 10, val: 5, unit: 'cm' },
+                        { id: 't', label: 'Tinggi Prisma (t)', min: 1, max: 20, val: 10, unit: 'cm' }
+                    ],
+                    formulas: [{ label: 'Volume', math: 'L.Alas × t' }],
+                    calc: (p) => {
+                        const angle = 2 * Math.PI / p.n;
+                        const luasAlas = 0.5 * p.n * Math.pow(p.r, 2) * Math.sin(angle);
+                        const sisiAlas = 2 * p.r * Math.sin(Math.PI / p.n);
+                        const luasSelimut = p.n * sisiAlas * p.t;
+                        return { 
+                            Volume: (luasAlas * p.t).toFixed(2), 
+                            'L. Permukaan': (2 * luasAlas + luasSelimut).toFixed(2) 
+                        };
+                    },
+                    createGeo: (p) => new THREE.CylinderGeometry(p.r, p.r, p.t, p.n)
+                },
+                limas_n: {
+                    name: 'Limas Segi-n', icon: 'triangle',
+                    desc: 'Piramida dengan alas segi-n.',
+                    explanation: 'Memiliki 1 alas segi-n dan n buah sisi tegak segitiga yang bertemu di titik puncak.',
+                    params: [
+                        { id: 'n', label: 'Jumlah Sisi Alas (n)', min: 3, max: 12, val: 5, unit: ' sisi' },
+                        { id: 'r', label: 'Jari-jari Alas (r)', min: 1, max: 10, val: 6, unit: 'cm' },
+                        { id: 't', label: 'Tinggi Limas (t)', min: 1, max: 20, val: 10, unit: 'cm' }
+                    ],
+                    formulas: [{ label: 'Volume', math: '1/3 × L.Alas × t' }],
+                    calc: (p) => {
+                        const angle = 2 * Math.PI / p.n;
+                        const luasAlas = 0.5 * p.n * Math.pow(p.r, 2) * Math.sin(angle);
+                        return { Volume: ((1/3) * luasAlas * p.t).toFixed(2) };
+                    },
+                    createGeo: (p) => new THREE.ConeGeometry(p.r, p.t, p.n)
+                },
+                bola: {
+                    name: 'Bola', icon: 'globe',
+                    desc: 'Bangun ruang sisi lengkung sempurna.',
+                    explanation: 'Dibentuk oleh lingkaran tak hingga, tak memiliki titik sudut.',
+                    params: [{ id: 'r', label: 'Jari-jari (r)', min: 1, max: 10, val: 6, unit: 'cm' }],
+                    formulas: [{ label: 'Volume', math: '4/3 × π × r³' }, { label: 'Luas P.', math: '4 × π × r²' }],
+                    calc: (p) => ({ Volume: ((4/3) * Math.PI * Math.pow(p.r, 3)).toFixed(2), 'L. Permukaan': (4 * Math.PI * Math.pow(p.r, 2)).toFixed(2) }),
+                    createGeo: (p) => new THREE.SphereGeometry(p.r, 32, 32)
+                },
+                dodekahedron: {
+                    name: 'Dodekahedron', icon: 'hexagon',
+                    desc: 'Polihedron beraturan 12 sisi segilima.',
+                    explanation: 'Terdiri dari 12 segilima beraturan, 30 rusuk, 20 sudut.',
+                    params: [{ id: 's', label: 'Panjang Rusuk (s)', min: 1, max: 15, val: 5, unit: 'cm' }],
+                    formulas: [{ label: 'Volume', math: '1/4(15+7√5)s³' }],
+                    calc: (p) => ({ Volume: (0.25 * (15 + 7 * Math.sqrt(5)) * Math.pow(p.s, 3)).toFixed(2) }),
+                    createGeo: (p) => {
+                        const radius = p.s * (Math.sqrt(15) + Math.sqrt(3)) / 4;
+                        return new THREE.DodecahedronGeometry(radius);
+                    }
+                }
+            }
+        };
+
+        // --- GLOBAL STATE ---
+        let currentMode = '2d';
+        let currentShapeId = 'persegi';
+        let activeParams = {};
+        let isDarkMode = false;
+
+        // --- DOM ELEMENTS ---
+        const shapeListEl = document.getElementById('shape-list');
+        const paramsContainerEl = document.getElementById('parameters-container');
+        const resultsContainerEl = document.getElementById('results-container');
+        const explanationTextEl = document.getElementById('explanation-text');
+        const canvasTitleEl = document.getElementById('canvas-title');
+        const canvasSubtitleEl = document.getElementById('canvas-subtitle');
+        const canvas2dEl = document.getElementById('canvas-2d');
+        const ctx2d = canvas2dEl.getContext('2d');
+        const canvas3dContainer = document.getElementById('canvas-3d-container');
+
+        // --- THREE.JS VARIABLES ---
+        let scene, camera, renderer, controls;
+        let currentMeshGroup = null;
+        let ambientLight, dirLight1, dirLight2, gridHelper;
+
+        function init() {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark'); isDarkMode = true;
+            } else {
+                document.documentElement.classList.remove('dark'); isDarkMode = false;
+            }
+
+            initThreeJS(); initResizer();
+            resizeCanvases(); window.addEventListener('resize', resizeCanvases);
+            setMode('2d'); lucide.createIcons();
+        }
+
+        function toggleTheme() {
+            isDarkMode = !isDarkMode;
+            document.documentElement.classList.toggle('dark', isDarkMode);
+            localStorage.theme = isDarkMode ? 'dark' : 'light';
+            updateVisualization(); updateThreeJSLighting();
+        }
+        
+        function toggleLang() {
+            isEnglish = !isEnglish;
+            document.getElementById('lang-label').innerText = isEnglish ? 'EN' : 'ID';
+            document.getElementById('terms-text-id').classList.toggle('hidden', isEnglish);
+            document.getElementById('terms-text-id').classList.toggle('block', !isEnglish);
+            document.getElementById('terms-text-en').classList.toggle('hidden', !isEnglish);
+            document.getElementById('terms-text-en').classList.toggle('block', isEnglish);
+        }
+
+        function toggleLabels() {
+            showLabels = !showLabels;
+            document.getElementById('label-toggle-btn').classList.toggle('active', showLabels);
+            updateVisualization();
+        }
+
+        function initResizer() {
+            const resizer = document.getElementById('resizer');
+            const leftPane = document.getElementById('left-pane');
+            let isResizing = false;
+
+            resizer.addEventListener('mousedown', (e) => { isResizing = true; document.body.style.cursor = 'col-resize'; e.preventDefault(); });
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                if (e.clientX > 300 && e.clientX < document.body.clientWidth - 320) {
+                    leftPane.style.flex = `0 0 ${e.clientX}px`; resizeCanvases();
+                }
+            });
+            document.addEventListener('mouseup', () => { if (isResizing) { isResizing = false; document.body.style.cursor = ''; } });
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('btn-2d').classList.toggle('active', mode === '2d');
+            document.getElementById('btn-3d').classList.toggle('active', mode === '3d');
+            document.getElementById('footer-mode-status').innerText = mode === '2d' ? '2D Canvas Render' : '3D WebGL Render';
+
+            if(mode === '2d') {
+                canvas2dEl.classList.remove('hidden'); canvas3dContainer.classList.add('hidden');
+                currentShapeId = Object.keys(geometryData['2d'])[0];
+            } else {
+                canvas2dEl.classList.add('hidden'); canvas3dContainer.classList.remove('hidden');
+                currentShapeId = Object.keys(geometryData['3d'])[0];
+            }
+
+            renderShapeList(); selectShape(currentShapeId);
+        }
+
+        function renderShapeList() {
+            shapeListEl.innerHTML = '';
+            for (const [id, data] of Object.entries(geometryData[currentMode])) {
+                const btn = document.createElement('button');
+                btn.className = `shape-btn flex items-center p-2 rounded-md text-left text-sm text-dim ${id === currentShapeId ? 'active' : ''}`;
+                btn.onclick = () => selectShape(id);
+                btn.innerHTML = `<i data-lucide="${data.icon}" class="w-4 h-4 mr-2 shrink-0"></i> <span class="truncate">${data.name}</span>`;
+                shapeListEl.appendChild(btn);
+            }
+            lucide.createIcons();
+        }
+
+        function selectShape(id) {
+            currentShapeId = id;
+            const shapeData = geometryData[currentMode][id];
+            
+            canvasTitleEl.innerText = shapeData.name;
+            canvasSubtitleEl.innerText = shapeData.desc;
+            explanationTextEl.innerText = shapeData.explanation;
+
+            activeParams = {}; paramsContainerEl.innerHTML = '';
+            
+            shapeData.params.forEach(p => {
+                activeParams[p.id] = p.val;
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = `
+                    <div class="flex justify-between text-sm mb-2 text-main">
+                        <label for="param-${p.id}" class="font-medium">${p.label}</label>
+                        <span id="val-${p.id}" class="text-accent font-mono bg-preview px-2 rounded">${p.val} ${p.unit}</span>
+                    </div>
+                    <input type="range" id="param-${p.id}" min="${p.min}" max="${p.max}" value="${p.val}" step="0.5" 
+                           oninput="updateParam('${p.id}', this.value, '${p.unit}')">
+                `;
+                paramsContainerEl.appendChild(wrapper);
+            });
+
+            Array.from(shapeListEl.children).forEach((child, index) => {
+                child.classList.toggle('active', Object.keys(geometryData[currentMode])[index] === id);
+            });
+
+            updateCalculations(); updateVisualization();
+        }
+
+        function updateParam(id, val, unit) {
+            activeParams[id] = parseFloat(val);
+            document.getElementById(`val-${id}`).innerText = `${activeParams[id]} ${unit}`;
+            updateCalculations(); updateVisualization();
+        }
+
+        function updateCalculations() {
+            const shapeData = geometryData[currentMode][currentShapeId];
+            const results = shapeData.calc(activeParams);
+            
+            resultsContainerEl.innerHTML = '';
+            for (const [key, val] of Object.entries(results)) {
+                resultsContainerEl.innerHTML += `
+                    <div class="bg-editor p-3 rounded-lg border border-theme">
+                        <div class="text-[10px] text-dim mb-1 uppercase tracking-wider font-semibold">${key}</div>
+                        <div class="text-lg font-mono font-bold text-main">${val}</div>
+                    </div>
+                `;
+            }
+            
+            let formulaHtml = `<div class="col-span-2 mt-1 pt-3 border-t border-theme text-xs text-dim space-y-1">`;
+            shapeData.formulas.forEach(f => {
+                formulaHtml += `<p class="flex justify-between"><span>${f.label}:</span> <span class="text-accent font-mono font-medium">${f.math}</span></p>`;
+            });
+            formulaHtml += `</div>`;
+            resultsContainerEl.innerHTML += formulaHtml;
+        }
+
+        // --- RENDERING VISUALIZATION ---
+        function updateVisualization() { currentMode === '2d' ? render2D() : render3D(); }
+
+        function resizeCanvases() {
+            const rect = canvas2dEl.parentElement.getBoundingClientRect();
+            canvas2dEl.width = rect.width; canvas2dEl.height = rect.height;
+            if(camera && renderer) {
+                camera.aspect = rect.width / rect.height; camera.updateProjectionMatrix();
+                renderer.setSize(rect.width, rect.height);
+            }
+            updateVisualization();
+        }
+
+        function render2D() {
+            ctx2d.clearRect(0, 0, canvas2dEl.width, canvas2dEl.height);
+            const shapeData = geometryData['2d'][currentShapeId];
+            if(!shapeData) return;
+
+            const rootStyles = getComputedStyle(document.documentElement);
+            const accentColor = rootStyles.getPropertyValue('--theme-accent').trim();
+            const dimColor = rootStyles.getPropertyValue('--text-main').trim();
+
+            ctx2d.save();
+            ctx2d.translate(canvas2dEl.width / 2, canvas2dEl.height / 2 + 20); 
+
+            ctx2d.fillStyle = isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)'; 
+            ctx2d.strokeStyle = accentColor; 
+            ctx2d.lineWidth = 3;
+            ctx2d.lineJoin = 'round';
+            ctx2d.textAlign = 'center'; ctx2d.textBaseline = 'middle';
+
+            ctx2d.shadowBlur = isDarkMode ? 10 : 5;
+            ctx2d.shadowColor = accentColor;
+
+            ctx2d.beginPath();
+            const scaleFactor = Math.min(canvas2dEl.width, canvas2dEl.height) / 50; 
+            
+            shapeData.draw(ctx2d, activeParams, scaleFactor, showLabels, accentColor, dimColor);
+            
+            ctx2d.fill(); ctx2d.stroke();
+            
+            ctx2d.shadowBlur = 0; ctx2d.restore();
+            drawGrid();
+        }
+
+        function drawGrid() {
+            ctx2d.save();
+            ctx2d.strokeStyle = isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+            ctx2d.lineWidth = 1;
+            const w = canvas2dEl.width, h = canvas2dEl.height, step = 40;
+            ctx2d.beginPath();
+            for(let x = w/2 % step; x < w; x += step) { ctx2d.moveTo(x, 0); ctx2d.lineTo(x, h); }
+            for(let y = (h/2+20) % step; y < h; y += step) { ctx2d.moveTo(0, y); ctx2d.lineTo(w, y); }
+            ctx2d.stroke();
+            ctx2d.strokeStyle = isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)';
+            ctx2d.beginPath();
+            ctx2d.moveTo(0, h/2+20); ctx2d.lineTo(w, h/2+20); 
+            ctx2d.moveTo(w/2, 0); ctx2d.lineTo(w/2, h); 
+            ctx2d.stroke(); ctx2d.restore();
+        }
+
+        // --- THREE.JS SETUP ---
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, canvas3dContainer.clientWidth / canvas3dContainer.clientHeight, 0.1, 1000);
+            camera.position.set(20, 20, 30);
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(canvas3dContainer.clientWidth, canvas3dContainer.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            canvas3dContainer.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.05;
+            controls.autoRotate = true; controls.autoRotateSpeed = 1.0; 
+
+            ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight);
+            dirLight1 = new THREE.DirectionalLight(0x3b82f6, 0.8); dirLight1.position.set(10, 20, 10); scene.add(dirLight1);
+            dirLight2 = new THREE.DirectionalLight(0xa855f7, 0.6); dirLight2.position.set(-10, -10, -10); scene.add(dirLight2);
+
+            gridHelper = new THREE.GridHelper(50, 50, 0x3b82f6, 0x888888); gridHelper.position.y = -10; scene.add(gridHelper);
+            
+            updateThreeJSLighting();
+
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update();
+                renderer.render(scene, camera);
+            }
+            animate();
+        }
+
+        function updateThreeJSLighting() {
+            if(!scene) return;
+            if (isDarkMode) {
+                ambientLight.intensity = 0.5; gridHelper.material.opacity = 0.1;
+            } else {
+                ambientLight.intensity = 0.8; gridHelper.material.opacity = 0.2;
+            }
+            gridHelper.material.transparent = true;
+        }
+
+        function createTextSprite(message) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            const fontSize = 36;
+            context.font = `Bold ${fontSize}px Inter, sans-serif`;
+
+            const metrics = context.measureText(message);
+            const textWidth = metrics.width;
+            canvas.width = textWidth + 30; // padding
+            canvas.height = fontSize + 20;
+            
+            context.font = `Bold ${fontSize}px Inter, sans-serif`;
+            
+            // Background Badge for Label
+            context.fillStyle = isDarkMode ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.9)';
+            context.strokeStyle = '#3b82f6';
+            context.lineWidth = 2;
+            context.roundRect(0, 0, canvas.width, canvas.height, 10);
+            context.fill(); context.stroke();
+
+            // Text
+            context.fillStyle = isDarkMode ? '#ffffff' : '#0f172a';
+            context.textAlign = "center";
+            context.textBaseline = "middle";
+            context.fillText(message, canvas.width/2, canvas.height/2 + 2);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false }); 
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.scale.set(canvas.width/30, canvas.height/30, 1);
+            return sprite;
+        }
+
+        function render3D() {
+            const shapeData = geometryData['3d'][currentShapeId];
+            if(!shapeData || !scene) return;
+
+            if(currentMeshGroup) {
+                scene.remove(currentMeshGroup);
+                currentMeshGroup.children.forEach(child => {
+                    if(child.geometry) child.geometry.dispose();
+                    if(child.material) {
+                        if(child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
+                });
+            }
+
+            currentMeshGroup = new THREE.Group();
+            const geometry = shapeData.createGeo(activeParams);
+            geometry.computeBoundingSphere();
+            const objRadius = geometry.boundingSphere.radius;
+
+            const material = new THREE.MeshPhysicalMaterial({
+                color: 0x3b82f6, metalness: 0.1, roughness: 0.2, transparent: true,
+                opacity: 0.75, transmission: 0.4, clearcoat: 1.0, clearcoatRoughness: 0.1,
+                depthWrite: true, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
+            });
+
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.renderOrder = 1;
+            currentMeshGroup.add(mesh);
+
+            // Garis Rusuk
+            const edges = new THREE.EdgesGeometry(geometry);
+            const edgeColor = isDarkMode ? 0xffffff : 0x0f172a;
+
+            // 1. GARIS BELAKANG TERSEMBUNYI (Dashed)
+            const optimalDashSize = objRadius * 0.1;
+            const hiddenLineMaterial = new THREE.LineDashedMaterial({
+                color: edgeColor, dashSize: optimalDashSize, gapSize: optimalDashSize,
+                transparent: true, opacity: 0.35, depthTest: false, depthWrite: false
+            });
+            const hiddenLine = new THREE.LineSegments(edges, hiddenLineMaterial);
+            hiddenLine.computeLineDistances(); 
+            hiddenLine.renderOrder = 0; 
+            currentMeshGroup.add(hiddenLine);
+
+            // 2. GARIS DEPAN (Solid)
+            const lineMaterial = new THREE.LineBasicMaterial({ 
+                color: edgeColor, linewidth: 2, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false
+            });
+            const line = new THREE.LineSegments(edges, lineMaterial);
+            line.renderOrder = 2;
+            currentMeshGroup.add(line);
+
+            // 3. SPRITE LABELS CERDAS (Hanya 1 per ukuran/panjang unik)
+            if(showLabels) {
+                const posAttr = edges.attributes.position;
+                const processedEdges = new Set();
+                const uniqueLengths = new Set(); // Melacak agar panjang sama hanya dilabeli 1 kali
+                
+                for (let i = 0; i < posAttr.count; i += 2) {
+                    const p1 = new THREE.Vector3(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
+                    const p2 = new THREE.Vector3(posAttr.getX(i+1), posAttr.getY(i+1), posAttr.getZ(i+1));
+                    
+                    const midPoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+                    const length = p1.distanceTo(p2);
+                    const lengthStr = length.toFixed(1); // Pembulatan untuk mengelompokkan nilai yg identik
+                    
+                    const key = `${midPoint.x.toFixed(1)},${midPoint.y.toFixed(1)},${midPoint.z.toFixed(1)}`;
+                    
+                    // Render HANYA jika nilai panjang ini (lengthStr) belum pernah dilabeli sebelumnya di bentuk ini.
+                    if (!processedEdges.has(key) && length > 0.5 && !uniqueLengths.has(lengthStr)) {
+                        processedEdges.add(key);
+                        uniqueLengths.add(lengthStr); // Tandai panjang rusuk spesifik ini sudah diberi label
+                        
+                        const labelSprite = createTextSprite(lengthStr);
+                        
+                        const dir = midPoint.clone().normalize();
+                        labelSprite.position.copy(midPoint).add(dir.multiplyScalar(objRadius * 0.05));
+                        
+                        currentMeshGroup.add(labelSprite);
+                    }
+                }
+            }
+
+            scene.add(currentMeshGroup);
+            currentMeshGroup.rotation.set(0,0,0);
+        }
+
+        window.onload = init;
+
+    </script>
+</body>
+</html>
