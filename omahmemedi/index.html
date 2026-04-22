@@ -1,0 +1,773 @@
+<!-- Visual Tafsir: Ikon rumah tua berhantu dengan jendela memancarkan cahaya merah darah yang dibingkai aurora gelap pekat, memberi kesan misterius dan kengerian dimensi 3D. -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmahMemedi 3D - TATADADA Framework</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    /* TATADADA Framework CSS Variables */
+    :root {
+      --header-bg: #ffffff;
+      --border-color: #e2e8f0;
+      --text-main: #0f172a;
+      --text-dim: #64748b;
+      --theme-accent: #b91c1c; 
+    }
+    html.dark {
+      --header-bg: #161b22;
+      --border-color: #30363d;
+      --text-main: #e6edf3;
+      --text-dim: #8b949e;
+      --theme-accent: #dc2626;
+    }
+    body { 
+      background-color: #000; 
+      color: var(--text-main); 
+      font-family: 'Inter', sans-serif; 
+      overflow: hidden; 
+      margin: 0;
+      user-select: none; 
+      -webkit-user-select: none;
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+    .font-data { font-family: 'JetBrains Mono', monospace; }
+
+    /* Overlay Efek CRT & Jump Scare */
+    .crt-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+      background-size: 100% 2px, 3px 100%;
+      pointer-events: none;
+      z-index: 100;
+      opacity: 0.4;
+    }
+    #jump-scare-overlay {
+      position: absolute;
+      inset: 0;
+      background-color: transparent;
+      background-size: cover;
+      background-position: center;
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      filter: contrast(200%) grayscale(50%) sepia(50%) hue-rotate(-50deg);
+    }
+    .blood-text {
+      color: #880000;
+      text-shadow: 2px 2px 0px #000, 0 0 10px #ff0000;
+    }
+
+    /* Animasi Grafik EKG (Detak Jantung) */
+    @keyframes heartbeat {
+      0% { transform: scale(1); opacity: 0.8; }
+      14% { transform: scale(1.3); opacity: 1; }
+      28% { transform: scale(1); opacity: 0.8; }
+      42% { transform: scale(1.3); opacity: 1; }
+      70% { transform: scale(1); opacity: 0.8; }
+    }
+    .animate-heartbeat { animation: heartbeat 1.5s infinite; }
+    .animate-heartbeat-fast { animation: heartbeat 0.3s infinite; }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col relative" oncontextmenu="return false;">
+
+  <!-- Efek Visual -->
+  <div class="crt-overlay"></div>
+  <div id="jump-scare-overlay"></div>
+
+  <!-- HUD In-Game -->
+  <div id="ui-layer" class="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-6 box-border opacity-0 transition-opacity duration-500">
+    <div class="flex justify-between items-start">
+      <!-- Grafik Detak Jantung EKG -->
+      <div id="stamina-bar" class="flex items-center gap-3 bg-black/60 backdrop-blur-md px-4 py-2 border border-[#222] rounded-lg shadow-xl transition-colors duration-300">
+        <i data-lucide="activity" id="heart-icon" class="w-6 h-6 text-green-500 animate-heartbeat"></i>
+        <span id="heart-text" class="text-green-500 text-sm font-bold font-data tracking-widest uppercase">Tenang</span>
+      </div>
+      <div id="mission-status" class="text-red-500 text-sm font-bold font-data bg-black/60 backdrop-blur-md p-3 border border-red-900 rounded shadow-md hidden animate-pulse uppercase tracking-widest">
+        Jalan Keluar Ditemukan!
+      </div>
+    </div>
+    <div class="flex justify-center mb-4">
+      <div class="w-1.5 h-1.5 bg-white/40 rounded-full"></div> <!-- Titik Crosshair Tengah -->
+    </div>
+  </div>
+
+  <!-- MENU UTAMA (OVERLAY PENUH) -->
+  <div id="main-menu" class="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm transition-opacity duration-700">
+    <div class="flex flex-col items-center gap-8 w-full max-w-sm px-6">
+      
+      <div class="text-center">
+        <i data-lucide="ghost" class="w-12 h-12 text-[#880000] mx-auto mb-4 opacity-80"></i>
+        <h1 class="text-5xl font-bold blood-text mb-2 tracking-widest uppercase font-serif">Omah Memedi</h1>
+        <p class="text-gray-500 text-xs italic font-data tracking-widest">W,A,S,D untuk berjalan. Mouse untuk melihat.</p>
+      </div>
+      
+      <div class="w-full space-y-4">
+        <div class="relative">
+          <i data-lucide="sliders" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"></i>
+          <select id="level-select" class="w-full bg-[#111] border border-[#333] text-gray-300 text-sm font-data rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:border-red-800 transition-colors appearance-none cursor-pointer">
+            <!-- Akan diisi Javascript -->
+          </select>
+        </div>
+        
+        <button id="btn-start" class="w-full bg-[#1a0505] hover:bg-[#3a0a0a] border border-[#4a0a0a] text-red-500 hover:text-red-400 font-bold font-data py-3.5 rounded-lg shadow-lg transition-all active:scale-[0.98] uppercase tracking-widest flex items-center justify-center gap-2">
+          <i data-lucide="door-open" class="w-5 h-5"></i>
+          Masuk Pekarangan
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CONTAINER 3D ENGINE -->
+  <div id="container-3d" class="absolute inset-0 w-full h-full outline-none z-0 bg-black cursor-crosshair"></div>
+
+  <script>
+    lucide.createIcons();
+
+    // DOM Elements
+    const mainMenu = document.getElementById('main-menu');
+    const uiLayer3D = document.getElementById('ui-layer');
+    const btnStart = document.getElementById('btn-start');
+    const levelSelect = document.getElementById('level-select');
+    const container3dElem = document.getElementById('container-3d');
+    
+    // Heartbeat UI Elements
+    const heartIcon = document.getElementById('heart-icon');
+    const heartText = document.getElementById('heart-text');
+    const staminaBar = document.getElementById('stamina-bar');
+
+    // --- SPECTRUM DIFFICULTY ENGINE ---
+    let currentLevel = 1;
+    let currentSize = 5;
+    let levelConfig = {};
+
+    function updateLevelConfig(lvl) {
+      const ratio = (lvl - 1) / 29; 
+      
+      levelConfig = {
+        gridSize: Math.floor(5 + ratio * 30), 
+        fogDensity: 0.005 + ratio * 0.045,    // Mulai dengan kabut yang terlihat sedikit lebih pekat untuk area luar
+        lightIntensity: 6.0 - ratio * 4.5,    
+        lightDistance: 250 - ratio * 190,     
+        ambientIntensity: 0.8 - ratio * 0.75, // Gelap di level tinggi
+        scareChance: lvl <= 3 ? 0 : Math.min(1.0, 0.05 + ((lvl - 4) / 26) * 0.95), 
+        flickerChance: 0.001 + ratio * 0.079, 
+        windBaseFreq: 400 - ratio * 250,      
+        screamVolume: 1.5 + ratio * 2.5       
+      };
+      currentSize = levelConfig.gridSize;
+    }
+
+    const buildLevelOptions = () => {
+      for(let i=1; i<=30; i++) {
+        let desc = i<=3 ? "Jalan-jalan" : i<=10 ? "Merinding" : i<=20 ? "Jantung Berdebar" : i<=26 ? "Mencekam" : "Trauma Psikis";
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.innerText = `Level ${i} - ${desc}`;
+        levelSelect.appendChild(opt);
+      }
+    };
+    buildLevelOptions(); 
+
+    // --- AUDIO ENGINE ---
+    let audioCtx;
+    let heartbeatInterval;
+    let windOscillator;
+
+    function initAudio() {
+      if (audioCtx) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    function playHeartbeat(rate = 1000) {
+      if (!audioCtx) return;
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      const beat = () => {
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.type = 'sine'; osc.frequency.setValueAtTime(40, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.3);
+        gain.gain.setValueAtTime(2.0, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+      };
+      heartbeatInterval = setInterval(() => { beat(); setTimeout(beat, rate * 0.3); }, rate);
+    }
+
+    function startEerieWind() {
+      if (!audioCtx) return;
+      const bufferSize = audioCtx.sampleRate * 2; const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0); for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      const noise = audioCtx.createBufferSource(); noise.buffer = buffer; noise.loop = true;
+      const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass';
+      const lfo = audioCtx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.05; 
+      const lfoGain = audioCtx.createGain(); lfoGain.gain.value = 400;
+      lfo.connect(lfoGain); lfoGain.connect(filter.frequency);
+      filter.frequency.setValueAtTime(levelConfig.windBaseFreq, audioCtx.currentTime);
+      lfo.start();
+      const gain = audioCtx.createGain(); gain.gain.value = 0.2;
+      noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+      noise.start(); windOscillator = noise;
+    }
+
+    function playScream() {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator(); const osc2 = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+      osc.type = 'sawtooth'; osc2.type = 'square';
+      osc.frequency.setValueAtTime(800, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(2500, audioCtx.currentTime + 0.1); osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.9);
+      osc2.frequency.setValueAtTime(900, audioCtx.currentTime); osc2.frequency.exponentialRampToValueAtTime(2600, audioCtx.currentTime + 0.1); osc2.frequency.exponentialRampToValueAtTime(60, audioCtx.currentTime + 0.9);
+      gain.gain.setValueAtTime(0, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(levelConfig.screamVolume, audioCtx.currentTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.9);
+      const distortion = audioCtx.createWaveShaper();
+      function makeDistortionCurve(amount) {
+        let k = 50, n_samples = 44100, curve = new Float32Array(n_samples), deg = Math.PI / 180, i = 0, x;
+        for ( ; i < n_samples; ++i ) { x = i * 2 / n_samples - 1; curve[i] = ( 3 + k ) * x * 20 * deg / ( Math.PI + k * Math.abs(x) ); }
+        return curve;
+      }
+      distortion.curve = makeDistortionCurve(400); distortion.oversample = '4x';
+      osc.connect(distortion); osc2.connect(distortion); distortion.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc2.start(); osc.stop(audioCtx.currentTime + 0.9); osc2.stop(audioCtx.currentTime + 0.9);
+    }
+
+    function playFootstep() {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+      osc.type = 'triangle'; osc.frequency.setValueAtTime(80, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.4, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+    }
+
+    // --- PROCEDURAL TEXTURES ---
+    function createRottenWoodTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512; const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#1c130d'; ctx.fillRect(0, 0, 512, 512);
+      for(let i=0; i<1500; i++) { ctx.fillStyle = `rgba(0,0,0, ${Math.random() * 0.6})`; ctx.fillRect(Math.random() * 512, 0, 1 + Math.random() * 4, 512); }
+      for(let i=0; i<80; i++) {
+        ctx.beginPath(); ctx.arc(Math.random() * 512, Math.random() * 512, 10 + Math.random() * 50, 0, Math.PI*2);
+        ctx.fillStyle = Math.random() > 0.7 ? 'rgba(15, 20, 15, 0.6)' : 'rgba(10, 10, 10, 0.7)';
+        ctx.filter = 'blur(6px)'; ctx.fill(); ctx.filter = 'none';
+      }
+      ctx.fillStyle = 'rgba(0,0,0,0.8)';
+      for(let y=0; y<512; y+= 128) ctx.fillRect(0, y - 3, 512, 6);
+      const texture = new THREE.CanvasTexture(canvas); texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; return texture;
+    }
+
+    function createCreakyFloorTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512; const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#110d0a'; ctx.fillRect(0, 0, 512, 512);
+      for(let x=0; x<512; x+=32) {
+        ctx.fillStyle = `rgba(30, 20, 15, ${0.4 + Math.random()*0.5})`; ctx.fillRect(x, 0, 30, 512);
+        ctx.fillStyle = 'rgba(0,0,0,0.9)'; ctx.fillRect(x+30, 0, 2, 512); 
+      }
+      for(let i=0; i<40; i++) {
+        ctx.beginPath(); ctx.arc(Math.random()*512, Math.random()*512, 10 + Math.random()*40, 0, Math.PI*2);
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(60, 5, 5, 0.6)' : 'rgba(5, 5, 5, 0.8)';
+        ctx.filter = 'blur(5px)'; ctx.fill(); ctx.filter = 'none';
+      }
+      const texture = new THREE.CanvasTexture(canvas); texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; return texture;
+    }
+
+    function createCeilingTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512; const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#111111'; ctx.fillRect(0,0,512,512); 
+      for(let i=0; i<50; i++) {
+         ctx.beginPath(); ctx.arc(Math.random()*512, Math.random()*512, 20+Math.random()*60, 0, Math.PI*2);
+         ctx.fillStyle = 'rgba(10, 15, 10, 0.7)'; ctx.filter = 'blur(12px)'; ctx.fill(); ctx.filter = 'none';
+      }
+      ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 3;
+      for(let i=0; i<15; i++) {
+          ctx.beginPath(); let cx=Math.random()*512, cy=Math.random()*512; ctx.moveTo(cx, cy);
+          for(let j=0; j<8; j++) { cx += (Math.random()-0.5)*60; cy += (Math.random()-0.5)*60; ctx.lineTo(cx, cy); }
+          ctx.stroke();
+      }
+      const tex = new THREE.CanvasTexture(canvas); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; return tex;
+    }
+
+    // Tekstur Tanah Pekarangan
+    function createDirtTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512; const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#0f0c08'; ctx.fillRect(0, 0, 512, 512);
+      for(let i=0; i<20000; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(0,0,0,0.6)' : 'rgba(25,18,10,0.5)';
+        ctx.fillRect(Math.random()*512, Math.random()*512, Math.random()*4, Math.random()*4);
+      }
+      // Tambah rumput mati
+      ctx.strokeStyle = 'rgba(30, 40, 20, 0.5)';
+      for(let i=0; i<2000; i++) {
+        ctx.beginPath();
+        let x = Math.random()*512; let y = Math.random()*512;
+        ctx.moveTo(x, y); ctx.lineTo(x + (Math.random()-0.5)*10, y - 5 - Math.random()*10);
+        ctx.stroke();
+      }
+      const tex = new THREE.CanvasTexture(canvas); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; 
+      tex.repeat.set(10, 10); // Ulang tekstur agar tidak pecah di lapangan luas
+      return tex;
+    }
+
+    function createScaryFaceDataURL() {
+      const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512; const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#000'; ctx.fillRect(0,0,512,512);
+      const grad = ctx.createRadialGradient(256, 256, 50, 256, 256, 200); grad.addColorStop(0, '#777'); grad.addColorStop(1, '#000');
+      ctx.fillStyle = grad; ctx.beginPath(); ctx.ellipse(256, 256, 110, 170, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(200, 220, 25, 45, -0.1, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(312, 220, 25, 45, 0.1, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.shadowColor = '#fff'; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(200, 220, 4, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(312, 220, 4, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#000'; ctx.beginPath(); ctx.moveTo(170, 370); ctx.quadraticCurveTo(256, 480, 342, 370); ctx.quadraticCurveTo(256, 420, 170, 370); ctx.fill();
+      ctx.fillStyle = '#600'; ctx.fillRect(240, 420, 5, 80); ctx.fillRect(265, 430, 4, 60);
+      return canvas.toDataURL('image/png');
+    }
+
+    // --- MAZE GENERATOR ---
+    function generateMaze(size) {
+      let grid = [];
+      for (let r = 0; r < size; r++) {
+        let row = [];
+        for (let c = 0; c < size; c++) { row.push({ r, c, visited: false, walls: { top: true, right: true, bottom: true, left: true }, isDeadEnd: false, hasJumpScare: false }); }
+        grid.push(row);
+      }
+
+      let current = grid[0][0]; current.visited = true; let stack = [current];
+      const getUnvisitedNeighbors = (cell) => {
+        let neighbors = []; let { r, c } = cell;
+        if (r > 0 && !grid[r - 1][c].visited) neighbors.push({ cell: grid[r - 1][c], dir: 'top' });
+        if (c < size - 1 && !grid[r][c + 1].visited) neighbors.push({ cell: grid[r][c + 1], dir: 'right' });
+        if (r < size - 1 && !grid[r + 1][c].visited) neighbors.push({ cell: grid[r + 1][c], dir: 'bottom' });
+        if (c > 0 && !grid[r][c - 1].visited) neighbors.push({ cell: grid[r][c - 1], dir: 'left' });
+        return neighbors;
+      };
+
+      while (stack.length > 0) {
+        current = stack[stack.length - 1]; let neighbors = getUnvisitedNeighbors(current);
+        if (neighbors.length > 0) {
+          let nextNeighbor = neighbors[Math.floor(Math.random() * neighbors.length)]; let nextCell = nextNeighbor.cell; let dir = nextNeighbor.dir;
+          if (dir === 'top') { current.walls.top = false; nextCell.walls.bottom = false; } else if (dir === 'right') { current.walls.right = false; nextCell.walls.left = false; }
+          else if (dir === 'bottom') { current.walls.bottom = false; nextCell.walls.top = false; } else if (dir === 'left') { current.walls.left = false; nextCell.walls.right = false; }
+          nextCell.visited = true; stack.push(nextCell);
+        } else { stack.pop(); }
+      }
+      grid[0][0].walls.top = false; grid[size - 1][size - 1].walls.bottom = false; // Pintu depan & belakang
+
+      let deadEnds = [];
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          if (r === 0 && c === 0) continue; if (r === size-1 && c === size-1) continue;
+          let wallCount = 0;
+          if (grid[r][c].walls.top) wallCount++; if (grid[r][c].walls.bottom) wallCount++;
+          if (grid[r][c].walls.left) wallCount++; if (grid[r][c].walls.right) wallCount++;
+          if (wallCount >= 3) { grid[r][c].isDeadEnd = true; deadEnds.push(grid[r][c]); }
+        }
+      }
+
+      let scareCount = Math.floor(deadEnds.length * levelConfig.scareChance); 
+      deadEnds.sort(() => 0.5 - Math.random());
+      for(let i=0; i<scareCount; i++) deadEnds[i].hasJumpScare = true;
+
+      return grid;
+    }
+
+    // --- 3D ENGINE LOGIC ---
+    let scene, camera, renderer, mazeGrid;
+    let flashlight;
+    let physicalWalls = [];
+    let animationId;
+    let isGameRunning = false;
+    let hasWon = false;
+
+    let ghostMesh;
+    let isGhostAttacking = false;
+    let ghostAttackTimer = 0;
+
+    const PHYS = { cellSize: 15.0, wallThick: 2.0, wallHeight: 14.0, playerHeight: 5.5, playerRadius: 2.0, speed: 9.0 };
+
+    let cameraShake = 0;
+    const keys = { w: false, a: false, s: false, d: false };
+    let pitch = 0; let yaw = Math.PI; 
+
+    const scareOverlay = document.getElementById('jump-scare-overlay');
+    scareOverlay.style.backgroundImage = `url(${createScaryFaceDataURL()})`;
+
+    window.addEventListener('keydown', (e) => {
+      if (!isGameRunning) return;
+      if (e.key.toLowerCase() === 'w' || e.key === 'ArrowUp') keys.w = true;
+      if (e.key.toLowerCase() === 's' || e.key === 'ArrowDown') keys.s = true;
+      if (e.key.toLowerCase() === 'a' || e.key === 'ArrowLeft') keys.a = true;
+      if (e.key.toLowerCase() === 'd' || e.key === 'ArrowRight') keys.d = true;
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key.toLowerCase() === 'w' || e.key === 'ArrowUp') keys.w = false;
+      if (e.key.toLowerCase() === 's' || e.key === 'ArrowDown') keys.s = false;
+      if (e.key.toLowerCase() === 'a' || e.key === 'ArrowLeft') keys.a = false;
+      if (e.key.toLowerCase() === 'd' || e.key === 'ArrowRight') keys.d = false;
+    });
+
+    const onMouseMove = (e) => {
+      if (document.pointerLockElement === container3dElem) {
+        yaw -= e.movementX * 0.002; pitch -= e.movementY * 0.002; pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch));
+      }
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    container3dElem.addEventListener('click', () => { if (isGameRunning && document.pointerLockElement !== container3dElem) container3dElem.requestPointerLock(); });
+
+    function setHeartbeatUI(isPanic) {
+      if (isPanic) {
+        heartIcon.classList.replace('text-green-500', 'text-red-600');
+        heartIcon.classList.replace('animate-heartbeat', 'animate-heartbeat-fast');
+        heartText.classList.replace('text-green-500', 'text-red-600');
+        heartText.innerText = "PANIK!";
+        staminaBar.classList.replace('border-[#222]', 'border-red-600');
+      } else {
+        heartIcon.classList.replace('text-red-600', 'text-green-500');
+        heartIcon.classList.replace('animate-heartbeat-fast', 'animate-heartbeat');
+        heartText.classList.replace('text-red-600', 'text-green-500');
+        heartText.innerText = "TENANG";
+        staminaBar.classList.replace('border-red-600', 'border-[#222]');
+      }
+    }
+
+    function doJumpScare() {
+      if (isGhostAttacking || currentLevel <= 3) return; 
+      
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+      forward.y = 0; forward.normalize();
+      
+      ghostMesh.position.set(camera.position.x + forward.x * 12, PHYS.playerHeight, camera.position.z + forward.z * 12);
+      ghostMesh.lookAt(camera.position);
+      ghostMesh.visible = true;
+      isGhostAttacking = true;
+      ghostAttackTimer = 0;
+
+      playScream(); 
+      cameraShake = 1.5 + (currentLevel / 20); 
+      playHeartbeat(200); 
+      setHeartbeatUI(true);
+
+      setTimeout(() => {
+        playHeartbeat(1000 - (currentLevel*10)); 
+        setHeartbeatUI(false);
+      }, 5000);
+    }
+
+    // --- PROCEDURAL OUTSIDE PROPS (Pekarangan) ---
+    function createDeadTree(x, z) {
+      const treeGroup = new THREE.Group();
+      const woodMat = new THREE.MeshStandardMaterial({ color: 0x110a05, roughness: 1.0 });
+
+      // Batang
+      const trunkHeight = 10 + Math.random() * 12;
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 1.2, trunkHeight, 5), woodMat);
+      trunk.position.y = trunkHeight / 2;
+      trunk.rotation.x = (Math.random() - 0.5) * 0.1;
+      trunk.castShadow = true; trunk.receiveShadow = true;
+      treeGroup.add(trunk);
+
+      // Ranting Mati
+      for (let i = 0; i < 2 + Math.random() * 3; i++) {
+          const bLength = 4 + Math.random() * 6;
+          const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.4, bLength, 4), woodMat);
+          branch.position.y = trunkHeight * (0.3 + Math.random() * 0.6);
+          branch.rotation.z = (Math.random() - 0.5) * Math.PI * 0.8;
+          branch.rotation.x = (Math.random() - 0.5) * Math.PI * 0.8;
+          branch.position.x += Math.sin(branch.rotation.z) * bLength/3;
+          branch.castShadow = true;
+          treeGroup.add(branch);
+      }
+      treeGroup.position.set(x, 0, z);
+      return treeGroup;
+    }
+
+    function createTombstone(x, z) {
+      const geo = new THREE.BoxGeometry(2, 3, 0.5);
+      // Buat melengkung atasnya
+      const topGeo = new THREE.CylinderGeometry(1, 1, 0.5, 16);
+      topGeo.rotateX(Math.PI/2);
+      topGeo.translate(0, 1.5, 0);
+      
+      const mat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+      const mesh = new THREE.Mesh(geo, mat);
+      const topMesh = new THREE.Mesh(topGeo, mat);
+      mesh.add(topMesh);
+      
+      mesh.position.set(x, 1.0, z); // Agak tenggelam ke tanah
+      mesh.rotation.y = (Math.random() - 0.5) * 0.5;
+      mesh.rotation.x = (Math.random() - 0.5) * 0.2; // Miring
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    window.addEventListener('resize', () => {
+      if (camera && renderer) {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    });
+
+    function init3D() {
+      container3dElem.innerHTML = '';
+      scene = new THREE.Scene();
+      
+      scene.background = new THREE.Color(0x050505);
+      scene.fog = new THREE.FogExp2(0x050505, levelConfig.fogDensity); 
+
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 150);
+      camera.rotation.order = 'YXZ';
+      scene.add(camera);
+
+      // Flashlight 
+      flashlight = new THREE.SpotLight(0xffeedd, levelConfig.lightIntensity, levelConfig.lightDistance, Math.PI / 3.5, 0.8, 1); 
+      flashlight.position.set(0, 0, 0);
+      flashlight.target.position.set(0, 0, -1);
+      flashlight.castShadow = true;
+      flashlight.shadow.mapSize.width = 1024;
+      flashlight.shadow.mapSize.height = 1024;
+      flashlight.shadow.camera.near = 0.5;
+      flashlight.shadow.camera.far = 100;
+      flashlight.shadow.bias = -0.001; 
+      camera.add(flashlight); camera.add(flashlight.target);
+
+      const ambient = new THREE.AmbientLight(0x443333, levelConfig.ambientIntensity); scene.add(ambient);
+
+      renderer = new THREE.WebGLRenderer({ antialias: false }); 
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true; 
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container3dElem.appendChild(renderer.domElement);
+
+      const wallTex = createRottenWoodTexture(); 
+      const floorTex = createCreakyFloorTexture(); 
+      const ceilTex = createCeilingTexture();
+      const dirtTex = createDirtTexture();
+      
+      const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.9 });
+      const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.9 });
+      const ceilMat = new THREE.MeshStandardMaterial({ map: ceilTex, roughness: 1.0 });
+      const dirtMat = new THREE.MeshStandardMaterial({ map: dirtTex, roughness: 1.0 });
+
+      // LALUAN DALAM RUMAH
+      const inGeo = new THREE.PlaneGeometry(currentSize * PHYS.cellSize, currentSize * PHYS.cellSize);
+      inGeo.rotateX(-Math.PI / 2);
+      const floorMesh = new THREE.Mesh(inGeo, floorMat);
+      floorMesh.position.set((currentSize*PHYS.cellSize)/2 - PHYS.cellSize/2, 0.01, (currentSize*PHYS.cellSize)/2 - PHYS.cellSize/2); 
+      floorMesh.receiveShadow = true;
+      scene.add(floorMesh);
+
+      const ceilMesh = new THREE.Mesh(inGeo, ceilMat);
+      ceilMesh.position.set((currentSize*PHYS.cellSize)/2 - PHYS.cellSize/2, PHYS.wallHeight, (currentSize*PHYS.cellSize)/2 - PHYS.cellSize/2);
+      ceilMesh.rotation.x = Math.PI; 
+      ceilMesh.receiveShadow = true;
+      scene.add(ceilMesh);
+
+      // PEKARANGAN (Area Luar)
+      const yardGeo = new THREE.PlaneGeometry(currentSize * PHYS.cellSize * 4, currentSize * PHYS.cellSize * 4);
+      yardGeo.rotateX(-Math.PI / 2);
+      const yardMesh = new THREE.Mesh(yardGeo, dirtMat);
+      yardMesh.position.set((currentSize*PHYS.cellSize)/2, 0, (currentSize*PHYS.cellSize)/2);
+      yardMesh.receiveShadow = true;
+      scene.add(yardMesh);
+
+      // Generate Trees & Tombs in Yard (Acak di luar area rumah)
+      for(let i=0; i<40; i++) {
+        let tx = (Math.random() - 0.5) * (currentSize * PHYS.cellSize * 3);
+        let tz = (Math.random() - 0.5) * (currentSize * PHYS.cellSize * 3);
+        // Pastikan tidak nabrak di dalam rumah
+        if (tx > -PHYS.cellSize && tx < currentSize*PHYS.cellSize && tz > -PHYS.cellSize && tz < currentSize*PHYS.cellSize) continue;
+        
+        scene.add(createDeadTree(tx + (currentSize*PHYS.cellSize)/2, tz + (currentSize*PHYS.cellSize)/2));
+        if (Math.random() > 0.5) scene.add(createTombstone(tx + 5 + (currentSize*PHYS.cellSize)/2, tz + 5 + (currentSize*PHYS.cellSize)/2));
+      }
+
+      // Hantu 3D
+      const ghostTex = new THREE.TextureLoader().load(createScaryFaceDataURL());
+      const ghostMat = new THREE.MeshBasicMaterial({ map: ghostTex, transparent: true, side: THREE.DoubleSide });
+      ghostMesh = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), ghostMat);
+      ghostMesh.visible = false; scene.add(ghostMesh);
+
+      physicalWalls = [];
+      const pillarGeo = new THREE.BoxGeometry(PHYS.wallThick + 0.2, PHYS.wallHeight + 0.2, PHYS.wallThick + 0.2);
+      const hWallGeo = new THREE.BoxGeometry(PHYS.cellSize, PHYS.wallHeight, PHYS.wallThick);
+      const vWallGeo = new THREE.BoxGeometry(PHYS.wallThick, PHYS.wallHeight, PHYS.cellSize);
+      
+      const exitMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
+      const exitGeo = new THREE.BoxGeometry(PHYS.cellSize, PHYS.wallHeight, 1);
+
+      // Generate Pillars (Sembunyikan pertemuan sudut)
+      for (let r = 0; r <= currentSize; r++) {
+        for (let c = 0; c <= currentSize; c++) {
+           let pMesh = new THREE.Mesh(pillarGeo, wallMat);
+           pMesh.position.set(c * PHYS.cellSize - PHYS.cellSize/2, PHYS.wallHeight/2, r * PHYS.cellSize - PHYS.cellSize/2);
+           pMesh.castShadow = true; pMesh.receiveShadow = true;
+           scene.add(pMesh);
+        }
+      }
+
+      for (let r = 0; r < currentSize; r++) {
+        for (let c = 0; c < currentSize; c++) {
+          let x = c * PHYS.cellSize; let z = r * PHYS.cellSize; let cell = mazeGrid[r][c];
+          
+          const addWall = (wx, wz, isVertical) => {
+            let mesh = new THREE.Mesh(isVertical ? vWallGeo : hWallGeo, wallMat);
+            mesh.position.set(wx, PHYS.wallHeight/2, wz); 
+            mesh.castShadow = true; mesh.receiveShadow = true;
+            scene.add(mesh);
+            let w = isVertical ? PHYS.wallThick : PHYS.cellSize; let d = isVertical ? PHYS.cellSize : PHYS.wallThick;
+            physicalWalls.push({ minX: wx - w/2, maxX: wx + w/2, minZ: wz - d/2, maxZ: wz + d/2 });
+          };
+
+          if (cell.walls.top && !(r===0 && c===0)) addWall(x, z - PHYS.cellSize/2, false);
+          if (cell.walls.left) addWall(x - PHYS.cellSize/2, z, true);
+          if (r === currentSize - 1) {
+            if (cell.walls.bottom && c !== currentSize - 1) addWall(x, z + PHYS.cellSize/2, false);
+            else if (c === currentSize - 1) {
+              let exitWall = new THREE.Mesh(exitGeo, exitMat);
+              exitWall.position.set(x, PHYS.wallHeight/2, z + PHYS.cellSize/2); scene.add(exitWall);
+            }
+          }
+          if (c === currentSize - 1 && cell.walls.right) addWall(x + PHYS.cellSize/2, z, true);
+        }
+      }
+      
+      // MULAI DI LUAR RUMAH (Pekarangan)
+      camera.position.set(0, PHYS.playerHeight, -PHYS.cellSize * 1.5); 
+      yaw = Math.PI; pitch = 0;
+    }
+
+    const clock = new THREE.Clock();
+    let walkBob = 0; let stepTimer = 0; let currentGridCell = { r: 0, c: 0 };
+
+    function checkCollision(oldX, oldZ, dx, dz) {
+      let newX = oldX + dx; let newZ = oldZ + dz; let pr = PHYS.playerRadius;
+      let boxX = { minX: newX - pr, maxX: newX + pr, minZ: oldZ - pr, maxZ: oldZ + pr };
+      for(let w of physicalWalls) {
+        if(boxX.minX < w.maxX && boxX.maxX > w.minX && boxX.minZ < w.maxZ && boxX.maxZ > w.minZ) {
+          if(dx > 0) newX = w.minX - pr - 0.01; else if(dx < 0) newX = w.maxX + pr + 0.01;
+        }
+      }
+      let boxZ = { minX: oldX - pr, maxX: oldX + pr, minZ: newZ - pr, maxZ: newZ + pr };
+      for(let w of physicalWalls) {
+        if(boxZ.minX < w.maxX && boxZ.maxX > w.minX && boxZ.minZ < w.maxZ && boxZ.maxZ > w.minZ) {
+          if(dz > 0) newZ = w.minZ - pr - 0.01; else if(dz < 0) newZ = w.maxZ + pr + 0.01;
+        }
+      }
+      
+      // Batas wilayah pekarangan luas
+      const boundMinX = -PHYS.cellSize * 4; 
+      const boundMinZ = -PHYS.cellSize * 4;
+      const boundMax = currentSize * PHYS.cellSize + PHYS.cellSize * 4;
+      if (newX < boundMinX + pr) newX = boundMinX + pr; if (newX > boundMax - pr) newX = boundMax - pr;
+      if (newZ < boundMinZ + pr) newZ = boundMinZ + pr;
+      return { x: newX, z: newZ };
+    }
+
+    function animate() {
+      if (!isGameRunning) return;
+      animationId = requestAnimationFrame(animate);
+
+      const dt = Math.min(clock.getDelta(), 0.1);
+
+      if (isGhostAttacking) {
+        ghostAttackTimer += dt;
+        const dir = new THREE.Vector3().subVectors(camera.position, ghostMesh.position).normalize();
+        ghostMesh.position.add(dir.multiplyScalar(25 * dt)); 
+        ghostMesh.scale.setScalar(1 + ghostAttackTimer * 2); 
+        if (ghostAttackTimer > 0.6) { 
+          ghostMesh.visible = false; isGhostAttacking = false;
+          scareOverlay.style.opacity = 1; 
+          setTimeout(() => scareOverlay.style.opacity = 0, 150);
+        }
+      }
+
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion); forward.y = 0; forward.normalize();
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0; right.normalize();
+
+      let dirX = 0; let dirZ = 0;
+      if (!isGhostAttacking) {
+        if (keys.w) { dirX += forward.x; dirZ += forward.z; } if (keys.s) { dirX -= forward.x; dirZ -= forward.z; }
+        if (keys.a) { dirX -= right.x; dirZ -= right.z; } if (keys.d) { dirX += right.x; dirZ += right.z; }
+      }
+
+      let moveSpeed = PHYS.speed; 
+      if (dirX !== 0 || dirZ !== 0) {
+        let length = Math.sqrt(dirX*dirX + dirZ*dirZ); dirX /= length; dirZ /= length;
+        let dx = dirX * moveSpeed * dt; let dz = dirZ * moveSpeed * dt;
+        const newPos = checkCollision(camera.position.x, camera.position.z, dx, dz);
+        camera.position.x = newPos.x; camera.position.z = newPos.z;
+
+        walkBob += dt * 8; camera.position.y = PHYS.playerHeight + Math.sin(walkBob) * 0.4;
+        stepTimer += dt;
+        if (stepTimer > 0.6) { playFootstep(); stepTimer = 0; }
+      } else {
+        camera.position.y += (PHYS.playerHeight - camera.position.y) * 10 * dt;
+      }
+
+      // CEK MENANG
+      if (!hasWon && camera.position.z > (currentSize - 0.5) * PHYS.cellSize && camera.position.x > (currentSize - 1.5) * PHYS.cellSize) {
+        hasWon = true;
+        document.getElementById('mission-status').classList.remove('hidden');
+        document.exitPointerLock();
+        setTimeout(() => { location.reload(); }, 4000);
+      }
+
+      // JUMPSCARE GRID CHECK
+      let gridR = Math.round(camera.position.z / PHYS.cellSize); let gridC = Math.round(camera.position.x / PHYS.cellSize);
+      if (gridR >= 0 && gridR < currentSize && gridC >= 0 && gridC < currentSize) {
+        if (gridR !== currentGridCell.r || gridC !== currentGridCell.c) {
+          currentGridCell = { r: gridR, c: gridC };
+          let cell = mazeGrid[gridR][gridC];
+          if (cell.hasJumpScare) { doJumpScare(); cell.hasJumpScare = false; }
+        }
+      }
+
+      // FLICKER SENTER
+      if (Math.random() < levelConfig.flickerChance) {
+        flashlight.intensity = 0.5 + Math.random() * (levelConfig.lightIntensity * 0.5);
+      } else {
+        flashlight.intensity += (levelConfig.lightIntensity - flashlight.intensity) * 0.1;
+      }
+
+      // CAMERA SHAKE
+      let finalPitch = pitch; let finalYaw = yaw;
+      if (cameraShake > 0) {
+        finalPitch += (Math.random() - 0.5) * cameraShake * 0.2; finalYaw += (Math.random() - 0.5) * cameraShake * 0.2;
+        cameraShake -= dt * 2; if (cameraShake < 0) cameraShake = 0;
+      }
+      camera.rotation.set(finalPitch, finalYaw, 0, 'YXZ');
+
+      renderer.render(scene, camera);
+    }
+
+    // INIT Game
+    btnStart.addEventListener('click', () => {
+      initAudio();
+      currentLevel = parseInt(levelSelect.value);
+      updateLevelConfig(currentLevel);
+      mazeGrid = generateMaze(currentSize);
+      
+      mainMenu.classList.add('opacity-0', 'pointer-events-none');
+      uiLayer3D.classList.remove('opacity-0');
+      
+      init3D();
+      container3dElem.requestPointerLock();
+      isGameRunning = true; hasWon = false;
+      
+      let baseHeartbeat = 1000 - ((currentLevel-1)/29) * 400; 
+      playHeartbeat(baseHeartbeat); 
+      setHeartbeatUI(false);
+      startEerieWind();
+      
+      clock.start(); animate();
+    });
+
+  </script>
+</body>
+</html>
