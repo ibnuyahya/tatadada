@@ -1,3 +1,4 @@
+<!-- Tafsir Visual: Siluet sayap (airfoil) bergaya frosted glass dengan garis aliran angin (streamlines) neon melewatinya, di atas latar belakang ombak fluida (fluid wave) khas iOS 17 berwarna biru langit hingga nila, melambangkan analisis aerodinamika komputasional yang canggih dan modern. -->
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -30,13 +31,11 @@
                         header: 'var(--header-bg)',
                         editor: 'var(--editor-bg)',
                         preview: 'var(--preview-bg)',
+                        card: 'var(--card-bg)',
                         footer: 'var(--footer-bg)',
                         theme: 'var(--border-color)',
                         main: 'var(--text-main)',
                         dim: 'var(--text-dim)',
-                        freeze: 'var(--freeze-bg)',
-                        freezeEven: 'var(--freeze-bg-even)',
-                        freezeHover: 'var(--freeze-hover)',
                     }
                 }
             }
@@ -44,33 +43,31 @@
     </script>
 
     <style>
-        /* TATADADA CSS Variables */
+        /* TATADADA CSS Variables (Vibrant Depth Edition) */
         :root {
             --header-bg: #ffffff;
             --editor-bg: #ffffff;
-            --preview-bg: #f8fafc;
+            --preview-bg: #f1f5f9; /* Abu-abu lembut untuk kedalaman/selokan */
+            --card-bg: rgba(255, 255, 255, 0.85); /* Semi-transparan untuk frosted glass */
             --footer-bg: #ffffff;
             --border-color: #e2e8f0;
             --text-main: #0f172a;
             --text-dim: #64748b;
-            --stripe-color: rgba(0, 0, 0, 0.02);
-            --freeze-bg: #f8fafc; 
-            --freeze-bg-even: #f1f5f9;
-            --freeze-hover: #eff6ff;
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
         }
         
         html.dark {
             --header-bg: #161b22;
             --editor-bg: #0d1117;
             --preview-bg: #010409;
+            --card-bg: rgba(13, 17, 23, 0.85); /* Semi-transparan untuk frosted glass dark */
             --footer-bg: #161b22;
             --border-color: #30363d;
             --text-main: #e6edf3;
             --text-dim: #8b949e;
-            --stripe-color: rgba(255, 255, 255, 0.03);
-            --freeze-bg: #010409;
-            --freeze-bg-even: #0d1117;
-            --freeze-hover: rgba(59, 130, 246, 0.1);
+            --theme-accent: #3b82f6;
             color-scheme: dark;
         }
         
@@ -87,14 +84,15 @@
         ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
 
-        /* Tooltip & Glass Panel Settings */
-        .glass-panel {
-            background: var(--header-bg);
-            opacity: 0.95;
-            backdrop-filter: blur(12px);
+        /* Premium UI Components */
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border: 1px solid var(--border-color);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
+
         .tooltip-text {
             visibility: hidden; opacity: 0; transition: opacity 0.2s;
         }
@@ -102,14 +100,39 @@
             visibility: visible; opacity: 1;
         }
         
-        /* Range Slider */
-        input[type=range] { -webkit-appearance: none; background: transparent; }
+        /* Range Slider Modern */
+        input[type=range] { -webkit-appearance: none; background: transparent; outline: none; }
         input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
-            background: #3b82f6; cursor: pointer; margin-top: -6px;
+            -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%;
+            background: #ffffff; cursor: pointer; margin-top: -8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3); border: 1px solid var(--border-color);
+        }
+        html.dark input[type=range]::-webkit-slider-thumb {
+            background: var(--text-main); border-color: var(--text-main);
         }
         input[type=range]::-webkit-slider-runnable-track {
             width: 100%; height: 4px; cursor: pointer; background: var(--border-color); border-radius: 2px;
+        }
+        input[type=range]:focus::-webkit-slider-thumb {
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Collapsible Animation */
+        #paramsContent {
+            transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out, padding 0.3s ease-in-out;
+            overflow: hidden;
+        }
+        .collapsed #paramsContent {
+            max-height: 0 !important;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+        .collapsed #collapseIcon {
+            transform: rotate(180deg);
+        }
+        #collapseIcon {
+            transition: transform 0.3s ease;
         }
     </style>
 </head>
@@ -117,99 +140,117 @@
 <body class="h-screen flex flex-col">
 
     <!-- HEADER (Tinggi Tetap: h-14) -->
-    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50">
-        <!-- Branding Kiri -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm">
+        <!-- Elemen Kiri: Branding -->
         <div class="flex items-baseline gap-3">
             <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent">Sayapku</h1>
-            <span class="text-[10px] font-mono text-dim italic">v2.0</span>
+            <span class="text-[10px] font-mono text-dim italic">v2.1</span>
             <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 transition-colors">by AhmadDanial</a>
             
             <!-- Help Tooltip -->
             <div class="relative has-tooltip ml-2 flex items-center cursor-help">
-                <i data-lucide="help-circle" class="w-4 h-4 text-dim hover:text-main"></i>
-                <div class="tooltip-text absolute left-6 top-0 w-64 bg-editor border border-theme text-main text-[11px] p-3 rounded shadow-lg z-50">
+                <i data-lucide="help-circle" class="w-4 h-4 text-dim hover:text-main transition-colors"></i>
+                <div class="tooltip-text absolute left-6 top-0 w-64 bg-card backdrop-blur-md border border-theme text-main text-[11px] p-4 rounded-xl shadow-xl z-50 pointer-events-none">
                     <p id="langHelp" class="leading-relaxed">Geser slider pada panel untuk mengubah geometri dan kecepatan aliran. Warna biru menandakan area tekanan rendah (kecepatan tinggi).</p>
                 </div>
             </div>
         </div>
 
-        <!-- Aksi Kanan -->
-        <div class="flex items-center gap-4">
+        <!-- Elemen Kanan: Actions -->
+        <div class="flex items-center gap-3">
+            <!-- Pause/Resume Button -->
+            <button id="btnPause" class="flex items-center justify-center gap-2 px-4 py-1.5 bg-editor border border-theme hover:bg-preview text-main text-xs font-semibold rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-blue-500/20 outline-none">
+                <i id="pauseIcon" data-lucide="pause" class="w-3.5 h-3.5"></i>
+                <span id="langBtnPause">Jeda</span>
+            </button>
+
             <!-- 4K Download Button -->
-            <button id="btnDownload4K" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded transition-colors shadow-sm">
+            <button id="btnDownload4K" class="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-blue-500/50 outline-none">
                 <i data-lucide="download" class="w-3.5 h-3.5"></i>
                 <span id="langBtnDownload">Unduh 4K</span>
             </button>
             
-            <div class="w-px h-6 bg-theme"></div>
+            <div class="w-px h-6 bg-theme mx-1"></div>
 
             <!-- Language Toggle -->
-            <button onclick="toggleLanguage()" class="flex items-center justify-center w-8 h-8 rounded hover:bg-preview text-xs font-bold text-dim transition-colors" title="Toggle Language">
+            <button onclick="toggleLanguage()" class="flex items-center justify-center w-8 h-8 rounded-lg border border-transparent hover:border-theme hover:bg-preview text-xs font-bold text-dim hover:text-main transition-all focus:ring-2 focus:ring-blue-500/20 outline-none" title="Toggle Language">
                 <span id="langFlag">ID</span>
             </button>
 
             <!-- Theme Toggle -->
-            <button onclick="toggleTheme()" class="flex items-center justify-center w-8 h-8 rounded hover:bg-preview text-dim transition-colors" title="Toggle Dark/Light Mode">
+            <button onclick="toggleTheme()" class="flex items-center justify-center w-8 h-8 rounded-lg border border-transparent hover:border-theme hover:bg-preview text-dim hover:text-main transition-all focus:ring-2 focus:ring-blue-500/20 outline-none" title="Toggle Dark/Light Mode">
                 <i id="themeIcon" data-lucide="sun" class="w-4 h-4"></i>
             </button>
         </div>
     </header>
 
-    <!-- MAIN WORKSPACE (Skenario 2: Single View Apps) -->
-    <main id="mainWorkspace" class="flex-1 relative overflow-hidden bg-preview">
-        <!-- Canvas Simulasi -->
+    <!-- MAIN WORKSPACE -->
+    <main id="mainWorkspace" class="flex-1 relative bg-preview overflow-hidden">
+        
+        <!-- Background Canvas Simulasi -->
         <canvas id="glCanvas" class="absolute inset-0 w-full h-full"></canvas>
         <canvas id="boundaryCanvas" style="display:none;"></canvas>
 
-        <!-- Floating Glass Panel UI untuk Parameter -->
-        <div class="absolute top-6 right-6 w-80 glass-panel rounded-xl p-5 z-10 flex flex-col gap-5">
-            <div>
-                <h2 class="text-sm font-bold text-main" id="langPanelTitle">Parameter Aerodinamika</h2>
-                <p class="text-[10px] text-dim font-mono mt-0.5">LBM D2Q9 SOLVER</p>
+        <!-- Floating Collapsible Control Panel (Skenario 2: Single View Apps - Overlay Card) -->
+        <div id="controlPanel" class="absolute top-6 right-6 w-80 glass-card rounded-2xl z-10 flex flex-col transition-all duration-300">
+            <!-- Panel Header (Clickable for collapse) -->
+            <div class="flex items-center justify-between p-4 cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 rounded-t-2xl transition-colors" onclick="togglePanel()">
+                <div>
+                    <h2 class="text-sm font-bold text-main" id="langPanelTitle">Parameter Aerodinamika</h2>
+                    <p class="text-[10px] text-dim font-mono mt-0.5">LBM D2Q9 SOLVER</p>
+                </div>
+                <button class="text-dim hover:text-main p-1 rounded-md transition-colors outline-none focus:ring-2 focus:ring-blue-500/20">
+                    <i id="collapseIcon" data-lucide="chevron-up" class="w-5 h-5"></i>
+                </button>
             </div>
 
-            <div class="space-y-4">
-                <!-- Sudut Serang -->
-                <div>
-                    <div class="flex justify-between mb-1 text-xs">
-                        <label class="text-main font-semibold" id="langLblAoA">Sudut Serang (AoA)</label>
-                        <span id="aoaValue" class="font-mono text-blue-500 font-bold">5°</span>
+            <!-- Panel Content -->
+            <div id="paramsContent" class="px-5 pb-5 flex flex-col gap-5 border-t border-theme border-opacity-50" style="max-height: 500px;">
+                
+                <div class="space-y-5 pt-3">
+                    <!-- Sudut Serang -->
+                    <div class="group">
+                        <div class="flex justify-between mb-2 text-xs">
+                            <label class="text-main font-medium group-hover:text-blue-500 transition-colors" id="langLblAoA">Sudut Serang (AoA)</label>
+                            <span id="aoaValue" class="font-mono text-blue-500 font-bold bg-blue-500/10 px-2 py-0.5 rounded text-[10px]">5°</span>
+                        </div>
+                        <input type="range" id="aoaSlider" min="-10" max="25" value="5" class="w-full">
                     </div>
-                    <input type="range" id="aoaSlider" min="-10" max="25" value="5" class="w-full">
+
+                    <!-- Kecepatan Inlet -->
+                    <div class="group">
+                        <div class="flex justify-between mb-2 text-xs">
+                            <label class="text-main font-medium group-hover:text-blue-500 transition-colors" id="langLblSpeed">Kecepatan Inlet</label>
+                            <span id="speedValue" class="font-mono text-blue-500 font-bold bg-blue-500/10 px-2 py-0.5 rounded text-[10px]">0.06</span>
+                        </div>
+                        <input type="range" id="speedSlider" min="0.02" max="0.12" step="0.01" value="0.06" class="w-full">
+                    </div>
+
+                    <!-- Viskositas -->
+                    <div class="group">
+                        <div class="flex justify-between mb-2 text-xs">
+                            <label class="text-main font-medium group-hover:text-blue-500 transition-colors" id="langLblVisc">Reynolds / Viskositas</label>
+                            <span id="viscValue" class="font-mono text-blue-500 font-bold bg-blue-500/10 px-2 py-0.5 rounded text-[10px]">Transisi</span>
+                        </div>
+                        <input type="range" id="tauSlider" min="0.52" max="0.70" step="0.01" value="0.55" class="w-full">
+                    </div>
                 </div>
 
-                <!-- Kecepatan Inlet -->
-                <div>
-                    <div class="flex justify-between mb-1 text-xs">
-                        <label class="text-main font-semibold" id="langLblSpeed">Kecepatan Inlet</label>
-                        <span id="speedValue" class="font-mono text-blue-500 font-bold">0.06</span>
+                <!-- Legenda Tekanan -->
+                <div class="pt-4 border-t border-theme border-opacity-50">
+                    <div class="text-[10px] text-dim mb-2 flex justify-between font-medium tracking-wide">
+                        <span id="langHighPress">Tekanan Tinggi</span>
+                        <span id="langLowPress">Rendah</span>
                     </div>
-                    <input type="range" id="speedSlider" min="0.02" max="0.12" step="0.01" value="0.06" class="w-full">
+                    <div class="h-2 w-full rounded-full bg-gradient-to-r from-red-500 via-green-400 to-blue-500 shadow-inner"></div>
                 </div>
-
-                <!-- Viskositas -->
-                <div>
-                    <div class="flex justify-between mb-1 text-xs">
-                        <label class="text-main font-semibold" id="langLblVisc">Reynolds / Viskositas</label>
-                        <span id="viscValue" class="font-mono text-blue-500 font-bold">Transisi</span>
-                    </div>
-                    <input type="range" id="tauSlider" min="0.52" max="0.70" step="0.01" value="0.55" class="w-full">
-                </div>
-            </div>
-
-            <!-- Legenda Tekanan -->
-            <div class="pt-3 border-t border-theme">
-                <div class="text-[10px] text-dim mb-1 flex justify-between font-semibold tracking-wide">
-                    <span id="langHighPress">Tekanan Tinggi</span>
-                    <span id="langLowPress">Rendah</span>
-                </div>
-                <div class="h-2 w-full rounded bg-gradient-to-r from-red-600 via-green-400 to-blue-600"></div>
             </div>
         </div>
 
-        <div id="errorMsg" class="hidden absolute inset-0 bg-editor z-50 flex items-center justify-center p-10 text-center">
-            <div>
-                <h2 class="text-xl text-red-500 font-bold mb-2">WebGL 2.0 Error</h2>
+        <div id="errorMsg" class="hidden absolute inset-0 bg-card z-50 flex items-center justify-center p-10 text-center">
+            <div class="bg-editor p-8 rounded-2xl border border-theme shadow-xl max-w-md">
+                <i data-lucide="alert-triangle" class="w-12 h-12 text-red-500 mx-auto mb-4"></i>
+                <h2 class="text-xl text-main font-bold mb-2">WebGL 2.0 Error</h2>
                 <p class="text-dim text-sm">Browser Anda tidak mendukung ekstensi Float Texture yang dibutuhkan simulasi ini.</p>
             </div>
         </div>
@@ -219,35 +260,49 @@
     <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 relative z-50">
         <!-- Kiri: Status -->
         <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            <span id="langStatus" class="font-medium">Engine Ready</span>
+            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]"></span>
+            <span id="langStatus" class="font-medium tracking-wide">Engine Ready</span>
         </div>
 
         <!-- Tengah: Statistik -->
-        <div class="font-mono">
-            FPS: <span id="fpsVal" class="text-main font-bold">--</span> 
-            <span class="mx-2 opacity-50">|</span> 
-            GRID: <span class="text-main font-bold">1024x512</span>
+        <div class="font-mono flex items-center gap-3">
+            <div>FPS: <span id="fpsVal" class="text-main font-bold">--</span></div>
+            <div class="w-1 h-1 rounded-full bg-theme"></div>
+            <div>GRID: <span class="text-main font-bold">1024x512</span></div>
         </div>
 
         <!-- Kanan: Terms -->
-        <button onclick="toggleModal('termsModal')" class="hover:text-blue-500 transition-colors font-medium" id="langTermsLink">Terms of Use</button>
+        <button onclick="toggleModal('termsModal')" class="hover:text-main transition-colors font-medium underline decoration-transparent hover:decoration-theme underline-offset-4 outline-none focus:ring-2 focus:ring-blue-500/20 rounded px-1" id="langTermsLink">Terms of Use</button>
     </footer>
 
-    <!-- MODAL TERMS OF USE -->
-    <div id="termsModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[100] backdrop-blur-sm opacity-0 transition-opacity">
-        <div class="bg-editor border border-theme rounded-lg shadow-xl w-full max-w-md p-6 transform scale-95 transition-transform duration-200">
-            <div class="flex justify-between items-center mb-4 border-b border-theme pb-2">
-                <h2 class="text-base font-bold text-main" id="langModalTitle">Disclaimer & Terms of Use</h2>
-                <button onclick="toggleModal('termsModal')" class="text-dim hover:text-red-500 transition-colors">
-                    <i data-lucide="x" class="w-5 h-5"></i>
+    <!-- MODAL TERMS OF USE (Strict & Smart Mode) -->
+    <div id="termsModal" class="fixed inset-0 hidden items-center justify-center z-[100] bg-black/20 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div class="bg-card border border-theme rounded-2xl shadow-2xl w-full max-w-lg p-8 transform scale-95 transition-transform duration-300">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-lg">
+                        <i data-lucide="shield-alert" class="w-5 h-5 text-blue-500"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-main" id="langModalTitle">Disclaimer & Terms of Use</h2>
+                </div>
+                <button onclick="toggleModal('termsModal')" class="text-dim hover:text-red-500 bg-transparent hover:bg-red-50 dark:hover:bg-red-500/10 p-2 rounded-lg transition-colors outline-none focus:ring-2 focus:ring-red-500/20">
+                    <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
             </div>
-            <p id="langModalBody" class="text-sm text-dim leading-relaxed mb-6">
-                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
-            </p>
+            
+            <div class="space-y-4 text-sm text-dim leading-relaxed mb-8">
+                <!-- Klausul Spesifik Aplikasi (Smart Context) -->
+                <p id="langModalContext" class="p-4 bg-preview rounded-xl border border-theme">
+                    Aplikasi ini beroperasi sepenuhnya di sisi klien (browser lokal) Anda menggunakan teknologi WebGL. Simulasi aerodinamika (CFD LBM) dijalankan langsung pada GPU perangkat Anda. Kami tidak mengirimkan, memproses, atau merekam data simulasi ke server eksternal mana pun.
+                </p>
+                <!-- Klausul Legal Wajib -->
+                <p id="langModalLegal">
+                    Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil komputasi fluida tidak dijamin untuk keperluan rekayasa absolut. Pembuatan aplikasi ini dibantu oleh AI tools. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.
+                </p>
+            </div>
+            
             <div class="flex justify-end">
-                <button onclick="toggleModal('termsModal')" class="px-4 py-2 bg-editor border border-theme text-main text-xs font-semibold rounded hover:bg-preview transition-colors" id="langModalBtn">Mengerti</button>
+                <button onclick="toggleModal('termsModal')" class="px-6 py-2.5 bg-main text-editor text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity shadow-sm focus:ring-2 focus:ring-main/20 outline-none" id="langModalBtn">Saya Mengerti</button>
             </div>
         </div>
     </div>
@@ -379,15 +434,24 @@
             
             float yCoord = v_uv.y - vel.y * 1.2; 
             float linePhase = yCoord * 60.0; 
+            float lineIndex = floor(linePhase); // Dapatkan indeks baris
             float lineDist = abs(fract(linePhase) - 0.5); 
-            float localX = fract(v_uv.x * 35.0 - u_time * 2.5);
             
-            float isTail = smoothstep(0.0, 0.1, localX);
-            float isHead = smoothstep(0.7, 0.9, localX);
-            float isTip  = step(localX, 0.9); 
+            // PERBAIKAN: Berikan offset X acak berdasarkan indeks baris agar tidak membentuk kolom vertikal sejajar
+            float staggerOffset = fract(sin(lineIndex * 12.9898) * 43758.5453);
+            float localX = fract(v_uv.x * 35.0 - u_time * 2.5 + staggerOffset);
             
-            float width = 0.015 + isHead * 0.10; width *= isTip;
-            float arrowAlpha = smoothstep(width, max(0.0, width - 0.015), lineDist) * isTail * isTip;
+            // --- PERBAIKAN: LOGIKA MATA PANAH MENGHADAP KANAN ---
+            float isTail = smoothstep(0.0, 0.1, localX); // Fade in ekor garis
+            
+            // Pangkal panah melebar di titik 0.7, lalu meruncing ke ujung di titik 0.95
+            float arrowFlare = smoothstep(0.7, 0.75, localX);
+            float arrowTaper = 1.0 - smoothstep(0.75, 0.95, localX); 
+            
+            // Lebar = (Tebal garis dasar + tambahan lebar panah) * efek meruncing
+            float width = (0.015 + arrowFlare * 0.10) * arrowTaper;
+            
+            float arrowAlpha = smoothstep(width, max(0.0, width - 0.015), lineDist) * isTail;
             vec3 finalColor = mix(baseColor * 0.75, vec3(1.0), arrowAlpha * 0.85);
 
             float isSolid = texture(tex_boundary, v_uv).r;
@@ -412,6 +476,8 @@
         // 1. TATADADA UI FRAMEWORK LOGIC
         // ==========================================
         
+        let isPaused = false; // Variabel Status Pause diangkat ke global atas
+
         // Theme Logic
         const themeIcon = document.getElementById('themeIcon');
         const isDark = localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -440,6 +506,8 @@
             'ID': {
                 flag: 'ID',
                 help: 'Geser slider pada panel untuk mengubah geometri dan kecepatan aliran. Warna biru menandakan area tekanan rendah (kecepatan tinggi).',
+                btnPause: 'Jeda',
+                btnResume: 'Lanjut',
                 download: 'Unduh 4K',
                 panelTitle: 'Parameter Aerodinamika',
                 lblAoA: 'Sudut Serang (AoA)',
@@ -447,15 +515,19 @@
                 lblVisc: 'Reynolds / Viskositas',
                 highPress: 'Tekanan Tinggi',
                 lowPress: 'Rendah',
-                status: 'Engine Ready',
+                statusReady: 'Engine Ready',
+                statusPaused: 'Engine Paused',
                 termsLink: 'Terms of Use',
                 modalTitle: 'Disclaimer & Terms of Use',
-                modalBody: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
-                modalBtn: 'Mengerti'
+                modalContext: "Aplikasi ini beroperasi sepenuhnya di sisi klien (browser lokal) Anda menggunakan teknologi WebGL. Simulasi aerodinamika (CFD LBM) dijalankan langsung pada GPU perangkat Anda. Kami tidak mengirimkan, memproses, atau merekam data simulasi ke server eksternal mana pun.",
+                modalLegal: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil komputasi fluida tidak dijamin untuk keperluan rekayasa absolut. Pembuatan aplikasi ini dibantu oleh AI tools. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
+                modalBtn: 'Saya Mengerti'
             },
             'EN': {
                 flag: 'EN',
                 help: 'Slide the panel controls to change geometry and flow speed. Blue colors indicate low pressure (high speed) areas.',
+                btnPause: 'Pause',
+                btnResume: 'Resume',
                 download: '4K Download',
                 panelTitle: 'Aerodynamics Parameters',
                 lblAoA: 'Angle of Attack (AoA)',
@@ -463,10 +535,12 @@
                 lblVisc: 'Reynolds / Viscosity',
                 highPress: 'High Pressure',
                 lowPress: 'Low',
-                status: 'Engine Ready',
+                statusReady: 'Engine Ready',
+                statusPaused: 'Engine Paused',
                 termsLink: 'Terms of Use',
                 modalTitle: 'Disclaimer & Terms of Use',
-                modalBody: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                modalContext: "This application operates entirely on your client-side (local browser) using WebGL technology. The aerodynamics simulation (CFD LBM) is executed directly on your device's GPU. We do not transmit, process, or record any simulation data to any external server.",
+                modalLegal: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of fluid computation results is not guaranteed for absolute engineering purposes. The development of this app was assisted by AI tools. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.",
                 modalBtn: 'I Understand'
             }
         };
@@ -475,6 +549,7 @@
             const t = langData[currentLang];
             document.getElementById('langFlag').innerText = t.flag;
             document.getElementById('langHelp').innerText = t.help;
+            document.getElementById('langBtnPause').innerText = isPaused ? t.btnResume : t.btnPause;
             document.getElementById('langBtnDownload').innerText = t.download;
             document.getElementById('langPanelTitle').innerText = t.panelTitle;
             document.getElementById('langLblAoA').innerText = t.lblAoA;
@@ -482,10 +557,11 @@
             document.getElementById('langLblVisc').innerText = t.lblVisc;
             document.getElementById('langHighPress').innerText = t.highPress;
             document.getElementById('langLowPress').innerText = t.lowPress;
-            document.getElementById('langStatus').innerText = t.status;
+            document.getElementById('langStatus').innerText = isPaused ? t.statusPaused : t.statusReady;
             document.getElementById('langTermsLink').innerText = t.termsLink;
             document.getElementById('langModalTitle').innerText = t.modalTitle;
-            document.getElementById('langModalBody').innerText = t.modalBody;
+            document.getElementById('langModalContext').innerText = t.modalContext;
+            document.getElementById('langModalLegal').innerText = t.modalLegal;
             document.getElementById('langModalBtn').innerText = t.modalBtn;
         }
 
@@ -493,7 +569,7 @@
             currentLang = currentLang === 'ID' ? 'EN' : 'ID';
             localStorage.setItem('lang', currentLang);
             updateLanguage();
-            // Re-render viscValue text based on language if needed
+            // Re-render viscValue text based on language
             let evt = new Event('input');
             document.getElementById('tauSlider').dispatchEvent(evt);
         }
@@ -514,8 +590,14 @@
                 setTimeout(() => {
                     modal.classList.add('hidden');
                     modal.classList.remove('flex');
-                }, 200);
+                }, 300);
             }
+        }
+
+        // Panel Collapsible Logic
+        function togglePanel() {
+            const panel = document.getElementById('controlPanel');
+            panel.classList.toggle('collapsed');
         }
 
         // Initialize UI
@@ -660,6 +742,24 @@
 
         let frameCount = 0; let lastTime = performance.now(); let simTime = 0;
 
+        document.getElementById('btnPause').addEventListener('click', () => {
+            isPaused = !isPaused;
+            const icon = document.getElementById('pauseIcon');
+            const statusDot = document.querySelector('footer .bg-green-500, footer .bg-yellow-500');
+            
+            if (isPaused) {
+                icon.setAttribute('data-lucide', 'play');
+                statusDot.classList.remove('bg-green-500', 'animate-pulse', 'shadow-[0_0_5px_rgba(34,197,94,0.5)]');
+                statusDot.classList.add('bg-yellow-500', 'shadow-[0_0_5px_rgba(234,179,8,0.5)]');
+            } else {
+                icon.setAttribute('data-lucide', 'pause');
+                statusDot.classList.remove('bg-yellow-500', 'shadow-[0_0_5px_rgba(234,179,8,0.5)]');
+                statusDot.classList.add('bg-green-500', 'animate-pulse', 'shadow-[0_0_5px_rgba(34,197,94,0.5)]');
+            }
+            lucide.createIcons();
+            updateLanguage(); // Refresh teks sesuai status
+        });
+
         function forceRenderPass(width, height) {
             gl.useProgram(prgRender);
             gl.bindFramebuffer(gl.FRAMEBUFFER, null); 
@@ -690,20 +790,22 @@
             gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, texBoundary);
             gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_boundary"), 3);
 
-            for (let i = 0; i < stepsPerFrame; i++) {
-                gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[0]);
-                gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[1]);
-                gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[2]);
-                gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_f0"), 0);
-                gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_f1"), 1);
-                gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_f2"), 2);
+            if (!isPaused) {
+                for (let i = 0; i < stepsPerFrame; i++) {
+                    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[0]);
+                    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[1]);
+                    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[2]);
+                    gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_f0"), 0);
+                    gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_f1"), 1);
+                    gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_f2"), 2);
 
-                gl.bindFramebuffer(gl.FRAMEBUFFER, fbB.fb);
-                gl.viewport(0, 0, SIM_W, SIM_H);
-                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, fbB.fb);
+                    gl.viewport(0, 0, SIM_W, SIM_H);
+                    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-                let temp = fbA; fbA = fbB; fbB = temp;
-                simTime++;
+                    let temp = fbA; fbA = fbB; fbB = temp;
+                    simTime++;
+                }
             }
 
             forceRenderPass(canvasGL.width, canvasGL.height);
