@@ -88,14 +88,22 @@
 
   <!-- HUD In-Game -->
   <div id="ui-layer" class="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-6 box-border opacity-0 transition-opacity duration-500">
-    <div class="flex justify-between items-start">
+    <div class="flex justify-between items-start w-full">
       <!-- Grafik Detak Jantung EKG -->
       <div id="stamina-bar" class="flex items-center gap-3 bg-black/60 backdrop-blur-md px-4 py-2 border border-[#222] rounded-lg shadow-xl transition-colors duration-300">
         <i data-lucide="activity" id="heart-icon" class="w-6 h-6 text-green-500 animate-heartbeat"></i>
         <span id="heart-text" class="text-green-500 text-sm font-bold font-data tracking-widest uppercase">Tenang</span>
       </div>
-      <div id="mission-status" class="text-red-500 text-sm font-bold font-data bg-black/60 backdrop-blur-md p-3 border border-red-900 rounded shadow-md hidden animate-pulse uppercase tracking-widest">
-        Jalan Keluar Ditemukan!
+      
+      <!-- Tombol Menyerah & Misi Status -->
+      <div class="flex flex-col items-end gap-3 pointer-events-auto">
+        <button id="btn-surrender" class="flex items-center gap-2 bg-black/60 hover:bg-[#3a0a0a] backdrop-blur-md px-4 py-2 border border-[#333] hover:border-red-600 rounded-lg shadow-xl transition-colors duration-300 text-gray-500 hover:text-red-500 font-data text-xs tracking-widest uppercase cursor-pointer group" title="Tekan ESC untuk memunculkan kursor lalu klik">
+          <i data-lucide="flag" class="w-4 h-4 group-hover:animate-bounce"></i>
+          <span>Menyerah (ESC)</span>
+        </button>
+        <div id="mission-status" class="text-red-500 text-sm font-bold font-data bg-black/60 backdrop-blur-md p-3 border border-red-900 rounded shadow-md hidden animate-pulse uppercase tracking-widest pointer-events-none">
+          Jalan Keluar Ditemukan!
+        </div>
       </div>
     </div>
     <div class="flex justify-center mb-4">
@@ -142,6 +150,7 @@
     const btnStart = document.getElementById('btn-start');
     const levelSelect = document.getElementById('level-select');
     const container3dElem = document.getElementById('container-3d');
+    const btnSurrender = document.getElementById('btn-surrender');
     
     // Heartbeat UI Elements
     const heartIcon = document.getElementById('heart-icon');
@@ -766,6 +775,35 @@
       startEerieWind();
       
       clock.start(); animate();
+    });
+
+    // SURRENDER BUTTON LOGIC
+    btnSurrender.addEventListener('click', () => {
+      isGameRunning = false;
+      cancelAnimationFrame(animationId);
+      
+      document.exitPointerLock();
+      stopHeartbeat();
+      
+      // Hentikan suara angin jika ada
+      if (windOscillator) {
+        try { windOscillator.stop(); } catch(e) {}
+      }
+      
+      uiLayer3D.classList.add('opacity-0');
+      
+      // Bersihkan layar dan kembali ke menu
+      setTimeout(() => {
+        container3dElem.innerHTML = '';
+        mainMenu.classList.remove('opacity-0', 'pointer-events-none');
+        
+        // Bersihkan memori game
+        scene = null; 
+        camera = null; 
+        renderer = null; 
+        physicalWalls = [];
+        isGhostAttacking = false;
+      }, 500);
     });
 
   </script>
