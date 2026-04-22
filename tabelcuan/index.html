@@ -1,3 +1,4 @@
+<!-- VISUAL TAFSIR: Ikon TabelCuan dengan spreadsheet bertekstur kaca (frosted glass) dan grafik tren naik berwarna emas/zamrud untuk melambangkan optimisasi dan profit (cuan), menggunakan palet warna premium ala macOS/visionOS. -->
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -14,7 +15,8 @@
         :root {
             --header-bg: #ffffff;
             --editor-bg: #ffffff;
-            --preview-bg: #f8fafc;
+            --preview-bg: #f1f5f9; /* Vibrant Depth: Abu-abu lembut untuk selokan/background */
+            --card-bg: #ffffff;
             --footer-bg: #ffffff;
             --border-color: #e2e8f0;
             --text-main: #0f172a;
@@ -24,11 +26,14 @@
             --freeze-bg-even: #f1f5f9;
             --freeze-hover: #eff6ff;
             --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
         }
         html.dark {
             --header-bg: #161b22;
             --editor-bg: #0d1117;
             --preview-bg: #010409;
+            --card-bg: #0d1117;
             --footer-bg: #161b22;
             --border-color: #30363d;
             --text-main: #e6edf3;
@@ -59,16 +64,19 @@
         .bg-header { background-color: var(--header-bg); }
         .bg-editor { background-color: var(--editor-bg); }
         .bg-preview { background-color: var(--preview-bg); }
+        .bg-card { background-color: var(--card-bg); }
         .bg-footer { background-color: var(--footer-bg); }
         .bg-theme { background-color: var(--border-color); }
         .text-dim { color: var(--text-dim); }
         .text-main { color: var(--text-main); }
+        .shadow-custom-sm { box-shadow: var(--shadow-sm); }
+        .shadow-custom-md { box-shadow: var(--shadow-md); }
 
         /* TATADADA Table & Freeze Panes Logic */
         table { border-collapse: separate; table-layout: fixed; width: max-content; min-width: 100%; border-spacing: 0; }
         th, td { border-bottom: 1px solid var(--border-color); border-right: 1px solid var(--border-color); }
         
-        .freeze-header { position: sticky; top: 0; z-index: 10; background: var(--header-bg); }
+        .freeze-header { position: sticky; top: 0; z-index: 10; background: var(--card-bg); }
         .freeze-col { position: sticky; left: 0; z-index: 20; background: var(--freeze-bg); border-right: 2px solid var(--theme-accent) !important; }
         tr:nth-child(even) .freeze-col { background: var(--freeze-bg-even); }
         tr:hover .freeze-col { background: var(--freeze-hover) !important; }
@@ -82,19 +90,23 @@
             transition: all 0.2s ease;
         }
 
-        /* Input Editor (Textarea) Calibrations */
+        /* Input Editor (Textarea) Calibrations with Line Numbers */
         .font-mono-data { font-family: 'JetBrains Mono', monospace; }
-        #xmlInput { white-space: pre; line-height: 1.6; font-family: 'JetBrains Mono', monospace; }
+        #xmlInput, #lineNumbers {
+            white-space: pre; 
+            line-height: 1.6; 
+            font-family: 'JetBrains Mono', monospace; 
+        }
 
         /* Collapsible Transition */
         #topPane { transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .collapsed #xmlInput, .collapsed #resizer { display: none; }
+        .collapsed #editorArea, .collapsed #resizer { display: none; }
     </style>
 </head>
 <body class="h-screen flex flex-col">
 
-    <!-- HEADER (Wajib) -->
-    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50">
+    <!-- HEADER (Wajib TATADADA) -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-custom-sm">
         <div class="flex items-center gap-4">
             <div class="flex flex-col leading-none">
                 <!-- Branding: Nama Aplikasi tidak ditranslasi -->
@@ -102,7 +114,7 @@
                     <span class="bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent uppercase">Tabel</span>Cuan
                 </h1>
                 <div class="flex items-center gap-2 mt-0.5">
-                    <span class="text-[10px] font-mono text-dim italic">v3.0-tatadada</span>
+                    <span class="text-[10px] font-mono text-dim italic">v4.0-tatadada</span>
                     <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 transition-colors">
                         by AhmadDanial
                     </a>
@@ -128,7 +140,7 @@
 
         <div class="flex items-center gap-2">
             <!-- Language Toggle -->
-            <button id="langToggle" class="flex items-center justify-center p-1.5 w-8 rounded-md hover:bg-stripe-color transition-colors text-xs font-bold text-main border border-transparent hover:border-theme">
+            <button id="langToggle" class="flex items-center justify-center p-1.5 w-8 rounded-lg hover:bg-stripe-color transition-colors text-xs font-bold text-main border border-transparent hover:border-theme shadow-custom-sm">
                 ID
             </button>
             <div class="h-4 w-[1px] bg-theme mx-1"></div>
@@ -139,19 +151,19 @@
             </button>
             <div class="h-4 w-[1px] bg-theme mx-1"></div>
             <!-- Action Button -->
-            <button onclick="parseXML()" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 shadow-md shadow-blue-500/20">
+            <button onclick="parseXML()" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 shadow-custom-sm border border-transparent focus:ring-2 focus:ring-blue-500/20">
                 <i data-lucide="sparkles" class="w-3 h-3 text-white fill-white"></i>
                 <span id="lang_btnRun">Mulai Analisis</span>
             </button>
         </div>
     </header>
 
-    <!-- MAIN WORKSPACE (Split Pane Layout) -->
+    <!-- MAIN WORKSPACE (Split Pane Layout dengan Kedalaman Visual) -->
     <main id="workspace" class="flex-1 flex flex-col overflow-hidden relative">
         
         <!-- TOP PANE (Area Input/Editor) -->
-        <div id="topPane" class="flex flex-col shrink-0 overflow-hidden bg-editor" style="height: 35%; min-height: 40px;">
-            <div class="h-10 px-4 flex items-center justify-between bg-header border-b border-theme shrink-0">
+        <div id="topPane" class="flex flex-col shrink-0 overflow-hidden bg-editor relative z-10 shadow-custom-md" style="height: 35%; min-height: 44px;">
+            <div class="h-11 px-4 flex items-center justify-between border-b border-theme bg-header shrink-0">
                 <div class="flex items-center gap-4">
                     <button onclick="toggleCollapse()" class="flex items-center gap-2 text-dim hover:text-blue-500 transition-colors group">
                         <i data-lucide="chevron-up" id="collapseIcon" class="w-4 h-4 transition-transform duration-300"></i>
@@ -169,50 +181,61 @@
                     </button>
                 </div>
             </div>
-            <!-- Textarea -->
-            <textarea id="xmlInput" spellcheck="false" class="flex-1 w-full bg-editor p-4 text-[13px] focus:outline-none resize-none overflow-y-auto border-none text-main" placeholder="Paste your .xml code here..."></textarea>
+            
+            <!-- Textarea Area with Line Numbers -->
+            <div id="editorArea" class="flex-1 flex overflow-hidden">
+                <div id="lineNumbers" class="w-12 flex-shrink-0 bg-preview border-r border-theme text-dim text-[11px] text-right py-4 pr-3 select-none overflow-hidden font-mono">1</div>
+                <textarea id="xmlInput" spellcheck="false" class="flex-1 w-full bg-editor py-4 pl-3 pr-4 text-[13px] focus:outline-none resize-none overflow-auto border-none text-main m-0" placeholder="Paste your .xml code here..."></textarea>
+            </div>
         </div>
 
-        <!-- HORIZONTAL RESIZER -->
-        <div id="resizer" class="h-1 w-full bg-theme shrink-0 z-20 cursor-row-resize hover:bg-blue-500 transition-colors relative"></div>
+        <!-- HORIZONTAL RESIZER (WAJIB TEBAL BERBEDA WARNA) -->
+        <div id="resizer" class="h-3 w-full bg-preview border-y border-theme cursor-row-resize flex items-center justify-center group shrink-0 z-20">
+            <div class="w-8 h-1 bg-[var(--border-color)] rounded-full group-hover:bg-blue-500 transition-colors"></div>
+        </div>
 
-        <!-- BOTTOM PANE (Area Output) -->
-        <div id="bottomPane" class="flex-1 flex flex-col relative overflow-hidden bg-preview">
-            <div class="h-10 px-4 flex items-center justify-between bg-header border-b border-theme shrink-0">
-                <div class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-dim">
-                    <i data-lucide="layout-list" class="w-3 h-3"></i>
-                    <span id="lang_titlePreview">Pratinjau Data Laporan</span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <button id="downloadBtn" onclick="downloadCSV()" class="hidden flex items-center gap-1.5 text-[10px] font-bold text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 px-2 py-1 rounded transition-colors uppercase">
-                        <i data-lucide="file-output" class="w-3 h-3"></i>
-                        <span id="lang_btnExport">Simpan ke CSV</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Table Container -->
-            <div id="tableContainer" class="flex-1 overflow-auto relative">
-                <!-- Empty State -->
-                <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center text-dim space-y-4">
-                    <div class="p-6 rounded-full bg-stripe-color">
-                        <i data-lucide="clipboard-paste" class="w-12 h-12 opacity-30 text-main"></i>
+        <!-- BOTTOM PANE (Area Output / Card Container) -->
+        <div id="bottomPane" class="flex-1 flex flex-col relative overflow-hidden bg-preview p-4">
+            
+            <!-- Blueprint Card Wrapper untuk Tabel -->
+            <div class="bg-card rounded-2xl shadow-custom-md border border-theme flex-1 flex flex-col overflow-hidden">
+                <div class="h-12 px-4 flex items-center justify-between border-b border-theme shrink-0">
+                    <div class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-dim">
+                        <i data-lucide="layout-list" class="w-3 h-3"></i>
+                        <span id="lang_titlePreview">Pratinjau Data Laporan</span>
                     </div>
-                    <div class="text-center">
-                        <p id="lang_emptyTitle" class="text-sm font-bold opacity-60 uppercase tracking-widest">Data Kosong</p>
-                        <p id="lang_emptyDesc" class="text-[11px] font-medium opacity-50 italic">Masukkan XML dan klik tombol analisis.</p>
+                    <div class="flex items-center gap-3">
+                        <button id="downloadBtn" onclick="downloadCSV()" class="hidden flex items-center gap-1.5 text-[10px] font-bold text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-transparent hover:border-emerald-500/20 transition-all uppercase shadow-custom-sm">
+                            <i data-lucide="file-output" class="w-3 h-3"></i>
+                            <span id="lang_btnExport">Simpan ke CSV</span>
+                        </button>
                     </div>
                 </div>
-                <!-- Data Table -->
-                <table id="dataTable" class="hidden text-xs font-mono-data">
-                    <thead id="tableHeader"></thead>
-                    <tbody id="tableBody"></tbody>
-                </table>
+
+                <!-- Table Container -->
+                <div id="tableContainer" class="flex-1 overflow-auto relative p-0">
+                    <!-- Empty State -->
+                    <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center text-dim space-y-4 bg-card">
+                        <div class="p-6 rounded-full bg-stripe-color">
+                            <i data-lucide="clipboard-paste" class="w-12 h-12 opacity-30 text-main"></i>
+                        </div>
+                        <div class="text-center">
+                            <p id="lang_emptyTitle" class="text-sm font-bold opacity-60 uppercase tracking-widest">Data Kosong</p>
+                            <p id="lang_emptyDesc" class="text-[11px] font-medium opacity-50 italic">Masukkan XML dan klik tombol analisis.</p>
+                        </div>
+                    </div>
+                    <!-- Data Table -->
+                    <table id="dataTable" class="hidden text-xs font-mono-data">
+                        <thead id="tableHeader"></thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
             </div>
+            
         </div>
     </main>
 
-    <!-- FOOTER (Wajib) -->
+    <!-- FOOTER (Wajib TATADADA) -->
     <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0">
         <div class="flex items-center gap-4">
             <div class="flex items-center gap-1.5">
@@ -231,19 +254,26 @@
         </div>
     </footer>
 
-    <!-- MODAL TERMS OF USE (Wajib) -->
-    <div id="termsModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300">
-        <div class="bg-header p-6 rounded-2xl border border-theme max-w-sm w-full shadow-2xl transform scale-95 transition-transform duration-300" id="termsModalContent">
+    <!-- MODAL TERMS OF USE (Strict & Smart Mode TATADADA) -->
+    <div id="termsModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-card p-6 rounded-2xl border border-theme max-w-md w-full shadow-2xl transform scale-95 transition-transform duration-300 mx-4" id="termsModalContent">
             <div class="flex items-center justify-between mb-4 pb-3 border-b border-theme">
                 <h2 id="lang_termsTitle" class="text-sm font-black uppercase tracking-widest text-main">Syarat Penggunaan</h2>
-                <button onclick="toggleModal('termsModal')" class="text-dim hover:text-red-500 transition-colors">
+                <button onclick="toggleModal('termsModal')" class="text-dim hover:text-red-500 transition-colors p-1 rounded-md hover:bg-stripe-color">
                     <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
             </div>
-            <p id="lang_termsText" class="text-xs text-dim leading-relaxed mb-6">
-                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
-            </p>
-            <button onclick="toggleModal('termsModal')" id="lang_modalClose" class="w-full bg-theme hover:bg-blue-600 hover:text-white text-main transition-colors py-2 rounded-lg text-xs font-bold border border-theme">
+            <div class="space-y-4 mb-6">
+                <!-- Smart Context Clause -->
+                <p id="lang_termsContext" class="text-xs text-main font-medium leading-relaxed bg-stripe-color p-3 rounded-lg border border-theme">
+                    Aplikasi ini beroperasi sepenuhnya di sisi klien (browser lokal) Anda. Kami tidak mengirimkan, menyimpan, atau merekam data laporan MetaTrader yang Anda proses ke server eksternal mana pun.
+                </p>
+                <!-- Mandatory Legal Clause -->
+                <p id="lang_termsText" class="text-[11px] text-dim leading-relaxed border-l-2 border-theme-accent pl-3">
+                    Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.
+                </p>
+            </div>
+            <button onclick="toggleModal('termsModal')" id="lang_modalClose" class="w-full bg-editor hover:bg-theme-accent hover:text-white text-main transition-all py-2.5 rounded-lg text-xs font-bold border border-theme shadow-custom-sm focus:ring-2 focus:ring-blue-500/20">
                 Tutup / Close
             </button>
         </div>
@@ -251,6 +281,13 @@
 
     <!-- MAIN JAVASCRIPT LOGIC -->
     <script>
+        // INISIALISASI STATE GLOBAL (Dipindahkan ke atas untuk mencegah ReferenceError)
+        let dataSekarang = [];
+        let sortKey = 'profit';
+        let sortDir = 'desc';
+        let lastHeight = "35%";
+        let isCollapsed = false;
+
         // Inisialisasi Ikon
         lucide.createIcons();
 
@@ -277,7 +314,28 @@
             localStorage.theme = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
             updateTheme();
         });
-        updateTheme(); // Call on load
+        updateTheme(); 
+
+        /* =========================================
+           TATADADA: TEXTAREA LINE NUMBERS SYNC
+           ========================================= */
+        const xmlInput = document.getElementById('xmlInput');
+        const lineNumbers = document.getElementById('lineNumbers');
+
+        function syncLineNumbers() {
+            const lines = xmlInput.value.split('\n').length;
+            let numbersHtml = '';
+            for (let i = 1; i <= lines; i++) {
+                numbersHtml += i + '<br>';
+            }
+            lineNumbers.innerHTML = numbersHtml;
+        }
+
+        xmlInput.addEventListener('input', syncLineNumbers);
+        xmlInput.addEventListener('scroll', () => {
+            lineNumbers.scrollTop = xmlInput.scrollTop;
+        });
+        syncLineNumbers(); // Initialize
 
         /* =========================================
            TATADADA: LOCALIZATION (ID/EN) LOGIC
@@ -291,7 +349,7 @@
                 tooltip1: "Buka laporan <b>.xml</b> MetaTrader 5 di editor teks.",
                 tooltip2: "Salin seluruh kode (Ctrl+A, Ctrl+C).",
                 tooltip3: "Tempelkan pada area <b>Editor</b> di bawah.",
-                tooltip4: "Klik <b>Mulai Analisis</b> (Kode akan dirapikan otomatis).",
+                tooltip4: "Klik <b>Mulai Analisis</b> (Kode dirapikan otomatis).",
                 btnRun: "Mulai Analisis",
                 btnHideEditor: "Sembunyikan Editor",
                 btnShowEditor: "Tampilkan Editor",
@@ -305,7 +363,8 @@
                 statTrades: "Total Transaksi:",
                 termsLink: "Syarat Penggunaan",
                 termsTitle: "Syarat Penggunaan",
-                termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+                termsContext: "Aplikasi ini beroperasi sepenuhnya di sisi klien (browser lokal) Anda. Kami tidak mengirimkan, menyimpan, atau merekam data laporan MetaTrader yang Anda proses ke server eksternal mana pun.",
+                termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
                 modalClose: "Tutup",
                 msgClearConfirm: "Kosongkan seluruh isi editor XML?",
                 msgParseError: "Format XML tidak didukung atau data optimisasi tidak ditemukan.",
@@ -330,7 +389,8 @@
                 statTrades: "Total Trades:",
                 termsLink: "Terms of Use",
                 termsTitle: "Terms of Use",
-                termsText: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                termsContext: "This application operates entirely on your client-side (local browser). We do not transmit, store, or record any MetaTrader report data you process to any external servers.",
+                termsText: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.",
                 modalClose: "Close",
                 msgClearConfirm: "Clear all XML editor content?",
                 msgParseError: "Unsupported XML format or optimization data not found.",
@@ -341,7 +401,7 @@
         function applyLanguage(lang) {
             currentLang = lang;
             localStorage.setItem('lang', lang);
-            langToggle.innerText = lang === 'ID' ? 'EN' : 'ID'; // Button shows target language
+            langToggle.innerText = lang === 'ID' ? 'EN' : 'ID'; 
             
             const t = dictionary[lang];
             document.getElementById('lang_tooltipTitle').innerHTML = t.tooltipTitle;
@@ -361,6 +421,7 @@
             document.getElementById('lang_statTrades').innerText = t.statTrades;
             document.getElementById('lang_termsLink').innerText = t.termsLink;
             document.getElementById('lang_termsTitle').innerText = t.termsTitle;
+            document.getElementById('lang_termsContext').innerText = t.termsContext;
             document.getElementById('lang_termsText').innerText = t.termsText;
             document.getElementById('lang_modalClose').innerText = t.modalClose;
         }
@@ -368,7 +429,7 @@
         langToggle.addEventListener('click', () => {
             applyLanguage(currentLang === 'ID' ? 'EN' : 'ID');
         });
-        applyLanguage(currentLang); // Call on load
+        applyLanguage(currentLang); 
 
         /* =========================================
            TATADADA: MODAL LOGIC
@@ -393,11 +454,6 @@
         /* =========================================
            AREA SAKRAL: BUSINESS LOGIC (TIDAK DIUBAH)
            ========================================= */
-        let dataSekarang = [];
-        let sortKey = 'profit';
-        let sortDir = 'desc';
-        let lastHeight = "35%";
-        let isCollapsed = false;
 
         // Split Pane Logic
         const resizer = document.getElementById('resizer');
@@ -430,7 +486,7 @@
             isCollapsed = !isCollapsed;
             
             if (isCollapsed) {
-                topPane.style.height = "40px";
+                topPane.style.height = "44px"; // Hide editor content, retain header
                 workspace.classList.add('collapsed');
                 icon.style.transform = "rotate(180deg)";
                 text.innerText = dictionary[currentLang].btnShowEditor;
@@ -477,7 +533,8 @@
 
         function clearInput() {
             if(confirm(dictionary[currentLang].msgClearConfirm)) {
-                document.getElementById('xmlInput').value = '';
+                xmlInput.value = '';
+                syncLineNumbers();
                 dataSekarang = [];
                 renderTable();
                 document.getElementById('emptyState').classList.remove('hidden');
@@ -488,13 +545,14 @@
         }
 
         function parseXML() {
-            let xmlText = document.getElementById('xmlInput').value;
+            let xmlText = xmlInput.value;
             if (!xmlText.trim()) return;
 
             try {
                 const tidiedXml = formatXml(xmlText);
-                document.getElementById('xmlInput').value = tidiedXml;
+                xmlInput.value = tidiedXml;
                 xmlText = tidiedXml;
+                syncLineNumbers(); // Sync numbers after tidy
             } catch (e) {
                 console.warn("Gagal merapikan XML, lanjut parsing...");
             }
@@ -558,7 +616,6 @@
                 return sortDir === 'asc' ? valA - valB : valB - valA;
             });
 
-            // Implementasi Freeze Panes TATADADA pada Table Header
             headerEl.innerHTML = `<tr>${columns.map(col => `
                 <th onclick="toggleSort('${col.key}')" 
                     style="width: ${col.width}"
@@ -572,7 +629,6 @@
                 </th>
             `).join('')}</tr>`;
 
-            // Implementasi Freeze Panes TATADADA pada Tabel Body
             bodyEl.innerHTML = dataSekarang.map(row => `
                 <tr class="hover:bg-blue-50/50 dark:hover:bg-blue-500/10 transition-colors group">
                     <td class="px-4 py-3 font-bold text-dim freeze-col border-theme">#${row.pass}</td>
