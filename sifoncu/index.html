@@ -1,3 +1,4 @@
+<!-- TAFSIR VISUAL ICON: Ikon SiFoncu dirancang menggunakan metafora tongkat sihir (magic wand) dengan pancaran partikel font ('S' dan 'F' bergaya dekoratif). Komposisi ini dibalut latar aurora bergradasi Pink ke Indigo, menyiratkan keajaiban transformasi teks (aesthetic/vaporwave) khas generator font lucu. Material glossy glass memberikan kedalaman visual ala visionOS. -->
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -8,7 +9,7 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -26,18 +27,20 @@
                         header: 'var(--header-bg)',
                         editor: 'var(--editor-bg)',
                         preview: 'var(--preview-bg)',
+                        card: 'var(--card-bg)',
                         footer: 'var(--footer-bg)',
                         bordercolor: 'var(--border-color)',
                         main: 'var(--text-main)',
                         dim: 'var(--text-dim)',
-                        stripe: 'var(--stripe-color)',
-                        freezebg: 'var(--freeze-bg)',
-                        freezebgeven: 'var(--freeze-bg-even)',
-                        freezehover: 'var(--freeze-hover)',
+                        themeAccent: 'var(--theme-accent)',
                     },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
                         mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    boxShadow: {
+                        'sm': 'var(--shadow-sm)',
+                        'md': 'var(--shadow-md)',
                     }
                 }
             }
@@ -49,29 +52,26 @@
         :root {
             --header-bg: #ffffff;
             --editor-bg: #ffffff;
-            --preview-bg: #f8fafc;
+            --preview-bg: #f1f5f9; /* Abu-abu lembut untuk kedalaman/selokan */
+            --card-bg: #ffffff;
             --footer-bg: #ffffff;
             --border-color: #e2e8f0;
             --text-main: #0f172a;
             --text-dim: #64748b;
-            --stripe-color: rgba(0, 0, 0, 0.02);
-            --freeze-bg: #f8fafc; 
-            --freeze-bg-even: #f1f5f9;
-            --freeze-hover: #eff6ff;
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
         }
 
         html.dark {
             --header-bg: #161b22;
             --editor-bg: #0d1117;
             --preview-bg: #010409;
+            --card-bg: #0d1117;
             --footer-bg: #161b22;
             --border-color: #30363d;
             --text-main: #e6edf3;
             --text-dim: #8b949e;
-            --stripe-color: rgba(255, 255, 255, 0.03);
-            --freeze-bg: #010409;
-            --freeze-bg-even: #0d1117;
-            --freeze-hover: rgba(59, 130, 246, 0.1);
             color-scheme: dark;
         }
 
@@ -101,10 +101,15 @@
         ::-webkit-scrollbar-thumb { 
             background: var(--border-color); 
             border-radius: 4px; 
+            border: 2px solid transparent;
+            background-clip: padding-box;
         }
         ::-webkit-scrollbar-thumb:hover { 
-            background: var(--text-dim); 
+            background-color: var(--text-dim); 
         }
+
+        /* Border Utility Class */
+        .border-theme { border-color: var(--border-color); }
 
         /* Input Textarea Specifics */
         textarea.editor-input {
@@ -112,18 +117,14 @@
             white-space: pre;
             overflow-x: auto;
             resize: none;
+            line-height: 1.5rem;
+        }
+        .line-numbers-gutter {
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.5rem;
         }
 
-        /* App Specific Styles */
-        .fancy-card {
-            transition: all 0.2s ease;
-        }
-        .fancy-card:hover {
-            border-color: #3b82f6;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        }
-
+        /* Notification Toast */
         .notification {
             position: fixed;
             bottom: 3rem;
@@ -131,7 +132,7 @@
             transform: translateX(-50%);
             z-index: 100;
             display: none;
-            animation: slideUp 0.3s ease-out;
+            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         @keyframes slideUp {
@@ -153,8 +154,8 @@
 </head>
 <body class="h-screen flex flex-col">
 
-    <!-- HEADER (Mandatory - h-14) -->
-    <header class="flex items-center justify-between px-6 border-b border-bordercolor bg-header shrink-0 relative z-50 h-14">
+    <!-- A. HEADER (Wajib - h-14) -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm transition-colors">
         <!-- Kiri: Branding -->
         <div class="flex items-center gap-3">
             <div class="flex flex-col">
@@ -171,96 +172,125 @@
             
             <!-- Help Tooltip -->
             <div class="relative has-tooltip ml-2 cursor-help text-dim hover:text-blue-500">
-                <i data-lucide="help-circle" class="w-4 h-4"></i>
-                <div class="tooltip-content absolute left-0 top-full mt-2 w-64 p-3 bg-editor border border-bordercolor shadow-lg rounded-md text-xs text-main z-50 pointer-events-none">
-                    <p data-i18n="helpTooltip">Ketik teks di panel atas, klik tombol salin pada hasil di panel bawah.</p>
+                <div class="w-5 h-5 rounded-full border border-theme flex items-center justify-center bg-preview shadow-sm hover:shadow transition-all">
+                    <i data-lucide="help-circle" class="w-3.5 h-3.5"></i>
+                </div>
+                <div class="tooltip-content absolute left-0 top-full mt-2 w-64 p-3 bg-card border border-theme shadow-md rounded-xl text-xs text-main z-50 pointer-events-none">
+                    <p data-i18n="helpTooltip">Ketik teks di panel atas, klik tombol salin pada hasil di panel bawah. Desain menggunakan layout Premium TATADADA.</p>
                 </div>
             </div>
         </div>
 
         <!-- Kanan: Actions -->
         <div class="flex items-center gap-3">
-            <button id="langToggleBtn" onclick="toggleLang()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-preview border border-transparent hover:border-bordercolor transition-all text-xs font-bold text-dim hover:text-main">
+            <!-- Toggle Bahasa -->
+            <button id="langToggleBtn" onclick="toggleLang()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-theme bg-preview hover:bg-bordercolor transition-all text-xs font-bold text-main shadow-sm focus:ring-2 focus:ring-blue-500/20">
                 <span id="langFlag">🇮🇩</span>
                 <span id="langLabel">ID</span>
             </button>
             
             <div class="w-px h-5 bg-bordercolor mx-1"></div>
 
-            <button onclick="toggleTheme()" class="p-2 hover:bg-preview text-dim hover:text-blue-500 rounded-full transition-colors border border-transparent hover:border-bordercolor" aria-label="Toggle Dark Mode">
+            <!-- Toggle Dark Mode -->
+            <button onclick="toggleTheme()" class="p-2 bg-preview hover:bg-bordercolor border border-theme text-main rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-blue-500/20" aria-label="Toggle Dark Mode">
                 <i data-lucide="moon" id="theme-icon-dark" class="w-4 h-4 hidden"></i>
                 <i data-lucide="sun" id="theme-icon-light" class="w-4 h-4"></i>
             </button>
         </div>
     </header>
 
-    <!-- MAIN WORKSPACE (Scenario 1: Top-Down Split Pane) -->
-    <main class="flex-1 relative overflow-hidden bg-preview flex flex-col">
+    <!-- B. MAIN WORKSPACE (Skenario 1 - Top-Down Split Pane Berdimensi) -->
+    <main class="flex-1 flex flex-col overflow-hidden bg-preview">
         
-        <!-- Top Pane: Area Input -->
-        <div id="topPane" class="flex flex-col bg-editor" style="height: 35%;">
-            <div class="px-4 py-2 border-b border-bordercolor flex justify-between items-center bg-header shrink-0">
-                <span class="text-xs font-bold uppercase tracking-widest text-dim" data-i18n="inputTextLabel">Input Teks Normal</span>
-                <button onclick="clearInput()" class="text-[10px] text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 px-2 py-1 rounded transition-colors font-bold" data-i18n="clearBtn">
+        <!-- Top Pane: Area Input (Menempel penuh, bg-editor) -->
+        <div id="topPane" class="flex flex-col bg-editor relative shrink-0 z-10 shadow-sm" style="height: 35%;">
+            <!-- Toolbar Top Pane -->
+            <div class="px-4 py-2 border-b border-theme flex justify-between items-center bg-header shrink-0">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="keyboard" class="w-4 h-4 text-dim"></i>
+                    <span class="text-xs font-bold uppercase tracking-widest text-main" data-i18n="inputTextLabel">Input Teks Normal</span>
+                </div>
+                <button onclick="clearInput()" class="text-[10px] text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 border border-transparent hover:border-red-200 dark:hover:border-red-800 px-2 py-1 rounded-lg transition-all font-bold focus:ring-2 focus:ring-red-500/20" data-i18n="clearBtn">
                     HAPUS SEMUA
                 </button>
             </div>
-            <textarea 
-                id="inputText" 
-                class="editor-input flex-1 p-4 bg-transparent outline-none text-main text-base"
-                placeholder="Ketik teks di sini..."
-                oninput="generateFancyText()"
-            ></textarea>
-        </div>
-
-        <!-- Horizontal Resizer -->
-        <div id="resizer" class="h-1 cursor-row-resize bg-bordercolor hover:bg-blue-500 transition-colors shrink-0 z-10 flex items-center justify-center">
-            <div class="w-8 h-[2px] bg-white/50 rounded-full pointer-events-none opacity-0 hover:opacity-100 transition-opacity"></div>
-        </div>
-
-        <!-- Bottom Pane: Area Output -->
-        <div id="bottomPane" class="flex-1 overflow-auto bg-preview p-6 space-y-4">
-            <div class="flex flex-col items-center justify-center h-full text-center opacity-40" id="emptyState">
-                <i data-lucide="sparkles" class="w-12 h-12 mb-4"></i>
-                <p class="font-bold italic" data-i18n="emptyState">Tunggu keajaiban SiFoncu muncul di sini...</p>
+            
+            <!-- Editor Container with Line Numbers -->
+            <div class="flex-1 flex overflow-hidden bg-editor">
+                <!-- Line Numbers Gutter -->
+                <div id="lineNumbers" class="line-numbers-gutter w-12 bg-preview border-r border-theme text-dim text-[10px] font-mono text-right py-4 px-2 select-none overflow-hidden shrink-0">
+                    <div>1</div>
+                </div>
+                <!-- Textarea -->
+                <textarea 
+                    id="inputText" 
+                    class="editor-input flex-1 p-4 bg-transparent outline-none text-main text-sm"
+                    placeholder="Ketik teks di sini..."
+                    oninput="handleInput()"
+                    onscroll="syncScroll()"
+                ></textarea>
             </div>
-            <div id="outputArea" class="flex flex-col gap-4 hidden">
-                <!-- Hasil di-generate via JS -->
+        </div>
+
+        <!-- Horizontal Resizer / Gutter (Wajib Tebal & Berbeda Warna) -->
+        <div id="resizer" class="h-3 bg-preview cursor-row-resize flex items-center justify-center border-y border-theme group shrink-0 z-20">
+            <!-- Handle visual -->
+            <div class="w-8 h-1 bg-[var(--border-color)] rounded-full group-hover:bg-blue-500 transition-colors"></div>
+        </div>
+
+        <!-- Bottom Pane: Area Output (Latar abu-abu, Konten dibungkus Card) -->
+        <div id="bottomPane" class="flex-1 bg-preview p-4 md:p-6 flex flex-col gap-4 overflow-y-auto">
+            
+            <!-- Empty State -->
+            <div class="flex flex-col items-center justify-center h-full text-center opacity-40" id="emptyState">
+                <div class="w-16 h-16 rounded-full border-2 border-dashed border-theme flex items-center justify-center mb-4 bg-card shadow-sm">
+                    <i data-lucide="sparkles" class="w-8 h-8 text-dim"></i>
+                </div>
+                <p class="font-semibold text-sm" data-i18n="emptyState">Tunggu keajaiban SiFoncu muncul di sini...</p>
+            </div>
+
+            <!-- Output Container for Cards -->
+            <div id="outputArea" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
+                <!-- Card Hasil akan di-generate via JS -->
             </div>
         </div>
     </main>
 
-    <!-- FOOTER (Mandatory - h-8) -->
-    <footer class="flex items-center justify-between px-6 border-t border-bordercolor bg-footer text-[10px] text-dim shrink-0 h-8">
+    <!-- C. FOOTER (Wajib - h-8) -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 transition-colors">
         <div class="flex items-center gap-2">
             <div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
-            <span data-i18n="engineReady">Engine Ready</span>
+            <span class="font-medium" data-i18n="engineReady">Engine Ready</span>
         </div>
         
-        <div class="flex items-center gap-4 font-mono">
-            <span id="charCountLabel"><span data-i18n="statChars">Karakter</span>: <span id="charCount">0</span></span>
-            <span id="wordCountLabel"><span data-i18n="statWords">Kata</span>: <span id="wordCount">0</span></span>
+        <div class="flex items-center gap-4 font-mono font-medium">
+            <span id="charCountLabel"><span data-i18n="statChars">Karakter</span>: <span id="charCount" class="text-main">0</span></span>
+            <span class="text-bordercolor">|</span>
+            <span id="wordCountLabel"><span data-i18n="statWords">Kata</span>: <span id="wordCount" class="text-main">0</span></span>
         </div>
 
-        <button onclick="openModal()" class="hover:text-blue-500 transition-colors underline decoration-dotted underline-offset-2" data-i18n="terms">
+        <button onclick="openModal()" class="font-medium hover:text-themeAccent transition-colors underline decoration-dotted underline-offset-2" data-i18n="terms">
             Terms of Use
         </button>
     </footer>
 
-    <!-- MODAL TERMS OF USE (Mandatory) -->
-    <div id="termsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-[100] opacity-0 transition-opacity duration-300">
-        <div class="bg-editor border border-bordercolor rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 transform scale-95 transition-transform duration-300" id="termsModalContent">
+    <!-- D. MODAL TERMS OF USE / DISCLAIMER (Wajib) -->
+    <div id="termsModal" class="fixed inset-0 backdrop-blur-sm bg-black/20 hidden items-center justify-center z-[100] opacity-0 transition-opacity duration-300">
+        <div class="bg-card border border-theme rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 transform scale-95 transition-transform duration-300" id="termsModalContent">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-main" data-i18n="termsTitle">Syarat Penggunaan</h3>
-                <button onclick="closeModal()" class="text-dim hover:text-red-500 transition-colors p-1 rounded-md hover:bg-preview">
-                    <i data-lucide="x" class="w-5 h-5"></i>
+                <div class="flex items-center gap-2">
+                    <i data-lucide="scale" class="w-5 h-5 text-themeAccent"></i>
+                    <h3 class="text-lg font-bold text-main tracking-tight" data-i18n="termsTitle">Syarat Penggunaan</h3>
+                </div>
+                <button onclick="closeModal()" class="text-dim hover:text-red-500 transition-colors p-1.5 border border-transparent hover:border-theme rounded-lg hover:bg-preview focus:ring-2 focus:ring-red-500/20">
+                    <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
             </div>
-            <div class="text-sm text-dim leading-relaxed mb-6">
-                <p data-i18n="termsText">Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.</p>
+            <div class="text-[13px] text-dim leading-relaxed mb-6 space-y-3">
+                <p data-i18n="termsText">Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.</p>
             </div>
             <div class="flex justify-end">
-                <button onclick="closeModal()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-md transition-all active:scale-95" data-i18n="close">
+                <button onclick="closeModal()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-md transition-all active:scale-95 focus:ring-2 focus:ring-blue-500/30" data-i18n="close">
                     Tutup
                 </button>
             </div>
@@ -268,17 +298,17 @@
     </div>
 
     <!-- Notification Toast -->
-    <div id="copyToast" class="notification px-6 py-3 bg-emerald-600 text-white rounded-full shadow-lg font-bold text-sm flex items-center gap-2">
+    <div id="copyToast" class="notification px-6 py-3 bg-blue-600 text-white rounded-xl shadow-xl font-bold text-sm flex items-center gap-2 border border-blue-500/50">
         <i data-lucide="check-circle" class="w-4 h-4"></i>
         <span data-i18n="copied">Teks berhasil disalin!</span>
     </div>
 
     <script>
         // ==========================================
-        // TATADADA FRAMEWORK CORE LOGIC
+        // 1. TATADADA FRAMEWORK CORE LOGIC
         // ==========================================
 
-        // 1. Theme Management
+        // Theme Management
         function initTheme() {
             const savedTheme = localStorage.getItem('theme');
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -303,10 +333,10 @@
             document.getElementById('theme-icon-light').classList.toggle('hidden', isDark);
         }
 
-        // 2. Localization (ID/EN)
+        // Localization (ID/EN)
         const translations = {
             id: {
-                helpTooltip: "Ketik teks di panel atas, klik tombol salin pada hasil di panel bawah.",
+                helpTooltip: "Ketik teks di panel atas, klik tombol salin pada hasil di panel bawah. Desain menggunakan layout Premium TATADADA.",
                 inputTextLabel: "Input Teks Normal",
                 clearBtn: "HAPUS SEMUA",
                 emptyState: "Tunggu keajaiban SiFoncu muncul di sini...",
@@ -315,13 +345,13 @@
                 statWords: "Kata",
                 terms: "Syarat Penggunaan",
                 termsTitle: "Syarat Penggunaan",
-                termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
-                close: "Tutup",
+                termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
+                close: "Tutup Mengerti",
                 copied: "Teks berhasil disalin!",
                 placeholder: "Ketik teks di sini..."
             },
             en: {
-                helpTooltip: "Type text in the top panel, click the copy button on the results in the bottom panel.",
+                helpTooltip: "Type text in the top panel, click the copy button on the results in the bottom panel. Designed with Premium TATADADA layout.",
                 inputTextLabel: "Normal Text Input",
                 clearBtn: "CLEAR ALL",
                 emptyState: "Wait for SiFoncu magic to appear here...",
@@ -330,8 +360,8 @@
                 statWords: "Words",
                 terms: "Terms of Use",
                 termsTitle: "Terms of Use",
-                termsText: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
-                close: "Close",
+                termsText: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app does not store your personal data on our servers. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.",
+                close: "Acknowledge",
                 copied: "Text copied to clipboard!",
                 placeholder: "Type your text here..."
             }
@@ -350,11 +380,9 @@
         }
 
         function updateLanguageUI() {
-            // Update button label
             document.getElementById('langFlag').innerText = currentLang === 'id' ? '🇮🇩' : '🇬🇧';
             document.getElementById('langLabel').innerText = currentLang.toUpperCase();
 
-            // Update text contents
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
                 if (translations[currentLang][key]) {
@@ -362,22 +390,19 @@
                 }
             });
 
-            // Update placeholders
             document.getElementById('inputText').placeholder = translations[currentLang].placeholder;
 
-            // Regenerate list if exists to apply language to generated cards if needed
             if (document.getElementById('inputText').value.trim() !== '') {
                 generateFancyText();
             }
         }
 
-        // 3. Modal Logic
+        // Modal Logic (Strict Mode)
         const modal = document.getElementById('termsModal');
         const modalContent = document.getElementById('termsModalContent');
 
         function openModal() {
             modal.classList.remove('hidden');
-            // Small delay to allow display block to apply before animating opacity
             setTimeout(() => {
                 modal.classList.remove('opacity-0');
                 modalContent.classList.remove('scale-95');
@@ -391,15 +416,14 @@
             modalContent.classList.add('scale-95');
             setTimeout(() => {
                 modal.classList.add('hidden');
-            }, 300); // match transition duration
+            }, 300);
         }
 
-        // Close modal on outside click
         modal.addEventListener('click', (e) => {
             if (e.target === modal) closeModal();
         });
 
-        // 4. Split Pane Resizer Logic
+        // Split Pane Resizer Logic
         function initResizer() {
             const topPane = document.getElementById('topPane');
             const resizer = document.getElementById('resizer');
@@ -409,18 +433,17 @@
             resizer.addEventListener('mousedown', (e) => {
                 isResizing = true;
                 document.body.style.cursor = 'row-resize';
-                document.body.style.userSelect = 'none'; // Prevent text selection
+                document.body.style.userSelect = 'none';
             });
 
             document.addEventListener('mousemove', (e) => {
                 if (!isResizing) return;
-                
                 const containerRect = container.getBoundingClientRect();
                 let newHeight = e.clientY - containerRect.top;
                 
-                // Constraints: 10% to 85%
-                const minHeight = containerRect.height * 0.1;
-                const maxHeight = containerRect.height * 0.85;
+                // Constraints: 15% to 80%
+                const minHeight = containerRect.height * 0.15;
+                const maxHeight = containerRect.height * 0.80;
                 
                 if (newHeight < minHeight) newHeight = minHeight;
                 if (newHeight > maxHeight) newHeight = maxHeight;
@@ -437,9 +460,30 @@
             });
         }
 
+        // Textarea Line Numbers Logic
+        const textarea = document.getElementById('inputText');
+        const lineNumbers = document.getElementById('lineNumbers');
+
+        function updateLineNumbers() {
+            const lines = textarea.value.split('\n').length;
+            let numbersHTML = '';
+            for (let i = 1; i <= lines; i++) {
+                numbersHTML += `<div>${i}</div>`;
+            }
+            lineNumbers.innerHTML = numbersHTML;
+        }
+
+        function syncScroll() {
+            lineNumbers.scrollTop = textarea.scrollTop;
+        }
+
+        function handleInput() {
+            updateLineNumbers();
+            generateFancyText();
+        }
 
         // ==========================================
-        // SIFONCU APP SPECIFIC LOGIC
+        // 2. SIFONCU APP SPECIFIC LOGIC
         // ==========================================
         
         const maps = {
@@ -447,8 +491,8 @@
             "Royal Script": {"a":"𝓪","b":"𝓫","c":"𝓬","d":"𝓭","e":"𝓮","f":"𝓯","g":"𝓰","h":"𝓱","i":"𝓲","j":"𝓳","k":"𝓴","l":"𝓵","m":"𝓶","n":"𝓷","o":"𝓸","p":"𝓹","q":"𝓺","r":"𝓻","s":"𝓼","t":"𝓽","u":"𝓾","v":"𝓿","w":"𝔀","x":"𝔁","y":"𝔂","z":"𝔃","A":"𝓐","B":"𝓑","C":"𝓒","D":"𝓓","E":"𝓔","F":"𝓕","G":"𝓖","H":"𝓗","I":"𝓘","J":"𝓙","K":"𝓚","L":"𝓛","M":"𝓜","N":"𝓝","O":"𝓞","P":"𝓟","Q":"𝓠","R":"𝓡","S":"𝓢","T":"𝓣","U":"𝓤","V":"𝓥","W":"𝓦","X":"𝓧","Y":"𝓨","Z":"𝓩"},
             "Old Typewriter": {"a":"𝚊","b":"𝚋","c":"𝚌","d":"𝚍","e":"𝚎","f":"𝚏","g":"𝚐","h":"𝚑","i":"𝚒","j":"𝚓","k":"𝚔","l":"𝚕","m":"𝚖","n":"𝚗","o":"𝚘","p":"𝚙","q":"𝚚","r":"𝚛","s":"𝚜","t":"𝚝","u":"𝚞","v":"𝚟","w":"𝚠","x":"𝚡","y":"𝚢","z":"𝚣","A":"𝙰","B":"𝙱","C":"𝙲","D":"𝙳","E":"𝙴","F":"𝙵","G":"𝙶","H":"𝙷","I":"𝙸","J":"𝙹","K":"𝙺","L":"𝙻","M":"𝙼","N":"𝙽","O":"𝙾","P":"𝙿","Q":"𝚀","R":"𝚁","S":"𝚂","T":"𝚃","U":"𝚄","V":"𝚅","W":"𝚆","X":"𝚇","Y":"𝚈","Z":"𝚉"},
             "Double Struck": {"a":"𝕒","b":"𝕓","c":"𝕔","d":"𝕕","e":"𝕖","f":"𝕗","g":"𝕘","h":"𝕙","i":"𝕚","j":"𝕛","k":"𝕜","l":"𝕝","m":"𝕞","n":"𝕟","o":"𝕠","p":"𝕡","q":"𝕢","r":"𝕣","s":"𝕤","t":"𝕥","u":"𝕦","v":"𝕧","w":"𝕨","x":"𝕩","y":"𝕪","z":"𝕫","A":"𝔸","B":"𝔹","C":"ℂ","D":"𝔻","E":"𝔼","F":"𝔽","G":"𝔾","H":"ℍ","I":"𝕀","J":"𝕁","K":"𝕂","L":"𝕃","M":"𝕄","N":"ℕ","O":"𝕆","P":"ℙ","Q":"ℚ","R":"ℝ","S":"𝕊","T":"𝕋","U":"𝕌","V":"𝕍","W":"𝕎","X":"𝕏","Y":"𝕐","Z":"ℤ"},
-            "Bubbles (White)": {"a":"ⓐ","b":"ⓑ","c":"ⓒ","d":"ⓓ","e":"ⓔ","f":"ⓕ","g":"ⓖ","h":"ⓗ","i":"ⓘ","j":"ⓙ","k":"ⓚ","l":"ⓛ","m":"ⓜ","n":"ⓝ","o":"ⓞ","p":"ⓟ","q":"ⓠ","r":"ⓡ","s":"ⓢ","t":"ⓣ","u":"ⓤ","v":"ⓥ","w":"ⓦ","x":"ⓧ","y":"ⓨ","z":"ⓩ","A":"Ⓐ","B":"Ⓑ","C":"Ⓒ","D":"Ⓓ","E":"Ⓔ","F":"Ⓕ","G":"Ⓖ","H":"Ⓗ","I":"Ⓘ","J":"Ⓙ","K":"Ⓚ","L":"Ⓛ","M":"Ⓜ","N":"Ⓝ","O":"Ⓞ","P":"Ⓟ","Q":"Ⓠ","R":"Ⓡ","S":"Ⓢ","T":"Ⓣ","U":"Ⓤ","V":"Ⓥ","W":"Ⓦ","X":"Ⓧ","Y":"Ⓨ","Z":"Ⓩ"},
-            "Squares (Black)": {"a":"🅰","b":"🅱","c":"🅲","d":"🅳","e":"🅴","f":"🅵","g":"🅶","h":"🅷","i":"🅸","j":"🅹","k":"🅺","l":"🅻","m":"🅼","n":"🅽","o":"🅾","p":"🅿","q":"🆀","r":"🆁","s":"🆂","t":"🆃","u":"🆄","v":"🆅","w":"🆆","x":"🆇","y":"🆈","z":"🆉","A":"🅰","B":"🅱","C":"🅲","D":"🅳","E":"🅴","F":"🅵","G":"🅶","H":"🅷","I":"🅸","J":"𝅓","K":"🅺","L":"🅻","M":"🅼","N":"🅽","O":"🅾","P":"🅿","Q":"🆀","R":"🆁","S":"🆂","T":"🆃","U":"𝅓","V":"🆅","W":"🆆","X":"🆇","Y":"🆈","Z":"🆉"},
+            "Bubbles": {"a":"ⓐ","b":"ⓑ","c":"ⓒ","d":"ⓓ","e":"ⓔ","f":"ⓕ","g":"ⓖ","h":"ⓗ","i":"ⓘ","j":"ⓙ","k":"ⓚ","l":"ⓛ","m":"ⓜ","n":"ⓝ","o":"ⓞ","p":"ⓟ","q":"ⓠ","r":"ⓡ","s":"ⓢ","t":"ⓣ","u":"ⓤ","v":"ⓥ","w":"ⓦ","x":"ⓧ","y":"ⓨ","z":"ⓩ","A":"Ⓐ","B":"Ⓑ","C":"Ⓒ","D":"Ⓓ","E":"Ⓔ","F":"Ⓕ","G":"Ⓖ","H":"Ⓗ","I":"Ⓘ","J":"Ⓙ","K":"Ⓚ","L":"Ⓛ","M":"Ⓜ","N":"Ⓝ","O":"Ⓞ","P":"Ⓟ","Q":"Ⓠ","R":"Ⓡ","S":"Ⓢ","T":"Ⓣ","U":"Ⓤ","V":"Ⓥ","W":"Ⓦ","X":"Ⓧ","Y":"Ⓨ","Z":"Ⓩ"},
+            "Squares": {"a":"🅰","b":"🅱","c":"🅲","d":"🅳","e":"🅴","f":"🅵","g":"🅶","h":"🅷","i":"🅸","j":"🅹","k":"🅺","l":"🅻","m":"🅼","n":"🅽","o":"🅾","p":"🅿","q":"🆀","r":"🆁","s":"🆂","t":"🆃","u":"🆄","v":"🆅","w":"🆆","x":"🆇","y":"🆈","z":"🆉","A":"🅰","B":"🅱","C":"🅲","D":"🅳","E":"🅴","F":"🅵","G":"🅶","H":"🅷","I":"🅸","J":"𝅓","K":"🅺","L":"🅻","M":"🅼","N":"🅽","O":"🅾","P":"🅿","Q":"🆀","R":"🆁","S":"🆂","T":"🆃","U":"𝅓","V":"🆅","W":"🆆","X":"🆇","Y":"🆈","Z":"🆉"},
         };
 
         const flipMap = {"a":"ɐ","b":"q","c":"ɔ","d":"p","e":"ǝ","f":"ɟ","g":"ɓ","h":"ɥ","i":"ı","j":"ɾ","k":"ʞ","l":"l","m":"ɯ","n":"u","r":"ɹ","t":"ʇ","v":"ʌ","w":"ʍ","y":"ʎ","A":"∀","B":"ᙠ","C":"Ɔ","D":"ᗡ","E":"Ǝ","F":"Ⅎ","G":"⅁","J":"ſ","K":"⋊",1:"⇂",2:"ᄅ",3:"Ɛ",4:"ㄣ",5:"ގ",6:"9",7:"ㄥ","?":"¿","!":"¡","'":",","(":")",")":"(", "[":"]", "]":"["};
@@ -457,9 +501,7 @@
             "★·.·´¯`·.·★ [[text]] ★·.·´¯`·.·★",
             "°°°·.°·..·°¯°·._.· [[text]] ·._.·°¯°·.·° .·°°°",
             "ıllıllı [[text]] ıllıllı",
-            "×º°”˜`”°º× [[text]] ×º°”˜`”°º×",
-            "•]••´º´•» [[text]] «•´º´••[•",
-            "╰☆☆ [[text]] ☆☆╮"
+            "×º°”˜`”°º× [[text]] ×º°”˜`”°º×"
         ];
 
         function applyMap(text, map) {
@@ -478,7 +520,7 @@
         function zalgo(text, level = 8) {
             const diacritics = [768, 769, 770, 771, 772, 773, 774, 775, 776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788, 789];
             return text.split('').map(c => {
-                if (c === ' ' || c === '\n') return c; // Don't zalgo spaces
+                if (c === ' ' || c === '\n') return c; 
                 let s = c;
                 for(let i=0; i<level; i++) s += String.fromCharCode(diacritics[Math.floor(Math.random() * diacritics.length)]);
                 return s;
@@ -486,8 +528,8 @@
         }
 
         function clearInput() {
-            document.getElementById('inputText').value = '';
-            generateFancyText();
+            textarea.value = '';
+            handleInput();
         }
 
         function copyToClipboard(text) {
@@ -504,7 +546,7 @@
         }
 
         function generateFancyText() {
-            const input = document.getElementById('inputText').value;
+            const input = textarea.value;
             const outputArea = document.getElementById('outputArea');
             const emptyState = document.getElementById('emptyState');
             
@@ -528,13 +570,12 @@
                 results.push({ name, text: applyMap(input, map) });
             }
 
-            results.push({ name: "Vaporwave (Aesthetic)", text: vaporwave(input) });
+            results.push({ name: "Aesthetic / Vaporwave", text: vaporwave(input) });
             results.push({ name: "Flip / Terbalik", text: flipText(input) });
             results.push({ name: "Glitch / Zalgo", text: zalgo(input) });
 
             flourishes.forEach((f, index) => {
-                // Determine label based on language if needed, but keeping it simple
-                const labelName = currentLang === 'id' ? `Hiasan ${index+1}` : `Flourish ${index+1}`;
+                const labelName = currentLang === 'id' ? `Hiasan Pinggir ${index+1}` : `Flourish Frame ${index+1}`;
                 results.push({ name: labelName, text: f.replace("[[text]]", input) });
             });
 
@@ -542,25 +583,31 @@
 
             results.forEach(res => {
                 const card = document.createElement('div');
-                card.className = "fancy-card p-4 rounded-xl flex flex-col gap-2 relative group bg-header border border-bordercolor";
+                // PREMIUM POLISH CARD STYLE
+                card.className = "bg-card rounded-xl shadow-sm border border-theme p-5 relative group transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-blue-500 focus-within:border-blue-500";
                 
+                const headerBox = document.createElement('div');
+                headerBox.className = "flex items-center justify-between mb-3";
+
                 const label = document.createElement('span');
-                label.className = "text-[10px] font-bold uppercase tracking-widest text-dim";
+                label.className = "text-[10px] font-bold uppercase tracking-wider text-dim";
                 label.innerText = res.name;
 
-                const content = document.createElement('div');
-                content.className = "text-xl break-words pr-12 font-medium text-main";
-                content.innerText = res.text;
-
                 const copyBtn = document.createElement('button');
-                copyBtn.className = "absolute right-3 top-1/2 -translate-y-1/2 p-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-md active:scale-95";
+                copyBtn.className = "p-2 bg-preview border border-theme hover:bg-blue-50 hover:border-blue-200 dark:hover:bg-blue-900/30 dark:hover:border-blue-700 text-dim hover:text-blue-600 rounded-lg transition-all focus:ring-2 focus:ring-blue-500/30 opacity-0 group-hover:opacity-100 outline-none";
                 copyBtn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i>';
-                copyBtn.title = currentLang === 'id' ? "Salin" : "Copy";
+                copyBtn.title = currentLang === 'id' ? "Salin teks" : "Copy text";
                 copyBtn.onclick = () => copyToClipboard(res.text);
 
-                card.appendChild(label);
+                headerBox.appendChild(label);
+                headerBox.appendChild(copyBtn);
+
+                const content = document.createElement('div');
+                content.className = "text-lg break-words font-medium text-main leading-relaxed selection:bg-blue-500/30";
+                content.innerText = res.text;
+
+                card.appendChild(headerBox);
                 card.appendChild(content);
-                card.appendChild(copyBtn);
                 outputArea.appendChild(card);
             });
 
@@ -574,10 +621,10 @@
             initTheme();
             initLang();
             initResizer();
+            updateLineNumbers();
             lucide.createIcons();
             
-            // Check if there is existing text on reload
-            if (document.getElementById('inputText').value.trim() !== '') {
+            if (textarea.value.trim() !== '') {
                 generateFancyText();
             }
         };
