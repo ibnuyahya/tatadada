@@ -267,7 +267,8 @@
             <div class="absolute inset-0 bg-pattern pointer-events-none z-0"></div>
             
             <!-- Transform Container -->
-            <div id="device-canvas" class="min-h-full min-w-full p-16 flex flex-row flex-wrap gap-16 justify-center items-center origin-top transition-transform duration-300 ease-out z-10 relative">
+            <!-- Flex-row and gap-16 to arrange devices side-by-side cleanly -->
+            <div id="device-canvas" class="min-h-full p-16 flex flex-row flex-wrap gap-16 justify-center items-start origin-top-left transition-transform duration-300 ease-out z-10 relative">
                 <!-- Devices akan disuntikkan di sini via JS -->
             </div>
         </div>
@@ -507,6 +508,12 @@
 
                 this.applyZoom();
                 lucide.createIcons();
+
+                // Pantau perubahan ukuran kanvas untuk memperbaiki ruang scroll kosong
+                this.resizeObserver = new ResizeObserver(() => {
+                    this.adjustCanvasHeight();
+                });
+                this.resizeObserver.observe(document.getElementById('device-canvas'));
             },
 
             initTheme() { 
@@ -584,7 +591,25 @@
             },
             applyZoom() {
                 document.getElementById('zoom-display').textContent = `${this.zoom}%`;
-                document.getElementById('device-canvas').style.transform = `scale(${this.zoom / 100})`;
+                const scale = this.zoom / 100;
+                const canvas = document.getElementById('device-canvas');
+                
+                // KUNCI WRAP ALAMI: Perlebar Virtual Width sebanding dengan seberapa kecil kita menge-zoom.
+                // Jika zoom 50% (0.5), kanvas merenggang jadi 200%, agar Flex-Wrap menghitung dengan benar.
+                canvas.style.transform = `scale(${scale})`;
+                canvas.style.width = `${100 / scale}%`;
+                
+                this.adjustCanvasHeight();
+            },
+
+            adjustCanvasHeight() {
+                const canvas = document.getElementById('device-canvas');
+                const scale = this.zoom / 100;
+                const unscaledHeight = canvas.offsetHeight;
+                const scaledHeight = unscaledHeight * scale;
+                const extraHeight = unscaledHeight - scaledHeight;
+                // Hapus ruang kosong di bagian bawah akibat penskalaan CSS
+                canvas.style.marginBottom = `-${extraHeight}px`;
             },
 
             toggleBrowserUI(isChecked) {
