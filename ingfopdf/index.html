@@ -84,7 +84,7 @@
             <h1 class="bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent font-bold text-lg">
                 IngfoPDF
             </h1>
-            <span class="text-[10px] font-mono text-[var(--text-dim)] italic mt-1">v5.0 Ultimate</span>
+            <span class="text-[10px] font-mono text-[var(--text-dim)] italic mt-1">v5.1 Ultimate</span>
             <span class="text-[var(--border-color)]">|</span>
             <a href="https://danial.my.id" target="_blank" rel="noreferrer" class="lowercase font-bold tracking-[0.25em] text-[8px] text-[var(--text-dim)] hover:text-blue-500 mt-1 transition-colors">
                 by AhmadDanial
@@ -147,11 +147,11 @@
         </div>
     </main>
 
-    <!-- SPLIT VIEW STATE (SKENARIO 1 TATADADA) -->
-    <main id="results-state" class="flex-1 flex overflow-hidden hidden-el">
+    <!-- SPLIT VIEW STATE -->
+    <main id="results-state" class="flex-1 flex overflow-hidden hidden-el w-full bg-[var(--preview-bg)]">
         
         <!-- LEFT PANE: Canvas -->
-        <div id="left-pane" class="flex-[6] bg-[var(--editor-bg)] relative overflow-hidden flex flex-col">
+        <div id="left-pane" class="flex-[6] bg-[var(--editor-bg)] relative overflow-hidden flex flex-col border-r border-[var(--border-color)]">
             <div class="h-12 px-5 flex items-center justify-between shrink-0 border-b border-[var(--border-color)] bg-[var(--editor-bg)] z-20">
                 <span class="text-sm font-semibold text-[var(--text-main)] flex items-center gap-2">
                     <i data-lucide="scan-line" class="w-[16px] h-[16px] text-blue-500"></i> <span id="lbl-preview-title">Pratinjau Dokumen Forensik</span>
@@ -225,6 +225,16 @@
                 <p id="lbl-no-crypto-desc" class="text-xs text-[var(--text-dim)] leading-relaxed">Dokumen ini tampaknya merupakan salinan pratinjau (flattened)...</p>
             </div>
 
+            <!-- Action Buttons for Report -->
+            <div id="report-actions" class="flex flex-col sm:flex-row items-center gap-3 shrink-0 hidden-el">
+                <button id="btn-copy-short" class="flex-1 w-full bg-[var(--card-bg)] border border-[var(--border-color)] hover:bg-[var(--freeze-hover)] text-[var(--text-main)] px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 focus:ring-2 focus:ring-blue-500/20">
+                    <i data-lucide="clipboard-list" class="w-[16px] h-[16px]"></i> <span id="lbl-copy-short">Salin Laporan Singkat</span>
+                </button>
+                <button id="btn-copy-detailed" class="flex-1 w-full bg-[var(--theme-accent)] hover:opacity-90 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 focus:ring-2 focus:ring-blue-500/20">
+                    <i data-lucide="clipboard-copy" class="w-[16px] h-[16px]"></i> <span id="lbl-copy-detailed">Salin Laporan Detail</span>
+                </button>
+            </div>
+
             <div id="signatures-list" class="flex flex-col gap-4 pb-10">
                 <!-- Cards HTML injected via JS -->
             </div>
@@ -265,6 +275,12 @@
         </div>
     </div>
 
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast-notification" class="fixed bottom-10 right-10 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-2xl transform translate-y-20 opacity-0 transition-all duration-300 z-[200] flex items-center gap-3 font-semibold text-sm pointer-events-none">
+        <i data-lucide="check-circle-2" class="w-[18px] h-[18px]"></i>
+        <span id="lbl-toast-msg">Laporan disalin ke clipboard!</span>
+    </div>
+
     <!-- JAVASCRIPT LOGIC -->
     <script>
         const translations = {
@@ -283,7 +299,6 @@
                 statusFound: "Tanda Tangan Ditemukan: ",
                 termsBtn: "Terms of Use",
                 termsTitle: "Syarat & Ketentuan Penggunaan",
-                // STRICT MODE TATADADA: UPDATED LEGAL TEXT
                 termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools (Gemini dan Qwen). Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
                 close: "Tutup",
                 verifySuccess: "VERIFIKASI KRYPTO BERHASIL",
@@ -334,7 +349,14 @@
                 subjectDn: "Subject DN",
                 issuerDn: "Issuer DN",
                 serialNum: "Serial Number",
-                certChain: "Rantai Sertifikat (Hierarchy)"
+                certChain: "Rantai Sertifikat (Hierarchy)",
+                copyShort: "Salin Laporan Singkat",
+                copyDetailed: "Salin Laporan Detail",
+                shortReportTitle: "Laporan Verifikasi PDF (IngfoPDF)",
+                detailedReportTitle: "Laporan Analisis Forensik PDF (IngfoPDF)",
+                statusFoundReport: "Tanda Tangan Terdeteksi",
+                copiedSuccess: "Laporan berhasil disalin ke clipboard!",
+                copiedFailed: "Gagal menyalin laporan."
             },
             EN: {
                 helpTooltip: "Upload a local PDF to verify PAdES (BSrE) electronic signatures & preview pages. 100% processed in your browser without sending data to servers.",
@@ -351,7 +373,6 @@
                 statusFound: "Signatures Found: ",
                 termsBtn: "Terms of Use",
                 termsTitle: "Terms & Conditions",
-                // STRICT MODE TATADADA: UPDATED LEGAL TEXT
                 termsText: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools (Gemini and Qwen). This app does not store your personal data on our servers. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.",
                 close: "Close",
                 verifySuccess: "CRYPTO VERIFICATION SUCCESSFUL",
@@ -402,7 +423,14 @@
                 subjectDn: "Subject DN",
                 issuerDn: "Issuer DN",
                 serialNum: "Serial Number",
-                certChain: "Certificate Chain (Hierarchy)"
+                certChain: "Certificate Chain (Hierarchy)",
+                copyShort: "Copy Short Report",
+                copyDetailed: "Copy Detailed Report",
+                shortReportTitle: "PDF Verification Report (IngfoPDF)",
+                detailedReportTitle: "PDF Forensic Analysis Report (IngfoPDF)",
+                statusFoundReport: "Signatures Detected",
+                copiedSuccess: "Report copied to clipboard!",
+                copiedFailed: "Failed to copy report."
             }
         };
 
@@ -437,6 +465,7 @@
         let enginesLoaded = false;
         let isProcessing = false;
         let documentSignatures = [];
+        let currentFileName = '';
 
         const el = {
             html: document.documentElement,
@@ -476,6 +505,14 @@
             engineStatusDot: document.getElementById('engine-status-dot'),
             lblEngineStatus: document.getElementById('lbl-engine-status'),
             lblStats: document.getElementById('lbl-stats'),
+            
+            reportActions: document.getElementById('report-actions'),
+            btnCopyShort: document.getElementById('btn-copy-short'),
+            btnCopyDetailed: document.getElementById('btn-copy-detailed'),
+            lblCopyShort: document.getElementById('lbl-copy-short'),
+            lblCopyDetailed: document.getElementById('lbl-copy-detailed'),
+            toastNotification: document.getElementById('toast-notification'),
+            lblToastMsg: document.getElementById('lbl-toast-msg')
         };
 
         const t = (key) => translations[currentLang][key] || key;
@@ -502,6 +539,9 @@
             document.getElementById('lbl-terms-title').innerHTML = `<i data-lucide="gavel" class="w-[16px] h-[16px] text-[var(--text-dim)]"></i> ${t('termsTitle')}`;
             document.getElementById('lbl-terms-text').textContent = t('termsText');
             document.getElementById('btn-close-terms').textContent = t('close');
+            
+            if (el.lblCopyShort) el.lblCopyShort.textContent = t('copyShort');
+            if (el.lblCopyDetailed) el.lblCopyDetailed.textContent = t('copyDetailed');
 
             el.lblEngineStatus.textContent = enginesLoaded ? t('statusReady') : 'Booting...';
             if (documentSignatures.length > 0) {
@@ -941,6 +981,8 @@
 
         function renderSignaturesList() {
             let html = '';
+            const totalSigs = documentSignatures.length;
+
             documentSignatures.forEach((sig, idx) => {
                 if (sig.error) return;
 
@@ -1038,18 +1080,31 @@
                     certChainHtml = `<p class="text-xs text-[var(--text-dim)]">Rantai sertifikat tidak tersedia.</p>`;
                 }
 
+                const openAttr = totalSigs === 1 ? 'open' : '';
+
                 html += `
-                <div class="bg-[var(--card-bg)] rounded-xl shadow-sm border border-[var(--border-color)] overflow-hidden">
-                    <div class="bg-[var(--freeze-bg-even)] border-b border-[var(--border-color)] p-5">
-                        <p class="text-xs font-bold text-[var(--text-dim)] uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                            <i data-lucide="file-signature" class="w-[14px] h-[14px]"></i> ${t('signedByRev').replace('{idx}', idx + 1)}
-                        </p>
-                        <h3 class="text-xl font-bold text-[var(--text-main)]">${signerName || t('unknownName')}</h3>
-                        <div class="flex items-center gap-2 mt-2 text-sm text-[var(--text-dim)] font-medium">
-                            <i data-lucide="building" class="w-[16px] h-[16px] shrink-0"></i>
-                            <span class="line-clamp-2">${signerOrg || t('unknownOrg')}</span>
+                <details class="bg-[var(--card-bg)] rounded-xl shadow-sm border border-[var(--border-color)] overflow-hidden group" ${openAttr}>
+                    <summary class="bg-[var(--freeze-bg-even)] border-b border-[var(--border-color)] p-5 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-[var(--preview-bg)] transition-colors relative focus:outline-none">
+                        <div class="pr-10">
+                            <p class="text-xs font-bold text-[var(--text-dim)] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                                <i data-lucide="file-signature" class="w-[14px] h-[14px]"></i> ${t('signedByRev').replace('{idx}', idx + 1)}
+                            </p>
+                            <h3 class="text-xl font-bold text-[var(--text-main)]">${signerName || t('unknownName')}</h3>
+                            <div class="flex flex-col gap-1.5 mt-2">
+                                <div class="flex items-center gap-2 text-sm text-[var(--text-dim)] font-medium">
+                                    <i data-lucide="building" class="w-[14px] h-[14px] shrink-0"></i>
+                                    <span class="line-clamp-1">${signerOrg || t('unknownOrg')}</span>
+                                </div>
+                                <div class="flex items-center gap-2 text-xs text-[var(--text-dim)]">
+                                    <i data-lucide="clock" class="w-[14px] h-[14px] shrink-0"></i>
+                                    <span class="line-clamp-1">${signingTime || t('noTime')}</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                        <div class="absolute right-5 top-1/2 -translate-y-1/2 text-[var(--text-dim)] group-open:rotate-180 transition-transform duration-200">
+                            <i data-lucide="chevron-down" class="w-[20px] h-[20px]"></i>
+                        </div>
+                    </summary>
                     
                     <div class="p-5 space-y-4">
                         ${bsreHtml}
@@ -1150,7 +1205,7 @@
                             </div>
                         </details>
                     </div>
-                </div>
+                </details>
                 `;
             });
             el.signaturesList.innerHTML = html;
@@ -1164,6 +1219,7 @@
                 return;
             }
 
+            currentFileName = file.name;
             documentSignatures = [];
             isProcessing = true;
             el.errorBox.classList.add('hidden-el');
@@ -1172,6 +1228,7 @@
             el.emptyState.classList.add('hidden-el');
             el.resultsState.classList.remove('hidden-el');
             el.btnUploadOther.classList.add('hidden-el');
+            el.reportActions.classList.add('hidden-el');
             el.canvasLoading.classList.remove('hidden-el');
             el.canvasError.classList.add('hidden-el');
             el.canvasContainer.classList.add('hidden-el');
@@ -1188,6 +1245,7 @@
                 
                 if(documentSignatures.length > 0) {
                     el.successBadge.classList.remove('hidden-el');
+                    el.reportActions.classList.remove('hidden-el');
                     renderSignaturesList();
                 } else {
                     el.noSignBadge.classList.remove('hidden-el');
@@ -1250,6 +1308,115 @@
             el.errorMsg.textContent = msg;
             el.errorBox.classList.remove('hidden-el');
         }
+
+        function showToast(msg) {
+            el.lblToastMsg.textContent = msg;
+            el.toastNotification.classList.remove('translate-y-20', 'opacity-0');
+            el.toastNotification.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                el.toastNotification.classList.remove('translate-y-0', 'opacity-100');
+                el.toastNotification.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        function copyToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast(t('copiedSuccess'));
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+                showToast(t('copiedFailed'));
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function extractSigData(sig) {
+            const leafCert = sig.certificates.find(cert => {
+                const certCN = getAttrValue(cert.subject, 'Common Name', '2.5.4.3');
+                if (!certCN) return false;
+                return !sig.certificates.some(otherCert => otherCert !== cert && getAttrValue(otherCert.issuer, 'Common Name', '2.5.4.3') === certCN);
+            }) || sig.certificates[sig.certificates.length - 1];
+            
+            const signerName = getAttrValue(leafCert.subject, 'Common Name', '2.5.4.3') || t('unknownName');
+            const signerOrg = getAttrValue(leafCert.subject, 'Organization', '2.5.4.10') || t('unknownOrg');
+            const signerNik = getAttrValue(leafCert.subject, 'Serial Number', '2.5.4.5') || '-';
+            const bsreId = getAttrValue(leafCert.subject, 'Description', '2.5.4.13') || '-';
+            const issuerName = getAttrValue(leafCert.issuer, 'Common Name', '2.5.4.3') || '-';
+            const forensic = sig.forensic;
+
+            let signingTime = null;
+            if (sig.signerInfos && sig.signerInfos.length > 0) {
+                signingTime = getAttrValue(sig.signerInfos[0].authAttrs, 'Signing Time', '1.2.840.113549.1.9.5');
+            }
+            if (!signingTime && forensic && forensic.dictionaryDate) {
+                signingTime = parsePdfDate(forensic.dictionaryDate) + " (PDF Dict)";
+            }
+            signingTime = signingTime || t('noTime');
+
+            const isUtuh = forensic.byteRangeValid === true;
+            const isModif = forensic.byteRangeValid === false;
+            const integrityText = isUtuh ? "UTUH (Valid)" : (isModif ? "DIMODIFIKASI (Invalid)" : "Tidak Diverifikasi");
+            
+            const issuerLower = (issuerName || '').toLowerCase();
+            const subjectLower = (signerName || '').toLowerCase();
+            let trustLevel = "Unknown CA";
+            if (issuerLower.includes('bsre') || issuerLower.includes('badan siber') || issuerLower.includes('kominfo')) trustLevel = "Trusted CA";
+            else if (issuerLower === subjectLower || issuerLower.includes('self-signed')) trustLevel = "Self-Signed";
+
+            return {
+                signerName, signerOrg, signerNik, bsreId, issuerName, signingTime,
+                integrityText, trustLevel, forensic, leafCert
+            };
+        }
+
+        function generateReport(type) {
+            let report = `📄 ${t(type === 'short' ? 'shortReportTitle' : 'detailedReportTitle')}\n`;
+            report += `File: ${currentFileName}\n`;
+            report += `Status: ${documentSignatures.length} ${t('statusFoundReport')}\n`;
+            report += `=========================================\n\n`;
+
+            documentSignatures.forEach((sig, idx) => {
+                if (sig.error) return;
+                const d = extractSigData(sig);
+                
+                if (type === 'short') {
+                    report += `[${idx + 1}] ${d.signerName}\n`;
+                    report += `    - Otoritas: ${d.issuerName} (${d.trustLevel})\n`;
+                    report += `    - Integritas: ${d.integrityText}\n`;
+                    report += `    - Waktu TTD: ${d.signingTime}\n\n`;
+                } else {
+                    report += `[${idx + 1}] PENANDATANGAN: ${d.signerName}\n`;
+                    report += `    Organisasi: ${d.signerOrg}\n`;
+                    report += `    NIP/NIK: ${d.signerNik}\n`;
+                    if (d.bsreId !== '-') report += `    ID Transaksi (BSrE): ${d.bsreId}\n`;
+                    report += `\n    🛡️ KRIPTOGRAFI & SERTIFIKAT:\n`;
+                    report += `      - Otoritas (CA): ${d.issuerName} (${d.trustLevel})\n`;
+                    report += `      - Waktu TTD: ${d.signingTime}\n`;
+                    report += `      - Masa Berlaku: ${formatDate(d.leafCert.validFrom)} s.d ${formatDate(d.leafCert.validTo)}\n`;
+                    report += `      - Algoritma: ${d.forensic.algorithm || '-'}\n`;
+                    report += `      - Fingerprint: ${d.forensic.fingerprint || '-'}\n\n`;
+                    report += `    🔍 ANALISIS FORENSIK:\n`;
+                    report += `      - Integritas (ByteRange): ${d.integrityText}\n`;
+                    report += `      - Security: ${d.forensic.isEncrypted ? 'Protected/Terenkripsi' : 'Terbuka'}\n`;
+                    report += `      - LTV (Long-Term): ${d.forensic.hasLTV ? 'Mendukung' : 'Tidak'}\n`;
+                    report += `      - TSA (Timestamp): ${d.forensic.hasTSA ? 'Ada' : 'Tidak'}\n`;
+                    report += `      - Anomali Waktu: ${d.forensic.timeAnomaly ? 'Terdeteksi (Warning!)' : 'Aman'}\n`;
+                    report += `      - Alasan & Lokasi: ${d.forensic.reason || '-'} | ${d.forensic.location || '-'}\n`;
+                    report += `-----------------------------------------\n\n`;
+                }
+            });
+
+            copyToClipboard(report);
+        }
+
+        if (el.btnCopyShort) el.btnCopyShort.addEventListener('click', () => generateReport('short'));
+        if (el.btnCopyDetailed) el.btnCopyDetailed.addEventListener('click', () => generateReport('detailed'));
 
         // START
         init();
