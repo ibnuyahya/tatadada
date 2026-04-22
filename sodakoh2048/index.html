@@ -1,3 +1,10 @@
+<!-- 
+  Tafsir Visual UI/UX:
+  Aplikasi ini menggunakan pendekatan "Vibrant Depth" (Skenario 2 - Single View) dari TATADADA Framework.
+  Alih-alih layar flat, seluruh arena permainan diletakkan di dalam "Card Kontainer" yang melayang di atas kanvas abu-abu lembut (atau hitam pekat pada mode gelap).
+  Ini menciptakan hierarki visual premium ala iOS 17/visionOS. Palet warna inti (Emas, Kayu Mahoni, dan Zamrud) 
+  dipertahankan untuk menjaga estetika "Sodakoh Premium Gold", namun dibingkai dalam jendela aplikasi yang sangat bersih dan rapi.
+-->
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -21,18 +28,18 @@
            1. TATADADA UI FRAMEWORK - CSS TOKENS
            ========================================= */
         :root {
-            /* Framework Tokens */
+            /* Framework Tokens (Mandatory) */
             --header-bg: #ffffff;
             --editor-bg: #ffffff;
-            --preview-bg: #f8fafc;
+            --preview-bg: #f1f5f9; /* Abu-abu lembut untuk kedalaman/selokan */
+            --card-bg: #ffffff;
             --footer-bg: #ffffff;
             --border-color: #e2e8f0;
             --text-main: #0f172a;
             --text-dim: #64748b;
-            --stripe-color: rgba(0, 0, 0, 0.02);
-            --freeze-bg: #f8fafc; 
-            --freeze-bg-even: #f1f5f9;
-            --freeze-hover: #eff6ff;
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 
             /* Game Specific Tokens (Preserved) */
             --gold-light: #fef08a;
@@ -45,19 +52,15 @@
         }
 
         html.dark {
-            /* Framework Tokens */
+            /* Framework Tokens (Mandatory) */
             --header-bg: #161b22;
             --editor-bg: #0d1117;
             --preview-bg: #010409;
+            --card-bg: #0d1117;
             --footer-bg: #161b22;
             --border-color: #30363d;
             --text-main: #e6edf3;
             --text-dim: #8b949e;
-            --stripe-color: rgba(255, 255, 255, 0.03);
-            --freeze-bg: #010409;
-            --freeze-bg-even: #0d1117;
-            --freeze-hover: rgba(59, 130, 246, 0.1);
-            color-scheme: dark;
 
             /* Game Specific Tokens (Preserved) */
             --wood-dark: #1a0d05;
@@ -71,13 +74,15 @@
             margin: 0; padding: 0;
             touch-action: none; 
             transition: background-color 0.3s, color 0.3s;
-            
-            /* Premium Islamic Geometric Background blending with preview-bg */
-            background-image: 
-                radial-gradient(circle at center, rgba(6, 78, 59, 0.15) 0%, transparent 100%),
-                url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d97706' fill-opacity='0.05'%3E%3Cpath d='M40 80L20 60H0V40L20 20H0V0h20l20 20 20-20h20v20L60 40h20v20H60l-20 20zm0-28.284l-11.716 11.716-11.716-11.716L28.284 40 16.568 28.284 28.284 16.568 40 28.284l11.716-11.716 11.716 11.716L51.716 40l11.716 11.716-11.716 11.716L40 51.716zM40 56.569l8.284-8.285L40 40l-8.284 8.284L40 56.569zm0-33.138L31.716 31.716 40 40l8.284-8.284L40 23.431z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-            background-attachment: fixed;
         }
+
+        /* TATADADA Utilities */
+        .bg-header { background-color: var(--header-bg); }
+        .bg-footer { background-color: var(--footer-bg); }
+        .bg-preview { background-color: var(--preview-bg); }
+        .bg-card { background-color: var(--card-bg); }
+        .border-theme { border-color: var(--border-color); }
+        .text-dim { color: var(--text-dim); }
 
         /* TATADADA Scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -85,6 +90,7 @@
         ::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background-color: var(--text-dim); }
 
+        /* Font Utilities */
         .font-arabic { font-family: 'Aref Ruqaa', serif; }
         .font-coin { font-family: 'Cinzel', serif; }
 
@@ -192,7 +198,7 @@
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid var(--border-color);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow-md);
         }
         html.dark .glass-panel { background-color: var(--editor-bg); }
 
@@ -210,167 +216,172 @@
             border-radius: 16px; padding: 8px 20px;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             min-width: 100px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            box-shadow: var(--shadow-sm);
         }
         html.dark .score-box { background-color: var(--editor-bg); box-shadow: inset 0 2px 10px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.2); }
 
         .overlay {
             position: absolute; inset: 0; 
-            background: rgba(2, 6, 23, 0.85); backdrop-filter: blur(16px);
+            background: rgba(2, 6, 23, 0.85); backdrop-filter: blur(8px);
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             z-index: 100; transition: opacity 0.3s;
+            border-radius: 1rem; /* Match the card wrapper */
         }
         html:not(.dark) .overlay { background: rgba(255, 255, 255, 0.85); }
     </style>
 </head>
-<body class="h-screen flex flex-col relative">
+<body class="h-screen flex flex-col relative bg-preview">
 
     <canvas id="fxCanvas" class="absolute inset-0 pointer-events-none z-40"></canvas>
 
     <!-- HEADER (TATADADA FRAMEWORK) -->
-    <header class="flex items-center justify-between px-6 h-14 border-b shrink-0 relative z-50 transition-colors" style="background-color: var(--header-bg); border-color: var(--border-color);">
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm transition-colors">
         <div class="flex items-center gap-3">
-            <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent drop-shadow-sm flex items-center gap-2">
+            <h1 class="text-lg font-bold bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent drop-shadow-sm flex items-center gap-2">
                 Sodakoh 2048
             </h1>
-            <span class="text-[10px] font-mono italic" style="color: var(--text-dim);">v2.2</span>
-            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] hover:text-blue-500 transition-colors" style="color: var(--text-dim);">by AhmadDanial</a>
+            <span class="text-[10px] font-mono italic text-dim">v2.3</span>
+            <span class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim">by AhmadDanial</span>
             
-            <div class="group relative flex items-center justify-center cursor-help ml-1 transition-colors" style="color: var(--text-dim);">
+            <div class="group relative flex items-center justify-center cursor-help ml-1 transition-colors text-dim">
                 <i data-lucide="help-circle" class="w-4 h-4 hover:text-blue-500"></i>
-                <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 w-72 p-4 border rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-xs leading-relaxed" style="background-color: var(--header-bg); border-color: var(--border-color); color: var(--text-main);" data-i18n="help-tooltip">
+                <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 w-72 p-4 border rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-xs leading-relaxed bg-header border-theme text-main" data-i18n="help-tooltip">
                     <b>Cara Bermain:</b> Geser koin emas dengan <b>Tombol Panah</b> atau <b>Usap (Swipe)</b>.<br><br>Tumpuk koin bernilai sama untuk meleburbungkannya menjadi koin yang lebih murni. Kumpulkan pahala tertinggi!
                 </div>
             </div>
         </div>
         <div class="flex items-center gap-4">
-            <button id="langToggle" class="text-sm font-bold flex items-center gap-1 hover:opacity-70 transition-opacity" style="color: var(--text-main);">
+            <button id="langToggle" class="text-sm font-bold flex items-center gap-1 hover:opacity-70 transition-opacity text-main">
                 <span id="langIcon">🇮🇩</span> <span id="langText">ID</span>
             </button>
-            <button id="themeToggle" class="hover:text-blue-500 transition-colors" style="color: var(--text-dim);">
+            <button id="themeToggle" class="hover:text-blue-500 transition-colors text-dim">
                 <i data-lucide="sun" id="themeIcon" class="w-4 h-4"></i>
             </button>
         </div>
     </header>
 
-    <!-- MAIN WORKSPACE (TATADADA FRAMEWORK) -->
-    <main class="flex-1 relative overflow-auto flex flex-col items-center justify-center p-4 md:p-8" style="background-color: var(--preview-bg);">
-        
-        <!-- TOP STATS & HUD -->
-        <div class="w-full max-w-[460px] flex justify-between items-end gap-2 z-10 mb-6">
-            <!-- Left: Current Max Coin Visual -->
-            <div class="flex flex-col items-center glass-panel p-2 md:p-3 rounded-2xl">
-                <div id="max-coin-display" class="relative w-10 h-10 md:w-14 md:h-14 flex justify-center items-center rounded-full border-2 border-yellow-200 shadow-[0_5px_15px_rgba(0,0,0,0.3),inset_0_4px_6px_rgba(255,255,255,0.6)] bg-gradient-to-br from-yellow-100 via-amber-500 to-yellow-700">
-                    <div class="absolute inset-[3px] rounded-full border border-amber-900/30 box-shadow-[inset_0_0_5px_rgba(0,0,0,0.3)]"></div>
-                    <span id="max-coin-val" class="text-lg md:text-xl font-black font-coin text-amber-900 drop-shadow-[1px_1px_1px_rgba(255,255,255,0.6)] z-10">2</span>
-                </div>
-                <span class="text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-2 text-center" style="color: var(--text-dim);" data-i18n="max-coin">Koin Murni</span>
-            </div>
+    <!-- MAIN WORKSPACE (TATADADA FRAMEWORK - Skenario 2: Single View Card) -->
+    <main class="flex-1 flex overflow-hidden w-full relative bg-preview">
+        <!-- Card Container Premium Depth -->
+        <div class="max-w-5xl mx-auto w-full bg-card rounded-2xl shadow-xl border border-theme p-4 md:p-8 my-4 md:my-6 overflow-y-auto relative flex flex-col items-center gap-6">
             
-            <!-- Right: Scores -->
-            <div class="flex gap-2">
-                <div class="score-box relative overflow-hidden group">
-                    <span class="text-[9px] font-black uppercase tracking-widest" style="color: var(--text-dim);" data-i18n="score">Pahala</span>
-                    <span id="scoreVal" class="text-xl md:text-2xl font-black font-coin" style="color: var(--text-main);">0</span>
-                </div>
-                <div class="score-box">
-                    <span class="text-[9px] font-black uppercase tracking-widest" style="color: var(--text-dim);" data-i18n="best">Puncak</span>
-                    <span id="bestVal" class="text-xl md:text-2xl font-black font-coin" style="color: var(--text-main);">0</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- CENTER: REALISTIC BOARD -->
-        <div class="board-frame z-10">
-            <div class="game-container" id="game-container">
-                <div class="grid-bg">
-                    <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
-                    <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
-                    <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
-                    <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
-                </div>
-                <!-- Interactive Gold Coins -->
-                <div class="tile-container" id="tile-container"></div>
-            </div>
-        </div>
-
-        <!-- BOTTOM CONTROLS -->
-        <div class="w-full max-w-[460px] flex justify-center gap-4 z-10 mt-6">
-            <button id="btn-restart" class="w-14 h-14 glass-panel rounded-full flex justify-center items-center hover:scale-105 active:scale-95 transition-all group" style="color: var(--text-dim);" title="Mulai Ulang">
-                <i data-lucide="rotate-ccw" class="w-6 h-6 group-hover:-rotate-90 group-hover:text-blue-500 transition-all duration-500 drop-shadow-sm"></i>
-            </button>
-        </div>
-
-        <!-- OVERLAYS -->
-        <div id="menu-overlay" class="overlay">
-            <div class="text-center mb-12 relative">
-                <h1 class="text-5xl md:text-7xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent drop-shadow-sm">Sodakoh 2048</h1>
-                <p class="text-sm md:text-md tracking-[0.4em] uppercase font-bold mb-8 font-coin" style="color: var(--text-main);" data-i18n="menu-subtitle">Premium Gold</p>
-                <div class="max-w-sm mx-auto text-sm font-medium p-6 rounded-2xl glass-panel shadow-xl leading-relaxed">
-                    <p class="italic" style="color: var(--text-dim);" data-i18n="menu-quote">"Kumpulkan kepingan emas kebaikan, satukan dan murnikan hingga menjadi sedekah yang paling berharga."</p>
-                </div>
-            </div>
-            <button id="start-btn" class="gold-btn px-10 py-4 text-lg flex items-center gap-3"><i data-lucide="sparkles" class="w-5 h-5"></i> <span data-i18n="btn-start">KUMPULKAN EMAS</span></button>
-        </div>
-
-        <div id="gameover-overlay" class="overlay" style="display: none;">
-            <div class="text-center p-8 rounded-3xl max-w-sm w-full glass-panel shadow-2xl relative overflow-hidden">
-                <div class="relative z-10">
-                    <h2 class="text-3xl font-bold mb-2" style="color: var(--text-main);" data-i18n="msg-lose-title">Wadah Penuh</h2>
-                    <p class="text-sm mb-6" style="color: var(--text-dim);" data-i18n="msg-lose">Nampan beludru sudah penuh dengan emas.</p>
-                    <div class="rounded-2xl p-4 mb-8 shadow-inner border" style="background-color: var(--preview-bg); border-color: var(--border-color);">
-                        <div class="text-xs uppercase font-bold tracking-wider" style="color: var(--text-dim);" data-i18n="total-score">Total Pahala</div>
-                        <div class="text-5xl font-black flex justify-center items-center gap-2 mt-2 font-coin" style="color: var(--text-main);">
-                            <span id="go-score">0</span>
-                        </div>
+            <!-- TOP STATS & HUD -->
+            <div class="w-full max-w-[460px] flex justify-between items-end gap-2 z-10">
+                <!-- Left: Current Max Coin Visual -->
+                <div class="flex flex-col items-center glass-panel p-2 md:p-3 rounded-2xl">
+                    <div id="max-coin-display" class="relative w-10 h-10 md:w-14 md:h-14 flex justify-center items-center rounded-full border-2 border-yellow-200 shadow-[0_5px_15px_rgba(0,0,0,0.3),inset_0_4px_6px_rgba(255,255,255,0.6)] bg-gradient-to-br from-yellow-100 via-amber-500 to-yellow-700">
+                        <div class="absolute inset-[3px] rounded-full border border-amber-900/30 box-shadow-[inset_0_0_5px_rgba(0,0,0,0.3)]"></div>
+                        <span id="max-coin-val" class="text-lg md:text-xl font-black font-coin text-amber-900 drop-shadow-[1px_1px_1px_rgba(255,255,255,0.6)] z-10">2</span>
                     </div>
-                    <button id="play-again-btn" class="gold-btn w-full text-sm py-4" data-i18n="btn-play-again">BERAMAL KEMBALI</button>
+                    <span class="text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-2 text-center text-dim" data-i18n="max-coin">Koin Murni</span>
+                </div>
+                
+                <!-- Right: Scores -->
+                <div class="flex gap-2">
+                    <div class="score-box relative overflow-hidden group">
+                        <span class="text-[9px] font-black uppercase tracking-widest text-dim" data-i18n="score">Pahala</span>
+                        <span id="scoreVal" class="text-xl md:text-2xl font-black font-coin text-main">0</span>
+                    </div>
+                    <div class="score-box">
+                        <span class="text-[9px] font-black uppercase tracking-widest text-dim" data-i18n="best">Puncak</span>
+                        <span id="bestVal" class="text-xl md:text-2xl font-black font-coin text-main">0</span>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div id="win-overlay" class="overlay" style="display: none;">
-            <div class="text-center p-8 rounded-3xl max-w-sm w-full glass-panel shadow-2xl relative overflow-hidden" style="border: 2px solid var(--gold-main);">
-                <div class="relative z-10">
-                    <div class="text-7xl mb-4 animate-bounce">💎</div>
-                    <h2 class="text-4xl font-bold mb-1" style="color: var(--text-main);" data-i18n="msg-win-title">Masya Allah!</h2>
-                    <p class="text-xs font-bold uppercase tracking-widest text-yellow-500 mb-6 font-coin" data-i18n="msg-win-subtitle">Koin 2048 Tercapai</p>
-                    <p class="text-sm mb-8 leading-relaxed" style="color: var(--text-dim);" data-i18n="msg-win">Anda telah berhasil memurnikan emas hingga tingkat tertinggi.</p>
-                    
-                    <button id="continue-btn" class="gold-btn w-full text-sm py-4 mb-4" data-i18n="btn-continue">LANJUTKAN (Endless)</button>
-                    <button id="win-restart-btn" class="w-full text-sm py-3 font-bold hover:underline transition-colors" style="color: var(--text-dim);" data-i18n="btn-restart">Ulangi Pemurnian</button>
+            <!-- CENTER: REALISTIC BOARD (Area Sakral) -->
+            <div class="board-frame z-10">
+                <div class="game-container" id="game-container">
+                    <div class="grid-bg">
+                        <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+                        <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+                        <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+                        <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+                    </div>
+                    <!-- Interactive Gold Coins -->
+                    <div class="tile-container" id="tile-container"></div>
                 </div>
             </div>
+
+            <!-- BOTTOM CONTROLS -->
+            <div class="w-full max-w-[460px] flex justify-center gap-4 z-10">
+                <button id="btn-restart" class="w-14 h-14 glass-panel rounded-full flex justify-center items-center hover:scale-105 active:scale-95 transition-all group text-dim border border-theme" title="Mulai Ulang">
+                    <i data-lucide="rotate-ccw" class="w-6 h-6 group-hover:-rotate-90 group-hover:text-blue-500 transition-all duration-500 drop-shadow-sm"></i>
+                </button>
+            </div>
+
+            <!-- OVERLAYS (Di dalam Card Container) -->
+            <div id="menu-overlay" class="overlay">
+                <div class="text-center mb-12 relative z-10">
+                    <h1 class="text-5xl md:text-7xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent drop-shadow-sm">Sodakoh 2048</h1>
+                    <p class="text-sm md:text-md tracking-[0.4em] uppercase font-bold mb-8 font-coin text-main" data-i18n="menu-subtitle">Premium Gold</p>
+                    <div class="max-w-sm mx-auto text-sm font-medium p-6 rounded-2xl glass-panel shadow-xl leading-relaxed">
+                        <p class="italic text-dim" data-i18n="menu-quote">"Kumpulkan kepingan emas kebaikan, satukan dan murnikan hingga menjadi sedekah yang paling berharga."</p>
+                    </div>
+                </div>
+                <button id="start-btn" class="gold-btn px-10 py-4 text-lg flex items-center gap-3 z-10"><i data-lucide="sparkles" class="w-5 h-5"></i> <span data-i18n="btn-start">KUMPULKAN EMAS</span></button>
+            </div>
+
+            <div id="gameover-overlay" class="overlay" style="display: none;">
+                <div class="text-center p-8 rounded-3xl max-w-sm w-full glass-panel shadow-2xl relative overflow-hidden">
+                    <div class="relative z-10">
+                        <h2 class="text-3xl font-bold mb-2 text-main" data-i18n="msg-lose-title">Wadah Penuh</h2>
+                        <p class="text-sm mb-6 text-dim" data-i18n="msg-lose">Nampan beludru sudah penuh dengan emas.</p>
+                        <div class="rounded-2xl p-4 mb-8 shadow-inner border border-theme bg-preview">
+                            <div class="text-xs uppercase font-bold tracking-wider text-dim" data-i18n="total-score">Total Pahala</div>
+                            <div class="text-5xl font-black flex justify-center items-center gap-2 mt-2 font-coin text-main">
+                                <span id="go-score">0</span>
+                            </div>
+                        </div>
+                        <button id="play-again-btn" class="gold-btn w-full text-sm py-4" data-i18n="btn-play-again">BERAMAL KEMBALI</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="win-overlay" class="overlay" style="display: none;">
+                <div class="text-center p-8 rounded-3xl max-w-sm w-full glass-panel shadow-2xl relative overflow-hidden" style="border: 2px solid var(--gold-main);">
+                    <div class="relative z-10">
+                        <div class="text-7xl mb-4 animate-bounce">💎</div>
+                        <h2 class="text-4xl font-bold mb-1 text-main" data-i18n="msg-win-title">Masya Allah!</h2>
+                        <p class="text-xs font-bold uppercase tracking-widest text-yellow-500 mb-6 font-coin" data-i18n="msg-win-subtitle">Koin 2048 Tercapai</p>
+                        <p class="text-sm mb-8 leading-relaxed text-dim" data-i18n="msg-win">Anda telah berhasil memurnikan emas hingga tingkat tertinggi.</p>
+                        
+                        <button id="continue-btn" class="gold-btn w-full text-sm py-4 mb-4 rounded-lg border-theme focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm" data-i18n="btn-continue">LANJUTKAN (Endless)</button>
+                        <button id="win-restart-btn" class="w-full text-sm py-3 font-bold hover:underline transition-colors text-dim rounded-lg border-theme focus:ring-2 focus:ring-blue-500/20 shadow-sm" data-i18n="btn-restart">Ulangi Pemurnian</button>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </main>
 
     <!-- FOOTER (TATADADA FRAMEWORK) -->
-    <footer class="flex items-center justify-between px-6 h-8 border-t shrink-0 z-50 text-[10px] transition-colors" style="background-color: var(--footer-bg); border-color: var(--border-color); color: var(--text-dim);">
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 transition-colors">
         <div class="flex items-center gap-2 flex-1">
             <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" style="box-shadow: 0 0 5px #10b981;"></div>
-            <span data-i18n="footer-status">Syukur Engine Online</span>
+            <span data-i18n="footer-status">Syukur Engine Ready</span>
         </div>
         
-        <!-- TATADADA: Statistik Dinamis di Tengah -->
+        <!-- Statistik Dinamis di Tengah -->
         <div class="flex-1 text-center hidden md:block font-mono tracking-widest text-[9px]">
-            <span data-i18n="footer-stat-max">MAX</span>: <span id="footer-max-val" class="font-bold" style="color: var(--text-main);">2</span> &nbsp;|&nbsp; 
-            <span data-i18n="footer-stat-score">PAHALA</span>: <span id="footer-score-val" class="font-bold" style="color: var(--text-main);">0</span>
+            <span data-i18n="footer-stat-max">MAX</span>: <span id="footer-max-val" class="font-bold text-main">2</span> &nbsp;|&nbsp; 
+            <span data-i18n="footer-stat-score">PAHALA</span>: <span id="footer-score-val" class="font-bold text-main">0</span>
         </div>
 
         <div class="flex items-center justify-end flex-1">
-            <button id="termsBtn" class="hover:text-blue-500 transition-colors" data-i18n="footer-terms">Ketentuan</button>
+            <button id="termsBtn" class="hover:text-blue-500 transition-colors" data-i18n="footer-terms">Terms</button>
         </div>
     </footer>
 
-    <!-- TERMS MODAL (TATADADA FRAMEWORK) -->
-    <div id="termsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[100] hidden opacity-0 transition-opacity duration-300">
-        <div class="p-6 rounded-xl max-w-sm w-full shadow-2xl m-4 transition-colors" style="background-color: var(--header-bg); border: 1px solid var(--border-color);">
-            <h2 class="text-lg font-bold mb-4 flex items-center gap-2" style="color: var(--text-main);"><i data-lucide="scroll" class="w-5 h-5 text-blue-500"></i> <span data-i18n="terms-title">Ketentuan</span></h2>
-            <p class="text-xs mb-6 leading-relaxed" style="color: var(--text-dim);" id="termsContent" data-i18n="terms-content">
-                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
+    <!-- MODAL TERMS OF USE (TATADADA FRAMEWORK STRICT MODE) -->
+    <div id="termsModal" class="fixed inset-0 bg-black/20 backdrop-blur-sm flex justify-center items-center z-[100] hidden opacity-0 transition-opacity duration-300 p-4">
+        <div class="p-6 rounded-2xl max-w-sm w-full shadow-2xl bg-card border border-theme transition-colors">
+            <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-main"><i data-lucide="scroll" class="w-5 h-5 text-blue-500"></i> <span data-i18n="terms-title">Terms of Use</span></h2>
+            <p class="text-xs mb-6 leading-relaxed text-dim" id="termsContent" data-i18n="terms-content">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.
             </p>
             <div class="flex justify-end">
-                <button id="closeTermsBtn" class="px-5 py-2 rounded border text-xs font-bold transition-colors hover:bg-gray-100 dark:hover:bg-gray-800" style="color: var(--text-main); border-color: var(--border-color);" data-i18n="terms-close">Tutup</button>
+                <button id="closeTermsBtn" class="px-5 py-2 rounded-lg text-xs font-bold transition-all hover:bg-gray-100 dark:hover:bg-gray-800 text-main border border-theme focus:ring-2 focus:ring-blue-500/20 shadow-sm" data-i18n="terms-close">Tutup</button>
             </div>
         </div>
     </div>
@@ -403,10 +414,10 @@
                 'msg-lose-title': 'Wadah Penuh', 'msg-lose': 'Nampan beludru sudah penuh dengan emas.', 'total-score': 'Total Pahala', 'btn-play-again': 'BERAMAL KEMBALI',
                 'msg-win-title': 'Masya Allah!', 'msg-win-subtitle': 'Koin 2048 Tercapai', 'msg-win': 'Anda telah berhasil memurnikan emas hingga tingkat tertinggi.',
                 'btn-continue': 'LANJUTKAN (Endless)', 'btn-restart': 'Ulangi Pemurnian',
-                'footer-status': 'Syukur Engine Online', 'footer-terms': 'Ketentuan',
+                'footer-status': 'Syukur Engine Ready', 'footer-terms': 'Terms',
                 'footer-stat-max': 'MAX', 'footer-stat-score': 'PAHALA',
-                'terms-title': 'Ketentuan', 'terms-close': 'Tutup',
-                'terms-content': 'Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan \'as-is\' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.'
+                'terms-title': 'Ketentuan Penggunaan', 'terms-close': 'Tutup',
+                'terms-content': 'Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan \'as-is\' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.'
             },
             'en': {
                 'help-tooltip': '<b>How to Play:</b> Use <b>Arrow Keys</b> or <b>Swipe</b> to move the gold coins.<br><br>Merge coins of the same value to purify them into more valuable ones. Collect the highest reward!',
@@ -416,10 +427,10 @@
                 'msg-lose-title': 'Tray Full', 'msg-lose': 'The velvet tray is full of gold.', 'total-score': 'Total Reward', 'btn-play-again': 'GIVE AGAIN',
                 'msg-win-title': 'Masya Allah!', 'msg-win-subtitle': '2048 Coin Reached', 'msg-win': 'You have successfully purified the gold to the highest level.',
                 'btn-continue': 'CONTINUE (Endless)', 'btn-restart': 'Restart Purification',
-                'footer-status': 'Syukur Engine Online', 'footer-terms': 'Terms',
+                'footer-status': 'Syukur Engine Ready', 'footer-terms': 'Terms',
                 'footer-stat-max': 'MAX', 'footer-stat-score': 'REWARD',
                 'terms-title': 'Terms of Use', 'terms-close': 'Close',
-                'terms-content': 'There is no coercion to use this app. This app is provided \'as-is\'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.'
+                'terms-content': 'There is no coercion to use this app. This app is provided \'as-is\' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app does not store your personal data on our servers. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.'
             }
         };
 
