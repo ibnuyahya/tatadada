@@ -17,10 +17,11 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- External Libraries (Crypto, PDF, QR) -->
+    <!-- External Libraries (Crypto, PDF, ZXing QR, ZBar) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
 
     <style>
         :root {
@@ -84,7 +85,7 @@
             <h1 class="bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent font-bold text-lg">
                 IngfoPDF
             </h1>
-            <span class="text-[10px] font-mono text-[var(--text-dim)] italic mt-1">v5.1 Ultimate</span>
+            <span class="text-[10px] font-mono text-[var(--text-dim)] italic mt-1">v6.0 Ultimate</span>
             <span class="text-[var(--border-color)]">|</span>
             <a href="https://danial.my.id" target="_blank" rel="noreferrer" class="lowercase font-bold tracking-[0.25em] text-[8px] text-[var(--text-dim)] hover:text-blue-500 mt-1 transition-colors">
                 by AhmadDanial
@@ -92,9 +93,7 @@
             
             <div class="relative group cursor-pointer ml-2">
                 <i data-lucide="help-circle" class="w-[14px] h-[14px] text-[var(--text-dim)] hover:text-blue-500 transition-colors"></i>
-                <div id="tooltip-help" class="absolute left-0 top-6 w-64 p-3 bg-[var(--card-bg)] border border-[var(--border-color)] shadow-lg rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] text-xs text-[var(--text-dim)]">
-                    <!-- Text Injected via JS -->
-                </div>
+                <div id="tooltip-help" class="absolute left-0 top-6 w-64 p-3 bg-[var(--card-bg)] border border-[var(--border-color)] shadow-lg rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] text-xs text-[var(--text-dim)]"></div>
             </div>
         </div>
 
@@ -125,7 +124,7 @@
 
             <div id="loading-engines" class="animate-pulse text-[var(--text-dim)] font-medium text-sm flex flex-col items-center gap-4 relative z-10 my-10">
                 <div class="w-10 h-10 border-4 border-t-[var(--theme-accent)] border-[var(--border-color)] rounded-full animate-spin"></div>
-                <span id="lbl-engine-prep">Menyiapkan Engine Forensik, PDF.js, & Pemindai QR...</span>
+                <span id="lbl-engine-prep">Menyiapkan Engine Forensik, PDF.js, & Auto-Grid Scanner...</span>
             </div>
 
             <div id="upload-box" class="relative group cursor-pointer w-full max-w-lg hidden-el z-10">
@@ -137,7 +136,7 @@
                     <div class="text-[var(--text-main)] font-medium text-lg text-center">
                         <span id="lbl-upload-main" class="text-blue-600 font-bold">Pilih Dokumen PDF</span> <br class="sm:hidden" /> <span id="lbl-upload-sub">atau seret ke sini</span>
                     </div>
-                    <p id="lbl-supported" class="text-xs text-[var(--text-dim)] bg-[var(--card-bg)] px-3 py-1 rounded-full border border-[var(--border-color)]">Mendukung format ETSI.CAdES / BSrE & Analisis Integritas ByteRange</p>
+                    <p id="lbl-supported" class="text-xs text-[var(--text-dim)] bg-[var(--card-bg)] px-3 py-1 rounded-full border border-[var(--border-color)] text-center">Mendukung BSrE / Privy / e-Meterai Peruri</p>
                     <span id="lbl-processing" class="text-xs text-blue-500 font-bold animate-pulse mt-2 hidden-el">Mengekskavasi & Memindai Dokumen...</span>
                 </div>
                 <div id="error-box" class="mt-6 p-4 bg-red-500/10 text-red-600 text-sm rounded-xl border border-red-500/20 flex items-center justify-center gap-2 hidden-el font-medium">
@@ -156,7 +155,7 @@
                 <span class="text-sm font-semibold text-[var(--text-main)] flex items-center gap-2">
                     <i data-lucide="scan-line" class="w-[16px] h-[16px] text-blue-500"></i> <span id="lbl-preview-title">Pratinjau Dokumen Forensik</span>
                 </span>
-                <span id="lbl-pdf-engine" class="text-[10px] text-[var(--text-dim)] bg-[var(--preview-bg)] px-2 py-1 rounded-md border border-[var(--border-color)] uppercase font-bold tracking-wider">
+                <span id="lbl-pdf-engine" class="text-[10px] text-[var(--text-dim)] bg-[var(--preview-bg)] px-2 py-1 rounded-md border border-[var(--border-color)] uppercase font-bold tracking-wider hidden sm:block">
                     PDF.js Render Engine
                 </span>
             </div>
@@ -180,10 +179,16 @@
                 <span id="lbl-filter-info">Hanya menampilkan halaman yang mengandung visual TTD/QR.</span>
             </div>
             
-            <div class="flex-grow overflow-y-auto p-4 sm:p-8 flex flex-col items-center pb-20 relative z-0 custom-scrollbar bg-[var(--editor-bg)]">
-                <div id="canvas-loading" class="flex flex-col items-center justify-center h-full text-center mt-20 hidden-el">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--theme-accent)] mb-4"></div>
-                    <p id="lbl-painting" class="text-[var(--text-dim)] text-xs font-medium">Melukis Halaman Dokumen...</p>
+            <div id="canvas-container" class="flex-grow overflow-y-auto p-4 sm:p-8 flex flex-col items-center pb-20 relative z-0 custom-scrollbar bg-[var(--editor-bg)]">
+                
+                <div id="canvas-loading" class="flex flex-col items-center justify-center h-full text-center mt-20 hidden-el w-full px-6">
+                    <div class="relative w-16 h-16 mb-6">
+                        <div class="absolute inset-0 rounded-full border-4 border-[var(--border-color)]"></div>
+                        <div class="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
+                        <i data-lucide="cpu" class="absolute inset-0 m-auto w-6 h-6 text-blue-500 animate-pulse"></i>
+                    </div>
+                    <p id="lbl-painting" class="text-[var(--text-main)] text-sm font-bold tracking-wide">Menganalisis Dokumen...</p>
+                    <p id="lbl-painting-sub" class="text-[var(--text-dim)] text-xs font-medium mt-2 max-w-sm">Mohon tunggu, proses ekstraksi AI sedang berjalan di latar belakang.</p>
                 </div>
                 
                 <div id="canvas-error" class="flex flex-col items-center justify-center h-full text-[var(--text-dim)] mt-20 hidden-el">
@@ -191,11 +196,11 @@
                     <p id="lbl-no-page" class="text-xs">Dokumen tidak memiliki halaman atau gagal dirender.</p>
                 </div>
 
-                <div id="canvas-container" class="relative flex justify-center w-full hidden-el">
+                <div id="canvas-wrapper" class="relative flex justify-center hidden-el select-none" style="width: max-content; max-width: 100%;">
                     <div id="canvas-page-badge" class="absolute -left-2 sm:-left-6 top-4 bg-[var(--text-main)] text-[var(--editor-bg)] text-[10px] font-bold py-1 px-3 rounded-lg shadow-md z-10 border border-[var(--border-color)]">
                         Hal. 1
                     </div>
-                    <canvas id="pdf-canvas" class="shadow-md border border-[var(--border-color)] max-w-full h-auto bg-white rounded-md" style="width: 100%;"></canvas>
+                    <canvas id="pdf-canvas" class="shadow-md border border-[var(--border-color)] max-w-full h-auto bg-white rounded-md block"></canvas>
                 </div>
             </div>
         </div>
@@ -285,13 +290,13 @@
     <script>
         const translations = {
             ID: {
-                helpTooltip: "Unggah PDF lokal untuk memverifikasi tanda tangan elektronik PAdES (BSrE) & melihat pratinjau halamannya. 100% diproses di browser tanpa mengirim data ke server.",
+                helpTooltip: "Unggah PDF lokal untuk memverifikasi tanda tangan elektronik PAdES. 100% diproses di browser.",
                 uploadMain: "Pilih Dokumen PDF",
                 uploadSub: "atau seret ke sini",
                 uploadOther: "Unggah Dokumen Lain",
-                enginePreparing: "Menyiapkan Engine Forensik, PDF.js, & Pemindai QR...",
+                enginePreparing: "Menyiapkan Engine Forensik, PDF.js, & Multi-Engine Scanner...",
                 processing: "Mengekskavasi & Memindai Dokumen...",
-                supported: "Mendukung format ETSI.CAdES / BSrE & Analisis Integritas ByteRange",
+                supported: "Mendukung BSrE / Privy / e-Meterai Peruri",
                 errNeedPdf: "Harap unggah berkas PDF.",
                 errProcess: "Gagal memproses dokumen: ",
                 statusReady: "Engine Ready",
@@ -299,7 +304,7 @@
                 statusFound: "Tanda Tangan Ditemukan: ",
                 termsBtn: "Terms of Use",
                 termsTitle: "Syarat & Ketentuan Penggunaan",
-                termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools (Gemini dan Qwen). Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
+                termsText: "Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala konsekuensi atau kerugian dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
                 close: "Tutup",
                 verifySuccess: "VERIFIKASI KRYPTO BERHASIL",
                 verifySuccessSub: "Dokumen memiliki struktur CMS/PKCS#7 yang sah.",
@@ -359,13 +364,13 @@
                 copiedFailed: "Gagal menyalin laporan."
             },
             EN: {
-                helpTooltip: "Upload a local PDF to verify PAdES (BSrE) electronic signatures & preview pages. 100% processed in your browser without sending data to servers.",
+                helpTooltip: "Upload a local PDF to verify electronic signatures & preview pages. 100% processed in your browser.",
                 uploadMain: "Select PDF Document",
                 uploadSub: "or drag here",
                 uploadOther: "Upload Another Document",
-                enginePreparing: "Preparing Forensic Engine, PDF.js, & QR Scanner...",
+                enginePreparing: "Preparing Forensic Engine, PDF.js, & Multi-Engine Scanner...",
                 processing: "Excavating & Scanning Document...",
-                supported: "Supports ETSI.CAdES / BSrE & ByteRange Integrity Analysis",
+                supported: "Supports BSrE / Privy / e-Meterai Peruri",
                 errNeedPdf: "Please upload a PDF file.",
                 errProcess: "Failed to process document: ",
                 statusReady: "Engine Ready",
@@ -373,12 +378,12 @@
                 statusFound: "Signatures Found: ",
                 termsBtn: "Terms of Use",
                 termsTitle: "Terms & Conditions",
-                termsText: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools (Gemini and Qwen). This app does not store your personal data on our servers. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.",
+                termsText: "This app is provided 'as-is' and the accuracy of results is not guaranteed. This app does not store your personal data on our servers. The creator is absolved from any consequences arising from the use of this app.",
                 close: "Close",
                 verifySuccess: "CRYPTO VERIFICATION SUCCESSFUL",
                 verifySuccessSub: "The document has a valid CMS/PKCS#7 structure.",
                 noCryptoSign: "Cryptographic Signature Not Found",
-                noCryptoSignDesc: "This document appears to be a flattened preview copy or a scanned printout. We still scanned for visual QR links if available.",
+                noCryptoSignDesc: "This document appears to be a flattened preview copy. We still scanned for visual QR links if available.",
                 signedByRev: "Rev. {idx}: Signed By",
                 unknownName: "Unknown Name",
                 unknownOrg: "Unregistered Organization",
@@ -455,7 +460,9 @@
             '1.2.840.113549.1.1.11': 'sha256WithRSAEncryption',
             '1.2.840.113549.1.1.5': 'sha1WithRSAEncryption',
             '1.2.840.113549.1.1.13': 'sha512WithRSAEncryption',
-            '1.2.840.113549.1.1.10': 'RSASSA-PSS'
+            '1.2.840.113549.1.1.10': 'RSASSA-PSS',
+            '1.2.840.10045.2.1': 'id-ecPublicKey',
+            '1.2.840.10045.4.3.2': 'ecdsa-with-SHA256'
         };
 
         let _rawTheme = localStorage.getItem('theme');
@@ -478,7 +485,6 @@
             btnCloseTermsX: document.getElementById('btn-close-terms-x'),
             modalTerms: document.getElementById('modal-terms'),
             modalTermsContent: document.getElementById('modal-terms-content'),
-            
             emptyState: document.getElementById('empty-state'),
             resultsState: document.getElementById('results-state'),
             loadingEngines: document.getElementById('loading-engines'),
@@ -488,7 +494,6 @@
             fileInputs: document.querySelectorAll('.file-input'),
             lblProcessing: document.getElementById('lbl-processing'),
             btnUploadOther: document.getElementById('btn-upload-other'),
-            
             successBadge: document.getElementById('success-badge'),
             noSignBadge: document.getElementById('no-sign-badge'),
             signaturesList: document.getElementById('signatures-list'),
@@ -499,20 +504,21 @@
             canvasLoading: document.getElementById('canvas-loading'),
             canvasError: document.getElementById('canvas-error'),
             canvasContainer: document.getElementById('canvas-container'),
+            canvasWrapper: document.getElementById('canvas-wrapper'),
             pdfCanvas: document.getElementById('pdf-canvas'),
             canvasPageBadge: document.getElementById('canvas-page-badge'),
-
             engineStatusDot: document.getElementById('engine-status-dot'),
             lblEngineStatus: document.getElementById('lbl-engine-status'),
             lblStats: document.getElementById('lbl-stats'),
-            
             reportActions: document.getElementById('report-actions'),
             btnCopyShort: document.getElementById('btn-copy-short'),
             btnCopyDetailed: document.getElementById('btn-copy-detailed'),
             lblCopyShort: document.getElementById('lbl-copy-short'),
             lblCopyDetailed: document.getElementById('lbl-copy-detailed'),
             toastNotification: document.getElementById('toast-notification'),
-            lblToastMsg: document.getElementById('lbl-toast-msg')
+            lblToastMsg: document.getElementById('lbl-toast-msg'),
+            lblPainting: document.getElementById('lbl-painting'),
+            lblPaintingSub: document.getElementById('lbl-painting-sub')
         };
 
         const t = (key) => translations[currentLang][key] || key;
@@ -532,11 +538,9 @@
             document.getElementById('lbl-preview-title').textContent = t('previewTitle');
             document.getElementById('lbl-pdf-engine').textContent = t('pdfEngine');
             document.getElementById('lbl-qr-detected').textContent = t('qrDetected');
-            document.getElementById('lbl-open-link').innerHTML = `${t('openLink')} <i data-lucide="external-link" class="w-[14px] h-[14px]"></i>`;
+            document.getElementById('lbl-open-link').innerHTML = `<i data-lucide="external-link" class="w-[14px] h-[14px]"></i> ` + t('openLink');
             document.getElementById('lbl-filter-info').textContent = t('pageFilterInfo');
-            document.getElementById('lbl-painting').textContent = t('painting');
-            document.getElementById('lbl-no-page').textContent = t('noPage');
-            document.getElementById('lbl-terms-title').innerHTML = `<i data-lucide="gavel" class="w-[16px] h-[16px] text-[var(--text-dim)]"></i> ${t('termsTitle')}`;
+            document.getElementById('lbl-terms-title').innerHTML = `<i data-lucide="gavel" class="w-[16px] h-[16px] text-[var(--text-dim)]"></i> ` + t('termsTitle');
             document.getElementById('lbl-terms-text').textContent = t('termsText');
             document.getElementById('btn-close-terms').textContent = t('close');
             
@@ -545,7 +549,7 @@
 
             el.lblEngineStatus.textContent = enginesLoaded ? t('statusReady') : 'Booting...';
             if (documentSignatures.length > 0) {
-                el.lblStats.textContent = `${t('statusFound')} ${documentSignatures.length}`;
+                el.lblStats.textContent = t('statusFound') + " " + documentSignatures.length;
             } else {
                 el.lblStats.textContent = t('statusWait');
             }
@@ -598,11 +602,11 @@
                 } else if (sign === '+' || sign === '-') {
                     const tzHour = str.substring(15, 17) || '00';
                     const tzMin = str.substring(17, 19) || '00';
-                    tz = `${sign}${tzHour}:${tzMin}`;
+                    tz = sign + tzHour + ":" + tzMin;
                 }
             }
             
-            const isoStr = `${year}-${month}-${day}T${hour}:${min}:${sec}${tz}`;
+            const isoStr = year + "-" + month + "-" + day + "T" + hour + ":" + min + ":" + sec + tz;
             try {
                 return new Date(isoStr).toLocaleString(currentLang === 'ID' ? 'id-ID' : 'en-US', {
                     day: 'numeric', month: 'long', year: 'numeric', 
@@ -616,6 +620,10 @@
             el.iconTheme.setAttribute('data-lucide', currentTheme === 'light' ? 'moon' : 'sun');
             el.lblLang.textContent = currentLang;
             
+            if (window.QrScanner) {
+                window.QrScanner.WORKER_PATH = 'https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner-worker.min.js';
+            }
+
             updateText();
             lucide.createIcons();
             checkEngines();
@@ -623,7 +631,7 @@
 
         function checkEngines() {
             const check = setInterval(() => {
-                if (window.forge && window.pdfjsLib && window.jsQR) {
+                if (window.forge && window.pdfjsLib && window.ZXing && window.QrScanner) {
                     clearInterval(check);
                     enginesLoaded = true;
                     window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
@@ -694,8 +702,8 @@
                 if (newLeftWidth < 30) newLeftWidth = 30;
                 if (newLeftWidth > 70) newLeftWidth = 70;
                 
-                leftPane.style.flex = `0 0 ${newLeftWidth}%`;
-                rightPane.style.flex = `0 0 ${100 - newLeftWidth}%`;
+                leftPane.style.flex = "0 0 " + newLeftWidth + "%";
+                rightPane.style.flex = "0 0 " + (100 - newLeftWidth) + "%";
             });
 
             document.addEventListener('mouseup', () => {
@@ -706,33 +714,240 @@
             });
         }
 
+        // ==========================================
+        // ARSITEKTUR MAHADEWA: PEMBACA SERTIFIKAT MANUAL (X.509 DECODER)
+        // ==========================================
+        function extractRdn(nameNode) {
+            const attrs = [];
+            if (nameNode && Array.isArray(nameNode.value)) {
+                nameNode.value.forEach(setNode => {
+                    if (setNode && Array.isArray(setNode.value)) {
+                        setNode.value.forEach(seqNode => {
+                            if (seqNode && Array.isArray(seqNode.value) && seqNode.value.length === 2) {
+                                try {
+                                    const oid = window.forge.asn1.derToOid(seqNode.value[0].value);
+                                    const valueNode = seqNode.value[1];
+                                    let valueStr = valueNode.value;
+                                    if (valueStr) {
+                                        try { valueStr = window.forge.util.decodeUtf8(valueStr); } 
+                                        catch(e) { /* Abaikan jika bukan UTF-8 */ }
+                                    }
+                                    attrs.push({ oid: oid, name: OID_MAP[oid] || oid, value: valueStr });
+                                } catch(e) {}
+                            }
+                        });
+                    }
+                });
+            }
+            return attrs;
+        }
+
+        function parseAsn1Time(timeNode) {
+            try {
+                if (timeNode.type === 23) return window.forge.asn1.utcTimeToDate(timeNode.value);
+                if (timeNode.type === 24) return window.forge.asn1.generalizedTimeToDate(timeNode.value);
+            } catch(e) {}
+            return new Date(0);
+        }
+
+        function parseCertAsn1Manual(certAsn1) {
+            try {
+                const CLASS_UNIVERSAL = 0;
+                const CLASS_CONTEXT = 128;
+                const tbsCert = certAsn1.value[0];
+                let issuer = [], subject = [], validity = { notBefore: new Date(0), notAfter: new Date(0) }, serialNumber = '';
+                
+                let idx = 0;
+                if (tbsCert.value[idx].tagClass === CLASS_CONTEXT && tbsCert.value[idx].type === 0) idx++; 
+                
+                const serialNode = tbsCert.value[idx++];
+                if (serialNode && serialNode.type === 2) { 
+                    serialNumber = window.forge.util.bytesToHex(serialNode.value).toUpperCase();
+                }
+                
+                idx++; 
+                
+                const issuerNode = tbsCert.value[idx++];
+                issuer = extractRdn(issuerNode);
+                
+                const validityNode = tbsCert.value[idx++];
+                if (validityNode && Array.isArray(validityNode.value) && validityNode.value.length >= 2) {
+                    validity.notBefore = parseAsn1Time(validityNode.value[0]);
+                    validity.notAfter = parseAsn1Time(validityNode.value[1]);
+                }
+                
+                const subjectNode = tbsCert.value[idx++];
+                subject = extractRdn(subjectNode);
+                
+                return { subject, issuer, validFrom: validity.notBefore, validTo: validity.notAfter, serialNumber, rawCert: certAsn1 };
+            } catch(e) {
+                console.error("Manual Cert Parsing Error", e);
+                return { subject: [], issuer: [], validFrom: new Date(0), validTo: new Date(0), serialNumber: 'UNKNOWN', rawCert: certAsn1 };
+            }
+        }
+
+        // ==========================================
+        // ARSITEKTUR MAHADEWA: PENYELAMATAN ASN.1 (DEEP SEARCH)
+        // ==========================================
+        function rescueAsn1Data(asn1Obj) {
+            const result = {
+                certificates: [],
+                messageDigest: null,
+                signingTime: null
+            };
+            const visited = new Set();
+            const messageDigestOid = '1.2.840.113549.1.9.4';
+            const signingTimeOid = '1.2.840.113549.1.9.5';
+            const CLASS_UNIVERSAL = 0;
+            const CLASS_CONTEXT = 128;
+
+            function traverse(node) {
+                if (!node || typeof node !== 'object') return;
+                if (visited.has(node)) return;
+                visited.add(node);
+
+                if (node.tagClass === CLASS_CONTEXT && node.type === 0 && Array.isArray(node.value)) {
+                    for (let i = 0; i < node.value.length; i++) {
+                        const child = node.value[i];
+                        if (child && child.tagClass === CLASS_UNIVERSAL && child.type === 16) {
+                            if (Array.isArray(child.value) && child.value.length >= 2) {
+                                if (child.value[0].tagClass === CLASS_UNIVERSAL && child.value[0].type === 16) {
+                                    result.certificates.push(child);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (node.tagClass === CLASS_UNIVERSAL && node.type === 16 && Array.isArray(node.value)) {
+                    const child0 = node.value[0];
+                    if (child0 && child0.tagClass === CLASS_UNIVERSAL && child0.type === 6) {
+                        try {
+                            const oid = window.forge.asn1.derToOid(child0.value);
+                            if (oid === messageDigestOid) {
+                                const child1 = node.value[1];
+                                if (child1 && child1.tagClass === CLASS_UNIVERSAL && child1.type === 17 && Array.isArray(child1.value)) {
+                                    const hashNode = child1.value[0];
+                                    if (hashNode && hashNode.tagClass === CLASS_UNIVERSAL && hashNode.type === 4) {
+                                        result.messageDigest = window.forge.util.bytesToHex(hashNode.value);
+                                    }
+                                }
+                            } else if (oid === signingTimeOid) {
+                                const child1 = node.value[1];
+                                if (child1 && child1.tagClass === CLASS_UNIVERSAL && child1.type === 17 && Array.isArray(child1.value)) {
+                                    const timeNode = child1.value[0];
+                                    if (timeNode && timeNode.tagClass === CLASS_UNIVERSAL && (timeNode.type === 23 || timeNode.type === 24)) {
+                                        let dateObj;
+                                        if (timeNode.type === 23) dateObj = window.forge.asn1.utcTimeToDate(timeNode.value);
+                                        else dateObj = window.forge.asn1.generalizedTimeToDate(timeNode.value);
+                                        result.signingTime = dateObj.toISOString();
+                                    }
+                                }
+                            }
+                        } catch(e) {}
+                    }
+                }
+
+                if (Array.isArray(node.value)) {
+                    for (let i = 0; i < node.value.length; i++) {
+                        traverse(node.value[i]);
+                    }
+                }
+            }
+
+            traverse(asn1Obj);
+            
+            result.certificates = result.certificates.filter(cert => {
+                if (cert.value && cert.value.length > 0) {
+                    const firstChild = cert.value[0];
+                    if (firstChild.tagClass === CLASS_UNIVERSAL && firstChild.type === 16) {
+                        return true; 
+                    }
+                }
+                return false;
+            });
+
+            return result;
+        }
+
+        // ==========================================
+        // ARSITEKTUR MAHADEWA: SMART SLICER V2 (PEMBACA BATAS ASN.1)
+        // ==========================================
+        function getActualAsn1Size(buf) {
+            let offset = 0;
+            function readTag() {
+                if (offset >= buf.length) return null;
+                let tag = buf[offset++];
+                if ((tag & 0x1F) === 0x1F) {
+                    while (offset < buf.length && (buf[offset++] & 0x80)) {}
+                }
+                return tag;
+            }
+            function readLength() {
+                if (offset >= buf.length) return 0;
+                let len = buf[offset++];
+                if (len === 0x80) return -1; 
+                if (len > 0x80) {
+                    let numBytes = len & 0x7F;
+                    len = 0;
+                    for (let i = 0; i < numBytes; i++) {
+                        if (offset >= buf.length) break;
+                        len = (len << 8) | buf[offset++];
+                    }
+                }
+                return len;
+            }
+            function walk() {
+                if (offset >= buf.length) return;
+                let tag = readTag();
+                if (tag === null) return;
+                let len = readLength();
+                if (len === -1) { 
+                    while (offset < buf.length) {
+                        if (buf[offset] === 0x00 && buf[offset+1] === 0x00) {
+                            offset += 2;
+                            break;
+                        }
+                        walk();
+                    }
+                } else { 
+                    offset += len;
+                }
+            }
+            walk();
+            return offset;
+        }
+
         const prepareAndValidatePayload = (rawHex) => {
             const logs = [];
             const cleanedForHex = rawHex.replace(/[^0-9a-fA-F]/g, '');
-            logs.push(`Mengekstrak ${cleanedForHex.length} karakter hex.`);
+            logs.push("Mengekstrak " + cleanedForHex.length + " karakter hex.");
 
             if (cleanedForHex.length % 2 !== 0) throw new Error("Payload rusak (panjang ganjil).");
 
             const binaryArray = new Uint8Array(cleanedForHex.length / 2);
             for (let i = 0; i < cleanedForHex.length; i += 2) {
-                binaryArray[i / 2] = parseInt(cleanedForHex.substr(i, 2), 16);
+                binaryArray[i / 2] = parseInt(cleanedForHex.substring(i, i + 2), 16);
             }
 
-            let validLength = binaryArray.length;
-            while (validLength > 0 && binaryArray[validLength - 1] === 0x00) {
-                validLength--;
+            if (binaryArray.length === 0) throw new Error("Payload kosong.");
+
+            let asn1Size = binaryArray.length;
+            try {
+                let calcSize = getActualAsn1Size(binaryArray);
+                if (calcSize > 0 && calcSize <= binaryArray.length) {
+                    asn1Size = calcSize;
+                    logs.push("Smart Slicer ASN.1: Membaca payload murni " + asn1Size + " byte (membuang " + (binaryArray.length - asn1Size) + " byte padding PDF).");
+                } else {
+                    logs.push("Smart Slicer gagal memverifikasi batas (menggunakan ukuran penuh).");
+                }
+            } catch (e) {
+                logs.push("Smart Slicer error: " + e.message);
             }
 
-            const finalBinaryArray = binaryArray.slice(0, validLength);
-            logs.push(`Membersihkan ${binaryArray.length - validLength} byte trailing padding (\\x00).`);
-
-            if (finalBinaryArray.length === 0) throw new Error("Payload kosong.");
-
-            let binaryStr = '';
-            const chunkSize = 8192; 
-            for (let i = 0; i < finalBinaryArray.length; i += chunkSize) {
-                binaryStr += String.fromCharCode.apply(null, finalBinaryArray.slice(i, i + chunkSize));
-            }
+            const finalBinaryArray = binaryArray.slice(0, asn1Size);
+            const binaryStr = window.forge.util.createBuffer(finalBinaryArray).getBytes();
+            
             return { binaryStr, logs };
         };
 
@@ -766,7 +981,6 @@
             }
 
             const hasLTV = /\/DSS\s+<</.test(pdfText);
-
             const contentsTag = '/Contents';
             let searchIndex = 0;
 
@@ -818,22 +1032,80 @@
                                 const { binaryStr, logs } = prepareAndValidatePayload(rawHex);
                                 debugLogs = logs;
 
-                                const asn1Obj = window.forge.asn1.fromDer(binaryStr);
-                                const p7 = window.forge.pkcs7.messageFromAsn1(asn1Obj);
+                                const asn1Obj = window.forge.asn1.fromDer(binaryStr, false);
+                                
+                                let p7 = null;
+                                let certs = [];
+                                let signerInfos = [];
+                                let expectedHash = null;
 
-                                const certs = (p7.certificates || []).map(cert => ({
-                                    subject: mapAttributes(cert.subject.attributes),
-                                    issuer: mapAttributes(cert.issuer.attributes),
-                                    validFrom: cert.validity.notBefore.toString(),
-                                    validTo: cert.validity.notAfter.toString(),
-                                    serialNumber: cert.serialNumber
-                                }));
-
-                                if (p7.certificates && p7.certificates.length > 0) {
-                                    const leafCert = p7.certificates[0]; 
+                                try {
+                                    p7 = window.forge.pkcs7.messageFromAsn1(asn1Obj);
+                                    certs = (p7.certificates || []).map(cert => ({
+                                        subject: mapAttributes(cert.subject.attributes),
+                                        issuer: mapAttributes(cert.issuer.attributes),
+                                        validFrom: cert.validity.notBefore.toString(),
+                                        validTo: cert.validity.notAfter.toString(),
+                                        serialNumber: cert.serialNumber,
+                                        rawCert: cert
+                                    }));
                                     
+                                    signerInfos = (p7.signerInfos || []).map(signer => {
+                                        if (signer.signatureAlgorithm && signer.signatureAlgorithm.algorithm) {
+                                            const oid = signer.signatureAlgorithm.algorithm;
+                                            forensicData.algorithm = OID_MAP[oid] || window.forge.pki.oids[oid] || oid;
+                                        }
+
+                                        if (signer.unauthenticatedAttributes) {
+                                            forensicData.hasTSA = signer.unauthenticatedAttributes.some(attr => attr.type === '1.2.840.113549.1.9.16.2.14');
+                                        }
+
+                                        const authAttrs = (signer.authenticatedAttributes || []).map(attr => {
+                                            let rawValue = 'N/A';
+                                            if (attr.value && Array.isArray(attr.value) && attr.value.length > 0) {
+                                                const v = attr.value[0];
+                                                if (v.type === window.forge.asn1.Type.UTCTIME || v.type === window.forge.asn1.Type.GENERALIZEDTIME) {
+                                                    rawValue = formatDate(v.value);
+                                                } else if (typeof v.value === 'string') {
+                                                    rawValue = window.forge.util.bytesToHex(v.value);
+                                                    if (attr.type === '1.2.840.113549.1.9.4') expectedHash = rawValue;
+                                                }
+                                            }
+                                            return { oid: attr.type, name: OID_MAP[attr.type] || 'Atribut CMS', value: rawValue };
+                                        });
+
+                                        return { authAttrs: authAttrs };
+                                    });
+                                } catch (p7Err) {
+                                    debugLogs.push("[FORENSICS] Parser PKCS#7 gagal (ECDSA terdeteksi). Ekstraksi ASN.1 manual (Deep Search)...");
+                                    const rescued = rescueAsn1Data(asn1Obj);
+                                    
+                                    if (rescued.certificates.length > 0) {
+                                        certs = rescued.certificates.map(rawAsn1 => parseCertAsn1Manual(rawAsn1));
+                                        expectedHash = rescued.messageDigest;
+                                        let formattedTime = null;
+                                        if (rescued.signingTime) {
+                                            formattedTime = formatDate(rescued.signingTime);
+                                        }
+
+                                        signerInfos = [{
+                                            authAttrs: [
+                                                { oid: '1.2.840.113549.1.9.4', name: 'Message Digest', value: expectedHash },
+                                                { oid: '1.2.840.113549.1.9.5', name: 'Signing Time', value: formattedTime }
+                                            ]
+                                        }];
+                                        
+                                        forensicData.algorithm = "ECDSA (Elliptic Curve Bypass)";
+                                        debugLogs.push("[FORENSICS] Berhasil menyelamatkan " + certs.length + " sertifikat X.509 via tree-traversal!");
+                                    } else {
+                                        throw p7Err; 
+                                    }
+                                }
+
+                                if (certs && certs.length > 0) {
+                                    const rawAsn1Cert = certs[0].rawCert; 
                                     try {
-                                        const der = window.forge.asn1.toDer(window.forge.pki.certificateToAsn1(leafCert)).getBytes();
+                                        const der = window.forge.asn1.toDer(rawAsn1Cert).getBytes();
                                         const md = window.forge.md.sha1.create();
                                         md.update(der);
                                         forensicData.fingerprint = md.digest().toHex().match(/.{1,2}/g).join(':').toUpperCase();
@@ -841,56 +1113,33 @@
                                         debugLogs.push("[FORENSICS] Gagal memproses Fingerprint SHA-1");
                                     }
 
-                                    const formatDN = (attrs) => attrs.map(a => `${a.shortName || a.name || a.type}=${a.value}`).join(', ');
-                                    forensicData.subjectDN = formatDN(leafCert.subject.attributes);
-                                    forensicData.issuerDN = formatDN(leafCert.issuer.attributes);
+                                    const formatDN = (attrs) => attrs.map(a => (a.name || a.oid) + "=" + a.value).join(', ');
+                                    forensicData.subjectDN = formatDN(certs[0].subject);
+                                    forensicData.issuerDN = formatDN(certs[0].issuer);
 
-                                    forensicData.certChainNames = p7.certificates.map(c => {
-                                        const cnAttr = c.subject.attributes.find(a => a.shortName === 'CN' || a.name === 'commonName');
+                                    forensicData.certChainNames = certs.map(c => {
+                                        const cnAttr = c.subject.find(a => a.name === 'Common Name (CN)' || a.oid === '2.5.4.3');
                                         return cnAttr ? cnAttr.value : 'Unknown Certificate';
                                     });
                                 }
 
-                                let expectedHash = null;
-                                const signerInfos = (p7.signerInfos || []).map(signer => {
-                                    if (signer.signatureAlgorithm && signer.signatureAlgorithm.algorithm) {
-                                        const oid = signer.signatureAlgorithm.algorithm;
-                                        forensicData.algorithm = OID_MAP[oid] || window.forge.pki.oids[oid] || oid;
-                                    }
-
-                                    if (signer.unauthenticatedAttributes) {
-                                        forensicData.hasTSA = signer.unauthenticatedAttributes.some(attr => attr.type === '1.2.840.113549.1.9.16.2.14');
-                                    }
-
-                                    const authAttrs = (signer.authenticatedAttributes || []).map(attr => {
-                                        let rawValue = 'N/A';
-                                        if (attr.value && Array.isArray(attr.value) && attr.value.length > 0) {
-                                            const v = attr.value[0];
-                                            if (v.type === window.forge.asn1.Type.UTCTIME || v.type === window.forge.asn1.Type.GENERALIZEDTIME) {
-                                                rawValue = formatDate(v.value);
-                                            } else if (typeof v.value === 'string') {
-                                                rawValue = window.forge.util.bytesToHex(v.value);
-                                                if (attr.type === '1.2.840.113549.1.9.4') expectedHash = rawValue;
-                                            }
-                                        }
-                                        return { oid: attr.type, name: OID_MAP[attr.type] || 'Atribut CMS', value: rawValue };
-                                    });
-                                    return { authAttrs };
-                                });
-
-                                debugLogs.push("Rantai Sertifikat PKCS#7 berhasil dibedah.");
+                                debugLogs.push("Struktur identitas berhasil dianalisis.");
 
                                 let decryptedSignatureHex = null;
-                                try {
-                                    if (p7.signerInfos && p7.signerInfos.length > 0 && p7.certificates && p7.certificates.length > 0) {
+                                if (!expectedHash && p7 && p7.signerInfos && p7.signerInfos.length > 0 && p7.certificates && p7.certificates.length > 0) {
+                                    try {
                                         const signerInfo = p7.signerInfos[0];
-                                        const cert = p7.certificates[0];
-                                        const rawDecrypted = cert.publicKey.encrypt(signerInfo.signature, 'NONE');
-                                        decryptedSignatureHex = window.forge.util.bytesToHex(rawDecrypted).toLowerCase();
-                                        debugLogs.push("[FORENSICS] Raw RSA Signature berhasil diekstraksi & didekripsi.");
+                                        const realCert = p7.certificates[0]; 
+                                        if (realCert.publicKey && realCert.publicKey.n) {
+                                            const rawDecrypted = realCert.publicKey.encrypt(signerInfo.signature, 'NONE');
+                                            decryptedSignatureHex = window.forge.util.bytesToHex(rawDecrypted).toLowerCase();
+                                            debugLogs.push("[FORENSICS] Raw RSA Signature berhasil diekstraksi & didekripsi.");
+                                        } else {
+                                            debugLogs.push("[FORENSICS] Algoritma Non-RSA (ECDSA) terdeteksi. Dekripsi raw dilewati.");
+                                        }
+                                    } catch(e) {
+                                        debugLogs.push("[FORENSICS] Dekripsi Raw RSA gagal: " + e.message);
                                     }
-                                } catch(e) {
-                                    debugLogs.push("[FORENSICS] Dekripsi Raw RSA gagal (mungkin bukan RSA standard): " + e.message);
                                 }
 
                                 if (byteRange && (expectedHash || decryptedSignatureHex)) {
@@ -908,25 +1157,29 @@
                                         const hashBuf1 = await crypto.subtle.digest('SHA-1', combined);
                                         const computedHash1 = Array.from(new Uint8Array(hashBuf1)).map(b => b.toString(16).padStart(2, '0')).join('').toLowerCase();
                                         
+                                        const hashBuf512 = await crypto.subtle.digest('SHA-512', combined);
+                                        const computedHash512 = Array.from(new Uint8Array(hashBuf512)).map(b => b.toString(16).padStart(2, '0')).join('').toLowerCase();
+                                        
                                         let isHashMatch = false;
                                         if (expectedHash) {
-                                            isHashMatch = (expectedHash.toLowerCase() === computedHash256) || (expectedHash.toLowerCase() === computedHash1);
+                                            const expStr = expectedHash.toLowerCase();
+                                            isHashMatch = (expStr === computedHash256) || (expStr === computedHash1) || (expStr === computedHash512);
                                         } else if (decryptedSignatureHex) {
-                                            isHashMatch = decryptedSignatureHex.endsWith(computedHash256) || decryptedSignatureHex.endsWith(computedHash1);
+                                            isHashMatch = decryptedSignatureHex.endsWith(computedHash256) || decryptedSignatureHex.endsWith(computedHash1) || decryptedSignatureHex.endsWith(computedHash512);
                                         }
 
                                         forensicData.byteRangeValid = isHashMatch;
                                         if (isHashMatch) {
-                                            debugLogs.push(`[INTEGRITY] ByteRange divalidasi. Hash Algoritma cocok (DOKUMEN UTUH).`);
+                                            debugLogs.push("[INTEGRITY] ByteRange divalidasi. Hash Algoritma cocok (DOKUMEN UTUH).");
                                         } else {
-                                            debugLogs.push(`[INTEGRITY] PERINGATAN: Hash ByteRange TIDAK COCOK dengan Signature!`);
+                                            debugLogs.push("[INTEGRITY] PERINGATAN: Hash ByteRange TIDAK COCOK dengan Signature!");
                                         }
                                     }
                                 }
 
                                 foundSignatures.push({ id: foundSignatures.length + 1, debugLogs, certificates: certs, signerInfos, forensic: forensicData, error: null });
                             } catch (parseErr) {
-                                foundSignatures.push({ id: foundSignatures.length + 1, error: parseErr.message, debugLogs: [...debugLogs, `ERROR: ${parseErr.message}`], certificates: [], forensic: forensicData });
+                                foundSignatures.push({ id: foundSignatures.length + 1, error: parseErr.message, debugLogs: [...debugLogs, "ERROR: " + parseErr.message], certificates: [], forensic: forensicData });
                             }
                         }
                     }
@@ -934,59 +1187,169 @@
                 searchIndex += contentsTag.length;
             }
 
-            return foundSignatures.filter(s => s.certificates.length > 0 || s.error);
+            return foundSignatures.filter(s => s.certificates && s.certificates.length > 0 || s.error);
         }
 
-        async function scanPageForSignatureAndQR(pdf) {
+        // ==========================================
+        // AUTO SCANNER DENGAN FAST-PASS & SMART GRID
+        // ==========================================
+        const yieldRender = () => new Promise(r => setTimeout(r, 15));
+
+        async function scanPageForSignatureAndQR(pdf, onProgress) {
             let bestPageNum = pdf.numPages; 
             let foundQrUrl = null;
 
             const scanCanvas = document.createElement('canvas');
             const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+            
+            let zxingReader = null;
+            if (window.ZXing) {
+                const hints = new Map();
+                if (window.ZXing.DecodeHintType) {
+                    hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true);
+                    if (window.ZXing.BarcodeFormat) {
+                        hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, [window.ZXing.BarcodeFormat.QR_CODE]);
+                    }
+                }
+                zxingReader = new window.ZXing.BrowserQRCodeReader(hints);
+            }
+
+            const getBlob = (cvs) => new Promise(res => cvs.toBlob(res, 'image/png'));
+
+            const runEngines = async (cvs) => {
+                if (window.QrScanner) {
+                    try {
+                        const blob = await getBlob(cvs);
+                        const res = await window.QrScanner.scanImage(blob, { returnDetailedScanResult: true });
+                        if (res && res.data) return res.data;
+                    } catch(e) {}
+                }
+                if (zxingReader) {
+                    try {
+                        const res = await zxingReader.decodeFromCanvas(cvs);
+                        if (res && res.getText()) return res.getText();
+                    } catch(e) {}
+                }
+                return null;
+            };
+
+            const binarizeCanvas = (sourceCvs) => {
+                const bwCanvas = document.createElement('canvas');
+                bwCanvas.width = sourceCvs.width; bwCanvas.height = sourceCvs.height;
+                const bwCtx = bwCanvas.getContext('2d', { willReadFrequently: true });
+                bwCtx.drawImage(sourceCvs, 0, 0);
+                const imgData = bwCtx.getImageData(0, 0, bwCanvas.width, bwCanvas.height);
+                const data = imgData.data;
+                for (let j = 0; j < data.length; j += 4) {
+                    const r = data[j], g = data[j+1], b = data[j+2];
+                    const isDark = r < 130 && g < 130 && b < 130;
+                    const val = isDark ? 0 : 255;
+                    data[j] = val; data[j+1] = val; data[j+2] = val;
+                }
+                bwCtx.putImageData(imgData, 0, 0);
+                return bwCanvas;
+            };
 
             for (let i = pdf.numPages; i >= 1; i--) {
                 try {
                     const page = await pdf.getPage(i);
                     const annotations = await page.getAnnotations();
                     
-                    if (window.jsQR) {
-                        const viewport = page.getViewport({ scale: 2.0 });
-                        scanCanvas.width = viewport.width;
-                        scanCanvas.height = viewport.height;
-                        
-                        await page.render({ canvasContext: scanCtx, viewport }).promise;
-                        const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
-                        
-                        const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
-                            inversionAttempts: "dontInvert"
-                        });
-                        
-                        if (code && code.data) {
-                            foundQrUrl = code.data;
-                            bestPageNum = i;
-                            break; 
+                    // --- TAHAP 1: FAST PASS (Sangat Cepat untuk Dokumen Standar) ---
+                    if (onProgress) { onProgress(`Tahap 1: Pindai Cepat Hal. ${i}...`); await yieldRender(); }
+                    const fastViewport = page.getViewport({ scale: 1.5 });
+                    scanCanvas.width = fastViewport.width;
+                    scanCanvas.height = fastViewport.height;
+                    await page.render({ canvasContext: scanCtx, viewport: fastViewport }).promise;
+
+                    foundQrUrl = await runEngines(scanCanvas);
+
+                    // --- TAHAP 2: HI-RES PASS ---
+                    if (!foundQrUrl) {
+                        if (onProgress) { onProgress(`Tahap 2: Pindai Hi-Res Hal. ${i}...`); await yieldRender(); }
+                        const hiResViewport = page.getViewport({ scale: 3.0 });
+                        scanCanvas.width = hiResViewport.width;
+                        scanCanvas.height = hiResViewport.height;
+                        await page.render({ canvasContext: scanCtx, viewport: hiResViewport }).promise;
+
+                        foundQrUrl = await runEngines(scanCanvas);
+                    }
+
+                    // --- TAHAP 3: BINARIZATION PASS (Cuci Warna Ekstrem) ---
+                    if (!foundQrUrl) {
+                        if (onProgress) { onProgress(`Tahap 3: Pembersihan Noise Hal. ${i}...`); await yieldRender(); }
+                        const bwCanvas = binarizeCanvas(scanCanvas);
+                        foundQrUrl = await runEngines(bwCanvas);
+                    }
+
+                    // --- TAHAP 4: SMART GRID AUTO-CROP (Untuk Privy & QR Mikroskopis) ---
+                    if (!foundQrUrl) {
+                        const tileW = scanCanvas.width / 2;
+                        const tileH = scanCanvas.height / 3;
+                        const tileCanvas = document.createElement('canvas');
+                        tileCanvas.width = tileW; tileCanvas.height = tileH;
+                        const tileCtx = tileCanvas.getContext('2d', { willReadFrequently: true });
+
+                        let gridCount = 1;
+                        for (let row = 0; row < 3; row++) {
+                            for (let col = 0; col < 2; col++) {
+                                if (onProgress) { onProgress(`Tahap 4: Analisis Grid (${gridCount}/6) Hal. ${i}...`); await yieldRender(); }
+                                
+                                tileCtx.fillStyle = '#FFFFFF';
+                                tileCtx.fillRect(0, 0, tileW, tileH);
+                                tileCtx.drawImage(scanCanvas, col * tileW, row * tileH, tileW, tileH, 0, 0, tileW, tileH);
+                                
+                                foundQrUrl = await runEngines(tileCanvas);
+                                if (foundQrUrl) break;
+
+                                const bwTile = binarizeCanvas(tileCanvas);
+                                foundQrUrl = await runEngines(bwTile);
+                                if (foundQrUrl) break;
+
+                                gridCount++;
+                            }
+                            if (foundQrUrl) break;
                         }
                     }
 
-                    if (annotations.some(a => a.fieldType === 'Sig')) {
+                    if (foundQrUrl) {
+                        bestPageNum = i;
+                        break;
+                    }
+
+                    if (!foundQrUrl && annotations.some(a => a.fieldType === 'Sig')) {
                         bestPageNum = i;
                     }
                 } catch (err) {
-                    console.warn(`Gagal memindai halaman ${i}:`, err);
+                    console.warn("Gagal memindai halaman " + i + ":", err);
                 }
             }
-
+            
+            if (zxingReader) zxingReader.reset();
             return { bestPageNum, foundQrUrl };
         }
 
         function renderSignaturesList() {
-            let html = '';
+            let html = "";
             const totalSigs = documentSignatures.length;
 
             documentSignatures.forEach((sig, idx) => {
-                if (sig.error) return;
+                if (sig.error) {
+                    html += '<div class="bg-red-50 rounded-xl shadow-sm border border-red-200 overflow-hidden mb-4">';
+                    html += '<div class="p-5 flex items-start gap-3 text-red-600">';
+                    html += '<i data-lucide="alert-circle" class="w-[20px] h-[20px] shrink-0 mt-0.5"></i>';
+                    html += '<div>';
+                    html += '<h3 class="font-bold text-sm">Gagal Memproses Tanda Tangan ' + (idx + 1) + '</h3>';
+                    html += '<p class="text-xs opacity-80 mt-1">' + sig.error + '</p>';
+                    html += '<details class="mt-2 text-[10px] font-mono opacity-70">';
+                    html += '<summary class="cursor-pointer outline-none font-semibold">Lihat Debug Log</summary>';
+                    html += '<div class="mt-2 pl-2 border-l border-red-500/30 whitespace-pre-wrap">';
+                    html += sig.debugLogs.join('\\n> ');
+                    html += '</div></details></div></div></div>';
+                    return;
+                }
 
-                const leafCert = sig.certificates.find(cert => {
+                const leafCertObj = sig.certificates.find(cert => {
                     const certCN = getAttrValue(cert.subject, 'Common Name', '2.5.4.3');
                     if (!certCN) return false;
                     const isIssuerForAnother = sig.certificates.some(otherCert => {
@@ -996,11 +1359,11 @@
                     return !isIssuerForAnother;
                 }) || sig.certificates[sig.certificates.length - 1];
                 
-                const signerName = getAttrValue(leafCert.subject, 'Common Name', '2.5.4.3');
-                const signerOrg = getAttrValue(leafCert.subject, 'Organization', '2.5.4.10');
-                const signerNik = getAttrValue(leafCert.subject, 'Serial Number', '2.5.4.5');
-                const bsreId = getAttrValue(leafCert.subject, 'Description', '2.5.4.13');
-                const issuerName = getAttrValue(leafCert.issuer, 'Common Name', '2.5.4.3');
+                const signerName = getAttrValue(leafCertObj.subject, 'Common Name', '2.5.4.3');
+                const signerOrg = getAttrValue(leafCertObj.subject, 'Organization', '2.5.4.10');
+                const signerNik = getAttrValue(leafCertObj.subject, 'Serial Number', '2.5.4.5');
+                const bsreId = getAttrValue(leafCertObj.subject, 'Description', '2.5.4.13');
+                const issuerName = getAttrValue(leafCertObj.issuer, 'Common Name', '2.5.4.3');
                 const forensic = sig.forensic;
 
                 let signingTime = null;
@@ -1023,16 +1386,16 @@
                 const timeAnomalyText = forensic.timeAnomaly ? t('anomalyDetected') : t('noAnomaly');
                 const timeAnomalyColor = forensic.timeAnomaly ? 'text-red-600' : 'text-emerald-600';
                 
-                let trustBadgeHtml = '';
+                let trustBadgeHtml = "";
                 const issuerLower = (issuerName || '').toLowerCase();
                 const subjectLower = (signerName || '').toLowerCase();
 
-                if (issuerLower.includes('bsre') || issuerLower.includes('badan siber') || issuerLower.includes('kominfo')) {
-                    trustBadgeHtml = `<div class="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded w-max"><i data-lucide="badge-check" class="w-[12px] h-[12px]"></i> Valid (Trusted CA)</div>`;
-                } else if (issuerLower === subjectLower || issuerLower.includes('self-signed')) {
-                    trustBadgeHtml = `<div class="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded w-max"><i data-lucide="shield-alert" class="w-[12px] h-[12px]"></i> Self-Signed (Untrusted)</div>`;
+                if (issuerLower.indexOf('bsre') !== -1 || issuerLower.indexOf('badan siber') !== -1 || issuerLower.indexOf('kominfo') !== -1 || issuerLower.indexOf('privy') !== -1 || issuerLower.indexOf('peruri') !== -1) {
+                    trustBadgeHtml = '<div class="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded w-max"><i data-lucide="badge-check" class="w-[12px] h-[12px]"></i> Valid (Trusted CA)</div>';
+                } else if (issuerLower === subjectLower || issuerLower.indexOf('self-signed') !== -1) {
+                    trustBadgeHtml = '<div class="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded w-max"><i data-lucide="shield-alert" class="w-[12px] h-[12px]"></i> Self-Signed (Untrusted)</div>';
                 } else {
-                    trustBadgeHtml = `<div class="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-slate-500 bg-slate-500/10 px-2 py-0.5 rounded w-max"><i data-lucide="help-circle" class="w-[12px] h-[12px]"></i> Unknown CA</div>`;
+                    trustBadgeHtml = '<div class="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-slate-500 bg-slate-500/10 px-2 py-0.5 rounded w-max"><i data-lucide="help-circle" class="w-[12px] h-[12px]"></i> Unknown CA</div>';
                 }
 
                 const secIcon = forensic.isEncrypted ? '<i data-lucide="lock" class="w-[14px] h-[14px] inline mb-0.5"></i>' : '<i data-lucide="unlock" class="w-[14px] h-[14px] inline mb-0.5"></i>';
@@ -1047,37 +1410,24 @@
                 const tsaColor = forensic.hasTSA ? 'text-emerald-700' : 'text-amber-700';
                 const tsaText = forensic.hasTSA ? t('tsaPresent') : t('tsaMissing');
 
-                const bsreHtml = bsreId ? `
-                    <div class="bg-indigo-500/5 border border-indigo-500/20 rounded-xl p-4 flex gap-3 items-start">
-                        <i data-lucide="fingerprint" class="w-[20px] h-[20px] text-indigo-500 mt-1 shrink-0"></i>
-                        <div class="overflow-hidden">
-                            <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">${t('bsreId')}</p>
-                            <p class="text-sm font-mono font-bold text-[var(--text-main)] break-all">${bsreId}</p>
-                        </div>
-                    </div>` : '';
+                let bsreHtml = "";
+                if (bsreId && bsreId !== '-') {
+                    bsreHtml = '<div class="bg-indigo-500/5 border border-indigo-500/20 rounded-xl p-4 flex gap-3 items-start"><i data-lucide="fingerprint" class="w-[20px] h-[20px] text-indigo-500 mt-1 shrink-0"></i><div class="overflow-hidden"><p class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">' + t('bsreId') + '</p><p class="text-sm font-mono font-bold text-[var(--text-main)] break-all">' + bsreId + '</p></div></div>';
+                }
 
-                let logsHtml = '';
+                let logsHtml = "";
                 sig.debugLogs.forEach(log => {
-                    logsHtml += `<div class="mb-1">&gt; ${log}</div>`;
+                    logsHtml += '<div class="mb-1">&gt; ' + log + '</div>';
                 });
 
-                let certChainHtml = '';
+                let certChainHtml = "";
                 if (forensic.certChainNames && forensic.certChainNames.length > 0) {
-                    forensic.certChainNames.reverse().forEach((name, i) => {
+                    forensic.certChainNames.slice().reverse().forEach((name, i) => {
                         const isLeaf = i === forensic.certChainNames.length - 1;
-                        certChainHtml += `
-                            <div class="flex items-center gap-3">
-                                <div class="w-6 h-6 rounded-full bg-[var(--preview-bg)] border border-[var(--border-color)] flex items-center justify-center shrink-0 z-10">
-                                    <i data-lucide="${isLeaf ? 'user' : 'award'}" class="w-[12px] h-[12px] ${isLeaf ? 'text-blue-500' : 'text-[var(--text-dim)]'}"></i>
-                                </div>
-                                <div class="flex-1 bg-[var(--preview-bg)] p-3 rounded-lg border border-[var(--border-color)]">
-                                    <p class="text-xs font-bold text-[var(--text-main)] truncate" title="${name}">${name}</p>
-                                </div>
-                            </div>
-                        `;
+                        certChainHtml += '<div class="flex items-center gap-3"><div class="w-6 h-6 rounded-full bg-[var(--preview-bg)] border border-[var(--border-color)] flex items-center justify-center shrink-0 z-10"><i data-lucide="' + (isLeaf ? 'user' : 'award') + '" class="w-[12px] h-[12px] ' + (isLeaf ? 'text-blue-500' : 'text-[var(--text-dim)]') + '"></i></div><div class="flex-1 bg-[var(--preview-bg)] p-3 rounded-lg border border-[var(--border-color)]"><p class="text-xs font-bold text-[var(--text-main)] truncate" title="' + name + '">' + name + '</p></div></div>';
                     });
                 } else {
-                    certChainHtml = `<p class="text-xs text-[var(--text-dim)]">Rantai sertifikat tidak tersedia.</p>`;
+                    certChainHtml = '<p class="text-xs text-[var(--text-dim)]">Rantai sertifikat tidak tersedia.</p>';
                 }
 
                 const openAttr = totalSigs === 1 ? 'open' : '';
@@ -1175,7 +1525,7 @@
                             <div class="p-4 space-y-4 border-t border-[var(--border-color)] bg-[var(--card-bg)]">
                                 <div><p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('sigAlgo')}</p><p class="text-xs font-mono font-semibold text-[var(--text-main)] break-all">${forensic.algorithm || '-'}</p></div>
                                 <div><p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('nik')}</p><p class="text-xs font-semibold text-[var(--text-main)] break-all">${signerNik || t('unknownNik')}</p></div>
-                                <div><p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('validity')}</p><p class="text-xs font-medium text-[var(--text-dim)]">${formatDate(leafCert.validFrom)} <span class="mx-1 font-bold text-[var(--text-main)]">${t('to')}</span> ${formatDate(leafCert.validTo)}</p></div>
+                                <div><p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('validity')}</p><p class="text-xs font-medium text-[var(--text-dim)]">${formatDate(leafCertObj.validFrom)} <span class="mx-1 font-bold text-[var(--text-main)]">${t('to')}</span> ${formatDate(leafCertObj.validTo)}</p></div>
                                 <div><p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('fingerprint')}</p><p class="text-xs font-mono font-semibold text-[var(--text-main)] break-all">${forensic.fingerprint || '-'}</p></div>
                                 <div><p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('subjectDn')}</p><p class="text-xs font-medium text-[var(--text-main)] break-words">${forensic.subjectDN || '-'}</p></div>
                                 <div><p class="text-[9px] text-[var(--text-dim)] font-bold uppercase mb-1">${t('issuerDn')}</p><p class="text-xs font-medium text-[var(--text-main)] break-words">${forensic.issuerDN || '-'}</p></div>
@@ -1231,12 +1581,16 @@
             el.reportActions.classList.add('hidden-el');
             el.canvasLoading.classList.remove('hidden-el');
             el.canvasError.classList.add('hidden-el');
-            el.canvasContainer.classList.add('hidden-el');
+            el.canvasWrapper.classList.add('hidden-el');
             el.qrBanner.classList.add('hidden-el');
             el.filterBanner.classList.add('hidden-el');
             el.successBadge.classList.add('hidden-el');
             el.noSignBadge.classList.add('hidden-el');
             el.signaturesList.innerHTML = '';
+
+            const updateProgress = (msg) => {
+                el.lblPainting.textContent = msg;
+            };
 
             try {
                 const arrayBuffer = await file.arrayBuffer();
@@ -1256,21 +1610,14 @@
                 if (window.pdfjsLib) {
                     try {
                         const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
-                        const { bestPageNum, foundQrUrl } = await scanPageForSignatureAndQR(pdf);
                         
-                        if (foundQrUrl) {
-                            el.qrUrlText.textContent = foundQrUrl;
-                            el.qrUrlText.title = foundQrUrl;
-                            el.qrUrlBtn.href = foundQrUrl;
-                            el.qrBanner.classList.remove('hidden-el');
-                        }
-
-                        if (pdf.numPages > 1) {
-                            el.filterBanner.classList.remove('hidden-el');
-                        }
-
-                        el.canvasLoading.classList.add('hidden-el');
+                        el.canvasLoading.classList.remove('hidden-el');
+                        el.lblPaintingSub.classList.remove('hidden-el');
+                        
                         try {
+                            const { bestPageNum, foundQrUrl } = await scanPageForSignatureAndQR(pdf, updateProgress);
+                            
+                            updateProgress("Merender Pratinjau Akhir...");
                             const page = await pdf.getPage(bestPageNum);
                             const viewport = page.getViewport({ scale: 1.5 });
                             const ctx = el.pdfCanvas.getContext('2d');
@@ -1278,10 +1625,24 @@
                             el.pdfCanvas.width = viewport.width;
                             await page.render({ canvasContext: ctx, viewport }).promise;
                             
-                            el.canvasPageBadge.textContent = `${t('hal')} ${bestPageNum}`;
-                            el.canvasContainer.classList.remove('hidden-el');
+                            el.canvasLoading.classList.add('hidden-el');
+                            el.canvasPageBadge.textContent = t('hal') + " " + bestPageNum;
+                            el.canvasWrapper.classList.remove('hidden-el');
+
+                            if (foundQrUrl) {
+                                el.qrUrlText.textContent = foundQrUrl;
+                                el.qrUrlText.title = foundQrUrl;
+                                el.qrUrlBtn.href = foundQrUrl;
+                                el.qrBanner.classList.remove('hidden-el');
+                            }
+
+                            if (pdf.numPages > 1) {
+                                el.filterBanner.classList.remove('hidden-el');
+                            }
+
                         } catch(renderErr) {
                             console.error(renderErr);
+                            el.canvasLoading.classList.add('hidden-el');
                             el.canvasError.classList.remove('hidden-el');
                         }
                     } catch(pdfErr) {
@@ -1366,57 +1727,72 @@
             const issuerLower = (issuerName || '').toLowerCase();
             const subjectLower = (signerName || '').toLowerCase();
             let trustLevel = "Unknown CA";
-            if (issuerLower.includes('bsre') || issuerLower.includes('badan siber') || issuerLower.includes('kominfo')) trustLevel = "Trusted CA";
-            else if (issuerLower === subjectLower || issuerLower.includes('self-signed')) trustLevel = "Self-Signed";
+            if (issuerLower.indexOf('bsre') !== -1 || issuerLower.indexOf('badan siber') !== -1 || issuerLower.indexOf('kominfo') !== -1 || issuerLower.indexOf('privy') !== -1 || issuerLower.indexOf('peruri') !== -1) {
+                trustLevel = "Trusted CA";
+            } else if (issuerLower === subjectLower || issuerLower.indexOf('self-signed') !== -1) {
+                trustLevel = "Self-Signed";
+            }
 
             return {
-                signerName, signerOrg, signerNik, bsreId, issuerName, signingTime,
-                integrityText, trustLevel, forensic, leafCert
+                signerName: signerName, 
+                signerOrg: signerOrg, 
+                signerNik: signerNik, 
+                bsreId: bsreId, 
+                issuerName: issuerName, 
+                signingTime: signingTime,
+                integrityText: integrityText, 
+                trustLevel: trustLevel, 
+                forensic: forensic, 
+                leafCert: leafCert
             };
         }
 
         function generateReport(type) {
-            let report = `📄 ${t(type === 'short' ? 'shortReportTitle' : 'detailedReportTitle')}\n`;
-            report += `File: ${currentFileName}\n`;
-            report += `Status: ${documentSignatures.length} ${t('statusFoundReport')}\n`;
-            report += `=========================================\n\n`;
+            let report = "📄 " + t(type === 'short' ? 'shortReportTitle' : 'detailedReportTitle') + "\n";
+            report += "File: " + currentFileName + "\n";
+            report += "Status: " + documentSignatures.length + " " + t('statusFoundReport') + "\n";
+            report += "=========================================\n\n";
 
             documentSignatures.forEach((sig, idx) => {
-                if (sig.error) return;
+                if (sig.error) {
+                    report += "[" + (idx + 1) + "] ERROR: " + sig.error + "\n";
+                    report += "-----------------------------------------\n\n";
+                    return;
+                }
                 const d = extractSigData(sig);
                 
                 if (type === 'short') {
-                    report += `[${idx + 1}] ${d.signerName}\n`;
-                    report += `    - Otoritas: ${d.issuerName} (${d.trustLevel})\n`;
-                    report += `    - Integritas: ${d.integrityText}\n`;
-                    report += `    - Waktu TTD: ${d.signingTime}\n\n`;
+                    report += "[" + (idx + 1) + "] " + d.signerName + "\n";
+                    report += "    - Otoritas: " + d.issuerName + " (" + d.trustLevel + ")\n";
+                    report += "    - Integritas: " + d.integrityText + "\n";
+                    report += "    - Waktu TTD: " + d.signingTime + "\n\n";
                 } else {
-                    report += `[${idx + 1}] PENANDATANGAN: ${d.signerName}\n`;
-                    report += `    Organisasi: ${d.signerOrg}\n`;
-                    report += `    NIP/NIK: ${d.signerNik}\n`;
-                    if (d.bsreId !== '-') report += `    ID Transaksi (BSrE): ${d.bsreId}\n`;
-                    report += `\n    🛡️ KRIPTOGRAFI & SERTIFIKAT:\n`;
-                    report += `      - Otoritas (CA): ${d.issuerName} (${d.trustLevel})\n`;
-                    report += `      - Waktu TTD: ${d.signingTime}\n`;
-                    report += `      - Masa Berlaku: ${formatDate(d.leafCert.validFrom)} s.d ${formatDate(d.leafCert.validTo)}\n`;
-                    report += `      - Algoritma: ${d.forensic.algorithm || '-'}\n`;
-                    report += `      - Fingerprint: ${d.forensic.fingerprint || '-'}\n\n`;
-                    report += `    🔍 ANALISIS FORENSIK:\n`;
-                    report += `      - Integritas (ByteRange): ${d.integrityText}\n`;
-                    report += `      - Security: ${d.forensic.isEncrypted ? 'Protected/Terenkripsi' : 'Terbuka'}\n`;
-                    report += `      - LTV (Long-Term): ${d.forensic.hasLTV ? 'Mendukung' : 'Tidak'}\n`;
-                    report += `      - TSA (Timestamp): ${d.forensic.hasTSA ? 'Ada' : 'Tidak'}\n`;
-                    report += `      - Anomali Waktu: ${d.forensic.timeAnomaly ? 'Terdeteksi (Warning!)' : 'Aman'}\n`;
-                    report += `      - Alasan & Lokasi: ${d.forensic.reason || '-'} | ${d.forensic.location || '-'}\n`;
-                    report += `-----------------------------------------\n\n`;
+                    report += "[" + (idx + 1) + "] PENANDATANGAN: " + d.signerName + "\n";
+                    report += "    Organisasi: " + d.signerOrg + "\n";
+                    report += "    NIP/NIK: " + d.signerNik + "\n";
+                    if (d.bsreId !== '-') report += "    ID Transaksi (BSrE): " + d.bsreId + "\n";
+                    report += "\n    🛡️ KRIPTOGRAFI & SERTIFIKAT:\n";
+                    report += "      - Otoritas (CA): " + d.issuerName + " (" + d.trustLevel + ")\n";
+                    report += "      - Waktu TTD: " + d.signingTime + "\n";
+                    report += "      - Masa Berlaku: " + formatDate(d.leafCert.validFrom) + " s.d " + formatDate(d.leafCert.validTo) + "\n";
+                    report += "      - Algoritma: " + (d.forensic.algorithm || '-') + "\n";
+                    report += "      - Fingerprint: " + (d.forensic.fingerprint || '-') + "\n\n";
+                    report += "    🔍 ANALISIS FORENSIK:\n";
+                    report += "      - Integritas (ByteRange): " + d.integrityText + "\n";
+                    report += "      - Security: " + (d.forensic.isEncrypted ? 'Protected/Terenkripsi' : 'Terbuka') + "\n";
+                    report += "      - LTV (Long-Term): " + (d.forensic.hasLTV ? 'Mendukung' : 'Tidak') + "\n";
+                    report += "      - TSA (Timestamp): " + (d.forensic.hasTSA ? 'Ada' : 'Tidak') + "\n";
+                    report += "      - Anomali Waktu: " + (d.forensic.timeAnomaly ? 'Terdeteksi (Warning!)' : 'Aman') + "\n";
+                    report += "      - Alasan & Lokasi: " + (d.forensic.reason || '-') + " | " + (d.forensic.location || '-') + "\n";
+                    report += "-----------------------------------------\n\n";
                 }
             });
 
             copyToClipboard(report);
         }
 
-        if (el.btnCopyShort) el.btnCopyShort.addEventListener('click', () => generateReport('short'));
-        if (el.btnCopyDetailed) el.btnCopyDetailed.addEventListener('click', () => generateReport('detailed'));
+        if (el.btnCopyShort) el.btnCopyShort.addEventListener('click', function() { generateReport('short'); });
+        if (el.btnCopyDetailed) el.btnCopyDetailed.addEventListener('click', function() { generateReport('detailed'); });
 
         // START
         init();
