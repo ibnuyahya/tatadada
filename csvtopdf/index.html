@@ -1,0 +1,780 @@
+<!-- 
+  TAFSIR VISUAL ICON:
+  Ikon didesain bergaya visionOS dengan konsep "Data Core". 
+  Piringan dasar berbahan kaca frosted, di atasnya terdapat bodi mesin pengolah data (Resin Putih berlapis) 
+  dengan rongga lensa (Resin Gelap) di tengahnya. Di dalam lensa, terdapat ornamen data berwarna 
+  kontras (Hijau Apple, Oranye, dan Neon Cyan) yang melambangkan ekstraksi variabel CSV menjadi grid PDF.
+-->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSVtoPDF - Smart Converter</title>
+    <!-- Tailwind & Lucide (Framework Default) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- jsPDF for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <!-- PDF.js for High-Res Image Preview Rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Setup worker for PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        /* TATADADA CSS TOKENS (Mandatory) */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Token Mapping Classes */
+        .bg-header { background-color: var(--header-bg); }
+        .bg-editor { background-color: var(--editor-bg); }
+        .bg-preview { background-color: var(--preview-bg); }
+        .bg-card { background-color: var(--card-bg); }
+        .bg-footer { background-color: var(--footer-bg); }
+        .border-theme { border-color: var(--border-color); }
+        .text-main { color: var(--text-main); }
+        .text-dim { color: var(--text-dim); }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Editor Syntax Formatting */
+        .font-data { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Table Aesthetics */
+        .spreadsheet-cell {
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            padding: 8px 12px;
+            white-space: nowrap;
+            font-size: 13px;
+            color: var(--text-main);
+        }
+        .spreadsheet-header {
+            background-color: var(--preview-bg);
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            text-align: center;
+            font-weight: 600;
+            color: var(--text-dim);
+            font-size: 12px;
+            user-select: none;
+        }
+
+        /* Protect canvas from selection */
+        .no-select-protect {
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- A. HEADER -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-rose-500 to-orange-500 flex items-center justify-center text-white shadow-md">
+                <i data-lucide="file-text" class="w-5 h-5"></i>
+            </div>
+            <div class="flex flex-col -space-y-1">
+                <h1 class="font-bold text-base bg-clip-text text-transparent bg-gradient-to-r from-rose-500 to-orange-500 dark:from-rose-400 dark:to-orange-400">CSVtoPDF</h1>
+                <div class="flex items-center gap-1">
+                    <span class="text-[10px] italic text-dim">v5.5</span>
+                    <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500">by AhmadDanial</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <!-- Lokalisasi -->
+            <button id="lang-toggle" class="flex items-center justify-center w-8 h-6 rounded-md border border-theme bg-preview hover:bg-card transition-colors text-[10px] font-bold text-dim shadow-sm">
+                ID
+            </button>
+
+            <!-- Tooltip Bantuan -->
+            <div class="relative group">
+                <button class="text-dim hover:text-main transition-colors p-1 rounded-full hover:bg-preview">
+                    <i data-lucide="help-circle" class="w-5 h-5"></i>
+                </button>
+                <div class="absolute right-0 top-10 w-72 bg-card border border-theme shadow-xl rounded-xl p-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 scale-95 group-hover:scale-100 origin-top-right">
+                    <h4 class="font-bold text-xs mb-2 text-main" id="t-help-title">Bantuan Cepat</h4>
+                    <ul class="text-[11px] text-dim space-y-2" id="t-help-list">
+                        <li>1. Paste data CSV (dipisah koma) di editor kiri.</li>
+                        <li>2. Klik 'Preview Tabel' untuk merender grid.</li>
+                        <li>3. Pilih mode Fit lalu klik 'PREVIEW PDF' atau 'UNDUH PDF'.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Dark Mode Toggle -->
+            <button id="theme-toggle" class="text-dim hover:text-main transition-colors p-1 rounded-full hover:bg-preview">
+                <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
+                <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- B. MAIN WORKSPACE -->
+    <main class="flex-1 flex overflow-hidden">
+        
+        <!-- Panel Kiri (Editor Textarea) -->
+        <div id="left-pane" class="flex-[5] bg-editor relative overflow-hidden flex flex-col min-w-[300px]">
+            <div class="h-12 border-b border-theme bg-card px-4 flex items-center justify-between shrink-0">
+                <span class="text-[10px] font-bold text-dim uppercase tracking-widest flex items-center gap-1.5" id="t-label-csv">
+                    <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> INPUT CSV
+                </span>
+                <div class="flex items-center gap-3">
+                    <input type="file" id="file-input" accept=".csv,.txt" class="hidden">
+                    <button id="btn-upload" class="text-[10px] font-bold text-rose-500 hover:text-rose-600 uppercase transition-colors flex items-center gap-1">
+                        <i data-lucide="upload" class="w-3 h-3"></i> <span id="t-btn-upload">Unggah</span>
+                    </button>
+                    <div class="w-px h-3 bg-[var(--border-color)]"></div>
+                    <button id="btn-clear" class="text-[10px] font-bold text-red-500 hover:text-red-600 uppercase transition-colors" id="t-label-clear">Bersihkan</button>
+                </div>
+            </div>
+            
+            <div class="flex-1 flex overflow-hidden relative group bg-editor">
+                <!-- Gutter Nomor Baris -->
+                <div id="gutter-wrapper" class="w-12 bg-preview border-r border-theme overflow-hidden shrink-0">
+                    <div id="line-numbers" class="text-right pr-2 py-4 text-[13px] text-dim font-data leading-[1.6] select-none">1</div>
+                </div>
+                <!-- Textarea -->
+                <textarea 
+                    id="csv-input" 
+                    class="flex-1 w-full bg-transparent p-4 text-[13px] text-main font-data leading-[1.6] outline-none resize-none whitespace-pre focus:ring-1 focus:ring-rose-500/20 transition-colors" 
+                    wrap="off"
+                    spellcheck="false"
+                    placeholder="Tulis CSV, paste, klik unggah, atau drag-and-drop file CSV Anda ke sini..."></textarea>
+            </div>
+            
+            <div class="p-4 bg-card border-t border-theme shrink-0">
+                <button id="btn-convert" class="w-full bg-slate-800 dark:bg-rose-600 hover:bg-slate-900 dark:hover:bg-rose-500 text-white py-2.5 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-sm focus:ring-2 focus:ring-rose-500/20 active:scale-[0.98]">
+                    <i data-lucide="play" class="w-4 h-4"></i>
+                    <span id="t-btn-convert">PREVIEW TABEL</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Resizer (Gutter Tebal) -->
+        <div id="resizer" class="w-3 bg-preview cursor-col-resize flex items-center justify-center border-x border-theme group shrink-0 z-20">
+            <div class="h-10 w-1 bg-[var(--border-color)] rounded-full group-hover:bg-rose-500 transition-colors"></div>
+        </div>
+
+        <!-- Panel Kanan (Tabel Preview) -->
+        <div id="right-pane" class="flex-[7] bg-preview p-4 sm:p-5 flex flex-col gap-4 overflow-hidden relative">
+            <div class="bg-card rounded-xl shadow-sm border border-theme flex-1 flex flex-col overflow-hidden relative">
+                
+                <!-- Toolbar Tabel -->
+                <div class="h-12 border-b border-theme bg-card px-5 flex items-center justify-between shrink-0">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="table-2" class="w-4 h-4 text-rose-500"></i>
+                        <span class="font-bold text-xs text-main" id="t-label-preview">Grid Data</span>
+                    </div>
+                    
+                    <!-- Toolbar Export dengan Opsi Mode PDF -->
+                    <div id="export-tools" class="hidden items-center border border-theme rounded-lg bg-preview shadow-sm overflow-hidden h-8">
+                        <select id="pdf-layout" class="bg-transparent text-[11px] font-bold text-main py-1 pl-3 pr-2 outline-none cursor-pointer border-r border-theme h-full appearance-none">
+                            <option value="normal" id="t-opt-normal">Mode: Normal (Multi-Halaman)</option>
+                            <option value="fit-cols" id="t-opt-fitcols">Mode: Fit All Columns</option>
+                            <option value="fit-rows" id="t-opt-fitrows">Mode: Fit All Rows</option>
+                            <option value="fit-all" id="t-opt-fitall">Mode: Fit All (1 Halaman)</option>
+                        </select>
+                        
+                        <button id="btn-preview-pdf" class="flex items-center gap-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 text-indigo-600 dark:text-indigo-400 px-3 py-1 h-full text-[11px] font-bold transition-all border-r border-theme focus:outline-none">
+                            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                            <span id="t-btn-preview">PREVIEW PDF</span>
+                        </button>
+                        
+                        <button id="btn-download" class="flex items-center gap-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 text-rose-600 dark:text-rose-400 px-4 py-1 h-full text-[11px] font-bold transition-all focus:outline-none">
+                            <i data-lucide="file-down" class="w-3.5 h-3.5"></i>
+                            <span id="t-btn-download">UNDUH PDF</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Notifikasi Kesalahan -->
+                <div id="error-box" class="hidden absolute top-16 left-1/2 -translate-x-1/2 bg-card border border-red-200 dark:border-red-900/40 rounded-xl px-5 py-4 shadow-xl flex items-start gap-3 z-50 w-11/12 max-w-sm animate-in slide-in-from-top-4 duration-200">
+                    <i data-lucide="alert-circle" class="w-5 h-5 shrink-0 text-red-500 mt-0.5"></i>
+                    <div>
+                        <h5 class="font-bold text-xs text-main mb-1" id="t-err-title">Parsing Gagal</h5>
+                        <span id="error-msg" class="text-[11px] text-dim leading-relaxed"></span>
+                        <div class="mt-3 text-right">
+                            <button onclick="hideError()" class="text-[10px] font-bold text-red-500 hover:text-red-600 uppercase">Tutup</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="flex-1 flex flex-col items-center justify-center text-dim p-8 text-center bg-editor">
+                    <div class="p-4 bg-preview rounded-full mb-4 ring-1 ring-[var(--border-color)]">
+                        <i data-lucide="blocks" class="w-8 h-8 opacity-40"></i>
+                    </div>
+                    <p class="font-bold text-sm text-main" id="t-empty-title">Menunggu Data</p>
+                    <p class="text-xs mt-1.5 max-w-[220px] leading-relaxed" id="t-empty-desc">Tabel data akan dirender secara dinamis di area ini sebelum dijadikan PDF.</p>
+                </div>
+
+                <!-- Kontainer Tabel Modern -->
+                <div id="table-container" class="hidden flex-1 overflow-auto bg-editor p-4">
+                    <div class="rounded-xl border border-theme overflow-hidden w-max min-w-full shadow-sm">
+                        <table class="min-w-full border-separate border-spacing-0">
+                            <thead id="table-head" class="sticky top-0 z-20 shadow-[0_1px_0_var(--border-color)]"></thead>
+                            <tbody id="table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- C. FOOTER -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 z-50">
+        <div class="flex gap-4 items-center">
+            <span class="flex items-center gap-1.5" title="Sistem Berjalan Normal"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Aktif</span>
+            <span id="stat-info" class="font-medium">0 Baris • 0 Kolom</span>
+        </div>
+        <div id="heuristic-name" class="font-data opacity-60 truncate max-w-[250px] hidden sm:block">Sistem Pintar: Menunggu</div>
+        <button id="btn-terms" class="hover:text-main underline decoration-dotted underline-offset-2 transition-colors">Kebijakan Privasi</button>
+    </footer>
+
+    <!-- MODAL TERMS (TATADADA STRICT COMPLIANT) -->
+    <div id="modal-terms" class="hidden fixed inset-0 z-[100] bg-black/20 backdrop-blur-sm flex items-center justify-center p-6">
+        <div class="bg-card rounded-2xl shadow-2xl p-6 max-w-lg w-full border border-theme animate-in zoom-in duration-200">
+            <h2 class="text-lg font-bold mb-4 text-main" id="t-terms-title">Kebijakan Sistem & PDF</h2>
+            <div class="text-xs text-dim leading-relaxed space-y-3 mb-6" id="t-terms-content">
+                <p><strong>1. Pemrosesan Lokal:</strong> Ekstraksi data CSV dan konversi PDF dilakukan sepenuhnya di memori browser Anda (Client-Side). Tidak ada data yang dikirim ke server.</p>
+                <p><strong>2. Paginasi & Unicode:</strong> Sistem mendukung paginasi cerdas dan pemetaan otomatis ikon emoji CSV menjadi simbol monokrom cetak.</p>
+                <p class="mt-4 pt-4 border-t border-theme italic font-medium">"Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya."</p>
+            </div>
+            <button onclick="toggleTerms()" id="t-terms-btn" class="w-full py-2.5 bg-slate-800 dark:bg-rose-600 hover:bg-slate-900 dark:hover:bg-rose-500 text-white rounded-lg font-bold text-xs transition-colors">SAYA MENGERTI</button>
+        </div>
+    </div>
+
+    <!-- MODAL PREVIEW PDF (BERBASIS GAMBAR CANVAS) -->
+    <div id="modal-pdf-preview" class="hidden fixed inset-0 z-[110] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6">
+        <div class="bg-card rounded-2xl shadow-2xl flex flex-col w-full max-w-6xl h-full max-h-[90vh] border border-theme animate-in zoom-in duration-200 overflow-hidden">
+            <div class="h-14 border-b border-theme flex items-center justify-between px-5 shrink-0 bg-header">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="image" class="w-5 h-5 text-indigo-500"></i>
+                    <h2 class="text-sm font-bold text-main" id="t-preview-title">Preview Dokumen (High-Res Render)</h2>
+                </div>
+                <button id="btn-close-preview" class="text-dim hover:text-red-500 transition-colors p-1.5 rounded-full hover:bg-preview bg-preview sm:bg-transparent">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <!-- Kontainer Canvas -->
+            <div id="pdf-preview-container" class="flex-1 p-6 bg-slate-200 dark:bg-slate-900 overflow-y-auto flex flex-col gap-8 items-center no-select-protect" oncontextmenu="return false;">
+                <!-- Canvas akan dirender disini oleh PDF.js -->
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIKA APLIKASI -->
+    <script>
+        // INISIALISASI IKON
+        lucide.createIcons();
+
+        // STATE APLIKASI
+        let globalHeaders = [];
+        let globalRows = [];
+        let currentSort = { col: null, dir: 'asc' };
+        let heuristicFilename = 'Data_Export.pdf';
+        let sourceFilename = 'Input Manual (Teks)'; // Melacak asal data CSV
+        let currentLang = localStorage.getItem('lang') || 'ID';
+
+        // ELEMEN DOM
+        const csvInput = document.getElementById('csv-input');
+        const gutterWrapper = document.getElementById('gutter-wrapper');
+        const lineNumbers = document.getElementById('line-numbers');
+        const resizer = document.getElementById('resizer');
+        const leftPane = document.getElementById('left-pane');
+        const emptyState = document.getElementById('empty-state');
+        const tableContainer = document.getElementById('table-container');
+        const btnConvert = document.getElementById('btn-convert');
+        const btnClear = document.getElementById('btn-clear');
+        const btnUpload = document.getElementById('btn-upload');
+        const fileInput = document.getElementById('file-input');
+        const statInfo = document.getElementById('stat-info');
+        const errBox = document.getElementById('error-box');
+        const pdfPreviewContainer = document.getElementById('pdf-preview-container');
+
+        // 1. PENGATURAN TEMA (DARK MODE)
+        const themeToggle = document.getElementById('theme-toggle');
+        const html = document.documentElement;
+        if (localStorage.getItem('theme') === 'dark') html.classList.add('dark');
+        themeToggle.addEventListener('click', () => {
+            html.classList.toggle('dark');
+            localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+        });
+
+        // 2. LOKALISASI (BILINGUAL) dengan Klausul Terms Ketat TATADADA
+        const dict = {
+            ID: {
+                helpTitle: "Bantuan Cepat", helpList: "<li>1. Paste data CSV di editor.</li><li>2. Klik 'Preview Tabel'.</li><li>3. Pilih mode Fit lalu klik 'PREVIEW PDF' atau 'UNDUH PDF'.</li>",
+                csvLabel: "INPUT CSV", clearBtn: "Bersihkan", convBtn: "PREVIEW TABEL",
+                prevLabel: "Grid Data", dlBtn: "UNDUH PDF", previewBtn: "PREVIEW PDF",
+                emptyTitle: "Menunggu Data", emptyDesc: "Tabel data akan dirender secara dinamis di area ini.",
+                errTitle: "Parsing Gagal", uploadBtn: "Unggah",
+                optNormal: "Mode: Normal (Multi-Halaman)", optFitCols: "Mode: Fit All Columns", optFitRows: "Mode: Fit All Rows", optFitAll: "Mode: Fit All (1 Halaman)",
+                previewTitle: "Preview Dokumen (High-Res Render)",
+                termsTitle: "Kebijakan Sistem & PDF",
+                termsContent: `
+                    <p><strong>1. Pemrosesan Lokal:</strong> Ekstraksi data CSV dan konversi PDF dilakukan sepenuhnya di memori browser Anda (Client-Side). Tidak ada data yang dikirim ke server.</p>
+                    <p><strong>2. Paginasi & Unicode:</strong> Sistem mendukung paginasi cerdas dan pemetaan otomatis ikon emoji CSV menjadi simbol monokrom cetak.</p>
+                    <p class="mt-4 pt-4 border-t border-theme italic font-medium">"Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya."</p>
+                `,
+                termsBtn: "SAYA MENGERTI"
+            },
+            EN: {
+                helpTitle: "Quick Help", helpList: "<li>1. Paste CSV data to editor.</li><li>2. Click 'Table Preview'.</li><li>3. Select fit mode and PREVIEW or DOWNLOAD.</li>",
+                csvLabel: "CSV INPUT", clearBtn: "Clear", convBtn: "PREVIEW TABLE",
+                prevLabel: "Data Grid", dlBtn: "DOWNLOAD PDF", previewBtn: "PREVIEW PDF",
+                emptyTitle: "Awaiting Data", emptyDesc: "Data table will be rendered dynamically in this area.",
+                errTitle: "Parsing Failed", uploadBtn: "Upload",
+                optNormal: "Mode: Normal (Multi-Page)", optFitCols: "Mode: Fit All Columns", optFitRows: "Mode: Fit All Rows", optFitAll: "Mode: Fit All (1 Page)",
+                previewTitle: "Document Preview (High-Res Render)",
+                termsTitle: "System & PDF Policy",
+                termsContent: `
+                    <p><strong>1. Local Processing:</strong> CSV data extraction and PDF conversion are done entirely in your browser's memory (Client-Side). No data is sent to the server.</p>
+                    <p><strong>2. Pagination & Unicode:</strong> The system supports smart pagination and automatic mapping of CSV emojis to monochrome document symbols.</p>
+                    <p class="mt-4 pt-4 border-t border-theme italic font-medium">"There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app does not store your personal data on our servers. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms."</p>
+                `,
+                termsBtn: "I UNDERSTAND"
+            }
+        };
+
+        const updateLang = () => {
+            const d = dict[currentLang];
+            document.getElementById('lang-toggle').textContent = currentLang;
+            document.getElementById('t-help-title').textContent = d.helpTitle;
+            document.getElementById('t-help-list').innerHTML = d.helpList;
+            document.getElementById('t-label-csv').innerHTML = `<i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> ${d.csvLabel}`;
+            document.getElementById('btn-clear').textContent = d.clearBtn;
+            document.getElementById('t-btn-convert').textContent = d.convBtn;
+            document.getElementById('t-label-preview').textContent = d.prevLabel;
+            document.getElementById('t-btn-download').textContent = d.dlBtn;
+            document.getElementById('t-btn-preview').textContent = d.previewBtn;
+            document.getElementById('t-empty-title').textContent = d.emptyTitle;
+            document.getElementById('t-empty-desc').textContent = d.emptyDesc;
+            document.getElementById('t-err-title').textContent = d.errTitle;
+            document.getElementById('t-btn-upload').textContent = d.uploadBtn;
+            
+            document.getElementById('t-opt-normal').textContent = d.optNormal;
+            document.getElementById('t-opt-fitcols').textContent = d.optFitCols;
+            document.getElementById('t-opt-fitrows').textContent = d.optFitRows;
+            document.getElementById('t-opt-fitall').textContent = d.optFitAll;
+            
+            document.getElementById('t-preview-title').textContent = d.previewTitle;
+            document.getElementById('t-terms-title').textContent = d.termsTitle;
+            document.getElementById('t-terms-content').innerHTML = d.termsContent;
+            document.getElementById('t-terms-btn').textContent = d.termsBtn;
+            
+            lucide.createIcons();
+        };
+        
+        document.getElementById('lang-toggle').addEventListener('click', () => {
+            currentLang = currentLang === 'ID' ? 'EN' : 'ID';
+            localStorage.setItem('lang', currentLang);
+            updateLang();
+        });
+        updateLang();
+
+        // 3. SINKRONISASI GUTTER NOMOR BARIS
+        const updateLineNumbers = () => {
+            const lines = csvInput.value.split('\n').length;
+            lineNumbers.innerHTML = Array(lines).fill(0).map((_, i) => i + 1).join('<br>');
+        };
+        csvInput.addEventListener('input', updateLineNumbers);
+        csvInput.addEventListener('scroll', () => { gutterWrapper.scrollTop = csvInput.scrollTop; });
+        updateLineNumbers();
+
+        // 4. RESIZER SPLIT PANE
+        let isResizing = false;
+        resizer.addEventListener('mousedown', () => { isResizing = true; document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; });
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const newWidth = Math.max(300, Math.min(e.clientX, window.innerWidth - 300));
+            leftPane.style.flex = `0 0 ${newWidth}px`;
+        });
+        document.addEventListener('mouseup', () => { if(isResizing){ isResizing = false; document.body.style.cursor = ''; document.body.style.userSelect = ''; }});
+
+        // 5. MODAL LOGIC
+        const toggleTerms = () => document.getElementById('modal-terms').classList.toggle('hidden');
+        document.getElementById('btn-terms').addEventListener('click', toggleTerms);
+        
+        document.getElementById('btn-close-preview').addEventListener('click', () => {
+            document.getElementById('modal-pdf-preview').classList.add('hidden');
+            pdfPreviewContainer.innerHTML = ''; // Bersihkan memori canvas saat ditutup
+        });
+
+        // 6. CSV PARSER (Mendukung Quotes & Multiline)
+        const parseCSVText = (text) => {
+            let p = '', row = [''], ret = [row], i = 0, r = 0, s = !0, l;
+            for (l of text) {
+                if ('"' === l) {
+                    if (s && l === p) row[i] += l;
+                    s = !s;
+                } else if (',' === l && s) {
+                    l = row[++i] = '';
+                } else if ('\n' === l && s) {
+                    if ('\r' === p) row[i] = row[i].slice(0, -1);
+                    row = ret[++r] = [l = '']; i = 0;
+                } else {
+                    row[i] += l;
+                }
+                p = l;
+            }
+            if (ret.length > 0 && ret[ret.length - 1].length === 1 && ret[ret.length - 1][0] === '') ret.pop();
+            return ret;
+        };
+
+        const showError = (msg) => { document.getElementById('error-msg').textContent = msg; errBox.classList.remove('hidden'); };
+        window.hideError = () => { errBox.classList.add('hidden'); };
+
+        // 7. PROSES KONVERSI CSV KE PREVIEW
+        const processCSV = () => {
+            const csvText = csvInput.value.trim();
+            if(!csvText) return;
+            
+            btnConvert.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
+            hideError();
+
+            setTimeout(() => {
+                try {
+                    let grid = parseCSVText(csvText);
+                    if (grid.length === 0) throw new Error("Data CSV kosong atau format tidak dikenali.");
+
+                    let maxCols = Math.max(...grid.map(r => r.length));
+                    grid = grid.map(r => { while(r.length < maxCols) r.push(''); return r; });
+                    
+                    globalHeaders = grid[0];
+                    globalRows = grid.slice(1);
+                    currentSort = { col: null, dir: 'asc' };
+                    
+                    if (!heuristicFilename.endsWith('.pdf')) {
+                        const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
+                        heuristicFilename = `Data_Export_${date}.pdf`;
+                    }
+
+                    document.getElementById('heuristic-name').textContent = `Target: ${heuristicFilename}`;
+                    statInfo.textContent = `${globalRows.length} Baris • ${globalHeaders.length} Kolom`;
+                    
+                    renderTable();
+                    emptyState.classList.add('hidden');
+                    tableContainer.classList.remove('hidden');
+                    document.getElementById('export-tools').classList.replace('hidden', 'flex'); 
+                    
+                } catch (e) {
+                    showError(e.message);
+                } finally {
+                    btnConvert.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> <span id="t-btn-convert">${dict[currentLang].convBtn}</span>`;
+                    lucide.createIcons();
+                }
+            }, 100);
+        };
+
+        // 8. RENDER TABEL & SORTING
+        window.requestSort = (idx) => {
+            let dir = (currentSort.col === idx && currentSort.dir === 'asc') ? 'desc' : 'asc';
+            currentSort = { col: idx, dir };
+            
+            globalRows.sort((a, b) => {
+                const vA = a[idx] || '', vB = b[idx] || '';
+                const nA = parseFloat(vA), nB = parseFloat(vB);
+                if (!isNaN(nA) && !isNaN(nB)) return dir === 'asc' ? nA - nB : nB - nA;
+                return dir === 'asc' ? vA.localeCompare(vB) : vB.localeCompare(vA);
+            });
+            renderTable();
+        };
+
+        const renderTable = () => {
+            let hHTML = `<tr><th class="spreadsheet-header sticky left-0 z-30 w-12 bg-preview shadow-[1px_1px_0_var(--border-color)]"></th>`;
+            globalHeaders.forEach((h, i) => {
+                const sortIco = currentSort.col === i ? (currentSort.dir === 'asc' ? '▲' : '▼') : '↕';
+                hHTML += `<th class="spreadsheet-header px-4 py-2 min-w-[120px] cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" onclick="requestSort(${i})">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="font-data">${h || 'KOL '+(i+1)}</span>
+                        <span class="text-[9px] opacity-40">${sortIco}</span>
+                    </div>
+                </th>`;
+            });
+            document.getElementById('table-head').innerHTML = hHTML + `</tr>`;
+
+            const bHTML = globalRows.map((r, ri) => `
+                <tr class="hover:bg-rose-50/50 dark:hover:bg-orange-900/20 transition-colors group">
+                    <td class="spreadsheet-header font-data sticky left-0 z-10 shadow-[1px_0_0_var(--border-color)] text-[10px] group-hover:bg-rose-100/50 dark:group-hover:bg-orange-800/30 transition-colors">${ri+1}</td>
+                    ${r.map(c => `<td class="spreadsheet-cell font-data">${String(c).replace(/[&<>'"]/g, t => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[t]))}</td>`).join('')}
+                </tr>
+            `).join('');
+            document.getElementById('table-body').innerHTML = bHTML;
+        };
+
+        // 9. UPLOAD & DRAG/DROP FILE LOGIC
+        const loadFileContent = (file) => {
+            if(!file) return;
+            sourceFilename = file.name;
+            let baseName = file.name.replace(/\.[^/.]+$/, "");
+            heuristicFilename = baseName + ".pdf";
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                csvInput.value = e.target.result;
+                updateLineNumbers();
+                hideError();
+                processCSV();
+            };
+            reader.readAsText(file);
+        };
+
+        btnUpload.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => { loadFileContent(e.target.files[0]); e.target.value = ''; });
+        csvInput.addEventListener('dragover', (e) => { e.preventDefault(); csvInput.classList.add('bg-rose-50/50', 'dark:bg-orange-900/10'); });
+        csvInput.addEventListener('dragleave', () => { csvInput.classList.remove('bg-rose-50/50', 'dark:bg-orange-900/10'); });
+        csvInput.addEventListener('drop', (e) => {
+            e.preventDefault();
+            csvInput.classList.remove('bg-rose-50/50', 'dark:bg-orange-900/10');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) loadFileContent(e.dataTransfer.files[0]);
+        });
+
+        // 10. GENERATE PDF LOGIC AREA SAKRAL
+        const triggerPDF = async (action) => {
+            if(globalHeaders.length === 0 && globalRows.length === 0) return;
+            
+            const btn = action === 'preview' ? document.getElementById('btn-preview-pdf') : document.getElementById('btn-download');
+            const originalIcon = btn.innerHTML;
+            btn.innerHTML = '<div class="w-3.5 h-3.5 mx-auto border-2 border-current border-t-transparent rounded-full animate-spin"></div>';
+
+            if(action === 'preview') {
+                document.getElementById('modal-pdf-preview').classList.remove('hidden');
+                pdfPreviewContainer.innerHTML = '<div class="flex items-center justify-center h-full w-full text-dim"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div><span class="ml-4 font-medium text-sm">Merender resolusi tinggi...</span></div>';
+            }
+
+            setTimeout(async () => {
+                try {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF('l', 'pt', 'a4'); 
+                    const layoutMode = document.getElementById('pdf-layout').value;
+
+                    // --- FUNGSI SANITASI EMOTICON KE SIMBOL STANDAR ---
+                    const sanitizeForPDF = (text) => {
+                        if (text === null || text === undefined) return '';
+                        let str = String(text);
+                        const emojiMap = {
+                            '🐢': '■', '🚨': '⚠', '🚩': '⚑', '🟢': '⬤', '🌙': '☽', 
+                            '☀️': '☀', '🌅': '☼', '🦉': '☾', '⭐': '★', '✅': '✔', '❌': '✖', '⚡': '⚡'
+                        };
+                        for (const [emoji, replacement] of Object.entries(emojiMap)) {
+                            str = str.replace(new RegExp(emoji, 'g'), replacement);
+                        }
+                        return str.replace(/[^\x20-\x7E\xA0-\xFF\u0100-\u017F\u2000-\u206F\u2100-\u214F\u2200-\u22FF\u25A0-\u25FF\u2600-\u26FF\u2700-\u27BF]/g, '').trim();
+                    };
+
+                    // --- FITUR AUTO-NUMBERING ---
+                    let exportHeaders = globalHeaders.map(sanitizeForPDF);
+                    let exportRows = globalRows.map(r => r.map(sanitizeForPDF));
+                    
+                    const firstHeader = exportHeaders[0] ? String(exportHeaders[0]).toLowerCase().trim() : '';
+                    if (!firstHeader.match(/^(no|nomor|id|#|\.)$/i)) {
+                        exportHeaders.unshift('No.');
+                        exportRows = exportRows.map((row, index) => [(index + 1).toString(), ...row]);
+                    }
+
+                    // --- FITUR UNICODE FONT ---
+                    try {
+                        const fontUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf';
+                        const resp = await fetch(fontUrl);
+                        if (resp.ok) {
+                            const buffer = await resp.arrayBuffer();
+                            const bytes = new Uint8Array(buffer);
+                            let binaryString = '';
+                            for (let i = 0; i < bytes.byteLength; i++) {
+                                binaryString += String.fromCharCode(bytes[i]);
+                            }
+                            doc.addFileToVFS('Roboto-Regular.ttf', btoa(binaryString));
+                            doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+                            doc.setFont('Roboto');
+                        }
+                    } catch (fontErr) {
+                        console.warn("Gagal memuat font Unicode Roboto, fallback ke Helvetica.", fontErr);
+                    }
+
+                    // --- LOGIKA TOGGLE SCALING ---
+                    let fontSize = 8;
+                    let cellPadding = 4;
+                    let overflowMode = 'linebreak';
+                    
+                    if (layoutMode === 'fit-cols') {
+                        fontSize = 6;
+                        cellPadding = 2;
+                    } 
+                    else if (layoutMode === 'fit-rows' || layoutMode === 'fit-all') {
+                        const availableHeight = 595.28 - 120;
+                        const rowCount = exportRows.length + 1;
+                        const estRowHeight = availableHeight / rowCount;
+                        fontSize = Math.max(Math.min(estRowHeight * 0.7, 8), 3);
+                        cellPadding = Math.max(estRowHeight * 0.1, 1);
+                        if (layoutMode === 'fit-all') overflowMode = 'ellipses';
+                    }
+
+                    // --- HEADER & METADATA ---
+                    const titleText = heuristicFilename.replace('.pdf', '');
+                    doc.setFontSize(14);
+                    doc.setTextColor(15, 23, 42); 
+                    doc.text("Laporan Data: " + titleText, 40, 40);
+                    
+                    doc.setFontSize(8);
+                    doc.setTextColor(100, 116, 139);
+                    doc.text("Sumber File CSV : " + sourceFilename, 40, 55);
+                    doc.text("Waktu Ekstraksi : " + new Date().toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'medium' }), 40, 68);
+                    
+                    // --- MENGGAMBAR TABEL ---
+                    doc.autoTable({
+                        head: [exportHeaders],
+                        body: exportRows,
+                        startY: 85,
+                        styles: { 
+                            font: doc.getFont().fontName === 'Roboto' ? 'Roboto' : 'helvetica',
+                            fontSize: fontSize,
+                            cellPadding: cellPadding,
+                            overflow: overflowMode,
+                            valign: 'middle', 
+                        },
+                        headStyles: { 
+                            fillColor: [244, 63, 94],
+                            textColor: 255,
+                            fontStyle: 'bold',
+                            halign: 'center'
+                        },
+                        alternateRowStyles: { fillColor: [248, 250, 252] },
+                        margin: { top: 40, left: 20, right: 20, bottom: 40 },
+                        didDrawPage: function (data) {
+                            const str = 'Halaman ' + doc.internal.getNumberOfPages();
+                            doc.setFontSize(9);
+                            doc.setTextColor(100);
+                            const pageSize = doc.internal.pageSize;
+                            const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
+                            doc.text(str, pageSize.width - data.settings.margin.right - 50, pageHeight - 20);
+                        }
+                    });
+
+                    // --- EKSEKUSI FINAL (PREVIEW CANVAS / DOWNLOAD PDF) ---
+                    if (action === 'preview') {
+                        const arrayBuffer = doc.output('arraybuffer');
+                        const pdfData = new Uint8Array(arrayBuffer);
+                        const pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise;
+                        
+                        pdfPreviewContainer.innerHTML = ''; // Hapus indikator loading
+
+                        // Render setiap halaman ke dalam canvas secara dinamis
+                        for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                            const page = await pdfDoc.getPage(pageNum);
+                            // Set skala 2.5 untuk Super High-Res Rendering
+                            const viewport = page.getViewport({ scale: 2.5 }); 
+
+                            // Wrapper untuk tiap halaman
+                            const wrapper = document.createElement('div');
+                            wrapper.className = 'relative bg-white shadow-2xl shrink-0 w-full max-w-[1100px] border border-gray-300';
+                            // Menjaga rasio A4 Landscape (1.414)
+                            wrapper.style.aspectRatio = `${viewport.width} / ${viewport.height}`;
+
+                            const canvas = document.createElement('canvas');
+                            canvas.width = viewport.width;
+                            canvas.height = viewport.height;
+                            canvas.className = 'w-full h-full block';
+
+                            const renderContext = {
+                                canvasContext: canvas.getContext('2d'),
+                                viewport: viewport
+                            };
+                            
+                            // Eksekusi render pdf.js
+                            await page.render(renderContext).promise;
+
+                            // Fitur: Mencegah canvas disimpan sbg gambar (Transparent Overlay Block)
+                            const overlay = document.createElement('div');
+                            overlay.className = 'absolute inset-0 z-10 cursor-default bg-transparent';
+                            // Blokir Right Click dan Dragging
+                            overlay.oncontextmenu = (e) => e.preventDefault();
+                            overlay.ondragstart = (e) => e.preventDefault();
+
+                            wrapper.appendChild(canvas);
+                            wrapper.appendChild(overlay);
+                            pdfPreviewContainer.appendChild(wrapper);
+                        }
+                    } else {
+                        doc.save(heuristicFilename);
+                    }
+                    
+                } catch(err) {
+                    console.error("PDF Generation/Rendering failed", err);
+                    if(action === 'preview') {
+                        pdfPreviewContainer.innerHTML = '<div class="text-red-500 font-medium">Gagal merender pratinjau. Ukuran memori mungkin terlalu besar.</div>';
+                    } else {
+                        showError("Gagal membuat PDF. Coba kurangi ukuran atau kompleksitas data.");
+                    }
+                } finally {
+                    btn.innerHTML = originalIcon;
+                }
+            }, 100);
+        };
+
+        document.getElementById('btn-download').addEventListener('click', () => triggerPDF('download'));
+        document.getElementById('btn-preview-pdf').addEventListener('click', () => triggerPDF('preview'));
+
+        // 11. EVENT LISTENERS LAINNYA
+        btnConvert.addEventListener('click', processCSV);
+        
+        btnClear.addEventListener('click', () => {
+            csvInput.value = ''; updateLineNumbers(); hideError();
+            tableContainer.classList.add('hidden'); emptyState.classList.remove('hidden');
+            document.getElementById('export-tools').classList.replace('flex', 'hidden');
+            statInfo.textContent = "0 Baris • 0 Kolom";
+            heuristicFilename = 'Data_Export.pdf';
+            sourceFilename = 'Input Manual (Teks)';
+            document.getElementById('heuristic-name').textContent = "Sistem Pintar: Menunggu";
+            globalHeaders = []; globalRows = [];
+        });
+
+    </script>
+</body>
+</html>
