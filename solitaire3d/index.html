@@ -324,7 +324,6 @@
         // --- AUDIO ENGINE (WEB AUDIO API) ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let isAudioEnabled = false;
-        let bgmInterval;
 
         function playTone(freq, type, duration, vol = 0.1, slideFreq = null) {
             if (!isAudioEnabled) return;
@@ -360,20 +359,6 @@
             }
         };
 
-        function startBGM() {
-            if (bgmInterval) clearInterval(bgmInterval);
-            // Tangga Nada Pentatonic C Major (Ambient Pad)
-            const notes = [261.63, 293.66, 329.63, 392.00, 440.00]; 
-            bgmInterval = setInterval(() => {
-                if (!isAudioEnabled) return;
-                // Variasi nada dan oktaf agar tidak monoton
-                const baseNote = notes[Math.floor(Math.random() * notes.length)];
-                const note = Math.random() > 0.5 ? baseNote : baseNote / 2;
-                // Volume dinaikkan menjadi 0.04 agar lebih terdengar sebagai backsound
-                playTone(note, 'sine', 4.0, 0.04); 
-            }, 2500);
-        }
-
         const audioToggleBtn = document.getElementById('audioToggle');
         const audioIconContainer = document.getElementById('audioIconContainer');
         
@@ -384,12 +369,10 @@
                 // Inject HTML baru agar Lucide bisa merender ulang SVG tanpa menghilangkan referensi Container
                 audioIconContainer.innerHTML = '<i data-lucide="volume-2" class="w-5 h-5"></i>';
                 audioToggleBtn.classList.add('active');
-                startBGM();
                 SFX.snap();
             } else {
                 audioIconContainer.innerHTML = '<i data-lucide="volume-x" class="w-5 h-5"></i>';
                 audioToggleBtn.classList.remove('active');
-                if (bgmInterval) clearInterval(bgmInterval);
             }
             lucide.createIcons();
         });
