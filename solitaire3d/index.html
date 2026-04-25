@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Windows 3D Solitaire</title>
+    
+    <!-- Google Analytics (TATADADA v5.6 Mandatory) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* TATADADA CSS TOKENS */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9; 
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --board-bg: radial-gradient(circle at 50% 20%, #1e293b, #020617);
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --board-bg: radial-gradient(circle at 50% 20%, #0f172a, #000000);
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            margin: 0;
+            padding: 0;
+            overscroll-behavior: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* =========================================
+           TRUE 3D SOLITAIRE STYLES
+           ========================================= */
+        #game-container {
+            position: relative; 
+            width: 100%; height: 100%;
+            background: var(--preview-bg);
+            touch-action: none;
+            overflow: hidden;
+            perspective: 1200px;
+        }
+
+        #world {
+            position: absolute;
+            inset: 0;
+            transform-style: preserve-3d;
+            transform: rotateX(20deg) scale(0.9) translateY(2%);
+            transform-origin: center center;
+        }
+
+        #table-surface {
+            position: absolute;
+            inset: -5%;
+            background: var(--board-bg);
+            border: 8px solid rgba(255, 255, 255, 0.05);
+            border-radius: 40px;
+            box-shadow: inset 0 20px 50px rgba(0,0,0,0.8), 0 50px 100px rgba(0,0,0,0.9);
+            transform: translateZ(-10px);
+        }
+
+        .card-slot {
+            position: absolute;
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            box-sizing: border-box;
+            background: rgba(0, 0, 0, 0.1);
+            transform: translateZ(-2px);
+        }
+
+        .card {
+            position: absolute;
+            width: 100px;
+            height: 140px;
+            cursor: pointer;
+            transform-style: preserve-3d;
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            will-change: transform;
+            container-type: inline-size;
+        }
+
+        .card.dragging { transition: none; }
+
+        .card-face {
+            position: absolute;
+            inset: 0;
+            backface-visibility: hidden;
+            border-radius: 8px;
+            background-color: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-sizing: border-box;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .card-thickness {
+            position: absolute;
+            inset: 0;
+            background-color: #cbd5e1;
+            border-radius: 8px;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.1);
+            border: 1px solid rgba(0,0,0,0.05);
+            backface-visibility: visible;
+        }
+        html.dark .card-thickness { background-color: #475569; }
+
+        .card-shadow {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            border-radius: 8px;
+            transform: translateZ(-4px); 
+            filter: blur(3px);
+            opacity: 0.7;
+            transition: transform 0.2s, filter 0.2s, opacity 0.2s;
+        }
+        
+        .card.dragging .card-shadow {
+            transform: translateZ(-80px) translateY(15px);
+            filter: blur(12px);
+            opacity: 0.3;
+        }
+
+        .card-front {
+            padding: 4px 6px;
+            transform: translateZ(-2px) rotateY(180deg);
+        }
+
+        .card-back {
+            background: linear-gradient(135deg, #1e3a8a, #1e40af);
+            background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.1) 0, rgba(255,255,255,0.1) 5px, transparent 5px, transparent 10px);
+            border: 3px solid white;
+            transform: translateZ(2px);
+        }
+
+        .card-red { color: #dc2626; }
+        .card-black { color: #0f172a; }
+
+        /* Typography & Pips */
+        .card-value-top { font-size: 20cqw; font-weight: 900; line-height: 1; letter-spacing: -1px; text-align: left; }
+        .card-suit-top { font-size: 15cqw; line-height: 1; text-align: left; }
+        .card-center { flex-grow: 1; display: flex; align-items: center; justify-content: center; font-size: 45cqw; }
+        
+        .pips-container { position: relative; flex-grow: 1; width: 100%; }
+        .pip { position: absolute; font-size: 24cqw; line-height: 1; }
+        .ace-pip { font-size: 55cqw; }
+        
+        .face-card { position: relative; }
+        .face-letter { font-size: 70cqw; font-weight: 900; opacity: 0.2; font-family: 'Times New Roman', serif; }
+        .face-suit { position: absolute; font-size: 40cqw; opacity: 0.8; }
+
+        .card-value-bottom { font-size: 20cqw; font-weight: 900; line-height: 1; letter-spacing: -1px; transform: rotate(180deg); text-align: left; }
+
+        /* HUD & UI */
+        #hud {
+            position: absolute; top: 0; left: 0; right: 0;
+            padding: 10px 20px;
+            display: flex; justify-content: space-between;
+            color: white; z-index: 50;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+            pointer-events: none;
+        }
+
+        .hud-stat { font-family: 'JetBrains Mono', monospace; font-size: 14px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+        #win-canvas { position: absolute; inset: 0; z-index: 1000; pointer-events: none; }
+
+        #menu-overlay:not(.hidden) { display: flex; }
+        #menu-overlay {
+            position: absolute; inset: 0; background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px); flex-direction: column; justify-content: center;
+            align-items: center; z-index: 2000;
+        }
+        .win-title { animation: bounceIn 1s cubic-bezier(0.28, 0.84, 0.42, 1); }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .btn-audio { transition: all 0.3s; }
+        .btn-audio.active { color: var(--theme-accent); }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER -->
+    <header class="flex items-center justify-between px-6 h-14 border-b shrink-0 relative z-50" style="background-color: var(--header-bg); border-color: var(--border-color);">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center justify-center w-8 h-8 rounded bg-blue-600 text-white shadow-md">
+                <i data-lucide="box" class="w-5 h-5"></i>
+            </div>
+            <h1 class="text-xl font-black text-blue-600 tracking-tight" style="color: var(--text-main);">Solitaire <span class="font-light text-amber-500">Real3D</span></h1>
+            
+            <!-- Author Link (TATADADA v5.6 Mandatory) -->
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] hover:text-blue-500 ml-1 transition-colors" style="color: var(--text-dim);">by AhmadDanial</a>
+            
+            <div class="group relative flex items-center justify-center cursor-help ml-2 hover:text-blue-500 transition-colors" style="color: var(--text-dim);">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+                <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-3 border rounded shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-[10px]" 
+                     style="background-color: var(--header-bg); border-color: var(--border-color); color: var(--text-main);"
+                     data-i18n="help-tooltip">
+                    Klik dan geser kartu. Tumpuk di Tableau secara bergantian warna dan menurun. Kumpulkan di Foundation (Pojok Kanan Atas). Perhatikan ketebalan dan bayangan kartu!
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <button id="audioToggle" class="btn-audio hover:opacity-70 transition-opacity" style="color: var(--text-dim);">
+                <div id="audioIconContainer"><i data-lucide="volume-x" class="w-5 h-5"></i></div>
+            </button>
+            <div class="h-4 w-px bg-gray-300 dark:bg-gray-700"></div>
+            <button id="newGameBtn" class="text-xs font-bold px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-sm">
+                <i data-lucide="rotate-ccw" class="w-3 h-3"></i> <span data-i18n="btn-new">Game Baru</span>
+            </button>
+            <div class="h-4 w-px bg-gray-300 dark:bg-gray-700"></div>
+            <button id="langToggle" class="text-sm font-bold flex items-center gap-1 hover:opacity-70 transition-opacity" style="color: var(--text-main);">
+                <span id="langIcon">🇮🇩</span> <span id="langText">ID</span>
+            </button>
+            <button id="themeToggle" class="hover:opacity-70 transition-opacity" style="color: var(--text-main);">
+                <i data-lucide="sun" id="themeIcon" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 relative overflow-hidden">
+        <div id="game-container">
+            <!-- HUD -->
+            <div id="hud">
+                <div class="hud-stat"><span data-i18n="hud-score">SKOR:</span> <span id="scoreVal" class="font-bold text-blue-400">0</span></div>
+                <div class="hud-stat"><span data-i18n="hud-moves">LANGKAH:</span> <span id="movesVal" class="font-bold">0</span></div>
+                <div class="hud-stat"><span data-i18n="hud-time">WAKTU:</span> <span id="timeVal" class="font-bold">00:00</span></div>
+            </div>
+
+            <!-- WORLD 3D -->
+            <div id="world">
+                <div id="table-surface"></div>
+                <div id="board-layer" class="absolute inset-0" style="transform-style: preserve-3d;"></div>
+            </div>
+
+            <!-- Win Animation Canvas -->
+            <canvas id="win-canvas" class="hidden"></canvas>
+
+            <!-- Main Menu / Win Overlay -->
+            <div id="menu-overlay" class="hidden">
+                <h1 class="text-6xl font-black text-white mb-2 win-title drop-shadow-2xl" data-i18n="win-title">LUAR BIASA!</h1>
+                <p class="text-blue-300 font-mono mb-8 text-lg" id="final-stats">Skor: 0 | Waktu: 00:00</p>
+                <button id="playAgainBtn" class="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-full font-bold text-lg shadow-[0_0_20px_rgba(37,99,235,0.5)] transition-all hover:scale-105 active:scale-95" data-i18n="btn-play-again">Main Lagi</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="flex items-center justify-between px-6 h-8 border-t shrink-0 z-50 text-[10px]" style="background-color: var(--footer-bg); border-color: var(--border-color); color: var(--text-dim);">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span data-i18n="footer-status">Depth Engine 3D Aktif</span>
+        </div>
+        <div>
+            <span class="font-mono">Klondike Rules</span>
+        </div>
+        <button id="termsBtn" class="hover:underline hover:text-blue-500 transition-colors" data-i18n="footer-terms">Terms of Use</button>
+    </footer>
+
+    <!-- TERMS MODAL (TATADADA v5.6 Strict Mode) -->
+    <div id="termsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm justify-center items-center z-[100] hidden">
+        <div class="border p-6 rounded-2xl max-w-md w-full shadow-2xl relative" style="background-color: var(--card-bg); border-color: var(--border-color);">
+            <h2 class="text-lg font-bold mb-4" style="color: var(--text-main);" data-i18n="terms-title">Ketentuan Penggunaan</h2>
+            <div class="text-xs mb-6 leading-relaxed max-h-60 overflow-y-auto pr-2" style="color: var(--text-dim);">
+                <p class="mb-3 font-semibold text-blue-500" data-i18n="terms-smart">Smart Context: Aplikasi ini beroperasi sepenuhnya di peramban lokal Anda menggunakan manipulasi ruang 3D CSS. Tidak ada data sesi permainan yang dikirim ke server luar.</p>
+                <p data-i18n="terms-strict">Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics untuk mengumpulkan data penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.</p>
+            </div>
+            <div class="flex justify-end pt-4 border-t" style="border-color: var(--border-color);">
+                <button id="closeTermsBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-xs font-bold transition-colors" data-i18n="terms-close">Mengerti</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // --- AUDIO ENGINE (WEB AUDIO API) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let isAudioEnabled = false;
+        let bgmInterval;
+
+        function playTone(freq, type, duration, vol = 0.1, slideFreq = null) {
+            if (!isAudioEnabled) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.type = type;
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            if (slideFreq) {
+                osc.frequency.exponentialRampToValueAtTime(slideFreq, audioCtx.currentTime + duration);
+            }
+            
+            gainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        const SFX = {
+            lift: () => playTone(200, 'sine', 0.1, 0.15, 400),
+            drop: () => playTone(300, 'sine', 0.1, 0.15, 100),
+            snap: () => playTone(800, 'triangle', 0.1, 0.05, 1000),
+            error: () => playTone(150, 'sawtooth', 0.2, 0.05, 100),
+            win: () => {
+                [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+                    setTimeout(() => playTone(freq, 'sine', 0.5, 0.1), i * 150);
+                });
+            }
+        };
+
+        function startBGM() {
+            if (bgmInterval) clearInterval(bgmInterval);
+            // Tangga Nada Pentatonic C Major (Ambient Pad)
+            const notes = [261.63, 293.66, 329.63, 392.00, 440.00]; 
+            bgmInterval = setInterval(() => {
+                if (!isAudioEnabled) return;
+                // Variasi nada dan oktaf agar tidak monoton
+                const baseNote = notes[Math.floor(Math.random() * notes.length)];
+                const note = Math.random() > 0.5 ? baseNote : baseNote / 2;
+                // Volume dinaikkan menjadi 0.04 agar lebih terdengar sebagai backsound
+                playTone(note, 'sine', 4.0, 0.04); 
+            }, 2500);
+        }
+
+        const audioToggleBtn = document.getElementById('audioToggle');
+        const audioIconContainer = document.getElementById('audioIconContainer');
+        
+        audioToggleBtn.addEventListener('click', () => {
+            isAudioEnabled = !isAudioEnabled;
+            if (isAudioEnabled) {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                // Inject HTML baru agar Lucide bisa merender ulang SVG tanpa menghilangkan referensi Container
+                audioIconContainer.innerHTML = '<i data-lucide="volume-2" class="w-5 h-5"></i>';
+                audioToggleBtn.classList.add('active');
+                startBGM();
+                SFX.snap();
+            } else {
+                audioIconContainer.innerHTML = '<i data-lucide="volume-x" class="w-5 h-5"></i>';
+                audioToggleBtn.classList.remove('active');
+                if (bgmInterval) clearInterval(bgmInterval);
+            }
+            lucide.createIcons();
+        });
+
+
+        // --- THEME & I18N ---
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const htmlElement = document.documentElement;
+
+        const applyTheme = (isDark) => {
+            if (isDark) {
+                htmlElement.classList.add('dark');
+                themeIcon.setAttribute('data-lucide', 'sun');
+            } else {
+                htmlElement.classList.remove('dark');
+                themeIcon.setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons();
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        };
+
+        applyTheme(localStorage.getItem('theme') === 'dark');
+        themeToggle.addEventListener('click', () => applyTheme(!htmlElement.classList.contains('dark')));
+
+        const langToggle = document.getElementById('langToggle');
+        let currentLang = 'id';
+        const i18n = {
+            'id': {
+                'help-tooltip': 'Klik dan geser kartu. Tumpuk di Tableau secara bergantian warna dan menurun. Kumpulkan di Foundation (Pojok Kanan Atas). Perhatikan ketebalan dan bayangan kartu!',
+                'btn-new': 'Game Baru',
+                'hud-score': 'SKOR:', 'hud-moves': 'LANGKAH:', 'hud-time': 'WAKTU:',
+                'win-title': 'LUAR BIASA!', 'btn-play-again': 'Main Lagi',
+                'footer-status': 'Depth Engine 3D Aktif', 'footer-terms': 'Ketentuan',
+                'terms-title': 'Ketentuan Penggunaan', 'terms-close': 'Mengerti',
+                'terms-smart': 'Smart Context: Aplikasi ini beroperasi sepenuhnya di peramban lokal Anda menggunakan manipulasi ruang 3D CSS. Tidak ada data sesi permainan yang dikirim ke server luar.',
+                'terms-strict': "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics untuk mengumpulkan data penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya."
+            },
+            'en': {
+                'help-tooltip': 'Drag and drop cards. Stack in Tableau alternating colors. Collect in Foundation. Notice the 3D depth, volume, and shadows!',
+                'btn-new': 'New Game',
+                'hud-score': 'SCORE:', 'hud-moves': 'MOVES:', 'hud-time': 'TIME:',
+                'win-title': 'EXCELLENT!', 'btn-play-again': 'Play Again',
+                'footer-status': '3D Depth Engine Active', 'footer-terms': 'Terms',
+                'terms-title': 'Terms of Use', 'terms-close': 'Understood',
+                'terms-smart': 'Smart Context: This application operates entirely in your local browser using CSS 3D space manipulation. No game session data is sent to external servers.',
+                'terms-strict': "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics to collect anonymous usage data for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms."
+            }
+        };
+
+        function updateLang() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[currentLang][key]) el.textContent = i18n[currentLang][key];
+            });
+            document.getElementById('langIcon').textContent = currentLang === 'id' ? '🇮🇩' : '🇬🇧';
+            document.getElementById('langText').textContent = currentLang.toUpperCase();
+        }
+
+        langToggle.addEventListener('click', () => {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            updateLang();
+        });
+        updateLang();
+
+        document.getElementById('termsBtn').onclick = () => {
+            const modal = document.getElementById('termsModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+        document.getElementById('closeTermsBtn').onclick = () => {
+            const modal = document.getElementById('termsModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        };
+
+        /* =========================================
+           TRUE 3D SOLITAIRE ENGINE
+           ========================================= */
+        const SUITS = ['♠', '♥', '♣', '♦'];
+        const COLORS = {'♠': 'black', '♣': 'black', '♥': 'red', '♦': 'red'};
+        const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+        
+        let state = {
+            deck: [], stock: [], waste: [],
+            foundations: [[], [], [], []],
+            tableau: [[], [], [], [], [], [], []],
+            score: 0, moves: 0, time: 0,
+            timerId: null, isPlaying: false,
+            cards: {}
+        };
+
+        let layoutConfig = {
+            cardW: 80, cardH: 112, gapX: 10, gapY: 20, 
+            paddingTop: 50, paddingLeft: 20
+        };
+
+        const boardLayer = document.getElementById('board-layer');
+        const container = document.getElementById('game-container');
+
+        function initGame() {
+            stopWinAnimation();
+            document.getElementById('menu-overlay').classList.add('hidden');
+            boardLayer.innerHTML = '';
+            state.cards = {};
+            
+            let tempDeck = [];
+            for (let suit of SUITS) {
+                for (let i = 0; i < RANKS.length; i++) {
+                    const id = `${suit}_${RANKS[i]}`;
+                    const cardData = {
+                        id: id, suit: suit, rank: RANKS[i], value: i + 1,
+                        color: COLORS[suit], isFaceUp: false
+                    };
+                    tempDeck.push(cardData);
+                    createCardDOM(cardData);
+                }
+            }
+
+            for (let i = tempDeck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [tempDeck[i], tempDeck[j]] = [tempDeck[j], tempDeck[i]];
+            }
+
+            state.stock = tempDeck;
+            state.waste = [];
+            state.foundations = [[], [], [], []];
+            state.tableau = [[], [], [], [], [], [], []];
+            state.score = 0; state.moves = 0; state.time = 0;
+            updateHUD();
+
+            for (let col = 0; col < 7; col++) {
+                for (let row = 0; row <= col; row++) {
+                    const card = state.stock.pop();
+                    if (row === col) card.isFaceUp = true;
+                    state.tableau[col].push(card);
+                }
+            }
+
+            drawSlots();
+            state.isPlaying = true;
+            clearInterval(state.timerId);
+            state.timerId = setInterval(() => {
+                if (state.isPlaying) { state.time++; updateHUD(); }
+            }, 1000);
+
+            recalculateLayout();
+            renderAllCards();
+        }
+
+        // DOM Generator with Pips
+        function createCardDOM(data) {
+            const el = document.createElement('div');
+            el.className = 'card';
+            el.id = data.id;
+            
+            const isRed = data.color === 'red';
+            const colorClass = isRed ? 'card-red' : 'card-black';
+            
+            let centerContent = '';
+            if (data.value > 10) {
+                centerContent = `<div class="card-center face-card"><span class="face-letter">${data.rank}</span><span class="face-suit">${data.suit}</span></div>`;
+            } else if (data.value === 1) {
+                centerContent = `<div class="card-center"><span class="ace-pip">${data.suit}</span></div>`;
+            } else {
+                let pips = '';
+                const makePip = (x, y, flip) => `<div class="pip" style="left:${x}%; top:${y}%; transform: translate(-50%, -50%) ${flip ? 'rotate(180deg)' : ''};">${data.suit}</div>`;
+                
+                const L = 30, C = 50, R = 70; 
+                const T = 15, M = 50, B = 85; 
+
+                switch(data.value) {
+                    case 2: pips = makePip(C, T) + makePip(C, B, true); break;
+                    case 3: pips = makePip(C, T) + makePip(C, M) + makePip(C, B, true); break;
+                    case 4: pips = makePip(L, T) + makePip(R, T) + makePip(L, B, true) + makePip(R, B, true); break;
+                    case 5: pips = makePip(L, T) + makePip(R, T) + makePip(C, M) + makePip(L, B, true) + makePip(R, B, true); break;
+                    case 6: pips = makePip(L, T) + makePip(R, T) + makePip(L, M) + makePip(R, M) + makePip(L, B, true) + makePip(R, B, true); break;
+                    case 7: pips = makePip(L, T) + makePip(R, T) + makePip(L, M) + makePip(R, M) + makePip(L, B, true) + makePip(R, B, true) + makePip(C, 32); break;
+                    case 8: pips = makePip(L, T) + makePip(R, T) + makePip(L, M) + makePip(R, M) + makePip(L, B, true) + makePip(R, B, true) + makePip(C, 32) + makePip(C, 68, true); break;
+                    case 9: pips = makePip(L, T) + makePip(R, T) + makePip(L, 38) + makePip(R, 38) + makePip(L, 62, true) + makePip(R, 62, true) + makePip(L, B, true) + makePip(R, B, true) + makePip(C, M); break;
+                    case 10: pips = makePip(L, T) + makePip(R, T) + makePip(L, 38) + makePip(R, 38) + makePip(L, 62, true) + makePip(R, 62, true) + makePip(L, B, true) + makePip(R, B, true) + makePip(C, 25) + makePip(C, 75, true); break;
+                }
+                centerContent = `<div class="pips-container">${pips}</div>`;
+            }
+
+            el.innerHTML = `
+                <div class="card-shadow"></div>
+                <div class="card-face card-back"></div>
+                <div class="card-thickness" style="transform: translateZ(1px);"></div>
+                <div class="card-thickness" style="transform: translateZ(0px);"></div>
+                <div class="card-thickness" style="transform: translateZ(-1px);"></div>
+                <div class="card-face card-front ${colorClass}">
+                    <div class="card-value-top">${data.rank}<br><span class="card-suit-top">${data.suit}</span></div>
+                    ${centerContent}
+                    <div class="card-value-bottom">${data.rank}<br><span class="card-suit-top">${data.suit}</span></div>
+                </div>
+            `;
+            boardLayer.appendChild(el);
+            state.cards[data.id] = { data: data, el: el };
+        }
+
+        function drawSlots() {
+            document.querySelectorAll('.card-slot').forEach(s => s.remove());
+            const createSlot = (id) => {
+                const slot = document.createElement('div');
+                slot.className = 'card-slot';
+                slot.id = 'slot_' + id;
+                boardLayer.appendChild(slot);
+                return slot;
+            };
+
+            createSlot('stock');
+            for(let i=0; i<4; i++) createSlot(`foundation_${i}`);
+            for(let i=0; i<7; i++) createSlot(`tableau_${i}`);
+        }
+
+        function recalculateLayout() {
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            
+            let maxCardW = (w - (8 * 10)) / 7;
+            layoutConfig.cardW = Math.min(100, Math.max(50, maxCardW));
+            layoutConfig.cardH = layoutConfig.cardW * 1.4;
+            layoutConfig.gapX = (w - (7 * layoutConfig.cardW)) / 8;
+            layoutConfig.paddingLeft = layoutConfig.gapX;
+            layoutConfig.paddingTop = 60; 
+
+            const setSlotPos = (id, c, r) => {
+                const el = document.getElementById('slot_' + id);
+                if(el) {
+                    el.style.width = layoutConfig.cardW + 'px';
+                    el.style.height = layoutConfig.cardH + 'px';
+                    el.style.left = (layoutConfig.paddingLeft + c * (layoutConfig.cardW + layoutConfig.gapX)) + 'px';
+                    el.style.top = (layoutConfig.paddingTop + r * (layoutConfig.cardH + layoutConfig.gapY)) + 'px';
+                }
+            };
+
+            setSlotPos('stock', 0, 0);
+            for(let i=0; i<4; i++) setSlotPos(`foundation_${i}`, 3+i, 0);
+            for(let i=0; i<7; i++) setSlotPos(`tableau_${i}`, i, 1);
+        }
+
+        function renderAllCards() {
+            const w = layoutConfig.cardW;
+            const h = layoutConfig.cardH;
+            const padX = layoutConfig.paddingLeft;
+            const padY = layoutConfig.paddingTop;
+            const gapX = layoutConfig.gapX;
+            const gapY = layoutConfig.gapY;
+            const tabY = padY + h + gapY;
+
+            const placeCard = (cardData, x, y, zOffset = 0, rotY = null) => {
+                cardData.x = x;
+                cardData.y = y;
+                cardData.z = zOffset;
+                
+                const c = state.cards[cardData.id];
+                c.el.style.width = w + 'px';
+                c.el.style.height = h + 'px';
+                
+                const targetRot = rotY !== null ? rotY : (cardData.isFaceUp ? 180 : 0);
+                
+                if (!c.el.classList.contains('dragging')) {
+                    c.el.style.transform = `translate3d(${x}px, ${y}px, ${zOffset}px) rotateY(${targetRot}deg)`;
+                }
+            };
+
+            state.stock.forEach((card, i) => placeCard(card, padX, padY, i * 5));
+
+            state.waste.forEach((card, i) => {
+                let fanOffset = 0;
+                if (i >= state.waste.length - 3) {
+                    fanOffset = (i - (state.waste.length - 3)) * 20;
+                    if(state.waste.length < 3) fanOffset = i * 20;
+                }
+                placeCard(card, padX + w + gapX + fanOffset, padY, i * 5);
+            });
+
+            state.foundations.forEach((pile, pIdx) => {
+                const x = padX + (3 + pIdx) * (w + gapX);
+                pile.forEach((card, i) => placeCard(card, x, padY, i * 5));
+            });
+
+            state.tableau.forEach((pile, pIdx) => {
+                const x = padX + pIdx * (w + gapX);
+                let y = tabY;
+                let z = 0;
+                pile.forEach((card, i) => {
+                    placeCard(card, x, y, z);
+                    y += card.isFaceUp ? 25 : 10;
+                    z += card.isFaceUp ? 6 : 5; 
+                });
+            });
+        }
+
+        // --- Interaction Logic 3D ---
+        let dragContext = null;
+
+        container.addEventListener('pointerdown', handlePointerDown);
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+
+        function getCardStateInfo(cardId) {
+            if (state.stock.length > 0 && state.stock[state.stock.length-1].id === cardId) return { loc: 'stock' };
+            if (state.waste.length > 0 && state.waste[state.waste.length-1].id === cardId) return { loc: 'waste', idx: state.waste.length-1 };
+            
+            for (let i = 0; i < 7; i++) {
+                const idx = state.tableau[i].findIndex(c => c.id === cardId);
+                if (idx !== -1) return { loc: 'tableau', pileIdx: i, cardIdx: idx };
+            }
+            for (let i = 0; i < 4; i++) {
+                if (state.foundations[i].length > 0 && state.foundations[i][state.foundations[i].length-1].id === cardId) {
+                    return { loc: 'foundation', pileIdx: i };
+                }
+            }
+            return null;
+        }
+
+        function handlePointerDown(e) {
+            if(!state.isPlaying) return;
+            const target = e.target.closest('.card');
+            
+            if (!target) {
+                const slot = e.target.closest('#slot_stock');
+                if (slot && state.stock.length === 0 && state.waste.length > 0) {
+                    state.stock = state.waste.reverse().map(c => { c.isFaceUp = false; return c; });
+                    state.waste = [];
+                    state.moves++; updateHUD(); renderAllCards();
+                    SFX.snap(); // Audio Hook
+                }
+                return;
+            }
+
+            const cardId = target.id;
+            const info = getCardStateInfo(cardId);
+            if (!info) return;
+
+            const cardData = state.cards[cardId].data;
+
+            if (info.loc === 'stock') {
+                const c = state.stock.pop();
+                c.isFaceUp = true;
+                state.waste.push(c);
+                state.moves++; updateHUD(); renderAllCards();
+                SFX.snap(); // Audio Hook
+                return;
+            }
+
+            if (!cardData.isFaceUp) return;
+
+            let draggingCards = [];
+            let sourcePile = [];
+
+            if (info.loc === 'waste') {
+                draggingCards = [state.waste[state.waste.length-1]];
+                sourcePile = state.waste;
+            } else if (info.loc === 'foundation') {
+                draggingCards = [state.foundations[info.pileIdx][state.foundations[info.pileIdx].length-1]];
+                sourcePile = state.foundations[info.pileIdx];
+            } else if (info.loc === 'tableau') {
+                const pile = state.tableau[info.pileIdx];
+                draggingCards = pile.slice(info.cardIdx);
+                sourcePile = pile;
+            }
+
+            dragContext = {
+                cards: draggingCards,
+                source: info,
+                baseX: cardData.x,
+                baseY: cardData.y,
+                baseZ: cardData.z,
+                lastMouseX: e.clientX,
+                lastMouseY: e.clientY
+            };
+
+            SFX.lift(); // Audio Hook
+
+            draggingCards.forEach((c, idx) => {
+                const el = state.cards[c.id].el;
+                el.classList.add('dragging');
+                el.style.transform = `translate3d(${dragContext.baseX}px, ${dragContext.baseY + (idx*25)}px, ${dragContext.baseZ + 80 + (idx*6)}px) rotateY(180deg)`;
+            });
+            
+            const now = Date.now();
+            if (target.dataset.lastTap && (now - target.dataset.lastTap) < 300) {
+                if (draggingCards.length === 1) {
+                    if (tryMoveToFoundation(draggingCards[0], info)) {
+                        cleanupDrag();
+                        return;
+                    } else {
+                        SFX.error(); // Audio Hook
+                    }
+                }
+            }
+            target.dataset.lastTap = now;
+        }
+
+        function handlePointerMove(e) {
+            if (!dragContext) return;
+            e.preventDefault();
+
+            let dx = e.clientX - dragContext.lastMouseX;
+            let dy = e.clientY - dragContext.lastMouseY;
+            
+            const scale = 0.9;
+            const tiltRad = 20 * Math.PI / 180;
+            dx = dx / scale;
+            dy = dy / (scale * Math.cos(tiltRad));
+
+            dragContext.baseX += dx;
+            dragContext.baseY += dy;
+            dragContext.lastMouseX = e.clientX;
+            dragContext.lastMouseY = e.clientY;
+
+            dragContext.cards.forEach((c, idx) => {
+                const el = state.cards[c.id].el;
+                el.style.transform = `translate3d(${dragContext.baseX}px, ${dragContext.baseY + (idx*25)}px, ${dragContext.baseZ + 80 + (idx*6)}px) rotateY(180deg)`;
+            });
+        }
+
+        function handlePointerUp(e) {
+            if (!dragContext) return;
+            
+            const cards = dragContext.cards;
+            const topCard = cards[0];
+            
+            const dropX = dragContext.baseX;
+            const dropY = dragContext.baseY;
+
+            const w = layoutConfig.cardW;
+            const h = layoutConfig.cardH;
+            const padX = layoutConfig.paddingLeft;
+            const padY = layoutConfig.paddingTop;
+            const gapX = layoutConfig.gapX;
+            const gapY = layoutConfig.gapY;
+            const tabY = padY + h + gapY;
+
+            let bestTarget = null;
+            let minDist = Math.max(w, h); 
+
+            if (cards.length === 1) {
+                for (let i = 0; i < 4; i++) {
+                    const tx = padX + (3 + i) * (w + gapX);
+                    const ty = padY;
+                    const dist = Math.sqrt(Math.pow(dropX - tx, 2) + Math.pow(dropY - ty, 2));
+                    
+                    if (dist < minDist && canPlaceOnFoundation(topCard, i)) {
+                        minDist = dist;
+                        bestTarget = { loc: 'foundation', pileIdx: i };
+                    }
+                }
+            }
+
+            for (let i = 0; i < 7; i++) {
+                const pile = state.tableau[i];
+                const tx = padX + i * (w + gapX);
+                
+                let ty = tabY;
+                let tCard = null;
+                
+                if (pile.length > 0) {
+                    tCard = pile[pile.length - 1];
+                    ty = tCard.y; 
+                }
+
+                const dist = Math.sqrt(Math.pow(dropX - tx, 2) + Math.pow(dropY - ty, 2));
+                
+                if (dist < minDist) {
+                    if (pile.length === 0) {
+                        if (topCard.value === 13) {
+                            minDist = dist;
+                            bestTarget = { loc: 'tableau', pileIdx: i };
+                        }
+                    } else {
+                        if (canPlaceOnTableau(topCard, tCard)) {
+                            minDist = dist;
+                            bestTarget = { loc: 'tableau', pileIdx: i };
+                        }
+                    }
+                }
+            }
+
+            let moveSuccessful = false;
+            let isSamePlace = true;
+
+            if (bestTarget) {
+                isSamePlace = dragContext.source.loc === bestTarget.loc && dragContext.source.pileIdx === bestTarget.pileIdx;
+                if (!isSamePlace) {
+                    moveCards(dragContext.source, bestTarget, cards);
+                    moveSuccessful = true;
+                }
+            }
+
+            cleanupDrag();
+
+            if (moveSuccessful) {
+                SFX.drop(); // Audio Hook
+                flipRevealedTableauCards();
+                checkWinCondition();
+            } else if (!isSamePlace) {
+                SFX.error(); // Audio Hook
+            }
+
+            renderAllCards();
+        }
+
+        function cleanupDrag() {
+            if (dragContext) {
+                dragContext.cards.forEach(c => {
+                    const el = state.cards[c.id].el;
+                    el.classList.remove('dragging');
+                });
+                dragContext = null;
+            }
+        }
+
+        function canPlaceOnTableau(dragged, target) {
+            return target.isFaceUp && dragged.color !== target.color && dragged.value === target.value - 1;
+        }
+
+        function canPlaceOnFoundation(card, fIdx) {
+            const pile = state.foundations[fIdx];
+            if (pile.length === 0) return card.value === 1; 
+            const top = pile[pile.length - 1];
+            return top.suit === card.suit && card.value === top.value + 1;
+        }
+
+        function tryMoveToFoundation(card, srcInfo) {
+            for (let i = 0; i < 4; i++) {
+                if (canPlaceOnFoundation(card, i)) {
+                    moveCards(srcInfo, {loc: 'foundation', pileIdx: i}, [card]);
+                    SFX.snap(); // Audio Hook
+                    flipRevealedTableauCards();
+                    checkWinCondition();
+                    renderAllCards();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function moveCards(src, dest, cardsArr) {
+            let sourcePile;
+            if (src.loc === 'waste') sourcePile = state.waste;
+            else if (src.loc === 'foundation') sourcePile = state.foundations[src.pileIdx];
+            else if (src.loc === 'tableau') sourcePile = state.tableau[src.pileIdx];
+            
+            sourcePile.splice(sourcePile.length - cardsArr.length, cardsArr.length);
+
+            let destPile;
+            if (dest.loc === 'foundation') {
+                destPile = state.foundations[dest.pileIdx];
+                state.score += 10;
+            } else if (dest.loc === 'tableau') {
+                destPile = state.tableau[dest.pileIdx];
+                if (src.loc === 'waste') state.score += 5;
+            }
+            
+            cardsArr.forEach(c => destPile.push(c));
+            state.moves++;
+            updateHUD();
+        }
+
+        function flipRevealedTableauCards() {
+            for (let i = 0; i < 7; i++) {
+                const pile = state.tableau[i];
+                if (pile.length > 0 && !pile[pile.length - 1].isFaceUp) {
+                    pile[pile.length - 1].isFaceUp = true;
+                    state.score += 5;
+                }
+            }
+            updateHUD();
+        }
+
+        function updateHUD() {
+            document.getElementById('scoreVal').innerText = state.score;
+            document.getElementById('movesVal').innerText = state.moves;
+            const m = Math.floor(state.time / 60).toString().padStart(2, '0');
+            const s = (state.time % 60).toString().padStart(2, '0');
+            document.getElementById('timeVal').innerText = `${m}:${s}`;
+        }
+
+        function checkWinCondition() {
+            const isWin = state.foundations.every(f => f.length === 13);
+            if (isWin) {
+                state.isPlaying = false;
+                clearInterval(state.timerId);
+                setTimeout(triggerWinAnimation, 500);
+            }
+        }
+
+        let winAnimId;
+        const winCanvas = document.getElementById('win-canvas');
+        const ctx = winCanvas.getContext('2d');
+        
+        function triggerWinAnimation() {
+            SFX.win(); // Audio Hook
+            winCanvas.width = window.innerWidth;
+            winCanvas.height = window.innerHeight;
+            winCanvas.classList.remove('hidden');
+            document.getElementById('hud').style.display = 'none';
+
+            let winCards = [];
+            let flatCards = [];
+            for(let i=0; i<4; i++){
+                state.foundations[i].forEach(c => flatCards.push({data: c, pileIdx: i}));
+            }
+            flatCards.sort((a,b) => b.data.value - a.data.value);
+
+            let spawnIndex = 0;
+
+            function spawnCard() {
+                if (spawnIndex >= flatCards.length) return;
+                const info = flatCards[spawnIndex++];
+                const cardDOM = state.cards[info.data.id].el;
+                const rect = cardDOM.getBoundingClientRect();
+                
+                winCards.push({
+                    x: rect.left,
+                    y: rect.top,
+                    vx: (Math.random() - 0.5) * 15 + (info.pileIdx === 0 || info.pileIdx === 1 ? -5 : 5),
+                    vy: -Math.random() * 10 - 5,
+                    width: layoutConfig.cardW,
+                    height: layoutConfig.cardH,
+                    color: info.data.color,
+                    isFaceUp: true,
+                    rank: info.data.rank,
+                    suit: info.data.suit
+                });
+                
+                cardDOM.style.visibility = 'hidden';
+                setTimeout(spawnCard, 100);
+            }
+
+            spawnCard();
+
+            function drawWinCard(c) {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(c.x, c.y, c.width, c.height);
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.strokeRect(c.x, c.y, c.width, c.height);
+                
+                ctx.fillStyle = c.color === 'red' ? '#dc2626' : '#0f172a';
+                ctx.font = 'bold 20px Inter';
+                ctx.fillText(c.rank + c.suit, c.x + 8, c.y + 24);
+            }
+
+            function animate() {
+                winCards.forEach(c => {
+                    c.vy += 0.8;
+                    c.x += c.vx;
+                    c.y += c.vy;
+
+                    if (c.y + c.height > winCanvas.height) {
+                        c.y = winCanvas.height - c.height;
+                        c.vy = -c.vy * 0.75;
+                    }
+                    if (c.x < 0 || c.x + c.width > winCanvas.width) {
+                        c.vx = -c.vx;
+                    }
+
+                    drawWinCard(c);
+                });
+
+                if(spawnIndex >= flatCards.length && winCards[winCards.length-1].y > winCanvas.height) {
+                    // Ending
+                } else {
+                    winAnimId = requestAnimationFrame(animate);
+                }
+            }
+            animate();
+
+            setTimeout(() => {
+                document.getElementById('menu-overlay').classList.remove('hidden');
+                document.getElementById('final-stats').innerText = 
+                    `${i18n[currentLang]['hud-score']} ${state.score} | ` + 
+                    `${i18n[currentLang]['hud-time']} ${Math.floor(state.time/60).toString().padStart(2,'0')}:${(state.time%60).toString().padStart(2,'0')}`;
+            }, 5000);
+        }
+
+        function stopWinAnimation() {
+            cancelAnimationFrame(winAnimId);
+            winCanvas.classList.add('hidden');
+            ctx.clearRect(0, 0, winCanvas.width, winCanvas.height);
+            document.getElementById('hud').style.display = 'flex';
+        }
+
+        document.getElementById('newGameBtn').addEventListener('click', initGame);
+        document.getElementById('playAgainBtn').addEventListener('click', initGame);
+
+        window.addEventListener('resize', () => {
+            if (winCanvas.classList.contains('hidden')) {
+                recalculateLayout();
+                renderAllCards();
+            } else {
+                winCanvas.width = window.innerWidth;
+                winCanvas.height = window.innerHeight;
+            }
+        });
+
+        initGame();
+    </script>
+</body>
+</html>
