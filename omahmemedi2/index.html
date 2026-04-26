@@ -270,7 +270,8 @@
         dripChance: 0.0005 + ratio * 0.003,
         whisperChance: 0.0003 + ratio * 0.002,
         creakChance: 0.001 + ratio * 0.005,
-        rainIntensity: ratio * 0.6
+        rainIntensity: ratio * 0.6,
+        groundFogDensity: 0.15 + ratio * 0.3
       };
       currentSize = levelConfig.gridSize;
     }
@@ -830,6 +831,7 @@
     let floatingEmbers;
     let lightningLight;
     let flickerCandles = [];
+    let groundFogLayers = [];
 
     const PHYS = { cellSize: 15.0, wallThick: 2.0, wallHeight: 14.0, playerHeight: 5.5, playerRadius: 2.0, speed: 9.0 };
 
@@ -837,6 +839,12 @@
     const keys = { w: false, a: false, s: false, d: false, shift: false };
     let pitch = 0; let yaw = Math.PI;
     let isCrouching = false;
+
+    // FPS Counter
+    let frameCount = 0;
+    let lastFpsTime = 0;
+    let currentFps = 60;
+    let fpsDisplay = null;
 
     const scareOverlay = document.getElementById('jump-scare-overlay');
     const lightningOverlay = document.getElementById('lightning-overlay');
@@ -961,6 +969,117 @@
       }
     });
 
+    // ============ GROUND FOG LAYER CREATION ============
+    function createGroundFog() {
+      // Hapus layer lama
+      groundFogLayers.forEach(layer => {
+        if(layer.mesh && scene) scene.remove(layer.mesh);
+      });
+      groundFogLayers = [];
+
+      const fogArea = currentSize * PHYS.cellSize * 1.5;
+      const fogSize = fogArea;
+      
+      // 3 layer kabut pada ketinggian 0.05, 0.15, dan 0.30 (30cm)
+      const layerConfigs = [
+        { y: 0.05, opacity: levelConfig.groundFogDensity * 0.6, color: 0x888877 },
+        { y: 0.15, opacity: levelConfig.groundFogDensity * 0.8, color: 0x999988 },
+        { y: 0.30, opacity: levelConfig.groundFogDensity * 0.4, color: 0xaaaa99 }
+      ];
+
+      layerConfigs.forEach(config => {
+        // Buat canvas untuk texture kabut dengan gradient radial
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024;
+        canvas.height = 1024;
+        const ctx = canvas.getContext('2d');
+        
+        // Gradient dari center ke tepi
+        const gradient = ctx.createRadialGradient(512, 512, 0, 512, 512, 512);
+        gradient.addColorStop(0, 'rgba(150, 150, 140, 0.5)');
+        gradient.addColorStop(0.3, 'rgba(130, 130, 120, 0.35)');
+        gradient.addColorStop(0.6, 'rgba(100, 100, 90, 0.2)');
+        gradient.addColorStop(0.8, 'rgba(80, 80, 70, 0.1)');
+        gradient.addColorStop(1, 'rgba(60, 60, 50, 0)');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 1024, 1024);
+        
+        // Tambahkan noise untuk efek kabut alami
+        for(let i = 0; i < 5000; i++) {
+          ctx.fillStyle = `rgba(${100 + Math.random()*60}, ${100 + Math.random()*60}, ${90 + Math.random()*50}, ${Math.random()*0.1})`;
+          ctx.fillRect(Math.random()*1024, Math.random()*1024, Math.random()*20, Math.random()*20);
+        }
+        
+        const fogTexture = new THREE.CanvasTexture(canvas);
+        fogTexture.wrapS = THREE.RepeatWrapping;
+        fogTexture.wrapT = THREE.RepeatWrapping;
+        
+        // Plane mesh untuk layer kabut
+        const fogGeo = new THREE.PlaneGeometry(fogSize, fogSize);
+        fogGeo.rotateX(-Math.PI / 2);
+        
+        const fogMat = new THREE.MeshBasicMaterial({
+          map: fogTexture,
+          transparent: true,
+          opacity: config.opacity,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          blending: THREE.NormalBlending
+        });
+        
+        const fogMesh = new THREE.Mesh(fogGeo, fogMat);
+        fogMesh.position.set(
+          (currentSize * PHYS.cellSize) / 2,
+          config.y,
+          (currentSize * PHYS.cellSize) / 2
+        );
+        fogMesh.receiveShadow = false;
+        scene.add(fogMesh);
+        
+        groundFogLayers.push({
+          mesh: fogMesh,
+          baseY: config.y,
+          phase: Math.random() * Math.PI * 2,
+          speed: 0.5 + Math.random() * 0.5,
+          texture: fogTexture
+        });
+      });
+
+      // Volumetric fog particles near ground
+      const groundFogParticleCount = 3000;
+      const gfParticleGeo = new THREE.BufferGeometry();
+      const gfPositions = new Float32Array(groundFogParticleCount * 3);
+      const gfSizes = new Float32Array(groundFogParticleCount);
+      
+      const mazeCenter = (currentSize * PHYS.cellSize) / 2;
+      const mazeSpread = currentSize * PHYS.cellSize;
+      
+      for(let i = 0; i < groundFogParticleCount; i++) {
+        gfPositions[i*3] = mazeCenter + (Math.random() - 0.5) * mazeSpread;
+        gfPositions[i*3+1] = Math.random() * 0.3;
+        gfPositions[i*3+2] = mazeCenter + (Math.random() - 0.5) * mazeSpread;
+        gfSizes[i] = 2 + Math.random() * 4;
+      }
+      
+      gfParticleGeo.setAttribute('position', new THREE.BufferAttribute(gfPositions, 3));
+      gfParticleGeo.setAttribute('size', new THREE.BufferAttribute(gfSizes, 1));
+      
+      const gfParticleMat = new THREE.PointsMaterial({
+        color: 0x999988,
+        size: 3,
+        transparent: true,
+        opacity: 0.08 * levelConfig.groundFogDensity,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        sizeAttenuation: true
+      });
+      
+      const groundFogParticles = new THREE.Points(gfParticleGeo, gfParticleMat);
+      scene.add(groundFogParticles);
+      groundFogLayers.push({ mesh: groundFogParticles, type: 'particles', phase: 0 });
+    }
+
     function init3D() {
       container3dElem.innerHTML = '';
       scene = new THREE.Scene();
@@ -999,7 +1118,8 @@
       lightningLight.position.set(0, 50, 0);
       scene.add(lightningLight);
 
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+      // OPTIMASI FPS: gunakan pixel ratio yang capped
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.shadowMap.enabled = true;
@@ -1008,6 +1128,13 @@
       renderer.toneMappingExposure = 0.8;
       renderer.outputEncoding = THREE.sRGBEncoding;
       container3dElem.appendChild(renderer.domElement);
+
+      // Buat FPS display
+      fpsDisplay = document.createElement('div');
+      fpsDisplay.id = 'fps-counter';
+      fpsDisplay.className = 'absolute top-3 left-3 z-[60] font-data text-xs text-green-500/60 pointer-events-none';
+      fpsDisplay.style.fontFamily = "'JetBrains Mono', monospace";
+      document.body.appendChild(fpsDisplay);
 
       const wallTex = createRottenWoodTexture();
       const wallNormal = createWoodNormalMap();
@@ -1125,11 +1252,11 @@
       yardMesh.receiveShadow = true;
       scene.add(yardMesh);
 
-      // Grass
+      // Grass (optimized with lower count)
       const grassGeo = new THREE.ConeGeometry(0.04, 0.8, 3);
       grassGeo.translate(0, 0.4, 0);
       const grassMat = new THREE.MeshStandardMaterial({ color: 0x151008, roughness: 1.0 });
-      const grassCount = 20000;
+      const grassCount = 15000;
       const grassInstanced = new THREE.InstancedMesh(grassGeo, grassMat, grassCount);
       const dummyGrass = new THREE.Object3D();
       let grassIdx = 0;
@@ -1346,6 +1473,9 @@
 
       camera.position.set(0, PHYS.playerHeight, -PHYS.cellSize * 1.5);
       yaw = Math.PI; pitch = 0;
+
+      // Create ground fog layers after everything is added
+      createGroundFog();
     }
 
     const clock = new THREE.Clock();
@@ -1376,10 +1506,52 @@
 
     let lightningTimer = 0;
 
+    function updateFPS() {
+      frameCount++;
+      const now = performance.now();
+      if (now - lastFpsTime >= 500) {
+        currentFps = Math.round(frameCount / ((now - lastFpsTime) / 1000));
+        frameCount = 0;
+        lastFpsTime = now;
+        if (fpsDisplay) {
+          fpsDisplay.textContent = `${currentFps} FPS`;
+          if (currentFps < 50) {
+            fpsDisplay.style.color = '#ff6666';
+          } else if (currentFps < 58) {
+            fpsDisplay.style.color = '#ffaa00';
+          } else {
+            fpsDisplay.style.color = '#44ff44';
+          }
+        }
+      }
+    }
+
     function animate() {
       if (!isGameRunning) return;
       animationId = requestAnimationFrame(animate);
       const dt = Math.min(clock.getDelta(), 0.1);
+
+      updateFPS();
+
+      // Ground fog animation - follow player
+      groundFogLayers.forEach(layer => {
+        if (layer.type === 'particles') {
+          const positions = layer.mesh.geometry.attributes.position.array;
+          for(let i = 0; i < positions.length; i += 3) {
+            positions[i] += Math.sin(Date.now() * 0.0003 + i) * 0.01;
+            positions[i+1] += Math.sin(Date.now() * 0.0005 + i * 0.3) * 0.002;
+            positions[i+2] += Math.cos(Date.now() * 0.0003 + i) * 0.01;
+          }
+          layer.mesh.geometry.attributes.position.needsUpdate = true;
+        } else {
+          // Plane layers follow player with slight delay
+          layer.mesh.position.x += (camera.position.x - layer.mesh.position.x) * 0.02;
+          layer.mesh.position.z += (camera.position.z - layer.mesh.position.z) * 0.02;
+          // Subtle wave animation
+          layer.mesh.position.y = layer.baseY + Math.sin(Date.now() * 0.001 + layer.phase) * 0.03;
+          layer.mesh.rotation.z = Math.sin(Date.now() * 0.0005 + layer.phase) * 0.001;
+        }
+      });
 
       if (dustPoints) {
         const positions = dustPoints.geometry.attributes.position.array;
@@ -1533,7 +1705,6 @@
       updateLevelConfig(currentLevel);
       mazeGrid = generateMaze(currentSize);
 
-      // Simple loading sequence
       loadingScreen.classList.add('active');
       
       const loadSteps = [
@@ -1552,7 +1723,6 @@
           stepIdx++;
         } else {
           clearInterval(loadInterval);
-          // Start game
           setTimeout(() => {
             loadingScreen.classList.remove('active');
             loadingScreen.style.display = 'none';
@@ -1575,6 +1745,8 @@
             startAmbientDrips();
             startAmbientWhispers();
             
+            lastFpsTime = performance.now();
+            frameCount = 0;
             clock.start();
             animate();
           }, 300);
@@ -1591,6 +1763,7 @@
       stopRain();
       stopAllAmbient();
       uiLayer3D.classList.add('opacity-0');
+      if (fpsDisplay) fpsDisplay.textContent = '';
       setTimeout(() => {
         container3dElem.innerHTML = '';
         mainMenu.classList.remove('opacity-0', 'pointer-events-none');
@@ -1599,6 +1772,11 @@
         isGhostAttacking = false;
         isGateClosed = false;
         flickerCandles = [];
+        groundFogLayers = [];
+        if (fpsDisplay) {
+          fpsDisplay.remove();
+          fpsDisplay = null;
+        }
       }, 500);
     });
   </script>
