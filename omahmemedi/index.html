@@ -166,7 +166,7 @@
       
       levelConfig = {
         gridSize: Math.floor(5 + ratio * 30), 
-        fogDensity: 0.005 + ratio * 0.045,    
+        fogDensity: 0.02 + ratio * 0.04,    // Volumetric Fog Density
         lightIntensity: 6.0 - ratio * 4.5,    
         lightDistance: 250 - ratio * 190,     
         ambientIntensity: 0.8 - ratio * 0.75, 
@@ -270,15 +270,6 @@
       osc2.start(); osc2.stop(audioCtx.currentTime + 1.0);
     }
 
-    function playDoorCreak() {
-      if (!audioCtx) return;
-      const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(120, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 1.5);
-      gain.gain.setValueAtTime(1.5, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
-      osc.connect(gain); gain.connect(audioCtx.destination);
-      osc.start(); osc.stop(audioCtx.currentTime + 1.5);
-    }
-
     function playFootstep() {
       if (!audioCtx) return;
       const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
@@ -305,25 +296,34 @@
 
     function createCreakyFloorTexture() {
       const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512; const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#110d0a'; ctx.fillRect(0, 0, 512, 512);
+      ctx.fillStyle = '#0f0b08'; ctx.fillRect(0, 0, 512, 512);
       for(let x=0; x<512; x+=32) {
-        ctx.fillStyle = `rgba(30, 20, 15, ${0.4 + Math.random()*0.5})`; ctx.fillRect(x, 0, 30, 512);
+        ctx.fillStyle = `rgba(40, 30, 20, ${0.2 + Math.random()*0.4})`; ctx.fillRect(x, 0, 30, 512);
         ctx.fillStyle = 'rgba(0,0,0,0.9)'; ctx.fillRect(x+30, 0, 2, 512); 
       }
-      for(let i=0; i<40; i++) {
-        ctx.beginPath(); ctx.arc(Math.random()*512, Math.random()*512, 10 + Math.random()*40, 0, Math.PI*2);
-        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(60, 5, 5, 0.6)' : 'rgba(5, 5, 5, 0.8)';
-        ctx.filter = 'blur(5px)'; ctx.fill(); ctx.filter = 'none';
+      for(let i=0; i<150; i++) {
+        ctx.beginPath(); ctx.arc(Math.random()*512, Math.random()*512, 2 + Math.random()*25, 0, Math.PI*2);
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(30, 10, 5, 0.7)' : 'rgba(5, 5, 5, 0.9)';
+        ctx.filter = 'blur(2px)'; ctx.fill(); ctx.filter = 'none';
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      for(let i=0; i<10000; i++) {
+        ctx.fillRect(Math.random()*512, Math.random()*512, 1, Math.random()*4);
       }
       const texture = new THREE.CanvasTexture(canvas); texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; return texture;
     }
 
     function createCeilingTexture() {
       const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512; const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#111111'; ctx.fillRect(0,0,512,512); 
-      for(let i=0; i<50; i++) {
-         ctx.beginPath(); ctx.arc(Math.random()*512, Math.random()*512, 20+Math.random()*60, 0, Math.PI*2);
-         ctx.fillStyle = 'rgba(10, 15, 10, 0.7)'; ctx.filter = 'blur(12px)'; ctx.fill(); ctx.filter = 'none';
+      ctx.fillStyle = '#0f0f0f'; ctx.fillRect(0,0,512,512); 
+      // Detail plester rusak/berjamur
+      for(let i=0; i<5000; i++) {
+        ctx.fillStyle = Math.random()>0.5 ? 'rgba(30,30,30,0.5)' : 'rgba(0,0,0,0.5)';
+        ctx.fillRect(Math.random()*512, Math.random()*512, 2, 2);
+      }
+      for(let i=0; i<40; i++) {
+         ctx.beginPath(); ctx.arc(Math.random()*512, Math.random()*512, 10+Math.random()*40, 0, Math.PI*2);
+         ctx.fillStyle = 'rgba(5, 5, 5, 0.8)'; ctx.filter = 'blur(5px)'; ctx.fill(); ctx.filter = 'none';
       }
       ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 3;
       for(let i=0; i<15; i++) {
@@ -353,39 +353,33 @@
       return tex;
     }
 
+    // Lukisan Abstrak Seram Tanpa Emoticon
     function createPaintingTexture() {
       const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 384; const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#111'; ctx.fillRect(0,0,256,384);
+      ctx.fillStyle = '#050202'; ctx.fillRect(0,0,256,384);
       
-      const type = Math.floor(Math.random() * 4);
-      if (type === 0) {
-         ctx.fillStyle = '#500';
-         for(let i=0;i<8;i++) { ctx.beginPath(); ctx.arc(Math.random()*256, Math.random()*384, 15+Math.random()*20, 0, Math.PI*2); ctx.fill(); }
-         ctx.fillRect(80, 100, 4, 150); ctx.fillRect(150, 150, 3, 120);
-      } else if (type === 1) { 
-         ctx.fillStyle = '#555'; ctx.beginPath(); ctx.ellipse(128, 150, 40, 60, 0, 0, Math.PI*2); ctx.fill();
-         ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(110, 140, 10, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(146, 140, 10, 0, Math.PI*2); ctx.fill();
-         ctx.fillRect(110, 180, 36, 5);
-      } else if (type === 2) { 
-         ctx.fillStyle = '#050505'; ctx.fillRect(90, 120, 76, 264);
-         ctx.beginPath(); ctx.arc(128, 90, 25, 0, Math.PI*2); ctx.fill();
-      } else { 
-         ctx.strokeStyle = '#300'; ctx.lineWidth = 5;
-         for(let i=0; i<10; i++) {
-           ctx.beginPath(); ctx.moveTo(Math.random()*256, Math.random()*384);
-           ctx.quadraticCurveTo(Math.random()*256, Math.random()*384, Math.random()*256, Math.random()*384); ctx.stroke();
-         }
+      for(let i=0; i<60; i++) {
+        ctx.beginPath(); 
+        ctx.arc(Math.random()*256, Math.random()*384, 10 + Math.random()*30, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(${30 + Math.random()*80}, 0, 0, ${Math.random()*0.2})`;
+        ctx.filter = 'blur(6px)'; ctx.fill(); ctx.filter = 'none';
       }
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      for(let i=0;i<2000;i++) ctx.fillRect(Math.random()*256, Math.random()*384, 2, 2);
-      return new THREE.CanvasTexture(canvas);
-    }
 
-    function createFogTexture() {
-      const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128; const ctx = canvas.getContext('2d');
-      const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-      grad.addColorStop(0, 'rgba(200, 200, 200, 0.15)'); grad.addColorStop(1, 'rgba(200, 200, 200, 0)');
-      ctx.fillStyle = grad; ctx.fillRect(0,0,128,128);
+      ctx.fillStyle = 'rgba(0,0,0,0.9)';
+      for(let i=0; i<15000; i++) {
+        ctx.fillRect(Math.random()*256, Math.random()*384, Math.random()*3, Math.random()*3);
+      }
+
+      ctx.strokeStyle = 'rgba(30, 5, 5, 0.6)'; ctx.lineWidth = 2;
+      for(let i=0; i<20; i++) {
+        ctx.beginPath(); ctx.moveTo(Math.random()*256, Math.random()*384);
+        ctx.quadraticCurveTo(Math.random()*256, Math.random()*384, Math.random()*256, Math.random()*384); ctx.stroke();
+      }
+
+      const grad = ctx.createRadialGradient(128, 192, 20, 128, 192, 200);
+      grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.98)');
+      ctx.fillStyle = grad; ctx.fillRect(0,0,256,384);
+
       return new THREE.CanvasTexture(canvas);
     }
 
@@ -406,236 +400,48 @@
       return new THREE.CanvasTexture(canvas);
     }
 
-    function createScaryFaceDataURL(width = 512, height = 512) {
+    // Wajah Hantu Jumpscare - Dibuat abstrak berlumuran darah & tengkorak berongga, TIDAK KARTUN.
+    function createScaryFaceDataURL() {
         const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = 512; canvas.height = 512;
         const ctx = canvas.getContext('2d');
 
-        const cx = width / 2;
-        const cy = height / 2;
+        ctx.fillStyle = '#050202'; 
+        ctx.fillRect(0, 0, 512, 512);
 
-        function rand(min = 0, max = 1) { return Math.random() * (max - min) + min; }
-        function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
-
-        function fractalNoise(x, y, octaves = 4, persistence = 0.5) {
-            let total = 0, frequency = 1, amplitude = 1, maxVal = 0;
-            for (let i = 0; i < octaves; i++) {
-                total += (Math.sin(x * frequency * 12.9898 + y * frequency * 78.233) * 43758.5453 - Math.floor(Math.sin(x * frequency * 12.9898 + y * frequency * 78.233) * 43758.5453)) * amplitude;
-                maxVal += amplitude; amplitude *= persistence; frequency *= 2;
-            }
-            return total / maxVal;
-        }
-
-        const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, width * 0.8);
-        bgGrad.addColorStop(0, '#1a0a0a'); bgGrad.addColorStop(0.4, '#0d0505'); bgGrad.addColorStop(1, '#000000');
-        ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, width, height);
-
-        for (let i = 0; i < 80; i++) {
-            const fx = rand(0, width); const fy = rand(0, height); const fr = rand(20, 120);
-            const fogGrad = ctx.createRadialGradient(fx, fy, 0, fx, fy, fr);
-            const alpha = rand(0.01, 0.06);
-            fogGrad.addColorStop(0, `rgba(40, 5, 5, ${alpha})`); fogGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            ctx.fillStyle = fogGrad; ctx.fillRect(fx - fr, fy - fr, fr * 2, fr * 2);
-        }
-
-        function drawDistortedFaceSilhouette() {
-            ctx.save();
-            const faceGrad = ctx.createLinearGradient(cx - 100, cy - 150, cx + 80, cy + 200);
-            faceGrad.addColorStop(0, '#2a1515'); faceGrad.addColorStop(0.3, '#1a0808'); faceGrad.addColorStop(0.6, '#0f0404'); faceGrad.addColorStop(1, '#050101');
-
+        for(let i=0; i<80; i++) {
             ctx.beginPath();
-            const headPoints = [
-                { x: cx,         y: cy - 180 }, { x: cx + 55,    y: cy - 160 }, { x: cx + 95,    y: cy - 100 }, { x: cx + 110,   y: cy - 30 },
-                { x: cx + 105,   y: cy + 30 }, { x: cx + 85,    y: cy + 80 }, { x: cx + 60,    y: cy + 130 }, { x: cx + 20,    y: cy + 170 },
-                { x: cx - 30,    y: cy + 180 }, { x: cx - 70,    y: cy + 150 }, { x: cx - 95,    y: cy + 100 }, { x: cx - 115,   y: cy + 40 },
-                { x: cx - 105,   y: cy - 20 }, { x: cx - 90,    y: cy - 80 }, { x: cx - 60,    y: cy - 140 }, { x: cx - 25,    y: cy - 175 }
-            ];
-
-            ctx.moveTo(headPoints[0].x, headPoints[0].y);
-            for (let i = 0; i < headPoints.length; i++) {
-                const curr = headPoints[i]; const next = headPoints[(i + 1) % headPoints.length]; const prev = headPoints[(i - 1 + headPoints.length) % headPoints.length];
-                const cp1x = prev.x + (curr.x - prev.x) * 0.5 + rand(-25, 25); const cp1y = prev.y + (curr.y - prev.y) * 0.5 + rand(-20, 20);
-                const cp2x = curr.x + (next.x - curr.x) * 0.5 + rand(-20, 30); const cp2y = curr.y + (next.y - curr.y) * 0.5 + rand(-15, 25);
-                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, next.x, next.y);
-            }
-
-            ctx.closePath(); ctx.fillStyle = faceGrad; ctx.fill();
-            ctx.globalAlpha = 0.3; ctx.fillStyle = '#000'; ctx.translate(rand(-5, 10), rand(-8, 5)); ctx.fill(); ctx.translate(0, 0); ctx.globalAlpha = 1;
-            applyFaceNoise(); ctx.restore();
+            ctx.arc(256 + (Math.random()-0.5)*300, 256 + (Math.random()-0.5)*300, Math.random()*80, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(${50 + Math.random()*100}, 0, 0, ${Math.random()*0.15})`;
+            ctx.filter = 'blur(10px)';
+            ctx.fill();
+            ctx.filter = 'none';
         }
 
-        function applyFaceNoise() {
-            const imageData = ctx.getImageData(0, 0, width, height); const data = imageData.data;
-            for (let y = 0; y < height; y += 2) {
-                for (let x = 0; x < width; x += 2) {
-                    const idx = (y * width + x) * 4;
-                    if (data[idx] > 5) {
-                        const noise = fractalNoise(x * 0.05, y * 0.05, 3, 0.6);
-                        const grain = (Math.random() - 0.5) * 15;
-                        const factor = noise * 0.4 + grain * 0.02;
-                        data[idx]     = Math.max(0, Math.min(255, data[idx]     + factor * 30));
-                        data[idx + 1] = Math.max(0, Math.min(255, data[idx + 1] + factor * 5));
-                        data[idx + 2] = Math.max(0, Math.min(255, data[idx + 2] + factor * 8));
-                        data[idx] += randInt(-8, 8); data[idx + 1] += randInt(-3, 3); data[idx + 2] += randInt(-3, 3);
-                    }
-                }
-            }
-            ctx.putImageData(imageData, 0, 0);
+        // Rongga mata asimetris gelap
+        ctx.fillStyle = '#000000';
+        ctx.beginPath(); ctx.ellipse(180, 220, 40, 70, -0.15, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(332, 220, 40, 70, 0.15, 0, Math.PI*2); ctx.fill();
+
+        // Mulut menganga lebar ke bawah
+        ctx.beginPath(); ctx.ellipse(256, 380, 50, 90, 0, 0, Math.PI*2); ctx.fill();
+
+        // Goresan cakaran
+        ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+        ctx.lineWidth = 3;
+        for(let i=0; i<40; i++) {
+            ctx.beginPath();
+            ctx.moveTo(Math.random()*512, Math.random()*512);
+            ctx.lineTo(Math.random()*512, Math.random()*512);
+            ctx.stroke();
         }
 
-        function drawEyes() {
-            const leftEye = { x: cx - 55 + rand(-10, 10), y: cy - 40 + rand(-15, 10), sizeX: rand(25, 40), sizeY: rand(10, 20), rotation: rand(-0.3, -0.1) };
-            const rightEye = { x: cx + 50 + rand(-10, 10), y: cy - 50 + rand(-10, 15), sizeX: rand(20, 35), sizeY: rand(8, 18), rotation: rand(0.05, 0.3) };
-            drawEye(leftEye, true); drawEye(rightEye, false); drawEyeGlow(leftEye); drawEyeGlow(rightEye);
-        }
-
-        function drawEye(eye, isLeft) {
-            ctx.save(); ctx.translate(eye.x, eye.y); ctx.rotate(eye.rotation);
-            ctx.beginPath(); ctx.moveTo(-eye.sizeX, 0);
-            ctx.bezierCurveTo(-eye.sizeX * 0.5, -eye.sizeY * 2.5 + rand(-5, 5), eye.sizeX * 0.3, -eye.sizeY * 3 + rand(-8, 8), eye.sizeX, 0);
-            ctx.bezierCurveTo(eye.sizeX * 0.5, eye.sizeY * 1.5 + rand(-5, 5), -eye.sizeX * 0.3, eye.sizeY * 1.8 + rand(-5, 10), -eye.sizeX, 0);
-            ctx.closePath();
-
-            const eyeGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, eye.sizeX);
-            eyeGrad.addColorStop(0, '#000000'); eyeGrad.addColorStop(0.7, '#0a0000'); eyeGrad.addColorStop(1, '#1a0505');
-            ctx.fillStyle = eyeGrad; ctx.fill();
-
-            const pX = rand(-5, 8); const pY = rand(-3, 3); const prX = rand(3, 7); const prY = rand(5, 12);
-            ctx.beginPath(); ctx.ellipse(pX, pY, prX, prY, 0, 0, Math.PI * 2); ctx.fillStyle = isLeft ? '#8b0000' : '#6b0000'; ctx.fill();
-            ctx.beginPath(); ctx.arc(pX + rand(1, 3), pY - rand(1, 4), rand(1, 2), 0, Math.PI * 2); ctx.fillStyle = 'rgba(200, 150, 150, 0.3)'; ctx.fill();
-
-            ctx.strokeStyle = 'rgba(60, 10, 10, 0.4)'; ctx.lineWidth = 0.5;
-            for (let i = 0; i < 8; i++) {
-                ctx.beginPath(); const angle = rand(0, Math.PI * 2); const startR = eye.sizeX * 0.6; const endR = eye.sizeX * rand(1.2, 1.8);
-                ctx.moveTo(Math.cos(angle) * startR, Math.sin(angle) * startR * 0.5);
-                const cpx = Math.cos(angle) * (startR + endR) * 0.5 + rand(-10, 10); const cpy = Math.sin(angle) * (startR + endR) * 0.25 + rand(-10, 10);
-                ctx.quadraticCurveTo(cpx, cpy, Math.cos(angle) * endR, Math.sin(angle) * endR * 0.5); ctx.stroke();
-            }
-            ctx.restore();
-        }
-
-        function drawEyeGlow(eye) {
-            ctx.save(); const glowGrad = ctx.createRadialGradient(eye.x, eye.y, 0, eye.x, eye.y, 60);
-            glowGrad.addColorStop(0, 'rgba(139, 0, 0, 0.15)'); glowGrad.addColorStop(0.5, 'rgba(80, 0, 0, 0.05)'); glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            ctx.fillStyle = glowGrad; ctx.beginPath(); ctx.arc(eye.x, eye.y, 60, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-        }
-
-        function drawMouth() {
-            ctx.save(); const mY = cy + 60 + rand(-10, 20); const mW = rand(60, 90); const mH = rand(25, 50); const mTilt = rand(-0.15, 0.15);
-            ctx.translate(cx, mY); ctx.rotate(mTilt); ctx.beginPath(); ctx.moveTo(-mW, rand(-5, 5));
-
-            for (let i = 1; i <= 7; i++) {
-                const t = i / 7; const px = -mW + mW * 2 * t; const py = -mH * 0.3 * Math.sin(t * Math.PI) + rand(-8, 8);
-                ctx.bezierCurveTo(-mW + mW * 2 * (t - 1/14) + rand(-10, 10), -mH * 0.5 + rand(-10, 10), -mW + mW * 2 * (t - 1/28) + rand(-5, 5), -mH * 0.2 + rand(-5, 5), px, py);
-            }
-            for (let i = 1; i <= 5; i++) {
-                const t = i / 5; const px = mW - mW * 2 * t; const py = mH * 0.4 * Math.sin(t * Math.PI) + rand(-10, 15);
-                ctx.bezierCurveTo(mW - mW * 2 * (t - 0.1) + rand(-10, 10), mH * 0.6 + rand(-5, 10), mW - mW * 2 * (t - 0.05) + rand(-5, 5), mH * 0.3 + rand(-5, 5), px, py);
-            }
-            ctx.closePath();
-
-            const mouthGrad = ctx.createRadialGradient(0, 0, 0, 0, mH * 0.3, mW);
-            mouthGrad.addColorStop(0, '#000000'); mouthGrad.addColorStop(0.6, '#0a0000'); mouthGrad.addColorStop(1, '#1a0505');
-            ctx.fillStyle = mouthGrad; ctx.fill();
-
-            drawTeeth(-mW + 10, mW - 10, -mH * 0.2, rand(8, 18));
-            ctx.strokeStyle = 'rgba(100, 0, 0, 0.5)'; ctx.lineWidth = rand(1, 3); const dripCount = randInt(2, 5);
-            for (let i = 0; i < dripCount; i++) {
-                ctx.beginPath(); const startX = cx + rand(-60, 60); let cY = mY + rand(0, mH * 0.5); let cX = startX; ctx.moveTo(cX, cY);
-                const dLen = rand(15, 60); const segs = randInt(3, 6);
-                for (let j = 0; j < segs; j++) {
-                    const nY = cY + dLen / segs; const nX = cX + rand(-8, 8);
-                    ctx.quadraticCurveTo(cX + rand(-15, 15), (cY + nY) / 2, nX, nY); cX = nX; cY = nY;
-                }
-                ctx.globalAlpha = rand(0.3, 0.6); ctx.stroke(); ctx.globalAlpha = 1;
-            }
-            ctx.restore();
-        }
-
-        function drawTeeth(startX, endX, baseY, maxToothHeight) {
-            const toothCount = randInt(6, 12); const spacing = (endX - startX) / toothCount;
-            for (let i = 0; i < toothCount; i++) {
-                const tx = startX + spacing * i + rand(-3, 3); const th = rand(maxToothHeight * 0.4, maxToothHeight);
-                const tw = rand(spacing * 0.3, spacing * 0.8); const tilt = rand(-0.3, 0.3);
-                ctx.save(); ctx.translate(tx + tw / 2, baseY); ctx.rotate(tilt);
-                ctx.beginPath(); ctx.moveTo(-tw / 2, 0); ctx.lineTo(-tw / 2 + rand(-2, 2), th);
-                ctx.quadraticCurveTo(rand(-tw / 4, tw / 4), th + rand(2, 5), tw / 2 + rand(-2, 2), th); ctx.lineTo(tw / 2, 0); ctx.closePath();
-                const toothGrad = ctx.createLinearGradient(0, 0, 0, th);
-                toothGrad.addColorStop(0, '#d8c8b0'); toothGrad.addColorStop(0.5, '#b0a090'); toothGrad.addColorStop(1, '#807060');
-                ctx.fillStyle = toothGrad; ctx.fill();
-                if (Math.random() > 0.5) {
-                    ctx.fillStyle = `rgba(120, 0, 0, ${rand(0.2, 0.6)})`; ctx.fillRect(rand(-tw/3, tw/3), rand(th * 0.3, th * 0.8), rand(1, 3), rand(2, 6));
-                }
-                ctx.restore();
-            }
-        }
-
-        function drawNose() {
-            ctx.save(); const noseY = cy + 10 + rand(-10, 15); ctx.strokeStyle = 'rgba(30, 5, 5, 0.5)'; ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.ellipse(cx - rand(5, 12), noseY, rand(4, 8), rand(3, 6), rand(-0.3, 0.3), 0, Math.PI * 2); ctx.fillStyle = '#050101'; ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.ellipse(cx + rand(5, 12), noseY + rand(-3, 3), rand(4, 7), rand(3, 5), rand(-0.2, 0.2), 0, Math.PI * 2); ctx.fillStyle = '#050101'; ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(cx + rand(-5, 5), cy - 40); ctx.quadraticCurveTo(cx + rand(-10, 10), noseY - 10, cx - rand(5, 10), noseY);
-            ctx.strokeStyle = 'rgba(40, 10, 10, 0.3)'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
-        }
-
-        function drawScratches() {
-            ctx.save(); const scratchCount = randInt(20, 50);
-            for (let i = 0; i < scratchCount; i++) {
-                ctx.beginPath(); const startX = rand(cx - 120, cx + 120); const startY = rand(cy - 180, cy + 180); ctx.moveTo(startX, startY);
-                const segments = randInt(2, 5); let currentX = startX; let currentY = startY;
-                for (let j = 0; j < segments; j++) {
-                    const nextX = currentX + rand(-30, 30); const nextY = currentY + rand(-20, 20);
-                    ctx.quadraticCurveTo((currentX + nextX) / 2 + rand(-20, 20), (currentY + nextY) / 2 + rand(-15, 15), nextX, nextY);
-                    currentX = nextX; currentY = nextY;
-                }
-                ctx.strokeStyle = `rgba(${randInt(60, 120)}, ${randInt(5, 20)}, ${randInt(5, 20)}, ${rand(0.1, 0.4)})`; ctx.lineWidth = rand(0.5, 2); ctx.stroke();
-            }
-            ctx.restore();
-        }
-
-        function drawWrinkles() {
-            ctx.save(); ctx.strokeStyle = 'rgba(25, 5, 5, 0.3)'; ctx.lineWidth = 0.5;
-            for (let i = 0; i < 5; i++) {
-                ctx.beginPath(); const y = cy - 120 + rand(-10, 10) + i * 15; ctx.moveTo(cx - 50 + rand(-10, 10), y);
-                for (let j = 0; j < 4; j++) {
-                    const x = cx - 30 + j * 20 + rand(-5, 5); ctx.quadraticCurveTo(x - 5, y + rand(-3, 3), x, y + rand(-2, 2));
-                }
-                ctx.stroke();
-            }
-            for (let side = -1; side <= 1; side += 2) {
-                for (let i = 0; i < 3; i++) {
-                    ctx.beginPath(); const baseX = cx + side * 70 + rand(-10, 10); const baseY = cy + 50 + rand(-10, 10); ctx.moveTo(baseX, baseY);
-                    ctx.quadraticCurveTo(baseX + side * rand(5, 15), baseY + rand(-10, 10), baseX + side * rand(10, 25), baseY + rand(-5, 5)); ctx.stroke();
-                }
-            }
-            ctx.restore();
-        }
-
-        drawDistortedFaceSilhouette();
-        drawNose();
-        drawEyes();
-        drawMouth();
-        drawWrinkles();
-        drawScratches();
-
-        const imageData = ctx.getImageData(0, 0, width, height); const data = imageData.data;
-        for (let y = height - 1; y > 3; y--) {
-            for (let x = 0; x < width; x += 2) {
-                const srcIdx = ((y - 3) * width + x) * 4; const destIdx = (y * width + x) * 4;
-                for (let c = 0; c < 4; c++) { data[destIdx + c] = data[destIdx + c] * 0.9 + data[srcIdx + c] * 0.1; }
-            }
-        }
-        ctx.putImageData(imageData, 0, 0);
-
-        const vignetteGrad = ctx.createRadialGradient(cx, cy, width * 0.25, cx, cy, width * 0.7);
-        vignetteGrad.addColorStop(0, 'rgba(0, 0, 0, 0)'); vignetteGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.3)'); vignetteGrad.addColorStop(1, 'rgba(0, 0, 0, 0.8)');
-        ctx.fillStyle = vignetteGrad; ctx.fillRect(0, 0, width, height);
-
-        for (let i = 0; i < 100; i++) {
-            ctx.beginPath(); ctx.arc(rand(0, width), rand(0, height), rand(0.5, 2), 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(${randInt(40, 80)}, ${randInt(10, 30)}, ${randInt(10, 30)}, ${rand(0.1, 0.3)})`; ctx.fill();
-        }
+        // Vignette Memusat Pekat
+        const grad = ctx.createRadialGradient(256, 256, 20, 256, 256, 250);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.98)');
+        ctx.fillStyle = grad; 
+        ctx.fillRect(0,0,512,512);
 
         return canvas.toDataURL('image/png');
     }
@@ -699,14 +505,10 @@
     let ironGate;
     let isGateClosed = false;
 
-    let exitDoorHinge;
-    let isExitDoorOpening = false;
-
     let ghostMesh;
     let isGhostAttacking = false;
     let ghostAttackTimer = 0;
-
-    let fogGroup1, fogGroup2; 
+    let dustPoints; // Partikel debu mengambang
 
     const PHYS = { cellSize: 15.0, wallThick: 2.0, wallHeight: 14.0, playerHeight: 5.5, playerRadius: 2.0, speed: 9.0 };
 
@@ -718,6 +520,11 @@
     scareOverlay.style.backgroundImage = `url(${createScaryFaceDataURL()})`;
 
     window.addEventListener('keydown', (e) => {
+      // Cegah Spasi dari memicu tombol UI atau scrolling
+      if (e.key === ' ' || e.code === 'Space') {
+          e.preventDefault();
+      }
+      
       if (!isGameRunning) return;
       if (e.key.toLowerCase() === 'w' || e.key === 'ArrowUp') keys.w = true;
       if (e.key.toLowerCase() === 's' || e.key === 'ArrowDown') keys.s = true;
@@ -833,8 +640,10 @@
       container3dElem.innerHTML = '';
       scene = new THREE.Scene();
       
-      scene.background = new THREE.Color(0x050505);
-      scene.fog = new THREE.FogExp2(0x050505, levelConfig.fogDensity); 
+      // Warna dasar yang murky dan kecoklatan agar FogExp2 terlihat sebagai "Kabut Volumetric" saat disorot cahaya, bukan gelap murni
+      const fogColor = 0x0c0b0a;
+      scene.background = new THREE.Color(fogColor);
+      scene.fog = new THREE.FogExp2(fogColor, levelConfig.fogDensity); 
 
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 150);
       camera.rotation.order = 'YXZ';
@@ -865,34 +674,41 @@
       const dirtTex = createDirtTexture();
       
       const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.9 });
-      const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.9 });
-      const ceilMat = new THREE.MeshStandardMaterial({ map: ceilTex, roughness: 1.0 });
+      
+      // Material Lantai PBR (Mengkilap dengan detail goresan kotoran menonjol)
+      const floorMat = new THREE.MeshStandardMaterial({ 
+          map: floorTex, 
+          bumpMap: floorTex, 
+          bumpScale: 0.05, 
+          roughness: 0.15, 
+          metalness: 0.3 
+      });
+      
+      // Material Plafon (Dengan bump map untuk Depth)
+      const ceilMat = new THREE.MeshStandardMaterial({ 
+          map: ceilTex, 
+          bumpMap: ceilTex, 
+          bumpScale: 0.05, 
+          roughness: 1.0 
+      });
+      
       const dirtMat = new THREE.MeshStandardMaterial({ map: dirtTex, roughness: 1.0 });
 
-      const fogGeo1 = new THREE.BufferGeometry(); const fogGeo2 = new THREE.BufferGeometry();
-      const fogCount = currentSize * currentSize * 25; 
-      const fogPos1 = new Float32Array(fogCount * 3); const fogPos2 = new Float32Array(fogCount * 3);
-      
-      const mazeCenter = (currentSize * PHYS.cellSize) / 2;
-      const fogSpread = currentSize * PHYS.cellSize * 1.5;
-
-      for(let i=0; i<fogCount; i++) {
-         fogPos1[i*3] = (Math.random() - 0.5) * fogSpread; 
-         fogPos1[i*3+1] = Math.random() * 2.0; 
-         fogPos1[i*3+2] = (Math.random() - 0.5) * fogSpread;
-
-         fogPos2[i*3] = (Math.random() - 0.5) * fogSpread; 
-         fogPos2[i*3+1] = Math.random() * 2.0; 
-         fogPos2[i*3+2] = (Math.random() - 0.5) * fogSpread;
+      // PARTIKEL DEBU BERTERBANGAN (Volume atmosphere)
+      const dustGeo = new THREE.BufferGeometry();
+      const dustCount = 5000;
+      const dustPos = new Float32Array(dustCount * 3);
+      const mCenter = (currentSize * PHYS.cellSize) / 2;
+      const spread = currentSize * PHYS.cellSize;
+      for(let i=0; i<dustCount; i++) {
+         dustPos[i*3] = mCenter + (Math.random() - 0.5) * spread;
+         dustPos[i*3+1] = Math.random() * PHYS.wallHeight;
+         dustPos[i*3+2] = mCenter + (Math.random() - 0.5) * spread;
       }
-      fogGeo1.setAttribute('position', new THREE.BufferAttribute(fogPos1, 3));
-      fogGeo2.setAttribute('position', new THREE.BufferAttribute(fogPos2, 3));
-
-      const fogMat = new THREE.PointsMaterial({
-         map: createFogTexture(), size: 18.0, transparent: true, depthWrite: false, opacity: 0.3 + (currentLevel/30)*0.5, blending: THREE.AdditiveBlending
-      });
-      fogGroup1 = new THREE.Points(fogGeo1, fogMat); fogGroup1.position.set(mazeCenter, 0, mazeCenter); scene.add(fogGroup1);
-      fogGroup2 = new THREE.Points(fogGeo2, fogMat); fogGroup2.position.set(mazeCenter, 0, mazeCenter); scene.add(fogGroup2);
+      dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+      const dustMat = new THREE.PointsMaterial({ color: 0xaaaaaa, size: 0.08, transparent: true, opacity: 0.3 });
+      dustPoints = new THREE.Points(dustGeo, dustMat);
+      scene.add(dustPoints);
 
       const inGeo = new THREE.PlaneGeometry(currentSize * PHYS.cellSize, currentSize * PHYS.cellSize);
       inGeo.rotateX(-Math.PI / 2);
@@ -907,6 +723,22 @@
       ceilMesh.receiveShadow = true;
       scene.add(ceilMesh);
 
+      // BALOK KAYU PLAFON 3D (Rafters) untuk kedalaman ekstra
+      const beamGeo = new THREE.BoxGeometry(currentSize * PHYS.cellSize, 0.4, 0.4);
+      const beamMat = new THREE.MeshStandardMaterial({ color: 0x110a05, roughness: 1.0 });
+      for(let i=0; i<=currentSize; i++) {
+          let beam = new THREE.Mesh(beamGeo, beamMat);
+          beam.position.set((currentSize*PHYS.cellSize)/2 - PHYS.cellSize/2, PHYS.wallHeight - 0.2, i * PHYS.cellSize - PHYS.cellSize/2);
+          beam.castShadow = true; beam.receiveShadow = true;
+          scene.add(beam);
+          // Rangka silang
+          let beam2 = new THREE.Mesh(beamGeo, beamMat);
+          beam2.rotation.y = Math.PI / 2;
+          beam2.position.set(i * PHYS.cellSize - PHYS.cellSize/2, PHYS.wallHeight - 0.2, (currentSize*PHYS.cellSize)/2 - PHYS.cellSize/2);
+          beam2.castShadow = true; beam2.receiveShadow = true;
+          scene.add(beam2);
+      }
+
       const yardGeo = new THREE.PlaneGeometry(currentSize * PHYS.cellSize * 4, currentSize * PHYS.cellSize * 4);
       yardGeo.rotateX(-Math.PI / 2);
       const yardMesh = new THREE.Mesh(yardGeo, dirtMat);
@@ -914,10 +746,37 @@
       yardMesh.receiveShadow = true;
       scene.add(yardMesh);
 
+      // Rumput Liar 3D (InstancedMesh) di Luar Bangunan
+      const grassGeo = new THREE.ConeGeometry(0.04, 0.8, 3);
+      grassGeo.translate(0, 0.4, 0); 
+      const grassMat = new THREE.MeshStandardMaterial({ color: 0x151008, roughness: 1.0 }); 
+      const grassCount = 20000;
+      const grassInstanced = new THREE.InstancedMesh(grassGeo, grassMat, grassCount);
+      const dummyGrass = new THREE.Object3D();
+      let grassIdx = 0;
+
       const safeMinX = -PHYS.cellSize;
       const safeMaxX = currentSize * PHYS.cellSize;
       const safeMinZ = -PHYS.cellSize;
       const safeMaxZ = currentSize * PHYS.cellSize;
+
+      for(let i=0; i<grassCount; i++) {
+        let tx = (currentSize*PHYS.cellSize)/2 + (Math.random() - 0.5) * (currentSize * PHYS.cellSize * 3.8);
+        let tz = (currentSize*PHYS.cellSize)/2 + (Math.random() - 0.5) * (currentSize * PHYS.cellSize * 3.8);
+        
+        if (tx > safeMinX && tx < safeMaxX && tz > safeMinZ && tz < safeMaxZ) continue;
+        
+        dummyGrass.position.set(tx, 0, tz);
+        dummyGrass.rotation.y = Math.random() * Math.PI * 2;
+        dummyGrass.rotation.x = (Math.random() - 0.5) * 0.5; 
+        dummyGrass.rotation.z = (Math.random() - 0.5) * 0.5;
+        dummyGrass.scale.setScalar(0.5 + Math.random() * 1.5);
+        dummyGrass.updateMatrix();
+        grassInstanced.setMatrixAt(grassIdx++, dummyGrass.matrix);
+      }
+      grassInstanced.count = grassIdx; 
+      grassInstanced.receiveShadow = true;
+      scene.add(grassInstanced);
 
       for(let i=0; i<80; i++) {
         let tx = (currentSize*PHYS.cellSize)/2 + (Math.random() - 0.5) * (currentSize * PHYS.cellSize * 3.5);
@@ -938,29 +797,6 @@
       const pillarGeo = new THREE.BoxGeometry(PHYS.wallThick + 0.2, PHYS.wallHeight + 0.2, PHYS.wallThick + 0.2);
       const hWallGeo = new THREE.BoxGeometry(PHYS.cellSize, PHYS.wallHeight, PHYS.wallThick);
       const vWallGeo = new THREE.BoxGeometry(PHYS.wallThick, PHYS.wallHeight, PHYS.cellSize);
-      
-      const exitMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
-      const exitGeo = new THREE.BoxGeometry(PHYS.cellSize, PHYS.wallHeight, 1);
-
-      function createExitDoor(wx, wz) {
-        const hinge = new THREE.Group();
-        hinge.position.set(wx - PHYS.cellSize/2, PHYS.wallHeight/2, wz);
-        
-        const doorMat = new THREE.MeshStandardMaterial({ color: 0x2e1b0d, roughness: 0.8 });
-        const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(PHYS.cellSize, PHYS.wallHeight, 1.2), doorMat);
-        doorMesh.position.set(PHYS.cellSize/2, 0, 0); 
-        doorMesh.castShadow = true; doorMesh.receiveShadow = true;
-        
-        const knob = new THREE.Mesh(new THREE.SphereGeometry(0.4), new THREE.MeshStandardMaterial({color: 0x555555, metalness: 0.9}));
-        knob.position.set(PHYS.cellSize - 1.5, 0, 0.7);
-        
-        const exitLight = new THREE.PointLight(0x5588ff, 4.0, 40);
-        exitLight.position.set(PHYS.cellSize/2, 0, 10);
-        
-        hinge.add(doorMesh); hinge.add(knob); hinge.add(exitLight);
-        scene.add(hinge);
-        return hinge;
-      }
 
       const addWallDecor = (wx, wz, isVertical) => {
         const isMirror = Math.random() > 0.6;
@@ -971,6 +807,7 @@
            const mirror = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 4.1), new THREE.MeshStandardMaterial({color: 0x222222, metalness: 1.0, roughness: 0.1}));
            mirror.position.z = 0.16; frame.add(mirror);
            if(Math.random() > 0.5) {
+              // Pantulan hantu abstrak sangat pudar di cermin
               const faintFace = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 4.1), new THREE.MeshBasicMaterial({map: ghostTex, transparent: true, opacity: 0.1, depthWrite: false}));
               faintFace.position.z = 0.17; frame.add(faintFace);
            }
@@ -1031,7 +868,10 @@
               if(Math.random() < 0.15) addWallDecor(x, z + PHYS.cellSize/2, false);
             }
             else if (c === currentSize - 1) {
-              exitDoorHinge = createExitDoor(x, z + PHYS.cellSize/2);
+              // Pintu Keluar Dihapus, diganti penanda lorong keluar berupa cahaya merah pucat dari lantai
+              const exitMarker = new THREE.PointLight(0x550000, 2.0, 30);
+              exitMarker.position.set(x, 1, z + PHYS.cellSize/2);
+              scene.add(exitMarker);
             }
           }
           if (c === currentSize - 1 && cell.walls.right) {
@@ -1119,11 +959,8 @@
 
       const dt = Math.min(clock.getDelta(), 0.1);
 
-      if (fogGroup1 && fogGroup2) {
-        fogGroup1.rotation.y -= 0.05 * dt;
-        fogGroup2.rotation.y += 0.03 * dt;
-        fogGroup1.position.y = Math.sin(clock.elapsedTime * 0.5) * 0.2;
-        fogGroup2.position.y = Math.cos(clock.elapsedTime * 0.4) * 0.2;
+      if (dustPoints) {
+        dustPoints.rotation.y += 0.02 * dt;
       }
 
       if (!isGateClosed && camera.position.z > -PHYS.cellSize/4) {
@@ -1188,17 +1025,6 @@
         setTimeout(() => { location.reload(); }, 4000);
       }
 
-      if (exitDoorHinge) {
-        const distToExit = camera.position.distanceTo(exitDoorHinge.position);
-        if (distToExit < PHYS.cellSize * 1.8 && !isExitDoorOpening) {
-          isExitDoorOpening = true;
-          playDoorCreak();
-        }
-        if (isExitDoorOpening && exitDoorHinge.rotation.y < Math.PI / 2) {
-          exitDoorHinge.rotation.y += 1.5 * dt; 
-        }
-      }
-
       let gridR = Math.round(camera.position.z / PHYS.cellSize); let gridC = Math.round(camera.position.x / PHYS.cellSize);
       if (gridR >= 0 && gridR < currentSize && gridC >= 0 && gridC < currentSize) {
         if (gridR !== currentGridCell.r || gridC !== currentGridCell.c) {
@@ -1225,6 +1051,7 @@
     }
 
     btnStart.addEventListener('click', () => {
+      btnStart.blur(); // Hapus fokus tombol mencegah Spasi trigger ganda
       initAudio();
       currentLevel = parseInt(levelSelect.value);
       updateLevelConfig(currentLevel);
@@ -1268,8 +1095,6 @@
         physicalWalls = [];
         isGhostAttacking = false;
         isGateClosed = false;
-        exitDoorHinge = null;
-        isExitDoorOpening = false;
       }, 500);
     });
 
