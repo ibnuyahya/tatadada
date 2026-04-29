@@ -1,4 +1,4 @@
-<!-- TAFSIR VISUAL: Penerapan standar Apple Art Director v5.5 dengan menghilangkan seluruh elemen stroke pada desain. Konstruksi ikon 100% menggunakan pilar bervolume solid dengan teknik 'Melting Geometry'. Framework ditingkatkan ke v5.7 meliputi Editor dengan Nomor Baris sinkron, Auto-Favicon, Google Analytics, & Modal Legal ketat. -->
+<!-- TAFSIR VISUAL: Penerapan standar Apple Art Director v5.5 dengan menghilangkan seluruh elemen stroke pada desain. Konstruksi ikon 100% menggunakan pilar bervolume solid dengan teknik 'Melting Geometry'. Framework ditingkatkan ke v5.8 meliputi Editor dengan Nomor Baris sinkron, Auto-Favicon (Smart Parser/Zoomed), Google Analytics, & Modal Legal ketat. -->
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IconXstudio</title>
     
-    <!-- 1. Google Analytics (Mandatory TATADADA v5.7) -->
+    <!-- 1. Google Analytics (Mandatory TATADADA v5.8) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -18,16 +18,28 @@
       });
     </script>
 
-    <!-- 2. Auto-Favicon Injector (Mandatory TATADADA v5.7) -->
+    <!-- 2. Auto-Favicon Injector (Mandatory TATADADA v5.8 - Smart Parser) -->
     <script>
+    // TATADADA Auto-Favicon Injector (Zoomed & Textless)
     fetch('icon.xml').then(r => r.text()).then(xml => {
-        const svgContent = new DOMParser().parseFromString(xml, "text/xml").querySelector('svg_elements').innerHTML;
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style>${svgContent}</svg>`;
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+
+        // 1. Hapus elemen teks agar favicon bersih
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+
+        // 2. Ambil warna gradien background
+        const cStart = doc.querySelector('color_start')?.textContent || '#0ea5e9';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#4338ca';
+
+        // 3. Render dengan viewBox zoom-in (12 12 76 76)
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;    
         const link = document.createElement('link');
         link.rel = 'icon'; link.type = 'image/svg+xml';
         link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
         document.head.appendChild(link);
-    }).catch(e => console.warn('Favicon XML not loaded or blocked by CORS (Running in dynamic mode).'));
+    }).catch(e => console.warn('Favicon XML not loaded (Running via dynamic canvas instead).'));
     </script>
 
     <!-- Google Fonts: Inter, JetBrains Mono & Fancy Fonts -->
@@ -56,7 +68,7 @@
     </script>
 
     <style>
-        /* TATADADA UI Framework CSS Tokens v5.7 */
+        /* TATADADA UI Framework CSS Tokens v5.8 */
         :root {
             --header-bg: #ffffff;
             --editor-bg: #ffffff;
@@ -80,7 +92,7 @@
             --border-color: #30363d;
             --text-main: #e6edf3;
             --text-dim: #8b949e;
-            color-scheme: dark; /* Wajib di v5.7 */
+            color-scheme: dark;
         }
 
         /* Base & Scrollbar Rules */
@@ -136,7 +148,6 @@
             transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
 
-        /* Dilarang stroke di TATADADA v5.7 */
         .frosted-glass {
             fill: url(#glass-fill);
             backdrop-filter: blur(8px);
@@ -153,7 +164,7 @@
                 X
             </div>
             <h1 class="font-bold text-lg bg-gradient-to-r from-indigo-500 to-orange-500 bg-clip-text text-transparent">IconXstudio</h1>
-            <span class="text-xs italic text-dim hidden sm:inline">v5.7</span>
+            <span class="text-xs italic text-dim hidden sm:inline">v5.8</span>
             <!-- MANDATORY AUTHOR LINK -->
             <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 hidden md:inline ml-2 border-l border-theme pl-2">by AhmadDanial</a>
         </div>
@@ -211,12 +222,12 @@
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="font-semibold text-sm text-main flex items-center gap-2">
                         <i data-lucide="code-2" class="w-4 h-4 text-blue-500"></i>
-                        <span data-i18n="editor_title">XML Pipeline (Tahap 1 v5.7)</span>
+                        <span data-i18n="editor_title">XML Pipeline (Tahap 1 v5.8)</span>
                     </h3>
                     <span class="status-badge text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide text-white transition-colors" id="status-indicator">Valid</span>
                 </div>
             
-                <!-- Editor Area terstruktur TATADADA v5.7 -->
+                <!-- Editor Area terstruktur TATADADA -->
                 <div class="flex flex-1 overflow-hidden border border-theme rounded-xl focus-within:ring-2 focus-within:ring-blue-500/30 transition-all bg-editor">
                     <!-- Gutter Nomor Baris -->
                     <div id="line-numbers" class="w-10 shrink-0 bg-preview border-r border-theme text-dim text-[12px] py-4 pr-2 text-right overflow-hidden select-none font-mono leading-relaxed pointer-events-none">1</div>
@@ -290,14 +301,14 @@
             <span data-i18n="footer_status">Pipeline Aktif & Sinkron</span>
         </div>
         <div class="hidden sm:block">
-            <span data-i18n="footer_stats">Rendering Engine: iOS 17 Pro Mode (v5.7)</span>
+            <span data-i18n="footer_stats">Rendering Engine: iOS 17 Pro Mode (v5.8)</span>
         </div>
         <div>
             <button id="btn-terms" class="hover:text-main transition-colors underline decoration-dotted underline-offset-2" data-i18n="footer_terms">Ketentuan & Privasi</button>
         </div>
     </footer>
 
-    <!-- MODAL TERMS (Strict & Smart Mode TATADADA v5.7) -->
+    <!-- MODAL TERMS (Strict & Smart Mode TATADADA) -->
     <div id="modal-terms" class="fixed inset-0 z-[100] hidden items-center justify-center p-4">
         <!-- Backdrop -->
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm modal-backdrop"></div>
@@ -325,7 +336,7 @@
         // Inisialisasi Icons
         lucide.createIcons();
 
-        // --- 1. CORE LOGIC (DIKERAMATKAN & DIPERTAHANKAN) ---
+        // --- 1. CORE LOGIC & FAVICON AUTO-SYNC (v5.8) ---
         const xmlInput = document.getElementById('xml-input');
         const lineNumbers = document.getElementById('line-numbers');
         const squircle = document.getElementById('render-squircle');
@@ -371,6 +382,23 @@
             lineNumbers.scrollTop = xmlInput.scrollTop;
         });
 
+        // TATADADA v5.8 - Realtime Smart Favicon Updater
+        function updateLiveFavicon(colorStart, colorEnd, svgElementsNode) {
+            if (!svgElementsNode) return;
+            const clonedNode = svgElementsNode.cloneNode(true);
+            clonedNode.querySelectorAll('text').forEach(t => t.remove());
+
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${colorStart}"/><stop offset="100%" stop-color="${colorEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${clonedNode.innerHTML}</svg>`;    
+            
+            let link = document.querySelector("link[rel~='icon']");
+            if (!link) {
+                link = document.createElement('link');
+                link.rel = 'icon'; link.type = 'image/svg+xml';
+                document.head.appendChild(link);
+            }
+            link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        }
+
         function renderXML() {
             syncLineNumbers();
             try {
@@ -407,23 +435,26 @@
                         innerSvgContent += serializer.serializeToString(node);
                     });
                     svgIcon.innerHTML = svgDefs + innerSvgContent;
+                    
+                    // Sync favicon on successful render
+                    updateLiveFavicon(colorStart, colorEnd, svgElementsNode);
                 } else {
                     svgIcon.innerHTML = svgDefs;
                 }
 
                 statusBadge.textContent = "VALID";
-                statusBadge.style.backgroundColor = "#34C759"; // Hijau iOS
+                statusBadge.style.backgroundColor = "#34C759";
 
             } catch (e) {
                 statusBadge.textContent = "ERROR";
-                statusBadge.style.backgroundColor = "#FF3B30"; // Merah iOS
+                statusBadge.style.backgroundColor = "#FF3B30";
             }
         }
 
         xmlInput.addEventListener('input', renderXML);
         renderXML();
 
-        // --- 2. RESIZER LOGIC (TATADADA SPLIT PANE) ---
+        // --- 2. RESIZER LOGIC ---
         const resizer = document.getElementById('resizer');
         const leftPane = document.getElementById('left-pane');
         const rightPane = document.getElementById('right-pane');
@@ -457,7 +488,7 @@
             }
         });
 
-        // --- 3. THEME MANAGER (DARK / LIGHT) ---
+        // --- 3. THEME MANAGER ---
         const btnTheme = document.getElementById('btn-theme');
         const themeIcon = document.getElementById('theme-icon');
         const htmlRoot = document.documentElement;
@@ -480,7 +511,7 @@
             lucide.createIcons();
         });
 
-        // --- 4. LOCALIZATION & STRICT MODAL TERMS (TATADADA v5.7) ---
+        // --- 4. LOCALIZATION & STRICT MODAL TERMS ---
         const btnLang = document.getElementById('btn-lang');
         const elSmartContext = document.getElementById('terms-smart-context');
         const elLegalClause = document.getElementById('terms-legal-clause');
@@ -491,10 +522,10 @@
             id: {
                 help_title: "Cara Penggunaan",
                 help_desc: "Edit XML di panel kanan untuk merender Ikon iOS. Desain akan langsung teraplikasi di kanvas secara real-time.",
-                editor_title: "XML Pipeline (Tahap 1 v5.7)",
+                editor_title: "XML Pipeline (Tahap 1 v5.8)",
                 export_title: "Penulis & Pengunduh Berkas",
                 footer_status: "Pipeline Aktif & Sinkron",
-                footer_stats: "Rendering Engine: iOS 17 Pro Mode (v5.7)",
+                footer_stats: "Rendering Engine: iOS 17 Pro Mode (v5.8)",
                 footer_terms: "Ketentuan & Privasi",
                 terms_title: "Ketentuan Penggunaan",
                 terms_btn: "Saya Mengerti",
@@ -504,10 +535,10 @@
             en: {
                 help_title: "How to Use",
                 help_desc: "Edit the XML in the right panel to render the iOS Icon. Changes apply to the canvas in real-time.",
-                editor_title: "XML Pipeline (Stage 1 v5.7)",
+                editor_title: "XML Pipeline (Stage 1 v5.8)",
                 export_title: "File Writer & Downloader",
                 footer_status: "Pipeline Active & Synced",
-                footer_stats: "Rendering Engine: iOS 17 Pro Mode (v5.7)",
+                footer_stats: "Rendering Engine: iOS 17 Pro Mode (v5.8)",
                 footer_terms: "Terms & Privacy",
                 terms_title: "Terms of Use",
                 terms_btn: "I Understand",
@@ -523,10 +554,8 @@
                     el.textContent = i18n[lang][key];
                 }
             });
-            // Update Strict Modal Text
             elSmartContext.textContent = i18n[lang].smart_context;
             elLegalClause.textContent = i18n[lang].legal_clause;
-            
             btnLang.textContent = lang.toUpperCase();
         }
 
@@ -536,7 +565,7 @@
             updateLang(currentLang);
         });
         
-        updateLang(currentLang); // Init language
+        updateLang(currentLang);
 
         // --- 5. MODAL LOGIC ---
         const modalTerms = document.getElementById('modal-terms');
