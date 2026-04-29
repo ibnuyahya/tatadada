@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <!-- Google Analytics (TATADADA v5.8 Mandatory) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+
+    <!-- TATADADA Auto-Favicon Injector (Zoomed & Textless) -->
+    <script>
+    fetch('icon.xml').then(r => r.text()).then(xml => {
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+
+        // 1. Hapus elemen teks agar favicon bersih
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+
+        // 2. Ambil warna gradien background
+        const cStart = doc.querySelector('color_start')?.textContent || '#0ea5e9';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#4338ca';
+
+        // 3. Render dengan viewBox zoom-in (12 12 76 76)
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;    const link = document.createElement('link');
+        link.rel = 'icon'; link.type = 'image/svg+xml';
+        link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+    }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TidyDoc by AhmadDanial - Paste to PDF</title>
+    
+    <!-- Framework & Fonts -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Library Inti (Sacred Core) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    
+    <style>
+        /* TATADADA CSS TOKENS v5.8 (Vibrant Depth) */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9; /* Selokan untuk kedalaman */
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #10b981; /* Emerald for TidyDoc */
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            margin: 0; padding: 0; overflow: hidden;
+        }
+
+        /* SCROLLBAR CUSTOMIZATION */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* WYSIWYG EDITOR STYLES */
+        #wysiwyg-editor { outline: none; white-space: pre-wrap; word-wrap: break-word; }
+        #wysiwyg-editor * { max-width: 100%; }
+        #wysiwyg-editor table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; border-radius: 8px; border-style: hidden; box-shadow: 0 0 0 1px var(--border-color); }
+        #wysiwyg-editor th, #wysiwyg-editor td { border: 1px solid var(--border-color); padding: 0.75rem; text-align: left; }
+        
+        /* PAGE BREAK VISUALIZATION IN EDITOR */
+        #wysiwyg-editor hr {
+            border: 0;
+            border-top: 2px dashed var(--theme-accent);
+            margin: 24px 0;
+            position: relative;
+            overflow: visible;
+            opacity: 0.6;
+            cursor: default;
+            user-select: none;
+        }
+        #wysiwyg-editor hr::after {
+            content: 'PAGE BREAK';
+            position: absolute;
+            top: -9px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--editor-bg);
+            padding: 0 8px;
+            color: var(--theme-accent);
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 0.1em;
+        }
+
+        /* INVISIBLES VISUALIZATION (PILCROW) */
+        #wysiwyg-editor.show-invisibles p::after,
+        #wysiwyg-editor.show-invisibles h1::after,
+        #wysiwyg-editor.show-invisibles h2::after,
+        #wysiwyg-editor.show-invisibles h3::after,
+        #wysiwyg-editor.show-invisibles li::after,
+        #wysiwyg-editor.show-invisibles div::after {
+            content: ' ¶';
+            color: var(--text-dim);
+            font-family: 'JetBrains Mono', monospace;
+            opacity: 0.5;
+            font-weight: 400;
+            user-select: none;
+            pointer-events: none;
+        }
+
+        /* A4 PAGE SIMULATION */
+        #pages-wrapper { --page-scale: 1; width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 50px; }
+        .a4-container { width: calc(794px * var(--page-scale)); height: calc(1123px * var(--page-scale)); position: relative; margin-bottom: 24px; flex-shrink: 0; box-shadow: var(--shadow-md); background-color: var(--card-bg); border-radius: 4px; }
+        .dark .a4-container { border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .a4-page { width: 794px; height: 1123px; padding: 80px 96px; box-sizing: border-box; position: absolute; transform-origin: top left; transform: scale(var(--page-scale)); overflow: hidden; }
+        .page-content { width: 100%; height: 100%; color: var(--text-main); border-bottom: 1px solid transparent; box-sizing: border-box; }
+        
+        /* PREVIEW AREA PROTECTION */
+        #markdown-preview-container {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* TYPOGRAPHY A4 */
+        .a4-page p, .a4-page li, .a4-page blockquote { font-size: 11.5pt !important; line-height: 1.6 !important; margin-bottom: 8pt !important;}
+        .a4-page table { font-size: 10pt !important; border-collapse: collapse; width: 100%; margin-bottom: 1rem; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px var(--border-color); }
+        .a4-page th, .a4-page td { border: 1px solid var(--border-color); padding: 0.5rem; text-align: left; }
+        .a4-page h1 { font-size: 20pt !important; font-weight: 800; margin-bottom: 12pt !important;}
+        .a4-page h2 { font-size: 16pt !important; font-weight: 700; border-bottom: 1px solid var(--border-color); margin-top: 14pt !important; margin-bottom: 8pt !important; padding-bottom: 4px;}
+        .a4-page h3 { font-size: 14pt !important; margin-top: 12pt !important; margin-bottom: 6pt !important; font-weight: 700; }
+        
+        /* SMART HEURISTIC FOOTER & NUMBERING */
+        .page-footer-text { position: absolute; bottom: 30px; left: 96px; font-size: 8.5pt; color: var(--text-dim); max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .page-number { position: absolute; bottom: 30px; right: 96px; text-align: right; font-size: 8.5pt; color: var(--text-dim); font-weight: 600; }
+
+        /* BEAUTIFUL LISTS */
+        .a4-page ol { list-style: none; counter-reset: custom-counter; padding-left: 0 !important; margin-top: 0.5rem; margin-bottom: 1rem; }
+        .a4-page ol > li { position: relative; counter-increment: custom-counter; padding-left: 2.25rem !important; margin-bottom: 0.6rem !important; }
+        .a4-page ol > li::before {
+            content: counter(custom-counter);
+            position: absolute; left: 0; top: 0.15rem;
+            width: 1.4rem; height: 1.4rem;
+            background-color: rgba(16, 185, 129, 0.15); color: var(--theme-accent);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 0.75rem; font-weight: 800;
+        }
+        .a4-page ol > li > p, .a4-page ul > li > p { margin-bottom: 0 !important; }
+
+        /* NEAT CITATIONS */
+        .a4-page a img { display: inline-block !important; width: 15px !important; height: 15px !important; margin: 0 6px 0 0 !important; vertical-align: text-bottom !important; border-radius: 2px; }
+        .a4-page img { max-width: 100% !important; max-height: 450px !important; object-fit: contain; display: block; margin: 12px 0 !important; border-radius: 4px; }
+        .a4-page a { color: var(--theme-accent); text-decoration: none; word-break: break-all; }
+        .a4-page a:hover { text-decoration: underline; }
+
+        /* TABLE OF CONTENTS STYLING */
+        .toc-box { background: var(--preview-bg); padding: 16px 20px; border-radius: 8px; border: 1px dashed var(--border-color); margin-bottom: 16pt !important; }
+        .toc-box strong { display: block; margin-bottom: 12px; font-size: 13pt; color: var(--theme-accent); }
+        .toc-box ul { padding-left: 0; margin: 0; }
+        .toc-box li { line-height: 1.6 !important; margin-bottom: 6px !important; font-size: 10.5pt; font-weight: 500;}
+        .toc-box li a { color: var(--text-main); text-decoration: none; display: block;}
+
+        /* TOOLTIP HELP */
+        .help-tooltip { visibility: hidden; opacity: 0; transition: 0.2s; position: absolute; top: 120%; left: 0; width: 240px; z-index: 100; }
+        .help-trigger:hover .help-tooltip { visibility: visible; opacity: 1; }
+
+        .btn-disabled { opacity: 0.3 !important; cursor: not-allowed !important; pointer-events: none !important; }
+
+        /* PRINT MEDIA QUERY FOR NATIVE VECTOR PDF */
+        @media print {
+            @page { size: A4 portrait; margin: 0; }
+            body { background: white !important; margin: 0; padding: 0; }
+            header, footer, #left-pane, #separator, .help-tooltip, #toast, #terms-modal { display: none !important; }
+            
+            main { display: block !important; padding: 0 !important; background: white !important; overflow: visible !important; height: auto !important; }
+            #right-pane { width: 100% !important; border: none !important; box-shadow: none !important; background: white !important; overflow: visible !important; height: auto !important; border-radius: 0 !important; }
+            #markdown-preview-container { display: block !important; position: static !important; overflow: visible !important; background: white !important; height: auto !important; }
+            #pages-wrapper { padding: 0 !important; display: block !important; background: white !important; }
+            
+            .a4-container {
+                width: 210mm !important;
+                height: 296mm !important; 
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                background: white !important;
+                transform: none !important;
+                position: relative !important;
+                display: block !important;
+                overflow: hidden !important;
+            }
+            .a4-container:last-child {
+                page-break-after: auto !important;
+                break-after: auto !important;
+            }
+            
+            .a4-page {
+                width: 210mm !important;
+                height: 296mm !important;
+                padding: 20mm 24mm !important;
+                margin: 0 !important;
+                transform: none !important;
+                position: relative !important;
+                color: black !important;
+                display: block !important;
+                overflow: hidden !important;
+            }
+            
+            /* Print Footer positioning */
+            .page-footer-text, .page-number { position: absolute !important; bottom: 14mm !important; color: black !important; }
+            .page-footer-text { left: 24mm !important; }
+            .page-number { right: 24mm !important; }
+
+            .dark .a4-page, .dark .page-content, .prose, .prose * { color: black !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col transition-colors duration-200">
+
+    <!-- TATADADA: HEADER -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-[var(--border-color)] bg-[var(--header-bg)] shrink-0 relative z-50">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <div class="flex items-baseline select-none">
+                    <span class="text-2xl font-black tracking-tighter bg-gradient-to-r from-emerald-500 to-teal-600 bg-clip-text text-transparent">TIDYDOC</span>
+                    <span class="ml-2 text-[10px] font-mono text-[var(--text-dim)] italic font-medium">v1.1.5</span>
+                </div>
+                <div class="h-4 w-px bg-[var(--border-color)] mx-2"></div>
+                <div class="flex flex-col mt-0.5">
+                    <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-[var(--text-dim)] hover:text-blue-500">by AhmadDanial</a>
+                </div>
+                <!-- Help Trigger -->
+                <div class="relative help-trigger cursor-help ml-2 text-[var(--text-dim)] hover:text-[var(--theme-accent)] transition-colors">
+                    <i data-lucide="help-circle" class="w-4 h-4"></i>
+                    <div class="help-tooltip bg-[var(--header-bg)] border border-[var(--border-color)] p-4 rounded-xl shadow-2xl text-[11px] leading-relaxed text-[var(--text-main)]">
+                        <p class="font-bold border-b border-[var(--border-color)] pb-2 mb-2" data-t="help_title">Cara Pakai:</p>
+                        <ol class="list-decimal pl-4 space-y-1.5 text-[var(--text-dim)]" data-t="help_list">
+                            <li>Copy teks berantakan dari Word/Website.</li>
+                            <li>Paste (Ctrl+V) ke panel kiri (Editor).</li>
+                            <li>Klik "Tidy Format" untuk merapikan gaya.</li>
+                            <li>Gunakan "Auto Heading" untuk menyusun struktur otomatis.</li>
+                            <li>Klik "Unduh PDF" untuk menyimpan hasilnya.</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            
+            <div class="flex items-center gap-1.5">
+                <button id="tidy-btn" class="btn-disabled flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-800 text-[10px] font-bold rounded-lg shadow-sm transition uppercase border border-emerald-200 dark:border-emerald-800" title="Bersihkan format HTML dan renggangan daftar">
+                    <i data-lucide="wand-2" class="w-3.5 h-3.5"></i> <span data-t="btn_tidy">Tidy Format</span>
+                </button>
+            </div>
+
+            <div class="h-5 w-px bg-[var(--border-color)] mx-1"></div>
+
+            <!-- Actions Download Berjejer -->
+            <div class="flex items-center gap-1.5">
+                <button id="download-doc-btn" class="btn-disabled flex items-center gap-1.5 px-3 py-1.5 border border-[var(--border-color)] bg-[var(--card-bg)] hover:bg-[var(--preview-bg)] text-[var(--text-main)] text-[10px] font-bold rounded-lg shadow-sm transition uppercase">
+                    <i data-lucide="file-text" class="w-3.5 h-3.5"></i> .DOC
+                </button>
+                <button id="download-md-btn" class="btn-disabled flex items-center gap-1.5 px-3 py-1.5 border border-[var(--border-color)] bg-[var(--card-bg)] hover:bg-[var(--preview-bg)] text-[var(--text-main)] text-[10px] font-bold rounded-lg shadow-sm transition uppercase">
+                    <i data-lucide="file-code-2" class="w-3.5 h-3.5"></i> .MD
+                </button>
+                <button id="download-pdf-btn" class="btn-disabled flex items-center gap-1.5 px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold rounded-lg shadow-sm transition uppercase">
+                    <i data-lucide="file-down" class="w-3.5 h-3.5"></i> <span data-t="btn_pdf">Unduh PDF</span>
+                </button>
+                <button id="copy-btn" class="btn-disabled flex items-center gap-1.5 px-3 py-1.5 border border-[var(--border-color)] bg-[var(--card-bg)] hover:bg-[var(--preview-bg)] text-[var(--text-main)] text-[10px] font-bold rounded-lg shadow-sm transition uppercase">
+                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+
+            <div class="h-5 w-px bg-[var(--border-color)] mx-1"></div>
+
+            <button id="lang-toggle" class="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-[var(--preview-bg)] transition text-[11px] font-bold text-[var(--text-main)]">
+                <span id="lang-flag" class="text-sm shadow-sm rounded-sm">🇮🇩</span> <span id="lang-text">ID</span>
+            </button>
+
+            <button id="theme-toggle" class="p-2 text-[var(--text-dim)] hover:bg-[var(--preview-bg)] hover:text-[var(--theme-accent)] rounded-lg transition focus:outline-none">
+                <i data-lucide="sun" id="sun-icon" class="w-4 h-4 hidden"></i>
+                <i data-lucide="moon" id="moon-icon" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- TATADADA: MAIN WORKSPACE (Split Pane Mode) -->
+    <main class="flex-1 flex flex-row overflow-hidden w-full relative bg-[var(--preview-bg)] p-3">
+        <!-- LEFT: EDITOR CARD -->
+        <div id="left-pane" style="width: 50%;" class="h-full bg-[var(--card-bg)] rounded-2xl shadow-sm border border-[var(--border-color)] text-[var(--text-main)] flex flex-col relative shrink-0 overflow-hidden">
+            
+            <!-- MINI TOOLBAR -->
+            <div class="h-10 border-b border-[var(--border-color)] bg-[var(--preview-bg)] flex items-center px-3 gap-1.5 shrink-0 select-none">
+                <button id="toolbar-autoheading" class="p-1.5 text-[var(--text-dim)] hover:text-[var(--text-main)] hover:bg-[var(--card-bg)] rounded transition border border-transparent hover:border-[var(--border-color)] flex items-center gap-1.5 text-[11px] font-semibold" title="Deteksi dan format otomatis struktur Heading / Judul">
+                    <i data-lucide="heading" class="w-3.5 h-3.5"></i> Auto Heading
+                </button>
+                <button id="toolbar-toc" class="btn-disabled p-1.5 text-[var(--text-dim)] hover:text-[var(--text-main)] hover:bg-[var(--card-bg)] rounded transition border border-transparent hover:border-[var(--border-color)] flex items-center gap-1.5 text-[11px] font-semibold" title="Sisipkan Daftar Isi (Aktif jika ada Heading)">
+                    <i data-lucide="list-tree" class="w-3.5 h-3.5"></i> Insert TOC
+                </button>
+                <div class="w-px h-4 bg-[var(--border-color)] mx-1"></div>
+                <button id="toolbar-pagebreak" class="p-1.5 text-[var(--text-dim)] hover:text-[var(--text-main)] hover:bg-[var(--card-bg)] rounded transition border border-transparent hover:border-[var(--border-color)] flex items-center gap-1.5 text-[11px] font-semibold" title="Sisipkan Page Break (Pemisah Halaman)">
+                    <i data-lucide="separator-horizontal" class="w-3.5 h-3.5"></i> Page Break
+                </button>
+                <button id="toolbar-invisibles" class="p-1.5 text-[var(--text-dim)] hover:text-[var(--text-main)] hover:bg-[var(--card-bg)] rounded transition border border-transparent hover:border-[var(--border-color)] flex items-center gap-1.5 text-[11px] font-semibold" title="Tampilkan/Sembunyikan Karakter Penanda (Pilcrow)">
+                    <i data-lucide="pilcrow" class="w-3.5 h-3.5"></i> Show Invisibles
+                </button>
+            </div>
+
+            <!-- WYSIWYG untuk Rich Text Paster -->
+            <div id="wysiwyg-editor" contenteditable="true" spellcheck="false" 
+                 class="w-full flex-1 p-10 overflow-y-auto text-[15px] leading-relaxed focus:outline-none prose dark:prose-invert max-w-none" 
+                 placeholder="Paste (Ctrl+V) dokumen Word atau halaman Web Anda di sini..."></div>
+        </div>
+
+        <!-- RESIZER (Thick Gutter) -->
+        <div id="separator" class="w-3 h-full shrink-0 z-10 cursor-col-resize flex items-center justify-center group bg-transparent">
+            <div class="h-10 w-1.5 rounded-full bg-[var(--border-color)] group-hover:bg-[var(--theme-accent)] transition-colors"></div>
+        </div>
+
+        <!-- RIGHT: OUTPUT / PREVIEW CARD (Selalu Visual) -->
+        <div id="right-pane" style="width: 50%;" class="h-full bg-[var(--card-bg)] rounded-2xl shadow-sm border border-[var(--border-color)] flex flex-col relative shrink-0 overflow-hidden">
+            <!-- Hidden textarea for logic -->
+            <textarea id="markdown-output" style="display:none;"></textarea>
+            
+            <!-- VISUAL VIEW (A4 PDF LAYOUT) -->
+            <div id="markdown-preview-container" class="absolute inset-0 w-full h-full bg-[var(--preview-bg)] overflow-y-auto rounded-2xl">
+                <div id="pages-wrapper" class="pt-8"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- TATADADA: FOOTER -->
+    <footer class="h-8 border-t border-[var(--border-color)] bg-[var(--footer-bg)] flex items-center justify-between px-6 shrink-0 text-[10px] font-medium text-[var(--text-dim)] z-20">
+        <div class="flex items-center gap-1.5 w-1/3">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse"></span>
+            <span data-t="status_ready" class="font-semibold text-[var(--text-main)]">Engine Ready</span>
+        </div>
+
+        <div class="flex items-center justify-center gap-4 w-1/3">
+            <span class="flex items-center gap-1.5"><i data-lucide="hash" class="w-3.5 h-3.5"></i> <span id="stat-words">0 Kata</span></span>
+            <span class="flex items-center gap-1.5"><i data-lucide="type" class="w-3.5 h-3.5"></i> <span id="stat-chars">0 Karakter</span></span>
+            <div class="h-3 w-px bg-[var(--border-color)]"></div>
+            <span class="flex items-center gap-1.5 text-[var(--theme-accent)] font-bold"><i data-lucide="layers" class="w-3.5 h-3.5"></i> <span id="stat-pages">0 Halaman</span></span>
+        </div>
+
+        <div class="flex items-center justify-end w-1/3">
+            <button id="open-terms-btn" class="hover:text-[var(--text-main)] hover:text-[var(--theme-accent)] transition-colors font-semibold" data-t="btn_terms">
+                Terms of Use
+            </button>
+        </div>
+    </footer>
+
+    <!-- TATADADA: MODAL TERMS OF USE (Strict & Smart Mode) -->
+    <div id="terms-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity">
+        <div class="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl shadow-2xl p-8 max-w-lg w-full mx-4 transform scale-95 transition-transform">
+            <div class="flex justify-between items-center mb-5 border-b border-[var(--border-color)] pb-4">
+                <h3 class="text-xl font-extrabold text-[var(--text-main)] flex items-center gap-2.5">
+                    <i data-lucide="scale" class="w-6 h-6 text-[var(--theme-accent)]"></i>
+                    <span data-t="terms_title">Terms of Use</span>
+                </h3>
+                <button id="close-terms-btn" class="text-[var(--text-dim)] hover:text-[var(--text-main)] bg-[var(--preview-bg)] p-1.5 rounded-full focus:outline-none transition-colors">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="space-y-4 text-sm text-[var(--text-dim)] leading-relaxed mb-8">
+                <!-- Smart Context Clause -->
+                <p data-t="terms_desc_smart" class="font-medium text-[var(--text-main)]">
+                    TidyDoc adalah alat pembersih format dokumen (Paste-to-PDF Engine) yang beroperasi sepenuhnya secara lokal di peramban Anda. Aplikasi ini dirancang untuk merapikan teks kaya (Rich Text) yang disalin dari Word atau Web menjadi format A4 yang siap dicetak.
+                </p>
+                <!-- Strict Legal Clause -->
+                <p data-t="terms_desc_strict" class="text-[11px] p-4 bg-[var(--preview-bg)] rounded-xl border border-[var(--border-color)]">
+                    Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics untuk mengumpulkan data penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.
+                </p>
+            </div>
+            <div class="flex justify-end">
+                <button id="accept-terms-btn" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-bold transition shadow-sm" data-t="btn_close">Mengerti & Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="fixed bottom-12 right-8 bg-[var(--text-main)] text-[var(--card-bg)] px-5 py-3 rounded-xl shadow-2xl transition-opacity duration-300 opacity-0 pointer-events-none z-50 flex items-center gap-2.5 text-sm font-bold">
+        <i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i> <span data-t="toast_copy">Disalin ke Clipboard!</span>
+    </div>
+
+    <!-- Unified Engine Script (Sacred Area) -->
+    <script type="module">
+        import { unified } from 'https://esm.sh/unified@11?bundle';
+        import rehypeParse from 'https://esm.sh/rehype-parse@9?bundle';
+        import rehypeRemark from 'https://esm.sh/rehype-remark@10?bundle';
+        import remarkStringify from 'https://esm.sh/remark-stringify@11?bundle';
+        import remarkGfm from 'https://esm.sh/remark-gfm@4?bundle';
+        import remarkMath from 'https://esm.sh/remark-math@6?bundle';
+
+        window.astConvert = async function(htmlContent) {
+            const mathMap = [];
+            const getPH = (idx) => `WZMATHPROTECT${idx}X`;
+
+            const parts = htmlContent.split(/<hr[^>]*>/i);
+            let finalMd = "";
+            let refCount = 1;
+            let isFirstRef = true;
+
+            for (let i = 0; i < parts.length; i++) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = parts[i];
+
+                tempDiv.querySelectorAll('.katex-display, .katex').forEach(node => {
+                    const ann = node.querySelector('annotation[encoding="application/x-tex"]');
+                    if (ann) {
+                        const idx = mathMap.length;
+                        mathMap.push({ isBlock: node.classList.contains('katex-display'), text: ann.textContent });
+                        node.replaceWith(document.createTextNode(getPH(idx)));
+                    }
+                });
+
+                const walker = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT, null, false);
+                let tn;
+                while (tn = walker.nextNode()) {
+                    let txt = tn.nodeValue;
+                    let chg = false;
+                    txt = txt.replace(/\$\$(.*?)\$\$/gs, (m, p) => { chg=true; mathMap.push({isBlock:true, text:p}); return getPH(mathMap.length-1); });
+                    txt = txt.replace(/\$(.*?)\$/g, (m, p) => { chg=true; mathMap.push({isBlock:false, text:p}); return getPH(mathMap.length-1); });
+                    if (chg) tn.nodeValue = txt;
+                }
+
+                const file = await unified()
+                    .use(rehypeParse, { fragment: true }) 
+                    .use(rehypeRemark)                    
+                    .use(remarkGfm)                        
+                    .use(remarkMath)                      
+                    .use(remarkStringify, { bullet: '-', emphasis: '_', strong: '*' })
+                    .process(tempDiv.innerHTML);
+
+                let md = String(file);
+                finalMd += md;
+                
+                if (i < parts.length - 1) {
+                    finalMd += "\n\n---\n\n";
+                }
+            }
+
+            const linkClusterRegex = /\[!\[(.*?)\]\((.*?)\)\]\((.*?)\)[\n\s]+\[(.*?)\]\(\3\)[\n\s]+\[(.*?)\]\(\3\)(?:[\n\s]+\[(.*?)\]\(\3\))?/gs;
+            finalMd = finalMd.replace(linkClusterRegex, (match, alt, imgUrl, linkUrl, domain, title) => {
+                const cleanDomain = domain.replace(/\\/g, '').replace(/\n/g, ' ').trim();
+                const cleanTitle = title.replace(/\\/g, '').replace(/\n/g, ' ').trim();
+                let out = "";
+                if (isFirstRef) { out += "---\n\n### 📚 References\n\n"; isFirstRef = false; }
+                out += `${refCount++}. [![${alt}](${imgUrl})](${linkUrl}) **${cleanDomain}**: [${cleanTitle}](${linkUrl})\n\n`;
+                return out;
+            });
+
+            // Restore Math
+            mathMap.forEach((m, i) => {
+                const rep = m.isBlock ? `\n\n$$\n${m.text.trim()}\n$$\n\n` : `$${m.text.trim()}$`;
+                finalMd = finalMd.split(getPH(i)).join(rep);
+            });
+
+            // Tidy Enhancement: Rapatkan garis putus/newline berlebih di antara elemen list (ul/ol)
+            finalMd = finalMd.replace(/(\n\s*(?:[-*+]|\d+\.)\s+.*)\n{2,}(?=\s*(?:[-*+]|\d+\.)\s+)/g, '$1\n');
+
+            return finalMd.replace(/\n{3,}/g, '\n\n');
+        };
+        if (window.performConversion) window.performConversion();
+    </script>
+
+    <script>
+        // GLOBAL EVENT: Disable right click except purposeful inputs/editor
+        document.addEventListener('contextmenu', e => {
+            if (!e.target.closest('#wysiwyg-editor') && !e.target.closest('input, textarea')) {
+                e.preventDefault();
+            }
+        });
+
+        // LOCALIZATION
+        const i18n = {
+            id: {
+                status_ready: "Engine Siap", help_title: "Cara Pakai:", 
+                help_list: "<li>Copy teks berantakan dari Word/Website.</li><li>Paste (Ctrl+V) ke panel kiri (Editor).</li><li>Klik 'Tidy Format' untuk merapikan gaya & daftar renggang.</li><li>Gunakan 'Auto Heading' jika struktur belum rapi.</li><li>Klik 'Unduh PDF' untuk menyimpan hasilnya.</li>",
+                stat_words: "Kata", stat_chars: "Karakter", stat_pages: "Halaman",
+                btn_pdf: "Unduh PDF", btn_tidy: "Tidy Format", btn_terms: "Terms of Use",
+                terms_title: "Syarat & Ketentuan Penggunaan", btn_close: "Mengerti & Tutup",
+                terms_desc_smart: "TidyDoc adalah alat pembersih format dokumen (Paste-to-PDF Engine) yang beroperasi sepenuhnya secara lokal di peramban Anda. Aplikasi ini dirancang untuk merapikan teks kaya (Rich Text) yang disalin dari Word atau Web menjadi format A4 yang siap dicetak.",
+                terms_desc_strict: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics untuk mengumpulkan data penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya."
+            },
+            en: {
+                status_ready: "Engine Ready", help_title: "How to use:",
+                help_list: "<li>Copy messy text from Word or Web.</li><li>Paste into the left panel (Editor).</li><li>Click 'Tidy Format' to clean styles & tight lists.</li><li>Use 'Auto Heading' to structure.</li><li>Click 'Download PDF' to save the result.</li>",
+                stat_words: "Words", stat_chars: "Chars", stat_pages: "Pages",
+                btn_pdf: "Download PDF", btn_tidy: "Tidy Format", btn_terms: "Terms of Use",
+                terms_title: "Terms of Use", btn_close: "Got it & Close",
+                terms_desc_smart: "TidyDoc is a document format cleaner (Paste-to-PDF Engine) that operates entirely locally within your browser. It is designed to tidy up copied Rich Text from Word or the Web into a print-ready A4 format.",
+                terms_desc_strict: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics to collect anonymous usage data for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms."
+            }
+        };
+
+        let currentLang = localStorage.getItem('tidydoc-lang') || 'id';
+
+        function updateLang() {
+            const data = i18n[currentLang];
+            document.querySelectorAll('[data-t]').forEach(el => {
+                const key = el.getAttribute('data-t');
+                if (key === 'help_list') el.innerHTML = data[key];
+                else if (el.innerText !== undefined) el.innerText = data[key];
+            });
+            document.getElementById('lang-text').innerText = currentLang.toUpperCase();
+            document.getElementById('lang-flag').innerText = currentLang === 'id' ? '🇮🇩' : '🇬🇧';
+            updateStats();
+        }
+
+        document.getElementById('lang-toggle').addEventListener('click', () => {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            localStorage.setItem('tidydoc-lang', currentLang);
+            updateLang();
+        });
+
+        // THEME LOGIC
+        const themeToggle = document.getElementById('theme-toggle');
+        const sunIcon = document.getElementById('sun-icon');
+        const moonIcon = document.getElementById('moon-icon');
+
+        function updateTheme() {
+            const isDark = document.documentElement.classList.contains('dark');
+            sunIcon.classList.toggle('hidden', !isDark);
+            moonIcon.classList.toggle('hidden', isDark);
+            if(window.updateLivePreview) triggerUpdatePreview();
+        }
+
+        if (localStorage.getItem('color-theme') === 'dark') document.documentElement.classList.add('dark');
+        updateTheme();
+
+        themeToggle.addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('color-theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+            updateTheme();
+        });
+
+        // MODAL LOGIC
+        const termsModal = document.getElementById('terms-modal');
+        const openTermsBtn = document.getElementById('open-terms-btn');
+        const closeTermsBtn = document.getElementById('close-terms-btn');
+        const acceptTermsBtn = document.getElementById('accept-terms-btn');
+
+        function toggleModal(show) {
+            if(show) {
+                termsModal.classList.remove('hidden');
+                setTimeout(() => termsModal.children[0].classList.remove('scale-95'), 10);
+            } else {
+                termsModal.children[0].classList.add('scale-95');
+                setTimeout(() => termsModal.classList.add('hidden'), 200);
+            }
+        }
+        openTermsBtn.addEventListener('click', () => toggleModal(true));
+        closeTermsBtn.addEventListener('click', () => toggleModal(false));
+        acceptTermsBtn.addEventListener('click', () => toggleModal(false));
+
+        // WYSIWYG & ENGINE LOGIC
+        const editor = document.getElementById('wysiwyg-editor');
+        const markdownOutput = document.getElementById('markdown-output');
+        const previewContainer = document.getElementById('markdown-preview-container');
+        const pagesWrapper = document.getElementById('pages-wrapper');
+        
+        const sampleHTML = `<h1>TidyDoc: Tempel, Rapikan, PDF.</h1><p>Hapus seluruh teks ini, lalu tekan <b>Ctrl+V</b> untuk mem-paste dokumen Anda dari Microsoft Word atau halaman Website yang bentuknya berantakan.</p><p>Sistem akan mengonversi teks yang Anda masukkan, membersihkan atribut HTML yang tersembunyi, lalu menyusunnya menjadi format A4 yang siap diekspor.</p>`;
+        editor.innerHTML = sampleHTML;
+        let isShowingSample = true;
+
+        editor.addEventListener('focus', () => { if(isShowingSample){ editor.innerHTML='<p><br></p>'; isShowingSample=false; window.performConversion(); } });
+        editor.addEventListener('blur', () => { const c=editor.innerHTML.trim(); if(!c||c==='<p><br></p>'||c==='<br>'){ editor.innerHTML=sampleHTML; isShowingSample=true; renderMath(); window.performConversion(); } });
+
+        // SMART HEURISTIC: Document Title & Footer Extractor
+        function getSmartDocData() {
+            const h = editor.querySelector('h1, h2, h3');
+            let title = '';
+            if (h && h.innerText.trim()) {
+                title = h.innerText.trim();
+            } else {
+                const firstP = editor.querySelector('p');
+                if (firstP && firstP.innerText.trim()) {
+                    title = firstP.innerText.trim().split(' ').slice(0, 8).join(' '); // Cukup cuplik awal kalimat
+                } else {
+                    title = 'TidyDoc_Document';
+                }
+            }
+            return {
+                title: title.replace(/[^\w\s-]/gi, '').trim(),
+                footer: title.substring(0, 60)
+            };
+        }
+
+        function getFName(ex) {
+            let n = getSmartDocData().title;
+            return (n ? n : 'TidyDoc_Export').replace(/\s+/g, '_') + ex;
+        }
+
+        // MINI TOOLBAR EVENTS
+        document.getElementById('toolbar-autoheading').addEventListener('click', () => {
+            if (isShowingSample) return;
+            const paragraphs = editor.querySelectorAll('p');
+            let changed = false;
+            paragraphs.forEach(p => {
+                const text = p.innerText.trim();
+                if (!text) return;
+                
+                // Heuristik Deteksi Heading
+                const isFullyBold = p.querySelector('strong, b') && p.textContent.trim() === p.querySelector('strong, b').textContent.trim();
+                const startsWithChapter = text.match(/^(Bagian|Bab|Pasal|Section|Chapter)[\s\d:]/i);
+                const isShort = text.length > 2 && text.length < 80 && !text.match(/[a-z][.!?]$/);
+
+                if (isFullyBold || (isShort && startsWithChapter)) {
+                    const h2 = document.createElement('h2');
+                    h2.innerHTML = p.innerHTML.replace(/<\/?(b|strong)>/gi, ''); // buang tag bold di dalamnya
+                    p.replaceWith(h2);
+                    changed = true;
+                }
+            });
+            if(changed) window.performConversion();
+        });
+
+        document.getElementById('toolbar-toc').addEventListener('click', () => {
+            if(document.getElementById('toolbar-toc').classList.contains('btn-disabled')) return;
+            editor.focus();
+            document.execCommand('insertText', false, '\n[[TOC]]\n');
+            window.performConversion();
+        });
+
+        document.getElementById('toolbar-pagebreak').addEventListener('click', () => {
+            if (isShowingSample) {
+                editor.innerHTML = '';
+                isShowingSample = false;
+            }
+            editor.focus();
+            document.execCommand('insertHTML', false, '<hr><p><br></p>');
+            window.performConversion();
+        });
+
+        const btnInvisibles = document.getElementById('toolbar-invisibles');
+        btnInvisibles.addEventListener('click', () => {
+            editor.classList.toggle('show-invisibles');
+            if (editor.classList.contains('show-invisibles')) {
+                btnInvisibles.classList.add('bg-[var(--card-bg)]', 'border-[var(--border-color)]', 'text-[var(--text-main)]', 'shadow-sm');
+            } else {
+                btnInvisibles.classList.remove('bg-[var(--card-bg)]', 'border-[var(--border-color)]', 'text-[var(--text-main)]', 'shadow-sm');
+            }
+        });
+
+        // Tidy Button Event
+        document.getElementById('tidy-btn').addEventListener('click', () => {
+            if (isShowingSample) return;
+            
+            // Perapatan Ekstrem: Hapus paragraf kosong jika ia berada persis di antara list
+            editor.querySelectorAll('p').forEach(p => {
+                if(!p.textContent.trim() && !p.querySelector('img')) {
+                    if(p.previousElementSibling && (p.previousElementSibling.tagName === 'UL' || p.previousElementSibling.tagName === 'OL') &&
+                       p.nextElementSibling && (p.nextElementSibling.tagName === 'UL' || p.nextElementSibling.tagName === 'OL')) {
+                        p.remove(); // Bersihkan HTML source agar tidak patah
+                    }
+                }
+            });
+
+            let mdValue = markdownOutput.value;
+            if (!mdValue) return;
+
+            let cleanHtml = marked.parse(mdValue);
+            editor.innerHTML = cleanHtml;
+            renderMath(editor);
+            
+            const btn = document.getElementById('tidy-btn');
+            const ogHtml = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="check" class="w-3.5 h-3.5"></i> <span>Tidied!</span>`;
+            lucide.createIcons();
+            setTimeout(() => { btn.innerHTML = ogHtml; lucide.createIcons(); }, 1500);
+            
+            window.performConversion();
+        });
+
+        const ro = new ResizeObserver(es => {
+            requestAnimationFrame(() => {
+                for(let e of es){
+                    const w = e.contentRect.width;
+                    let s = (w - 48) / 794;
+                    pagesWrapper.style.setProperty('--page-scale', Math.max(0.2, s).toString());
+                }
+            });
+        });
+        ro.observe(previewContainer);
+
+        function renderMath(el=editor) {
+            if (window.renderMathInElement) renderMathInElement(el, { delimiters: [{left:'$$', right:'$$', display:true}, {left:'$', right:'$', display:false}], throwOnError:false });
+        }
+
+        function triggerUpdatePreview() {
+            clearTimeout(window.previewDebounce);
+            window.previewDebounce = setTimeout(updateLivePreview, 150);
+        }
+
+        window.performConversion = async function() {
+            if (!window.astConvert) return; 
+            const html = editor.innerHTML;
+            const isEmpty = !html.trim() || html === '<p><br></p>' || html === '<br>';
+            
+            const actionBtns = [
+                document.getElementById('download-pdf-btn'), 
+                document.getElementById('download-doc-btn'), 
+                document.getElementById('download-md-btn'), 
+                document.getElementById('tidy-btn'), 
+                document.getElementById('copy-btn')
+            ];
+
+            if (isEmpty || isShowingSample) {
+                actionBtns.forEach(b => b.classList.add('btn-disabled'));
+                document.getElementById('toolbar-toc').classList.add('btn-disabled');
+                if(isEmpty){ markdownOutput.value=''; triggerUpdatePreview(); updateStats(); return; }
+            } else {
+                actionBtns.forEach(b => b.classList.remove('btn-disabled'));
+            }
+
+            try {
+                markdownOutput.value = await window.astConvert(html);
+                
+                // Deteksi eksistensi Heading untuk membuka gembok Insert TOC
+                const hasHeadings = markdownOutput.value.match(/^#{1,3}\s/m);
+                if (hasHeadings && !isEmpty && !isShowingSample) {
+                    document.getElementById('toolbar-toc').classList.remove('btn-disabled');
+                } else {
+                    document.getElementById('toolbar-toc').classList.add('btn-disabled');
+                }
+
+                triggerUpdatePreview(); 
+                updateStats();
+            } catch (e) { console.error(e); }
+        };
+
+        function updateStats() {
+            const data = i18n[currentLang];
+            const txt = editor.innerText || '';
+            const ws = txt.trim().match(/\b\w+\b/g);
+            document.getElementById('stat-chars').innerText = `${txt.length} ${data.stat_chars}`;
+            document.getElementById('stat-words').innerText = `${ws ? ws.length : 0} ${data.stat_words}`;
+            const pc = pagesWrapper.querySelectorAll('.a4-container').length;
+            document.getElementById('stat-pages').innerText = `${pc} ${data.stat_pages}`;
+        }
+
+        editor.addEventListener('input', () => { clearTimeout(window.convertTimer); window.convertTimer = setTimeout(window.performConversion, 400); });
+        
+        editor.addEventListener('paste', () => {
+            if(isShowingSample) { isShowingSample = false; }
+            setTimeout(window.performConversion, 100);
+        });
+
+        function createA4(n) {
+            const c = document.createElement('div'); c.className = 'a4-container';
+            const p = document.createElement('div'); p.className = 'a4-page prose prose-zinc dark:prose-invert max-w-none';
+            const ca = document.createElement('div'); ca.className = 'page-content';
+            
+            // Pasang Footer dan Nomer Halaman Pintar
+            const docData = getSmartDocData();
+            const pf = document.createElement('div'); pf.className = 'page-footer-text'; pf.innerText = docData.footer;
+            const pn = document.createElement('div'); pn.className = 'page-number'; pn.innerText = n;
+            
+            p.appendChild(ca); p.appendChild(pf); p.appendChild(pn); c.appendChild(p);
+            return { c, ca };
+        }
+
+        async function updateLivePreview() {
+            if (typeof marked === 'undefined') return;
+            const md = markdownOutput.value;
+            if (!md.trim()) { pagesWrapper.innerHTML = ''; pagesWrapper.appendChild(createA4(1).c); updateStats(); return; }
+
+            const mbs = [];
+            const smd = md.replace(/\$\$(.*?)\$\$/gs, m => { mbs.push(m); return `WZMARK${mbs.length-1}X`; })
+                          .replace(/\$(.*?)\$/g, m => { mbs.push(m); return `WZMARK${mbs.length-1}X`; });
+            
+            let h = marked.parse(smd);
+
+            // --- EKSEKUSI PENYISIPAN TABLE OF CONTENTS (TOC) ---
+            if (h.includes('[[TOC]]')) {
+                let tocHtml = '<div class="toc-box"><strong>Daftar Isi</strong><ul>';
+                const dummy = document.createElement('div');
+                dummy.innerHTML = h;
+                const headings = dummy.querySelectorAll('h1, h2, h3');
+                if(headings.length > 0) {
+                    headings.forEach(hd => {
+                        const level = parseInt(hd.tagName[1]);
+                        const indent = (level - 1) * 16;
+                        tocHtml += `<li style="margin-left: ${indent}px; list-style-type: none;"><a href="javascript:void(0)">${hd.innerText}</a></li>`;
+                    });
+                    tocHtml += '</ul></div>';
+                    h = h.replace(/<p>\[\[TOC\]\]<\/p>|\[\[TOC\]\]/g, tocHtml);
+                } else {
+                    h = h.replace(/<p>\[\[TOC\]\]<\/p>|\[\[TOC\]\]/g, ''); 
+                }
+            }
+
+            h = h.replace(/WZMARK(\d+)X/g, (m, i) => mbs[i]);
+            
+            const sp = previewContainer.scrollTop;
+            pagesWrapper.innerHTML = ''; 
+
+            const m = createA4(0);
+            m.c.style.position='absolute'; m.c.style.visibility='hidden'; m.c.style.setProperty('--page-scale','1','important');
+            pagesWrapper.appendChild(m.c);
+            
+            m.ca.style.height='auto'; 
+            m.ca.innerHTML = h;
+
+            renderMath(m.ca);
+            if (window.Prism) Prism.highlightAllUnder(m.ca);
+
+            const imgs = Array.from(m.ca.querySelectorAll('img'));
+            await Promise.all(imgs.map(img => {
+                if (img.complete) return Promise.resolve();
+                return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
+            }));
+
+            await new Promise(r => setTimeout(r, 100));
+
+            let pn = 1;
+            let cur = createA4(pn);
+            pagesWrapper.appendChild(cur.c);
+
+            Array.from(m.ca.childNodes).forEach(child => {
+                if (child.nodeType === Node.TEXT_NODE && child.textContent.trim() === '') return;
+
+                if (child.tagName === 'HR') {
+                    pn++;
+                    cur = createA4(pn);
+                    pagesWrapper.appendChild(cur.c);
+                    return; 
+                }
+
+                cur.ca.appendChild(child);
+                
+                if (cur.ca.scrollHeight > cur.ca.clientHeight) {
+                    if (child.tagName === 'OL' || child.tagName === 'UL') {
+                        cur.ca.removeChild(child); 
+                        let isOrdered = child.tagName === 'OL';
+                        let itemCounter = isOrdered ? (parseInt(child.getAttribute('start')) || 1) : 0;
+                        let currentList = document.createElement(child.tagName);
+                        if (isOrdered) currentList.style.counterReset = `custom-counter ${itemCounter - 1}`;
+                        cur.ca.appendChild(currentList);
+                        let listItems = Array.from(child.children);
+                        for (let li of listItems) {
+                            currentList.appendChild(li);
+                            if (cur.ca.scrollHeight > cur.ca.clientHeight) {
+                                if (currentList.children.length > 1 || cur.ca.childNodes.length > 1) {
+                                    currentList.removeChild(li); 
+                                    if (currentList.children.length === 0) {
+                                        cur.ca.removeChild(currentList);
+                                    }
+                                    pn++;
+                                    cur = createA4(pn); 
+                                    pagesWrapper.appendChild(cur.c);
+                                    currentList = document.createElement(child.tagName);
+                                    if (isOrdered) currentList.style.counterReset = `custom-counter ${itemCounter - 1}`;
+                                    cur.ca.appendChild(currentList);
+                                    currentList.appendChild(li);
+                                }
+                            }
+                            if (isOrdered) itemCounter++;
+                        }
+                    } else {
+                        if (cur.ca.childNodes.length > 1) {
+                            cur.ca.removeChild(child); 
+                            pn++;
+                            cur = createA4(pn); 
+                            pagesWrapper.appendChild(cur.c);
+                            cur.ca.appendChild(child); 
+                        }
+                    }
+                }
+            });
+            
+            m.c.remove();
+            previewContainer.scrollTop = sp; 
+            updateStats();
+        }
+
+        // --- DOWNLOAD ACTIONS ---
+        document.getElementById('download-md-btn').addEventListener('click', () => {
+            if(document.getElementById('download-md-btn').classList.contains('btn-disabled')) return;
+            const b = new Blob([document.getElementById('markdown-output').value], { type: 'text/markdown' });
+            const u = URL.createObjectURL(b); const a = document.createElement('a');
+            a.href = u; a.download = getFName('.md'); a.click(); URL.revokeObjectURL(u);
+        });
+
+        document.getElementById('download-doc-btn').addEventListener('click', () => {
+            if(document.getElementById('download-doc-btn').classList.contains('btn-disabled')) return;
+            const h = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><style>body { font-family: 'Times New Roman', serif; font-size: 12pt; }</style></head><body>";
+            const f = "</body></html>";
+            const md = document.getElementById('markdown-output').value;
+            const cleanHtml = marked.parse(md);
+            const b = new Blob(['\ufeff', h + cleanHtml + f], { type: 'application/msword' });
+            const u = URL.createObjectURL(b); const a = document.createElement('a');
+            a.href = u; a.download = getFName('.doc'); a.click(); URL.revokeObjectURL(u);
+        });
+
+        document.getElementById('download-pdf-btn').addEventListener('click', function() {
+            if(this.classList.contains('btn-disabled')) return;
+            
+            const btn = this;
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> Memproses...';
+            lucide.createIcons();
+            
+            const win = window.open('', '_blank');
+            
+            try {
+                const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+                                    .map(el => el.outerHTML).join('\n');
+                const pagesHtml = document.getElementById('pages-wrapper').outerHTML;
+                
+                const printDoc = `
+                <!DOCTYPE html>
+                <html lang="id">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>${getSmartDocData().title}</title>
+                    ${styles}
+                    <style>
+                        @media print {
+                            @page { size: A4 portrait; margin: 0; }
+                            html, body { background: white !important; margin: 0 !important; padding: 0 !important; display: block !important; width: 100% !important; height: 100% !important; }
+                            .no-print { display: none !important; }
+                            #pages-wrapper { padding: 0 !important; margin: 0 !important; display: block !important; width: 100% !important; background: white !important; }
+                            
+                            .a4-container { width: 210mm !important; height: 296mm !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; border: none !important; background: white !important; transform: none !important; position: relative !important; display: block !important; page-break-after: always !important; break-after: page !important; page-break-inside: avoid !important; break-inside: avoid !important; overflow: hidden !important; }
+                            .a4-container:last-child { page-break-after: auto !important; break-after: auto !important; }
+                            .a4-page { width: 210mm !important; height: 296mm !important; padding: 20mm 24mm !important; margin: 0 !important; transform: none !important; position: relative !important; color: black !important; display: block !important; overflow: hidden !important; }
+                            
+                            .prose, .prose *, .page-content, .page-number, .page-footer-text { color: black !important; }
+                            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                        }
+                        @media screen {
+                            body { background: #f1f5f9; display: flex; flex-direction: column; align-items: center; padding: 20px 0; font-family: 'Inter', sans-serif; }
+                            .print-header { width: 210mm; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: white; padding: 16px 24px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border: 1px solid #e2e8f0; }
+                            .btn-print { background: #10b981; color: white; padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); display: flex; align-items: center; gap: 8px; transition: 0.2s; }
+                            .btn-print:hover { background: #059669; }
+                            #pages-wrapper { --page-scale: 1 !important; padding-top: 0 !important; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="print-header no-print">
+                        <div>
+                            <h2 style="margin:0; color:#0f172a; font-weight: 800; font-size: 18px;">TidyDoc Print View</h2>
+                            <p style="margin:4px 0 0 0; font-size: 13px; color:#64748b;">Ubah opsi printer menjadi <b>Simpan sebagai PDF (Save as PDF)</b></p>
+                        </div>
+                        <button class="btn-print" onclick="window.print()">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> 
+                            Cetak PDF
+                        </button>
+                    </div>
+                    ${pagesHtml}
+                    <script>
+                        setTimeout(() => window.print(), 800);
+                    <\/script>
+                </body>
+                </html>
+                `;
+
+                if (win) {
+                    win.document.write(printDoc);
+                    win.document.close();
+                } else {
+                    const blob = new Blob([printDoc], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = getFName('_PrintView.html');
+                    a.click();
+                    alert("Tab baru diblokir oleh peramban. Mengunduh Print View HTML sebagai alternatif. Buka file tersebut lalu cetak PDF.");
+                }
+            } catch (err) {
+                console.error("PDF Export Error: ", err);
+                alert("Terjadi kesalahan saat memproses PDF.");
+            } finally {
+                btn.innerHTML = originalContent;
+                lucide.createIcons();
+            }
+        });
+
+        // Copy Feature
+        document.getElementById('copy-btn').addEventListener('click', () => {
+            if(document.getElementById('copy-btn').classList.contains('btn-disabled')) return;
+            const mdValue = document.getElementById('markdown-output').value;
+            const temp = document.createElement('textarea');
+            temp.value = mdValue;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+            
+            const t = document.getElementById('toast'); t.classList.remove('opacity-0');
+            setTimeout(() => t.classList.add('opacity-0'), 2500);
+        });
+
+        // Split Pane Logic
+        let resz = false;
+        document.getElementById('separator').addEventListener('mousedown', () => resz = true);
+        document.addEventListener('mousemove', e => {
+            if (!resz) return;
+            let p = (e.clientX / window.innerWidth) * 100;
+            if (p > 20 && p < 80) {
+                document.getElementById('left-pane').style.width = p + '%';
+                document.getElementById('right-pane').style.width = (100 - p) + '%';
+            }
+        });
+        document.addEventListener('mouseup', () => resz = false);
+
+        // Initialize
+        lucide.createIcons();
+        updateLang();
+        setTimeout(() => { renderMath(); window.performConversion(); }, 300);
+    </script>
+</body>
+</html>
