@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="id" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>H5Pgenstudio</title>
+    
+    <!-- Google Analytics (Wajib) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-FK620QSKYN', {
+            'page_path': window.location.pathname,
+            'app_instance_name': document.title
+        });
+    </script>
+
+    <!-- Auto-Favicon Injector -->
+    <script>
+        fetch('icon.xml').then(r => r.text()).then(xml => {
+            const doc = new DOMParser().parseFromString(xml, "text/xml");
+            const svgNode = doc.querySelector('svg_elements');
+            if (!svgNode) return;
+            svgNode.querySelectorAll('text').forEach(t => t.remove());
+            const cStart = doc.querySelector('color_start')?.textContent || '#8b5cf6';
+            const cEnd = doc.querySelector('color_end')?.textContent || '#3b82f6';
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
+            const link = document.createElement('link');
+            link.rel = 'icon'; link.type = 'image/svg+xml';
+            link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+            document.head.appendChild(link);
+        }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        header: 'var(--header-bg)',
+                        editor: 'var(--editor-bg)',
+                        preview: 'var(--preview-bg)',
+                        card: 'var(--card-bg)',
+                        footer: 'var(--footer-bg)',
+                        bordercol: 'var(--border-color)',
+                        textmain: 'var(--text-main)',
+                        textdim: 'var(--text-dim)',
+                        themeacc: 'var(--theme-accent)'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <style>
+        /* TATADADA CSS TOKENS */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #f8fafc;
+            --preview-bg: #e2e8f0;
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #cbd5e1;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #6366f1;
+        }
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #1c2128;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --theme-accent: #8b5cf6;
+            color-scheme: dark;
+        }
+
+        body { font-family: 'Inter', sans-serif; background-color: var(--preview-bg); color: var(--text-main); }
+        .step-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .disabled-step { opacity: 0.5; pointer-events: none; filter: grayscale(100%); }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        .gradient-text {
+            background: linear-gradient(135deg, var(--theme-accent), #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Tooltip Helper */
+        .tooltip .tooltip-text {
+            visibility: hidden; width: 220px; background-color: var(--card-bg);
+            color: var(--text-main); text-align: center; border-radius: 8px;
+            padding: 8px; position: absolute; z-index: 50; top: 120%; left: 50%;
+            margin-left: -110px; opacity: 0; transition: opacity 0.3s;
+            border: 1px solid var(--border-color); box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            font-size: 0.75rem; font-weight: normal;
+        }
+        .tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- HEADER (h-14) -->
+    <header class="h-14 bg-header border-b border-bordercol flex items-center justify-between px-6 shrink-0 z-40 transition-colors duration-300">
+        <div class="flex items-center gap-4">
+            <div class="flex items-baseline gap-2">
+                <h1 class="text-xl font-extrabold tracking-tight gradient-text">H5Pgenstudio</h1>
+                <span class="text-xs italic text-textdim font-medium">v1.0</span>
+            </div>
+            <div class="h-4 w-px bg-bordercol"></div>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-textdim hover:text-themeacc transition-colors">by AhmadDanial</a>
+            
+            <div class="tooltip relative ml-2 cursor-help text-textdim hover:text-themeacc transition-colors">
+                <i data-lucide="info" class="w-4 h-4"></i>
+                <span class="tooltip-text" id="help-tooltip">
+                    Gunakan aplikasi ini untuk mengekstrak modul menjadi file H5P otomatis menggunakan AI prompt.<br><br>
+                    Use this app to extract modules into H5P files automatically using AI prompts.
+                </span>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="hidden md:flex items-center gap-2 bg-themeacc/10 px-3 py-1.5 rounded-full border border-themeacc/20 text-xs text-themeacc font-semibold">
+                <i data-lucide="zap" class="w-3 h-3"></i>
+                <span data-i18n="mode_prompt">Mode Generator Prompt</span>
+            </div>
+            <button onclick="toggleLang()" class="w-8 h-8 rounded-full bg-editor border border-bordercol flex items-center justify-center hover:border-themeacc transition-colors text-sm" title="Toggle Language">
+                <span id="lang-flag">🇮🇩</span>
+            </button>
+            <button onclick="toggleTheme()" class="w-8 h-8 rounded-full bg-editor border border-bordercol flex items-center justify-center text-textdim hover:text-themeacc hover:border-themeacc transition-colors" title="Toggle Theme">
+                <i data-lucide="moon" id="theme-icon" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-grow overflow-y-auto bg-preview p-4 md:p-8 transition-colors duration-300 relative">
+        <div class="max-w-4xl mx-auto w-full space-y-6">
+
+            <!-- STEP 1 -->
+            <div id="step-1" class="step-card bg-card rounded-2xl shadow-md border border-bordercol overflow-hidden">
+                <div class="h-1.5 w-full bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+                <div class="p-6 md:p-8">
+                    <div class="flex items-center gap-4 mb-6 border-b border-bordercol pb-4">
+                        <div class="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-inner shrink-0">1</div>
+                        <div>
+                            <h2 class="text-xl font-bold text-textmain" data-i18n="step1_title">Cari & Pilih Template (Cangkang)</h2>
+                            <p class="text-sm text-textdim" data-i18n="step1_desc">Pilih template file .h5p sebagai basis struktur data.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2 mb-6 border-b border-bordercol">
+                        <button onclick="switchTab('search')" id="tab-search" class="px-4 py-2 text-sm font-semibold border-b-2 border-themeacc text-themeacc transition-colors flex items-center gap-2">
+                            <i data-lucide="github" class="w-4 h-4"></i> <span data-i18n="tab_github">Cari GitHub</span>
+                        </button>
+                        <button onclick="switchTab('url')" id="tab-url" class="px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-textdim hover:text-textmain transition-colors flex items-center gap-2">
+                            <i data-lucide="link" class="w-4 h-4"></i> <span data-i18n="tab_url">Paste URL</span>
+                        </button>
+                        <button onclick="switchTab('upload')" id="tab-upload" class="px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-textdim hover:text-textmain transition-colors flex items-center gap-2">
+                            <i data-lucide="folder-open" class="w-4 h-4"></i> <span data-i18n="tab_local">Upload Lokal</span>
+                        </button>
+                    </div>
+
+                    <div id="content-search" class="space-y-4">
+                        <div class="flex gap-2">
+                            <div class="relative flex-grow">
+                                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-textdim"></i>
+                                <input type="text" id="github-query" value="h5p extension:h5p" class="w-full pl-10 pr-4 py-2 bg-editor border border-bordercol rounded-lg focus:ring-2 focus:ring-themeacc outline-none text-sm text-textmain transition-colors" onkeypress="if(event.key === 'Enter') searchGitHub()">
+                            </div>
+                            <button onclick="searchGitHub()" class="bg-themeacc hover:bg-opacity-90 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 whitespace-nowrap">
+                                <span data-i18n="btn_search">Cari</span>
+                            </button>
+                        </div>
+                        <div id="search-status" class="text-sm text-textdim hidden items-center gap-2 py-2">
+                            <i data-lucide="loader" class="w-4 h-4 animate-spin text-themeacc"></i> <span data-i18n="status_searching">Mencari template...</span>
+                        </div>
+                        <div id="search-results" class="hidden grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar"></div>
+                    </div>
+
+                    <div id="content-url" class="hidden space-y-4">
+                        <label class="block text-sm font-medium text-textmain" data-i18n="lbl_paste_url">Masukkan URL Raw file .h5p:</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="manual-url" placeholder="https://raw.githubusercontent.com/..." class="w-full px-4 py-2 bg-editor border border-bordercol rounded-lg focus:ring-2 focus:ring-themeacc outline-none text-sm text-textmain">
+                            <button onclick="loadTemplateFromInputUrl()" class="bg-themeacc hover:bg-opacity-90 text-white px-6 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
+                                <span data-i18n="btn_load">Muat</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="content-upload" class="hidden">
+                        <div class="border-2 border-dashed border-bordercol rounded-xl p-8 text-center bg-editor hover:border-themeacc transition-colors group cursor-pointer" onclick="document.getElementById('local-upload').click()">
+                            <i data-lucide="upload-cloud" class="w-10 h-10 mx-auto text-textdim group-hover:text-themeacc transition-colors mb-3"></i>
+                            <p class="text-sm font-medium text-textmain mb-1" data-i18n="lbl_upload_drop">Klik untuk memilih file .h5p</p>
+                            <input type="file" id="local-upload" accept=".h5p" class="hidden">
+                        </div>
+                    </div>
+
+                    <div id="active-template-banner" class="hidden mt-6 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-emerald-100 dark:bg-emerald-800 p-2 rounded-full text-emerald-600 dark:text-emerald-300"><i data-lucide="check-circle" class="w-5 h-5"></i></div>
+                            <div>
+                                <h3 class="font-bold text-emerald-800 dark:text-emerald-300 text-sm" data-i18n="template_ready">Template Terkunci & Siap!</h3>
+                                <p id="template-info" class="text-xs text-emerald-700 dark:text-emerald-400 mt-1 font-mono bg-emerald-100 dark:bg-emerald-800/50 px-2 py-0.5 rounded-md inline-block border border-emerald-200 dark:border-emerald-700"></p>
+                            </div>
+                        </div>
+                        <button onclick="resetTemplate()" class="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200 underline whitespace-nowrap" data-i18n="btn_change_template">Ganti Template</button>
+                    </div>
+                    <div id="template-error" class="hidden mt-4 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800 flex items-start gap-2"></div>
+                </div>
+            </div>
+
+            <!-- STEP 2 -->
+            <div id="step-2" class="step-card disabled-step bg-card rounded-2xl shadow-md border border-bordercol overflow-hidden">
+                <div class="h-1.5 w-full bg-gradient-to-r from-purple-500 to-fuchsia-500"></div>
+                <div class="p-6 md:p-8">
+                    <div class="flex items-center gap-4 mb-6 border-b border-bordercol pb-4">
+                        <div class="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-inner shrink-0">2</div>
+                        <div>
+                            <h2 class="text-xl font-bold text-textmain" data-i18n="step2_title">Parameter & Build Prompt AI</h2>
+                            <p class="text-sm text-textdim" data-i18n="step2_desc">Atur struktur kuis dan hasilkan Prompt Generator.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-editor p-5 rounded-xl border border-bordercol mb-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-textmain mb-1.5" data-i18n="param_count">Target Jumlah Item</label>
+                            <input type="number" id="param-jumlah" value="5" min="1" max="20" class="w-full px-3 py-2 bg-card border border-bordercol rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm text-textmain">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-textmain mb-1.5" data-i18n="param_level">Level Kognitif (Bloom)</label>
+                            <select id="param-kognitif" class="w-full px-3 py-2 bg-card border border-bordercol rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm text-textmain">
+                                <option value="C1 (Mengingat fakta dan detail dasar)">C1 - Mengingat</option>
+                                <option value="C2 (Memahami konsep, menjelaskan ide utama)" selected>C2 - Memahami</option>
+                                <option value="C3 (Mengaplikasikan konsep pada situasi baru)">C3 - Mengaplikasikan</option>
+                                <option value="C4 (Menganalisis, membedakan, membandingkan)">C4 - Menganalisis</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-textmain mb-1.5" data-i18n="param_lang">Bahasa Output</label>
+                            <select id="param-bahasa" class="w-full px-3 py-2 bg-card border border-bordercol rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm text-textmain">
+                                <option value="Indonesia" selected>Bahasa Indonesia</option>
+                                <option value="Inggris">English</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-textmain mb-1.5" data-i18n="param_extra">Instruksi Ekstra (Opsional)</label>
+                            <input type="text" id="param-ekstra" placeholder="Cth: Buat pengecoh jawaban sulit" class="w-full px-3 py-2 bg-card border border-bordercol rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm text-textmain placeholder-textdim">
+                        </div>
+                    </div>
+
+                    <button onclick="generatePrompt()" class="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-xl font-bold shadow hover:shadow-lg transition flex items-center justify-center gap-2 w-full sm:w-auto">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i> <span data-i18n="btn_gen_prompt">Rakit Prompt AI Saya</span>
+                    </button>
+
+                    <div id="prompt-result-area" class="hidden mt-6 bg-editor border border-bordercol rounded-xl p-5 shadow-sm">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
+                            <label class="text-sm font-bold text-purple-600 dark:text-purple-400 flex items-center gap-2">
+                                <i data-lucide="copy" class="w-4 h-4"></i> <span data-i18n="lbl_copy_prompt">Salin prompt ke AI (ChatGPT/Gemini):</span>
+                            </label>
+                            <button onclick="copyPromptToClipboard()" id="btn-copy" class="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-4 py-2 rounded-lg font-bold border border-purple-200 dark:border-purple-800 hover:bg-purple-200 dark:hover:bg-purple-800/50 transition whitespace-nowrap flex items-center gap-1">
+                                <i data-lucide="clipboard" class="w-3 h-3"></i> <span id="copy-text">Copy Prompt</span>
+                            </button>
+                        </div>
+                        <textarea id="generated-prompt-text" rows="6" readonly class="w-full border border-bordercol rounded-lg p-4 text-xs font-mono text-textdim bg-card outline-none focus:ring-2 focus:ring-purple-500 custom-scrollbar"></textarea>
+                        <div class="mt-3 text-xs font-semibold text-amber-600 dark:text-amber-500 flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 p-3 rounded border border-amber-200 dark:border-amber-800/50">
+                            <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 mt-0.5"></i>
+                            <span data-i18n="alert_prompt_paste">Prompt memiliki ruang kosong [PASTE MATERI ANDA DI SINI]. Jangan lupa paste materi Anda di AI nanti!</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 3 -->
+            <div id="step-3" class="step-card disabled-step bg-card rounded-2xl shadow-md border border-bordercol overflow-hidden">
+                <div class="h-1.5 w-full bg-gradient-to-r from-amber-500 to-orange-500"></div>
+                <div class="p-6 md:p-8">
+                    <div class="flex items-center gap-4 mb-6 border-b border-bordercol pb-4">
+                        <div class="bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-500 w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-inner shrink-0">3</div>
+                        <div class="flex-grow">
+                            <h2 class="text-xl font-bold text-textmain" data-i18n="step3_title">Compile JSON & Build</h2>
+                            <p class="text-sm text-textdim" data-i18n="step3_desc">Paste hasil kode JSON dari AI ke editor di bawah ini.</p>
+                        </div>
+                    </div>
+
+                    <div class="relative rounded-xl overflow-hidden border border-bordercol shadow-inner bg-[#0d1117]">
+                        <div class="absolute right-2 top-2 z-10">
+                            <button onclick="formatJSON()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-md border border-slate-600 font-medium transition flex items-center gap-1 shadow">
+                                <i data-lucide="align-left" class="w-3 h-3"></i> <span data-i18n="btn_format">Format & Bersihkan</span>
+                            </button>
+                        </div>
+                        <textarea id="generated-json" rows="12" class="w-full bg-transparent p-5 font-mono text-xs text-emerald-400 outline-none custom-scrollbar" spellcheck="false" placeholder="PASTE KODE JSON DARI AI KE SINI..."></textarea>
+                    </div>
+                    
+                    <div class="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4 bg-editor p-4 rounded-xl border border-bordercol">
+                        <div id="json-validation-msg" class="text-sm font-semibold text-textdim flex items-center gap-2">
+                            <i data-lucide="info" class="w-4 h-4 text-themeacc"></i> <span data-i18n="status_waiting">Menunggu paste kode JSON...</span>
+                        </div>
+                        <button onclick="buildAndDownload()" id="btn-build" disabled class="opacity-50 cursor-not-allowed w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-8 py-3 rounded-xl font-bold shadow-md transition flex items-center justify-center gap-2 whitespace-nowrap">
+                            <i data-lucide="box" class="w-5 h-5"></i> <span data-i18n="btn_build_download">Build & Download .h5p</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- FOOTER (h-8) -->
+    <footer class="h-8 bg-footer border-t border-bordercol flex items-center justify-between px-6 shrink-0 text-[10px] sm:text-xs text-textdim z-40 transition-colors duration-300">
+        <div class="flex items-center gap-2 font-medium">
+            <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span id="footer-status" data-i18n="footer_ready">Sistem Siap</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="hidden sm:inline" id="footer-stats">No Template Loaded</span>
+            <button onclick="toggleModal()" class="hover:text-themeacc font-bold underline decoration-dotted underline-offset-2" data-i18n="btn_terms">Terms of Use</button>
+        </div>
+    </footer>
+
+    <!-- MODAL TERMS (Strict Mode) -->
+    <div id="terms-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4 transition-opacity">
+        <div class="bg-card w-full max-w-lg rounded-2xl shadow-2xl border border-bordercol flex flex-col max-h-[90vh]">
+            <div class="flex items-center justify-between p-5 border-b border-bordercol">
+                <h3 class="text-lg font-bold text-textmain flex items-center gap-2"><i data-lucide="scale" class="w-5 h-5 text-themeacc"></i> Terms of Use</h3>
+                <button onclick="toggleModal()" class="text-textdim hover:text-red-500 transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto text-sm text-textdim space-y-4 custom-scrollbar">
+                <div class="bg-themeacc/10 p-4 rounded-xl border border-themeacc/20 text-themeacc font-medium leading-relaxed">
+                    <p id="term-context">H5Pgenstudio adalah alat generator prompt dan pemaket file H5P. Aplikasi berjalan sepenuhnya di peramban lokal Anda tanpa menyimpan berkas atau hasil keluaran ke server jarak jauh.</p>
+                </div>
+                <div class="leading-relaxed">
+                    <p id="term-mandatory">Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics untuk mengumpulkan data penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.</p>
+                </div>
+            </div>
+            <div class="p-5 border-t border-bordercol bg-editor rounded-b-2xl flex justify-end">
+                <button onclick="toggleModal()" class="bg-textmain text-card px-6 py-2 rounded-lg font-bold hover:opacity-90 transition-opacity" data-i18n="btn_agree">Saya Setuju</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Overlay Loading -->
+    <div id="global-loading" class="fixed inset-0 bg-black/70 backdrop-blur-md z-[60] hidden flex-col items-center justify-center text-white">
+        <i data-lucide="loader-2" class="w-12 h-12 animate-spin text-themeacc mb-4"></i>
+        <h2 class="text-xl font-bold tracking-wide" id="global-loading-title">Memproses...</h2>
+        <p class="text-sm text-gray-300 mt-2 font-medium" id="global-loading-desc">Harap tunggu sebentar.</p>
+    </div>
+
+    <input type="hidden" id="internal-gh-token" value="">
+
+    <script>
+        // ==========================================
+        // INITIALIZATION & I18N
+        // ==========================================
+        let currentLang = localStorage.getItem('h5pgen_lang') || 'id';
+        const htmlRoot = document.documentElement;
+        
+        // Cek LocalStorage Tema
+        if (localStorage.getItem('h5pgen_theme') === 'dark' || (!('h5pgen_theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            htmlRoot.classList.add('dark');
+        } else {
+            htmlRoot.classList.remove('dark');
+        }
+
+        const DICT = {
+            id: {
+                mode_prompt: "Mode Generator Prompt",
+                step1_title: "Cari & Pilih Template (Cangkang)",
+                step1_desc: "Pilih template file .h5p sebagai basis struktur data.",
+                tab_github: "Cari GitHub", tab_url: "Paste URL", tab_local: "Upload Lokal",
+                btn_search: "Cari", status_searching: "Mencari template...",
+                lbl_paste_url: "Masukkan URL Raw file .h5p:", btn_load: "Muat",
+                lbl_upload_drop: "Klik untuk memilih file .h5p",
+                template_ready: "Template Terkunci & Siap!", btn_change_template: "Ganti Template",
+                step2_title: "Parameter & Build Prompt AI", step2_desc: "Atur struktur kuis dan hasilkan Prompt Generator.",
+                param_count: "Target Jumlah Item", param_level: "Level Kognitif (Bloom)",
+                param_lang: "Bahasa Output", param_extra: "Instruksi Ekstra (Opsional)",
+                btn_gen_prompt: "Rakit Prompt AI Saya", lbl_copy_prompt: "Salin prompt ke AI (ChatGPT/Gemini):",
+                alert_prompt_paste: "Prompt memiliki ruang kosong [PASTE MATERI ANDA DI SINI]. Jangan lupa paste materi Anda di AI nanti!",
+                step3_title: "Compile JSON & Build", step3_desc: "Paste hasil kode JSON dari AI ke editor di bawah ini.",
+                btn_format: "Format & Bersihkan", status_waiting: "Menunggu paste kode JSON...",
+                btn_build_download: "Build & Download .h5p",
+                footer_ready: "Sistem Siap", btn_terms: "Terms of Use", btn_agree: "Saya Mengerti",
+                term_ctx: "H5Pgenstudio adalah alat generator prompt dan pemaket file H5P. Aplikasi berjalan sepenuhnya di peramban lokal Anda tanpa menyimpan berkas atau hasil keluaran ke server jarak jauh.",
+                term_man: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics untuk mengumpulkan data penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
+                msg_syntax_valid: "Status Sintaks: JSON Valid dan siap di-build.",
+                msg_syntax_error: "Status Sintaks: Error! Terdapat kesalahan JSON. Coba klik tombol Format."
+            },
+            en: {
+                mode_prompt: "Prompt Generator Mode",
+                step1_title: "Search & Select Template (Shell)",
+                step1_desc: "Select an .h5p file template as the data structure basis.",
+                tab_github: "Search GitHub", tab_url: "Paste URL", tab_local: "Local Upload",
+                btn_search: "Search", status_searching: "Searching templates...",
+                lbl_paste_url: "Enter Raw .h5p file URL:", btn_load: "Load",
+                lbl_upload_drop: "Click to select .h5p file",
+                template_ready: "Template Locked & Ready!", btn_change_template: "Change Template",
+                step2_title: "Parameters & Build AI Prompt", step2_desc: "Setup quiz structure and generate the Prompt.",
+                param_count: "Target Item Count", param_level: "Cognitive Level (Bloom)",
+                param_lang: "Output Language", param_extra: "Extra Instructions (Optional)",
+                btn_gen_prompt: "Assemble My AI Prompt", lbl_copy_prompt: "Copy prompt to AI (ChatGPT/Gemini):",
+                alert_prompt_paste: "The prompt has a blank space [PASTE YOUR MATERIAL HERE]. Don't forget to paste your material in the AI later!",
+                step3_title: "Compile JSON & Build", step3_desc: "Paste the resulting JSON code from AI into the editor below.",
+                btn_format: "Format & Clean", status_waiting: "Waiting for JSON code paste...",
+                btn_build_download: "Build & Download .h5p",
+                footer_ready: "System Ready", btn_terms: "Terms of Use", btn_agree: "I Understand",
+                term_ctx: "H5Pgenstudio is a prompt generator and H5P file packager tool. The application runs entirely within your local browser without storing files or outputs to remote servers.",
+                term_man: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics to collect anonymous usage data for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.",
+                msg_syntax_valid: "Syntax Status: JSON Valid and ready to build.",
+                msg_syntax_error: "Syntax Status: Error! JSON format issue detected. Try clicking Format."
+            }
+        };
+
+        function updateLanguageUI() {
+            document.getElementById('lang-flag').innerText = currentLang === 'id' ? '🇮🇩' : '🇺🇸';
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (DICT[currentLang][key]) el.innerHTML = DICT[currentLang][key];
+            });
+            document.getElementById('term-context').innerText = DICT[currentLang].term_ctx;
+            document.getElementById('term-mandatory').innerText = DICT[currentLang].term_man;
+            validateJSONSilently(); // Update status message language
+        }
+
+        function toggleLang() {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            localStorage.setItem('h5pgen_lang', currentLang);
+            updateLanguageUI();
+        }
+
+        function toggleTheme() {
+            htmlRoot.classList.toggle('dark');
+            const isDark = htmlRoot.classList.contains('dark');
+            localStorage.setItem('h5pgen_theme', isDark ? 'dark' : 'light');
+            document.getElementById('theme-icon').setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+            lucide.createIcons();
+        }
+
+        function toggleModal() {
+            const modal = document.getElementById('terms-modal');
+            modal.classList.toggle('hidden');
+            modal.classList.toggle('flex');
+        }
+
+        // ==========================================
+        // STATE MANAGEMENT
+        // ==========================================
+        let appState = {
+            zipInstance: null,
+            templateJsonStr: "",
+            h5pMetadata: null,
+            originalFileName: "AI_Activity"
+        };
+
+        // ==========================================
+        // UI HELPERS (TABS & LOADING)
+        // ==========================================
+        function switchTab(tabId) {
+            ['search', 'url', 'upload'].forEach(id => {
+                const btn = document.getElementById(`tab-${id}`);
+                btn.classList.remove('border-themeacc', 'text-themeacc');
+                btn.classList.add('border-transparent', 'text-textdim');
+                document.getElementById(`content-${id}`).classList.add('hidden');
+            });
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            activeBtn.classList.remove('border-transparent', 'text-textdim');
+            activeBtn.classList.add('border-themeacc', 'text-themeacc');
+            document.getElementById(`content-${tabId}`).classList.remove('hidden');
+        }
+
+        function showGlobalLoading(title, desc) {
+            document.getElementById('global-loading-title').innerText = title;
+            document.getElementById('global-loading-desc').innerText = desc;
+            const l = document.getElementById('global-loading');
+            l.classList.remove('hidden'); l.classList.add('flex');
+        }
+
+        function hideGlobalLoading() {
+            const l = document.getElementById('global-loading');
+            l.classList.add('hidden'); l.classList.remove('flex');
+        }
+
+        function showError(msg) {
+            const errEl = document.getElementById('template-error');
+            errEl.innerHTML = `<i data-lucide="alert-triangle" class="w-4 h-4 shrink-0 mt-0.5"></i> <span>${msg}</span>`;
+            errEl.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // FASE 1: PENCARIAN GITHUB & TEMPLATE
+        // ==========================================
+        async function searchGitHub() {
+            const queryInput = document.getElementById('github-query').value.trim();
+            if (!queryInput) return;
+
+            let finalQuery = queryInput;
+            if (finalQuery === "extension:h5p") finalQuery = "h5p extension:h5p";
+            else if (!finalQuery.includes("extension:h5p")) finalQuery += " extension:h5p";
+            document.getElementById('github-query').value = finalQuery;
+
+            const token = document.getElementById('internal-gh-token').value;
+            const apiUrl = `https://api.github.com/search/code?q=${encodeURIComponent(finalQuery)}&per_page=12`;
+            const headers = { 'Accept': 'application/vnd.github.v3+json' };
+            if (token) headers['Authorization'] = `token ${token}`;
+
+            const sStatus = document.getElementById('search-status');
+            const sResults = document.getElementById('search-results');
+            
+            sStatus.classList.remove('hidden'); sStatus.classList.add('flex');
+            sResults.classList.add('hidden'); sResults.innerHTML = '';
+            document.getElementById('template-error').classList.add('hidden');
+
+            try {
+                const response = await fetch(apiUrl, { headers });
+                if (response.status === 403 || response.status === 401) throw new Error("Limit pencarian GitHub tercapai.");
+                if (!response.ok) throw new Error("Gagal mengambil data GitHub.");
+
+                const data = await response.json();
+                if (!data.items || data.items.length === 0) throw new Error("Tidak ada template ditemukan.");
+
+                data.items.forEach(item => {
+                    const cdnUrl = item.html_url.replace("https://github.com/", "https://cdn.jsdelivr.net/gh/").replace("/blob/", "@");
+                    const card = document.createElement('div');
+                    card.className = "bg-card border border-bordercol p-3 rounded-xl flex flex-col justify-between group hover:border-themeacc hover:shadow-md transition cursor-pointer";
+                    card.onclick = () => loadTemplateFromUrlDirectly(cdnUrl, item.name);
+                    card.innerHTML = `
+                        <div>
+                            <div class="font-bold text-sm text-textmain truncate group-hover:text-themeacc transition flex items-center gap-2" title="${item.name}">
+                                <i data-lucide="file-archive" class="w-4 h-4 text-themeacc shrink-0"></i> ${item.name}
+                            </div>
+                            <div class="text-xs text-textdim truncate mt-1 flex items-center gap-1"><i data-lucide="github" class="w-3 h-3"></i> ${item.repository.full_name}</div>
+                        </div>
+                    `;
+                    sResults.appendChild(card);
+                });
+                sResults.classList.remove('hidden');
+                lucide.createIcons();
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                sStatus.classList.add('hidden'); sStatus.classList.remove('flex');
+            }
+        }
+
+        function loadTemplateFromInputUrl() {
+            let url = document.getElementById('manual-url').value.trim();
+            if(!url) return showError("URL tidak boleh kosong");
+            if (url.includes("raw.githubusercontent.com")) {
+                const p = url.replace("https://raw.githubusercontent.com/", "").split("/");
+                if (p.length >= 4) url = `https://cdn.jsdelivr.net/gh/${p[0]}/${p[1]}@${p[2]}/${p.slice(3).join('/')}`;
+            }
+            const fileName = url.substring(url.lastIndexOf('/') + 1) || "template.h5p";
+            loadTemplateFromUrlDirectly(url, fileName);
+        }
+
+        async function loadTemplateFromUrlDirectly(url, fileName) {
+            showGlobalLoading(currentLang === 'id' ? "Mengunduh Template" : "Downloading Template", "Fetch .h5p binary...");
+            document.getElementById('template-error').classList.add('hidden');
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+                const blob = await response.blob();
+                await extractAndValidateH5P(blob, fileName);
+            } catch (error) {
+                hideGlobalLoading();
+                showError("Gagal memuat: " + error.message);
+            }
+        }
+
+        document.getElementById('local-upload').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            document.getElementById('template-error').classList.add('hidden');
+            showGlobalLoading(currentLang === 'id' ? "Membaca File" : "Reading File", "Extracting ZIP...");
+            try { await extractAndValidateH5P(file, file.name); } 
+            catch (error) { hideGlobalLoading(); showError(error.message); }
+            e.target.value = ''; 
+        });
+
+        async function extractAndValidateH5P(blobData, fileName) {
+            try {
+                const jszip = new JSZip();
+                const zip = await jszip.loadAsync(blobData);
+                if (!zip.file("h5p.json") || !zip.file("content/content.json")) throw new Error("Struktur 'h5p.json' atau 'content/content.json' tidak ditemukan.");
+
+                appState.h5pMetadata = JSON.parse(await zip.file("h5p.json").async("string"));
+                appState.templateJsonStr = await zip.file("content/content.json").async("string");
+                appState.zipInstance = zip;
+                appState.originalFileName = fileName.replace(/\.h5p$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+                hideGlobalLoading();
+                activateTemplateUI();
+            } catch (error) {
+                let errorMsg = error.message;
+                if (errorMsg.includes("Can't find end of central directory")) errorMsg = "Bukan file .h5p biner utuh (Mungkin LFS pointer). Gunakan Upload Lokal.";
+                throw new Error("Ekstrak gagal: " + errorMsg);
+            }
+        }
+
+        function activateTemplateUI() {
+            ['search', 'url', 'upload'].forEach(id => document.getElementById(`content-${id}`).classList.add('hidden'));
+            document.querySelector('#step-1 .flex.gap-2.mb-6').classList.add('hidden');
+            
+            document.getElementById('template-info').innerText = `${appState.originalFileName}.h5p | Type: ${appState.h5pMetadata.mainLibrary}`;
+            document.getElementById('active-template-banner').classList.remove('hidden');
+            document.getElementById('active-template-banner').classList.add('flex');
+            
+            document.getElementById('footer-stats').innerText = `Active: ${appState.h5pMetadata.mainLibrary}`;
+
+            const s2 = document.getElementById('step-2');
+            s2.classList.remove('disabled-step');
+            s2.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function resetTemplate() {
+            appState.zipInstance = null; appState.templateJsonStr = ""; appState.h5pMetadata = null;
+            document.getElementById('active-template-banner').classList.add('hidden');
+            document.getElementById('active-template-banner').classList.remove('flex');
+            document.querySelector('#step-1 .flex.gap-2.mb-6').classList.remove('hidden');
+            document.getElementById('footer-stats').innerText = "No Template Loaded";
+            
+            const activeBtn = document.querySelector('#step-1 button.border-themeacc');
+            if(activeBtn) switchTab(activeBtn.id.split('-')[1]);
+
+            document.getElementById('step-2').classList.add('disabled-step');
+            document.getElementById('step-3').classList.add('disabled-step');
+            document.getElementById('generated-json').value = "";
+            validateJSONSilently();
+        }
+
+        // ==========================================
+        // FASE 2: KOGNITIF (GENERATE PROMPT MANUAL)
+        // ==========================================
+        function generatePrompt() {
+            if (!appState.templateJsonStr) return alert("Error: Template not ready.");
+
+            const jml = document.getElementById('param-jumlah').value;
+            const kog = document.getElementById('param-kognitif').value;
+            const bhs = document.getElementById('param-bahasa').options[document.getElementById('param-bahasa').selectedIndex].text;
+            const eks = document.getElementById('param-ekstra').value;
+
+            const instruksiTambahan = eks ? `\n- Instruksi Khusus: ${eks}` : "";
+
+            const promptAjaib = `Anda adalah H5P Data Engineer tingkat lanjut. Tugas Anda HANYA memetakan teks input menjadi format JSON spesifik tanpa tambahan apapun.
+
+PARAMETER AKTIVITAS:
+- Target jumlah item/soal yang harus dibuat: ${jml} item (sesuaikan dengan panjang materi).
+- Tingkat Kesulitan/Kognitif: ${kog}
+- Bahasa Output: ${bhs}${instruksiTambahan}
+
+Saya memiliki struktur "content.json" bawaan dari H5P tipe: ${appState.h5pMetadata.mainLibrary}.
+Struktur template asli (Jadikan acuan struktur keys dan arrays mutlak):
+---
+${appState.templateJsonStr}
+---
+
+Tugas Anda:
+1. Analisis teks materi yang saya berikan di bagian paling bawah prompt ini.
+2. Ekstrak informasi dari materi dan tuangkan ke dalam struktur JSON template di atas dengan mematuhi PARAMETER AKTIVITAS.
+3. HANYA ubah nilai/value dari teks (seperti 'text', 'question', 'answer', 'tips'). JANGAN mengubah nama key ('params', 'list', dll) atau menghapus elemen struktur yang dibutuhkan library.
+4. Duplikasi struktur object di dalam array (jika ada) hingga mencapai target jumlah soal/item yang diminta.
+5. BERIKAN OUTPUT BERUPA JSON RAW MURNI. Jangan memberikan teks pengantar atau penutup. Output harus langsung dimulai dengan '{' atau '['.
+
+--- MATERI MODUL ---
+[PASTE MATERI ANDA DI SINI]`;
+
+            document.getElementById('generated-prompt-text').value = promptAjaib;
+            document.getElementById('prompt-result-area').classList.remove('hidden');
+
+            document.getElementById('step-3').classList.remove('disabled-step');
+            setTimeout(() => document.getElementById('btn-copy').focus(), 100);
+        }
+
+        function copyPromptToClipboard() {
+            const pt = document.getElementById('generated-prompt-text');
+            pt.select(); pt.setSelectionRange(0, 999999);
+            try {
+                document.execCommand('copy');
+                const btn = document.getElementById('btn-copy');
+                const textSpan = document.getElementById('copy-text');
+                const origText = textSpan.innerText;
+                textSpan.innerText = "Copied!";
+                btn.classList.add('bg-emerald-100', 'text-emerald-700', 'border-emerald-300');
+                btn.classList.remove('bg-purple-100', 'text-purple-700', 'border-purple-200');
+                
+                setTimeout(() => {
+                    textSpan.innerText = origText;
+                    btn.classList.remove('bg-emerald-100', 'text-emerald-700', 'border-emerald-300');
+                    btn.classList.add('bg-purple-100', 'text-purple-700', 'border-purple-200');
+                }, 2000);
+            } catch (err) { alert('Failed to copy.'); }
+        }
+
+        // ==========================================
+        // FASE 3: BUILD & DOWNLOAD
+        // ==========================================
+        function cleanAITags(jsonString) {
+            let cleaned = jsonString.replace(/\[cite_start\]/g, '');
+            cleaned = cleaned.replace(/\]+\]/g, '');
+            return cleaned;
+        }
+
+        function formatJSON() {
+            let val = document.getElementById('generated-json').value.trim();
+            if (!val) return; 
+            val = cleanAITags(val);
+            try {
+                const parsed = JSON.parse(val);
+                document.getElementById('generated-json').value = JSON.stringify(parsed, null, 2);
+                validateJSONSilently();
+            } catch (e) {
+                alert("Format JSON Invalid:\n\n" + e.message);
+                document.getElementById('generated-json').value = val; 
+                validateJSONSilently();
+            }
+        }
+
+        function validateJSONSilently() {
+            let val = document.getElementById('generated-json').value.trim();
+            const msgEl = document.getElementById('json-validation-msg');
+            const btnBuild = document.getElementById('btn-build');
+            
+            if (!val) {
+                msgEl.innerHTML = `<i data-lucide="info" class="w-4 h-4 text-themeacc shrink-0"></i> <span>${DICT[currentLang].status_waiting}</span>`;
+                msgEl.className = "text-sm font-semibold text-textdim flex items-center gap-2";
+                btnBuild.disabled = true; btnBuild.classList.add('opacity-50', 'cursor-not-allowed');
+                lucide.createIcons();
+                return;
+            }
+
+            val = cleanAITags(val);
+            try {
+                JSON.parse(val);
+                msgEl.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 shrink-0"></i> <span>${DICT[currentLang].msg_syntax_valid}</span>`;
+                msgEl.className = "text-sm font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2";
+                btnBuild.disabled = false; btnBuild.classList.remove('opacity-50', 'cursor-not-allowed');
+            } catch (e) {
+                msgEl.innerHTML = `<i data-lucide="alert-triangle" class="w-4 h-4 text-red-500 shrink-0"></i> <span>${DICT[currentLang].msg_syntax_error}</span>`;
+                msgEl.className = "text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2";
+                btnBuild.disabled = true; btnBuild.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+            lucide.createIcons();
+        }
+
+        document.getElementById('generated-json').addEventListener('input', validateJSONSilently);
+
+        async function buildAndDownload() {
+            let newContentJson = document.getElementById('generated-json').value;
+            newContentJson = cleanAITags(newContentJson);
+            
+            try { JSON.parse(newContentJson); } 
+            catch (e) { return alert("Gagal Build: JSON masih tidak valid."); }
+
+            showGlobalLoading(currentLang === 'id' ? "Membuat Paket H5P" : "Building H5P Package", "Compressing & Injecting...");
+
+            try {
+                appState.zipInstance.file("content/content.json", newContentJson);
+                const blob = await appState.zipInstance.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+                
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${appState.originalFileName}_AI_Generated.h5p`;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+
+                hideGlobalLoading();
+            } catch (error) {
+                hideGlobalLoading();
+                alert("Build Error: " + error.message);
+            }
+        }
+
+        // Final init
+        updateLanguageUI();
+        lucide.createIcons();
+    </script>
+</body>
+</html>
