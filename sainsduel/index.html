@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SainsDuel</title>
+    
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+    
+    <!-- Histats -->
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+    <noscript><a href="/" target="_blank"><img src="//sstatic1.histats.com/0.gif?5024490&101" alt="" border="0"></a></noscript>
+
+    <!-- Favicon Injector -->
+    <script>
+    fetch('icon.xml').then(r => r.text()).then(xml => {
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+        const cStart = doc.querySelector('color_start')?.textContent || '#10b981';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#064e3b';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
+        const link = document.createElement('link');
+        link.rel = 'icon'; link.type = 'image/svg+xml';
+        link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+    }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+
+    <!-- Tailwind & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* TATADADA Tokens */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #10b981;
+        }
+        html.dark {
+            --header-bg: #0f172a;
+            --editor-bg: #1e293b;
+            --preview-bg: #020617;
+            --card-bg: #1e293b;
+            --footer-bg: #0f172a;
+            --border-color: #334155;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            color-scheme: dark;
+        }
+
+        /* Anti-Zoom, Anti-Scroll, Anti-Select Murni */
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden !important;
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            touch-action: none !important;
+            overscroll-behavior: none !important;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--preview-bg);
+            color: var(--text-main);
+        }
+
+        /* Utility Mapping CSS Variables */
+        .bg-header-bg { background-color: var(--header-bg); }
+        .bg-footer-bg { background-color: var(--footer-bg); }
+        .bg-card-bg { background-color: var(--card-bg); }
+        .border-border-color { border-color: var(--border-color); }
+        .text-text-main { color: var(--text-main); }
+        .text-text-dim { color: var(--text-dim); }
+        .text-theme-accent { color: var(--theme-accent); }
+
+        /* Arcade Neon Animations */
+        @keyframes lightningFlash {
+            0% { background-color: transparent; }
+            10% { background-color: rgba(255, 255, 255, 0.9); }
+            20% { background-color: rgba(255, 255, 0, 0.8); }
+            30% { background-color: transparent; }
+            40% { background-color: rgba(255, 255, 255, 0.9); }
+            50%, 100% { background-color: transparent; }
+        }
+        .animate-lightning { animation: lightningFlash 0.4s ease-out; }
+
+        @keyframes explodeRing {
+            0% { transform: scale(1); opacity: 1; border-width: 20px; }
+            100% { transform: scale(3); opacity: 0; border-width: 0px; }
+        }
+        .animate-explode { animation: explodeRing 0.5s ease-out forwards; }
+
+        @keyframes popIn {
+            0% { transform: scale(0.5) rotate(-10deg); opacity: 0; }
+            70% { transform: scale(1.1) rotate(5deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .animate-pop-in { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+        /* Neon Glows */
+        .neon-text-blue { text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #0ff, 0 0 40px #0ff; }
+        .neon-text-red { text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #f0f, 0 0 40px #f0f; }
+        .neon-text-green { text-shadow: 0 0 5px #fff, 0 0 10px #0f0, 0 0 20px #0f0, 0 0 40px #0c0; }
+        .neon-border-blue { box-shadow: 0 0 5px #0ff, inset 0 0 5px #0ff; border-color: #0ff; }
+        .neon-border-red { box-shadow: 0 0 5px #f0f, inset 0 0 5px #f0f; border-color: #f0f; }
+        .neon-border-green { box-shadow: 0 0 15px #0f0, inset 0 0 10px #0f0; border-color: #0f0; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+    </style>
+</head>
+<body class="transition-colors duration-300">
+
+<div class="h-screen flex flex-col font-sans w-full overflow-hidden">
+    <!-- Header -->
+    <header class="h-14 shrink-0 bg-header-bg border-b border-border-color flex items-center justify-between px-4 z-50 relative shadow-sm transition-colors duration-300">
+        <div class="flex items-center gap-3">
+            <h1 class="text-lg font-black bg-gradient-to-r from-emerald-500 to-cyan-500 bg-clip-text text-transparent">SainsDuel</h1>
+            <span class="text-xs italic text-text-dim font-mono">v1.1</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-text-dim hover:text-emerald-500 transition-colors">by AhmadDanial</a>
+            <button id="btn-help" class="ml-2 text-text-dim hover:text-text-main transition-colors" title="Bantuan"><i data-lucide="help-circle" class="w-4 h-4"></i></button>
+        </div>
+        <div class="flex items-center gap-4">
+            <button id="btn-lang" class="text-lg" title="Toggle Language">🇮🇩</button>
+            <button id="btn-theme" class="text-text-dim hover:text-text-main transition-colors" title="Toggle Theme"><i data-lucide="moon" class="w-5 h-5"></i></button>
+        </div>
+    </header>
+
+    <!-- Main Workspace (Single View Card) -->
+    <main class="flex-1 relative overflow-hidden flex items-center justify-center p-2 md:p-4 z-0">
+        
+        <!-- Game Container (Isolasi Tema Arcade Neon) -->
+        <div id="game-container" class="w-full h-full max-w-5xl mx-auto bg-slate-900 rounded-2xl shadow-xl border-4 border-slate-700 overflow-hidden flex flex-col relative text-white">
+            
+            <!-- Overlay Lightning -->
+            <div id="overlay-lightning" class="absolute inset-0 z-50 pointer-events-none hidden"></div>
+            
+            <!-- Overlay Countdown -->
+            <div id="overlay-countdown" class="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm hidden">
+                <div id="countdown-text" class="text-[12rem] font-black text-transparent bg-clip-text bg-gradient-to-br from-green-300 to-green-600 neon-text-green">GO!</div>
+            </div>
+
+            <!-- Screen: MENU -->
+            <div id="screen-menu" class="absolute inset-0 flex flex-col items-center justify-center p-4 overflow-y-auto">
+                <div class="bg-slate-800 border-4 border-green-400 neon-border-green rounded-3xl p-6 max-w-2xl w-full text-center relative mt-auto mb-auto">
+                    <h2 class="text-5xl md:text-6xl font-black mb-2 tracking-tighter neon-text-green" id="ui-title">SAINS DUEL</h2>
+                    <p class="text-xl font-bold text-pink-400 mb-8 neon-text-red" id="ui-subtitle">IPA SD - 30 Level Kematian ⚡️</p>
+                    
+                    <div class="mb-8">
+                        <label id="lbl-level-select" class="block text-xl font-bold mb-4 text-green-200">Pilih Level Mesin:</label>
+                        <div id="level-grid" class="grid grid-cols-6 md:grid-cols-10 gap-2"></div>
+                    </div>
+
+                    <button id="btn-start" class="w-full bg-green-500 hover:bg-green-400 text-white border-4 border-white text-3xl font-black py-4 rounded-2xl shadow-[0_0_30px_#0f0] active:scale-95 transition-all animate-pulse">
+                        INSERT COIN & START!
+                    </button>
+                </div>
+            </div>
+
+            <!-- Screen: PLAYING -->
+            <div id="screen-playing" class="absolute inset-0 hidden flex-col">
+                <!-- Header Soal -->
+                <div class="shrink-0 pt-6 px-4 flex flex-col items-center z-10 w-full max-w-3xl mx-auto">
+                    <div id="question-box" class="w-full bg-slate-800 border-4 border-green-400 neon-border-green rounded-3xl p-6 text-center relative flex items-center justify-center min-h-[160px]">
+                        <div id="level-indicator" class="absolute top-0 left-0 bg-green-500 text-black px-4 py-1 rounded-br-xl font-black text-sm border-r-2 border-b-2 border-green-300">LVL 1</div>
+                        <div id="question-text" class="font-black text-white neon-text-green tracking-tight">...</div>
+                    </div>
+                </div>
+
+                <!-- Baris Skor -->
+                <div class="shrink-0 w-full px-6 flex justify-between max-w-4xl mx-auto z-20 mt-6">
+                    <div class="bg-slate-800 border-2 border-cyan-400 neon-border-blue rounded-full px-4 py-2 flex items-center gap-4">
+                        <span class="font-black text-2xl text-cyan-400 transform -rotate-90 md:rotate-0">P1</span>
+                        <span id="score1" class="text-4xl font-black text-white neon-text-blue bg-slate-900 px-4 py-1 rounded-full">0</span>
+                    </div>
+                    <div class="bg-slate-800 border-2 border-pink-500 neon-border-red rounded-full px-4 py-2 flex items-center gap-4">
+                        <span id="score2" class="text-4xl font-black text-white neon-text-red bg-slate-900 px-4 py-1 rounded-full">0</span>
+                        <span class="font-black text-2xl text-pink-500 transform rotate-90 md:rotate-0">P2</span>
+                    </div>
+                </div>
+
+                <!-- Area Tombol -->
+                <div class="flex-1 flex w-full max-w-5xl mx-auto relative mt-4 mb-6">
+                    <!-- Laser Pembatas -->
+                    <div class="absolute left-1/2 top-4 bottom-4 border-l-4 border-dashed border-green-500/50 transform -translate-x-1/2 z-0 pointer-events-none drop-shadow-[0_0_10px_#0f0]"></div>
+                    
+                    <!-- P1 Kiri -->
+                    <div id="p1-buttons" class="flex-1 flex flex-col items-center justify-evenly py-2 z-10 relative"></div>
+                    <!-- P2 Kanan -->
+                    <div id="p2-buttons" class="flex-1 flex flex-col items-center justify-evenly py-2 z-10 relative"></div>
+                </div>
+            </div>
+
+            <!-- Screen: GAMEOVER -->
+            <div id="screen-gameover" class="absolute inset-0 hidden flex-col items-center justify-center p-4">
+                <div class="absolute inset-0 bg-white opacity-0" id="gameover-lightning" style="animation: lightningFlash 2s infinite;"></div>
+                
+                <div class="bg-slate-800 border-4 border-green-400 neon-border-green rounded-3xl p-10 max-w-md w-full text-center z-10">
+                    <h2 class="text-5xl font-black text-white mb-4 neon-text-green">K.O!</h2>
+                    <p id="lbl-winner-title" class="text-white text-xl mb-2">Ilmuwan Terbaik:</p>
+                    <h3 id="winner-text" class="text-7xl font-black mb-8 animate-bounce">P1 WINS</h3>
+                    
+                    <div class="flex justify-center gap-6 mb-10 text-3xl font-bold">
+                        <div class="bg-slate-900 px-6 py-4 rounded-2xl border-2 border-cyan-400 neon-border-blue">
+                            <div class="text-cyan-400 text-sm mb-1">P1</div>
+                            <div id="final-score1" class="text-white neon-text-blue">0</div>
+                        </div>
+                        <div class="text-slate-500 self-center font-black">VS</div>
+                        <div class="bg-slate-900 px-6 py-4 rounded-2xl border-2 border-pink-500 neon-border-red">
+                            <div class="text-pink-500 text-sm mb-1">P2</div>
+                            <div id="final-score2" class="text-white neon-text-red">0</div>
+                        </div>
+                    </div>
+
+                    <button id="btn-restart" class="w-full bg-green-500 text-white border-4 border-white text-2xl font-black py-4 rounded-2xl shadow-[0_0_20px_#0f0] active:scale-95 transition-all">
+                        MAIN LAGI
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="h-8 shrink-0 bg-footer-bg border-t border-border-color flex items-center justify-between px-4 text-xs z-50 relative transition-colors duration-300">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span class="text-text-dim font-mono">System Online</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="text-text-dim hidden md:inline font-mono" id="stat-played">Matches: 0</span>
+            <button id="btn-terms" class="text-theme-accent font-semibold hover:underline cursor-pointer">Terms</button>
+        </div>
+    </footer>
+</div>
+
+<!-- Modal Terms -->
+<div id="modal-terms" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden flex-col items-center justify-center p-4 opacity-0 transition-opacity duration-300">
+    <div id="modal-content" class="bg-card-bg max-w-lg w-full rounded-2xl shadow-2xl border border-border-color overflow-hidden transform scale-95 transition-transform duration-300">
+        <div class="p-4 border-b border-border-color flex justify-between items-center bg-header-bg transition-colors duration-300">
+            <h3 class="text-lg font-bold text-text-main" id="modal-title">Terms & Disclaimer</h3>
+            <button id="btn-close-modal" class="text-text-dim hover:text-text-main transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="p-6 overflow-y-auto max-h-[60vh] text-sm text-text-dim space-y-4">
+            <p id="term-context" class="leading-relaxed"></p>
+            <p id="term-legal" class="leading-relaxed"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- PREVENT PINCH ZOOM (MOBILE) ---
+    document.addEventListener('touchmove', (e) => {
+        if (e.touches && e.touches.length > 1) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    // --- I18N LOCALE DICTIONARY ---
+    const i18n = {
+        id: {
+            help: "Bantuan",
+            help_text: "Pilih level 1-30. Pemain 1 dan 2 berhadapan. Jawab soal IPA dengan cepat. Siapa cepat dia dapat! Main sampai skor 10.",
+            terms: "Ketentuan",
+            level_select: "Pilih Level Mesin:",
+            start: "INSERT COIN & START!",
+            winner: "Ilmuwan Terbaik:",
+            play_again: "MAIN LAGI",
+            subtitle: "IPA SD - 30 Level Kematian ⚡️",
+            term_ctx: "Aplikasi SainsDuel merupakan simulasi permainan ketangkasan logika berlatar antarmuka neon arcade interaktif. Segala proses acak (RNG) dan penyimpanan skor beroperasi sepenuhnya di sisi klien (lokal pada peramban Anda) dengan memanfaatkan Web Audio API untuk efek suara. Tidak ada data permainan atau rekam interaksi yang dikirimkan ke peladen (server) eksternal.",
+            term_lgl: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya."
+        },
+        en: {
+            help: "Help",
+            help_text: "Select level 1-30. Player 1 and 2 face each other. Answer Science questions quickly. Fastest wins! Play until score 10.",
+            terms: "Terms",
+            level_select: "Select Machine Level:",
+            start: "INSERT COIN & START!",
+            winner: "Best Scientist:",
+            play_again: "PLAY AGAIN",
+            subtitle: "Elem. Science - 30 Death Levels ⚡️",
+            term_ctx: "SainsDuel is a logic agility game simulation set in an interactive neon arcade interface. All random generation (RNG) and score tracking operate entirely on the client-side (locally in your browser), utilizing the Web Audio API for sound effects. No game data or interaction records are sent to external servers.",
+            term_lgl: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics and Histats to collect anonymous visit and usage statistics for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms."
+        }
+    };
+
+    // --- STATE MANAGEMENT ---
+    const state = {
+        screen: 'menu',
+        level: 1,
+        score1: 0,
+        score2: 0,
+        questionData: null,
+        p1Status: 'active',
+        p2Status: 'active',
+        countdown: null,
+        matches: 0
+    };
+    const WIN_SCORE = 10;
+    let countdownTimer = null;
+
+    // --- AUDIO ENGINE ---
+    let audioCtx = null;
+    const initAudio = () => {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    };
+    const playTone = (freq, type, duration, vol = 0.1) => {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    };
+    const sounds = {
+        correct: () => { playTone(800, 'sine', 0.1, 0.2); setTimeout(() => playTone(1200, 'sine', 0.2, 0.2), 100); },
+        wrong: () => playTone(150, 'sawtooth', 0.3, 0.2),
+        tick: () => playTone(400, 'square', 0.05, 0.05),
+        go: () => playTone(1000, 'square', 0.2, 0.1),
+        win: () => { [400, 500, 600, 800, 1000, 1200].forEach((f, i) => setTimeout(() => playTone(f, 'sine', 0.15, 0.2), i * 150)); },
+        explosion: () => {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.6);
+        },
+        zap: () => { playTone(100, 'sawtooth', 0.1, 0.3); setTimeout(() => playTone(50, 'square', 0.2, 0.3), 50); }
+    };
+
+    // --- SCIENCE DATABASE ---
+    const ipaQuestions = {
+        tier1: [
+            { q: "Alat indra untuk melihat adalah...", a: "Mata", w: ["Telinga", "Hidung"] },
+            { q: "Matahari terbit dari sebelah...", a: "Timur", w: ["Barat", "Selatan"] },
+            { q: "Hewan pemakan rumput disebut...", a: "Herbivora", w: ["Karnivora", "Omnivora"] },
+            { q: "Bagian tumbuhan yang menyerap air di dalam tanah adalah...", a: "Akar", w: ["Daun", "Batang"] },
+            { q: "Air yang membeku akan berubah menjadi...", a: "Es", w: ["Uap", "Embun"] },
+            { q: "Hewan penghasil susu adalah...", a: "Sapi", w: ["Ayam", "Bebek"] },
+            { q: "Alat bernapas pada ikan adalah...", a: "Insang", w: ["Paru-paru", "Trakea"] },
+            { q: "Pusat tata surya kita adalah...", a: "Matahari", w: ["Bumi", "Bulan"] },
+            { q: "Zat yang memberi warna hijau pada daun adalah...", a: "Klorofil", w: ["Kloroplas", "Kambium"] },
+            { q: "Hewan yang merayap di dinding adalah...", a: "Cicak", w: ["Katak", "Kelinci"] },
+            { q: "Benda langit yang bersinar di malam hari adalah...", a: "Bintang", w: ["Matahari", "Awan"] },
+            { q: "Es batu yang dibiarkan di meja lama-kelamaan akan...", a: "Mencair", w: ["Membeku", "Menguap"] }
+        ],
+        tier2: [
+            { q: "Proses tumbuhan membuat makanan sendiri disebut...", a: "Fotosintesis", w: ["Respirasi", "Transpirasi"] },
+            { q: "Alat untuk mengukur suhu adalah...", a: "Termometer", w: ["Barometer", "Anemometer"] },
+            { q: "Benda yang dapat ditarik kuat oleh magnet terbuat dari...", a: "Besi", w: ["Plastik", "Karet"] },
+            { q: "Bunyi pantul yang terdengar jelas setelah bunyi asli disebut...", a: "Gema", w: ["Gaung", "Desah"] },
+            { q: "Perubahan wujud dari cair menjadi gas disebut...", a: "Menguap", w: ["Mencair", "Menyublim"] },
+            { q: "Benda yang tidak dapat menghantarkan panas disebut...", a: "Isolator", w: ["Konduktor", "Radiator"] },
+            { q: "Planet yang berwarna merah dalam tata surya adalah...", a: "Mars", w: ["Venus", "Yupiter"] },
+            { q: "Cahaya matahari terdiri dari berapa warna utama?", a: "Tujuh", w: ["Tiga", "Lima"] },
+            { q: "Alat pernapasan pada serangga adalah...", a: "Trakea", w: ["Insang", "Stomata"] },
+            { q: "Katak dewasa bernapas menggunakan...", a: "Paru & Kulit", w: ["Insang", "Trakea"] },
+            { q: "Hewan pemakan daging disebut...", a: "Karnivora", w: ["Herbivora", "Insektivora"] },
+            { q: "Gaya yang terjadi karena dua permukaan bersentuhan adalah gaya...", a: "Gesek", w: ["Gravitasi", "Magnet"] }
+        ],
+        tier3: [
+            { q: "Hubungan dua makhluk hidup yang saling menguntungkan disebut...", a: "Mutualisme", w: ["Parasitisme", "Komensalisme"] },
+            { q: "Planet terbesar dalam tata surya kita adalah...", a: "Yupiter", w: ["Saturnus", "Uranus"] },
+            { q: "Enzim pembunuh kuman pada lambung manusia adalah...", a: "Asam Klorida", w: ["Ptialin", "Pepsin"] },
+            { q: "Penyakit akibat tubuh kekurangan sel darah merah disebut...", a: "Anemia", w: ["Leukemia", "Hemofilia"] },
+            { q: "Logam cair yang biasa digunakan dalam termometer raksa adalah...", a: "Raksa", w: ["Alkohol", "Air"] },
+            { q: "Perpindahan panas tanpa melalui zat perantara disebut...", a: "Radiasi", w: ["Konduksi", "Konveksi"] },
+            { q: "Tumbuhan yang menangkap dan memakan serangga contohnya...", a: "Kantong Semar", w: ["Teratai", "Kaktus"] },
+            { q: "Planet yang memiliki cincin paling indah dan terlihat jelas adalah...", a: "Saturnus", w: ["Neptunus", "Venus"] },
+            { q: "Perputaran bumi mengelilingi matahari disebut...", a: "Revolusi", w: ["Rotasi", "Gerhana"] },
+            { q: "Pembuluh darah yang membawa darah kaya oksigen dari jantung adalah...", a: "Arteri/Nadi", w: ["Vena/Balik", "Kapiler"] },
+            { q: "Hewan berdarah dingin yang bisa hidup di darat dan di air...", a: "Amfibi", w: ["Reptil", "Mamalia"] },
+            { q: "Tulang daun menyirip biasanya dimiliki oleh tumbuhan biji...", a: "Dikotil", w: ["Monokotil", "Spora"] }
+        ]
+    };
+
+    const getScienceQuestion = (level) => {
+        let pool = level <= 10 ? ipaQuestions.tier1 : (level <= 20 ? ipaQuestions.tier2 : ipaQuestions.tier3);
+        const q = pool[Math.floor(Math.random() * pool.length)];
+        let options = [q.a, ...q.w].sort(() => Math.random() - 0.5);
+        return { text: q.q, answer: q.a, options };
+    };
+
+    const getQFontSize = t => t.length > 60 ? "text-2xl md:text-3xl" : (t.length > 40 ? "text-3xl md:text-4xl" : "text-4xl md:text-5xl");
+    const getOptFontSize = t => t.length > 12 ? "text-sm md:text-base leading-tight" : (t.length > 8 ? "text-base md:text-lg leading-tight" : "text-xl md:text-2xl");
+
+    // --- RENDERING & UI LOGIC ---
+    function renderLevelGrid() {
+        const grid = document.getElementById('level-grid');
+        grid.innerHTML = '';
+        for (let l = 1; l <= 30; l++) {
+            const isSel = state.level === l;
+            const cls = isSel ? 'bg-pink-500 border-pink-200 neon-text-red shadow-[0_0_15px_#f0f]' : 'bg-slate-700 border-slate-500 hover:border-green-400';
+            grid.innerHTML += `<button data-lvl="${l}" class="py-2 text-lg font-bold rounded-lg border-2 transition-all ${cls} text-white">${l}</button>`;
+        }
+    }
+
+    function switchScreen(screenId) {
+        state.screen = screenId;
+        ['menu', 'playing', 'gameover'].forEach(id => {
+            document.getElementById(`screen-${id}`).classList.add('hidden');
+            document.getElementById(`screen-${id}`).classList.remove('flex');
+        });
+        const active = document.getElementById(`screen-${screenId}`);
+        active.classList.remove('hidden');
+        active.classList.add('flex');
+
+        if (screenId === 'menu') {
+            renderLevelGrid();
+        } else if (screenId === 'playing') {
+            state.score1 = 0; state.score2 = 0;
+            document.getElementById('score1').innerText = 0;
+            document.getElementById('score2').innerText = 0;
+            startCountdown(3);
+        } else if (screenId === 'gameover') {
+            state.matches++;
+            document.getElementById('stat-played').innerText = `Matches: ${state.matches}`;
+            const winner = state.score1 > state.score2 ? 'P1' : 'P2';
+            const cls = state.score1 > state.score2 ? 'neon-text-blue text-cyan-400' : 'neon-text-red text-pink-500';
+            const wEl = document.getElementById('winner-text');
+            wEl.innerText = `${winner} WINS`;
+            wEl.className = `text-7xl font-black mb-8 animate-bounce ${cls}`;
+            document.getElementById('final-score1').innerText = state.score1;
+            document.getElementById('final-score2').innerText = state.score2;
+        }
+    }
+
+    function updateButtonClasses() {
+        if (!state.questionData) return;
+        const p1Btns = document.querySelectorAll('#p1-buttons button');
+        const p2Btns = document.querySelectorAll('#p2-buttons button');
+        
+        state.questionData.options.forEach((opt, i) => {
+            const b1 = p1Btns[i], b2 = p2Btns[i];
+            const baseCls = `relative aspect-square w-24 md:w-32 rounded-[2rem] border-4 font-black transition-all flex items-center justify-center p-2 `;
+            
+            if (b1) {
+                b1.disabled = state.p1Status !== 'active' || state.countdown !== null;
+                const isCorrectP1 = state.p1Status === 'correct' && opt === state.questionData.answer;
+                b1.className = baseCls + 
+                    (state.p1Status === 'active' ? `bg-slate-800 border-cyan-400 text-cyan-100 neon-border-blue hover:bg-cyan-900 active:scale-90 ` : '') +
+                    (isCorrectP1 ? `bg-cyan-500 border-white text-white shadow-[0_0_50px_#0ff] scale-110 z-20 ` : '') +
+                    (state.p1Status === 'wrong' ? `bg-slate-900 border-slate-700 text-slate-700 opacity-50 ` : '');
+            }
+            if (b2) {
+                b2.disabled = state.p2Status !== 'active' || state.countdown !== null;
+                const isCorrectP2 = state.p2Status === 'correct' && opt === state.questionData.answer;
+                b2.className = baseCls + 
+                    (state.p2Status === 'active' ? `bg-slate-800 border-pink-500 text-pink-100 neon-border-red hover:bg-pink-900 active:scale-90 ` : '') +
+                    (isCorrectP2 ? `bg-pink-500 border-white text-white shadow-[0_0_50px_#f0f] scale-110 z-20 ` : '') +
+                    (state.p2Status === 'wrong' ? `bg-slate-900 border-slate-700 text-slate-700 opacity-50 ` : '');
+            }
+        });
+    }
+
+    function nextQuestion() {
+        state.questionData = getScienceQuestion(state.level);
+        state.p1Status = 'active'; state.p2Status = 'active';
+        
+        const qBox = document.getElementById('question-box');
+        const qText = document.getElementById('question-text');
+        document.getElementById('level-indicator').innerText = `LVL ${state.level}`;
+        qText.innerText = state.questionData.text;
+        qText.className = `font-black text-white neon-text-green tracking-tight ${getQFontSize(state.questionData.text)}`;
+        
+        qBox.classList.remove('animate-pop-in');
+        void qBox.offsetWidth; // Reflow
+        qBox.classList.add('animate-pop-in');
+
+        const p1C = document.getElementById('p1-buttons'), p2C = document.getElementById('p2-buttons');
+        p1C.innerHTML = ''; p2C.innerHTML = '';
+
+        state.questionData.options.forEach((opt, i) => {
+            p1C.innerHTML += `<div id="p1-wrap-${i}" class="relative"><button data-idx="${i}" class="..."><span class="transform rotate-90 inline-block drop-shadow-lg text-center ${getOptFontSize(opt)}">${opt}</span></button></div>`;
+            p2C.innerHTML += `<div id="p2-wrap-${i}" class="relative"><button data-idx="${i}" class="..."><span class="transform -rotate-90 inline-block drop-shadow-lg text-center ${getOptFontSize(opt)}">${opt}</span></button></div>`;
+        });
+        updateButtonClasses();
+    }
+
+    function startCountdown(seconds) {
+        state.countdown = seconds;
+        const overlay = document.getElementById('overlay-countdown');
+        const txt = document.getElementById('countdown-text');
+        overlay.classList.remove('hidden');
+        updateButtonClasses();
+
+        function tick() {
+            txt.classList.remove('animate-pop-in');
+            void txt.offsetWidth;
+            txt.classList.add('animate-pop-in');
+
+            if (state.countdown > 0) {
+                txt.innerText = state.countdown;
+                if (state.countdown === 1) sounds.go(); else sounds.tick();
+                state.countdown--;
+                countdownTimer = setTimeout(tick, 800);
+            } else if (state.countdown === 0) {
+                txt.innerText = 'GO!';
+                state.countdown--;
+                countdownTimer = setTimeout(tick, 500);
+            } else {
+                overlay.classList.add('hidden');
+                state.countdown = null;
+                nextQuestion();
+            }
+        }
+        if (countdownTimer) clearTimeout(countdownTimer);
+        tick();
+    }
+
+    function triggerLightning() {
+        sounds.zap();
+        const ol = document.getElementById('overlay-lightning');
+        ol.classList.remove('hidden'); ol.classList.add('animate-lightning');
+        setTimeout(() => { ol.classList.add('hidden'); ol.classList.remove('animate-lightning'); }, 500);
+    }
+
+    function triggerExplosion(player, idx) {
+        sounds.explosion();
+        const wrap = document.getElementById(`p${player}-wrap-${idx}`);
+        if (wrap) {
+            const exp = document.createElement('div');
+            exp.className = `absolute inset-0 rounded-full animate-explode pointer-events-none ${player === 1 ? 'border-cyan-300' : 'border-pink-400'}`;
+            wrap.appendChild(exp);
+            setTimeout(() => exp.remove(), 600);
+        }
+    }
+
+    function handleAnswer(player, idx) {
+        if (state.screen !== 'playing' || state.countdown !== null) return;
+        if (player === 1 && state.p1Status !== 'active') return;
+        if (player === 2 && state.p2Status !== 'active') return;
+
+        initAudio();
+        const selected = state.questionData.options[idx];
+
+        if (selected === state.questionData.answer) {
+            sounds.correct();
+            triggerExplosion(player, idx);
+            if (player === 1) { state.score1++; state.p1Status = 'correct'; state.p2Status = 'wrong'; }
+            else { state.score2++; state.p2Status = 'correct'; state.p1Status = 'wrong'; }
+            
+            updateButtonClasses();
+            document.getElementById('score1').innerText = state.score1;
+            document.getElementById('score2').innerText = state.score2;
+
+            if (state.score1 >= WIN_SCORE || state.score2 >= WIN_SCORE) {
+                setTimeout(() => { sounds.win(); switchScreen('gameover'); }, 1000);
+            } else {
+                setTimeout(() => startCountdown(2), 500);
+            }
+        } else {
+            triggerLightning();
+            if (player === 1) state.p1Status = 'wrong';
+            if (player === 2) state.p2Status = 'wrong';
+            updateButtonClasses();
+            if (state.p1Status === 'wrong' && state.p2Status === 'wrong') setTimeout(() => startCountdown(2), 500);
+        }
+    }
+
+    // --- EVENTS LISENERS ---
+    document.getElementById('level-grid').addEventListener('click', e => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        initAudio(); sounds.tick();
+        state.level = parseInt(btn.dataset.lvl);
+        renderLevelGrid();
+    });
+
+    document.getElementById('btn-start').addEventListener('click', () => { initAudio(); switchScreen('playing'); });
+    document.getElementById('btn-restart').addEventListener('click', () => switchScreen('menu'));
+
+    const attachGameClick = (pid) => {
+        document.getElementById(`p${pid}-buttons`).addEventListener('click', e => {
+            const btn = e.target.closest('button');
+            if (btn && !btn.disabled) handleAnswer(pid, parseInt(btn.dataset.idx));
+        });
+    };
+    attachGameClick(1); attachGameClick(2);
+
+    // --- THEME & LANG (TATADADA) ---
+    const htmlEl = document.documentElement;
+    let isDark = localStorage.getItem('theme') === 'dark'; // TATADADA default Light
+    function applyTheme() {
+        if (isDark) htmlEl.classList.add('dark'); else htmlEl.classList.remove('dark');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    }
+    applyTheme();
+    document.getElementById('btn-theme').addEventListener('click', () => { isDark = !isDark; applyTheme(); });
+
+    let lang = localStorage.getItem('lang') === 'en' ? 'en' : 'id';
+    function applyLang() {
+        document.getElementById('btn-lang').innerText = lang === 'en' ? '🇬🇧' : '🇮🇩';
+        const d = i18n[lang];
+        document.getElementById('btn-help').title = d.help;
+        document.getElementById('lbl-level-select').innerText = d.level_select;
+        document.getElementById('btn-start').innerText = d.start;
+        document.getElementById('lbl-winner-title').innerText = d.winner;
+        document.getElementById('btn-restart').innerText = d.play_again;
+        document.getElementById('btn-terms').innerText = d.terms;
+        document.getElementById('ui-subtitle').innerText = d.subtitle;
+        document.getElementById('modal-title').innerText = d.terms + ' & Disclaimer';
+        document.getElementById('term-context').innerText = d.term_ctx;
+        document.getElementById('term-legal').innerText = d.term_lgl;
+        localStorage.setItem('lang', lang);
+    }
+    applyLang();
+    document.getElementById('btn-lang').addEventListener('click', () => { lang = lang === 'id' ? 'en' : 'id'; applyLang(); });
+    document.getElementById('btn-help').addEventListener('click', () => alert(i18n[lang].help_text));
+
+    // --- MODAL ---
+    const modal = document.getElementById('modal-terms');
+    const modalContent = document.getElementById('modal-content');
+    document.getElementById('btn-terms').addEventListener('click', () => {
+        modal.classList.remove('hidden'); modal.classList.add('flex');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            modalContent.classList.remove('scale-95');
+            modalContent.classList.add('scale-100');
+        }, 10);
+    });
+    document.getElementById('btn-close-modal').addEventListener('click', () => {
+        modal.classList.add('opacity-0');
+        modalContent.classList.remove('scale-100');
+        modalContent.classList.add('scale-95');
+        setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 300);
+    });
+
+    // INIT
+    lucide.createIcons();
+    renderLevelGrid();
+</script>
+</body>
+</html>
