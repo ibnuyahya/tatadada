@@ -35,6 +35,7 @@
                     boxShadow: {
                         'sm': 'var(--shadow-sm)',
                         'md': 'var(--shadow-md)',
+                        'glow': '0 0 15px var(--shadow-glow)'
                     },
                     fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'], }
                 }
@@ -47,7 +48,7 @@
         :root {
             --header-bg: #ffffff;
             --editor-bg: #ffffff;
-            --preview-bg: #f1f5f9; /* Selokan untuk kedalaman */
+            --preview-bg: #f1f5f9;
             --card-bg: #ffffff;
             --footer-bg: #ffffff;
             --border-color: #e2e8f0;
@@ -56,6 +57,7 @@
             --theme-accent: #3b82f6;
             --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
             --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-glow: rgba(59, 130, 246, 0.3);
         }
         html.dark {
             --header-bg: #161b22;
@@ -66,6 +68,7 @@
             --border-color: #30363d;
             --text-main: #e6edf3;
             --text-dim: #8b949e;
+            --shadow-glow: rgba(59, 130, 246, 0.15);
             color-scheme: dark;
         }
         body { 
@@ -90,16 +93,16 @@
         .split-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 20px;
+            width: 40px; /* Diperlebar agar mudah disentuh di mobile */
             height: 100vh;
             background: transparent;
-            cursor: col-resize;
+            cursor: ew-resize;
         }
         .split-slider::-moz-range-thumb {
-            width: 20px;
+            width: 40px;
             height: 100vh;
             background: transparent;
-            cursor: col-resize;
+            cursor: ew-resize;
             border: none;
         }
     </style>
@@ -115,7 +118,7 @@
             id: {
                 capture: "Foto", capturing: "Menyimpan...", engine: "Engine Ready", optics: "Simulasi Aktif", terms: "Terms",
                 help: "Cara Pakai", helpDesc: "Pilih tipe buta warna atau kondisi mata di panel kontrol untuk melihat perubahan secara instan. Geser (drag) kursor pada area gambar untuk melihat sekeliling gambar secara detail.", close: "Tutup",
-                imgSelect: "Ganti Gambar", compare: "Bandingkan (Split)", reset: "Reset",
+                imgSelect: "Ganti Gambar", compare: "Bandingkan", reset: "Reset",
                 types: {
                     normal: { name: "Normal Color", desc: "Penglihatan warna penuh tanpa kelainan." },
                     protanopia: { name: "Protanopia", desc: "Buta warna merah. Sel kerucut merah tidak ada." },
@@ -135,7 +138,7 @@
             en: {
                 capture: "Capture", capturing: "Saving...", engine: "Engine Ready", optics: "Simulation Active", terms: "Terms",
                 help: "How to Use", helpDesc: "Select a color blindness type or eye condition from the control panel. Drag your cursor across the image area to pan around.", close: "Close",
-                imgSelect: "Change Image", compare: "Compare (Split)", reset: "Reset",
+                imgSelect: "Change Image", compare: "Compare", reset: "Reset",
                 types: {
                     normal: { name: "Normal Color", desc: "Full color vision without anomaly." },
                     protanopia: { name: "Protanopia", desc: "Red-blind. Red cones are absent." },
@@ -154,7 +157,7 @@
             }
         };
 
-        // --- COLOR MATRICES (Aksesibilitas Standar) ---
+        // --- COLOR MATRICES ---
         const colorMatrices = {
             protanopia: "0.567 0.433 0 0 0  0.558 0.442 0 0 0  0 0.242 0.758 0 0  0 0 0 1 0",
             protanomaly: "0.817 0.183 0 0 0  0.333 0.667 0 0 0  0 0.125 0.875 0 0  0 0 0 1 0",
@@ -165,12 +168,11 @@
             achromatopsia: "0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0"
         };
 
-        // Gambar default
         const sampleImages = [
-            "https://ik.trn.asia/uploads/2022/03/1647007269306.jpeg", // Default landscape requested
-            "https://images.unsplash.com/photo-1513360371669-4adf3dd7dff8?auto=format&fit=crop&w=1600&q=80", // Pencils
-            "https://images.unsplash.com/photo-1507608616759-54f48f0af0ee?auto=format&fit=crop&w=1600&q=80", // Balloons
-            "https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=1600&q=80", // Fruits
+            "https://ik.trn.asia/uploads/2022/03/1647007269306.jpeg",
+            "https://images.unsplash.com/photo-1513360371669-4adf3dd7dff8?auto=format&fit=crop&w=1600&q=80",
+            "https://images.unsplash.com/photo-1507608616759-54f48f0af0ee?auto=format&fit=crop&w=1600&q=80",
+            "https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=1600&q=80",
         ];
 
         class ErrorBoundary extends Component {
@@ -190,24 +192,26 @@
             }
         }
 
-        // --- ICONS & COMPONENTS ---
-        const SunIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>;
-        const MoonIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>;
+        // --- ICONS ---
+        const SunIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>;
+        const MoonIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>;
         const CameraIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>;
         const HelpCircleIcon = ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>;
         const ImageIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>;
         const SplitIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20"/><rect width="8" height="16" x="14" y="4" rx="2"/><rect width="8" height="16" x="2" y="4" rx="2"/></svg>;
         const ResetIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>;
 
+        // UI UX IMPROVEMENT: Slider lebih tebal, font membesar, padding disesuaikan
         const CompactSlider = ({ label, value, min, max, step, onChange, unit, disabled }) => (
-            <div className={`flex flex-col py-1 transition-opacity ${disabled ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
-                <div className="flex justify-between items-center mb-1">
-                    <label className="text-[10px] font-medium text-main">{label}</label>
-                    <span className="text-[9px] font-bold font-mono bg-preview text-accent px-1 rounded border border-theme">
+            <div className={`flex flex-col py-1.5 transition-opacity ${disabled ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-xs font-semibold text-main">{label}</label>
+                    <span className="text-[10px] font-bold font-mono bg-preview text-accent px-1.5 py-0.5 rounded border border-theme">
                         {value > 0 && !unit.includes('%') && !unit.includes('°') ? '+' : ''}{value}{unit}
                     </span>
                 </div>
-                <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(parseFloat(e.target.value))} disabled={disabled} className="w-full h-1 bg-theme rounded-full appearance-none cursor-pointer accent-blue-500" />
+                <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(parseFloat(e.target.value))} disabled={disabled} 
+                       className="w-full h-1.5 bg-theme rounded-full appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all" />
             </div>
         );
 
@@ -263,7 +267,7 @@
 
             if (intensity === 0) return null;
             return (
-                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                <div className="absolute inset-0 pointer-events-none overflow-hidden z-30">
                     {floatersList.map((f, i) => (
                         <svg key={i} ref={el => { f.el = el; }} width="100" height="100" viewBox="0 0 100 100" className="absolute drop-shadow-sm"
                              style={{ left: `${f.baseX}%`, top: `${f.baseY}%`, filter: `blur(${f.blur}px)`, opacity: f.opacity, willChange: 'transform' }}>
@@ -375,7 +379,7 @@
             const ty = `calc(var(--pan-ny, 0) * -80px)`;
             const baseScale = 1.15;
 
-            // --- FUNGSI RENDER LAPISAN MATA (Miopi, Silinder, Katarak, Buta Warna) ---
+            // --- FUNGSI RENDER LAPISAN MATA ---
             const renderEyeView = (useColorBlindFilter, usePhysicalConditions) => {
                 const activeSph = usePhysicalConditions ? eyeSph : 0;
                 const activeCyl = usePhysicalConditions ? eyeCyl : 0;
@@ -390,7 +394,6 @@
                 const cbFilter = useColorBlindFilter && activeFilter !== 'normal' ? `url(#cb-${activeFilter}) ` : '';
                 const combinedFilter = `${cbFilter}blur(${bSph}px) ${diseaseFilter}`.trim();
 
-                // Jika tidak ada silinder (Astigmatisme), render 1 lapis saja
                 if (bCyl < 0.1) {
                     return (
                         <img src={sampleImages[imageIndex]} crossOrigin="anonymous" 
@@ -399,10 +402,8 @@
                     );
                 }
 
-                // Logika Ghosting Astigmatisme (Silinder)
                 const rad = (activeAxis + 90) * (Math.PI / 180);
                 const layers = [];
-
                 layers.push(<img key="base" src={sampleImages[imageIndex]} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover origin-center pointer-events-none" 
                                 style={{ transform: `scale(${baseScale}) translate(${tx}, ${ty})`, filter: combinedFilter || 'none', willChange: 'transform, filter' }} alt="Base" />);
 
@@ -442,24 +443,24 @@
                             <div className="flex flex-col">
                                 <div className="flex items-center gap-2">
                                     <h1 className="text-lg font-bold bg-gradient-to-r from-rose-500 via-amber-500 to-blue-500 bg-clip-text text-transparent">ChromaSim Pro</h1>
-                                    <span className="text-[10px] font-mono text-dim italic border border-theme px-1 rounded">v4.0 TATADADA</span>
+                                    <span className="text-[10px] font-mono text-dim italic border border-theme px-1 rounded">v5.0 Expert UX</span>
                                 </div>
                                 <a href="https://danial.my.id" target="_blank" rel="noreferrer" className="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 uppercase transition-colors">by AhmadDanial</a>
                             </div>
                             <div className="relative group ml-2 cursor-help">
                                 <HelpCircleIcon className="w-4 h-4 text-dim hover:text-blue-500 transition-colors" />
-                                <div className="absolute left-0 top-full mt-2 w-80 p-4 bg-card border border-theme text-xs text-main rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                <div className="absolute left-0 top-full mt-2 w-80 p-4 bg-card border border-theme text-xs text-main rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                                     <strong className="block mb-2 text-sm">{t.help}:</strong>
-                                    <p className="text-dim space-y-1">{t.helpDesc}</p>
+                                    <p className="text-dim space-y-1 leading-relaxed">{t.helpDesc}</p>
                                 </div>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <button onClick={resetAll} className="px-3 py-1.5 rounded text-[10px] font-bold border border-theme bg-preview hover:bg-theme text-main transition flex items-center gap-1.5">
-                                <ResetIcon /> {t.reset}
+                            <button onClick={resetAll} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-theme bg-preview hover:bg-theme text-main transition flex items-center gap-1.5">
+                                <ResetIcon /> <span className="hidden sm:inline">{t.reset}</span>
                             </button>
-                            <button onClick={handleDownload} disabled={isCapturing} className={`px-3 py-1.5 rounded text-[10px] font-bold border flex items-center gap-1.5 transition ${isCapturing ? 'bg-slate-700 text-slate-400 border-slate-600' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'}`}>
-                                <CameraIcon /> {isCapturing ? t.capturing : t.capture}
+                            <button onClick={handleDownload} disabled={isCapturing} className={`px-3 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-1.5 transition ${isCapturing ? 'bg-slate-700 text-slate-400 border-slate-600' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'}`}>
+                                <CameraIcon /> <span className="hidden sm:inline">{isCapturing ? t.capturing : t.capture}</span>
                             </button>
                             <div className="w-px h-6 bg-theme mx-1 self-center"></div>
                             
@@ -470,34 +471,34 @@
                                 {lang === 'id' ? '🇮🇩' : '🇬🇧'}
                             </button>
 
-                            <button onClick={() => setDarkMode(!darkMode)} className="p-1.5 rounded hover:bg-theme text-dim hover:text-main transition-colors" title="Toggle Tema">
+                            <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-lg hover:bg-theme text-dim hover:text-main transition-colors" title="Toggle Tema">
                                 {darkMode ? <SunIcon /> : <MoonIcon />}
                             </button>
                         </div>
                     </header>
 
-                    {/* --- MAIN WORKSPACE (TATADADA Single View Card Layout) --- */}
-                    <main className="flex-1 relative overflow-y-auto overflow-x-hidden flex flex-col p-4 md:p-8">
-                        <div className="max-w-6xl mx-auto w-full flex flex-col gap-6">
+                    {/* --- MAIN WORKSPACE --- */}
+                    <main className="flex-1 relative overflow-y-auto overflow-x-hidden flex flex-col p-4 md:p-6 lg:p-8">
+                        <div className="max-w-[1400px] mx-auto w-full flex flex-col gap-6">
                             
                             {/* CONTROL PANEL CARD */}
-                            <div className="bg-card rounded-2xl shadow-sm border border-theme p-5 flex flex-col gap-5 z-40 relative">
+                            <div className="bg-card rounded-3xl shadow-sm border border-theme p-6 md:p-8 flex flex-col gap-8 z-40 relative">
                                 
                                 {/* Top Row: Color Blindness & Actions */}
-                                <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
-                                    <div className="flex-1 w-full overflow-x-auto hide-scrollbar">
-                                        <div className="flex gap-4 min-w-max">
+                                <div className="flex flex-col xl:flex-row gap-6 items-start xl:items-center justify-between">
+                                    <div className="flex-1 w-full overflow-x-auto hide-scrollbar pb-2 xl:pb-0">
+                                        <div className="flex gap-6 min-w-max">
                                             {filterGroups.map((group, i) => (
                                                 <div key={i} className="flex flex-col">
-                                                    <div className="text-[9px] text-dim font-bold tracking-widest mb-1.5 px-1 uppercase">{group.title}</div>
-                                                    <div className="flex gap-1 bg-preview p-1 rounded-lg border border-theme">
+                                                    <div className="text-[10px] text-dim font-bold tracking-widest mb-2 px-2 uppercase">{group.title}</div>
+                                                    <div className="flex gap-1 bg-preview p-1.5 rounded-2xl border border-theme">
                                                         {group.items.map(filterId => (
                                                             <button 
                                                                 key={filterId}
                                                                 onClick={() => setActiveFilter(filterId)}
-                                                                className={`px-3 py-1.5 rounded text-[11px] font-semibold transition-all ${
+                                                                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-300 ${
                                                                     activeFilter === filterId 
-                                                                        ? 'bg-blue-600 text-white shadow-md' 
+                                                                        ? 'bg-blue-600 text-white shadow-glow' 
                                                                         : 'hover:bg-theme text-dim hover:text-main'
                                                                 }`}
                                                             >
@@ -510,33 +511,33 @@
                                         </div>
                                     </div>
 
-                                    <div className="flex gap-2 lg:pl-4 lg:border-l border-theme shrink-0 w-full lg:w-auto mt-2 lg:mt-0">
-                                        <button onClick={toggleImage} className="flex-1 lg:flex-none px-4 py-2 rounded-xl text-[11px] font-bold border border-theme bg-preview hover:bg-theme text-main transition flex justify-center items-center gap-2">
+                                    <div className="flex gap-3 xl:pl-6 xl:border-l border-theme shrink-0 w-full xl:w-auto">
+                                        <button onClick={toggleImage} className="flex-1 xl:flex-none px-5 py-2.5 rounded-xl text-xs font-bold border border-theme bg-preview hover:bg-theme text-main transition flex justify-center items-center gap-2">
                                             <ImageIcon /> {t.imgSelect}
                                         </button>
-                                        <button onClick={() => setIsSplitMode(!isSplitMode)} className={`flex-1 lg:flex-none px-4 py-2 rounded-xl text-[11px] font-bold border flex justify-center items-center gap-2 transition ${isSplitMode ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-preview text-main border-theme hover:bg-theme'}`}>
+                                        <button onClick={() => setIsSplitMode(!isSplitMode)} className={`flex-1 xl:flex-none px-5 py-2.5 rounded-xl text-xs font-bold border flex justify-center items-center gap-2 transition-all duration-300 ${isSplitMode ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20' : 'bg-preview text-main border-theme hover:bg-theme'}`}>
                                             <SplitIcon /> {t.compare}
                                         </button>
                                     </div>
                                 </div>
 
                                 {/* Bottom Row: Physical Eye Conditions */}
-                                <div className="border-t border-theme pt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-1">
-                                        <div className="text-[9px] text-blue-500 font-bold tracking-widest mb-2 px-1 uppercase">{t.physEye}</div>
-                                        <div className="border-l-2 border-blue-500/30 pl-3">
+                                <div className="border-t border-theme pt-6 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+                                    <div className="space-y-2">
+                                        <div className="text-[10px] text-blue-500 font-bold tracking-widest mb-3 px-1 uppercase">{t.physEye}</div>
+                                        <div className="border-l-4 border-blue-500/20 pl-4 space-y-2">
                                             <CompactSlider label={t.sphEye} value={eyeSph} min={-10} max={0} step={0.25} unit=" D" onChange={setEyeSph} />
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-4">
                                                 <div className="flex-1"><CompactSlider label={t.cylEye} value={eyeCyl} min={-5} max={0} step={0.25} unit=" D" onChange={setEyeCyl} /></div>
-                                                <div className="w-20"><CompactSlider label={t.axisEye} value={eyeAxis} min={0} max={180} step={5} unit="°" onChange={setEyeAxis} disabled={eyeCyl===0}/></div>
+                                                <div className="w-24"><CompactSlider label={t.axisEye} value={eyeAxis} min={0} max={180} step={5} unit="°" onChange={setEyeAxis} disabled={eyeCyl===0}/></div>
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="space-y-1">
-                                        <div className="text-[9px] text-orange-500 font-bold tracking-widest mb-2 px-1 uppercase">{t.pathology}</div>
-                                        <div className="border-l-2 border-orange-500/30 pl-3">
+                                    <div className="space-y-2">
+                                        <div className="text-[10px] text-orange-500 font-bold tracking-widest mb-3 px-1 uppercase">{t.pathology}</div>
+                                        <div className="border-l-4 border-orange-500/20 pl-4 space-y-2">
                                             <CompactSlider label={t.cataract} value={cataract} min={0} max={100} step={1} unit="%" onChange={setCataract} />
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-4">
                                                 <div className="flex-1"><CompactSlider label={t.glaucoma} value={glaucoma} min={0} max={100} step={1} unit="%" onChange={setGlaucoma} /></div>
                                                 <div className="flex-1"><CompactSlider label={t.floaters} value={floaters} min={0} max={100} step={1} unit="%" onChange={setFloaters} /></div>
                                             </div>
@@ -548,7 +549,7 @@
 
                             {/* PANO VIEW AREA CARD */}
                             <div id="pano-view-area" 
-                                 className="w-full h-[60vh] md:h-[65vh] bg-black rounded-2xl shadow-md border border-theme overflow-hidden relative cursor-crosshair group"
+                                 className="w-full h-[65vh] bg-black rounded-3xl shadow-md border border-theme overflow-hidden relative cursor-crosshair group"
                                  ref={panoAreaRef} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
                                 
                                 {/* SVG DEFINITIONS FOR COLOR BLINDNESS */}
@@ -566,43 +567,49 @@
                                 <div className="absolute inset-0 pointer-events-none z-10">
                                     {renderEyeView(true, true)}
                                     {glaucoma > 0 && (
-                                        <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at 50% 50%, transparent ${glaucomaInner}%, rgba(0,0,0,0.98) ${glaucomaOuter}%)` }} />
+                                        <div className="absolute inset-0 pointer-events-none z-20" style={{ background: `radial-gradient(ellipse at 50% 50%, transparent ${glaucomaInner}%, rgba(0,0,0,0.98) ${glaucomaOuter}%)` }} />
                                     )}
                                     <Floaters intensity={floaters} mouseDeltaRef={mouseDeltaRef} />
                                 </div>
 
                                 {/* Split Screen Image (Kiri / Layer Atas - Normal Vision Penuh) */}
                                 {isSplitMode && (
-                                    <div className="absolute inset-0 pointer-events-none z-20" style={{ clipPath: `inset(0 ${100 - splitPos}% 0 0)` }}>
+                                    <div className="absolute inset-0 pointer-events-none z-40" style={{ clipPath: `inset(0 ${100 - splitPos}% 0 0)` }}>
                                         {renderEyeView(false, false)}
                                     </div>
                                 )}
 
-                                {/* Pembatas Split Screen */}
+                                {/* UX IMPROVEMENT: Visual Grip Handle Pembatas Split Screen */}
                                 {isSplitMode && (
-                                    <div className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_15px_rgba(0,0,0,0.8)] z-30 pointer-events-none" 
-                                         style={{ left: `calc(${splitPos}% - 2px)` }}></div>
+                                    <div className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_15px_rgba(0,0,0,0.8)] z-50 pointer-events-none flex items-center justify-center" 
+                                         style={{ left: `calc(${splitPos}% - 2px)` }}>
+                                         {/* Handle Pill */}
+                                         <div className="w-6 h-10 bg-white/90 backdrop-blur rounded-full shadow-lg border border-gray-200 flex items-center justify-center gap-0.5 text-gray-500">
+                                             <div className="w-0.5 h-4 bg-gray-400 rounded"></div>
+                                             <div className="w-0.5 h-4 bg-gray-400 rounded"></div>
+                                         </div>
+                                    </div>
                                 )}
 
                                 {/* Range Slider for Split Screen */}
                                 {isSplitMode && (
                                     <input type="range" min="0" max="100" value={splitPos} onChange={(e) => setSplitPos(e.target.value)}
-                                           className="absolute inset-0 w-full h-full opacity-0 split-slider z-50 cursor-col-resize" />
+                                           className="absolute inset-0 w-full h-full opacity-0 split-slider z-[60]" />
                                 )}
 
                                 {/* Label Indikator untuk Split Mode */}
                                 {isSplitMode && (
-                                    <div className="absolute top-4 left-4 right-4 flex justify-between pointer-events-none z-40">
-                                        <span className="bg-black/60 backdrop-blur text-white text-xs px-3 py-1.5 rounded-full font-semibold border border-white/20 shadow-lg">{t.types.normal.name}</span>
-                                        <span className="bg-black/60 backdrop-blur text-white text-xs px-3 py-1.5 rounded-full font-semibold border border-white/20 shadow-lg">{t.types[activeFilter].name}</span>
+                                    <div className="absolute top-6 left-6 right-6 flex justify-between pointer-events-none z-[60]">
+                                        <span className="bg-black/60 backdrop-blur text-white text-xs px-4 py-2 rounded-xl font-semibold border border-white/20 shadow-lg">{t.types.normal.name}</span>
+                                        <span className="bg-black/60 backdrop-blur text-white text-xs px-4 py-2 rounded-xl font-semibold border border-white/20 shadow-lg">{t.types[activeFilter].name}</span>
                                     </div>
                                 )}
 
                                 {/* Keterangan Tipe Buta Warna (Single Mode) */}
                                 {!isSplitMode && activeFilter !== 'normal' && (
-                                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none z-40 transition-opacity">
-                                        <div className="bg-black/70 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-2xl flex flex-col items-center text-center max-w-sm">
-                                            <h3 className="text-white font-bold text-lg mb-1">{t.types[activeFilter].name}</h3>
+                                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 pointer-events-none z-[60] transition-opacity">
+                                        <div className="bg-black/70 backdrop-blur-md border border-white/10 p-5 rounded-2xl shadow-2xl flex flex-col items-center text-center max-w-sm">
+                                            <h3 className="text-white font-bold text-lg mb-1.5">{t.types[activeFilter].name}</h3>
                                             <p className="text-gray-300 text-xs leading-relaxed">{t.types[activeFilter].desc}</p>
                                         </div>
                                     </div>
@@ -628,13 +635,13 @@
                         </div>
                     </footer>
 
-                    {/* --- MODAL TERMS OF USE (TATADADA Smart & Strict Mode) --- */}
+                    {/* --- MODAL TERMS OF USE --- */}
                     {showTerms && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowTerms(false)}>
-                            <div className="bg-card border border-theme rounded-2xl shadow-2xl max-w-lg w-full p-6 lg:p-8 relative" onClick={e => e.stopPropagation()}>
-                                <h3 className="text-xl font-bold text-main mb-4">{t.termsTitle}</h3>
-                                <div className="space-y-4 mb-8">
-                                    <p className="text-sm text-dim leading-relaxed p-4 bg-preview rounded-xl border border-theme">
+                            <div className="bg-card border border-theme rounded-3xl shadow-2xl max-w-lg w-full p-8 relative" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-xl font-bold text-main mb-5">{t.termsTitle}</h3>
+                                <div className="space-y-5 mb-8">
+                                    <p className="text-sm text-dim leading-relaxed p-5 bg-preview rounded-2xl border border-theme">
                                         {t.termsContext}
                                     </p>
                                     <p className="text-sm text-main font-medium leading-relaxed italic">
@@ -642,7 +649,7 @@
                                     </p>
                                 </div>
                                 <div className="flex justify-end">
-                                    <button onClick={() => setShowTerms(false)} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
+                                    <button onClick={() => setShowTerms(false)} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
                                         {t.close}
                                     </button>
                                 </div>
