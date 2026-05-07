@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KomenPDF</title>
+    
+    <!-- Google Analytics (Wajib) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+
+    <!-- Histats.com START (async) -->
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+    <noscript><a href="/" target="_blank"><img src="//sstatic1.histats.com/0.gif?5024490&101" alt="" border="0"></a></noscript>
+    <!-- Histats.com END -->
+
+    <!-- Auto-Favicon Injector (Wajib) -->
+    <script>
+    // TATADADA Auto-Favicon Injector (Zoomed & Textless)
+    fetch('icon.xml').then(r => r.text()).then(xml => {
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+        const cStart = doc.querySelector('color_start')?.textContent || '#0ea5e9';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#4338ca';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
+        const link = document.createElement('link');
+        link.rel = 'icon'; link.type = 'image/svg+xml';
+        link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+    }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+
+    <!-- Tailwind CSS & Lucide Icons -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+
+    <!-- CSS Tokens & Custom Styles (TATADADA v5.10) -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        :root {
+            --header-bg: rgba(255, 255, 255, 0.85);
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --footer-bg: rgba(255, 255, 255, 0.85);
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        
+        html.dark {
+            --header-bg: rgba(22, 27, 34, 0.85);
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #161b22;
+            --footer-bg: rgba(22, 27, 34, 0.85);
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            color-scheme: dark;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--preview-bg);
+            color: var(--text-main);
+        }
+
+        .bg-dynamic { background-color: var(--card-bg); }
+        .bg-selokan { background-color: var(--preview-bg); }
+        .text-dynamic { color: var(--text-main); }
+        .text-dim-dynamic { color: var(--text-dim); }
+        .border-dynamic { border-color: var(--border-color); }
+        
+        /* Premium Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Loader */
+        .loader {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--theme-accent);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Sync Gutter Line Numbers */
+        #line-numbers {
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.5; /* Sinkron dengan textarea */
+        }
+        #full-text-area {
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.5;
+            white-space: pre; /* Mencegah wrap agar baris nomor tetap akurat */
+        }
+
+        /* Glassmorphism */
+        .glass-header {
+            background-color: var(--header-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col transition-colors duration-300">
+
+    <!-- Header (h-14) -->
+    <header class="h-14 glass-header border-b border-dynamic flex items-center justify-between px-6 shrink-0 z-20">
+        <div class="flex items-center gap-3">
+            <div class="font-bold text-lg bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">KomenPDF</div>
+            <span class="text-xs italic text-dim-dynamic border border-dynamic rounded px-1.5 py-0.5">v1.0</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim-dynamic hover:text-[#3b82f6] transition-colors ml-2">by AhmadDanial</a>
+            
+            <!-- Help Tooltip -->
+            <div class="relative group ml-2 flex items-center">
+                <i data-lucide="help-circle" class="w-4 h-4 text-dim-dynamic cursor-help"></i>
+                <div class="absolute left-0 top-6 w-64 bg-dynamic border border-dynamic p-3 rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none text-xs text-dynamic">
+                    <p id="help-text-id" class="font-medium">1. Tarik file PDF ke area dropzone.<br>2. Aplikasi akan memindai anotasi.<br>3. Salin hasil atau simpan sbg TXT.</p>
+                    <p id="help-text-en" class="font-medium hidden">1. Drag & drop PDF file to zone.<br>2. App will scan for annotations.<br>3. Copy results or save as TXT.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <!-- Language Toggle -->
+            <button onclick="toggleLanguage()" class="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 text-sm font-medium text-dynamic border border-dynamic">
+                <i data-lucide="globe" class="w-4 h-4 text-dim-dynamic"></i>
+                <span id="lang-indicator">ID</span>
+            </button>
+            <!-- Theme Toggle -->
+            <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors border border-dynamic">
+                <i data-lucide="moon" id="theme-icon-dark" class="w-4 h-4 text-dim-dynamic hidden"></i>
+                <i data-lucide="sun" id="theme-icon-light" class="w-4 h-4 text-dim-dynamic"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace (Single View - Premium Card Layout) -->
+    <main class="flex-grow overflow-y-auto p-4 md:p-8 flex justify-center w-full">
+        <div class="max-w-5xl w-full bg-dynamic rounded-3xl shadow-xl border border-dynamic flex flex-col overflow-hidden relative">
+            
+            <!-- Dropzone Area (Fills space when empty, shrinks when data present) -->
+            <div id="drop-zone" class="w-full flex-grow flex flex-col items-center justify-center p-12 transition-all duration-500 border-b border-dynamic border-dashed hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer relative bg-selokan">
+                <input type="file" id="file-input" accept="application/pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                <div class="p-4 bg-dynamic rounded-full shadow-sm border border-dynamic mb-4">
+                    <i data-lucide="file-up" class="w-8 h-8 text-[#3b82f6]"></i>
+                </div>
+                <h3 id="dropzone-title" class="text-xl font-semibold text-dynamic">Klik atau Tarik file PDF ke sini</h3>
+                <p id="dropzone-subtitle" class="text-sm text-dim-dynamic mt-2">Pemrosesan 100% lokal di browser Anda</p>
+                
+                <!-- Loading -->
+                <div id="loading-indicator" class="hidden absolute inset-0 bg-dynamic/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center">
+                    <div class="loader mb-3"></div>
+                    <p id="loading-text" class="text-sm font-medium text-dynamic animate-pulse">Memproses dokumen...</p>
+                </div>
+            </div>
+
+            <!-- Results Container -->
+            <div id="results-container" class="hidden flex-col h-full flex-grow">
+                <!-- Toolbar -->
+                <div class="px-6 py-4 flex items-center justify-between border-b border-dynamic bg-selokan">
+                    <div class="flex items-center gap-4">
+                        <h2 class="text-sm font-semibold text-dynamic truncate max-w-[200px] md:max-w-md" id="filename-display">file.pdf</h2>
+                        <!-- Tabs -->
+                        <div class="flex bg-dynamic border border-dynamic rounded-lg p-1 gap-1">
+                            <button onclick="switchTab('comments')" id="tab-comments" class="px-4 py-1.5 text-xs font-semibold rounded-md bg-[#3b82f6] text-white transition-all shadow-sm">
+                                <span id="tab-label-comments">Anotasi</span> (<span id="count-comments">0</span>)
+                            </button>
+                            <button onclick="switchTab('text')" id="tab-text" class="px-4 py-1.5 text-xs font-semibold rounded-md text-dim-dynamic hover:text-dynamic transition-all">
+                                <span id="tab-label-text">Teks Utuh</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button onclick="copyToClipboard()" class="p-2 rounded-lg bg-dynamic border border-dynamic hover:border-gray-400 text-dynamic transition-colors" title="Copy Data">
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="downloadAsText()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#3b82f6] hover:bg-blue-600 text-white text-xs font-semibold transition-colors shadow-sm">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i> <span id="btn-save-text">Simpan .txt</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tab: Comments -->
+                <div id="content-comments" class="flex-grow overflow-y-auto p-6 bg-dynamic">
+                    <div id="comments-list" class="flex flex-col gap-4">
+                        <!-- Comments rendered here -->
+                    </div>
+                </div>
+
+                <!-- Tab: Text (Textarea with Line Numbers) -->
+                <div id="content-text" class="hidden flex-grow overflow-hidden p-6 bg-dynamic">
+                    <div class="flex h-full w-full border border-dynamic rounded-xl overflow-hidden bg-[var(--editor-bg)] shadow-sm">
+                        <!-- Gutter -->
+                        <div id="line-numbers" class="bg-selokan text-dim-dynamic text-right p-4 text-xs select-none border-r border-dynamic overflow-hidden w-12 flex-shrink-0">
+                            1
+                        </div>
+                        <!-- Editor -->
+                        <textarea id="full-text-area" class="flex-grow p-4 bg-transparent resize-none outline-none text-xs text-dynamic overflow-auto" readonly spellcheck="false"></textarea>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer (h-8) -->
+    <footer class="h-8 glass-header border-t border-dynamic flex items-center justify-between px-6 shrink-0 text-[10px] font-medium text-dim-dynamic">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
+            <span id="footer-status">Sistem Siap Lokal</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <span id="stats-counter">0 PDF diproses</span>
+            <button onclick="toggleModal()" class="hover:text-dynamic transition-colors underline decoration-dotted underline-offset-2">Terms & Legal</button>
+        </div>
+    </footer>
+
+    <!-- Modal Terms -->
+    <div id="terms-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex-col items-center justify-center p-4 opacity-0 transition-opacity duration-300">
+        <div class="bg-dynamic border border-dynamic w-full max-w-lg rounded-2xl shadow-2xl p-6 transform scale-95 transition-transform duration-300" id="terms-card">
+            <div class="flex justify-between items-center mb-4 border-b border-dynamic pb-3">
+                <h3 class="text-lg font-bold text-dynamic flex items-center gap-2">
+                    <i data-lucide="shield-alert" class="w-5 h-5 text-yellow-500"></i>
+                    <span id="modal-title">Terms of Use & Disclaimer</span>
+                </h3>
+                <button onclick="toggleModal()" class="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-dim-dynamic">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="space-y-4 text-sm text-dim-dynamic overflow-y-auto max-h-[60vh] pr-2">
+                <!-- Smart Context -->
+                <p id="term-context-id" class="font-semibold text-dynamic">Aplikasi "KomenPDF" memproses file PDF murni menggunakan sumber daya peramban (browser) Anda. Tidak ada file dokumen rahasia Anda yang diunggah, disimpan, atau dikirimkan ke server eksternal.</p>
+                <p id="term-context-en" class="font-semibold text-dynamic hidden">The "KomenPDF" application processes PDF files purely using your browser's resources. None of your confidential document files are uploaded, stored, or sent to any external servers.</p>
+                <!-- Legal Strict -->
+                <p id="term-legal-id" class="leading-relaxed text-xs">Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.</p>
+                <p id="term-legal-en" class="leading-relaxed text-xs hidden">There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics and Histats to collect anonymous visit and usage statistics for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.</p>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="toggleModal()" id="btn-agree" class="px-5 py-2 bg-[#3b82f6] hover:bg-blue-600 text-white rounded-lg text-sm font-semibold transition-colors shadow-md">
+                    Saya Mengerti
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Init Lucide Icons
+        lucide.createIcons();
+
+        // Config PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        // DOM Elements
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const resultsContainer = document.getElementById('results-container');
+        const commentsList = document.getElementById('comments-list');
+        const fullTextArea = document.getElementById('full-text-area');
+        const lineNumbers = document.getElementById('line-numbers');
+        const countComments = document.getElementById('count-comments');
+        const filenameDisplay = document.getElementById('filename-display');
+        const statsCounter = document.getElementById('stats-counter');
+
+        // State
+        let extractedData = { comments: [], fullText: "" };
+        let pdfProcessedCount = 0;
+        let currentTab = 'comments';
+
+        // TATADADA Theme Management
+        let isDark = localStorage.getItem('theme') === 'dark';
+        const htmlRoot = document.documentElement;
+        const iconLight = document.getElementById('theme-icon-light');
+        const iconDark = document.getElementById('theme-icon-dark');
+
+        function applyTheme() {
+            if (isDark) {
+                htmlRoot.classList.add('dark');
+                iconLight.classList.remove('hidden');
+                iconDark.classList.add('hidden');
+            } else {
+                htmlRoot.classList.remove('dark');
+                iconLight.classList.add('hidden');
+                iconDark.classList.remove('hidden');
+            }
+        }
+        function toggleTheme() {
+            isDark = !isDark;
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            applyTheme();
+        }
+        applyTheme();
+
+        // TATADADA Language Management
+        let lang = localStorage.getItem('lang') || 'ID';
+        function applyLanguage() {
+            document.getElementById('lang-indicator').innerText = lang;
+            const isID = lang === 'ID';
+            
+            // Tooltip
+            document.getElementById('help-text-id').classList.toggle('hidden', !isID);
+            document.getElementById('help-text-en').classList.toggle('hidden', isID);
+            
+            // Text UI
+            document.getElementById('dropzone-title').innerText = isID ? 'Klik atau Tarik file PDF ke sini' : 'Click or Drag PDF file here';
+            document.getElementById('dropzone-subtitle').innerText = isID ? 'Pemrosesan 100% lokal di browser Anda' : '100% local processing in your browser';
+            document.getElementById('loading-text').innerText = isID ? 'Memproses dokumen...' : 'Processing document...';
+            document.getElementById('tab-label-comments').innerText = isID ? 'Anotasi' : 'Annotations';
+            document.getElementById('tab-label-text').innerText = isID ? 'Teks Utuh' : 'Full Text';
+            document.getElementById('btn-save-text').innerText = isID ? 'Simpan .txt' : 'Save .txt';
+            document.getElementById('footer-status').innerText = isID ? 'Sistem Siap Lokal' : 'Local System Ready';
+            statsCounter.innerText = isID ? `${pdfProcessedCount} PDF diproses` : `${pdfProcessedCount} PDF processed`;
+            
+            // Terms Modal
+            document.getElementById('term-context-id').classList.toggle('hidden', !isID);
+            document.getElementById('term-context-en').classList.toggle('hidden', isID);
+            document.getElementById('term-legal-id').classList.toggle('hidden', !isID);
+            document.getElementById('term-legal-en').classList.toggle('hidden', isID);
+            document.getElementById('btn-agree').innerText = isID ? 'Saya Mengerti' : 'I Understand';
+            
+            renderEmptyState();
+        }
+        function toggleLanguage() {
+            lang = lang === 'ID' ? 'EN' : 'ID';
+            localStorage.setItem('lang', lang);
+            applyLanguage();
+        }
+        
+
+        // File Logic
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && file.type === "application/pdf") {
+                processPDF(file);
+            } else {
+                showMessage(lang === 'ID' ? "Mohon unggah file format PDF." : "Please upload a PDF file.");
+            }
+            // Reset input so same file can trigger change again if needed
+            e.target.value = '';
+        });
+
+        // Drag and Drop Effects
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-[#3b82f6]', 'bg-black/5');
+        });
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-[#3b82f6]', 'bg-black/5');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-[#3b82f6]', 'bg-black/5');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type === "application/pdf") {
+                processPDF(file);
+            }
+        });
+
+        async function processPDF(file) {
+            loadingIndicator.classList.remove('hidden');
+            filenameDisplay.textContent = file.name;
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                
+                let allComments = [];
+                let fullTextBuilder = [];
+
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    
+                    const annotations = await page.getAnnotations();
+                    const validAnnotations = annotations.filter(a => a.contents || a.contentsObj);
+                    
+                    validAnnotations.forEach(anno => {
+                        allComments.push({
+                            page: pageNum,
+                            author: anno.titleObj?.str || anno.title || (lang === 'ID' ? 'Anonim' : 'Anonymous'),
+                            content: anno.contentsObj?.str || anno.contents || '',
+                            type: anno.subtype || 'Anotasi'
+                        });
+                    });
+
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    fullTextBuilder.push(`--- ${lang === 'ID' ? 'HALAMAN' : 'PAGE'} ${pageNum} ---\n${pageText}\n`);
+                }
+
+                extractedData.comments = allComments;
+                extractedData.fullText = fullTextBuilder.join('\n');
+                
+                pdfProcessedCount++;
+                applyLanguage(); // Update stats text
+
+                // Adjust Layout (Shrink dropzone, show results)
+                dropZone.classList.remove('flex-grow', 'p-12');
+                dropZone.classList.add('h-24', 'p-4');
+                document.getElementById('dropzone-title').classList.add('hidden');
+                document.getElementById('dropzone-subtitle').classList.add('hidden');
+                resultsContainer.classList.remove('hidden');
+                resultsContainer.classList.add('flex');
+
+                renderResults();
+                switchTab('comments'); // Default tab
+
+            } catch (error) {
+                console.error(error);
+                showMessage(lang === 'ID' ? "Gagal membaca PDF. Pastikan tidak rusak/dienkripsi." : "Failed to read PDF. Ensure it's not corrupted/encrypted.");
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        function renderEmptyState() {
+            if(extractedData.comments.length === 0 && resultsContainer.classList.contains('hidden') === false) {
+                 commentsList.innerHTML = `
+                    <div class="text-center p-8 bg-selokan rounded-xl border border-dynamic flex flex-col items-center justify-center">
+                        <i data-lucide="file-search" class="w-10 h-10 text-dim-dynamic mb-3"></i>
+                        <p class="text-dynamic font-medium">${lang === 'ID' ? 'Tidak ditemukan anotasi khusus.' : 'No specific annotations found.'}</p>
+                        <p class="text-xs text-dim-dynamic mt-1">${lang === 'ID' ? 'Cek tab "Teks Utuh" untuk membaca isi mentah dokumen.' : 'Check "Full Text" tab for raw document content.'}</p>
+                    </div>`;
+                 lucide.createIcons();
+            }
+        }
+
+        function renderResults() {
+            countComments.textContent = extractedData.comments.length;
+            commentsList.innerHTML = '';
+            
+            if (extractedData.comments.length === 0) {
+                renderEmptyState();
+            } else {
+                extractedData.comments.forEach(c => {
+                    const commentEl = document.createElement('div');
+                    commentEl.className = "p-4 border border-dynamic bg-selokan rounded-xl shadow-sm hover:shadow-md transition-shadow";
+                    commentEl.innerHTML = `
+                        <div class="flex justify-between items-start mb-2 border-b border-dynamic pb-2">
+                            <span class="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[#3b82f6]/10 text-[#3b82f6] border border-[#3b82f6]/20">
+                                <i data-lucide="bookmark" class="w-3 h-3"></i>
+                                ${lang === 'ID' ? 'Hal' : 'Pg'} ${c.page}
+                            </span>
+                            <span class="text-xs text-dim-dynamic font-semibold flex items-center gap-1">
+                                <i data-lucide="user" class="w-3 h-3"></i> ${c.author}
+                            </span>
+                        </div>
+                        <p class="text-sm text-dynamic whitespace-pre-wrap font-medium">${c.content}</p>
+                    `;
+                    commentsList.appendChild(commentEl);
+                });
+                lucide.createIcons();
+            }
+
+            // Sync Textarea & Gutter Line Numbers
+            fullTextArea.value = extractedData.fullText;
+            updateLineNumbers();
+        }
+
+        // Textarea Sync Logic
+        function updateLineNumbers() {
+            const linesCount = extractedData.fullText.split('\n').length;
+            // Generate line numbers based on exact split count.
+            lineNumbers.innerHTML = Array.from({length: linesCount}, (_, i) => i + 1).join('<br>');
+        }
+
+        fullTextArea.addEventListener('scroll', () => {
+            lineNumbers.scrollTop = fullTextArea.scrollTop;
+        });
+
+        // Tab Management
+        function switchTab(tabId) {
+            const tabComments = document.getElementById('tab-comments');
+            const tabText = document.getElementById('tab-text');
+            const contentComments = document.getElementById('content-comments');
+            const contentText = document.getElementById('content-text');
+
+            if (tabId === 'comments') {
+                tabComments.classList.replace('text-dim-dynamic', 'text-white');
+                tabComments.classList.add('bg-[#3b82f6]', 'shadow-sm');
+                tabComments.classList.remove('hover:text-dynamic');
+                
+                tabText.classList.replace('text-white', 'text-dim-dynamic');
+                tabText.classList.remove('bg-[#3b82f6]', 'shadow-sm');
+                tabText.classList.add('hover:text-dynamic');
+                
+                contentComments.classList.replace('hidden', 'block');
+                contentText.classList.replace('block', 'hidden');
+            } else {
+                tabText.classList.replace('text-dim-dynamic', 'text-white');
+                tabText.classList.add('bg-[#3b82f6]', 'shadow-sm');
+                tabText.classList.remove('hover:text-dynamic');
+                
+                tabComments.classList.replace('text-white', 'text-dim-dynamic');
+                tabComments.classList.remove('bg-[#3b82f6]', 'shadow-sm');
+                tabComments.classList.add('hover:text-dynamic');
+                
+                contentText.classList.replace('hidden', 'flex');
+                contentComments.classList.replace('block', 'hidden');
+                
+                // Trigger scroll sync fix when made visible
+                lineNumbers.scrollTop = fullTextArea.scrollTop;
+            }
+            currentTab = tabId;
+        }
+
+        // Output Handlers
+        function copyToClipboard() {
+            let dataToCopy = "";
+            if (extractedData.comments.length > 0) {
+                dataToCopy += `=== ${lang === 'ID' ? 'KOMENTAR & ANOTASI' : 'COMMENTS & ANNOTATIONS'} ===\n`;
+                extractedData.comments.forEach(c => {
+                    dataToCopy += `${lang === 'ID' ? 'Hal' : 'Pg'} ${c.page} | ${c.author}: ${c.content}\n`;
+                });
+                dataToCopy += "\n\n";
+            }
+            dataToCopy += `=== ${lang === 'ID' ? 'TEKS UTUH' : 'FULL TEXT'} ===\n` + extractedData.fullText;
+
+            const temp = document.createElement("textarea");
+            temp.value = dataToCopy;
+            document.body.appendChild(temp);
+            temp.select();
+            try {
+                document.execCommand('copy');
+                showMessage(lang === 'ID' ? "Berhasil disalin ke clipboard!" : "Copied to clipboard successfully!");
+            } catch (err) {
+                showMessage(lang === 'ID' ? "Gagal menyalin." : "Failed to copy.");
+            }
+            document.body.removeChild(temp);
+        }
+
+        function downloadAsText() {
+            let dataToSave = "";
+            if (extractedData.comments.length > 0) {
+                dataToSave += `=== ${lang === 'ID' ? 'KOMENTAR & ANOTASI' : 'COMMENTS & ANNOTATIONS'} ===\n`;
+                extractedData.comments.forEach(c => {
+                    dataToSave += `${lang === 'ID' ? 'Hal' : 'Pg'} ${c.page} | ${c.author}:\n${c.content}\n\n`;
+                });
+                dataToSave += "==========================\n\n";
+            }
+            dataToSave += `=== ${lang === 'ID' ? 'TEKS UTUH' : 'FULL TEXT'} ===\n\n` + extractedData.fullText;
+
+            const blob = new Blob([dataToSave], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "Ekstraksi_KomenPDF.txt";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Utils
+        function showMessage(msg) {
+            const el = document.createElement('div');
+            el.className = "fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-[#3b82f6] text-white px-6 py-2.5 rounded-full shadow-lg z-50 text-xs font-semibold animate-bounce";
+            el.textContent = msg;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        }
+
+        // Modal Logic
+        const modal = document.getElementById('terms-modal');
+        const modalInner = document.getElementById('terms-card');
+        function toggleModal() {
+            if (modal.classList.contains('hidden')) {
+                modal.classList.replace('hidden', 'flex');
+                setTimeout(() => {
+                    modal.classList.replace('opacity-0', 'opacity-100');
+                    modalInner.classList.replace('scale-95', 'scale-100');
+                }, 10);
+            } else {
+                modal.classList.replace('opacity-100', 'opacity-0');
+                modalInner.classList.replace('scale-100', 'scale-95');
+                setTimeout(() => {
+                    modal.classList.replace('flex', 'hidden');
+                }, 300);
+            }
+        }
+
+        // Init
+        applyLanguage();
+    </script>
+</body>
+</html>
