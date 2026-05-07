@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MathDuel</title>
+
+    <!-- TATADADA: Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+
+    <!-- TATADADA: Histats Tracker -->
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+    <noscript><a href="/" target="_blank"><img src="//sstatic1.histats.com/0.gif?5024490&101" alt="" border="0"></a></noscript>
+
+    <!-- TATADADA: Auto-Favicon Injector (Zoomed & Textless) -->
+    <script>
+    fetch('icon.xml').then(r => r.text()).then(xml => {
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+        const cStart = doc.querySelector('color_start')?.textContent || '#eab308';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#ca8a04';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
+        const link = document.createElement('link');
+        link.rel = 'icon'; link.type = 'image/svg+xml';
+        link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+    }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+
+    <!-- Tailwind & Fonts & Icons -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* TATADADA Tokens */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+        }
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            color-scheme: dark;
+        }
+
+        /* Anti-Zoom, Anti-Scroll, Anti-Select untuk Game Mobile */
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden !important;
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            touch-action: none !important;
+            overscroll-behavior: none !important;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--preview-bg);
+            color: var(--text-main);
+        }
+
+        /* Utility Mapping CSS Variables */
+        .bg-header-bg { background-color: var(--header-bg); }
+        .bg-footer-bg { background-color: var(--footer-bg); }
+        .bg-card-bg { background-color: var(--card-bg); }
+        .border-border-color { border-color: var(--border-color); }
+        .text-text-main { color: var(--text-main); }
+        .text-text-dim { color: var(--text-dim); }
+        .text-theme-accent { color: var(--theme-accent); }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+    </style>
+</head>
+<body class="transition-colors duration-300">
+
+<div class="h-screen flex flex-col font-sans w-full overflow-hidden">
+    <!-- Header (TATADADA) -->
+    <header class="h-14 shrink-0 bg-header-bg border-b border-border-color flex items-center justify-between px-4 z-50 relative shadow-sm transition-colors duration-300">
+        <div class="flex items-center gap-3">
+            <h1 class="text-lg font-black bg-gradient-to-r from-yellow-400 to-red-500 bg-clip-text text-transparent tracking-tight">MathDuel</h1>
+            <span class="text-xs italic text-text-dim font-mono">v2.0</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-text-dim hover:text-theme-accent transition-colors">by AhmadDanial</a>
+            <button id="btn-help" class="ml-2 text-text-dim hover:text-text-main transition-colors" title="Bantuan"><i data-lucide="help-circle" class="w-4 h-4"></i></button>
+        </div>
+        <div class="flex items-center gap-4">
+            <button id="btn-lang" class="text-lg" title="Toggle Language">🇮🇩</button>
+            <button id="btn-theme" class="text-text-dim hover:text-text-main transition-colors" title="Toggle Theme"><i data-lucide="moon" class="w-5 h-5"></i></button>
+        </div>
+    </header>
+
+    <!-- Main Workspace (TATADADA Single View Card) -->
+    <main class="flex-1 relative overflow-hidden flex items-center justify-center p-2 md:p-4 z-0">
+        
+        <!-- Wrapper TATADADA bg-card dengan border-theme -->
+        <div class="w-full h-full max-w-5xl mx-auto bg-card-bg rounded-2xl shadow-xl border border-border-color overflow-hidden flex flex-col relative transition-colors duration-300">
+            
+            <!-- Game Container Asli (Warna Latar akan dikontrol via JS) -->
+            <div id="game-container" class="absolute inset-0 flex flex-col overflow-hidden transition-colors duration-300 bg-yellow-300 text-black">
+                
+                <!-- Screen: MENU -->
+                <div id="screen-menu" class="absolute inset-0 flex flex-col items-center justify-center p-4">
+                    <div class="bg-white border-8 border-black rounded-3xl p-6 max-w-md w-full text-center shadow-[8px_8px_0_0_rgba(0,0,0,1)]">
+                        <h2 id="ui-title" class="text-4xl font-extrabold text-black mb-2 tracking-tighter">DUEL MATEMATIKA</h2>
+                        <p id="ui-subtitle" class="text-lg font-bold text-gray-600 mb-6">Main Hadap-Hadapan ⚔️</p>
+                        
+                        <div class="mb-6">
+                            <label id="ui-lvl-lbl" class="block text-xl font-bold mb-3 text-black">Pilih Level (1 - 20)</label>
+                            <div id="level-grid" class="grid grid-cols-5 gap-2">
+                                <!-- Level buttons generated by JS -->
+                            </div>
+                        </div>
+
+                        <button id="btn-start" class="w-full bg-blue-500 hover:bg-blue-400 text-white border-4 border-black text-2xl font-extrabold py-3 rounded-2xl shadow-[6px_6px_0_0_rgba(0,0,0,1)] active:shadow-none active:translate-y-2 transition-all">
+                            MULAI DUEL!
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Screen: PLAYING -->
+                <div id="screen-playing" class="absolute inset-0 hidden flex-col">
+                    <!-- Countdown Overlay -->
+                    <div id="overlay-countdown" class="absolute inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm hidden">
+                        <div id="countdown-text" class="text-[12rem] font-black text-white drop-shadow-[0_10px_0_rgba(0,0,0,1)]">3</div>
+                    </div>
+
+                    <!-- BAGIAN ATAS: SOAL -->
+                    <div class="shrink-0 pt-4 px-4 flex flex-col items-center z-10 w-full max-w-3xl mx-auto">
+                        <div class="w-full bg-white border-8 border-black rounded-3xl shadow-[6px_6px_0_0_rgba(0,0,0,1)] p-4 text-center relative flex items-center justify-center min-h-[140px]">
+                            <div id="level-indicator" class="absolute top-0 left-0 bg-yellow-300 border-r-4 border-b-4 border-black px-3 py-1 rounded-br-2xl font-bold text-sm text-black">
+                                Lv 1
+                            </div>
+                            <div id="question-text" class="text-6xl md:text-8xl font-black text-black tracking-tighter">
+                                ...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BARIS SKOR -->
+                    <div class="shrink-0 w-full px-6 flex justify-between max-w-4xl mx-auto z-20 mt-4">
+                        <div class="bg-blue-400 border-4 border-black rounded-2xl px-4 py-1 shadow-[4px_4px_0_0_rgba(0,0,0,1)] flex items-center gap-3">
+                            <span class="font-extrabold text-xl md:text-2xl text-white transform -rotate-90 md:rotate-0">P1</span>
+                            <span id="score1" class="text-4xl md:text-5xl font-black text-white bg-blue-600 px-3 py-1 rounded-xl border-2 border-black">0</span>
+                        </div>
+                        <div class="bg-red-400 border-4 border-black rounded-2xl px-4 py-1 shadow-[4px_4px_0_0_rgba(0,0,0,1)] flex items-center gap-3">
+                            <span id="score2" class="text-4xl md:text-5xl font-black text-white bg-red-600 px-3 py-1 rounded-xl border-2 border-black">0</span>
+                            <span class="font-extrabold text-xl md:text-2xl text-white transform rotate-90 md:rotate-0">P2</span>
+                        </div>
+                    </div>
+
+                    <!-- AREA TOMBOL -->
+                    <div class="flex-1 flex w-full max-w-5xl mx-auto relative mt-2 mb-4">
+                        <div class="absolute left-1/2 top-2 bottom-2 border-l-8 border-dashed border-black/30 transform -translate-x-1/2 z-0 pointer-events-none"></div>
+                        
+                        <div id="p1-buttons" class="flex-1 flex flex-col items-center justify-evenly py-2 z-10"></div>
+                        <div id="p2-buttons" class="flex-1 flex flex-col items-center justify-evenly py-2 z-10"></div>
+                    </div>
+                </div>
+
+                <!-- Screen: GAMEOVER -->
+                <div id="screen-gameover" class="absolute inset-0 hidden flex-col items-center justify-center p-4">
+                    <div class="bg-white border-8 border-black rounded-3xl p-8 max-w-md w-full text-center shadow-[8px_8px_0_0_rgba(0,0,0,1)]">
+                        <h2 id="ui-win-title" class="text-5xl font-extrabold text-black mb-4">🏆 MENANG!</h2>
+                        <h3 id="winner-text" class="text-5xl font-black mb-8 animate-bounce">PEMAIN 1</h3>
+                        
+                        <div class="flex justify-center gap-6 mb-8 text-3xl font-bold">
+                            <div class="bg-blue-100 px-6 py-3 rounded-2xl border-4 border-black">
+                                <div class="text-blue-500 text-sm mb-1 text-black">P1</div>
+                                <div id="final-score1" class="text-black">0</div>
+                            </div>
+                            <div class="text-gray-400 self-center">VS</div>
+                            <div class="bg-red-100 px-6 py-3 rounded-2xl border-4 border-black">
+                                <div class="text-red-500 text-sm mb-1 text-black">P2</div>
+                                <div id="final-score2" class="text-black">0</div>
+                            </div>
+                        </div>
+
+                        <button id="btn-restart" class="w-full bg-yellow-400 hover:bg-yellow-300 text-black border-4 border-black text-2xl font-extrabold py-4 rounded-2xl shadow-[6px_6px_0_0_rgba(0,0,0,1)] active:shadow-none active:translate-y-2 transition-all">
+                            MENU UTAMA
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer (TATADADA) -->
+    <footer class="h-8 shrink-0 bg-footer-bg border-t border-border-color flex items-center justify-between px-4 text-xs z-50 relative transition-colors duration-300">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span class="text-text-dim font-mono">System Online</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="text-text-dim hidden md:inline font-mono" id="stat-played">Matches: 0</span>
+            <button id="btn-terms" class="text-theme-accent font-semibold hover:underline cursor-pointer">Terms</button>
+        </div>
+    </footer>
+</div>
+
+<!-- TATADADA Modal Terms -->
+<div id="modal-terms" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden flex-col items-center justify-center p-4 opacity-0 transition-opacity duration-300">
+    <div id="modal-content" class="bg-card-bg max-w-lg w-full rounded-2xl shadow-2xl border border-border-color overflow-hidden transform scale-95 transition-transform duration-300">
+        <div class="p-4 border-b border-border-color flex justify-between items-center bg-header-bg transition-colors duration-300">
+            <h3 class="text-lg font-bold text-text-main" id="modal-title">Terms & Disclaimer</h3>
+            <button id="btn-close-modal" class="text-text-dim hover:text-text-main transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="p-6 overflow-y-auto max-h-[60vh] text-sm text-text-dim space-y-4">
+            <p id="term-context" class="leading-relaxed"></p>
+            <p id="term-legal" class="leading-relaxed"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- PREVENT PINCH ZOOM (MOBILE TOUCH ACTION) ---
+    document.addEventListener('touchmove', (e) => {
+        if (e.touches && e.touches.length > 1) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    // --- I18N LOCALE DICTIONARY ---
+    const i18n = {
+        id: {
+            help: "Bantuan",
+            help_text: "Pilih level 1-20. Pemain 1 dan 2 berhadapan. Jawab soal matematika secepatnya. Siapa cepat dia dapat! Main sampai skor 10.",
+            terms: "Ketentuan",
+            ui_title: "DUEL MATEMATIKA",
+            ui_subtitle: "Main Hadap-Hadapan ⚔️",
+            ui_lvl_lbl: "Pilih Level (1 - 20)",
+            start: "MULAI DUEL!",
+            ui_win_title: "🏆 MENANG!",
+            play_again: "MENU UTAMA",
+            p1_win: "PEMAIN 1",
+            p2_win: "PEMAIN 2",
+            term_ctx: "Aplikasi MathDuel adalah permainan ketangkasan aritmetika lokal yang ditujukan untuk edukasi. Aplikasi ini memproses pembuatan soal secara acak (RNG) dan penyimpanan skor murni pada sisi klien (lokal dalam peramban Anda) dengan memanfaatkan Web Audio API. Tidak ada integrasi database awan maupun pengumpulan rekam jejak permainan ke server mana pun.",
+            term_lgl: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya."
+        },
+        en: {
+            help: "Help",
+            help_text: "Select level 1-20. Player 1 and 2 face each other. Answer the math questions quickly. Fastest wins! Play until score 10.",
+            terms: "Terms",
+            ui_title: "MATH DUEL",
+            ui_subtitle: "Face-to-Face Play ⚔️",
+            ui_lvl_lbl: "Select Level (1 - 20)",
+            start: "START DUEL!",
+            ui_win_title: "🏆 WINNER!",
+            play_again: "MAIN MENU",
+            p1_win: "PLAYER 1",
+            p2_win: "PLAYER 2",
+            term_ctx: "The MathDuel application is a local arithmetic agility game intended for education. This application processes random question generation (RNG) and score tracking purely on the client-side (locally within your browser) utilizing the Web Audio API. There is no cloud database integration or game tracking sent to any server.",
+            term_lgl: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics and Histats to collect anonymous visit and usage statistics for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms."
+        }
+    };
+
+    // --- SOUND ENGINE (Web Audio API) ---
+    let audioCtx = null;
+    const initAudio = () => {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    };
+    const playTone = (freq, type, duration, vol = 0.1) => {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    };
+    const sounds = {
+        correct: () => { playTone(600, 'sine', 0.1, 0.2); setTimeout(() => playTone(800, 'sine', 0.2, 0.2), 100); },
+        wrong: () => playTone(150, 'sawtooth', 0.3, 0.2),
+        tick: () => playTone(400, 'square', 0.05, 0.05),
+        go: () => playTone(800, 'square', 0.15, 0.1),
+        win: () => {
+            playTone(400, 'sine', 0.1, 0.2);
+            setTimeout(() => playTone(500, 'sine', 0.1, 0.2), 100);
+            setTimeout(() => playTone(600, 'sine', 0.1, 0.2), 200);
+            setTimeout(() => playTone(800, 'sine', 0.4, 0.2), 300);
+        }
+    };
+
+    // --- MATH GENERATOR ---
+    const generateQuestion = (level) => {
+        let num1, num2, answer, operator, text;
+
+        if (level === 1) { num1 = Math.floor(Math.random() * 10) + 1; num2 = Math.floor(Math.random() * 10) + 1; operator = '+'; }
+        else if (level === 2) { num1 = Math.floor(Math.random() * 10) + 5; num2 = Math.floor(Math.random() * num1) + 1; operator = '-'; }
+        else if (level === 3) { num1 = Math.floor(Math.random() * 20) + 1; num2 = Math.floor(Math.random() * 20) + 1; operator = '+'; }
+        else if (level === 4) { num1 = Math.floor(Math.random() * 20) + 10; num2 = Math.floor(Math.random() * num1) + 1; operator = '-'; }
+        else if (level === 5) { num1 = Math.floor(Math.random() * 50) + 1; num2 = Math.floor(Math.random() * 50) + 1; operator = '+'; }
+        else if (level === 6) { num1 = Math.floor(Math.random() * 50) + 20; num2 = Math.floor(Math.random() * num1) + 1; operator = '-'; }
+        else if (level === 7) { num1 = Math.floor(Math.random() * 5) + 1; num2 = Math.floor(Math.random() * 5) + 1; operator = 'x'; }
+        else if (level === 8) { num1 = Math.floor(Math.random() * 100) + 1; num2 = Math.floor(Math.random() * 100) + 1; operator = '+'; }
+        else if (level === 9) { num1 = Math.floor(Math.random() * 100) + 50; num2 = Math.floor(Math.random() * num1) + 1; operator = '-'; }
+        else if (level === 10) { num1 = Math.floor(Math.random() * 10) + 1; num2 = Math.floor(Math.random() * 10) + 1; operator = 'x'; }
+        else if (level === 11) { num2 = Math.floor(Math.random() * 10) + 1; answer = Math.floor(Math.random() * 10) + 1; num1 = num2 * answer; operator = '÷'; }
+        else if (level === 12) { 
+            if (Math.random() > 0.5) { num1 = Math.floor(Math.random() * 100) + 1; num2 = Math.floor(Math.random() * 100) + 1; operator = '+'; } 
+            else { num1 = Math.floor(Math.random() * 100) + 50; num2 = Math.floor(Math.random() * num1) + 1; operator = '-'; }
+        }
+        else if (level === 13) { 
+            if (Math.random() > 0.5) { num1 = Math.floor(Math.random() * 10) + 1; num2 = Math.floor(Math.random() * 10) + 1; operator = 'x'; } 
+            else { num2 = Math.floor(Math.random() * 10) + 1; answer = Math.floor(Math.random() * 10) + 1; num1 = num2 * answer; operator = '÷'; }
+        }
+        else if (level === 14) { num1 = Math.floor(Math.random() * 20) + 1; num2 = Math.floor(Math.random() * 20) + 1; const num3 = Math.floor(Math.random() * 20) + 1; text = `${num1} + ${num2} + ${num3}`; answer = num1 + num2 + num3; operator = 'custom'; }
+        else if (level === 15) { num1 = Math.floor(Math.random() * 50) + 30; num2 = Math.floor(Math.random() * 20) + 1; const num3 = Math.floor(Math.random() * 10) + 1; text = `${num1} - ${num2} - ${num3}`; answer = num1 - num2 - num3; operator = 'custom'; }
+        else if (level === 16) { num1 = Math.floor(Math.random() * 10) + 11; num2 = Math.floor(Math.random() * 5) + 1; operator = 'x'; }
+        else if (level === 17) { num2 = Math.floor(Math.random() * 15) + 2; answer = Math.floor(Math.random() * 15) + 2; num1 = num2 * answer; operator = '÷'; }
+        else if (level === 18) { num1 = Math.floor(Math.random() * 500) + 100; num2 = Math.floor(Math.random() * 300) + 1; operator = Math.random() > 0.5 ? '+' : '-'; }
+        else if (level === 19) { num1 = Math.floor(Math.random() * 11) + 10; num2 = Math.floor(Math.random() * 6) + 5; operator = 'x'; }
+        else { 
+            const ops = ['+', '-', 'x', '÷']; operator = ops[Math.floor(Math.random() * ops.length)];
+            if (operator === '+') { num1 = Math.floor(Math.random() * 200); num2 = Math.floor(Math.random() * 200); }
+            if (operator === '-') { num1 = Math.floor(Math.random() * 300) + 100; num2 = Math.floor(Math.random() * num1); }
+            if (operator === 'x') { num1 = Math.floor(Math.random() * 15) + 5; num2 = Math.floor(Math.random() * 15) + 5; }
+            if (operator === '÷') { num2 = Math.floor(Math.random() * 20) + 2; answer = Math.floor(Math.random() * 20) + 2; num1 = num2 * answer; }
+        }
+
+        if (operator !== 'custom') {
+            text = `${num1} ${operator} ${num2}`;
+            if (operator === '+') answer = num1 + num2;
+            if (operator === '-') answer = num1 - num2;
+            if (operator === 'x') answer = num1 * num2;
+            if (operator === '÷') answer = num1 / num2;
+        }
+
+        let options = [answer];
+        while (options.length < 3) {
+            let wrongAnswer = answer + (Math.floor(Math.random() * 10) - 5);
+            if (operator === 'x' || operator === '÷') {
+                wrongAnswer = answer + (Math.floor(Math.random() * 5) - 2) * (operator==='x'?num2:1);
+            }
+            if (wrongAnswer !== answer && !options.includes(wrongAnswer) && wrongAnswer >= 0) {
+                options.push(wrongAnswer);
+            }
+        }
+        return { text, answer, options: options.sort(() => Math.random() - 0.5) };
+    };
+
+    // --- GAME STATE ---
+    const state = {
+        screen: 'menu',
+        level: 1,
+        score1: 0,
+        score2: 0,
+        questionData: null,
+        p1Status: 'active',
+        p2Status: 'active',
+        countdown: null,
+        matches: 0
+    };
+    const WIN_SCORE = 10;
+    let countdownTimer = null;
+
+    // --- DOM ELEMENTS ---
+    const gameContainer = document.getElementById('game-container');
+    const levelGrid = document.getElementById('level-grid');
+    const screens = {
+        menu: document.getElementById('screen-menu'),
+        playing: document.getElementById('screen-playing'),
+        gameover: document.getElementById('screen-gameover')
+    };
+
+    // --- RENDERING & UI ---
+    function renderLevelGrid() {
+        levelGrid.innerHTML = '';
+        for (let l = 1; l <= 20; l++) {
+            const isSel = state.level === l;
+            const cls = isSel ? 'bg-green-400 shadow-[4px_4px_0_0_rgba(0,0,0,1)] translate-y-0 text-black' : 'bg-gray-100 text-black';
+            levelGrid.innerHTML += `<button data-lvl="${l}" class="py-2 text-lg font-bold rounded-xl border-4 border-black transition-all ${cls}">${l}</button>`;
+        }
+    }
+
+    function switchScreen(screenId) {
+        state.screen = screenId;
+        Object.values(screens).forEach(el => {
+            el.classList.add('hidden');
+            el.classList.remove('flex');
+        });
+        screens[screenId].classList.remove('hidden');
+        screens[screenId].classList.add('flex');
+
+        // Mengatur Warna Latar Background Game Sesuai Layout Asli
+        gameContainer.className = 'absolute inset-0 flex flex-col overflow-hidden transition-colors duration-300 text-black ' + 
+            (screenId === 'menu' ? 'bg-yellow-300' : (screenId === 'playing' ? 'bg-white' : 'bg-green-300'));
+
+        if (screenId === 'menu') {
+            renderLevelGrid();
+        } else if (screenId === 'playing') {
+            state.score1 = 0; state.score2 = 0;
+            document.getElementById('score1').innerText = 0;
+            document.getElementById('score2').innerText = 0;
+            startCountdown(3);
+        } else if (screenId === 'gameover') {
+            state.matches++;
+            document.getElementById('stat-played').innerText = `Matches: ${state.matches}`;
+            
+            const winnerIsP1 = state.score1 > state.score2;
+            const wTxt = winnerIsP1 ? i18n[lang].p1_win : i18n[lang].p2_win;
+            const wCls = winnerIsP1 ? 'text-blue-600' : 'text-red-600';
+            
+            const wEl = document.getElementById('winner-text');
+            wEl.innerText = wTxt;
+            wEl.className = `text-5xl font-black mb-8 animate-bounce ${wCls}`;
+            
+            document.getElementById('final-score1').innerText = state.score1;
+            document.getElementById('final-score2').innerText = state.score2;
+        }
+    }
+
+    function updateButtonClasses() {
+        if (!state.questionData) return;
+        const p1C = document.getElementById('p1-buttons');
+        const p2C = document.getElementById('p2-buttons');
+        
+        p1C.innerHTML = ''; p2C.innerHTML = '';
+
+        state.questionData.options.forEach((opt, i) => {
+            // P1 Build
+            const isCorr1 = state.p1Status === 'correct' && opt === state.questionData.answer;
+            let cls1 = 'aspect-square w-24 md:w-36 rounded-full border-8 border-black text-4xl md:text-5xl font-black transition-transform flex items-center justify-center ';
+            if (state.p1Status === 'active') cls1 += 'bg-blue-400 hover:bg-blue-300 shadow-[6px_6px_0_0_rgba(0,0,0,1)] active:shadow-none active:translate-y-2 active:translate-x-2 text-white ';
+            if (isCorr1) cls1 += 'bg-green-500 text-white shadow-none scale-110 z-20 ';
+            if (state.p1Status === 'wrong') cls1 += 'bg-gray-300 text-gray-500 opacity-50 ';
+            
+            const dis1 = (state.p1Status !== 'active' || state.countdown !== null) ? 'disabled' : '';
+            p1C.innerHTML += `<button ${dis1} data-idx="${i}" class="${cls1}"><span class="transform rotate-90 inline-block drop-shadow-md text-black">${opt}</span></button>`;
+
+            // P2 Build
+            const isCorr2 = state.p2Status === 'correct' && opt === state.questionData.answer;
+            let cls2 = 'aspect-square w-24 md:w-36 rounded-full border-8 border-black text-4xl md:text-5xl font-black transition-transform flex items-center justify-center ';
+            if (state.p2Status === 'active') cls2 += 'bg-red-400 hover:bg-red-300 shadow-[6px_6px_0_0_rgba(0,0,0,1)] active:shadow-none active:translate-y-2 active:translate-x-2 text-white ';
+            if (isCorr2) cls2 += 'bg-green-500 text-white shadow-none scale-110 z-20 ';
+            if (state.p2Status === 'wrong') cls2 += 'bg-gray-300 text-gray-500 opacity-50 ';
+            
+            const dis2 = (state.p2Status !== 'active' || state.countdown !== null) ? 'disabled' : '';
+            p2C.innerHTML += `<button ${dis2} data-idx="${i}" class="${cls2}"><span class="transform -rotate-90 inline-block drop-shadow-md text-black">${opt}</span></button>`;
+        });
+    }
+
+    function flashBackground(colorClass) {
+        gameContainer.classList.remove('bg-white', 'bg-blue-200', 'bg-red-200');
+        gameContainer.classList.add(colorClass);
+    }
+
+    function nextQuestion() {
+        state.questionData = generateQuestion(state.level);
+        state.p1Status = 'active'; state.p2Status = 'active';
+        flashBackground('bg-white');
+        
+        document.getElementById('level-indicator').innerText = `Lv ${state.level}`;
+        document.getElementById('question-text').innerText = state.questionData.text;
+        
+        updateButtonClasses();
+    }
+
+    function startCountdown(seconds) {
+        state.countdown = seconds;
+        const overlay = document.getElementById('overlay-countdown');
+        const txt = document.getElementById('countdown-text');
+        overlay.classList.remove('hidden');
+        updateButtonClasses(); // Disable buttons
+
+        function tick() {
+            if (state.countdown > 0) {
+                txt.innerText = state.countdown;
+                if (state.countdown === 1) sounds.go(); else sounds.tick();
+                state.countdown--;
+                countdownTimer = setTimeout(tick, 800);
+            } else if (state.countdown === 0) {
+                txt.innerText = 'GO!';
+                state.countdown--;
+                countdownTimer = setTimeout(tick, 500);
+            } else {
+                overlay.classList.add('hidden');
+                state.countdown = null;
+                nextQuestion();
+            }
+        }
+        if (countdownTimer) clearTimeout(countdownTimer);
+        tick();
+    }
+
+    function handleAnswer(player, idx) {
+        if (state.screen !== 'playing' || state.countdown !== null) return;
+        if (player === 1 && state.p1Status !== 'active') return;
+        if (player === 2 && state.p2Status !== 'active') return;
+
+        initAudio();
+        const selected = state.questionData.options[idx];
+
+        if (selected === state.questionData.answer) {
+            // BENAR
+            sounds.correct();
+            if (player === 1) { state.score1++; state.p1Status = 'correct'; state.p2Status = 'wrong'; flashBackground('bg-blue-200'); }
+            else { state.score2++; state.p2Status = 'correct'; state.p1Status = 'wrong'; flashBackground('bg-red-200'); }
+            
+            updateButtonClasses();
+            document.getElementById('score1').innerText = state.score1;
+            document.getElementById('score2').innerText = state.score2;
+
+            if (state.score1 >= WIN_SCORE || state.score2 >= WIN_SCORE) {
+                setTimeout(() => { sounds.win(); switchScreen('gameover'); }, 800);
+            } else {
+                setTimeout(() => startCountdown(3), 800);
+            }
+        } else {
+            // SALAH
+            sounds.wrong();
+            if (player === 1) state.p1Status = 'wrong';
+            if (player === 2) state.p2Status = 'wrong';
+            updateButtonClasses();
+            
+            if (state.p1Status === 'wrong' && state.p2Status === 'wrong') {
+                setTimeout(() => startCountdown(3), 500);
+            }
+        }
+    }
+
+    // --- EVENT LISTENERS ---
+    levelGrid.addEventListener('click', e => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        initAudio(); sounds.tick();
+        state.level = parseInt(btn.dataset.lvl);
+        renderLevelGrid();
+    });
+
+    document.getElementById('btn-start').addEventListener('click', () => { initAudio(); switchScreen('playing'); });
+    document.getElementById('btn-restart').addEventListener('click', () => switchScreen('menu'));
+
+    const attachGameClick = (pid) => {
+        document.getElementById(`p${pid}-buttons`).addEventListener('click', e => {
+            const btn = e.target.closest('button');
+            if (btn && !btn.disabled) handleAnswer(pid, parseInt(btn.dataset.idx));
+        });
+    };
+    attachGameClick(1); attachGameClick(2);
+
+    // --- TATADADA THEME & LANG ---
+    const htmlEl = document.documentElement;
+    let isDark = localStorage.getItem('theme') === 'dark'; 
+    function applyTheme() {
+        if (isDark) htmlEl.classList.add('dark'); else htmlEl.classList.remove('dark');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    }
+    applyTheme();
+    document.getElementById('btn-theme').addEventListener('click', () => { isDark = !isDark; applyTheme(); });
+
+    let lang = localStorage.getItem('lang') === 'en' ? 'en' : 'id';
+    function applyLang() {
+        document.getElementById('btn-lang').innerText = lang === 'en' ? '🇬🇧' : '🇮🇩';
+        const d = i18n[lang];
+        document.getElementById('btn-help').title = d.help;
+        document.getElementById('ui-title').innerText = d.ui_title;
+        document.getElementById('ui-subtitle').innerText = d.ui_subtitle;
+        document.getElementById('ui-lvl-lbl').innerText = d.ui_lvl_lbl;
+        document.getElementById('btn-start').innerText = d.start;
+        document.getElementById('ui-win-title').innerText = d.ui_win_title;
+        document.getElementById('btn-restart').innerText = d.play_again;
+        document.getElementById('btn-terms').innerText = d.terms;
+        document.getElementById('modal-title').innerText = d.terms + ' & Disclaimer';
+        document.getElementById('term-context').innerText = d.term_ctx;
+        document.getElementById('term-legal').innerText = d.term_lgl;
+        localStorage.setItem('lang', lang);
+    }
+    applyLang();
+    document.getElementById('btn-lang').addEventListener('click', () => { lang = lang === 'id' ? 'en' : 'id'; applyLang(); });
+    document.getElementById('btn-help').addEventListener('click', () => alert(i18n[lang].help_text));
+
+    // --- TATADADA MODAL ---
+    const modal = document.getElementById('modal-terms');
+    const modalContent = document.getElementById('modal-content');
+    document.getElementById('btn-terms').addEventListener('click', () => {
+        modal.classList.remove('hidden'); modal.classList.add('flex');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            modalContent.classList.remove('scale-95');
+            modalContent.classList.add('scale-100');
+        }, 10);
+    });
+    document.getElementById('btn-close-modal').addEventListener('click', () => {
+        modal.classList.add('opacity-0');
+        modalContent.classList.remove('scale-100');
+        modalContent.classList.add('scale-95');
+        setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 300);
+    });
+
+    // INIT
+    lucide.createIcons();
+    renderLevelGrid();
+</script>
+</body>
+</html>
