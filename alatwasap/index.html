@@ -131,10 +131,14 @@
         #editorInput ol { list-style-type: decimal; padding-left: 1.5rem; margin-top: 0.5em; margin-bottom: 0.5em; }
         #editorInput ul { list-style-type: disc; padding-left: 1.5rem; margin-top: 0.5em; margin-bottom: 0.5em; }
         #editorInput p { margin-bottom: 0.75em; }
+        
+        /* Menampilkan batas tabel di dalam editor agar rapi saat di-paste */
+        #editorInput table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.875rem; }
+        #editorInput th, #editorInput td { border: 1px solid var(--border-color); padding: 0.5rem; text-align: left; }
+        #editorInput th { background-color: var(--preview-bg); font-weight: 600; }
 
         /* Animations */
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        /* PERBAIKAN: Pisahkan animasi Modal dan Toast agar sumbu X tidak bergeser */
         @keyframes modalSlideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes toastSlideUp { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
         
@@ -143,7 +147,6 @@
         
         .toast-enter { animation: toastSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         
-        /* Tambahkan animasi ekstra untuk panel aksi */
         .action-panel-enter { animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
         /* Custom Scrollbar for inner containers */
@@ -178,7 +181,6 @@
                         <li>Paste hasil dari AI ke panel kiri.</li>
                         <li>Format akan diubah otomatis ke sintaks WA.</li>
                         <li>Masukkan nomor WA tujuan untuk chat langsung tanpa save nomor.</li>
-                        <li>Gunakan Manajer Template untuk menyimpan draf.</li>
                     </ul>
                 </div>
             </button>
@@ -220,6 +222,24 @@
             <div id="editorInput" contenteditable="true" 
                  class="flex-1 p-5 overflow-y-auto bg-editor outline-none text-[14px] leading-relaxed transition-colors duration-300"
                  data-placeholder="Paste teks / output AI di sini untuk diformat otomatis..."></div>
+                 
+            <!-- Editor Options (Toggles) -->
+            <div class="p-3 border-t border-border bg-preview/50 shrink-0 flex flex-col gap-2">
+                <label class="flex items-start gap-2 text-xs cursor-pointer group">
+                    <input type="checkbox" id="spaceListCb" class="mt-0.5 accent-accent w-3.5 h-3.5 rounded border-border"> 
+                    <span class="text-dim group-hover:text-main transition-colors">
+                        <strong class="text-accent" id="lblSpaceTitle">↕️ Spasi Ekstra List:</strong> 
+                        <span id="lblSpaceDesc">Beri jarak 1 baris kosong antar item daftar (bullet/nomor).</span>
+                    </span>
+                </label>
+                <label class="flex items-start gap-2 text-xs cursor-pointer group">
+                    <input type="checkbox" id="removeFormatCb" class="mt-0.5 accent-red-500 w-3.5 h-3.5 rounded border-border"> 
+                    <span class="text-dim group-hover:text-main transition-colors">
+                        <strong class="text-red-500" id="lblRemoveFormatTitle">🔤 Hapus Format Teks:</strong> 
+                        <span id="lblRemoveFormatDesc">Hilangkan format tebal (*), miring (_), dan coret (~).</span>
+                    </span>
+                </label>
+            </div>
         </section>
 
         <!-- PANE 2: PREVIEW & OUTPUT -->
@@ -242,7 +262,6 @@
                         <div class="absolute top-0 -right-[8px] w-0 h-0 border-t-[10px] border-t-[var(--wa-bubble-bg)] border-r-[10px] border-r-transparent"></div>
                         
                         <!-- Real Preview Content -->
-                        <!-- PERBAIKAN: Menambahkan 'select-none' agar pratinjau tidak bisa diblok/di-copy secara manual -->
                         <div id="waPreview" class="text-[14.2px] leading-[1.35] break-words select-none">
                             <span class="text-dim italic text-sm" id="lblPlaceholder">Ketik sesuatu atau paste untuk melihat pratinjau...</span>
                         </div>
@@ -272,7 +291,6 @@
                         </div>
                     </div>
 
-                    <!-- PERBAIKAN: Tombol copy selalu tampil, berdampingan dengan tombol expand Petir -->
                     <div class="w-full sm:w-auto flex gap-2">
                         <button id="copyBtn" disabled class="flex-1 sm:flex-none bg-accent hover:bg-[var(--theme-accent-hover)] text-white py-2.5 px-6 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg">
                             <i data-lucide="copy" class="w-4 h-4"></i>
@@ -331,7 +349,7 @@
                         <i data-lucide="cpu" class="w-3.5 h-3.5"></i> <span id="mdlSub1">Teknologi & Privasi</span>
                     </h4>
                     <p class="text-dim leading-relaxed" id="mdlTech">
-                        Aplikasi AlatWasap ini beroperasi 100% secara lokal di browser Anda. Tidak ada data pesan atau template yang dikirim ke server. Semua template disimpan pada localStorage perangkat Anda.
+                        Aplikasi AlatWasap ini beroperasi 100% secara lokal di browser Anda. Tidak ada data pesan yang dikirim ke server.
                     </p>
                 </div>
                 
@@ -374,6 +392,8 @@
             sendDirectBtn: document.getElementById('sendDirectBtn'),
             btnToggleActions: document.getElementById('btnToggleActions'),
             actionCardPanel: document.getElementById('actionCardPanel'),
+            spaceListCb: document.getElementById('spaceListCb'),
+            removeFormatCb: document.getElementById('removeFormatCb'),
             timestampEl: document.getElementById('timestamp'),
             charCount: document.getElementById('charCount'),
             lblLength: document.getElementById('lblLength'),
@@ -384,7 +404,6 @@
             themeIcon: document.getElementById('themeIcon'),
             langToggle: document.getElementById('langToggle'),
             langLabel: document.getElementById('langLabel'),
-            // Modals
             modal: document.getElementById('termsModal'),
             btnTerms: document.getElementById('btnTerms'),
             btnCloseModal: document.getElementById('btnCloseModal'),
@@ -393,7 +412,6 @@
 
         let currentRawWaText = '';
 
-        // Update Waktu Gelembung
         const updateTime = () => {
             const now = new Date();
             DOM.timestampEl.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -401,7 +419,7 @@
         updateTime();
         setInterval(updateTime, 60000);
 
-        // 3. Kamus Bahasa (Bilingual Dictionary)
+        // 3. Kamus Bahasa
         const Dictionary = {
             id: {
                 title: "AlatWasap",
@@ -419,6 +437,10 @@
                 placeholderPhone: "Nomor Tujuan (cth: 0812... / +628...)",
                 lblSendDirect: "Kirim Langsung",
                 lblStatus: "Sistem Siap Beroperasi",
+                lblSpaceTitle: "↕️ Spasi Ekstra List:",
+                lblSpaceDesc: "Beri jarak 1 baris kosong antar item daftar (bullet/nomor).",
+                lblRemoveFormatTitle: "🔤 Hapus Format Teks:",
+                lblRemoveFormatDesc: "Hilangkan format tebal (*), miring (_), dan coret (~).",
                 mdlTitle: "Terms of Use & Disclaimer",
                 mdlSub1: "Teknologi & Privasi",
                 mdlTech: "Aplikasi AlatWasap ini beroperasi 100% secara lokal di browser Anda. Tidak ada data pesan yang dikirim ke server.",
@@ -442,6 +464,10 @@
                 placeholderPhone: "Destination No (e.g. 0812... / +628...)",
                 lblSendDirect: "Send Directly",
                 lblStatus: "System Ready",
+                lblSpaceTitle: "↕️ Extra List Spacing:",
+                lblSpaceDesc: "Add 1 blank line between list items (bullet/number).",
+                lblRemoveFormatTitle: "🔤 Remove Formatting:",
+                lblRemoveFormatDesc: "Strip bold (*), italic (_), and strikethrough (~) formats.",
                 mdlTitle: "Terms of Use & Disclaimer",
                 mdlSub1: "Technology & Privacy",
                 mdlTech: "The AlatWasap application operates 100% locally in your browser. No message data are sent to servers.",
@@ -474,7 +500,11 @@
             document.getElementById('lblSendDirect').textContent = dict.lblSendDirect;
             document.getElementById('lblStatus').textContent = dict.lblStatus;
 
-            // Modal Legal
+            if (document.getElementById('lblSpaceTitle')) document.getElementById('lblSpaceTitle').textContent = dict.lblSpaceTitle;
+            if (document.getElementById('lblSpaceDesc')) document.getElementById('lblSpaceDesc').textContent = dict.lblSpaceDesc;
+            if (document.getElementById('lblRemoveFormatTitle')) document.getElementById('lblRemoveFormatTitle').textContent = dict.lblRemoveFormatTitle;
+            if (document.getElementById('lblRemoveFormatDesc')) document.getElementById('lblRemoveFormatDesc').textContent = dict.lblRemoveFormatDesc;
+
             document.getElementById('mdlTitle').textContent = dict.mdlTitle;
             document.getElementById('mdlSub1').textContent = dict.mdlSub1;
             document.getElementById('mdlTech').textContent = dict.mdlTech;
@@ -491,7 +521,6 @@
             updateLanguage();
         });
 
-        // 4. Dark Mode Logic
         const initTheme = () => {
             const isDark = localStorage.getItem('appTheme') === 'dark' || 
                            (!('appTheme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -512,19 +541,15 @@
             lucide.createIcons();
         });
 
-        // 5. Modal Legal Logic
         DOM.btnTerms.addEventListener('click', () => DOM.modal.showModal());
         DOM.btnCloseModal.addEventListener('click', () => DOM.modal.close());
         DOM.btnAccept.addEventListener('click', () => DOM.modal.close());
         DOM.modal.addEventListener('click', (e) => { if (e.target === DOM.modal) DOM.modal.close(); });
 
         // 7. Core Logic: HTML to WhatsApp Parser
-        
-        // Fungsi pembantu khusus merender elemen Tabel (Card Vertikal) - Diperbarui dengan Logika Riset
         function parseTable(tableNode) {
             if (!tableNode || tableNode.nodeName !== 'TABLE') return '';
 
-            // 1. Ekstrak Header yang lebih tangguh (Cari thead tr, fallback ke tr pertama)
             let headerRow = tableNode.querySelector('thead tr') || tableNode.querySelector('tr');
             if (!headerRow) return '';
 
@@ -534,12 +559,10 @@
                 return txt || `Kolom ${i + 1}`;
             });
 
-            // 2. Ekstrak Data Rows yang lebih cerdas (Memisahkan area tbody)
             let dataRows = [];
             const tbody = tableNode.querySelector('tbody');
             if (tbody) {
                 dataRows = Array.from(tbody.querySelectorAll('tr'));
-                // Cegah duplikasi jika tag thead tidak ada, tapi tr pertama ikut masuk ke dalam tbody
                 if (!tableNode.querySelector('thead') && dataRows[0] === headerRow) {
                     dataRows.shift();
                 }
@@ -547,7 +570,7 @@
                 dataRows = Array.from(tableNode.querySelectorAll('tr')).filter(r => r !== headerRow);
             }
 
-            if (dataRows.length === 0) return ''; // Lewati jika tabel hanya berisi header
+            if (dataRows.length === 0) return '';
 
             let tableOutput = '';
             let validRowIndex = 1;
@@ -560,10 +583,7 @@
                 cells.forEach((cell, colIndex) => {
                     let headerName = headers[colIndex] || `Kolom ${colIndex + 1}`;
                     let cellContent = convertNode(cell).trim().replace(/\n+/g, ' ');
-                    
-                    // PERBAIKAN: Jika nilai sel kosong, jadikan tanda strip (-) agar format tetap rapi
                     cellContent = cellContent === '' ? '-' : cellContent;
-                    
                     tableOutput += `▪️ *${headerName}:* ${cellContent}\n`;
                 });
                 
@@ -571,7 +591,6 @@
                 validRowIndex++;
             });
             
-            // Hapus garis pemisah di baris terakhir item
             if (tableOutput.endsWith(`──────────────\n`)) {
                 tableOutput = tableOutput.slice(0, -15);
             }
@@ -582,7 +601,6 @@
         function convertNode(node) {
             if (node.nodeType === Node.TEXT_NODE) return node.textContent;
 
-            // PERBAIKAN: Intersep elemen Tabel sebelum alat me-loop anaknya ke format biasa.
             if (node.nodeType === Node.ELEMENT_NODE && node.nodeName.toLowerCase() === 'table') {
                 return '\n\n' + parseTable(node) + '\n\n';
             }
@@ -591,11 +609,12 @@
             for (let child of node.childNodes) text += convertNode(child);
 
             const tag = node.nodeName.toLowerCase();
+            const stripFormat = DOM.removeFormatCb && DOM.removeFormatCb.checked;
 
             switch (tag) {
-                case 'b': case 'strong': return text.trim() ? `*${text.trim()}*` : '';
-                case 'i': case 'em': return text.trim() ? `_${text.trim()}_` : '';
-                case 's': case 'strike': case 'del': return text.trim() ? `~${text.trim()}~` : '';
+                case 'b': case 'strong': return text.trim() ? (stripFormat ? text.trim() : `*${text.trim()}*`) : '';
+                case 'i': case 'em': return text.trim() ? (stripFormat ? text.trim() : `_${text.trim()}_`) : '';
+                case 's': case 'strike': case 'del': return text.trim() ? (stripFormat ? text.trim() : `~${text.trim()}~`) : '';
                 case 'code':
                     const parentNode = node.parentNode;
                     if (parentNode && parentNode.nodeName.toLowerCase() === 'pre') return text; 
@@ -611,17 +630,19 @@
                 case 'li':
                     const parentList = node.parentNode;
                     let cleanedText = text.trim();
+                    const prefix = (DOM.spaceListCb && DOM.spaceListCb.checked) ? '\n\n' : '\n';
                     if (parentList && parentList.nodeName.toLowerCase() === 'ol') {
-                        let index = 1;
+                        // PERBAIKAN: Baca atribut 'start' jika ada agar penomoran list selalu sinkron
+                        let index = parseInt(parentList.getAttribute('start')) || 1;
                         for (let sibling of parentList.children) {
                             if (sibling === node) break;
                             if (sibling.nodeName.toLowerCase() === 'li') index++;
                         }
                         cleanedText = cleanedText.replace(/^\s*[0-9]+[\.\)]\s*/, '');
-                        return `\n${index}. ${cleanedText}`;
+                        return `${prefix}${index}. ${cleanedText}`;
                     }
                     cleanedText = cleanedText.replace(/^\s*[\-\*•]\s*/, '');
-                    return `\n- ${cleanedText}`;
+                    return `${prefix}- ${cleanedText}`;
                 case 'ul': case 'ol': return `\n${text}\n`;
                 default: return text;
             }
@@ -629,16 +650,14 @@
 
         function htmlToWhatsAppFormat(htmlString) {
             if (!htmlString.trim()) return '';
-
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlString, 'text/html');
             let result = convertNode(doc.body);
-
             result = result.replace(/\n{3,}/g, '\n\n');
             return result.trim();
         }
 
-        // 8. Render WhatsApp Preview (Flexbox Accurate Simulator)
+        // 8. Render WhatsApp Preview
         function renderWhatsAppPreview(waText) {
             if (!waText) return `<span class="text-dim italic text-sm" id="lblPlaceholder">${Dictionary[currentLang].lblPlaceholder}</span>`;
 
@@ -646,8 +665,6 @@
 
             const codeBlocks = [];
             html = html.replace(/```([\s\S]*?)```/g, (match, p1) => {
-                // PERBAIKAN: Tambahkan class 'whitespace-pre-wrap' agar browser merender baris baru (Enter) pada kode.
-                // Tambahkan .trim() agar Enter pembuka dan penutup tidak membuat jarak atas/bawah terlalu lebar.
                 codeBlocks.push(`<span class="font-mono text-[13px] bg-black/5 dark:bg-white/10 p-1.5 rounded block my-1 border border-border/50 whitespace-pre-wrap">${p1.trim()}</span>`);
                 return `%%%CODEBLOCK_${codeBlocks.length - 1}%%%`;
             });
@@ -657,7 +674,6 @@
             
             function formatInline(text) {
                 const urls = [];
-                // PERBAIKAN: Lindungi URL agar underscore (_) di dalamnya tidak terformat menjadi miring, dan jadikan anchor tag <a>
                 let res = text.replace(/(https?:\/\/[^\s]+)/g, (match) => {
                     urls.push(`<a href="${match}" target="_blank" class="text-[#027eb5] dark:text-[#53bdeb] hover:underline cursor-pointer pointer-events-auto">${match}</a>`);
                     return `%%%URL_${urls.length - 1}%%%`;
@@ -669,7 +685,6 @@
                     .replace(/\_([^\n\_]+)\_/g, '<em class="italic">$1</em>')
                     .replace(/\~([^\n\~]+)\~/g, '<del class="line-through opacity-70">$1</del>');
                 
-                // PERBAIKAN: Kembalikan string URL
                 res = res.replace(/%%%URL_(\d+)%%%/g, (match, p1) => urls[p1]);
                 return res;
             }
@@ -678,7 +693,7 @@
                 let line = lines[i];
 
                 if (line.trim() === '') {
-                    parsedLines.push('<div class="h-1.5"></div>');
+                    parsedLines.push('<div class="h-3"></div>');
                     continue;
                 }
                 if (line.startsWith('&gt; ')) {
@@ -708,7 +723,6 @@
 
         // 9. Event Listeners & Processing
         
-        // Expand/Collapse Action Panel Logic
         if (DOM.btnToggleActions) {
             DOM.btnToggleActions.addEventListener('click', () => {
                 const isHidden = DOM.actionCardPanel.classList.contains('hidden');
@@ -726,8 +740,14 @@
 
         const processDirectChatButton = () => {
             const hasText = currentRawWaText !== '';
-            const hasNumber = DOM.waNumberInput.value.trim().length >= 9; // Minimal length logic
+            const hasNumber = DOM.waNumberInput.value.trim().length >= 9;
             DOM.sendDirectBtn.disabled = !(hasText && hasNumber);
+        };
+
+        let processTimeout;
+        const debouncedProcessInput = () => {
+            clearTimeout(processTimeout);
+            processTimeout = setTimeout(processInput, 50);
         };
 
         const processInput = () => {
@@ -749,12 +769,20 @@
             processDirectChatButton();
         };
 
-        DOM.htmlInput.addEventListener('input', processInput);
+        // Menggunakan event pengetikan alami dan observer yang tangguh
+        DOM.htmlInput.addEventListener('input', debouncedProcessInput);
         DOM.waNumberInput.addEventListener('input', processDirectChatButton);
+        if (DOM.spaceListCb) DOM.spaceListCb.addEventListener('change', debouncedProcessInput);
+        if (DOM.removeFormatCb) DOM.removeFormatCb.addEventListener('change', debouncedProcessInput);
+        
+        // PERBAIKAN: Menggunakan MutationObserver. Sistem ini menjamin bahwa segala bentuk manipulasi 
+        // DOM (termasuk dari ekstensi Spellcheck/Grammarly, atau fitur hapus yang agresif) pasti tertangkap.
+        const observer = new MutationObserver(debouncedProcessInput);
+        observer.observe(DOM.htmlInput, { childList: true, subtree: true, characterData: true });
 
-        // Mencegah paste gambar/file ke dalam editor, hanya membolehkan teks dan format HTML dasar
+        // Mencegah paste gambar/file ke dalam editor
         DOM.htmlInput.addEventListener('paste', (e) => {
-            e.preventDefault(); // Hentikan paste bawaan browser
+            e.preventDefault();
             const clipboardData = e.clipboardData || window.clipboardData;
             
             let htmlData = clipboardData.getData('text/html');
@@ -764,27 +792,23 @@
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = htmlData;
                 
-                // Hapus semua elemen non-teks (gambar, video, svg, script, dll)
                 const forbiddenElements = tempDiv.querySelectorAll('img, picture, svg, video, audio, iframe, object, embed, script, style, link');
                 forbiddenElements.forEach(el => el.remove());
                 
-                // Masukkan kembali HTML yang sudah bersih (format tebal/miring tetap terjaga)
                 document.execCommand('insertHTML', false, tempDiv.innerHTML);
             } else if (textData) {
-                // Fallback: Jika hanya plain-text (teks murni dari notepad dll)
                 document.execCommand('insertText', false, textData);
             }
-            // Jika yang di-paste adalah file gambar secara langsung, blok if/else di atas akan diabaikan,
-            // sehingga gambar otomatis tertolak dan tidak masuk ke editor.
+            // PERBAIKAN: Paksa pemicu update segera setelah paste selesai
+            debouncedProcessInput();
         });
 
         DOM.btnClear.addEventListener('click', () => {
             DOM.htmlInput.innerHTML = '';
-            processInput(); 
+            debouncedProcessInput(); 
             DOM.htmlInput.focus();
         });
 
-        // Copy Logic & Toast
         let toastTimeout;
         const showToast = (message, type = 'success') => {
             DOM.toastMsg.textContent = message || Dictionary[currentLang].toastSuccessCopy;
@@ -804,7 +828,6 @@
 
         DOM.copyBtn.addEventListener('click', () => {
             if (!currentRawWaText) return;
-
             navigator.clipboard.writeText(currentRawWaText).then(() => showToast(Dictionary[currentLang].toastSuccessCopy)).catch(err => {
                 const textarea = document.createElement('textarea');
                 textarea.value = currentRawWaText;
@@ -816,9 +839,8 @@
             });
         });
 
-        // 10. Direct Chat Logic
         function sanitizeIndonesianNumber(input) {
-            let cleaned = input.replace(/\D/g, ''); // Hapus semua non-angka
+            let cleaned = input.replace(/\D/g, '');
             if (cleaned.startsWith('08')) {
                 cleaned = '62' + cleaned.substring(1);
             } else if (cleaned.startsWith('8')) {
@@ -834,7 +856,7 @@
             if (!sanitizedNum || !currentRawWaText) return;
 
             const url = `https://wa.me/${sanitizedNum}?text=${encodeURIComponent(currentRawWaText)}`;
-            window.open(url, '_blank'); // Buka di tab baru
+            window.open(url, '_blank');
         });
 
         // Initialize App
