@@ -176,7 +176,7 @@
             <!-- Branding TATADADA v5.9 -->
             <div class="flex items-baseline gap-2 select-none shrink-0">
                 <span class="bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent font-black text-2xl tracking-tighter drop-shadow-sm">MATOWY</span>
-                <span class="px-1.5 py-0.5 rounded-md bg-[var(--preview-bg)] border border-[var(--border-color)] text-[var(--text-dim)] text-[8px] font-mono font-black uppercase tracking-wider mb-1 select-none italic">v8.7</span>
+                <span class="px-1.5 py-0.5 rounded-md bg-[var(--preview-bg)] border border-[var(--border-color)] text-[var(--text-dim)] text-[8px] font-mono font-black uppercase tracking-wider mb-1 select-none italic">v8.8</span>
                 
                 <!-- Wajib: Author Link TATADADA -->
                 <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-[var(--text-dim)] hover:text-blue-500 transition-colors">
@@ -204,6 +204,8 @@
         <div class="flex items-center gap-3">
             <div class="flex items-center gap-1.5 p-1 bg-[var(--preview-bg)] rounded-xl border border-[var(--border-color)]">
                 <button onclick="exportMarkdown()" class="px-3 py-1.5 text-[10px] font-bold rounded-lg hover:bg-[var(--card-bg)] text-[var(--text-dim)] hover:text-[var(--text-main)] uppercase transition-colors shadow-sm" title="Download .md">.MD</button>
+                <div class="h-3 w-px bg-[var(--border-color)]"></div>
+                <button onclick="copyRawHtml()" class="px-3 py-1.5 text-[10px] font-bold rounded-lg hover:bg-[var(--card-bg)] text-[var(--text-dim)] hover:text-[var(--text-main)] uppercase transition-colors shadow-sm" title="Copy Raw HTML">.HTML</button>
                 <div class="h-3 w-px bg-[var(--border-color)]"></div>
                 <button onclick="exportWord()" class="px-3 py-1.5 text-[10px] font-bold rounded-lg hover:bg-[var(--card-bg)] text-[var(--text-dim)] hover:text-[var(--text-main)] uppercase transition-colors shadow-sm" title="Download .doc">.DOC</button>
                 <div class="h-3 w-px bg-[var(--border-color)]"></div>
@@ -321,6 +323,7 @@
                 terms_legal: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics untuk mengumpulkan data penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
                 close_btn: "Mengerti & Tutup",
                 toast_copied: "Format berhasil disalin ke Clipboard!",
+                toast_html_copied: "Kode HTML murni berhasil disalin!",
                 toast_copy_failed: "Gagal menyalin format. Silakan coba lagi.",
                 toast_pdf_ready: "File Print-Ready diunduh! Buka file tersebut untuk menyimpan/cetak PDF.",
                 toast_pdf_blocked: "Fungsi diblokir di ruang Preview. Silakan tekan Ctrl+P manual."
@@ -336,6 +339,7 @@
                 terms_legal: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics to collect anonymous usage data for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.",
                 close_btn: "Understood & Close",
                 toast_copied: "Format successfully copied to Clipboard!",
+                toast_html_copied: "Raw HTML code successfully copied!",
                 toast_copy_failed: "Copy failed. Please try again.",
                 toast_pdf_ready: "Print-Ready file downloaded! Open it to save/print as PDF.",
                 toast_pdf_blocked: "Blocked in Preview mode. Please press Ctrl+P manually."
@@ -839,6 +843,30 @@
 
         function getDetectedFilename() {
             return getSmartTitle().replace(/[/\\?%*:|"<>]/g, '_').substring(0, 100);
+        }
+
+        function copyRawHtml() {
+            const rawHtml = renderContent(editor.value);
+            const tempTextarea = document.createElement('textarea');
+            tempTextarea.value = rawHtml;
+            tempTextarea.style.position = 'fixed';
+            tempTextarea.style.left = '-9999px';
+            document.body.appendChild(tempTextarea);
+            tempTextarea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showToast(translations[currentLang].toast_html_copied || "HTML berhasil disalin!");
+                } else {
+                    showToast(translations[currentLang].toast_copy_failed || "Gagal menyalin format. Coba lagi.");
+                }
+            } catch (err) {
+                console.error("HTML Copy Failed:", err);
+                showToast(translations[currentLang].toast_copy_failed || "Gagal menyalin format. Coba lagi.");
+            } finally {
+                document.body.removeChild(tempTextarea);
+            }
         }
 
         function exportMarkdown() {
