@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gambar2PDF</title>
+    
+    <!-- Google Analytics (TATADADA v5.10 / v7.0) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+    
+    <!-- Histats Tracker (TATADADA v5.10 / v7.0) -->
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+    <noscript><a href="/" target="_blank"><img  src="//sstatic1.histats.com/0.gif?5024490&101" alt="" border="0"></a></noscript>
+
+    <!-- Auto-Favicon Injector -->
+    <script>
+    fetch('icon.xml').then(r => r.text()).then(xml => {
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+        const cStart = doc.querySelector('color_start')?.textContent || '#0ea5e9';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#4338ca';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
+        const link = document.createElement('link');
+        link.rel = 'icon'; link.type = 'image/svg+xml';
+        link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+    }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+
+    <!-- Tailwind & Icons -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        theme: 'var(--theme-accent)',
+                        headerbg: 'var(--header-bg)',
+                        editorbg: 'var(--editor-bg)',
+                        previewbg: 'var(--preview-bg)',
+                        cardbg: 'var(--card-bg)',
+                        footerbg: 'var(--footer-bg)',
+                        bordercolor: 'var(--border-color)',
+                        textmain: 'var(--text-main)',
+                        textdim: 'var(--text-dim)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+        }
+        
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #161b22;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            color-scheme: dark;
+        }
+
+        /* TATADADA UX Protection: Anti-Select Global */
+        body {
+            background-color: var(--editor-bg);
+            color: var(--text-main);
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Kecualikan input, textarea, dan area output data */
+        input, textarea, select, pre, code, .selectable {
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        
+        ::-webkit-scrollbar { height: 8px; width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, var(--border-color) 25%, transparent 25%), 
+                linear-gradient(-45deg, var(--border-color) 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, var(--border-color) 75%), 
+                linear-gradient(-45deg, transparent 75%, var(--border-color) 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            cursor: grab;
+        }
+        .canvas-container:active { cursor: grabbing; }
+
+        #active-canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            transform-origin: center center;
+            transition: transform 0.05s linear; 
+        }
+
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: var(--text-main); cursor: pointer; margin-top: -6px; box-shadow: 0 0 2px rgba(0,0,0,0.5);
+            border: 2px solid var(--card-bg);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: var(--border-color); border-radius: 2px;
+        }
+        input[type=range]:focus { outline: none; }
+        
+        .slider-ticks {
+            background-image: repeating-linear-gradient(to right, var(--text-dim) 0, var(--text-dim) 1px, transparent 1px, transparent 10px);
+            background-position: center bottom; background-size: 100% 4px; background-repeat: no-repeat;
+        }
+
+        /* Filmstrip Multi-Select & Styling */
+        .filmstrip-item-wrap { position: relative; }
+        .filmstrip-item { opacity: 0.6; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); box-sizing: border-box; }
+        .filmstrip-item:hover { opacity: 0.8; }
+        
+        /* State for Active/Selected */
+        .filmstrip-item.selected { 
+            border-color: var(--theme-accent); 
+            opacity: 1; 
+            transform: translateY(-2px); 
+            background-color: rgba(59, 130, 246, 0.15); /* Tinted background for selection */
+            box-shadow: 0 0 0 1px var(--theme-accent);
+        }
+
+        /* Drag & Drop Insertion Markers (Glowing Vertical Lines) */
+        .drag-over-left::before {
+            content: ''; position: absolute; left: -10px; top: 10%; bottom: 10%; width: 4px; 
+            background-color: var(--theme-accent); border-radius: 4px; z-index: 50; 
+            box-shadow: 0 0 8px var(--theme-accent); pointer-events: none;
+        }
+        .drag-over-right::after {
+            content: ''; position: absolute; right: -10px; top: 10%; bottom: 10%; width: 4px; 
+            background-color: var(--theme-accent); border-radius: 4px; z-index: 50; 
+            box-shadow: 0 0 8px var(--theme-accent); pointer-events: none;
+        }
+
+        select { background-color: var(--card-bg); color: var(--text-main); border-color: var(--border-color); }
+
+        /* Segmented Control Styles */
+        .seg-btn {
+            flex: 1 1 0%; padding-top: 0.35rem; padding-bottom: 0.35rem;
+            font-size: 0.75rem; line-height: 1rem; border-radius: 0.25rem;
+            font-weight: 500; transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1); text-align: center;
+        }
+        .seg-btn.active {
+            background-color: var(--card-bg);
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+            color: var(--text-main);
+        }
+        .seg-btn:not(.active) { color: var(--text-dim); }
+        .seg-btn:not(.active):hover { color: var(--text-main); }
+    </style>
+</head>
+<body class="font-sans h-screen flex flex-col selection:bg-theme selection:text-white">
+
+    <!-- Header -->
+    <header class="bg-headerbg border-b border-bordercolor h-14 px-6 flex justify-between items-center z-30 shrink-0 shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow">
+                <i data-lucide="images"></i>
+            </div>
+            <div class="flex flex-col">
+                <div class="flex items-center gap-2">
+                    <h1 class="text-base font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-indigo-500 leading-none">Gambar2PDF</h1>
+                    <span class="text-[10px] italic text-textdim font-mono">v1.5</span>
+                    <i data-lucide="help-circle" class="w-3.5 h-3.5 text-textdim cursor-help" title="ID: Ctrl+Klik (Pilih ganda), Shift+Klik (Pilih rentang), Ctrl+A (Pilih semua).\nEN: Ctrl+Click (Multi-select), Shift+Click (Range), Ctrl+A (Select all)."></i>
+                </div>
+                <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-textdim hover:text-blue-500 mt-0.5">by AhmadDanial</a>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <!-- Global PDF Settings -->
+            <div class="flex items-center gap-3 text-xs border-r border-bordercolor pr-4 hidden md:flex">
+                <div class="flex flex-col">
+                    <span class="text-[9px] text-textdim uppercase font-bold tracking-wider mb-0.5" id="lbl-paper">Kertas (Global)</span>
+                    <select id="pdf-paper-size" class="text-xs py-1 px-2 rounded border outline-none bg-previewbg">
+                        <option value="a4" selected>A4</option>
+                        <option value="a3">A3</option>
+                        <option value="letter">Letter</option>
+                        <option value="legal">Legal</option>
+                        <option value="auto" id="opt-auto">Sesuai Gambar</option>
+                    </select>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-[9px] text-textdim uppercase font-bold tracking-wider mb-0.5" id="lbl-orient">Orientasi</span>
+                    <select id="pdf-orientation" class="text-xs py-1 px-2 rounded border outline-none bg-previewbg">
+                        <option value="p" selected>Portrait</option>
+                        <option value="l">Landscape</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Toggles -->
+            <button onclick="toggleLang()" class="text-textdim hover:text-theme transition-colors text-sm font-medium w-6 text-center" id="lang-toggle">ID</button>
+            <button onclick="toggleTheme()" class="text-textdim hover:text-theme transition-colors">
+                <i data-lucide="moon" id="theme-icon" class="w-4 h-4"></i>
+            </button>
+            
+            <!-- Actions -->
+            <button id="btn-export" class="px-4 py-1.5 bg-theme hover:bg-blue-600 text-white rounded-md text-sm font-medium transition-colors shadow flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                <i data-lucide="file-down" class="w-4 h-4"></i> <span id="txt-export">Save PDF</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace (App Layout) -->
+    <main class="flex-1 flex flex-col min-h-0 relative bg-previewbg overflow-hidden">
+        
+        <!-- Empty State (Berada di atas seluruh main layer) -->
+        <div id="empty-state" class="absolute inset-0 z-40 flex flex-col items-center justify-center bg-editorbg">
+            <input type="file" id="file-upload" multiple accept="image/*" class="hidden">
+            <div class="w-20 h-20 mb-6 rounded-2xl bg-cardbg flex items-center justify-center text-theme shadow-sm border border-bordercolor">
+                <i data-lucide="image-plus" class="w-10 h-10"></i>
+            </div>
+            <h2 class="text-xl font-semibold text-textmain mb-2" id="txt-empty-title">Belum ada gambar</h2>
+            <p class="text-textdim text-center max-w-md text-sm mb-6" id="txt-empty-desc">
+                Tarik & lepas gambar ke sini, paste (<kbd class="px-1.5 py-0.5 bg-cardbg border border-bordercolor rounded text-xs mx-1 font-mono">Ctrl+V</kbd>), atau
+            </p>
+            <button onclick="document.getElementById('file-upload').click()" class="px-5 py-2.5 bg-cardbg hover:bg-previewbg border border-bordercolor rounded-xl text-sm font-medium text-textmain transition-colors shadow-sm flex items-center gap-2" id="btn-browse">
+                <i data-lucide="folder-search" class="w-4 h-4"></i> Pilih File Gambar
+            </button>
+        </div>
+
+        <!-- Top Section (Sidebar + Canvas) -->
+        <div id="top-section" class="flex-1 flex flex-row min-h-0 relative hidden">
+            
+            <!-- Left Sidebar: Inspektur Halaman (Alat Spesifik Halaman) -->
+            <aside id="sidebar" class="w-72 bg-cardbg border-r border-bordercolor flex flex-col z-20 shrink-0 shadow-md">
+                <div class="p-4 border-b border-bordercolor bg-previewbg/30">
+                    <h2 class="text-xs font-bold text-textmain uppercase tracking-wider" id="lbl-inspector">Inspektur Halaman</h2>
+                    <p class="text-[10px] text-textdim" id="lbl-inspector-desc">Aturan untuk halaman yang dipilih</p>
+                </div>
+
+                <div class="p-5 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
+                    
+                    <!-- Scaling Mode (Per Page / Batch) -->
+                    <div id="panel-fit-mode">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-[10px] text-textdim uppercase font-bold tracking-wider" id="lbl-fit">Mode Skala</label>
+                            <i data-lucide="info" class="w-3 h-3 text-textdim cursor-help" title="Fit: Seluruh gambar muat di dalam kertas.\nFill: Penuhi kertas, potong bagian berlebih."></i>
+                        </div>
+                        <div class="flex p-1 bg-previewbg rounded-md border border-bordercolor">
+                            <button id="btn-mode-contain" onclick="setFitMode('contain')" class="seg-btn active">Fit (Muat)</button>
+                            <button id="btn-mode-cover" onclick="setFitMode('cover')" class="seg-btn">Fill (Penuh)</button>
+                        </div>
+                    </div>
+
+                    <!-- Transform Actions -->
+                    <div>
+                        <label class="text-[10px] text-textdim uppercase font-bold tracking-wider mb-2 block">Orientasi</label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button id="btn-rot-ccw" class="w-full h-9 flex items-center justify-center text-textdim hover:text-textmain hover:bg-previewbg rounded-lg border border-bordercolor transition" title="Putar -90°">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                            </button>
+                            <button id="btn-rot-cw" class="w-full h-9 flex items-center justify-center text-textdim hover:text-textmain hover:bg-previewbg rounded-lg border border-bordercolor transition" title="Putar +90°">
+                                <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+                            </button>
+                            <button id="btn-flip-h" class="w-full h-9 flex items-center justify-center text-textdim hover:text-textmain hover:bg-previewbg rounded-lg border border-bordercolor transition" title="Flip Horizontal">
+                                <i data-lucide="flip-horizontal" class="w-4 h-4"></i>
+                            </button>
+                            <button id="btn-flip-v" class="w-full h-9 flex items-center justify-center text-textdim hover:text-textmain hover:bg-previewbg rounded-lg border border-bordercolor transition" title="Flip Vertical">
+                                <i data-lucide="flip-vertical" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Fine Rotation Slider -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-[10px] text-textdim uppercase font-bold tracking-wider">Pelurusan (Crop)</label>
+                            <span id="rot-display" class="text-[10px] text-theme font-mono font-bold bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">0.0°</span>
+                        </div>
+                        <div class="w-full flex items-center gap-3 bg-previewbg/50 p-2 rounded-lg border border-bordercolor">
+                            <button onclick="adjustRotation(-0.1)" class="w-6 h-6 shrink-0 flex items-center justify-center rounded hover:bg-cardbg text-textdim shadow-sm border border-transparent hover:border-bordercolor transition" title="-0.1°"><i data-lucide="minus" class="w-3 h-3"></i></button>
+                            <div class="flex-1 relative pt-2 pb-1 slider-ticks">
+                                <input type="range" id="rotation-slider" min="-180" max="180" step="0.1" value="0">
+                            </div>
+                            <button onclick="adjustRotation(0.1)" class="w-6 h-6 shrink-0 flex items-center justify-center rounded hover:bg-cardbg text-textdim shadow-sm border border-transparent hover:border-bordercolor transition" title="+0.1°"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                        </div>
+                    </div>
+
+                    <hr class="border-bordercolor">
+
+                    <!-- Page Actions -->
+                    <div>
+                        <label class="text-[10px] text-textdim uppercase font-bold tracking-wider mb-2 block">Tindakan Massal</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="btn-duplicate" class="w-full h-8 flex items-center justify-center gap-2 text-textdim hover:text-theme hover:bg-blue-500/10 rounded-lg border border-bordercolor transition text-xs font-medium">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Duplikat
+                            </button>
+                            <button id="btn-delete" class="w-full h-8 flex items-center justify-center gap-2 text-textdim hover:text-red-500 hover:bg-red-500/10 rounded-lg border border-bordercolor transition text-xs font-medium">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Hapus
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </aside>
+
+            <!-- Canvas Area (Active Image) -->
+            <div id="workspace-area" class="flex-1 min-h-0 min-w-0 canvas-container p-4 relative overflow-hidden">
+                <!-- Information overlay -->
+                <div class="absolute top-4 left-4 bg-black/60 backdrop-blur text-white text-[11px] px-3 py-1.5 rounded-md flex gap-3 shadow z-10 pointer-events-none">
+                    <span><span id="lbl-page">Halaman:</span> <b id="info-page">1/1</b></span>
+                    <span class="text-gray-400">|</span>
+                    <span><span id="lbl-res">Area Export:</span> <b id="info-res">0x0</b></span>
+                    <span class="text-gray-400">|</span>
+                    <span>Zoom: <b id="info-zoom">100%</b></span>
+                </div>
+
+                <!-- Hint overlay for zooming -->
+                <div class="absolute top-4 right-4 bg-black/40 backdrop-blur text-white text-[10px] px-2 py-1 rounded shadow z-10 pointer-events-none opacity-50" id="txt-hint">
+                    Scroll untuk Zoom &bull; Drag untuk Geser
+                </div>
+
+                <canvas id="active-canvas"></canvas>
+            </div>
+        </div>
+
+        <!-- Horizontal Resizer (Draggable separator) -->
+        <div id="resizer-h" class="h-3 bg-previewbg border-y border-bordercolor cursor-row-resize flex items-center justify-center hidden z-30 shadow-sm transition-colors hover:bg-bordercolor/50 group">
+            <div class="w-8 h-1 bg-bordercolor rounded-full group-hover:bg-theme transition-colors"></div>
+        </div>
+
+        <!-- Horizontal Filmstrip (Bottom Full-Width) -->
+        <div id="filmstrip-container" style="height: 128px;" class="bg-cardbg shrink-0 flex flex-col hidden z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <div class="h-full flex items-center px-4 gap-4 overflow-x-auto custom-scrollbar" id="filmstrip">
+                <!-- Thumbnails inserted here -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-footerbg h-8 border-t border-bordercolor flex justify-between items-center px-6 text-[10px] text-textdim shrink-0 z-30">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]"></div>
+            <span id="txt-status">Sistem Berjalan Lokal</span>
+        </div>
+        <div class="flex gap-4">
+            <span id="stat-count">Total: 0 Halaman</span>
+            <button onclick="toggleModal()" class="hover:text-theme underline underline-offset-2 selectable">Terms of Use</button>
+        </div>
+    </footer>
+
+    <!-- Modal Terms -->
+    <div id="modal-terms" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex-col items-center justify-center p-4">
+        <div class="bg-cardbg border border-bordercolor w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-bordercolor flex justify-between items-center bg-headerbg">
+                <h3 class="font-semibold text-textmain">Terms of Use / Disclaimer</h3>
+                <button onclick="toggleModal()" class="text-textdim hover:text-textmain"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <div class="p-6 text-sm text-textdim space-y-4 overflow-y-auto max-h-[70vh] selectable">
+                <p id="term-context"><strong>Konteks Aplikasi:</strong> Gambar2PDF adalah utilitas *client-side* murni yang berjalan 100% di dalam peramban web (browser) Anda. Gambar yang Anda salin/tempel diproses secara lokal menggunakan memori perangkat Anda. Tidak ada gambar, PDF, atau data visual yang pernah dikirim, diunggah, atau disimpan ke server mana pun.</p>
+                <p id="term-legal"><strong>Disclaimer:</strong> Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.</p>
+            </div>
+            <div class="px-6 py-4 border-t border-bordercolor bg-previewbg flex justify-end">
+                <button onclick="toggleModal()" class="px-4 py-2 bg-theme text-white rounded-lg text-sm font-medium" id="btn-close-term">Mengerti</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[60] hidden flex-col items-center justify-center text-white">
+        <i data-lucide="loader-2" class="animate-spin w-12 h-12 mb-4 text-theme"></i>
+        <h3 class="text-xl font-bold" id="txt-loading">Memproses PDF...</h3>
+        <p class="text-gray-400 mt-2 text-sm" id="txt-loading-desc">Harap tunggu, proses bergantung pada resolusi gambar.</p>
+    </div>
+
+    <!-- Drag & Drop Global Overlay -->
+    <div id="drop-overlay" class="fixed inset-0 bg-theme/95 backdrop-blur-sm z-[100] hidden flex-col items-center justify-center text-white border-8 border-white/20 transition-all pointer-events-none">
+        <i data-lucide="upload-cloud" class="w-24 h-24 mb-6 animate-bounce"></i>
+        <h2 class="text-3xl font-bold" id="txt-drop-title">Lepaskan Gambar di Sini</h2>
+        <p class="text-white/80 mt-2 font-medium" id="txt-drop-desc">Gambar akan ditambahkan ke daftar halaman</p>
+    </div>
+
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        // --- Multi-Language State ---
+        let currentLang = localStorage.getItem('appLang') || 'id';
+        const dict = {
+            id: {
+                export: "Save PDF",
+                emptyTitle: "Belum ada gambar",
+                emptyDesc: "Tarik & lepas gambar ke sini, paste (<kbd class='px-1.5 py-0.5 bg-cardbg border border-bordercolor rounded text-xs mx-1 font-mono'>Ctrl + V</kbd>), atau",
+                btnBrowse: "<i data-lucide='folder-search' class='w-4 h-4'></i> Pilih File Gambar",
+                paper: "Kertas (Global)",
+                orient: "Orientasi",
+                optAuto: "Sesuai Gambar",
+                page: "Halaman:",
+                res: "Area Export:",
+                hint: "Scroll untuk Zoom &bull; Drag untuk Geser",
+                status: "Sistem Berjalan Lokal",
+                total: (n) => `Total: ${n} Halaman`,
+                lblFit: "Mode Skala",
+                btnFitContain: "Fit (Muat)",
+                btnFitCover: "Fill (Penuh)",
+                dropTitle: "Lepaskan Gambar di Sini",
+                dropDesc: "Gambar akan ditambahkan ke daftar halaman",
+                inspectorTitle: "Inspektur Halaman",
+                inspectorDesc: "Aturan diterapkan pada halaman yang dipilih"
+            },
+            en: {
+                export: "Save PDF",
+                emptyTitle: "No images yet",
+                emptyDesc: "Drag & drop images here, paste (<kbd class='px-1.5 py-0.5 bg-cardbg border border-bordercolor rounded text-xs mx-1 font-mono'>Ctrl + V</kbd>), or",
+                btnBrowse: "<i data-lucide='folder-search' class='w-4 h-4'></i> Browse Files",
+                paper: "Paper (Global)",
+                orient: "Orientation",
+                optAuto: "Fit to Image",
+                page: "Page:",
+                res: "Export Area:",
+                hint: "Scroll to Zoom &bull; Drag to Pan",
+                status: "Running Locally",
+                total: (n) => `Total: ${n} Pages`,
+                lblFit: "Scale Mode",
+                btnFitContain: "Fit (Contain)",
+                btnFitCover: "Fill (Cover)",
+                dropTitle: "Drop Images Here",
+                dropDesc: "Images will be added to the pages list",
+                inspectorTitle: "Page Inspector",
+                inspectorDesc: "Rules applied to selected pages"
+            }
+        };
+
+        function applyLang() {
+            const l = dict[currentLang];
+            const el = (id) => document.getElementById(id);
+            
+            if(el('lang-toggle')) el('lang-toggle').innerText = currentLang.toUpperCase();
+            if(el('txt-export')) el('txt-export').innerHTML = l.export;
+            if(el('txt-empty-title')) el('txt-empty-title').innerHTML = l.emptyTitle;
+            if(el('txt-empty-desc')) el('txt-empty-desc').innerHTML = l.emptyDesc;
+            if(el('btn-browse')) el('btn-browse').innerHTML = l.btnBrowse;
+            if(el('lbl-paper')) el('lbl-paper').innerHTML = l.paper;
+            if(el('lbl-orient')) el('lbl-orient').innerHTML = l.orient;
+            if(el('opt-auto')) el('opt-auto').innerHTML = l.optAuto;
+            if(el('lbl-page')) el('lbl-page').innerHTML = l.page;
+            if(el('lbl-res')) el('lbl-res').innerHTML = l.res;
+            if(el('txt-hint')) el('txt-hint').innerHTML = l.hint;
+            if(el('txt-status')) el('txt-status').innerHTML = l.status;
+            if(el('stat-count')) el('stat-count').innerHTML = l.total(pages.length);
+            if(el('lbl-fit')) el('lbl-fit').innerHTML = l.lblFit;
+            if(el('btn-mode-contain')) el('btn-mode-contain').innerHTML = l.btnFitContain;
+            if(el('btn-mode-cover')) el('btn-mode-cover').innerHTML = l.btnFitCover;
+            if(el('txt-drop-title')) el('txt-drop-title').innerHTML = l.dropTitle;
+            if(el('txt-drop-desc')) el('txt-drop-desc').innerHTML = l.dropDesc;
+            if(el('lbl-inspector')) el('lbl-inspector').innerHTML = l.inspectorTitle;
+            if(el('lbl-inspector-desc')) el('lbl-inspector-desc').innerHTML = l.inspectorDesc;
+            lucide.createIcons();
+        }
+
+        function toggleLang() {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            localStorage.setItem('appLang', currentLang);
+            applyLang();
+        }
+
+        // --- Theme State ---
+        function applyTheme() {
+            const isDark = document.documentElement.classList.contains('dark');
+            const icon = document.getElementById('theme-icon');
+            if(isDark) { icon.setAttribute('data-lucide', 'sun'); } 
+            else { icon.setAttribute('data-lucide', 'moon'); }
+            lucide.createIcons();
+        }
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+            applyTheme();
+        }
+        if (localStorage.getItem('theme') === 'light') document.documentElement.classList.remove('dark');
+        applyTheme();
+
+        // --- Core App State & Multi-Select Logic ---
+        let pages = [];
+        let selectedIndices = new Set(); // Himpunan halaman yang sedang diseleksi
+        let activeIndex = -1; // Halaman utama yang ditampilkan di Canvas
+        let lastSelectedIndex = -1; // Memori untuk seleksi rentang (Shift+Click)
+        
+        let viewTransform = { scale: 1, x: 0, y: 0 };
+        let isPanning = false;
+        let startPan = { x: 0, y: 0 };
+        let previewTimeout;
+        let draggedIndices = []; // Array halaman yang sedang diseret bersamaan
+
+        // --- DOM Elements ---
+        const ui = {
+            workspace: document.getElementById('workspace-area'),
+            topSection: document.getElementById('top-section'),
+            sidebar: document.getElementById('sidebar'),
+            resizerH: document.getElementById('resizer-h'),
+            filmstripContainer: document.getElementById('filmstrip-container'),
+            filmstrip: document.getElementById('filmstrip'),
+            canvas: document.getElementById('active-canvas'),
+            btnExport: document.getElementById('btn-export'),
+            loading: document.getElementById('loading-overlay'),
+            slider: document.getElementById('rotation-slider'),
+            rotDisplay: document.getElementById('rot-display'),
+            infoPage: document.getElementById('info-page'),
+            infoRes: document.getElementById('info-res'),
+            infoZoom: document.getElementById('info-zoom'),
+            statCount: document.getElementById('stat-count'),
+            panelFitMode: document.getElementById('panel-fit-mode'),
+            btnContain: document.getElementById('btn-mode-contain'),
+            btnCover: document.getElementById('btn-mode-cover'),
+            fileInput: document.getElementById('file-upload'),
+            dropOverlay: document.getElementById('drop-overlay')
+        };
+
+        // --- Event Listeners Global ---
+        document.addEventListener('paste', handlePaste);
+        ui.btnExport.addEventListener('click', generatePDF);
+        
+        // Input File (Browse)
+        ui.fileInput.addEventListener('change', function() {
+            if (this.files && this.files.length > 0) processFiles(this.files);
+            this.value = '';
+        });
+
+        // Tangkap Ctrl+A untuk Select All
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+                if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                    e.preventDefault();
+                    if (pages.length > 0) {
+                        pages.forEach((_, i) => selectedIndices.add(i));
+                        renderFilmstrip();
+                        updateToolbarState();
+                    }
+                }
+            }
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                    deleteActivePage();
+                }
+            }
+        });
+
+        // --- Drag & Drop Global Logic (Files dari Luar) ---
+        let dragCounter = 0;
+        document.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            // Hanya tampilkan jika file yang diseret (bukan elemen internal filmstrip)
+            if (e.dataTransfer.types.includes('Files') && draggedIndices.length === 0) {
+                dragCounter++;
+                ui.dropOverlay.classList.remove('hidden');
+                ui.dropOverlay.classList.add('flex');
+            }
+        });
+        document.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            if (draggedIndices.length === 0) {
+                dragCounter--;
+                if (dragCounter === 0) {
+                    ui.dropOverlay.classList.add('hidden');
+                    ui.dropOverlay.classList.remove('flex');
+                }
+            }
+        });
+        document.addEventListener('dragover', (e) => e.preventDefault());
+        document.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragCounter = 0;
+            ui.dropOverlay.classList.add('hidden');
+            ui.dropOverlay.classList.remove('flex');
+            
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0 && draggedIndices.length === 0) {
+                processFiles(e.dataTransfer.files);
+            }
+        });
+
+        // --- Batch Editing Listeners (Terapkan ke Semua yang Terseleksi) ---
+        ui.slider.addEventListener('input', (e) => updateActiveTransform('rotation', parseFloat(e.target.value), true));
+        ui.slider.addEventListener('change', (e) => updateActiveTransform('rotation', parseFloat(e.target.value), false));
+        
+        document.getElementById('btn-rot-ccw').addEventListener('click', () => stepRotation(-90));
+        document.getElementById('btn-rot-cw').addEventListener('click', () => stepRotation(90));
+        document.getElementById('btn-flip-h').addEventListener('click', () => toggleFlip('H'));
+        document.getElementById('btn-flip-v').addEventListener('click', () => toggleFlip('V'));
+        
+        document.getElementById('btn-duplicate').addEventListener('click', duplicateActivePage);
+        document.getElementById('btn-delete').addEventListener('click', () => deleteActivePage());
+
+        document.getElementById('pdf-paper-size').addEventListener('change', () => { renderActiveCanvas(); updateToolbarState(); });
+        document.getElementById('pdf-orientation').addEventListener('change', () => { renderActiveCanvas(); updateToolbarState(); });
+
+        // --- Drag & Resize UI Logic ---
+        let isResizing = false;
+        ui.resizerH.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'row-resize';
+            ui.topSection.style.pointerEvents = 'none';
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const containerBottom = document.body.getBoundingClientRect().bottom - 32; 
+            let newHeight = containerBottom - e.clientY;
+            if (newHeight < 80) newHeight = 80;
+            if (newHeight > window.innerHeight * 0.6) newHeight = window.innerHeight * 0.6;
+            ui.filmstripContainer.style.height = `${newHeight}px`;
+        });
+        window.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+                ui.topSection.style.pointerEvents = '';
+            }
+        });
+
+        // --- Panning/Zooming ---
+        ui.workspace.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            if (activeIndex === -1) return;
+            const zoomSensitivity = 0.0015;
+            const delta = e.deltaY * -zoomSensitivity;
+            let newScale = viewTransform.scale * (1 + delta);
+            newScale = Math.max(0.1, Math.min(newScale, 10)); 
+            viewTransform.scale = newScale;
+            applyViewTransform();
+        }, { passive: false });
+
+        ui.workspace.addEventListener('mousedown', (e) => {
+            if (activeIndex === -1) return;
+            if (e.button !== 0 && e.button !== 1) return; 
+            isPanning = true;
+            startPan = { x: e.clientX - viewTransform.x, y: e.clientY - viewTransform.y };
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isPanning || activeIndex === -1) return;
+            viewTransform.x = e.clientX - startPan.x;
+            viewTransform.y = e.clientY - startPan.y;
+            applyViewTransform();
+        });
+        window.addEventListener('mouseup', () => { isPanning = false; });
+
+        function applyViewTransform() {
+            ui.canvas.style.transform = `translate(${viewTransform.x}px, ${viewTransform.y}px) scale(${viewTransform.scale})`;
+            ui.infoZoom.textContent = `${Math.round(viewTransform.scale * 100)}%`;
+        }
+        function resetViewTransform() {
+            viewTransform = { scale: 1, x: 0, y: 0 };
+            applyViewTransform();
+        }
+
+        // --- Functions ---
+        function processFiles(files) {
+            Array.from(files).forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.onload = () => addPage(img);
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        function handlePaste(e) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            const filesToProcess = [];
+            for (let index in items) {
+                const item = items[index];
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                    filesToProcess.push(item.getAsFile());
+                }
+            }
+            if(filesToProcess.length > 0) processFiles(filesToProcess);
+        }
+
+        function addPage(img) {
+            const newPage = {
+                id: `page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
+                img: img, 
+                rotation: 0, 
+                flipH: false, 
+                flipV: false, 
+                fitMode: 'contain', 
+                thumbData: null
+            };
+            newPage.thumbData = generateThumbnail(newPage);
+            pages.push(newPage);
+            
+            // Auto Select halaman yang baru ditambahkan
+            const newIndex = pages.length - 1;
+            selectedIndices.clear();
+            selectedIndices.add(newIndex);
+            activeIndex = newIndex;
+            lastSelectedIndex = newIndex;
+            
+            updateUI();
+            
+            setTimeout(() => {
+                const thumb = document.getElementById(`thumb-wrap-${newIndex}`);
+                if (thumb) thumb.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+            }, 50);
+        }
+
+        function updateUI() {
+            const hasPages = pages.length > 0;
+            document.getElementById('empty-state').style.display = hasPages ? 'none' : 'flex';
+            ui.topSection.style.display = hasPages ? 'flex' : 'none';
+            ui.resizerH.style.display = hasPages ? 'flex' : 'none';
+            ui.filmstripContainer.style.display = hasPages ? 'flex' : 'none';
+            ui.btnExport.disabled = !hasPages;
+
+            if(hasPages) {
+                renderFilmstrip();
+                resetViewTransform();
+                renderActiveCanvas();
+                updateToolbarState();
+            }
+            ui.statCount.innerHTML = dict[currentLang].total(pages.length);
+        }
+
+        // --- Multi-Select Interaction Logic ---
+        function selectPage(index, e = null) {
+            if (!e) {
+                // Seleksi murni programmatis (hapus yg lain)
+                selectedIndices.clear();
+                selectedIndices.add(index);
+                activeIndex = index;
+                lastSelectedIndex = index;
+            } else {
+                if (e.ctrlKey || e.metaKey) {
+                    // Toggle seleksi ganda
+                    if (selectedIndices.has(index)) {
+                        selectedIndices.delete(index);
+                        // Jika canvas menampilkan yg di-deselect, pindahkan ke item terakhir di set
+                        if (activeIndex === index) activeIndex = Array.from(selectedIndices).pop() ?? -1;
+                    } else {
+                        selectedIndices.add(index);
+                        activeIndex = index;
+                    }
+                    lastSelectedIndex = index;
+                } else if (e.shiftKey) {
+                    // Seleksi rentang berkelompok
+                    if (lastSelectedIndex === -1) lastSelectedIndex = 0;
+                    const start = Math.min(lastSelectedIndex, index);
+                    const end = Math.max(lastSelectedIndex, index);
+                    selectedIndices.clear();
+                    for (let i = start; i <= end; i++) selectedIndices.add(i);
+                    activeIndex = index;
+                } else {
+                    // Seleksi normal (Hapus semua, sisa 1)
+                    selectedIndices.clear();
+                    selectedIndices.add(index);
+                    activeIndex = index;
+                    lastSelectedIndex = index;
+                }
+            }
+            
+            // Fallback jika tanpa sengaja meng-deselect semua elemen
+            if (selectedIndices.size === 0 && pages.length > 0) {
+                activeIndex = 0;
+                selectedIndices.add(0);
+            }
+            
+            resetViewTransform();
+            renderFilmstrip(); 
+            renderActiveCanvas();
+            updateToolbarState();
+        }
+
+        // --- Batch Editing (Terapkan ke Semua yang Terseleksi) ---
+        function setFitMode(mode) {
+            if (selectedIndices.size === 0) return;
+            selectedIndices.forEach(i => pages[i].fitMode = mode);
+            updateToolbarState();
+            renderActiveCanvas();
+            updateSelectedThumbnails();
+        }
+
+        function updateActiveTransform(type, value, isPreview = false) {
+            if (selectedIndices.size === 0) return;
+            if (type === 'rotation') {
+                // Slider memaksa ROTASI ABSOLUT pada semua gambar yang terseleksi
+                selectedIndices.forEach(i => pages[i].rotation = value);
+                ui.rotDisplay.textContent = value.toFixed(1) + '°';
+            }
+            renderActiveCanvas(isPreview);
+            
+            if (!isPreview) {
+                updateSelectedThumbnails();
+                updateToolbarState();
+            }
+        }
+
+        function adjustRotation(delta) {
+            if (selectedIndices.size === 0) return;
+            let current = parseFloat(ui.slider.value);
+            let newVal = parseFloat((current + delta).toFixed(1));
+            if (newVal > 180) newVal -= 360;
+            if (newVal < -180) newVal += 360;
+            
+            ui.slider.value = newVal;
+            updateActiveTransform('rotation', newVal, true);
+            clearTimeout(previewTimeout);
+            previewTimeout = setTimeout(() => { updateActiveTransform('rotation', newVal, false); }, 800);
+        }
+
+        function stepRotation(degrees) {
+            if (selectedIndices.size === 0) return;
+            // Tombol langkah memaksa ROTASI RELATIF masing-masing
+            selectedIndices.forEach(i => {
+                let newRot = pages[i].rotation + degrees;
+                if (newRot > 180) newRot -= 360;
+                if (newRot <= -180) newRot += 360;
+                pages[i].rotation = newRot;
+            });
+            ui.slider.value = pages[activeIndex].rotation;
+            renderActiveCanvas(false);
+            updateSelectedThumbnails();
+            updateToolbarState();
+        }
+
+        function toggleFlip(axis) {
+            if (selectedIndices.size === 0) return;
+            selectedIndices.forEach(i => {
+                if (axis === 'H') pages[i].flipH = !pages[i].flipH;
+                if (axis === 'V') pages[i].flipV = !pages[i].flipV;
+            });
+            renderActiveCanvas(false);
+            updateSelectedThumbnails();
+            updateToolbarState();
+        }
+
+        function duplicateActivePage() {
+            if (selectedIndices.size === 0) return;
+            // Duplikat semua yang terpilih dan susun berurutan setelah seleksi terakhir
+            const sortedSel = Array.from(selectedIndices).sort((a,b)=>a-b);
+            const itemsToDup = sortedSel.map(i => ({...pages[i], id: `page-${Date.now()}-${Math.random().toString(36).substr(2)}`}));
+            const insertPos = sortedSel[sortedSel.length-1] + 1;
+            
+            pages.splice(insertPos, 0, ...itemsToDup);
+            
+            selectedIndices.clear();
+            for(let i=0; i<itemsToDup.length; i++){
+                selectedIndices.add(insertPos + i);
+            }
+            activeIndex = insertPos;
+            updateUI();
+        }
+
+        function deleteActivePage(indexForce = null) {
+            // Jika dipanggil dari tombol hover thumbnail spesifik
+            if (indexForce !== null) {
+                if (selectedIndices.has(indexForce) && selectedIndices.size > 1) {
+                    // Jika yang dihapus ada di set ganda, hanya hapus ia dari set
+                    selectedIndices.delete(indexForce);
+                } else {
+                    // Jika dihapus paksa, jadikan itu target utama pemusnahan
+                    selectedIndices.clear();
+                    selectedIndices.add(indexForce);
+                }
+            }
+
+            if (selectedIndices.size === 0) return;
+            pages = pages.filter((_, i) => !selectedIndices.has(i));
+            
+            selectedIndices.clear();
+            activeIndex = pages.length > 0 ? pages.length - 1 : -1;
+            if(activeIndex !== -1) selectedIndices.add(activeIndex);
+            
+            updateUI();
+        }
+
+        function updateToolbarState() {
+            if (activeIndex === -1) return;
+            const page = pages[activeIndex];
+            const paperType = document.getElementById('pdf-paper-size').value;
+
+            // Slider & Transforms (Menampilkan properti dari halaman primer)
+            ui.slider.value = page.rotation;
+            ui.rotDisplay.textContent = page.rotation.toFixed(1) + '°';
+            document.getElementById('btn-flip-h').style.color = page.flipH ? 'var(--theme-accent)' : '';
+            document.getElementById('btn-flip-v').style.color = page.flipV ? 'var(--theme-accent)' : '';
+            
+            if (paperType === 'auto') {
+                ui.panelFitMode.style.opacity = '0.3';
+                ui.panelFitMode.style.pointerEvents = 'none';
+            } else {
+                ui.panelFitMode.style.opacity = '1';
+                ui.panelFitMode.style.pointerEvents = 'auto';
+            }
+
+            if (page.fitMode === 'contain') {
+                ui.btnContain.classList.add('active'); ui.btnContain.classList.remove('text-textdim');
+                ui.btnCover.classList.remove('active'); ui.btnCover.classList.add('text-textdim');
+            } else {
+                ui.btnCover.classList.add('active'); ui.btnCover.classList.remove('text-textdim');
+                ui.btnContain.classList.remove('active'); ui.btnContain.classList.add('text-textdim');
+            }
+
+            // Indikasi Multi-Select
+            if (selectedIndices.size > 1) {
+                ui.infoPage.innerHTML = `${selectedIndices.size} Halaman <span class="text-theme font-bold">(Terpilih)</span>`;
+            } else {
+                ui.infoPage.textContent = `${activeIndex + 1} / ${pages.length}`;
+            }
+            
+            if(paperType === 'auto'){
+                let normalizedRot = ((page.rotation % 360) + 360) % 360;
+                let isLandscape = (normalizedRot > 45 && normalizedRot <= 135) || (normalizedRot > 225 && normalizedRot <= 315);
+                let cropW = isLandscape ? page.img.height : page.img.width;
+                let cropH = isLandscape ? page.img.width : page.img.height;
+                ui.infoRes.textContent = `${Math.round(cropW)} x ${Math.round(cropH)}`;
+            } else {
+                const paperSizes = { a4: {w:210, h:297}, a3: {w:297, h:420}, letter: {w:215.9, h:279.4}, legal: {w:215.9, h:355.6} };
+                let p = paperSizes[paperType];
+                let o = document.getElementById('pdf-orientation').value;
+                ui.infoRes.textContent = `${paperType.toUpperCase()} (${o === 'p' ? 'Portrait' : 'Landscape'})`;
+            }
+        }
+
+        function renderFilmstrip() {
+            ui.filmstrip.innerHTML = '';
+            pages.forEach((page, index) => {
+                const thumbWrapper = document.createElement('div');
+                thumbWrapper.id = `thumb-wrap-${index}`;
+                thumbWrapper.className = 'filmstrip-item-wrap h-full py-3 transition-transform duration-200 ease-out cursor-pointer';
+                thumbWrapper.draggable = true;
+                
+                // --- Multi-Item Drag & Drop Organizer ---
+                thumbWrapper.ondragstart = (e) => {
+                    // Jika menyeret item yang belum terseleksi, bersihkan yg lain dan seleksi ia
+                    if (!selectedIndices.has(index)) selectPage(index);
+                    
+                    draggedIndices = Array.from(selectedIndices).sort((a,b)=>a-b);
+                    e.dataTransfer.effectAllowed = "move";
+                    
+                    setTimeout(() => {
+                        draggedIndices.forEach(i => {
+                            const el = document.getElementById(`thumb-wrap-${i}`);
+                            if(el) el.classList.add('opacity-40', 'scale-95');
+                        });
+                    }, 0);
+                };
+                
+                thumbWrapper.ondragover = (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    const bounding = thumbWrapper.getBoundingClientRect();
+                    const isLeft = (e.clientX - bounding.left) < bounding.width / 2;
+                    
+                    // Bersihkan semua marker dari elemen lain
+                    document.querySelectorAll('.drag-over-left, .drag-over-right').forEach(el => {
+                        el.classList.remove('drag-over-left', 'drag-over-right');
+                    });
+                    
+                    // Tampilkan garis biru Glowing Indicator secara akurat
+                    if (isLeft) thumbWrapper.classList.add('drag-over-left');
+                    else thumbWrapper.classList.add('drag-over-right');
+                };
+
+                thumbWrapper.ondragleave = () => {
+                    thumbWrapper.classList.remove('drag-over-left', 'drag-over-right');
+                };
+                
+                thumbWrapper.ondrop = (e) => {
+                    e.preventDefault();
+                    thumbWrapper.classList.remove('drag-over-left', 'drag-over-right');
+                    
+                    const bounding = thumbWrapper.getBoundingClientRect();
+                    const isLeft = (e.clientX - bounding.left) < bounding.width / 2;
+                    let targetIndex = isLeft ? index : index + 1; // Tentukan target penyisipan
+                    
+                    if (draggedIndices.length > 0) {
+                        const itemsToMove = draggedIndices.map(i => pages[i]);
+                        
+                        // Hitung koreksi indeks karena kita akan mencabut item-item ini dari asalnya
+                        const numItemsBeforeTarget = draggedIndices.filter(i => i < targetIndex).length;
+                        let adjustedTarget = targetIndex - numItemsBeforeTarget;
+                        
+                        // Filter halaman lama
+                        const newPages = pages.filter((_, i) => !draggedIndices.includes(i));
+                        
+                        // Sisipkan rombongan halaman ke koordinat presisi yang baru
+                        newPages.splice(adjustedTarget, 0, ...itemsToMove);
+                        pages = newPages;
+                        
+                        // Perbarui indeks seleksi sesuai posisi pasca-pendaratan
+                        selectedIndices.clear();
+                        for(let i=0; i<itemsToMove.length; i++) {
+                            selectedIndices.add(adjustedTarget + i);
+                        }
+                        activeIndex = adjustedTarget;
+                        draggedIndices = [];
+                        
+                        updateUI();
+                        setTimeout(() => {
+                            const droppedThumb = document.getElementById(`thumb-wrap-${adjustedTarget}`);
+                            if (droppedThumb) droppedThumb.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+                        }, 50);
+                    }
+                };
+
+                thumbWrapper.ondragend = () => {
+                    // Bersihkan state drag secara menyeluruh jika drop gagal di luar area
+                    draggedIndices.forEach(i => {
+                        const el = document.getElementById(`thumb-wrap-${i}`);
+                        if(el) el.classList.remove('opacity-40', 'scale-95');
+                    });
+                    document.querySelectorAll('.drag-over-left, .drag-over-right').forEach(el => {
+                        el.classList.remove('drag-over-left', 'drag-over-right');
+                    });
+                    draggedIndices = [];
+                };
+
+                const thumbDiv = document.createElement('div');
+                thumbDiv.id = `thumb-${index}`;
+                // Cek multi-select status
+                const isSelected = selectedIndices.has(index);
+                thumbDiv.className = `filmstrip-item h-full min-w-[60px] rounded-lg border-2 overflow-hidden bg-editorbg flex items-center justify-center p-1 shadow-sm ${isSelected ? 'selected' : 'border-bordercolor hover:border-gray-400'}`;
+                
+                // Meneruskan event ke handler multifungsi
+                thumbWrapper.onclick = (e) => selectPage(index, e);
+
+                const imgEl = document.createElement('img');
+                imgEl.src = page.thumbData;
+                imgEl.className = 'max-h-full max-w-full object-contain rounded pointer-events-none';
+                
+                const badge = document.createElement('div');
+                badge.className = `absolute bottom-4 right-1 text-[9px] font-bold px-1.5 py-0.5 rounded shadow pointer-events-none ${isSelected ? 'bg-theme text-white' : 'bg-black/60 text-white'}`;
+                badge.textContent = index + 1;
+
+                // Quick Delete button on hover
+                const delBtn = document.createElement('button');
+                delBtn.className = 'absolute top-1 left-0 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity scale-75 group-hover:scale-100 z-10';
+                delBtn.innerHTML = '<i data-lucide="x" class="w-3 h-3"></i>';
+                delBtn.onclick = (e) => { e.stopPropagation(); deleteActivePage(index); };
+
+                thumbDiv.appendChild(imgEl);
+                thumbWrapper.appendChild(thumbDiv);
+                thumbWrapper.appendChild(badge);
+                thumbWrapper.appendChild(delBtn);
+                
+                ui.filmstrip.appendChild(thumbWrapper);
+            });
+            lucide.createIcons();
+        }
+
+        // --- CROP ENGINE (Drawing Logic) ---
+        function drawToCanvas(canvasElement, page, scaleRatio = 1, isPreview = false, paperType = 'auto', paperOrient = 'p', targetDPI = null) {
+            const ctxTarget = canvasElement.getContext('2d');
+            const img = page.img;
+            const rad = page.rotation * Math.PI / 180;
+
+            let normalizedRot = ((page.rotation % 360) + 360) % 360;
+            let isLandscape = (normalizedRot > 45 && normalizedRot <= 135) || (normalizedRot > 225 && normalizedRot <= 315);
+            let cropW = isLandscape ? img.height : img.width;
+            let cropH = isLandscape ? img.width : img.height;
+
+            let canvasW, canvasH;
+            let scaleFit = 1;
+            let isPaperMode = (paperType !== 'auto');
+            let paperPxW, paperPxH;
+
+            if (isPaperMode) {
+                const paperSizes = { a4: {w:210, h:297}, a3: {w:297, h:420}, letter: {w:215.9, h:279.4}, legal: {w:215.9, h:355.6} };
+                let pW = paperSizes[paperType].w;
+                let pH = paperSizes[paperType].h;
+                if (paperOrient === 'l') { let t = pW; pW = pH; pH = t; }
+
+                let resolutionScale = Math.max(cropW, cropH) / Math.max(pW, pH);
+                if (targetDPI) {
+                    const pxPerMM = targetDPI / 25.4;
+                    resolutionScale = Math.max(resolutionScale, pxPerMM); 
+                }
+
+                paperPxW = pW * resolutionScale;
+                paperPxH = pH * resolutionScale;
+
+                let imgRatio = cropW / cropH;
+                let pageRatio = paperPxW / paperPxH;
+                
+                if (page.fitMode === 'contain') {
+                    scaleFit = (imgRatio > pageRatio) ? (paperPxW / cropW) : (paperPxH / cropH);
+                } else if (page.fitMode === 'cover') {
+                    scaleFit = (imgRatio > pageRatio) ? (paperPxH / cropH) : (paperPxW / cropW);
+                }
+
+                canvasW = paperPxW;
+                canvasH = paperPxH;
+
+                if (isPreview && page.rotation !== 0) {
+                    let maxW = Math.abs(img.width * Math.cos(rad)) + Math.abs(img.height * Math.sin(rad));
+                    let maxH = Math.abs(img.width * Math.sin(rad)) + Math.abs(img.height * Math.cos(rad));
+                    canvasW = Math.max(paperPxW, maxW * scaleFit);
+                    canvasH = Math.max(paperPxH, maxH * scaleFit);
+                }
+            } else {
+                if (isPreview && page.rotation !== 0) {
+                    let maxW = Math.abs(img.width * Math.cos(rad)) + Math.abs(img.height * Math.sin(rad));
+                    let maxH = Math.abs(img.width * Math.sin(rad)) + Math.abs(img.height * Math.cos(rad));
+                    canvasW = Math.max(maxW, cropW);
+                    canvasH = Math.max(maxH, cropH);
+                } else {
+                    canvasW = cropW;
+                    canvasH = cropH;
+
+                    if (targetDPI && !isPreview) {
+                        const pxPerMM = targetDPI / 25.4;
+                        const maxDimMM = 297; 
+                        const minRequiredPixels = maxDimMM * pxPerMM;
+                        const currentMaxPixels = Math.max(cropW, cropH);
+                        
+                        if (currentMaxPixels < minRequiredPixels) {
+                            scaleFit = minRequiredPixels / currentMaxPixels;
+                            canvasW = cropW * scaleFit;
+                            canvasH = cropH * scaleFit;
+                        }
+                    }
+                }
+            }
+
+            canvasElement.width = canvasW * scaleRatio;
+            canvasElement.height = canvasH * scaleRatio;
+
+            ctxTarget.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            let cx = canvasElement.width / 2;
+            let cy = canvasElement.height / 2;
+            let pwScaled = isPaperMode ? paperPxW * scaleRatio : canvasElement.width;
+            let phScaled = isPaperMode ? paperPxH * scaleRatio : canvasElement.height;
+
+            if (isPaperMode) {
+                ctxTarget.fillStyle = '#ffffff';
+                ctxTarget.fillRect(cx - pwScaled/2, cy - phScaled/2, pwScaled, phScaled);
+                ctxTarget.strokeStyle = 'rgba(0,0,0,0.15)';
+                ctxTarget.lineWidth = 1;
+                ctxTarget.strokeRect(cx - pwScaled/2, cy - phScaled/2, pwScaled, phScaled);
+            }
+
+            ctxTarget.save();
+
+            if (isPaperMode && !isPreview) {
+                ctxTarget.beginPath();
+                ctxTarget.rect(cx - pwScaled/2, cy - phScaled/2, pwScaled, phScaled);
+                ctxTarget.clip();
+            }
+
+            ctxTarget.translate(cx, cy);
+            if (scaleRatio !== 1) ctxTarget.scale(scaleRatio, scaleRatio);
+            if (scaleFit !== 1) ctxTarget.scale(scaleFit, scaleFit); 
+            
+            ctxTarget.rotate(rad);
+            ctxTarget.scale(page.flipH ? -1 : 1, page.flipV ? -1 : 1);
+            ctxTarget.drawImage(img, -img.width / 2, -img.height / 2);
+            ctxTarget.restore(); 
+
+            if (isPreview && page.rotation !== 0) {
+                ctxTarget.save();
+                let scaledCropW = cropW * scaleRatio * scaleFit;
+                let scaledCropH = cropH * scaleRatio * scaleFit;
+                
+                ctxTarget.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                ctxTarget.beginPath();
+                
+                if (isPaperMode) {
+                    ctxTarget.rect(cx - pwScaled/2, cy - phScaled/2, pwScaled, phScaled); 
+                } else {
+                    ctxTarget.rect(0, 0, canvasElement.width, canvasElement.height);
+                }
+                
+                ctxTarget.rect(cx - scaledCropW / 2, cy - scaledCropH / 2, scaledCropW, scaledCropH); 
+                ctxTarget.fill('evenodd');
+                
+                ctxTarget.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctxTarget.lineWidth = Math.max(1, 1 * scaleRatio);
+                ctxTarget.beginPath();
+                for (let i = 1; i <= 2; i++) {
+                    ctxTarget.moveTo(cx - scaledCropW/2 + (scaledCropW/3)*i, cy - scaledCropH/2);
+                    ctxTarget.lineTo(cx - scaledCropW/2 + (scaledCropW/3)*i, cy + scaledCropH/2);
+                    ctxTarget.moveTo(cx - scaledCropW/2, cy - scaledCropH/2 + (scaledCropH/3)*i);
+                    ctxTarget.lineTo(cx + scaledCropW/2, cy - scaledCropH/2 + (scaledCropH/3)*i);
+                }
+                ctxTarget.stroke();
+                
+                ctxTarget.strokeStyle = '#3b82f6';
+                ctxTarget.lineWidth = Math.max(2, 2 * scaleRatio);
+                ctxTarget.strokeRect(cx - scaledCropW / 2, cy - scaledCropH / 2, scaledCropW, scaledCropH);
+                
+                ctxTarget.restore();
+            }
+        }
+
+        function renderActiveCanvas(isPreview = false) {
+            if (activeIndex === -1) return;
+            const paperType = document.getElementById('pdf-paper-size').value;
+            const paperOrient = document.getElementById('pdf-orientation').value;
+            drawToCanvas(ui.canvas, pages[activeIndex], 1, isPreview, paperType, paperOrient);
+        }
+
+        function generateThumbnail(page) {
+            const offCanvas = document.createElement('canvas');
+            const ratio = Math.min(1, 150 / Math.max(page.img.width, page.img.height));
+            drawToCanvas(offCanvas, page, ratio, false, 'auto', 'p'); 
+            return offCanvas.toDataURL('image/jpeg', 0.5);
+        }
+
+        function updateSelectedThumbnails() {
+            if (selectedIndices.size === 0) return;
+            selectedIndices.forEach(i => {
+                pages[i].thumbData = generateThumbnail(pages[i]);
+                const thumbImg = document.querySelector(`#thumb-${i} img`);
+                if (thumbImg) thumbImg.src = pages[i].thumbData;
+            });
+        }
+
+        // --- Export PDF ---
+        async function generatePDF() {
+            if (pages.length === 0) return;
+            ui.loading.style.display = 'flex';
+
+            setTimeout(async () => {
+                try {
+                    const { jsPDF } = window.jspdf;
+                    const selectedPaper = document.getElementById('pdf-paper-size').value;
+                    const orientation = document.getElementById('pdf-orientation').value;
+                    
+                    const doc = new jsPDF({ 
+                        unit: 'mm', 
+                        format: selectedPaper === 'auto' ? 'a4' : selectedPaper, 
+                        orientation: orientation,
+                        compress: true 
+                    });
+                    doc.deletePage(1);
+
+                    for (let i = 0; i < pages.length; i++) {
+                        const page = pages[i];
+                        const offCanvas = document.createElement('canvas');
+                        
+                        drawToCanvas(offCanvas, page, 1, false, selectedPaper, orientation, 300); 
+                        const imgData = offCanvas.toDataURL('image/jpeg', 0.92);
+
+                        if (selectedPaper === 'auto') {
+                            const MAX_DIM = 297; 
+                            let normalizedRot = ((page.rotation % 360) + 360) % 360;
+                            let isLandscape = (normalizedRot > 45 && normalizedRot <= 135) || (normalizedRot > 225 && normalizedRot <= 315);
+                            let baseW = isLandscape ? page.img.height : page.img.width;
+                            let baseH = isLandscape ? page.img.width : page.img.height;
+
+                            let pdfW, pdfH;
+                            if (baseW > baseH) {
+                                pdfW = MAX_DIM; pdfH = (baseH / baseW) * MAX_DIM;
+                            } else {
+                                pdfH = MAX_DIM; pdfW = (baseW / baseH) * MAX_DIM;
+                            }
+                            const orientAuto = pdfW > pdfH ? 'l' : 'p';
+                            doc.addPage([pdfW, pdfH], orientAuto);
+                            doc.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH, undefined, 'SLOW');
+                        } else {
+                            doc.addPage(selectedPaper, orientation);
+                            const pW = doc.internal.pageSize.getWidth();
+                            const pH = doc.internal.pageSize.getHeight();
+                            doc.addImage(imgData, 'JPEG', 0, 0, pW, pH, undefined, 'SLOW');
+                        }
+                    }
+                    doc.save(`Gambar2PDF_${Date.now()}.pdf`);
+                } catch (error) {
+                    console.error("PDF Error:", error);
+                    alert("Gagal memproses PDF. Mungkin memori browser tidak cukup untuk banyak gambar resolusi tinggi.");
+                } finally {
+                    ui.loading.style.display = 'none';
+                }
+            }, 100);
+        }
+
+        function toggleModal() {
+            const m = document.getElementById('modal-terms');
+            m.style.display = m.style.display === 'flex' ? 'none' : 'flex';
+        }
+        
+        applyLang();
+        
+        // TATADADA UX Protection: Anti Right-Click
+        document.addEventListener('contextmenu', e => {
+            if (!e.target.closest('input, textarea, select, .allow-context, .selectable')) {
+                e.preventDefault();
+            }
+        });
+    </script>
+</body>
+</html>
