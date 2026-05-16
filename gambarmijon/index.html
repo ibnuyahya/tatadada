@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gambarmijon Studio</title>
+    
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', { 'page_path': window.location.pathname, 'app_instance_name': document.title });
+    </script>
+    
+    <!-- Histats -->
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+
+    <!-- Auto-Favicon Injector -->
+    <script>
+    fetch('icon.xml').then(r => r.text()).then(xml => {
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+        const cStart = doc.querySelector('color_start')?.textContent || '#0ea5e9';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#4338ca';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter></defs><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
+        const link = document.createElement('link'); link.rel = 'icon'; link.type = 'image/svg+xml';
+        link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+    }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+
+    <!-- UI Core -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+                    colors: {
+                        header: 'var(--header-bg)',
+                        editor: 'var(--editor-bg)',
+                        preview: 'var(--preview-bg)',
+                        card: 'var(--card-bg)',
+                        footer: 'var(--footer-bg)',
+                        borderTheme: 'var(--border-color)',
+                        main: 'var(--text-main)',
+                        dim: 'var(--text-dim)',
+                        themeAccent: 'var(--theme-accent)'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --header-bg: #ffffff; --editor-bg: #ffffff; --preview-bg: #e2e8f0;
+            --card-bg: #f8fafc; --footer-bg: #ffffff; --border-color: #cbd5e1;
+            --text-main: #0f172a; --text-dim: #64748b; --theme-accent: #3b82f6;
+        }
+        html.dark {
+            --header-bg: #111827; --editor-bg: #1f2937; --preview-bg: #030712;
+            --card-bg: #0f172a; --footer-bg: #111827; --border-color: #334155;
+            --text-main: #f8fafc; --text-dim: #94a3b8; color-scheme: dark;
+        }
+        body { 
+            background-color: var(--preview-bg); color: var(--text-main); 
+            overflow: hidden; user-select: none; -webkit-user-select: none;
+        }
+        input, textarea, pre, code, .selectable { 
+            user-select: text; -webkit-user-select: text; 
+        }
+        .hidden-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .hidden-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .hidden-scrollbar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        
+        .input-premium {
+            background-color: var(--editor-bg);
+            border: 1px solid var(--border-color);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .input-premium:focus {
+            outline: none; border-color: var(--theme-accent);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        /* Pro Split Resizer */
+        .resizer {
+            width: 5px;
+            background-color: var(--border-color);
+            cursor: col-resize;
+            transition: background-color 0.2s;
+            position: relative;
+            z-index: 50;
+        }
+        .resizer:hover, .resizer.resizing {
+            background-color: var(--theme-accent);
+        }
+        .resizer::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            height: 30px; width: 3px;
+            background-color: rgba(255,255,255,0.4);
+            border-radius: 4px;
+            pointer-events: none;
+        }
+
+        .checkerboard {
+            background-image: linear-gradient(45deg, #808080 25%, transparent 25%), linear-gradient(-45deg, #808080 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #808080 75%), linear-gradient(-45deg, transparent 75%, #808080 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            opacity: 0.05;
+        }
+        .dark .checkerboard { opacity: 0.1; }
+    </style>
+</head>
+<body class="flex flex-col h-screen text-sm font-sans">
+
+    <!-- HEADER (Native App Title Bar) -->
+    <header class="h-12 bg-header border-b border-theme flex items-center justify-between px-4 shrink-0 z-40">
+        <div class="flex items-center gap-3">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-sm">
+                <i data-lucide="camera" class="w-4 h-4 text-white"></i>
+            </div>
+            <div class="flex items-baseline gap-2">
+                <h1 class="font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-300 text-[15px] tracking-tight">gambarmijon</h1>
+                <span class="text-[9px] font-bold text-dim uppercase tracking-wider">Pro</span>
+            </div>
+        </div>
+        
+        <!-- Center Tool: Compact Dimensions -->
+        <div class="hidden md:flex items-center justify-center absolute left-1/2 -translate-x-1/2">
+            <div class="flex items-center gap-2 bg-preview px-3 py-1 rounded-md border border-theme">
+                <div class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+                <span id="imgDimensions" class="text-[10px] font-mono font-bold text-theme">0 × 0 px</span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+            <button id="langToggle" class="h-7 px-2.5 rounded-md hover:bg-preview text-[10px] font-bold text-dim hover:text-theme transition-all">ID</button>
+            <button id="themeToggle" class="w-7 h-7 rounded-md hover:bg-preview text-dim hover:text-theme transition-all flex items-center justify-center">
+                <i data-lucide="moon" class="w-3.5 h-3.5" id="themeIcon"></i>
+            </button>
+            <div class="w-px h-4 bg-borderTheme mx-1"></div>
+            <button onclick="document.getElementById('termsModal').showModal()" class="w-7 h-7 rounded-md hover:bg-preview text-dim hover:text-theme flex items-center justify-center" title="Documentation">
+                <i data-lucide="help-circle" class="w-3.5 h-3.5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- WORKSPACE: TRUE SPLIT VIEW -->
+    <main class="flex-1 flex overflow-hidden bg-preview">
+        
+        <!-- LEFT PANEL: Inspector / Sidebar -->
+        <aside id="sidebar" class="w-[300px] flex-shrink-0 bg-card flex flex-col h-full z-20 relative">
+            
+            <div class="px-4 py-3 border-b border-theme flex items-center justify-between shrink-0 bg-card">
+                <h2 class="text-[11px] font-bold uppercase tracking-wider text-dim" data-lang-id="Inspector" data-lang-en="Inspector">Inspector</h2>
+                <button id="resetBtn" class="text-[9px] font-bold text-theme hover:text-red-500 transition-colors uppercase" data-lang-id="Reset" data-lang-en="Reset">Reset</button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto hidden-scrollbar p-4 space-y-6">
+                
+                <!-- ID/URL Input -->
+                <div class="space-y-2">
+                    <label class="text-[10px] font-bold text-theme uppercase tracking-wider" data-lang-id="Source ID" data-lang-en="Source ID">Source ID</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="imageIdInput" value="718YXE3I2WL" placeholder="Paste Amazon ID..." class="input-premium flex-1 px-3 py-1.5 rounded-md text-xs font-mono">
+                        <button id="extractBtn" class="px-3 bg-editor border border-theme text-theme hover:bg-preview text-[10px] font-bold rounded-md transition-all shadow-sm" data-lang-id="Set" data-lang-en="Set">Set</button>
+                    </div>
+                </div>
+
+                <div class="h-px bg-borderTheme opacity-50"></div>
+
+                <!-- Parameters: Dimensions -->
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[10px] font-bold text-theme uppercase tracking-wider" data-lang-id="Geometry" data-lang-en="Geometry">Geometry</label>
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <span class="text-[9px] font-mono text-dim">_AC_</span>
+                            <div class="relative inline-flex items-center">
+                                <input type="checkbox" id="acCheck" class="sr-only peer">
+                                <div class="w-7 h-4 bg-editor border border-theme rounded-full peer peer-checked:bg-blue-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-3 peer-checked:after:border-white shadow-inner"></div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="space-y-1">
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-dim">Scale Longest</span>
+                            <span id="slValueDisplay" class="text-[10px] font-mono text-theme">1500px</span>
+                        </div>
+                        <input type="range" id="slRange" min="0" max="2500" step="50" value="1500" class="w-full h-1 bg-borderTheme rounded-lg appearance-none cursor-pointer accent-blue-500">
+                    </div>
+                    
+                    <div class="flex gap-3">
+                        <div class="flex-1 space-y-1">
+                            <span class="text-[9px] text-dim font-bold uppercase">Max H (_SY_)</span>
+                            <input type="number" id="syInput" placeholder="Auto" class="input-premium w-full px-2 py-1.5 rounded-md text-xs font-mono">
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <span class="text-[9px] text-dim font-bold uppercase">Max W (_SX_)</span>
+                            <input type="number" id="sxInput" placeholder="Auto" class="input-premium w-full px-2 py-1.5 rounded-md text-xs font-mono">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="h-px bg-borderTheme opacity-50"></div>
+
+                <!-- Parameters: Quality -->
+                <div class="space-y-4">
+                    <label class="text-[10px] font-bold text-theme uppercase tracking-wider" data-lang-id="Encoding" data-lang-en="Encoding">Encoding</label>
+                    
+                    <div class="space-y-1">
+                        <span class="text-[10px] text-dim">Format</span>
+                        <div class="relative">
+                            <select id="formatSelect" class="input-premium w-full pl-3 pr-8 py-1.5 rounded-md text-xs appearance-none cursor-pointer">
+                                <option value="">Original (JPG)</option>
+                                <option value="webp">WebP (Modern)</option>
+                                <option value="avif">AVIF (Smallest)</option>
+                                <option value="png">PNG (Lossless)</option>
+                            </select>
+                            <i data-lucide="chevron-down" class="w-3 h-3 absolute right-3 top-2.5 text-dim pointer-events-none"></i>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-dim">Quality</span>
+                            <span id="qlValueDisplay" class="text-[10px] font-mono text-theme">100</span>
+                        </div>
+                        <input type="range" id="qlRange" min="10" max="100" step="1" value="100" class="w-full h-1 bg-borderTheme rounded-lg appearance-none cursor-pointer accent-blue-500">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Author signature -->
+            <div class="p-3 border-t border-theme bg-card flex justify-center shrink-0">
+                 <a href="https://danial.my.id" target="_blank" class="text-[9px] text-dim font-medium hover:text-blue-500 transition-colors">Architected by AhmadDanial</a>
+            </div>
+        </aside>
+
+        <!-- THE RESIZER (Draggable Split) -->
+        <div id="resizer" class="resizer hidden md:block"></div>
+
+        <!-- RIGHT PANEL: Visualizer Canvas (Edge-to-Edge) -->
+        <section class="flex-1 flex flex-col min-w-0 bg-preview relative">
+            
+            <!-- Sleek Inline Toolbar -->
+            <div class="h-12 border-b border-theme bg-card/80 backdrop-blur-md flex items-center px-4 gap-3 shrink-0 absolute top-0 left-0 right-0 z-10">
+                <div class="flex-1 relative flex items-center">
+                    <i data-lucide="link-2" class="w-4 h-4 text-dim absolute left-3"></i>
+                    <input type="text" id="urlOutput" readonly class="w-full h-8 bg-editor border border-theme rounded-md text-xs font-mono text-theme pl-9 pr-3 focus:outline-none focus:border-blue-500 selectable transition-colors" placeholder="Generated URL...">
+                    <span id="toast" class="absolute right-2 text-[9px] font-bold text-green-500 bg-green-500/10 px-2 py-0.5 rounded opacity-0 transition-opacity uppercase">Copied</span>
+                </div>
+                <button id="copyBtn" class="h-8 px-4 bg-theme-accent hover:bg-blue-600 text-white rounded-md flex items-center gap-1.5 transition-colors text-[11px] font-bold shadow-sm shrink-0">
+                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                    <span data-lang-id="Copy" data-lang-en="Copy">Copy</span>
+                </button>
+                <div class="w-px h-5 bg-borderTheme mx-1"></div>
+                <a id="openNewTabBtn" href="#" target="_blank" class="w-8 h-8 rounded-md flex items-center justify-center text-dim hover:text-theme hover:bg-editor transition-colors" title="Open in new tab">
+                    <i data-lucide="external-link" class="w-4 h-4"></i>
+                </a>
+            </div>
+
+            <!-- Main Canvas Area -->
+            <div class="flex-1 mt-12 relative overflow-auto hidden-scrollbar flex items-center justify-center">
+                <!-- Checkerboard Background -->
+                <div class="absolute inset-0 checkerboard"></div>
+                
+                <!-- Loading State -->
+                <div id="loadingIndicator" class="absolute inset-0 z-30 flex items-center justify-center bg-preview/60 backdrop-blur-sm hidden transition-all">
+                    <div class="px-4 py-2 bg-card border border-theme rounded-lg shadow-lg flex items-center gap-3">
+                        <div class="w-4 h-4 border-2 border-borderTheme border-t-blue-500 rounded-full animate-spin"></div>
+                        <span class="text-xs font-medium text-theme">Rendering...</span>
+                    </div>
+                </div>
+
+                <!-- The Image -->
+                <img id="previewImage" src="" alt="Preview" class="relative z-10 max-w-full max-h-full object-contain drop-shadow-xl transition-opacity duration-200 select-none m-4" draggable="false">
+            </div>
+        </section>
+    </main>
+
+    <!-- DOCUMENTATION MODAL -->
+    <dialog id="termsModal" class="bg-transparent p-0 backdrop:bg-black/50 backdrop:backdrop-blur-sm m-auto rounded-xl shadow-2xl border border-theme max-w-2xl w-[90%]">
+        <div class="bg-card p-6 flex flex-col gap-6 text-theme max-h-[85vh] overflow-hidden">
+            <div class="flex justify-between items-center border-b border-theme pb-4 shrink-0">
+                <h2 class="font-bold text-lg" data-lang-id="Dokumentasi & Legal" data-lang-en="Documentation & Legal">Dokumentasi & Legal</h2>
+                <button onclick="document.getElementById('termsModal').close()" class="text-dim hover:text-red-500 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto hidden-scrollbar space-y-6 pr-2 text-sm">
+                <div class="space-y-3">
+                    <h3 class="font-bold text-blue-500 flex items-center gap-2"><i data-lucide="code" class="w-4 h-4"></i> Parameter API</h3>
+                    <ul class="space-y-3 text-dim text-[13px]">
+                        <li><strong class="text-theme font-mono text-xs">_SL[px]_</strong> : Scale Longest. Menyesuaikan batas sisi terpanjang tanpa mendistorsi gambar.</li>
+                        <li><strong class="text-theme font-mono text-xs">_SY_ / _SX_</strong> : Batas spesifik untuk tinggi (Y) atau lebar (X).</li>
+                        <li><strong class="text-theme font-mono text-xs">_AC_</strong> : Auto-crop. Memotong area transparan/putih untuk fokus pada subjek.</li>
+                    </ul>
+                </div>
+                
+                <div class="space-y-3 pt-4 border-t border-theme">
+                    <h3 class="font-bold text-dim uppercase tracking-wider text-[11px]" data-lang-id="Ketentuan Penggunaan" data-lang-en="Terms of Use">Ketentuan Penggunaan</h3>
+                    <div class="text-[11px] text-dim leading-relaxed space-y-2 p-3 bg-preview rounded-lg">
+                        <p data-lang-id="Aplikasi ini sepenuhnya merakit URL di sisi klien dan merender gambar langsung dari server Amazon. Tidak ada media yang diunduh ke server kami." data-lang-en="This app entirely constructs URLs client-side and renders images directly from Amazon servers. No media is downloaded to our servers.">Aplikasi ini sepenuhnya merakit URL di sisi klien dan merender gambar langsung dari server Amazon. Tidak ada media yang diunduh ke server kami.</p>
+                        <p data-lang-id="Aplikasi ini disediakan 'as-is' tanpa jaminan. Menggunakan Google Analytics/Histats untuk statistik anonim. Penggunaan aplikasi membebaskan pembuat dari segala tuntutan hukum." data-lang-en="App provided 'as-is' without warranty. Uses Analytics/Histats for anonymous stats. Using the app absolves the creator from legal claims.">Aplikasi ini disediakan 'as-is' tanpa jaminan. Menggunakan Google Analytics/Histats untuk statistik anonim. Penggunaan aplikasi membebaskan pembuat dari segala tuntutan hukum.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </dialog>
+
+    <script>
+        // UX Protection
+        document.addEventListener('contextmenu', e => {
+            if (!e.target.closest('input, textarea, .allow-context, .selectable')) e.preventDefault();
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+
+            // --- THEME ---
+            const themeToggle = document.getElementById('themeToggle');
+            const themeIcon = document.getElementById('themeIcon');
+            let isDark = localStorage.getItem('studio_theme') === 'dark';
+            const updateTheme = () => {
+                document.documentElement.classList.toggle('dark', isDark);
+                themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+                lucide.createIcons();
+                localStorage.setItem('studio_theme', isDark ? 'dark' : 'light');
+            };
+            themeToggle.addEventListener('click', () => { isDark = !isDark; updateTheme(); });
+            updateTheme();
+
+            // --- LANG ---
+            const langToggle = document.getElementById('langToggle');
+            let currentLang = localStorage.getItem('studio_lang') || 'id';
+            const updateLanguage = () => {
+                langToggle.textContent = currentLang.toUpperCase();
+                document.querySelectorAll('[data-lang-id]').forEach(el => {
+                    el.textContent = el.getAttribute(`data-lang-${currentLang}`);
+                });
+                localStorage.setItem('studio_lang', currentLang);
+            };
+            langToggle.addEventListener('click', () => { currentLang = currentLang === 'id' ? 'en' : 'id'; updateLanguage(); });
+            updateLanguage();
+
+            // --- DRAGGABLE SPLIT PANE LOGIC ---
+            const resizer = document.getElementById('resizer');
+            const sidebar = document.getElementById('sidebar');
+            let isResizing = false;
+
+            resizer.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                resizer.classList.add('resizing');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none'; // Prevent text selection while dragging
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                
+                // Calculate new width based on mouse position
+                // Limiting width between 220px and 500px for UX safety
+                let newWidth = e.clientX;
+                if (newWidth < 220) newWidth = 220;
+                if (newWidth > 500) newWidth = 500;
+                
+                sidebar.style.width = `${newWidth}px`;
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    resizer.classList.remove('resizing');
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                }
+            });
+
+
+            // --- APP LOGIC ---
+            const inputs = {
+                id: document.getElementById('imageIdInput'),
+                sl: document.getElementById('slRange'),
+                sy: document.getElementById('syInput'),
+                sx: document.getElementById('sxInput'),
+                ac: document.getElementById('acCheck'),
+                fm: document.getElementById('formatSelect'),
+                ql: document.getElementById('qlRange')
+            };
+
+            const displays = {
+                sl: document.getElementById('slValueDisplay'),
+                ql: document.getElementById('qlValueDisplay'),
+                url: document.getElementById('urlOutput'),
+                img: document.getElementById('previewImage'),
+                dim: document.getElementById('imgDimensions'),
+                loader: document.getElementById('loadingIndicator'),
+                newTab: document.getElementById('openNewTabBtn')
+            };
+
+            let renderTimer;
+
+            const updateStudio = () => {
+                clearTimeout(renderTimer);
+                
+                displays.sl.textContent = inputs.sl.value == 0 ? 'OFF' : `${inputs.sl.value}px`;
+                displays.ql.textContent = inputs.ql.value;
+
+                const idVal = inputs.id.value.trim();
+                if (!idVal) {
+                    displays.img.src = '';
+                    displays.url.value = '';
+                    displays.dim.textContent = '0 × 0 px';
+                    return;
+                }
+
+                renderTimer = setTimeout(() => {
+                    displays.loader.classList.remove('hidden');
+                    displays.img.classList.add('opacity-30');
+
+                    let p = [];
+                    if (inputs.ac.checked) p.push('AC');
+                    if (inputs.sl.value > 0) p.push(`SL${inputs.sl.value}`);
+                    if (inputs.sy.value) p.push(`SY${inputs.sy.value}`);
+                    if (inputs.sx.value) p.push(`SX${inputs.sx.value}`);
+                    if (inputs.fm.value) p.push(`FM${inputs.fm.value}`);
+                    if (inputs.ql.value < 100) p.push(`QL${inputs.ql.value}`);
+
+                    let finalUrl = `https://m.media-amazon.com/images/I/${idVal}`;
+                    finalUrl += p.length > 0 ? `._${p.join('_')}_.jpg` : `.jpg`;
+
+                    displays.url.value = finalUrl;
+                    displays.newTab.href = finalUrl;
+                    
+                    const testImg = new Image();
+                    testImg.onload = function() {
+                        displays.img.src = finalUrl;
+                        displays.img.classList.remove('opacity-30');
+                        displays.loader.classList.add('hidden');
+                        displays.dim.textContent = `${this.naturalWidth} × ${this.naturalHeight} px`;
+                    };
+                    testImg.onerror = () => {
+                        displays.loader.classList.add('hidden');
+                        displays.dim.textContent = 'Error';
+                    };
+                    testImg.src = finalUrl;
+                }, 300);
+            };
+
+            // Setup Listeners
+            Object.values(inputs).forEach(i => {
+                i.addEventListener('input', updateStudio);
+                i.addEventListener('change', updateStudio);
+            });
+
+            document.getElementById('extractBtn').addEventListener('click', () => {
+                let val = inputs.id.value;
+                const match = val.match(/\/images\/I\/([A-Za-z0-9]+)\./);
+                if (match) inputs.id.value = match[1];
+                updateStudio();
+            });
+
+            document.getElementById('resetBtn').addEventListener('click', () => {
+                inputs.sl.value = 0; inputs.sy.value = ''; inputs.sx.value = '';
+                inputs.ac.checked = false; inputs.fm.value = ''; inputs.ql.value = 100;
+                updateStudio();
+            });
+
+            document.getElementById('copyBtn').addEventListener('click', () => {
+                const toast = document.getElementById('toast');
+                displays.url.select();
+                document.execCommand('copy');
+                toast.classList.remove('opacity-0');
+                setTimeout(() => toast.classList.add('opacity-0'), 2000);
+            });
+
+            // Initial Run
+            updateStudio();
+        });
+    </script>
+</body>
+</html>
