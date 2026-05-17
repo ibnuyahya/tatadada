@@ -620,27 +620,49 @@
         function generateSmartFilename() {
             if (masterDataMap.size === 0) return "ambiljon-empty.json";
             
-            const titles = Array.from(masterDataMap.values()).map(p => p.title.toLowerCase());
-            const words = titles.join(" ").split(/[^a-z0-9]+/);
+            const stopWords = new Set([
+                'and','or','the','in','of','with','for','to','a','an','is','on','at','by','from','up','pack','size','cm','inch','dan','untuk','dengan','di','ke','dari','yang','ini','itu',
+                'sponsored','ad','free','shipping','premium','quality','new','sale','hot','best','set','kit','pcs','piece','pieces','lbs','kg','oz','ml','mm','color','colour','black','white','blue','red','green','gray','grey','pink','purple','yellow','brown','silver','gold'
+            ]);
             
-            const stopWords = new Set(['and','or','the','in','of','with','for','to','a','an','is','on','at','by','from','up','pack','size','cm','inch','dan','untuk','dengan','di','ke','dari','yang','ini','itu']);
-            
+            const bigramCounts = {};
             const wordCounts = {};
-            let maxCount = 0;
-            let topWord = "products";
-
-            words.forEach(w => {
-                if (w.length > 3 && !stopWords.has(w) && isNaN(w)) {
+            
+            Array.from(masterDataMap.values()).forEach(p => {
+                const words = p.title.toLowerCase().split(/[^a-z]+/).filter(w => w.length > 2 && !stopWords.has(w));
+                
+                words.forEach(w => {
                     wordCounts[w] = (wordCounts[w] || 0) + 1;
-                    if (wordCounts[w] > maxCount) {
-                        maxCount = wordCounts[w];
-                        topWord = w;
-                    }
+                });
+
+                for (let i = 0; i < words.length - 1; i++) {
+                    const bigram = words[i] + '-' + words[i+1];
+                    bigramCounts[bigram] = (bigramCounts[bigram] || 0) + 1;
                 }
             });
 
+            let topPhrase = "products";
+            let maxCount = 0;
+
+            for (const [phrase, count] of Object.entries(bigramCounts)) {
+                if (count > maxCount) {
+                    maxCount = count;
+                    topPhrase = phrase;
+                }
+            }
+
+            if (maxCount < 2) {
+                maxCount = 0;
+                for (const [word, count] of Object.entries(wordCounts)) {
+                    if (count > maxCount) {
+                        maxCount = count;
+                        topPhrase = word;
+                    }
+                }
+            }
+
             const date = new Date().toISOString().split('T')[0];
-            return `ambiljon-${topWord}-${date}.json`;
+            return `ambiljon-${topPhrase}-${date}.json`;
         }
 
         function downloadJSON() {
