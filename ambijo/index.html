@@ -109,22 +109,26 @@
         #modalTerms.show { display: flex; opacity: 1; }
         #modalHelp.show { display: flex; opacity: 1; }
         
-        <!-- Empty State -->
-        <div id="emptyState" class="text-center py-24 bg-white rounded-3xl border-2 border-dashed border-slate-200/60 shadow-inner shadow-slate-50">
-            <div class="mb-6 relative inline-block">
-                <div class="absolute inset-0 bg-blue-100 rounded-full blur-2xl opacity-50 scale-150"></div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-20 w-20 text-slate-200 relative" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01m-.01 4h.01" />
-                </svg>
-            </div>
-            <h3 class="text-xl font-bold text-slate-800 mb-1">Daftar Masih Kosong</h3>
-            <p class="text-slate-400 font-medium px-8">Data akan terakumulasi di sini saat Anda memproses halaman Amazon.</p>
-        </div>
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .animate-pulse-soft { animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        .backdrop-blur-modal { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+    </style>
+</head>
+<body class="h-screen flex flex-col transition-colors duration-300">
 
-        <footer class="mt-12 text-center pb-12">
-            <p class="text-xs text-slate-400 font-medium uppercase tracking-widest">Deduplication Engine Active &bull; Cumulative Mode On &bull; Auto-Save Active</p>
-        </footer>
-    </div>
+    <!-- Header -->
+    <header class="h-14 bg-header border-b border-theme flex items-center justify-between px-6 shrink-0 z-20 shadow-sm transition-colors duration-300">
+        <div class="flex items-center gap-4">
+            <h1 class="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 tracking-tighter">ambiljon</h1>
+            <span class="italic text-dim text-xs font-semibold">v3.0</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-accent transition-colors allow-context">by AhmadDanial</a>
+            <button onclick="toggleModal('modalHelp')" class="w-6 h-6 rounded-full border border-theme flex items-center justify-center text-dim hover:text-accent hover:border-accent transition-all" title="Help / Guide">
+                <i data-lucide="help-circle" class="w-3.5 h-3.5"></i>
+            </button>
+        </div>
         <div class="flex items-center gap-3">
             <button onclick="toggleLang()" id="langBtn" class="w-8 h-6 flex items-center justify-center rounded border border-theme text-[10px] font-black text-dim hover:text-accent hover:border-accent transition-all">ID</button>
             <button onclick="toggleTheme()" class="w-8 h-6 flex items-center justify-center rounded border border-theme text-dim hover:text-accent hover:border-accent transition-all">
@@ -148,7 +152,7 @@
             </div>
             
             <div class="flex-1 relative bg-editor">
-                <!-- Line Numbers Margin (Visual Only for premium polish) -->
+                <!-- Line Numbers Margin -->
                 <div class="absolute left-0 top-0 bottom-0 w-8 bg-preview border-r border-theme z-0 flex flex-col items-center pt-5 text-[10px] text-dim/50 font-mono-custom select-none" id="lineNumbers">
                     1<br>2<br>3<br>4
                 </div>
@@ -190,7 +194,7 @@
                     <thead class="sticky top-0 bg-header z-10 shadow-sm">
                         <tr class="text-dim text-[10px] uppercase tracking-widest text-left">
                             <th class="p-4 border-b border-theme font-bold w-16 text-center" id="thImg">Visual</th>
-                            <th class="p-4 border-b border-border-theme font-bold" id="thInfo">Informasi Produk</th>
+                            <th class="p-4 border-b border-theme font-bold" id="thInfo">Informasi Produk</th>
                             <th class="p-4 border-b border-theme font-bold text-right w-24" id="thPrice">Harga</th>
                             <th class="p-4 border-b border-theme font-bold text-center w-24" id="thRating">Metrik</th>
                             <th class="p-4 border-b border-theme font-bold text-right w-32" id="thAsin">ASIN</th>
@@ -239,7 +243,7 @@
                     <li id="mhL2">Inspect element, cari kontainer pencarian utama (biasanya <code class="bg-preview px-1 rounded text-accent text-xs">div.s-main-slot</code>).</li>
                     <li id="mhL3">Copy <code class="bg-preview px-1 rounded text-accent text-xs">innerHTML</code> dari elemen tersebut.</li>
                     <li id="mhL4">Paste di Terminal Input aplikasi ini, lalu klik Proses.</li>
-                    <li id="mhL5">Buka halaman 2 di Amazon, ulangi proses paste dan klik Proses. Data baru akan otomatis ditambahkan ke bawah tanpa duplikasi.</li>
+                    <li id="mhL5">Buka halaman 2 di Amazon, ulangi proses paste dan klik Proses. Data baru otomatis ditambahkan.</li>
                 </ol>
             </div>
         </div>
@@ -254,7 +258,7 @@
             </div>
             <div class="p-6 bg-editor text-xs text-dim space-y-4 overflow-y-auto max-h-[70vh] custom-scrollbar leading-relaxed text-justify allow-context">
                 <p id="mtC1" class="font-bold text-text-main">Smart Context: Ambiljon Data Extractor</p>
-                <p id="mtC2">Aplikasi ini memparsing struktur HTML mentah secara mandiri pada peramban (client-side browser) Anda. Segala komputasi Regex dan ekstraksi JSON <code class="text-[10px] bg-preview px-1 rounded">data-payload</code> terjadi di perangkat Anda. Aplikasi beroperasi murni lokal tanpa mengirimkan teks atau hasil ekstraksi data produk Anda ke server pihak ketiga mana pun, demi menjaga privasi teknik dan sasaran riset Anda.</p>
+                <p id="mtC2">Aplikasi ini memparsing struktur HTML mentah secara mandiri pada peramban (client-side browser) Anda. Segala komputasi Regex dan ekstraksi JSON data-payload terjadi di perangkat Anda. Aplikasi beroperasi murni lokal tanpa mengirimkan teks atau hasil ekstraksi data produk Anda ke server pihak ketiga mana pun, demi menjaga privasi teknik dan sasaran riset Anda.</p>
                 <div class="h-px w-full bg-border-color my-4"></div>
                 <p id="mtL1" class="font-bold text-text-main">Klausul Legal Wajib</p>
                 <p id="mtL2">Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.</p>
@@ -276,11 +280,10 @@
         // State
         let isDarkMode = false;
         let isEnglish = false;
-        let masterDataMap = new Map(); // Core data storage (ASIN -> Object)
+        let masterDataMap = new Map();
 
         // Init
         document.addEventListener('DOMContentLoaded', () => {
-            // Load Settings
             if (localStorage.getItem('ambiljonTheme') === 'dark') toggleTheme(true);
             if (localStorage.getItem('ambiljonLang') === 'en') toggleLang(true);
 
@@ -384,7 +387,6 @@
             });
         }
 
-        // Translation Dictionary
         const i18n = {
             id: {
                 lblInputTitle: "Terminal Input", lblClearAll: "Clear", lblProcessBtn: "PROSES & GABUNG DATA",
@@ -461,7 +463,6 @@
 
                 let title = '', price = '', rating = '', reviews = '', imgSrc = '';
 
-                // Strategy 1: data-payload (Precision)
                 const payloadRaw = item.getAttribute('data-payload');
                 if (payloadRaw) {
                     try {
@@ -474,41 +475,34 @@
                     } catch (e) {}
                 }
 
-                // Strategy 2: Visual Scrape Fallback (Dioptimalkan sesuai pola analisis Anda)
                 if (!title) {
-                    // Pola 1: Mencari judul di dalam h2 aria-label
                     const h2Label = item.querySelector('h2[aria-label]');
                     if (h2Label) {
                         title = h2Label.getAttribute('aria-label').trim();
                     } else {
-                        // Pola 2: Mencari elemen dengan class a-text-normal
                         const textNormal = item.querySelector('.a-text-normal');
                         title = textNormal ? textNormal.innerText.trim() : '';
                     }
                 }
                 
-                if (!title) return; // Abaikan elemen dekoratif / kerangka iklan yang kosong
+                if (!title) return;
 
                 if (!price || price === 'See Options' || price === 'N/A') {
-                    // Pola Harga Bersih dari class .a-offscreen
                     const pEl = item.querySelector('.a-price .a-offscreen') || item.querySelector('.a-offscreen');
                     price = pEl ? pEl.innerText.trim() : 'N/A';
                 }
 
                 if (!rating || rating === 'N/A') {
-                    // Pola Rating Bintang
                     const rEl = item.querySelector('.a-icon-alt');
                     rating = rEl ? rEl.innerText.split(' ')[0] : 'N/A';
                 }
 
                 if (!imgSrc) {
-                    // Pola Gambar Utama
                     const iEl = item.querySelector('img.s-image');
                     imgSrc = iEl ? (iEl.src || iEl.getAttribute('data-src')) : '';
                 }
 
                 if (!reviews || reviews === '0') {
-                    // Pola Ekstraksi Angka Review (Membersihkan teks seperti "ratings" atau K)
                     const revEl = item.querySelector('span[aria-label*="rating"]') || item.querySelector('span[aria-label*="ulasan"]');
                     if (revEl) {
                         reviews = revEl.getAttribute('aria-label').replace(/[^0-9]/g, '');
@@ -519,16 +513,13 @@
                     if (!reviews) reviews = '0';
                 }
 
-                // Identifikasi Sponsored / Iklan
                 const isSponsored = !!item.querySelector('.s-sponsored-label-info-icon') || !!item.querySelector('.puis-sponsored-label-text') || title.toLowerCase().startsWith('sponsored');
 
-                // Bersihkan prefix "Sponsored Ad - " dari judul produk
                 title = title.replace(/^Sponsored Ad\s*-\s*/i, '').trim();
 
                 const productObj = { asin, title, price, rating, reviews, imgSrc, isSponsored };
 
                 if (masterDataMap.has(asin)) {
-                    // Update jika judul baru lebih panjang/lebih lengkap
                     if (title.length > masterDataMap.get(asin).title.length) {
                         masterDataMap.set(asin, productObj);
                         updated++;
@@ -629,11 +620,9 @@
         function generateSmartFilename() {
             if (masterDataMap.size === 0) return "ambiljon-empty.json";
             
-            // Heuristik: Mengekstrak kata benda yang paling sering muncul dari semua judul
             const titles = Array.from(masterDataMap.values()).map(p => p.title.toLowerCase());
             const words = titles.join(" ").split(/[^a-z0-9]+/);
             
-            // Abaikan kata-kata umum (stop words) bahasa Inggris & Indonesia
             const stopWords = new Set(['and','or','the','in','of','with','for','to','a','an','is','on','at','by','from','up','pack','size','cm','inch','dan','untuk','dengan','di','ke','dari','yang','ini','itu']);
             
             const wordCounts = {};
@@ -650,7 +639,7 @@
                 }
             });
 
-            const date = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+            const date = new Date().toISOString().split('T')[0];
             return `ambiljon-${topWord}-${date}.json`;
         }
 
