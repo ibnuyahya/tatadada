@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Mega Pipeline v5.2 - AutoSave Edition</title>
+    
+    <!-- Google Analytics (Wajib) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+    
+    <!-- Histats.com  START  (aync)-->
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+    <noscript><a href="/" target="_blank"><img  src="//sstatic1.histats.com/0.gif?5024490&101" alt="" border="0"></a></noscript>
+    <!-- Histats.com  END  -->
+
+    <!-- Auto-Favicon Injector (Wajib - Smart Parser) -->
+    <script>
+    fetch('icon.xml').then(r => r.text()).then(xml => {
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+        const cStart = doc.querySelector('color_start')?.textContent || '#8b5cf6';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#3b82f6';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
+        const link = document.createElement('link');
+        link.rel = 'icon'; link.type = 'image/svg+xml';
+        link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+    }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+                    colors: { 
+                        theme: { 
+                            accent: 'var(--theme-accent)', 
+                            header: 'var(--header-bg)', 
+                            preview: 'var(--preview-bg)', 
+                            card: 'var(--card-bg)', 
+                            footer: 'var(--footer-bg)', 
+                            border: 'var(--border-color)', 
+                            main: 'var(--text-main)', 
+                            dim: 'var(--text-dim)' 
+                        } 
+                    },
+                    boxShadow: { 'ios': 'var(--shadow-md)', 'ios-sm': 'var(--shadow-sm)' }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { 
+            --header-bg: #ffffff; 
+            --editor-bg: #ffffff; 
+            --preview-bg: #f1f5f9; 
+            --card-bg: #ffffff; 
+            --footer-bg: #ffffff; 
+            --border-color: #e2e8f0; 
+            --text-main: #0f172a; 
+            --text-dim: #64748b; 
+            --theme-accent: #3b82f6; 
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05); 
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); 
+        }
+        html.dark { 
+            --header-bg: #161b22; 
+            --editor-bg: #0d1117; 
+            --preview-bg: #010409; 
+            --card-bg: #0d1117; 
+            --footer-bg: #161b22; 
+            --border-color: #30363d; 
+            --text-main: #e6edf3; 
+            --text-dim: #8b949e; 
+            color-scheme: dark; 
+        }
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            user-select: none; 
+            -webkit-user-select: none;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        input, textarea, pre, code, .selectable, .allow-context { 
+            user-select: text; 
+            -webkit-user-select: text; 
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 99px; }
+        .step-panel { display: none; animation: fadeIn 0.3s forwards; }
+        .step-panel.active { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .upload-zone { border: 2px dashed var(--border-color); background-color: var(--preview-bg); transition: all 0.2s; cursor: pointer; }
+        .upload-zone:hover { border-color: var(--theme-accent); background-color: rgba(59, 130, 246, 0.05); }
+    </style>
+</head>
+<body class="h-screen flex flex-col antialiased">
+
+    <!-- A. Header -->
+    <header class="h-14 shrink-0 bg-theme-header border-b border-theme-border flex items-center justify-between px-6 z-20 shadow-ios-sm">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center text-white shadow-sm"><i data-lucide="layers" class="w-5 h-5"></i></div>
+            <div class="flex flex-col">
+                <h1 class="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-blue-500 tracking-tight leading-tight">
+                    Mega Pipeline <span class="text-xs font-normal text-theme-dim ml-1 uppercase tracking-widest italic">v5.2</span>
+                </h1>
+                <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-theme-dim hover:text-blue-500 transition-colors mt-0.5">by AhmadDanial</a>
+            </div>
+            <button title="Bantuan / Help" class="text-theme-dim hover:text-theme-accent ml-2" data-lang-id="Bantuan" data-lang-en="Help"><i data-lucide="help-circle" class="w-4 h-4"></i></button>
+        </div>
+        <div class="flex items-center gap-4">
+            <span id="save-indicator" class="text-xs font-medium text-emerald-500 flex items-center gap-1 opacity-0 transition-opacity duration-300"><i data-lucide="cloud-off" class="w-3 h-3"></i> Saved</span>
+            <button id="btnLang" onclick="toggleLang()" class="text-xs font-bold text-theme-dim hover:text-theme-main px-2 border border-theme-border rounded bg-theme-card">ID</button>
+            <button id="btnTheme" class="p-2 rounded-full hover:bg-theme-preview text-theme-dim transition-colors"><i data-lucide="moon" class="w-4 h-4" id="icon-theme"></i></button>
+        </div>
+    </header>
+
+    <!-- B. Main Workspace -->
+    <main class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative z-10 flex flex-col items-center">
+        
+        <!-- RESTORE BANNER -->
+        <div id="restore-banner" class="hidden w-full max-w-5xl mb-4 bg-amber-50 border border-amber-200 rounded-xl p-4 flex-row items-center justify-between shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center"><i data-lucide="history" class="w-5 h-5"></i></div>
+                <div>
+                    <h4 class="font-bold text-amber-800 text-sm" data-lang-id="Sesi Sebelumnya Ditemukan" data-lang-en="Previous Session Found">Sesi Sebelumnya Ditemukan</h4>
+                    <p class="text-xs text-amber-700" data-lang-id="Kami menemukan data pekerjaan Anda yang belum selesai. Ingin melanjutkannya?" data-lang-en="We found unsaved work. Would you like to restore it?">Kami menemukan data pekerjaan Anda yang belum selesai. Ingin melanjutkannya?</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="clearSession()" class="px-4 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 rounded-lg transition-colors" data-lang-id="Abaikan & Mulai Baru" data-lang-en="Discard & Start Fresh">Abaikan & Mulai Baru</button>
+                <button onclick="restoreSession()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors" data-lang-id="Restore Progress" data-lang-en="Restore Progress">Restore Progress</button>
+            </div>
+        </div>
+
+        <div class="max-w-5xl w-full bg-theme-card rounded-2xl shadow-ios border border-theme-border flex flex-col overflow-hidden min-h-[calc(100vh-12rem)]">
+            
+            <div class="bg-theme-header border-b border-theme-border p-5 shrink-0">
+                <div class="flex items-center justify-between max-w-4xl mx-auto">
+                    <script>
+                        const steps = [ {id: 1, icon: 'database', label: '1. Input JSON'}, {id: 2, icon: 'bot', label: '2. AI Dispatcher'}, {id: 3, icon: 'file-spreadsheet', label: '3. Paste CSV'}, {id: 4, icon: 'code', label: '4. Copy HTML'} ];
+                        document.write(steps.map((s, i) => `
+                            <div class="flex flex-col items-center flex-1 cursor-pointer group" onclick="goToStep(${s.id})">
+                                <div id="step-icon-${s.id}" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm bg-theme-preview text-theme-dim border border-theme-border group-hover:border-theme-accent">
+                                    <i data-lucide="${s.icon}" class="w-5 h-5"></i>
+                                </div>
+                                <span id="step-text-${s.id}" class="mt-2 text-[10px] font-semibold uppercase tracking-wider text-theme-dim">${s.label}</span>
+                            </div>
+                            ${i < steps.length - 1 ? `<div id="step-line-${s.id}" class="h-[2px] w-full bg-theme-border rounded-full mx-2"></div>` : ''}
+                        `).join(''));
+                    </script>
+                </div>
+            </div>
+
+            <div class="p-6 md:p-8 flex-1 flex flex-col relative overflow-y-auto">
+                
+                <!-- STEP 1: UPLOAD JSON -->
+                <div id="panel-1" class="step-panel active flex-col gap-4 h-full">
+                    <div id="json-input-container" class="relative w-full flex-1 flex flex-col items-center justify-center upload-zone rounded-2xl">
+                        <input type="file" id="file-json" accept=".json" class="hidden" onchange="handleJSONUpload(event)">
+                        <textarea id="ta-json" oninput="processJSON()" class="allow-context absolute inset-0 w-full h-full opacity-0 z-10 resize-none"></textarea>
+                        <div class="pointer-events-none flex flex-col items-center text-center px-4">
+                            <div class="w-16 h-16 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center mb-4"><i data-lucide="braces" class="w-8 h-8"></i></div>
+                            <h3 class="font-bold text-lg text-theme-main">Upload Hasil Scrape (gas.py)</h3>
+                            <p class="text-sm text-theme-dim mt-2 mb-6">Paste raw JSON atau upload file <code class="bg-theme-preview px-1 border border-theme-border rounded">amazon_deep_scraped_data.json</code></p>
+                            <label for="file-json" class="pointer-events-auto relative z-20 px-6 py-2.5 bg-theme-card border border-theme-border rounded-lg text-sm font-semibold cursor-pointer hover:border-theme-accent hover:text-theme-accent transition-colors shadow-sm">Browse JSON</label>
+                        </div>
+                    </div>
+                    <div id="json-success" class="hidden flex-col flex-1 items-center justify-center gap-4 bg-theme-preview rounded-2xl border border-theme-border">
+                        <div class="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500 mb-2"><i data-lucide="check" class="w-10 h-10"></i></div>
+                        <h3 class="text-2xl font-bold text-theme-main">JSON Berhasil Dibaca!</h3>
+                        <p class="text-theme-dim"><strong id="json-count" class="text-emerald-500 text-lg">0</strong> Produk siap dikirim ke AI.</p>
+                        <div class="flex gap-4 mt-6">
+                            <button onclick="resetApp()" class="px-6 py-2.5 bg-theme-card text-theme-dim border border-theme-border rounded-lg text-sm font-medium hover:bg-theme-preview transition-colors">Hapus Sesi & Mulai Baru</button>
+                            <button onclick="goToStep(2)" class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-indigo-700">Pecah Jadi Batch &rarr;</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2: PROMPT DISPATCHER -->
+                <div id="panel-2" class="step-panel flex-col h-full overflow-hidden">
+                    <div class="flex justify-between items-center mb-4 shrink-0 bg-theme-card p-4 rounded-xl border border-theme-border shadow-sm">
+                        <div>
+                            <h3 class="font-bold text-lg text-theme-main">AI Prompt Dispatcher</h3>
+                            <p class="text-xs text-theme-dim">Sistem memecah JSON menjadi batch kecil agar Qwen/ChatGPT tidak berhalusinasi.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs font-semibold text-theme-dim">Items per Chat:</label>
+                            <select id="batch-size" onchange="renderBatches()" class="bg-theme-preview border border-theme-border rounded p-1.5 text-sm outline-none font-semibold text-theme-main">
+                                <option value="3">3 Items</option>
+                                <option value="4" selected>4 Items</option>
+                                <option value="5">5 Items</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="batch-container" class="flex-1 overflow-y-auto space-y-3 pr-2 pb-10"></div>
+                </div>
+
+                <!-- STEP 3: PASTE CSV -->
+                <div id="panel-3" class="step-panel flex-col gap-4 h-full">
+                    <div class="flex justify-between items-center shrink-0 bg-theme-card p-4 rounded-xl border border-theme-border shadow-sm">
+                        <div>
+                            <h3 class="font-bold text-lg text-theme-main">Kumpulkan Hasil CSV</h3>
+                            <p class="text-xs text-theme-dim">Paste semua balasan CSV dari Qwen ke kotak di bawah ini secara bertumpuk.</p>
+                        </div>
+                        <span class="text-xs font-bold bg-emerald-500/10 text-emerald-500 px-3 py-1.5 rounded-lg border border-emerald-500/20">Total: <span id="csv-count-badge">0</span> Artikel</span>
+                    </div>
+                    <textarea id="ta-csv-input" oninput="parseAI_CSV()" placeholder="Judul_Artikel,Konten_HTML&#10;..." class="allow-context w-full flex-1 p-5 bg-theme-card border border-theme-border rounded-xl outline-none font-mono text-xs text-theme-main focus:ring-2 focus:ring-indigo-500/20 resize-none whitespace-pre shadow-inner"></textarea>
+                    <div class="flex justify-end pt-2 shrink-0">
+                        <button onclick="goToStep(4)" class="px-6 py-3 bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-emerald-700 transition-colors">Tampilkan HTML Siap Copas &rarr;</button>
+                    </div>
+                </div>
+
+                <!-- STEP 4: HTML COPIER -->
+                <div id="panel-4" class="step-panel flex-col h-full overflow-hidden">
+                    <div class="flex justify-between items-center mb-4 shrink-0 bg-theme-card p-4 rounded-xl border border-theme-border shadow-sm">
+                        <div>
+                            <h3 class="font-bold text-lg text-theme-main">Daftar Artikel Siap Posting <span class="ml-2 text-sm text-indigo-500">(<span id="final-post-count">0</span> Item)</span></h3>
+                            <p class="text-xs text-theme-dim">Copy HTML ke tab <span class="font-mono text-theme-accent">&lt;HTML&gt;</span> Blogger. Pindah ke tab <span class="font-mono text-theme-accent">Compose</span>, klik kanan gambar, Copy Image, lalu Paste agar tersimpan di Google.</p>
+                        </div>
+                        <button onclick="goToStep(3)" class="text-xs font-semibold text-theme-dim hover:text-theme-main flex items-center gap-1"><i data-lucide="arrow-left" class="w-3 h-3"></i> Kembali</button>
+                    </div>
+                    
+                    <div id="html-results-container" class="flex-1 overflow-y-auto space-y-4 pr-2 pb-10">
+                        <!-- Cards injected here -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- C. Footer -->
+    <footer class="h-8 shrink-0 bg-theme-footer border-t border-theme-border flex items-center justify-between px-6 text-[10px] text-theme-dim z-20">
+        <div class="flex items-center gap-2">
+            <span class="flex h-2 w-2 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
+            <span id="system-status" data-lang-id="Sistem Stabil" data-lang-en="System Stable">Sistem Stabil</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <span id="footer-stats" class="font-mono">Ready</span>
+            <button onclick="document.getElementById('modal-terms').classList.remove('hidden')" class="hover:text-theme-accent font-semibold underline decoration-dotted underline-offset-2">Terms</button>
+        </div>
+    </footer>
+
+    <!-- D. Modal Terms of Use / Disclaimer -->
+    <div id="modal-terms" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-theme-card max-w-lg w-full rounded-2xl shadow-xl border border-theme-border flex flex-col overflow-hidden">
+            <div class="p-5 border-b border-theme-border flex justify-between items-center bg-theme-header">
+                <h2 class="font-bold text-lg text-theme-main flex items-center gap-2"><i data-lucide="scale" class="w-5 h-5 text-indigo-500"></i> <span data-lang-id="Ketentuan Penggunaan" data-lang-en="Terms of Use">Ketentuan Penggunaan</span></h2>
+                <button onclick="document.getElementById('modal-terms').classList.add('hidden')" class="text-theme-dim hover:text-theme-main"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[60vh] space-y-4 text-sm text-theme-dim leading-relaxed">
+                <!-- Smart Context -->
+                <div class="p-4 bg-theme-preview rounded-lg border border-theme-border">
+                    <h3 class="font-bold text-theme-main mb-2" data-lang-id="Konteks Operasional (Smart Mode)" data-lang-en="Operational Context (Smart Mode)">Konteks Operasional (Smart Mode)</h3>
+                    <p data-lang-id="Mega Pipeline beroperasi sepenuhnya secara lokal di dalam peramban (browser) Anda. Tidak ada payload JSON, CSV, atau HTML yang dikirim ke peladen (server) eksternal selain localStorage perangkat Anda untuk keperluan AutoSave." data-lang-en="Mega Pipeline operates entirely locally within your browser. No JSON, CSV, or HTML payloads are transmitted to external servers other than your device's localStorage for AutoSave purposes.">
+                        Mega Pipeline beroperasi sepenuhnya secara lokal di dalam peramban (browser) Anda. Tidak ada payload JSON, CSV, atau HTML yang dikirim ke peladen (server) eksternal selain localStorage perangkat Anda untuk keperluan AutoSave.
+                    </p>
+                </div>
+                <!-- Legal Clause -->
+                <h3 class="font-bold text-theme-main" data-lang-id="Klausul Legal Wajib" data-lang-en="Mandatory Legal Clause">Klausul Legal Wajib</h3>
+                <p id="legal-text-id">
+                    Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.
+                </p>
+                <p id="legal-text-en" class="hidden">
+                    There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics and Histats to collect anonymous visit and usage statistics for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.
+                </p>
+            </div>
+            <div class="p-4 border-t border-theme-border bg-theme-header flex justify-end">
+                <button onclick="document.getElementById('modal-terms').classList.add('hidden')" class="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold text-sm hover:bg-indigo-700 transition-colors shadow-sm">Mengerti / I Understand</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- UX Protection: Anti-Select/Right-Click Script -->
+    <script>
+    document.addEventListener('contextmenu', e => {
+        if (!e.target.closest('input, textarea, .allow-context, .selectable')) {
+            e.preventDefault();
+        }
+    });
+    </script>
+
+    <script>
+        // MEGA PROMPT FULL ENGLISH
+        const MEGA_PROMPT = `ABSOLUTE TASK:
+I am providing a JSON data of Amazon products. Transform this data into a comprehensive, highly-engaging product review blog article using pure HTML. ALL OUTPUT MUST BE IN ENGLISH.
+
+CONDITIONAL PERSONA INSTRUCTION (DYNAMIC ROUTING):
+Read the "Category" field in the JSON data. Adopt ONE of the following Researcher Personas for the entire writing style:
+IF it contains "Accessories": Be a "Time-Saving Style Guide". Focus: Primary materials, actual dimensions, hardware durability, functional value vs. price. Style: Honest, practical, observant. Hook: "Choosing the right accessories can be tricky since studio photos always look flawless. By breaking down the material specs and summarizing the real praises and complaints from previous buyers, we've filtered the best options so you don't make the wrong choice."
+IF it contains "Appliances": Be a "Home Appliance Function Analyst". Focus: Power consumption, physical dimensions, noise levels, system malfunction frequency, ease of installation. Style: Objective, cautious, informative. Hook: "Investing in home appliances requires careful consideration to avoid future regrets. We've examined the technical spec sheets and mapped out the satisfaction and complaint patterns of real users to save you hours of research."
+IF it contains "Apps & Games" or "Video Games": Be a "Software & Device Curator". Focus: Compatibility, update frequency, performance stability, bug complaints. Style: Concise, critical, solution-oriented. Hook: "Finding stable digital entertainment without hidden fees can be exhausting. We've summarized the compatibility sheets and aggregated user technical complaints so you know exactly what you're getting."
+IF it contains "Arts Crafts & Sewing": Be a "Creative Materials Sorter". Focus: Package quantity, base materials, instruction clarity, production defect complaints. Style: Detailed, supportive, realistic. Hook: "Starting a creative project can end in frustration if the materials don't meet expectations. We dissect the product components and summarize the hands-on experiences of fellow hobbyists to ensure your project runs smoothly."
+IF it contains "Automotive": Be an "Automotive Component Researcher". Focus: Specific part dimensions, vehicle fitment, weather resistance, installation complexity. Style: Precise, cautious. Hook: "Choosing the wrong automotive part wastes both your money and your time in the garage. By matching the product data sheets with honest summaries from vehicle owners who have actually installed them, we map out the best options for you."
+IF it contains "Baby Products": Be a "Child Comfort & Safety Researcher". Focus: Material certifications, age/weight limits, practicality, physical hazard complaints. Style: Cautious, warm, protective. Hook: "Your little one's health and safety are non-negotiable priorities. Through strict examination of material spec sheets and a thorough summary of other parents' experiences, we filter out the safest and most comfortable choices."
+IF it contains "Beauty" or "Health": Be a "Personal Care & Efficacy Observer". Focus: Active ingredients, skin type suitability, texture, reported side effects. Style: Objective, neutral, observant. Hook: "Finding personal care products that actually work often requires expensive trial and error. We analyze the core ingredients and aggregate honest reviews from past users to help you set realistic expectations."
+IF it contains "Books" or "Movies & TV" or "CDs": Be a "Media & Entertainment Summarizer". Focus: Physical quality, completeness, visual/audio satisfaction. Style: Insightful, appreciative. Hook: "Your leisure time is too valuable to spend on the wrong media. We map out the core value and the physical release quality based on previous user reviews to ensure this deserves a spot in your collection."
+IF it contains "Cell Phones" or "Electronics": Be an "Electronics Usability Sorter". Focus: Power input/output, real-world battery life, early malfunction frequency. Style: Logical, critical. Hook: "The tech world is full of high-spec promises that don't always translate to daily use. Based on technical data mapping and real-user complaint analysis, we filter out the most stable choices for your needs."
+IF it contains "Clothing Shoes & Jewelry": Be a "Wardrobe Fit Coordinator". Focus: Fabric material, sizing accuracy percentage, elasticity, post-wash shrinkage. Style: Fashionable, realistic. Hook: "Buying apparel online often sparks anxiety about the fit and fabric expectations. We review the sizing charts and summarize past buyer testimonials to ensure you get something comfortable from day one."
+IF it contains "Grocery": Be a "Food & Freshness Observer". Focus: Net weight, allergen certifications, shipping packaging durability. Style: Clean, observant. Hook: "Buying groceries online demands extra assurance of freshness and secure packaging. We map out the core ingredients and aggregate shipping reports from previous buyers to help you shop with peace of mind."
+IF it contains "Home & Kitchen" or "Office" or "Patio": Be a "Daily Tools Coordinator". Focus: Dimensions, material durability, daily practicality. Style: Practical, detailed. Hook: "Everyday comfort starts with tools that are highly functional and built to last. We dissect the material dimensions and summarize the daily praises and complaints of real users so you don't make the wrong pick."
+IF it contains "Industrial": Be a "Work Tool Screener". Focus: Industry certifications, accuracy tolerance, material durability, function failure. Style: Precise, factual. Hook: "Industrial and lab equipment demand high accuracy and durability. Based on technical data sheets and the sentiments of professional users, we filter out the most reliable options."
+IF it contains "Pet Supplies": Be a "Pet Comfort Inspector". Focus: Composition, dimensions, chew-resistance, animal reactions. Style: Caring, realistic. Hook: "Choosing the right supplies for your furry friend can be confusing since every pet is unique. By mapping out specs and summarizing honest reviews from other pet owners, we filter out the safest products for your companion."
+IF it contains "Sports" or "Tools": Be a "Physical Gear Evaluator". Focus: Weight, load capacity, materials, portability, real-world failure complaints. Style: Dynamic, critical. Hook: "Your gear's performance dictates your safety and comfort in the field. We dissect the technical specs and summarize the real-world experiences of outdoor enthusiasts to simplify your preparation."
+IF Category is not found: Be a "Smart Data Curator". Focus: Price vs. basic specs comparison, main functions, overall buyer satisfaction. Style: Objective, solution-oriented. Hook: "We gather fundamental specifications and summarize honest reviews from those who have tried it, so you don't have to guess before you buy."
+
+E-E-A-T RULES (CRITICAL):
+NEVER lie or pretend you have physically tested or bought the product. NEVER invent fake numbers of reviews. Your value proposition is saving the reader's time by analyzing specs and summarizing real buyer sentiments. Use honest phrases like: "Looking at the spec sheet...", "Based on the summary of real buyer reviews...", or "Many Amazon users highlight...". Use the "Review_Headlines" data to capture the genuine emotional tone of the buyers.
+
+HTML FORMATTING RULES:
+1. Use pure HTML tags (<h2>, <h3>, <ul>, <p>, <table>). You MUST use SINGLE QUOTES (') for all HTML attributes (e.g., <img src='...'>).
+2. REWRITE TITLE: Change the product title into a catchy, SEO-friendly blog post title.
+3. INSERT IMAGES: Use 2-3 URLs from the "Images" array. Place them naturally within the content using <img src='...'>.
+4. BUILD TABLE: Convert the "Technical_Specifications" object into a neat HTML <table>. DO NOT alter the numbers/facts.
+5. BUYER REVIEW ANALYSIS: Create an <h2>Real Buyer Review Analysis</h2> section. Write an objective Pros & Cons narrative based strictly on "AI_Review_Summary" and "Review_Headlines".
+6. AFFILIATE LINKS: Any CTA or product link MUST include rel='nofollow sponsored'.
+7. DISCLAIMER: Insert this exact paragraph at the very end of the article: "Disclaimer: As an independent data curator, we compile this information to save you time. As an Amazon Associate, we may earn a commission from qualifying purchases made through links on this page, at no extra cost to you."
+
+OUTPUT RULES (CRITICAL):
+Provide the output ONLY in raw CSV format. No markdown blocks, no introductory text.
+The first row MUST be the exact header: Judul_Artikel,Konten_HTML
+Enclose the entire HTML content in DOUBLE QUOTES ("..."). Replace any double quotes inside the HTML string with single quotes. DO NOT USE LINE BREAKS (ENTER) inside the HTML string; use <br> or </p><p> instead.
+
+PRODUCT DATA (JSON BATCH):
+`;
+
+        // APP LOGIC
+        lucide.createIcons();
+        
+        // --- Localization Logic ---
+        let currentLang = localStorage.getItem('tata_lang') || 'ID';
+        const applyLang = () => {
+            document.getElementById('btnLang').textContent = currentLang;
+            document.querySelectorAll('[data-lang-id]').forEach(el => {
+                el.textContent = currentLang === 'ID' ? el.getAttribute('data-lang-id') : el.getAttribute('data-lang-en');
+            });
+            document.getElementById('legal-text-id').className = currentLang === 'ID' ? 'block' : 'hidden';
+            document.getElementById('legal-text-en').className = currentLang === 'EN' ? 'block' : 'hidden';
+        };
+        window.toggleLang = () => {
+            currentLang = currentLang === 'ID' ? 'EN' : 'ID';
+            localStorage.setItem('tata_lang', currentLang);
+            applyLang();
+        };
+
+        // --- Theme Logic ---
+        let isDark = localStorage.getItem('tata_theme') === 'dark';
+        const applyTheme = () => { 
+            document.documentElement.classList.toggle('dark', isDark); 
+            document.getElementById('icon-theme').setAttribute('data-lucide', isDark?'sun':'moon'); 
+            lucide.createIcons(); 
+        };
+        document.getElementById('btnTheme').onclick = () => { isDark = !isDark; localStorage.setItem('tata_theme', isDark?'dark':'light'); applyTheme(); };
+        
+        applyTheme();
+        applyLang();
+
+        let sourceJSON = [];
+        let finalCSVData = [];
+        let currentStep = 1;
+
+        // --- SESSION MANAGEMENT LOGIC ---
+        const SESSION_KEY = 'mega_pipeline_session';
+
+        const showSaveIndicator = () => {
+            const ind = document.getElementById('save-indicator');
+            ind.innerHTML = `<i data-lucide="cloud-lightning" class="w-3 h-3"></i> Saved`;
+            lucide.createIcons();
+            ind.classList.remove('opacity-0');
+            setTimeout(() => { ind.classList.add('opacity-0'); }, 2000);
+            updateStats();
+        };
+        
+        const updateStats = () => {
+            const stats = document.getElementById('footer-stats');
+            if(currentStep === 1) stats.textContent = `JSON Loaded: ${sourceJSON.length}`;
+            if(currentStep > 1 && currentStep < 4) stats.textContent = `CSV Articles: ${finalCSVData.length}`;
+            if(currentStep === 4) stats.textContent = `Ready to Post: ${finalCSVData.length}`;
+        };
+
+        const saveSession = () => {
+            const sessionData = {
+                step: currentStep,
+                rawJson: document.getElementById('ta-json').value,
+                rawCsv: document.getElementById('ta-csv-input').value,
+                batchSize: document.getElementById('batch-size').value,
+            };
+            localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
+            showSaveIndicator();
+        };
+
+        const checkSession = () => {
+            const data = localStorage.getItem(SESSION_KEY);
+            if (data) {
+                const parsed = JSON.parse(data);
+                if(parsed.rawJson || parsed.rawCsv) {
+                    document.getElementById('restore-banner').classList.remove('hidden');
+                    document.getElementById('restore-banner').classList.add('flex');
+                }
+            }
+        };
+
+        window.restoreSession = () => {
+            const dataStr = localStorage.getItem(SESSION_KEY);
+            if (dataStr) {
+                const data = JSON.parse(dataStr);
+                if (data.batchSize) document.getElementById('batch-size').value = data.batchSize;
+                if (data.rawJson) {
+                    document.getElementById('ta-json').value = data.rawJson;
+                    processJSON(true); 
+                }
+                if (data.rawCsv) {
+                    document.getElementById('ta-csv-input').value = data.rawCsv;
+                    parseAI_CSV(true);
+                }
+                goToStep(data.step || 1, true);
+                
+                document.getElementById('restore-banner').classList.add('hidden');
+                document.getElementById('restore-banner').classList.remove('flex');
+            }
+        };
+
+        window.clearSession = () => {
+            localStorage.removeItem(SESSION_KEY);
+            document.getElementById('restore-banner').classList.add('hidden');
+            document.getElementById('restore-banner').classList.remove('flex');
+        };
+
+        window.resetApp = () => {
+            if(confirm("Anda yakin ingin menghapus semua progress dan memulai dari awal?")) {
+                clearSession();
+                window.location.reload();
+            }
+        };
+
+        window.goToStep = (target, skipSave = false) => {
+            currentStep = target;
+            for(let i=1; i<=4; i++){
+                document.getElementById(`panel-${i}`).classList.remove('active');
+                const icon = document.getElementById(`step-icon-${i}`), text = document.getElementById(`step-text-${i}`), line = document.getElementById(`step-line-${i}`);
+                if(!icon) continue;
+                
+                icon.className = 'w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm bg-theme-preview text-theme-dim border border-theme-border group-hover:border-theme-accent';
+                text.className = 'mt-2 text-[10px] font-semibold uppercase tracking-wider text-theme-dim';
+                if(line) line.className = 'h-[2px] w-full bg-theme-border rounded-full mx-2';
+
+                if(i < target) {
+                    icon.classList.replace('bg-theme-preview', 'bg-emerald-500/10'); 
+                    icon.classList.add('text-emerald-500', 'border-emerald-200');
+                    text.classList.add('text-emerald-600');
+                    icon.innerHTML = `<i data-lucide="check" class="w-5 h-5"></i>`;
+                    if(line) line.classList.add('bg-emerald-400');
+                } else if (i === target) {
+                    icon.classList.replace('bg-theme-preview', 'bg-indigo-600'); 
+                    icon.classList.add('text-white', 'border-indigo-600');
+                    text.classList.add('text-indigo-600', 'font-bold');
+                    const icons = ['braces','bot','file-spreadsheet','code']; icon.innerHTML = `<i data-lucide="${icons[i-1]}" class="w-5 h-5"></i>`;
+                } else {
+                    const icons = ['braces','bot','file-spreadsheet','code']; icon.innerHTML = `<i data-lucide="${icons[i-1]}" class="w-5 h-5"></i>`;
+                }
+            }
+            lucide.createIcons();
+            document.getElementById(`panel-${target}`).classList.add('active');
+            
+            if(target === 2) renderBatches(skipSave);
+            if(target === 4) renderHTMLList();
+            
+            if(!skipSave) saveSession();
+        };
+
+        const handleJSONUpload = (e) => {
+            const file = e.target.files[0];
+            if(file) { const reader = new FileReader(); reader.onload = (ev) => { document.getElementById('ta-json').value = ev.target.result; processJSON(); }; reader.readAsText(file); }
+        };
+
+        window.processJSON = (skipSave = false) => {
+            const raw = document.getElementById('ta-json').value;
+            if(!raw.trim()) return;
+            try {
+                sourceJSON = JSON.parse(raw);
+                if(Array.isArray(sourceJSON) && sourceJSON.length > 0) {
+                    document.getElementById('json-input-container').classList.add('hidden');
+                    document.getElementById('json-success').classList.remove('hidden');
+                    document.getElementById('json-success').classList.add('flex');
+                    document.getElementById('json-count').textContent = sourceJSON.length;
+                    if(!skipSave) saveSession();
+                }
+            } catch (e) { 
+                if(!skipSave) alert("Format bukan JSON yang valid!"); 
+            }
+        };
+
+        window.renderBatches = (skipSave = false) => {
+            const batchSize = parseInt(document.getElementById('batch-size').value);
+            const container = document.getElementById('batch-container');
+            container.innerHTML = '';
+            
+            const totalBatches = Math.ceil(sourceJSON.length / batchSize);
+            
+            for(let i=0; i<totalBatches; i++){
+                const start = i * batchSize;
+                const end = Math.min(start + batchSize, sourceJSON.length);
+                const chunk = sourceJSON.slice(start, end);
+                
+                const div = document.createElement('div');
+                div.className = "p-4 bg-theme-card border border-theme-border rounded-xl shadow-sm flex items-center justify-between hover:border-theme-accent transition-colors";
+                div.innerHTML = `
+                    <div>
+                        <h4 class="font-bold text-theme-main text-sm">Batch ${i+1}</h4>
+                        <p class="text-xs text-theme-dim font-mono mt-1">Items ${start+1} to ${end} (${chunk.length} items)</p>
+                    </div>
+                    <button onclick='copyBatch(this, ${JSON.stringify(chunk).replace(/'/g, "&apos;")})' class="px-5 py-2.5 bg-theme-preview text-indigo-600 border border-theme-border hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-2">
+                        <i data-lucide="copy" class="w-4 h-4"></i> Copy Prompt
+                    </button>
+                `;
+                container.appendChild(div);
+            }
+            lucide.createIcons();
+            if(!skipSave) saveSession();
+        };
+
+        window.copyBatch = (btn, chunkObj) => {
+            const fullPrompt = MEGA_PROMPT + JSON.stringify(chunkObj, null, 2);
+            const ta = document.createElement("textarea"); ta.value = fullPrompt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+            
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Copied!`;
+            btn.classList.replace('bg-theme-preview', 'bg-emerald-500');
+            btn.classList.replace('text-indigo-600', 'text-white');
+            lucide.createIcons();
+            
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.classList.replace('bg-emerald-500', 'bg-theme-preview');
+                btn.classList.replace('text-white', 'text-indigo-600');
+                lucide.createIcons();
+            }, 2000);
+        };
+
+        const parseCSVStr = (str) => {
+            const lines = []; let currLine = []; let currField = ''; let inQ = false;
+            for (let i = 0; i < str.length; i++) {
+                if (str[i] === '"') {
+                    if (inQ && str[i+1] === '"') { currField += '"'; i++; } else { inQ = !inQ; }
+                } else if (str[i] === ',' && !inQ) {
+                    currLine.push(currField); currField = '';
+                } else if ((str[i] === '\n' || str[i] === '\r') && !inQ) {
+                    if (str[i] === '\r' && str[i+1] === '\n') i++;
+                    currLine.push(currField); lines.push(currLine); currLine = []; currField = '';
+                } else { currField += str[i]; }
+            }
+            if (currField || currLine.length > 0) { currLine.push(currField); lines.push(currLine); }
+            return lines;
+        };
+
+        window.parseAI_CSV = (skipSave = false) => {
+            const raw = document.getElementById('ta-csv-input').value.trim();
+            if(!raw) { finalCSVData = []; document.getElementById('csv-count-badge').textContent = 0; return; }
+            
+            const rows = parseCSVStr(raw);
+            finalCSVData = [];
+            
+            rows.forEach((row, idx) => {
+                if(row.length >= 2 && !row[0].toLowerCase().includes("judul_artikel")) {
+                    finalCSVData.push({ title: row[0].trim(), html: row[1].trim() });
+                }
+            });
+            document.getElementById('csv-count-badge').textContent = finalCSVData.length;
+            if(!skipSave) saveSession();
+        };
+
+        const escapeHTML = (str) => { return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
+
+        window.renderHTMLList = () => {
+            if(finalCSVData.length === 0) return alert("Data CSV kosong! Paste hasil dari Qwen di Step 3.");
+            const container = document.getElementById('html-results-container');
+            container.innerHTML = '';
+            document.getElementById('final-post-count').textContent = finalCSVData.length;
+
+            finalCSVData.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = "p-5 bg-theme-card border border-theme-border rounded-xl shadow-sm flex flex-col gap-3 hover:border-theme-accent transition-colors";
+                div.innerHTML = `
+                    <div class="flex justify-between items-center gap-4">
+                        <h4 class="font-bold text-theme-main text-sm line-clamp-1" title="${escapeHTML(item.title)}">${escapeHTML(item.title)}</h4>
+                        <button onclick='copyText(this, ${JSON.stringify(item.title)})' class="shrink-0 px-3 py-1.5 bg-theme-preview hover:bg-theme-border text-theme-main text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors border border-theme-border">
+                            <i data-lucide="copy" class="w-3 h-3"></i> Copy Title
+                        </button>
+                    </div>
+                    <div class="relative">
+                        <textarea readonly class="allow-context w-full h-32 p-3 bg-theme-preview border border-theme-border rounded-lg text-xs font-mono text-theme-dim resize-y outline-none focus:border-theme-accent">${escapeHTML(item.html)}</textarea>
+                    </div>
+                    <div class="flex justify-between items-center mt-1">
+                        <span class="text-[10px] text-theme-dim font-medium uppercase tracking-wider">Artikel #${index + 1}</span>
+                        <button onclick='copyText(this, ${JSON.stringify(item.html)})' class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-sm">
+                            <i data-lucide="code" class="w-4 h-4"></i> Copy HTML Source
+                        </button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+            lucide.createIcons();
+        };
+
+        window.copyText = (btn, text) => {
+            const ta = document.createElement("textarea"); ta.value = text; ta.style.cssText = "top:0;left:0;position:fixed";
+            document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+            
+            const origHTML = btn.innerHTML;
+            const origClasses = btn.className;
+            
+            btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Copied!`;
+            btn.className = "px-5 py-2.5 bg-emerald-500 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-sm";
+            lucide.createIcons();
+            
+            setTimeout(() => { 
+                btn.innerHTML = origHTML; 
+                btn.className = origClasses; 
+                lucide.createIcons(); 
+            }, 2000);
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            checkSession();
+        });
+    </script>
+</body>
+</html>
