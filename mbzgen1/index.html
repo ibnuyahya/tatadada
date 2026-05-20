@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parser & Generator MBZ Moodle 3.9+</title>
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --fg:#e2e8f0; --accent:#3b82f6; --ok:#10b981; --err:#ef4444; --warn:#f59e0b; }
+  body { background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,monospace; margin:0; padding:20px; }
+  .container { max-width:1000px; margin:auto; display:grid; grid-template-columns: 1fr 350px; gap:20px; }
+  .card { background:var(--panel); padding:16px; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.4); border:1px solid #334155; }
+  h1 { grid-column:1/-1; margin:0 0 10px; font-size:1.5rem; color:var(--accent); }
+  label { display:block; margin:8px 0 4px; font-weight:600; }
+  textarea { width:100%; height:280px; background:#0b1120; color:#94a3b8; border:1px solid #475569; padding:10px; border-radius:6px; resize:vertical; font-size:.85rem; }
+  button { background:var(--accent); color:#000; border:none; padding:10px 16px; border-radius:6px; cursor:pointer; font-weight:700; margin-top:10px; width:100%; }
+  button:hover { filter:brightness(1.1); } button:disabled { background:#475569; cursor:not-allowed; opacity:.6; }
+  #preview { background:#0b1120; padding:12px; border-radius:6px; max-height:500px; overflow-y:auto; font-size:.85rem; white-space:pre-wrap; border:1px solid #475569; }
+  #log { background:#000; padding:10px; border-radius:6px; max-height:150px; overflow-y:auto; font-size:.8rem; color:#94a3b8; border:1px solid #475569; margin-top:10px; }
+  .err { color:var(--err); } .ok { color:var(--ok); } .warn { color:var(--warn); }
+  .tree { padding-left:12px; border-left:2px solid #475569; }
+  .tree div { padding:3px 0; }
+  .tree .sec { color:#fbbf24; font-weight:600; }
+  .tree .mod { color:#34d399; }
+  .tree .act { color:#94a3b8; margin-left:16px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>📝 Text-to-MBZ Parser & Generator (Moodle 3.9+)</h1>
+  
+  <div class="card">
+    <label>Paste Struktur Kursus:</label>
+    <textarea id="inputText" placeholder="COURSE: Nama Kursus&#10;  SECTION 1: Nama Section&#10;    mod/label: Topik 1&#10;      mod/page: Video: ...&#10;      mod/h5pactivity: Aktivitas: ...&#10;      mod/quiz: Kuis: ..."></textarea>
+    <div style="display:flex;gap:10px;">
+      <button onclick="validate()" style="background:#475569;color:#fff;">🔍 Validate</button>
+      <button id="btnGen" disabled onclick="generateMBZ()">📦 Generate .mbz</button>
+    </div>
+    <div id="log"></div>
+  </div>
+
+  <div class="card">
+    <label>🌳 Struktur Preview</label>
+    <div id="preview">Belum ada data...</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script>
+const logDiv=document.getElementById('log'), prevDiv=document.getElementById('preview'), btnGen=document.getElementById('btnGen');
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const log=(t,c='')=>{const d=document.createElement('div');d.className=c;d.textContent=t;logDiv.appendChild(d);logDiv.scrollTop=logDiv.scrollHeight;};
+
+let PARSED_DATA=null;
+
+function parseInput(txt) {
+  const lines = txt.split('\n').map(l=>l.replace(/\t/g,'  ').trim()).filter(l=>l);
+  if(!lines.length) throw new Error('Teks kosong.');
+  
+  // Regex patterns
+  const pCourse = /^(COURSE|KURSUS):\s*(.+)$/i;
+  const pSec = /^SECTION\s*(\d+)\s*[:\-]\s*(.+)$/i;
+  const pMod = /^mod\/(label|page|h5pactivity|quiz):\s*(.+)$/i;
+
+  let data = { courseName:'', sections:[] };
+  let currentSec = null, valid = true, errors = [];
+
+  // Parse Course
+  const cMatch = lines[0].match(pCourse);
+  if(!cMatch) throw new Error('Baris pertama harus diawali `COURSE:` atau `KURSUS:`');
+  data.courseName = cMatch[2].trim();
+
+  let idx = 0;
+  while(idx < lines.length) {
+    const line = lines[idx];
+    if(pCourse.test(line)) { idx++; continue; }
+    
+    const sMatch = line.match(pSec);
+    if(sMatch) {
+      currentSec = { num: parseInt(sMatch[1]), name: sMatch[2].trim(), items: [] };
+      data.sections.push(currentSec);
+      idx++; continue;
+    }
+    if(!currentSec) throw new Error(`Baris "${line}" tidak ditemukan SECTION sebelumnya.`);
+    
+    const mMatch = line.match(pMod);
+    if(mMatch) {
+      currentSec.items.push({ type: mMatch[1].toLowerCase(), name: mMatch[2].trim() });
+      idx++; continue;
+    }
+    
+    throw new Error(`Format tidak dikenali: "${line.substring(0,40)}..."`);
+  }
+
+  // Validation Rules
+  if(data.sections.length === 0) errors.push('Minimal 1 SECTION diperlukan.');
+  data.sections.forEach(s => {
+    if(s.items.length === 0) errors.push(`Section "${s.name}" kosong.`);
+    if(!s.items.some(i=>i.type==='label')) errors.push(`Section "${s.name}" tidak memiliki mod/label (Topik).`);
+    s.items.forEach((i,ii) => {
+      if(!i.name) errors.push(`Nama aktivitas kosong di Section ${s.num}.`);
+      if(i.type==='page' && !/^(Video|Bacaan)/i.test(i.name)) 
+        log(`⚠️ Disarankan: mod/page diawali "Video:" atau "Bacaan:"`, 'warn');
+    });
+  });
+
+  if(errors.length) throw new Error(errors.join('\n'));
+  return data;
+}
+
+function validate() {
+  logDiv.innerHTML=''; prevDiv.innerHTML=''; btnGen.disabled=true; PARSED_DATA=null;
+  try {
+    const txt = document.getElementById('inputText').value;
+    PARSED_DATA = parseInput(txt);
+    log('✅ Struktur valid & siap generate.','ok');
+    
+    // Render Tree
+    let html = `📚 ${esc(PARSED_DATA.courseName)}\n`;
+    PARSED_DATA.sections.forEach(s=>{
+      html += `└─ <span class="sec">SECTION ${s.num}: ${esc(s.name)}</span>\n`;
+      s.items.forEach(i=>{
+        html += `   ├─ <span class="mod">[${i.type}]</span> ${esc(i.name)}\n`;
+      });
+    });
+    prevDiv.innerHTML = `<div class="tree">${html}</div>`;
+    btnGen.disabled = false;
+  } catch(err) {
+    log('❌ '+err.message, 'err');
+  }
+}
+
+function generateMBZ() {
+  if(!PARSED_DATA) return;
+  btnGen.disabled=true; log('📦 Memulai pembuatan MBZ...');
+  
+  try {
+    const now = Math.floor(Date.now()/1000);
+    const cid = 90001, zip = new JSZip();
+    
+    // Assign IDs
+    let lId=10001, pId=20001, hId=30001, qId=40001;
+    PARSED_DATA.sections.forEach(s=>{
+      s.items.forEach(i=>{
+        if(i.type==='label') i.id = lId++;
+        else if(i.type==='page') i.id = pId++;
+        else if(i.type==='h5pactivity') i.id = hId++;
+        else if(i.type==='quiz') i.id = qId++;
+      });
+    });
+
+    // 1. moodle_backup.xml
+    zip.file('moodle_backup.xml',`<?xml version="1.0" encoding="UTF-8"?>
+<backup><moodle_version>2020061500</moodle_version><moodle_release>3.9</moodle_release>
+<backup_version>2020061500</backup_version><backup_release>3.9</backup_release>
+<info><name>Export Text-to-MBZ</name><original_course_id>${cid}</original_course_id><original_site_id>1</original_site_id>
+<original_course_format>topics</original_course_format><original_course_fullname>${esc(PARSED_DATA.courseName)}</original_course_fullname>
+<original_course_shortname>ALEX-P1</original_course_shortname><original_course_startdate>${now}</original_course_startdate>
+<original_course_enddate>${now+31536000}</original_course_enddate><backup_generator>TextParser_v1</backup_generator></info>
+<preferences><preference name="role_assignments" value="1"/><preference name="users" value="1"/>
+<preference name="anonymize" value="0"/><preference name="include_files" value="1"/>
+<preference name="include_enrolments" value="1"/><preference name="include_questionbank" value="1"/></preferences></backup>`);
+
+    // 2. course/course.xml
+    zip.file('course/course.xml',`<?xml version="1.0" encoding="UTF-8"?>
+<course><id>${cid}</id><category>1</category><shortname>ALEX-P1</shortname><fullname>${esc(PARSED_DATA.courseName)}</fullname>
+<displayname>${esc(PARSED_DATA.courseName)}</displayname><summary></summary><summaryformat>1</summaryformat><format>topics</format>
+<showgrades>1</showgrades><newsitems>0</newsitems><startdate>${now}</startdate><enddate>${now+31536000}</enddate>
+<marker>0</marker><maxbytes>52428800</maxbytes><legacyfiles>0</legacyfiles><showreports>0</showreports><visible>1</visible>
+<visibleold>1</visibleold><groupmode>0</groupmode><groupmodeforce>0</groupmodeforce><defaultgroupingid>0</defaultgroupingid>
+<lang>id</lang><calendartype>gregorian</calendartype><enablecompletion>0</enablecompletion><completionstartonenrol>0</completionstartonenrol>
+<originalid>${cid}</originalid><cacherev>${now}</cacherev><original_course_format>topics</original_course_format></course>`);
+
+    // 3. sections.xml
+    let secXml = `<?xml version="1.0" encoding="UTF-8"?>\n<sections>\n`;
+    secXml += `<section><id>${cid}</id><section>0</section><name>General</name><summary></summary><summaryformat>1</summaryformat><sequence></sequence><visible>1</visible><uservisible>1</uservisible></section>\n`;
+    PARSED_DATA.sections.forEach(s=>{
+      const seq = s.items.map(i=>i.id).join(',');
+      secXml += `<section><id>${cid+s.num}</id><section>${s.num}</section><name>${esc(s.name)}</name><summary></summary><summaryformat>1</summaryformat><sequence>${seq}</sequence><visible>1</visible><uservisible>1</uservisible></section>\n`;
+    });
+    zip.file('course/sections.xml', secXml+'</sections>');
+    zip.file('course/inforef.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<inforef><files></files><roles></roles><users></users></inforef>`);
+
+    // 4. Activities Generator
+    const addMod = (mod, id, name, contentNode) => {
+      const dir = `activities/${mod}/${id}/`;
+      const modXml = `<?xml version="1.0" encoding="UTF-8"?>
+<module><type>mod</type><modulename>${mod}</modulename><id>${id}</id><section>1</section><added>${now}</added><score>0</score>
+<indent>0</indent><visible>1</visible><visibleold>1</visibleold><groupmode>0</groupmode><groupingid>0</groupingid>
+<completion>0</completion><completionview>0</completionview><completionexpected>0</completionexpected><showdescription>0</showdescription>
+${contentNode}</module>`;
+      zip.file(dir+'module.xml', modXml);
+      zip.file(dir+'inforef.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<inforef><files></files><roles></roles><users></users></inforef>`);
+      zip.file(dir+'roles.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<roles></roles>`);
+    };
+
+    PARSED_DATA.sections.forEach(s=>{
+      s.items.forEach(i=>{
+        const n = i.name;
+        if(i.type==='label') addMod('label',i.id,n,`<label><id>${i.id}</id><course>${cid}</course><name><![CDATA[${n}]]></name><intro><![CDATA[<h3>${n}</h3>]]></intro><introformat>1</introformat><timemodified>${now}</timemodified></label>`);
+        else if(i.type==='page') addMod('page',i.id,n,`<page><id>${i.id}</id><course>${cid}</course><name><![CDATA[${n}]]></name><intro></intro><introformat>1</introformat><content><![CDATA[<p>Konten akan ditambahkan setelah restore.</p>]]></content><contentformat>1</contentformat><display>0</display><displayoptions>a:1:{s:5:"print";i:1;}</displayoptions><printintro>0</printintro><revision>1</revision><timemodified>${now}</timemodified></page>`);
+        else if(i.type==='h5pactivity') addMod('h5pactivity',i.id,n,`<h5pactivity><id>${i.id}</id><course>${cid}</course><name><![CDATA[${n}]]></name><intro><![CDATA[<p>Aktivitas interaktif.</p>]]></intro><introformat>1</introformat><timemodified>${now}</timemodified><displayoptions>0</displayoptions><enabletracking>0</enabletracking><grademethod>0</grademethod><attempts>0</attempts><grade>0</grade><completionview>0</completionview><completionpassgrade>0</completionpassgrade></h5pactivity>`);
+        else if(i.type==='quiz') addMod('quiz',i.id,n,`<quiz><id>${i.id}</id><course>${cid}</course><name><![CDATA[${n}]]></name><intro><![CDATA[<p>Silakan kerjakan kuis.</p>]]></intro><introformat>1</introformat><timeopen>0</timeopen><timeclose>0</timeclose><timelimit>0</timelimit><overduehandling>autosubmit</overduehandling><graceperiod>0</graceperiod><preferredbehaviour>deferredfeedback</preferredbehaviour><attempts>0</attempts><attemptonlast>0</attemptonlast><grademethod>1</grademethod><decimalpoints>2</decimalpoints><questiondecimalpoints>-1</questiondecimalpoints><reviewattempt>0</reviewattempt><reviewcorrectness>0</reviewcorrectness><reviewmarks>0</reviewmarks><reviewspecificfeedback>0</reviewspecificfeedback><reviewgeneralfeedback>0</reviewgeneralfeedback><reviewrightanswer>0</reviewrightanswer><reviewoverallfeedback>0</reviewoverallfeedback><questionsperpage>1</questionsperpage><navmethod>free</navmethod><shuffleanswers>1</shuffleanswers><sumgrades>1.00000</sumgrades><grade>10.00000</grade><timecreated>${now}</timecreated><timemodified>${now}</timemodified><password></password><subnet></subnet><browsersecurity></browsersecurity><delay1>0</delay1><delay2>0</delay2><showuserpicture>0</showuserpicture><showblocks>0</showblocks><completionattemptsexhausted>0</completionattemptsexhausted><completionminattempts>0</completionminattempts><completionpassthreshold>0</completionpassthreshold><expectedtime>0</expectedtime></quiz>`);
+      });
+    });
+
+    // 5. Questions & Enrolments & Users
+    const hasQuiz = pId < 40001 || lId < 10001 || hId < 30001 || qId < 40001;
+    zip.file('enrolments/enrolments.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<enrolments><enrol><id>5001</id><enrol>manual</enrol><status>0</status><sortorder>1</sortorder><name>Manual</name><roleid>5</roleid><customint1>0</customint1><customint2>0</customint2><customint3>0</customint3><customint4>0</customint4><customint5>0</customint5><customint6>0</customint6><customint7>0</customint7><customint8>0</customint8><customchar1></customchar1><customchar2></customchar2><customchar3></customchar3><customdec1>0.00000</customdec1><customdec2>0.00000</customdec2><customtext1></customtext1><timecreated>${now}</timecreated><timemodified>${now}</timemodified></enrol></enrolments>`);
+    zip.file('users.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<users><user><id>2</id><username>admin</username><firstname>Admin</firstname><lastname>Site</lastname><email>admin@site.id</email><auth>manual</auth><lang>id</lang><timezone>99</timezone><mailformat>1</mailformat><maildisplay>2</maildisplay><autosubscribe>1</autosubscribe><trackforums>0</trackforums><timecreated>${now}</timecreated><timemodified>${now}</timemodified><lastaccess>${now}</lastaccess><lastlogin>${now}</lastlogin><currentlogin>${now}</currentlogin><confirmed>1</confirmed><suspended>0</suspended><mnethostid>1</mnethostid><deleted>0</deleted><firstaccess>${now}</firstaccess></user></users>`);
+    
+    zip.file('questions/categories.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<categories><category><id>50001</id><name>Default for ALEX-P1</name><contextid>${cid+1}</contextid><info></info><infoformat>1</infoformat><stamp>${cid}+::${now}</stamp><parent>0</parent><sortorder>1</sortorder></category></categories>`);
+    zip.file('questions/questions.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<questions><question><id>60001</id><categoryid>50001</categoryid><parent>0</parent><name>Placeholder Soal Kuis</name><questiontext><![CDATA[Soal akan diisi manual setelah restore.]]></questiontext><questiontextformat>1</questiontextformat><generalfeedback></generalfeedback><generalfeedbackformat>1</generalfeedbackformat><defaultmark>1.00000</defaultmark><penalty>0.3333333</penalty><qtype>multichoice</qtype><length>1</length><stamp>${cid}+::${now}</stamp><version>1.0</version><timecreated>${now}</timecreated><timemodified>${now}</timemodified><createdby>2</createdby><modifiedby>2</modifiedby><plugin_qtype_multichoice_question><single>1</single><shuffleanswers>1</shuffleanswers><correctfeedback></correctfeedback><correctfeedbackformat>1</correctfeedbackformat><answernumbering>abc</answernumbering></plugin_qtype_multichoice_question></question></questions>`);
+
+    log('📊 Paket ZIP disusun...');
+    zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}}).then(blob=>{
+      saveAs(blob, `backup-${PARSED_DATA.courseName.replace(/\s+/g,'_')}.mbz`);
+      log('🎉 BERHASIL. File siap restore di Moodle 3.9+','ok');
+      btnGen.disabled=false;
+    });
+  } catch(err) {
+    log('❌ Gagal: '+err.message, 'err');
+    btnGen.disabled=false;
+  }
+}
+</script>
+</body>
+</html>
+
