@@ -6,6 +6,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ReformatSuara - Audio to MP3 Converter</title>
     
+    <!-- Google Analytics (TATADADA v7.0) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+    
+    <!-- Histats (TATADADA v7.0) -->
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+    <noscript><a href="/" target="_blank"><img  src="//sstatic1.histats.com/0.gif?5024490&101" alt="" border="0"></a></noscript>
+
+    <!-- Auto-Favicon Injector -->
+    <script>
+    fetch('icon.xml').then(r => r.text()).then(xml => {
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+        const cStart = doc.querySelector('color_start')?.textContent || '#0ea5e9';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#4338ca';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
+        const link = document.createElement('link');
+        link.rel = 'icon'; link.type = 'image/svg+xml';
+        link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+    }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+    
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -46,6 +87,7 @@
             --text-main: #e6edf3;
             --text-dim: #8b949e;
             --theme-accent: #3b82f6;
+            color-scheme: dark;
         }
 
         body {
@@ -57,6 +99,13 @@
             flex-direction: column;
             height: 100vh;
             margin: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        input, textarea, pre, code, .selectable {
+            user-select: text;
+            -webkit-user-select: text;
         }
 
         /* Utility Classes Mapping */
@@ -127,8 +176,8 @@
                     ReformatSuara
                 </h1>
             </div>
-            <span class="text-[11px] font-medium italic text-dim px-2 py-0.5 border border-theme rounded-full">v2.1.0</span>
-            <span class="text-[11px] text-dim hidden md:inline">by AhmadDanial</span>
+            <span class="text-[11px] font-medium italic text-dim px-2 py-0.5 border border-theme rounded-full">v3.0.0</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 hidden md:inline transition-colors">by AhmadDanial</a>
         </div>
         
         <div class="flex items-center gap-4">
@@ -267,6 +316,20 @@
                         <option value="320">320 kbps (Terbaik - Studio)</option>
                     </select>
                     
+                    <!-- NEW: Audio Gain Slider -->
+                    <div class="flex flex-col gap-2 mt-3 pt-3 border-t border-theme">
+                        <div class="flex justify-between items-center">
+                            <label for="gainSlider" class="text-xs font-medium text-dim flex items-center gap-1.5">
+                                <i data-lucide="speaker" class="w-3.5 h-3.5 text-purple-500"></i> Audio Gain
+                            </label>
+                            <span id="gainValueDisplay" class="text-xs font-data text-blue-600 font-bold bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">+0 dB</span>
+                        </div>
+                        <input type="range" id="gainSlider" min="-10" max="10" step="1" value="0" class="w-full accent-purple-500 cursor-pointer h-1.5 bg-preview border border-theme rounded-lg appearance-none">
+                        <div class="flex justify-between text-[10px] text-dim font-data">
+                            <span>-10</span><span>0</span><span>+10</span>
+                        </div>
+                    </div>
+
                     <!-- Area Estimasi Ukuran -->
                     <div id="estimateContainer" class="hidden mt-2 p-3 bg-blue-500/5 border border-blue-500/20 rounded-lg flex items-start gap-2 transition-all">
                         <i data-lucide="hard-drive" class="w-4 h-4 text-blue-500 shrink-0 mt-0.5"></i>
@@ -353,25 +416,38 @@
 
     <!-- MODAL TERMS (WAJIB) -->
     <div id="modal-terms" class="fixed inset-0 z-[100] hidden items-center justify-center backdrop-blur-sm bg-black/20 p-4 opacity-0 transition-opacity duration-300">
-        <div class="bg-card w-full max-w-md rounded-2xl shadow-2xl p-6 border border-theme transform scale-95 transition-transform duration-300">
+        <div class="bg-card w-full max-w-lg rounded-2xl shadow-2xl p-6 border border-theme transform scale-95 transition-transform duration-300">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-lg font-bold text-main">Ketentuan & Privasi</h2>
                 <button id="closeTermsModal" class="text-dim hover:text-main p-1 rounded-lg hover:bg-preview">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
-            <div class="text-sm text-dim space-y-3 max-h-60 overflow-y-auto pr-2">
-                <p>1. <strong>Privasi Penuh:</strong> ReformatSuara dirancang menggunakan Web Audio API. Seluruh proses dekode dan enkoding audio terjadi di memori (RAM) browser perangkat Anda.</p>
-                <p>2. <strong>Tanpa Server:</strong> File audio Anda sama sekali tidak dikirim, diunggah, atau disimpan ke server manapun.</p>
-                <p>3. <strong>Hak Cipta:</strong> Anda bertanggung jawab atas file yang Anda konversi. Pastikan Anda memiliki hak yang sah atas materi audio tersebut.</p>
+            <div class="text-sm text-dim space-y-4 max-h-60 overflow-y-auto pr-2 selectable">
+                <div class="p-3 bg-preview rounded-lg border border-theme">
+                    <h3 class="font-bold text-main mb-2">Sistem Privasi Lokal (ReformatSuara)</h3>
+                    <p>Aplikasi ini beroperasi menggunakan Web Audio API murni di dalam browser Anda. Proses pembacaan, dekode metadata durasi, modifikasi <i>Audio Gain</i>, dan enkoding ke MP3 (via LameJS) dilakukan secara lokal (client-side) tanpa menggunakan <i>bandwidth</i> eksternal. File audio/video Anda tidak pernah diunggah, disimpan, atau dikirim ke server jarak jauh mana pun.</p>
+                </div>
+                <div class="p-3 border border-red-500/20 bg-red-500/5 rounded-lg text-xs">
+                    <strong>DISCLAIMER MUTLAK:</strong> Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.
+                </div>
             </div>
             <div class="mt-6 pt-4 border-t border-theme flex justify-end">
                 <button id="acceptTermsModal" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
-                    Mengerti
+                    Mengerti & Setuju
                 </button>
             </div>
         </div>
     </div>
+
+    <!-- UX Protection: Anti Right-Click -->
+    <script>
+        document.addEventListener('contextmenu', e => {
+            if (!e.target.closest('input, textarea, .allow-context, .selectable')) {
+                e.preventDefault();
+            }
+        });
+    </script>
 
     <!-- LOGIKA JAVASCRIPT (Murni Vanilla) -->
     <script>
@@ -495,7 +571,7 @@
 
         const canvasCtx = visualizerCanvas.getContext('2d');
 
-        let previewAudioCtx, analyser, audioSource;
+        let previewAudioCtx, analyser, audioSource, gainNode;
         let isPlaying = false;
         let animationId;
         let visualizerInitialized = false;
@@ -525,8 +601,15 @@
                 previewAudioCtx = new AudioContext();
                 analyser = previewAudioCtx.createAnalyser();
                 analyser.fftSize = 256;
+                gainNode = previewAudioCtx.createGain(); // Setup Gain Node
+                
+                // Set level based on UI state
+                const currentDb = parseFloat(document.getElementById('gainSlider').value) || 0;
+                gainNode.gain.value = Math.pow(10, currentDb / 20);
+
                 audioSource = previewAudioCtx.createMediaElementSource(previewMedia);
-                audioSource.connect(analyser);
+                audioSource.connect(gainNode);
+                gainNode.connect(analyser);
                 analyser.connect(previewAudioCtx.destination);
                 visualizerInitialized = true;
                 resizeCanvas();
@@ -699,6 +782,20 @@
 
         // Trim End Slider Listener
         trimEndSlider.addEventListener('input', updateDualSliderUI);
+        
+        // Gain Slider Listener
+        const gainSlider = document.getElementById('gainSlider');
+        const gainValueDisplay = document.getElementById('gainValueDisplay');
+        
+        gainSlider.addEventListener('input', () => {
+            const db = parseFloat(gainSlider.value);
+            gainValueDisplay.textContent = (db > 0 ? '+' : '') + db + ' dB';
+            
+            // Sync dengan audio element preview secara real-time
+            if (gainNode) {
+                gainNode.gain.value = Math.pow(10, db / 20);
+            }
+        });
 
         // Loop / Stop logika di waktu yang sedang berjalan
         previewMedia.addEventListener('timeupdate', () => {
@@ -967,19 +1064,27 @@
             const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
             
             updateProgress(30, "Mempersiapkan engine MP3...");
+            
+            // Dapatkan Pengali Gain untuk Render Final
+            const applyGainDB = parseFloat(document.getElementById('gainSlider').value) || 0;
+            const renderingGainMultiplier = Math.pow(10, applyGainDB / 20);
 
-            const channels = audioBuffer.numberOfChannels;
+            // FIX: LameJS hanya mendukung maksimal 2 channel (Mono/Stereo). 
+            // Jika file input (seperti MP4) punya 5.1 surround, batasi ke 2 channel.
+            const audioChannels = audioBuffer.numberOfChannels;
+            const channels = Math.min(2, audioChannels);
             const sampleRate = audioBuffer.sampleRate;
             
             const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, encodeKbps);
             const mp3Data = [];
 
             const leftData = audioBuffer.getChannelData(0);
-            const rightData = channels > 1 ? audioBuffer.getChannelData(1) : leftData;
+            // Ambil channel 2 jika ada, jika mono, duplikat channel 1
+            const rightData = audioChannels > 1 ? audioBuffer.getChannelData(1) : leftData;
             
-            // TRIM LOGIC
-            const startOffset = Math.floor(trimStart * sampleRate);
-            const endOffset = Math.floor(trimEnd * sampleRate);
+            // TRIM LOGIC - FIX: Cegah out-of-bounds (durasi buffer kadang sedikit berbeda dari elemen media HTML)
+            const startOffset = Math.min(Math.floor(trimStart * sampleRate), audioBuffer.length);
+            const endOffset = Math.min(Math.floor(trimEnd * sampleRate), audioBuffer.length);
             const lengthToProcess = endOffset - startOffset;
             
             const sampleBlockSize = 1152; 
@@ -990,30 +1095,46 @@
             const encodeChunk = () => {
                 return new Promise(resolve => {
                     const chunkEnd = Math.min(offset + chunkSize, endOffset);
-                    const currentChunkLen = chunkEnd - offset;
 
-                    const leftChunk = new Int16Array(currentChunkLen);
-                    const rightChunk = new Int16Array(currentChunkLen);
+                    // FIX: Proses secara internal dalam blok kecil (1152) sesuai cara LameJS bekerja.
+                    for (let i = offset; i < chunkEnd; i += sampleBlockSize) {
+                        const currentBlockSize = Math.min(sampleBlockSize, chunkEnd - i);
+                        const leftChunk = new Int16Array(currentBlockSize);
+                        const rightChunk = new Int16Array(currentBlockSize);
 
-                    for (let i = offset; i < chunkEnd; i++) {
-                        let l = leftData[i];
-                        leftChunk[i - offset] = l < 0 ? l * 0x8000 : l * 0x7FFF;
+                        for (let j = 0; j < currentBlockSize; j++) {
+                            // Ambil sampel
+                            let l = leftData[i + j];
+                            
+                            // APLIKASI AUDIO GAIN
+                            l = l * renderingGainMultiplier;
+                            
+                            // FIX: Clamping nilai Float32 agar tidak over-limit. 
+                            // Jika melebihi 1/-1, Int16 akan meluap (overflow) dan menyebabkan suara pecah/nyangkut.
+                            if (l < -1) l = -1; else if (l > 1) l = 1;
+                            leftChunk[j] = l < 0 ? l * 0x8000 : l * 0x7FFF;
 
-                        if (channels > 1) {
-                            let r = rightData[i];
-                            rightChunk[i - offset] = r < 0 ? r * 0x8000 : r * 0x7FFF;
+                            if (channels > 1) {
+                                let r = rightData[i + j];
+                                
+                                // APLIKASI AUDIO GAIN
+                                r = r * renderingGainMultiplier;
+                                
+                                if (r < -1) r = -1; else if (r > 1) r = 1;
+                                rightChunk[j] = r < 0 ? r * 0x8000 : r * 0x7FFF;
+                            }
                         }
-                    }
 
-                    let mp3buf;
-                    if (channels > 1) {
-                        mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
-                    } else {
-                        mp3buf = mp3encoder.encodeBuffer(leftChunk);
-                    }
+                        let mp3buf;
+                        if (channels > 1) {
+                            mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+                        } else {
+                            mp3buf = mp3encoder.encodeBuffer(leftChunk);
+                        }
 
-                    if (mp3buf.length > 0) {
-                        mp3Data.push(mp3buf);
+                        if (mp3buf.length > 0) {
+                            mp3Data.push(mp3buf);
+                        }
                     }
 
                     offset = chunkEnd;
