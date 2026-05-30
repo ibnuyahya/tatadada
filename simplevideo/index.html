@@ -337,13 +337,35 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             }
         };
 
-        // Melacak status penciptaan Web Worker
+        // Melacak status penciptaan Web Worker secara detail
         const OriginalWorker = window.Worker;
         window.Worker = function(...args) {
-            appendLog(`[Sistem] Menjalankan Web Worker (Thread Latar Belakang)...`);
+            let urlStr = "unknown";
+            try {
+                urlStr = args[0] instanceof URL ? args[0].href : args[0].toString();
+            } catch(e) {}
+            
+            const filename = urlStr.split('/').pop().split('?')[0];
+            appendLog(`[Sistem] Menjalankan Web Worker: ${filename}`);
+            
+            // Pengecekan proaktif untuk menemukan file 404/HTML
+            if (urlStr.startsWith('http') || urlStr.startsWith('./') || urlStr.startsWith('/')) {
+                originalFetch(urlStr, { method: 'HEAD' }).then(res => {
+                    const cType = res.headers.get('content-type') || '';
+                    if (!res.ok) {
+                        appendLog(`❌ [PENYEBAB CRASH] File Worker (${filename}) tidak ditemukan di server (HTTP ${res.status}). Silakan periksa folder Anda!`);
+                    } else if (cType.includes('text/html')) {
+                        appendLog(`❌ [PENYEBAB CRASH] Bahaya! File Worker (${filename}) isinya adalah HTML (Bukan Javascript). Pastikan file tersebut benar-benar ada.`);
+                    } else {
+                        appendLog(`✅ [Pemeriksaan Worker] File ${filename} valid (${cType}).`);
+                    }
+                }).catch(() => {});
+            }
+
             const w = new OriginalWorker(...args);
             w.addEventListener('error', (e) => {
-                appendLog(`❌ [Worker Error] Kesalahan fatal di dalam Web Worker!`);
+                appendLog(`❌ [Worker Error] Kesalahan fatal di dalam Web Worker (${filename})!`);
+                if (e.message) appendLog(`➡️ Detail Error: ${e.message}`);
                 console.error("Worker Error details:", e);
             });
             return w;
@@ -462,27 +484,32 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             try {
                 if (!isCoreLoaded) {
                     statusLabel.innerText = 'Mengunduh pustaka WASM...';
-                    appendLog('[Sistem] Menyiapkan pemuatan konfigurasi Absolut Standar...');
+                    appendLog('[Sistem] Menyiapkan pemuatan Absolut Definitif (Beserta class & workerURL)...');
                     
-                    // KITA MENGHAPUS workerURL KARENA ITU MEMBUAT SYSTEM CRASH.
-                    // Webpack/Emscripten akan memanggil Worker dan file pendukung lainnya secara otomatis.
-                    // Alat pelacak jaringan kita akan memberitahu file apa yang gagal diunduh Webpack.
                     const coreAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`);
                     const wasmAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`);
+                    const classWorkerAbsolute = getAbsoluteURL(`${libBasePath}/814.ffmpeg.js`);
+                    
+                    // Pada versi Multithread, ini sangat krusial:
+                    const coreWorkerAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.worker.js`);
                     
                     appendLog(`[Sistem] URL Core: ${coreAbsolute}`);
                     appendLog(`[Sistem] URL WASM: ${wasmAbsolute}`);
+                    appendLog(`[Sistem] URL Worker (Class): ${classWorkerAbsolute}`);
+                    appendLog(`[Sistem] URL Worker (Core): ${coreWorkerAbsolute}`);
                     
                     const loadConfig = {
                         coreURL: coreAbsolute,
-                        wasmURL: wasmAbsolute
+                        wasmURL: wasmAbsolute,
+                        classWorkerURL: classWorkerAbsolute,
+                        workerURL: coreWorkerAbsolute
                     };
                     
                     appendLog('[Sistem] Mengeksekusi ffmpeg.load()...');
                     
                     const loadPromise = ffmpeg.load(loadConfig);
                     const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error("Timeout: ffmpeg.load() tidak merespons selama 30 detik. Lihat log di atas file mana yang gagal (404).")), 30000);
+                        setTimeout(() => reject(new Error("Timeout 30 detik: Lihat log penyebab crash di atas.")), 30000);
                     });
                     
                     await Promise.race([loadPromise, timeoutPromise]);
