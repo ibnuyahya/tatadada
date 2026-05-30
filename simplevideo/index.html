@@ -217,7 +217,7 @@
             try {
                 statusBadge.classList.remove('hidden');
                 statusText.innerText = "Memuat FFmpeg...";
-                logToConsole("Mem-bypass cache dan memuat Blob memori...");
+                logToConsole("Mem-bypass Cloudflare dan memuat file murni dari CDN Global...");
 
                 const { FFmpeg } = window.FFmpegWASM;
                 const { toBlobURL } = window.FFmpegUtil;
@@ -227,14 +227,16 @@
                     logToConsole(message);
                 });
 
-                const baseURL = 'https://danial.my.id/simplevideo/lib';
-                const cb = '?v=' + Date.now(); // Cache Buster String
+                // KUNCI PERBAIKAN: Mengambil file MURNI langsung dari unpkg, mengabaikan Cloudflare di domain Anda
+                const coreURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+                const workerURL = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd';
                 
-                // Fetch file sebagai BLOB untuk mencegah modifikasi skrip oleh Cloudflare
+                // toBlobURL akan mengubah URL eksternal ini menjadi file memori lokal (Blob)
+                // sehingga Chrome mengizinkannya berjalan sebagai Web Worker yang sah.
                 await ffmpeg.load({
-                    coreURL: await toBlobURL(baseURL + '/ffmpeg-core.js' + cb, 'text/javascript'),
-                    wasmURL: await toBlobURL(baseURL + '/ffmpeg-core.wasm' + cb, 'application/wasm'),
-                    classWorkerURL: await toBlobURL(baseURL + '/814.ffmpeg.js' + cb, 'text/javascript')
+                    coreURL: await toBlobURL(coreURL + '/ffmpeg-core.js', 'text/javascript'),
+                    wasmURL: await toBlobURL(coreURL + '/ffmpeg-core.wasm', 'application/wasm'),
+                    classWorkerURL: await toBlobURL(workerURL + '/814.ffmpeg.js', 'text/javascript')
                 });
 
                 isFFmpegLoaded = true;
@@ -246,7 +248,7 @@
                 document.querySelector('#statusBadge i').setAttribute('data-lucide', 'check-circle');
                 lucide.createIcons();
                 
-                logToConsole("SUCCESS: Mesin FFmpeg siap!");
+                logToConsole("SUCCESS: Mesin FFmpeg (Single-Thread) berhasil merdeka dari blokir Cloudflare!");
                 return true;
             } catch (error) {
                 console.error(error);
@@ -260,7 +262,7 @@
 
         window.addEventListener('DOMContentLoaded', loadFFmpeg);
 
-        // Drag & Drop
+        // --- Logika UI Drag & Drop (Tetap Sama) ---
         const assetMap = new Map();
         const timelineFiles = { main: null, logo1: null };
         const canvas = document.getElementById('renderCanvas');
@@ -288,23 +290,17 @@
                 const icon = isVideo ? '<i data-lucide="film" class="w-4 h-4 text-indigo-500"></i>' : '<i data-lucide="image" class="w-4 h-4 text-pink-500"></i>';
                 itemDiv.innerHTML = icon + ' <span class="text-[10px] font-medium text-gray-700 truncate flex-1">' + file.name + '</span>';
 
-                itemDiv.addEventListener('dragstart', (ev) => {
-                    ev.dataTransfer.setData('text/plain', assetId);
-                });
-
+                itemDiv.addEventListener('dragstart', (ev) => { ev.dataTransfer.setData('text/plain', assetId); });
                 library.appendChild(itemDiv);
             });
-            lucide.createIcons();
-            e.target.value = '';
+            lucide.createIcons(); e.target.value = '';
         });
 
         document.querySelectorAll('.timeline-slot').forEach(slot => {
             slot.addEventListener('dragover', e => { e.preventDefault(); slot.classList.add('drag-over'); });
             slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
             slot.addEventListener('drop', e => {
-                e.preventDefault();
-                slot.classList.remove('drag-over');
-                
+                e.preventDefault(); slot.classList.remove('drag-over');
                 const assetId = e.dataTransfer.getData('text/plain');
                 if (!assetMap.has(assetId)) return;
                 
@@ -314,8 +310,7 @@
 
                 if ((slotType === 'video' && !file.type.startsWith('video/')) || 
                     (slotType === 'image' && !file.type.startsWith('image/'))) {
-                    alert('Tipe file salah! Butuh file ' + slotType);
-                    return;
+                    alert('Tipe file salah! Butuh file ' + slotType); return;
                 }
 
                 timelineFiles[slotName] = file;
@@ -360,8 +355,7 @@
 
         overlay.addEventListener('mousedown', (e) => {
             if (e.target.classList.contains('resize-handle')) return;
-            isDragging = true;
-            startX = e.clientX; startY = e.clientY;
+            isDragging = true; startX = e.clientX; startY = e.clientY;
             startLeft = overlay.offsetLeft; startTop = overlay.offsetTop;
         });
 
@@ -382,28 +376,22 @@
             } else if (isResizing) {
                 let newWidth = Math.max(30, startWidth + (e.clientX - startX));
                 let newHeight = Math.max(30, startHeight + (e.clientY - startY));
-                
                 const img = overlay.querySelector('img');
-                if(img && img.naturalWidth) {
-                    newHeight = newWidth / (img.naturalWidth / img.naturalHeight);
-                }
+                if(img && img.naturalWidth) { newHeight = newWidth / (img.naturalWidth / img.naturalHeight); }
                 overlay.style.width = newWidth + 'px'; overlay.style.height = newHeight + 'px';
             }
         });
 
         window.addEventListener('mouseup', () => { isDragging = false; isResizing = false; });
 
+        // --- Logika Render Akhir (Tetap Sama) ---
         const btnRender = document.getElementById('btnRender');
         const outputSection = document.getElementById('outputSection');
         const outputCard = document.getElementById('outputCard');
-
         function bytesToMB(bytes) { return (bytes / (1024 * 1024)).toFixed(2) + ' MB'; }
 
         btnRender.addEventListener('click', async () => {
-            if (!timelineFiles.main) {
-                alert("Masukkan Video Utama terlebih dahulu!"); return;
-            }
-
+            if (!timelineFiles.main) { alert("Masukkan Video Utama terlebih dahulu!"); return; }
             const ready = await loadFFmpeg();
             if(!ready) return;
 
@@ -413,10 +401,8 @@
 
             try {
                 const { fetchFile } = window.FFmpegUtil;
-                
                 logToConsole("VFS: Membaca file video utama...");
                 await ffmpeg.writeFile('input.mp4', await fetchFile(timelineFiles.main));
-
                 let ffmpegArgs = [];
 
                 if (timelineFiles.logo1 && overlay.style.display !== 'none') {
@@ -444,13 +430,7 @@
                         'output.mp4'
                     ];
                 } else {
-                    ffmpegArgs = [
-                        '-i', 'input.mp4',
-                        '-c:v', 'libx264',
-                        '-preset', 'ultrafast',
-                        '-c:a', 'copy',
-                        'output.mp4'
-                    ];
+                    ffmpegArgs = [ '-i', 'input.mp4', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'copy', 'output.mp4' ];
                 }
 
                 logToConsole("EXEC: Menjalankan mesin encoder WASM...");
@@ -463,27 +443,20 @@
 
                 const projName = document.getElementById('projectName').value || 'VisionaryCuts_Export';
                 document.getElementById('finalProjectName').innerText = projName + '.mp4';
-                
                 const finalVideo = document.getElementById('finalVideo');
                 finalVideo.src = videoUrl;
-                
                 document.getElementById('downloadLink').href = videoUrl;
                 document.getElementById('downloadLink').download = projName + '.mp4';
-                
                 document.getElementById('videoMetadata').innerText = 'Ukuran File: ' + bytesToMB(videoBlob.size);
 
-                outputSection.classList.remove('hidden');
-                outputSection.classList.add('flex');
+                outputSection.classList.remove('hidden'); outputSection.classList.add('flex');
                 setTimeout(() => {
                     outputSection.classList.remove('opacity-0');
                     outputCard.classList.remove('scale-95');
                 }, 10);
-
                 logToConsole("SELESAI: Video siap diunduh!");
-
             } catch (error) {
-                console.error(error);
-                logToConsole("ERROR: Terjadi kesalahan saat rendering.");
+                console.error(error); logToConsole("ERROR: Terjadi kesalahan saat rendering.");
             } finally {
                 btnRender.disabled = false;
                 btnRender.innerHTML = '<i data-lucide="video" class="w-4 h-4"></i> Mulai Render FFmpeg';
@@ -492,11 +465,9 @@
         });
 
         document.getElementById('btnKeepEditing').addEventListener('click', () => {
-            outputSection.classList.add('opacity-0');
-            outputCard.classList.add('scale-95');
+            outputSection.classList.add('opacity-0'); outputCard.classList.add('scale-95');
             setTimeout(() => {
-                outputSection.classList.add('hidden');
-                outputSection.classList.remove('flex');
+                outputSection.classList.add('hidden'); outputSection.classList.remove('flex');
                 document.getElementById('finalVideo').pause();
             }, 300);
         });
