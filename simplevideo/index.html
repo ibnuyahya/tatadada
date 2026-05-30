@@ -3,82 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Video Processor</title>
+    <title>Simple Video Processor - Diagnostik</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Memuat FFmpeg dari direktori lib yang ditentukan -->
-    <script src="./lib/ffmpeg.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center py-10">
     <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-lg">
-        <h1 class="text-2xl font-bold mb-4 text-gray-800">Video Processor</h1>
-        <p class="text-gray-600 mb-6">Pilih video untuk diproses menggunakan FFmpeg WASM.</p>
+        <h1 class="text-2xl font-bold mb-4 text-gray-800">Cek Diagnostik Library</h1>
+        <p class="text-gray-600 mb-6">Sistem sedang mencoba memuat semua file di direktori /lib/.</p>
         
-        <input type="file" id="uploader" class="block w-full text-sm text-gray-500 mb-4 
-            file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 
-            file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 
-            hover:file:bg-blue-100">
-        
-        <button id="btnProcess" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition">
-            Proses Video
-        </button>
+        <div id="check-list" class="space-y-2 text-sm">
+            <!-- Status file akan muncul di sini -->
+        </div>
 
-        <div id="status" class="mt-4 text-sm text-gray-700 italic"></div>
-        <video id="output-video" controls class="mt-6 w-full hidden border rounded"></video>
+        <div id="status" class="mt-6 p-4 bg-gray-50 rounded border text-sm font-mono text-gray-700"></div>
     </div>
 
     <script>
-        // Menggunakan window.FFmpeg atau fallback jika library diekspos langsung
-        window.addEventListener('load', async () => {
-            const ffmpegLib = window.FFmpeg || (typeof FFmpeg !== 'undefined' ? FFmpeg : null);
+        const libFiles = [
+            './lib/ffmpeg.js',
+            './lib/ffmpeg-core.js',
+            './lib/ffmpeg-core.wasm'
+        ];
+
+        async function checkFiles() {
+            const listContainer = document.getElementById('check-list');
+            const statusBox = document.getElementById('status');
             
-            if (!ffmpegLib || !ffmpegLib.createFFmpeg) {
-                console.error("FFmpeg library tidak ditemukan atau gagal dimuat.");
-                document.getElementById('status').innerText = 'Error: Library FFmpeg gagal dimuat. Periksa konsol.';
-                return;
-            }
+            for (const file of libFiles) {
+                const div = document.createElement('div');
+                div.innerHTML = `Memeriksa: <b>${file}</b> ...`;
+                listContainer.appendChild(div);
 
-            const { createFFmpeg, fetchFile } = ffmpegLib;
-            const ffmpeg = createFFmpeg({ 
-                log: true,
-                corePath: './lib/ffmpeg-core.js'
-            });
-
-            const status = document.getElementById('status');
-            const btnProcess = document.getElementById('btnProcess');
-            const uploader = document.getElementById('uploader');
-            const outputVideo = document.getElementById('output-video');
-
-            const transcode = async (file) => {
-                const name = file.name;
-                status.innerText = 'Memuat FFmpeg...';
-                
                 try {
-                    if (!ffmpeg.isLoaded()) {
-                        await ffmpeg.load();
+                    const response = await fetch(file, { method: 'HEAD' });
+                    if (response.ok) {
+                        div.innerHTML = `✅ <b>${file}</b>: Berhasil dimuat (${response.status})`;
+                    } else {
+                        div.innerHTML = `❌ <b>${file}</b>: Gagal (Status: ${response.status})`;
                     }
-                    status.innerText = 'Menulis file ke sistem...';
-                    ffmpeg.FS('writeFile', name, await fetchFile(file));
-                    status.innerText = 'Memproses video...';
-                    await ffmpeg.run('-i', name, 'output.mp4');
-                    status.innerText = 'Selesai!';
-                    
-                    const data = ffmpeg.FS('readFile', 'output.mp4');
-                    outputVideo.src = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-                    outputVideo.classList.remove('hidden');
                 } catch (e) {
-                    status.innerText = 'Error: ' + e.message;
-                    console.error(e);
+                    div.innerHTML = `❌ <b>${file}</b>: Network Error / Gagal`;
                 }
-            };
+            }
+            statusBox.innerText = "Diagnostik selesai. Silakan cek tab 'Network' di Developer Tools (F12) untuk detail lebih lanjut.";
+        }
 
-            btnProcess.addEventListener('click', () => {
-                if (uploader.files.length > 0) {
-                    transcode(uploader.files[0]);
-                } else {
-                    status.innerText = 'Silakan pilih file terlebih dahulu.';
-                }
-            });
-        });
+        window.onload = checkFiles;
     </script>
 </body>
 </html>
