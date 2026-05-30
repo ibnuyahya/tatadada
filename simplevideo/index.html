@@ -3,52 +3,226 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Video Processor - Diagnostik</title>
+    <title>Simple Video Processor</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tetap memuat sebagai fallback, namun loader kita juga akan mencoba dynamic import -->
+    <script src="./lib/ffmpeg.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center py-10">
-    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-lg">
-        <h1 class="text-2xl font-bold mb-4 text-gray-800">Cek Diagnostik Library</h1>
-        <p class="text-gray-600 mb-6">Sistem sedang mencoba memuat semua file di direktori /lib/.</p>
-        
-        <div id="check-list" class="space-y-2 text-sm">
-            <!-- Status file akan muncul di sini -->
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+    <div class="bg-slate-800 p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-700">
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r select-none from-blue-400 to-indigo-400">
+                Video Processor
+            </h1>
+            <span id="lib-status-badge" class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                Menghubungkan...
+            </span>
         </div>
 
-        <div id="status" class="mt-6 p-4 bg-gray-50 rounded border text-sm font-mono text-gray-700"></div>
+        <!-- Instruksi COOP/COEP jika terjadi kegagalan muat WASM -->
+        <div id="coop-warning" class="hidden mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-200 rounded-xl text-xs space-y-2">
+            <p class="font-bold">⚠️ SharedArrayBuffer Blocked / CORS Issue</p>
+            <p>FFmpeg WASM memerlukan header keamanan khusus dari server hosting Anda. Jika proses "Memuat FFmpeg..." macet atau gagal, pastikan server Anda mengirimkan header berikut:</p>
+            <pre class="bg-slate-950 p-2 rounded text-[10px] overflow-x-auto text-red-400">Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp</pre>
+        </div>
+
+        <div class="space-y-4">
+            <!-- File Input Area -->
+            <div class="border-2 border-dashed border-slate-600 hover:border-blue-500 rounded-xl p-6 text-center cursor-pointer transition relative">
+                <input type="file" id="uploader" accept="video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                <div class="space-y-2">
+                    <svg class="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <div class="text-sm text-slate-300">
+                        <span id="file-name-label" class="font-semibold text-blue-400">Pilih file video</span> atau seret ke sini
+                    </div>
+                    <p class="text-xs text-slate-500">MP4, WebM, MKV, AVI, dll.</p>
+                </div>
+            </div>
+
+            <!-- Action Button -->
+            <button id="btnProcess" disabled class="w-full bg-slate-700 text-slate-400 py-3 rounded-xl font-semibold transition cursor-not-allowed flex items-center justify-center gap-2">
+                <span>Mulai Konversi ke MP4</span>
+            </button>
+
+            <!-- Status Indicator -->
+            <div id="status" class="text-center text-sm font-medium text-slate-400 py-1"></div>
+
+            <!-- Video Preview Output -->
+            <div id="output-container" class="hidden space-y-2">
+                <h3 class="text-sm font-semibold text-slate-400">Hasil Pemrosesan:</h3>
+                <video id="output-video" controls class="w-full rounded-xl border border-slate-700 bg-black max-h-[300px]"></video>
+                <div class="flex justify-end">
+                    <a id="btnDownload" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition" download="processed_video.mp4">
+                        Download Video
+                    </a>
+                </div>
+            </div>
+
+            <!-- Real-time FFmpeg Console Logs -->
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">FFmpeg Terminal Logs</h3>
+                    <button id="btnClearLogs" class="text-[10px] text-slate-500 hover:text-slate-300 transition">Bersihkan</button>
+                </div>
+                <div id="ffmpeg-logs" class="h-32 bg-slate-950 p-3 rounded-xl font-mono text-xs text-emerald-400 overflow-y-auto border border-slate-800 whitespace-pre-wrap"></div>
+            </div>
+        </div>
     </div>
 
     <script>
-        const libFiles = [
-            './lib/ffmpeg.js',
-            './lib/ffmpeg-core.js',
-            './lib/ffmpeg-core.wasm'
-        ];
+        let createFFmpeg = null;
+        let fetchFile = null;
+        let ffmpeg = null;
 
-        async function checkFiles() {
-            const listContainer = document.getElementById('check-list');
-            const statusBox = document.getElementById('status');
-            
-            for (const file of libFiles) {
-                const div = document.createElement('div');
-                div.innerHTML = `Memeriksa: <b>${file}</b> ...`;
-                listContainer.appendChild(div);
+        const statusLabel = document.getElementById('status');
+        const libBadge = document.getElementById('lib-status-badge');
+        const btnProcess = document.getElementById('btnProcess');
+        const uploader = document.getElementById('uploader');
+        const fileNameLabel = document.getElementById('file-name-label');
+        const logContainer = document.getElementById('ffmpeg-logs');
+        const coopWarning = document.getElementById('coop-warning');
 
-                try {
-                    const response = await fetch(file, { method: 'HEAD' });
-                    if (response.ok) {
-                        div.innerHTML = `✅ <b>${file}</b>: Berhasil dimuat (${response.status})`;
-                    } else {
-                        div.innerHTML = `❌ <b>${file}</b>: Gagal (Status: ${response.status})`;
-                    }
-                } catch (e) {
-                    div.innerHTML = `❌ <b>${file}</b>: Network Error / Gagal`;
-                }
-            }
-            statusBox.innerText = "Diagnostik selesai. Silakan cek tab 'Network' di Developer Tools (F12) untuk detail lebih lanjut.";
+        // Fungsi mencatat log ke terminal virtual di halaman
+        function appendLog(message) {
+            logContainer.textContent += message + '\n';
+            logContainer.scrollTop = logContainer.scrollHeight;
         }
 
-        window.onload = checkFiles;
+        // Pemuat Universal (ESM & Global window)
+        async function loadFFmpegLibrary() {
+            appendLog('Mencoba mendeteksi modul FFmpeg...');
+            
+            // 1. Coba impor sebagai ES Module (jika ffmpeg.js adalah ESM bundle)
+            try {
+                const module = await import('./lib/ffmpeg.js');
+                createFFmpeg = module.createFFmpeg;
+                fetchFile = module.fetchFile;
+                if (createFFmpeg) {
+                    appendLog('✅ Library berhasil dimuat via ES Module!');
+                    return true;
+                }
+            } catch (esmError) {
+                appendLog('Pemberitahuan: Pemuatan modul ES dilewati/tidak didukung.');
+            }
+
+            // 2. Coba ambil dari objek global window.FFmpeg
+            const globalLib = window.FFmpeg || (typeof FFmpeg !== 'undefined' ? FFmpeg : null);
+            if (globalLib && globalLib.createFFmpeg) {
+                createFFmpeg = globalLib.createFFmpeg;
+                fetchFile = globalLib.fetchFile;
+                appendLog('✅ Library berhasil dimuat dari global window.FFmpeg!');
+                return true;
+            }
+
+            return false;
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const success = await loadFFmpegLibrary();
+
+            if (!success) {
+                libBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
+                libBadge.innerText = "Gagal Memuat";
+                statusLabel.innerText = "Gagal memuat library FFmpeg. Pastikan file ./lib/ffmpeg.js valid.";
+                appendLog('❌ Error: Semua metode inisialisasi FFmpeg gagal.');
+                return;
+            }
+
+            libBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+            libBadge.innerText = "Siap";
+            statusLabel.innerText = "Silakan pilih video untuk memulai.";
+
+            // Inisialisasi instance FFmpeg
+            ffmpeg = createFFmpeg({
+                log: true,
+                corePath: './lib/ffmpeg-core.js',
+                logger: ({ message }) => {
+                    appendLog(`[FFmpeg] ${message}`);
+                    // Jika terdeteksi SharedArrayBuffer error secara implisit
+                    if (message.includes('SharedArrayBuffer')) {
+                        coopWarning.classList.remove('hidden');
+                    }
+                }
+            });
+        });
+
+        // Event listener saat file dipilih
+        uploader.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                fileNameLabel.innerText = file.name;
+                btnProcess.disabled = false;
+                btnProcess.className = "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-500 transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 cursor-pointer";
+                statusLabel.innerText = `File "${file.name}" siap diproses.`;
+            }
+        });
+
+        // Event listener tombol bersihkan log
+        document.getElementById('btnClearLogs').addEventListener('click', () => {
+            logContainer.textContent = '';
+        });
+
+        // Fungsi Transcode Video
+        btnProcess.addEventListener('click', async () => {
+            const file = uploader.files[0];
+            if (!file || !ffmpeg) return;
+
+            btnProcess.disabled = true;
+            btnProcess.className = "w-full bg-slate-700 text-slate-400 py-3 rounded-xl font-semibold transition cursor-not-allowed flex items-center justify-center gap-2";
+            statusLabel.innerText = 'Memuat core WASM...';
+
+            try {
+                if (!ffmpeg.isLoaded()) {
+                    await ffmpeg.load();
+                }
+                
+                const inputName = file.name;
+                const outputName = 'output_converted.mp4';
+
+                statusLabel.innerText = 'Menulis video ke virtual disk...';
+                ffmpeg.FS('writeFile', inputName, await fetchFile(file));
+
+                statusLabel.innerText = 'Mengeksekusi perintah FFmpeg...';
+                appendLog(`[Sistem] Menjalankan: ffmpeg -i ${inputName} -c:v libx264 -preset ultrafast ${outputName}`);
+                
+                // Menjalankan konversi
+                await ffmpeg.run('-i', inputName, '-c:v', 'libx264', '-preset', 'ultrafast', outputName);
+
+                statusLabel.innerText = 'Membaca file hasil konversi...';
+                const data = ffmpeg.FS('readFile', outputName);
+
+                // Membuat blob URL
+                const blob = new Blob([data.buffer], { type: 'video/mp4' });
+                const videoUrl = URL.createObjectURL(blob);
+
+                const outputVideo = document.getElementById('output-video');
+                const outputContainer = document.getElementById('output-container');
+                const btnDownload = document.getElementById('btnDownload');
+
+                outputVideo.src = videoUrl;
+                btnDownload.href = videoUrl;
+                
+                outputContainer.classList.remove('hidden');
+                statusLabel.innerText = 'Konversi Berhasil!';
+                appendLog('🎉 [Sistem] File berhasil dikonversi dan siap diunduh.');
+
+                // Bersihkan file sistem virtual untuk menghemat memori
+                ffmpeg.FS('unlink', inputName);
+                ffmpeg.FS('unlink', outputName);
+
+            } catch (error) {
+                statusLabel.innerText = 'Error saat memproses video!';
+                appendLog(`❌ [Error] ${error.message}`);
+                console.error(error);
+                coopWarning.classList.remove('hidden');
+            } finally {
+                btnProcess.disabled = false;
+                btnProcess.className = "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-500 transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 cursor-pointer";
+            }
+        });
     </script>
 </body>
 </html>
