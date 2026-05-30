@@ -128,28 +128,29 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
 
         // Fungsi pembantu untuk memeriksa keberadaan objek global FFmpeg secara berkala
         function checkGlobals() {
-            appendLog(`[Pemeriksaan Global] window.FFmpegWasm: ${typeof window.FFmpegWasm}, window.FFmpeg: ${typeof window.FFmpeg}, window.createFFmpeg: ${typeof window.createFFmpeg}`);
+            // Ditambahkan pengecekan window.FFmpegWASM (Semua huruf kapital pada WASM) sesuai hasil inspeksi file
+            appendLog(`[Pemeriksaan Global] window.FFmpegWASM: ${typeof window.FFmpegWASM}, window.FFmpegWasm: ${typeof window.FFmpegWasm}, window.FFmpeg: ${typeof window.FFmpeg}, window.createFFmpeg: ${typeof window.createFFmpeg}`);
             
-            if (window.FFmpegWasm) {
-                const { FFmpeg } = window.FFmpegWasm;
-                if (FFmpeg) {
-                    ffmpegClass = FFmpeg;
+            // Mendeteksi library dari salah satu variabel pembungkus global yang valid
+            const lib = window.FFmpegWASM || window.FFmpegWasm || window.FFmpeg;
+            
+            if (lib) {
+                if (lib.FFmpeg) {
+                    ffmpegClass = lib.FFmpeg;
                     ffmpegVersion = 'v0.12';
-                    appendLog('✅ Sukses mendeteksi kelas FFmpeg pada window.FFmpegWasm');
+                    appendLog('✅ Sukses mendeteksi kelas FFmpeg pada modul wrapper.');
                     return true;
                 }
-            }
-            if (window.FFmpeg) {
-                if (window.FFmpeg.createFFmpeg) {
-                    createFFmpegFunc = window.FFmpeg.createFFmpeg;
+                if (typeof lib === 'function' && lib.name === 'FFmpeg') {
+                    ffmpegClass = lib;
+                    ffmpegVersion = 'v0.12';
+                    appendLog('✅ Sukses mendeteksi kelas FFmpeg langsung.');
+                    return true;
+                }
+                if (lib.createFFmpeg) {
+                    createFFmpegFunc = lib.createFFmpeg;
                     ffmpegVersion = 'v0.11';
-                    appendLog('✅ Sukses mendeteksi createFFmpeg pada window.FFmpeg');
-                    return true;
-                }
-                if (typeof window.FFmpeg === 'function' || window.FFmpeg.FFmpeg) {
-                    ffmpegClass = window.FFmpeg.FFmpeg || window.FFmpeg;
-                    ffmpegVersion = 'v0.12';
-                    appendLog('✅ Sukses mendeteksi kelas FFmpeg pada window.FFmpeg');
+                    appendLog('✅ Sukses mendeteksi createFFmpeg pada modul wrapper.');
                     return true;
                 }
             }
@@ -370,7 +371,10 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                     appendLog('[Sistem] Mengunduh core & WASM dari direktori lokal...');
                     
                     if (isModernAPI) {
-                        const { toBlobURL } = window.FFmpegWasm || {};
+                        // Menggunakan dynamic fallback window.FFmpegWASM atau window.FFmpegWasm
+                        const ffmpegWasmObj = window.FFmpegWASM || window.FFmpegWasm || {};
+                        const { toBlobURL } = ffmpegWasmObj;
+                        
                         if (toBlobURL) {
                             await ffmpeg.load({
                                 coreURL: await toBlobURL(`${libBasePath}/ffmpeg-core.js`, 'text/javascript'),
