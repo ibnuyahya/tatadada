@@ -230,7 +230,7 @@
             color: #cbd5e1;
         }
         .terminal {
-            height: 10rem;
+            height: 12rem;
             background-color: #020617;
             border: 1px solid #1e293b;
             border-radius: 0.75rem;
@@ -251,7 +251,7 @@
             <span id="lib-status-badge" class="badge">Menghubungkan...</span>
         </div>
 
-        <!-- Panel Peringatan COOP/COEP (Akan disembunyikan otomatis jika isolasi bernilai true) -->
+        <!-- Panel Peringatan COOP/COEP -->
         <div id="coop-warning" class="warning-box hidden">
             <p class="font-bold">⚠️ SharedArrayBuffer / COOP & COEP Terblokir</p>
             <p>FFmpeg WASM memerlukan lingkungan terisolasi yang aman agar dapat berjalan di browser Anda. Pastikan aturan 'Response Header Transform Rules' di Cloudflare Anda telah aktif dengan header berikut:</p>
@@ -308,33 +308,73 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
     </div>
 
     <script>
+        const logContainer = document.getElementById('ffmpeg-logs');
+        function appendLog(message) {
+            logContainer.textContent += message + '\n';
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // ==========================================
+        // SUNTIKAN RADAR JARINGAN & PELACAK WORKER
+        // ==========================================
+        
+        // Melacak setiap file yang coba diunduh di latar belakang
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+            const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : 'unknown');
+            const filename = url.split('/').pop().split('?')[0];
+            
+            if (filename.includes('ffmpeg')) appendLog(`[Jaringan] Meminta file: ${filename}`);
+            try {
+                const res = await originalFetch.apply(this, args);
+                if (!res.ok && filename.includes('ffmpeg')) {
+                    appendLog(`❌ [Jaringan Error] Gagal HTTP ${res.status}: ${filename}`);
+                }
+                return res;
+            } catch(e) {
+                if (filename.includes('ffmpeg')) appendLog(`❌ [Jaringan Putus] Request gagal untuk ${filename}`);
+                throw e;
+            }
+        };
+
+        // Melacak status penciptaan Web Worker
+        const OriginalWorker = window.Worker;
+        window.Worker = function(...args) {
+            appendLog(`[Sistem] Menjalankan Web Worker (Thread Latar Belakang)...`);
+            const w = new OriginalWorker(...args);
+            w.addEventListener('error', (e) => {
+                appendLog(`❌ [Worker Error] Kesalahan fatal di dalam Web Worker!`);
+                console.error("Worker Error details:", e);
+            });
+            return w;
+        };
+
+        // Menangkap error global yang lolos
+        window.addEventListener('error', (e) => {
+            if (e.filename && e.filename.includes('ffmpeg')) {
+                appendLog(`❌ [Global Error] ${e.message}`);
+            }
+        });
+        // ==========================================
+
         let ffmpeg = null;
         let isCoreLoaded = false;
-        const libBasePath = './lib'; // Path dasar tempat ffmpeg.js berada
+        const libBasePath = './lib'; 
 
         const statusLabel = document.getElementById('status');
         const libBadge = document.getElementById('lib-status-badge');
         const btnProcess = document.getElementById('btnProcess');
         const uploader = document.getElementById('uploader');
         const fileNameLabel = document.getElementById('file-name-label');
-        const logContainer = document.getElementById('ffmpeg-logs');
         const coopWarning = document.getElementById('coop-warning');
         const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
 
-        // Fungsi mencatat log ke terminal virtual di halaman
-        function appendLog(message) {
-            logContainer.textContent += message + '\n';
-            logContainer.scrollTop = logContainer.scrollHeight;
-        }
-
-        // Fungsi pembantu untuk membuat URL absolut dari jalur relatif
         function getAbsoluteURL(relativePath) {
             const url = new URL(relativePath, window.location.href);
             return url.href;
         }
 
-        // Fungsi pembantu untuk fetch file video input secara manual ke bentuk Uint8Array
         async function customFetchFile(file) {
             if (typeof file === 'string') {
                 const response = await fetch(file);
@@ -346,19 +386,17 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             return file;
         }
 
-        // Inisialisasi utama FFmpegWASM v0.12
         function initFFmpeg() {
             appendLog('Memulai pemeriksaan library FFmpeg...');
             appendLog(`[Status Global] window.FFmpegWASM: ${typeof window.FFmpegWASM}`);
             appendLog(`[Status Isolasi] window.crossOriginIsolated: ${window.crossOriginIsolated}`);
 
-            // Cek pre-flight isolasi browser untuk SharedArrayBuffer
             if (!window.crossOriginIsolated) {
                 appendLog('[⚠️ Peringatan] window.crossOriginIsolated bernilai false. SharedArrayBuffer tidak tersedia.');
                 coopWarning.classList.remove('hidden');
             } else {
                 appendLog('✅ Keamanan browser terverifikasi aman (SharedArrayBuffer diizinkan)!');
-                coopWarning.classList.add('hidden'); // Sembunyikan otomatis jika sudah aman
+                coopWarning.classList.add('hidden');
             }
 
             const lib = window.FFmpegWASM;
@@ -367,15 +405,11 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                 try {
                     ffmpeg = new lib.FFmpeg();
 
-                    // Daftarkan listener log real-time
                     ffmpeg.on('log', ({ message }) => {
-                        appendLog(`[FFmpeg] ${message}`);
-                        if (message.includes('SharedArrayBuffer')) {
-                            coopWarning.classList.remove('hidden');
-                        }
+                        appendLog(`[FFmpeg Log] ${message}`);
+                        if (message.includes('SharedArrayBuffer')) coopWarning.classList.remove('hidden');
                     });
 
-                    // Daftarkan listener progress bar
                     ffmpeg.on('progress', ({ progress }) => {
                         const percent = Math.round(progress * 100);
                         statusLabel.innerText = `Memproses video: ${percent}% selesai...`;
@@ -400,10 +434,8 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             }
         }
 
-        // Jalankan saat seluruh aset halaman selesai dimuat
         window.addEventListener('load', initFFmpeg);
 
-        // Event listener saat berkas dipilih
         uploader.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
@@ -419,7 +451,6 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             logContainer.textContent = '';
         });
 
-        // Handler Konversi Video
         btnProcess.addEventListener('click', async () => {
             const file = uploader.files[0];
             if (!file || !ffmpeg) return;
@@ -431,29 +462,27 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             try {
                 if (!isCoreLoaded) {
                     statusLabel.innerText = 'Mengunduh pustaka WASM...';
-                    appendLog('[Sistem] Menyiapkan pemuatan Absolut (Tanpa Blob)...');
+                    appendLog('[Sistem] Menyiapkan pemuatan konfigurasi Absolut Standar...');
                     
-                    // SOLUSI FINAL:
-                    // Browser Chromium memblokir importScripts() di dalam Blob Worker.
-                    // Oleh karena itu kita kembali ke URL HTTP Absolut (Same-Origin).
-                    // Parameter 'classWorkerURL' memastikan FFmpeg v0.12 tidak kebingungan mencari 814.ffmpeg.js
-                    const coreURL = getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`);
-                    const wasmURL = getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`);
-                    const workerURL = getAbsoluteURL(`${libBasePath}/814.ffmpeg.js`);
+                    // KITA MENGHAPUS workerURL KARENA ITU MEMBUAT SYSTEM CRASH.
+                    // Webpack/Emscripten akan memanggil Worker dan file pendukung lainnya secara otomatis.
+                    // Alat pelacak jaringan kita akan memberitahu file apa yang gagal diunduh Webpack.
+                    const coreAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`);
+                    const wasmAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`);
+                    
+                    appendLog(`[Sistem] URL Core: ${coreAbsolute}`);
+                    appendLog(`[Sistem] URL WASM: ${wasmAbsolute}`);
                     
                     const loadConfig = {
-                        coreURL: coreURL,
-                        wasmURL: wasmURL,
-                        classWorkerURL: workerURL
+                        coreURL: coreAbsolute,
+                        wasmURL: wasmAbsolute
                     };
                     
-                    appendLog('[Sistem] Mengeksekusi ffmpeg.load() dengan URL Absolut...');
-                    appendLog(`[Sistem] Worker URL di-set ke: ${workerURL}`);
+                    appendLog('[Sistem] Mengeksekusi ffmpeg.load()...');
                     
-                    // Menambahkan sistem batas waktu (Timeout 30 detik)
                     const loadPromise = ffmpeg.load(loadConfig);
                     const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error("Timeout: ffmpeg.load() tidak merespons selama 30 detik. Silakan coba kembali.")), 30000);
+                        setTimeout(() => reject(new Error("Timeout: ffmpeg.load() tidak merespons selama 30 detik. Lihat log di atas file mana yang gagal (404).")), 30000);
                     });
                     
                     await Promise.race([loadPromise, timeoutPromise]);
