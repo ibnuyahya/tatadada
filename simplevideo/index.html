@@ -433,36 +433,22 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                     statusLabel.innerText = 'Memuat core WASM...';
                     appendLog('[Sistem] Mengunduh core & WASM dari direktori lokal...');
                     
-                    // Membuat URL absolut untuk menghindari kegagalan path di dalam lingkup WebWorker blob
+                    // Membuat URL absolut untuk semua file untuk mencegah kegagalan WebWorker
                     const coreAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`);
                     const wasmAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`);
+                    const workerAbsolute = getAbsoluteURL(`${libBasePath}/814.ffmpeg.js`);
                     
                     appendLog(`[Sistem] URL Core Absolut: ${coreAbsolute}`);
+                    appendLog(`[Sistem] URL WASM Absolut: ${wasmAbsolute}`);
+                    appendLog(`[Sistem] URL Worker Absolut: ${workerAbsolute}`);
                     
-                    const lib = window.FFmpegWASM;
-                    const { toBlobURL } = lib || {};
-                    let loadConfig = {};
-                    
-                    if (toBlobURL) {
-                        try {
-                            appendLog('[Sistem] Mencoba memetakan core & WASM menggunakan toBlobURL (URL Absolut)...');
-                            loadConfig = {
-                                coreURL: await toBlobURL(coreAbsolute, 'text/javascript'),
-                                wasmURL: await toBlobURL(wasmAbsolute, 'application/wasm')
-                            };
-                        } catch (blobErr) {
-                            appendLog(`[⚠️ Peringatan] Gagal toBlobURL: ${blobErr.message}. Menggunakan jalur absolut langsung.`);
-                            loadConfig = {
-                                coreURL: coreAbsolute,
-                                wasmURL: wasmAbsolute
-                            };
-                        }
-                    } else {
-                        loadConfig = {
-                            coreURL: coreAbsolute,
-                            wasmURL: wasmAbsolute
-                        };
-                    }
+                    // SOLUSI UTAMA: Mengatur workerURL ke berkas 814.ffmpeg.js secara absolut.
+                    // Ini menghindari konversi Blob worker internal yang merusak pelacakan origin folder /lib/.
+                    const loadConfig = {
+                        coreURL: coreAbsolute,
+                        wasmURL: wasmAbsolute,
+                        workerURL: workerAbsolute
+                    };
                     
                     appendLog('[Sistem] Mengeksekusi ffmpeg.load()...');
                     await ffmpeg.load(loadConfig);
