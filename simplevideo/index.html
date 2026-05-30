@@ -5,7 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VisionaryCuts Pro Editor</title>
 
-    <script src="coi-serviceworker.min.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(() => {
+                if (!navigator.serviceWorker.controller) {
+                    window.location.reload(); // Reload sekali untuk mengaktifkan agen
+                }
+            });
+        }
+    </script>
 
     <script src="lib/ffmpeg.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
@@ -61,7 +69,6 @@
     </header>
 
     <main class="flex-1 flex overflow-hidden relative">
-        
         <aside class="w-80 flex flex-col bg-white border-r border-gray-200 h-full flex-shrink-0 z-20">
             <div class="p-5 border-b border-gray-200 h-1/2 flex flex-col">
                 <h2 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2 uppercase tracking-wider">
@@ -195,7 +202,6 @@
                     </div>
                 </div>
             </div>
-
         </section>
     </main>
 
@@ -230,7 +236,6 @@
                     logToConsole(message);
                 });
 
-                // Menyesuaikan baseURL agar mengarah ke folder /lib/ tempat file WASM berada
                 const baseURL = 'https://danial.my.id/simplevideo/lib';
                 
                 await ffmpeg.load({
@@ -252,7 +257,7 @@
                 return true;
             } catch (error) {
                 console.error(error);
-                logToConsole("ERROR: Gagal memuat FFmpeg. Pastikan file WASM tersedia di server.");
+                logToConsole("ERROR: Gagal memuat FFmpeg. Cek console log.");
                 statusBadge.classList.replace('bg-blue-100', 'bg-red-100');
                 statusBadge.classList.replace('text-blue-700', 'text-red-700');
                 statusText.innerText = "Gagal Memuat";
@@ -262,7 +267,6 @@
 
         window.addEventListener('DOMContentLoaded', loadFFmpeg);
 
-        // Drag & Drop
         const assetMap = new Map();
         const timelineFiles = { main: null, logo1: null };
         const canvas = document.getElementById('renderCanvas');
@@ -288,7 +292,7 @@
                 itemDiv.dataset.type = isVideo ? 'video' : 'image';
                 
                 const icon = isVideo ? '<i data-lucide="film" class="w-4 h-4 text-indigo-500"></i>' : '<i data-lucide="image" class="w-4 h-4 text-pink-500"></i>';
-                itemDiv.innerHTML = ${icon} <span class="text-[10px] font-medium text-gray-700 truncate flex-1"></span>;
+                itemDiv.innerHTML = icon + ' <span class="text-[10px] font-medium text-gray-700 truncate flex-1">' + file.name + '</span>';
 
                 itemDiv.addEventListener('dragstart', (ev) => {
                     ev.dataTransfer.setData('text/plain', assetId);
@@ -316,7 +320,7 @@
 
                 if ((slotType === 'video' && !file.type.startsWith('video/')) || 
                     (slotType === 'image' && !file.type.startsWith('image/'))) {
-                    alert(Tipe file salah! Butuh file .);
+                    alert('Tipe file salah! Butuh file ' + slotType);
                     return;
                 }
 
@@ -434,12 +438,12 @@
                     const w = Math.round(overlay.offsetWidth * scaleX);
                     const h = Math.round(overlay.offsetHeight * scaleY);
 
-                    logToConsole(Filter: Menyisipkan watermark di X: Y: W: H:);
+                    logToConsole('Filter: Menyisipkan watermark di X:' + x + ' Y:' + y + ' W:' + w + ' H:' + h);
                     
                     ffmpegArgs = [
                         '-i', 'input.mp4',
                         '-i', 'logo.png',
-                        '-filter_complex', [0:v]scale=1920:1080[bg];[1:v]scale=:[wm];[bg][wm]overlay=:,
+                        '-filter_complex', '[0:v]scale=1920:1080[bg];[1:v]scale=' + w + ':' + h + '[wm];[bg][wm]overlay=' + x + ':' + y,
                         '-c:v', 'libx264',
                         '-preset', 'ultrafast',
                         '-c:a', 'copy',
@@ -472,7 +476,7 @@
                 document.getElementById('downloadLink').href = videoUrl;
                 document.getElementById('downloadLink').download = projName + '.mp4';
                 
-                document.getElementById('videoMetadata').innerText = Ukuran File: ;
+                document.getElementById('videoMetadata').innerText = 'Ukuran File: ' + bytesToMB(videoBlob.size);
 
                 outputSection.classList.remove('hidden');
                 outputSection.classList.add('flex');
@@ -501,26 +505,6 @@
                 outputSection.classList.remove('flex');
                 document.getElementById('finalVideo').pause();
             }, 300);
-        });
-
-        document.getElementById('btnShareNative').addEventListener('click', async () => {
-            const videoUrl = document.getElementById('finalVideo').src;
-            try {
-                const response = await fetch(videoUrl);
-                const blob = await response.blob();
-                const file = new File([blob], document.getElementById('finalProjectName').innerText, { type: blob.type });
-
-                if (navigator.share && navigator.canShare({ files: [file] })) {
-                    await navigator.share({
-                        title: 'Video Edit Saya',
-                        files: [file]
-                    });
-                } else {
-                    alert("Browser Anda tidak mendukung fitur Web Share API untuk file.");
-                }
-            } catch (e) {
-                console.error(e);
-            }
         });
     </script>
 </body>
