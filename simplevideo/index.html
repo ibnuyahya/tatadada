@@ -103,49 +103,80 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             return file;
         }
 
-        // Pemuat Pintar Adaptif
+        // Pemuat Pintar Adaptif Multi-Tiered
         async function loadFFmpegLibrary() {
-            appendLog('Mencoba menganalisis objek modul FFmpeg...');
-            let rawLib = null;
+            appendLog('Mulai pemindaian library FFmpeg...');
+            
+            // Catat status global awal
+            appendLog(`[Status Awal] window.FFmpegWasm: ${typeof window.FFmpegWasm}, window.FFmpeg: ${typeof window.FFmpeg}, window.createFFmpeg: ${typeof window.createFFmpeg}`);
 
-            // Langkah 1: Coba import dinamis (ESM)
-            try {
-                const module = await import('./lib/ffmpeg.js');
-                appendLog('Mengimpor via ES Module berhasil.');
-                rawLib = module;
-            } catch (e) {
-                appendLog('Dynamic import dilewati/tidak didukung: ' + e.message);
+            let lib = null;
+
+            // Tahap 1: Periksa apakah library sudah terdaftar di window secara global (paling aman untuk skrip klasik)
+            if (window.FFmpegWasm) {
+                appendLog('Menemukan "window.FFmpegWasm" (Gaya UMD v0.12+).');
+                lib = window.FFmpegWasm;
+            } else if (window.FFmpeg) {
+                appendLog('Menemukan "window.FFmpeg" langsung.');
+                lib = window.FFmpeg;
+            } else if (window.createFFmpeg) {
+                appendLog('Menemukan "window.createFFmpeg" klasik.');
+                lib = { createFFmpeg: window.createFFmpeg };
             }
 
-            // Langkah 2: Coba cari di objek global window
-            if (!rawLib) {
-                rawLib = window.FFmpeg || (typeof FFmpeg !== 'undefined' ? FFmpeg : null);
-                if (rawLib) {
-                    appendLog('Menemukan library pada objek global window.FFmpeg.');
+            // Tahap 2: Jika belum ada di window, coba dynamic import ES Module
+            if (!lib) {
+                try {
+                    const module = await import('./lib/ffmpeg.js');
+                    appendLog('Dynamic import selesai dijalankan.');
+                    
+                    // Validasi apakah hasil import memiliki ekspor riil
+                    if (module && (module.FFmpeg || module.createFFmpeg)) {
+                        lib = module;
+                        appendLog('Menggunakan ekspor langsung dari ES Module.');
+                    } else if (module && module.default && (module.default.FFmpeg || module.default.createFFmpeg)) {
+                        lib = module.default;
+                        appendLog('Menggunakan default ekspor dari ES Module.');
+                    } else {
+                        appendLog('ES Module kosong / tidak memiliki ekspor modul langsung.');
+                    }
+                } catch (e) {
+                    appendLog('Dynamic import dilewati atau gagal: ' + e.message);
                 }
             }
 
-            if (!rawLib) {
-                throw new Error('Library FFmpeg tidak terdeteksi di lingkungan browser.');
+            // Tahap 3: Re-check window (siapa tahu baru terdaftar pasca import modul dijalankan)
+            if (!lib) {
+                appendLog('Melakukan pencarian ulang di objek global window...');
+                if (window.FFmpegWasm) {
+                    appendLog('Menemukan "window.FFmpegWasm" pasca-import.');
+                    lib = window.FFmpegWasm;
+                } else if (window.FFmpeg) {
+                    appendLog('Menemukan "window.FFmpeg" pasca-import.');
+                    lib = window.FFmpeg;
+                } else if (window.createFFmpeg) {
+                    appendLog('Menemukan "window.createFFmpeg" pasca-import.');
+                    lib = { createFFmpeg: window.createFFmpeg };
+                }
             }
 
-            // Membuka bungkusan jika dibundel di dalam property default
-            let lib = rawLib;
-            if (rawLib.default && (rawLib.default.FFmpeg || rawLib.default.createFFmpeg)) {
-                lib = rawLib.default;
-                appendLog('Membuka modul dari default export.');
+            if (!lib) {
+                throw new Error('Sistem gagal menemukan objek FFmpeg, FFmpegWasm, atau createFFmpeg di objek window maupun ES Module.');
             }
 
-            appendLog('Kunci yang terdeteksi pada library: ' + Object.keys(lib).join(', '));
+            // Membaca kunci properti dari library yang didapat
+            const keys = Object.keys(lib);
+            appendLog('Kunci terdeteksi pada library: ' + (keys.length > 0 ? keys.join(', ') : 'Tipe Fungsi Tunggal'));
 
-            // Klasifikasi Versi API
-            if (lib.FFmpeg) {
+            // Klasifikasi dan Inisialisasi Versi API secara Dinamis
+            if (lib.FFmpeg || (typeof lib === 'function' && lib.name === 'FFmpeg')) {
                 ffmpegVersion = 'v0.12';
-                appendLog('✅ Terdeteksi FFmpeg v0.12+ (Modern API).');
+                appendLog('✅ Berhasil mengidentifikasi: FFmpeg v0.12+ (Modern API).');
                 
-                ffmpeg = new lib.FFmpeg();
+                const FFmpegClass = lib.FFmpeg || lib;
+                ffmpeg = new FFmpegClass();
                 
-                // Menerima log real-time versi modern
+                // Daftarkan logger real-time versi modern
                 ffmpeg.on('log', ({ message }) => {
                     appendLog(`[FFmpeg] ${message}`);
                     if (message.includes('SharedArrayBuffer')) {
@@ -154,7 +185,7 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                 });
             } else if (lib.createFFmpeg) {
                 ffmpegVersion = 'v0.11';
-                appendLog('✅ Terdeteksi FFmpeg v0.11 (Classic API).');
+                appendLog('✅ Berhasil mengidentifikasi: FFmpeg v0.11 (Classic API).');
                 
                 ffmpeg = lib.createFFmpeg({
                     log: true,
@@ -167,7 +198,7 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                     }
                 });
             } else {
-                throw new Error('Format library tidak dikenali (tidak ditemukan kelas FFmpeg atau createFFmpeg).');
+                throw new Error('Objek library ditemukan namun strukturnya tidak valid (tidak ada kelas FFmpeg/fungsi createFFmpeg).');
             }
         }
 
@@ -178,7 +209,7 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                 libBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
                 libBadge.innerText = `Siap (${ffmpegVersion})`;
                 statusLabel.innerText = "Silakan pilih video untuk memulai.";
-                appendLog(`[Sistem] Sistem siap dijalankan dengan mode ${ffmpegVersion}.`);
+                appendLog(`[Sistem] Inisialisasi sukses dengan mode operasi ${ffmpegVersion}.`);
             } catch (error) {
                 libBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
                 libBadge.innerText = "Gagal Memuat";
@@ -219,7 +250,7 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                     appendLog('[Sistem] Memulai inisialisasi core WASM...');
                     
                     if (ffmpegVersion === 'v0.12') {
-                        // Di v0.12, kita harus mendefinisikan URL core & WASM secara eksplisit saat load()
+                        // Di v0.12, kita wajib mendefinisikan URL core & WASM secara eksplisit saat load()
                         await ffmpeg.load({
                             coreURL: './lib/ffmpeg-core.js',
                             wasmURL: './lib/ffmpeg-core.wasm'
