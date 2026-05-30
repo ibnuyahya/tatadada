@@ -19,12 +19,54 @@
             </span>
         </div>
 
-        <!-- Instruksi COOP/COEP jika terjadi kegagalan muat WASM -->
-        <div id="coop-warning" class="hidden mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-200 rounded-xl text-xs space-y-2">
-            <p class="font-bold">⚠️ SharedArrayBuffer Blocked / CORS Issue</p>
-            <p>FFmpeg WASM memerlukan header keamanan khusus dari server hosting Anda. Jika proses "Memuat FFmpeg..." macet atau gagal, pastikan server Anda mengirimkan header berikut:</p>
-            <pre class="bg-slate-950 p-2 rounded text-[10px] overflow-x-auto text-red-400">Cross-Origin-Opener-Policy: same-origin
-Cross-Origin-Embedder-Policy: require-corp</pre>
+        <!-- Panel Peringatan & Solusi Keamanan COOP/COEP -->
+        <div id="coop-warning" class="hidden mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-200 rounded-xl text-xs space-y-3">
+            <p class="font-bold text-sm text-red-400">⚠️ SharedArrayBuffer / COOP & COEP Terblokir</p>
+            <p>FFmpeg WASM memerlukan lingkungan terisolasi yang aman agar dapat berjalan di browser Anda. Server hosting Anda saat ini belum mengirimkan header keamanan yang diperlukan.</p>
+            
+            <!-- Tab Solusi Konfigurasi Server -->
+            <div class="bg-slate-900/80 rounded-lg p-3 border border-red-500/10">
+                <p class="font-semibold text-slate-300 mb-2">Pilih metode konfigurasi server Anda:</p>
+                
+                <div class="flex gap-2 mb-3">
+                    <button onclick="switchTab('tab-cf')" class="tab-btn px-3 py-1 bg-blue-600 text-white rounded text-[10px] font-medium transition">Cloudflare</button>
+                    <button onclick="switchTab('tab-htaccess')" class="tab-btn px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[10px] font-medium transition">Apache (.htaccess)</button>
+                    <button onclick="switchTab('tab-nginx')" class="tab-btn px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[10px] font-medium transition">Nginx</button>
+                </div>
+
+                <!-- Konten Tab Cloudflare -->
+                <div id="tab-cf" class="tab-content space-y-2">
+                    <p class="text-slate-400">Karena domain Anda menggunakan <b>Cloudflare</b>, Anda dapat mengaktifkannya langsung tanpa mengubah kode server:</p>
+                    <ol class="list-decimal pl-4 space-y-1 text-slate-300">
+                        <li>Buka Dashboard Cloudflare Anda.</li>
+                        <li>Masuk ke menu <b>Rules</b> &gt; <b>Transform Rules</b> &gt; <b>Modify Response Header</b>.</li>
+                        <li>Klik <b>Create rule</b>, beri nama bebas (misal: "FFmpeg Headers").</li>
+                        <li>Atur kecocokan jalur: <code class="bg-slate-950 px-1 py-0.5 rounded text-blue-300">URI Path starts with /simplevideo/</code></li>
+                        <li>Atur <b>Set static header</b> dengan ketentuan:
+                            <ul class="list-disc pl-4 mt-1 text-slate-400">
+                                <li><code class="text-emerald-400">Cross-Origin-Opener-Policy</code> = <code class="text-yellow-400">same-origin</code></li>
+                                <li><code class="text-emerald-400">Cross-Origin-Embedder-Policy</code> = <code class="text-yellow-400">require-corp</code></li>
+                            </ul>
+                        </li>
+                    </ol>
+                </div>
+
+                <!-- Konten Tab Apache .htaccess -->
+                <div id="tab-htaccess" class="tab-content hidden space-y-2">
+                    <p class="text-slate-400">Buat atau tambahkan kode berikut ke dalam file <code class="text-blue-300">.htaccess</code> di dalam folder <code class="text-blue-300">/simplevideo/</code> Anda:</p>
+                    <pre class="bg-slate-950 p-2 rounded text-[10px] text-yellow-400 overflow-x-auto font-mono">&lt;IfModule mod_headers.c&gt;
+    Header set Cross-Origin-Opener-Policy "same-origin"
+    Header set Cross-Origin-Embedder-Policy "require-corp"
+&lt;/IfModule&gt;</pre>
+                </div>
+
+                <!-- Konten Tab Nginx -->
+                <div id="tab-nginx" class="tab-content hidden space-y-2">
+                    <p class="text-slate-400">Tambahkan baris berikut di dalam blok konfigurasi <code class="text-blue-300">server</code> atau <code class="text-blue-300">location</code> Nginx Anda:</p>
+                    <pre class="bg-slate-950 p-2 rounded text-[10px] text-yellow-400 overflow-x-auto font-mono">add_header Cross-Origin-Opener-Policy "same-origin";
+add_header Cross-Origin-Embedder-Policy "require-corp";</pre>
+                </div>
+            </div>
         </div>
 
         <div class="space-y-4">
@@ -98,6 +140,18 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             logContainer.scrollTop = logContainer.scrollHeight;
         }
 
+        // Fungsi kontrol tab panduan server
+        window.switchTab = function(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(tabId).classList.remove('hidden');
+            
+            // Ubah gaya tombol aktif
+            event.target.parentNode.querySelectorAll('button').forEach(btn => {
+                btn.className = "tab-btn px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[10px] font-medium transition";
+            });
+            event.target.className = "tab-btn px-3 py-1 bg-blue-600 text-white rounded text-[10px] font-medium transition";
+        }
+
         // Fungsi pembantu untuk fetch file secara manual ke bentuk Uint8Array
         async function customFetchFile(file) {
             if (typeof file === 'string') {
@@ -114,6 +168,13 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
         function initFFmpeg() {
             appendLog('Memulai pemeriksaan library FFmpeg...');
             appendLog(`[Status Global] window.FFmpegWASM: ${typeof window.FFmpegWASM}`);
+            appendLog(`[Status Isolasi] window.crossOriginIsolated: ${window.crossOriginIsolated}`);
+
+            // Cek pre-flight isolasi browser untuk SharedArrayBuffer
+            if (!window.crossOriginIsolated) {
+                appendLog('[⚠️ Peringatan] window.crossOriginIsolated bernilai false. SharedArrayBuffer tidak tersedia.');
+                coopWarning.classList.remove('hidden');
+            }
 
             const lib = window.FFmpegWASM;
 
@@ -191,19 +252,31 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                     
                     const lib = window.FFmpegWASM;
                     const { toBlobURL } = lib || {};
+                    let loadConfig = {};
                     
                     if (toBlobURL) {
-                        // Memuat core menggunakan BlobURL lokal agar terbebas dari kesalahan tipe MIME
-                        await ffmpeg.load({
-                            coreURL: await toBlobURL(`${libBasePath}/ffmpeg-core.js`, 'text/javascript'),
-                            wasmURL: await toBlobURL(`${libBasePath}/ffmpeg-core.wasm`, 'application/wasm')
-                        });
+                        try {
+                            appendLog('[Sistem] Mencoba memetakan core & WASM menggunakan toBlobURL...');
+                            loadConfig = {
+                                coreURL: await toBlobURL(`${libBasePath}/ffmpeg-core.js`, 'text/javascript'),
+                                wasmURL: await toBlobURL(`${libBasePath}/ffmpeg-core.wasm`, 'application/wasm')
+                            };
+                        } catch (blobErr) {
+                            appendLog(`[⚠️ Peringatan] Gagal membuat Blob URL: ${blobErr.message}. Menggunakan pemuatan jalur langsung.`);
+                            loadConfig = {
+                                coreURL: `${libBasePath}/ffmpeg-core.js`,
+                                wasmURL: `${libBasePath}/ffmpeg-core.wasm`
+                            };
+                        }
                     } else {
-                        await ffmpeg.load({
+                        loadConfig = {
                             coreURL: `${libBasePath}/ffmpeg-core.js`,
                             wasmURL: `${libBasePath}/ffmpeg-core.wasm`
-                        });
+                        };
                     }
+                    
+                    appendLog('[Sistem] Mengeksekusi ffmpeg.load()...');
+                    await ffmpeg.load(loadConfig);
                     isCoreLoaded = true;
                     appendLog('✅ [Sistem] Core WASM berhasil diinisialisasi!');
                 }
@@ -245,8 +318,12 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
 
             } catch (error) {
                 statusLabel.innerText = 'Gagal memproses video!';
-                appendLog(`❌ [Error] ${error.message}`);
-                console.error(error);
+                let detailedMessage = error && error.message ? error.message : JSON.stringify(error);
+                if (detailedMessage === '{}' || !detailedMessage) {
+                    detailedMessage = 'Gagal memuat core WASM. Hal ini dikonfirmasi karena browser memblokir SharedArrayBuffer (CORS/COOP/COEP terblokir di server hosting Anda).';
+                }
+                appendLog(`❌ [Error] ${detailedMessage}`);
+                console.error("FFmpeg Core Load Error: ", error);
                 coopWarning.classList.remove('hidden');
             } finally {
                 btnProcess.disabled = false;
