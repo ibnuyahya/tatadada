@@ -334,29 +334,6 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             return url.href;
         }
 
-        // Fungsi pamungkas: Mengunduh file secara manual dan mengubahnya menjadi Blob dengan MIME Type yang dipaksa
-        async function fetchToBlobURL(url, mimeType) {
-            try {
-                appendLog(`[Sistem Blob] Mengunduh: ${url.split('/').pop()}`);
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
-                
-                const buffer = await response.arrayBuffer();
-                
-                // Validasi ukuran untuk memastikan file tidak rusak (misal ter-redirect ke 404 HTML page)
-                if (buffer.byteLength < 1000) {
-                    appendLog(`[⚠️ Peringatan] Berkas ${url.split('/').pop()} ukurannya sangat kecil (${buffer.byteLength} bytes). Pastikan berkas tersebut valid.`);
-                } else {
-                    appendLog(`[Sistem Blob] Sukses membaca ${buffer.byteLength} bytes.`);
-                }
-                
-                const blob = new Blob([buffer], { type: mimeType });
-                return URL.createObjectURL(blob);
-            } catch (error) {
-                throw new Error(`Gagal mengubah ${url} menjadi Blob: ${error.message}`);
-            }
-        }
-
         // Fungsi pembantu untuk fetch file video input secara manual ke bentuk Uint8Array
         async function customFetchFile(file) {
             if (typeof file === 'string') {
@@ -453,22 +430,25 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
 
             try {
                 if (!isCoreLoaded) {
-                    statusLabel.innerText = 'Mengunduh pustaka WASM ke RAM...';
-                    appendLog('[Sistem] Menyiapkan pemuatan Core & WASM (Blob Injection)...');
+                    statusLabel.innerText = 'Mengunduh pustaka WASM...';
+                    appendLog('[Sistem] Menyiapkan pemuatan Absolut (Tanpa Blob)...');
                     
-                    // SOLUSI FINAL DAN PALING BERSIH:
-                    // Kita hanya memetakan coreURL dan wasmURL. 
-                    // Kita TIDAK BOLEH mendefinisikan workerURL karena berkas 814.ffmpeg.js adalah Webpack chunk, BUKAN Web Worker!
-                    // Biarkan mesin ffmpeg.js memuat workernya sendiri dari dalam logikanya.
-                    const coreURL = await fetchToBlobURL(getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`), 'text/javascript');
-                    const wasmURL = await fetchToBlobURL(getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`), 'application/wasm');
+                    // SOLUSI FINAL:
+                    // Browser Chromium memblokir importScripts() di dalam Blob Worker.
+                    // Oleh karena itu kita kembali ke URL HTTP Absolut (Same-Origin).
+                    // Parameter 'classWorkerURL' memastikan FFmpeg v0.12 tidak kebingungan mencari 814.ffmpeg.js
+                    const coreURL = getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`);
+                    const wasmURL = getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`);
+                    const workerURL = getAbsoluteURL(`${libBasePath}/814.ffmpeg.js`);
                     
                     const loadConfig = {
                         coreURL: coreURL,
-                        wasmURL: wasmURL
+                        wasmURL: wasmURL,
+                        classWorkerURL: workerURL
                     };
                     
-                    appendLog('[Sistem] Semua aset inti berhasil dimuat ke RAM. Mengeksekusi ffmpeg.load()...');
+                    appendLog('[Sistem] Mengeksekusi ffmpeg.load() dengan URL Absolut...');
+                    appendLog(`[Sistem] Worker URL di-set ke: ${workerURL}`);
                     
                     // Menambahkan sistem batas waktu (Timeout 30 detik)
                     const loadPromise = ffmpeg.load(loadConfig);
