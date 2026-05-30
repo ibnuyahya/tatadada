@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simple Video Processor</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Memuat script ffmpeg.js secara langsung -->
-    <script src="./lib/ffmpeg.js"></script>
+    <!-- Tag script klasik './lib/ffmpeg.js' sengaja dihapus dari sini untuk mencegah Syntax Error saat browser memuat ES Module secara klasik -->
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
     <div class="bg-slate-800 p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-700">
@@ -72,10 +71,13 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
         </div>
     </div>
 
-    <script>
+    <!-- Berubah menjadi type="module" agar browser mendukung fitur dynamic import ESM secara native -->
+    <script type="module">
         let ffmpeg = null;
         let isCoreLoaded = false;
-        let ffmpegVersion = null; // Menyimpan jenis API: 'v0.11' (Klasik) atau 'v0.12' (Modern)
+        let ffmpegVersion = null; // 'v0.11' atau 'v0.12'
+        let FFmpegClass = null;
+        let createFFmpegFunc = null;
 
         const statusLabel = document.getElementById('status');
         const libBadge = document.getElementById('lib-status-badge');
@@ -91,7 +93,7 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             logContainer.scrollTop = logContainer.scrollHeight;
         }
 
-        // Fungsi pembantu untuk fetch file secara manual (mandiri tanpa bergantung library luar)
+        // Fungsi pembantu untuk fetch file secara manual
         async function customFetchFile(file) {
             if (typeof file === 'string') {
                 const response = await fetch(file);
@@ -106,88 +108,123 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
         // Pemuat Pintar Adaptif Multi-Tiered
         async function loadFFmpegLibrary() {
             appendLog('Mulai pemindaian library FFmpeg...');
-            
-            // Catat status global awal
             appendLog(`[Status Awal] window.FFmpegWasm: ${typeof window.FFmpegWasm}, window.FFmpeg: ${typeof window.FFmpeg}, window.createFFmpeg: ${typeof window.createFFmpeg}`);
 
-            let lib = null;
-
-            // Tahap 1: Periksa apakah library sudah terdaftar di window secara global (paling aman untuk skrip klasik)
-            if (window.FFmpegWasm) {
-                appendLog('Menemukan "window.FFmpegWasm" (Gaya UMD v0.12+).');
-                lib = window.FFmpegWasm;
-            } else if (window.FFmpeg) {
-                appendLog('Menemukan "window.FFmpeg" langsung.');
-                lib = window.FFmpeg;
-            } else if (window.createFFmpeg) {
-                appendLog('Menemukan "window.createFFmpeg" klasik.');
-                lib = { createFFmpeg: window.createFFmpeg };
-            }
-
-            // Tahap 2: Jika belum ada di window, coba dynamic import ES Module
-            if (!lib) {
-                try {
-                    const module = await import('./lib/ffmpeg.js');
-                    appendLog('Dynamic import selesai dijalankan.');
+            // Langkah 1: Coba import langsung sebagai ES Module (Wajib untuk @ffmpeg/ffmpeg ESM v0.12+)
+            try {
+                appendLog('Mencoba melakukan dynamic import("./lib/ffmpeg.js")...');
+                const module = await import('./lib/ffmpeg.js');
+                appendLog('Dynamic import selesai dieksekusi.');
+                
+                if (module) {
+                    const keys = Object.keys(module);
+                    appendLog(`Kunci ES Module yang terdeteksi: [${keys.join(', ')}]`);
                     
-                    // Validasi apakah hasil import memiliki ekspor riil
-                    if (module && (module.FFmpeg || module.createFFmpeg)) {
-                        lib = module;
-                        appendLog('Menggunakan ekspor langsung dari ES Module.');
-                    } else if (module && module.default && (module.default.FFmpeg || module.default.createFFmpeg)) {
-                        lib = module.default;
-                        appendLog('Menggunakan default ekspor dari ES Module.');
-                    } else {
-                        appendLog('ES Module kosong / tidak memiliki ekspor modul langsung.');
+                    if (module.FFmpeg) {
+                        FFmpegClass = module.FFmpeg;
+                        ffmpegVersion = 'v0.12';
+                        appendLog('✅ Berhasil memuat FFmpeg v0.12+ (Modern ESM) dari ekspor modul.');
+                    } else if (module.createFFmpeg) {
+                        createFFmpegFunc = module.createFFmpeg;
+                        ffmpegVersion = 'v0.11';
+                        appendLog('✅ Berhasil memuat createFFmpeg v0.11 (Classic ESM) dari ekspor modul.');
+                    } else if (module.default) {
+                        const defaultKeys = Object.keys(module.default);
+                        appendLog(`Kunci modul default yang terdeteksi: [${defaultKeys.join(', ')}]`);
+                        
+                        if (module.default.FFmpeg) {
+                            FFmpegClass = module.default.FFmpeg;
+                            ffmpegVersion = 'v0.12';
+                            appendLog('✅ Berhasil memuat FFmpeg v0.12+ dari default ekspor.');
+                        } else if (module.default.createFFmpeg) {
+                            createFFmpegFunc = module.default.createFFmpeg;
+                            ffmpegVersion = 'v0.11';
+                            appendLog('✅ Berhasil memuat createFFmpeg v0.11 dari default ekspor.');
+                        }
                     }
-                } catch (e) {
-                    appendLog('Dynamic import dilewati atau gagal: ' + e.message);
                 }
+            } catch (e) {
+                appendLog('Pemberitahuan: Dynamic import gagal atau dilewati: ' + e.message);
             }
 
-            // Tahap 3: Re-check window (siapa tahu baru terdaftar pasca import modul dijalankan)
-            if (!lib) {
-                appendLog('Melakukan pencarian ulang di objek global window...');
-                if (window.FFmpegWasm) {
-                    appendLog('Menemukan "window.FFmpegWasm" pasca-import.');
-                    lib = window.FFmpegWasm;
-                } else if (window.FFmpeg) {
-                    appendLog('Menemukan "window.FFmpeg" pasca-import.');
-                    lib = window.FFmpeg;
+            // Langkah 2: Jika ESM gagal, periksa objek global window (Kasus UMD/Classic)
+            if (!FFmpegClass && !createFFmpegFunc) {
+                appendLog('Mencoba mencari di objek global window...');
+                const lib = window.FFmpegWasm || window.FFmpeg;
+                if (lib) {
+                    appendLog('Menemukan library pada window.FFmpegWasm / window.FFmpeg.');
+                    if (lib.FFmpeg) {
+                        FFmpegClass = lib.FFmpeg;
+                        ffmpegVersion = 'v0.12';
+                        appendLog('✅ Berhasil memuat FFmpeg v0.12+ dari global.');
+                    } else if (typeof lib === 'function' && lib.name === 'FFmpeg') {
+                        FFmpegClass = lib;
+                        ffmpegVersion = 'v0.12';
+                        appendLog('✅ Berhasil memuat kelas FFmpeg langsung dari global.');
+                    } else if (lib.createFFmpeg) {
+                        createFFmpegFunc = lib.createFFmpeg;
+                        ffmpegVersion = 'v0.11';
+                        appendLog('✅ Berhasil memuat createFFmpeg v0.11 dari global.');
+                    }
                 } else if (window.createFFmpeg) {
-                    appendLog('Menemukan "window.createFFmpeg" pasca-import.');
-                    lib = { createFFmpeg: window.createFFmpeg };
+                    createFFmpegFunc = window.createFFmpeg;
+                    ffmpegVersion = 'v0.11';
+                    appendLog('✅ Berhasil memuat createFFmpeg v0.11 langsung dari window.');
                 }
             }
 
-            if (!lib) {
-                throw new Error('Sistem gagal menemukan objek FFmpeg, FFmpegWasm, atau createFFmpeg di objek window maupun ES Module.');
+            // Langkah 3: Jika masih gagal, lakukan injeksi tag <script> dinamis (Kasus UMD murni yang tidak ter-import otomatis)
+            if (!FFmpegClass && !createFFmpegFunc) {
+                appendLog('Mencoba memuat ulang secara paksa menggunakan injeksi skrip klasik...');
+                try {
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = './lib/ffmpeg.js';
+                        script.onload = () => {
+                            appendLog('Injeksi skrip klasik selesai dimuat.');
+                            resolve();
+                        };
+                        script.onerror = () => reject(new Error('Gagal memuat file skrip via injeksi.'));
+                        document.head.appendChild(script);
+                    });
+
+                    const lib = window.FFmpegWasm || window.FFmpeg;
+                    if (lib) {
+                        if (lib.FFmpeg) {
+                            FFmpegClass = lib.FFmpeg;
+                            ffmpegVersion = 'v0.12';
+                            appendLog('✅ Sukses memuat FFmpeg v0.12+ pasca-injeksi.');
+                        } else if (lib.createFFmpeg) {
+                            createFFmpegFunc = lib.createFFmpeg;
+                            ffmpegVersion = 'v0.11';
+                            appendLog('✅ Sukses memuat createFFmpeg v0.11 pasca-injeksi.');
+                        }
+                    } else if (window.createFFmpeg) {
+                        createFFmpegFunc = window.createFFmpeg;
+                        ffmpegVersion = 'v0.11';
+                        appendLog('✅ Sukses memuat createFFmpeg v0.11 langsung pasca-injeksi.');
+                    }
+                } catch (err) {
+                    appendLog('Gagal melakukan injeksi skrip: ' + err.message);
+                }
             }
 
-            // Membaca kunci properti dari library yang didapat
-            const keys = Object.keys(lib);
-            appendLog('Kunci terdeteksi pada library: ' + (keys.length > 0 ? keys.join(', ') : 'Tipe Fungsi Tunggal'));
+            // Validasi Akhir
+            if (!FFmpegClass && !createFFmpegFunc) {
+                throw new Error('Sistem gagal mendeteksi objek FFmpeg di semua tingkat (ESM, Window, maupun Injeksi Klasik).');
+            }
 
-            // Klasifikasi dan Inisialisasi Versi API secara Dinamis
-            if (lib.FFmpeg || (typeof lib === 'function' && lib.name === 'FFmpeg')) {
-                ffmpegVersion = 'v0.12';
-                appendLog('✅ Berhasil mengidentifikasi: FFmpeg v0.12+ (Modern API).');
-                
-                const FFmpegClass = lib.FFmpeg || lib;
+            // Inisialisasi instance FFmpeg berdasarkan versi
+            if (ffmpegVersion === 'v0.12') {
                 ffmpeg = new FFmpegClass();
-                
-                // Daftarkan logger real-time versi modern
                 ffmpeg.on('log', ({ message }) => {
                     appendLog(`[FFmpeg] ${message}`);
                     if (message.includes('SharedArrayBuffer')) {
                         coopWarning.classList.remove('hidden');
                     }
                 });
-            } else if (lib.createFFmpeg) {
-                ffmpegVersion = 'v0.11';
-                appendLog('✅ Berhasil mengidentifikasi: FFmpeg v0.11 (Classic API).');
-                
-                ffmpeg = lib.createFFmpeg({
+            } else if (ffmpegVersion === 'v0.11') {
+                ffmpeg = createFFmpegFunc({
                     log: true,
                     corePath: './lib/ffmpeg-core.js',
                     logger: ({ message }) => {
@@ -197,8 +234,6 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                         }
                     }
                 });
-            } else {
-                throw new Error('Objek library ditemukan namun strukturnya tidak valid (tidak ada kelas FFmpeg/fungsi createFFmpeg).');
             }
         }
 
