@@ -334,16 +334,6 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             return url.href;
         }
 
-        // Fungsi manual untuk mengunduh berkas sebagai Blob dan mencegah masalah Webpack/MIME Type
-        async function fetchToBlobURL(url, mimeType) {
-            appendLog(`[Unduh -> Blob] Memproses: ${url}`);
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`HTTP Error ${response.status} saat mengunduh ${url}`);
-            const arrayBuffer = await response.arrayBuffer();
-            const blob = new Blob([arrayBuffer], { type: mimeType });
-            return URL.createObjectURL(blob);
-        }
-
         // Fungsi pembantu untuk fetch file secara manual ke bentuk Uint8Array
         async function customFetchFile(file) {
             if (typeof file === 'string') {
@@ -441,36 +431,33 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             try {
                 if (!isCoreLoaded) {
                     statusLabel.innerText = 'Memuat core WASM...';
-                    appendLog('[Sistem] Menyiapkan pemuatan Hybrid (Worker=Blob, Core=Absolut)...');
+                    appendLog('[Sistem] Menyiapkan pemuatan Core & WASM (Tanpa override Worker URL)...');
                     
                     const coreAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`);
                     const wasmAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`);
-                    const workerAbsolute = getAbsoluteURL(`${libBasePath}/814.ffmpeg.js`);
                     
-                    // SOLUSI HIBRIDA TERBAIK:
-                    // HANYA file Worker (814.ffmpeg.js) yang diubah menjadi Blob URL untuk mem-bypass Webpack Public Path.
-                    // File core dan WASM dibiarkan sebagai Absolute URL agar Emscripten internal tetap bisa menemukannya!
-                    const workerBlobUrl = await fetchToBlobURL(workerAbsolute, 'text/javascript');
+                    appendLog(`[Sistem] URL Core: ${coreAbsolute}`);
+                    appendLog(`[Sistem] URL WASM: ${wasmAbsolute}`);
                     
+                    // SOLUSI FINAL: Jangan definisikan workerURL atau classWorkerURL.
+                    // FFmpeg.wasm akan otomatis memuat 814.ffmpeg.js saat dibutuhkan dengan benar.
                     const loadConfig = {
                         coreURL: coreAbsolute,
-                        wasmURL: wasmAbsolute,
-                        workerURL: workerBlobUrl,
-                        classWorkerURL: workerBlobUrl
+                        wasmURL: wasmAbsolute
                     };
                     
-                    appendLog('[Sistem] Mengeksekusi ffmpeg.load() dengan metode Hibrida...');
+                    appendLog('[Sistem] Mengeksekusi ffmpeg.load()...');
                     
-                    // Menambahkan sistem batas waktu (Timeout 20 detik) agar tidak stuck selamanya
+                    // Menambahkan sistem batas waktu (Timeout 20 detik)
                     const loadPromise = ffmpeg.load(loadConfig);
                     const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error("Timeout: ffmpeg.load() tidak merespons selama 20 detik. Periksa console F12.")), 20000);
+                        setTimeout(() => reject(new Error("Timeout: ffmpeg.load() tidak merespons selama 20 detik.")), 20000);
                     });
                     
                     await Promise.race([loadPromise, timeoutPromise]);
                     
                     isCoreLoaded = true;
-                    appendLog('✅ [Sistem] Core WASM berhasil diinisialisasi secara instan!');
+                    appendLog('✅ [Sistem] Core WASM berhasil diinisialisasi!');
                 }
 
                 const inputName = file.name;
@@ -511,9 +498,6 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             } catch (error) {
                 statusLabel.innerText = 'Gagal memproses video!';
                 let detailedMessage = error && error.message ? error.message : JSON.stringify(error);
-                if (detailedMessage === '{}' || !detailedMessage) {
-                    detailedMessage = 'Gagal memuat core WASM. Mohon bersihkan cache browser atau periksa kembali tab Jaringan di F12.';
-                }
                 appendLog(`❌ [Error] ${detailedMessage}`);
                 console.error("FFmpeg Core Load Error: ", error);
             } finally {
