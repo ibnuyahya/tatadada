@@ -284,7 +284,7 @@
         </div>
     </div>
 
-    <!-- MENGGUNAKAN ES MODULES (ESM) sesuai rekomendasi modern -->
+    <!-- MENGGUNAKAN ES MODULES (ESM) -->
     <script type="module">
         import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
         import { fetchFile, toBlobURL } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
@@ -372,18 +372,26 @@
                     statusLabel.innerText = 'Mengunduh engine WASM Resmi...';
                     appendLog('[Sistem] Mulai memuat Engine WASM Multi-Thread dari CDN...');
                     
-                    // Menggunakan versi Multi-Thread (core-mt) yang berjalan maksimal di lingkungan COOP/COEP
-                    const baseURL = 'https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm';
+                    const coreBaseURL = 'https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm';
+                    const ffmpegBaseURL = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm';
 
-                    // toBlobURL dari util akan membypass error Worker CORS secara elegan
-                    const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
-                    const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
-                    const workerURL = await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript');
+                    appendLog('[Sistem] Mengonversi 4 file utama menjadi Blob URL untuk mem-bypass Cross-Origin...');
+
+                    // SOLUSI MUTLAK:
+                    // Kita mengubah KEEMPAT file ini menjadi Blob URL (termasuk classWorkerURL)
+                    // Sehingga browser tidak lagi memblokirnya dengan pesan "cannot be accessed from origin"
+                    const coreURL = await toBlobURL(`${coreBaseURL}/ffmpeg-core.js`, 'text/javascript');
+                    const wasmURL = await toBlobURL(`${coreBaseURL}/ffmpeg-core.wasm`, 'application/wasm');
+                    const workerURL = await toBlobURL(`${coreBaseURL}/ffmpeg-core.worker.js`, 'text/javascript');
+                    
+                    // Ini adalah kunci yang terlewat! worker.js dari ffmpeg wrapper harus disetel sebagai Blob juga.
+                    const classWorkerURL = await toBlobURL(`${ffmpegBaseURL}/worker.js`, 'text/javascript');
 
                     await ffmpeg.load({
                         coreURL: coreURL,
                         wasmURL: wasmURL,
-                        workerURL: workerURL
+                        workerURL: workerURL,
+                        classWorkerURL: classWorkerURL
                     });
                     
                     isCoreLoaded = true;
