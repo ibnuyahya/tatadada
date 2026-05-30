@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simple Video Processor</title>
-    <!-- Memuat FFmpeg secara fisik di head agar document.currentScript terdeteksi dengan benar oleh Webpack -->
-    <script src="./lib/ffmpeg.js"></script>
+    <!-- data-cfasync="false" disisipkan agar Cloudflare Rocket Loader tidak mengacaukan Web Worker pendukung -->
+    <script data-cfasync="false" src="./lib/ffmpeg.js"></script>
     
     <!-- Gaya CSS internal premium untuk menghindari pemblokiran COEP/CORS terhadap CDN luar -->
     <style>
@@ -251,7 +251,7 @@
             <span id="lib-status-badge" class="badge">Menghubungkan...</span>
         </div>
 
-        <!-- Panel Peringatan COOP/COEP -->
+        <!-- Panel Peringatan COOP/COEP (Akan disembunyikan otomatis jika isolasi bernilai true) -->
         <div id="coop-warning" class="warning-box hidden">
             <p class="font-bold">⚠️ SharedArrayBuffer / COOP & COEP Terblokir</p>
             <p>FFmpeg WASM memerlukan lingkungan terisolasi yang aman agar dapat berjalan di browser Anda. Pastikan aturan 'Response Header Transform Rules' di Cloudflare Anda telah aktif dengan header berikut:</p>
@@ -328,6 +328,12 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             logContainer.scrollTop = logContainer.scrollHeight;
         }
 
+        // Fungsi pembantu untuk membuat URL absolut dari jalur relatif
+        function getAbsoluteURL(relativePath) {
+            const url = new URL(relativePath, window.location.href);
+            return url.href;
+        }
+
         // Fungsi pembantu untuk fetch file secara manual ke bentuk Uint8Array
         async function customFetchFile(file) {
             if (typeof file === 'string') {
@@ -352,7 +358,7 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                 coopWarning.classList.remove('hidden');
             } else {
                 appendLog('✅ Keamanan browser terverifikasi aman (SharedArrayBuffer diizinkan)!');
-                coopWarning.classList.add('hidden');
+                coopWarning.classList.add('hidden'); // Sembunyikan otomatis jika sudah aman
             }
 
             const lib = window.FFmpegWASM;
@@ -427,12 +433,36 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                     statusLabel.innerText = 'Memuat core WASM...';
                     appendLog('[Sistem] Mengunduh core & WASM dari direktori lokal...');
                     
-                    // SOLUSI: Jangan gunakan toBlobURL() jika domain Anda sama (Same-Origin).
-                    // Hal ini mencegah kegagalan resolusi file .wasm di latar belakang WebWorker!
-                    const loadConfig = {
-                        coreURL: `${libBasePath}/ffmpeg-core.js`,
-                        wasmURL: `${libBasePath}/ffmpeg-core.wasm`
-                    };
+                    // Membuat URL absolut untuk menghindari kegagalan path di dalam lingkup WebWorker blob
+                    const coreAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`);
+                    const wasmAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`);
+                    
+                    appendLog(`[Sistem] URL Core Absolut: ${coreAbsolute}`);
+                    
+                    const lib = window.FFmpegWASM;
+                    const { toBlobURL } = lib || {};
+                    let loadConfig = {};
+                    
+                    if (toBlobURL) {
+                        try {
+                            appendLog('[Sistem] Mencoba memetakan core & WASM menggunakan toBlobURL (URL Absolut)...');
+                            loadConfig = {
+                                coreURL: await toBlobURL(coreAbsolute, 'text/javascript'),
+                                wasmURL: await toBlobURL(wasmAbsolute, 'application/wasm')
+                            };
+                        } catch (blobErr) {
+                            appendLog(`[⚠️ Peringatan] Gagal toBlobURL: ${blobErr.message}. Menggunakan jalur absolut langsung.`);
+                            loadConfig = {
+                                coreURL: coreAbsolute,
+                                wasmURL: wasmAbsolute
+                            };
+                        }
+                    } else {
+                        loadConfig = {
+                            coreURL: coreAbsolute,
+                            wasmURL: wasmAbsolute
+                        };
+                    }
                     
                     appendLog('[Sistem] Mengeksekusi ffmpeg.load()...');
                     await ffmpeg.load(loadConfig);
