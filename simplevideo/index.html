@@ -340,7 +340,16 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                 appendLog(`[Sistem Blob] Mengunduh: ${url.split('/').pop()}`);
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+                
                 const buffer = await response.arrayBuffer();
+                
+                // Validasi ukuran untuk memastikan file tidak rusak (misal ter-redirect ke 404 HTML page)
+                if (buffer.byteLength < 1000) {
+                    appendLog(`[⚠️ Peringatan] Berkas ${url.split('/').pop()} ukurannya sangat kecil (${buffer.byteLength} bytes). Pastikan berkas tersebut valid.`);
+                } else {
+                    appendLog(`[Sistem Blob] Sukses membaca ${buffer.byteLength} bytes.`);
+                }
+                
                 const blob = new Blob([buffer], { type: mimeType });
                 return URL.createObjectURL(blob);
             } catch (error) {
@@ -445,24 +454,21 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             try {
                 if (!isCoreLoaded) {
                     statusLabel.innerText = 'Mengunduh pustaka WASM ke RAM...';
-                    appendLog('[Sistem] Menyiapkan pemuatan All-Blob Injection...');
+                    appendLog('[Sistem] Menyiapkan pemuatan Core & WASM (Blob Injection)...');
                     
-                    // SOLUSI PAMUNGKAS (ALL-BLOB METHOD):
-                    // Kita mendownload ketiga file secara manual dan menjadikannya Blob.
-                    // Ini memaksa FFmpeg untuk menggunakan file dari RAM browser kita,
-                    // mencegah Webpack mencari file secara relatif yang sering menyebabkan crash/stuck.
+                    // SOLUSI FINAL DAN PALING BERSIH:
+                    // Kita hanya memetakan coreURL dan wasmURL. 
+                    // Kita TIDAK BOLEH mendefinisikan workerURL karena berkas 814.ffmpeg.js adalah Webpack chunk, BUKAN Web Worker!
+                    // Biarkan mesin ffmpeg.js memuat workernya sendiri dari dalam logikanya.
                     const coreURL = await fetchToBlobURL(getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`), 'text/javascript');
                     const wasmURL = await fetchToBlobURL(getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`), 'application/wasm');
-                    const workerURL = await fetchToBlobURL(getAbsoluteURL(`${libBasePath}/814.ffmpeg.js`), 'text/javascript');
                     
                     const loadConfig = {
                         coreURL: coreURL,
-                        wasmURL: wasmURL,
-                        workerURL: workerURL,
-                        classWorkerURL: workerURL // Penting untuk kompabilitas fallback Web Worker
+                        wasmURL: wasmURL
                     };
                     
-                    appendLog('[Sistem] Semua aset berhasil dimuat ke RAM. Mengeksekusi ffmpeg.load()...');
+                    appendLog('[Sistem] Semua aset inti berhasil dimuat ke RAM. Mengeksekusi ffmpeg.load()...');
                     
                     // Menambahkan sistem batas waktu (Timeout 30 detik)
                     const loadPromise = ffmpeg.load(loadConfig);
