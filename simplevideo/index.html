@@ -4,34 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simple Video Processor</title>
-    <!-- Memuat FFmpeg secara fisik di head agar terpeta dengan benar oleh Webpack -->
+    <!-- Memuat FFmpeg secara fisik di head agar document.currentScript terdeteksi dengan benar oleh Webpack -->
     <script src="./lib/ffmpeg.js"></script>
+    
+    <!-- Gaya CSS internal premium untuk menghindari pemblokiran COEP/CORS terhadap CDN luar -->
     <style>
-        /* Desain Variabel Warna Premium */
-        :root {
-            --bg-slate-900: #0f172a;
-            --bg-slate-800: #1e293b;
-            --bg-slate-950: #020617;
-            --border-slate-700: #334155;
-            --text-slate-100: #f1f5f9;
-            --text-slate-300: #cbd5e1;
-            --text-slate-400: #94a3b8;
-            --text-slate-500: #64748b;
-            --blue-400: #60a5fa;
-            --indigo-400: #818cf8;
-            --indigo-500: #6366f1;
-            --indigo-600: #4f46e5;
-            --emerald-400: #34d399;
-            --emerald-500: #10b981;
-            --emerald-600: #059669;
-            --amber-400: #fbbf24;
-            --red-400: #f87171;
-        }
-
         body {
-            background-color: var(--bg-slate-900);
-            color: var(--text-slate-100);
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #0f172a;
+            color: #f1f5f9;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -39,81 +20,83 @@
             justify-content: center;
             padding: 1rem;
             margin: 0;
-            box-sizing: border-box;
         }
-
         .container {
-            background-color: var(--bg-slate-800);
-            border: 1px solid var(--border-slate-700);
+            background-color: #1e293b;
+            border: 1px solid #334155;
             border-radius: 1rem;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            padding: 1.5rem;
             width: 100%;
             max-width: 42rem;
+            padding: 1.5rem;
             box-sizing: border-box;
         }
-
         .header {
             display: flex;
             align-items: center;
             justify-content: space-between;
             margin-bottom: 1.5rem;
         }
-
         .title {
             font-size: 1.5rem;
             font-weight: 800;
             margin: 0;
-            background: linear-gradient(to right, var(--blue-400), var(--indigo-400));
+            background: linear-gradient(to right, #60a5fa, #818cf8);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            user-select: none;
         }
-
         .badge {
             font-size: 0.75rem;
             font-weight: 600;
             padding: 0.25rem 0.75rem;
             border-radius: 9999px;
-            border-width: 1px;
-            border-style: solid;
+            background-color: rgba(245, 158, 11, 0.1);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.2);
         }
-
-        .badge-connecting {
-            background-color: rgba(251, 191, 36, 0.1);
-            color: var(--amber-400);
-            border-color: rgba(251, 191, 36, 0.2);
+        .badge.ready {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.2);
         }
-
-        .badge-ready {
-            background-color: rgba(52, 211, 153, 0.1);
-            color: var(--emerald-400);
-            border-color: rgba(52, 211, 153, 0.2);
+        .badge.failed {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.2);
         }
-
-        .badge-failed {
-            background-color: rgba(248, 113, 113, 0.1);
-            color: var(--red-400);
-            border-color: rgba(248, 113, 113, 0.2);
+        .warning-box {
+            background-color: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            font-size: 0.75rem;
+            margin-bottom: 1.5rem;
         }
-    </style>
-    <style>
-        .uploader-zone {
-            border: 2px dashed var(--border-slate-700);
+        .warning-box p {
+            margin: 0 0 0.5rem 0;
+        }
+        .warning-box pre {
+            background-color: #020617;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            overflow-x: auto;
+            color: #f87171;
+            margin: 0;
+        }
+        .dropzone {
+            border: 2px dashed #475569;
             border-radius: 0.75rem;
             padding: 1.5rem;
             text-align: center;
             position: relative;
             cursor: pointer;
-            transition: border-color 0.2s, background-color 0.2s;
+            transition: border-color 0.2s;
         }
-
-        .uploader-zone:hover {
-            border-color: var(--blue-400);
-            background-color: rgba(96, 165, 250, 0.02);
+        .dropzone:hover {
+            border-color: #3b82f6;
         }
-
-        .uploader-input {
+        .dropzone input[type="file"] {
             position: absolute;
             inset: 0;
             width: 100%;
@@ -121,129 +104,106 @@
             opacity: 0;
             cursor: pointer;
         }
-
-        .uploader-icon {
-            margin: 0 auto 0.5rem auto;
+        .dropzone svg {
             height: 3rem;
             width: 3rem;
-            color: var(--text-slate-400);
+            color: #94a3b8;
+            margin-bottom: 0.5rem;
         }
-
-        .uploader-text {
+        .dropzone .text-main {
             font-size: 0.875rem;
-            color: var(--text-slate-300);
+            color: #cbd5e1;
+            margin-bottom: 0.25rem;
         }
-
-        .uploader-highlight {
-            font-weight: 600;
-            color: var(--blue-400);
-        }
-
-        .uploader-subtext {
+        .dropzone .text-sub {
             font-size: 0.75rem;
-            color: var(--text-slate-500);
-            margin: 0.25rem 0 0 0;
+            color: #64748b;
+            margin: 0;
         }
-
-        .btn-process {
+        .btn {
             width: 100%;
             padding: 0.75rem;
             border-radius: 0.75rem;
+            font-size: 0.875rem;
             font-weight: 600;
-            font-size: 1rem;
             border: none;
-            cursor: not-allowed;
-            background-color: var(--border-slate-700);
-            color: var(--text-slate-400);
-            transition: background-color 0.2s, box-shadow 0.2s;
-            margin-top: 1rem;
-        }
-
-        .btn-process.active {
-            background-color: var(--indigo-600);
-            color: var(--text-slate-100);
             cursor: pointer;
-            box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.3);
-        }
-
-        .btn-process.active:hover {
-            background-color: var(--indigo-500);
-        }
-
-        .status-container {
+            transition: background-color 0.2s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            box-sizing: border-box;
             margin-top: 1rem;
         }
-
+        .btn:disabled {
+            background-color: #334155;
+            color: #64748b;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background-color: #4f46e5;
+            color: #ffffff;
+        }
+        .btn-primary:hover:not(:disabled) {
+            background-color: #4338ca;
+            box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
+        }
         .status-text {
             text-align: center;
             font-size: 0.875rem;
-            font-weight: 500;
-            color: var(--text-slate-400);
-            padding: 0.25rem 0;
+            color: #94a3b8;
+            margin: 1rem 0;
         }
-
-        .progress-track {
+        .progress-container {
             width: 100%;
-            background-color: var(--border-slate-700);
+            background-color: #334155;
             border-radius: 9999px;
             height: 0.625rem;
             overflow: hidden;
             display: none;
-            margin-top: 0.5rem;
         }
-
         .progress-bar {
-            background-color: var(--blue-400);
+            background-color: #3b82f6;
             height: 100%;
             width: 0%;
             transition: width 0.2s;
         }
-    </style>
-    <style>
-        .output-container {
+        .output-box {
             display: none;
-            margin-top: 1.5rem;
-            background-color: var(--bg-slate-950);
-            border: 1px solid var(--border-slate-700);
-            border-radius: 0.75rem;
-            padding: 1rem;
+            margin-top: 1rem;
         }
-
-        .output-title {
+        .output-box h3 {
             font-size: 0.875rem;
-            font-weight: 600;
-            color: var(--text-slate-400);
-            margin: 0 0 0.5rem 0;
+            color: #94a3b8;
+            margin-top: 0;
+            margin-bottom: 0.5rem;
         }
-
-        video {
+        .output-box video {
             width: 100%;
-            border-radius: 0.5rem;
-            background-color: #000;
+            border-radius: 0.75rem;
+            border: 1px solid #334155;
+            background-color: #000000;
             max-height: 300px;
         }
-
         .download-wrapper {
             display: flex;
             justify-content: flex-end;
-            margin-top: 0.75rem;
+            margin-top: 0.5rem;
         }
-
         .btn-download {
+            background-color: #059669;
+            color: #ffffff;
             padding: 0.5rem 1rem;
-            background-color: var(--emerald-600);
-            color: white;
-            text-decoration: none;
             font-size: 0.75rem;
             font-weight: 600;
             border-radius: 0.5rem;
+            text-decoration: none;
             transition: background-color 0.2s;
         }
-
         .btn-download:hover {
-            background-color: var(--emerald-500);
+            background-color: #047857;
         }
-
         .terminal-header {
             display: flex;
             align-items: center;
@@ -251,40 +211,34 @@
             margin-top: 1.5rem;
             margin-bottom: 0.5rem;
         }
-
         .terminal-title {
             font-size: 0.75rem;
             font-weight: 600;
-            color: var(--text-slate-400);
+            color: #94a3b8;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            margin: 0;
         }
-
         .btn-clear {
             background: none;
             border: none;
-            color: var(--text-slate-500);
+            color: #64748b;
             font-size: 0.625rem;
             cursor: pointer;
-            padding: 0.25rem;
             transition: color 0.2s;
         }
-
         .btn-clear:hover {
-            color: var(--text-slate-300);
+            color: #cbd5e1;
         }
-
-        .terminal-log {
-            height: 12rem;
-            background-color: var(--bg-slate-950);
-            padding: 0.75rem;
+        .terminal {
+            height: 10rem;
+            background-color: #020617;
+            border: 1px solid #1e293b;
             border-radius: 0.75rem;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            padding: 0.75rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
             font-size: 0.75rem;
-            color: var(--emerald-400);
+            color: #34d399;
             overflow-y: auto;
-            border: 1px solid rgba(255, 255, 255, 0.05);
             white-space: pre-wrap;
             box-sizing: border-box;
         }
@@ -294,42 +248,46 @@
     <div class="container">
         <div class="header">
             <h1 class="title">Video Processor</h1>
-            <span id="lib-status-badge" class="badge badge-connecting">
-                Menghubungkan...
-            </span>
+            <span id="lib-status-badge" class="badge">Menghubungkan...</span>
         </div>
 
-        <div class="space-y-4">
+        <!-- Panel Peringatan COOP/COEP -->
+        <div id="coop-warning" class="warning-box hidden">
+            <p class="font-bold">⚠️ SharedArrayBuffer / COOP & COEP Terblokir</p>
+            <p>FFmpeg WASM memerlukan lingkungan terisolasi yang aman agar dapat berjalan di browser Anda. Pastikan aturan 'Response Header Transform Rules' di Cloudflare Anda telah aktif dengan header berikut:</p>
+            <pre>Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp</pre>
+        </div>
+
+        <div>
             <!-- Area Input Berkas -->
-            <div class="uploader-zone">
-                <input type="file" id="uploader" accept="video/*" class="uploader-input">
-                <div>
-                    <svg class="uploader-icon" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                    <div class="uploader-text">
-                        <span id="file-name-label" class="uploader-highlight">Pilih file video</span> atau seret ke sini
-                    </div>
-                    <p class="uploader-subtext">MP4, WebM, MKV, AVI, dll.</p>
+            <div class="dropzone">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 48 48">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <div class="text-main">
+                    <span id="file-name-label" style="font-weight: 600; color: #60a5fa;">Pilih file video</span> atau seret ke sini
                 </div>
+                <p class="text-sub">MP4, WebM, MKV, AVI, dll.</p>
+                <input type="file" id="uploader" accept="video/*">
             </div>
 
             <!-- Tombol Konversi -->
-            <button id="btnProcess" disabled class="btn-process">
-                Mulai Konversi ke MP4
+            <button id="btnProcess" disabled class="btn btn-primary">
+                <span>Mulai Konversi ke MP4</span>
             </button>
 
             <!-- Indikator Status & Progress Bar -->
-            <div class="status-container">
+            <div>
                 <div id="status" class="status-text">Menghubungkan ke library...</div>
-                <div id="progress-container" class="progress-track">
+                <div id="progress-container" class="progress-container">
                     <div id="progress-bar" class="progress-bar"></div>
                 </div>
             </div>
 
             <!-- Hasil Pemrosesan Video -->
-            <div id="output-container" class="output-container">
-                <h3 class="output-title">Hasil Pemrosesan:</h3>
+            <div id="output-container" class="output-box">
+                <h3>Hasil Pemrosesan:</h3>
                 <video id="output-video" controls></video>
                 <div class="download-wrapper">
                     <a id="btnDownload" class="btn-download" download="processed_video.mp4">
@@ -341,10 +299,10 @@
             <!-- Log Terminal Real-time -->
             <div>
                 <div class="terminal-header">
-                    <h3 class="terminal-title">FFmpeg Terminal Logs</h3>
+                    <span class="terminal-title">FFmpeg Terminal Logs</span>
                     <button id="btnClearLogs" class="btn-clear">Bersihkan</button>
                 </div>
-                <div id="ffmpeg-logs" class="terminal-log"></div>
+                <div id="ffmpeg-logs" class="terminal"></div>
             </div>
         </div>
     </div>
@@ -360,6 +318,7 @@
         const uploader = document.getElementById('uploader');
         const fileNameLabel = document.getElementById('file-name-label');
         const logContainer = document.getElementById('ffmpeg-logs');
+        const coopWarning = document.getElementById('coop-warning');
         const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
 
@@ -390,12 +349,10 @@
             // Cek pre-flight isolasi browser untuk SharedArrayBuffer
             if (!window.crossOriginIsolated) {
                 appendLog('[⚠️ Peringatan] window.crossOriginIsolated bernilai false. SharedArrayBuffer tidak tersedia.');
-                libBadge.className = "badge badge-failed";
-                libBadge.innerText = "Terblokir";
-                statusLabel.innerText = "SharedArrayBuffer diblokir. Harap periksa konfigurasi header server Anda.";
-                return;
+                coopWarning.classList.remove('hidden');
             } else {
                 appendLog('✅ Keamanan browser terverifikasi aman (SharedArrayBuffer diizinkan)!');
+                coopWarning.classList.add('hidden');
             }
 
             const lib = window.FFmpegWASM;
@@ -407,6 +364,9 @@
                     // Daftarkan listener log real-time
                     ffmpeg.on('log', ({ message }) => {
                         appendLog(`[FFmpeg] ${message}`);
+                        if (message.includes('SharedArrayBuffer')) {
+                            coopWarning.classList.remove('hidden');
+                        }
                     });
 
                     // Daftarkan listener progress bar
@@ -416,20 +376,20 @@
                         progressBar.style.width = `${percent}%`;
                     });
 
-                    libBadge.className = "badge badge-ready";
+                    libBadge.className = "badge ready";
                     libBadge.innerText = "Siap (v0.12)";
                     statusLabel.innerText = "Silakan pilih video untuk memulai.";
                     appendLog('🎉 [Sistem] FFmpegWASM v0.12 berhasil diaktifkan dengan jalur aman!');
                 } catch (err) {
-                    libBadge.className = "badge badge-failed";
+                    libBadge.className = "badge failed";
                     libBadge.innerText = "Gagal";
                     statusLabel.innerText = "Gagal membuat instance FFmpeg.";
                     appendLog('❌ [Error] ' + err.message);
                 }
             } else {
-                libBadge.className = "badge badge-failed";
-                libBadge.innerText = "Gagal";
-                statusLabel.innerText = "Gagal mendeteksi objek FFmpegWASM. Periksa berkas ./lib/ffmpeg.js.";
+                libBadge.className = "badge failed";
+                libBadge.innerText = "Gagal Memuat";
+                statusLabel.innerText = "Gagal mendeteksi objek FFmpegWASM.";
                 appendLog('❌ Error: Objek window.FFmpegWASM.FFmpeg tidak ditemukan.');
             }
         }
@@ -443,7 +403,6 @@
             if (file) {
                 fileNameLabel.innerText = file.name;
                 btnProcess.disabled = false;
-                btnProcess.className = "btn-process active";
                 statusLabel.innerText = `File "${file.name}" siap diproses.`;
                 progressContainer.style.display = 'none';
                 progressBar.style.width = '0%';
@@ -460,7 +419,6 @@
             if (!file || !ffmpeg) return;
 
             btnProcess.disabled = true;
-            btnProcess.className = "btn-process";
             progressContainer.style.display = 'block';
             progressBar.style.width = '0%';
 
@@ -469,35 +427,17 @@
                     statusLabel.innerText = 'Memuat core WASM...';
                     appendLog('[Sistem] Mengunduh core & WASM dari direktori lokal...');
                     
-                    const lib = window.FFmpegWASM;
-                    const { toBlobURL } = lib || {};
-                    let loadConfig = {};
-                    
-                    if (toBlobURL) {
-                        try {
-                            appendLog('[Sistem] Mencoba memetakan core & WASM menggunakan toBlobURL...');
-                            loadConfig = {
-                                coreURL: await toBlobURL(`${libBasePath}/ffmpeg-core.js`, 'text/javascript'),
-                                wasmURL: await toBlobURL(`${libBasePath}/ffmpeg-core.wasm`, 'application/wasm')
-                            };
-                        } catch (blobErr) {
-                            appendLog(`[⚠️ Peringatan] Gagal membuat Blob URL: ${blobErr.message}. Menggunakan pemuatan jalur langsung.`);
-                            loadConfig = {
-                                coreURL: `${libBasePath}/ffmpeg-core.js`,
-                                wasmURL: `${libBasePath}/ffmpeg-core.wasm`
-                            };
-                        }
-                    } else {
-                        loadConfig = {
-                            coreURL: `${libBasePath}/ffmpeg-core.js`,
-                            wasmURL: `${libBasePath}/ffmpeg-core.wasm`
-                        };
-                    }
+                    // SOLUSI: Jangan gunakan toBlobURL() jika domain Anda sama (Same-Origin).
+                    // Hal ini mencegah kegagalan resolusi file .wasm di latar belakang WebWorker!
+                    const loadConfig = {
+                        coreURL: `${libBasePath}/ffmpeg-core.js`,
+                        wasmURL: `${libBasePath}/ffmpeg-core.wasm`
+                    };
                     
                     appendLog('[Sistem] Mengeksekusi ffmpeg.load()...');
                     await ffmpeg.load(loadConfig);
                     isCoreLoaded = true;
-                    appendLog('✅ [Sistem] Core WASM berhasil diinisialisasi!');
+                    appendLog('✅ [Sistem] Core WASM berhasil diinisialisasi secara instan!');
                 }
 
                 const inputName = file.name;
@@ -539,13 +479,12 @@
                 statusLabel.innerText = 'Gagal memproses video!';
                 let detailedMessage = error && error.message ? error.message : JSON.stringify(error);
                 if (detailedMessage === '{}' || !detailedMessage) {
-                    detailedMessage = 'Gagal memuat core WASM. Hal ini dikonfirmasi karena browser memblokir SharedArrayBuffer.';
+                    detailedMessage = 'Gagal memuat core WASM. Mohon bersihkan cache browser atau periksa kembali tab Jaringan di F12.';
                 }
                 appendLog(`❌ [Error] ${detailedMessage}`);
                 console.error("FFmpeg Core Load Error: ", error);
             } finally {
                 btnProcess.disabled = false;
-                btnProcess.className = "btn-process active";
             }
         });
     </script>
