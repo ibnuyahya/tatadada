@@ -106,6 +106,27 @@
             color: #64748b;
             margin: 0;
         }
+        .options-bar {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background-color: #0f172a;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .options-bar input[type="checkbox"] {
+            cursor: pointer;
+            width: 1rem;
+            height: 1rem;
+        }
+        .options-bar label {
+            font-size: 0.875rem;
+            color: #cbd5e1;
+            cursor: pointer;
+            user-select: none;
+        }
         .btn {
             width: 100%;
             padding: 0.75rem;
@@ -216,7 +237,7 @@
             color: #cbd5e1;
         }
         .terminal {
-            height: 12rem;
+            height: 14rem;
             background-color: #020617;
             border: 1px solid #1e293b;
             border-radius: 0.75rem;
@@ -234,11 +255,12 @@
     <div class="container">
         <div class="header">
             <h1 class="title">Video Processor</h1>
-            <span id="lib-status-badge" class="badge">Menghubungkan...</span>
+            <span id="lib-status-badge" class="badge">Menyiapkan...</span>
         </div>
 
         <div id="coop-warning" class="warning-box hidden">
-            <p class="font-bold">⚠️ Keamanan COOP/COEP Belum Terkonfigurasi</p>
+            <p class="font-bold">⚠️ Keamanan COOP/COEP Tidak Terdeteksi</p>
+            <p>Fitur Multi-Thread membutuhkan status "crossOriginIsolated". Jika gagal, gunakan <b>Mode Aman</b> di bawah.</p>
         </div>
 
         <div>
@@ -253,12 +275,18 @@
                 <input type="file" id="uploader" accept="video/*">
             </div>
 
+            <!-- OPSI MODE AMAN -->
+            <div class="options-bar">
+                <input type="checkbox" id="safeModeToggle">
+                <label for="safeModeToggle"><b>Gunakan Mode Aman (Single-Thread)</b><br><span style="font-size:0.7rem; color:#64748b;">Centang ini jika proses terus-menerus gagal atau stuck.</span></label>
+            </div>
+
             <button id="btnProcess" disabled class="btn btn-primary">
                 <span>Mulai Konversi ke MP4</span>
             </button>
 
             <div>
-                <div id="status" class="status-text">Menghubungkan ke library...</div>
+                <div id="status" class="status-text">Menunggu instruksi...</div>
                 <div id="progress-container" class="progress-container">
                     <div id="progress-bar" class="progress-bar"></div>
                 </div>
@@ -276,7 +304,7 @@
 
             <div>
                 <div class="terminal-header">
-                    <span class="terminal-title">FFmpeg Terminal Logs</span>
+                    <span class="terminal-title">FFmpeg Diagnostik Log</span>
                     <button id="btnClearLogs" class="btn-clear">Bersihkan</button>
                 </div>
                 <div id="ffmpeg-logs" class="terminal"></div>
@@ -284,10 +312,10 @@
         </div>
     </div>
 
-    <!-- MENGGUNAKAN ES MODULES (ESM) -->
+    <!-- MENGGUNAKAN ES MODULES DARI CDN RESMI -->
     <script type="module">
         import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
-        import { fetchFile, toBlobURL } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
+        import { fetchFile } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
 
         const logContainer = document.getElementById('ffmpeg-logs');
         function appendLog(message) {
@@ -306,15 +334,24 @@
         const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
         const coopWarning = document.getElementById('coop-warning');
+        const safeModeToggle = document.getElementById('safeModeToggle');
+
+        // Tangkap Unhandled Promise (Penting untuk melacak stuck fetch)
+        window.addEventListener('unhandledrejection', (e) => {
+            appendLog(`❌ [Fatal Error] ${e.reason ? e.reason.message || e.reason : 'Unknown Exception'}`);
+            console.error(e.reason);
+        });
 
         async function initFFmpeg() {
-            appendLog('Memulai inisialisasi Pustaka ESM Resmi...');
+            appendLog('Memulai inisialisasi ESM Wrapper...');
             
             if (!window.crossOriginIsolated) {
                 coopWarning.classList.remove('hidden');
-                appendLog('⚠️ Peringatan: Browser belum terisolasi.');
+                appendLog('⚠️ COOP/COEP belum aktif. Multi-Thread mungkin tidak berfungsi.');
+                safeModeToggle.checked = true; // Auto-fallback ke aman
+                appendLog('ℹ️ Auto-mengaktifkan Mode Aman (Single-Thread).');
             } else {
-                appendLog('✅ Keamanan Cloudflare terverifikasi aman (SharedArrayBuffer aktif).');
+                appendLog('✅ Status Isolasi Browser (SharedArrayBuffer) aktif.');
             }
 
             try {
@@ -331,17 +368,15 @@
                 });
 
                 libBadge.className = "badge ready";
-                libBadge.innerText = "Siap (v0.12)";
-                statusLabel.innerText = "Silakan pilih video untuk memulai.";
-                appendLog('✅ [Sistem] Pustaka ESM berhasil dimuat!');
+                libBadge.innerText = "ESM Siap";
+                appendLog('✅ [Sistem] Objek FFmpeg siap menerima instruksi.');
             } catch (err) {
                 libBadge.className = "badge failed";
                 libBadge.innerText = "Gagal";
-                appendLog(`❌ [Error] ${err.message}`);
+                appendLog(`❌ [Error Inisialisasi] ${err.message}`);
             }
         }
 
-        // Inisialisasi instan
         initFFmpeg();
 
         uploader.addEventListener('change', (e) => {
@@ -352,12 +387,40 @@
                 statusLabel.innerText = `File "${file.name}" siap diproses.`;
                 progressContainer.style.display = 'none';
                 progressBar.style.width = '0%';
+                
+                // Reset loading jika ganti file & mode berubah
+                isCoreLoaded = false; 
             }
         });
 
         document.getElementById('btnClearLogs').addEventListener('click', () => {
             logContainer.textContent = '';
         });
+
+        // ==========================================
+        // FUNGSI PING DIAGNOSTIK
+        // ==========================================
+        async function diagnosticPing(url) {
+            const filename = url.split('/').pop();
+            appendLog(`[Ping] Cek ketersediaan file: ${filename}...`);
+            try {
+                const res = await fetch(url, { method: 'HEAD' });
+                const status = res.status;
+                const contentType = res.headers.get('content-type');
+                const corp = res.headers.get('cross-origin-resource-policy');
+                
+                if (status >= 400) {
+                    appendLog(` └─ ❌ ERROR ${status}: File tidak ditemukan/diblokir.`);
+                    return false;
+                } else {
+                    appendLog(` └─ ✅ HTTP ${status} | Tipe: ${contentType} | CORP: ${corp || 'N/A'}`);
+                    return true;
+                }
+            } catch (err) {
+                appendLog(` └─ ❌ GAGAL FETCH: ${err.message}. Pastikan koneksi/CORS aman.`);
+                return false;
+            }
+        }
 
         btnProcess.addEventListener('click', async () => {
             const file = uploader.files[0];
@@ -366,49 +429,68 @@
             btnProcess.disabled = true;
             progressContainer.style.display = 'block';
             progressBar.style.width = '0%';
+            safeModeToggle.disabled = true;
 
             try {
                 if (!isCoreLoaded) {
-                    statusLabel.innerText = 'Mengunduh engine WASM Resmi...';
-                    appendLog('[Sistem] Mulai memuat Engine WASM Multi-Thread dari CDN...');
+                    statusLabel.innerText = 'Menyiapkan Engine WASM...';
+                    const isSafeMode = safeModeToggle.checked;
                     
-                    const coreBaseURL = 'https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm';
-                    const ffmpegBaseURL = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm';
+                    let loadConfig = {};
 
-                    appendLog('[Sistem] Mengonversi 4 file utama menjadi Blob URL untuk mem-bypass Cross-Origin...');
+                    // KITA GUNAKAN URL ABSOLUT LANGSUNG DARI CDN UNTUK MENGHINDARI BUG BLOB DI WORKER
+                    if (isSafeMode) {
+                        appendLog('\n--- MEMULAI MODE AMAN (SINGLE-THREAD) ---');
+                        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+                        
+                        loadConfig = {
+                            coreURL: `${baseURL}/ffmpeg-core.js`,
+                            wasmURL: `${baseURL}/ffmpeg-core.wasm`
+                        };
+                        
+                        // Diagnostik
+                        await diagnosticPing(loadConfig.coreURL);
+                        await diagnosticPing(loadConfig.wasmURL);
 
-                    // SOLUSI MUTLAK:
-                    // Kita mengubah KEEMPAT file ini menjadi Blob URL (termasuk classWorkerURL)
-                    // Sehingga browser tidak lagi memblokirnya dengan pesan "cannot be accessed from origin"
-                    const coreURL = await toBlobURL(`${coreBaseURL}/ffmpeg-core.js`, 'text/javascript');
-                    const wasmURL = await toBlobURL(`${coreBaseURL}/ffmpeg-core.wasm`, 'application/wasm');
-                    const workerURL = await toBlobURL(`${coreBaseURL}/ffmpeg-core.worker.js`, 'text/javascript');
+                    } else {
+                        appendLog('\n--- MEMULAI MODE CEPAT (MULTI-THREAD) ---');
+                        const baseURL = 'https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm';
+                        
+                        loadConfig = {
+                            coreURL: `${baseURL}/ffmpeg-core.js`,
+                            wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+                            workerURL: `${baseURL}/ffmpeg-core.worker.js`
+                        };
+
+                        // Diagnostik
+                        await diagnosticPing(loadConfig.coreURL);
+                        await diagnosticPing(loadConfig.wasmURL);
+                        await diagnosticPing(loadConfig.workerURL);
+                    }
+
+                    appendLog('\n[Sistem] Menjalankan ffmpeg.load()... (Tunggu hingga 30 detik)');
                     
-                    // Ini adalah kunci yang terlewat! worker.js dari ffmpeg wrapper harus disetel sebagai Blob juga.
-                    const classWorkerURL = await toBlobURL(`${ffmpegBaseURL}/worker.js`, 'text/javascript');
-
-                    await ffmpeg.load({
-                        coreURL: coreURL,
-                        wasmURL: wasmURL,
-                        workerURL: workerURL,
-                        classWorkerURL: classWorkerURL
+                    // Gunakan Promise Race untuk memberikan Timeout Limit
+                    const loadPromise = ffmpeg.load(loadConfig);
+                    const timeoutPromise = new Promise((_, reject) => {
+                        setTimeout(() => reject(new Error("Timeout! Proses loading stuck selama 30 detik.")), 30000);
                     });
                     
+                    await Promise.race([loadPromise, timeoutPromise]);
+                    
                     isCoreLoaded = true;
-                    appendLog('🎉 [Sistem] Core WASM berhasil dimuat tanpa error!');
+                    appendLog('🎉 [Sistem] Core WASM berhasil dimuat!');
                 }
 
                 const inputName = file.name;
                 const outputName = 'converted_' + Date.now() + '.mp4';
                 
                 statusLabel.innerText = 'Membaca video ke memori...';
-                
-                // Gunakan fetchFile bawaan ESM untuk penanganan memori yang efisien
                 const fileData = await fetchFile(file);
                 await ffmpeg.writeFile(inputName, fileData);
 
                 statusLabel.innerText = 'Memulai proses konversi...';
-                appendLog(`[Konversi] ffmpeg -i "${inputName}" -c:v libx264 -preset ultrafast -crf 28 "${outputName}"`);
+                appendLog(`\n[Konversi] ffmpeg -i "${inputName}" -c:v libx264 -preset ultrafast -crf 28 "${outputName}"`);
                 
                 await ffmpeg.exec(['-i', inputName, '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', outputName]);
 
@@ -429,17 +511,23 @@
                 outputContainer.style.display = 'block';
                 statusLabel.innerText = 'Konversi Berhasil!';
                 progressBar.style.width = '100%';
-                appendLog('✅ [Sukses] Proses konversi video selesai!');
+                appendLog('✅ [Sukses] Video berhasil dikonversi!');
 
                 await ffmpeg.deleteFile(inputName);
                 await ffmpeg.deleteFile(outputName);
 
             } catch (error) {
                 statusLabel.innerText = 'Gagal memproses video!';
-                appendLog(`❌ [Error] ${error.message || error}`);
+                appendLog(`❌ [Error Fatal] ${error.message || error}`);
                 console.error(error);
+                
+                // Saran pintar dari sistem jika error terjadi
+                if (!safeModeToggle.checked && error.message.includes('Timeout')) {
+                    appendLog(`💡 SARAN: Coba centang "Mode Aman (Single-Thread)" dan klik konversi lagi.`);
+                }
             } finally {
                 btnProcess.disabled = false;
+                safeModeToggle.disabled = false;
             }
         });
     </script>
