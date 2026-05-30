@@ -3,448 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VisionaryCuts Pro Editor</title>
-
-    <script src="lib/ffmpeg.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
-
+    <title>Simple Video Processor</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; overflow: hidden; user-select: none; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
-        
-        .draggable-overlay {
-            position: absolute; border: 2px dashed rgba(79, 70, 229, 0.8);
-            background-color: rgba(79, 70, 229, 0.1); cursor: grab; display: none; z-index: 20;
-        }
-        .draggable-overlay:active { cursor: grabbing; }
-        .draggable-overlay img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
-        .resize-handle {
-            position: absolute; bottom: -6px; right: -6px; width: 12px; height: 12px;
-            background-color: #4f46e5; border: 2px solid white; border-radius: 50%;
-            cursor: nwse-resize; z-index: 21;
-        }
-
-        .timeline-slot { transition: all 0.2s ease; border: 2px dashed transparent; }
-        .timeline-slot.drag-over { border-color: #4f46e5; background-color: rgba(79, 70, 229, 0.1); transform: scale(1.02); }
-        .timeline-slot.filled { border: 1px solid #e2e8f0; border-left: 4px solid #4f46e5; background-color: #ffffff; }
-    </style>
+    <!-- Memuat FFmpeg dari direktori lib yang ditentukan -->
+    <script src="./lib/ffmpeg.js"></script>
 </head>
-<body class="h-screen flex flex-col relative">
+<body class="bg-gray-100 min-h-screen flex flex-col items-center py-10">
+    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-lg">
+        <h1 class="text-2xl font-bold mb-4 text-gray-800">Video Processor</h1>
+        <p class="text-gray-600 mb-6">Pilih video untuk diproses menggunakan FFmpeg WASM.</p>
+        
+        <input type="file" id="uploader" class="block w-full text-sm text-gray-500 mb-4 
+            file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 
+            file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 
+            hover:file:bg-blue-100">
+        
+        <button id="btnProcess" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition">
+            Proses Video
+        </button>
 
-    <header class="h-14 flex items-center justify-between px-6 bg-white border-b border-gray-200 shadow-sm z-50 flex-shrink-0">
-        <div class="flex items-center gap-4">
-            <div class="flex items-baseline gap-2">
-                <h1 class="font-bold text-lg tracking-tight bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent">VisionaryCuts Pro</h1>
-                <span class="text-xs italic text-gray-400 font-medium">Local WASM Engine</span>
-            </div>
-        </div>
-
-        <div class="flex items-center gap-4">
-            <div id="statusBadge" class="hidden px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-bold transition-all flex items-center gap-1.5 border border-blue-200">
-                <i data-lucide="loader" class="w-3 h-3 animate-spin"></i>
-                <span id="statusText">Inisialisasi...</span>
-            </div>
-        </div>
-    </header>
-
-    <main class="flex-1 flex overflow-hidden relative">
-        <aside class="w-80 flex flex-col bg-white border-r border-gray-200 h-full flex-shrink-0 z-20">
-            <div class="p-5 border-b border-gray-200 h-1/2 flex flex-col">
-                <h2 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2 uppercase tracking-wider">
-                    <i data-lucide="folder-open" class="w-4 h-4 text-indigo-500"></i> Media Bin
-                </h2>
-                
-                <div class="relative bg-slate-50 rounded-xl p-4 border-2 border-dashed border-gray-300 hover:border-indigo-500 transition-colors text-center group">
-                    <input type="file" id="mainUploader" multiple accept="video/*, image/png, image/webp" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
-                    <i data-lucide="upload-cloud" class="w-8 h-8 mx-auto text-gray-400 group-hover:text-indigo-500 transition-colors mb-2"></i>
-                    <span class="text-xs font-semibold text-gray-700 block">Pilih / Drop File Kesini</span>
-                    <p class="text-[10px] text-gray-400 mt-1">Video & PNG (Transparan)</p>
-                </div>
-
-                <div class="mt-4 flex-1 overflow-y-auto">
-                    <div id="assetLibrary" class="grid grid-cols-2 gap-2 pb-2">
-                        <div id="emptyLibrary" class="col-span-2 text-center text-xs text-gray-400 py-4 flex flex-col items-center gap-1">
-                            <i data-lucide="box" class="w-6 h-6 opacity-50"></i> Bin kosong.
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="p-5 flex-1 flex flex-col overflow-y-auto bg-slate-50/50">
-                <h2 class="text-sm font-bold text-gray-800 mb-4 flex items-center justify-between uppercase tracking-wider">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="git-commit" class="w-4 h-4 text-indigo-500"></i> Timeline
-                    </div>
-                </h2>
-                
-                <div class="flex flex-col gap-3 relative pb-4">
-                    <div class="absolute left-4 top-4 bottom-4 w-0.5 bg-gray-200 -z-10"></div>
-                    
-                    <div id="slotMain" class="timeline-slot bg-white border border-gray-200 p-3 rounded-xl flex items-center gap-3 shadow-sm" data-type="video" data-slot="main">
-                        <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-gray-200 text-gray-400 flex-shrink-0 slot-num">1</div>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-0.5">Video Utama</p>
-                            <p class="text-xs font-medium text-gray-800 truncate slot-text">Tarik video ke sini...</p>
-                        </div>
-                    </div>
-
-                    <div class="pl-11 grid grid-cols-1 gap-2 mt-[-4px] mb-1">
-                        <div id="slotLogo1" class="timeline-slot bg-white border border-gray-200 p-2 rounded-lg flex items-center gap-2 shadow-sm" data-type="image" data-slot="logo1">
-                            <i data-lucide="image" class="w-4 h-4 text-gray-400 slot-icon"></i>
-                            <span class="text-[10px] font-medium text-gray-500 slot-text truncate flex-1">Logo Watermark (PNG)</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="p-5 border-t border-gray-200 bg-white mt-auto flex-shrink-0">
-                <button id="btnRender" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <i data-lucide="video" class="w-4 h-4"></i> Mulai Render FFmpeg
-                </button>
-            </div>
-        </aside>
-
-        <section class="flex-1 p-6 flex flex-col relative bg-slate-100/50">
-            <div class="w-full max-w-4xl mx-auto h-full flex flex-col">
-                <div class="flex items-center justify-between mb-4 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
-                    <div class="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                        <i data-lucide="eye" class="w-4 h-4 text-indigo-500"></i> Pratinjau Kanvas
-                    </div>
-                </div>
-
-                <div id="canvasContainer" class="w-full aspect-video rounded-xl overflow-hidden shadow-lg border border-gray-800 bg-black relative select-none">
-                    <div id="placeholderText" class="absolute inset-0 flex flex-col items-center justify-center z-0 text-white/30 gap-2">
-                        <i data-lucide="monitor-play" class="w-16 h-16"></i>
-                        <span class="text-sm font-medium">Tarik Video Utama ke slot untuk melihat Pratinjau</span>
-                    </div>
-                    
-                    <canvas id="renderCanvas" width="1920" height="1080" class="w-full h-full relative z-10 block pointer-events-none"></canvas>
-                    
-                    <div id="overlayLogo1" class="draggable-overlay" style="left: 10%; top: 10%; width: 15%; height: 15%;">
-                        <img id="imgLogo1Preview" src="" alt="Logo">
-                        <div class="resize-handle" data-target="overlayLogo1"></div>
-                    </div>
-                </div>
-
-                <div class="mt-6 flex-1 bg-gray-900 rounded-xl overflow-hidden shadow-lg flex flex-col border border-gray-800">
-                    <div class="bg-gray-800 px-4 py-2 border-b border-gray-700 flex items-center gap-2">
-                        <i data-lucide="terminal" class="w-4 h-4 text-gray-400"></i>
-                        <span class="text-xs font-mono font-bold text-gray-300">Terminal Pemrosesan VFS</span>
-                    </div>
-                    <div id="consoleLog" class="p-4 flex-1 overflow-y-auto font-mono text-[10px] sm:text-xs text-green-400 leading-relaxed selectable whitespace-pre-wrap">
-                        <div class="text-gray-500">Pekerja FFmpeg menunggu tugas...</div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="outputSection" class="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm hidden flex-col items-center justify-center p-6 transition-all duration-300 opacity-0">
-                <div class="w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col transform scale-95 transition-transform duration-300" id="outputCard">
-                    <div class="p-4 border-b border-gray-200 flex items-center justify-between bg-slate-50">
-                        <button id="btnKeepEditing" class="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-gray-800 transition-colors">
-                            <i data-lucide="arrow-left" class="w-4 h-4"></i> Kembali
-                        </button>
-                        <span class="text-sm font-bold text-gray-800">Export_Berhasil.mp4</span>
-                        <div class="w-24"></div>
-                    </div>
-
-                    <div class="p-8 flex flex-col md:flex-row gap-8 items-start bg-white">
-                        <div class="flex-1 w-full relative">
-                            <video id="finalVideo" controls class="w-full aspect-video rounded-xl shadow-md border border-gray-200 bg-black"></video>
-                        </div>
-                        <div class="w-full md:w-80 flex flex-col gap-5">
-                            <div>
-                                <h3 class="font-bold text-xl text-gray-800 flex items-center gap-2">
-                                    <span class="bg-green-100 text-green-600 p-1 rounded-full"><i data-lucide="check" class="w-5 h-5"></i></span>
-                                    Selesai
-                                </h3>
-                            </div>
-                            <div class="flex flex-col gap-3 mt-2">
-                                <a id="downloadLink" href="#" class="flex items-center gap-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3.5 px-4 rounded-xl shadow-md transition-all group">
-                                    <i data-lucide="download" class="w-5 h-5"></i>
-                                    <span class="flex-1 text-left text-sm font-bold">Simpan ke Komputer</span>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </main>
+        <div id="status" class="mt-4 text-sm text-gray-700 italic"></div>
+        <video id="output-video" controls class="mt-6 w-full hidden border rounded"></video>
+    </div>
 
     <script>
-        lucide.createIcons();
+        const { createFFmpeg, fetchFile } = FFmpeg;
+        const ffmpeg = createFFmpeg({ 
+            log: true,
+            corePath: './lib/ffmpeg-core.js' // Mengarahkan ke core di lib
+        });
 
-        let ffmpeg = null;
-        let isFFmpegLoaded = false;
-        const consoleLog = document.getElementById('consoleLog');
-        const statusBadge = document.getElementById('statusBadge');
-        const statusText = document.getElementById('statusText');
+        const status = document.getElementById('status');
+        const btnProcess = document.getElementById('btnProcess');
+        const uploader = document.getElementById('uploader');
+        const outputVideo = document.getElementById('output-video');
 
-        function logToConsole(msg) {
-            const div = document.createElement('div');
-            div.innerText = msg;
-            consoleLog.appendChild(div);
-            consoleLog.scrollTop = consoleLog.scrollHeight;
-        }
-
-        async function loadFFmpeg() {
-            if (isFFmpegLoaded) return true;
+        const transcode = async ({ target: { files } }) => {
+            const name = files[0].name;
+            status.innerText = 'Memuat FFmpeg...';
+            await ffmpeg.load();
+            status.innerText = 'Menulis file ke sistem...';
+            ffmpeg.FS('writeFile', name, await fetchFile(files[0]));
+            status.innerText = 'Memproses video...';
+            // Contoh: Mengonversi video ke format mp4 (atau optimasi lain)
+            await ffmpeg.run('-i', name, 'output.mp4');
+            status.innerText = 'Selesai!';
             
-            try {
-                statusBadge.classList.remove('hidden');
-                statusText.innerText = "Memuat FFmpeg...";
-                logToConsole("Memuat mesin dari file server lokal (danial.my.id) sepenuhnya...");
+            const data = ffmpeg.FS('readFile', 'output.mp4');
+            outputVideo.src = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+            outputVideo.classList.remove('hidden');
+        };
 
-                const { FFmpeg } = window.FFmpegWASM;
-                ffmpeg = new FFmpeg();
-                
-                ffmpeg.on('log', ({ message }) => {
-                    logToConsole(message);
-                });
-
-                // KUNCI PERBAIKAN: Menggunakan URL Absolut yang lengkap agar importScripts di dalam Worker 
-                // tidak kebingungan dan tidak jatuh ke fallback CDN.
-                const baseURL = window.location.origin + window.location.pathname.replace('index.html', '') + 'lib';
-                
-                await ffmpeg.load({
-                    coreURL: baseURL + '/ffmpeg-core.js',
-                    wasmURL: baseURL + '/ffmpeg-core.wasm',
-                    classWorkerURL: baseURL + '/814.ffmpeg.js'
-                });
-
-                isFFmpegLoaded = true;
-                statusBadge.classList.replace('bg-blue-100', 'bg-green-100');
-                statusBadge.classList.replace('text-blue-700', 'text-green-700');
-                statusBadge.classList.replace('border-blue-200', 'border-green-200');
-                statusText.innerText = "FFmpeg Siap";
-                document.querySelector('#statusBadge i').classList.remove('animate-spin');
-                document.querySelector('#statusBadge i').setAttribute('data-lucide', 'check-circle');
-                lucide.createIcons();
-                
-                logToConsole("SUCCESS: Mesin FFmpeg Lokal (Single-Thread) berhasil diaktifkan!");
-                return true;
-            } catch (error) {
-                console.error(error);
-                logToConsole("ERROR: " + error.message);
-                statusBadge.classList.replace('bg-blue-100', 'bg-red-100');
-                statusBadge.classList.replace('text-blue-700', 'text-red-700');
-                statusText.innerText = "Gagal Memuat";
-                return false;
+        btnProcess.addEventListener('click', () => {
+            if (uploader.files.length > 0) {
+                transcode({ target: { files: uploader.files } });
+            } else {
+                status.innerText = 'Silakan pilih file terlebih dahulu.';
             }
-        }
-
-        window.addEventListener('DOMContentLoaded', loadFFmpeg);
-
-        // --- Logika UI Drag & Drop ---
-        const assetMap = new Map();
-        const timelineFiles = { main: null, logo1: null };
-        const canvas = document.getElementById('renderCanvas');
-        const ctx = canvas.getContext('2d');
-        let previewMainVideo = null;
-
-        document.getElementById('mainUploader').addEventListener('change', (e) => {
-            const files = Array.from(e.target.files);
-            const library = document.getElementById('assetLibrary');
-            if(files.length > 0) document.getElementById('emptyLibrary').style.display = 'none';
-
-            files.forEach(file => {
-                const isVideo = file.type.startsWith('video/');
-                const isImage = file.type.startsWith('image/');
-                if (!isVideo && !isImage) return;
-
-                const assetId = 'asset_' + Date.now();
-                assetMap.set(assetId, file);
-
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'bg-white border border-gray-200 rounded-lg p-2 flex items-center gap-2 shadow-sm hover:border-indigo-500 transition-colors cursor-grab';
-                itemDiv.draggable = true;
-                itemDiv.dataset.type = isVideo ? 'video' : 'image';
-                
-                const icon = isVideo ? '<i data-lucide="film" class="w-4 h-4 text-indigo-500"></i>' : '<i data-lucide="image" class="w-4 h-4 text-pink-500"></i>';
-                itemDiv.innerHTML = icon + ' <span class="text-[10px] font-medium text-gray-700 truncate flex-1">' + file.name + '</span>';
-
-                itemDiv.addEventListener('dragstart', (ev) => { ev.dataTransfer.setData('text/plain', assetId); });
-                library.appendChild(itemDiv);
-            });
-            lucide.createIcons(); e.target.value = '';
-        });
-
-        document.querySelectorAll('.timeline-slot').forEach(slot => {
-            slot.addEventListener('dragover', e => { e.preventDefault(); slot.classList.add('drag-over'); });
-            slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
-            slot.addEventListener('drop', e => {
-                e.preventDefault(); slot.classList.remove('drag-over');
-                const assetId = e.dataTransfer.getData('text/plain');
-                if (!assetMap.has(assetId)) return;
-                
-                const file = assetMap.get(assetId);
-                const slotType = slot.dataset.type;
-                const slotName = slot.dataset.slot;
-
-                if ((slotType === 'video' && !file.type.startsWith('video/')) || 
-                    (slotType === 'image' && !file.type.startsWith('image/'))) {
-                    alert('Tipe file salah! Butuh file ' + slotType); return;
-                }
-
-                timelineFiles[slotName] = file;
-                slot.classList.add('filled');
-                
-                if (slotType === 'video') {
-                    slot.querySelector('.slot-num').classList.add('bg-indigo-600', 'text-white', 'border-indigo-600');
-                    const textEl = slot.querySelector('.slot-text');
-                    textEl.innerText = file.name; textEl.classList.add('text-indigo-600');
-                    
-                    if (previewMainVideo) URL.revokeObjectURL(previewMainVideo.src);
-                    previewMainVideo = document.createElement('video');
-                    previewMainVideo.src = URL.createObjectURL(file);
-                    previewMainVideo.muted = true;
-                    previewMainVideo.onloadeddata = () => {
-                        document.getElementById('placeholderText').style.display = 'none';
-                        previewMainVideo.currentTime = 1; 
-                    };
-                    previewMainVideo.onseeked = () => {
-                        ctx.fillStyle = "black";
-                        ctx.fillRect(0, 0, canvas.width, canvas.height);
-                        ctx.drawImage(previewMainVideo, 0, 0, canvas.width, canvas.height);
-                    };
-                } else {
-                    slot.querySelector('.slot-icon').classList.add('text-indigo-600');
-                    const textEl = slot.querySelector('.slot-text');
-                    textEl.innerText = file.name; textEl.classList.add('text-indigo-600');
-                    
-                    const objectUrl = URL.createObjectURL(file);
-                    const imgEl = document.getElementById('imgLogo1Preview');
-                    const overlayEl = document.getElementById('overlayLogo1');
-                    imgEl.src = objectUrl;
-                    imgEl.onload = () => { overlayEl.style.display = 'block'; };
-                }
-            });
-        });
-
-        const overlay = document.getElementById('overlayLogo1');
-        const container = document.getElementById('canvasContainer');
-        let isDragging = false, isResizing = false;
-        let startX, startY, startLeft, startTop, startWidth, startHeight;
-
-        overlay.addEventListener('mousedown', (e) => {
-            if (e.target.classList.contains('resize-handle')) return;
-            isDragging = true; startX = e.clientX; startY = e.clientY;
-            startLeft = overlay.offsetLeft; startTop = overlay.offsetTop;
-        });
-
-        overlay.querySelector('.resize-handle').addEventListener('mousedown', (e) => {
-            isResizing = true; e.stopPropagation();
-            startX = e.clientX; startY = e.clientY;
-            startWidth = overlay.offsetWidth; startHeight = overlay.offsetHeight;
-        });
-
-        window.addEventListener('mousemove', (e) => {
-            const rect = container.getBoundingClientRect();
-            if (isDragging) {
-                let newLeft = startLeft + (e.clientX - startX);
-                let newTop = startTop + (e.clientY - startY);
-                newLeft = Math.max(0, Math.min(newLeft, rect.width - overlay.offsetWidth));
-                newTop = Math.max(0, Math.min(newTop, rect.height - overlay.offsetHeight));
-                overlay.style.left = newLeft + 'px'; overlay.style.top = newTop + 'px';
-            } else if (isResizing) {
-                let newWidth = Math.max(30, startWidth + (e.clientX - startX));
-                let newHeight = Math.max(30, startHeight + (e.clientY - startY));
-                const img = overlay.querySelector('img');
-                if(img && img.naturalWidth) { newHeight = newWidth / (img.naturalWidth / img.naturalHeight); }
-                overlay.style.width = newWidth + 'px'; overlay.style.height = newHeight + 'px';
-            }
-        });
-
-        window.addEventListener('mouseup', () => { isDragging = false; isResizing = false; });
-
-        // --- Logika Render Akhir ---
-        const btnRender = document.getElementById('btnRender');
-        const outputSection = document.getElementById('outputSection');
-        const outputCard = document.getElementById('outputCard');
-
-        btnRender.addEventListener('click', async () => {
-            if (!timelineFiles.main) { alert("Masukkan Video Utama terlebih dahulu!"); return; }
-            const ready = await loadFFmpeg();
-            if(!ready) return;
-
-            btnRender.disabled = true;
-            btnRender.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Sedang Merender...';
-            lucide.createIcons();
-
-            try {
-                const { fetchFile } = window.FFmpegUtil;
-                logToConsole("VFS: Membaca file video utama...");
-                await ffmpeg.writeFile('input.mp4', await fetchFile(timelineFiles.main));
-                let ffmpegArgs = [];
-
-                if (timelineFiles.logo1 && overlay.style.display !== 'none') {
-                    logToConsole("VFS: Membaca file watermark...");
-                    await ffmpeg.writeFile('logo.png', await fetchFile(timelineFiles.logo1));
-                    
-                    const containerRect = container.getBoundingClientRect();
-                    const scaleX = 1920 / containerRect.width;
-                    const scaleY = 1080 / containerRect.height;
-                    
-                    const x = Math.round(overlay.offsetLeft * scaleX);
-                    const y = Math.round(overlay.offsetTop * scaleY);
-                    const w = Math.round(overlay.offsetWidth * scaleX);
-                    const h = Math.round(overlay.offsetHeight * scaleY);
-
-                    logToConsole('Filter: Menyisipkan watermark di X:' + x + ' Y:' + y + ' W:' + w + ' H:' + h);
-                    
-                    ffmpegArgs = [
-                        '-i', 'input.mp4',
-                        '-i', 'logo.png',
-                        '-filter_complex', '[0:v]scale=1920:1080[bg];[1:v]scale=' + w + ':' + h + '[wm];[bg][wm]overlay=' + x + ':' + y,
-                        '-c:v', 'libx264',
-                        '-preset', 'ultrafast',
-                        '-c:a', 'copy',
-                        'output.mp4'
-                    ];
-                } else {
-                    ffmpegArgs = [ '-i', 'input.mp4', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'copy', 'output.mp4' ];
-                }
-
-                logToConsole("EXEC: Menjalankan mesin encoder WASM...");
-                await ffmpeg.exec(ffmpegArgs);
-
-                logToConsole("VFS: Mengekstrak video hasil...");
-                const fileData = await ffmpeg.readFile('output.mp4');
-                const videoBlob = new Blob([fileData.buffer], { type: 'video/mp4' });
-                const videoUrl = URL.createObjectURL(videoBlob);
-
-                const finalVideo = document.getElementById('finalVideo');
-                finalVideo.src = videoUrl;
-                document.getElementById('downloadLink').href = videoUrl;
-                document.getElementById('downloadLink').download = 'Export_Berhasil.mp4';
-
-                outputSection.classList.remove('hidden'); outputSection.classList.add('flex');
-                setTimeout(() => {
-                    outputSection.classList.remove('opacity-0');
-                    outputCard.classList.remove('scale-95');
-                }, 10);
-                logToConsole("SELESAI: Video siap diunduh!");
-            } catch (error) {
-                console.error(error); logToConsole("ERROR: Terjadi kesalahan saat rendering.");
-            } finally {
-                btnRender.disabled = false;
-                btnRender.innerHTML = '<i data-lucide="video" class="w-4 h-4"></i> Mulai Render FFmpeg';
-                lucide.createIcons();
-            }
-        });
-
-        document.getElementById('btnKeepEditing').addEventListener('click', () => {
-            outputSection.classList.add('opacity-0'); outputCard.classList.add('scale-95');
-            setTimeout(() => {
-                outputSection.classList.add('hidden'); outputSection.classList.remove('flex');
-                document.getElementById('finalVideo').pause();
-            }, 300);
         });
     </script>
 </body>
