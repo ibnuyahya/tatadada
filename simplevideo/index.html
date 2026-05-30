@@ -29,7 +29,6 @@
             background-color: #4f46e5; border: 2px solid white; border-radius: 50%;
             cursor: nwse-resize; z-index: 21;
         }
-
         .timeline-slot { transition: all 0.2s ease; border: 2px dashed transparent; }
         .timeline-slot.drag-over { border-color: #4f46e5; background-color: rgba(79, 70, 229, 0.1); transform: scale(1.02); }
         .timeline-slot.filled { border: 1px solid #e2e8f0; border-left: 4px solid #4f46e5; background-color: #ffffff; }
@@ -217,26 +216,24 @@
             try {
                 statusBadge.classList.remove('hidden');
                 statusText.innerText = "Memuat FFmpeg...";
-                logToConsole("Mem-bypass Cloudflare dan memuat file murni dari CDN Global...");
+                logToConsole("Memuat mesin dari server lokal (danial.my.id) secara absolut...");
 
                 const { FFmpeg } = window.FFmpegWASM;
-                const { toBlobURL } = window.FFmpegUtil;
                 ffmpeg = new FFmpeg();
                 
                 ffmpeg.on('log', ({ message }) => {
                     logToConsole(message);
                 });
 
-                // KUNCI PERBAIKAN: Mengambil file MURNI langsung dari unpkg, mengabaikan Cloudflare di domain Anda
-                const coreURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-                const workerURL = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd';
+                // KUNCI: Kita memanggil file dari server Anda sendiri secara mutlak.
+                // Tanpa Blob, Tanpa Service Worker, Tanpa CDN Pihak Ketiga.
+                const baseURL = 'https://danial.my.id/simplevideo/lib';
+                const cb = '?v=' + Date.now(); // Penghancur Cache agar Cloudflare tidak memberi file basi
                 
-                // toBlobURL akan mengubah URL eksternal ini menjadi file memori lokal (Blob)
-                // sehingga Chrome mengizinkannya berjalan sebagai Web Worker yang sah.
                 await ffmpeg.load({
-                    coreURL: await toBlobURL(coreURL + '/ffmpeg-core.js', 'text/javascript'),
-                    wasmURL: await toBlobURL(coreURL + '/ffmpeg-core.wasm', 'application/wasm'),
-                    classWorkerURL: await toBlobURL(workerURL + '/814.ffmpeg.js', 'text/javascript')
+                    coreURL: baseURL + '/ffmpeg-core.js' + cb,
+                    wasmURL: baseURL + '/ffmpeg-core.wasm' + cb,
+                    classWorkerURL: baseURL + '/814.ffmpeg.js' + cb
                 });
 
                 isFFmpegLoaded = true;
@@ -248,7 +245,7 @@
                 document.querySelector('#statusBadge i').setAttribute('data-lucide', 'check-circle');
                 lucide.createIcons();
                 
-                logToConsole("SUCCESS: Mesin FFmpeg (Single-Thread) berhasil merdeka dari blokir Cloudflare!");
+                logToConsole("SUCCESS: Mesin FFmpeg (Produksi) berhasil diaktifkan!");
                 return true;
             } catch (error) {
                 console.error(error);
@@ -262,7 +259,7 @@
 
         window.addEventListener('DOMContentLoaded', loadFFmpeg);
 
-        // --- Logika UI Drag & Drop (Tetap Sama) ---
+        // --- Logika UI Drag & Drop ---
         const assetMap = new Map();
         const timelineFiles = { main: null, logo1: null };
         const canvas = document.getElementById('renderCanvas');
@@ -384,7 +381,7 @@
 
         window.addEventListener('mouseup', () => { isDragging = false; isResizing = false; });
 
-        // --- Logika Render Akhir (Tetap Sama) ---
+        // --- Logika Render Akhir ---
         const btnRender = document.getElementById('btnRender');
         const outputSection = document.getElementById('outputSection');
         const outputCard = document.getElementById('outputCard');
