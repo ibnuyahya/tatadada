@@ -1,1 +1,45 @@
-a
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>VisionaryCuts Editor (WASM Engine)</title>
+    <script src="ffmpeg.js"></script>
+</head>
+<body style="font-family: sans-serif; padding: 2rem;">
+    <h2>VisionaryCuts Editor - Rendering Engine</h2>
+    <button id="btnLoad" style="padding: 10px 20px; background: #4f46e5; color: white; border: none; border-radius: 6px; cursor: pointer;">Mulai Render Video</button>
+    <p id="pesan" style="font-weight: bold; color: #333; margin-top: 15px;">Sistem Siap.</p>
+
+    <script>
+        const { FFmpeg } = window.FFmpegWASM;
+        const ffmpeg = new FFmpeg();
+
+        ffmpeg.on('log', ({ message }) => {
+            console.log(message);
+        });
+
+        document.getElementById('btnLoad').addEventListener('click', async () => {
+            const pesanEl = document.getElementById('pesan');
+            pesanEl.innerText = "Memuat mesin arsitektur FTRT (Faster-Than-Realtime)...";
+            document.getElementById('btnLoad').disabled = true;
+
+            const baseURL = window.location.origin + window.location.pathname.replace('/index.html', '');
+
+            try {
+                // Membaca semua file langsung dari folder yang sama di server
+                await ffmpeg.load({
+                    coreURL: baseURL + '/ffmpeg-core.js',
+                    wasmURL: baseURL + '/ffmpeg-core.wasm',
+                    classWorkerURL: baseURL + '/814.ffmpeg.js'
+                });
+                
+                pesanEl.innerText = "? Mesin Video AI Berhasil Diinjeksi! Siap mengeksekusi timeline.";
+                pesanEl.style.color = "green";
+            } catch (error) {
+                pesanEl.innerText = "? Gagal memuat mesin. Cek console (F12).";
+                pesanEl.style.color = "red";
+            }
+        });
+    </script>
+</body>
+</html>
