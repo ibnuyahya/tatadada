@@ -315,10 +315,33 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
         }
 
         // ==========================================
-        // SUNTIKAN RADAR JARINGAN & PELACAK WORKER
+        // SUNTIKAN RADAR JARINGAN & PELACAK DIAGNOSTIK MAKSIMAL
         // ==========================================
         
-        // Melacak setiap file yang coba diunduh di latar belakang
+        // 1. Sadap Console Error & Warn agar tidak diam-diam tertelan di latar belakang
+        const origConsoleError = console.error;
+        console.error = function(...args) {
+            const msg = args.map(a => typeof a === 'object' && a instanceof Error ? a.stack || a.message : (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ');
+            appendLog(`❌ [Console Error] ${msg}`);
+            origConsoleError.apply(console, args);
+        };
+        
+        const origConsoleWarn = console.warn;
+        console.warn = function(...args) {
+            const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ');
+            appendLog(`⚠️ [Console Warn] ${msg}`);
+            origConsoleWarn.apply(console, args);
+        };
+
+        // 2. Tangkap Unhandled Promise Rejections (Kegagalan WASM Inisialisasi yang tersembunyi)
+        window.addEventListener('unhandledrejection', (e) => {
+            appendLog(`❌ [Unhandled Promise Rejection] Alasan: ${e.reason ? e.reason.message || e.reason : 'Unknown'}`);
+            if (e.reason && e.reason.stack) {
+                appendLog(`➡️ StackTrace: ${e.reason.stack}`);
+            }
+        });
+
+        // 3. Melacak setiap file yang coba diunduh di latar belakang
         const originalFetch = window.fetch;
         window.fetch = async function(...args) {
             const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : 'unknown');
@@ -332,12 +355,12 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                 }
                 return res;
             } catch(e) {
-                if (filename.includes('ffmpeg')) appendLog(`❌ [Jaringan Putus] Request gagal untuk ${filename}`);
+                if (filename.includes('ffmpeg')) appendLog(`❌ [Jaringan Putus] Request gagal untuk ${filename} (${e.message})`);
                 throw e;
             }
         };
 
-        // Melacak status penciptaan Web Worker secara detail
+        // 4. Melacak Web Worker dengan sangat mendetail (Baris, Kolom, Stack)
         const OriginalWorker = window.Worker;
         window.Worker = function(...args) {
             let urlStr = "unknown";
@@ -353,9 +376,9 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                 originalFetch(urlStr, { method: 'HEAD' }).then(res => {
                     const cType = res.headers.get('content-type') || '';
                     if (!res.ok) {
-                        appendLog(`❌ [PENYEBAB CRASH] File Worker (${filename}) tidak ditemukan di server (HTTP ${res.status}). Silakan periksa folder Anda!`);
+                        appendLog(`❌ [PENYEBAB CRASH] File Worker (${filename}) tidak ditemukan (HTTP ${res.status}).`);
                     } else if (cType.includes('text/html')) {
-                        appendLog(`❌ [PENYEBAB CRASH] Bahaya! File Worker (${filename}) isinya adalah HTML (Bukan Javascript). Pastikan file tersebut benar-benar ada.`);
+                        appendLog(`❌ [PENYEBAB CRASH] File Worker (${filename}) isinya adalah HTML, bukan Javascript!`);
                     } else {
                         appendLog(`✅ [Pemeriksaan Worker] File ${filename} valid (${cType}).`);
                     }
@@ -363,18 +386,28 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             }
 
             const w = new OriginalWorker(...args);
+            
             w.addEventListener('error', (e) => {
-                appendLog(`❌ [Worker Error] Kesalahan fatal di dalam Web Worker (${filename})!`);
-                if (e.message) appendLog(`➡️ Detail Error: ${e.message}`);
-                console.error("Worker Error details:", e);
+                appendLog(`❌ [Worker Error Fatal] Kesalahan di dalam Web Worker (${filename})!`);
+                appendLog(`➡️ Pesan Error: ${e.message}`);
+                appendLog(`➡️ Lokasi: Baris ${e.lineno}, Kolom ${e.colno}`);
+                if (e.error && e.error.stack) {
+                    appendLog(`➡️ Stack Trace Worker:\n${e.error.stack}`);
+                }
+                console.error("Detail Error Worker:", e);
             });
+
+            w.addEventListener('messageerror', (e) => {
+                appendLog(`❌ [Worker Message Error] Gagal melakukan decode data dari Worker (${filename}).`);
+            });
+
             return w;
         };
 
         // Menangkap error global yang lolos
         window.addEventListener('error', (e) => {
             if (e.filename && e.filename.includes('ffmpeg')) {
-                appendLog(`❌ [Global Error] ${e.message}`);
+                appendLog(`❌ [Global Error] ${e.message} di ${e.filename}:${e.lineno}`);
             }
         });
         // ==========================================
@@ -446,7 +479,7 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                     libBadge.className = "badge failed";
                     libBadge.innerText = "Gagal";
                     statusLabel.innerText = "Gagal membuat instance FFmpeg.";
-                    appendLog('❌ [Error] ' + err.message);
+                    appendLog('❌ [Error Inisialisasi] ' + err.message);
                 }
             } else {
                 libBadge.className = "badge failed";
@@ -556,8 +589,7 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             } catch (error) {
                 statusLabel.innerText = 'Gagal memproses video!';
                 let detailedMessage = error && error.message ? error.message : JSON.stringify(error);
-                appendLog(`❌ [Error] ${detailedMessage}`);
-                console.error("FFmpeg Core Load Error: ", error);
+                appendLog(`❌ [Puncak Error] ${detailedMessage}`);
             } finally {
                 btnProcess.disabled = false;
             }
