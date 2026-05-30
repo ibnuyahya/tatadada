@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VisionaryCuts Pro Editor</title>
 
-    <!-- Memanggil library murni dari CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="lib/ffmpeg.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -42,16 +41,11 @@
         <div class="flex items-center gap-4">
             <div class="flex items-baseline gap-2">
                 <h1 class="font-bold text-lg tracking-tight bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent">VisionaryCuts Pro</h1>
-                <span class="text-xs italic text-gray-400 font-medium">Enterprise WASM</span>
+                <span class="text-xs italic text-gray-400 font-medium">Local WASM Engine</span>
             </div>
         </div>
 
         <div class="flex items-center gap-4">
-            <div class="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
-                <i data-lucide="edit-3" class="w-3.5 h-3.5 text-gray-400"></i>
-                <input type="text" id="projectName" value="Video Project 1" class="bg-transparent border-none outline-none text-sm font-semibold text-gray-700 w-32 selectable">
-            </div>
-
             <div id="statusBadge" class="hidden px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-bold transition-all flex items-center gap-1.5 border border-blue-200">
                 <i data-lucide="loader" class="w-3 h-3 animate-spin"></i>
                 <span id="statusText">Inisialisasi...</span>
@@ -122,7 +116,6 @@
                     <div class="flex items-center gap-2 text-sm font-semibold text-gray-800">
                         <i data-lucide="eye" class="w-4 h-4 text-indigo-500"></i> Pratinjau Kanvas
                     </div>
-                    <span class="text-xs text-gray-500">Atur posisi logo sebelum render</span>
                 </div>
 
                 <div id="canvasContainer" class="w-full aspect-video rounded-xl overflow-hidden shadow-lg border border-gray-800 bg-black relative select-none">
@@ -154,9 +147,9 @@
                 <div class="w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col transform scale-95 transition-transform duration-300" id="outputCard">
                     <div class="p-4 border-b border-gray-200 flex items-center justify-between bg-slate-50">
                         <button id="btnKeepEditing" class="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-gray-800 transition-colors">
-                            <i data-lucide="arrow-left" class="w-4 h-4"></i> Tetap mengedit
+                            <i data-lucide="arrow-left" class="w-4 h-4"></i> Kembali
                         </button>
-                        <span class="text-sm font-bold text-gray-800" id="finalProjectName">Video Project 1.mp4</span>
+                        <span class="text-sm font-bold text-gray-800">Export_Berhasil.mp4</span>
                         <div class="w-24"></div>
                     </div>
 
@@ -164,30 +157,18 @@
                         <div class="flex-1 w-full relative">
                             <video id="finalVideo" controls class="w-full aspect-video rounded-xl shadow-md border border-gray-200 bg-black"></video>
                         </div>
-
                         <div class="w-full md:w-80 flex flex-col gap-5">
                             <div>
                                 <h3 class="font-bold text-xl text-gray-800 flex items-center gap-2">
                                     <span class="bg-green-100 text-green-600 p-1 rounded-full"><i data-lucide="check" class="w-5 h-5"></i></span>
-                                    Video Anda sudah siap
+                                    Selesai
                                 </h3>
-                                <p id="videoMetadata" class="text-sm text-gray-500 mt-2">Menghitung ukuran...</p>
                             </div>
-
                             <div class="flex flex-col gap-3 mt-2">
                                 <a id="downloadLink" href="#" class="flex items-center gap-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3.5 px-4 rounded-xl shadow-md transition-all group">
-                                    <div class="bg-white/20 p-1.5 rounded-lg group-hover:scale-110 transition-transform">
-                                        <i data-lucide="download" class="w-5 h-5"></i>
-                                    </div>
+                                    <i data-lucide="download" class="w-5 h-5"></i>
                                     <span class="flex-1 text-left text-sm font-bold">Simpan ke Komputer</span>
                                 </a>
-                                
-                                <button id="btnShareNative" class="flex items-center gap-3 bg-white hover:bg-slate-50 text-gray-700 font-medium py-3.5 px-4 rounded-xl shadow-sm border border-gray-200 transition-all group">
-                                    <div class="bg-blue-50 text-blue-600 p-1.5 rounded-lg group-hover:scale-110 transition-transform">
-                                        <i data-lucide="share-2" class="w-5 h-5"></i>
-                                    </div>
-                                    <span class="flex-1 text-left text-sm font-bold">Bagikan ke Sosial Media</span>
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -218,23 +199,23 @@
             try {
                 statusBadge.classList.remove('hidden');
                 statusText.innerText = "Memuat FFmpeg...";
-                logToConsole("Memuat mesin dari CDN Global...");
+                logToConsole("Memuat mesin dari file server lokal (danial.my.id) sepenuhnya...");
 
                 const { FFmpeg } = window.FFmpegWASM;
-                const { toBlobURL } = window.FFmpegUtil;
                 ffmpeg = new FFmpeg();
                 
                 ffmpeg.on('log', ({ message }) => {
                     logToConsole(message);
                 });
 
-                // KUNCI PERBAIKAN: Mengonversi Core dan Wasm menjadi Blob URL juga
-                // untuk memastikan Web Worker tidak menabrak limitasi keamanan browser
-                const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+                // KUNCI PERBAIKAN: Menggunakan URL Absolut yang lengkap agar importScripts di dalam Worker 
+                // tidak kebingungan dan tidak jatuh ke fallback CDN.
+                const baseURL = window.location.origin + window.location.pathname.replace('index.html', '') + 'lib';
                 
                 await ffmpeg.load({
-                    coreURL: await toBlobURL(baseURL + '/ffmpeg-core.js', 'text/javascript'),
-                    wasmURL: await toBlobURL(baseURL + '/ffmpeg-core.wasm', 'application/wasm')
+                    coreURL: baseURL + '/ffmpeg-core.js',
+                    wasmURL: baseURL + '/ffmpeg-core.wasm',
+                    classWorkerURL: baseURL + '/814.ffmpeg.js'
                 });
 
                 isFFmpegLoaded = true;
@@ -246,7 +227,7 @@
                 document.querySelector('#statusBadge i').setAttribute('data-lucide', 'check-circle');
                 lucide.createIcons();
                 
-                logToConsole("SUCCESS: Mesin FFmpeg (Single-Thread) berhasil merdeka dan siap digunakan!");
+                logToConsole("SUCCESS: Mesin FFmpeg Lokal (Single-Thread) berhasil diaktifkan!");
                 return true;
             } catch (error) {
                 console.error(error);
@@ -386,7 +367,6 @@
         const btnRender = document.getElementById('btnRender');
         const outputSection = document.getElementById('outputSection');
         const outputCard = document.getElementById('outputCard');
-        function bytesToMB(bytes) { return (bytes / (1024 * 1024)).toFixed(2) + ' MB'; }
 
         btnRender.addEventListener('click', async () => {
             if (!timelineFiles.main) { alert("Masukkan Video Utama terlebih dahulu!"); return; }
@@ -439,13 +419,10 @@
                 const videoBlob = new Blob([fileData.buffer], { type: 'video/mp4' });
                 const videoUrl = URL.createObjectURL(videoBlob);
 
-                const projName = document.getElementById('projectName').value || 'VisionaryCuts_Export';
-                document.getElementById('finalProjectName').innerText = projName + '.mp4';
                 const finalVideo = document.getElementById('finalVideo');
                 finalVideo.src = videoUrl;
                 document.getElementById('downloadLink').href = videoUrl;
-                document.getElementById('downloadLink').download = projName + '.mp4';
-                document.getElementById('videoMetadata').innerText = 'Ukuran File: ' + bytesToMB(videoBlob.size);
+                document.getElementById('downloadLink').download = 'Export_Berhasil.mp4';
 
                 outputSection.classList.remove('hidden'); outputSection.classList.add('flex');
                 setTimeout(() => {
@@ -472,4 +449,3 @@
     </script>
 </body>
 </html>
-"@
