@@ -4,118 +4,347 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simple Video Processor</title>
-    <!-- Menambahkan atribut crossorigin agar Tailwind CSS diizinkan dimuat di bawah kebijakan COEP/COEP -->
-    <script src="https://cdn.tailwindcss.com" crossorigin></script>
-    <!-- Memuat FFmpeg secara fisik di head agar document.currentScript terdeteksi dengan benar oleh Webpack -->
+    <!-- Memuat FFmpeg secara fisik di head agar terpeta dengan benar oleh Webpack -->
     <script src="./lib/ffmpeg.js"></script>
+    <style>
+        /* Desain Variabel Warna Premium */
+        :root {
+            --bg-slate-900: #0f172a;
+            --bg-slate-800: #1e293b;
+            --bg-slate-950: #020617;
+            --border-slate-700: #334155;
+            --text-slate-100: #f1f5f9;
+            --text-slate-300: #cbd5e1;
+            --text-slate-400: #94a3b8;
+            --text-slate-500: #64748b;
+            --blue-400: #60a5fa;
+            --indigo-400: #818cf8;
+            --indigo-500: #6366f1;
+            --indigo-600: #4f46e5;
+            --emerald-400: #34d399;
+            --emerald-500: #10b981;
+            --emerald-600: #059669;
+            --amber-400: #fbbf24;
+            --red-400: #f87171;
+        }
+
+        body {
+            background-color: var(--bg-slate-900);
+            color: var(--text-slate-100);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            margin: 0;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: var(--bg-slate-800);
+            border: 1px solid var(--border-slate-700);
+            border-radius: 1rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 42rem;
+            box-sizing: border-box;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin: 0;
+            background: linear-gradient(to right, var(--blue-400), var(--indigo-400));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            user-select: none;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            border-width: 1px;
+            border-style: solid;
+        }
+
+        .badge-connecting {
+            background-color: rgba(251, 191, 36, 0.1);
+            color: var(--amber-400);
+            border-color: rgba(251, 191, 36, 0.2);
+        }
+
+        .badge-ready {
+            background-color: rgba(52, 211, 153, 0.1);
+            color: var(--emerald-400);
+            border-color: rgba(52, 211, 153, 0.2);
+        }
+
+        .badge-failed {
+            background-color: rgba(248, 113, 113, 0.1);
+            color: var(--red-400);
+            border-color: rgba(248, 113, 113, 0.2);
+        }
+    </style>
+    <style>
+        .uploader-zone {
+            border: 2px dashed var(--border-slate-700);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            text-align: center;
+            position: relative;
+            cursor: pointer;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+
+        .uploader-zone:hover {
+            border-color: var(--blue-400);
+            background-color: rgba(96, 165, 250, 0.02);
+        }
+
+        .uploader-input {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .uploader-icon {
+            margin: 0 auto 0.5rem auto;
+            height: 3rem;
+            width: 3rem;
+            color: var(--text-slate-400);
+        }
+
+        .uploader-text {
+            font-size: 0.875rem;
+            color: var(--text-slate-300);
+        }
+
+        .uploader-highlight {
+            font-weight: 600;
+            color: var(--blue-400);
+        }
+
+        .uploader-subtext {
+            font-size: 0.75rem;
+            color: var(--text-slate-500);
+            margin: 0.25rem 0 0 0;
+        }
+
+        .btn-process {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            font-size: 1rem;
+            border: none;
+            cursor: not-allowed;
+            background-color: var(--border-slate-700);
+            color: var(--text-slate-400);
+            transition: background-color 0.2s, box-shadow 0.2s;
+            margin-top: 1rem;
+        }
+
+        .btn-process.active {
+            background-color: var(--indigo-600);
+            color: var(--text-slate-100);
+            cursor: pointer;
+            box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-process.active:hover {
+            background-color: var(--indigo-500);
+        }
+
+        .status-container {
+            margin-top: 1rem;
+        }
+
+        .status-text {
+            text-align: center;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-slate-400);
+            padding: 0.25rem 0;
+        }
+
+        .progress-track {
+            width: 100%;
+            background-color: var(--border-slate-700);
+            border-radius: 9999px;
+            height: 0.625rem;
+            overflow: hidden;
+            display: none;
+            margin-top: 0.5rem;
+        }
+
+        .progress-bar {
+            background-color: var(--blue-400);
+            height: 100%;
+            width: 0%;
+            transition: width 0.2s;
+        }
+    </style>
+    <style>
+        .output-container {
+            display: none;
+            margin-top: 1.5rem;
+            background-color: var(--bg-slate-950);
+            border: 1px solid var(--border-slate-700);
+            border-radius: 0.75rem;
+            padding: 1rem;
+        }
+
+        .output-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-slate-400);
+            margin: 0 0 0.5rem 0;
+        }
+
+        video {
+            width: 100%;
+            border-radius: 0.5rem;
+            background-color: #000;
+            max-height: 300px;
+        }
+
+        .download-wrapper {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 0.75rem;
+        }
+
+        .btn-download {
+            padding: 0.5rem 1rem;
+            background-color: var(--emerald-600);
+            color: white;
+            text-decoration: none;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            transition: background-color 0.2s;
+        }
+
+        .btn-download:hover {
+            background-color: var(--emerald-500);
+        }
+
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .terminal-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-slate-400);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 0;
+        }
+
+        .btn-clear {
+            background: none;
+            border: none;
+            color: var(--text-slate-500);
+            font-size: 0.625rem;
+            cursor: pointer;
+            padding: 0.25rem;
+            transition: color 0.2s;
+        }
+
+        .btn-clear:hover {
+            color: var(--text-slate-300);
+        }
+
+        .terminal-log {
+            height: 12rem;
+            background-color: var(--bg-slate-950);
+            padding: 0.75rem;
+            border-radius: 0.75rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.75rem;
+            color: var(--emerald-400);
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            white-space: pre-wrap;
+            box-sizing: border-box;
+        }
+    </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
-    <div class="bg-slate-800 p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-700">
-        <div class="flex items-center justify-between mb-6">
-            <h1 class="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r select-none from-blue-400 to-indigo-400">
-                Video Processor
-            </h1>
-            <span id="lib-status-badge" class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Video Processor</h1>
+            <span id="lib-status-badge" class="badge badge-connecting">
                 Menghubungkan...
             </span>
         </div>
 
-        <!-- Panel Peringatan & Solusi Keamanan COOP/COEP -->
-        <div id="coop-warning" class="hidden mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-200 rounded-xl text-xs space-y-3">
-            <p class="font-bold text-sm text-red-400">⚠️ SharedArrayBuffer / COOP & COEP Terblokir</p>
-            <p>FFmpeg WASM memerlukan lingkungan terisolasi yang aman agar dapat berjalan di browser Anda. Server hosting Anda saat ini belum mengirimkan header keamanan yang diperlukan.</p>
-            
-            <!-- Tab Solusi Konfigurasi Server -->
-            <div class="bg-slate-900/80 rounded-lg p-3 border border-red-500/10">
-                <p class="font-semibold text-slate-300 mb-2">Pilih metode konfigurasi server Anda:</p>
-                
-                <div class="flex gap-2 mb-3">
-                    <button onclick="switchTab('tab-cf')" class="tab-btn px-3 py-1 bg-blue-600 text-white rounded text-[10px] font-medium transition">Cloudflare</button>
-                    <button onclick="switchTab('tab-htaccess')" class="tab-btn px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[10px] font-medium transition">Apache (.htaccess)</button>
-                    <button onclick="switchTab('tab-nginx')" class="tab-btn px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[10px] font-medium transition">Nginx</button>
-                </div>
-
-                <!-- Konten Tab Cloudflare -->
-                <div id="tab-cf" class="tab-content space-y-2">
-                    <p class="text-slate-400">Karena domain Anda menggunakan <b>Cloudflare</b>, Anda dapat mengaktifkannya langsung tanpa mengubah kode server:</p>
-                    <ol class="list-decimal pl-4 space-y-1 text-slate-300">
-                        <li>Buka Dashboard Cloudflare Anda.</li>
-                        <li>Masuk ke menu <b>Rules</b> &gt; <b>Transform Rules</b> &gt; <b>Modify Response Header</b>.</li>
-                        <li>Klik <b>Create rule</b>, beri nama bebas (misal: "FFmpeg Headers").</li>
-                        <li>Atur kecocokan jalur: <code class="bg-slate-950 px-1 py-0.5 rounded text-blue-300">URI Path starts with /simplevideo/</code></li>
-                        <li>Atur <b>Set static header</b> dengan ketentuan:
-                            <ul class="list-disc pl-4 mt-1 text-slate-400">
-                                <li><code class="text-emerald-400">Cross-Origin-Opener-Policy</code> = <code class="text-yellow-400">same-origin</code></li>
-                                <li><code class="text-emerald-400">Cross-Origin-Embedder-Policy</code> = <code class="text-yellow-400">require-corp</code></li>
-                            </ul>
-                        </li>
-                    </ol>
-                </div>
-
-                <!-- Konten Tab Apache .htaccess -->
-                <div id="tab-htaccess" class="tab-content hidden space-y-2">
-                    <p class="text-slate-400">Buat atau tambahkan kode berikut ke dalam file <code class="text-blue-300">.htaccess</code> di dalam folder <code class="text-blue-300">/simplevideo/</code> Anda:</p>
-                    <pre class="bg-slate-950 p-2 rounded text-[10px] text-yellow-400 overflow-x-auto font-mono">&lt;IfModule mod_headers.c&gt;
-    Header set Cross-Origin-Opener-Policy "same-origin"
-    Header set Cross-Origin-Embedder-Policy "require-corp"
-&lt;/IfModule&gt;</pre>
-                </div>
-
-                <!-- Konten Tab Nginx -->
-                <div id="tab-nginx" class="tab-content hidden space-y-2">
-                    <p class="text-slate-400">Tambahkan baris berikut di dalam blok konfigurasi <code class="text-blue-300">server</code> atau <code class="text-blue-300">location</code> Nginx Anda:</p>
-                    <pre class="bg-slate-950 p-2 rounded text-[10px] text-yellow-400 overflow-x-auto font-mono">add_header Cross-Origin-Opener-Policy "same-origin";
-add_header Cross-Origin-Embedder-Policy "require-corp";</pre>
-                </div>
-            </div>
-        </div>
-
         <div class="space-y-4">
             <!-- Area Input Berkas -->
-            <div class="border-2 border-dashed border-slate-600 hover:border-blue-500 rounded-xl p-6 text-center cursor-pointer transition relative">
-                <input type="file" id="uploader" accept="video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                <div class="space-y-2">
-                    <svg class="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+            <div class="uploader-zone">
+                <input type="file" id="uploader" accept="video/*" class="uploader-input">
+                <div>
+                    <svg class="uploader-icon" stroke="currentColor" fill="none" viewBox="0 0 48 48">
                         <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
-                    <div class="text-sm text-slate-300">
-                        <span id="file-name-label" class="font-semibold text-blue-400">Pilih file video</span> atau seret ke sini
+                    <div class="uploader-text">
+                        <span id="file-name-label" class="uploader-highlight">Pilih file video</span> atau seret ke sini
                     </div>
-                    <p class="text-xs text-slate-500">MP4, WebM, MKV, AVI, dll.</p>
+                    <p class="uploader-subtext">MP4, WebM, MKV, AVI, dll.</p>
                 </div>
             </div>
 
             <!-- Tombol Konversi -->
-            <button id="btnProcess" disabled class="w-full bg-slate-700 text-slate-400 py-3 rounded-xl font-semibold transition cursor-not-allowed flex items-center justify-center gap-2">
-                <span>Mulai Konversi ke MP4</span>
+            <button id="btnProcess" disabled class="btn-process">
+                Mulai Konversi ke MP4
             </button>
 
             <!-- Indikator Status & Progress Bar -->
-            <div class="space-y-2">
-                <div id="status" class="text-center text-sm font-medium text-slate-400 py-1">Menghubungkan ke library...</div>
-                <div id="progress-container" class="hidden w-full bg-slate-700 rounded-full h-2.5 overflow-hidden">
-                    <div id="progress-bar" class="bg-blue-500 h-full w-0 transition-all duration-200"></div>
+            <div class="status-container">
+                <div id="status" class="status-text">Menghubungkan ke library...</div>
+                <div id="progress-container" class="progress-track">
+                    <div id="progress-bar" class="progress-bar"></div>
                 </div>
             </div>
 
             <!-- Hasil Pemrosesan Video -->
-            <div id="output-container" class="hidden space-y-2">
-                <h3 class="text-sm font-semibold text-slate-400">Hasil Pemrosesan:</h3>
-                <video id="output-video" controls class="w-full rounded-xl border border-slate-700 bg-black max-h-[300px]"></video>
-                <div class="flex justify-end">
-                    <a id="btnDownload" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition" download="processed_video.mp4">
+            <div id="output-container" class="output-container">
+                <h3 class="output-title">Hasil Pemrosesan:</h3>
+                <video id="output-video" controls></video>
+                <div class="download-wrapper">
+                    <a id="btnDownload" class="btn-download" download="processed_video.mp4">
                         Download Video
                     </a>
                 </div>
             </div>
 
             <!-- Log Terminal Real-time -->
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">FFmpeg Terminal Logs</h3>
-                    <button id="btnClearLogs" class="text-[10px] text-slate-500 hover:text-slate-300 transition">Bersihkan</button>
+            <div>
+                <div class="terminal-header">
+                    <h3 class="terminal-title">FFmpeg Terminal Logs</h3>
+                    <button id="btnClearLogs" class="btn-clear">Bersihkan</button>
                 </div>
-                <div id="ffmpeg-logs" class="h-48 bg-slate-950 p-3 rounded-xl font-mono text-xs text-emerald-400 overflow-y-auto border border-slate-800 whitespace-pre-wrap"></div>
+                <div id="ffmpeg-logs" class="terminal-log"></div>
             </div>
         </div>
     </div>
@@ -131,7 +360,6 @@ add_header Cross-Origin-Embedder-Policy "require-corp";</pre>
         const uploader = document.getElementById('uploader');
         const fileNameLabel = document.getElementById('file-name-label');
         const logContainer = document.getElementById('ffmpeg-logs');
-        const coopWarning = document.getElementById('coop-warning');
         const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
 
@@ -139,18 +367,6 @@ add_header Cross-Origin-Embedder-Policy "require-corp";</pre>
         function appendLog(message) {
             logContainer.textContent += message + '\n';
             logContainer.scrollTop = logContainer.scrollHeight;
-        }
-
-        // Fungsi kontrol tab panduan server
-        window.switchTab = function(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.getElementById(tabId).classList.remove('hidden');
-            
-            // Ubah gaya tombol aktif
-            event.target.parentNode.querySelectorAll('button').forEach(btn => {
-                btn.className = "tab-btn px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[10px] font-medium transition";
-            });
-            event.target.className = "tab-btn px-3 py-1 bg-blue-600 text-white rounded text-[10px] font-medium transition";
         }
 
         // Fungsi pembantu untuk fetch file secara manual ke bentuk Uint8Array
@@ -174,10 +390,12 @@ add_header Cross-Origin-Embedder-Policy "require-corp";</pre>
             // Cek pre-flight isolasi browser untuk SharedArrayBuffer
             if (!window.crossOriginIsolated) {
                 appendLog('[⚠️ Peringatan] window.crossOriginIsolated bernilai false. SharedArrayBuffer tidak tersedia.');
-                coopWarning.classList.remove('hidden');
+                libBadge.className = "badge badge-failed";
+                libBadge.innerText = "Terblokir";
+                statusLabel.innerText = "SharedArrayBuffer diblokir. Harap periksa konfigurasi header server Anda.";
+                return;
             } else {
                 appendLog('✅ Keamanan browser terverifikasi aman (SharedArrayBuffer diizinkan)!');
-                coopWarning.classList.add('hidden');
             }
 
             const lib = window.FFmpegWASM;
@@ -189,9 +407,6 @@ add_header Cross-Origin-Embedder-Policy "require-corp";</pre>
                     // Daftarkan listener log real-time
                     ffmpeg.on('log', ({ message }) => {
                         appendLog(`[FFmpeg] ${message}`);
-                        if (message.includes('SharedArrayBuffer')) {
-                            coopWarning.classList.remove('hidden');
-                        }
                     });
 
                     // Daftarkan listener progress bar
@@ -201,19 +416,19 @@ add_header Cross-Origin-Embedder-Policy "require-corp";</pre>
                         progressBar.style.width = `${percent}%`;
                     });
 
-                    libBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                    libBadge.className = "badge badge-ready";
                     libBadge.innerText = "Siap (v0.12)";
                     statusLabel.innerText = "Silakan pilih video untuk memulai.";
                     appendLog('🎉 [Sistem] FFmpegWASM v0.12 berhasil diaktifkan dengan jalur aman!');
                 } catch (err) {
-                    libBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
+                    libBadge.className = "badge badge-failed";
                     libBadge.innerText = "Gagal";
                     statusLabel.innerText = "Gagal membuat instance FFmpeg.";
                     appendLog('❌ [Error] ' + err.message);
                 }
             } else {
-                libBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
-                libBadge.innerText = "Gagal Memuat";
+                libBadge.className = "badge badge-failed";
+                libBadge.innerText = "Gagal";
                 statusLabel.innerText = "Gagal mendeteksi objek FFmpegWASM. Periksa berkas ./lib/ffmpeg.js.";
                 appendLog('❌ Error: Objek window.FFmpegWASM.FFmpeg tidak ditemukan.');
             }
@@ -228,9 +443,9 @@ add_header Cross-Origin-Embedder-Policy "require-corp";</pre>
             if (file) {
                 fileNameLabel.innerText = file.name;
                 btnProcess.disabled = false;
-                btnProcess.className = "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-500 transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 cursor-pointer";
+                btnProcess.className = "btn-process active";
                 statusLabel.innerText = `File "${file.name}" siap diproses.`;
-                progressContainer.classList.add('hidden');
+                progressContainer.style.display = 'none';
                 progressBar.style.width = '0%';
             }
         });
@@ -245,8 +460,8 @@ add_header Cross-Origin-Embedder-Policy "require-corp";</pre>
             if (!file || !ffmpeg) return;
 
             btnProcess.disabled = true;
-            btnProcess.className = "w-full bg-slate-700 text-slate-400 py-3 rounded-xl font-semibold transition cursor-not-allowed flex items-center justify-center gap-2";
-            progressContainer.classList.remove('hidden');
+            btnProcess.className = "btn-process";
+            progressContainer.style.display = 'block';
             progressBar.style.width = '0%';
 
             try {
@@ -312,7 +527,7 @@ add_header Cross-Origin-Embedder-Policy "require-corp";</pre>
                 btnDownload.href = videoUrl;
                 btnDownload.download = 'converted_' + inputName.substring(0, inputName.lastIndexOf('.')) + '.mp4';
                 
-                outputContainer.classList.remove('hidden');
+                outputContainer.style.display = 'block';
                 statusLabel.innerText = 'Konversi Berhasil!';
                 progressBar.style.width = '100%';
                 appendLog('🎉 [Sistem] Proses konversi selesai dengan sukses!');
@@ -324,14 +539,13 @@ add_header Cross-Origin-Embedder-Policy "require-corp";</pre>
                 statusLabel.innerText = 'Gagal memproses video!';
                 let detailedMessage = error && error.message ? error.message : JSON.stringify(error);
                 if (detailedMessage === '{}' || !detailedMessage) {
-                    detailedMessage = 'Gagal memuat core WASM. Hal ini dikonfirmasi karena browser memblokir SharedArrayBuffer (CORS/COOP/COEP terblokir di server hosting Anda).';
+                    detailedMessage = 'Gagal memuat core WASM. Hal ini dikonfirmasi karena browser memblokir SharedArrayBuffer.';
                 }
                 appendLog(`❌ [Error] ${detailedMessage}`);
                 console.error("FFmpeg Core Load Error: ", error);
-                coopWarning.classList.remove('hidden');
             } finally {
                 btnProcess.disabled = false;
-                btnProcess.className = "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-500 transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 cursor-pointer";
+                btnProcess.className = "btn-process active";
             }
         });
     </script>
