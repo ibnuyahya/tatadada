@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VisionaryCuts Pro Editor</title>
 
-    <script src="lib/ffmpeg.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -29,6 +29,7 @@
             background-color: #4f46e5; border: 2px solid white; border-radius: 50%;
             cursor: nwse-resize; z-index: 21;
         }
+
         .timeline-slot { transition: all 0.2s ease; border: 2px dashed transparent; }
         .timeline-slot.drag-over { border-color: #4f46e5; background-color: rgba(79, 70, 229, 0.1); transform: scale(1.02); }
         .timeline-slot.filled { border: 1px solid #e2e8f0; border-left: 4px solid #4f46e5; background-color: #ffffff; }
@@ -216,24 +217,26 @@
             try {
                 statusBadge.classList.remove('hidden');
                 statusText.innerText = "Memuat FFmpeg...";
-                logToConsole("Memuat mesin dari server lokal (danial.my.id) secara absolut...");
+                logToConsole("Mem-bypass file lokal yang rusak akibat PowerShell...");
 
                 const { FFmpeg } = window.FFmpegWASM;
+                const { toBlobURL } = window.FFmpegUtil;
                 ffmpeg = new FFmpeg();
                 
                 ffmpeg.on('log', ({ message }) => {
                     logToConsole(message);
                 });
 
-                // KUNCI: Kita memanggil file dari server Anda sendiri secara mutlak.
-                // Tanpa Blob, Tanpa Service Worker, Tanpa CDN Pihak Ketiga.
-                const baseURL = 'https://danial.my.id/simplevideo/lib';
-                const cb = '?v=' + Date.now(); // Penghancur Cache agar Cloudflare tidak memberi file basi
+                // KUNCI 2: Mengambil file murni secara langsung dari CDN jsDelivr.
+                const coreBaseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
+                const ffmpegBaseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd';
                 
                 await ffmpeg.load({
-                    coreURL: baseURL + '/ffmpeg-core.js' + cb,
-                    wasmURL: baseURL + '/ffmpeg-core.wasm' + cb,
-                    classWorkerURL: baseURL + '/814.ffmpeg.js' + cb
+                    // Inti JS & WASM tidak perlu diblob, membiarkan browser mengunduhnya secara native
+                    coreURL: coreBaseURL + '/ffmpeg-core.js',
+                    wasmURL: coreBaseURL + '/ffmpeg-core.wasm',
+                    // Pekerja dibungkus jadi Blob HANYA untuk melewati SecurityError peramban
+                    classWorkerURL: await toBlobURL(ffmpegBaseURL + '/814.ffmpeg.js', 'text/javascript')
                 });
 
                 isFFmpegLoaded = true;
@@ -245,7 +248,7 @@
                 document.querySelector('#statusBadge i').setAttribute('data-lucide', 'check-circle');
                 lucide.createIcons();
                 
-                logToConsole("SUCCESS: Mesin FFmpeg (Produksi) berhasil diaktifkan!");
+                logToConsole("SUCCESS: Mesin FFmpeg (Single-Thread Pristine) beroperasi sempurna!");
                 return true;
             } catch (error) {
                 console.error(error);
