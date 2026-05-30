@@ -317,8 +317,6 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
         // ==========================================
         // SUNTIKAN RADAR JARINGAN & PELACAK DIAGNOSTIK MAKSIMAL
         // ==========================================
-        
-        // 1. Sadap Console Error & Warn agar tidak diam-diam tertelan di latar belakang
         const origConsoleError = console.error;
         console.error = function(...args) {
             const msg = args.map(a => typeof a === 'object' && a instanceof Error ? a.stack || a.message : (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ');
@@ -333,7 +331,6 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             origConsoleWarn.apply(console, args);
         };
 
-        // 2. Tangkap Unhandled Promise Rejections (Kegagalan WASM Inisialisasi yang tersembunyi)
         window.addEventListener('unhandledrejection', (e) => {
             appendLog(`❌ [Unhandled Promise Rejection] Alasan: ${e.reason ? e.reason.message || e.reason : 'Unknown'}`);
             if (e.reason && e.reason.stack) {
@@ -341,7 +338,6 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             }
         });
 
-        // 3. Melacak setiap file yang coba diunduh di latar belakang
         const originalFetch = window.fetch;
         window.fetch = async function(...args) {
             const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : 'unknown');
@@ -360,7 +356,6 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             }
         };
 
-        // 4. Melacak Web Worker dengan sangat mendetail (Baris, Kolom, Stack)
         const OriginalWorker = window.Worker;
         window.Worker = function(...args) {
             let urlStr = "unknown";
@@ -370,41 +365,18 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             
             const filename = urlStr.split('/').pop().split('?')[0];
             appendLog(`[Sistem] Menjalankan Web Worker: ${filename}`);
-            
-            // Pengecekan proaktif untuk menemukan file 404/HTML
-            if (urlStr.startsWith('http') || urlStr.startsWith('./') || urlStr.startsWith('/')) {
-                originalFetch(urlStr, { method: 'HEAD' }).then(res => {
-                    const cType = res.headers.get('content-type') || '';
-                    if (!res.ok) {
-                        appendLog(`❌ [PENYEBAB CRASH] File Worker (${filename}) tidak ditemukan (HTTP ${res.status}).`);
-                    } else if (cType.includes('text/html')) {
-                        appendLog(`❌ [PENYEBAB CRASH] File Worker (${filename}) isinya adalah HTML, bukan Javascript!`);
-                    } else {
-                        appendLog(`✅ [Pemeriksaan Worker] File ${filename} valid (${cType}).`);
-                    }
-                }).catch(() => {});
-            }
 
             const w = new OriginalWorker(...args);
             
             w.addEventListener('error', (e) => {
                 appendLog(`❌ [Worker Error Fatal] Kesalahan di dalam Web Worker (${filename})!`);
-                appendLog(`➡️ Pesan Error: ${e.message}`);
-                appendLog(`➡️ Lokasi: Baris ${e.lineno}, Kolom ${e.colno}`);
-                if (e.error && e.error.stack) {
-                    appendLog(`➡️ Stack Trace Worker:\n${e.error.stack}`);
-                }
+                if (e.message) appendLog(`➡️ Pesan Error: ${e.message}`);
                 console.error("Detail Error Worker:", e);
-            });
-
-            w.addEventListener('messageerror', (e) => {
-                appendLog(`❌ [Worker Message Error] Gagal melakukan decode data dari Worker (${filename}).`);
             });
 
             return w;
         };
 
-        // Menangkap error global yang lolos
         window.addEventListener('error', (e) => {
             if (e.filename && e.filename.includes('ffmpeg')) {
                 appendLog(`❌ [Global Error] ${e.message} di ${e.filename}:${e.lineno}`);
@@ -517,14 +489,17 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             try {
                 if (!isCoreLoaded) {
                     statusLabel.innerText = 'Mengunduh pustaka WASM...';
-                    appendLog('[Sistem] Menyiapkan pemuatan Absolut Definitif (Beserta class & workerURL)...');
+                    appendLog('[Sistem] Menyiapkan pemuatan Absolut Definitif...');
                     
                     const coreAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`);
                     const wasmAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`);
-                    const classWorkerAbsolute = getAbsoluteURL(`${libBasePath}/814.ffmpeg.js`);
-                    
-                    // Pada versi Multithread, ini sangat krusial:
                     const coreWorkerAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.worker.js`);
+                    
+                    // SOLUSI PELURU PERAK:
+                    // Berkas ffmpeg.js BUKAN hanya script biasa, ia juga bertindak sebagai
+                    // skrip Web Worker murni ketika dipanggil menggunakan classWorkerURL.
+                    // Ini akan mengeksekusi modul Webpack secara utuh dan memuat 814.ffmpeg.js secara aman!
+                    const classWorkerAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg.js`);
                     
                     appendLog(`[Sistem] URL Core: ${coreAbsolute}`);
                     appendLog(`[Sistem] URL WASM: ${wasmAbsolute}`);
@@ -534,7 +509,7 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                     const loadConfig = {
                         coreURL: coreAbsolute,
                         wasmURL: wasmAbsolute,
-                        classWorkerURL: classWorkerAbsolute,
+                        classWorkerURL: classWorkerAbsolute, // <-- ffmpeg.js adalah worker sebenarnya!
                         workerURL: coreWorkerAbsolute
                     };
                     
