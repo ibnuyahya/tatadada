@@ -27,39 +27,54 @@
     </div>
 
     <script>
-        const { createFFmpeg, fetchFile } = FFmpeg;
-        const ffmpeg = createFFmpeg({ 
-            log: true,
-            corePath: './lib/ffmpeg-core.js' // Mengarahkan ke core di lib
-        });
-
-        const status = document.getElementById('status');
-        const btnProcess = document.getElementById('btnProcess');
-        const uploader = document.getElementById('uploader');
-        const outputVideo = document.getElementById('output-video');
-
-        const transcode = async ({ target: { files } }) => {
-            const name = files[0].name;
-            status.innerText = 'Memuat FFmpeg...';
-            await ffmpeg.load();
-            status.innerText = 'Menulis file ke sistem...';
-            ffmpeg.FS('writeFile', name, await fetchFile(files[0]));
-            status.innerText = 'Memproses video...';
-            // Contoh: Mengonversi video ke format mp4 (atau optimasi lain)
-            await ffmpeg.run('-i', name, 'output.mp4');
-            status.innerText = 'Selesai!';
-            
-            const data = ffmpeg.FS('readFile', 'output.mp4');
-            outputVideo.src = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-            outputVideo.classList.remove('hidden');
-        };
-
-        btnProcess.addEventListener('click', () => {
-            if (uploader.files.length > 0) {
-                transcode({ target: { files: uploader.files } });
-            } else {
-                status.innerText = 'Silakan pilih file terlebih dahulu.';
+        // Memastikan FFmpeg sudah tersedia sebelum inisialisasi
+        window.addEventListener('load', () => {
+            if (typeof FFmpeg === 'undefined') {
+                console.error("FFmpeg library tidak ditemukan. Pastikan path ./lib/ffmpeg.js benar.");
+                document.getElementById('status').innerText = 'Error: Library FFmpeg gagal dimuat.';
+                return;
             }
+
+            const { createFFmpeg, fetchFile } = FFmpeg;
+            const ffmpeg = createFFmpeg({ 
+                log: true,
+                corePath: './lib/ffmpeg-core.js'
+            });
+
+            const status = document.getElementById('status');
+            const btnProcess = document.getElementById('btnProcess');
+            const uploader = document.getElementById('uploader');
+            const outputVideo = document.getElementById('output-video');
+
+            const transcode = async ({ target: { files } }) => {
+                const name = files[0].name;
+                status.innerText = 'Memuat FFmpeg...';
+                
+                try {
+                    if (!ffmpeg.isLoaded()) {
+                        await ffmpeg.load();
+                    }
+                    status.innerText = 'Menulis file ke sistem...';
+                    ffmpeg.FS('writeFile', name, await fetchFile(files[0]));
+                    status.innerText = 'Memproses video...';
+                    await ffmpeg.run('-i', name, 'output.mp4');
+                    status.innerText = 'Selesai!';
+                    
+                    const data = ffmpeg.FS('readFile', 'output.mp4');
+                    outputVideo.src = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+                    outputVideo.classList.remove('hidden');
+                } catch (e) {
+                    status.innerText = 'Error: ' + e.message;
+                }
+            };
+
+            btnProcess.addEventListener('click', () => {
+                if (uploader.files.length > 0) {
+                    transcode({ target: { files: uploader.files } });
+                } else {
+                    status.innerText = 'Silakan pilih file terlebih dahulu.';
+                }
+            });
         });
     </script>
 </body>
