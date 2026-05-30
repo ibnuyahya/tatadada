@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simple Video Processor</title>
+    <!-- data-cfasync="false" mencegah Cloudflare mengintervensi eksekusi skrip -->
     <script data-cfasync="false" src="./lib/ffmpeg.js"></script>
     
     <style>
@@ -61,6 +62,15 @@
             background-color: rgba(239, 68, 68, 0.1);
             color: #f87171;
             border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+        .warning-box {
+            background-color: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            font-size: 0.75rem;
+            margin-bottom: 1.5rem;
         }
         .dropzone {
             border: 2px dashed #475569;
@@ -229,6 +239,10 @@
             <span id="lib-status-badge" class="badge">Menghubungkan...</span>
         </div>
 
+        <div id="coop-warning" class="warning-box hidden">
+            <p class="font-bold">⚠️ Keamanan COOP/COEP Belum Terkonfigurasi</p>
+        </div>
+
         <div>
             <!-- Area Input Berkas -->
             <div class="dropzone">
@@ -295,19 +309,11 @@
         const fileNameLabel = document.getElementById('file-name-label');
         const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
+        const coopWarning = document.getElementById('coop-warning');
 
+        // Fungsi pembantu untuk memastikan FFmpeg memuat file dari jalur yang tepat
         function getAbsoluteURL(relativePath) {
             return new URL(relativePath, window.location.href).href;
-        }
-
-        // SOLUSI JITU: Bypass Cloudflare CORP dengan mendownload ke memori (Blob)
-        async function fetchToBlobURL(url, mimeType) {
-            appendLog(`[RAM] Mengunduh: ${url.split('/').pop()}...`);
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`Gagal mengunduh ${url} (HTTP ${response.status})`);
-            const buffer = await response.arrayBuffer();
-            const blob = new Blob([buffer], { type: mimeType });
-            return URL.createObjectURL(blob);
         }
 
         async function customFetchFile(file) {
@@ -323,6 +329,14 @@
 
         function initFFmpeg() {
             appendLog('Memulai inisialisasi FFmpeg v0.12...');
+            
+            if (!window.crossOriginIsolated) {
+                coopWarning.classList.remove('hidden');
+                appendLog('⚠️ Peringatan: Browser belum terisolasi.');
+            } else {
+                appendLog('✅ Keamanan browser terverifikasi aman (SharedArrayBuffer aktif).');
+            }
+
             const lib = window.FFmpegWASM;
 
             if (lib && lib.FFmpeg) {
@@ -342,16 +356,16 @@
                     libBadge.className = "badge ready";
                     libBadge.innerText = "Siap (v0.12)";
                     statusLabel.innerText = "Silakan pilih video untuk memulai.";
-                    appendLog('✅ [Sistem] FFmpeg siap beroperasi!');
+                    appendLog('✅ [Sistem] Objek FFmpeg siap!');
                 } catch (err) {
                     libBadge.className = "badge failed";
                     libBadge.innerText = "Gagal";
-                    appendLog('❌ [Error] ' + err.message);
+                    appendLog(`❌ [Error] ${err.message}`);
                 }
             } else {
                 libBadge.className = "badge failed";
                 libBadge.innerText = "Gagal Memuat";
-                appendLog('❌ Error: Objek FFmpeg tidak ditemukan.');
+                appendLog('❌ Error: Objek window.FFmpegWASM tidak ditemukan.');
             }
         }
 
@@ -382,27 +396,23 @@
 
             try {
                 if (!isCoreLoaded) {
-                    statusLabel.innerText = 'Mengunduh pustaka ke memori...';
+                    statusLabel.innerText = 'Mengunduh pustaka WASM...';
+                    appendLog('[Sistem] Mulai memuat engine WASM...');
                     
-                    // KONFIGURASI SOLUSI FINAL & MUTLAK:
-                    // Kita mendownload ketiga file ke memori Blob URL.
-                    // Ini membypass pemblokiran keamanan Chromium sepenuhnya.
-                    const coreURL = await fetchToBlobURL(getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`), 'text/javascript');
-                    const wasmURL = await fetchToBlobURL(getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`), 'application/wasm');
-                    const classWorkerURL = await fetchToBlobURL(getAbsoluteURL(`${libBasePath}/814.ffmpeg.js`), 'text/javascript');
-                    
-                    // KITA TIDAK MENYERTAKAN workerURL agar FFmpeg tidak kebingungan!
+                    // SOLUSI FINAL & MUTLAK:
+                    // Menyertakan coreURL, wasmURL, dan workerURL secara eksplisit menggunakan HTTP Absolute URL.
+                    // Ini mencegah terjadinya Error 404 pada proses pembentukan "thread" di latar belakang.
+                    // Catatan: KITA MENGHINDARI parameter classWorkerURL sepenuhnya!
                     const loadConfig = {
-                        coreURL: coreURL,
-                        wasmURL: wasmURL,
-                        classWorkerURL: classWorkerURL
+                        coreURL: getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`),
+                        wasmURL: getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`),
+                        workerURL: getAbsoluteURL(`${libBasePath}/ffmpeg-core.worker.js`)
                     };
                     
-                    appendLog('[Sistem] Mengeksekusi ffmpeg.load() dari memori...');
                     await ffmpeg.load(loadConfig);
                     
                     isCoreLoaded = true;
-                    appendLog('🎉 [Sistem] WASM Engine berhasil menyala tanpa error!');
+                    appendLog('🎉 [Sistem] Core WASM berhasil dimuat tanpa error!');
                 }
 
                 const inputName = file.name;
