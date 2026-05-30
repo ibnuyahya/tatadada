@@ -217,9 +217,10 @@
             try {
                 statusBadge.classList.remove('hidden');
                 statusText.innerText = "Memuat FFmpeg...";
-                logToConsole("Mencoba terhubung ke mesin WASM di danial.my.id...");
+                logToConsole("Mem-bypass cache dan memuat Blob memori...");
 
                 const { FFmpeg } = window.FFmpegWASM;
+                const { toBlobURL } = window.FFmpegUtil;
                 ffmpeg = new FFmpeg();
                 
                 ffmpeg.on('log', ({ message }) => {
@@ -227,11 +228,13 @@
                 });
 
                 const baseURL = 'https://danial.my.id/simplevideo/lib';
+                const cb = '?v=' + Date.now(); // Cache Buster String
                 
+                // Fetch file sebagai BLOB untuk mencegah modifikasi skrip oleh Cloudflare
                 await ffmpeg.load({
-                    coreURL: baseURL + '/ffmpeg-core.js',
-                    wasmURL: baseURL + '/ffmpeg-core.wasm',
-                    classWorkerURL: baseURL + '/814.ffmpeg.js'
+                    coreURL: await toBlobURL(baseURL + '/ffmpeg-core.js' + cb, 'text/javascript'),
+                    wasmURL: await toBlobURL(baseURL + '/ffmpeg-core.wasm' + cb, 'application/wasm'),
+                    classWorkerURL: await toBlobURL(baseURL + '/814.ffmpeg.js' + cb, 'text/javascript')
                 });
 
                 isFFmpegLoaded = true;
@@ -243,11 +246,11 @@
                 document.querySelector('#statusBadge i').setAttribute('data-lucide', 'check-circle');
                 lucide.createIcons();
                 
-                logToConsole("SUCCESS: Mesin FFmpeg (Single-Thread) berhasil diaktifkan. Tidak ada blokir Cloudflare!");
+                logToConsole("SUCCESS: Mesin FFmpeg siap!");
                 return true;
             } catch (error) {
                 console.error(error);
-                logToConsole("ERROR: Gagal memuat FFmpeg. Cek console log.");
+                logToConsole("ERROR: " + error.message);
                 statusBadge.classList.replace('bg-blue-100', 'bg-red-100');
                 statusBadge.classList.replace('text-blue-700', 'text-red-700');
                 statusText.innerText = "Gagal Memuat";
