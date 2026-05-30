@@ -441,25 +441,25 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             try {
                 if (!isCoreLoaded) {
                     statusLabel.innerText = 'Memuat core WASM...';
-                    appendLog('[Sistem] Mengunduh core & WASM dan memetakan ke Blob URL...');
+                    appendLog('[Sistem] Menyiapkan pemuatan Hybrid (Worker=Blob, Core=Absolut)...');
                     
                     const coreAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`);
                     const wasmAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`);
                     const workerAbsolute = getAbsoluteURL(`${libBasePath}/814.ffmpeg.js`);
                     
-                    // Membuat Blob URL manual untuk memperbaiki masalah Tipe MIME dan Webpack Worker Path Resolution
-                    const coreBlobUrl = await fetchToBlobURL(coreAbsolute, 'text/javascript');
-                    const wasmBlobUrl = await fetchToBlobURL(wasmAbsolute, 'application/wasm');
+                    // SOLUSI HIBRIDA TERBAIK:
+                    // HANYA file Worker (814.ffmpeg.js) yang diubah menjadi Blob URL untuk mem-bypass Webpack Public Path.
+                    // File core dan WASM dibiarkan sebagai Absolute URL agar Emscripten internal tetap bisa menemukannya!
                     const workerBlobUrl = await fetchToBlobURL(workerAbsolute, 'text/javascript');
                     
                     const loadConfig = {
-                        coreURL: coreBlobUrl,
-                        wasmURL: wasmBlobUrl,
+                        coreURL: coreAbsolute,
+                        wasmURL: wasmAbsolute,
                         workerURL: workerBlobUrl,
-                        classWorkerURL: workerBlobUrl // <--- Ini adalah kunci utama agar v0.12 tidak stuck!
+                        classWorkerURL: workerBlobUrl
                     };
                     
-                    appendLog('[Sistem] Mengeksekusi ffmpeg.load() dengan loadConfig...');
+                    appendLog('[Sistem] Mengeksekusi ffmpeg.load() dengan metode Hibrida...');
                     
                     // Menambahkan sistem batas waktu (Timeout 20 detik) agar tidak stuck selamanya
                     const loadPromise = ffmpeg.load(loadConfig);
