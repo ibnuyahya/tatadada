@@ -314,76 +314,6 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             logContainer.scrollTop = logContainer.scrollHeight;
         }
 
-        // ==========================================
-        // SUNTIKAN RADAR JARINGAN & PELACAK DIAGNOSTIK MAKSIMAL
-        // ==========================================
-        const origConsoleError = console.error;
-        console.error = function(...args) {
-            const msg = args.map(a => typeof a === 'object' && a instanceof Error ? a.stack || a.message : (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ');
-            appendLog(`❌ [Console Error] ${msg}`);
-            origConsoleError.apply(console, args);
-        };
-        
-        const origConsoleWarn = console.warn;
-        console.warn = function(...args) {
-            const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ');
-            appendLog(`⚠️ [Console Warn] ${msg}`);
-            origConsoleWarn.apply(console, args);
-        };
-
-        window.addEventListener('unhandledrejection', (e) => {
-            appendLog(`❌ [Unhandled Promise Rejection] Alasan: ${e.reason ? e.reason.message || e.reason : 'Unknown'}`);
-            if (e.reason && e.reason.stack) {
-                appendLog(`➡️ StackTrace: ${e.reason.stack}`);
-            }
-        });
-
-        const originalFetch = window.fetch;
-        window.fetch = async function(...args) {
-            const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : 'unknown');
-            const filename = url.split('/').pop().split('?')[0];
-            
-            if (filename.includes('ffmpeg')) appendLog(`[Jaringan] Meminta file: ${filename}`);
-            try {
-                const res = await originalFetch.apply(this, args);
-                if (!res.ok && filename.includes('ffmpeg')) {
-                    appendLog(`❌ [Jaringan Error] Gagal HTTP ${res.status}: ${filename}`);
-                }
-                return res;
-            } catch(e) {
-                if (filename.includes('ffmpeg')) appendLog(`❌ [Jaringan Putus] Request gagal untuk ${filename} (${e.message})`);
-                throw e;
-            }
-        };
-
-        const OriginalWorker = window.Worker;
-        window.Worker = function(...args) {
-            let urlStr = "unknown";
-            try {
-                urlStr = args[0] instanceof URL ? args[0].href : args[0].toString();
-            } catch(e) {}
-            
-            const filename = urlStr.split('/').pop().split('?')[0];
-            appendLog(`[Sistem] Menjalankan Web Worker: ${filename}`);
-
-            const w = new OriginalWorker(...args);
-            
-            w.addEventListener('error', (e) => {
-                appendLog(`❌ [Worker Error Fatal] Kesalahan di dalam Web Worker (${filename})!`);
-                if (e.message) appendLog(`➡️ Pesan Error: ${e.message}`);
-                console.error("Detail Error Worker:", e);
-            });
-
-            return w;
-        };
-
-        window.addEventListener('error', (e) => {
-            if (e.filename && e.filename.includes('ffmpeg')) {
-                appendLog(`❌ [Global Error] ${e.message} di ${e.filename}:${e.lineno}`);
-            }
-        });
-        // ==========================================
-
         let ffmpeg = null;
         let isCoreLoaded = false;
         const libBasePath = './lib'; 
@@ -414,16 +344,11 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
         }
 
         function initFFmpeg() {
-            appendLog('Memulai pemeriksaan library FFmpeg...');
-            appendLog(`[Status Global] window.FFmpegWASM: ${typeof window.FFmpegWASM}`);
-            appendLog(`[Status Isolasi] window.crossOriginIsolated: ${window.crossOriginIsolated}`);
-
+            appendLog('Memulai inisialisasi FFmpeg...');
+            
             if (!window.crossOriginIsolated) {
-                appendLog('[⚠️ Peringatan] window.crossOriginIsolated bernilai false. SharedArrayBuffer tidak tersedia.');
+                appendLog('[⚠️ Peringatan] window.crossOriginIsolated bernilai false. SharedArrayBuffer diblokir!');
                 coopWarning.classList.remove('hidden');
-            } else {
-                appendLog('✅ Keamanan browser terverifikasi aman (SharedArrayBuffer diizinkan)!');
-                coopWarning.classList.add('hidden');
             }
 
             const lib = window.FFmpegWASM;
@@ -433,7 +358,7 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                     ffmpeg = new lib.FFmpeg();
 
                     ffmpeg.on('log', ({ message }) => {
-                        appendLog(`[FFmpeg Log] ${message}`);
+                        appendLog(`[FFmpeg] ${message}`);
                         if (message.includes('SharedArrayBuffer')) coopWarning.classList.remove('hidden');
                     });
 
@@ -446,18 +371,16 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                     libBadge.className = "badge ready";
                     libBadge.innerText = "Siap (v0.12)";
                     statusLabel.innerText = "Silakan pilih video untuk memulai.";
-                    appendLog('🎉 [Sistem] FFmpegWASM v0.12 berhasil diaktifkan dengan jalur aman!');
+                    appendLog('✅ [Sistem] Objek FFmpeg v0.12 berhasil disiapkan!');
                 } catch (err) {
                     libBadge.className = "badge failed";
                     libBadge.innerText = "Gagal";
-                    statusLabel.innerText = "Gagal membuat instance FFmpeg.";
-                    appendLog('❌ [Error Inisialisasi] ' + err.message);
+                    appendLog('❌ [Error] ' + err.message);
                 }
             } else {
                 libBadge.className = "badge failed";
                 libBadge.innerText = "Gagal Memuat";
-                statusLabel.innerText = "Gagal mendeteksi objek FFmpegWASM.";
-                appendLog('❌ Error: Objek window.FFmpegWASM.FFmpeg tidak ditemukan.');
+                appendLog('❌ Error: Objek window.FFmpegWASM tidak ditemukan.');
             }
         }
 
@@ -489,53 +412,40 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             try {
                 if (!isCoreLoaded) {
                     statusLabel.innerText = 'Mengunduh pustaka WASM...';
-                    appendLog('[Sistem] Menyiapkan pemuatan Absolut Definitif...');
+                    appendLog('[Sistem] Menyiapkan parameter beban FFmpeg...');
                     
                     const coreAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`);
                     const wasmAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`);
-                    const coreWorkerAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.worker.js`);
+                    const classWorkerAbsolute = getAbsoluteURL(`${libBasePath}/814.ffmpeg.js`);
                     
-                    // SOLUSI PELURU PERAK:
-                    // Berkas ffmpeg.js BUKAN hanya script biasa, ia juga bertindak sebagai
-                    // skrip Web Worker murni ketika dipanggil menggunakan classWorkerURL.
-                    // Ini akan mengeksekusi modul Webpack secara utuh dan memuat 814.ffmpeg.js secara aman!
-                    const classWorkerAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg.js`);
+                    appendLog(`[Sistem] Menuju core: ${coreAbsolute}`);
                     
-                    appendLog(`[Sistem] URL Core: ${coreAbsolute}`);
-                    appendLog(`[Sistem] URL WASM: ${wasmAbsolute}`);
-                    appendLog(`[Sistem] URL Worker (Class): ${classWorkerAbsolute}`);
-                    appendLog(`[Sistem] URL Worker (Core): ${coreWorkerAbsolute}`);
-                    
+                    // SOLUSI MUTLAK:
+                    // 1. coreURL & wasmURL harus disertakan.
+                    // 2. classWorkerURL adalah milik 814.ffmpeg.js (Pecahan Webpack Wrapper).
+                    // 3. workerURL TIDAK BOLEH didefinisikan kecuali kita butuh multi-threading C++.
                     const loadConfig = {
                         coreURL: coreAbsolute,
                         wasmURL: wasmAbsolute,
-                        classWorkerURL: classWorkerAbsolute, // <-- ffmpeg.js adalah worker sebenarnya!
-                        workerURL: coreWorkerAbsolute
+                        classWorkerURL: classWorkerAbsolute
                     };
                     
-                    appendLog('[Sistem] Mengeksekusi ffmpeg.load()...');
-                    
-                    const loadPromise = ffmpeg.load(loadConfig);
-                    const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error("Timeout 30 detik: Lihat log penyebab crash di atas.")), 30000);
-                    });
-                    
-                    await Promise.race([loadPromise, timeoutPromise]);
+                    appendLog('[Sistem] Mulai mengeksekusi ffmpeg.load()...');
+                    await ffmpeg.load(loadConfig);
                     
                     isCoreLoaded = true;
-                    appendLog('✅ [Sistem] Core WASM berhasil diinisialisasi tanpa error!');
+                    appendLog('🎉 [Sistem] Core WASM berhasil diinisialisasi dengan sempurna!');
                 }
 
                 const inputName = file.name;
                 const outputName = 'converted_' + Date.now() + '.mp4';
                 
-                statusLabel.innerText = 'Menulis video ke disk virtual...';
+                statusLabel.innerText = 'Menulis video ke memori sementara...';
                 const fileData = await customFetchFile(file);
-
                 await ffmpeg.writeFile(inputName, fileData);
 
                 statusLabel.innerText = 'Memulai proses konversi ke MP4...';
-                appendLog(`[Sistem] Menjalankan perintah: ffmpeg -i "${inputName}" -c:v libx264 -preset ultrafast -crf 28 "${outputName}"`);
+                appendLog(`[Sistem] Menjalankan: ffmpeg -i "${inputName}" -c:v libx264 -preset ultrafast -crf 28 "${outputName}"`);
                 
                 await ffmpeg.exec(['-i', inputName, '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', outputName]);
 
@@ -556,15 +466,14 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                 outputContainer.style.display = 'block';
                 statusLabel.innerText = 'Konversi Berhasil!';
                 progressBar.style.width = '100%';
-                appendLog('🎉 [Sistem] Proses konversi selesai dengan sukses!');
+                appendLog('✅ [Sistem] Proses konversi selesai!');
 
                 await ffmpeg.deleteFile(inputName);
                 await ffmpeg.deleteFile(outputName);
 
             } catch (error) {
                 statusLabel.innerText = 'Gagal memproses video!';
-                let detailedMessage = error && error.message ? error.message : JSON.stringify(error);
-                appendLog(`❌ [Puncak Error] ${detailedMessage}`);
+                appendLog(`❌ [Error] ${error.message || JSON.stringify(error)}`);
             } finally {
                 btnProcess.disabled = false;
             }
