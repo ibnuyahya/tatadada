@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simple Video Processor</title>
-    <!-- data-cfasync="false" disisipkan agar Cloudflare Rocket Loader tidak mengacaukan Web Worker pendukung -->
+    <!-- data-cfasync="false" disisipkan agar Cloudflare Rocket Loader tidak mengacaukan skrip utama -->
     <script data-cfasync="false" src="./lib/ffmpeg.js"></script>
     
     <!-- Gaya CSS internal premium untuk menghindari pemblokiran COEP/CORS terhadap CDN luar -->
@@ -334,7 +334,21 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
             return url.href;
         }
 
-        // Fungsi pembantu untuk fetch file secara manual ke bentuk Uint8Array
+        // Fungsi pamungkas: Mengunduh file secara manual dan mengubahnya menjadi Blob dengan MIME Type yang dipaksa
+        async function fetchToBlobURL(url, mimeType) {
+            try {
+                appendLog(`[Sistem Blob] Mengunduh: ${url.split('/').pop()}`);
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+                const buffer = await response.arrayBuffer();
+                const blob = new Blob([buffer], { type: mimeType });
+                return URL.createObjectURL(blob);
+            } catch (error) {
+                throw new Error(`Gagal mengubah ${url} menjadi Blob: ${error.message}`);
+            }
+        }
+
+        // Fungsi pembantu untuk fetch file video input secara manual ke bentuk Uint8Array
         async function customFetchFile(file) {
             if (typeof file === 'string') {
                 const response = await fetch(file);
@@ -430,34 +444,36 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
 
             try {
                 if (!isCoreLoaded) {
-                    statusLabel.innerText = 'Memuat core WASM...';
-                    appendLog('[Sistem] Menyiapkan pemuatan Core & WASM (Tanpa override Worker URL)...');
+                    statusLabel.innerText = 'Mengunduh pustaka WASM ke RAM...';
+                    appendLog('[Sistem] Menyiapkan pemuatan All-Blob Injection...');
                     
-                    const coreAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`);
-                    const wasmAbsolute = getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`);
+                    // SOLUSI PAMUNGKAS (ALL-BLOB METHOD):
+                    // Kita mendownload ketiga file secara manual dan menjadikannya Blob.
+                    // Ini memaksa FFmpeg untuk menggunakan file dari RAM browser kita,
+                    // mencegah Webpack mencari file secara relatif yang sering menyebabkan crash/stuck.
+                    const coreURL = await fetchToBlobURL(getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`), 'text/javascript');
+                    const wasmURL = await fetchToBlobURL(getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`), 'application/wasm');
+                    const workerURL = await fetchToBlobURL(getAbsoluteURL(`${libBasePath}/814.ffmpeg.js`), 'text/javascript');
                     
-                    appendLog(`[Sistem] URL Core: ${coreAbsolute}`);
-                    appendLog(`[Sistem] URL WASM: ${wasmAbsolute}`);
-                    
-                    // SOLUSI FINAL: Jangan definisikan workerURL atau classWorkerURL.
-                    // FFmpeg.wasm akan otomatis memuat 814.ffmpeg.js saat dibutuhkan dengan benar.
                     const loadConfig = {
-                        coreURL: coreAbsolute,
-                        wasmURL: wasmAbsolute
+                        coreURL: coreURL,
+                        wasmURL: wasmURL,
+                        workerURL: workerURL,
+                        classWorkerURL: workerURL // Penting untuk kompabilitas fallback Web Worker
                     };
                     
-                    appendLog('[Sistem] Mengeksekusi ffmpeg.load()...');
+                    appendLog('[Sistem] Semua aset berhasil dimuat ke RAM. Mengeksekusi ffmpeg.load()...');
                     
-                    // Menambahkan sistem batas waktu (Timeout 20 detik)
+                    // Menambahkan sistem batas waktu (Timeout 30 detik)
                     const loadPromise = ffmpeg.load(loadConfig);
                     const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error("Timeout: ffmpeg.load() tidak merespons selama 20 detik.")), 20000);
+                        setTimeout(() => reject(new Error("Timeout: ffmpeg.load() tidak merespons selama 30 detik. Silakan coba kembali.")), 30000);
                     });
                     
                     await Promise.race([loadPromise, timeoutPromise]);
                     
                     isCoreLoaded = true;
-                    appendLog('✅ [Sistem] Core WASM berhasil diinisialisasi!');
+                    appendLog('✅ [Sistem] Core WASM berhasil diinisialisasi tanpa error!');
                 }
 
                 const inputName = file.name;
@@ -469,7 +485,7 @@ Cross-Origin-Embedder-Policy: require-corp</pre>
                 await ffmpeg.writeFile(inputName, fileData);
 
                 statusLabel.innerText = 'Memulai proses konversi ke MP4...';
-                appendLog(`[Sistem] Menjalankan perintah: ffmpeg -i ${inputName} -c:v libx264 -preset ultrafast -crf 28 ${outputName}`);
+                appendLog(`[Sistem] Menjalankan perintah: ffmpeg -i "${inputName}" -c:v libx264 -preset ultrafast -crf 28 "${outputName}"`);
                 
                 await ffmpeg.exec(['-i', inputName, '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', outputName]);
 
