@@ -27,15 +27,17 @@
     </div>
 
     <script>
-        // Memastikan FFmpeg sudah tersedia sebelum inisialisasi
-        window.addEventListener('load', () => {
-            if (typeof FFmpeg === 'undefined') {
-                console.error("FFmpeg library tidak ditemukan. Pastikan path ./lib/ffmpeg.js benar.");
-                document.getElementById('status').innerText = 'Error: Library FFmpeg gagal dimuat.';
+        // Menggunakan window.FFmpeg atau fallback jika library diekspos langsung
+        window.addEventListener('load', async () => {
+            const ffmpegLib = window.FFmpeg || (typeof FFmpeg !== 'undefined' ? FFmpeg : null);
+            
+            if (!ffmpegLib || !ffmpegLib.createFFmpeg) {
+                console.error("FFmpeg library tidak ditemukan atau gagal dimuat.");
+                document.getElementById('status').innerText = 'Error: Library FFmpeg gagal dimuat. Periksa konsol.';
                 return;
             }
 
-            const { createFFmpeg, fetchFile } = FFmpeg;
+            const { createFFmpeg, fetchFile } = ffmpegLib;
             const ffmpeg = createFFmpeg({ 
                 log: true,
                 corePath: './lib/ffmpeg-core.js'
@@ -46,8 +48,8 @@
             const uploader = document.getElementById('uploader');
             const outputVideo = document.getElementById('output-video');
 
-            const transcode = async ({ target: { files } }) => {
-                const name = files[0].name;
+            const transcode = async (file) => {
+                const name = file.name;
                 status.innerText = 'Memuat FFmpeg...';
                 
                 try {
@@ -55,7 +57,7 @@
                         await ffmpeg.load();
                     }
                     status.innerText = 'Menulis file ke sistem...';
-                    ffmpeg.FS('writeFile', name, await fetchFile(files[0]));
+                    ffmpeg.FS('writeFile', name, await fetchFile(file));
                     status.innerText = 'Memproses video...';
                     await ffmpeg.run('-i', name, 'output.mp4');
                     status.innerText = 'Selesai!';
@@ -65,12 +67,13 @@
                     outputVideo.classList.remove('hidden');
                 } catch (e) {
                     status.innerText = 'Error: ' + e.message;
+                    console.error(e);
                 }
             };
 
             btnProcess.addEventListener('click', () => {
                 if (uploader.files.length > 0) {
-                    transcode({ target: { files: uploader.files } });
+                    transcode(uploader.files[0]);
                 } else {
                     status.innerText = 'Silakan pilih file terlebih dahulu.';
                 }
