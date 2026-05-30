@@ -72,6 +72,17 @@
             font-size: 0.75rem;
             margin-bottom: 1.5rem;
         }
+        .warning-box p {
+            margin: 0 0 0.5rem 0;
+        }
+        .warning-box pre {
+            background-color: #020617;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            overflow-x: auto;
+            color: #f87171;
+            margin: 0;
+        }
         .dropzone {
             border: 2px dashed #475569;
             border-radius: 0.75rem;
@@ -311,9 +322,11 @@
         const progressBar = document.getElementById('progress-bar');
         const coopWarning = document.getElementById('coop-warning');
 
-        // Fungsi pembantu untuk memastikan FFmpeg memuat file dari jalur yang tepat
-        function getAbsoluteURL(relativePath) {
-            return new URL(relativePath, window.location.href).href;
+        // FUNGSI SOLUSI JITU: Mengambil path root ('/simplevideo/lib/...') agar browser
+        // tidak bingung masalah Cross-Origin dan Worker tidak tumpang-tindih folder!
+        function getLocalPath(relativePath) {
+            const url = new URL(relativePath, window.location.href);
+            return url.pathname; 
         }
 
         async function customFetchFile(file) {
@@ -332,9 +345,6 @@
             
             if (!window.crossOriginIsolated) {
                 coopWarning.classList.remove('hidden');
-                appendLog('⚠️ Peringatan: Browser belum terisolasi.');
-            } else {
-                appendLog('✅ Keamanan browser terverifikasi aman (SharedArrayBuffer aktif).');
             }
 
             const lib = window.FFmpegWASM;
@@ -399,16 +409,16 @@
                     statusLabel.innerText = 'Mengunduh pustaka WASM...';
                     appendLog('[Sistem] Mulai memuat engine WASM...');
                     
-                    // SOLUSI FINAL & MUTLAK:
-                    // Menyertakan coreURL, wasmURL, dan workerURL secara eksplisit menggunakan HTTP Absolute URL.
-                    // Ini mencegah terjadinya Error 404 pada proses pembentukan "thread" di latar belakang.
-                    // Catatan: KITA MENGHINDARI parameter classWorkerURL sepenuhnya!
+                    // KONFIGURASI MUTLAK:
+                    // Semua file dideklarasikan dengan path ROOT RELATIF (Cth: /simplevideo/lib/ffmpeg-core.js).
                     const loadConfig = {
-                        coreURL: getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`),
-                        wasmURL: getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`),
-                        workerURL: getAbsoluteURL(`${libBasePath}/ffmpeg-core.worker.js`)
+                        classWorkerURL: getLocalPath(`${libBasePath}/814.ffmpeg.js`),
+                        coreURL: getLocalPath(`${libBasePath}/ffmpeg-core.js`),
+                        wasmURL: getLocalPath(`${libBasePath}/ffmpeg-core.wasm`),
+                        workerURL: getLocalPath(`${libBasePath}/ffmpeg-core.worker.js`)
                     };
                     
+                    appendLog(`[Sistem] Menuju ke: ${loadConfig.coreURL}`);
                     await ffmpeg.load(loadConfig);
                     
                     isCoreLoaded = true;
