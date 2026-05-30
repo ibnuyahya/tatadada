@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VisionaryCuts Pro Editor</title>
 
+    <!-- Memanggil library murni dari CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
 
@@ -217,7 +218,7 @@
             try {
                 statusBadge.classList.remove('hidden');
                 statusText.innerText = "Memuat FFmpeg...";
-                logToConsole("Mem-bypass file lokal yang rusak akibat PowerShell...");
+                logToConsole("Memuat mesin dari CDN Global...");
 
                 const { FFmpeg } = window.FFmpegWASM;
                 const { toBlobURL } = window.FFmpegUtil;
@@ -227,16 +228,13 @@
                     logToConsole(message);
                 });
 
-                // KUNCI 2: Mengambil file murni secara langsung dari CDN jsDelivr.
-                const coreBaseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
-                const ffmpegBaseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd';
+                // KUNCI PERBAIKAN: Mengonversi Core dan Wasm menjadi Blob URL juga
+                // untuk memastikan Web Worker tidak menabrak limitasi keamanan browser
+                const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
                 
                 await ffmpeg.load({
-                    // Inti JS & WASM tidak perlu diblob, membiarkan browser mengunduhnya secara native
-                    coreURL: coreBaseURL + '/ffmpeg-core.js',
-                    wasmURL: coreBaseURL + '/ffmpeg-core.wasm',
-                    // Pekerja dibungkus jadi Blob HANYA untuk melewati SecurityError peramban
-                    classWorkerURL: await toBlobURL(ffmpegBaseURL + '/814.ffmpeg.js', 'text/javascript')
+                    coreURL: await toBlobURL(baseURL + '/ffmpeg-core.js', 'text/javascript'),
+                    wasmURL: await toBlobURL(baseURL + '/ffmpeg-core.wasm', 'application/wasm')
                 });
 
                 isFFmpegLoaded = true;
@@ -248,7 +246,7 @@
                 document.querySelector('#statusBadge i').setAttribute('data-lucide', 'check-circle');
                 lucide.createIcons();
                 
-                logToConsole("SUCCESS: Mesin FFmpeg (Single-Thread Pristine) beroperasi sempurna!");
+                logToConsole("SUCCESS: Mesin FFmpeg (Single-Thread) berhasil merdeka dan siap digunakan!");
                 return true;
             } catch (error) {
                 console.error(error);
@@ -474,3 +472,4 @@
     </script>
 </body>
 </html>
+"@
