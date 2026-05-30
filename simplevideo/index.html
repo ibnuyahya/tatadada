@@ -322,11 +322,9 @@
         const progressBar = document.getElementById('progress-bar');
         const coopWarning = document.getElementById('coop-warning');
 
-        // FUNGSI SOLUSI JITU: Mengambil path root ('/simplevideo/lib/...') agar browser
-        // tidak bingung masalah Cross-Origin dan Worker tidak tumpang-tindih folder!
-        function getLocalPath(relativePath) {
-            const url = new URL(relativePath, window.location.href);
-            return url.pathname; 
+        // Fungsi absolut menjamin worker tidak tersesat ke protokol file:///
+        function getAbsoluteURL(relativePath) {
+            return new URL(relativePath, window.location.href).href; 
         }
 
         async function customFetchFile(file) {
@@ -409,13 +407,14 @@
                     statusLabel.innerText = 'Mengunduh pustaka WASM...';
                     appendLog('[Sistem] Mulai memuat engine WASM...');
                     
-                    // KONFIGURASI MUTLAK:
-                    // Semua file dideklarasikan dengan path ROOT RELATIF (Cth: /simplevideo/lib/ffmpeg-core.js).
+                    // SOLUSI MUTLAK:
+                    // 1. Menggunakan getAbsoluteURL() agar terhindar dari file:///
+                    // 2. KITA MENGHAPUS classWorkerURL sepenuhnya. 
+                    // 3. Kita sertakan workerURL untuk keperluan Multithreading.
                     const loadConfig = {
-                        classWorkerURL: getLocalPath(`${libBasePath}/814.ffmpeg.js`),
-                        coreURL: getLocalPath(`${libBasePath}/ffmpeg-core.js`),
-                        wasmURL: getLocalPath(`${libBasePath}/ffmpeg-core.wasm`),
-                        workerURL: getLocalPath(`${libBasePath}/ffmpeg-core.worker.js`)
+                        coreURL: getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`),
+                        wasmURL: getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`),
+                        workerURL: getAbsoluteURL(`${libBasePath}/ffmpeg-core.worker.js`)
                     };
                     
                     appendLog(`[Sistem] Menuju ke: ${loadConfig.coreURL}`);
