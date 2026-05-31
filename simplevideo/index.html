@@ -1,92 +1,4 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hybrid Engine: WebCodecs GPU + FFmpeg WASM</title>
-    <style>
-        body { background-color: #0f172a; color: #f1f5f9; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1rem; margin: 0; }
-        .container { background-color: #1e293b; border: 1px solid #334155; border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); width: 100%; max-width: 48rem; padding: 1.5rem; box-sizing: border-box; }
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
-        .title { font-size: 1.5rem; font-weight: 800; margin: 0; background: linear-gradient(to right, #ec4899, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .badge { font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.75rem; border-radius: 9999px; background-color: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); }
-        .dropzone { border: 2px dashed #475569; border-radius: 0.75rem; padding: 1.5rem; text-align: center; position: relative; cursor: pointer; transition: border-color 0.2s; margin-bottom: 1rem; }
-        .dropzone:hover { border-color: #ec4899; }
-        .dropzone input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-        
-        .controls { display: flex; gap: 1rem; margin-bottom: 1rem; background-color: #0f172a; padding: 1rem; border-radius: 0.75rem; border: 1px solid #334155; }
-        .toggle-group { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #cbd5e1; cursor: pointer; flex: 1;}
-        .toggle-group input[type="checkbox"] { width: 1.25rem; height: 1.25rem; cursor: pointer; accent-color: #ec4899; }
-        
-        .render-monitor { position: relative; width: 100%; aspect-ratio: 16/9; background-color: #000; border-radius: 0.75rem; overflow: hidden; display: none; margin-bottom: 1rem; border: 1px solid #334155; }
-        .render-monitor canvas { width: 100%; height: 100%; object-fit: cover; }
-        .monitor-overlay { position: absolute; top: 10px; right: 10px; background-color: rgba(236, 72, 153, 0.9); color: white; font-size: 0.7rem; font-weight: bold; padding: 4px 8px; border-radius: 4px; font-family: monospace;}
-        
-        .btn { width: 100%; padding: 0.75rem; border-radius: 0.75rem; font-size: 0.875rem; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; margin-top: 0.5rem; }
-        .btn:disabled { background-color: #334155; color: #64748b; cursor: not-allowed; }
-        .btn-primary { background-color: #2563eb; color: #ffffff; }
-        .btn-primary:hover:not(:disabled) { background-color: #1d4ed8; }
-        
-        .status-text { text-align: center; font-size: 0.875rem; color: #94a3b8; margin: 1rem 0; font-weight: bold; }
-        .progress-container { width: 100%; background-color: #334155; border-radius: 9999px; height: 0.625rem; overflow: hidden; display: none; margin-bottom: 1rem; }
-        .progress-bar { background-color: #3b82f6; height: 100%; width: 0%; transition: width 0.1s linear; }
-        
-        .terminal { height: 16rem; background-color: #020617; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 0.75rem; font-family: monospace; font-size: 0.7rem; color: #e2e8f0; overflow-y: auto; white-space: pre-wrap; line-height: 1.4;}
-        .log-warn { color: #f87171; }
-        .log-good { color: #34d399; }
-        .log-hl { color: #f472b6; }
-        .log-meta { color: #60a5fa; }
-    </style>
-    
-    <!-- PUSTAKA WEBCODECS MUXER -->
-    <script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
-    <script src="https://unpkg.com/mp4-muxer/build/mp4-muxer.js"></script>
-    
-    <!-- PUSTAKA FFMPEG WASM (UNTUK MENJAHIT AUDIO) -->
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1 class="title">Hybrid Architecture</h1>
-            <span id="badge" class="badge">GPU Video + CPU Audio Mux</span>
-        </div>
-
-        <div class="dropzone">
-            <div class="text-main"><span id="file-name-label" style="font-weight: 600; color: #3b82f6;">Pilih file video</span></div>
-            <p class="text-sub" style="font-size: 0.75rem; color: #64748b;">Mendukung output A/V (Audio + Video) sempurna.</p>
-            <input type="file" id="uploader" accept="video/mp4">
-        </div>
-
-        <div class="controls">
-            <label class="toggle-group">
-                <input type="checkbox" id="toggle-res">
-                <span>Upscale Paksa ke 1080p<br><small style="color:#64748b">(Default: Resolusi Asli)</small></span>
-            </label>
-            <label class="toggle-group">
-                <input type="checkbox" id="toggle-fps">
-                <span>Upframe Paksa ke 60 FPS<br><small style="color:#64748b">(Default: FPS Asli)</small></span>
-            </label>
-        </div>
-
-        <div id="render-monitor" class="render-monitor">
-            <canvas id="gpu-canvas"></canvas>
-            <div class="monitor-overlay">FASE 1: GPU AKTIF</div>
-        </div>
-
-        <button id="btnProcess" disabled class="btn btn-primary">Mulai Eksekusi Hibrida</button>
-
-        <div id="status" class="status-text">Menunggu instruksi...</div>
-        <div id="progress-container" class="progress-container">
-            <div id="progress-bar" class="progress-bar"></div>
-        </div>
-
-        <h3 style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 0.5rem;">Sistem Log Logika Hibrida</h3>
-        <div id="logs" class="terminal">Sistem siap...</div>
-    </div>
-
-    <script>
+<script>
         const { FFmpeg } = window.FFmpegWASM;
         const { fetchFile, toBlobURL } = window.FFmpegUtil;
 
@@ -156,6 +68,9 @@
 
                 const fpsMultiplier = (forceUpframe && origFPS < 60) ? Math.round(60 / origFPS) : 1;
                 
+                // KALKULASI STEMPEL WAKTU ABSOLUT (DALAM MIKRODETIK)
+                const frameDurationUs = Math.floor(1_000_000 / targetFPS);
+                
                 log(`[Config] GPU akan merender: ${targetWidth}x${targetHeight} @ ${targetFPS}FPS (Multiplier: x${fpsMultiplier})`, "hl");
                 canvas.width = targetWidth; canvas.height = targetHeight;
 
@@ -172,12 +87,13 @@
                     error: (e) => log(`❌ Encoder Error: ${e.message}`, "warn")
                 });
                 
-                // MENGUNCI BITRATE & FRAMERATE AGAR TIDAK DROP
+                // Konfigurasi bersih tanpa bitrateMode constant yang sering memicu error
                 encoder.configure({ 
-                    codec: 'avc1.4D002A', width: targetWidth, height: targetHeight, 
+                    codec: 'avc1.4D002A', 
+                    width: targetWidth, 
+                    height: targetHeight, 
                     hardwareAcceleration: 'prefer-hardware', 
                     bitrate: 5_000_000, 
-                    bitrateMode: 'constant',
                     framerate: targetFPS 
                 });
 
@@ -187,15 +103,15 @@
                     output: (frame) => {
                         ctx.drawImage(frame, 0, 0, targetWidth, targetHeight);
 
-                        // PERBAIKAN BUG 1 FPS: 
-                        // Menggunakan stempel waktu asli, BUKAN perhitungan buta.
-                        const origTs = frame.timestamp;
-                        const origDur = frame.duration || Math.floor(1_000_000 / origFPS);
-                        const step = Math.floor(origDur / fpsMultiplier);
-
+                        // PERBAIKAN FATAL: STEMPEL WAKTU SINTETIS (CFR)
+                        // Kita abaikan frame.timestamp bawaan video yang berantakan!
                         for (let i = 0; i < fpsMultiplier; i++) {
-                            const newTs = origTs + (i * step);
-                            const newFrame = new VideoFrame(canvas, { timestamp: newTs, duration: step });
+                            const syntheticTimestamp = framesEncoded * frameDurationUs;
+                            
+                            const newFrame = new VideoFrame(canvas, { 
+                                timestamp: syntheticTimestamp, 
+                                duration: frameDurationUs 
+                            });
                             
                             encoder.encode(newFrame, { keyFrame: (framesEncoded % targetFPS === 0) });
                             newFrame.close();
@@ -287,7 +203,7 @@
 
                 const ffmpeg = new FFmpeg();
                 ffmpeg.on('log', ({ message }) => {
-                    if (message.includes('frame=') || message.includes('bitrate=')) return; // Sembunyikan log spam
+                    if (message.includes('frame=') || message.includes('bitrate=')) return; 
                     log(`[FFmpeg] ${message}`, 'meta');
                 });
 
@@ -302,29 +218,25 @@
                 });
 
                 log("⏳ Menulis aset ke memori virtual WASM...");
-                // Tulis file asli (Punya Audio)
                 await ffmpeg.writeFile('original.mp4', await fetchFile(selectedFile));
-                // Tulis file hasil GPU (Video Super Cepat)
                 await ffmpeg.writeFile('gpu_video.mp4', await fetchFile(new Blob([gpuVideoBuffer])));
 
                 log("⚡ Menjahit Audio dan Video (Proses Instan)...");
                 document.getElementById('status').innerText = `[Muxing] Menggabungkan Audio & Video...`;
 
-                // PERINTAH AJAIB: Ambil Video dari Input 0 (gpu), Ambil Audio dari Input 1 (original). CUMA COPY!
                 await ffmpeg.exec([
                     '-i', 'gpu_video.mp4', 
                     '-i', 'original.mp4', 
-                    '-map', '0:v:0',      // Ambil stream video dari file ke-0
-                    '-map', '1:a:0?',     // Ambil stream audio dari file ke-1 (tanda '?' artinya abaikan jika video asli tidak punya suara)
-                    '-c:v', 'copy',       // Jangan kompres ulang videonya! (Instan)
-                    '-c:a', 'aac',        // Pastikan format audio aman
-                    '-shortest',          // Potong durasi berlebih
+                    '-map', '0:v:0',      
+                    '-map', '1:a:0?',     
+                    '-c:v', 'copy',       
+                    '-c:a', 'aac',        
+                    '-shortest',          
                     'final_output.mp4'
                 ]);
 
                 log("✅ [FASE 2 SELESAI] Penjahitan berhasil!", "good");
 
-                // UNDUH HASIL FINAL
                 const finalData = await ffmpeg.readFile('final_output.mp4');
                 const finalBlob = new Blob([finalData.buffer], { type: 'video/mp4' });
                 const finalUrl = URL.createObjectURL(finalBlob);
@@ -345,5 +257,3 @@
             reader.readAsArrayBuffer(selectedFile);
         });
     </script>
-</body>
-</html>
