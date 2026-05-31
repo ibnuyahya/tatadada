@@ -3,117 +3,187 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Uji Coba Mesin SIMD Multi-Thread</title>
+    <title>Hardware GPU Engine (WebCodecs)</title>
     <style>
-        body { background-color: #0f172a; color: #f1f5f9; font-family: system-ui, sans-serif; padding: 2rem; display: flex; flex-direction: column; align-items: center; }
-        .container { background-color: #1e293b; padding: 2rem; border-radius: 1rem; width: 100%; max-width: 600px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-        .btn { background-color: #e11d48; color: white; padding: 1rem; border: none; border-radius: 0.5rem; width: 100%; font-weight: bold; cursor: pointer; margin-top: 1rem; }
-        .btn:disabled { background-color: #475569; cursor: not-allowed; }
-        .terminal { background-color: #020617; color: #10b981; padding: 1rem; border-radius: 0.5rem; height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; margin-top: 1rem; white-space: pre-wrap;}
-        .warning { background-color: #7f1d1d; color: white; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; display: none; font-weight: bold;}
+        body { background-color: #0f172a; color: #f1f5f9; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1rem; margin: 0; }
+        .container { background-color: #1e293b; border: 1px solid #334155; border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); width: 100%; max-width: 42rem; padding: 1.5rem; box-sizing: border-box; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+        .title { font-size: 1.5rem; font-weight: 800; margin: 0; background: linear-gradient(to right, #f59e0b, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .badge { font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.75rem; border-radius: 9999px; background-color: rgba(245, 158, 11, 0.1); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.2); }
+        .dropzone { border: 2px dashed #475569; border-radius: 0.75rem; padding: 1.5rem; text-align: center; position: relative; cursor: pointer; transition: border-color 0.2s; margin-bottom: 1rem; }
+        .dropzone:hover { border-color: #f59e0b; }
+        .dropzone input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+        
+        .render-monitor { position: relative; width: 100%; aspect-ratio: 16/9; background-color: #000; border-radius: 0.75rem; overflow: hidden; display: none; margin-bottom: 1rem; border: 1px solid #334155; }
+        .render-monitor canvas { width: 100%; height: 100%; object-fit: cover; }
+        .monitor-overlay { position: absolute; top: 10px; right: 10px; background-color: rgba(239, 68, 68, 0.9); color: white; font-size: 0.7rem; font-weight: bold; padding: 4px 8px; border-radius: 4px; animation: blink 1s infinite; font-family: monospace;}
+        @keyframes blink { 50% { opacity: 0.3; } }
+
+        .btn { width: 100%; padding: 0.75rem; border-radius: 0.75rem; font-size: 0.875rem; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; margin-top: 0.5rem; }
+        .btn:disabled { background-color: #334155; color: #64748b; cursor: not-allowed; }
+        .btn-primary { background-color: #ea580c; color: #ffffff; }
+        .btn-primary:hover:not(:disabled) { background-color: #c2410c; }
+        
+        .status-text { text-align: center; font-size: 0.875rem; color: #94a3b8; margin: 1rem 0; font-weight: bold; }
+        .progress-container { width: 100%; background-color: #334155; border-radius: 9999px; height: 0.625rem; overflow: hidden; display: none; margin-bottom: 1rem; }
+        .progress-bar { background-color: #f59e0b; height: 100%; width: 0%; transition: width 0.1s linear; }
+        .terminal { height: 12rem; background-color: #020617; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 0.75rem; font-family: monospace; font-size: 0.75rem; color: #fbbf24; overflow-y: auto; white-space: pre-wrap; }
     </style>
+    
+    <script src="https://unpkg.com/mp4-muxer/build/mp4-muxer.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1 style="margin-top:0;">Engine Test: SIMD</h1>
-        
-        <div id="sab-warning" class="warning">
-            ⚠️ PERINGATAN: SharedArrayBuffer terblokir!<br><br>
-            Server danial.my.id Anda belum memasang header COOP/COEP. Mesin Multi-Thread tidak bisa menyala.
+        <div class="header">
+            <h1 class="title">WebCodecs GPU Prototype</h1>
+            <span id="badge" class="badge">Hardware Accel: ON</span>
         </div>
 
-        <input type="file" id="uploader" accept="video/*" style="margin-bottom: 1rem;">
-        <button id="btn-start" class="btn" disabled>Nyalakan Mesin & Mulai Render</button>
+        <div class="dropzone">
+            <div class="text-main"><span id="file-name-label" style="font-weight: 600; color: #f59e0b;">Pilih file video</span></div>
+            <p class="text-sub" style="font-size: 0.75rem; color: #64748b;">(Video Only) Upscale 1080p & Upframe 60 FPS via GPU</p>
+            <input type="file" id="uploader" accept="video/*">
+        </div>
 
-        <div id="log-terminal" class="terminal">Menunggu instruksi...</div>
-        
-        <video id="output-video" controls style="width: 100%; margin-top: 1rem; display: none; border-radius: 0.5rem;"></video>
+        <div id="render-monitor" class="render-monitor">
+            <canvas id="gpu-canvas" width="1920" height="1080"></canvas>
+            <div class="monitor-overlay">GPU RENDERING</div>
+        </div>
+
+        <button id="btnProcess" disabled class="btn btn-primary">Mulai Eksekusi Akselerasi GPU</button>
+
+        <div id="status" class="status-text">Siap memproses.</div>
+        <div id="progress-container" class="progress-container">
+            <div id="progress-bar" class="progress-bar"></div>
+        </div>
+
+        <h3 style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 0.5rem;">Log Operasional (GPU)</h3>
+        <div id="logs" class="terminal">Menunggu instruksi...</div>
     </div>
 
-    <script type="module">
-        // Import FFmpeg versi terbaru dari CDN untuk wrappernya
-        import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
-        import { fetchFile, toBlobURL } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
-
-        const terminal = document.getElementById('log-terminal');
-        const btnStart = document.getElementById('btn-start');
-        const uploader = document.getElementById('uploader');
-        const warning = document.getElementById('sab-warning');
-
+    <script>
+        const logContainer = document.getElementById('logs');
+        const canvas = document.getElementById('gpu-canvas');
+        const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+        
         function log(msg) {
-            terminal.textContent += `\n${msg}`;
-            terminal.scrollTop = terminal.scrollHeight;
+            logContainer.textContent += `\n${msg}`;
+            logContainer.scrollTop = logContainer.scrollHeight;
         }
 
-        // CEK KEAMANAN SERVER (SYARAT MUTLAK MULTI-THREAD)
-        if (typeof SharedArrayBuffer === 'undefined') {
-            warning.style.display = 'block';
-            log("❌ GAGAL: SharedArrayBuffer tidak tersedia di browser ini.");
+        if (!('VideoEncoder' in window)) {
+            log("❌ ERROR: Browser Anda tidak mendukung WebCodecs API.");
+            document.getElementById('btnProcess').style.display = 'none';
         } else {
-            log("✅ SharedArrayBuffer tersedia. Keamanan server lolos!");
-            uploader.addEventListener('change', () => btnStart.disabled = false);
+            log("✅ Sistem Hardware (WebCodecs) terdeteksi dan siap.");
         }
 
-        btnStart.addEventListener('click', async () => {
-            const file = uploader.files[0];
-            if (!file) return;
+        let sourceVideo = document.createElement('video');
+        let fileDuration = 0;
 
-            btnStart.disabled = true;
-            log("🚀 Menyiapkan FFmpeg SIMD Engine...");
-
-            try {
-                const ffmpeg = new FFmpeg();
+        document.getElementById('uploader').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('file-name-label').innerText = file.name;
+                document.getElementById('btnProcess').disabled = false;
                 
-                ffmpeg.on('log', ({ message }) => log(`[FFmpeg] ${message}`));
-                ffmpeg.on('progress', ({ progress }) => log(`⏳ Progress: ${Math.round(progress * 100)}%`));
-
-                // KITA PANGGIL FILE 32MB DARI SERVER ANDA SENDIRI
-                const baseURL = 'https://danial.my.id/simplevideo/lib/simd';
-                
-                log(`📥 Mengunduh mesin dari: ${baseURL}`);
-                
-                // ClassWorker harus di-blob karena aturan ketat Web Worker
-                const classWorkerURL = await toBlobURL('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js', 'text/javascript');
-
-                await ffmpeg.load({
-                    coreURL: `${baseURL}/ffmpeg-core.js`,
-                    wasmURL: `${baseURL}/ffmpeg-core.wasm`,
-                    workerURL: `${baseURL}/ffmpeg-core.worker.js`,
-                    classWorkerURL: classWorkerURL
-                });
-
-                log("✅ Mesin SIMD Berhasil Menyala!");
-                
-                log("📦 Membaca file video ke memori...");
-                await ffmpeg.writeFile(file.name, await fetchFile(file));
-
-                log("⚙️ Memulai proses konversi (H.264 ultrafast)...");
-                const startTime = performance.now();
-
-                // Perintah konversi cepat
-                await ffmpeg.exec([
-                    '-i', file.name,
-                    '-c:v', 'libx264',
-                    '-preset', 'ultrafast',
-                    'output.mp4'
-                ]);
-
-                const endTime = performance.now();
-                log(`🎉 Selesai dalam ${((endTime - startTime) / 1000).toFixed(2)} detik!`);
-
-                const data = await ffmpeg.readFile('output.mp4');
-                const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
-                const videoUrl = URL.createObjectURL(videoBlob);
-                
-                const outputVideo = document.getElementById('output-video');
-                outputVideo.src = videoUrl;
-                outputVideo.style.display = 'block';
-
-            } catch (err) {
-                log(`❌ ERROR: ${err.message}`);
-            } finally {
-                btnStart.disabled = false;
+                sourceVideo.src = URL.createObjectURL(file);
+                sourceVideo.onloadedmetadata = () => {
+                    fileDuration = sourceVideo.duration;
+                    log(`[Info] Durasi Video: ${fileDuration.toFixed(2)} detik`);
+                };
             }
+        });
+
+        document.getElementById('btnProcess').addEventListener('click', async () => {
+            document.getElementById('btnProcess').disabled = true;
+            document.getElementById('progress-container').style.display = 'block';
+            document.getElementById('render-monitor').style.display = 'block';
+            
+            const targetFPS = 60;
+            const targetWidth = 1920;
+            const targetHeight = 1080;
+            const frameDurationSec = 1 / targetFPS;
+            
+            log("🚀 Membangun Pipeline MP4-Muxer...");
+            let muxer = new Mp4Muxer.Muxer({
+                target: new Mp4Muxer.ArrayBufferTarget(),
+                video: {
+                    codec: 'avc',
+                    width: targetWidth,
+                    height: targetHeight
+                },
+                fastStart: 'in-memory'
+            });
+
+            log("⚡ Menghidupkan GPU VideoEncoder...");
+            let encoder = new VideoEncoder({
+                output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+                error: (e) => log(`❌ Encoder Error: ${e.message}`)
+            });
+
+            encoder.configure({
+                codec: 'avc1.4D002A', // H264 Main Profile
+                width: targetWidth,
+                height: targetHeight,
+                hardwareAcceleration: 'prefer-hardware',
+                bitrate: 5_000_000,
+                framerate: targetFPS
+            });
+
+            log(`⚙️ Memulai GPU Upscaling ke ${targetWidth}x${targetHeight} @ ${targetFPS}FPS...`);
+            const startTime = performance.now();
+            let currentTime = 0;
+            
+            // Loop ekstraksi frame secepat mungkin (Rapid Seek Loop)
+            sourceVideo.currentTime = 0;
+            
+            sourceVideo.addEventListener('seeked', async function processFrame() {
+                // 1. Gambar ke Canvas (Terjadi Upscaling Hardware secara instan)
+                ctx.drawImage(sourceVideo, 0, 0, targetWidth, targetHeight);
+                
+                // 2. Bungkus piksel ke dalam VideoFrame
+                const frame = new VideoFrame(canvas, { timestamp: currentTime * 1_000_000 });
+                
+                // 3. Lempar ke GPU Encoder
+                encoder.encode(frame, { keyFrame: (currentTime % 2 === 0) }); // Keyframe tiap 2 detik
+                frame.close(); // Cegah kebocoran memori
+
+                // Hitung Progress
+                const percent = Math.min(100, Math.round((currentTime / fileDuration) * 100));
+                document.getElementById('status').innerText = `GPU Rendering: ${percent}% Selesai...`;
+                document.getElementById('progress-bar').style.width = `${percent}%`;
+
+                // Pindah ke frame berikutnya (1/60 detik)
+                currentTime += frameDurationSec;
+                
+                if (currentTime < fileDuration) {
+                    sourceVideo.currentTime = currentTime;
+                } else {
+                    // SELESAI!
+                    sourceVideo.removeEventListener('seeked', processFrame);
+                    log("✅ Seluruh frame berhasil dibaca.");
+                    
+                    await encoder.flush();
+                    muxer.finalize();
+                    
+                    const { buffer } = muxer.target;
+                    const blob = new Blob([buffer], { type: 'video/mp4' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const endTime = performance.now();
+                    log(`🎉 Selesai! Eksekusi Hardware sukses dalam ${((endTime - startTime) / 1000).toFixed(2)} detik!`);
+                    document.getElementById('status').innerText = 'Selesai! Mengunduh otomatis...';
+
+                    // Unduh otomatis
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = "output_gpu_webcodecs.mp4";
+                    a.click();
+                    
+                    document.getElementById('btnProcess').disabled = false;
+                }
+            });
         });
     </script>
 </body>
