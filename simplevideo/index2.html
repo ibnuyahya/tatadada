@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uji Coba Mesin SIMD Multi-Thread</title>
+    <style>
+        body { background-color: #0f172a; color: #f1f5f9; font-family: system-ui, sans-serif; padding: 2rem; display: flex; flex-direction: column; align-items: center; }
+        .container { background-color: #1e293b; padding: 2rem; border-radius: 1rem; width: 100%; max-width: 600px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .btn { background-color: #e11d48; color: white; padding: 1rem; border: none; border-radius: 0.5rem; width: 100%; font-weight: bold; cursor: pointer; margin-top: 1rem; }
+        .btn:disabled { background-color: #475569; cursor: not-allowed; }
+        .terminal { background-color: #020617; color: #10b981; padding: 1rem; border-radius: 0.5rem; height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; margin-top: 1rem; white-space: pre-wrap;}
+        .warning { background-color: #7f1d1d; color: white; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; display: none; font-weight: bold;}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="margin-top:0;">Engine Test: SIMD</h1>
+        
+        <div id="sab-warning" class="warning">
+            ⚠️ PERINGATAN: SharedArrayBuffer terblokir!<br><br>
+            Server danial.my.id Anda belum memasang header COOP/COEP. Mesin Multi-Thread tidak bisa menyala.
+        </div>
+
+        <input type="file" id="uploader" accept="video/*" style="margin-bottom: 1rem;">
+        <button id="btn-start" class="btn" disabled>Nyalakan Mesin & Mulai Render</button>
+
+        <div id="log-terminal" class="terminal">Menunggu instruksi...</div>
+        
+        <video id="output-video" controls style="width: 100%; margin-top: 1rem; display: none; border-radius: 0.5rem;"></video>
+    </div>
+
+    <script type="module">
+        // Import FFmpeg versi terbaru dari CDN untuk wrappernya
+        import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
+        import { fetchFile, toBlobURL } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
+
+        const terminal = document.getElementById('log-terminal');
+        const btnStart = document.getElementById('btn-start');
+        const uploader = document.getElementById('uploader');
+        const warning = document.getElementById('sab-warning');
+
+        function log(msg) {
+            terminal.textContent += `\n${msg}`;
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // CEK KEAMANAN SERVER (SYARAT MUTLAK MULTI-THREAD)
+        if (typeof SharedArrayBuffer === 'undefined') {
+            warning.style.display = 'block';
+            log("❌ GAGAL: SharedArrayBuffer tidak tersedia di browser ini.");
+        } else {
+            log("✅ SharedArrayBuffer tersedia. Keamanan server lolos!");
+            uploader.addEventListener('change', () => btnStart.disabled = false);
+        }
+
+        btnStart.addEventListener('click', async () => {
+            const file = uploader.files[0];
+            if (!file) return;
+
+            btnStart.disabled = true;
+            log("🚀 Menyiapkan FFmpeg SIMD Engine...");
+
+            try {
+                const ffmpeg = new FFmpeg();
+                
+                ffmpeg.on('log', ({ message }) => log(`[FFmpeg] ${message}`));
+                ffmpeg.on('progress', ({ progress }) => log(`⏳ Progress: ${Math.round(progress * 100)}%`));
+
+                // KITA PANGGIL FILE 32MB DARI SERVER ANDA SENDIRI
+                const baseURL = 'https://danial.my.id/simplevideo/lib/simd';
+                
+                log(`📥 Mengunduh mesin dari: ${baseURL}`);
+                
+                // ClassWorker harus di-blob karena aturan ketat Web Worker
+                const classWorkerURL = await toBlobURL('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js', 'text/javascript');
+
+                await ffmpeg.load({
+                    coreURL: `${baseURL}/ffmpeg-core.js`,
+                    wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+                    workerURL: `${baseURL}/ffmpeg-core.worker.js`,
+                    classWorkerURL: classWorkerURL
+                });
+
+                log("✅ Mesin SIMD Berhasil Menyala!");
+                
+                log("📦 Membaca file video ke memori...");
+                await ffmpeg.writeFile(file.name, await fetchFile(file));
+
+                log("⚙️ Memulai proses konversi (H.264 ultrafast)...");
+                const startTime = performance.now();
+
+                // Perintah konversi cepat
+                await ffmpeg.exec([
+                    '-i', file.name,
+                    '-c:v', 'libx264',
+                    '-preset', 'ultrafast',
+                    'output.mp4'
+                ]);
+
+                const endTime = performance.now();
+                log(`🎉 Selesai dalam ${((endTime - startTime) / 1000).toFixed(2)} detik!`);
+
+                const data = await ffmpeg.readFile('output.mp4');
+                const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+                const videoUrl = URL.createObjectURL(videoBlob);
+                
+                const outputVideo = document.getElementById('output-video');
+                outputVideo.src = videoUrl;
+                outputVideo.style.display = 'block';
+
+            } catch (err) {
+                log(`❌ ERROR: ${err.message}`);
+            } finally {
+                btnStart.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
