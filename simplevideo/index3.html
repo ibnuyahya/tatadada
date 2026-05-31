@@ -68,7 +68,7 @@
     <script>
         const logContainer = document.getElementById('logs');
         const canvas = document.getElementById('gpu-canvas');
-        const ctx = canvas.getContext('2d', { alpha: false }); // Akselerasi GPU Murni Dinyalakan
+        const ctx = canvas.getContext('2d', { alpha: false }); 
         
         function log(msg, type = '') {
             let colorClass = '';
@@ -109,16 +109,14 @@
             const targetHeight = 1080;
             const totalStartTime = performance.now();
             
-            log("🚀 Memulai Zero-DOM Pipeline...\n", "hl");
+            log("🚀 Memulai Zero-DOM Pipeline (Dilengkapi Pengaman Backpressure)...\n", "hl");
 
-            // 1. SETUP MUXER (OUTPUT)
             let muxer = new Mp4Muxer.Muxer({
                 target: new Mp4Muxer.ArrayBufferTarget(),
                 video: { codec: 'avc', width: targetWidth, height: targetHeight },
                 fastStart: 'in-memory'
             });
 
-            // 2. SETUP ENCODER (GPU KE MP4)
             let framesEncoded = 0;
             let sumEncodeTime = 0;
             let encoder = new VideoEncoder({
@@ -130,30 +128,25 @@
             });
             encoder.configure({ codec: 'avc1.4D002A', width: targetWidth, height: targetHeight, hardwareAcceleration: 'prefer-hardware', bitrate: 5_000_000, framerate: targetFPS });
 
-            // Variabel Telemetri
             let framesDecoded = 0;
             let sumDrawTime = 0;
             let totalSamples = 0;
 
-            // 3. SETUP DECODER (MP4 KE GPU)
             let decoder = new VideoDecoder({
                 output: (frame) => {
-                    // Begitu Frame mentah keluar dari VRAM, langsung lukis ke Canvas!
                     const drawStart = performance.now();
                     ctx.drawImage(frame, 0, 0, targetWidth, targetHeight);
                     sumDrawTime += (performance.now() - drawStart);
 
-                    // Ambil hasil lukisan (Upscaled), masukkan ke Encoder
                     const encStart = performance.now();
                     const newFrame = new VideoFrame(canvas, { timestamp: frame.timestamp });
                     encoder.encode(newFrame, { keyFrame: (framesDecoded % 60 === 0) });
                     newFrame.close();
                     sumEncodeTime += (performance.now() - encStart);
                     
-                    frame.close(); // Hapus frame asli dari VRAM
+                    frame.close(); 
                     framesDecoded++;
 
-                    // Log Telemetri
                     if (framesDecoded % 60 === 0) {
                         const avgDraw = (sumDrawTime / 60).toFixed(3);
                         const avgEnc = (sumEncodeTime / 60).toFixed(3);
@@ -168,9 +161,17 @@
                 error: (e) => log(`❌ Decoder Error: ${e.message}`, "warn")
             });
 
-            // 4. SETUP MP4BOX (DEMUXER MURNI BYTE)
+            // --- FUNGSI PINTU AIR (BACKPRESSURE) ---
+            // Fungsi ini akan menahan laju loop jika VRAM GPU sudah menampung > 10 frame
+            const waitForGPU = async () => {
+                while (decoder.decodeQueueSize >= 10 || encoder.encodeQueueSize >= 10) {
+                    await new Promise(resolve => setTimeout(resolve, 5)); // Istirahat 5 milidetik
+                }
+            };
+
             const mp4boxfile = MP4Box.createFile();
             let videoTrackId = null;
+            let samplesPushed = 0; // Pelacak frame masuk
 
             mp4boxfile.onReady = (info) => {
                 const track = info.videoTracks[0];
@@ -178,34 +179,34 @@
                 totalSamples = track.nb_samples;
                 log(`[Demuxer] Info Track ditemukan. Total Frame: ${totalSamples}`, "good");
 
-                // Ekstrak Konfigurasi Codec Ekstra (AVCC) untuk WebCodecs
                 let description = null;
                 const trak = mp4boxfile.getTrackById(videoTrackId);
                 for (const entry of trak.mdia.minf.stbl.stsd.entries) {
                     if (entry.avcC) {
                         const stream = new DataStream(undefined, 0, DataStream.BIG_ENDIAN);
                         entry.avcC.write(stream);
-                        description = new Uint8Array(stream.buffer, 8); // Buang 8 byte header box
+                        description = new Uint8Array(stream.buffer, 8); 
                         break;
                     }
                 }
 
                 decoder.configure({
-                    codec: track.codec, // misal: 'avc1.640028'
+                    codec: track.codec, 
                     codedWidth: track.video.width,
                     codedHeight: track.video.height,
                     description: description,
                     hardwareAcceleration: 'prefer-hardware'
                 });
 
-                // Mulai Sedot Data Byte
                 mp4boxfile.setExtractionOptions(videoTrackId);
                 mp4boxfile.start();
             };
 
-            mp4boxfile.onSamples = (id, user, samples) => {
-                // Begitu Byte mentah ditemukan, tembak langsung ke Decoder
+            // JADIKAN ASYNC AGAR BISA DITAHAN OLEH PINTU AIR
+            mp4boxfile.onSamples = async (id, user, samples) => {
                 for (const sample of samples) {
+                    await waitForGPU(); // Tahan di sini jika VRAM penuh!
+                    
                     const chunk = new EncodedVideoChunk({
                         type: sample.is_sync ? 'key' : 'delta',
                         timestamp: 1e6 * sample.cts / sample.timescale,
@@ -213,10 +214,10 @@
                         data: sample.data
                     });
                     decoder.decode(chunk);
+                    samplesPushed++;
                 }
             };
 
-            // 5. BACA FILE SEBAGAI ARRAYBUFFER (BYPASS DOM)
             log("⏳ Membaca file video ke dalam memori ArrayBuffer...");
             const reader = new FileReader();
             reader.onload = async (e) => {
@@ -224,11 +225,15 @@
                 buffer.fileStart = 0;
                 log(`✅ File berhasil dimuat (${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB). Memulai injeksi Demuxer...`, "good");
                 
-                // Memicu Demuxer -> Decoder -> Canvas -> Encoder -> Muxer
                 mp4boxfile.appendBuffer(buffer);
                 mp4boxfile.flush();
                 
-                // Tunggu mesin memproses antrean secara asinkron
+                // Tunggu sampai SEMUA frame berhasil didorong melewati Pintu Air
+                while (samplesPushed < totalSamples) {
+                    await new Promise(r => setTimeout(r, 100));
+                }
+                
+                // Tunggu GPU menyelesaikan sisa antrean
                 await decoder.flush();
                 await encoder.flush();
                 muxer.finalize();
@@ -244,7 +249,7 @@
 
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = "output_zero_dom_gpu.mp4";
+                a.download = "output_zero_dom_gpu_safe.mp4";
                 a.click();
                 
                 document.getElementById('btnProcess').disabled = false;
