@@ -3,580 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GPU Video Processor (Stream Engine)</title>
-    
-    <!-- MUXER JAVASCRIPT RINGAN KHUSUS UNTUK WEBCODECS -->
-    <script src="https://unpkg.com/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
-    
+    <title>Uji Coba Mesin SIMD Multi-Thread</title>
     <style>
-        body {
-            background-color: #0f172a;
-            color: #f1f5f9;
-            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
-            margin: 0;
-        }
-        .container {
-            background-color: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 1rem;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            width: 100%;
-            max-width: 48rem;
-            padding: 1.5rem;
-            box-sizing: border-box;
-        }
-        .header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 1.5rem;
-        }
-        .title {
-            font-size: 1.5rem;
-            font-weight: 800;
-            margin: 0;
-            background: linear-gradient(to right, #34d399, #3b82f6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .badge {
-            font-size: 0.75rem;
-            font-weight: 600;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            background-color: rgba(16, 185, 129, 0.1);
-            color: #34d399;
-            border: 1px solid rgba(16, 185, 129, 0.2);
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-            display: none;
-        }
-        .stat-card {
-            background-color: #020617;
-            padding: 1rem;
-            border-radius: 0.75rem;
-            border: 1px solid #1e293b;
-            text-align: center;
-        }
-        .stat-title {
-            font-size: 0.65rem;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 0.5rem;
-        }
-        .stat-value {
-            font-size: 1.25rem;
-            font-weight: bold;
-            color: #38bdf8;
-            font-variant-numeric: tabular-nums;
-        }
-        .dropzone {
-            border: 2px dashed #475569;
-            border-radius: 0.75rem;
-            padding: 1.5rem;
-            text-align: center;
-            position: relative;
-            cursor: pointer;
-            transition: border-color 0.2s;
-        }
-        .dropzone:hover {
-            border-color: #3b82f6;
-        }
-        .dropzone input[type="file"] {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            cursor: pointer;
-        }
-        .dropzone svg {
-            height: 3rem;
-            width: 3rem;
-            color: #94a3b8;
-            margin-bottom: 0.5rem;
-        }
-        .dropzone .text-main {
-            font-size: 0.875rem;
-            color: #cbd5e1;
-            margin-bottom: 0.25rem;
-        }
-        .dropzone .text-sub {
-            font-size: 0.75rem;
-            color: #64748b;
-            margin: 0;
-        }
-        .btn {
-            width: 100%;
-            padding: 0.75rem;
-            border-radius: 0.75rem;
-            font-size: 0.875rem;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.2s, box-shadow 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            box-sizing: border-box;
-            margin-top: 1rem;
-        }
-        .btn:disabled {
-            background-color: #334155;
-            color: #64748b;
-            cursor: not-allowed;
-        }
-        .btn-primary {
-            background-color: #059669;
-            color: #ffffff;
-        }
-        .btn-primary:hover:not(:disabled) {
-            background-color: #047857;
-            box-shadow: 0 10px 15px -3px rgba(5, 150, 105, 0.3);
-        }
-        .status-text {
-            text-align: center;
-            font-size: 0.875rem;
-            color: #94a3b8;
-            margin: 1rem 0;
-            font-weight: bold;
-        }
-        .progress-container {
-            width: 100%;
-            background-color: #334155;
-            border-radius: 9999px;
-            height: 0.625rem;
-            overflow: hidden;
-            display: none;
-            margin-bottom: 1rem;
-        }
-        .progress-bar {
-            background-color: #34d399;
-            height: 100%;
-            width: 0%;
-            transition: width 0.1s linear;
-        }
-        .output-box {
-            display: none;
-            margin-top: 1rem;
-        }
-        .output-box h3 {
-            font-size: 0.875rem;
-            color: #94a3b8;
-            margin-top: 0;
-            margin-bottom: 0.5rem;
-        }
-        .output-box video {
-            width: 100%;
-            border-radius: 0.75rem;
-            border: 1px solid #334155;
-            background-color: #000000;
-            max-height: 300px;
-        }
-        .download-wrapper {
-            display: flex;
-            justify-content: flex-end;
-            margin-top: 0.5rem;
-        }
-        .btn-download {
-            background-color: #3b82f6;
-            color: #ffffff;
-            padding: 0.5rem 1rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            border-radius: 0.5rem;
-            text-decoration: none;
-            transition: background-color 0.2s;
-        }
-        .btn-download:hover {
-            background-color: #2563eb;
-        }
-        .terminal-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-top: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-        .terminal-title {
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        .terminal {
-            height: 16rem;
-            background-color: #020617;
-            border: 1px solid #1e293b;
-            border-radius: 0.75rem;
-            padding: 0.75rem;
-            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-            font-size: 0.75rem;
-            color: #34d399;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            box-sizing: border-box;
-            line-height: 1.4;
-        }
+        body { background-color: #0f172a; color: #f1f5f9; font-family: system-ui, sans-serif; padding: 2rem; display: flex; flex-direction: column; align-items: center; }
+        .container { background-color: #1e293b; padding: 2rem; border-radius: 1rem; width: 100%; max-width: 600px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .btn { background-color: #e11d48; color: white; padding: 1rem; border: none; border-radius: 0.5rem; width: 100%; font-weight: bold; cursor: pointer; margin-top: 1rem; }
+        .btn:disabled { background-color: #475569; cursor: not-allowed; }
+        .terminal { background-color: #020617; color: #10b981; padding: 1rem; border-radius: 0.5rem; height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; margin-top: 1rem; white-space: pre-wrap;}
+        .warning { background-color: #7f1d1d; color: white; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; display: none; font-weight: bold;}
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1 class="title">GPU Video Processor</h1>
-            <span class="badge ready">Audio & Video Engine</span>
+        <h1 style="margin-top:0;">Engine Test: SIMD</h1>
+        
+        <div id="sab-warning" class="warning">
+            ⚠️ PERINGATAN: SharedArrayBuffer terblokir!<br><br>
+            Server danial.my.id Anda belum memasang header COOP/COEP. Mesin Multi-Thread tidak bisa menyala.
         </div>
 
-        <div>
-            <!-- Area Input Berkas -->
-            <div class="dropzone">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 48 48">
-                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-                <div class="text-main">
-                    <span id="file-name-label" style="font-weight: 600; color: #34d399;">Pilih file video</span> atau seret ke sini
-                </div>
-                <p class="text-sub">WebM, MP4, MKV (Support Audio AAC)</p>
-                <input type="file" id="uploader" accept="video/*">
-            </div>
+        <input type="file" id="uploader" accept="video/*" style="margin-bottom: 1rem;">
+        <button id="btn-start" class="btn" disabled>Nyalakan Mesin & Mulai Render</button>
 
-            <!-- Tombol Konversi -->
-            <button id="btnProcess" disabled class="btn btn-primary">
-                <span>Mulai Render (1080p 60FPS + Audio)</span>
-            </button>
-
-            <!-- Dashboard Statistik -->
-            <div id="stats-grid" class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-title">Kecepatan Render</div>
-                    <div id="stat-fps" class="stat-value">0.0 FPS</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-title">Estimasi Selesai (ETA)</div>
-                    <div id="stat-eta" class="stat-value">00:00</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-title">Frame Terekstrak</div>
-                    <div id="stat-gpu" class="stat-value">0 Frame</div>
-                </div>
-            </div>
-
-            <!-- Indikator Status & Progress Bar -->
-            <div>
-                <div id="status" class="status-text">Siap untuk memproses.</div>
-                <div id="progress-container" class="progress-container">
-                    <div id="progress-bar" class="progress-bar"></div>
-                </div>
-            </div>
-
-            <!-- Hasil Pemrosesan Video -->
-            <div id="output-container" class="output-box">
-                <h3>Hasil Render A/V:</h3>
-                <video id="output-video" controls></video>
-                <div class="download-wrapper">
-                    <a id="btnDownload" class="btn-download" download="rendered_1080p_audio.mp4">
-                        Download Video (.mp4)
-                    </a>
-                </div>
-            </div>
-
-            <!-- Log Terminal Real-time -->
-            <div>
-                <div class="terminal-header">
-                    <span class="terminal-title">Log Stream Pipa Ganda (A/V)</span>
-                </div>
-                <div id="ffmpeg-logs" class="terminal"></div>
-            </div>
-        </div>
+        <div id="log-terminal" class="terminal">Menunggu instruksi...</div>
+        
+        <video id="output-video" controls style="width: 100%; margin-top: 1rem; display: none; border-radius: 0.5rem;"></video>
     </div>
 
-    <!-- ELEMEN VIDEO TERSEMBUNYI (MUTED DIHILANGKAN AGAR AUDIO DAPAT DICAPTURE) -->
-    <video id="hidden-decoder" crossorigin="anonymous" playsinline style="display:none;"></video>
+    <script type="module">
+        // Import FFmpeg versi terbaru dari CDN untuk wrappernya
+        import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
+        import { fetchFile, toBlobURL } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
 
-    <script>
+        const terminal = document.getElementById('log-terminal');
+        const btnStart = document.getElementById('btn-start');
         const uploader = document.getElementById('uploader');
-        const btnProcess = document.getElementById('btnProcess');
-        const fileNameLabel = document.getElementById('file-name-label');
-        const statusLabel = document.getElementById('status');
-        const progressContainer = document.getElementById('progress-container');
-        const progressBar = document.getElementById('progress-bar');
-        const hiddenVideo = document.getElementById('hidden-decoder');
-        const logContainer = document.getElementById('ffmpeg-logs');
-        
-        const statsGrid = document.getElementById('stats-grid');
-        const statFps = document.getElementById('stat-fps');
-        const statEta = document.getElementById('stat-eta');
-        const statGpu = document.getElementById('stat-gpu');
+        const warning = document.getElementById('sab-warning');
 
-        function appendLog(message) {
-            logContainer.textContent += message + '\n';
-            logContainer.scrollTop = logContainer.scrollHeight;
+        function log(msg) {
+            terminal.textContent += `\n${msg}`;
+            terminal.scrollTop = terminal.scrollHeight;
         }
 
-        function formatTime(seconds) {
-            if (!isFinite(seconds)) return "00:00";
-            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
-            return `${m}:${s}`;
-        }
-
-        if (!window.VideoEncoder || !window.AudioEncoder || !window.MediaStreamTrackProcessor) {
-            alert("Browser Anda belum mendukung penuh WebCodecs (Audio & Video). Gunakan Chrome Desktop terbaru.");
+        // CEK KEAMANAN SERVER (SYARAT MUTLAK MULTI-THREAD)
+        if (typeof SharedArrayBuffer === 'undefined') {
+            warning.style.display = 'block';
+            log("❌ GAGAL: SharedArrayBuffer tidak tersedia di browser ini.");
         } else {
-            appendLog('✅ [Sistem] Arsitektur Audio & Video Stream Engine Tersedia.');
+            log("✅ SharedArrayBuffer tersedia. Keamanan server lolos!");
+            uploader.addEventListener('change', () => btnStart.disabled = false);
         }
 
-        uploader.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                fileNameLabel.innerText = file.name;
-                btnProcess.disabled = false;
-                statusLabel.innerText = `File: ${file.name} siap.`;
-            }
-        });
-
-        btnProcess.addEventListener('click', async () => {
+        btnStart.addEventListener('click', async () => {
             const file = uploader.files[0];
             if (!file) return;
 
-            btnProcess.disabled = true;
-            progressContainer.style.display = 'block';
-            statsGrid.style.display = 'grid';
-            progressBar.style.width = '0%';
-            logContainer.textContent = ''; 
-
-            appendLog(`[Sistem] Menyiapkan Pipa Ekstraksi Audio & Video...`);
-
-            let audioCtx = null;
+            btnStart.disabled = true;
+            log("🚀 Menyiapkan FFmpeg SIMD Engine...");
 
             try {
-                // 1. SIAPKAN VIDEO SUMBER
-                hiddenVideo.src = URL.createObjectURL(file);
-                // Muted dihilangkan agar audio track tersedia. Suara akan diisolasi oleh Web Audio API.
+                const ffmpeg = new FFmpeg();
                 
-                await new Promise((resolve, reject) => {
-                    hiddenVideo.onloadedmetadata = resolve;
-                    hiddenVideo.onerror = reject;
+                ffmpeg.on('log', ({ message }) => log(`[FFmpeg] ${message}`));
+                ffmpeg.on('progress', ({ progress }) => log(`⏳ Progress: ${Math.round(progress * 100)}%`));
+
+                // KITA PANGGIL FILE 32MB DARI SERVER ANDA SENDIRI
+                const baseURL = 'https://danial.my.id/simplevideo/lib/simd';
+                
+                log(`📥 Mengunduh mesin dari: ${baseURL}`);
+                
+                // ClassWorker harus di-blob karena aturan ketat Web Worker
+                const classWorkerURL = await toBlobURL('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js', 'text/javascript');
+
+                await ffmpeg.load({
+                    coreURL: `${baseURL}/ffmpeg-core.js`,
+                    wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+                    workerURL: `${baseURL}/ffmpeg-core.worker.js`,
+                    classWorkerURL: classWorkerURL
                 });
 
-                const duration = hiddenVideo.duration;
-                const targetWidth = 1920;
-                const targetHeight = 1080;
-                const targetFPS = 60;
-                const approxTotalFrames = Math.floor(duration * targetFPS);
-
-                appendLog(`[Media] Durasi: ${duration.toFixed(2)}s`);
-
-                // 2. ISOLASI AUDIO (Mengambil suara tanpa membocorkan ke speaker)
-                appendLog(`[Audio] Mengisolasi aliran suara...`);
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
-                const sourceNode = audioCtx.createMediaElementSource(hiddenVideo);
-                const destNode = audioCtx.createMediaStreamDestination();
+                log("✅ Mesin SIMD Berhasil Menyala!");
                 
-                // Menghubungkan sumber ke ruang hampa (destination node)
-                // KITA TIDAK MENGHUBUNGKANNYA ke audioCtx.destination, jadi speaker Anda akan diam!
-                sourceNode.connect(destNode);
+                log("📦 Membaca file video ke memori...");
+                await ffmpeg.writeFile(file.name, await fetchFile(file));
 
-                // 3. SIAPKAN MUXER (Wadah MP4 dengan Dukungan Video dan Audio)
-                let muxer = new Mp4Muxer.Muxer({
-                    target: new Mp4Muxer.ArrayBufferTarget(),
-                    video: { codec: 'avc', width: targetWidth, height: targetHeight },
-                    audio: { codec: 'aac', sampleRate: 44100, numberOfChannels: 2 },
-                    fastStart: 'in-memory',
-                    firstTimestampBehavior: 'offset'
-                });
+                log("⚙️ Memulai proses konversi (H.264 ultrafast)...");
+                const startTime = performance.now();
 
-                // 4. SIAPKAN AUDIO ENCODER
-                let audioFramesCount = 0;
-                const audioEncoder = new AudioEncoder({
-                    output: (chunk, meta) => {
-                        muxer.addAudioChunk(chunk, meta);
-                        audioFramesCount++;
-                    },
-                    error: (e) => appendLog(`❌ [Audio Encoder Error] ${e.message}`)
-                });
+                // Perintah konversi cepat
+                await ffmpeg.exec([
+                    '-i', file.name,
+                    '-c:v', 'libx264',
+                    '-preset', 'ultrafast',
+                    'output.mp4'
+                ]);
+
+                const endTime = performance.now();
+                log(`🎉 Selesai dalam ${((endTime - startTime) / 1000).toFixed(2)} detik!`);
+
+                const data = await ffmpeg.readFile('output.mp4');
+                const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+                const videoUrl = URL.createObjectURL(videoBlob);
                 
-                await audioEncoder.configure({
-                    codec: 'mp4a.40.2', // AAC LC
-                    sampleRate: 44100,
-                    numberOfChannels: 2,
-                    bitrate: 128000 // 128 kbps
-                });
-
-                // 5. SIAPKAN VIDEO ENCODER
-                let videoFramesCount = 0;
-                const videoEncoder = new VideoEncoder({
-                    output: (chunk, meta) => {
-                        muxer.addVideoChunk(chunk, meta);
-                        videoFramesCount++;
-                    },
-                    error: (e) => appendLog(`❌ [Video Encoder Error] ${e.message}`)
-                });
-                
-                await videoEncoder.configure({
-                    codec: 'avc1.4D4028',
-                    width: targetWidth,
-                    height: targetHeight,
-                    bitrate: 8_000_000,
-                    framerate: targetFPS,
-                    hardwareAcceleration: 'prefer-hardware',
-                    avc: { format: 'annexb' }
-                });
-
-                // 6. SIAPKAN PEMBACA STREAM (TRACK PROCESSORS)
-                // Audio dari Web Audio API Destination
-                const audioTrack = destNode.stream.getAudioTracks()[0];
-                let audioReader = null;
-                if (audioTrack) {
-                    const audioProcessor = new MediaStreamTrackProcessor({ track: audioTrack });
-                    audioReader = audioProcessor.readable.getReader();
-                    appendLog(`✅ [Audio] Track Audio Terdeteksi!`);
-                } else {
-                    appendLog(`⚠️ [Audio] Video ini tidak memiliki track audio.`);
-                }
-
-                // Video dari Canvas HTML Element
-                const videoStream = hiddenVideo.captureStream();
-                const videoTrack = videoStream.getVideoTracks()[0];
-                const videoProcessor = new MediaStreamTrackProcessor({ track: videoTrack });
-                const videoReader = videoProcessor.readable.getReader();
-
-                let startTime = performance.now();
-                let isVideoEnded = false;
-                hiddenVideo.onended = () => { isVideoEnded = true; };
-
-                // Kunci Rahasia A/V Sync (Video Audio harus diputar di kecepatan normal 1.0)
-                // Memutar video lebih cepat akan merusak sinkronisasi audio track bawaan browser.
-                const renderSpeedMult = 1.0; 
-                hiddenVideo.playbackRate = renderSpeedMult;
-                
-                await audioCtx.resume();
-                hiddenVideo.play();
-
-                appendLog(`\n🚀 [ENGINE START] Merekam dan mengekstrak Audio & Video secara Real-Time...`);
-                appendLog(`ℹ️ Catatan: Karena kita mengekstrak Audio, kecepatan render dibatasi 1x (Realtime) agar suara tersinkronisasi sempurna.`);
-
-                // FUNGSI PIPA AUDIO
-                const processAudio = async () => {
-                    if (!audioReader) return;
-                    while (true) {
-                        const { done, value: audioData } = await audioReader.read();
-                        if (done || isVideoEnded || hiddenVideo.currentTime >= duration) {
-                            if (audioData) audioData.close();
-                            break;
-                        }
-                        audioEncoder.encode(audioData);
-                        audioData.close(); // Bersihkan RAM
-                    }
-                    await audioEncoder.flush();
-                };
-
-                // FUNGSI PIPA VIDEO
-                const canvas = new OffscreenCanvas(targetWidth, targetHeight);
-                const ctx = canvas.getContext('2d', { alpha: false });
-                
-                const processVideo = async () => {
-                    while (true) {
-                        const { done, value: rawFrame } = await videoReader.read();
-                        
-                        if (done || isVideoEnded || hiddenVideo.currentTime >= duration) {
-                            if (rawFrame) rawFrame.close();
-                            break;
-                        }
-
-                        // Resize GPU Canvas
-                        ctx.drawImage(rawFrame, 0, 0, targetWidth, targetHeight);
-
-                        const frame = new VideoFrame(canvas, {
-                            timestamp: rawFrame.timestamp,
-                            duration: rawFrame.duration || (1000000 / targetFPS)
-                        });
-
-                        const isKeyFrame = (videoFramesCount % targetFPS === 0);
-                        videoEncoder.encode(frame, { keyFrame: isKeyFrame });
-
-                        frame.close();
-                        rawFrame.close();
-                        
-                        // Update UI 
-                        if (videoFramesCount % 15 === 0) {
-                            const now = performance.now();
-                            const elapsedSec = (now - startTime) / 1000;
-                            const currentFps = videoFramesCount / elapsedSec;
-                            const framesLeft = approxTotalFrames - videoFramesCount;
-                            const etaSec = currentFps > 0 ? Math.max(0, framesLeft / currentFps) : 0;
-                            
-                            let percent = Math.round((videoFramesCount / approxTotalFrames) * 100);
-                            if (percent > 100) percent = 100;
-                            
-                            progressBar.style.width = `${percent}%`;
-                            statusLabel.innerText = `Menyedot A/V... (${percent}%)`;
-                            statFps.innerText = `${currentFps.toFixed(1)} FPS`;
-                            statEta.innerText = formatTime(etaSec);
-                            statGpu.innerText = `${videoFramesCount} Frm`;
-
-                            if (videoFramesCount % 60 === 0) {
-                                appendLog(`[Render] Video: ${videoFramesCount} frames | Audio: ${audioFramesCount} chunks`);
-                            }
-                        }
-                    }
-                    await videoEncoder.flush();
-                };
-
-                // JALANKAN KEDUA PIPA SECARA BERSAMAAN (Paralel / Concurrent)
-                await Promise.all([processVideo(), processAudio()]);
-
-                // 7. PENYELESAIAN
-                statusLabel.innerText = 'Menyatukan Audio & Video...';
-                appendLog(`\n[Info] Semua frame terekstrak. Menyatukan data (Muxing)...`);
-                muxer.finalize();
-
-                const { buffer } = muxer.target;
-                const blob = new Blob([buffer], { type: 'video/mp4' });
-                const videoUrl = URL.createObjectURL(blob);
-
                 const outputVideo = document.getElementById('output-video');
-                const outputContainer = document.getElementById('output-container');
-                const btnDownload = document.getElementById('btnDownload');
-
                 outputVideo.src = videoUrl;
-                btnDownload.href = videoUrl;
-                
-                outputContainer.style.display = 'block';
-                progressBar.style.width = '100%';
-                statusLabel.innerText = 'Render A/V Selesai!';
-                
-                const totalTimeSec = (performance.now() - startTime) / 1000;
-                
-                appendLog(`\n✅ [SELESAI] Video MP4 beserta Suara berhasil diekspor!`);
-                appendLog(`📊 STATISTIK AKHIR:`);
-                appendLog(` - Total Frame Video : ${videoFramesCount} Frames`);
-                appendLog(` - Total Chunk Audio : ${audioFramesCount} Chunks`);
-                appendLog(` - Waktu Total Render: ${formatTime(totalTimeSec)}`);
-                
-            } catch (error) {
-                statusLabel.innerText = 'Terjadi kesalahan sistem!';
-                appendLog(`❌ [Error Fatal] ${error.message}`);
-                console.error(error);
+                outputVideo.style.display = 'block';
+
+            } catch (err) {
+                log(`❌ ERROR: ${err.message}`);
             } finally {
-                btnProcess.disabled = false;
-                URL.revokeObjectURL(hiddenVideo.src);
-                if (audioCtx) {
-                    audioCtx.close();
-                }
+                btnStart.disabled = false;
             }
         });
     </script>
