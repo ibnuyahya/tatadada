@@ -60,132 +60,122 @@
     </div>
 
     <script type="module">
-        import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
-        import { fetchFile, toBlobURL } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
+        // HAPUS toBlobURL dari baris import, kita hanya butuh fetchFile
+import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
+import { fetchFile } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
 
-        const logContainer = document.getElementById('ffmpeg-logs');
-        const badge = document.getElementById('badge');
-        const warning = document.getElementById('sab-warning');
+const logContainer = document.getElementById('ffmpeg-logs');
+const badge = document.getElementById('badge');
+const warning = document.getElementById('sab-warning');
+
+function appendLog(message) {
+    logContainer.textContent += `\n${message}`;
+    logContainer.scrollTop = logContainer.scrollHeight;
+}
+
+let ffmpeg = null;
+let isEngineLoaded = false;
+
+if (!window.crossOriginIsolated) {
+    warning.style.display = 'block';
+    badge.style.color = '#ef4444';
+    badge.innerText = 'Tidak Aman';
+    appendLog('❌ ERROR: COOP/COEP tidak aktif. SharedArrayBuffer terblokir.');
+} else {
+    badge.innerText = 'SIMD Aman';
+    appendLog('✅ Keamanan Lolos! SharedArrayBuffer tersedia.');
+}
+
+document.getElementById('uploader').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        document.getElementById('file-name-label').innerText = file.name;
+        document.getElementById('btnProcess').disabled = false;
+    }
+});
+
+document.getElementById('btnProcess').addEventListener('click', async () => {
+    const file = document.getElementById('uploader').files[0];
+    if (!file) return;
+
+    document.getElementById('btnProcess').disabled = true;
+    document.getElementById('progress-container').style.display = 'block';
+    document.getElementById('progress-bar').style.width = '0%';
+
+    try {
+        if (!ffmpeg) {
+            ffmpeg = new FFmpeg();
+            ffmpeg.on('log', ({ message }) => appendLog(`[FFmpeg] ${message}`));
+            ffmpeg.on('progress', ({ progress }) => {
+                const percent = Math.round(progress * 100);
+                document.getElementById('status').innerText = `Merender video: ${percent}% selesai...`;
+                document.getElementById('progress-bar').style.width = `${percent}%`;
+            });
+        }
+
+        if (!isEngineLoaded) {
+            document.getElementById('status').innerText = 'Menyalakan Mesin SIMD Lokal...';
+            appendLog('\n[Sistem] Menghubungkan ke server lokal (danial.my.id)...');
+            
+            // FOLDER LOKAL ANDA SENDIRI
+            const baseURL = 'https://danial.my.id/simplevideo/lib/simd';
+            
+            // LANGSUNG TEMBAK KE FILE ASLI (TANPA BLOB)
+            appendLog('⚙️ Merakit Mesin SIMD (Jalur Langsung)...');
+            await ffmpeg.load({
+                coreURL: `${baseURL}/ffmpeg-core.js`,
+                wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+                workerURL: `${baseURL}/ffmpeg-core.worker.js`
+            });
+            
+            isEngineLoaded = true;
+            appendLog('🚀 [Sistem] Turbo SIMD Engine berhasil dinyalakan!');
+        }
+
+        const inputName = file.name;
+        const outputName = 'output_turbo.mp4';
         
-        function appendLog(message) {
-            logContainer.textContent += `\n${message}`;
-            logContainer.scrollTop = logContainer.scrollHeight;
-        }
+        document.getElementById('status').innerText = 'Memuat video ke memori...';
+        await ffmpeg.writeFile(inputName, await fetchFile(file));
 
-        let ffmpeg = null;
-        let isEngineLoaded = false;
+        document.getElementById('status').innerText = 'Memulai proses konversi...';
+        appendLog('\n[Sistem] Menjalankan perintah konversi (Semua Core CPU)...');
+        
+        const startTime = performance.now();
 
-        if (!window.crossOriginIsolated) {
-            warning.style.display = 'block';
-            badge.style.color = '#ef4444';
-            badge.innerText = 'Tidak Aman';
-            appendLog('❌ ERROR: COOP/COEP tidak aktif. SharedArrayBuffer terblokir.');
-        } else {
-            badge.innerText = 'SIMD Aman';
-            appendLog('✅ Keamanan Lolos! SharedArrayBuffer tersedia.');
-        }
+        // RENDER SUPER CEPAT DENGAN MULTI-THREAD (-threads 0)
+        await ffmpeg.exec([
+            '-i', inputName, 
+            '-c:v', 'libx264', 
+            '-preset', 'ultrafast', 
+            '-crf', '28', 
+            '-threads', '0', 
+            outputName
+        ]);
 
-        document.getElementById('uploader').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                document.getElementById('file-name-label').innerText = file.name;
-                document.getElementById('btnProcess').disabled = false;
-            }
-        });
+        const endTime = performance.now();
+        appendLog(`\n🎉 Selesai dalam ${((endTime - startTime) / 1000).toFixed(2)} detik!`);
 
-        document.getElementById('btnProcess').addEventListener('click', async () => {
-            const file = document.getElementById('uploader').files[0];
-            if (!file) return;
+        document.getElementById('status').innerText = 'Menyelesaikan file...';
+        const data = await ffmpeg.readFile(outputName);
 
-            document.getElementById('btnProcess').disabled = true;
-            document.getElementById('progress-container').style.display = 'block';
-            document.getElementById('progress-bar').style.width = '0%';
+        const blob = new Blob([data.buffer], { type: 'video/mp4' });
+        const videoUrl = URL.createObjectURL(blob);
 
-            try {
-                if (!ffmpeg) {
-                    ffmpeg = new FFmpeg();
-                    ffmpeg.on('log', ({ message }) => appendLog(`[FFmpeg] ${message}`));
-                    ffmpeg.on('progress', ({ progress }) => {
-                        const percent = Math.round(progress * 100);
-                        document.getElementById('status').innerText = `Merender video: ${percent}% selesai...`;
-                        document.getElementById('progress-bar').style.width = `${percent}%`;
-                    });
-                }
+        document.getElementById('output-video').src = videoUrl;
+        document.getElementById('output-container').style.display = 'block';
+        
+        document.getElementById('status').innerText = 'Render Turbo Selesai!';
+        document.getElementById('progress-bar').style.width = '100%';
 
-                if (!isEngineLoaded) {
-                    document.getElementById('status').innerText = 'Mengunduh Aset SIMD dari CDN Resmi...';
-                    appendLog('\n[Sistem] Menghubungkan ke CDN Global (unpkg.com)...');
-                    
-                    const baseURL = 'https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm';
-                    
-                    appendLog(' ⏳ Mengunduh: ffmpeg-core.js...');
-                    const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
-                    
-                    appendLog(' ⏳ Mengunduh: ffmpeg-core.wasm (Turbo Engine) - Mohon tunggu...');
-                    const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
-                    
-                    appendLog(' ⏳ Mengunduh: worker.js...');
-                    const workerURL = await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript');
-                    
-                    appendLog(' ⏳ Menyiapkan class worker...');
-                    const classWorkerURL = await toBlobURL('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js', 'text/javascript');
-
-                    appendLog('⚙️ Merakit Mesin SIMD...');
-                    await ffmpeg.load({
-                        coreURL: coreURL,
-                        wasmURL: wasmURL,
-                        workerURL: workerURL,
-                        classWorkerURL: classWorkerURL
-                    });
-                    
-                    isEngineLoaded = true;
-                    appendLog('🚀 [Sistem] Turbo SIMD Engine berhasil dinyalakan!');
-                }
-
-                const inputName = file.name;
-                const outputName = 'output_turbo.mp4';
-                
-                document.getElementById('status').innerText = 'Memuat video ke memori...';
-                await ffmpeg.writeFile(inputName, await fetchFile(file));
-
-                document.getElementById('status').innerText = 'Memulai proses konversi...';
-                appendLog('\n[Sistem] Menjalankan perintah konversi...');
-                
-                const startTime = performance.now();
-
-                // PERINTAH RENDER SUPER CEPAT
-                await ffmpeg.exec([
-                    '-i', inputName, 
-                    '-c:v', 'libx264', 
-                    '-preset', 'ultrafast', 
-                    '-crf', '28', 
-                    '-threads', '0', // Paksa penggunaan semua core CPU yang tersedia
-                    outputName
-                ]);
-
-                const endTime = performance.now();
-                appendLog(`\n🎉 Selesai dalam ${((endTime - startTime) / 1000).toFixed(2)} detik!`);
-
-                document.getElementById('status').innerText = 'Menyelesaikan file...';
-                const data = await ffmpeg.readFile(outputName);
-
-                const blob = new Blob([data.buffer], { type: 'video/mp4' });
-                const videoUrl = URL.createObjectURL(blob);
-
-                document.getElementById('output-video').src = videoUrl;
-                document.getElementById('output-container').style.display = 'block';
-                
-                document.getElementById('status').innerText = 'Render Turbo Selesai!';
-                document.getElementById('progress-bar').style.width = '100%';
-
-            } catch (error) {
-                document.getElementById('status').innerText = 'Gagal memproses video!';
-                appendLog(`❌ [Error Fatal] ${error.message}`);
-                console.error(error);
-            } finally {
-                document.getElementById('btnProcess').disabled = false;
-            }
-        });
+    } catch (error) {
+        document.getElementById('status').innerText = 'Gagal memproses video!';
+        appendLog(`❌ [Error Fatal] ${error.message}`);
+        console.error(error);
+    } finally {
+        document.getElementById('btnProcess').disabled = false;
+    }
+});
     </script>
 </body>
 </html>
