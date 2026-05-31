@@ -3,59 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hybrid Engine: WebCodecs GPU + FFmpeg WASM</title>
+    <title>Hybrid Engine Pro: Secure VRAM Pipeline</title>
     <style>
         body { background-color: #0f172a; color: #f1f5f9; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1rem; margin: 0; }
         .container { background-color: #1e293b; border: 1px solid #334155; border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); width: 100%; max-width: 48rem; padding: 1.5rem; box-sizing: border-box; }
         .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
-        .title { font-size: 1.5rem; font-weight: 800; margin: 0; background: linear-gradient(to right, #ec4899, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .badge { font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.75rem; border-radius: 9999px; background-color: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); }
+        .title { font-size: 1.5rem; font-weight: 800; margin: 0; background: linear-gradient(to right, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .badge { font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.75rem; border-radius: 9999px; background-color: rgba(56, 189, 248, 0.1); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.2); }
         .dropzone { border: 2px dashed #475569; border-radius: 0.75rem; padding: 1.5rem; text-align: center; position: relative; cursor: pointer; transition: border-color 0.2s; margin-bottom: 1rem; }
-        .dropzone:hover { border-color: #ec4899; }
+        .dropzone:hover { border-color: #38bdf8; }
         .dropzone input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
         
         .controls { display: flex; gap: 1rem; margin-bottom: 1rem; background-color: #0f172a; padding: 1rem; border-radius: 0.75rem; border: 1px solid #334155; }
         .toggle-group { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #cbd5e1; cursor: pointer; flex: 1;}
-        .toggle-group input[type="checkbox"] { width: 1.25rem; height: 1.25rem; cursor: pointer; accent-color: #ec4899; }
+        .toggle-group input[type="checkbox"] { width: 1.25rem; height: 1.25rem; cursor: pointer; accent-color: #38bdf8; }
         
         .render-monitor { position: relative; width: 100%; aspect-ratio: 16/9; background-color: #000; border-radius: 0.75rem; overflow: hidden; display: none; margin-bottom: 1rem; border: 1px solid #334155; }
         .render-monitor canvas { width: 100%; height: 100%; object-fit: cover; }
-        .monitor-overlay { position: absolute; top: 10px; right: 10px; background-color: rgba(236, 72, 153, 0.9); color: white; font-size: 0.7rem; font-weight: bold; padding: 4px 8px; border-radius: 4px; font-family: monospace;}
+        .monitor-overlay { position: absolute; top: 10px; right: 10px; background-color: rgba(14, 165, 233, 0.9); color: white; font-size: 0.7rem; font-weight: bold; padding: 4px 8px; border-radius: 4px; font-family: monospace;}
         
         .btn { width: 100%; padding: 0.75rem; border-radius: 0.75rem; font-size: 0.875rem; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; margin-top: 0.5rem; }
         .btn:disabled { background-color: #334155; color: #64748b; cursor: not-allowed; }
-        .btn-primary { background-color: #2563eb; color: #ffffff; }
-        .btn-primary:hover:not(:disabled) { background-color: #1d4ed8; }
+        .btn-primary { background-color: #0284c7; color: #ffffff; }
+        .btn-primary:hover:not(:disabled) { background-color: #0369a1; }
         
         .status-text { text-align: center; font-size: 0.875rem; color: #94a3b8; margin: 1rem 0; font-weight: bold; }
         .progress-container { width: 100%; background-color: #334155; border-radius: 9999px; height: 0.625rem; overflow: hidden; display: none; margin-bottom: 1rem; }
-        .progress-bar { background-color: #3b82f6; height: 100%; width: 0%; transition: width 0.1s linear; }
+        .progress-bar { background-color: #38bdf8; height: 100%; width: 0%; transition: width 0.1s linear; }
         
         .terminal { height: 16rem; background-color: #020617; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 0.75rem; font-family: monospace; font-size: 0.7rem; color: #e2e8f0; overflow-y: auto; white-space: pre-wrap; line-height: 1.4;}
         .log-warn { color: #f87171; }
         .log-good { color: #34d399; }
-        .log-hl { color: #f472b6; }
-        .log-meta { color: #60a5fa; }
+        .log-hl { color: #38bdf8; }
+        .log-meta { color: #818cf8; }
     </style>
     
-    <!-- PUSTAKA WEBCODECS MUXER -->
     <script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
     <script src="https://unpkg.com/mp4-muxer/build/mp4-muxer.js"></script>
-    
-    <!-- PUSTAKA FFMPEG WASM (UNTUK MENJAHIT AUDIO) -->
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
     <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="title">Hybrid Architecture</h1>
-            <span id="badge" class="badge">GPU Video + CPU Audio Mux</span>
+            <h1 class="title">Hybrid Pro Video Engine</h1>
+            <span id="badge" class="badge">Akselerasi Perangkat Keras</span>
         </div>
 
         <div class="dropzone">
-            <div class="text-main"><span id="file-name-label" style="font-weight: 600; color: #3b82f6;">Pilih file video</span></div>
-            <p class="text-sub" style="font-size: 0.75rem; color: #64748b;">Mendukung output A/V (Audio + Video) sempurna.</p>
+            <div class="text-main"><span id="file-name-label" style="font-weight: 600; color: #38bdf8;">Pilih file video MP4</span></div>
+            <p class="text-sub" style="font-size: 0.75rem; color: #64748b;">Pipeline VRAM Zero-DOM dengan Sinkronisasi Audio Instan</p>
             <input type="file" id="uploader" accept="video/mp4">
         </div>
 
@@ -72,18 +69,18 @@
 
         <div id="render-monitor" class="render-monitor">
             <canvas id="gpu-canvas"></canvas>
-            <div class="monitor-overlay">FASE 1: GPU AKTIF</div>
+            <div class="monitor-overlay">FASE 1: AKSARA GPU VRAM</div>
         </div>
 
-        <button id="btnProcess" disabled class="btn btn-primary">Mulai Eksekusi Hibrida</button>
+        <button id="btnProcess" disabled class="btn btn-primary">Mulai Eksekusi Aplikasi</button>
 
-        <div id="status" class="status-text">Menunggu instruksi...</div>
+        <div id="status" class="status-text">Menunggu berkas video masuk...</div>
         <div id="progress-container" class="progress-container">
             <div id="progress-bar" class="progress-bar"></div>
         </div>
 
-        <h3 style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 0.5rem;">Sistem Log Logika Hibrida</h3>
-        <div id="logs" class="terminal">Sistem siap...</div>
+        <h3 style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 0.5rem;">Log Diagnostik Aliran Data</h3>
+        <div id="logs" class="terminal">Sistem siap operasional...</div>
     </div>
 
     <script>
@@ -103,7 +100,7 @@
         }
 
         if (!window.crossOriginIsolated) {
-            log("⚠️ PERINGATAN: COOP/COEP tidak aktif. Fase 2 (FFmpeg) akan berjalan tanpa Multi-Thread.", "warn");
+            log("⚠️ PERINGATAN: COOP/COEP tidak aktif. FFmpeg akan berjalan mode fallback.", "warn");
         }
 
         let selectedFile = null;
@@ -113,7 +110,7 @@
             if (selectedFile) {
                 document.getElementById('file-name-label').innerText = selectedFile.name;
                 document.getElementById('btnProcess').disabled = false;
-                log(`[Sistem] File dimuat: ${selectedFile.name}`, "good");
+                log(`[Sistem] Berkas berhasil diamankan di RAM: ${selectedFile.name}`, "good");
             }
         });
 
@@ -123,7 +120,7 @@
             document.getElementById('render-monitor').style.display = 'block';
             
             const totalStartTime = performance.now();
-            log("🚀 [FASE 1] Memulai Akselerasi GPU (WebCodecs)...", "hl");
+            log("🚀 [FASE 1] Menyalakan Mesin Demuxer & Akselerasi GPU...", "hl");
 
             let muxer, encoder, decoder;
             let totalSamples = 0;
@@ -132,9 +129,7 @@
             const mp4boxfile = MP4Box.createFile();
             let videoTrackId = null;
 
-            // ==========================================
-            // FASE 1: GPU WEBCODECS (VIDEO ONLY)
-            // ==========================================
+            // PARSING METADATA VIDEO ASLI
             mp4boxfile.onReady = (info) => {
                 const track = info.videoTracks[0];
                 videoTrackId = track.id;
@@ -144,7 +139,8 @@
                 const origHeight = track.video.height;
                 const origFPS = Math.round(track.nb_samples / (info.duration / info.timescale)) || 30;
                 
-                log(`[Info] Resolusi Asli: ${origWidth}x${origHeight} @ ~${origFPS}FPS`, "meta");
+                log(`[Deteksi] Dimensi Asli : ${origWidth}x${origHeight}`, "meta");
+                log(`[Deteksi] Kecepatan Asli: ${origFPS} FPS`, "meta");
 
                 const forceUpscale = document.getElementById('toggle-res').checked;
                 const forceUpframe = document.getElementById('toggle-fps').checked;
@@ -155,13 +151,12 @@
                 if (forceUpframe && origFPS >= 60) targetFPS = origFPS;
 
                 const fpsMultiplier = (forceUpframe && origFPS < 60) ? Math.round(60 / origFPS) : 1;
-                
-                // KALKULASI STEMPEL WAKTU ABSOLUT (DALAM MIKRODETIK)
                 const frameDurationUs = Math.floor(1_000_000 / targetFPS);
                 
-                log(`[Config] GPU akan merender: ${targetWidth}x${targetHeight} @ ${targetFPS}FPS (Multiplier: x${fpsMultiplier})`, "hl");
+                log(`[Config] Pipeline Target: ${targetWidth}x${targetHeight} @ ${targetFPS}FPS`, "hl");
                 canvas.width = targetWidth; canvas.height = targetHeight;
 
+                // INISIALISASI MUXER VIDEO
                 muxer = new Mp4Muxer.Muxer({
                     target: new Mp4Muxer.ArrayBufferTarget(),
                     video: { codec: 'avc', width: targetWidth, height: targetHeight },
@@ -170,12 +165,14 @@
 
                 let framesEncoded = 0;
                 
+                // KUNCI UTAMA: ALGORITMA ANCHOR GUARD ANTI-TABRAKAN TIMESTAMPS
+                let lastEncodedTimestamp = -1;
+
                 encoder = new VideoEncoder({
                     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
                     error: (e) => log(`❌ Encoder Error: ${e.message}`, "warn")
                 });
                 
-                // Konfigurasi bersih tanpa bitrateMode constant yang sering memicu error
                 encoder.configure({ 
                     codec: 'avc1.4D002A', 
                     width: targetWidth, 
@@ -189,16 +186,25 @@
 
                 decoder = new VideoDecoder({
                     output: (frame) => {
+                        // Jalur Kilat Menggambar di VRAM GPU
                         ctx.drawImage(frame, 0, 0, targetWidth, targetHeight);
 
-                        // PERBAIKAN FATAL: STEMPEL WAKTU SINTETIS (CFR)
-                        // Kita abaikan frame.timestamp bawaan video yang berantakan!
+                        const baseTimestamp = frame.timestamp;
+                        const validDuration = frame.duration ? Math.max(1000, Math.floor(frame.duration / fpsMultiplier)) : frameDurationUs;
+
+                        // Eksekusi Pipa Duplikasi Frame Berdasarkan Garis Waktu Asli Video
                         for (let i = 0; i < fpsMultiplier; i++) {
-                            const syntheticTimestamp = framesEncoded * frameDurationUs;
-                            
+                            let newTs = baseTimestamp + (i * frameDurationUs);
+
+                            // PROTEKSI KHUSUS B-FRAMES: Deteksi jika waktu stagnan atau mundur akibat VFR/B-Frame
+                            if (newTs <= lastEncodedTimestamp) {
+                                newTs = lastEncodedTimestamp + 1000; // Geser paksa maju 1 milidetik
+                            }
+                            lastEncodedTimestamp = newTs;
+
                             const newFrame = new VideoFrame(canvas, { 
-                                timestamp: syntheticTimestamp, 
-                                duration: frameDurationUs 
+                                timestamp: newTs, 
+                                duration: validDuration 
                             });
                             
                             encoder.encode(newFrame, { keyFrame: (framesEncoded % targetFPS === 0) });
@@ -211,13 +217,14 @@
 
                         if (framesDecoded % 60 === 0) {
                             const percent = Math.round((framesDecoded / totalSamples) * 100);
-                            document.getElementById('status').innerText = `[GPU] Mengekstrak Visual: ${percent}% Selesai`;
+                            document.getElementById('status').innerText = `[GPU] Memproses Visual: ${percent}% Selesai`;
                             document.getElementById('progress-bar').style.width = `${percent}%`;
                         }
                     },
                     error: (e) => log(`❌ Decoder Error: ${e.message}`, "warn")
                 });
 
+                // Ekstraksi Header AvcC Box Kodek
                 let description = null;
                 const trak = mp4boxfile.getTrackById(videoTrackId);
                 for (const entry of trak.mdia.minf.stbl.stsd.entries) {
@@ -238,6 +245,7 @@
                 mp4boxfile.start();
             };
 
+            // SISTEM PROTEKSI KATUP VRAM (BACKPRESSURE PINTU AIR)
             const waitForGPU = async () => {
                 while ((decoder && decoder.decodeQueueSize >= 10) || (encoder && encoder.encodeQueueSize >= 15)) {
                     await new Promise(resolve => setTimeout(resolve, 5));
@@ -258,7 +266,7 @@
                 }
             };
 
-            log("⏳ Menginjeksi file ke GPU...");
+            log("⏳ Menuangkan bit video ke memori grafis...");
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const buffer = e.target.result;
@@ -276,18 +284,17 @@
                 muxer.finalize();
                 
                 const { buffer: gpuVideoBuffer } = muxer.target;
-                log("✅ [FASE 1 SELESAI] Video GPU Murni berhasil dirakit.", "good");
-                
+                log("✅ [FASE 1 SELESAI] Arus visual GPU murni berhasil dikunci.", "good");
                 document.getElementById('render-monitor').style.display = 'none';
 
                 // ==========================================
                 // FASE 2: CPU FFMPEG WASM (MENJAHIT AUDIO)
                 // ==========================================
-                document.getElementById('status').innerText = `[CPU] Menyiapkan Mesin Penjahit Audio...`;
+                document.getElementById('status').innerText = `[CPU] Mengaktifkan Mesin Penjahit Audio...`;
                 document.getElementById('progress-bar').style.width = `100%`;
-                document.getElementById('progress-bar').style.backgroundColor = `#3b82f6`;
+                document.getElementById('progress-bar').style.backgroundColor = `#2563eb`;
                 
-                log("\n🚀 [FASE 2] Memanggil FFmpeg WASM untuk ekstraksi Audio...", "meta");
+                log("\n🚀 [FASE 2] Menghubungkan ke FFmpeg Lokal untuk sinkronisasi audio...", "meta");
 
                 const ffmpeg = new FFmpeg();
                 ffmpeg.on('log', ({ message }) => {
@@ -305,39 +312,39 @@
                     classWorkerURL: classWorkerURL
                 });
 
-                log("⏳ Menulis aset ke memori virtual WASM...");
+                log("⏳ Mengunggah berkas komputasi ke memori virtual...");
                 await ffmpeg.writeFile('original.mp4', await fetchFile(selectedFile));
                 await ffmpeg.writeFile('gpu_video.mp4', await fetchFile(new Blob([gpuVideoBuffer])));
 
-                log("⚡ Menjahit Audio dan Video (Proses Instan)...");
-                document.getElementById('status').innerText = `[Muxing] Menggabungkan Audio & Video...`;
+                log("⚡ Melakukan jahit cepat Audio + Video (Jalur Salin Tanpa Render)...");
+                document.getElementById('status').innerText = `[Muxing] Mengunci Sinkronisasi Berkas Akhir...`;
 
                 await ffmpeg.exec([
                     '-i', 'gpu_video.mp4', 
                     '-i', 'original.mp4', 
                     '-map', '0:v:0',      
                     '-map', '1:a:0?',     
-                    '-c:v', 'copy',       
-                    '-c:a', 'aac',        
+                    '-c:v', 'copy', // Salin video instan hasil GPU murni
+                    '-c:a', 'aac',  // Ambil audio asli tanpa merusak gelombang suara
                     '-shortest',          
                     'final_output.mp4'
                 ]);
 
-                log("✅ [FASE 2 SELESAI] Penjahitan berhasil!", "good");
+                log("✅ [FASE 2 SELESAI] Penjahitan audio-video sukses!", "good");
 
                 const finalData = await ffmpeg.readFile('final_output.mp4');
                 const finalBlob = new Blob([finalData.buffer], { type: 'video/mp4' });
                 const finalUrl = URL.createObjectURL(finalBlob);
                 
                 const totalEndTime = performance.now();
-                log(`\n🎉🎉 SUPER SUKSES! Arsitektur Hibrida selesai total dalam ${((totalEndTime - totalStartTime) / 1000).toFixed(2)} detik!`, "hl");
+                log(`\n🎉🎉 PERFORMA MAKSIMAL TERCAPAI: Pipeline sukses total dalam ${((totalEndTime - totalStartTime) / 1000).toFixed(2)} detik!`, "hl");
                 
-                document.getElementById('status').innerText = 'Selesai! Mengunduh mahakarya Anda...';
-                document.getElementById('progress-bar').style.backgroundColor = `#34d399`;
+                document.getElementById('status').innerText = 'Eksekusi Selesai! Berkas siap diunduh.';
+                document.getElementById('progress-bar').style.backgroundColor = `#10b981`;
 
                 const a = document.createElement('a');
                 a.href = finalUrl;
-                a.download = "Output_Pro_1080p60.mp4";
+                a.download = "Output_Dynamic_Pro_Hybrid.mp4";
                 a.click();
                 
                 document.getElementById('btnProcess').disabled = false;
