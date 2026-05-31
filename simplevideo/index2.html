@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hardware GPU Engine (WebCodecs)</title>
+    <title>WebCodecs GPU Telemetry</title>
     <style>
         body { background-color: #0f172a; color: #f1f5f9; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1rem; margin: 0; }
         .container { background-color: #1e293b; border: 1px solid #334155; border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); width: 100%; max-width: 42rem; padding: 1.5rem; box-sizing: border-box; }
@@ -27,7 +27,11 @@
         .status-text { text-align: center; font-size: 0.875rem; color: #94a3b8; margin: 1rem 0; font-weight: bold; }
         .progress-container { width: 100%; background-color: #334155; border-radius: 9999px; height: 0.625rem; overflow: hidden; display: none; margin-bottom: 1rem; }
         .progress-bar { background-color: #f59e0b; height: 100%; width: 0%; transition: width 0.1s linear; }
-        .terminal { height: 12rem; background-color: #020617; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 0.75rem; font-family: monospace; font-size: 0.75rem; color: #fbbf24; overflow-y: auto; white-space: pre-wrap; }
+        
+        /* Terminal diperbesar agar log terbaca jelas */
+        .terminal { height: 18rem; background-color: #020617; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 0.75rem; font-family: monospace; font-size: 0.7rem; color: #fbbf24; overflow-y: auto; white-space: pre-wrap; line-height: 1.4;}
+        .log-warn { color: #f87171; }
+        .log-good { color: #34d399; }
     </style>
     
     <script src="https://unpkg.com/mp4-muxer/build/mp4-muxer.js"></script>
@@ -35,7 +39,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="title">WebCodecs GPU Prototype</h1>
+            <h1 class="title">GPU Telemetry</h1>
             <span id="badge" class="badge">Hardware Accel: ON</span>
         </div>
 
@@ -50,14 +54,14 @@
             <div class="monitor-overlay">GPU RENDERING</div>
         </div>
 
-        <button id="btnProcess" disabled class="btn btn-primary">Mulai Eksekusi Akselerasi GPU</button>
+        <button id="btnProcess" disabled class="btn btn-primary">Mulai Eksekusi & Profiling</button>
 
         <div id="status" class="status-text">Siap memproses.</div>
         <div id="progress-container" class="progress-container">
             <div id="progress-bar" class="progress-bar"></div>
         </div>
 
-        <h3 style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 0.5rem;">Log Operasional (GPU)</h3>
+        <h3 style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 0.5rem;">Diagnostic Log (Per 60 Frame)</h3>
         <div id="logs" class="terminal">Menunggu instruksi...</div>
     </div>
 
@@ -66,16 +70,23 @@
         const canvas = document.getElementById('gpu-canvas');
         const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
         
-        function log(msg) {
-            logContainer.textContent += `\n${msg}`;
+        function log(msg, type = '') {
+            let colorClass = '';
+            if (type === 'warn') colorClass = 'log-warn';
+            if (type === 'good') colorClass = 'log-good';
+            
+            const span = document.createElement('span');
+            span.className = colorClass;
+            span.innerText = msg + '\n';
+            logContainer.appendChild(span);
             logContainer.scrollTop = logContainer.scrollHeight;
         }
 
         if (!('VideoEncoder' in window)) {
-            log("❌ ERROR: Browser Anda tidak mendukung WebCodecs API.");
+            log("❌ ERROR: Browser Anda tidak mendukung WebCodecs API.", "warn");
             document.getElementById('btnProcess').style.display = 'none';
         } else {
-            log("✅ Sistem Hardware (WebCodecs) terdeteksi dan siap.");
+            log("✅ Sistem Hardware (WebCodecs) terdeteksi dan siap.", "good");
         }
 
         let sourceVideo = document.createElement('video');
@@ -90,7 +101,7 @@
                 sourceVideo.src = URL.createObjectURL(file);
                 sourceVideo.onloadedmetadata = () => {
                     fileDuration = sourceVideo.duration;
-                    log(`[Info] Durasi Video: ${fileDuration.toFixed(2)} detik`);
+                    log(`[Info] File termuat. Durasi: ${fileDuration.toFixed(2)} detik`);
                 };
             }
         });
@@ -108,22 +119,18 @@
             log("🚀 Membangun Pipeline MP4-Muxer...");
             let muxer = new Mp4Muxer.Muxer({
                 target: new Mp4Muxer.ArrayBufferTarget(),
-                video: {
-                    codec: 'avc',
-                    width: targetWidth,
-                    height: targetHeight
-                },
+                video: { codec: 'avc', width: targetWidth, height: targetHeight },
                 fastStart: 'in-memory'
             });
 
             log("⚡ Menghidupkan GPU VideoEncoder...");
             let encoder = new VideoEncoder({
                 output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-                error: (e) => log(`❌ Encoder Error: ${e.message}`)
+                error: (e) => log(`❌ Encoder Error: ${e.message}`, "warn")
             });
 
             encoder.configure({
-                codec: 'avc1.4D002A', // H264 Main Profile
+                codec: 'avc1.4D002A', 
                 width: targetWidth,
                 height: targetHeight,
                 hardwareAcceleration: 'prefer-hardware',
@@ -131,38 +138,77 @@
                 framerate: targetFPS
             });
 
-            log(`⚙️ Memulai GPU Upscaling ke ${targetWidth}x${targetHeight} @ ${targetFPS}FPS...`);
-            const startTime = performance.now();
+            log(`⚙️ GPU Pipeline Siap. Memulai ekstraksi frame...\n---------------------------------`);
+            
+            // VARIABEL TELEMETRI
+            let frameCount = 0;
+            let sumSeekTime = 0;
+            let sumDrawTime = 0;
+            let sumEncodeTime = 0;
+            
+            const totalStartTime = performance.now();
             let currentTime = 0;
             
-            // Loop ekstraksi frame secepat mungkin (Rapid Seek Loop)
+            let seekTimerStart = performance.now();
             sourceVideo.currentTime = 0;
             
             sourceVideo.addEventListener('seeked', async function processFrame() {
-                // 1. Gambar ke Canvas (Terjadi Upscaling Hardware secara instan)
-                ctx.drawImage(sourceVideo, 0, 0, targetWidth, targetHeight);
-                
-                // 2. Bungkus piksel ke dalam VideoFrame
-                const frame = new VideoFrame(canvas, { timestamp: currentTime * 1_000_000 });
-                
-                // 3. Lempar ke GPU Encoder
-                encoder.encode(frame, { keyFrame: (currentTime % 2 === 0) }); // Keyframe tiap 2 detik
-                frame.close(); // Cegah kebocoran memori
+                // 1. Catat waktu Seek (Bottleneck DOM)
+                const seekTime = performance.now() - seekTimerStart;
+                sumSeekTime += seekTime;
 
-                // Hitung Progress
+                // 2. Lukis dan catat waktu Upscale GPU
+                const drawTimerStart = performance.now();
+                ctx.drawImage(sourceVideo, 0, 0, targetWidth, targetHeight);
+                const drawTime = performance.now() - drawTimerStart;
+                sumDrawTime += drawTime;
+                
+                // 3. Encode dan catat waktu Feed GPU
+                const encodeTimerStart = performance.now();
+                const frame = new VideoFrame(canvas, { timestamp: currentTime * 1_000_000 });
+                encoder.encode(frame, { keyFrame: (frameCount % 60 === 0) });
+                frame.close();
+                const encodeTime = performance.now() - encodeTimerStart;
+                sumEncodeTime += encodeTime;
+
+                frameCount++;
+
+                // REPORTING SETIAP 60 FRAME (1 DETIK VIDEO)
+                if (frameCount % 60 === 0) {
+                    const avgSeek = (sumSeekTime / 60).toFixed(2);
+                    const avgDraw = (sumDrawTime / 60).toFixed(2);
+                    const avgEncode = (sumEncodeTime / 60).toFixed(2);
+                    
+                    let report = `[Frame ${frameCount}] Metrik Rata-rata per Bingkai:\n`;
+                    // Warnai log jika seek time terlalu besar
+                    if (avgSeek > 10) {
+                        report += `  🔴 DOM Seek Time : ${avgSeek} ms (BOTTLENECK!)\n`;
+                    } else {
+                        report += `  🟢 DOM Seek Time : ${avgSeek} ms\n`;
+                    }
+                    report += `  🟢 GPU Draw Time : ${avgDraw} ms (Kanvas WebGL)\n`;
+                    report += `  🟢 GPU Enc Time  : ${avgEncode} ms (WebCodecs)\n`;
+                    
+                    log(report);
+                    
+                    // Reset akumulator
+                    sumSeekTime = 0; sumDrawTime = 0; sumEncodeTime = 0;
+                }
+
+                // Hitung Progress UI
                 const percent = Math.min(100, Math.round((currentTime / fileDuration) * 100));
-                document.getElementById('status').innerText = `GPU Rendering: ${percent}% Selesai...`;
+                document.getElementById('status').innerText = `Memproses: ${percent}%...`;
                 document.getElementById('progress-bar').style.width = `${percent}%`;
 
-                // Pindah ke frame berikutnya (1/60 detik)
+                // NEXT FRAME
                 currentTime += frameDurationSec;
-                
-                if (currentTime < fileDuration) {
-                    sourceVideo.currentTime = currentTime;
+                if (currentTime <= fileDuration) {
+                    seekTimerStart = performance.now();
+                    sourceVideo.currentTime = currentTime; // Trigger kejadian seeked berikutnya
                 } else {
-                    // SELESAI!
+                    // SELESAI
                     sourceVideo.removeEventListener('seeked', processFrame);
-                    log("✅ Seluruh frame berhasil dibaca.");
+                    log(`\n✅ Ekstraksi selesai. Melakukan finalisasi muxer...`);
                     
                     await encoder.flush();
                     muxer.finalize();
@@ -171,14 +217,13 @@
                     const blob = new Blob([buffer], { type: 'video/mp4' });
                     const url = URL.createObjectURL(blob);
                     
-                    const endTime = performance.now();
-                    log(`🎉 Selesai! Eksekusi Hardware sukses dalam ${((endTime - startTime) / 1000).toFixed(2)} detik!`);
+                    const totalEndTime = performance.now();
+                    log(`🎉 EKSEKUSI SELESAI TOTAL: ${((totalEndTime - totalStartTime) / 1000).toFixed(2)} detik!`, "good");
                     document.getElementById('status').innerText = 'Selesai! Mengunduh otomatis...';
 
-                    // Unduh otomatis
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = "output_gpu_webcodecs.mp4";
+                    a.download = "output_gpu_telemetry.mp4";
                     a.click();
                     
                     document.getElementById('btnProcess').disabled = false;
