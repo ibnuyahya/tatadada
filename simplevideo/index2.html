@@ -65,7 +65,7 @@
         <div id="logs" class="terminal">Menunggu instruksi...</div>
     </div>
 
-    <script>
+   <script>
         const logContainer = document.getElementById('logs');
         const canvas = document.getElementById('gpu-canvas');
         const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
@@ -148,11 +148,10 @@
             
             const totalStartTime = performance.now();
             let currentTime = 0;
-            
             let seekTimerStart = performance.now();
-            sourceVideo.currentTime = 0;
             
-            sourceVideo.addEventListener('seeked', async function processFrame() {
+            // FUNGSI INTI DIPISAH AGAR BISA DIPANCING MANUAL
+            const processFrame = async function() {
                 // 1. Catat waktu Seek (Bottleneck DOM)
                 const seekTime = performance.now() - seekTimerStart;
                 sumSeekTime += seekTime;
@@ -173,25 +172,22 @@
 
                 frameCount++;
 
-                // REPORTING SETIAP 60 FRAME (1 DETIK VIDEO)
+                // REPORTING SETIAP 60 FRAME
                 if (frameCount % 60 === 0) {
                     const avgSeek = (sumSeekTime / 60).toFixed(2);
                     const avgDraw = (sumDrawTime / 60).toFixed(2);
                     const avgEncode = (sumEncodeTime / 60).toFixed(2);
                     
-                    let report = `[Frame ${frameCount}] Metrik Rata-rata per Bingkai:\n`;
-                    // Warnai log jika seek time terlalu besar
+                    let report = `[Frame ${frameCount}] Metrik Rata-rata:\n`;
                     if (avgSeek > 10) {
-                        report += `  🔴 DOM Seek Time : ${avgSeek} ms (BOTTLENECK!)\n`;
+                        report += `  🔴 DOM Seek : ${avgSeek} ms (BOTTLENECK!)\n`;
                     } else {
-                        report += `  🟢 DOM Seek Time : ${avgSeek} ms\n`;
+                        report += `  🟢 DOM Seek : ${avgSeek} ms\n`;
                     }
-                    report += `  🟢 GPU Draw Time : ${avgDraw} ms (Kanvas WebGL)\n`;
-                    report += `  🟢 GPU Enc Time  : ${avgEncode} ms (WebCodecs)\n`;
-                    
+                    report += `  🟢 GPU Draw : ${avgDraw} ms\n`;
+                    report += `  🟢 GPU Enc  : ${avgEncode} ms\n`;
                     log(report);
                     
-                    // Reset akumulator
                     sumSeekTime = 0; sumDrawTime = 0; sumEncodeTime = 0;
                 }
 
@@ -204,9 +200,8 @@
                 currentTime += frameDurationSec;
                 if (currentTime <= fileDuration) {
                     seekTimerStart = performance.now();
-                    sourceVideo.currentTime = currentTime; // Trigger kejadian seeked berikutnya
+                    sourceVideo.currentTime = currentTime; // Memicu event untuk frame ke-2 dan seterusnya
                 } else {
-                    // SELESAI
                     sourceVideo.removeEventListener('seeked', processFrame);
                     log(`\n✅ Ekstraksi selesai. Melakukan finalisasi muxer...`);
                     
@@ -228,7 +223,13 @@
                     
                     document.getElementById('btnProcess').disabled = false;
                 }
-            });
+            };
+
+            // Pasang event listener untuk frame ke-2 hingga selesai
+            sourceVideo.addEventListener('seeked', processFrame);
+            
+            // PANCING FRAME PERTAMA SECARA MANUAL
+            processFrame();
         });
     </script>
 </body>
