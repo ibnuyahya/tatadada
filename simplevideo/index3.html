@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zero-DOM GPU Pipeline</title>
+    <title>Zero-DOM GPU Engine (Dynamic)</title>
     <style>
         body { background-color: #0f172a; color: #f1f5f9; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1rem; margin: 0; }
         .container { background-color: #1e293b; border: 1px solid #334155; border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); width: 100%; max-width: 48rem; padding: 1.5rem; box-sizing: border-box; }
@@ -13,6 +13,11 @@
         .dropzone { border: 2px dashed #475569; border-radius: 0.75rem; padding: 1.5rem; text-align: center; position: relative; cursor: pointer; transition: border-color 0.2s; margin-bottom: 1rem; }
         .dropzone:hover { border-color: #ec4899; }
         .dropzone input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+        
+        /* PANEL KONTROL DINAMIS */
+        .controls { display: flex; gap: 1rem; margin-bottom: 1rem; background-color: #0f172a; padding: 1rem; border-radius: 0.75rem; border: 1px solid #334155; }
+        .toggle-group { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #cbd5e1; cursor: pointer; flex: 1;}
+        .toggle-group input[type="checkbox"] { width: 1.25rem; height: 1.25rem; cursor: pointer; accent-color: #ec4899; }
         
         .render-monitor { position: relative; width: 100%; aspect-ratio: 16/9; background-color: #000; border-radius: 0.75rem; overflow: hidden; display: none; margin-bottom: 1rem; border: 1px solid #334155; }
         .render-monitor canvas { width: 100%; height: 100%; object-fit: cover; }
@@ -27,10 +32,11 @@
         .progress-container { width: 100%; background-color: #334155; border-radius: 9999px; height: 0.625rem; overflow: hidden; display: none; margin-bottom: 1rem; }
         .progress-bar { background-color: #ec4899; height: 100%; width: 0%; transition: width 0.1s linear; }
         
-        .terminal { height: 18rem; background-color: #020617; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 0.75rem; font-family: monospace; font-size: 0.7rem; color: #e2e8f0; overflow-y: auto; white-space: pre-wrap; line-height: 1.4;}
+        .terminal { height: 16rem; background-color: #020617; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 0.75rem; font-family: monospace; font-size: 0.7rem; color: #e2e8f0; overflow-y: auto; white-space: pre-wrap; line-height: 1.4;}
         .log-warn { color: #f87171; }
         .log-good { color: #34d399; }
-        .log-highlight { color: #f472b6; }
+        .log-hl { color: #f472b6; }
+        .log-meta { color: #60a5fa; }
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
@@ -49,8 +55,19 @@
             <input type="file" id="uploader" accept="video/mp4">
         </div>
 
+        <div class="controls">
+            <label class="toggle-group">
+                <input type="checkbox" id="toggle-res">
+                <span>Upscale Paksa ke 1080p<br><small style="color:#64748b">(Default: Resolusi Asli)</small></span>
+            </label>
+            <label class="toggle-group">
+                <input type="checkbox" id="toggle-fps">
+                <span>Upframe Paksa ke 60 FPS<br><small style="color:#64748b">(Default: FPS Asli)</small></span>
+            </label>
+        </div>
+
         <div id="render-monitor" class="render-monitor">
-            <canvas id="gpu-canvas" width="1920" height="1080"></canvas>
+            <canvas id="gpu-canvas"></canvas>
             <div class="monitor-overlay">VRAM PIPELINE AKTIF</div>
         </div>
 
@@ -61,7 +78,7 @@
             <div id="progress-bar" class="progress-bar"></div>
         </div>
 
-        <h3 style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 0.5rem;">Log Telemetri VRAM</h3>
+        <h3 style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 0.5rem;">Log Operasional & Deteksi</h3>
         <div id="logs" class="terminal">Sistem siap...</div>
     </div>
 
@@ -71,13 +88,8 @@
         const ctx = canvas.getContext('2d', { alpha: false }); 
         
         function log(msg, type = '') {
-            let colorClass = '';
-            if (type === 'warn') colorClass = 'log-warn';
-            if (type === 'good') colorClass = 'log-good';
-            if (type === 'hl') colorClass = 'log-highlight';
-            
             const span = document.createElement('span');
-            span.className = colorClass;
+            span.className = type ? `log-${type}` : '';
             span.innerText = msg + '\n';
             logContainer.appendChild(span);
             logContainer.scrollTop = logContainer.scrollHeight;
@@ -104,81 +116,118 @@
             document.getElementById('progress-container').style.display = 'block';
             document.getElementById('render-monitor').style.display = 'block';
             
-            const targetFPS = 60;
-            const targetWidth = 1920;
-            const targetHeight = 1080;
             const totalStartTime = performance.now();
-            
-            log("🚀 Memulai Zero-DOM Pipeline (Dilengkapi Pengaman Backpressure)...\n", "hl");
+            log("🚀 Memulai Pembongkaran Metadata via MP4Box...\n", "hl");
 
-            let muxer = new Mp4Muxer.Muxer({
-                target: new Mp4Muxer.ArrayBufferTarget(),
-                video: { codec: 'avc', width: targetWidth, height: targetHeight },
-                fastStart: 'in-memory'
-            });
-
-            let framesEncoded = 0;
-            let sumEncodeTime = 0;
-            let encoder = new VideoEncoder({
-                output: (chunk, meta) => {
-                    muxer.addVideoChunk(chunk, meta);
-                    framesEncoded++;
-                },
-                error: (e) => log(`❌ Encoder Error: ${e.message}`, "warn")
-            });
-            encoder.configure({ codec: 'avc1.4D002A', width: targetWidth, height: targetHeight, hardwareAcceleration: 'prefer-hardware', bitrate: 5_000_000, framerate: targetFPS });
-
-            let framesDecoded = 0;
-            let sumDrawTime = 0;
+            // Variabel Mesin (Akan diisi setelah resolusi/fps terdeteksi)
+            let muxer, encoder, decoder;
             let totalSamples = 0;
-
-            let decoder = new VideoDecoder({
-                output: (frame) => {
-                    const drawStart = performance.now();
-                    ctx.drawImage(frame, 0, 0, targetWidth, targetHeight);
-                    sumDrawTime += (performance.now() - drawStart);
-
-                    const encStart = performance.now();
-                    const newFrame = new VideoFrame(canvas, { timestamp: frame.timestamp });
-                    encoder.encode(newFrame, { keyFrame: (framesDecoded % 60 === 0) });
-                    newFrame.close();
-                    sumEncodeTime += (performance.now() - encStart);
-                    
-                    frame.close(); 
-                    framesDecoded++;
-
-                    if (framesDecoded % 60 === 0) {
-                        const avgDraw = (sumDrawTime / 60).toFixed(3);
-                        const avgEnc = (sumEncodeTime / 60).toFixed(3);
-                        log(`[Frame ${framesDecoded}/${totalSamples}] GPU Draw: ${avgDraw}ms | GPU Enc: ${avgEnc}ms`, "hl");
-                        sumDrawTime = 0; sumEncodeTime = 0;
-                        
-                        const percent = Math.round((framesDecoded / totalSamples) * 100);
-                        document.getElementById('status').innerText = `Kecepatan Ekstrem GPU: ${percent}% Selesai`;
-                        document.getElementById('progress-bar').style.width = `${percent}%`;
-                    }
-                },
-                error: (e) => log(`❌ Decoder Error: ${e.message}`, "warn")
-            });
-
-            // --- FUNGSI PINTU AIR (BACKPRESSURE) ---
-            // Fungsi ini akan menahan laju loop jika VRAM GPU sudah menampung > 10 frame
-            const waitForGPU = async () => {
-                while (decoder.decodeQueueSize >= 10 || encoder.encodeQueueSize >= 10) {
-                    await new Promise(resolve => setTimeout(resolve, 5)); // Istirahat 5 milidetik
-                }
-            };
-
+            let samplesPushed = 0;
+            
             const mp4boxfile = MP4Box.createFile();
             let videoTrackId = null;
-            let samplesPushed = 0; // Pelacak frame masuk
 
+            // FUNGSI INTI: DIPANGGIL SAAT METADATA TERDETEKSI
             mp4boxfile.onReady = (info) => {
                 const track = info.videoTracks[0];
                 videoTrackId = track.id;
                 totalSamples = track.nb_samples;
-                log(`[Demuxer] Info Track ditemukan. Total Frame: ${totalSamples}`, "good");
+                
+                // 1. DETEKSI SPESIFIKASI ASLI
+                const origWidth = track.video.width;
+                const origHeight = track.video.height;
+                // Kalkulasi matematis FPS asli dari durasi dan jumlah frame
+                const origFPS = Math.round(track.nb_samples / (info.duration / info.timescale)) || 30;
+                
+                log(`[Deteksi] Resolusi Asli : ${origWidth}x${origHeight}`, "meta");
+                log(`[Deteksi] FPS Asli      : ~${origFPS} FPS`, "meta");
 
+                // 2. APLIKASIKAN LOGIKA TOGGLE KONTROL
+                const forceUpscale = document.getElementById('toggle-res').checked;
+                const forceUpframe = document.getElementById('toggle-fps').checked;
+
+                const targetWidth = forceUpscale ? 1920 : origWidth;
+                const targetHeight = forceUpscale ? 1080 : origHeight;
+                let targetFPS = forceUpframe ? 60 : origFPS;
+                
+                // Jika video asli sudah 60fps atau lebih, abaikan paksaan upframe
+                if (forceUpframe && origFPS >= 60) targetFPS = origFPS;
+
+                // Hitung Pengganda Bingkai (Duplicator Ratio)
+                const fpsMultiplier = (forceUpframe && origFPS < 60) ? Math.round(60 / origFPS) : 1;
+                const frameDurationUs = Math.floor(1_000_000 / targetFPS); // Mikrodetik per frame (Stempel Waktu)
+                
+                log(`[Konfigurasi Final] Eksekusi Render di ${targetWidth}x${targetHeight} @ ${targetFPS} FPS`, "hl");
+                
+                // Set ukuran kanvas lukis
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+
+                // 3. BANGUN PIPELINE MUXER & ENCODER
+                muxer = new Mp4Muxer.Muxer({
+                    target: new Mp4Muxer.ArrayBufferTarget(),
+                    video: { codec: 'avc', width: targetWidth, height: targetHeight },
+                    fastStart: 'in-memory'
+                });
+
+                let framesEncoded = 0;
+                let currentOutputTimestamp = 0; // Pelacak waktu stempel absolut
+                
+                encoder = new VideoEncoder({
+                    output: (chunk, meta) => {
+                        muxer.addVideoChunk(chunk, meta);
+                    },
+                    error: (e) => log(`❌ Encoder Error: ${e.message}`, "warn")
+                });
+                
+                encoder.configure({ 
+                    codec: 'avc1.4D002A', width: targetWidth, height: targetHeight, 
+                    hardwareAcceleration: 'prefer-hardware', bitrate: 5_000_000, framerate: targetFPS 
+                });
+
+                // 4. BANGUN PIPELINE DECODER & KANVAS
+                let framesDecoded = 0;
+                let sumDrawTime = 0; let sumEncodeTime = 0;
+
+                decoder = new VideoDecoder({
+                    output: (frame) => {
+                        const drawStart = performance.now();
+                        ctx.drawImage(frame, 0, 0, targetWidth, targetHeight);
+                        sumDrawTime += (performance.now() - drawStart);
+
+                        const encStart = performance.now();
+                        
+                        // ALGORITMA PENGGANDA BINGKAI (FRAME DUPLICATOR)
+                        for (let i = 0; i < fpsMultiplier; i++) {
+                            const newFrame = new VideoFrame(canvas, { timestamp: currentOutputTimestamp });
+                            // Berikan Keyframe setiap 1 detik
+                            encoder.encode(newFrame, { keyFrame: (framesEncoded % targetFPS === 0) });
+                            newFrame.close();
+                            
+                            currentOutputTimestamp += frameDurationUs; // Majukan jarum jam video
+                            framesEncoded++;
+                        }
+                        sumEncodeTime += (performance.now() - encStart);
+                        
+                        frame.close(); 
+                        framesDecoded++;
+
+                        // Log Performa Berkala
+                        if (framesDecoded % 60 === 0) {
+                            const avgDraw = (sumDrawTime / 60).toFixed(3);
+                            const avgEnc = (sumEncodeTime / (60 * fpsMultiplier)).toFixed(3); // Rata2 dihitung dari jumlah injeksi
+                            log(`[Frame ${framesDecoded}/${totalSamples}] GPU Draw: ${avgDraw}ms | GPU Enc: ${avgEnc}ms`, "meta");
+                            sumDrawTime = 0; sumEncodeTime = 0;
+                            
+                            const percent = Math.round((framesDecoded / totalSamples) * 100);
+                            document.getElementById('status').innerText = `Merakit Video: ${percent}% Selesai`;
+                            document.getElementById('progress-bar').style.width = `${percent}%`;
+                        }
+                    },
+                    error: (e) => log(`❌ Decoder Error: ${e.message}`, "warn")
+                });
+
+                // 5. EKSTRAK KODEK HEADER (AVCC) & MULAI SEDOT DATA
                 let description = null;
                 const trak = mp4boxfile.getTrackById(videoTrackId);
                 for (const entry of trak.mdia.minf.stbl.stsd.entries) {
@@ -202,11 +251,16 @@
                 mp4boxfile.start();
             };
 
-            // JADIKAN ASYNC AGAR BISA DITAHAN OLEH PINTU AIR
+            // FUNGSI PINTU AIR (BACKPRESSURE)
+            const waitForGPU = async () => {
+                while ((decoder && decoder.decodeQueueSize >= 10) || (encoder && encoder.encodeQueueSize >= 15)) {
+                    await new Promise(resolve => setTimeout(resolve, 5));
+                }
+            };
+
             mp4boxfile.onSamples = async (id, user, samples) => {
                 for (const sample of samples) {
-                    await waitForGPU(); // Tahan di sini jika VRAM penuh!
-                    
+                    await waitForGPU();
                     const chunk = new EncodedVideoChunk({
                         type: sample.is_sync ? 'key' : 'delta',
                         timestamp: 1e6 * sample.cts / sample.timescale,
@@ -218,22 +272,21 @@
                 }
             };
 
-            log("⏳ Membaca file video ke dalam memori ArrayBuffer...");
+            // BACA FILE & PICU MESIN
+            log("⏳ Menginjeksi file ke dalam ruang komputasi...");
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const buffer = e.target.result;
                 buffer.fileStart = 0;
-                log(`✅ File berhasil dimuat (${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB). Memulai injeksi Demuxer...`, "good");
                 
                 mp4boxfile.appendBuffer(buffer);
                 mp4boxfile.flush();
                 
-                // Tunggu sampai SEMUA frame berhasil didorong melewati Pintu Air
-                while (samplesPushed < totalSamples) {
+                // Penahan proses agar tidak terputus prematur
+                while (samplesPushed < totalSamples || totalSamples === 0) {
                     await new Promise(r => setTimeout(r, 100));
                 }
                 
-                // Tunggu GPU menyelesaikan sisa antrean
                 await decoder.flush();
                 await encoder.flush();
                 muxer.finalize();
@@ -243,13 +296,13 @@
                 const url = URL.createObjectURL(blob);
                 
                 const totalEndTime = performance.now();
-                log(`\n🎉 SELESAI! Pipa Zero-DOM sukses dieksekusi dalam ${((totalEndTime - totalStartTime) / 1000).toFixed(2)} detik!`, "good");
+                log(`\n🎉 SELESAI! Operasi selesai dalam ${((totalEndTime - totalStartTime) / 1000).toFixed(2)} detik!`, "good");
                 document.getElementById('status').innerText = 'Selesai! Mengunduh otomatis...';
                 document.getElementById('progress-bar').style.width = '100%';
 
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = "output_zero_dom_gpu_safe.mp4";
+                a.download = "output_zero_dom_dynamic.mp4";
                 a.click();
                 
                 document.getElementById('btnProcess').disabled = false;
