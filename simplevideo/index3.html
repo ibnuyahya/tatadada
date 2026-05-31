@@ -1,991 +1,256 @@
 <!DOCTYPE html>
-<html lang="id" class="light">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>H5Pstudio</title>
-    
-    <!-- Google Analytics (Wajib) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'G-FK620QSKYN', {
-            'page_path': window.location.pathname,
-            'app_instance_name': document.title
-        });
-    </script>
-
-    <!-- Histats.com START (async Wajib) -->
-    <script type="text/javascript">var _Hasync= _Hasync|| [];
-    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
-    _Hasync.push(['Histats.fasi', '1']);
-    _Hasync.push(['Histats.track_hits', '']);
-    (function() {
-    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
-    hs.src = ('//s10.histats.com/js15_as.js');
-    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
-    })();</script>
-    <noscript><a href="/" target="_blank"><img src="//sstatic1.histats.com/0.gif?5024490&101" alt="" border="0"></a></noscript>
-    <!-- Histats.com END -->
-
-    <!-- TATADADA Auto-Favicon Injector (Zoomed & Textless) -->
-    <script>
-        fetch('icon.xml').then(r => r.text()).then(xml => {
-            const doc = new DOMParser().parseFromString(xml, "text/xml");
-            const svgNode = doc.querySelector('svg_elements');
-            if (!svgNode) return;
-
-            // 1. Hapus elemen teks agar favicon bersih
-            svgNode.querySelectorAll('text').forEach(t => t.remove());
-
-            // 2. Ambil warna gradien background
-            const cStart = doc.querySelector('color_start')?.textContent || '#0ea5e9';
-            const cEnd = doc.querySelector('color_end')?.textContent || '#4338ca';
-
-            // 3. Render dengan viewBox zoom-in (12 12 76 76)
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
-
-            const link = document.createElement('link');
-            link.rel = 'icon'; link.type = 'image/svg+xml';
-            link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-            document.head.appendChild(link);
-        }).catch(e => console.warn('Favicon XML not loaded (pastikan file icon.xml berada di folder yang sama dan diakses melalui localhost/server).'));
-    </script>
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: { header: 'var(--header-bg)', editor: 'var(--editor-bg)', preview: 'var(--preview-bg)', card: 'var(--card-bg)', footer: 'var(--footer-bg)', bordercol: 'var(--border-color)', textmain: 'var(--text-main)', textdim: 'var(--text-dim)', themeacc: 'var(--theme-accent)' },
-                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] }
-                }
-            }
-        }
-    </script>
-
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@700;800&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zero-DOM GPU Pipeline</title>
     <style>
-        /* TATADADA CSS Tokens */
-        :root { 
-            --header-bg: #ffffff; 
-            --editor-bg: #ffffff; 
-            --preview-bg: #f1f5f9; 
-            --card-bg: #ffffff; 
-            --footer-bg: #ffffff; 
-            --border-color: #e2e8f0; 
-            --text-main: #0f172a; 
-            --text-dim: #64748b; 
-            --theme-accent: #3b82f6; 
-            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-        }
-        html.dark { 
-            --header-bg: #161b22; 
-            --editor-bg: #0d1117; 
-            --preview-bg: #010409; 
-            --card-bg: #0d1117; 
-            --footer-bg: #161b22; 
-            --border-color: #30363d; 
-            --text-main: #e6edf3; 
-            --text-dim: #8b949e; 
-            --theme-accent: #3b82f6; 
-            color-scheme: dark; 
-        }
+        body { background-color: #0f172a; color: #f1f5f9; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1rem; margin: 0; }
+        .container { background-color: #1e293b; border: 1px solid #334155; border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); width: 100%; max-width: 48rem; padding: 1.5rem; box-sizing: border-box; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+        .title { font-size: 1.5rem; font-weight: 800; margin: 0; background: linear-gradient(to right, #ec4899, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .badge { font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.75rem; border-radius: 9999px; background-color: rgba(236, 72, 153, 0.1); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.2); }
+        .dropzone { border: 2px dashed #475569; border-radius: 0.75rem; padding: 1.5rem; text-align: center; position: relative; cursor: pointer; transition: border-color 0.2s; margin-bottom: 1rem; }
+        .dropzone:hover { border-color: #ec4899; }
+        .dropzone input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
         
-        /* UX Protection: Anti-Select Global */
-        body { 
-            background-color: var(--preview-bg); 
-            color: var(--text-main); 
-            font-family: 'Inter', sans-serif; 
-            overflow: hidden; 
-            user-select: none; 
-            -webkit-user-select: none;
-        }
+        .render-monitor { position: relative; width: 100%; aspect-ratio: 16/9; background-color: #000; border-radius: 0.75rem; overflow: hidden; display: none; margin-bottom: 1rem; border: 1px solid #334155; }
+        .render-monitor canvas { width: 100%; height: 100%; object-fit: cover; }
+        .monitor-overlay { position: absolute; top: 10px; right: 10px; background-color: rgba(139, 92, 246, 0.9); color: white; font-size: 0.7rem; font-weight: bold; padding: 4px 8px; border-radius: 4px; font-family: monospace;}
         
-        /* Kecualikan input, textarea, dan area output data */
-        input, textarea, pre, code, .selectable {
-            user-select: text;
-            -webkit-user-select: text;
-        }
-
-        .step-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .disabled-step { opacity: 0.5; pointer-events: none; filter: grayscale(100%); }
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
-        .gradient-text { background: linear-gradient(135deg, var(--theme-accent), #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .btn { width: 100%; padding: 0.75rem; border-radius: 0.75rem; font-size: 0.875rem; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; margin-top: 0.5rem; }
+        .btn:disabled { background-color: #334155; color: #64748b; cursor: not-allowed; }
+        .btn-primary { background-color: #db2777; color: #ffffff; }
+        .btn-primary:hover:not(:disabled) { background-color: #be185d; }
         
-        .cat-title { font-size: 0.8rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px dotted var(--border-color); }
-        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .status-text { text-align: center; font-size: 0.875rem; color: #94a3b8; margin: 1rem 0; font-weight: bold; }
+        .progress-container { width: 100%; background-color: #334155; border-radius: 9999px; height: 0.625rem; overflow: hidden; display: none; margin-bottom: 1rem; }
+        .progress-bar { background-color: #ec4899; height: 100%; width: 0%; transition: width 0.1s linear; }
         
-        input[type=checkbox] { accent-color: var(--theme-accent); }
+        .terminal { height: 18rem; background-color: #020617; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 0.75rem; font-family: monospace; font-size: 0.7rem; color: #e2e8f0; overflow-y: auto; white-space: pre-wrap; line-height: 1.4;}
+        .log-warn { color: #f87171; }
+        .log-good { color: #34d399; }
+        .log-highlight { color: #f472b6; }
     </style>
+    
+    <script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
+    <script src="https://unpkg.com/mp4-muxer/build/mp4-muxer.js"></script>
 </head>
-<body class="h-screen flex flex-col overflow-hidden">
-
-    <!-- HEADER (h-14) -->
-    <header class="h-14 bg-header border-b border-bordercol flex items-center justify-between px-6 shrink-0 z-40 transition-colors duration-300">
-        <div class="flex items-center gap-4">
-            <div class="flex items-baseline gap-2">
-                <h1 class="text-xl font-extrabold tracking-tight gradient-text font-['Space_Grotesk']">H5Pstudio</h1>
-                <span class="text-xs italic text-textdim font-medium">v1.17</span>
-            </div>
-            <div class="h-4 w-px bg-bordercol"></div>
-            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-textdim hover:text-blue-500 transition-colors">by AhmadDanial</a>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Zero-DOM GPU Engine</h1>
+            <span id="badge" class="badge">Kecepatan Ekstrem (Max FPS)</span>
         </div>
-        <div class="flex items-center gap-3">
-            <div class="hidden md:flex items-center gap-2 bg-themeacc/10 px-3 py-1.5 rounded-full border border-themeacc/20 text-xs text-themeacc font-semibold selectable">
-                <i data-lucide="zap" class="w-3 h-3"></i> <span>Mode Generator Prompt</span>
-            </div>
-            <button onclick="toggleTheme()" class="w-8 h-8 rounded-full bg-editor border border-bordercol flex items-center justify-center text-textdim hover:text-themeacc hover:border-themeacc transition-colors"><i data-lucide="moon" id="theme-icon" class="w-4 h-4"></i></button>
+
+        <div class="dropzone">
+            <div class="text-main"><span id="file-name-label" style="font-weight: 600; color: #ec4899;">Pilih file video</span></div>
+            <p class="text-sub" style="font-size: 0.75rem; color: #64748b;">(Bypass DOM) Hardware Demux + Decode + Canvas + Encode</p>
+            <input type="file" id="uploader" accept="video/mp4">
         </div>
-    </header>
 
-    <!-- MAIN WORKSPACE -->
-    <main class="flex-grow overflow-y-auto bg-preview p-4 md:p-8 transition-colors duration-300 relative">
-        <div class="max-w-5xl mx-auto w-full space-y-6">
-
-            <div id="step-1" class="step-card bg-card rounded-2xl shadow-xl border border-themeacc/20 overflow-hidden">
-                <div class="h-1.5 w-full bg-gradient-to-r from-blue-500 to-indigo-500"></div>
-                <div class="p-6 md:p-10">
-                    <div class="flex items-center gap-4 mb-8 border-b border-bordercol pb-5">
-                        <div class="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 w-12 h-12 rounded-full flex items-center justify-center font-black text-xl shadow-inner shrink-0 selectable">1</div>
-                        <div>
-                            <h2 class="text-2xl font-bold text-textmain selectable">Pilih Template (Cangkang)</h2>
-                            <p class="text-sm text-textdim mt-1 selectable">Pilih template file .h5p sebagai basis struktur data.</p>
-                        </div>
-                    </div>
-
-                    <div id="catalog-section" class="space-y-4 selectable">
-                        <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/50 p-5 rounded-2xl flex items-start gap-4 mb-6">
-                            <div class="bg-indigo-100 dark:bg-indigo-800/50 p-2.5 rounded-xl shrink-0 mt-0.5">
-                                <i data-lucide="folder-tree" class="w-5 h-5 text-indigo-600 dark:text-indigo-400"></i>
-                            </div>
-                            <div>
-                                <p class="text-sm text-indigo-900 dark:text-indigo-200 font-bold">Auto-Sync Repository</p>
-                                <p class="text-xs text-indigo-700 dark:text-indigo-400 mt-1 leading-relaxed">Mengambil cangkang H5P ringan secara langsung dari repositori <b>github.com/ibnuyahya/tatadada</b>.</p>
-                            </div>
-                            <button onclick="fetchTatadadaCatalog()" class="ml-auto bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
-                                <i data-lucide="refresh-cw" class="w-3 h-3"></i> Refresh
-                            </button>
-                        </div>
-                        
-                        <div id="tatadada-status" class="text-sm text-textdim flex items-center gap-2 py-8 justify-center selectable">
-                            <i data-lucide="loader-2" class="w-6 h-6 animate-spin text-themeacc"></i> <span class="font-medium">Memindai Repositori...</span>
-                        </div>
-                        
-                        <div id="tatadada-results" class="hidden max-h-[500px] overflow-y-auto pr-3 custom-scrollbar"></div>
-                    </div>
-
-                    <!-- BANNER SUKSES -->
-                    <div id="active-template-banner" class="hidden mt-6 bg-emerald-50 dark:bg-emerald-900/10 border-2 border-emerald-400 dark:border-emerald-600 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm selectable">
-                        <div class="flex items-center gap-4">
-                            <div class="bg-emerald-100 dark:bg-emerald-800 p-3 rounded-full text-emerald-600 dark:text-emerald-300 shadow-inner">
-                                <i data-lucide="check-circle-2" class="w-8 h-8"></i>
-                            </div>
-                            <div>
-                                <h3 class="font-bold text-emerald-800 dark:text-emerald-300 text-lg selectable">Template Terkunci & Siap!</h3>
-                                <p id="template-info" class="text-xs text-emerald-700 dark:text-emerald-400 mt-1 font-mono bg-emerald-100 dark:bg-emerald-800/50 px-3 py-1 rounded-md inline-block border border-emerald-200 dark:border-emerald-700 selectable"></p>
-                            </div>
-                        </div>
-                        <button onclick="resetTemplate()" class="text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200 bg-emerald-100/50 dark:bg-emerald-800/30 px-4 py-2 rounded-xl border border-emerald-200 dark:border-emerald-700 transition-colors whitespace-nowrap selectable">
-                            Ganti Template
-                        </button>
-                    </div>
-                    <div id="template-error" class="hidden mt-4 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-200 dark:border-red-800 flex items-start gap-2 font-medium selectable"></div>
-                </div>
-            </div>
-
-            <div id="step-2" class="step-card disabled-step bg-card rounded-2xl shadow-xl border border-themeacc/20 overflow-hidden">
-                <div class="h-1.5 w-full bg-gradient-to-r from-purple-500 to-fuchsia-500"></div>
-                <div class="p-6 md:p-10">
-                    <div class="flex items-center gap-4 mb-8 border-b border-bordercol pb-5">
-                        <div class="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 w-12 h-12 rounded-full flex items-center justify-center font-black text-xl shadow-inner shrink-0 selectable">2</div>
-                        <div>
-                            <h2 class="text-2xl font-bold text-textmain selectable">Parameter & Build Prompt AI</h2>
-                            <p class="text-sm text-textdim mt-1 selectable">Atur struktur kuis dan hasilkan Prompt Generator.</p>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 bg-editor p-6 rounded-2xl border border-bordercol mb-8">
-                        <div>
-                            <div class="flex justify-between items-end mb-2 selectable">
-                                <label class="block text-sm font-bold text-textmain">Target Jumlah Item/Soal</label>
-                                <span id="param-jumlah-msg" class="text-[10px] font-bold text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-900/50 px-2 py-0.5 rounded hidden transition-all">Rekomendasi: 1 Item</span>
-                            </div>
-                            <input type="number" id="param-jumlah" value="5" min="1" max="50" class="w-full px-4 py-2.5 bg-card border border-bordercol rounded-xl focus:ring-2 focus:ring-themeacc outline-none text-sm text-textmain font-medium shadow-sm transition-all disabled:opacity-80 selectable">
-                        </div>
-                        
-                        <div>
-                            <div class="flex justify-between items-end mb-2 selectable">
-                                <label class="block text-sm font-bold text-textmain">Level Kognitif (Bloom)</label>
-                            </div>
-                            <select id="param-kognitif" class="w-full px-4 py-2.5 bg-card border border-bordercol rounded-xl focus:ring-2 focus:ring-themeacc outline-none text-sm text-textmain font-medium shadow-sm cursor-pointer selectable">
-                                <option value="C1 (Mengingat fakta dan detail dasar)">C1 - Mengingat</option>
-                                <option value="C2 (Memahami konsep, menjelaskan ide utama)" selected>C2 - Memahami</option>
-                                <option value="C3 (Mengaplikasikan konsep pada situasi baru)">C3 - Mengaplikasikan</option>
-                                <option value="C4 (Menganalisis, membedakan, membandingkan)">C4 - Menganalisis</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-bold text-textmain mb-2 selectable">Bahasa Output</label>
-                            <select id="param-bahasa" class="w-full px-4 py-2.5 bg-card border border-bordercol rounded-xl focus:ring-2 focus:ring-themeacc outline-none text-sm text-textmain font-medium shadow-sm cursor-pointer selectable">
-                                <option value="Indonesia" selected>Bahasa Indonesia</option>
-                                <option value="Inggris">English</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-bold text-textmain mb-2 selectable">Instruksi Ekstra (Opsional)</label>
-                            <input type="text" id="param-ekstra" placeholder="Cth: Buat pengecoh jawaban sulit" class="w-full px-4 py-2.5 bg-card border border-bordercol rounded-xl focus:ring-2 focus:ring-themeacc outline-none text-sm text-textmain font-medium placeholder-textdim shadow-sm selectable">
-                        </div>
-                        
-                        <div class="md:col-span-2 flex flex-col sm:flex-row gap-4 mt-2">
-                            <label class="flex items-center gap-3 cursor-pointer group bg-card border border-bordercol px-5 py-4 rounded-xl shadow-sm hover:border-themeacc hover:shadow-md transition-all flex-1 selectable">
-                                <input type="checkbox" id="param-kunci" checked class="w-5 h-5 cursor-pointer rounded selectable">
-                                <span class="text-sm font-bold text-textmain group-hover:text-themeacc transition-colors">Sertakan Kunci Jawaban</span>
-                            </label>
-                            <label class="flex items-center gap-3 cursor-pointer group bg-card border border-bordercol px-5 py-4 rounded-xl shadow-sm hover:border-themeacc hover:shadow-md transition-all flex-1 selectable">
-                                <input type="checkbox" id="param-feedback" checked class="w-5 h-5 cursor-pointer rounded selectable">
-                                <span class="text-sm font-bold text-textmain group-hover:text-themeacc transition-colors">Sertakan Umpan Balik (Feedback/Tips)</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <button onclick="generatePrompt()" class="bg-themeacc hover:bg-blue-600 text-white px-8 py-3.5 rounded-xl font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 w-full sm:w-auto text-sm selectable">
-                        <i data-lucide="sparkles" class="w-5 h-5"></i> Rakit Prompt AI Saya
-                    </button>
-
-                    <div id="prompt-result-area" class="hidden mt-8 bg-editor border border-bordercol rounded-2xl p-6 shadow-sm selectable">
-                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                            <label class="text-sm font-bold text-themeacc dark:text-blue-400 flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800/50 selectable">
-                                <i data-lucide="bot" class="w-4 h-4"></i> Salin prompt ke AI (ChatGPT/Gemini):
-                            </label>
-                            <button onclick="copyPromptToClipboard()" id="btn-copy" class="text-xs bg-card text-themeacc dark:text-blue-300 px-5 py-2.5 rounded-xl font-bold border-2 border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/50 hover:border-blue-400 transition-all shadow-sm whitespace-nowrap flex items-center gap-2 selectable">
-                                <i data-lucide="clipboard-copy" class="w-4 h-4"></i> <span id="copy-text">Copy Prompt</span>
-                            </button>
-                        </div>
-                        <textarea id="generated-prompt-text" rows="6" readonly class="w-full border border-bordercol rounded-xl p-5 text-xs font-mono text-textdim bg-card outline-none focus:ring-2 focus:ring-themeacc custom-scrollbar shadow-inner selectable"></textarea>
-                        
-                        <div class="mt-4 text-xs font-bold text-amber-700 dark:text-amber-500 flex items-center gap-2 bg-amber-100 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-300 dark:border-amber-800/50 selectable">
-                            <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
-                            <span>Prompt memiliki ruang kosong [PASTE MATERI ANDA DI SINI]. Jangan lupa paste materi Anda di AI nanti!</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="step-3" class="step-card disabled-step bg-card rounded-2xl shadow-xl border border-themeacc/20 overflow-hidden">
-                <div class="h-1.5 w-full bg-gradient-to-r from-amber-500 to-orange-500"></div>
-                <div class="p-6 md:p-10">
-                    <div class="flex items-center gap-4 mb-8 border-b border-bordercol pb-5">
-                        <div class="bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-500 w-12 h-12 rounded-full flex items-center justify-center font-black text-xl shadow-inner shrink-0 selectable">3</div>
-                        <div class="flex-grow">
-                            <h2 class="text-2xl font-bold text-textmain selectable">Compile JSON & Build</h2>
-                            <p class="text-sm text-textdim mt-1 selectable">Paste hasil kode JSON dari AI ke editor di bawah ini.</p>
-                        </div>
-                    </div>
-
-                    <div class="relative rounded-2xl overflow-hidden border border-bordercol shadow-inner bg-[#0d1117]">
-                        <div class="absolute right-3 top-3 z-10">
-                            <button onclick="formatJSON()" class="bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs px-4 py-2 rounded-xl border border-slate-600 font-bold transition flex items-center gap-2 shadow-md backdrop-blur-md selectable">
-                                <i data-lucide="code-2" class="w-4 h-4"></i> Format & Bersihkan
-                            </button>
-                        </div>
-                        <textarea id="generated-json" rows="14" class="w-full bg-transparent p-6 pt-16 font-mono text-sm leading-relaxed text-emerald-400 outline-none custom-scrollbar selectable" spellcheck="false" placeholder="PASTE KODE JSON DARI AI KE SINI..."></textarea>
-                    </div>
-                    
-                    <div class="mt-8 flex flex-col sm:flex-row justify-between items-center gap-5 bg-editor p-6 rounded-2xl border border-bordercol shadow-sm">
-                        <div id="json-validation-msg" class="text-sm font-bold text-textdim flex items-center gap-2 bg-card px-4 py-2 rounded-xl border border-bordercol shadow-sm w-full sm:w-auto selectable">
-                            <i data-lucide="info" class="w-5 h-5 text-themeacc"></i> Menunggu paste kode JSON...
-                        </div>
-                        <button onclick="buildAndDownload()" id="btn-build" disabled class="opacity-50 cursor-not-allowed w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-10 py-4 rounded-xl font-black shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3 whitespace-nowrap text-base tracking-wide selectable">
-                            <i data-lucide="download-cloud" class="w-6 h-6"></i> Build & Download .h5p
-                        </button>
-                    </div>
-
-                    <div class="mt-6 text-sm font-medium text-themeacc dark:text-blue-400 flex items-start gap-4 bg-blue-50 dark:bg-blue-900/10 p-6 rounded-2xl border border-blue-200 dark:border-blue-800 shadow-sm leading-relaxed flex-col lg:flex-row selectable">
-                        <i data-lucide="info" class="w-6 h-6 shrink-0 mt-0.5 hidden lg:block"></i>
-                        <div class="space-y-4 w-full">
-                            <p><strong class="block text-base mb-1"><i data-lucide="layout" class="w-4 h-4 inline pb-0.5"></i> Tips Tata Letak Visual:</strong>
-                            Untuk tipe konten yang sangat visual (seperti <em>Drag and Drop, Course Presentation, atau Hotspots</em>), AI hanya menyuntikkan teks materi Anda ke dalam cangkang. Letak atau ukuran kotak mungkin menjadi berantakan. Anda cukup membukanya di editor H5P LMS Anda dan menggeser/mengecilkan kotak-kotaknya secara manual.</p>
-                            
-                            <div class="bg-card p-4 rounded-xl border border-bordercol shadow-sm">
-                                <strong class="block text-amber-600 dark:text-amber-500 mb-1"><i data-lucide="zap" class="w-4 h-4 inline pb-0.5"></i> Trik Khusus Permainan (Matrix):</strong>
-                                AI tidak dapat menghitung matriks koordinat (X,Y) teka-teki silang dengan presisi. Jika file H5P error (blank) saat diunggah ke Moodle, <strong>buka file tersebut di <a href="https://app.lumi.education" target="_blank" class="font-bold underline hover:text-amber-500 transition-colors selectable">Lumi Editor</a></strong>, klik <strong>Edit</strong>, lalu langsung klik <strong>Save</strong>. Lumi akan otomatis mengkalkulasi ulang matriksnya secara sempurna!
-                            </div>
-
-                            <div class="bg-red-50/80 dark:bg-red-900/10 p-4 rounded-xl border border-red-200 dark:border-red-800/50 shadow-sm">
-                                <strong class="block text-red-600 dark:text-red-400 mb-1"><i data-lucide="server-crash" class="w-4 h-4 inline pb-0.5"></i> Solusi Error Moodle "get_content() on false":</strong>
-                                Jika file H5P memunculkan error PHP ini saat diunggah ke Moodle, itu <strong>BUKAN</strong> karena JSON Anda rusak. Hal ini terjadi karena Anda menggunakan file ber-versi library terbaru yang <strong>belum terinstall</strong> di Moodle. Solusi 1: Hubungi Admin untuk Update Pustaka H5P. Solusi 2: Unggah file tersebut ke dalam <strong>Content Bank</strong> Moodle terlebih dahulu agar Moodle bisa mempelajari pustaka barunya.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+        <div id="render-monitor" class="render-monitor">
+            <canvas id="gpu-canvas" width="1920" height="1080"></canvas>
+            <div class="monitor-overlay">VRAM PIPELINE AKTIF</div>
         </div>
-    </main>
 
-    <!-- FOOTER (h-8) -->
-    <footer class="h-8 bg-footer border-t border-bordercol flex items-center justify-between px-6 shrink-0 text-[10px] sm:text-xs text-textdim z-40 transition-colors duration-300">
-        <div class="flex items-center gap-2 font-bold selectable">
-            <span class="relative flex h-2.5 w-2.5">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-            <span id="footer-status">Sistem Siap</span>
-        </div>
-        <div class="flex items-center gap-4">
-            <span class="hidden sm:inline font-mono selectable" id="footer-stats">No Template Loaded</span>
-            <button onclick="toggleModal()" class="hover:text-themeacc font-bold underline decoration-dotted underline-offset-2 selectable">Terms of Use</button>
-        </div>
-    </footer>
+        <button id="btnProcess" disabled class="btn btn-primary">Mulai Eksekusi Kecepatan Maksimal</button>
 
-    <!-- STRICT MODAL TERMS -->
-    <div id="terms-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] hidden items-center justify-center p-4 transition-opacity">
-        <div class="bg-card w-full max-w-lg rounded-3xl shadow-2xl border border-themeacc/20 flex flex-col max-h-[90vh]">
-            <div class="flex items-center justify-between p-6 border-b border-bordercol">
-                <h3 class="text-xl font-black text-textmain flex items-center gap-3 selectable"><i data-lucide="scale" class="w-6 h-6 text-themeacc"></i> Terms of Use</h3>
-                <button onclick="toggleModal()" class="text-textdim hover:text-red-500 bg-editor p-2 rounded-full transition-colors selectable"><i data-lucide="x" class="w-5 h-5"></i></button>
-            </div>
-            <div class="p-8 overflow-y-auto text-sm text-textdim space-y-6 custom-scrollbar selectable">
-                <!-- Smart Context Clause -->
-                <div class="bg-themeacc/10 p-5 rounded-2xl border border-themeacc/20 text-themeacc font-bold leading-relaxed">
-                    <p>H5Pstudio adalah alat generator prompt dan pemaket file H5P tingkat lanjut yang berjalan sepenuhnya secara lokal di browser Anda. Aplikasi ini merekayasa arsip biner dan menyuntikkan arsitektur JSON tanpa pernah mengirimkan data aktivitas Anda ke server eksternal, menjamin privasi dan keamanan materi pembelajaran Anda.</p>
-                </div>
-                <!-- Mandatory Legal Clause -->
-                <div class="leading-relaxed font-medium">
-                    <p>Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.</p>
-                </div>
-            </div>
-            <div class="p-6 border-t border-bordercol bg-editor rounded-b-3xl flex justify-end">
-                <button onclick="toggleModal()" class="bg-textmain text-card px-8 py-3 rounded-xl font-bold hover:opacity-90 transition-opacity selectable">Saya Mengerti</button>
-            </div>
+        <div id="status" class="status-text">Menunggu instruksi...</div>
+        <div id="progress-container" class="progress-container">
+            <div id="progress-bar" class="progress-bar"></div>
         </div>
+
+        <h3 style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 0.5rem;">Log Telemetri VRAM</h3>
+        <div id="logs" class="terminal">Sistem siap...</div>
     </div>
 
-    <div id="global-loading" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[60] hidden flex-col items-center justify-center text-white selectable">
-        <i data-lucide="loader-2" class="w-14 h-14 animate-spin text-themeacc mb-5"></i>
-        <h2 class="text-2xl font-black tracking-wide" id="global-loading-title">Memproses...</h2>
-        <p class="text-sm text-gray-300 mt-2 font-medium" id="global-loading-desc">Harap tunggu sebentar.</p>
-    </div>
-
-    <!-- UX Protection: Anti-Right Click (Kecuali .selectable) -->
     <script>
-        document.addEventListener('contextmenu', e => {
-            if (!e.target.closest('input, textarea, .allow-context, .selectable')) {
-                e.preventDefault();
+        const logContainer = document.getElementById('logs');
+        const canvas = document.getElementById('gpu-canvas');
+        const ctx = canvas.getContext('2d', { alpha: false }); // Akselerasi GPU Murni Dinyalakan
+        
+        function log(msg, type = '') {
+            let colorClass = '';
+            if (type === 'warn') colorClass = 'log-warn';
+            if (type === 'good') colorClass = 'log-good';
+            if (type === 'hl') colorClass = 'log-highlight';
+            
+            const span = document.createElement('span');
+            span.className = colorClass;
+            span.innerText = msg + '\n';
+            logContainer.appendChild(span);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        if (!('VideoEncoder' in window) || !('VideoDecoder' in window)) {
+            log("❌ ERROR: Browser Anda tidak mendukung WebCodecs API penuh.", "warn");
+            document.getElementById('btnProcess').style.display = 'none';
+        }
+
+        let selectedFile = null;
+
+        document.getElementById('uploader').addEventListener('change', (e) => {
+            selectedFile = e.target.files[0];
+            if (selectedFile) {
+                document.getElementById('file-name-label').innerText = selectedFile.name;
+                document.getElementById('btnProcess').disabled = false;
+                log(`[Sistem] File dimuat ke RAM: ${selectedFile.name}`, "good");
             }
         });
-    </script>
 
-    <script>
-        // THEME INIT
-        const htmlRoot = document.documentElement;
-        if (localStorage.getItem('h5pgen_theme') === 'dark' || (!('h5pgen_theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            htmlRoot.classList.add('dark');
-        } else {
-            htmlRoot.classList.remove('dark');
-        }
-
-        function toggleTheme() {
-            htmlRoot.classList.toggle('dark');
-            const isDark = htmlRoot.classList.contains('dark');
-            localStorage.setItem('h5pgen_theme', isDark ? 'dark' : 'light');
-            document.getElementById('theme-icon').setAttribute('data-lucide', isDark ? 'sun' : 'moon');
-            lucide.createIcons();
-        }
-        function toggleModal() {
-            const modal = document.getElementById('terms-modal');
-            modal.classList.toggle('hidden'); modal.classList.toggle('flex');
-        }
-
-        // ==========================================
-        // DATABASE H5P METADATA DENGAN INDIKATOR SINGLE/MULTI ITEM
-        // ==========================================
-        const H5P_CATALOG_META = {
-            "interactive-video": { title: "Interactive Video", icon: "video", img: "https://h5p.org/sites/default/files/logos/interactive_video_icon-colors_0.png", desc: "Create videos enriched with interactions", url: "/interactive-video", isSingleItem: false },
-            "course-presentation": { title: "Course Presentation", icon: "monitor-play", img: "https://h5p.org/sites/default/files/logos/course_presentation_icon-colors_0.png", desc: "Create a presentation with interactive slides", url: "/presentation", isSingleItem: false },
-            "presentation": { title: "Course Presentation", icon: "monitor-play", img: "https://h5p.org/sites/default/files/logos/course_presentation_icon-colors_0.png", desc: "Create a presentation with interactive slides", url: "/presentation", isSingleItem: false },
-            "branching-scenario": { title: "Branching Scenario", icon: "git-branch", img: "https://h5p.org/sites/default/files/logos/branching-scenario-icon.png", desc: "Create dilemmas and self paced learning", url: "/branching-scenario", isSingleItem: false },
-            "accordion": { title: "Accordion", icon: "align-justify", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/accordion-icon.png", desc: "Create vertically stacked expandable items", url: "/accordion", isSingleItem: false },
-            "advent": { title: "Advent Calendar", icon: "calendar", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/advent_calendar_0.png", desc: "Create an advent calendar", url: "/content-types/advent-calendar", isSingleItem: false },
-            "agamotto": { title: "Agamotto", icon: "layers", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/icon_agamotto.png", desc: "Create a sequence of images that gradually change", url: "/content-types/agamotto", isSingleItem: false },
-            "ar-scavenger": { title: "AR Scavenger", icon: "smartphone", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/AR-Icon.png", desc: "Augmented reality fun!", url: "/content-types/ar-scavenger", isSingleItem: false },
+        document.getElementById('btnProcess').addEventListener('click', async () => {
+            document.getElementById('btnProcess').disabled = true;
+            document.getElementById('progress-container').style.display = 'block';
+            document.getElementById('render-monitor').style.display = 'block';
             
-            // Tipe Single Question
-            "arithmetic-quiz": { title: "Arithmetic Quiz", icon: "calculator", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/basic-arithmetic-quiz-icon-color.png", desc: "Create time-based arithmetic quizzes", url: "/arithmetic-quiz", isSingleItem: true },
-            "audio-recorder": { title: "Audio Recorder", icon: "mic", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/audio-recorder-icon_0.png", desc: "Create an audio recording", url: "/audio-recorder", isSingleItem: true },
-            "essay": { title: "Essay", icon: "pen-tool", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/essay.png", desc: "Create essay with instant feedback", url: "/content-types/essay", isSingleItem: true },
-            "image-hotspot-question": { title: "Find the Hotspot", icon: "crosshair", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/image_hotspot-question-icon_0.png", desc: "Create image hotspot for users to find", url: "/image-hotspot-question", isSingleItem: true },
-            "guess-the-answer": { title: "Guess the Answer", icon: "help-circle", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/guess-the-answer-icon.png", desc: "Create an image with a question and answer button", url: "/guess-the-answer", isSingleItem: true },
-            "speak-the-words": { title: "Speak the Words", icon: "mic", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/speak-the-words.png", desc: "Answer a question using your voice", url: "/speak-the-words", isSingleItem: true },
-            "true-false": { title: "True/False Question", icon: "toggle-left", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/true-false.png", desc: "Create True/False questions", url: "/true-false", isSingleItem: true },
+            const targetFPS = 60;
+            const targetWidth = 1920;
+            const targetHeight = 1080;
+            const totalStartTime = performance.now();
             
-            // Tipe Multi-item
-            "drag-and-drop": { title: "Drag and Drop", icon: "pointer", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/drag-and-drop-icon.png", desc: "Create drag and drop tasks with images", url: "/drag-and-drop", isSingleItem: false },
-            "drag-the-words": { title: "Drag the Words", icon: "text-cursor-input", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/drag-the-words-icon.png", desc: "Create text-based drag and drop tasks", url: "/drag-the-words", isSingleItem: false },
-            "fill-in-the-blanks": { title: "Fill in the Blanks", icon: "type", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/fill-in-the-blanks-icon_0.png", desc: "Create a task with missing words in a text", url: "/fill-in-the-blanks", isSingleItem: false },
-            "find-the-words": { title: "Find the words", icon: "search", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/word-search-h5porg.png", desc: "Grid word search game", url: "/find-the-words", isSingleItem: false },
-            "mark-the-words": { title: "Mark the Words", icon: "highlighter", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/mark-the-words-icon_0.png", desc: "Create a task where users highlight words", url: "/mark-the-words", isSingleItem: false },
-            "image-choice": { title: "Multimedia Choice", icon: "image-play", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/multimedia-choice-icon.png", desc: "Create a task with multimedia as options", url: "/content-types/image-choice", isSingleItem: false },
-            "multiple-choice": { title: "Multiple Choice", icon: "list-checks", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/multichoice-icon_0.png", desc: "Create flexible multiple choice questions", url: "/multichoice", isSingleItem: false },
-            "multichoice": { title: "Multiple Choice", icon: "list-checks", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/multichoice-icon_0.png", desc: "Create flexible multiple choice questions", url: "/multichoice", isSingleItem: false },
-            "advanced-blanks": { title: "Complex Fill the Blanks", icon: "file-edit", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/advanced-fill-in-the-blanks.png", desc: "Fill in the missing words", url: "/advanced-fill-the-blanks", isSingleItem: false },
-            "advanced-fill-the-blanks": { title: "Complex Fill the Blanks", icon: "file-edit", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/advanced-fill-in-the-blanks.png", desc: "Fill in the missing words", url: "/advanced-fill-the-blanks", isSingleItem: false },
-            
-            // Lanjutan Multi-item
-            "chart": { title: "Chart", icon: "pie-chart", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/chart-icon-color.png", desc: "Quickly generate bar and pie charts", url: "/chart", isSingleItem: false },
-            "collage": { title: "Collage", icon: "layout", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/collage-icon.png", desc: "Create a collage of multiple images", url: "/collage", isSingleItem: false },
-            "cornell-notes": { title: "Cornell Notes", icon: "clipboard-list", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/Cornell-logo.png", desc: "Take notes using the Cornell system", url: "/cornell-notes", isSingleItem: false },
-            "crossword": { title: "Crossword", icon: "grid", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/crosswords.png", desc: "Create a crossword puzzle", url: "/content-types/crossword", isSingleItem: false },
-            "dialog-cards": { title: "Dialog Cards", icon: "credit-card", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/dialog_cards_icon-color.png", desc: "Create text-based turning cards", url: "/dialog-cards", isSingleItem: false },
-            "dictation": { title: "Dictation", icon: "headphones", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/dictation.png", desc: "Create a dictation with instant feedback", url: "/dictation", isSingleItem: false },
-            "documentation-tool": { title: "Documentation Tool", icon: "file-type", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/documentation-tool-icon_0.png", desc: "Create a form wizard with text export", url: "/documentation-tool", isSingleItem: false },
-            "find-multiple-hotspots": { title: "Find Multiple Hotspots", icon: "mouse-pointer-click", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/find-multiple-hotspots.png", desc: "Create many hotspots for users to find", url: "/find-multiple-hotspots", isSingleItem: false },
-            "flashcards": { title: "Flashcards", icon: "gallery-horizontal", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/flashcards-png-icon.png", desc: "Create stylish and modern flashcards", url: "/flashcards", isSingleItem: false },
-            "game-map": { title: "Game Map", icon: "map", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/game-map-icon_0.png", desc: "Create interactive game maps", url: "/content-types/game-map", isSingleItem: false },
-            "iframe-embedder": { title: "Iframe Embedder", icon: "code", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/iframe_embeddor_icon-color_0.png", desc: "Embed from a url or a set of files", url: "/iframe-embedder", isSingleItem: false },
-            "image-hotspots": { title: "Image Hotspots", icon: "info", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/image-hotspots-icon-color.png", desc: "Create an image with multiple info hotspots", url: "/image-hotspots", isSingleItem: false },
-            "image-juxtaposition": { title: "Image Juxtaposition", icon: "split-square-horizontal", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/before-after-image.png", desc: "Create interactive images", url: "/image-juxtaposition", isSingleItem: false },
-            "image-pairing": { title: "Image pairing", icon: "git-compare", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/image-pairing.png", desc: "Drag and drop image matching game", url: "/image-pairing", isSingleItem: false },
-            "image-sequencing": { title: "Image Sequencing", icon: "arrow-down-up", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/image-sequnce.png", desc: "Place images in the correct order", url: "/content-types/image-sequencing", isSingleItem: false },
-            "image-slider": { title: "Image Slider", icon: "sliders-horizontal", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/pictusel-h5p-org.png", desc: "Easily create an Image Slider", url: "/image-slider", isSingleItem: false },
-            "impressive-presentation": { title: "Impressive Presentation", icon: "monitor", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/impressive-presentation-iconr.png", desc: "Create a slideshow with parallax effects", url: "/impressive-presentation", isSingleItem: false },
-            "information-wall": { title: "Information Wall", icon: "panels-top-left", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/information-wall.png", desc: "Create searchable information panels", url: "/content-types/information-wall", isSingleItem: false },
-            "interactive-book": { title: "Interactive Book", icon: "book-open", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/interactive-book-icon.png", desc: "Create courses, books or tests", url: "/content-types/interactive-book", isSingleItem: false },
-            "kewar-code": { title: "KewAr Code", icon: "qr-code", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/KewAr-icon-h5porg.png", desc: "Create QR codes for different purposes", url: "/content-types/kewar-code", isSingleItem: false },
-            "memory-game": { title: "Memory Game", icon: "brain", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/memory-game-icon.png", desc: "Create the classic image pairing game", url: "/memory-game", isSingleItem: false },
-            "single-choice-set": { title: "Single Choice Set", icon: "check-circle", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/single-choice-set-icon_0.png", desc: "Create questions with one correct answer", url: "/single-choice-set", isSingleItem: false },
-            "column": { title: "Page (Column)", icon: "layout-template", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/column-icon%20%281%29.png", desc: "Page layout for H5P Content", url: "/column", isSingleItem: false },
-            "personality-quiz": { title: "Personality Quiz", icon: "user-check", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/personality-quiz-icon.png", desc: "Create personality quizzes", url: "/personality-quiz", isSingleItem: false },
-            "questionnaire": { title: "Questionnaire", icon: "clipboard-type", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/survey-icon-h5p-org.png", desc: "Create a questionnaire to receive feedback", url: "/questionnaire", isSingleItem: false },
-            "question-set": { title: "Quiz (Question Set)", icon: "check-square", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/question-set-icon.png", desc: "Create a sequence of various question types", url: "/question-set", isSingleItem: false },
-            "sort-paragraphs": { title: "Sort the Paragraphs", icon: "list-ordered", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/sort-paragraphs.png", desc: "Create a set of paragraphs to be sorted", url: "/content-types/sort-the-paragraphs", isSingleItem: false },
-            "speak-the-words-set": { title: "Speak the Words Set", icon: "mic-2", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/speak-the-words-set.png", desc: "A series of questions answered by speech", url: "/speak-the-words-set", isSingleItem: false },
-            "structure-strip": { title: "Structure Strip", icon: "layout-list", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/icon-SS.png", desc: "Interactive structure strip", url: "/content-types/structure-strip", isSingleItem: false },
-            "summary": { title: "Summary", icon: "text", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/summary_icon.png", desc: "Create tasks with a list of statements", url: "/summary", isSingleItem: false },
-            "timeline": { title: "Timeline", icon: "clock", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/timeline_icon-color.png", desc: "Create a timeline of events with multimedia", url: "/timeline", isSingleItem: false },
-            "virtual-tour": { title: "Virtual Tour (360)", icon: "view", img: "https://h5p.org/sites/default/files/styles/small-logo/public/logos/virtual-tour-360-icon.png", desc: "Create interactive 360 environments", url: "/virtual-tour-360", isSingleItem: false }
-        };
+            log("🚀 Memulai Zero-DOM Pipeline...\n", "hl");
 
-        // ==========================================
-        // STATE MANAGEMENT & UI HELPERS
-        // ==========================================
-        let appState = { zipInstance: null, templateJsonStr: "", h5pMetadata: null, originalFileName: "AI_Activity", activeMeta: null };
+            // 1. SETUP MUXER (OUTPUT)
+            let muxer = new Mp4Muxer.Muxer({
+                target: new Mp4Muxer.ArrayBufferTarget(),
+                video: { codec: 'avc', width: targetWidth, height: targetHeight },
+                fastStart: 'in-memory'
+            });
 
-        function showGlobalLoading(title, desc) {
-            document.getElementById('global-loading-title').innerText = title;
-            document.getElementById('global-loading-desc').innerText = desc;
-            const l = document.getElementById('global-loading');
-            l.classList.remove('hidden'); l.classList.add('flex');
-        }
-        function hideGlobalLoading() {
-            const l = document.getElementById('global-loading');
-            l.classList.add('hidden'); l.classList.remove('flex');
-        }
-        function showError(msg) {
-            const errEl = document.getElementById('template-error');
-            errEl.innerHTML = `<i data-lucide="alert-triangle" class="w-5 h-5 shrink-0 mt-0.5"></i> <span>${msg}</span>`;
-            errEl.classList.remove('hidden'); lucide.createIcons();
-        }
+            // 2. SETUP ENCODER (GPU KE MP4)
+            let framesEncoded = 0;
+            let sumEncodeTime = 0;
+            let encoder = new VideoEncoder({
+                output: (chunk, meta) => {
+                    muxer.addVideoChunk(chunk, meta);
+                    framesEncoded++;
+                },
+                error: (e) => log(`❌ Encoder Error: ${e.message}`, "warn")
+            });
+            encoder.configure({ codec: 'avc1.4D002A', width: targetWidth, height: targetHeight, hardwareAcceleration: 'prefer-hardware', bitrate: 5_000_000, framerate: targetFPS });
 
-        // ==========================================
-        // FASE 1: GITHUB TREE API (KATALOG TATADADA PINTAR)
-        // ==========================================
-        async function fetchTatadadaCatalog() {
-            const statusEl = document.getElementById('tatadada-status');
-            const resultsEl = document.getElementById('tatadada-results');
-            
-            statusEl.classList.remove('hidden'); statusEl.classList.add('flex');
-            resultsEl.classList.add('hidden'); resultsEl.innerHTML = '';
-            
-            const apiUrl = 'https://api.github.com/repos/ibnuyahya/tatadada/git/trees/main?recursive=1';
-            
-            try {
-                const response = await fetch(apiUrl);
-                if (!response.ok) throw new Error("Gagal terhubung ke repositori Tatadada.");
-                const data = await response.json();
-                
-                const h5pFiles = data.tree.filter(item => 
-                    item.type === 'blob' && item.path.startsWith('h5pstudio/shells/') && item.path.endsWith('.h5p')
-                );
+            // Variabel Telemetri
+            let framesDecoded = 0;
+            let sumDrawTime = 0;
+            let totalSamples = 0;
 
-                if (h5pFiles.length === 0) throw new Error("Belum ada file .h5p di folder shells repositori.");
+            // 3. SETUP DECODER (MP4 KE GPU)
+            let decoder = new VideoDecoder({
+                output: (frame) => {
+                    // Begitu Frame mentah keluar dari VRAM, langsung lukis ke Canvas!
+                    const drawStart = performance.now();
+                    ctx.drawImage(frame, 0, 0, targetWidth, targetHeight);
+                    sumDrawTime += (performance.now() - drawStart);
 
-                const groups = {};
-                const metaKeys = Object.keys(H5P_CATALOG_META).sort((a, b) => b.length - a.length);
-
-                h5pFiles.forEach(file => {
-                    const pathParts = file.path.split('/');
-                    const fileName = pathParts.pop();
-                    const subfolderName = pathParts.length > 2 ? pathParts[2] : "Kategori Lainnya"; 
+                    // Ambil hasil lukisan (Upscaled), masukkan ke Encoder
+                    const encStart = performance.now();
+                    const newFrame = new VideoFrame(canvas, { timestamp: frame.timestamp });
+                    encoder.encode(newFrame, { keyFrame: (framesDecoded % 60 === 0) });
+                    newFrame.close();
+                    sumEncodeTime += (performance.now() - encStart);
                     
-                    let cleanName = fileName.replace(/^shell_/, '').replace(/\.h5p$/, '');
-                    let isMapped = false;
-                    let metaData = null;
+                    frame.close(); // Hapus frame asli dari VRAM
+                    framesDecoded++;
 
-                    // FILTER LOGIC: Cek apakah template dikenali di Database resmi
-                    for (const key of metaKeys) {
-                        if (cleanName.includes(key)) {
-                            metaData = H5P_CATALOG_META[key];
-                            isMapped = true;
-                            break;
-                        }
+                    // Log Telemetri
+                    if (framesDecoded % 60 === 0) {
+                        const avgDraw = (sumDrawTime / 60).toFixed(3);
+                        const avgEnc = (sumEncodeTime / 60).toFixed(3);
+                        log(`[Frame ${framesDecoded}/${totalSamples}] GPU Draw: ${avgDraw}ms | GPU Enc: ${avgEnc}ms`, "hl");
+                        sumDrawTime = 0; sumEncodeTime = 0;
+                        
+                        const percent = Math.round((framesDecoded / totalSamples) * 100);
+                        document.getElementById('status').innerText = `Kecepatan Ekstrem GPU: ${percent}% Selesai`;
+                        document.getElementById('progress-bar').style.width = `${percent}%`;
                     }
+                },
+                error: (e) => log(`❌ Decoder Error: ${e.message}`, "warn")
+            });
 
-                    // Hanya masukkan file yang memiliki pemetaan resmi ke H5P.org (Auto-Exclude file asing)
-                    if (isMapped) {
-                        if (!groups[subfolderName]) groups[subfolderName] = [];
-                        groups[subfolderName].push({
-                            name: fileName,
-                            meta: metaData,
-                            rawUrl: `https://cdn.jsdelivr.net/gh/ibnuyahya/tatadada@main/${file.path}`
-                        });
+            // 4. SETUP MP4BOX (DEMUXER MURNI BYTE)
+            const mp4boxfile = MP4Box.createFile();
+            let videoTrackId = null;
+
+            mp4boxfile.onReady = (info) => {
+                const track = info.videoTracks[0];
+                videoTrackId = track.id;
+                totalSamples = track.nb_samples;
+                log(`[Demuxer] Info Track ditemukan. Total Frame: ${totalSamples}`, "good");
+
+                // Ekstrak Konfigurasi Codec Ekstra (AVCC) untuk WebCodecs
+                let description = null;
+                const trak = mp4boxfile.getTrackById(videoTrackId);
+                for (const entry of trak.mdia.minf.stbl.stsd.entries) {
+                    if (entry.avcC) {
+                        const stream = new DataStream(undefined, 0, DataStream.BIG_ENDIAN);
+                        entry.avcC.write(stream);
+                        description = new Uint8Array(stream.buffer, 8); // Buang 8 byte header box
+                        break;
                     }
+                }
+
+                decoder.configure({
+                    codec: track.codec, // misal: 'avc1.640028'
+                    codedWidth: track.video.width,
+                    codedHeight: track.video.height,
+                    description: description,
+                    hardwareAcceleration: 'prefer-hardware'
                 });
 
-                if (Object.keys(groups).length === 0) throw new Error("Semua cangkang gagal diverifikasi (Tidak ada kecocokan dengan metadata H5P.org).");
+                // Mulai Sedot Data Byte
+                mp4boxfile.setExtractionOptions(videoTrackId);
+                mp4boxfile.start();
+            };
 
-                // --- SISTEM PENGURUTAN KUSTOM (CUSTOM SORT PRIORITY) ---
-                const getPriority = (name) => {
-                    const lowerName = name.toLowerCase();
-                    if (lowerName.includes('kuis teks')) return 1; 
-                    if (lowerName.includes('permainan gambar')) return 2; 
-                    if (lowerName.includes('kuis')) return 3; 
-                    return 99; 
-                };
-
-                const sortedCategories = Object.keys(groups).sort((a, b) => {
-                    const priorityA = getPriority(a);
-                    const priorityB = getPriority(b);
-                    if (priorityA !== priorityB) return priorityA - priorityB;
-                    return a.localeCompare(b); // Jika prioritasnya sama, urutkan berdasarkan abjad asli
-                });
-
-                for (const folderName of sortedCategories) {
-                    const files = groups[folderName];
-                    if (files.length === 0) continue;
-
-                    const cleanCategoryName = folderName.replace(/^\d+_/, '').replace(/_/g, ' ');
-
-                    const catHeader = document.createElement('div');
-                    catHeader.className = 'cat-title flex items-center gap-2 mt-8 selectable';
-                    catHeader.innerHTML = `<i data-lucide="folder" class="w-5 h-5 text-themeacc"></i> ${cleanCategoryName}`; 
-                    resultsEl.appendChild(catHeader);
-
-                    const grid = document.createElement('div');
-                    grid.className = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-5 mb-8';
-                    
-                    files.forEach(f => {
-                        let meta = f.meta; 
-
-                        let iconHTML = `<i data-lucide="${meta.icon}" class="w-12 h-12"></i>`;
-                        if (meta.img) {
-                            iconHTML = `
-                                <img src="${meta.img}" alt="${meta.title}" class="w-20 h-20 object-contain drop-shadow-sm group-hover:scale-110 transition-transform duration-300 selectable" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                                <i data-lucide="${meta.icon}" class="w-12 h-12" style="display:none;"></i>
-                            `;
-                        }
-
-                        const card = document.createElement('div');
-                        card.className = "bg-card border border-bordercol p-4 sm:p-5 rounded-2xl flex flex-col items-center justify-center gap-2 group hover:border-themeacc hover:shadow-xl transition-all cursor-pointer relative selectable";
-                        card.onclick = () => loadTemplateFromUrlDirectly(f.rawUrl, f.name, meta);
-                        card.title = meta.desc; 
-                        card.innerHTML = `
-                            <div class="bg-editor w-32 h-32 rounded-[1.5rem] text-textdim group-hover:bg-themeacc/10 group-hover:shadow-inner transition-colors duration-300 shrink-0 flex items-center justify-center mb-2 selectable">
-                                ${iconHTML}
-                            </div>
-                            <div class="flex items-start justify-center gap-1.5 w-full px-1 selectable">
-                                <div class="font-extrabold text-sm text-textmain text-center leading-snug group-hover:text-themeacc transition-colors line-clamp-2 selectable">
-                                    ${meta.title}
-                                </div>
-                                <a href="https://h5p.org${meta.url}" target="_blank" onclick="event.stopPropagation()" class="text-textdim hover:text-themeacc transition-colors shrink-0 mt-0.5 p-1 bg-preview rounded-full hover:bg-themeacc/10 selectable" title="Pelajari contoh ini di H5P.org">
-                                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                                </a>
-                            </div>
-                        `;
-                        grid.appendChild(card);
+            mp4boxfile.onSamples = (id, user, samples) => {
+                // Begitu Byte mentah ditemukan, tembak langsung ke Decoder
+                for (const sample of samples) {
+                    const chunk = new EncodedVideoChunk({
+                        type: sample.is_sync ? 'key' : 'delta',
+                        timestamp: 1e6 * sample.cts / sample.timescale,
+                        duration: 1e6 * sample.duration / sample.timescale,
+                        data: sample.data
                     });
-                    resultsEl.appendChild(grid);
+                    decoder.decode(chunk);
                 }
+            };
 
-                resultsEl.classList.remove('hidden');
-                lucide.createIcons();
-            } catch (error) { showError(error.message); } 
-            finally { statusEl.classList.add('hidden'); statusEl.classList.remove('flex'); }
-        }
-
-        // ==========================================
-        // FASE 1: LOAD & EXTRACT BINER H5P
-        // ==========================================
-        async function loadTemplateFromUrlDirectly(url, fileName, meta) {
-            showGlobalLoading("Mengunduh Cangkang", "Mengambil file .h5p ringan dari repositori...");
-            document.getElementById('template-error').classList.add('hidden');
-            try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
-                const blob = await response.blob();
+            // 5. BACA FILE SEBAGAI ARRAYBUFFER (BYPASS DOM)
+            log("⏳ Membaca file video ke dalam memori ArrayBuffer...");
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const buffer = e.target.result;
+                buffer.fileStart = 0;
+                log(`✅ File berhasil dimuat (${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB). Memulai injeksi Demuxer...`, "good");
                 
-                // Simpan metadata yang diklik
-                appState.activeMeta = meta; 
+                // Memicu Demuxer -> Decoder -> Canvas -> Encoder -> Muxer
+                mp4boxfile.appendBuffer(buffer);
+                mp4boxfile.flush();
                 
-                await extractAndValidateH5P(blob, fileName);
-            } catch (error) {
-                hideGlobalLoading();
-                showError("Gagal memuat: " + error.message);
-            }
-        }
-
-        async function extractAndValidateH5P(blobData, fileName) {
-            try {
-                const jszip = new JSZip();
-                const zip = await jszip.loadAsync(blobData);
-                if (!zip.file("h5p.json") || !zip.file("content/content.json")) throw new Error("Struktur 'h5p.json' atau 'content/content.json' tidak ditemukan.");
-
-                appState.h5pMetadata = JSON.parse(await zip.file("h5p.json").async("string"));
-                appState.templateJsonStr = await zip.file("content/content.json").async("string");
-                appState.zipInstance = zip;
-                appState.originalFileName = fileName.replace(/\.h5p$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_');
-
-                hideGlobalLoading();
-                activateTemplateUI();
-            } catch (error) {
-                let errorMsg = error.message;
-                if (errorMsg.includes("Can't find end of central directory")) errorMsg = "File ini mungkin rusak atau bukan arsip ZIP yang valid.";
-                throw new Error("Ekstrak gagal: " + errorMsg);
-            }
-        }
-
-        function activateTemplateUI() {
-            document.getElementById('catalog-section').classList.add('hidden');
-            
-            document.getElementById('template-info').innerText = `${appState.originalFileName}.h5p | Tipe: ${appState.h5pMetadata.mainLibrary}`;
-            document.getElementById('active-template-banner').classList.remove('hidden');
-            document.getElementById('active-template-banner').classList.add('flex');
-            
-            document.getElementById('footer-stats').innerText = `Active: ${appState.h5pMetadata.mainLibrary}`;
-
-            const inputJumlah = document.getElementById('param-jumlah');
-            const msgJumlah = document.getElementById('param-jumlah-msg');
-            
-            if (appState.activeMeta && appState.activeMeta.isSingleItem) {
-                inputJumlah.value = 1;
-                inputJumlah.disabled = true; 
-                inputJumlah.classList.add('bg-slate-100', 'dark:bg-slate-800', 'text-slate-400', 'cursor-not-allowed');
-                inputJumlah.classList.remove('bg-card');
+                // Tunggu mesin memproses antrean secara asinkron
+                await decoder.flush();
+                await encoder.flush();
+                muxer.finalize();
                 
-                msgJumlah.innerHTML = `<i data-lucide="alert-circle" class="w-3 h-3 inline"></i> Terkunci 1. Pilih 'Quiz (Question Set)' atau 'Column' di Katalog untuk banyak soal.`;
-                msgJumlah.classList.remove('hidden', 'bg-blue-100', 'text-blue-700', 'dark:bg-blue-900/50', 'dark:text-blue-300');
-                msgJumlah.classList.add('bg-amber-100', 'text-amber-700', 'dark:bg-amber-900/50', 'dark:text-amber-300');
-            } else {
-                inputJumlah.value = 5;
-                inputJumlah.disabled = false;
-                inputJumlah.classList.remove('bg-slate-100', 'dark:bg-slate-800', 'text-slate-400', 'cursor-not-allowed');
-                inputJumlah.classList.add('bg-card');
-                msgJumlah.classList.add('hidden');
-            }
-
-            const s2 = document.getElementById('step-2');
-            s2.classList.remove('disabled-step');
-            s2.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            lucide.createIcons();
-        }
-
-        function resetTemplate() {
-            appState.zipInstance = null; appState.templateJsonStr = ""; appState.h5pMetadata = null; appState.activeMeta = null;
-            document.getElementById('active-template-banner').classList.add('hidden');
-            document.getElementById('active-template-banner').classList.remove('flex');
-            document.getElementById('catalog-section').classList.remove('hidden');
-            document.getElementById('footer-stats').innerText = "No Template Loaded";
-
-            document.getElementById('step-2').classList.add('disabled-step');
-            document.getElementById('step-3').classList.add('disabled-step');
-            document.getElementById('generated-json').value = "";
-            validateJSONSilently();
-        }
-
-        // ==========================================
-        // FASE 2: BUILD PROMPT
-        // ==========================================
-        function generatePrompt() {
-            if (!appState.templateJsonStr) return alert("Error: Cangkang belum siap di memori.");
-
-            const jml = document.getElementById('param-jumlah').value;
-            const kog = document.getElementById('param-kognitif').value;
-            const bhs = document.getElementById('param-bahasa').options[document.getElementById('param-bahasa').selectedIndex].text;
-            const eks = document.getElementById('param-ekstra').value;
-
-            // Logika Opsi (Toggle Kunci dan Feedback)
-            const includeKunci = document.getElementById('param-kunci').checked;
-            const includeFeedback = document.getElementById('param-feedback').checked;
-
-            const instruksiTambahan = eks ? `\n- Instruksi Khusus: ${eks}` : "";
-            const parameterJumlahStr = `- Target jumlah item/soal yang harus dibuat: ${jml} item (sesuaikan dengan panjang materi).`;
-            
-            let promptAjaib = "";
-
-            // --- PROMPT KHUSUS H5P.FLASHCARDS (ANTI-CRASH) ---
-            if (appState.h5pMetadata.mainLibrary.includes('H5P.Flashcards')) {
-                let feedbackRule = includeFeedback ? 
-                    `2. MANAJEMEN UMPAN BALIK (FEEDBACK): Komponen standar H5P.Flashcards secara ketat TIDAK MENDUKUNG key kustom seperti 'feedbackOnCorrect' atau 'feedbackOnIncorrect'. Untuk memberikan umpan balik edukatif, masukkan informasi tersebut ke dalam key "tip" bawaan dengan format string: "Umpan Balik: [Tulis tips atau pembahasan singkat di sini]".` : 
-                    `2. MANAJEMEN UMPAN BALIK (FEEDBACK): Kosongkan key "tip" (isi dengan string kosong ""). Jangan berikan umpan balik.`;
-                
-                let keyRule = includeKunci ? 
-                    `Pastikan key "answer" terisi dengan benar dan presisi.` : 
-                    `KOSONGKAN bagian kunci jawaban pada key "answer".`;
-
-                promptAjaib = `Anda adalah H5P Data Engineer tingkat lanjut. Tugas Anda adalah memetakan teks materi menjadi format JSON murni untuk komponen H5P.Flashcards tanpa tambahan teks pengantar apa pun.
-
-ATURAN STRUKTUR & VALIDASI KETAT (ANTI-CRASH):
-1. TANPA KEY IMAGE: Karena aktivitas ini didesain berbasis teks penuh TANPA GAMBAR, Anda dilarang keras menyertakan properti atau key "image" di dalam objek kartu. Jangan masukkan objek "image" kosong ataupun path dummy (seperti "images/image-1.png") karena akan membuat player H5P mengalami crash/stuck loading. Setiap elemen dalam array "cards" hanya boleh berisi key "answer", "text", dan "tip".
-${feedbackRule}
-3. PERTAHANKAN STRUKTUR ASLI: Jangan menerjemahkan atau mengubah nama key bawaan JSON (seperti "cards", "text", "answer", "tip", "caseSensitive", dll.). Tipe data boolean (true/false) dan number harus tetap sesuai tipe data aslinya tanpa tanda kutip. ${keyRule}
-4. TARGET SOAL: Buat tepat ${jml} item/kartu soal yang menguji pemahaman konsep tingkat kognitif ${kog} berdasarkan materi yang diberikan. Bahasa Output: ${bhs}.${instruksiTambahan}
-5. FORMAT OUTPUT: Output harus berupa RAW JSON murni, langsung dimulai dengan kurung kurawal pembuka \`{\` dan diakhiri dengan \`}\` tanpa pembuka/penutup markdown seperti \`\`\`json atau teks basa-basi.
-
-STRUKTUR TEMPLATE ACUAN MUTLAK (BEBAS GAMBAR):
-{
-  "cards": [
-    {
-      "answer": "Contoh Jawaban",
-      "tip": "Umpan Balik: Petunjuk atau pembahasan singkat edukatif di sini.",
-      "text": "Kalimat deskriptif atau pertanyaan yang menguji konsep..."
-    }
-  ],
-  "progressText": "Kartu @card dari @total",
-  "next": "Selanjutnya",
-  "previous": "Sebelumnya",
-  "checkAnswerText": "Periksa",
-  "showSolutionsRequiresInput": true,
-  "defaultAnswerText": "Ketik jawaban Anda di sini",
-  "correctAnswerText": "Benar",
-  "incorrectAnswerText": "Salah",
-  "showSolutionText": "Jawaban yang benar",
-  "results": "Hasil Akhir",
-  "ofCorrect": "@score dari @total jawaban benar",
-  "showResults": "Tampilkan Hasil",
-  "answerShortText": "J:",
-  "retry": "Coba Lagi",
-  "caseSensitive": false,
-  "description": "[Isi dengan instruksi pengerjaan tugas]",
-  "cardAnnouncement": "Jawaban salah. Jawaban yang benar adalah @answer",
-  "correctAnswerAnnouncement": "@answer adalah benar.",
-  "pageAnnouncement": "Halaman @current dari @total",
-  "randomCards": false
-}
-
-MATERI SUMBER:
-[PASTE MATERI ANDA DI SINI]`;
-
-            } 
-            // --- PROMPT GENERIK (UNTUK TIPE KONTEN LAINNYA) ---
-            else {
-                let instruksiFitur = "";
-                if (includeKunci) {
-                    instruksiFitur += "\n- Pastikan KUNCI JAWABAN (correct answer) terisi dengan benar dan presisi untuk setiap soal/item.";
-                } else {
-                    instruksiFitur += "\n- KOSONGKAN bagian kunci jawaban (biarkan kosong/tanpa jawaban yang benar).";
-                }
-
-                if (includeFeedback) {
-                    instruksiFitur += "\n- Sertakan UMPAN BALIK (feedback/tips/hints) yang edukatif untuk pilihan jawaban benar maupun salah. Jika template asli TIDAK MEMILIKI tempat/key untuk umpan balik, Anda DIIZINKAN menambahkan struktur key standar H5P (seperti 'feedbackOnCorrect' dan 'feedbackOnIncorrect', atau object 'tipsAndFeedback', 'overallFeedback') ke dalam JSON agar feedback dapat ditampilkan.";
-                } else {
-                    instruksiFitur += "\n- TIDAK PERLU menyertakan umpan balik (feedback/tips/hints). Kosongkan atribut tersebut jika ada di struktur aslinya.";
-                }
-
-                const instruksiDuplikasi = `\n4. ATURAN DUPLIKASI & JUMLAH SOAL (SANGAT PENTING): 
-   - Jika struktur asli memiliki array penampung soal (misal: 'questions', 'cards', 'words', 'elements'), duplikasi object di dalam array tersebut hingga berjumlah TEPAT ${jml} item. 
-   - Jika template adalah tipe teks rumpang (seperti Fill in the Blanks, Drag the Words, Mark the Words), pastikan jumlah kata yang ditandai sebagai jawaban (menggunakan tanda bintang *kata*) berjumlah TEPAT ${jml} buah di dalam seluruh teks. JANGAN LEBIH DAN JANGAN KURANG.
-   - Jika TIDAK ADA array penampung soal (Template Soal Tunggal), MAKA ANDA HANYA BOLEH MEMBUAT 1 SOAL SAJA meskipun target item > 1. JANGAN PERNAH merubah struktur Object terluar {} menjadi Array []!`;
-
-                promptAjaib = `Anda adalah H5P Data Engineer tingkat lanjut. Tugas Anda HANYA memetakan teks input menjadi format JSON spesifik tanpa tambahan apapun.
-
-PARAMETER AKTIVITAS:
-${parameterJumlahStr}
-- Tingkat Kesulitan/Kognitif: ${kog}
-- Bahasa Output: ${bhs}${instruksiFitur}${instruksiTambahan}
-
-Saya memiliki struktur "content.json" bawaan dari H5P tipe: ${appState.h5pMetadata.mainLibrary}.
-Struktur template asli (Jadikan acuan mutlak):
----
-${appState.templateJsonStr}
----
-
-Tugas & Aturan Ketat:
-1. DILARANG KERAS MENGUBAH ATAU MENERJEMAHKAN NAMA KEY JSON! (Contoh: key "question" WAJIB tetap "question", tidak boleh diubah menjadi "pertanyaan" atau "soal". Key "correct" tetap "correct"). HANYA ubah teks nilainya (value) saja.
-2. PERTAHANKAN TIPE DATA: Angka (number/integer) HARUS tetap menjadi angka tanpa tanda kutip. Nilai boolean (true/false) HARUS tetap boolean.
-3. DILARANG menghapus elemen atau parameter struktur bawaan dari template asli.${instruksiDuplikasi}
-5. PASTIKAN SEMUA ARRAY (terutama untuk Crossword/Find the Words) terisi dengan format yang sesuai template. Jangan biarkan ada elemen array yang kosong atau memiliki null value.
-6. OUTPUT HARUS BERUPA JSON RAW MURNI. Jangan memberikan teks pengantar atau penutup. Output harus langsung dimulai dengan karakter pembuka yang sama persis dengan template asli.
-
---- MATERI MATERI ---
-[PASTE MATERI ANDA DI SINI]`;
-            }
-
-            document.getElementById('generated-prompt-text').value = promptAjaib;
-            document.getElementById('prompt-result-area').classList.remove('hidden');
-
-            document.getElementById('step-3').classList.remove('disabled-step');
-            setTimeout(() => document.getElementById('btn-copy').focus(), 100);
-        }
-
-        function copyPromptToClipboard() {
-            const pt = document.getElementById('generated-prompt-text');
-            pt.select(); pt.setSelectionRange(0, 999999);
-            try {
-                document.execCommand('copy');
-                const btn = document.getElementById('btn-copy');
-                const textSpan = document.getElementById('copy-text');
-                const origText = textSpan.innerText;
-                textSpan.innerText = "Disalin!";
-                btn.classList.add('bg-emerald-100', 'text-emerald-700', 'border-emerald-300');
-                btn.classList.remove('bg-card', 'text-themeacc', 'border-blue-200');
-                
-                setTimeout(() => {
-                    textSpan.innerText = origText;
-                    btn.classList.remove('bg-emerald-100', 'text-emerald-700', 'border-emerald-300');
-                    btn.classList.add('bg-card', 'text-themeacc', 'border-blue-200');
-                }, 2000);
-            } catch (err) { alert('Gagal menyalin.'); }
-        }
-
-        // ==========================================
-        // FASE 3: JSON & BUILD
-        // ==========================================
-        function cleanAITags(jsonString) {
-            let cleaned = jsonString.replace(/\[cite_[a-z]+\]/g, '');
-            cleaned = cleaned.replace(/\]+\]/g, '');
-            
-            cleaned = cleaned.replace(/"@title"/g, "'@title'");
-            cleaned = cleaned.replace(/"@chars"/g, "'@chars'");
-            
-            return cleaned;
-        }
-
-        function checkRootStructure(parsedJson) {
-            if (!appState.templateJsonStr) return;
-            const origStartsObject = appState.templateJsonStr.trim().startsWith('{');
-            const newIsObject = !Array.isArray(parsedJson) && typeof parsedJson === 'object' && parsedJson !== null;
-            
-            if (origStartsObject && !newIsObject) {
-                throw new Error("Struktur terluar (Root) rusak! Template asli diawali dengan '{' (Object), tetapi JSON buatan AI diawali dengan '[' (Array). Kemungkinan AI memaksa membuat banyak item pada template soal tunggal. Minta AI untuk HANYA MEMBUAT 1 ITEM SAJA.");
-            }
-            if (!origStartsObject && newIsObject) {
-                throw new Error("Struktur terluar (Root) rusak! Template asli diawali dengan '[' (Array), tetapi JSON buatan AI diawali dengan '{' (Object).");
-            }
-        }
-
-        function formatJSON() {
-            let val = document.getElementById('generated-json').value.trim();
-            if (!val) return; 
-            val = cleanAITags(val);
-            try {
-                const parsed = JSON.parse(val);
-                checkRootStructure(parsed);
-                document.getElementById('generated-json').value = JSON.stringify(parsed, null, 2);
-                validateJSONSilently();
-            } catch (e) {
-                alert("Format JSON Invalid:\n\n" + e.message);
-                document.getElementById('generated-json').value = val; 
-                validateJSONSilently();
-            }
-        }
-
-        function validateJSONSilently() {
-            let val = document.getElementById('generated-json').value.trim();
-            const msgEl = document.getElementById('json-validation-msg');
-            const btnBuild = document.getElementById('btn-build');
-            
-            if (!val) {
-                msgEl.innerHTML = `<i data-lucide="info" class="w-5 h-5 text-themeacc shrink-0"></i> <span>Menunggu paste kode JSON...</span>`;
-                msgEl.className = "text-sm font-bold text-textdim flex items-center gap-2 bg-card px-4 py-2 rounded-xl border border-bordercol shadow-sm w-full sm:w-auto selectable";
-                btnBuild.disabled = true; btnBuild.classList.add('opacity-50', 'cursor-not-allowed');
-                lucide.createIcons(); return;
-            }
-
-            val = cleanAITags(val);
-            try {
-                const parsed = JSON.parse(val);
-                checkRootStructure(parsed);
-                
-                msgEl.innerHTML = `<i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500 shrink-0"></i> <span>Status Sintaks: JSON Valid dan siap di-build.</span>`;
-                msgEl.className = "text-sm font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/30 px-4 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800 shadow-sm w-full sm:w-auto selectable";
-                btnBuild.disabled = false; btnBuild.classList.remove('opacity-50', 'cursor-not-allowed');
-            } catch (e) {
-                msgEl.innerHTML = `<i data-lucide="alert-triangle" class="w-5 h-5 text-red-500 shrink-0"></i> <span>Status Sintaks: Error! ${e.message.includes('Struktur terluar') ? 'Struktur Root Rusak.' : 'Terdapat kesalahan JSON.'}</span>`;
-                msgEl.className = "text-sm font-bold text-red-700 dark:text-red-400 flex items-center gap-2 bg-red-50 dark:bg-red-900/30 px-4 py-2 rounded-xl border border-red-200 dark:border-red-800 shadow-sm w-full sm:w-auto selectable";
-                btnBuild.disabled = true; btnBuild.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-            lucide.createIcons();
-        }
-
-        document.getElementById('generated-json').addEventListener('input', validateJSONSilently);
-
-        async function buildAndDownload() {
-            let newContentJson = document.getElementById('generated-json').value;
-            newContentJson = cleanAITags(newContentJson);
-            
-            try { JSON.parse(newContentJson); } 
-            catch (e) { return alert("Gagal Build: JSON masih tidak valid."); }
-
-            showGlobalLoading("Membuat Paket H5P", "Menyuntikkan data materi baru ke dalam cangkang...");
-
-            try {
-                const cleanZip = new JSZip();
-
-                cleanZip.file("content/content.json", newContentJson, { createFolders: false });
-
-                if (appState.h5pMetadata) {
-                    let meta = appState.h5pMetadata;
-                    ['preloadedDependencies', 'dynamicDependencies', 'editorDependencies'].forEach(depType => {
-                        if (meta[depType] && Array.isArray(meta[depType])) {
-                            meta[depType] = meta[depType].map(dep => {
-                                if (dep.majorVersion !== undefined) dep.majorVersion = parseInt(dep.majorVersion, 10);
-                                if (dep.minorVersion !== undefined) dep.minorVersion = parseInt(dep.minorVersion, 10);
-                                return dep;
-                            });
-                        }
-                    });
-                    cleanZip.file("h5p.json", JSON.stringify(meta, null, 2), { createFolders: false });
-                }
-
-                appState.zipInstance.forEach((relativePath, file) => {
-                    if (!file.dir && !relativePath.endsWith('/') && relativePath !== "h5p.json" && relativePath !== "content/content.json") {
-                        cleanZip.file(relativePath, file.async("arraybuffer"), { createFolders: false });
-                    }
-                });
-
-                const blob = await cleanZip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
-                
+                const { buffer: outBuffer } = muxer.target;
+                const blob = new Blob([outBuffer], { type: 'video/mp4' });
                 const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
+                
+                const totalEndTime = performance.now();
+                log(`\n🎉 SELESAI! Pipa Zero-DOM sukses dieksekusi dalam ${((totalEndTime - totalStartTime) / 1000).toFixed(2)} detik!`, "good");
+                document.getElementById('status').innerText = 'Selesai! Mengunduh otomatis...';
+                document.getElementById('progress-bar').style.width = '100%';
+
+                const a = document.createElement('a');
                 a.href = url;
-                a.download = `${appState.originalFileName}_AI_Generated.h5p`;
-                document.body.appendChild(a);
+                a.download = "output_zero_dom_gpu.mp4";
                 a.click();
-                setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
-
-                hideGlobalLoading();
-            } catch (error) {
-                hideGlobalLoading();
-                alert("Build Error: " + error.message);
-            }
-        }
-
-        lucide.createIcons();
-        fetchTatadadaCatalog();
+                
+                document.getElementById('btnProcess').disabled = false;
+            };
+            reader.readAsArrayBuffer(selectedFile);
+        });
     </script>
 </body>
 </html>
