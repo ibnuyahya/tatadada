@@ -1,65 +1,4 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FFmpeg SIMD Turbo Processor</title>
-    <style>
-        body { background-color: #0f172a; color: #f1f5f9; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1rem; margin: 0; }
-        .container { background-color: #1e293b; border: 1px solid #334155; border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); width: 100%; max-width: 42rem; padding: 1.5rem; box-sizing: border-box; }
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
-        .title { font-size: 1.5rem; font-weight: 800; margin: 0; background: linear-gradient(to right, #a855f7, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .badge { font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.75rem; border-radius: 9999px; background-color: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); }
-        .dropzone { border: 2px dashed #475569; border-radius: 0.75rem; padding: 1.5rem; text-align: center; position: relative; cursor: pointer; transition: border-color 0.2s; }
-        .dropzone:hover { border-color: #ec4899; }
-        .dropzone input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-        .btn { width: 100%; padding: 0.75rem; border-radius: 0.75rem; font-size: 0.875rem; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 1rem; }
-        .btn:disabled { background-color: #334155; color: #64748b; cursor: not-allowed; }
-        .btn-primary { background-color: #e11d48; color: #ffffff; }
-        .btn-primary:hover:not(:disabled) { background-color: #be123c; }
-        .status-text { text-align: center; font-size: 0.875rem; color: #94a3b8; margin: 1rem 0; font-weight: bold; }
-        .progress-container { width: 100%; background-color: #334155; border-radius: 9999px; height: 0.625rem; overflow: hidden; display: none; margin-bottom: 1rem; }
-        .progress-bar { background-color: #ec4899; height: 100%; width: 0%; transition: width 0.1s linear; }
-        .terminal { height: 16rem; background-color: #020617; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 0.75rem; font-family: monospace; font-size: 0.75rem; color: #fbbf24; overflow-y: auto; white-space: pre-wrap; }
-        .output-box { display: none; margin-top: 1rem; }
-        .output-box video { width: 100%; border-radius: 0.75rem; border: 1px solid #334155; }
-        .warning-box { background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #fca5a5; border-radius: 0.75rem; padding: 1rem; font-size: 0.75rem; margin-bottom: 1.5rem; display: none;}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1 class="title">Turbo SIMD Engine</h1>
-            <span id="badge" class="badge">Memeriksa Keamanan...</span>
-        </div>
-
-        <div id="sab-warning" class="warning-box">
-            <p style="margin:0; font-weight:bold;">⚠️ Keamanan COOP/COEP Belum Aktif!</p>
-            <p style="margin:5px 0 0 0;">SharedArrayBuffer diblokir. Multi-Thread gagal dinyalakan.</p>
-        </div>
-
-        <div class="dropzone">
-            <div class="text-main"><span id="file-name-label" style="font-weight: 600; color: #ec4899;">Pilih file video</span> atau seret ke sini</div>
-            <p class="text-sub" style="font-size: 0.75rem; color: #64748b;">Mendukung H.264, WebM, MKV</p>
-            <input type="file" id="uploader" accept="video/*">
-        </div>
-
-        <button id="btnProcess" disabled class="btn btn-primary">Mulai Render Turbo (Multi-Thread SIMD)</button>
-
-        <div id="status" class="status-text">Siap untuk memproses.</div>
-        <div id="progress-container" class="progress-container">
-            <div id="progress-bar" class="progress-bar"></div>
-        </div>
-
-        <div id="output-container" class="output-box">
-            <video id="output-video" controls></video>
-        </div>
-
-        <h3 style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;">Log Prosesor SIMD</h3>
-        <div id="ffmpeg-logs" class="terminal">Menunggu instruksi...</div>
-    </div>
-
-    <script type="module">
+<script type="module">
         import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
         import { fetchFile, toBlobURL } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
 
@@ -113,21 +52,28 @@
                 }
 
                 if (!isEngineLoaded) {
-                    document.getElementById('status').innerText = 'Menyalakan Mesin SIMD Lokal...';
-                    appendLog('\n[Sistem] Menghubungkan ke server lokal (danial.my.id)...');
+                    document.getElementById('status').innerText = 'Mengunduh Aset SIMD dari CDN Resmi...';
+                    appendLog('\n[Sistem] Menghubungkan ke CDN Global (unpkg.com)...');
                     
-                    const localBaseURL = 'https://danial.my.id/simplevideo/lib/simd';
+                    const baseURL = 'https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm';
                     
-                    // Pekerja Wrapper masih perlu dimuat sebagai Blob karena batas keamanan browser ke unpkg
-                    appendLog(' ⏳ Menyiapkan wrapper javascript...');
+                    appendLog(' ⏳ Mengunduh: ffmpeg-core.js...');
+                    const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+                    
+                    appendLog(' ⏳ Mengunduh: ffmpeg-core.wasm (Turbo Engine) - Mohon tunggu...');
+                    const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+                    
+                    appendLog(' ⏳ Mengunduh: worker.js...');
+                    const workerURL = await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript');
+                    
+                    appendLog(' ⏳ Menyiapkan class worker...');
                     const classWorkerURL = await toBlobURL('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js', 'text/javascript');
 
-                    // LOAD LANGSUNG DARI URL (Tanpa toBlobURL)
-                    appendLog('⚙️ Memuat Mesin SIMD (Direct Load)...');
+                    appendLog('⚙️ Merakit Mesin SIMD...');
                     await ffmpeg.load({
-                        coreURL: `${localBaseURL}/ffmpeg-core.js`,
-                        wasmURL: `${localBaseURL}/ffmpeg-core.wasm`,
-                        workerURL: `${localBaseURL}/ffmpeg-core.worker.js`,
+                        coreURL: coreURL,
+                        wasmURL: wasmURL,
+                        workerURL: workerURL,
                         classWorkerURL: classWorkerURL
                     });
                     
@@ -146,12 +92,13 @@
                 
                 const startTime = performance.now();
 
+                // PERINTAH RENDER SUPER CEPAT
                 await ffmpeg.exec([
                     '-i', inputName, 
                     '-c:v', 'libx264', 
                     '-preset', 'ultrafast', 
                     '-crf', '28', 
-                    '-r', '60', 
+                    '-threads', '0', // Paksa penggunaan semua core CPU yang tersedia
                     outputName
                 ]);
 
@@ -179,5 +126,3 @@
             }
         });
     </script>
-</body>
-</html>
