@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Video Processor</title>
+    <title>GPU Video Processor (Stream Engine)</title>
     
-    <!-- MEMUAT LIBRARY LOKAL (Satu Domain / Same-Origin). Kebal pemblokiran Worker! -->
-    <script src="./lib/ffmpeg.js"></script>
+    <!-- MUXER JAVASCRIPT RINGAN KHUSUS UNTUK WEBCODECS -->
+    <script src="https://unpkg.com/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
     
     <style>
         body {
@@ -27,7 +27,7 @@
             border-radius: 1rem;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             width: 100%;
-            max-width: 42rem;
+            max-width: 48rem;
             padding: 1.5rem;
             box-sizing: border-box;
         }
@@ -41,7 +41,7 @@
             font-size: 1.5rem;
             font-weight: 800;
             margin: 0;
-            background: linear-gradient(to right, #60a5fa, #818cf8);
+            background: linear-gradient(to right, #34d399, #3b82f6);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -50,28 +50,36 @@
             font-weight: 600;
             padding: 0.25rem 0.75rem;
             border-radius: 9999px;
-            background-color: rgba(245, 158, 11, 0.1);
-            color: #fbbf24;
-            border: 1px solid rgba(245, 158, 11, 0.2);
-        }
-        .badge.ready {
             background-color: rgba(16, 185, 129, 0.1);
             color: #34d399;
             border: 1px solid rgba(16, 185, 129, 0.2);
         }
-        .badge.failed {
-            background-color: rgba(239, 68, 68, 0.1);
-            color: #f87171;
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-        .warning-box {
-            background-color: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.2);
-            color: #fca5a5;
-            border-radius: 0.75rem;
-            padding: 1rem;
-            font-size: 0.75rem;
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
             margin-bottom: 1.5rem;
+            display: none;
+        }
+        .stat-card {
+            background-color: #020617;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            border: 1px solid #1e293b;
+            text-align: center;
+        }
+        .stat-title {
+            font-size: 0.65rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #38bdf8;
+            font-variant-numeric: tabular-nums;
         }
         .dropzone {
             border: 2px dashed #475569;
@@ -131,18 +139,19 @@
             cursor: not-allowed;
         }
         .btn-primary {
-            background-color: #4f46e5;
+            background-color: #059669;
             color: #ffffff;
         }
         .btn-primary:hover:not(:disabled) {
-            background-color: #4338ca;
-            box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
+            background-color: #047857;
+            box-shadow: 0 10px 15px -3px rgba(5, 150, 105, 0.3);
         }
         .status-text {
             text-align: center;
             font-size: 0.875rem;
             color: #94a3b8;
             margin: 1rem 0;
+            font-weight: bold;
         }
         .progress-container {
             width: 100%;
@@ -151,12 +160,13 @@
             height: 0.625rem;
             overflow: hidden;
             display: none;
+            margin-bottom: 1rem;
         }
         .progress-bar {
-            background-color: #3b82f6;
+            background-color: #34d399;
             height: 100%;
             width: 0%;
-            transition: width 0.2s;
+            transition: width 0.1s linear;
         }
         .output-box {
             display: none;
@@ -181,7 +191,7 @@
             margin-top: 0.5rem;
         }
         .btn-download {
-            background-color: #059669;
+            background-color: #3b82f6;
             color: #ffffff;
             padding: 0.5rem 1rem;
             font-size: 0.75rem;
@@ -191,7 +201,7 @@
             transition: background-color 0.2s;
         }
         .btn-download:hover {
-            background-color: #047857;
+            background-color: #2563eb;
         }
         .terminal-header {
             display: flex;
@@ -207,237 +217,335 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
-        .btn-clear {
-            background: none;
-            border: none;
-            color: #64748b;
-            font-size: 0.625rem;
-            cursor: pointer;
-            transition: color 0.2s;
-        }
-        .btn-clear:hover {
-            color: #cbd5e1;
-        }
         .terminal {
-            height: 14rem;
+            height: 16rem;
             background-color: #020617;
             border: 1px solid #1e293b;
             border-radius: 0.75rem;
             padding: 0.75rem;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
             font-size: 0.75rem;
             color: #34d399;
             overflow-y: auto;
             white-space: pre-wrap;
             box-sizing: border-box;
+            line-height: 1.4;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="title">Video Processor</h1>
-            <span id="lib-status-badge" class="badge">Menyiapkan...</span>
-        </div>
-
-        <div id="coop-warning" class="warning-box hidden">
-            <p class="font-bold">⚠️ Catatan Isolasi Browser</p>
-            <p>Header keamanan SharedArrayBuffer tidak terdeteksi. Namun jangan khawatir, mode Lokal (Single-Thread) akan tetap berjalan dengan aman.</p>
+            <h1 class="title">GPU Video Processor</h1>
+            <span class="badge ready">Audio & Video Engine</span>
         </div>
 
         <div>
+            <!-- Area Input Berkas -->
             <div class="dropzone">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 48 48">
                     <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 <div class="text-main">
-                    <span id="file-name-label" style="font-weight: 600; color: #60a5fa;">Pilih file video</span> atau seret ke sini
+                    <span id="file-name-label" style="font-weight: 600; color: #34d399;">Pilih file video</span> atau seret ke sini
                 </div>
-                <p class="text-sub">MP4, WebM, MKV, AVI, dll.</p>
+                <p class="text-sub">WebM, MP4, MKV (Support Audio AAC)</p>
                 <input type="file" id="uploader" accept="video/*">
             </div>
 
+            <!-- Tombol Konversi -->
             <button id="btnProcess" disabled class="btn btn-primary">
-                <span>Mulai Konversi ke MP4</span>
+                <span>Mulai Render (1080p 60FPS + Audio)</span>
             </button>
 
+            <!-- Dashboard Statistik -->
+            <div id="stats-grid" class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-title">Kecepatan Render</div>
+                    <div id="stat-fps" class="stat-value">0.0 FPS</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Estimasi Selesai (ETA)</div>
+                    <div id="stat-eta" class="stat-value">00:00</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Frame Terekstrak</div>
+                    <div id="stat-gpu" class="stat-value">0 Frame</div>
+                </div>
+            </div>
+
+            <!-- Indikator Status & Progress Bar -->
             <div>
-                <div id="status" class="status-text">Menunggu instruksi...</div>
+                <div id="status" class="status-text">Siap untuk memproses.</div>
                 <div id="progress-container" class="progress-container">
                     <div id="progress-bar" class="progress-bar"></div>
                 </div>
             </div>
 
+            <!-- Hasil Pemrosesan Video -->
             <div id="output-container" class="output-box">
-                <h3>Hasil Pemrosesan:</h3>
+                <h3>Hasil Render A/V:</h3>
                 <video id="output-video" controls></video>
                 <div class="download-wrapper">
-                    <a id="btnDownload" class="btn-download" download="processed_video.mp4">
-                        Download Video
+                    <a id="btnDownload" class="btn-download" download="rendered_1080p_audio.mp4">
+                        Download Video (.mp4)
                     </a>
                 </div>
             </div>
 
+            <!-- Log Terminal Real-time -->
             <div>
                 <div class="terminal-header">
-                    <span class="terminal-title">FFmpeg Terminal Log</span>
-                    <button id="btnClearLogs" class="btn-clear">Bersihkan</button>
+                    <span class="terminal-title">Log Stream Pipa Ganda (A/V)</span>
                 </div>
                 <div id="ffmpeg-logs" class="terminal"></div>
             </div>
         </div>
     </div>
 
+    <!-- ELEMEN VIDEO TERSEMBUNYI (MUTED DIHILANGKAN AGAR AUDIO DAPAT DICAPTURE) -->
+    <video id="hidden-decoder" crossorigin="anonymous" playsinline style="display:none;"></video>
+
     <script>
+        const uploader = document.getElementById('uploader');
+        const btnProcess = document.getElementById('btnProcess');
+        const fileNameLabel = document.getElementById('file-name-label');
+        const statusLabel = document.getElementById('status');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const hiddenVideo = document.getElementById('hidden-decoder');
         const logContainer = document.getElementById('ffmpeg-logs');
+        
+        const statsGrid = document.getElementById('stats-grid');
+        const statFps = document.getElementById('stat-fps');
+        const statEta = document.getElementById('stat-eta');
+        const statGpu = document.getElementById('stat-gpu');
+
         function appendLog(message) {
             logContainer.textContent += message + '\n';
             logContainer.scrollTop = logContainer.scrollHeight;
         }
 
-        let ffmpeg = null;
-        let isCoreLoaded = false;
-        const libBasePath = './lib';
-
-        const statusLabel = document.getElementById('status');
-        const libBadge = document.getElementById('lib-status-badge');
-        const btnProcess = document.getElementById('btnProcess');
-        const uploader = document.getElementById('uploader');
-        const fileNameLabel = document.getElementById('file-name-label');
-        const progressContainer = document.getElementById('progress-container');
-        const progressBar = document.getElementById('progress-bar');
-        const coopWarning = document.getElementById('coop-warning');
-
-        // Mengambil URL Absolut untuk menargetkan file di domain yang SAMA (Same-Origin)
-        function getAbsoluteURL(relativePath) {
-            return new URL(relativePath, window.location.href).href;
+        function formatTime(seconds) {
+            if (!isFinite(seconds)) return "00:00";
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
         }
 
-        async function customFetchFile(file) {
-            if (typeof file === 'string') {
-                const response = await fetch(file);
-                return new Uint8Array(await response.arrayBuffer());
-            }
-            if (file instanceof File || file instanceof Blob) {
-                return new Uint8Array(await file.arrayBuffer());
-            }
-            return file;
+        if (!window.VideoEncoder || !window.AudioEncoder || !window.MediaStreamTrackProcessor) {
+            alert("Browser Anda belum mendukung penuh WebCodecs (Audio & Video). Gunakan Chrome Desktop terbaru.");
+        } else {
+            appendLog('✅ [Sistem] Arsitektur Audio & Video Stream Engine Tersedia.');
         }
-
-        function initFFmpeg() {
-            appendLog('Memulai inisialisasi Pustaka Lokal...');
-            
-            if (!window.crossOriginIsolated) {
-                coopWarning.classList.remove('hidden');
-                appendLog('⚠️ Isolasi browser nonaktif (Mode Lokal Single-Thread Aktif).');
-            } else {
-                appendLog('✅ Status Isolasi Browser (SharedArrayBuffer) aktif.');
-            }
-
-            const lib = window.FFmpegWASM || window.FFmpeg;
-
-            if (lib && lib.FFmpeg) {
-                try {
-                    ffmpeg = new lib.FFmpeg();
-
-                    ffmpeg.on('log', ({ message }) => {
-                        appendLog(`[FFmpeg] ${message}`);
-                    });
-
-                    ffmpeg.on('progress', ({ progress }) => {
-                        const percent = Math.round(progress * 100);
-                        statusLabel.innerText = `Memproses video: ${percent}% selesai...`;
-                        progressBar.style.width = `${percent}%`;
-                    });
-
-                    libBadge.className = "badge ready";
-                    libBadge.innerText = "Lokal Siap";
-                    statusLabel.innerText = "Silakan pilih video untuk memulai.";
-                    appendLog('✅ [Sistem] Objek FFmpeg siap menerima instruksi.');
-                } catch (err) {
-                    libBadge.className = "badge failed";
-                    libBadge.innerText = "Gagal";
-                    appendLog(`❌ [Error Inisialisasi] ${err.message}`);
-                }
-            } else {
-                libBadge.className = "badge failed";
-                libBadge.innerText = "Gagal Memuat";
-                appendLog('❌ Error: Objek FFmpeg tidak ditemukan pada skrip lokal Anda.');
-            }
-        }
-
-        window.addEventListener('load', initFFmpeg);
 
         uploader.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
                 fileNameLabel.innerText = file.name;
                 btnProcess.disabled = false;
-                statusLabel.innerText = `File "${file.name}" siap diproses.`;
-                progressContainer.style.display = 'none';
-                progressBar.style.width = '0%';
+                statusLabel.innerText = `File: ${file.name} siap.`;
             }
-        });
-
-        document.getElementById('btnClearLogs').addEventListener('click', () => {
-            logContainer.textContent = '';
         });
 
         btnProcess.addEventListener('click', async () => {
             const file = uploader.files[0];
-            if (!file || !ffmpeg) return;
+            if (!file) return;
 
             btnProcess.disabled = true;
             progressContainer.style.display = 'block';
+            statsGrid.style.display = 'grid';
             progressBar.style.width = '0%';
+            logContainer.textContent = ''; 
+
+            appendLog(`[Sistem] Menyiapkan Pipa Ekstraksi Audio & Video...`);
+
+            let audioCtx = null;
 
             try {
-                if (!isCoreLoaded) {
-                    statusLabel.innerText = 'Menyiapkan Engine WASM Lokal...';
-                    appendLog('\n--- MEMULAI PEMUATAN LOKAL ---');
-                    
-                    const coreURL = getAbsoluteURL(`${libBasePath}/ffmpeg-core.js`);
-                    const wasmURL = getAbsoluteURL(`${libBasePath}/ffmpeg-core.wasm`);
-                    
-                    appendLog(`[Ping] Target Core : ${coreURL}`);
-                    appendLog(`[Ping] Target WASM : ${wasmURL}`);
+                // 1. SIAPKAN VIDEO SUMBER
+                hiddenVideo.src = URL.createObjectURL(file);
+                // Muted dihilangkan agar audio track tersedia. Suara akan diisolasi oleh Web Audio API.
+                
+                await new Promise((resolve, reject) => {
+                    hiddenVideo.onloadedmetadata = resolve;
+                    hiddenVideo.onerror = reject;
+                });
 
-                    // KITA HANYA MEMUAT 2 FILE INI DARI SERVER ANDA SENDIRI.
-                    // Karena satu domain (danial.my.id), browser TIDAK AKAN memblokir Workernya!
-                    const loadConfig = {
-                        coreURL: coreURL,
-                        wasmURL: wasmURL
-                    };
+                const duration = hiddenVideo.duration;
+                const targetWidth = 1920;
+                const targetHeight = 1080;
+                const targetFPS = 60;
+                const approxTotalFrames = Math.floor(duration * targetFPS);
 
-                    appendLog('[Sistem] Menjalankan ffmpeg.load()... (Tunggu sejenak)');
-                    
-                    const loadPromise = ffmpeg.load(loadConfig);
-                    const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error("Timeout! Proses loading stuck selama 30 detik.")), 30000);
-                    });
-                    
-                    await Promise.race([loadPromise, timeoutPromise]);
-                    
-                    isCoreLoaded = true;
-                    appendLog('🎉 [Sistem] Core WASM berhasil dimuat!');
+                appendLog(`[Media] Durasi: ${duration.toFixed(2)}s`);
+
+                // 2. ISOLASI AUDIO (Mengambil suara tanpa membocorkan ke speaker)
+                appendLog(`[Audio] Mengisolasi aliran suara...`);
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+                const sourceNode = audioCtx.createMediaElementSource(hiddenVideo);
+                const destNode = audioCtx.createMediaStreamDestination();
+                
+                // Menghubungkan sumber ke ruang hampa (destination node)
+                // KITA TIDAK MENGHUBUNGKANNYA ke audioCtx.destination, jadi speaker Anda akan diam!
+                sourceNode.connect(destNode);
+
+                // 3. SIAPKAN MUXER (Wadah MP4 dengan Dukungan Video dan Audio)
+                let muxer = new Mp4Muxer.Muxer({
+                    target: new Mp4Muxer.ArrayBufferTarget(),
+                    video: { codec: 'avc', width: targetWidth, height: targetHeight },
+                    audio: { codec: 'aac', sampleRate: 44100, numberOfChannels: 2 },
+                    fastStart: 'in-memory',
+                    firstTimestampBehavior: 'offset'
+                });
+
+                // 4. SIAPKAN AUDIO ENCODER
+                let audioFramesCount = 0;
+                const audioEncoder = new AudioEncoder({
+                    output: (chunk, meta) => {
+                        muxer.addAudioChunk(chunk, meta);
+                        audioFramesCount++;
+                    },
+                    error: (e) => appendLog(`❌ [Audio Encoder Error] ${e.message}`)
+                });
+                
+                await audioEncoder.configure({
+                    codec: 'mp4a.40.2', // AAC LC
+                    sampleRate: 44100,
+                    numberOfChannels: 2,
+                    bitrate: 128000 // 128 kbps
+                });
+
+                // 5. SIAPKAN VIDEO ENCODER
+                let videoFramesCount = 0;
+                const videoEncoder = new VideoEncoder({
+                    output: (chunk, meta) => {
+                        muxer.addVideoChunk(chunk, meta);
+                        videoFramesCount++;
+                    },
+                    error: (e) => appendLog(`❌ [Video Encoder Error] ${e.message}`)
+                });
+                
+                await videoEncoder.configure({
+                    codec: 'avc1.4D4028',
+                    width: targetWidth,
+                    height: targetHeight,
+                    bitrate: 8_000_000,
+                    framerate: targetFPS,
+                    hardwareAcceleration: 'prefer-hardware',
+                    avc: { format: 'annexb' }
+                });
+
+                // 6. SIAPKAN PEMBACA STREAM (TRACK PROCESSORS)
+                // Audio dari Web Audio API Destination
+                const audioTrack = destNode.stream.getAudioTracks()[0];
+                let audioReader = null;
+                if (audioTrack) {
+                    const audioProcessor = new MediaStreamTrackProcessor({ track: audioTrack });
+                    audioReader = audioProcessor.readable.getReader();
+                    appendLog(`✅ [Audio] Track Audio Terdeteksi!`);
+                } else {
+                    appendLog(`⚠️ [Audio] Video ini tidak memiliki track audio.`);
                 }
 
-                const inputName = file.name;
-                const outputName = 'converted_' + Date.now() + '.mp4';
+                // Video dari Canvas HTML Element
+                const videoStream = hiddenVideo.captureStream();
+                const videoTrack = videoStream.getVideoTracks()[0];
+                const videoProcessor = new MediaStreamTrackProcessor({ track: videoTrack });
+                const videoReader = videoProcessor.readable.getReader();
+
+                let startTime = performance.now();
+                let isVideoEnded = false;
+                hiddenVideo.onended = () => { isVideoEnded = true; };
+
+                // Kunci Rahasia A/V Sync (Video Audio harus diputar di kecepatan normal 1.0)
+                // Memutar video lebih cepat akan merusak sinkronisasi audio track bawaan browser.
+                const renderSpeedMult = 1.0; 
+                hiddenVideo.playbackRate = renderSpeedMult;
                 
-                statusLabel.innerText = 'Membaca video ke memori...';
-                const fileData = await customFetchFile(file);
-                await ffmpeg.writeFile(inputName, fileData);
+                await audioCtx.resume();
+                hiddenVideo.play();
 
-                statusLabel.innerText = 'Memulai proses konversi...';
-                appendLog(`\n[Konversi] ffmpeg -i "${inputName}" -c:v libx264 -preset ultrafast -crf 28 "${outputName}"`);
+                appendLog(`\n🚀 [ENGINE START] Merekam dan mengekstrak Audio & Video secara Real-Time...`);
+                appendLog(`ℹ️ Catatan: Karena kita mengekstrak Audio, kecepatan render dibatasi 1x (Realtime) agar suara tersinkronisasi sempurna.`);
+
+                // FUNGSI PIPA AUDIO
+                const processAudio = async () => {
+                    if (!audioReader) return;
+                    while (true) {
+                        const { done, value: audioData } = await audioReader.read();
+                        if (done || isVideoEnded || hiddenVideo.currentTime >= duration) {
+                            if (audioData) audioData.close();
+                            break;
+                        }
+                        audioEncoder.encode(audioData);
+                        audioData.close(); // Bersihkan RAM
+                    }
+                    await audioEncoder.flush();
+                };
+
+                // FUNGSI PIPA VIDEO
+                const canvas = new OffscreenCanvas(targetWidth, targetHeight);
+                const ctx = canvas.getContext('2d', { alpha: false });
                 
-                await ffmpeg.exec(['-i', inputName, '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', outputName]);
+                const processVideo = async () => {
+                    while (true) {
+                        const { done, value: rawFrame } = await videoReader.read();
+                        
+                        if (done || isVideoEnded || hiddenVideo.currentTime >= duration) {
+                            if (rawFrame) rawFrame.close();
+                            break;
+                        }
 
-                statusLabel.innerText = 'Menyelesaikan file hasil...';
-                const data = await ffmpeg.readFile(outputName);
+                        // Resize GPU Canvas
+                        ctx.drawImage(rawFrame, 0, 0, targetWidth, targetHeight);
 
-                const blob = new Blob([data.buffer], { type: 'video/mp4' });
+                        const frame = new VideoFrame(canvas, {
+                            timestamp: rawFrame.timestamp,
+                            duration: rawFrame.duration || (1000000 / targetFPS)
+                        });
+
+                        const isKeyFrame = (videoFramesCount % targetFPS === 0);
+                        videoEncoder.encode(frame, { keyFrame: isKeyFrame });
+
+                        frame.close();
+                        rawFrame.close();
+                        
+                        // Update UI 
+                        if (videoFramesCount % 15 === 0) {
+                            const now = performance.now();
+                            const elapsedSec = (now - startTime) / 1000;
+                            const currentFps = videoFramesCount / elapsedSec;
+                            const framesLeft = approxTotalFrames - videoFramesCount;
+                            const etaSec = currentFps > 0 ? Math.max(0, framesLeft / currentFps) : 0;
+                            
+                            let percent = Math.round((videoFramesCount / approxTotalFrames) * 100);
+                            if (percent > 100) percent = 100;
+                            
+                            progressBar.style.width = `${percent}%`;
+                            statusLabel.innerText = `Menyedot A/V... (${percent}%)`;
+                            statFps.innerText = `${currentFps.toFixed(1)} FPS`;
+                            statEta.innerText = formatTime(etaSec);
+                            statGpu.innerText = `${videoFramesCount} Frm`;
+
+                            if (videoFramesCount % 60 === 0) {
+                                appendLog(`[Render] Video: ${videoFramesCount} frames | Audio: ${audioFramesCount} chunks`);
+                            }
+                        }
+                    }
+                    await videoEncoder.flush();
+                };
+
+                // JALANKAN KEDUA PIPA SECARA BERSAMAAN (Paralel / Concurrent)
+                await Promise.all([processVideo(), processAudio()]);
+
+                // 7. PENYELESAIAN
+                statusLabel.innerText = 'Menyatukan Audio & Video...';
+                appendLog(`\n[Info] Semua frame terekstrak. Menyatukan data (Muxing)...`);
+                muxer.finalize();
+
+                const { buffer } = muxer.target;
+                const blob = new Blob([buffer], { type: 'video/mp4' });
                 const videoUrl = URL.createObjectURL(blob);
 
                 const outputVideo = document.getElementById('output-video');
@@ -446,22 +554,29 @@
 
                 outputVideo.src = videoUrl;
                 btnDownload.href = videoUrl;
-                btnDownload.download = 'converted_' + inputName.substring(0, inputName.lastIndexOf('.')) + '.mp4';
                 
                 outputContainer.style.display = 'block';
-                statusLabel.innerText = 'Konversi Berhasil!';
                 progressBar.style.width = '100%';
-                appendLog('✅ [Sukses] Video berhasil dikonversi!');
-
-                await ffmpeg.deleteFile(inputName);
-                await ffmpeg.deleteFile(outputName);
-
+                statusLabel.innerText = 'Render A/V Selesai!';
+                
+                const totalTimeSec = (performance.now() - startTime) / 1000;
+                
+                appendLog(`\n✅ [SELESAI] Video MP4 beserta Suara berhasil diekspor!`);
+                appendLog(`📊 STATISTIK AKHIR:`);
+                appendLog(` - Total Frame Video : ${videoFramesCount} Frames`);
+                appendLog(` - Total Chunk Audio : ${audioFramesCount} Chunks`);
+                appendLog(` - Waktu Total Render: ${formatTime(totalTimeSec)}`);
+                
             } catch (error) {
-                statusLabel.innerText = 'Gagal memproses video!';
-                appendLog(`❌ [Error Fatal] ${error.message || error}`);
+                statusLabel.innerText = 'Terjadi kesalahan sistem!';
+                appendLog(`❌ [Error Fatal] ${error.message}`);
                 console.error(error);
             } finally {
                 btnProcess.disabled = false;
+                URL.revokeObjectURL(hiddenVideo.src);
+                if (audioCtx) {
+                    audioCtx.close();
+                }
             }
         });
     </script>
