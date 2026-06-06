@@ -299,26 +299,27 @@
                         <span class="text-sm font-medium" data-i18n="preview_area">Area Preview</span>
                     </div>
                     
+                    <img id="preview-bg" src="" class="absolute inset-0 w-full h-full z-0 hidden pointer-events-none" />
                     <!-- Player Utama -->
                     <video id="preview-video" class="absolute inset-0 w-full h-full z-0 hidden" playsinline></video>
                     
                     <!-- Stage Logo Overlay -->
                     <div id="overlay-stage"></div>
 
-                    <!-- Player Controls -->
+                    <!-- Player Controls (Single Timeline) -->
                     <div id="player-controls" class="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col gap-2 z-30 transition-opacity opacity-0 group-hover:opacity-100 hidden">
                         <div class="flex items-center gap-2">
                             <span id="time-current" class="text-white text-[10px] font-mono">00:00</span>
-                            <input type="range" id="seek-bar" class="flex-1 cursor-pointer accent-theme-accent h-1.5 bg-white/30 rounded-lg appearance-none" value="0" min="0" max="100" step="0.1">
+                            <input type="range" id="seek-bar" class="flex-1 cursor-pointer accent-theme-accent h-1.5 bg-white/30 rounded-lg appearance-none" value="0" min="0" max="1000" step="1">
                             <span id="time-total" class="text-white text-[10px] font-mono">00:00</span>
                         </div>
                         <div class="flex justify-between items-center text-white">
                             <div class="flex items-center gap-4">
-                                <button class="hover:text-theme-accent transition-colors" id="btn-player-prev" title="Video Target Sebelumnya"><i data-lucide="skip-back" class="w-4 h-4"></i></button>
+                                <button class="hover:text-theme-accent transition-colors" id="btn-player-prev" title="Video Target Sebelumnya (Antrean Batch)"><i data-lucide="skip-back" class="w-4 h-4"></i></button>
                                 <button class="hover:text-theme-accent transition-colors" id="btn-player-rewind" title="Mundur 10 Detik"><i data-lucide="rewind" class="w-4 h-4"></i></button>
                                 <button class="hover:bg-theme-accent-hover transition-colors w-8 h-8 flex items-center justify-center bg-theme-accent rounded-full text-white shadow-md" id="btn-player-play"><i data-lucide="play" class="w-4 h-4 fill-current ml-0.5"></i></button>
                                 <button class="hover:text-theme-accent transition-colors" id="btn-player-forward" title="Maju 10 Detik"><i data-lucide="fast-forward" class="w-4 h-4"></i></button>
-                                <button class="hover:text-theme-accent transition-colors" id="btn-player-next" title="Video Target Selanjutnya"><i data-lucide="skip-forward" class="w-4 h-4"></i></button>
+                                <button class="hover:text-theme-accent transition-colors" id="btn-player-next" title="Video Target Selanjutnya (Antrean Batch)"><i data-lucide="skip-forward" class="w-4 h-4"></i></button>
                             </div>
                             <div class="flex items-center gap-3">
                                 <span id="clip-indicator" class="text-[10px] font-bold px-1.5 py-0.5 bg-theme-accent text-white rounded border border-theme-accent shadow-sm uppercase tracking-wider hidden">Intro</span>
@@ -634,8 +635,8 @@
         function getStateSnapshot() {
             return {
                 config: {
-                    intro: config.intro ? config.intro.file : null,
-                    outro: config.outro ? config.outro.file : null,
+                    intro: config.intro ? { file: config.intro.file, duration: config.intro.duration } : null,
+                    outro: config.outro ? { file: config.outro.file, duration: config.outro.duration } : null,
                     wm1: config.wm1 ? { file: config.wm1.file, x: config.wm1.x, y: config.wm1.y, w: config.wm1.w, h: config.wm1.h, opacity: config.wm1.opacity } : null,
                     wm2: config.wm2 ? { file: config.wm2.file, x: config.wm2.x, y: config.wm2.y, w: config.wm2.w, h: config.wm2.h, opacity: config.wm2.opacity } : null,
                     ratio: document.getElementById('canvas-ratio').value,
@@ -665,13 +666,17 @@
             document.getElementById('btn-outro').classList.remove('border-theme-accent', 'text-theme-accent');
 
             if(state.config.intro) {
-                config.intro = { file: state.config.intro, url: URL.createObjectURL(state.config.intro) };
+                const file = state.config.intro.file || state.config.intro; // fallback older save
+                const dur = state.config.intro.duration || 0;
+                config.intro = { file: file, url: URL.createObjectURL(file), duration: dur };
                 document.getElementById('intro-lbl').innerText = config.intro.file.name;
                 document.getElementById('clear-intro').classList.remove('hidden');
                 document.getElementById('btn-intro').classList.add('border-theme-accent', 'text-theme-accent');
             }
             if(state.config.outro) {
-                config.outro = { file: state.config.outro, url: URL.createObjectURL(state.config.outro) };
+                const file = state.config.outro.file || state.config.outro; // fallback older save
+                const dur = state.config.outro.duration || 0;
+                config.outro = { file: file, url: URL.createObjectURL(file), duration: dur };
                 document.getElementById('outro-lbl').innerText = config.outro.file.name;
                 document.getElementById('clear-outro').classList.remove('hidden');
                 document.getElementById('btn-outro').classList.add('border-theme-accent', 'text-theme-accent');
@@ -707,7 +712,6 @@
             updateBatchUI();
             resizePreview();
             
-            // Build real sequence instead of static stage refresh
             buildPreviewSequence();
         }
 
@@ -800,9 +804,10 @@
             }
         });
 
-        const handleBumper = (type) => (e) => {
+        const handleBumper = (type) => async (e) => {
             const file = e.target.files[0]; if(!file) return;
-            config[type] = { file, url: URL.createObjectURL(file) };
+            const dur = await probeDuration(file);
+            config[type] = { file, url: URL.createObjectURL(file), duration: dur };
             document.getElementById(`${type}-lbl`).innerText = file.name;
             document.getElementById(`clear-${type}`).classList.remove('hidden');
             document.getElementById(`btn-${type}`).classList.add('border-theme-accent', 'text-theme-accent');
@@ -870,7 +875,7 @@
         });
 
         // ----------------------------------------------------
-        // LOGIKA KANVAS & PREVIEW PLAYER (WYSIWYG)
+        // LOGIKA KANVAS & PREVIEW PLAYER (SEAMLESS TIMELINE)
         // ----------------------------------------------------
         const wrapper = document.getElementById('preview-wrapper');
         const container = document.getElementById('preview-container');
@@ -879,10 +884,15 @@
         const playerControls = document.getElementById('player-controls');
         const previewPlaceholder = document.getElementById('preview-placeholder');
         const clipIndicator = document.getElementById('clip-indicator');
+        const btnPlay = document.getElementById('btn-player-play');
+        const seekBar = document.getElementById('seek-bar');
         
         let dragCtx = null;
         let previewSequence = [];
         let previewIndex = 0;
+        let totalSequenceDuration = 0;
+        let globalPlayState = false;
+        let isSeeking = false;
 
         function resizePreview() {
             if (!wrapper || !container) return;
@@ -913,39 +923,38 @@
             resizeAnimFrame = requestAnimationFrame(resizePreview);
         }).observe(wrapper);
 
-        // Sequence Builder
         function buildPreviewSequence() {
-            // Hentikan pemutaran secara paksa dan reset icon play setiap kali sequence diperbarui
-            previewVideo.pause();
-            const playBtn = document.getElementById('btn-player-play');
-            if (playBtn) {
-                playBtn.innerHTML = '<i data-lucide="play" class="w-4 h-4 fill-current ml-0.5"></i>';
-                if (window.lucide) lucide.createIcons();
-            }
-
+            pauseGlobal();
             previewSequence = [];
+            let accTime = 0;
             
             if (config.intro && config.intro.file) {
                 if(!config.intro.url) config.intro.url = URL.createObjectURL(config.intro.file);
-                previewSequence.push({ type: 'intro', url: config.intro.url, name: 'Intro' });
+                const dur = config.intro.duration || 0;
+                previewSequence.push({ type: 'intro', url: config.intro.url, name: 'Intro', duration: dur, start: accTime, end: accTime + dur });
+                accTime += dur;
             }
             
             const activeItem = batchList.find(i => i.id === activePreviewId);
             if (activeItem) {
                 if(!activeItem.url) activeItem.url = URL.createObjectURL(activeItem.file);
-                previewSequence.push({ type: 'main', url: activeItem.url, name: activeItem.file.name });
+                previewSequence.push({ type: 'main', url: activeItem.url, name: activeItem.file.name, duration: activeItem.duration, start: accTime, end: accTime + activeItem.duration });
+                accTime += activeItem.duration;
             }
             
             if (config.outro && config.outro.file) {
                 if(!config.outro.url) config.outro.url = URL.createObjectURL(config.outro.file);
-                previewSequence.push({ type: 'outro', url: config.outro.url, name: 'Outro' });
+                const dur = config.outro.duration || 0;
+                previewSequence.push({ type: 'outro', url: config.outro.url, name: 'Outro', duration: dur, start: accTime, end: accTime + dur });
+                accTime += dur;
             }
 
+            totalSequenceDuration = accTime;
+            document.getElementById('time-total').innerText = formatTime(totalSequenceDuration);
+
             if (previewSequence.length > 0) {
-                // Selalu mulai dari awal sequence (Intro jika ada) agar update bumper langsung terlihat
-                previewIndex = 0;
-                
-                loadPreviewClip(previewIndex);
+                previewIndex = 0; 
+                loadPreviewClip(0, 0);
                 playerControls.classList.remove('hidden');
                 previewPlaceholder.style.display = 'none';
                 previewVideo.classList.remove('hidden');
@@ -955,15 +964,20 @@
                 previewVideo.classList.add('hidden');
                 playerControls.classList.add('hidden');
                 previewPlaceholder.style.display = 'flex';
-                overlayStage.innerHTML = ''; // clear wms
+                overlayStage.innerHTML = ''; 
             }
         }
 
-        function loadPreviewClip(index) {
+        function loadPreviewClip(index, localTime = 0) {
             if (index < 0 || index >= previewSequence.length) return;
             const clip = previewSequence[index];
             previewVideo.src = clip.url;
             
+            previewVideo.onloadedmetadata = () => {
+                previewVideo.currentTime = localTime;
+                previewVideo.onloadedmetadata = null;
+            };
+
             const fitMode = document.getElementById('video-fit-mode').value;
             previewVideo.style.objectFit = fitMode === 'cover' ? 'cover' : 'contain';
 
@@ -980,14 +994,13 @@
             
             if (clip.type === 'main' || !wmMainOnly) {
                 overlayStage.style.opacity = '1';
-                overlayStage.style.pointerEvents = 'auto'; // allow dragging
+                overlayStage.style.pointerEvents = 'auto';
             } else {
                 overlayStage.style.opacity = '0';
-                overlayStage.style.pointerEvents = 'none'; // lock interactions
+                overlayStage.style.pointerEvents = 'none';
             }
         }
 
-        // Draw and Update Watermarks logic (DOM)
         function updateWatermarks() {
             overlayStage.innerHTML = '';
             
@@ -1046,12 +1059,7 @@
             if (dragCtx) { dragCtx.el.classList.remove('active'); dragCtx = null; saveState(); }
         });
 
-        // ----------------------------------------------------
-        // VIDEO PLAYER CONTROLS
-        // ----------------------------------------------------
-        const btnPlay = document.getElementById('btn-player-play');
-        const seekBar = document.getElementById('seek-bar');
-        
+        // ================= PLAYER CONTROLS =================
         function setPlayIcon(isPlaying) {
             btnPlay.innerHTML = isPlaying 
                 ? '<i data-lucide="pause" class="w-4 h-4 fill-current"></i>' 
@@ -1059,19 +1067,90 @@
             lucide.createIcons();
         }
 
+        function playGlobal() {
+            if(previewSequence.length === 0) return;
+            globalPlayState = true;
+            setPlayIcon(true);
+            previewVideo.play();
+        }
+
+        function pauseGlobal() {
+            globalPlayState = false;
+            setPlayIcon(false);
+            previewVideo.pause();
+        }
+
         btnPlay.addEventListener('click', () => {
-            if (previewVideo.paused) {
-                if (previewIndex === previewSequence.length - 1 && previewVideo.ended) {
-                    previewIndex = 0; loadPreviewClip(0);
-                }
-                previewVideo.play(); setPlayIcon(true);
+            if (globalPlayState) pauseGlobal(); else playGlobal();
+        });
+
+        previewVideo.addEventListener('timeupdate', () => {
+            if(isSeeking || previewSequence.length === 0) return;
+            const clip = previewSequence[previewIndex];
+            if(!clip) return;
+            
+            let globalTime = clip.start + previewVideo.currentTime;
+            if(globalTime > totalSequenceDuration) globalTime = totalSequenceDuration;
+
+            const pct = (globalTime / totalSequenceDuration) * 1000;
+            seekBar.value = pct;
+            document.getElementById('time-current').innerText = formatTime(globalTime);
+        });
+
+        previewVideo.addEventListener('ended', () => {
+            if (previewIndex < previewSequence.length - 1) {
+                previewIndex++;
+                loadPreviewClip(previewIndex, 0);
+                if(globalPlayState) previewVideo.play();
             } else {
-                previewVideo.pause(); setPlayIcon(false);
+                pauseGlobal();
+                loadPreviewClip(0, 0); 
             }
         });
 
-        document.getElementById('btn-player-rewind').addEventListener('click', () => { previewVideo.currentTime = Math.max(0, previewVideo.currentTime - 10); });
-        document.getElementById('btn-player-forward').addEventListener('click', () => { previewVideo.currentTime = Math.min(previewVideo.duration, previewVideo.currentTime + 10); });
+        function seekToGlobalTime(globalTime) {
+            if(previewSequence.length === 0) return;
+            let targetIdx = previewSequence.findIndex(c => globalTime >= c.start && globalTime < c.end);
+            if (targetIdx === -1) targetIdx = previewSequence.length - 1;
+            
+            const clip = previewSequence[targetIdx];
+            const localTime = globalTime - clip.start;
+
+            if (targetIdx !== previewIndex) {
+                previewIndex = targetIdx;
+                loadPreviewClip(targetIdx, localTime);
+                if(globalPlayState) previewVideo.play();
+            } else {
+                previewVideo.currentTime = localTime;
+            }
+            document.getElementById('time-current').innerText = formatTime(globalTime);
+        }
+
+        seekBar.addEventListener('input', (e) => {
+            isSeeking = true;
+            const globalTime = (e.target.value / 1000) * totalSequenceDuration;
+            seekToGlobalTime(globalTime);
+        });
+
+        seekBar.addEventListener('change', () => { isSeeking = false; });
+
+        document.getElementById('btn-player-rewind').addEventListener('click', () => { 
+            if(previewSequence.length === 0) return;
+            const clip = previewSequence[previewIndex];
+            let currentGlobal = clip.start + previewVideo.currentTime;
+            currentGlobal = Math.max(0, currentGlobal - 10);
+            seekToGlobalTime(currentGlobal);
+            seekBar.value = (currentGlobal / totalSequenceDuration) * 1000;
+        });
+
+        document.getElementById('btn-player-forward').addEventListener('click', () => { 
+            if(previewSequence.length === 0) return;
+            const clip = previewSequence[previewIndex];
+            let currentGlobal = clip.start + previewVideo.currentTime;
+            currentGlobal = Math.min(totalSequenceDuration, currentGlobal + 10);
+            seekToGlobalTime(currentGlobal);
+            seekBar.value = (currentGlobal / totalSequenceDuration) * 1000;
+        });
 
         const btnMute = document.getElementById('btn-player-mute');
         btnMute.addEventListener('click', () => {
@@ -1080,34 +1159,6 @@
             lucide.createIcons();
         });
 
-        seekBar.addEventListener('input', (e) => {
-            const time = (e.target.value / 100) * previewVideo.duration;
-            previewVideo.currentTime = time;
-        });
-
-        previewVideo.addEventListener('timeupdate', () => {
-            if(previewVideo.duration) {
-                const pct = (previewVideo.currentTime / previewVideo.duration) * 100;
-                seekBar.value = pct;
-                document.getElementById('time-current').innerText = formatTime(previewVideo.currentTime);
-            }
-        });
-
-        previewVideo.addEventListener('loadedmetadata', () => {
-            document.getElementById('time-total').innerText = formatTime(previewVideo.duration);
-        });
-
-        previewVideo.addEventListener('ended', () => {
-            if (previewIndex < previewSequence.length - 1) {
-                previewIndex++;
-                loadPreviewClip(previewIndex);
-                previewVideo.play();
-            } else {
-                setPlayIcon(false);
-            }
-        });
-
-        // Prev/Next Target Video in Batch
         document.getElementById('btn-player-prev').addEventListener('click', () => {
             if(batchList.length === 0) return;
             const idx = batchList.findIndex(i => i.id === activePreviewId);
@@ -1115,7 +1166,6 @@
                 activePreviewId = batchList[idx - 1].id;
                 updateBatchUI();
                 buildPreviewSequence();
-                previewVideo.play(); setPlayIcon(true);
             }
         });
         document.getElementById('btn-player-next').addEventListener('click', () => {
@@ -1125,11 +1175,9 @@
                 activePreviewId = batchList[idx + 1].id;
                 updateBatchUI();
                 buildPreviewSequence();
-                previewVideo.play(); setPlayIcon(true);
             }
         });
 
-        // Probe & Extract for Batch list
         function probeDuration(file) {
             return new Promise((resolve) => {
                 const mp4boxfile = MP4Box.createFile();
@@ -1250,6 +1298,7 @@
                         activePreviewId = item.id;
                         updateBatchUI();
                         buildPreviewSequence();
+                        pauseGlobal();
                     };
 
                     batchContainer.appendChild(el);
@@ -1260,11 +1309,10 @@
             document.getElementById('batch-count').innerText = batchList.length;
             badgeDuration.innerText = formatTimeFull(totalDur);
             
-            // Initial sequence build if empty
             if(previewSequence.length === 0 && batchList.length > 0) {
                 buildPreviewSequence();
             } else if (batchList.length === 0) {
-                buildPreviewSequence(); // to clear
+                buildPreviewSequence(); 
             }
         }
 
@@ -1492,14 +1540,8 @@
 
         btnStartBatch.addEventListener('click', async () => {
             if (batchList.length === 0) return;
-
-            // Hentikan player preview secara paksa saat proses render dimulai
-            previewVideo.pause();
-            const playBtn = document.getElementById('btn-player-play');
-            if (playBtn) {
-                playBtn.innerHTML = '<i data-lucide="play" class="w-4 h-4 fill-current ml-0.5"></i>';
-                if (window.lucide) lucide.createIcons();
-            }
+            
+            pauseGlobal(); // Hentikan Preview Player sebelum Render
 
             isProcessing = true; isCanceled = false; isPaused = false; 
             btnCancel.disabled = false; btnCancel.style.display = 'flex'; 
