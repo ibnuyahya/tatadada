@@ -300,10 +300,8 @@
                     </div>
                     
                     <img id="preview-bg" src="" class="absolute inset-0 w-full h-full z-0 hidden pointer-events-none" />
-                    <!-- Player Utama -->
                     <video id="preview-video" class="absolute inset-0 w-full h-full z-0 hidden" playsinline></video>
                     
-                    <!-- Stage Logo Overlay -->
                     <div id="overlay-stage"></div>
 
                     <!-- Player Controls (Single Timeline) -->
@@ -335,7 +333,6 @@
         <!-- RIGHT: CONTROLS & BATCH -->
         <aside class="w-[420px] shrink-0 flex flex-col gap-4 h-full">
             
-            <!-- TOP HALF: Logos Configuration -->
             <div class="bg-theme-panel rounded-xl border border-theme-border shadow-sm flex flex-col shrink-0">
                 <div class="p-3 border-b border-theme-border flex items-center justify-between bg-theme-bg/50 rounded-t-xl">
                     <div class="flex items-center gap-2">
@@ -407,7 +404,7 @@
                     <div id="batch-list" class="flex flex-col gap-2"></div>
                 </div>
 
-                <!-- Action Footer with Re-render button -->
+                <!-- Action Footer -->
                 <div class="p-3 border-t border-theme-border bg-theme-panel rounded-b-xl flex gap-2">
                     <button class="btn bg-theme-bg !px-3 shadow-sm border border-theme-border hover:bg-theme-main" id="btn-rerender" title="Render ulang dari awal (reset status video)">
                         <i data-lucide="rotate-ccw" class="w-4 h-4 text-theme-accent"></i>
@@ -476,7 +473,7 @@
             
             <div class="text-center text-sm font-bold text-theme-text truncate" id="render-current-file" data-i18n="prep_pipeline">Menyiapkan pipeline...</div>
             
-            <!-- ACTION BUTTONS with PAUSE -->
+            <!-- ACTION BUTTONS -->
             <div class="flex justify-center gap-2 mt-4">
                 <button class="btn" id="btn-toggle-logs"><i data-lucide="terminal" class="w-4 h-4"></i> <span data-i18n="show_log">Tampilkan Log</span></button>
                 <button class="btn" id="btn-copy-log"><i data-lucide="copy" class="w-4 h-4"></i> <span data-i18n="copy_log">Salin Log</span></button>
@@ -666,7 +663,7 @@
             document.getElementById('btn-outro').classList.remove('border-theme-accent', 'text-theme-accent');
 
             if(state.config.intro) {
-                const file = state.config.intro.file || state.config.intro; // fallback older save
+                const file = state.config.intro.file || state.config.intro; 
                 const dur = state.config.intro.duration || 0;
                 config.intro = { file: file, url: URL.createObjectURL(file), duration: dur };
                 document.getElementById('intro-lbl').innerText = config.intro.file.name;
@@ -674,7 +671,7 @@
                 document.getElementById('btn-intro').classList.add('border-theme-accent', 'text-theme-accent');
             }
             if(state.config.outro) {
-                const file = state.config.outro.file || state.config.outro; // fallback older save
+                const file = state.config.outro.file || state.config.outro; 
                 const dur = state.config.outro.duration || 0;
                 config.outro = { file: file, url: URL.createObjectURL(file), duration: dur };
                 document.getElementById('outro-lbl').innerText = config.outro.file.name;
@@ -1337,7 +1334,7 @@
         });
 
         // ==========================================
-        // FAST RENDER ENGINE 
+        // FAST RENDER ENGINE (TRUE AUDIO TRANSCODING)
         // ==========================================
         const modalLock = document.getElementById('render-lock-overlay');
         const txtPct = document.getElementById('render-pct');
@@ -1424,7 +1421,7 @@
         btnClose.addEventListener('click', () => { modalLock.style.display = 'none'; updateBatchUI(); saveState(); });
 
         async function negotiateEncoderConfig(tw, th, tfps) {
-            tlog(`Melakukan negosiasi konfigurasi Encoder untuk WxH: ${tw}x${th} @ ${tfps} FPS...`);
+            tlog(`Melakukan negosiasi konfigurasi Encoder untuk WxH: ${tw}x${th} @ ${tfps} FPS...`, "meta");
             if (!VideoEncoder.isConfigSupported) return { codec: 'avc1.4D002A', width: 1280, height: 720, hardwareAcceleration: 'prefer-hardware', bitrate: 4_000_000, framerate: Math.round(tfps) };
             
             const scales = [1, 0.75, 0.5]; 
@@ -1493,55 +1490,109 @@
             }
         }
 
-        async function encodeSilence(durationSec, startTimestampUs, audioConfig, muxer, audioState) {
-            if (!audioConfig) return;
-            const sr = audioConfig.sampleRate || 48000; 
-            const ch = audioConfig.numberOfChannels || 2;
-            tlog(`[Audio Generator] Memproduksi track hening (${durationSec.toFixed(2)}s)...`, "info");
-            
-            return new Promise(async (resolve) => {
-                let sEnc;
-                try { 
-                    sEnc = new AudioEncoder({ 
-                        output: (chunk, meta) => { 
-                            if(audioState) {
-                                if (chunk.timestamp <= audioState.lastTs) return;
-                                audioState.lastTs = Math.max(audioState.lastTs, chunk.timestamp + chunk.duration);
-                            }
-                            try { muxer.addAudioChunk(chunk, meta); } catch(e){}
-                        }, 
-                        error: (err) => { resolve(); } 
-                    }); 
-                    sEnc.configure({ codec: 'mp4a.40.2', sampleRate: sr, numberOfChannels: ch, bitrate: 128000 }); 
-                } catch (err) { resolve(); return; }
-                
-                const totalFrames = Math.floor(sr * durationSec); 
-                const framesPerChunk = 4096; 
-                let baseTs = startTimestampUs;
-                if (audioState && baseTs <= audioState.lastTs) baseTs = audioState.lastTs + 1000; 
-                const buf = new Float32Array(framesPerChunk * ch);
-                
-                for (let i = 0; i < totalFrames; i += framesPerChunk) {
-                    await checkPause(); // PAUSE INJECTION
-                    if (isCanceled) break; 
-                    const cf = Math.min(framesPerChunk, totalFrames - i); 
-                    const currentTs = baseTs + Math.round((i / sr) * 1_000_000);
-                    
-                    const aData = new AudioData({ 
-                        format: 'f32', sampleRate: sr, numberOfFrames: cf, numberOfChannels: ch, 
-                        timestamp: currentTs, data: cf === framesPerChunk ? buf : new Float32Array(cf * ch) 
-                    });
-                    sEnc.encode(aData); aData.close(); 
-                    while (sEnc.encodeQueueSize >= 15) await new Promise(r => setTimeout(r, 1));
+        // ==========================================
+        // ALGORITMA PCM RESAMPLER & UPMIXER (True Transcoding)
+        // ==========================================
+        function processAudioData(audioData, targetTs, targetSampleRate, targetChannels) {
+            const srcRate = audioData.sampleRate;
+            const srcChannels = audioData.numberOfChannels;
+            const srcFrames = audioData.numberOfFrames;
+            const duration = srcFrames / srcRate;
+            const targetFrames = Math.round(duration * targetSampleRate);
+
+            // PERBAIKAN: Baca SETIAP kanal (planeIndex) satu per satu
+            const channels = [];
+            for (let c = 0; c < srcChannels; c++) {
+                const chanBuf = new Float32Array(srcFrames);
+                audioData.copyTo(chanBuf, { planeIndex: c, format: 'f32-planar' });
+                channels.push(chanBuf);
+            }
+
+            // 1. Resample (Linear Interpolation) jika frekuensi berbeda (misal 44.1kHz -> 48kHz)
+            const resampledChannels = [];
+            if (srcRate !== targetSampleRate) {
+                for (let c = 0; c < srcChannels; c++) {
+                    const inBuf = channels[c];
+                    const outBuf = new Float32Array(targetFrames);
+                    const ratio = srcRate / targetSampleRate;
+                    for (let i = 0; i < targetFrames; i++) {
+                        const srcIdx = i * ratio;
+                        const idx1 = Math.floor(srcIdx);
+                        const idx2 = Math.min(idx1 + 1, srcFrames - 1);
+                        const frac = srcIdx - idx1;
+                        outBuf[i] = inBuf[idx1] * (1 - frac) + inBuf[idx2] * frac; 
+                    }
+                    resampledChannels.push(outBuf);
                 }
-                await sEnc.flush(); sEnc.close(); resolve();
+            } else {
+                for (let c = 0; c < srcChannels; c++) resampledChannels.push(channels[c]);
+            }
+
+            // 2. Upmix/Downmix Channels (Mono <-> Stereo)
+            const finalChannels = [];
+            if (srcChannels === 1 && targetChannels === 2) {
+                finalChannels.push(resampledChannels[0]); // Kiri
+                finalChannels.push(resampledChannels[0]); // Kanan (Duplikat dari Kiri)
+            } else if (srcChannels === 2 && targetChannels === 1) {
+                const mix = new Float32Array(targetFrames);
+                for(let i = 0; i < targetFrames; i++) mix[i] = (resampledChannels[0][i] + resampledChannels[1][i]) / 2;
+                finalChannels.push(mix);
+            } else {
+                for(let c = 0; c < targetChannels; c++) {
+                    finalChannels.push(resampledChannels[c] || new Float32Array(targetFrames));
+                }
+            }
+
+            // Kembalikan menjadi format planar untuk AudioData baru
+            const targetBuffer = new Float32Array(targetFrames * targetChannels);
+            for(let c = 0; c < targetChannels; c++) {
+                const offset = c * targetFrames;
+                for(let i = 0; i < targetFrames; i++) targetBuffer[offset + i] = finalChannels[c][i];
+            }
+
+            return new AudioData({
+                format: 'f32-planar',
+                sampleRate: targetSampleRate,
+                numberOfFrames: targetFrames,
+                numberOfChannels: targetChannels,
+                timestamp: targetTs,
+                data: targetBuffer
             });
+        }
+
+        async function feedSilence(durationSec, startTimestampUs, globalAudioEncoder, audioState) {
+            if (!globalAudioEncoder || globalAudioEncoder.state !== 'configured') return;
+            const sr = 48000; const ch = 2;
+            tlog(`[Audio Track] File tidak memiliki suara. Membangun gelombang Hening (Silence)...`, "info");
+            
+            const totalFrames = Math.floor(sr * durationSec); 
+            const framesPerChunk = 4096; 
+            let baseTs = startTimestampUs;
+            if (audioState && baseTs <= audioState.lastTs) baseTs = audioState.lastTs + 1000; 
+            const buf = new Float32Array(framesPerChunk * ch); // 0.0 float32 equals pure silence
+            
+            for (let i = 0; i < totalFrames; i += framesPerChunk) {
+                await checkPause();
+                if (isCanceled) break; 
+                const cf = Math.min(framesPerChunk, totalFrames - i); 
+                const currentTs = baseTs + Math.round((i / sr) * 1_000_000);
+                
+                const aData = new AudioData({ 
+                    format: 'f32-planar', sampleRate: sr, numberOfFrames: cf, numberOfChannels: ch, 
+                    timestamp: currentTs, data: cf === framesPerChunk ? buf : new Float32Array(cf * ch) 
+                });
+                
+                try { globalAudioEncoder.encode(aData); } catch(e){}
+                audioState.lastTs = currentTs + (cf / sr) * 1000000;
+                aData.close(); 
+                
+                while (globalAudioEncoder.encodeQueueSize >= 15) await new Promise(r => setTimeout(r, 1));
+            }
         }
 
         btnStartBatch.addEventListener('click', async () => {
             if (batchList.length === 0) return;
-            
-            pauseGlobal(); // Hentikan Preview Player sebelum Render
+            pauseGlobal(); 
 
             isProcessing = true; isCanceled = false; isPaused = false; 
             btnCancel.disabled = false; btnCancel.style.display = 'flex'; 
@@ -1561,7 +1612,6 @@
             }
 
             let videosProcessed = 0;
-            
             txtElapsed.innerText = "00:00.0";
             const timerInterval = setInterval(() => {
                 if(!isPaused) {
@@ -1624,7 +1674,7 @@
                 else if (ratioStr === '1/1') { targetWidth = 1080; targetHeight = 1080; }
                 
                 let targetFPS = 30;
-                let globalAudioConfig = null;
+                let hasAnyAudio = false;
                 let totalExpectedDurationUs = 0;
 
                 tlog("Memulai deteksi forensik untuk sinkronisasi Global Muxer...");
@@ -1640,9 +1690,7 @@
                                 durSec = info.duration / info.timescale;
                                 if(item === targetItem) targetFPS = Math.round(vTrack.nb_samples / durSec) || 30; 
                             }
-                            if (aTrack && !globalAudioConfig) {
-                                globalAudioConfig = { codec: 'aac', sampleRate: aTrack.audio.sample_rate || 44100, numberOfChannels: aTrack.audio.channel_count || 2 };
-                            }
+                            if (aTrack) hasAnyAudio = true;
                             resProbe();
                         };
                         mp4boxfile.onError = () => resProbe();
@@ -1653,8 +1701,14 @@
                     totalExpectedDurationUs += item.durationUs;
                 }
 
-                if (globalAudioConfig) tlog(`[Audio Track] Format Standar: Codec AAC, ${globalAudioConfig.sampleRate}Hz`, "good");
-                else tlog(`[Audio Track] SELURUH FILE TIDAK MEMILIKI AUDIO.`, "warn");
+                // Paksa Profil Studio Standard untuk output (Stereo, 48kHz, AAC 128kbps)
+                let globalAudioConfig = null;
+                if (hasAnyAudio) {
+                    globalAudioConfig = { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 128000 };
+                    tlog(`[Master Audio Pipeline] Profil ditetapkan ke Standar Studio: AAC, 48000Hz, Stereo`, "good");
+                } else {
+                    tlog(`[Audio Track] SELURUH FILE TIDAK MEMILIKI AUDIO. Mode Hening diaktifkan.`, "warn");
+                }
 
                 const bestConfig = await negotiateEncoderConfig(targetWidth, targetHeight, targetFPS);
                 targetWidth = bestConfig.width; targetHeight = bestConfig.height; targetFPS = bestConfig.framerate;
@@ -1663,18 +1717,35 @@
                 modalCanvas.width = targetWidth; modalCanvas.height = targetHeight;
 
                 const muxerOptions = { target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: targetWidth, height: targetHeight }, fastStart: 'in-memory' };
-                if (globalAudioConfig) muxerOptions.audio = globalAudioConfig;
+                if (globalAudioConfig) {
+                    muxerOptions.audio = { 
+                        codec: 'aac', 
+                        sampleRate: globalAudioConfig.sampleRate, 
+                        numberOfChannels: globalAudioConfig.numberOfChannels 
+                    };
+                }
                 const muxer = new Mp4Muxer.Muxer(muxerOptions);
 
                 let isPipelineFailed = false;
                 const encoder = new VideoEncoder({ 
-                    output: (chunk, meta) => { try { muxer.addVideoChunk(chunk, meta); } catch(err) { isPipelineFailed = true; reject(err); } }, 
-                    error: (e) => { tlog(`[Encoder Error] ${e.message}`, "danger"); isPipelineFailed = true; reject(e); } 
+                    output: (chunk, meta) => { try { muxer.addVideoChunk(chunk, meta); } catch(err) { tlog(`[Muxer Video Error] ${err.message}`, 'danger'); isPipelineFailed = true; reject(err); } }, 
+                    error: (e) => { tlog(`[Video Encoder Error] ${e.message}`, "danger"); isPipelineFailed = true; reject(e); } 
                 });
                 encoder.configure(bestConfig);
 
+                // Setup Audio Encoder Global yang menyuplai Muxer
+                let audioEncoder = null;
+                if (globalAudioConfig) {
+                    audioEncoder = new AudioEncoder({
+                        output: (chunk, meta) => { try { muxer.addAudioChunk(chunk, meta); } catch(e){ tlog(`[Muxer Audio Error] ${e.message}`, 'danger'); isPipelineFailed = true;} },
+                        error: (e) => { tlog(`[Audio Encoder Error] ${e.message}`, "danger"); isPipelineFailed = true; }
+                    });
+                    audioEncoder.configure(globalAudioConfig);
+                }
+
                 let fileStartTimeUs = 0; let targetFramesGenerated = 0; const targetFrameDurationUs = 1_000_000 / targetFPS;
                 let audioState = { lastTs: -1 };
+                let last100Time = performance.now();
 
                 for (let sIdx = 0; sIdx < sequence.length; sIdx++) {
                     if (isCanceled || isPipelineFailed) break;
@@ -1686,14 +1757,13 @@
                     tlog(`--- MEMPROSES KLIP [${sIdx+1}/${sequence.length}]: ${clip.file.name} ---`, "hl");
 
                     await new Promise((resClip) => {
-                        let decoder, videoTrackId, audioTrackId, exactOrigFPS = 30, isFileReadDone = false;
-                        const sampleQueue = []; const mp4boxfile = MP4Box.createFile();
+                        let decoder, audioDecoder, videoTrackId, audioTrackId, exactOrigFPS = 30, isFileReadDone = false;
+                        const videoSampleQueue = []; const audioSampleQueue = []; const mp4boxfile = MP4Box.createFile();
                         
-                        mp4boxfile.onError = () => { isPipelineFailed = true; resClip(); };
+                        mp4boxfile.onError = (e) => { tlog(`[Demux Error] ${e}`, "warn"); isPipelineFailed = true; resClip(); };
                         mp4boxfile.onReady = (info) => {
                             const vTrack = info.videoTracks[0]; if (!vTrack) { resClip(); return; }
                             videoTrackId = vTrack.id; 
-                            if (info.audioTracks[0]) audioTrackId = info.audioTracks[0].id;
                             if (info.duration && info.timescale) exactOrigFPS = vTrack.nb_samples / (info.duration / info.timescale);
                             
                             decoder = new VideoDecoder({
@@ -1711,14 +1781,20 @@
                                         if (encoder.state !== 'configured' || isCanceled) { isPipelineFailed = true; break; }
                                         const syntheticTs = Math.round(targetFramesGenerated * targetFrameDurationUs); 
                                         const newFrame = new VideoFrame(gpuCanvas, { timestamp: syntheticTs });
-                                        try { encoder.encode(newFrame, { keyFrame: (targetFramesGenerated % targetFPS === 0) }); } catch(e) { isPipelineFailed=true; } 
+                                        try { encoder.encode(newFrame, { keyFrame: (targetFramesGenerated % targetFPS === 0) }); } catch(e) { tlog(`[Video Encode Error] ${e.message}`, 'danger'); isPipelineFailed=true; } 
                                         newFrame.close(); targetFramesGenerated++; 
                                         
-                                        if (targetFramesGenerated % 100 === 0) { progressCallback(currentPct); }
+                                        if (targetFramesGenerated % 100 === 0) {
+                                            const nowPerf = performance.now();
+                                            const speedFps = 100 / ((nowPerf - last100Time) / 1000);
+                                            tlog(`Mencapai Frame ke-${targetFramesGenerated} | Kecepatan Transcode: ${speedFps.toFixed(1)} FPS`, "meta");
+                                            last100Time = nowPerf;
+                                            progressCallback(currentPct);
+                                        }
                                     } 
                                     frame.close();
                                 }, 
-                                error: (e) => { tlog(`[Decode Error] ${e.message}`, "warn"); isPipelineFailed = true; }
+                                error: (e) => { tlog(`[Video Decode Error] ${e.message}`, "warn"); isPipelineFailed = true; }
                             });
 
                             let description = null; const astTrak = mp4boxfile.getTrackById(videoTrackId);
@@ -1726,42 +1802,101 @@
                             const decConfig = { codec: vTrack.codec, codedWidth: vTrack.video.width, codedHeight: vTrack.video.height, hardwareAcceleration: 'prefer-hardware' }; 
                             if (description) decConfig.description = description;
                             
-                            try { decoder.configure(decConfig); } catch(e) { isPipelineFailed = true; resClip(); return; }
+                            try { decoder.configure(decConfig); } catch(e) { tlog(`[Video Config Error] ${e.message}`, "danger"); isPipelineFailed = true; resClip(); return; }
                             
+                            // ----------------------------------------------------
+                            // AUDIO TRUE DECODING (PENGHINDAR MEMORY LEAK)
+                            // ----------------------------------------------------
+                            if (info.audioTracks[0] && globalAudioConfig) {
+                                audioTrackId = info.audioTracks[0].id;
+                                const aTrack = info.audioTracks[0];
+
+                                tlog(`[Klip Forensik] Video: ${exactOrigFPS.toFixed(2)}FPS | Audio Sumber: ${aTrack.audio.sample_rate}Hz, ${aTrack.audio.channel_count} Kanal`, 'meta');
+
+                                audioDecoder = new AudioDecoder({
+                                    output: (audioData) => {
+                                        if (isPipelineFailed || isCanceled) { audioData.close(); return; }
+                                        let rawTs = clipStartUs + audioData.timestamp;
+                                        if (rawTs <= audioState.lastTs) rawTs = audioState.lastTs + 1;
+
+                                        // 🌟 JANTUNG TRUE TRANSCODING: Resample PCM 44.1k Mono -> 48k Stereo 
+                                        const processedData = processAudioData(audioData, rawTs, 48000, 2);
+                                        
+                                        try { 
+                                            audioEncoder.encode(processedData); 
+                                            audioState.lastTs = rawTs + (processedData.numberOfFrames / 48000) * 1000000;
+                                            aSampleCount++;
+                                        } catch(e) { tlog(`[Audio Encode Error] ${e.message}`, "danger"); isPipelineFailed = true; }
+                                        
+                                        processedData.close();
+                                        audioData.close(); // MENGHENTIKAN MEMORY LEAK CRASH!
+                                    },
+                                    error: (e) => { tlog(`[Audio Decode Error] ${e.message}`, "warn"); isPipelineFailed = true; }
+                                });
+
+                                let aDescription = null; const asTrakAudio = mp4boxfile.getTrackById(audioTrackId);
+                                try {
+                                    const esds = asTrakAudio.mdia.minf.stbl.stsd.entries[0].esds;
+                                    if(esds?.esd?.decConfigDescr?.decSpecificInfo) {
+                                        aDescription = esds.esd.decConfigDescr.decSpecificInfo.data;
+                                    }
+                                } catch(e){}
+
+                                const aDecConfig = {
+                                    codec: aTrack.codec.startsWith('mp4a') ? aTrack.codec : 'mp4a.40.2',
+                                    sampleRate: aTrack.audio.sample_rate,
+                                    numberOfChannels: aTrack.audio.channel_count
+                                };
+                                if (aDescription) aDecConfig.description = aDescription;
+                                
+                                try { audioDecoder.configure(aDecConfig); } catch(e){ tlog(`[Audio Config Error] ${e.message}`, "danger"); audioDecoder = null; }
+                            } else if (globalAudioConfig) {
+                                tlog(`[Klip Forensik] Video ini tidak memiliki track audio. Membangun gelombang pengganti.`, 'warn');
+                            }
+
                             mp4boxfile.setExtractionOptions(videoTrackId); 
-                            if (audioTrackId && globalAudioConfig) mp4boxfile.setExtractionOptions(audioTrackId); 
+                            if (audioTrackId) mp4boxfile.setExtractionOptions(audioTrackId); 
                             mp4boxfile.start();
                         };
-
-                        let audioTimeOffsetUs = 0; let firstAudioChunkTs = -1;
 
                         mp4boxfile.onSamples = (id, user, samples) => {
                             if (isCanceled) return;
                             if (id === videoTrackId) {
-                                for (const sample of samples) sampleQueue.push(sample);
-                            } else if (id === audioTrackId && globalAudioConfig) { 
-                                for (const sample of samples) { 
-                                    try { 
-                                        let rawTs = clipStartUs + Math.round((1e6 * sample.cts) / sample.timescale); 
-                                        const dur = Math.round((1e6 * sample.duration) / sample.timescale);
-                                        if (firstAudioChunkTs === -1) { firstAudioChunkTs = rawTs; audioTimeOffsetUs = (audioState.lastTs === -1 ? 0 : audioState.lastTs + 1000) - rawTs; }
-                                        let ts = rawTs + audioTimeOffsetUs; if (ts <= audioState.lastTs) ts = audioState.lastTs + 10;
-                                        muxer.addAudioChunk(new EncodedAudioChunk({ type: sample.is_sync ? 'key' : 'delta', timestamp: ts, duration: dur, data: sample.data })); 
-                                        audioState.lastTs = Math.max(audioState.lastTs, ts + dur); aSampleCount++;
-                                    } catch(e){} 
-                                } 
+                                for (const sample of samples) videoSampleQueue.push(sample);
+                            } else if (id === audioTrackId && audioDecoder && audioDecoder.state === 'configured') { 
+                                for (const sample of samples) audioSampleQueue.push(sample);
                             }
                         };
 
+                        // Sistem Penjadwalan Antrean (Queue Manager) untuk mencegah Bottleneck
                         const processQueue = async () => {
-                            while (!isFileReadDone || sampleQueue.length > 0) {
-                                await checkPause(); // PAUSE INJECTION
+                            while (!isFileReadDone || videoSampleQueue.length > 0 || audioSampleQueue.length > 0) {
+                                await checkPause(); 
                                 if (isPipelineFailed || isCanceled) return; 
-                                if (sampleQueue.length === 0) { await new Promise(r => setTimeout(r, 1)); continue; }
-                                while (!isPipelineFailed && !isCanceled && ((decoder && decoder.decodeQueueSize >= 15) || (encoder && encoder.encodeQueueSize >= 20))) await new Promise(r => setTimeout(r, 1));
-                                if (isPipelineFailed || isCanceled) return; 
-                                const sample = sampleQueue.shift();
-                                if (decoder.state === 'configured') { try { decoder.decode(new EncodedVideoChunk({ type: sample.is_sync ? 'key' : 'delta', timestamp: 1e6 * sample.cts / sample.timescale, duration: 1e6 * sample.duration / sample.timescale, data: sample.data })); } catch(e){ isPipelineFailed=true; } }
+                                
+                                let processedSomething = false;
+
+                                let isVideoBusy = (decoder && decoder.decodeQueueSize >= 15) || (encoder && encoder.encodeQueueSize >= 20);
+                                if (videoSampleQueue.length > 0 && !isVideoBusy && decoder && decoder.state === 'configured') {
+                                    const sample = videoSampleQueue.shift();
+                                    try { 
+                                        decoder.decode(new EncodedVideoChunk({ type: sample.is_sync ? 'key' : 'delta', timestamp: 1e6 * sample.cts / sample.timescale, duration: 1e6 * sample.duration / sample.timescale, data: sample.data })); 
+                                        processedSomething = true;
+                                    } catch(e){ tlog(`[Video Decode Error] ${e.message}`, 'danger'); isPipelineFailed=true; }
+                                }
+
+                                let isAudioBusy = (audioDecoder && audioDecoder.decodeQueueSize >= 25) || (audioEncoder && audioEncoder.encodeQueueSize >= 25);
+                                if (audioSampleQueue.length > 0 && !isAudioBusy && audioDecoder && audioDecoder.state === 'configured') {
+                                    const sample = audioSampleQueue.shift();
+                                    try { 
+                                        audioDecoder.decode(new EncodedAudioChunk({ type: sample.is_sync ? 'key' : 'delta', timestamp: 1e6 * sample.cts / sample.timescale, duration: 1e6 * sample.duration / sample.timescale, data: sample.data })); 
+                                        processedSomething = true;
+                                    } catch(e){ tlog(`[Audio Decode Error] ${e.message}`, 'danger'); isPipelineFailed=true; }
+                                }
+
+                                if (!processedSomething) {
+                                    await new Promise(r => setTimeout(r, 1));
+                                }
                             }
                         };
 
@@ -1771,14 +1906,19 @@
                             const b = e.target.result; b.fileStart = 0; mp4boxfile.appendBuffer(b); mp4boxfile.flush(); isFileReadDone = true;
                             
                             await processQueue();
+                            
                             if (decoder && decoder.state === 'configured') await decoder.flush(); 
+                            if (audioDecoder && audioDecoder.state === 'configured') await audioDecoder.flush();
+
                             fileStartTimeUs = targetFramesGenerated * targetFrameDurationUs;
                             if (decoder && decoder.state !== 'closed') decoder.close(); 
+                            if (audioDecoder && audioDecoder.state !== 'closed') audioDecoder.close();
                             
-                            tlog(`✅ Track klip tercetak. Chunk Audio: ${aSampleCount}`);
+                            tlog(`✅ Track klip tercetak. Audio diproses (Decoding & Upmixing): ${aSampleCount} frame/blok.`);
+                            
                             if (aSampleCount === 0 && globalAudioConfig) {
                                 const clipDurationSec = (fileStartTimeUs - clipStartUs) / 1_000_000;
-                                await encodeSilence(clipDurationSec, clipStartUs, globalAudioConfig, muxer, audioState);
+                                await feedSilence(clipDurationSec, clipStartUs, audioEncoder, audioState);
                             }
                             resClip();
                         }; 
@@ -1788,13 +1928,18 @@
 
                 if (isCanceled) {
                     if (encoder.state !== 'closed') encoder.close();
+                    if (audioEncoder && audioEncoder.state !== 'closed') audioEncoder.close();
                     resolve();
                 } else if (isPipelineFailed) {
                     if (encoder.state !== 'closed') encoder.close();
+                    if (audioEncoder && audioEncoder.state !== 'closed') audioEncoder.close();
                     reject(new Error("Pipeline failed during rendering."));
                 } else {
                     tlog(`Menunggu encoder menyiram (flush) sisa frame...`);
                     if (encoder.state === 'configured') { await encoder.flush(); encoder.close(); } 
+                    if (audioEncoder && audioEncoder.state === 'configured') { await audioEncoder.flush(); audioEncoder.close(); }
+                    
+                    tlog(`Selesai Flush. Merakit Muxer Akhir...`);
                     muxer.finalize();
                     const finalBlob = new Blob([muxer.target.buffer], { type: 'video/mp4' }); 
                     const finalUrl = URL.createObjectURL(finalBlob);
