@@ -1493,98 +1493,91 @@
             }
         }
 
-        async function encodeSilence(durationSec, startTimestampUs, audioConfig, muxer, audioState) {
-            if (!audioConfig) return;
-            const sr = audioConfig.sampleRate || 48000; 
-            const ch = audioConfig.numberOfChannels || 2;
-            tlog(`[Audio Generator] Memproduksi track hening (${durationSec.toFixed(2)}s)...`, "info");
-            
-            return new Promise(async (resolve) => {
-                let sEnc;
-                try { 
-                    sEnc = new AudioEncoder({ 
-                        output: (chunk, meta) => { 
-                            if(audioState) {
-                                if (chunk.timestamp <= audioState.lastTs) return;
-                                audioState.lastTs = Math.max(audioState.lastTs, chunk.timestamp + chunk.duration);
-                            }
-                            try { muxer.addAudioChunk(chunk, meta); } catch(e){}
-                        }, 
-                        error: (err) => { resolve(); } 
-                    }); 
-                    sEnc.configure({ codec: 'mp4a.40.2', sampleRate: sr, numberOfChannels: ch, bitrate: 128000 }); 
-                } catch (err) { resolve(); return; }
+        // DSP Algorithm: Linear Resampler & Channel Upmixer
+        function processAudioData(audioData, targetTs, targetSampleRate = 48000, targetChannels = 2) {
+            const sourceSr = audioData.sampleRate;
+            const sourceCh = audioData.numberOfChannels;
+            const frameCount = audioData.numberOfFrames;
+
+            const leftData = new Float32Array(frameCount);
+            audioData.copyTo(leftData, { planeIndex: 0, format: 'f32' });
+
+            let rightData;
+            if (sourceCh > 1) {
+                rightData = new Float32Array(frameCount);
+                audioData.copyTo(rightData, { planeIndex: 1, format: 'f32' });
+            } else {
+                rightData = leftData; // Mono to Stereo Upmixing (Kloning ke kanan)
+            }
+
+            let outLeft, outRight, outFrames;
+
+            if (sourceSr !== targetSampleRate) {
+                // Linear Interpolation Resampling
+                const ratio = sourceSr / targetSampleRate;
+                outFrames = Math.round(frameCount / ratio);
+                outLeft = new Float32Array(outFrames);
+                outRight = new Float32Array(outFrames);
                 
-                const totalFrames = Math.floor(sr * durationSec); 
-                const framesPerChunk = 4096; 
-                let baseTs = startTimestampUs;
-                if (audioState && baseTs <= audioState.lastTs) baseTs = audioState.lastTs + 1000; 
-                const buf = new Float32Array(framesPerChunk * ch);
-                
-                for (let i = 0; i < totalFrames; i += framesPerChunk) {
-                    await checkPause(); // PAUSE INJECTION
-                    if (isCanceled) break; 
-                    const cf = Math.min(framesPerChunk, totalFrames - i); 
-                    const currentTs = baseTs + Math.round((i / sr) * 1_000_000);
-                    
-                    const aData = new AudioData({ 
-                        format: 'f32', sampleRate: sr, numberOfFrames: cf, numberOfChannels: ch, 
-                        timestamp: currentTs, data: cf === framesPerChunk ? buf : new Float32Array(cf * ch) 
-                    });
-                    sEnc.encode(aData); aData.close(); 
-                    while (sEnc.encodeQueueSize >= 15) await new Promise(r => setTimeout(r, 1));
+                for (let i = 0; i < outFrames; i++) {
+                    const srcIdx = i * ratio;
+                    const idx1 = Math.floor(srcIdx);
+                    const idx2 = Math.min(idx1 + 1, frameCount - 1);
+                    const frac = srcIdx - idx1;
+
+                    outLeft[i] = leftData[idx1] + frac * (leftData[idx2] - leftData[idx1]);
+                    outRight[i] = rightData[idx1] + frac * (rightData[idx2] - rightData[idx1]);
                 }
-                await sEnc.flush(); sEnc.close(); resolve();
+            } else {
+                outFrames = frameCount; outLeft = leftData; outRight = rightData;
+            }
+
+            const outBuffer = new Float32Array(outFrames * 2);
+            outBuffer.set(outLeft, 0); outBuffer.set(outRight, outFrames); // f32-planar format
+
+            return new AudioData({
+                format: 'f32-planar', sampleRate: targetSampleRate,
+                numberOfFrames: outFrames, numberOfChannels: targetChannels,
+                timestamp: targetTs, data: outBuffer
             });
         }
 
-        btnStartBatch.addEventListener('click', async () => {
-            if (batchList.length === 0) return;
+        // Audio Generator yang telah diperbaiki untuk menggunakan Global Encoder
+        async function feedSilence(durationSec, startTimestampUs, globalAudioEncoder, audioState) {
+            const sr = 48000; const ch = 2;
+            tlog(`[Audio Fill] Mensintesis track hening (${durationSec.toFixed(2)}s)...`, "info");
             
-            pauseGlobal(); // Hentikan Preview Player sebelum Render
-
-            isProcessing = true; isCanceled = false; isPaused = false; 
-            btnCancel.disabled = false; btnCancel.style.display = 'flex'; 
-            btnPause.style.display = 'flex'; btnClose.style.display = 'none';
-            btnCancel.innerHTML = `<i data-lucide="square" class="w-4 h-4 fill-current"></i> <span data-i18n="cancel_render">${translations[currentLang].cancel_render}</span>`; 
-            btnPause.innerHTML = `<i data-lucide="pause" class="w-4 h-4"></i> <span data-i18n="pause_render">${translations[currentLang].pause_render}</span>`;
-            btnPause.classList.remove('btn-primary'); btnPause.classList.add('btn-warning');
-            lucide.createIcons();
+            const totalFrames = Math.floor(sr * durationSec); 
+            const framesPerChunk = 4096; 
+            let baseTs = startTimestampUs;
+            if (audioState && baseTs <= audioState.lastTs) baseTs = audioState.lastTs + 1000; 
+            const buf = new Float32Array(framesPerChunk * ch); // 0.0 (Silence)
             
-            modalLock.style.display = 'flex';
-            logBox.innerHTML = ''; logIndex = 1; engineStartTime = performance.now();
-            
-            const totalVideos = batchList.filter(i => i.status !== 'done').length;
-            if(totalVideos === 0) {
-                tlog("Semua video sudah berstatus Selesai di list ini.", "good"); 
-                btnCancel.style.display='none'; btnPause.style.display='none'; btnClose.style.display='flex'; return;
+            for (let i = 0; i < totalFrames; i += framesPerChunk) {
+                if (isCanceled) break; 
+                const cf = Math.min(framesPerChunk, totalFrames - i); 
+                const currentTs = baseTs + Math.round((i / sr) * 1_000_000);
+                
+                const aData = new AudioData({ 
+                    format: 'f32-planar', sampleRate: sr, numberOfFrames: cf, numberOfChannels: ch, 
+                    timestamp: currentTs, data: cf === framesPerChunk ? buf : new Float32Array(cf * ch) 
+                });
+                
+                try { globalAudioEncoder.encode(aData); } catch(e){}
+                audioState.lastTs = currentTs + (cf / sr) * 1000000;
+                aData.close(); 
+                
+                while (globalAudioEncoder.encodeQueueSize >= 15) await new Promise(r => setTimeout(r, 1));
             }
+        }
 
-            let videosProcessed = 0;
-            
-            txtElapsed.innerText = "00:00.0";
-            const timerInterval = setInterval(() => {
-                if(!isPaused) {
-                    const elapsedMs = performance.now() - engineStartTime;
-                    txtElapsed.innerText = formatTimeFull(elapsedMs / 1000);
-                }
-            }, 100);
-
-            for (let i = 0; i < batchList.length; i++) {
-                if (isCanceled) break;
-                const targetItem = batchList[i];
-                if (targetItem.status === 'done') continue;
-                
-                txtCurrent.innerText = `[${videosProcessed+1}/${totalVideos}] ${targetItem.file.name}`;
-                pbBar.style.width = '0%'; txtPct.innerText = '0%';
-                
-                try {
-                    tlog(`==========================================`);
-                    tlog(`▶️ MEMULAI PROSES FILE: ${targetItem.file.name}`, "hl");
-                    
-                    await processSingleVideo(targetItem, (pct) => {
+        btnStartBatch.addEventListener('click', async () => {
+                    await processSingleVideo(targetItem, (pct, remainingMs) => {
                         pbBar.style.width = `${pct}%`; 
                         txtPct.innerText = `${Math.floor(pct)}%`;
+                        if (remainingMs !== null) {
+                            txtEta.innerText = formatTime(Math.max(0, remainingMs) / 1000);
+                        }
                     });
                     
                     targetItem.status = 'done';
@@ -1605,6 +1598,7 @@
                 txtCurrent.innerText = "BATCH DIBATALKAN PENGGUNA."; pbBar.style.backgroundColor = 'var(--danger)';
             } else {
                 txtCurrent.innerText = "SEMUA PROSES BATCH SELESAI!"; pbBar.style.width = '100%'; pbBar.style.backgroundColor = '#10b981';
+                txtEta.innerText = "00:00.0";
             }
 
             clearInterval(timerInterval);
@@ -1624,7 +1618,7 @@
                 else if (ratioStr === '1/1') { targetWidth = 1080; targetHeight = 1080; }
                 
                 let targetFPS = 30;
-                let globalAudioConfig = null;
+                let hasAnyAudio = false;
                 let totalExpectedDurationUs = 0;
 
                 tlog("Memulai deteksi forensik untuk sinkronisasi Global Muxer...");
@@ -1640,9 +1634,7 @@
                                 durSec = info.duration / info.timescale;
                                 if(item === targetItem) targetFPS = Math.round(vTrack.nb_samples / durSec) || 30; 
                             }
-                            if (aTrack && !globalAudioConfig) {
-                                globalAudioConfig = { codec: 'aac', sampleRate: aTrack.audio.sample_rate || 44100, numberOfChannels: aTrack.audio.channel_count || 2 };
-                            }
+                            if (aTrack) hasAnyAudio = true;
                             resProbe();
                         };
                         mp4boxfile.onError = () => resProbe();
@@ -1653,8 +1645,14 @@
                     totalExpectedDurationUs += item.durationUs;
                 }
 
-                if (globalAudioConfig) tlog(`[Audio Track] Format Standar: Codec AAC, ${globalAudioConfig.sampleRate}Hz`, "good");
-                else tlog(`[Audio Track] SELURUH FILE TIDAK MEMILIKI AUDIO.`, "warn");
+                // Paksa Profil Studio Standard untuk output (Stereo, 48kHz, AAC 128kbps)
+                let globalAudioConfig = null;
+                if (hasAnyAudio) {
+                    globalAudioConfig = { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 128000 };
+                    tlog(`[Master Audio Pipeline] Profil ditetapkan ke Standar Studio: AAC, 48000Hz, Stereo`, "good");
+                } else {
+                    tlog(`[Audio Track] SELURUH FILE TIDAK MEMILIKI AUDIO. Mode Hening diaktifkan.`, "warn");
+                }
 
                 const bestConfig = await negotiateEncoderConfig(targetWidth, targetHeight, targetFPS);
                 targetWidth = bestConfig.width; targetHeight = bestConfig.height; targetFPS = bestConfig.framerate;
@@ -1669,31 +1667,43 @@
                 let isPipelineFailed = false;
                 const encoder = new VideoEncoder({ 
                     output: (chunk, meta) => { try { muxer.addVideoChunk(chunk, meta); } catch(err) { isPipelineFailed = true; reject(err); } }, 
-                    error: (e) => { tlog(`[Encoder Error] ${e.message}`, "danger"); isPipelineFailed = true; reject(e); } 
+                    error: (e) => { tlog(`[Encoder Error Fatal] ${e.message}`, "danger"); isPipelineFailed = true; reject(e); } 
                 });
                 encoder.configure(bestConfig);
 
+                // Setup Audio Encoder Global yang menyuplai Muxer
+                let audioEncoder = null;
+                if (globalAudioConfig) {
+                    audioEncoder = new AudioEncoder({
+                        output: (chunk, meta) => { try { muxer.addAudioChunk(chunk, meta); } catch(e){ isPipelineFailed = true;} },
+                        error: (e) => { tlog(`[Audio Encoder Error] ${e.message}`, "danger"); isPipelineFailed = true; }
+                    });
+                    audioEncoder.configure(globalAudioConfig);
+                }
+
                 let fileStartTimeUs = 0; let targetFramesGenerated = 0; const targetFrameDurationUs = 1_000_000 / targetFPS;
                 let audioState = { lastTs: -1 };
+                let last100Time = performance.now();
+                const videoProcessStartTime = performance.now();
 
                 for (let sIdx = 0; sIdx < sequence.length; sIdx++) {
                     if (isCanceled || isPipelineFailed) break;
                     const clip = sequence[sIdx];
                     const clipStartUs = fileStartTimeUs;
                     let aSampleCount = 0;
+                    let isAudioReadDone = false;
                     const isMainVideoClip = (clip === targetItem);
 
                     tlog(`--- MEMPROSES KLIP [${sIdx+1}/${sequence.length}]: ${clip.file.name} ---`, "hl");
 
                     await new Promise((resClip) => {
-                        let decoder, videoTrackId, audioTrackId, exactOrigFPS = 30, isFileReadDone = false;
+                        let decoder, audioDecoder, videoTrackId, audioTrackId, exactOrigFPS = 30, isFileReadDone = false;
                         const sampleQueue = []; const mp4boxfile = MP4Box.createFile();
                         
-                        mp4boxfile.onError = () => { isPipelineFailed = true; resClip(); };
+                        mp4boxfile.onError = (e) => { tlog(`[Demux Error] ${e}`, "warn"); isPipelineFailed = true; resClip(); };
                         mp4boxfile.onReady = (info) => {
                             const vTrack = info.videoTracks[0]; if (!vTrack) { resClip(); return; }
                             videoTrackId = vTrack.id; 
-                            if (info.audioTracks[0]) audioTrackId = info.audioTracks[0].id;
                             if (info.duration && info.timescale) exactOrigFPS = vTrack.nb_samples / (info.duration / info.timescale);
                             
                             decoder = new VideoDecoder({
@@ -1714,7 +1724,20 @@
                                         try { encoder.encode(newFrame, { keyFrame: (targetFramesGenerated % targetFPS === 0) }); } catch(e) { isPipelineFailed=true; } 
                                         newFrame.close(); targetFramesGenerated++; 
                                         
-                                        if (targetFramesGenerated % 100 === 0) { progressCallback(currentPct); }
+                                        if (targetFramesGenerated % 100 === 0) {
+                                            const nowPerf = performance.now();
+                                            const speedFps = 100 / ((nowPerf - last100Time) / 1000);
+                                            tlog(`Mencapai Frame ke-${targetFramesGenerated} | Kecepatan Transcode: ${speedFps.toFixed(1)} FPS`, "info");
+                                            last100Time = nowPerf;
+                                            
+                                            let remainingMs = null;
+                                            if (currentPct > 1) {
+                                                const elapsedTotal = performance.now() - videoProcessStartTime;
+                                                const estimatedTotal = (elapsedTotal / currentPct) * 100;
+                                                remainingMs = estimatedTotal - elapsedTotal;
+                                            }
+                                            progressCallback(currentPct, remainingMs);
+                                        }
                                     } 
                                     frame.close();
                                 }, 
@@ -1728,27 +1751,67 @@
                             
                             try { decoder.configure(decConfig); } catch(e) { isPipelineFailed = true; resClip(); return; }
                             
+                            // Audio Setup: Decode -> Resample/Upmix -> Encode
+                            if (info.audioTracks[0] && globalAudioConfig) {
+                                audioTrackId = info.audioTracks[0].id;
+                                const aTrack = info.audioTracks[0];
+
+                                audioDecoder = new AudioDecoder({
+                                    output: (audioData) => {
+                                        if (isPipelineFailed || isCanceled) { audioData.close(); return; }
+                                        let rawTs = clipStartUs + audioData.timestamp;
+                                        if (rawTs <= audioState.lastTs) rawTs = audioState.lastTs + 1;
+
+                                        // Lakukan Resampling (ke 48kHz) dan Upmixing (Mono -> Stereo) secara instan!
+                                        const processedData = processAudioData(audioData, rawTs, 48000, 2);
+                                        
+                                        try { 
+                                            audioEncoder.encode(processedData); 
+                                            audioState.lastTs = rawTs + (processedData.numberOfFrames / 48000) * 1000000;
+                                        } catch(e) { isPipelineFailed = true; }
+                                        processedData.close();
+                                    },
+                                    error: (e) => { tlog(`[Audio Decode Error] ${e.message}`, "warn"); }
+                                });
+
+                                let aDescription = null; const asTrakAudio = mp4boxfile.getTrackById(audioTrackId);
+                                try {
+                                    const esds = asTrakAudio.mdia.minf.stbl.stsd.entries[0].esds;
+                                    if(esds?.esd?.decConfigDescr?.decSpecificInfo) {
+                                        aDescription = esds.esd.decConfigDescr.decSpecificInfo.data;
+                                    }
+                                } catch(e){}
+
+                                const aDecConfig = {
+                                    codec: aTrack.codec.startsWith('mp4a') ? aTrack.codec : 'mp4a.40.2',
+                                    sampleRate: aTrack.audio.sample_rate,
+                                    numberOfChannels: aTrack.audio.channel_count
+                                };
+                                if (aDescription) aDecConfig.description = aDescription;
+                                
+                                try { audioDecoder.configure(aDecConfig); } catch(e){ audioDecoder = null; }
+                            }
+
                             mp4boxfile.setExtractionOptions(videoTrackId); 
-                            if (audioTrackId && globalAudioConfig) mp4boxfile.setExtractionOptions(audioTrackId); 
+                            if (audioTrackId) mp4boxfile.setExtractionOptions(audioTrackId); 
                             mp4boxfile.start();
                         };
-
-                        let audioTimeOffsetUs = 0; let firstAudioChunkTs = -1;
 
                         mp4boxfile.onSamples = (id, user, samples) => {
                             if (isCanceled) return;
                             if (id === videoTrackId) {
                                 for (const sample of samples) sampleQueue.push(sample);
-                            } else if (id === audioTrackId && globalAudioConfig) { 
+                            } else if (id === audioTrackId && audioDecoder && audioDecoder.state === 'configured') { 
                                 for (const sample of samples) { 
-                                    try { 
-                                        let rawTs = clipStartUs + Math.round((1e6 * sample.cts) / sample.timescale); 
-                                        const dur = Math.round((1e6 * sample.duration) / sample.timescale);
-                                        if (firstAudioChunkTs === -1) { firstAudioChunkTs = rawTs; audioTimeOffsetUs = (audioState.lastTs === -1 ? 0 : audioState.lastTs + 1000) - rawTs; }
-                                        let ts = rawTs + audioTimeOffsetUs; if (ts <= audioState.lastTs) ts = audioState.lastTs + 10;
-                                        muxer.addAudioChunk(new EncodedAudioChunk({ type: sample.is_sync ? 'key' : 'delta', timestamp: ts, duration: dur, data: sample.data })); 
-                                        audioState.lastTs = Math.max(audioState.lastTs, ts + dur); aSampleCount++;
-                                    } catch(e){} 
+                                    try {
+                                        audioDecoder.decode(new EncodedAudioChunk({
+                                            type: sample.is_sync ? 'key' : 'delta',
+                                            timestamp: 1e6 * sample.cts / sample.timescale,
+                                            duration: 1e6 * sample.duration / sample.timescale,
+                                            data: sample.data
+                                        }));
+                                        aSampleCount++;
+                                    } catch(e) { isPipelineFailed = true; }
                                 } 
                             }
                         };
@@ -1772,13 +1835,17 @@
                             
                             await processQueue();
                             if (decoder && decoder.state === 'configured') await decoder.flush(); 
+                            if (audioDecoder && audioDecoder.state === 'configured') await audioDecoder.flush();
+
                             fileStartTimeUs = targetFramesGenerated * targetFrameDurationUs;
                             if (decoder && decoder.state !== 'closed') decoder.close(); 
+                            if (audioDecoder && audioDecoder.state !== 'closed') audioDecoder.close();
                             
-                            tlog(`✅ Track klip tercetak. Chunk Audio: ${aSampleCount}`);
+                            tlog(`✅ Track klip tercetak. Audio diproses (Decoding & Upmixing): ${aSampleCount} blok.`);
+                            
                             if (aSampleCount === 0 && globalAudioConfig) {
                                 const clipDurationSec = (fileStartTimeUs - clipStartUs) / 1_000_000;
-                                await encodeSilence(clipDurationSec, clipStartUs, globalAudioConfig, muxer, audioState);
+                                await feedSilence(clipDurationSec, clipStartUs, audioEncoder, audioState);
                             }
                             resClip();
                         }; 
@@ -1788,13 +1855,17 @@
 
                 if (isCanceled) {
                     if (encoder.state !== 'closed') encoder.close();
+                    if (audioEncoder && audioEncoder.state !== 'closed') audioEncoder.close();
                     resolve();
                 } else if (isPipelineFailed) {
                     if (encoder.state !== 'closed') encoder.close();
+                    if (audioEncoder && audioEncoder.state !== 'closed') audioEncoder.close();
                     reject(new Error("Pipeline failed during rendering."));
                 } else {
                     tlog(`Menunggu encoder menyiram (flush) sisa frame...`);
                     if (encoder.state === 'configured') { await encoder.flush(); encoder.close(); } 
+                    if (audioEncoder && audioEncoder.state === 'configured') { await audioEncoder.flush(); audioEncoder.close(); }
+
                     muxer.finalize();
                     const finalBlob = new Blob([muxer.target.buffer], { type: 'video/mp4' }); 
                     const finalUrl = URL.createObjectURL(finalBlob);
@@ -1802,7 +1873,7 @@
                     tlog(`Mengunduh File: ${outName}...`, "good");
                     
                     const a = document.createElement('a'); a.href = finalUrl; a.download = outName; a.click();
-                    progressCallback(100);
+                    progressCallback(100, 0);
                     resolve();
                 }
             });
