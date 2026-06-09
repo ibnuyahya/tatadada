@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="id" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuizMoodleGen</title>
+    
+    <!-- TATADADA Mandatory: Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+    
+    <!-- TATADADA Mandatory: Histats Tracker -->
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+    <noscript><a href="/" target="_blank"><img  src="//sstatic1.histats.com/0.gif?5024490&101" alt="" border="0"></a></noscript>
+    
+    <!-- TATADADA Mandatory: Auto-Favicon Injector -->
+    <script>
+    fetch('icon.xml').then(r => r.text()).then(xml => {
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+        const cStart = doc.querySelector('color_start')?.textContent || '#0ea5e9';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#4338ca';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
+        const link = document.createElement('link');
+        link.rel = 'icon'; link.type = 'image/svg+xml';
+        link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+    }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+
+    <!-- Tailwind & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9; 
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --focus-ring: rgba(59, 130, 246, 0.5);
+        }
+        
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --theme-accent: #3b82f6;
+            --focus-ring: rgba(59, 130, 246, 0.4);
+            color-scheme: dark;
+        }
+
+        /* Base & UX Protection */
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            user-select: none; 
+            -webkit-user-select: none;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        /* Exception for inputs/outputs */
+        input, textarea, pre, code, .selectable, .allow-context {
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Component Styling */
+        .theme-bg { background-color: var(--card-bg); border-color: var(--border-color); }
+        .theme-text { color: var(--text-main); }
+        .theme-dim { color: var(--text-dim); }
+        .theme-border { border-color: var(--border-color); }
+        .theme-header { background-color: var(--header-bg); border-bottom: 1px solid var(--border-color); }
+        .theme-footer { background-color: var(--footer-bg); border-top: 1px solid var(--border-color); }
+        
+        /* Forms */
+        .input-base {
+            background-color: var(--editor-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            width: 100%;
+            transition: all 0.2s;
+        }
+        .input-base:focus {
+            outline: none;
+            border-color: var(--theme-accent);
+            box-shadow: 0 0 0 2px var(--focus-ring);
+        }
+
+        /* Checkbox Token */
+        .check-pill input:checked + div {
+            background-color: var(--theme-accent);
+            color: white;
+            border-color: var(--theme-accent);
+        }
+        
+        /* Layout & Depth */
+        .resizer { cursor: col-resize; background-color: var(--preview-bg); transition: background-color 0.2s;}
+        .resizer:hover { background-color: var(--theme-accent); opacity: 0.5; }
+        .panel-shadow { box-shadow: var(--shadow-md); }
+        
+        /* Modals */
+        .modal-overlay { background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
+        
+        /* Toast */
+        #toast { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s; }
+    </style>
+</head>
+<body class="h-screen flex flex-col antialiased">
+
+    <header class="theme-header h-14 flex items-center justify-between px-4 lg:px-6 shrink-0 z-20">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-sm">
+                <i data-lucide="brain-circuit" class="w-5 h-5 text-white"></i>
+            </div>
+            <div class="flex flex-col justify-center">
+                <div class="flex items-baseline gap-2">
+                    <h1 class="text-sm font-bold bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent tracking-tight">QuizMoodleGen</h1>
+                    <span class="text-[10px] italic theme-dim">v7.0</span>
+                </div>
+                <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] theme-dim hover:text-blue-500 transition-colors">by AhmadDanial</a>
+            </div>
+            
+            <div class="ml-4 group relative flex items-center">
+                <button class="text-dim hover:text-blue-500 transition-colors cursor-help">
+                    <i data-lucide="help-circle" class="w-4 h-4"></i>
+                </button>
+                <div class="absolute left-0 top-full mt-2 w-64 p-3 rounded-xl bg-gray-800 text-gray-200 text-xs shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                    <span class="lang-id block">Generator Prompt Cerdas (GIFT & XML) berbasis Pedagogi digital untuk memproduksi soal Moodle.</span>
+                    <span class="lang-en block hidden">Smart Prompt Generator (GIFT & XML) based on digital Pedagogy for Moodle quiz production.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button onclick="copyOutput()" class="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                <span class="lang-id">Salin Prompt</span>
+                <span class="lang-en hidden">Copy Prompt</span>
+            </button>
+            <div class="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1"></div>
+            <button id="langToggle" onclick="toggleLanguage()" class="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 theme-dim transition-colors text-sm font-medium" title="Toggle Language">
+                ID
+            </button>
+            <button onclick="toggleTheme()" class="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 theme-dim transition-colors" title="Toggle Theme">
+                <i data-lucide="moon" id="themeIcon" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden relative">
+        
+        <!-- Left Pane: Controls -->
+        <aside id="leftPane" class="w-full md:w-[450px] shrink-0 theme-bg panel-shadow border-r theme-border flex flex-col z-10">
+            <div class="p-4 border-b theme-border flex items-center gap-2">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4 theme-accent"></i>
+                <h2 class="text-sm font-bold theme-text">Parameter Kognitif & Format</h2>
+            </div>
+            
+            <div class="p-5 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+                <!-- Config Form -->
+                <form id="configForm" class="space-y-5">
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-id">Target Peserta</label>
+                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-en hidden">Audience</label>
+                            <input type="text" id="audience" value="Mahasiswa" class="input-base" placeholder="Contoh: Mahasiswa">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-id">Jumlah Soal</label>
+                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-en hidden">Questions count</label>
+                            <input type="number" id="numQuestions" value="10" min="1" max="100" class="input-base">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-id">Jumlah Opsi (A-..)</label>
+                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-en hidden">Options Count</label>
+                            <select id="numOptions" class="input-base cursor-pointer">
+                                <option value="3">3 Opsi</option>
+                                <option value="4">4 Opsi</option>
+                                <option value="5" selected>5 Opsi</option>
+                                <option value="6">6 Opsi</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1.5 lang-id">Format Output</label>
+                            <label class="block text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1.5 lang-en hidden">Output Format</label>
+                            <select id="format" class="input-base border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/20 font-bold text-blue-700 dark:text-blue-400 cursor-pointer">
+                                <option value="GIFT">GIFT (Notepad/Teks)</option>
+                                <option value="XML">Moodle XML (Sistem)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pt-2">
+                        <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-2 lang-id">Taksonomi Bloom (Kedalaman)</label>
+                        <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-2 lang-en hidden">Bloom's Taxonomy (Depth)</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="check-pill cursor-pointer">
+                                <input type="checkbox" class="peer sr-only bloom-cb" value="C1 (Mengingat fakta dasar)" checked>
+                                <div class="w-full rounded-lg border theme-border theme-bg px-3 py-2 text-[11px] font-semibold text-center theme-dim transition-colors hover:bg-slate-50 dark:hover:bg-slate-800">C1: Mengingat</div>
+                            </label>
+                            <label class="check-pill cursor-pointer">
+                                <input type="checkbox" class="peer sr-only bloom-cb" value="C2 (Memahami dan menjelaskan konsep)" checked>
+                                <div class="w-full rounded-lg border theme-border theme-bg px-3 py-2 text-[11px] font-semibold text-center theme-dim transition-colors hover:bg-slate-50 dark:hover:bg-slate-800">C2: Memahami</div>
+                            </label>
+                            <label class="check-pill cursor-pointer">
+                                <input type="checkbox" class="peer sr-only bloom-cb" value="C3 (Mengaplikasikan teori dalam praktik)" checked>
+                                <div class="w-full rounded-lg border theme-border theme-bg px-3 py-2 text-[11px] font-semibold text-center theme-dim transition-colors hover:bg-slate-50 dark:hover:bg-slate-800">C3: Mengaplikasi</div>
+                            </label>
+                            <label class="check-pill cursor-pointer">
+                                <input type="checkbox" class="peer sr-only bloom-cb" value="C4 (Menganalisis skenario/kasus)" checked>
+                                <div class="w-full rounded-lg border theme-border theme-bg px-3 py-2 text-[11px] font-semibold text-center theme-dim transition-colors hover:bg-slate-50 dark:hover:bg-slate-800">C4: Menganalisis</div>
+                            </label>
+                            <label class="check-pill cursor-pointer">
+                                <input type="checkbox" class="peer sr-only bloom-cb" value="C5 (Mengevaluasi, menilai, memberi argumen)">
+                                <div class="w-full rounded-lg border theme-border theme-bg px-3 py-2 text-[11px] font-semibold text-center theme-dim transition-colors hover:bg-slate-50 dark:hover:bg-slate-800">C5: Mengevaluasi</div>
+                            </label>
+                            <label class="check-pill cursor-pointer">
+                                <input type="checkbox" class="peer sr-only bloom-cb" value="C6 (Mencipta, merumuskan solusi baru)">
+                                <div class="w-full rounded-lg border theme-border theme-bg px-3 py-2 text-[11px] font-semibold text-center theme-dim transition-colors hover:bg-slate-50 dark:hover:bg-slate-800">C6: Mencipta</div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t theme-border space-y-4">
+                        <div>
+                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-id">Konteks Soal (HOTS vs LOTS)</label>
+                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-en hidden">Question Context</label>
+                            <select id="contextRule" class="input-base cursor-pointer">
+                                <option value="kasus" class="lang-id">Berbasis Studi Kasus / Skenario</option>
+                                <option value="kasus" class="lang-en hidden">Case Study / Scenario Based</option>
+                                <option value="teoretis" class="lang-id">Konseptual / Teoretis Langsung</option>
+                                <option value="teoretis" class="lang-en hidden">Conceptual / Theoretical</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-id">Kualitas Pengecoh</label>
+                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-en hidden">Distractor Quality</label>
+                            <select id="distractor" class="input-base cursor-pointer">
+                                <option value="Tinggi" class="lang-id">Tingkat Tinggi (Berbasis Miskonsepsi)</option>
+                                <option value="Tinggi" class="lang-en hidden">High Order (Misconception based)</option>
+                                <option value="Standar" class="lang-id">Standar (Masuk akal bedanya)</option>
+                                <option value="Standar" class="lang-en hidden">Standard (Plausible)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t theme-border">
+                        <div class="bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-900/50">
+                            <label class="block text-[10px] font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider mb-3 lang-id">Opsi Feedback</label>
+                            <label class="block text-[10px] font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider mb-3 lang-en hidden">Feedback Options</label>
+                            
+                            <div class="space-y-3">
+                                <label class="flex items-start cursor-pointer group">
+                                    <input type="checkbox" id="feedSpecific" checked class="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                                    <span class="ml-3 text-xs theme-text leading-tight">
+                                        <strong class="block group-hover:text-blue-500 transition-colors lang-id">Specific Feedback (Per Opsi)</strong>
+                                        <strong class="block group-hover:text-blue-500 transition-colors lang-en hidden">Specific Feedback (Per Option)</strong>
+                                        <span class="text-[10px] theme-dim mt-0.5 block lang-id">Komentar individual mengapa A/B/C/D salah atau benar.</span>
+                                        <span class="text-[10px] theme-dim mt-0.5 block lang-en hidden">Individual comments why options are right/wrong.</span>
+                                    </span>
+                                </label>
+                                <label class="flex items-start cursor-pointer group">
+                                    <input type="checkbox" id="feedGeneral" checked class="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                                    <span class="ml-3 text-xs theme-text leading-tight">
+                                        <strong class="block group-hover:text-blue-500 transition-colors lang-id">General Feedback (Keseluruhan)</strong>
+                                        <strong class="block group-hover:text-blue-500 transition-colors lang-en hidden">General Feedback (Overall)</strong>
+                                        <span class="text-[10px] theme-dim mt-0.5 block lang-id">Pembahasan materi komprehensif untuk soal tersebut.</span>
+                                        <span class="text-[10px] theme-dim mt-0.5 block lang-en hidden">Comprehensive discussion for the question.</span>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </aside>
+
+        <!-- Resizer -->
+        <div id="resizer" class="w-3 h-full resizer flex flex-col justify-center items-center shrink-0 hidden md:flex" title="Drag to resize">
+            <div class="w-1 h-8 rounded-full bg-slate-300 dark:bg-slate-700"></div>
+        </div>
+
+        <!-- Right Pane: Output Textarea with Gutter -->
+        <section class="flex-1 theme-bg flex flex-col min-w-[300px] h-full shadow-inner relative">
+            <div class="p-3 border-b theme-border bg-slate-50 dark:bg-[#090d14] flex justify-between items-center z-10 shrink-0">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="terminal" class="w-4 h-4 text-emerald-500"></i>
+                    <span class="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 font-mono tracking-widest uppercase">PROMPT_ENGINE.MD</span>
+                </div>
+                <span id="charCount" class="text-[10px] theme-dim font-mono">0 chars</span>
+            </div>
+            
+            <div class="flex-1 flex overflow-hidden bg-[#fafafa] dark:bg-[#0d1117] relative">
+                <!-- Line Numbers -->
+                <div id="lineNumbers" class="w-12 bg-slate-100 dark:bg-[#161b22] text-right pr-2 py-4 border-r theme-border overflow-hidden text-[13px] theme-dim font-mono select-none pointer-events-none shrink-0 pt-4 pb-12 leading-relaxed">
+                    1
+                </div>
+                <!-- Textarea -->
+                <textarea id="outputPrompt" readonly class="flex-1 h-full bg-transparent text-blue-800 dark:text-blue-300 font-mono text-[13px] leading-relaxed resize-none focus:outline-none p-4 pb-12 selectable allow-context custom-scrollbar" spellcheck="false" onscroll="syncScroll()" oninput="updateLines()" placeholder="Prompt generated here..."></textarea>
+                
+                <!-- Copy Toast -->
+                <div id="toast" class="absolute bottom-8 left-1/2 -translate-x-1/2 translate-y-4 opacity-0 pointer-events-none bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-xl flex items-center gap-2 text-xs font-semibold z-20">
+                    <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                    <span class="lang-id">Prompt Disalin! Buka AI Favorit Anda & Paste.</span>
+                    <span class="lang-en hidden">Prompt Copied! Paste into your AI.</span>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="theme-footer h-8 flex items-center justify-between px-4 shrink-0 text-[10px] font-medium theme-dim z-20">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+            <span class="lang-id">Engine Siap</span>
+            <span class="lang-en hidden">Engine Ready</span>
+        </div>
+        <div class="flex gap-4">
+            <button onclick="openModal()" class="hover:text-blue-500 transition-colors lang-id">Ketentuan Penggunaan</button>
+            <button onclick="openModal()" class="hover:text-blue-500 transition-colors lang-en hidden">Terms of Use</button>
+        </div>
+    </footer>
+
+    <!-- Modal Terms -->
+    <div id="termsModal" class="fixed inset-0 z-50 flex items-center justify-center modal-overlay opacity-0 invisible transition-all duration-300">
+        <div class="theme-bg border theme-border rounded-xl shadow-2xl max-w-lg w-full p-6 mx-4 transform scale-95 opacity-0 transition-all duration-300" id="termsContent">
+            <div class="flex justify-between items-center mb-4 pb-3 border-b theme-border">
+                <h3 class="text-sm font-bold theme-text lang-id">Ketentuan Penggunaan & Disclaimer</h3>
+                <h3 class="text-sm font-bold theme-text lang-en hidden">Terms of Use & Disclaimer</h3>
+                <button onclick="closeModal()" class="theme-dim hover:text-red-500 transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="text-xs theme-dim space-y-3 leading-relaxed max-h-[60vh] overflow-y-auto custom-scrollbar pr-2 text-justify">
+                <!-- Smart Context Clause -->
+                <p class="lang-id"><strong class="theme-text">Konteks Aplikasi:</strong> QuizMoodleGen beroperasi sepenuhnya secara lokal di browser Anda (Client-Side). Sistem ini bertugas merakit string teks struktural (Prompt) berdasarkan parameter yang Anda pilih. Data teks materi maupun prompt yang Anda salin tidak pernah dikirim atau disimpan di server kami.</p>
+                <p class="lang-en hidden"><strong class="theme-text">App Context:</strong> QuizMoodleGen operates entirely locally in your browser (Client-Side). This system assembles structural text strings (Prompts) based on your chosen parameters. Your material text and the generated prompts are never sent to or stored on our servers.</p>
+                
+                <!-- Mandatory TATADADA Clause -->
+                <p class="lang-id italic border-l-2 border-blue-500 pl-3">"Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya."</p>
+                <p class="lang-en hidden italic border-l-2 border-blue-500 pl-3">"There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics and Histats to collect anonymous visit and usage statistics for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms."</p>
+            </div>
+            <div class="mt-6 text-right">
+                <button onclick="closeModal()" class="px-5 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg transition-colors lang-id">Saya Mengerti</button>
+                <button onclick="closeModal()" class="px-5 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg transition-colors lang-en hidden">I Understand</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TATADADA Mandatory: UX Protection Script -->
+    <script>
+        document.addEventListener('contextmenu', e => {
+            if (!e.target.closest('input, textarea, .allow-context, .selectable')) {
+                e.preventDefault();
+            }
+        });
+    </script>
+
+    <script>
+        lucide.createIcons();
+
+        // 1. Core Logic: Prompt Generation
+        const formElements = document.getElementById('configForm');
+        formElements.addEventListener('change', generatePrompt);
+        formElements.addEventListener('input', generatePrompt);
+
+        function generatePrompt() {
+            const audience = document.getElementById('audience').value || 'Peserta Didik';
+            const numQuestions = document.getElementById('numQuestions').value || 10;
+            const numOptions = document.getElementById('numOptions').value;
+            const format = document.getElementById('format').value;
+            const formatExt = format === 'XML' ? 'xml' : 'gift';
+            const contextRule = document.getElementById('contextRule').value;
+            const distractor = document.getElementById('distractor').value;
+            const feedGeneral = document.getElementById('feedGeneral').checked;
+            const feedSpecific = document.getElementById('feedSpecific').checked;
+            
+            const bloomCheckboxes = document.querySelectorAll('.bloom-cb:checked');
+            let bloomLevels = [];
+            bloomCheckboxes.forEach(cb => bloomLevels.push(cb.value));
+            if(bloomLevels.length === 0) bloomLevels = ["Campuran acak sesuai materi"];
+            
+            let pedagogyRule = contextRule === "kasus"
+                ? "- Konteks (HOTS): Prioritaskan pembuatan soal dalam bentuk studi kasus, skenario dunia nyata, atau pemecahan masalah praktis. Hindari sekadar menanyakan definisi."
+                : "- Konteks (LOTS): Buat soal konseptual dan teoretis yang secara langsung menguji pemahaman fakta dan definisi esensial materi.";
+                
+            let distractorRule = distractor === "Tinggi" 
+                ? `- Pengecoh (Distractors): Opsi salah WAJIB diekstrak dari miskonsepsi umum. Pengecoh harus tampak logis dan mengecoh bagi yang tidak paham konsep seutuhnya. Jangan buat opsi konyol.` 
+                : `- Pengecoh (Distractors): Opsi salah harus masuk akal, tata bahasanya setara dengan kunci jawaban, dan berada dalam satu payung topik yang sama.`;
+            
+            let feedbackRule = "";
+            if(feedGeneral && feedSpecific) {
+                feedbackRule = `- Umpan Balik: Anda WAJIB memberikan (1) Feedback Spesifik untuk SETIAP opsi (alasan ringkas kenapa opsi itu salah/benar), DAN (2) General Feedback (pembahasan utuh yang komprehensif terkait soal tersebut).`;
+            } else if (feedGeneral) {
+                feedbackRule = `- Umpan Balik: Anda WAJIB memberikan General Feedback (pembahasan utuh komprehensif) untuk setiap soal. Abaikan feedback spesifik per opsi.`;
+            } else if (feedSpecific) {
+                feedbackRule = `- Umpan Balik: Anda WAJIB memberikan Feedback Spesifik pada SETIAP opsi (alasan ringkas kenapa opsi tersebut salah atau benar).`;
+            } else {
+                feedbackRule = `- Umpan Balik: Tidak perlu menyertakan pembahasan atau feedback. Cukup teks soal dan kunci jawaban.`;
+            }
+
+            let formatRule = format === "GIFT" ? 
+`ATURAN FORMAT SINTAKS GIFT MOODLE (SANGAT KETAT):
+1. Mulai tiap soal dengan judul unik diapit double colon :: (misal ::[Judul Soal]::).
+2. Teks pertanyaan ditulis normal setelah judul. 
+3. Opsi jawaban HARUS TEPAT BERJUMLAH ${numOptions} OPSI, diapit di dalam kurung kurawal { }.
+4. Kunci jawaban (Opsi BENAR) diawali tanda sama dengan (=).
+5. Pengecoh (Opsi SALAH) diawali tanda tilde (~).
+6. Feedback Spesifik per opsi (jika diminta) diletakkan langsung di ujung teks opsi (sebelum spasi enter) dengan diawali tanda pagar (#).
+7. General Feedback/Pembahasan (jika diminta) diawali tanda empat pagar (####) dan letakkan di dalam kurung kurawal tepat sebelum penutup }.
+8. PENTING: JANGAN PERNAH menggunakan karakter {, }, =, ~, atau # di dalam teks pertanyaan utama, karena akan merusak compiler Moodle.
+9. Antar satu soal dan soal lainnya dipisahkan oleh satu baris kosong (blank line).` 
+: 
+`ATURAN FORMAT SINTAKS MOODLE XML (SANGAT KETAT):
+1. Bangkitkan XML 100% valid. Dilarang menambahkan intro/outro di luar XML.
+2. Root node harus <quiz>. Tiap soal diapit <question type="multichoice">.
+3. Seluruh teks (soal, opsi, feedback) WAJIB dibungkus dengan <text><![CDATA[ ... ]]></text> agar format HTML valid.
+4. Gunakan <single>true</single>, <shuffleanswers>true</shuffleanswers>, <answernumbering>abc</answernumbering>.
+5. Opsi BENAR memiliki atribut fraction="100". Opsi SALAH fraction="0".
+6. Elemen <generalfeedback> digunakan untuk pembahasan keseluruhan.
+7. Di dalam <answer>, gunakan tag <feedback> untuk komentar per opsi.`;
+
+            let formatSkeleton = format === "GIFT" ?
+`::[Judul/Topik Soal]:: [Teks Pertanyaan] {
+~[Opsi Salah 1] #[Feedback Spesifik Opsi Salah]
+=[Opsi Benar] #[Feedback Spesifik Opsi Benar]
+~[Opsi Salah 2] #[Feedback Spesifik Opsi Salah]
+... (total ${numOptions} opsi)
+####[Pembahasan Keseluruhan]
+}`
+:
+`<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+  <question type="multichoice">
+    <name><text>[Judul Soal]</text></name>
+    <questiontext format="html"><text><![CDATA[<p>[Teks Pertanyaan]</p>]]></text></questiontext>
+    <generalfeedback format="html"><text><![CDATA[<p>[Pembahasan Keseluruhan]</p>]]></text></generalfeedback>
+    <defaultgrade>1</defaultgrade><penalty>0.33</penalty><hidden>0</hidden>
+    <single>true</single><shuffleanswers>true</shuffleanswers><answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text><![CDATA[[Opsi Benar]]]</text>
+      <feedback format="html"><text><![CDATA[[Feedback Spesifik Opsi Benar]]]</text></feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[[Opsi Salah]]]</text>
+      <feedback format="html"><text><![CDATA[[Feedback Spesifik Opsi Salah]]]</text></feedback>
+    </answer>
+    <!-- Tambahkan <answer> salah lainnya hingga total ${numOptions} opsi -->
+  </question>
+</quiz>`;
+
+            const finalPrompt = `Anda adalah Ahli Desain Instruksional dan Spesialis Moodle.
+
+TUGAS ANDA:
+Saya akan menyertakan teks materi di bagian akhir dari prompt ini. Silakan baca dan jadikan teks tersebut sebagai SATU-SATUNYA referensi materi.
+Berdasarkan materi tersebut, buatlah ${numQuestions} soal Pilihan Ganda (Multiple Choice) yang dirancang khusus untuk: ${audience}.
+Setiap soal WAJIB memiliki TEPAT ${numOptions} opsi jawaban.
+
+KAIDAH PEDAGOGI YANG WAJIB DITERAPKAN:
+- Level Kedalaman Kognitif (Taksonomi Bloom): ${bloomLevels.join(', ')}.
+${pedagogyRule}
+${distractorRule}
+${feedbackRule}
+
+${formatRule}
+
+STRUKTUR SINTAKS (HANYA GUNAKAN KERANGKA INI, JANGAN BERIKAN CONTOH SOAL):
+${formatSkeleton}
+
+BATASAN ANTI-HALUSINASI (HARGA MATI):
+1. HASILKAN HANYA SINTAKS KODE ${format} MURNI. 
+2. DILARANG KERAS memberikan kalimat pembuka (contoh: "Baik, berikut adalah soalnya...").
+3. DILARANG KERAS memberikan kalimat penutup atau penjelasan tambahan di akhir baris.
+4. WAJIB bungkus seluruh hasil output Anda ke dalam satu blok kode markdown (gunakan \`\`\`${formatExt}\`) agar kode tidak tersembunyi/hilang saat dirender di antarmuka web.
+5. DILARANG KERAS MENYALIN ATAU MENYERTAKAN TEKS SITASI seperti "" DALAM HASIL OUTPUT. Bersihkan dan buat kalimat yang mengalir natural tanpa embel-embel referensi angka dari sumber pdf materi.
+
+Jika Anda mengerti instruksi ini, silakan proses material saya dan langsung hasilkan ${numQuestions} soal tersebut SEKARANG di dalam blok markdown.
+
+[PASTE MATERI ANDA DI BAWAH BARIS INI]`;
+
+            const outputEl = document.getElementById('outputPrompt');
+            outputEl.value = finalPrompt;
+            document.getElementById('charCount').textContent = finalPrompt.length.toLocaleString() + ' chars';
+            updateLines();
+        }
+
+        // Textarea Line Numbers Logic
+        function updateLines() {
+            const outputEl = document.getElementById('outputPrompt');
+            const linesEl = document.getElementById('lineNumbers');
+            const linesCount = outputEl.value.split('\n').length;
+            let linesHtml = '';
+            for (let i = 1; i <= Math.max(linesCount, 1); i++) {
+                linesHtml += i + '<br>';
+            }
+            linesEl.innerHTML = linesHtml;
+        }
+
+        function syncScroll() {
+            const outputEl = document.getElementById('outputPrompt');
+            const linesEl = document.getElementById('lineNumbers');
+            linesEl.scrollTop = outputEl.scrollTop;
+        }
+
+        // Copy Function with Toast
+        function copyOutput() {
+            const outputEl = document.getElementById('outputPrompt');
+            if(!outputEl.value) return;
+            outputEl.select();
+            document.execCommand('copy');
+            window.getSelection().removeAllRanges();
+            
+            const toast = document.getElementById('toast');
+            toast.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // 2. Resizer Logic (Split Pane)
+        const resizer = document.getElementById('resizer');
+        const leftPane = document.getElementById('leftPane');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            // Disable selection while dragging
+            document.body.style.userSelect = 'none'; 
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            // Min width 300px, Max width screen - 300px
+            let newWidth = e.clientX;
+            if (newWidth < 300) newWidth = 300;
+            if (newWidth > window.innerWidth - 300) newWidth = window.innerWidth - 300;
+            leftPane.style.width = newWidth + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        });
+
+        // 3. Theme & Localization Logic
+        let currentLang = localStorage.getItem('appLang') || 'id';
+        
+        function toggleTheme() {
+            const html = document.documentElement;
+            const icon = document.getElementById('themeIcon');
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                icon.setAttribute('data-lucide', 'moon');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                icon.setAttribute('data-lucide', 'sun');
+            }
+            lucide.createIcons();
+        }
+
+        function initTheme() {
+            const storedTheme = localStorage.getItem('theme');
+            const icon = document.getElementById('themeIcon');
+            if (storedTheme === 'dark' || (!storedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                icon.setAttribute('data-lucide', 'sun');
+            } else {
+                icon.setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons();
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            localStorage.setItem('appLang', currentLang);
+            applyLanguage();
+        }
+
+        function applyLanguage() {
+            const btn = document.getElementById('langToggle');
+            btn.textContent = currentLang.toUpperCase();
+            
+            document.querySelectorAll('.lang-id').forEach(el => {
+                if(currentLang === 'id') el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+            document.querySelectorAll('.lang-en').forEach(el => {
+                if(currentLang === 'en') el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+        }
+
+        // 4. Modal Logic
+        function openModal() {
+            const modal = document.getElementById('termsModal');
+            const content = document.getElementById('termsContent');
+            modal.classList.remove('opacity-0', 'invisible');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+            }, 10);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('termsModal');
+            const content = document.getElementById('termsContent');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('opacity-0', 'invisible');
+            }, 300);
+        }
+
+        // Init
+        window.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            applyLanguage();
+            generatePrompt();
+            
+            // Handle window resize for mobile (disable split pane inline width)
+            window.addEventListener('resize', () => {
+                if(window.innerWidth < 768) {
+                    leftPane.style.width = '100%';
+                } else {
+                    if(leftPane.style.width === '100%') leftPane.style.width = '450px';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
