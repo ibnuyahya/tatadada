@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OlahVideo BULK PRO</title>
 
-    <!-- TATADADA: Google Analytics -->
+    <!-- Google Analytics -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -17,7 +17,7 @@
       });
     </script>
 
-    <!-- TATADADA: Histats.com Tracker -->
+    <!-- Histats.com Tracker -->
     <script type="text/javascript">var _Hasync= _Hasync|| [];
     _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
     _Hasync.push(['Histats.fasi', '1']);
@@ -29,7 +29,7 @@
     })();</script>
     <noscript><a href="/" target="_blank"><img  src="//sstatic1.histats.com/0.gif?5024490&101" alt="" border="0"></a></noscript>
 
-    <!-- TATADADA: Auto-Favicon Injector -->
+    <!-- Auto-Favicon Injector -->
     <script>
     fetch('icon.xml').then(r => r.text()).then(xml => {
         const doc = new DOMParser().parseFromString(xml, "text/xml");
@@ -423,11 +423,11 @@
 
     </main>
 
-    <!-- TATADADA: FOOTER -->
+    <!-- FOOTER -->
     <footer class="h-8 shrink-0 bg-theme-panel border-t border-theme-border flex items-center justify-between px-5 text-xs text-theme-muted z-50">
         <div class="flex items-center gap-2">
             <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]"></div>
-            <span class="font-medium tracking-wide uppercase" data-i18n="sys_ready">Sistem Siap (Lokal WebCodecs)</span>
+            <span class="font-medium tracking-wide uppercase" data-i18n="sys_ready">Sistem Siap (Lokal WebCodecs API)</span>
         </div>
         <div class="flex items-center gap-4">
             <span class="font-mono font-semibold" id="footer-stats"><span data-i18n="render_success">Render Sukses</span>: 0</span>
@@ -435,7 +435,7 @@
         </div>
     </footer>
 
-    <!-- TATADADA: TERMS MODAL -->
+    <!-- TERMS MODAL -->
     <div id="terms-modal" class="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-md hidden items-center justify-center">
         <div class="bg-theme-panel p-6 rounded-2xl border border-theme-border max-w-xl w-full shadow-2xl mx-4 flex flex-col">
             <h3 class="text-base font-bold text-theme-text mb-4 border-b border-theme-border pb-3 flex items-center gap-2">
@@ -519,7 +519,7 @@
                 main_only: "(Hanya di video utama)",
                 batch_queue: "Antrean Batch", add_target: "Tambah Video Target",
                 no_target: "Belum ada video target.<br>Klik tombol tambah di atas.",
-                start_render: "Mulai Render", sys_ready: "Sistem Siap (Lokal WebCodecs)",
+                start_render: "Mulai Render", sys_ready: "Sistem Siap (Lokal WebCodecs API)",
                 render_success: "Render Sukses", progress: "Status Progres", elapsed: "Waktu Berlalu",
                 prep_pipeline: "Menyiapkan pipeline...", show_log: "Tampilkan Log", hide_log: "Sembunyikan Log",
                 copy_log: "Salin Log", cancel_render: "Batalkan Render", finish_close: "Selesai & Tutup",
@@ -1341,7 +1341,8 @@
         });
 
         // ==========================================
-        // FAST RENDER ENGINE (TRUE AUDIO TRANSCODING)
+        // FAST RENDER ENGINE 
+        // DENGAN AV1/VP9 HIERARCHY & QUALITY MODE
         // ==========================================
         const modalLock = document.getElementById('render-lock-overlay');
         const txtPct = document.getElementById('render-pct');
@@ -1427,26 +1428,58 @@
 
         btnClose.addEventListener('click', () => { modalLock.style.display = 'none'; updateBatchUI(); saveState(); });
 
-        async function negotiateEncoderConfig(tw, th, tfps) {
+        // --- ALGORITMA NEGOSIASI CODEC BARU (ALA YOUTUBE) ---
+        async function negotiateEncoderConfig(tw, th, tfps, targetBitrate = 5000000) {
             tlog(`Melakukan negosiasi konfigurasi Encoder untuk WxH: ${tw}x${th} @ ${tfps} FPS...`, "meta");
-            if (!VideoEncoder.isConfigSupported) return { codec: 'avc1.4D002A', width: 1280, height: 720, hardwareAcceleration: 'prefer-hardware', bitrate: 4_000_000, framerate: Math.round(tfps) };
             
+            // Fallback darurat (Standard H.264 Main)
+            const defaultFallback = { 
+                codec: 'avc1.4D002A', 
+                width: Math.floor(tw*0.5/2)*2, 
+                height: Math.floor(th*0.5/2)*2, 
+                hardwareAcceleration: 'prefer-software', 
+                bitrate: targetBitrate * 0.7, 
+                framerate: 30 
+            };
+            if (!VideoEncoder.isConfigSupported) return defaultFallback;
+            
+            // Hirarki Codec ala YouTube
+            const codecHierarchy = [
+                'av01.0.04M.08', // AV1 Main Profile
+                'vp09.00.10.08', // VP9 Profile 0
+                'avc1.64002A',   // H.264 High Profile (kualitas lebih baik dari Main)
+                'avc1.4D002A'    // H.264 Main Profile
+            ];
+
             const scales = [1, 0.75, 0.5]; 
             for (const accel of ['prefer-hardware', 'prefer-software']) {
                 for (const scale of scales) {
                     const w = Math.floor((tw * scale) / 2) * 2;
                     const h = Math.floor((th * scale) / 2) * 2;
-                    const codecs = w * h > 2228224 ? ['avc1.640034', 'avc1.4D0034'] : ['avc1.64002A', 'avc1.4D002A'];
-                    for (const codec of codecs) {
-                        const cfg = { codec, width: w, height: h, hardwareAcceleration: accel, bitrate: 5_000_000, framerate: Math.round(tfps) };
+                    
+                    for (const codec of codecHierarchy) {
+                        // Konfigurasi kompresi tinggi: VBR & Quality Mode
+                        const cfg = { 
+                            codec, 
+                            width: w, 
+                            height: h, 
+                            hardwareAcceleration: accel, 
+                            bitrate: targetBitrate, 
+                            framerate: Math.round(tfps),
+                            bitrateMode: 'variable',
+                            latencyMode: 'quality'
+                        };
                         try { 
                             const support = await VideoEncoder.isConfigSupported(cfg);
-                            if (support.supported) { return cfg; }
+                            if (support.supported) { 
+                                tlog(`[Encoder Terpilih] Codec: ${codec}, Akselerasi: ${accel}, Resolusi: ${w}x${h}`, "good");
+                                return cfg; 
+                            }
                         } catch(e){}
                     }
                 }
             }
-            return { codec: 'avc1.4D002A', width: Math.floor(tw*0.5/2)*2, height: Math.floor(th*0.5/2)*2, hardwareAcceleration: 'prefer-software', bitrate: 3_000_000, framerate: 30 };
+            return defaultFallback;
         }
 
         function drawCompositedFrame(ctx, bgSource, tW, tH, fitMode, isMainVideo) {
@@ -1498,7 +1531,7 @@
         }
 
         // ==========================================
-        // ALGORITMA PCM RESAMPLER & UPMIXER (True Transcoding)
+        // ALGORITMA PCM RESAMPLER & UPMIXER
         // ==========================================
         function processAudioData(audioData, targetTs, targetSampleRate, targetChannels) {
             const srcRate = audioData.sampleRate;
@@ -1671,14 +1704,17 @@
                 const globalFitMode = document.getElementById('video-fit-mode').value;
                 
                 let targetWidth = 1920, targetHeight = 1080;
+                let targetBitrate = 5000000;
                 const ratioStr = document.getElementById('canvas-ratio').value;
                 const resStr = document.getElementById('render-resolution').value;
                 
                 if (resStr === '720') {
+                    targetBitrate = 2500000; // 2.5 Mbps untuk HD 720p
                     if (ratioStr === '16/9') { targetWidth = 1280; targetHeight = 720; }
                     else if (ratioStr === '9/16') { targetWidth = 720; targetHeight = 1280; }
                     else if (ratioStr === '1/1') { targetWidth = 720; targetHeight = 720; }
                 } else {
+                    targetBitrate = 5000000; // 5 Mbps untuk FHD 1080p
                     if (ratioStr === '16/9') { targetWidth = 1920; targetHeight = 1080; }
                     else if (ratioStr === '9/16') { targetWidth = 1080; targetHeight = 1920; }
                     else if (ratioStr === '1/1') { targetWidth = 1080; targetHeight = 1080; }
@@ -1720,13 +1756,23 @@
                     tlog(`[Audio Track] SELURUH FILE TIDAK MEMILIKI AUDIO. Mode Hening diaktifkan.`, "warn");
                 }
 
-                const bestConfig = await negotiateEncoderConfig(targetWidth, targetHeight, targetFPS);
+                const bestConfig = await negotiateEncoderConfig(targetWidth, targetHeight, targetFPS, targetBitrate);
                 targetWidth = bestConfig.width; targetHeight = bestConfig.height; targetFPS = bestConfig.framerate;
 
                 gpuCanvas.width = targetWidth; gpuCanvas.height = targetHeight;
                 modalCanvas.width = targetWidth; modalCanvas.height = targetHeight;
 
-                const muxerOptions = { target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: targetWidth, height: targetHeight }, fastStart: 'in-memory' };
+                // Dinamis Muxer Codec (Menangani AV1, VP9, atau AVC)
+                let muxerVideoCodec = 'avc';
+                if (bestConfig.codec.startsWith('av01')) muxerVideoCodec = 'av1';
+                else if (bestConfig.codec.startsWith('vp09')) muxerVideoCodec = 'vp9';
+
+                const muxerOptions = { 
+                    target: new Mp4Muxer.ArrayBufferTarget(), 
+                    video: { codec: muxerVideoCodec, width: targetWidth, height: targetHeight }, 
+                    fastStart: 'in-memory' 
+                };
+
                 if (globalAudioConfig) {
                     muxerOptions.audio = { 
                         codec: 'aac', 
@@ -1790,7 +1836,11 @@
                                         if (encoder.state !== 'configured' || isCanceled) { isPipelineFailed = true; break; }
                                         const syntheticTs = Math.round(targetFramesGenerated * targetFrameDurationUs); 
                                         const newFrame = new VideoFrame(gpuCanvas, { timestamp: syntheticTs });
-                                        try { encoder.encode(newFrame, { keyFrame: (targetFramesGenerated % targetFPS === 0) }); } catch(e) { tlog(`[Video Encode Error] ${e.message}`, 'danger'); isPipelineFailed=true; } 
+                                        
+                                        // LOGIKA KEYFRAME 2 DETIK ALA YOUTUBE
+                                        const isKeyFrame = (targetFramesGenerated % Math.round(targetFPS * 2) === 0);
+
+                                        try { encoder.encode(newFrame, { keyFrame: isKeyFrame }); } catch(e) { tlog(`[Video Encode Error] ${e.message}`, 'danger'); isPipelineFailed=true; } 
                                         newFrame.close(); targetFramesGenerated++; 
                                         
                                         if (targetFramesGenerated % 100 === 0) {
