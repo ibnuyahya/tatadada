@@ -279,7 +279,11 @@
             <div class="flex justify-between items-center mb-3">
                 <h2 class="text-sm font-bold text-theme-text flex items-center gap-2"><i data-lucide="monitor-play" class="w-4 h-4 text-theme-accent"></i> <span data-i18n="preview">Preview</span></h2>
                 
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1.5">
+                    <select id="render-resolution" class="bg-theme-bg border border-theme-border rounded px-2 py-1 text-xs font-bold text-theme-text outline-none focus:border-theme-accent cursor-pointer shadow-sm" title="Resolusi Hasil Video">
+                        <option value="1080">1080p (FHD)</option>
+                        <option value="720">720p (HD)</option>
+                    </select>
                     <select id="canvas-ratio" class="bg-theme-bg border border-theme-border rounded px-2 py-1 text-xs font-bold text-theme-text outline-none focus:border-theme-accent cursor-pointer shadow-sm" title="Rasio Kanvas Render">
                         <option value="16/9">16:9 (Lanskap)</option>
                         <option value="9/16">9:16 (Potret)</option>
@@ -638,6 +642,7 @@
                     wm2: config.wm2 ? { file: config.wm2.file, x: config.wm2.x, y: config.wm2.y, w: config.wm2.w, h: config.wm2.h, opacity: config.wm2.opacity } : null,
                     ratio: document.getElementById('canvas-ratio').value,
                     fitMode: document.getElementById('video-fit-mode').value,
+                    resolution: document.getElementById('render-resolution').value,
                     wmMainOnly: document.getElementById('wm-main-only').checked
                 },
                 batch: batchList.map(b => ({ file: b.file, duration: b.duration, thumbnail: b.thumbnail, status: b.status }))
@@ -649,6 +654,7 @@
 
             document.getElementById('canvas-ratio').value = state.config.ratio || '16/9';
             document.getElementById('video-fit-mode').value = state.config.fitMode || 'contain';
+            document.getElementById('render-resolution').value = state.config.resolution || '1080';
             document.getElementById('wm-main-only').checked = state.config.wmMainOnly ?? true;
 
             if(config.intro && config.intro.url) URL.revokeObjectURL(config.intro.url);
@@ -860,6 +866,7 @@
             });
         });
 
+        document.getElementById('render-resolution').addEventListener('change', () => { saveState(); });
         document.getElementById('canvas-ratio').addEventListener('change', () => { resizePreview(); saveState(); });
         document.getElementById('video-fit-mode').addEventListener('change', () => { 
             const fitMode = document.getElementById('video-fit-mode').value;
@@ -1500,7 +1507,6 @@
             const duration = srcFrames / srcRate;
             const targetFrames = Math.round(duration * targetSampleRate);
 
-            // PERBAIKAN: Baca SETIAP kanal (planeIndex) satu per satu
             const channels = [];
             for (let c = 0; c < srcChannels; c++) {
                 const chanBuf = new Float32Array(srcFrames);
@@ -1508,7 +1514,6 @@
                 channels.push(chanBuf);
             }
 
-            // 1. Resample (Linear Interpolation) jika frekuensi berbeda (misal 44.1kHz -> 48kHz)
             const resampledChannels = [];
             if (srcRate !== targetSampleRate) {
                 for (let c = 0; c < srcChannels; c++) {
@@ -1528,11 +1533,10 @@
                 for (let c = 0; c < srcChannels; c++) resampledChannels.push(channels[c]);
             }
 
-            // 2. Upmix/Downmix Channels (Mono <-> Stereo)
             const finalChannels = [];
             if (srcChannels === 1 && targetChannels === 2) {
-                finalChannels.push(resampledChannels[0]); // Kiri
-                finalChannels.push(resampledChannels[0]); // Kanan (Duplikat dari Kiri)
+                finalChannels.push(resampledChannels[0]); 
+                finalChannels.push(resampledChannels[0]); 
             } else if (srcChannels === 2 && targetChannels === 1) {
                 const mix = new Float32Array(targetFrames);
                 for(let i = 0; i < targetFrames; i++) mix[i] = (resampledChannels[0][i] + resampledChannels[1][i]) / 2;
@@ -1543,7 +1547,6 @@
                 }
             }
 
-            // Kembalikan menjadi format planar untuk AudioData baru
             const targetBuffer = new Float32Array(targetFrames * targetChannels);
             for(let c = 0; c < targetChannels; c++) {
                 const offset = c * targetFrames;
@@ -1569,7 +1572,7 @@
             const framesPerChunk = 4096; 
             let baseTs = startTimestampUs;
             if (audioState && baseTs <= audioState.lastTs) baseTs = audioState.lastTs + 1000; 
-            const buf = new Float32Array(framesPerChunk * ch); // 0.0 float32 equals pure silence
+            const buf = new Float32Array(framesPerChunk * ch); 
             
             for (let i = 0; i < totalFrames; i += framesPerChunk) {
                 await checkPause();
@@ -1669,9 +1672,17 @@
                 
                 let targetWidth = 1920, targetHeight = 1080;
                 const ratioStr = document.getElementById('canvas-ratio').value;
-                if (ratioStr === '16/9') { targetWidth = 1920; targetHeight = 1080; }
-                else if (ratioStr === '9/16') { targetWidth = 1080; targetHeight = 1920; }
-                else if (ratioStr === '1/1') { targetWidth = 1080; targetHeight = 1080; }
+                const resStr = document.getElementById('render-resolution').value;
+                
+                if (resStr === '720') {
+                    if (ratioStr === '16/9') { targetWidth = 1280; targetHeight = 720; }
+                    else if (ratioStr === '9/16') { targetWidth = 720; targetHeight = 1280; }
+                    else if (ratioStr === '1/1') { targetWidth = 720; targetHeight = 720; }
+                } else {
+                    if (ratioStr === '16/9') { targetWidth = 1920; targetHeight = 1080; }
+                    else if (ratioStr === '9/16') { targetWidth = 1080; targetHeight = 1920; }
+                    else if (ratioStr === '1/1') { targetWidth = 1080; targetHeight = 1080; }
+                }
                 
                 let targetFPS = 30;
                 let hasAnyAudio = false;
@@ -1701,7 +1712,6 @@
                     totalExpectedDurationUs += item.durationUs;
                 }
 
-                // Paksa Profil Studio Standard untuk output (Stereo, 48kHz, AAC 128kbps)
                 let globalAudioConfig = null;
                 if (hasAnyAudio) {
                     globalAudioConfig = { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 128000 };
@@ -1733,7 +1743,6 @@
                 });
                 encoder.configure(bestConfig);
 
-                // Setup Audio Encoder Global yang menyuplai Muxer
                 let audioEncoder = null;
                 if (globalAudioConfig) {
                     audioEncoder = new AudioEncoder({
@@ -1804,9 +1813,6 @@
                             
                             try { decoder.configure(decConfig); } catch(e) { tlog(`[Video Config Error] ${e.message}`, "danger"); isPipelineFailed = true; resClip(); return; }
                             
-                            // ----------------------------------------------------
-                            // AUDIO TRUE DECODING (PENGHINDAR MEMORY LEAK)
-                            // ----------------------------------------------------
                             if (info.audioTracks[0] && globalAudioConfig) {
                                 audioTrackId = info.audioTracks[0].id;
                                 const aTrack = info.audioTracks[0];
@@ -1819,7 +1825,6 @@
                                         let rawTs = clipStartUs + audioData.timestamp;
                                         if (rawTs <= audioState.lastTs) rawTs = audioState.lastTs + 1;
 
-                                        // 🌟 JANTUNG TRUE TRANSCODING: Resample PCM 44.1k Mono -> 48k Stereo 
                                         const processedData = processAudioData(audioData, rawTs, 48000, 2);
                                         
                                         try { 
@@ -1829,7 +1834,7 @@
                                         } catch(e) { tlog(`[Audio Encode Error] ${e.message}`, "danger"); isPipelineFailed = true; }
                                         
                                         processedData.close();
-                                        audioData.close(); // MENGHENTIKAN MEMORY LEAK CRASH!
+                                        audioData.close(); 
                                     },
                                     error: (e) => { tlog(`[Audio Decode Error] ${e.message}`, "warn"); isPipelineFailed = true; }
                                 });
@@ -1868,7 +1873,6 @@
                             }
                         };
 
-                        // Sistem Penjadwalan Antrean (Queue Manager) untuk mencegah Bottleneck
                         const processQueue = async () => {
                             while (!isFileReadDone || videoSampleQueue.length > 0 || audioSampleQueue.length > 0) {
                                 await checkPause(); 
