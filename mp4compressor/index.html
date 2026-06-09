@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MP4compressor</title>
+
+    <!-- TATADADA: Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+
+    <!-- TATADADA: Histats.com Tracker -->
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+    <noscript><a href="/" target="_blank"><img  src="//sstatic1.histats.com/0.gif?5024490&101" alt="" border="0"></a></noscript>
+
+    <!-- TATADADA: Auto-Favicon Injector (Zoomed & Textless) -->
+    <script>
+    fetch('icon.xml').then(r => r.text()).then(xml => {
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+        const cStart = doc.querySelector('color_start')?.textContent || '#0ea5e9';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#4338ca';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
+        const link = document.createElement('link');
+        link.rel = 'icon'; link.type = 'image/svg+xml';
+        link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+    }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+
+    <!-- Tailwind & Lucide -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'SF Pro Display', 'sans-serif'], mono: ['JetBrains Mono', 'Courier New', 'monospace'] },
+                    colors: {
+                        theme: {
+                            bg: 'var(--preview-bg)', 
+                            panel: 'var(--header-bg)', 
+                            card: 'var(--card-bg)', 
+                            border: 'var(--border-color)',
+                            text: 'var(--text-main)', 
+                            muted: 'var(--text-dim)',
+                            accent: 'var(--theme-accent)',
+                            danger: '#ef4444'
+                        }
+                    },
+                    boxShadow: {
+                        'premium': 'var(--shadow-md)',
+                        'premium-sm': 'var(--shadow-sm)'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+        /* TATADADA CSS TOKENS */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9; 
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #0ea5e9;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 10px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.01);
+            color-scheme: light;
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --theme-accent: #3b82f6;
+            color-scheme: dark;
+        }
+
+        /* UX Protection: Anti-Select Global */
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+            user-select: none; -webkit-user-select: none;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Allow selection where needed */
+        input, textarea, pre, code, .selectable, .selectable * {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            cursor: auto;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        
+        .hide-native { display: none !important; }
+
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+            padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; font-weight: 600; 
+            border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main);
+            cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); outline: none;
+        }
+        .btn:hover:not(:disabled) { background: var(--preview-bg); border-color: var(--text-dim); }
+        .btn:active:not(:disabled) { transform: scale(0.97); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .btn-primary { background-color: var(--theme-accent); color: white; border-color: transparent; }
+        .btn-primary:hover:not(:disabled) { filter: brightness(1.1); color: white; border-color: transparent; }
+        .btn-danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+        .btn-danger:hover:not(:disabled) { background-color: var(--danger); color: white; }
+
+        .batch-item {
+            display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; 
+            background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 0.5rem; 
+            transition: 0.2s; box-shadow: var(--shadow-sm);
+        }
+        .batch-item:hover { background: var(--preview-bg); }
+        
+        #render-overlay {
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(1, 4, 9, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            display: none; justify-content: center; align-items: center; flex-direction: column;
+        }
+        .render-box {
+            background: var(--card-bg); width: 800px; max-width: 95vw; border-radius: 1rem;
+            padding: 2rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);
+            display: flex; flex-direction: column; gap: 1.5rem; border: 1px solid var(--border-color);
+            max-height: 95vh; overflow-y: auto; color: var(--text-main);
+        }
+        .progress-container { width: 100%; background-color: var(--preview-bg); border-radius: 9999px; height: 16px; overflow: hidden; border: 1px solid var(--border-color);}
+        .progress-bar { background-color: var(--theme-accent); height: 100%; width: 0%; transition: width 0.2s linear; position: relative;}
+        .progress-bar::after {
+            content: ''; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background-image: linear-gradient(45deg, rgba(255,255,255,0.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.15) 75%, transparent 75%, transparent);
+            background-size: 1rem 1rem; animation: stripemove 1s linear infinite;
+        }
+        @keyframes stripemove { 0% { background-position: 1rem 0; } 100% { background-position: 0 0; } }
+
+        .terminal { 
+            height: 200px; padding: 1rem; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; 
+            color: #e2e8f0; background: #020617; border-radius: 0.5rem; overflow-y: auto; 
+            line-height: 1.6; border: 1px solid var(--border-color); 
+        }
+        .log-line { display: block; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; margin-bottom: 4px; word-break: break-all; }
+        .log-line:last-child { border-bottom: none; }
+        .log-ts { color: #64748b; font-size: 0.7rem; margin-right: 8px; }
+        .log-warn { color: #facc15; } .log-danger { color: #ef4444; } .log-good { color: #34d399; } .log-meta { color: #c084fc; }
+
+        .drop-zone {
+            border: 2px dashed var(--border-color); background: var(--preview-bg);
+            transition: all 0.2s;
+        }
+        .drop-zone.dragover { border-color: var(--theme-accent); background: rgba(14, 165, 233, 0.05); }
+
+        .text-gradient {
+            background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-image: linear-gradient(90deg, #0ea5e9, #3b82f6);
+        }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
+    <script src="https://unpkg.com/mp4-muxer/build/mp4-muxer.js"></script>
+</head>
+<body class="dark">
+
+    <!-- HEADER -->
+    <header class="flex justify-between items-center bg-theme-panel border-b border-theme-border px-5 h-14 shrink-0 z-50 transition-colors shadow-premium-sm">
+        <div class="flex items-center gap-3">
+            <div class="font-bold tracking-tight flex items-center gap-2 text-lg">
+                <i data-lucide="shrink" class="w-5 h-5 text-theme-accent"></i>
+                <span class="text-gradient">MP4compressor</span>
+            </div>
+            <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-theme-border text-theme-muted">v1.0</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-theme-muted hover:text-blue-500 ml-2 transition-colors">by AhmadDanial</a>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <button class="text-theme-muted hover:text-theme-text transition-colors" onclick="alert(translations[currentLang].help_text)" title="Bantuan / Help"><i data-lucide="help-circle" class="w-4 h-4"></i></button>
+            <div class="w-px h-5 bg-theme-border mx-1"></div>
+            <button class="text-theme-muted hover:text-theme-text transition-colors text-xs font-bold" id="btn-lang" title="Toggle ID/EN">EN</button>
+            <button class="btn !p-1.5 !rounded-full shadow-sm" id="btn-theme" title="Toggle Theme">
+                <i data-lucide="moon" class="w-4 h-4 block dark:hidden text-slate-700"></i>
+                <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-amber-400"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- WORKSPACE (SPLIT PANE / CARD LAYOUT) -->
+    <!-- Gap-5 serves as the thick gutter utilizing var(--preview-bg) for depth -->
+    <main class="flex flex-1 overflow-hidden p-4 md:p-6 gap-5 max-w-[1400px] mx-auto w-full">
+        
+        <!-- LEFT: SETTINGS & DROPZONE -->
+        <aside class="w-[350px] shrink-0 flex flex-col gap-5 h-full">
+            
+            <div class="bg-theme-card rounded-2xl border border-theme-border shadow-premium p-5 flex flex-col gap-4 transition-colors">
+                <h2 class="text-sm font-bold text-theme-text uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="sliders-horizontal" class="w-4 h-4 text-theme-accent"></i> <span data-i18n="compression_profile">Profil Kompresi</span>
+                </h2>
+                
+                <div class="flex flex-col gap-2">
+                    <label class="text-xs font-semibold text-theme-muted" data-i18n="compression_level">Tingkat Kompresi (Target Bitrate)</label>
+                    <div class="grid grid-cols-1 gap-2">
+                        <label class="flex items-center gap-3 p-3 rounded-xl border border-theme-border bg-theme-bg cursor-pointer hover:border-theme-accent transition-all">
+                            <input type="radio" name="quality" value="standard" checked class="w-4 h-4 accent-theme-accent">
+                            <div>
+                                <div class="text-sm font-bold text-theme-text" data-i18n="opt_standard">Standar YouTube</div>
+                                <div class="text-[10px] text-theme-muted mt-0.5" data-i18n="opt_standard_desc">Seimbang (Rekomendasi). VBR & GOP 2s.</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 rounded-xl border border-theme-border bg-theme-bg cursor-pointer hover:border-theme-accent transition-all">
+                            <input type="radio" name="quality" value="aggressive" class="w-4 h-4 accent-theme-accent">
+                            <div>
+                                <div class="text-sm font-bold text-theme-text" data-i18n="opt_aggressive">Agresif (Ukuran Terkecil)</div>
+                                <div class="text-[10px] text-theme-muted mt-0.5" data-i18n="opt_aggressive_desc">Bitrate ditekan maksimal. Resolusi asli dijaga.</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 rounded-xl border border-theme-border bg-theme-bg cursor-pointer hover:border-theme-accent transition-all">
+                            <input type="radio" name="quality" value="high" class="w-4 h-4 accent-theme-accent">
+                            <div>
+                                <div class="text-sm font-bold text-theme-text" data-i18n="opt_high">Kualitas Tinggi</div>
+                                <div class="text-[10px] text-theme-muted mt-0.5" data-i18n="opt_high_desc">Transcoding ringan untuk arsip lokal.</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="bg-theme-bg p-3 rounded-xl border border-theme-border">
+                    <p class="text-[11px] text-theme-muted leading-relaxed">
+                        <strong class="text-theme-accent" data-i18n="engine_note">Engine Note:</strong> <span data-i18n="engine_desc">Resolusi dan FPS video asli tidak akan diubah (Native 1:1). Engine akan memprioritaskan Codec AV1/VP9 dengan Variable Bitrate untuk menghemat ukuran secara ekstrem tanpa nge-blur.</span>
+                    </p>
+                </div>
+            </div>
+
+            <div id="drop-zone" class="flex-1 drop-zone rounded-2xl flex flex-col items-center justify-center p-6 text-center cursor-pointer group shadow-inner" onclick="document.getElementById('file-input').click()">
+                <div class="bg-theme-card p-4 rounded-full mb-4 group-hover:scale-110 transition-transform shadow-premium-sm border border-theme-border">
+                    <i data-lucide="upload-cloud" class="w-8 h-8 text-theme-accent"></i>
+                </div>
+                <h3 class="text-base font-bold text-theme-text mb-1" data-i18n="drop_title">Pilih atau Tarik Video</h3>
+                <p class="text-xs text-theme-muted" data-i18n="drop_desc">Format MP4. Bisa pilih banyak sekaligus.</p>
+                <input type="file" id="file-input" class="hide-native" accept="video/mp4" multiple>
+            </div>
+
+        </aside>
+
+        <!-- RIGHT: BATCH QUEUE -->
+        <section class="flex-1 flex flex-col bg-theme-card rounded-2xl border border-theme-border shadow-premium min-w-0 transition-colors">
+            <div class="p-4 border-b border-theme-border flex justify-between items-center bg-theme-panel rounded-t-2xl shrink-0 transition-colors">
+                <h2 class="text-sm font-bold text-theme-text uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="layers" class="w-4 h-4 text-theme-accent"></i> <span data-i18n="queue_title">Antrean Kompresi</span> (<span id="queue-count">0</span>)
+                </h2>
+                <div class="flex gap-2">
+                    <button class="btn !bg-theme-bg" id="btn-clear-queue" title="Bersihkan Antrean"><i data-lucide="trash-2" class="w-4 h-4"></i> <span data-i18n="clear">Bersihkan</span></button>
+                    <button class="btn btn-primary shadow-lg px-6 uppercase tracking-wide text-xs" id="btn-start" disabled>
+                        <i data-lucide="zap" class="w-4 h-4 fill-current"></i> <span data-i18n="start">Mulai</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 custom-scrollbar relative" id="queue-container">
+                <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-theme-muted">
+                    <i data-lucide="film" class="w-16 h-16 mb-4 opacity-20"></i>
+                    <p class="text-sm font-medium" data-i18n="queue_empty">Antrean kosong. Tambahkan video untuk memulai.</p>
+                </div>
+                <div id="queue-list" class="flex flex-col gap-3 relative z-10"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="h-8 shrink-0 bg-theme-panel border-t border-theme-border flex items-center justify-between px-5 text-[10px] text-theme-muted z-50 transition-colors">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
+            <span class="font-medium tracking-wide uppercase" data-i18n="sys_ready">Engine Siap (Local WebCodecs Muxer)</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="font-mono font-semibold text-theme-text"><span data-i18n="total_done">Selesai</span>: <span id="stat-total-done">0</span></span>
+            <button onclick="document.getElementById('terms-modal').style.display='flex'" class="font-bold hover:text-theme-text transition-colors underline decoration-theme-border underline-offset-2">Terms of Use</button>
+        </div>
+    </footer>
+
+    <!-- TERMS MODAL -->
+    <div id="terms-modal" class="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-md hidden items-center justify-center">
+        <div class="bg-theme-card p-6 rounded-2xl border border-theme-border max-w-xl w-full shadow-2xl mx-4 flex flex-col">
+            <h3 class="text-base font-bold text-theme-text mb-4 border-b border-theme-border pb-3 flex items-center gap-2">
+                <i data-lucide="shield-check" class="w-5 h-5 text-theme-accent"></i> Terms of Use / Disclaimer
+            </h3>
+            <div class="space-y-4 text-sm text-theme-muted mb-6 selectable max-h-[50vh] overflow-y-auto custom-scrollbar pr-3 leading-relaxed">
+                <p><strong class="text-theme-text font-bold" data-i18n="smart_clause_title">Klausul Aplikasi (Smart Context):</strong> <span data-i18n="smart_clause_desc">MP4compressor beroperasi sepenuhnya secara lokal di dalam peramban (browser) Anda menggunakan teknologi WebCodecs API tingkat lanjut. Mesin ini memotong ukuran file video dengan menganalisa VBR dan negosiasi codec (AV1/VP9) secara on-the-fly. File video target Anda tidak pernah diunggah ke server manapun, menjamin privasi absolut. Kecepatan bergantung penuh pada spesifikasi perangkat keras (GPU/CPU) Anda.</span></p>
+                <p><strong class="text-theme-text font-bold" data-i18n="legal_clause_title">Klausul Legal:</strong> <span data-i18n="legal_clause_desc">Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.</span></p>
+            </div>
+            <button onclick="document.getElementById('terms-modal').style.display='none'" class="btn btn-primary w-full !py-2.5 shadow-md uppercase tracking-wider text-xs" data-i18n="agree_close">Saya Mengerti & Setuju</button>
+        </div>
+    </div>
+
+    <!-- RENDER MODAL OVERLAY -->
+    <div id="render-overlay">
+        <div class="render-box">
+            <div class="flex justify-between items-end">
+                <div>
+                    <div class="text-xs font-bold text-theme-accent uppercase tracking-widest mb-2 flex items-center gap-2">
+                        <i data-lucide="cpu" class="w-4 h-4"></i> <span data-i18n="processing">Sedang Memproses</span>
+                    </div>
+                    <div class="text-xl font-bold text-theme-text truncate w-[500px]" id="render-filename">Memuat...</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-5xl font-black text-theme-accent font-mono leading-none tracking-tighter" id="render-pct">0%</div>
+                </div>
+            </div>
+            
+            <div class="progress-container shadow-inner">
+                <div id="render-bar" class="progress-bar"></div>
+            </div>
+
+            <div class="flex gap-4">
+                <div class="flex-1 bg-theme-bg border border-theme-border rounded-xl p-3 shadow-sm">
+                    <div class="text-[10px] text-theme-muted uppercase font-bold mb-1" data-i18n="target_bitrate">Target Bitrate</div>
+                    <div class="font-mono text-sm text-theme-text" id="stat-bitrate">-</div>
+                </div>
+                <div class="flex-1 bg-theme-bg border border-theme-border rounded-xl p-3 shadow-sm">
+                    <div class="text-[10px] text-theme-muted uppercase font-bold mb-1" data-i18n="native_res">Resolusi Asli</div>
+                    <div class="font-mono text-sm text-theme-text" id="stat-res">-</div>
+                </div>
+                <div class="flex-1 bg-theme-bg border border-theme-border rounded-xl p-3 shadow-sm">
+                    <div class="text-[10px] text-theme-muted uppercase font-bold mb-1" data-i18n="progress_stat">Status Progres</div>
+                    <div class="font-mono text-sm text-theme-text" id="stat-progress"><span data-i18n="queue">Antrean</span> <span id="stat-qidx">1</span> <span data-i18n="of">dari</span> <span id="stat-qtot">1</span></div>
+                </div>
+            </div>
+
+            <div class="terminal shadow-inner mt-2 selectable" id="logs"></div>
+            
+            <div class="flex justify-end gap-3 mt-2 border-t border-theme-border pt-5">
+                <button class="btn btn-danger" id="btn-cancel"><i data-lucide="x-circle" class="w-4 h-4"></i> <span data-i18n="cancel">Batalkan</span></button>
+                <button class="btn btn-primary" id="btn-close" style="display: none;"><i data-lucide="check" class="w-4 h-4"></i> <span data-i18n="done">Selesai</span></button>
+            </div>
+            
+            <canvas id="hidden-canvas" class="hidden"></canvas>
+        </div>
+    </div>
+
+    <!-- UX Protection: Anti-Right Click -->
+    <script>
+        document.addEventListener('contextmenu', e => {
+            if (!e.target.closest('input, textarea, .allow-context, .selectable')) {
+                e.preventDefault();
+            }
+        });
+    </script>
+
+    <script>
+        lucide.createIcons();
+
+        // ================= THEME & LOCALIZATION =================
+        const rootHtml = document.documentElement;
+        const btnTheme = document.getElementById('btn-theme');
+        btnTheme.addEventListener('click', () => {
+            rootHtml.classList.toggle('dark');
+        });
+
+        const translations = {
+            id: {
+                compression_profile: "Profil Kompresi",
+                compression_level: "Tingkat Kompresi (Target Bitrate)",
+                opt_standard: "Standar YouTube", opt_standard_desc: "Seimbang (Rekomendasi). VBR & GOP 2s.",
+                opt_aggressive: "Agresif (Ukuran Terkecil)", opt_aggressive_desc: "Bitrate ditekan maksimal. Resolusi asli dijaga.",
+                opt_high: "Kualitas Tinggi", opt_high_desc: "Transcoding ringan untuk arsip lokal.",
+                engine_note: "Engine Note:", engine_desc: "Resolusi dan FPS video asli tidak akan diubah (Native 1:1). Engine memprioritaskan Codec AV1/VP9 dengan Variable Bitrate untuk menghemat ukuran secara ekstrem tanpa blur berlebihan.",
+                drop_title: "Pilih atau Tarik Video", drop_desc: "Format MP4. Bisa pilih banyak sekaligus.",
+                queue_title: "Antrean Kompresi", clear: "Bersihkan", start: "Mulai",
+                queue_empty: "Antrean kosong. Tambahkan video untuk memulai.",
+                sys_ready: "Engine Siap (Local WebCodecs Muxer)", total_done: "Selesai",
+                smart_clause_title: "Klausul Aplikasi (Smart Context):", smart_clause_desc: "MP4compressor beroperasi sepenuhnya secara lokal di dalam peramban (browser) Anda menggunakan teknologi WebCodecs API tingkat lanjut. Mesin ini memotong ukuran file video dengan menganalisa VBR dan negosiasi codec (AV1/VP9) secara on-the-fly. File video target Anda tidak pernah diunggah ke server manapun, menjamin privasi absolut. Kecepatan bergantung penuh pada spesifikasi perangkat keras (GPU/CPU) Anda.",
+                legal_clause_title: "Klausul Legal:", legal_clause_desc: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
+                agree_close: "Saya Mengerti & Setuju",
+                processing: "Sedang Memproses", target_bitrate: "Target Bitrate", native_res: "Resolusi Asli", progress_stat: "Status Progres",
+                queue: "Antrean", of: "dari", cancel: "Batalkan", done: "Selesai",
+                help_text: "MP4compressor\nAplikasi lokal tanpa server.\nDrag & drop file MP4 Anda ke area sebelah kiri.\nEngine akan otomatis mencari format kompresi paling efisien."
+            },
+            en: {
+                compression_profile: "Compression Profile",
+                compression_level: "Compression Level (Target Bitrate)",
+                opt_standard: "YouTube Standard", opt_standard_desc: "Balanced (Recommended). VBR & 2s GOP.",
+                opt_aggressive: "Aggressive (Smallest Size)", opt_aggressive_desc: "Maximum bitrate squeeze. Native resolution kept.",
+                opt_high: "High Quality", opt_high_desc: "Light transcoding for local archives.",
+                engine_note: "Engine Note:", engine_desc: "Native resolution and FPS are preserved (1:1). The engine prioritizes AV1/VP9 Codecs with Variable Bitrate to drastically reduce size without excessive blur.",
+                drop_title: "Select or Drop Video", drop_desc: "MP4 format. Multiple files allowed.",
+                queue_title: "Compression Queue", clear: "Clear", start: "Start",
+                queue_empty: "Queue is empty. Add videos to begin.",
+                sys_ready: "Engine Ready (Local WebCodecs Muxer)", total_done: "Done",
+                smart_clause_title: "Application Clause (Smart Context):", smart_clause_desc: "MP4compressor operates completely locally within your browser using advanced WebCodecs API technology. This engine reduces video file sizes by analyzing VBR and negotiating codecs (AV1/VP9) on-the-fly. Your target video files are never uploaded to any server, guaranteeing absolute privacy. Processing speed depends entirely on your hardware specifications (GPU/CPU).",
+                legal_clause_title: "Legal Clause:", legal_clause_desc: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics and Histats to collect anonymous visit and usage statistics for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.",
+                agree_close: "I Understand & Agree",
+                processing: "Processing", target_bitrate: "Target Bitrate", native_res: "Native Resolution", progress_stat: "Progress Status",
+                queue: "Queue", of: "of", cancel: "Cancel", done: "Done",
+                help_text: "MP4compressor\nServerless local application.\nDrag & drop your MP4 files to the left area.\nThe engine will automatically negotiate the most efficient compression format."
+            }
+        };
+
+        let currentLang = localStorage.getItem('appLang') || 'id';
+        const btnLang = document.getElementById('btn-lang');
+        
+        function applyLanguage() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[currentLang][key]) {
+                    el.innerHTML = translations[currentLang][key];
+                }
+            });
+            btnLang.innerText = currentLang === 'id' ? 'EN' : 'ID';
+            localStorage.setItem('appLang', currentLang);
+        }
+        applyLanguage();
+
+        btnLang.addEventListener('click', () => {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            applyLanguage();
+        });
+
+        // ================= STATE & CORE VARIABLES =================
+        let queue = [];
+        let isProcessing = false;
+        let isCanceled = false;
+        let totalDone = 0;
+
+        // UI ELEMENTS
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
+        const queueList = document.getElementById('queue-list');
+        const emptyState = document.getElementById('empty-state');
+        const queueCount = document.getElementById('queue-count');
+        const btnStart = document.getElementById('btn-start');
+        const btnClear = document.getElementById('btn-clear-queue');
+
+        const overlay = document.getElementById('render-overlay');
+        const renderFilename = document.getElementById('render-filename');
+        const renderPct = document.getElementById('render-pct');
+        const renderBar = document.getElementById('render-bar');
+        const logsBox = document.getElementById('logs');
+        const btnCancel = document.getElementById('btn-cancel');
+        const btnClose = document.getElementById('btn-close');
+        
+        const statBitrate = document.getElementById('stat-bitrate');
+        const statRes = document.getElementById('stat-res');
+        const statQidx = document.getElementById('stat-qidx');
+        const statQtot = document.getElementById('stat-qtot');
+        const statTotalDone = document.getElementById('stat-total-done');
+
+        const hiddenCanvas = document.getElementById('hidden-canvas');
+        const renderCtx = hiddenCanvas.getContext('2d', { alpha: false, willReadFrequently: true });
+
+        // ================= DRAG & DROP LOGIC =================
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => {
+            dropZone.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+        });
+        ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, () => dropZone.classList.add('dragover'), false));
+        ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, () => dropZone.classList.remove('dragover'), false));
+        
+        dropZone.addEventListener('drop', (e) => {
+            handleFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+            fileInput.value = '';
+        });
+
+        async function handleFiles(files) {
+            const mp4Files = Array.from(files).filter(f => f.type === 'video/mp4');
+            if (mp4Files.length === 0) return;
+
+            btnStart.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Loading...`;
+            btnStart.disabled = true;
+
+            for (const file of mp4Files) {
+                const info = await probeVideo(file);
+                if (info) {
+                    queue.push({
+                        id: Math.random().toString(36).substr(2, 9),
+                        file: file,
+                        info: info,
+                        status: 'pending' // pending, processing, done, error
+                    });
+                }
+            }
+            updateQueueUI();
+            
+            btnStart.innerHTML = `<i data-lucide="zap" class="w-4 h-4 fill-current"></i> <span data-i18n="start">${translations[currentLang].start}</span>`;
+            btnStart.disabled = queue.length === 0;
+            lucide.createIcons();
+        }
+
+        function probeVideo(file) {
+            return new Promise((resolve) => {
+                const mp4boxfile = MP4Box.createFile();
+                mp4boxfile.onReady = (info) => {
+                    const vTrack = info.videoTracks[0];
+                    if (vTrack && info.duration && info.timescale) {
+                        resolve({
+                            durationSec: info.duration / info.timescale,
+                            width: vTrack.video.width,
+                            height: vTrack.video.height,
+                            fps: vTrack.nb_samples / (info.duration / info.timescale) || 30,
+                            hasAudio: info.audioTracks.length > 0
+                        });
+                    } else resolve(null);
+                };
+                mp4boxfile.onError = () => resolve(null);
+                const reader = new FileReader();
+                reader.onload = e => { const b = e.target.result; b.fileStart = 0; mp4boxfile.appendBuffer(b); mp4boxfile.flush(); };
+                reader.readAsArrayBuffer(file.slice(0, 5000000)); // Baca 5MB pertama untuk header
+            });
+        }
+
+        function formatBytes(bytes) {
+            if(bytes === 0) return '0 B';
+            const k = 1024; const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function updateQueueUI() {
+            queueList.innerHTML = '';
+            if (queue.length === 0) {
+                emptyState.style.display = 'flex';
+                btnStart.disabled = true;
+                btnClear.disabled = true;
+            } else {
+                emptyState.style.display = 'none';
+                btnStart.disabled = false;
+                btnClear.disabled = false;
+
+                queue.forEach((item, idx) => {
+                    const el = document.createElement('div');
+                    el.className = 'batch-item';
+                    
+                    let statusColor = 'text-theme-muted';
+                    let statusIcon = '<div class="w-2 h-2 rounded-full bg-theme-border"></div>';
+                    if(item.status === 'processing') { statusColor = 'text-theme-accent'; statusIcon = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-theme-accent"></i>'; }
+                    else if(item.status === 'done') { statusColor = 'text-emerald-500'; statusIcon = '<i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>'; }
+                    else if(item.status === 'error') { statusColor = 'text-danger'; statusIcon = '<i data-lucide="x-circle" class="w-4 h-4 text-danger"></i>'; }
+
+                    el.innerHTML = `
+                        <div class="font-mono text-xs text-theme-muted w-4">${idx + 1}.</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="truncate text-sm font-semibold text-theme-text mb-0.5" title="${item.file.name}">${item.file.name}</div>
+                            <div class="flex gap-3 text-[10px] font-mono text-theme-muted">
+                                <span>${item.info.width}x${item.info.height}</span>
+                                <span>${item.info.fps.toFixed(1)} FPS</span>
+                                <span>${formatBytes(item.file.size)}</span>
+                                <span class="${statusColor} uppercase tracking-wider">${item.status}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 pl-3 border-l border-theme-border">
+                            ${statusIcon}
+                            <button class="p-1.5 text-theme-muted hover:text-danger hover:bg-theme-bg rounded transition-colors" onclick="removeFromQueue('${item.id}')" ${isProcessing ? 'disabled' : ''}>
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    `;
+                    queueList.appendChild(el);
+                });
+                lucide.createIcons();
+            }
+            queueCount.innerText = queue.length;
+            statQtot.innerText = queue.length;
+        }
+
+        window.removeFromQueue = (id) => {
+            if (isProcessing) return;
+            queue = queue.filter(q => q.id !== id);
+            updateQueueUI();
+        }
+
+        btnClear.addEventListener('click', () => {
+            if (isProcessing) return;
+            queue = [];
+            updateQueueUI();
+        });
+
+        // ================= ENGINE UTILS =================
+        function logMsg(msg, type = '') {
+            const time = new Date().toLocaleTimeString('id-ID', { hour12: false });
+            const p = document.createElement('div');
+            p.className = `log-line ${type ? `log-${type}` : ''}`;
+            p.innerHTML = `<span class="log-ts">[${time}]</span> ${msg}`;
+            logsBox.appendChild(p);
+            logsBox.scrollTop = logsBox.scrollHeight;
+        }
+
+        function getQualityFactor() {
+            const q = document.querySelector('input[name="quality"]:checked').value;
+            if (q === 'aggressive') return 0.035; 
+            if (q === 'high') return 0.14;        
+            return 0.07; // Standard
+        }
+
+        async function negotiateEncoderConfig(tw, th, tfps, targetBitrate) {
+            logMsg(`Negotiating optimum compression for ${tw}x${th} @ ${tfps} FPS...`, 'meta');
+            
+            // Wajib genap untuk hardware encoder
+            const w = Math.floor(tw / 2) * 2;
+            const h = Math.floor(th / 2) * 2;
+
+            const fallback = { codec: 'avc1.4D002A', width: w, height: h, hardwareAcceleration: 'prefer-software', bitrate: targetBitrate * 0.8, framerate: tfps };
+            if (!VideoEncoder.isConfigSupported) return fallback;
+
+            // Prioritas Codec Hemat Ruang
+            const codecs = [
+                'av01.0.04M.08', // AV1 Main
+                'vp09.00.10.08', // VP9 Profile 0
+                'avc1.64002A',   // H.264 High
+                'avc1.4D002A'    // H.264 Main
+            ];
+
+            for (const accel of ['prefer-hardware', 'prefer-software']) {
+                for (const codec of codecs) {
+                    const cfg = { 
+                        codec, width: w, height: h, 
+                        hardwareAcceleration: accel, 
+                        bitrate: targetBitrate, 
+                        framerate: tfps,
+                        bitrateMode: 'variable',
+                        latencyMode: 'quality'
+                    };
+                    try {
+                        const support = await VideoEncoder.isConfigSupported(cfg);
+                        if (support.supported) {
+                            logMsg(`[Codec Selected] ${codec} (${accel})`, 'good');
+                            return cfg;
+                        }
+                    } catch(e){}
+                }
+            }
+            return fallback;
+        }
+
+        // ================= MAIN RENDER LOOP =================
+        btnStart.addEventListener('click', async () => {
+            const pendingQueue = queue.filter(q => q.status === 'pending' || q.status === 'error');
+            if (pendingQueue.length === 0) return;
+
+            isProcessing = true; isCanceled = false;
+            btnStart.disabled = true; btnClear.disabled = true;
+            
+            overlay.style.display = 'flex';
+            btnCancel.style.display = 'inline-flex';
+            btnClose.style.display = 'none';
+
+            let currentIdx = 1;
+            for (const item of queue) {
+                if (isCanceled) break;
+                if (item.status === 'done') continue;
+
+                statQidx.innerText = currentIdx++;
+                renderFilename.innerText = item.file.name;
+                renderPct.innerText = '0%'; renderBar.style.width = '0%';
+                logsBox.innerHTML = '';
+                logMsg(`Start processing: ${item.file.name}`, 'meta');
+
+                try {
+                    await processVideo(item);
+                    item.status = 'done';
+                    totalDone++;
+                    statTotalDone.innerText = totalDone;
+                    logMsg(`✅ DONE: ${item.file.name}`, 'good');
+                } catch (err) {
+                    console.error(err);
+                    item.status = 'error';
+                    logMsg(`❌ FAILED: ${err.message}`, 'danger');
+                }
+                updateQueueUI();
+            }
+
+            isProcessing = false;
+            btnCancel.style.display = 'none';
+            btnClose.style.display = 'inline-flex';
+            
+            if (isCanceled) {
+                renderFilename.innerText = "Canceled by User";
+                logMsg("Process forcefully aborted.", "warn");
+            } else {
+                renderFilename.innerText = "All Finished!";
+            }
+        });
+
+        btnCancel.addEventListener('click', () => { isCanceled = true; btnCancel.disabled = true; });
+        btnClose.addEventListener('click', () => { overlay.style.display = 'none'; btnCancel.disabled = false; });
+
+        async function processVideo(item) {
+            return new Promise(async (resolve, reject) => {
+                const info = item.info;
+                
+                // Kalkulasi Bitrate Dinamis
+                const qualityFactor = getQualityFactor();
+                const pixelsPerSec = info.width * info.height * info.fps;
+                const targetBitrate = Math.round(pixelsPerSec * qualityFactor);
+                
+                statRes.innerText = `${info.width}x${info.height}`;
+                statBitrate.innerText = `${formatBytes(targetBitrate / 8)}/s`;
+
+                // Setup Konfigurasi Encoder
+                const videoConfig = await negotiateEncoderConfig(info.width, info.height, Math.round(info.fps), targetBitrate);
+                
+                hiddenCanvas.width = videoConfig.width;
+                hiddenCanvas.height = videoConfig.height;
+
+                // Setup Muxer MP4
+                let muxerCodec = 'avc';
+                if (videoConfig.codec.startsWith('av01')) muxerCodec = 'av1';
+                else if (videoConfig.codec.startsWith('vp09')) muxerCodec = 'vp9';
+
+                const muxerOpts = { 
+                    target: new Mp4Muxer.ArrayBufferTarget(), 
+                    video: { codec: muxerCodec, width: videoConfig.width, height: videoConfig.height }, 
+                    fastStart: 'in-memory' 
+                };
+
+                // Passthrough Audio Configuration (Transcode ke AAC 48kHz Stereo)
+                const audioConfig = info.hasAudio ? { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 128000 } : null;
+                if (audioConfig) muxerOpts.audio = { codec: 'aac', sampleRate: audioConfig.sampleRate, numberOfChannels: audioConfig.numberOfChannels };
+
+                const muxer = new Mp4Muxer.Muxer(muxerOpts);
+
+                let isPipelineFailed = false;
+
+                const videoEncoder = new VideoEncoder({
+                    output: (chunk, meta) => { try { muxer.addVideoChunk(chunk, meta); } catch(e) { isPipelineFailed=true; reject(e); } },
+                    error: (e) => { isPipelineFailed=true; reject(e); }
+                });
+                videoEncoder.configure(videoConfig);
+
+                let audioEncoder = null;
+                if (audioConfig) {
+                    audioEncoder = new AudioEncoder({
+                        output: (chunk, meta) => { try { muxer.addAudioChunk(chunk, meta); } catch(e) { isPipelineFailed=true; } },
+                        error: (e) => { isPipelineFailed=true; }
+                    });
+                    audioEncoder.configure(audioConfig);
+                }
+
+                // EKSEKUSI DEMUX & DECODE
+                let framesEncoded = 0;
+                const totalExpectedUs = info.durationSec * 1_000_000;
+
+                const mp4box = MP4Box.createFile();
+                let vTrackId, aTrackId;
+                let vDecoder, aDecoder;
+                let isFileReadDone = false;
+
+                mp4box.onError = (e) => { isPipelineFailed = true; reject(e); };
+                mp4box.onReady = (fileInfo) => {
+                    const vTrak = fileInfo.videoTracks[0];
+                    if (!vTrak) { reject(new Error("No video track found.")); return; }
+                    vTrackId = vTrak.id;
+
+                    vDecoder = new VideoDecoder({
+                        output: (frame) => {
+                            if (isCanceled || isPipelineFailed) { frame.close(); return; }
+                            
+                            renderCtx.drawImage(frame, 0, 0, videoConfig.width, videoConfig.height);
+                            
+                            // Logika GOP: Keyframe setiap 2 Detik (Khas YouTube)
+                            const isKeyFrame = (framesEncoded % Math.round(videoConfig.framerate * 2) === 0);
+                            
+                            const newFrame = new VideoFrame(hiddenCanvas, { timestamp: frame.timestamp });
+                            try { videoEncoder.encode(newFrame, { keyFrame: isKeyFrame }); } catch(e) { isPipelineFailed=true; }
+                            
+                            newFrame.close(); frame.close();
+                            framesEncoded++;
+
+                            // Update UI
+                            if (framesEncoded % 30 === 0) {
+                                let pct = (frame.timestamp / totalExpectedUs) * 100;
+                                pct = Math.min(100, Math.max(0, pct));
+                                renderPct.innerText = `${Math.floor(pct)}%`;
+                                renderBar.style.width = `${pct}%`;
+                            }
+                        },
+                        error: (e) => { isPipelineFailed = true; reject(e); }
+                    });
+
+                    // Extrak description data untuk konfigurasi decoder
+                    let vDesc = null; const t = mp4box.getTrackById(vTrackId);
+                    if (t?.mdia?.minf?.stbl?.stsd) { for(const e of t.mdia.minf.stbl.stsd.entries) { if(e.avcC) { const s = new DataStream(undefined,0,DataStream.BIG_ENDIAN); e.avcC.write(s); vDesc = new Uint8Array(s.buffer,8); break; } } }
+                    
+                    const vDecConf = { codec: vTrak.codec, codedWidth: vTrak.video.width, codedHeight: vTrak.video.height, hardwareAcceleration: 'prefer-hardware' };
+                    if(vDesc) vDecConf.description = vDesc;
+                    vDecoder.configure(vDecConf);
+
+                    // Setup Audio Decoder
+                    if (audioConfig && fileInfo.audioTracks[0]) {
+                        aTrackId = fileInfo.audioTracks[0].id;
+                        const aTrak = fileInfo.audioTracks[0];
+
+                        aDecoder = new AudioDecoder({
+                            output: (aData) => {
+                                if (isCanceled || isPipelineFailed) { aData.close(); return; }
+                                // Basic passthrough re-encode
+                                try { audioEncoder.encode(aData); } catch(e) { /* abaikan minor audio drop */ }
+                                aData.close();
+                            },
+                            error: (e) => { logMsg("Warning: Audio frame decode failed.", "warn"); }
+                        });
+                        
+                        let aDesc = null; const at = mp4box.getTrackById(aTrackId);
+                        try { aDesc = at.mdia.minf.stbl.stsd.entries[0].esds.esd.decConfigDescr.decSpecificInfo.data; } catch(e){}
+                        const aDecConf = { codec: aTrak.codec.startsWith('mp4a') ? aTrak.codec : 'mp4a.40.2', sampleRate: aTrak.audio.sample_rate, numberOfChannels: aTrak.audio.channel_count };
+                        if(aDesc) aDecConf.description = aDesc;
+                        
+                        try { aDecoder.configure(aDecConf); } catch(e) { aDecoder = null; logMsg("Failed initiating Audio, video will be muted.", "warn"); }
+                    }
+
+                    mp4box.setExtractionOptions(vTrackId);
+                    if(aTrackId && aDecoder) mp4box.setExtractionOptions(aTrackId);
+                    mp4box.start();
+                };
+
+                const vQueue = []; const aQueue = [];
+                mp4box.onSamples = (id, user, samples) => {
+                    if (id === vTrackId) for(const s of samples) vQueue.push(s);
+                    else if (id === aTrackId) for(const s of samples) aQueue.push(s);
+                };
+
+                const processChunks = async () => {
+                    while (!isFileReadDone || vQueue.length > 0 || aQueue.length > 0) {
+                        if (isCanceled || isPipelineFailed) return;
+                        let processed = false;
+
+                        if (vQueue.length > 0 && vDecoder && vDecoder.decodeQueueSize < 15 && videoEncoder.encodeQueueSize < 20) {
+                            const s = vQueue.shift();
+                            try { vDecoder.decode(new EncodedVideoChunk({ type: s.is_sync?'key':'delta', timestamp: 1e6*s.cts/s.timescale, duration: 1e6*s.duration/s.timescale, data: s.data })); processed = true; } catch(e){ isPipelineFailed=true; }
+                        }
+
+                        if (aQueue.length > 0 && aDecoder && aDecoder.decodeQueueSize < 20 && audioEncoder && audioEncoder.encodeQueueSize < 20) {
+                            const s = aQueue.shift();
+                            try { aDecoder.decode(new EncodedAudioChunk({ type: s.is_sync?'key':'delta', timestamp: 1e6*s.cts/s.timescale, duration: 1e6*s.duration/s.timescale, data: s.data })); processed = true; } catch(e){}
+                        }
+
+                        if (!processed) await new Promise(r => setTimeout(r, 1));
+                    }
+                };
+
+                const fileReader = new FileReader();
+                fileReader.onload = async (e) => {
+                    if (isCanceled) { resolve(); return; }
+                    const b = e.target.result; b.fileStart = 0; mp4box.appendBuffer(b); mp4box.flush(); isFileReadDone = true;
+                    
+                    await processChunks();
+                    
+                    if (vDecoder && vDecoder.state === 'configured') await vDecoder.flush();
+                    if (aDecoder && aDecoder.state === 'configured') await aDecoder.flush();
+                    
+                    if (vDecoder && vDecoder.state !== 'closed') vDecoder.close();
+                    if (aDecoder && aDecoder.state !== 'closed') aDecoder.close();
+
+                    if (isCanceled) {
+                        if (videoEncoder.state !== 'closed') videoEncoder.close();
+                        if (audioEncoder && audioEncoder.state !== 'closed') audioEncoder.close();
+                        resolve(); return;
+                    }
+
+                    if (isPipelineFailed) { reject(new Error("Engine Failure")); return; }
+
+                    logMsg("Finalizing Muxer package...", "meta");
+                    if (videoEncoder.state === 'configured') { await videoEncoder.flush(); videoEncoder.close(); }
+                    if (audioEncoder && audioEncoder.state === 'configured') { await audioEncoder.flush(); audioEncoder.close(); }
+
+                    muxer.finalize();
+                    const finalBlob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
+                    
+                    // Hitung penghematan
+                    const oldSize = item.file.size;
+                    const newSize = finalBlob.size;
+                    const savedPct = ((oldSize - newSize) / oldSize * 100).toFixed(1);
+                    logMsg(`Old Size: ${formatBytes(oldSize)} | New Size: ${formatBytes(newSize)} (Saved ${savedPct}%)`, "good");
+
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(finalBlob);
+                    a.download = item.file.name.replace(/\.[^/.]+$/, "") + "_compressed.mp4";
+                    a.click();
+                    
+                    renderPct.innerText = "100%"; renderBar.style.width = "100%";
+                    resolve();
+                };
+                fileReader.readAsArrayBuffer(item.file);
+            });
+        }
+    </script>
+</body>
+</html>
