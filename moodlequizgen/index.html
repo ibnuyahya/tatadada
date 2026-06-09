@@ -168,17 +168,28 @@
                     <i data-lucide="help-circle" class="w-4 h-4"></i>
                 </button>
                 <div class="absolute left-0 top-full mt-2 w-64 p-3 rounded-xl bg-gray-800 text-gray-200 text-xs shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
-                    <span class="lang-id block">Generator Prompt Cerdas (GIFT & XML) berbasis Pedagogi digital untuk memproduksi soal Moodle.</span>
-                    <span class="lang-en block hidden">Smart Prompt Generator (GIFT & XML) based on digital Pedagogy for Moodle quiz production.</span>
+                    <span class="lang-id block">Generator Prompt Cerdas berbasis Pedagogi digital untuk memproduksi soal Moodle. Progres otomatis tersimpan.</span>
+                    <span class="lang-en block hidden">Smart Prompt Generator based on digital Pedagogy for Moodle quiz production. Progress autosaved.</span>
                 </div>
             </div>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 lg:gap-3">
+            <button onclick="downloadPrompt()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border theme-border text-xs font-semibold rounded-lg shadow-sm transition-colors" title="Simpan sebagai file txt">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <!-- Diperbaiki: Wrapper "hidden sm:inline" dipisah dari logic bahasa -->
+                <span class="hidden sm:inline">
+                    <span class="lang-id">Simpan .txt</span>
+                    <span class="lang-en hidden">Save .txt</span>
+                </span>
+            </button>
             <button onclick="copyOutput()" class="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors">
                 <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                <span class="lang-id">Salin Prompt</span>
-                <span class="lang-en hidden">Copy Prompt</span>
+                <!-- Diperbaiki: Wrapper "hidden sm:inline" dipisah dari logic bahasa -->
+                <span class="hidden sm:inline">
+                    <span class="lang-id">Salin Prompt</span>
+                    <span class="lang-en hidden">Copy Prompt</span>
+                </span>
             </button>
             <div class="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1"></div>
             <button id="langToggle" onclick="toggleLanguage()" class="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 theme-dim transition-colors text-sm font-medium" title="Toggle Language">
@@ -194,32 +205,68 @@
         
         <!-- Left Pane: Controls -->
         <aside id="leftPane" class="w-full md:w-[450px] shrink-0 theme-bg panel-shadow border-r theme-border flex flex-col z-10">
-            <div class="p-4 border-b theme-border flex items-center gap-2">
-                <i data-lucide="sliders-horizontal" class="w-4 h-4 theme-accent"></i>
-                <h2 class="text-sm font-bold theme-text">Parameter Kognitif & Format</h2>
+            <div class="p-4 border-b theme-border flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="sliders-horizontal" class="w-4 h-4 theme-accent"></i>
+                    <h2 class="text-sm font-bold theme-text">Parameter Kognitif & Format</h2>
+                </div>
+                <!-- Auto-save indicator -->
+                <div class="flex items-center gap-1" title="Data Anda otomatis tersimpan di browser">
+                    <i data-lucide="cloud-lightning" class="w-3.5 h-3.5 text-emerald-500"></i>
+                    <span class="text-[9px] font-bold text-emerald-500 uppercase tracking-wide">Auto-Saved</span>
+                </div>
             </div>
             
-            <div class="p-5 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+            <div class="p-5 overflow-y-auto custom-scrollbar flex-1 space-y-6 relative">
                 <!-- Config Form -->
                 <form id="configForm" class="space-y-5">
                     
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-id">Target Peserta</label>
-                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-en hidden">Audience</label>
-                            <input type="text" id="audience" value="Mahasiswa" class="input-base" placeholder="Contoh: Mahasiswa">
+                            <div class="flex items-center gap-1 mb-1.5">
+                                <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider lang-id">Batas Sumber Materi</label>
+                                <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider lang-en hidden">Material Scope</label>
+                                <div class="group relative flex items-center">
+                                    <i data-lucide="info" class="w-3 h-3 text-slate-400 hover:text-blue-500 cursor-help transition-colors"></i>
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 rounded-lg bg-gray-800 text-white text-[10px] text-center shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                                        Ketat: AI HANYA patuh pada teks/berkas yang diberikan. Fleksibel: AI boleh mengembangkan teori dari luar materi Anda.
+                                    </div>
+                                </div>
+                            </div>
+                            <select id="strictness" class="input-base cursor-pointer">
+                                <option value="strict" class="lang-id" selected>Ketat (Hanya Materi)</option>
+                                <option value="strict" class="lang-en hidden">Strict (Only Material)</option>
+                                <option value="flexible" class="lang-id">Fleksibel (Kembangkan)</option>
+                                <option value="flexible" class="lang-en hidden">Flexible (Expand)</option>
+                            </select>
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-id">Jumlah Soal</label>
-                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-en hidden">Questions count</label>
+                            <div class="flex items-center gap-1 mb-1.5">
+                                <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider lang-id">Jumlah Soal</label>
+                                <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider lang-en hidden">Questions</label>
+                                <div class="group relative flex items-center">
+                                    <i data-lucide="info" class="w-3 h-3 text-slate-400 hover:text-blue-500 cursor-help transition-colors"></i>
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 rounded-lg bg-gray-800 text-white text-[10px] text-center shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                                        Tentukan berapa banyak soal yang ingin digenerate AI secara sekaligus (Disarankan 10-20 per materi).
+                                    </div>
+                                </div>
+                            </div>
                             <input type="number" id="numQuestions" value="10" min="1" max="100" class="input-base">
                         </div>
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-id">Jumlah Opsi (A-..)</label>
-                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-en hidden">Options Count</label>
+                            <div class="flex items-center gap-1 mb-1.5">
+                                <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider lang-id">Jumlah Opsi (A-..)</label>
+                                <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider lang-en hidden">Options Count</label>
+                                <div class="group relative flex items-center">
+                                    <i data-lucide="info" class="w-3 h-3 text-slate-400 hover:text-blue-500 cursor-help transition-colors"></i>
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 rounded-lg bg-gray-800 text-white text-[10px] text-center shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                                        Membatasi jumlah opsi pilihan ganda per soal secara ketat (Default Pendidikan Tinggi: 5 Opsi).
+                                    </div>
+                                </div>
+                            </div>
                             <select id="numOptions" class="input-base cursor-pointer">
                                 <option value="3">3 Opsi</option>
                                 <option value="4">4 Opsi</option>
@@ -228,18 +275,37 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1.5 lang-id">Format Output</label>
-                            <label class="block text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1.5 lang-en hidden">Output Format</label>
+                            <div class="flex items-center gap-1 mb-1.5">
+                                <label class="block text-[10px] font-bold text-blue-500 uppercase tracking-wider lang-id">Format Output</label>
+                                <label class="block text-[10px] font-bold text-blue-500 uppercase tracking-wider lang-en hidden">Output Format</label>
+                                <div class="group relative flex items-center">
+                                    <i data-lucide="info" class="w-3 h-3 text-blue-400 hover:text-blue-600 cursor-help transition-colors"></i>
+                                    <div class="absolute bottom-full right-0 md:left-1/2 md:-translate-x-1/2 mb-2 w-56 p-2 rounded-lg bg-gray-800 text-white text-[10px] shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                                        <b class="text-blue-300">GIFT:</b> Teks solid & Powerful (Rekomendasi).<br>
+                                        <b class="text-emerald-300">XML:</b> Native Moodle, mendukung Rich-HTML.<br>
+                                        <b class="text-orange-300">AIKEN:</b> Teks mentah paling ringan, tidak mendukung Pembahasan/Feedback.
+                                    </div>
+                                </div>
+                            </div>
                             <select id="format" class="input-base border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/20 font-bold text-blue-700 dark:text-blue-400 cursor-pointer">
-                                <option value="GIFT">GIFT (Notepad/Teks)</option>
+                                <option value="GIFT" selected>GIFT (Notepad/Teks)</option>
                                 <option value="XML">Moodle XML (Sistem)</option>
+                                <option value="AIKEN">AIKEN (Sederhana)</option>
                             </select>
                         </div>
                     </div>
 
                     <div class="pt-2">
-                        <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-2 lang-id">Taksonomi Bloom (Kedalaman)</label>
-                        <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-2 lang-en hidden">Bloom's Taxonomy (Depth)</label>
+                        <div class="flex items-center gap-1 mb-2">
+                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider lang-id">Taksonomi Bloom (Kedalaman)</label>
+                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider lang-en hidden">Bloom's Taxonomy (Depth)</label>
+                            <div class="group relative flex items-center">
+                                <i data-lucide="info" class="w-3 h-3 text-slate-400 hover:text-blue-500 cursor-help transition-colors"></i>
+                                <div class="absolute bottom-full left-0 md:left-1/2 md:-translate-x-1/2 mb-2 w-64 p-2 rounded-lg bg-gray-800 text-white text-[10px] text-center shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                                    Memaksa AI untuk menghasilkan pertanyaan berdasarkan hierarki Kognitif. Pilih gabungan C1-C6 sesuai capaian pembelajaran mata kuliah.
+                                </div>
+                            </div>
+                        </div>
                         <div class="grid grid-cols-2 gap-2">
                             <label class="check-pill cursor-pointer">
                                 <input type="checkbox" class="peer sr-only bloom-cb" value="C1 (Mengingat fakta dasar)" checked>
@@ -270,8 +336,16 @@
 
                     <div class="pt-4 border-t theme-border space-y-4">
                         <div>
-                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-id">Konteks Soal (HOTS vs LOTS)</label>
-                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-en hidden">Question Context</label>
+                            <div class="flex items-center gap-1 mb-1.5">
+                                <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider lang-id">Konteks Soal (HOTS vs LOTS)</label>
+                                <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider lang-en hidden">Question Context</label>
+                                <div class="group relative flex items-center">
+                                    <i data-lucide="info" class="w-3 h-3 text-slate-400 hover:text-blue-500 cursor-help transition-colors"></i>
+                                    <div class="absolute bottom-full left-0 md:left-1/2 md:-translate-x-1/2 mb-2 w-56 p-2 rounded-lg bg-gray-800 text-white text-[10px] text-center shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                                        Studi Kasus akan memaksa AI menjabarkan skenario cerita (HOTS). Teoretis akan langsung to-the-point menanyakan materi terkait (LOTS).
+                                    </div>
+                                </div>
+                            </div>
                             <select id="contextRule" class="input-base cursor-pointer">
                                 <option value="kasus" class="lang-id">Berbasis Studi Kasus / Skenario</option>
                                 <option value="kasus" class="lang-en hidden">Case Study / Scenario Based</option>
@@ -280,8 +354,16 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-id">Kualitas Pengecoh</label>
-                            <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider mb-1.5 lang-en hidden">Distractor Quality</label>
+                            <div class="flex items-center gap-1 mb-1.5">
+                                <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider lang-id">Kualitas Pengecoh (Distractor)</label>
+                                <label class="block text-[10px] font-bold theme-dim uppercase tracking-wider lang-en hidden">Distractor Quality</label>
+                                <div class="group relative flex items-center">
+                                    <i data-lucide="info" class="w-3 h-3 text-slate-400 hover:text-blue-500 cursor-help transition-colors"></i>
+                                    <div class="absolute bottom-full left-0 md:left-1/2 md:-translate-x-1/2 mb-2 w-64 p-2 rounded-lg bg-gray-800 text-white text-[10px] text-center shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                                        Opsi "Tingkat Tinggi" memaksa pengecoh jawaban salah ditarik dari kemungkinan miskonsepsi umum pelajar, membuatnya sulit ditebak dengan cap-cip-cup.
+                                    </div>
+                                </div>
+                            </div>
                             <select id="distractor" class="input-base cursor-pointer">
                                 <option value="Tinggi" class="lang-id">Tingkat Tinggi (Berbasis Miskonsepsi)</option>
                                 <option value="Tinggi" class="lang-en hidden">High Order (Misconception based)</option>
@@ -291,10 +373,18 @@
                         </div>
                     </div>
 
-                    <div class="pt-4 border-t theme-border">
-                        <div class="bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-900/50">
-                            <label class="block text-[10px] font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider mb-3 lang-id">Opsi Feedback</label>
-                            <label class="block text-[10px] font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider mb-3 lang-en hidden">Feedback Options</label>
+                    <div class="pt-4 border-t theme-border" id="feedbackContainer">
+                        <div class="bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-900/50 transition-all duration-300">
+                            <div class="flex items-center gap-1 mb-3">
+                                <label class="block text-[10px] font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider lang-id">Opsi Feedback Pembahasan</label>
+                                <label class="block text-[10px] font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider lang-en hidden">Feedback Options</label>
+                                <div class="group relative flex items-center">
+                                    <i data-lucide="info" class="w-3 h-3 text-blue-400 hover:text-blue-600 cursor-help transition-colors"></i>
+                                    <div class="absolute bottom-full right-0 md:left-1/2 md:-translate-x-1/2 mb-2 w-64 p-2 rounded-lg bg-gray-800 text-white text-[10px] text-center shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                                        Akan ditambahkan ke dalam properti soal sehingga otomatis muncul saat ujian selesai. (Fitur ini akan dinonaktifkan jika memilih format AIKEN).
+                                    </div>
+                                </div>
+                            </div>
                             
                             <div class="space-y-3">
                                 <label class="flex items-start cursor-pointer group">
@@ -345,11 +435,9 @@
                 <!-- Textarea -->
                 <textarea id="outputPrompt" readonly class="flex-1 h-full bg-transparent text-blue-800 dark:text-blue-300 font-mono text-[13px] leading-relaxed resize-none focus:outline-none p-4 pb-12 selectable allow-context custom-scrollbar" spellcheck="false" onscroll="syncScroll()" oninput="updateLines()" placeholder="Prompt generated here..."></textarea>
                 
-                <!-- Copy Toast -->
-                <div id="toast" class="absolute bottom-8 left-1/2 -translate-x-1/2 translate-y-4 opacity-0 pointer-events-none bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-xl flex items-center gap-2 text-xs font-semibold z-20">
-                    <i data-lucide="check-circle-2" class="w-4 h-4"></i>
-                    <span class="lang-id">Prompt Disalin! Buka AI Favorit Anda & Paste.</span>
-                    <span class="lang-en hidden">Prompt Copied! Paste into your AI.</span>
+                <!-- Action Toast -->
+                <div id="toast" class="absolute bottom-8 left-1/2 -translate-x-1/2 translate-y-4 opacity-0 pointer-events-none bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-2 text-xs font-semibold z-20">
+                    <!-- Injected by JS -->
                 </div>
             </div>
         </section>
@@ -404,27 +492,81 @@
     <script>
         lucide.createIcons();
 
-        // 1. Core Logic: Prompt Generation
+        // 1. Core Logic: Prompt Generation & Auto-Save
         const formElements = document.getElementById('configForm');
-        formElements.addEventListener('change', generatePrompt);
-        formElements.addEventListener('input', generatePrompt);
+        
+        function saveFormState() {
+            const state = {
+                strictness: document.getElementById('strictness').value,
+                numQuestions: document.getElementById('numQuestions').value,
+                numOptions: document.getElementById('numOptions').value,
+                format: document.getElementById('format').value,
+                bloom: Array.from(document.querySelectorAll('.bloom-cb')).map(cb => cb.checked),
+                contextRule: document.getElementById('contextRule').value,
+                distractor: document.getElementById('distractor').value,
+                feedSpecific: document.getElementById('feedSpecific').checked,
+                feedGeneral: document.getElementById('feedGeneral').checked
+            };
+            localStorage.setItem('qmg_state', JSON.stringify(state));
+        }
+
+        function loadFormState() {
+            const saved = localStorage.getItem('qmg_state');
+            if (saved) {
+                try {
+                    const state = JSON.parse(saved);
+                    if (state.strictness) document.getElementById('strictness').value = state.strictness;
+                    if (state.numQuestions) document.getElementById('numQuestions').value = state.numQuestions;
+                    if (state.numOptions) document.getElementById('numOptions').value = state.numOptions;
+                    if (state.format) document.getElementById('format').value = state.format;
+                    if (state.contextRule) document.getElementById('contextRule').value = state.contextRule;
+                    if (state.distractor) document.getElementById('distractor').value = state.distractor;
+                    if (state.feedSpecific !== undefined) document.getElementById('feedSpecific').checked = state.feedSpecific;
+                    if (state.feedGeneral !== undefined) document.getElementById('feedGeneral').checked = state.feedGeneral;
+                    
+                    if (state.bloom && state.bloom.length) {
+                        const bloomCbs = document.querySelectorAll('.bloom-cb');
+                        bloomCbs.forEach((cb, index) => {
+                            if (state.bloom[index] !== undefined) cb.checked = state.bloom[index];
+                        });
+                    }
+                } catch(e) { console.error("Error loading state", e); }
+            }
+        }
+
+        formElements.addEventListener('change', () => { saveFormState(); generatePrompt(); });
+        formElements.addEventListener('input', () => { saveFormState(); generatePrompt(); });
 
         function generatePrompt() {
-            const audience = document.getElementById('audience').value || 'Peserta Didik';
+            const strictness = document.getElementById('strictness').value;
             const numQuestions = document.getElementById('numQuestions').value || 10;
             const numOptions = document.getElementById('numOptions').value;
             const format = document.getElementById('format').value;
-            const formatExt = format === 'XML' ? 'xml' : 'gift';
+            const formatExt = format.toLowerCase();
             const contextRule = document.getElementById('contextRule').value;
             const distractor = document.getElementById('distractor').value;
             const feedGeneral = document.getElementById('feedGeneral').checked;
             const feedSpecific = document.getElementById('feedSpecific').checked;
             
+            // Visual feedback logic block
+            const fbContainer = document.getElementById('feedbackContainer');
+            if (format === 'AIKEN') {
+                fbContainer.style.opacity = '0.5';
+                fbContainer.style.pointerEvents = 'none';
+            } else {
+                fbContainer.style.opacity = '1';
+                fbContainer.style.pointerEvents = 'auto';
+            }
+
             const bloomCheckboxes = document.querySelectorAll('.bloom-cb:checked');
             let bloomLevels = [];
             bloomCheckboxes.forEach(cb => bloomLevels.push(cb.value));
             if(bloomLevels.length === 0) bloomLevels = ["Campuran acak sesuai materi"];
             
+            let sourceInstruction = strictness === "strict"
+                ? "Saya akan menyertakan teks materi atau berkas di akhir prompt ini. Silakan baca dan jadikan materi tersebut sebagai SATU-SATUNYA referensi. DILARANG KERAS mengambil informasi di luar materi ini."
+                : "Saya akan menyertakan teks materi atau berkas di akhir prompt ini. Jadikan materi tersebut sebagai referensi utama, namun Anda DIIZINKAN untuk mengembangkan dan menambahkan konteks eksternal yang relevan berdasarkan pengetahuan Anda.";
+
             let pedagogyRule = contextRule === "kasus"
                 ? "- Konteks (HOTS): Prioritaskan pembuatan soal dalam bentuk studi kasus, skenario dunia nyata, atau pemecahan masalah praktis. Hindari sekadar menanyakan definisi."
                 : "- Konteks (LOTS): Buat soal konseptual dan teoretis yang secara langsung menguji pemahaman fakta dan definisi esensial materi.";
@@ -434,18 +576,25 @@
                 : `- Pengecoh (Distractors): Opsi salah harus masuk akal, tata bahasanya setara dengan kunci jawaban, dan berada dalam satu payung topik yang sama.`;
             
             let feedbackRule = "";
-            if(feedGeneral && feedSpecific) {
-                feedbackRule = `- Umpan Balik: Anda WAJIB memberikan (1) Feedback Spesifik untuk SETIAP opsi (alasan ringkas kenapa opsi itu salah/benar), DAN (2) General Feedback (pembahasan utuh yang komprehensif terkait soal tersebut).`;
-            } else if (feedGeneral) {
-                feedbackRule = `- Umpan Balik: Anda WAJIB memberikan General Feedback (pembahasan utuh komprehensif) untuk setiap soal. Abaikan feedback spesifik per opsi.`;
-            } else if (feedSpecific) {
-                feedbackRule = `- Umpan Balik: Anda WAJIB memberikan Feedback Spesifik pada SETIAP opsi (alasan ringkas kenapa opsi tersebut salah atau benar).`;
+            if(format === "AIKEN") {
+                feedbackRule = `- Umpan Balik: FORMAT AIKEN TIDAK MENDUKUNG FEEDBACK. DILARANG KERAS menyertakan pembahasan, alasan, atau komentar apa pun dalam hasil akhir.`;
             } else {
-                feedbackRule = `- Umpan Balik: Tidak perlu menyertakan pembahasan atau feedback. Cukup teks soal dan kunci jawaban.`;
+                if(feedGeneral && feedSpecific) {
+                    feedbackRule = `- Umpan Balik: Anda WAJIB memberikan (1) Feedback Spesifik untuk SETIAP opsi (alasan ringkas kenapa opsi itu salah/benar), DAN (2) General Feedback (pembahasan utuh yang komprehensif terkait soal tersebut).`;
+                } else if (feedGeneral) {
+                    feedbackRule = `- Umpan Balik: Anda WAJIB memberikan General Feedback (pembahasan utuh komprehensif) untuk setiap soal. Abaikan feedback spesifik per opsi.`;
+                } else if (feedSpecific) {
+                    feedbackRule = `- Umpan Balik: Anda WAJIB memberikan Feedback Spesifik pada SETIAP opsi (alasan ringkas kenapa opsi tersebut salah atau benar).`;
+                } else {
+                    feedbackRule = `- Umpan Balik: Tidak perlu menyertakan pembahasan atau feedback. Cukup teks soal dan kunci jawaban.`;
+                }
             }
 
-            let formatRule = format === "GIFT" ? 
-`ATURAN FORMAT SINTAKS GIFT MOODLE (SANGAT KETAT):
+            let formatRule = "";
+            let formatSkeleton = "";
+
+            if (format === "GIFT") {
+                formatRule = `ATURAN FORMAT SINTAKS GIFT MOODLE (SANGAT KETAT):
 1. Mulai tiap soal dengan judul unik diapit double colon :: (misal ::[Judul Soal]::).
 2. Teks pertanyaan ditulis normal setelah judul. 
 3. Opsi jawaban HARUS TEPAT BERJUMLAH ${numOptions} OPSI, diapit di dalam kurung kurawal { }.
@@ -454,9 +603,16 @@
 6. Feedback Spesifik per opsi (jika diminta) diletakkan langsung di ujung teks opsi (sebelum spasi enter) dengan diawali tanda pagar (#).
 7. General Feedback/Pembahasan (jika diminta) diawali tanda empat pagar (####) dan letakkan di dalam kurung kurawal tepat sebelum penutup }.
 8. PENTING: JANGAN PERNAH menggunakan karakter {, }, =, ~, atau # di dalam teks pertanyaan utama, karena akan merusak compiler Moodle.
-9. Antar satu soal dan soal lainnya dipisahkan oleh satu baris kosong (blank line).` 
-: 
-`ATURAN FORMAT SINTAKS MOODLE XML (SANGAT KETAT):
+9. Antar satu soal dan soal lainnya dipisahkan oleh satu baris kosong (blank line).`;
+                formatSkeleton = `::[Judul/Topik Soal]:: [Teks Pertanyaan] {
+~[Opsi Salah 1] #[Feedback Spesifik Opsi Salah]
+=[Opsi Benar] #[Feedback Spesifik Opsi Benar]
+~[Opsi Salah 2] #[Feedback Spesifik Opsi Salah]
+... (total ${numOptions} opsi)
+####[Pembahasan Keseluruhan]
+}`;
+            } else if (format === "XML") {
+                formatRule = `ATURAN FORMAT SINTAKS MOODLE XML (SANGAT KETAT):
 1. Bangkitkan XML 100% valid. Dilarang menambahkan intro/outro di luar XML.
 2. Root node harus <quiz>. Tiap soal diapit <question type="multichoice">.
 3. Seluruh teks (soal, opsi, feedback) WAJIB dibungkus dengan <text><![CDATA[ ... ]]></text> agar format HTML valid.
@@ -464,17 +620,7 @@
 5. Opsi BENAR memiliki atribut fraction="100". Opsi SALAH fraction="0".
 6. Elemen <generalfeedback> digunakan untuk pembahasan keseluruhan.
 7. Di dalam <answer>, gunakan tag <feedback> untuk komentar per opsi.`;
-
-            let formatSkeleton = format === "GIFT" ?
-`::[Judul/Topik Soal]:: [Teks Pertanyaan] {
-~[Opsi Salah 1] #[Feedback Spesifik Opsi Salah]
-=[Opsi Benar] #[Feedback Spesifik Opsi Benar]
-~[Opsi Salah 2] #[Feedback Spesifik Opsi Salah]
-... (total ${numOptions} opsi)
-####[Pembahasan Keseluruhan]
-}`
-:
-`<?xml version="1.0" encoding="UTF-8"?>
+                formatSkeleton = `<?xml version="1.0" encoding="UTF-8"?>
 <quiz>
   <question type="multichoice">
     <name><text>[Judul Soal]</text></name>
@@ -493,12 +639,27 @@
     <!-- Tambahkan <answer> salah lainnya hingga total ${numOptions} opsi -->
   </question>
 </quiz>`;
+            } else if (format === "AIKEN") {
+                formatRule = `ATURAN FORMAT SINTAKS AIKEN MOODLE (SANGAT KETAT):
+1. Pertanyaan WAJIB ditulis dalam satu baris penuh (dilarang ada "enter" di tengah kalimat pertanyaan).
+2. Setiap opsi jawaban diawali dengan satu huruf kapital berurutan (A, B, C, dst), diikuti tanda titik (.), lalu spasi.
+3. Kunci jawaban ditulis di baris baru segera setelah opsi terakhir dengan format "ANSWER: [Huruf Opsi Benar]".
+4. DILARANG memberikan pembahasan, feedback, atau tag apa pun. Harus plain-text murni.
+5. Antar satu soal dan soal lainnya dipisahkan oleh satu baris kosong (blank line).`;
+                
+                let opts = "";
+                const letters = ["A", "B", "C", "D", "E", "F"];
+                for(let i = 0; i < numOptions; i++) {
+                    opts += `${letters[i]}. [Teks Opsi ${i+1}]\n`;
+                }
+                formatSkeleton = `[Teks Pertanyaan (Satu baris utuh tanpa enter)]\n${opts}ANSWER: [Huruf Kunci Jawaban]`;
+            }
 
             const finalPrompt = `Anda adalah Ahli Desain Instruksional dan Spesialis Moodle.
 
 TUGAS ANDA:
-Saya akan menyertakan teks materi di bagian akhir dari prompt ini. Silakan baca dan jadikan teks tersebut sebagai SATU-SATUNYA referensi materi.
-Berdasarkan materi tersebut, buatlah ${numQuestions} soal Pilihan Ganda (Multiple Choice) yang dirancang khusus untuk: ${audience}.
+${sourceInstruction}
+Berdasarkan materi tersebut, buatlah ${numQuestions} soal Pilihan Ganda (Multiple Choice).
 Setiap soal WAJIB memiliki TEPAT ${numOptions} opsi jawaban.
 
 KAIDAH PEDAGOGI YANG WAJIB DITERAPKAN:
@@ -516,12 +677,12 @@ BATASAN ANTI-HALUSINASI (HARGA MATI):
 1. HASILKAN HANYA SINTAKS KODE ${format} MURNI. 
 2. DILARANG KERAS memberikan kalimat pembuka (contoh: "Baik, berikut adalah soalnya...").
 3. DILARANG KERAS memberikan kalimat penutup atau penjelasan tambahan di akhir baris.
-4. WAJIB bungkus seluruh hasil output Anda ke dalam satu blok kode markdown (gunakan \`\`\`${formatExt}\`) agar kode tidak tersembunyi/hilang saat dirender di antarmuka web.
+4. WAJIB bungkus seluruh hasil output Anda ke dalam satu blok kode markdown (gunakan \`\`\`${formatExt === 'aiken' ? 'text' : formatExt}\`) agar kode tidak tersembunyi/hilang saat dirender di antarmuka web.
 5. DILARANG KERAS MENYALIN ATAU MENYERTAKAN TEKS SITASI seperti "" DALAM HASIL OUTPUT. Bersihkan dan buat kalimat yang mengalir natural tanpa embel-embel referensi angka dari sumber pdf materi.
 
 Jika Anda mengerti instruksi ini, silakan proses material saya dan langsung hasilkan ${numQuestions} soal tersebut SEKARANG di dalam blok markdown.
 
-[PASTE MATERI ANDA DI BAWAH BARIS INI]`;
+[PASTE TEKS MATERI ATAU UNGGAH BERKAS ANDA DI BAWAH BARIS INI]`;
 
             const outputEl = document.getElementById('outputPrompt');
             outputEl.value = finalPrompt;
@@ -529,7 +690,7 @@ Jika Anda mengerti instruksi ini, silakan proses material saya dan langsung hasi
             updateLines();
         }
 
-        // Textarea Line Numbers Logic
+        // Output logic
         function updateLines() {
             const outputEl = document.getElementById('outputPrompt');
             const linesEl = document.getElementById('lineNumbers');
@@ -547,19 +708,51 @@ Jika Anda mengerti instruksi ini, silakan proses material saya dan langsung hasi
             linesEl.scrollTop = outputEl.scrollTop;
         }
 
-        // Copy Function with Toast
+        // Save TXT & Copy
+        function showToast(icon, idText, enText) {
+            const toast = document.getElementById('toast');
+            toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i><span class="lang-id">${idText}</span><span class="lang-en hidden">${enText}</span>`;
+            lucide.createIcons();
+            applyLanguage();
+            toast.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
+            }, 3000);
+        }
+
         function copyOutput() {
             const outputEl = document.getElementById('outputPrompt');
             if(!outputEl.value) return;
             outputEl.select();
             document.execCommand('copy');
             window.getSelection().removeAllRanges();
+            showToast('check-circle-2', 'Prompt Disalin! Buka AI Favorit Anda & Paste.', 'Prompt Copied! Paste into your AI.');
+        }
+
+        function downloadPrompt() {
+            const outputEl = document.getElementById('outputPrompt');
+            if(!outputEl.value) return;
             
-            const toast = document.getElementById('toast');
-            toast.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
-            setTimeout(() => {
-                toast.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
-            }, 3000);
+            const format = document.getElementById('format').value;
+            const numQ = document.getElementById('numQuestions').value;
+            
+            const date = new Date();
+            const timestamp = `${date.getFullYear()}${String(date.getMonth()+1).padStart(2,'0')}${String(date.getDate()).padStart(2,'0')}_${String(date.getHours()).padStart(2,'0')}${String(date.getMinutes()).padStart(2,'0')}`;
+            
+            const filename = `SmartPrompt_${format}_${numQ}Q_${timestamp}.txt`;
+            
+            const blob = new Blob([outputEl.value], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast('download-cloud', 'File Prompt Berhasil Disimpan!', 'Prompt File Saved Successfully!');
         }
 
         // 2. Resizer Logic (Split Pane)
@@ -664,6 +857,7 @@ Jika Anda mengerti instruksi ini, silakan proses material saya dan langsung hasi
         window.addEventListener('DOMContentLoaded', () => {
             initTheme();
             applyLanguage();
+            loadFormState(); // Load saved state before generating
             generatePrompt();
             
             // Handle window resize for mobile (disable split pane inline width)
