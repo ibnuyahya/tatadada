@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Flow Command Center</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0B0E14',
+                        panelbg: '#151924',
+                        accent: '#2962FF',
+                        success: '#089981',
+                        danger: '#F23645',
+                        xau: '#F8D12F',
+                        btc: '#F7931A'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['"Fira Code"', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0B0E14;
+            color: #d1d4dc;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Layout untuk setiap instrumen (Kiri: 15m, Kanan: 1m) */
+        .pair-view {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+            padding: 6px;
+            flex-grow: 1;
+            height: calc(100vh - 60px);
+            width: 100%;
+        }
+
+        .hidden-view {
+            display: none !important;
+        }
+
+        .chart-container {
+            background-color: #151924;
+            border: 1px solid #2a2e39;
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .chart-badge {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(21, 25, 36, 0.85);
+            border: 1px solid #2a2e39;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            z-index: 10;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        /* Gaya Toggle Button */
+        .toggle-btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .toggle-active-xau {
+            background-color: #F8D12F;
+            color: #0B0E14;
+            box-shadow: 0 0 10px rgba(248, 209, 47, 0.4);
+        }
+        .toggle-active-btc {
+            background-color: #F7931A;
+            color: #0B0E14;
+            box-shadow: 0 0 10px rgba(247, 147, 26, 0.4);
+        }
+    </style>
+
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+</head>
+<body>
+
+    <header class="h-[60px] bg-panelbg border-b border-gray-800 flex justify-between items-center px-6 shadow-md z-20">
+        <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full bg-success animate-pulse"></div>
+                <h1 class="text-lg font-bold tracking-wider text-white">PRO <span class="text-accent">SCALPER</span></h1>
+            </div>
+            
+            <div class="h-6 w-[1px] bg-gray-700"></div>
+            
+            <!-- INSTRUMENT TOGGLE SWITCH -->
+            <div class="flex bg-gray-900 p-1 rounded-lg border border-gray-700 items-center">
+                <button id="btn-xau" onclick="switchPair('xau')" class="toggle-btn toggle-active-xau px-6 py-1.5 rounded-md font-bold text-sm tracking-wide">
+                    XAUUSD
+                </button>
+                <button id="btn-btc" onclick="switchPair('btc')" class="toggle-btn text-gray-400 hover:text-gray-200 px-6 py-1.5 rounded-md font-bold text-sm tracking-wide">
+                    BTCUSD
+                </button>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <div class="text-xs text-gray-400 hidden lg:block mr-2 text-right">
+                <span class="text-white font-semibold">15m:</span> Tunggu area VAH/VAL (Bollinger) & VWAP<br>
+                <span class="text-white font-semibold">1m:</span> Eksekusi saat Absorption (Ekor + Vol) & RSI
+            </div>
+            <div id="clock" class="font-mono text-sm font-medium text-gray-300 bg-darkbg px-3 py-1.5 rounded border border-gray-800">
+                00:00:00 WIB
+            </div>
+        </div>
+    </header>
+
+    <div id="view-xau" class="pair-view">
+        <!-- XAUUSD 15m (BIAS) -->
+        <div class="chart-container">
+            <div class="chart-badge border-t-2 border-t-xau text-gray-200">
+                <span class="text-xau">XAUUSD</span> • BIAS (15M)
+            </div>
+            <div id="tv_xau_15m" class="w-full h-full"></div>
+        </div>
+
+        <!-- XAUUSD 1m (EKSEKUSI) -->
+        <div class="chart-container">
+            <div class="chart-badge border-t-2 border-t-success text-gray-200">
+                <span class="text-xau">XAUUSD</span> • ENTRY (1M)
+            </div>
+            <div id="tv_xau_1m" class="w-full h-full"></div>
+        </div>
+    </div>
+
+    <div id="view-btc" class="pair-view hidden-view">
+        <!-- BTCUSD 15m (BIAS) -->
+        <div class="chart-container">
+            <div class="chart-badge border-t-2 border-t-btc text-gray-200">
+                <span class="text-btc">BTCUSD</span> • BIAS (15M)
+            </div>
+            <div id="tv_btc_15m" class="w-full h-full"></div>
+        </div>
+
+        <!-- BTCUSD 1m (EKSEKUSI) -->
+        <div class="chart-container">
+            <div class="chart-badge border-t-2 border-t-success text-gray-200">
+                <span class="text-btc">BTCUSD</span> • ENTRY (1M)
+            </div>
+            <div id="tv_btc_1m" class="w-full h-full"></div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        // 1. Fungsi Jam Digital
+        function updateClock() {
+            const now = new Date();
+            const options = { timeZone: 'Asia/Jakarta', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            document.getElementById('clock').innerText = now.toLocaleTimeString('id-ID', options) + ' WIB';
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // 2. Fungsi Toggle Switch
+        function switchPair(pair) {
+            const viewXau = document.getElementById('view-xau');
+            const viewBtc = document.getElementById('view-btc');
+            const btnXau = document.getElementById('btn-xau');
+            const btnBtc = document.getElementById('btn-btc');
+
+            if (pair === 'xau') {
+                // Tampilkan XAU, Sembunyikan BTC
+                viewXau.classList.remove('hidden-view');
+                viewBtc.classList.add('hidden-view');
+                
+                // Styling Tombol Aktif XAU
+                btnXau.classList.add('toggle-active-xau');
+                btnXau.classList.remove('text-gray-400', 'hover:text-gray-200');
+                
+                // Styling Tombol Non-Aktif BTC
+                btnBtc.classList.remove('toggle-active-btc');
+                btnBtc.classList.add('text-gray-400', 'hover:text-gray-200');
+            } else {
+                // Tampilkan BTC, Sembunyikan XAU
+                viewBtc.classList.remove('hidden-view');
+                viewXau.classList.add('hidden-view');
+                
+                // Styling Tombol Aktif BTC
+                btnBtc.classList.add('toggle-active-btc');
+                btnBtc.classList.remove('text-gray-400', 'hover:text-gray-200');
+                
+                // Styling Tombol Non-Aktif XAU
+                btnXau.classList.remove('toggle-active-xau');
+                btnXau.classList.add('text-gray-400', 'hover:text-gray-200');
+            }
+        }
+
+        // 3. Konfigurasi Dasar Widget
+        const commonOptions = {
+            "autosize": true,
+            "timezone": "Asia/Jakarta",
+            "theme": "dark",
+            "style": "9", // HOLLOW CANDLES
+            "locale": "id",
+            "enable_publishing": false,
+            "hide_side_toolbar": true, 
+            "hide_top_toolbar": false,
+            "allow_symbol_change": true,
+            "save_image": false,
+            "toolbar_bg": "#151924"
+        };
+
+        // 4. Inisialisasi Chart XAUUSD
+        new TradingView.widget(Object.assign({}, commonOptions, {
+            "container_id": "tv_xau_15m",
+            "symbol": "OANDA:XAUUSD",
+            "interval": "15",
+            "studies": ["VWAP@tv-basicstudies", "BollingerBands@tv-basicstudies"]
+        }));
+
+        new TradingView.widget(Object.assign({}, commonOptions, {
+            "container_id": "tv_xau_1m",
+            "symbol": "OANDA:XAUUSD",
+            "interval": "1",
+            "studies": ["VWAP@tv-basicstudies", "Volume@tv-basicstudies", "RSI@tv-basicstudies"]
+        }));
+
+        // 5. Inisialisasi Chart BTCUSD (Dimuat di background meskipun tersembunyi)
+        new TradingView.widget(Object.assign({}, commonOptions, {
+            "container_id": "tv_btc_15m",
+            "symbol": "BINANCE:BTCUSDT",
+            "interval": "15",
+            "studies": ["VWAP@tv-basicstudies", "BollingerBands@tv-basicstudies"]
+        }));
+
+        new TradingView.widget(Object.assign({}, commonOptions, {
+            "container_id": "tv_btc_1m",
+            "symbol": "BINANCE:BTCUSDT",
+            "interval": "1",
+            "studies": ["VWAP@tv-basicstudies", "Volume@tv-basicstudies", "RSI@tv-basicstudies"]
+        }));
+    </script>
+</body>
+</html>
