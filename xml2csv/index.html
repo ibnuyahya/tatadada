@@ -437,8 +437,12 @@
             const titleMatch = str.match(/<Title>([\s\S]*?)<\/Title>/i);
             const authorMatch = str.match(/<Author>([\s\S]*?)<\/Author>/i);
             let name = "Data";
-            if (titleMatch && titleMatch[1]) name = titleMatch[1].trim().split(',')[0].replace(/[^a-zA-Z0-9-]/g, '_');
-            else if (authorMatch && authorMatch[1]) name = authorMatch[1].trim().replace(/[^a-zA-Z0-9-]/g, '_');
+            if (titleMatch && titleMatch[1]) {
+                // Optimasi Heuristik: Simpan nama lengkap strategi dari MT5
+                name = titleMatch[1].trim().replace(/[^a-zA-Z0-9\s_-]/g, '').replace(/\s+/g, '_');
+            } else if (authorMatch && authorMatch[1]) {
+                name = authorMatch[1].trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+            }
             const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
             return `${name}_${date}.csv`;
         };
@@ -464,47 +468,43 @@
                     const pError = doc.getElementsByTagName("parsererror");
                     
                     if (pError.length > 0 || doc.getElementsByTagName('*').length === 0) {
-                        // Regex Fallback (Kini LEBIH KUAT terhadap spasi, tab, dan newline)
-                        const rReg = /<Row[^>]*>([\s\S]*?)<\/Row>/gi;
-                        const cReg = /<Cell[^>]*>([\s\S]*?)<\/Cell>/gi;
-                        // Data regex diperbarui agar lebih toleran
-                        const dReg = /<Data[^>]*>([\s\S]*?)<\/Data>/i;
+                        // Regex Fallback (Kini kebal terhadap prefix namespace seperti ss:Row)
+                        const rReg = /<(?:\w+:)?Row[^>]*>([\s\S]*?)<\/(?:\w+:)?Row>/gi;
+                        const cReg = /<(?:\w+:)?Cell[^>]*>([\s\S]*?)<\/(?:\w+:)?Cell>/gi;
+                        const dReg = /<(?:\w+:)?Data[^>]*>([\s\S]*?)<\/(?:\w+:)?Data>/i;
                         let rM;
                         while ((rM = rReg.exec(xml)) !== null) {
                             let row = [], cM;
                             while ((cM = cReg.exec(rM[1])) !== null) {
-                                // Ekstrak string data, atau jadikan string kosong jika tidak ditemukan
                                 const dM = dReg.exec(cM[1]);
-                                let textVal = dM ? dM[1] : '';
-                                // Bersihkan tag HTML/XML yang tersisa dan hapus whitespace berlebih di awal/akhir
-                                row.push(textVal.replace(/<[^>]*>/g, '').trim());
+                                row.push((dM ? dM[1].trim() : '').replace(/<[^>]*>/g, ''));
                             }
                             if (row.length > maxCols) maxCols = row.length;
-                            // Hanya masukkan baris jika memang ada datanya (mencegah baris kosong nyasar)
-                            if (row.some(cell => cell !== '')) {
-                                grid.push(row);
-                            }
+                            if (row.some(cell => cell !== '')) grid.push(row); // Abaikan baris yang murni kosong
                         }
                     } else {
-                        // DOM Parser
-                        const rows = Array.from(doc.getElementsByTagName('*')).filter(n => n.localName === 'Row');
+                        // DOM Parser (Kini kebal terhadap prefix namespace XML/Excel)
+                        const allNodes = Array.from(doc.getElementsByTagName('*'));
+                        const rows = allNodes.filter(n => n.localName === 'Row' || (n.tagName && n.tagName.includes('Row')));
                         rows.forEach(r => {
                             let row = [];
-                            Array.from(r.childNodes).filter(n => n.localName === 'Cell').forEach(c => {
-                                const data = Array.from(c.childNodes).find(n => n.localName === 'Data');
-                                row.push(data ? data.textContent.trim() : '');
+                            Array.from(r.childNodes).forEach(c => {
+                                if (c.localName === 'Cell' || (c.tagName && c.tagName.includes('Cell'))) {
+                                    const data = Array.from(c.childNodes).find(n => n.localName === 'Data' || (n.tagName && n.tagName.includes('Data')));
+                                    row.push(data ? data.textContent.trim() : '');
+                                }
                             });
                             if (row.length > maxCols) maxCols = row.length;
-                            // Hanya masukkan baris jika ada selisih data
-                            if (row.some(cell => cell !== '')) {
-                                grid.push(row);
-                            }
+                            if (row.some(cell => cell !== '')) grid.push(row); // Abaikan baris yang murni kosong
                         });
                     }
 
-                    if (grid.length === 0) throw new Error("Format tidak dikenali. Tidak ada tag <Row> yang ditemukan atau data kosong.");
+                    if (grid.length === 0) throw new Error("Format tidak dikenali. Tidak ada tag <Row> yang ditemukan.");
+
+                    // Normalisasi array
+                    grid = grid.map(r => { while(r.length < maxCols) r.push(''); return r; });
                     
-                    renderTable();
+                    globalHeaders = grid[0];
                     emptyState.classList.add('hidden');
                     tableContainer.classList.remove('hidden');
                     document.getElementById('btn-download').classList.replace('hidden', 'flex');
