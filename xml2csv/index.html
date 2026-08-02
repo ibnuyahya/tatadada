@@ -438,7 +438,7 @@
             const authorMatch = str.match(/<Author>([\s\S]*?)<\/Author>/i);
             let name = "Data";
             if (titleMatch && titleMatch[1]) {
-                // Optimasi Heuristik: Simpan nama lengkap strategi dari MT5
+                // Perbaikan: Ambil nama secara utuh tanpa terpotong koma
                 name = titleMatch[1].trim().replace(/[^a-zA-Z0-9\s_-]/g, '').replace(/\s+/g, '_');
             } else if (authorMatch && authorMatch[1]) {
                 name = authorMatch[1].trim().replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -460,46 +460,51 @@
 
             setTimeout(() => {
                 try {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(xml, "text/xml");
                     let grid = [];
                     let maxCols = 0;
                     
-                    const pError = doc.getElementsByTagName("parsererror");
-                    
-                    if (pError.length > 0 || doc.getElementsByTagName('*').length === 0) {
-                        // Regex Fallback (Kini kebal terhadap prefix namespace seperti ss:Row)
-                        const rReg = /<(?:\w+:)?Row[^>]*>([\s\S]*?)<\/(?:\w+:)?Row>/gi;
-                        const cReg = /<(?:\w+:)?Cell[^>]*>([\s\S]*?)<\/(?:\w+:)?Cell>/gi;
-                        const dReg = /<(?:\w+:)?Data[^>]*>([\s\S]*?)<\/(?:\w+:)?Data>/i;
-                        let rM;
-                        while ((rM = rReg.exec(xml)) !== null) {
-                            let row = [], cM;
-                            while ((cM = cReg.exec(rM[1])) !== null) {
-                                const dM = dReg.exec(cM[1]);
-                                row.push((dM ? dM[1].trim() : '').replace(/<[^>]*>/g, ''));
-                            }
-                            if (row.length > maxCols) maxCols = row.length;
-                            if (row.some(cell => cell !== '')) grid.push(row); // Abaikan baris yang murni kosong
+                    // LANGKAH 1: Regex Extraction Terisolasi (Paling kebal terhadap spasi/baris kosong & namespace)
+                    const rReg = /<(?:\w+:)?Row[^>]*>([\s\S]*?)<\/(?:\w+:)?Row>/gi;
+                    let rM;
+                    while ((rM = rReg.exec(xml)) !== null) {
+                        let row = [];
+                        // Ambil semua Cell dalam Row ini
+                        const cells = rM[1].match(/<(?:\w+:)?Cell[^>]*>[\s\S]*?<\/(?:\w+:)?Cell>/gi) || [];
+                        for (const cell of cells) {
+                            // Ambil teks Data dalam Cell ini
+                            const dM = cell.match(/<(?:\w+:)?Data[^>]*>([\s\S]*?)<\/(?:\w+:)?Data>/i);
+                            row.push(dM ? dM[1].trim().replace(/<[^>]*>/g, '') : '');
                         }
-                    } else {
-                        // DOM Parser (Kini kebal terhadap prefix namespace XML/Excel)
-                        const allNodes = Array.from(doc.getElementsByTagName('*'));
-                        const rows = allNodes.filter(n => n.localName === 'Row' || (n.tagName && n.tagName.includes('Row')));
+                        
+                        // Abaikan baris yang murni kosong
+                        if (row.some(c => c !== '')) { 
+                            if (row.length > maxCols) maxCols = row.length;
+                            grid.push(row);
+                        }
+                    }
+
+                    // LANGKAH 2: Jika Langkah 1 meleset, coba DOM Parser (Pencarian Universal)
+                    if (grid.length === 0) {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(xml, "text/xml");
+                        const rows = Array.from(doc.getElementsByTagName('*')).filter(n => n.nodeName.match(/Row$/i));
+                        
                         rows.forEach(r => {
                             let row = [];
                             Array.from(r.childNodes).forEach(c => {
-                                if (c.localName === 'Cell' || (c.tagName && c.tagName.includes('Cell'))) {
-                                    const data = Array.from(c.childNodes).find(n => n.localName === 'Data' || (n.tagName && n.tagName.includes('Data')));
+                                if (c.nodeName.match(/Cell$/i)) {
+                                    const data = Array.from(c.childNodes).find(n => n.nodeName.match(/Data$/i));
                                     row.push(data ? data.textContent.trim() : '');
                                 }
                             });
-                            if (row.length > maxCols) maxCols = row.length;
-                            if (row.some(cell => cell !== '')) grid.push(row); // Abaikan baris yang murni kosong
+                            if (row.some(cell => cell !== '')) {
+                                if (row.length > maxCols) maxCols = row.length;
+                                grid.push(row);
+                            }
                         });
                     }
 
-                    if (grid.length === 0) throw new Error("Format tidak dikenali. Tidak ada tag <Row> yang ditemukan.");
+                    if (grid.length === 0) throw new Error("Format tidak dikenali. Pastikan struktur tag <Row> dan <Cell> tersedia.");
 
                     // Normalisasi array
                     grid = grid.map(r => { while(r.length < maxCols) r.push(''); return r; });
