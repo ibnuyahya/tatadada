@@ -244,10 +244,17 @@
                         <i data-lucide="table-2" class="w-4 h-4 text-cyan-600 dark:text-cyan-500"></i>
                         <span class="font-bold text-xs text-main" id="t-label-preview">Grid Data</span>
                     </div>
-                    <button id="btn-download" class="hidden items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm focus:ring-2 focus:ring-emerald-500/20 active:scale-[0.98]">
-                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                        <span id="t-btn-download">UNDUH CSV</span>
-                    </button>
+                    <div class="flex items-center gap-3">
+                        <label class="flex items-center gap-2 text-[10px] font-bold text-dim cursor-pointer group">
+                            <input type="checkbox" id="smart-rename" checked class="w-3.5 h-3.5 rounded border-theme text-cyan-600 focus:ring-cyan-500/20 transition-colors cursor-pointer">
+                            <span class="group-hover:text-main transition-colors">Smart Header</span>
+                        </label>
+                        <div class="w-px h-3 bg-[var(--border-color)] hidden sm:block"></div>
+                        <button id="btn-download" class="hidden items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm focus:ring-2 focus:ring-emerald-500/20 active:scale-[0.98]">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                            <span id="t-btn-download">UNDUH CSV</span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Notifikasi Kesalahan -->
@@ -328,7 +335,8 @@
         // STATE APLIKASI
         let globalHeaders = [];
         let globalRows = [];
-        let currentSort = { col: null, dir: 'asc' };
+        let colTypes = [];
+        let currentSort = { col: -1, dir: 0 }; // 0: none, 1: asc, -1: desc
         let heuristicFilename = 'Data_Export.csv';
         let currentLang = localStorage.getItem('lang') || 'ID';
 
@@ -346,6 +354,7 @@
         const fileInput = document.getElementById('file-input');
         const statInfo = document.getElementById('stat-info');
         const errBox = document.getElementById('error-box');
+        const smartRenameToggle = document.getElementById('smart-rename');
 
         // 1. PENGATURAN TEMA (DARK MODE)
         const themeToggle = document.getElementById('theme-toggle');
@@ -359,21 +368,21 @@
         // 2. LOKALISASI (BILINGUAL & STRICT TERMS)
         const dict = {
             ID: {
-                helpTitle: "Bantuan Cepat", helpList: "<li>1. Paste data XML (termasuk MT5) di editor.</li><li>2. Klik 'Preview Tabel'.</li><li>3. Ekspor ke CSV.</li>",
+                helpTitle: "Bantuan Cepat", helpList: "<li>1. Paste data XML (termasuk SpreadsheetML MT5) di editor.</li><li>2. Klik 'Preview Tabel'.</li><li>3. Ekspor ke CSV.</li>",
                 xmlLabel: "INPUT XML", clearBtn: "Bersihkan", convBtn: "PREVIEW TABEL",
                 prevLabel: "Grid Data", dlBtn: "UNDUH CSV",
                 emptyTitle: "Menunggu Data", emptyDesc: "Tabel data akan dirender secara dinamis di area ini.",
                 errTitle: "Parsing Gagal", uploadBtn: "Unggah", termsTitle: "Kebijakan Sistem", termsBtn: "SAYA MENGERTI",
-                termsTech: "<b>1. Pemrosesan Lokal:</b> Ekstraksi XML ke CSV diproses sepenuhnya di memori browser Anda (Client-Side).<br><b>2. Teknologi Heuristik:</b> Sistem otomatis membaca tag &lt;Title&gt; atau &lt;Author&gt; untuk penamaan file pintar.<br><b>3. Regex Fallback:</b> Fitur penyelamatan data otomatis jika format XML rusak.",
+                termsTech: "<b>1. Pemrosesan Lokal:</b> Ekstraksi XML ke CSV diproses sepenuhnya di memori browser Anda (Client-Side).<br><b>2. Teknologi SpreadsheetML:</b> Mesin mendukung ekstrasi XML dengan dukungan <code>ss:Index</code> secara presisi untuk menambal gap/jarak antar kolom tabel.",
                 termsLegal: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya."
             },
             EN: {
-                helpTitle: "Quick Help", helpList: "<li>1. Paste XML data (inc. MT5) to editor.</li><li>2. Click 'Table Preview'.</li><li>3. Export to CSV.</li>",
+                helpTitle: "Quick Help", helpList: "<li>1. Paste XML data (inc. MT5 SpreadsheetML) to editor.</li><li>2. Click 'Table Preview'.</li><li>3. Export to CSV.</li>",
                 xmlLabel: "XML INPUT", clearBtn: "Clear", convBtn: "PREVIEW TABLE",
                 prevLabel: "Data Grid", dlBtn: "DOWNLOAD CSV",
                 emptyTitle: "Awaiting Data", emptyDesc: "Data table will be rendered dynamically in this area.",
                 errTitle: "Parsing Failed", uploadBtn: "Upload", termsTitle: "System Policies", termsBtn: "I UNDERSTAND",
-                termsTech: "<b>1. Local Processing:</b> XML to CSV extraction is processed entirely in your browser's memory (Client-Side).<br><b>2. Heuristic Technology:</b> Automatically reads &lt;Title&gt; or &lt;Author&gt; tags for smart file naming.<br><b>3. Regex Fallback:</b> Automatic data rescue feature if the XML format is corrupted.",
+                termsTech: "<b>1. Local Processing:</b> XML to CSV extraction is processed entirely in your browser's memory (Client-Side).<br><b>2. SpreadsheetML Tech:</b> Engine supports XML extraction with <code>ss:Index</code> precision to patch gaps between table columns.",
                 termsLegal: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics and Histats to collect anonymous visit and usage statistics for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms."
             }
         };
@@ -409,10 +418,11 @@
         // 3. SINKRONISASI GUTTER NOMOR BARIS (Presisi Scroll)
         const updateLineNumbers = () => {
             const lines = xmlInput.value.split('\n').length;
-            lineNumbers.innerHTML = Array(lines).fill(0).map((_, i) => i + 1).join('<br>');
+            let out = '';
+            for(let i = 1; i <= lines; i++) out += i + '\n';
+            lineNumbers.textContent = out;
         };
         xmlInput.addEventListener('input', updateLineNumbers);
-        // Sync scroll
         xmlInput.addEventListener('scroll', () => {
             gutterWrapper.scrollTop = xmlInput.scrollTop;
         });
@@ -437,82 +447,112 @@
             const titleMatch = str.match(/<Title>([\s\S]*?)<\/Title>/i);
             const authorMatch = str.match(/<Author>([\s\S]*?)<\/Author>/i);
             let name = "Data";
+            
             if (titleMatch && titleMatch[1]) {
-                // Perbaikan: Ambil nama secara utuh tanpa terpotong koma
+                // Jangan dipotong koma, ambil seutuhnya dan bersihkan
                 name = titleMatch[1].trim().replace(/[^a-zA-Z0-9\s_-]/g, '').replace(/\s+/g, '_');
             } else if (authorMatch && authorMatch[1]) {
                 name = authorMatch[1].trim().replace(/[^a-zA-Z0-9_-]/g, '_');
             }
+            
             const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
             return `${name}_${date}.csv`;
         };
 
-        // 7. PARSER LOGIC
+        // Helper untuk ekstrak Local Name mengabaikan Namespace
+        const getLocalName = (node) => {
+            return node.localName || node.nodeName.split(':').pop();
+        };
+
+        // 7. SPREADSHEET-ML PARSER LOGIC (Master Engine)
         const showError = (msg) => { document.getElementById('error-msg').textContent = msg; errBox.classList.remove('hidden'); };
         window.hideError = () => { errBox.classList.add('hidden'); };
 
         const parseXML = () => {
-            const xml = xmlInput.value.trim();
-            if(!xml) return;
+            const xmlText = xmlInput.value.trim();
+            if(!xmlText) return;
             
             btnConvert.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
             hideError();
 
             setTimeout(() => {
                 try {
-                    let grid = [];
-                    let maxCols = 0;
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(xmlText, "application/xml");
                     
-                    // LANGKAH 1: Regex Extraction Terisolasi (Paling kebal terhadap spasi/baris kosong & namespace)
-                    const rReg = /<(?:\w+:)?Row[^>]*>([\s\S]*?)<\/(?:\w+:)?Row>/gi;
-                    let rM;
-                    while ((rM = rReg.exec(xml)) !== null) {
-                        let row = [];
-                        // Ambil semua Cell dalam Row ini
-                        const cells = rM[1].match(/<(?:\w+:)?Cell[^>]*>[\s\S]*?<\/(?:\w+:)?Cell>/gi) || [];
-                        for (const cell of cells) {
-                            // Ambil teks Data dalam Cell ini
-                            const dM = cell.match(/<(?:\w+:)?Data[^>]*>([\s\S]*?)<\/(?:\w+:)?Data>/i);
-                            row.push(dM ? dM[1].trim().replace(/<[^>]*>/g, '') : '');
-                        }
-                        
-                        // Abaikan baris yang murni kosong
-                        if (row.some(c => c !== '')) { 
-                            if (row.length > maxCols) maxCols = row.length;
-                            grid.push(row);
-                        }
+                    if (doc.getElementsByTagName("parsererror").length) {
+                        throw new Error("Struktur XML tidak valid. Pastikan Anda tidak menghapus baris atas (<?xml...>) saat melakukan copy-paste.");
                     }
 
-                    // LANGKAH 2: Jika Langkah 1 meleset, coba DOM Parser (Pencarian Universal)
-                    if (grid.length === 0) {
-                        const parser = new DOMParser();
-                        const doc = parser.parseFromString(xml, "text/xml");
-                        const rows = Array.from(doc.getElementsByTagName('*')).filter(n => n.nodeName.match(/Row$/i));
+                    // Deteksi MS Office Spreadsheet Namespace
+                    const ns = 'urn:schemas-microsoft-com:office:spreadsheet';
+                    let worksheet = doc.getElementsByTagNameNS(ns, 'Worksheet')[0] || doc.getElementsByTagName('Worksheet')[0];
+                    
+                    // Fallback jika namespace benar-benar hilang tapi tag ada
+                    if (!worksheet) {
+                        const allNodes = Array.from(doc.getElementsByTagName('*'));
+                        worksheet = allNodes.find(n => getLocalName(n) === 'Worksheet');
+                    }
+                    
+                    if(!worksheet) throw new Error("Tidak menemukan elemen <Worksheet> di dalam XML.");
+
+                    let table = worksheet.getElementsByTagNameNS(ns, 'Table')[0] || worksheet.getElementsByTagName('Table')[0];
+                    if (!table) {
+                        table = Array.from(worksheet.childNodes).find(n => n.nodeType === 1 && getLocalName(n) === 'Table');
+                    }
+                    if(!table) throw new Error("Tidak menemukan elemen <Table> di dalam Worksheet.");
+
+                    // Ekstraksi Baris (Row)
+                    const rowEls = Array.from(table.childNodes).filter(n => n.nodeType === 1 && getLocalName(n) === 'Row');
+                    if(rowEls.length === 0) throw new Error("Tidak ada data baris (<Row>) ditemukan.");
+
+                    const parsedRows = [];
+                    let maxCols = 0;
+
+                    // Mengurai Sel & Lompatan Index (ss:Index)
+                    rowEls.forEach(rowEl => {
+                        const cells = Array.from(rowEl.childNodes).filter(n => n.nodeType === 1 && getLocalName(n) === 'Cell');
+                        const rowVals = [];
+                        let colIdx = 0;
                         
-                        rows.forEach(r => {
-                            let row = [];
-                            Array.from(r.childNodes).forEach(c => {
-                                if (c.nodeName.match(/Cell$/i)) {
-                                    const data = Array.from(c.childNodes).find(n => n.nodeName.match(/Data$/i));
-                                    row.push(data ? data.textContent.trim() : '');
-                                }
-                            });
-                            if (row.some(cell => cell !== '')) {
-                                if (row.length > maxCols) maxCols = row.length;
-                                grid.push(row);
-                            }
+                        cells.forEach(cellEl => {
+                            const idxAttr = cellEl.getAttribute('ss:Index');
+                            if(idxAttr) colIdx = parseInt(idxAttr, 10) - 1; // SS Index berbasis 1
+                            
+                            while(rowVals.length < colIdx) rowVals.push(''); // Isi kolom kosong
+                            
+                            const dataEl = Array.from(cellEl.childNodes).find(n => n.nodeType === 1 && getLocalName(n) === 'Data');
+                            let val = '';
+                            if(dataEl) val = dataEl.textContent;
+                            
+                            rowVals[colIdx] = val;
+                            colIdx++;
                         });
-                    }
-
-                    if (grid.length === 0) throw new Error("Format tidak dikenali. Pastikan struktur tag <Row> dan <Cell> tersedia.");
+                        
+                        maxCols = Math.max(maxCols, rowVals.length);
+                        parsedRows.push(rowVals);
+                    });
 
                     // Normalisasi array
-                    grid = grid.map(r => { while(r.length < maxCols) r.push(''); return r; });
+                    parsedRows.forEach(r => { while(r.length < maxCols) r.push(''); });
                     
-                    globalHeaders = grid[0];
-                    globalRows = grid.slice(1);
-                    currentSort = { col: null, dir: 'asc' };
-                    heuristicFilename = getSmartName(xml);
+                    // Pemisahan Header dan Data
+                    globalHeaders = parsedRows[0].map((h, i) => String(h).trim() || `(kolom_${i+1})`);
+                    globalRows = parsedRows.slice(1);
+                    
+                    // Deteksi Tipe Data untuk Sorting
+                    colTypes = globalHeaders.map((_, ci) => {
+                        let numeric = true;
+                        for(const r of globalRows){
+                            const val = r[ci];
+                            if(val === undefined || val === '') continue;
+                            if(isNaN(parseFloat(val))) { numeric = false; break; }
+                        }
+                        return numeric ? 'number' : 'string';
+                    });
+
+                    currentSort = { col: -1, dir: 0 };
+                    heuristicFilename = getSmartName(xmlText);
                     document.getElementById('heuristic-name').textContent = `Sistem Pintar: ${heuristicFilename}`;
                     statInfo.textContent = `${globalRows.length} Baris • ${globalHeaders.length} Kolom`;
                     
@@ -531,42 +571,107 @@
         };
 
         // 8. RENDER TABEL & SORTING
+        const escapeHTML = (v) => {
+            return String(v ?? '').replace(/[&<>'"]/g, t => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[t]));
+        };
+
         window.requestSort = (idx) => {
-            let dir = (currentSort.col === idx && currentSort.dir === 'asc') ? 'desc' : 'asc';
-            currentSort = { col: idx, dir };
-            
-            globalRows.sort((a, b) => {
-                const vA = a[idx] || '', vB = b[idx] || '';
-                const nA = parseFloat(vA), nB = parseFloat(vB);
-                if (!isNaN(nA) && !isNaN(nB)) return dir === 'asc' ? nA - nB : nB - nA;
-                return dir === 'asc' ? vA.localeCompare(vB) : vB.localeCompare(vA);
-            });
+            if (currentSort.col !== idx) {
+                currentSort = { col: idx, dir: 1 }; // asc
+            } else if (currentSort.dir === 1) {
+                currentSort.dir = -1; // desc
+            } else {
+                currentSort = { col: -1, dir: 0 }; // none
+            }
             renderTable();
         };
 
         const renderTable = () => {
             let hHTML = `<tr><th class="spreadsheet-header sticky left-0 z-30 w-12 bg-preview shadow-[1px_1px_0_var(--border-color)]"></th>`;
             globalHeaders.forEach((h, i) => {
-                const sortIco = currentSort.col === i ? (currentSort.dir === 'asc' ? '▲' : '▼') : '↕';
+                const sortIco = currentSort.col === i ? (currentSort.dir === 1 ? '▲' : currentSort.dir === -1 ? '▼' : '↕') : '↕';
                 hHTML += `<th class="spreadsheet-header px-4 py-2 min-w-[120px] cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" onclick="requestSort(${i})">
                     <div class="flex items-center justify-between gap-2">
-                        <span class="font-data selectable">${h || 'KOL '+(i+1)}</span>
+                        <span class="font-data selectable">${escapeHTML(h)}</span>
                         <span class="text-[9px] opacity-40">${sortIco}</span>
                     </div>
                 </th>`;
             });
             document.getElementById('table-head').innerHTML = hHTML + `</tr>`;
 
-            const bHTML = globalRows.map((r, ri) => `
+            // Proses Sorting pada Salinan (agar index asli tetap utuh jika dirubah kembali ke none)
+            let displayRows = globalRows.map(r => [...r]);
+            
+            if (currentSort.col >= 0 && currentSort.dir !== 0) {
+                const cIdx = currentSort.col;
+                const isNumeric = colTypes[cIdx] === 'number';
+                
+                displayRows.sort((a, b) => {
+                    const vA = a[cIdx] ?? '', vB = b[cIdx] ?? '';
+                    let cmp;
+                    if (isNumeric) {
+                        cmp = (parseFloat(vA) || 0) - (parseFloat(vB) || 0);
+                    } else {
+                        cmp = String(vA).localeCompare(String(vB));
+                    }
+                    return currentSort.dir === 1 ? cmp : -cmp;
+                });
+            }
+
+            const bHTML = displayRows.map((r, ri) => `
                 <tr class="hover:bg-cyan-50/40 dark:hover:bg-cyan-900/10 transition-colors group">
                     <td class="spreadsheet-header font-data sticky left-0 z-10 shadow-[1px_0_0_var(--border-color)] text-[10px] group-hover:bg-cyan-100/30 dark:group-hover:bg-cyan-800/20 transition-colors">${ri+1}</td>
-                    ${r.map(c => `<td class="spreadsheet-cell font-data selectable">${String(c).replace(/[&<>'"]/g, t => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[t]))}</td>`).join('')}
+                    ${r.map(c => `<td class="spreadsheet-cell font-data selectable">${escapeHTML(c)}</td>`).join('')}
                 </tr>
             `).join('');
             document.getElementById('table-body').innerHTML = bHTML;
         };
 
-        // 9. UPLOAD & DRAG/DROP FILE LOGIC
+        // 9. SMART RENAME CSV HEADERS
+        const KNOWN_MAP = {
+            'pass':'pass', 'result':'result', 'profit':'profit',
+            'expected payoff':'expected_payoff', 'profit factor':'profit_factor',
+            'recovery factor':'recovery_factor', 'sharpe ratio':'sharpe_ratio',
+            'custom':'custom', 'equity dd %':'equity_dd_pct', 'equity dd':'equity_dd_pct',
+            'trades':'trades', 'jarak':'jarak', 'distance':'jarak',
+            'balance dd %':'balance_dd_pct', 'balance dd':'balance_dd_pct',
+            'total trades':'total_trades', 'symbol':'symbol', 'period':'period'
+        };
+
+        const generateCsvHeaders = () => {
+            if (!smartRenameToggle.checked) return globalHeaders.slice();
+            
+            const used = {};
+            return globalHeaders.map(h => {
+                const key = String(h).toLowerCase().trim();
+                let name = KNOWN_MAP[key];
+                
+                if (!name) {
+                    name = String(h).toLowerCase()
+                        .replace(/%/g,'pct')
+                        .replace(/[^a-z0-9]+/g,'_')
+                        .replace(/^_+|_+$/g,'')
+                        .replace(/_{2,}/g,'_');
+                    name = name || 'col';
+                }
+
+                if (used[name] !== undefined) {
+                    used[name]++;
+                    name = `${name}_${used[name]}`;
+                } else {
+                    used[name] = 0;
+                }
+                return name;
+            });
+        };
+
+        const csvEscape = (v) => {
+            const s = String(v ?? '');
+            if(/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+            return s;
+        };
+
+        // 10. UPLOAD & DRAG/DROP FILE LOGIC
         const loadFileContent = (file) => {
             if(!file) return;
             const reader = new FileReader();
@@ -582,7 +687,7 @@
         
         fileInput.addEventListener('change', (e) => {
             loadFileContent(e.target.files[0]);
-            e.target.value = ''; // reset value to allow uploading same file again
+            e.target.value = ''; // reset value
         });
 
         // Drag and Drop styling and events
@@ -603,7 +708,7 @@
             }
         });
 
-        // 10. EVENT LISTENERS LAINNYA
+        // 11. EVENT LISTENERS LAINNYA
         btnConvert.addEventListener('click', parseXML);
         
         btnClear.addEventListener('click', () => {
@@ -617,14 +722,38 @@
 
         document.getElementById('btn-download').addEventListener('click', () => {
             if(globalHeaders.length === 0) return;
-            const content = [globalHeaders, ...globalRows].map(r => r.map(c => {
-                let sc = String(c);
-                return (sc.includes(',') || sc.includes('\n') || sc.includes('"')) ? `"${sc.replace(/"/g, '""')}"` : sc;
-            }).join(",")).join("\n");
-            const b = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-            const u = URL.createObjectURL(b);
+            
+            // Re-apply sorting if active
+            let rowsToExport = globalRows.map(r => [...r]);
+            if (currentSort.col >= 0 && currentSort.dir !== 0) {
+                const cIdx = currentSort.col;
+                const isNumeric = colTypes[cIdx] === 'number';
+                rowsToExport.sort((a, b) => {
+                    const vA = a[cIdx] ?? '', vB = b[cIdx] ?? '';
+                    let cmp = isNumeric ? ((parseFloat(vA) || 0) - (parseFloat(vB) || 0)) : String(vA).localeCompare(String(vB));
+                    return currentSort.dir === 1 ? cmp : -cmp;
+                });
+            }
+
+            const csvHeaders = generateCsvHeaders();
+            const lines = [csvHeaders.map(csvEscape).join(',')];
+            
+            rowsToExport.forEach(r => {
+                lines.push(r.map(csvEscape).join(','));
+            });
+
+            const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+            const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
-            a.href = u; a.download = heuristicFilename; a.click(); URL.revokeObjectURL(u);
+            
+            const baseName = heuristicFilename.replace(/\.csv$/i,'');
+            a.href = url; 
+            a.download = baseName + (smartRenameToggle.checked ? '_smart' : '') + '.csv'; 
+            
+            document.body.appendChild(a);
+            a.click(); 
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         });
 
     </script>
