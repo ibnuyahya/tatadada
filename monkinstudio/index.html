@@ -1,0 +1,474 @@
+<!-- 
+  TAFSIR VISUAL IKON: 
+  Ikon dirancang menggunakan palet Oranye-Merah (Sunset) untuk mencerminkan "Tracking" dan "Energi". 
+  Objek utama adalah cincin progress 3D (seperti cincin Apple Fitness) di mana trek dasar terbuat dari 
+  glossy-dark dan arc progress diisi dengan warna oranye solid. 
+-->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MonKin Studio - Monitoring Progress</title>
+    
+    <!-- Framework & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* CSS TOKENS: VIBRANT DEPTH TATADADA FRAMEWORK */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #f97316; /* Orange-500 for Monitoring Vibe */
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #161b22;
+            --footer-bg: #0d1117;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --theme-accent: #f97316;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+
+        /* Utility Classes based on Tokens */
+        .bg-header { background-color: var(--header-bg); }
+        .bg-preview { background-color: var(--preview-bg); }
+        .bg-card { background-color: var(--card-bg); }
+        .bg-footer { background-color: var(--footer-bg); }
+        .border-theme { border-color: var(--border-color); }
+        .text-dim { color: var(--text-dim); }
+        .text-theme { color: var(--text-main); }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Modal & Window Blur */
+        .modal-backdrop { backdrop-filter: blur(4px); background-color: rgba(0, 0, 0, 0.4); }
+        
+        /* Table Aesthetics */
+        .data-table th, .data-table td { border-bottom: 1px solid var(--border-color); }
+        .data-table tr:last-child td { border-bottom: none; }
+
+        /* Highlight Input for Progress */
+        .input-progress {
+            background-color: #fff7ed; /* orange-50 */
+            border: 2px solid #fdba74; /* orange-200 */
+            color: #c2410c; /* orange-700 */
+            font-weight: bold;
+        }
+        html.dark .input-progress {
+            background-color: rgba(194, 65, 12, 0.1);
+            border-color: rgba(194, 65, 12, 0.5);
+            color: #fdba74;
+        }
+        .input-progress:focus {
+            outline: none;
+            border-color: #f97316;
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+        }
+        
+        /* Progress Bar Styles */
+        .progress-track {
+            background-color: var(--border-color);
+            border-radius: 999px;
+            overflow: hidden;
+            height: 8px;
+            width: 100%;
+            position: relative;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: var(--theme-accent);
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 999px;
+        }
+        
+        /* Formula Math Styles */
+        .math-fraction {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            vertical-align: middle;
+            font-size: 0.85em;
+            line-height: 1.2;
+            margin: 0 6px;
+        }
+        .math-fraction > span:first-child {
+            border-bottom: 1px solid currentColor;
+            padding: 0 4px;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col antialiased transition-colors duration-200">
+
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm transition-colors duration-200">
+        <div class="flex items-center gap-3">
+            <div class="p-1.5 bg-orange-500 text-white rounded-lg shadow-inner">
+                <i data-lucide="activity" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base leading-tight bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">MonKin Studio</h1>
+                <p class="text-[10px] text-dim italic -mt-0.5">Monitoring Kinerja Pro v1.0</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div class="text-xs font-medium text-dim hidden sm:block">by AhmadDanial</div>
+            <div class="h-4 w-px bg-[var(--border-color)] hidden sm:block"></div>
+            
+            <button class="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-dim transition-colors group relative" title="Help">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+                <div class="absolute right-0 top-10 w-64 p-3 bg-card border border-theme shadow-lg rounded-xl text-[10px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 leading-relaxed text-dim">
+                    <span>Input nilai pada kolom <b>Progress Berjalan</b>. Sistem akan otomatis membedah skor sementara yang Anda kumpulkan menuju target akhir.</span>
+                </div>
+            </button>
+
+            <button id="theme-toggle" class="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-dim transition-colors">
+                <i data-lucide="moon" class="w-4 h-4 hidden dark:block" id="icon-moon"></i>
+                <i data-lucide="sun" class="w-4 h-4 block dark:hidden" id="icon-sun"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto bg-preview p-4 md:p-8 transition-colors duration-200">
+        <div class="max-w-6xl mx-auto space-y-6">
+            
+            <!-- SECTION 1: MASTER DATA INPUT (Dashboard Tabel) -->
+            <div class="bg-card rounded-2xl shadow-md border border-theme p-6 md:p-8 flex flex-col">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+                    <div>
+                        <h2 class="text-2xl font-extrabold text-theme flex items-center gap-2">
+                            <i data-lucide="layout-dashboard" class="w-6 h-6 text-orange-500"></i>
+                            Monitoring Progress 2026
+                        </h2>
+                        <p class="text-sm text-dim mt-1">Bobot kementerian telah dikunci. Fokuskan pada pencapaian periode berjalan.</p>
+                    </div>
+                    <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/50 rounded-lg px-4 py-2 flex flex-col items-end">
+                        <span class="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider">Capaian vs Target 2026</span>
+                        <div class="flex items-baseline gap-1 mt-0.5">
+                            <span class="text-2xl font-extrabold text-theme" id="global-progress-pct">0%</span>
+                            <span class="text-xs text-dim font-medium mb-1">tercapai</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-separate border-spacing-0 rounded-xl border border-theme bg-card shadow-sm overflow-x-auto">
+                    <table class="w-full text-left text-sm data-table">
+                        <thead>
+                            <tr class="bg-slate-50 dark:bg-slate-800/50 text-dim font-medium text-[11px] uppercase tracking-wider">
+                                <th class="p-4 w-1/4">Komponen</th>
+                                <th class="p-4 text-center w-24">Bobot (Kunci)</th>
+                                <th class="p-4 text-center">Baseline 2025</th>
+                                <th class="p-4 text-center">Target 2026</th>
+                                <th class="p-4 bg-orange-50/50 dark:bg-orange-900/10 text-orange-700 dark:text-orange-400 text-center border-x border-orange-200 dark:border-orange-800/30 font-bold">Progress Saat Ini</th>
+                                <th class="p-4 text-right">Skor Terkumpul</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body" class="text-theme">
+                            <!-- Injected via Vanilla JS -->
+                        </tbody>
+                        <tfoot class="bg-slate-50 dark:bg-slate-800/50 border-t-2 border-theme">
+                            <tr>
+                                <td colspan="3" class="p-4 text-right text-xs font-bold text-dim uppercase tracking-wider">Total Skor Akumulasi:</td>
+                                <td class="p-4 text-center font-bold text-dim" id="tf-target-score">0.00%</td>
+                                <td class="p-4 border-x border-theme text-center font-bold text-dim">-</td>
+                                <td class="p-4 text-right font-extrabold text-lg text-theme" id="tf-current-score">0.00%</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <!-- SECTION 2: ANALISIS & PEMBENTUKAN SKOR -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Card 1: Skor Akhir -->
+                <div class="bg-card rounded-2xl shadow-md border border-theme p-6 relative overflow-hidden flex flex-col lg:col-span-1">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-orange-500"></div>
+                    <h3 class="font-bold text-lg text-theme flex items-center gap-2 mb-1">Skor Kinerja Berjalan</h3>
+                    <p class="text-xs text-dim mb-6">Akumulasi skor riil yang telah Anda peroleh berdasarkan angka progress saat ini.</p>
+                    
+                    <div class="mt-auto flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-theme gap-2">
+                        <span class="text-6xl font-black text-theme tracking-tight" id="card-current-score">0.00%</span>
+                        <div class="flex items-center gap-2 text-xs font-medium text-dim mt-2">
+                            <span>dari target maksimal</span>
+                            <span class="font-bold text-theme bg-card px-2 py-0.5 rounded shadow-sm border border-theme" id="card-target-score">0.00%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Bedah Formula -->
+                <div class="bg-card rounded-2xl shadow-md border border-theme p-6 relative overflow-hidden flex flex-col lg:col-span-2">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-slate-300 dark:bg-slate-600"></div>
+                    <div class="flex items-start justify-between mb-4">
+                        <div>
+                            <h3 class="font-bold text-lg text-theme flex items-center gap-2 mb-1">Bedah Pembentukan Skor</h3>
+                            <p class="text-xs text-dim">Transparansi perhitungan: <code class="bg-preview px-1 py-0.5 rounded">((Progress - Baseline) / Baseline) × Bobot = Skor</code></p>
+                        </div>
+                    </div>
+                    
+                    <!-- Dynamic Breakdown List -->
+                    <div class="flex-1 flex flex-col gap-3 font-mono text-xs" id="breakdown-area">
+                        <!-- Injected via Vanilla JS -->
+                    </div>
+                    
+                    <!-- Formula Visual -->
+                    <div class="mt-5 pt-4 border-t border-dashed border-theme flex justify-center items-center text-[11px] text-dim opacity-80 font-medium">
+                        Skor Kinerja = &Sigma; &nbsp; <div class="math-fraction"><span>(Progress Saat Ini - Baseline 2025)</span><span>Baseline 2025</span></div> &nbsp; &times; Bobot Komponen
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 transition-colors duration-200 z-50 relative">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
+            <span>Engine Monitoring Berjalan</span>
+        </div>
+        <button onclick="openModal()" class="hover:text-orange-500 transition-colors font-medium">Syarat & Ketentuan</button>
+    </footer>
+
+    <div id="terms-modal" class="fixed inset-0 z-[100] modal-backdrop flex items-center justify-center opacity-0 invisible transition-all duration-300">
+        <div class="bg-card w-full max-w-md rounded-2xl shadow-2xl p-6 border border-theme transform scale-95 transition-transform duration-300" id="modal-content">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-theme">Terms of Use / Syarat Ketentuan</h3>
+                <button onclick="closeModal()" class="p-1 rounded-md text-dim hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="space-y-3 text-sm text-dim leading-relaxed">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeModal()" class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg shadow-sm transition-colors text-sm">
+                    Mengerti
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // --- 1. STATE & DATA (Bobot Dikunci Sesuai Kebijakan) ---
+        // Struktur: baseline = 2025, target = 2026. Progress = capaian saat ini.
+        let appData = [
+            { id: '1', name: 'Open Online Course', baseline: 118, target: 120, progress: 119, weight: 20 },
+            { id: '2', name: 'MK Aktif di EMAS', baseline: 5350, target: 5500, progress: 5400, weight: 5 },
+            { id: '3', name: 'Non Degree Program', baseline: 12, target: 15, progress: 13, weight: 35 },
+            { id: '4', name: 'Kelas PJJ / KPB', baseline: 5, target: 5, progress: 5, weight: 40 }
+        ];
+
+        // --- 2. DARK MODE LOGIC ---
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const htmlEl = document.documentElement;
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') { htmlEl.classList.add('dark'); } 
+            else { htmlEl.classList.remove('dark'); }
+        }
+        themeToggleBtn.addEventListener('click', () => {
+            htmlEl.classList.toggle('dark');
+            localStorage.setItem('theme', htmlEl.classList.contains('dark') ? 'dark' : 'light');
+        });
+        initTheme();
+
+        // --- 3. CORE LOGIC & RENDERING ---
+        const tableBody = document.getElementById('table-body');
+        const breakdownArea = document.getElementById('breakdown-area');
+
+        // Fungsi render awal struktur tabel
+        function initTable() {
+            tableBody.innerHTML = appData.map(row => `
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-b border-theme last:border-0 group">
+                    <td class="p-4 font-bold text-[13px] leading-tight">${row.name}</td>
+                    <td class="p-4 text-center">
+                        <span class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-theme text-xs font-bold text-slate-500 dark:text-slate-400">
+                            ${row.weight}%
+                        </span>
+                    </td>
+                    <td class="p-4">
+                        <input type="number" min="0" data-id="${row.id}" data-field="baseline" value="${row.baseline}" 
+                            class="w-full p-2 text-center text-sm border-theme rounded-md bg-preview focus:ring-2 focus:ring-orange-500/20 outline-none transition-all font-mono border text-dim">
+                    </td>
+                    <td class="p-4">
+                        <input type="number" min="0" data-id="${row.id}" data-field="target" value="${row.target}" 
+                            class="w-full p-2 text-center text-sm border-theme rounded-md bg-preview focus:ring-2 focus:ring-orange-500/20 outline-none transition-all font-mono border text-dim">
+                    </td>
+                    <td class="p-4 bg-orange-50/30 dark:bg-orange-900/5 border-x border-orange-100 dark:border-orange-800/20">
+                        <input type="number" min="0" data-id="${row.id}" data-field="progress" value="${row.progress}" 
+                            class="w-full p-2.5 text-center text-sm rounded-md input-progress transition-all font-mono shadow-inner" placeholder="Capaian...">
+                    </td>
+                    <td class="p-4 text-right">
+                        <div class="flex flex-col items-end gap-1">
+                            <span class="font-extrabold text-sm" id="score-cell-${row.id}">0.00%</span>
+                            <div class="w-20 progress-track bg-slate-200 dark:bg-slate-700">
+                                <div class="progress-fill" id="bar-cell-${row.id}" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Helper angka pertumbuhan
+        function calcGrowth(current, base) {
+            if (base === 0) {
+                return current > 0 ? 100 : 0; // Asumsi 100% jika naik dari 0
+            }
+            return ((current - base) / base) * 100;
+        }
+
+        // Format visual positif/negatif
+        function formatVal(val, isScore = false) {
+            let sign = val > 0 ? '+' : '';
+            let color = val < 0 ? 'text-rose-500' : (val > 0 ? (isScore ? 'text-orange-600 dark:text-orange-400' : 'text-emerald-500') : 'text-dim');
+            return `<span class="${color}">${sign}${val.toFixed(2)}%</span>`;
+        }
+
+        // Fungsi Hitung dan Update UI
+        function updateUI() {
+            let totalTargetScore = 0;
+            let totalCurrentScore = 0;
+            let breakdownHtml = '';
+
+            appData.forEach(item => {
+                // Kalkulasi Target 2026
+                let targetGrowth = calcGrowth(item.target, item.baseline);
+                let targetScore = targetGrowth * (item.weight / 100);
+                totalTargetScore += targetScore;
+
+                // Kalkulasi Progress Saat Ini
+                let currentGrowth = calcGrowth(item.progress, item.baseline);
+                let currentScore = currentGrowth * (item.weight / 100);
+                totalCurrentScore += currentScore;
+
+                // Render Table Cells
+                const scoreCell = document.getElementById(`score-cell-${item.id}`);
+                const barCell = document.getElementById(`bar-cell-${item.id}`);
+                
+                scoreCell.innerHTML = formatVal(currentScore, true);
+                
+                // Kalkulasi fill bar (Progress relative to Target Score)
+                // Hati-hati jika targetScore 0 atau negatif
+                let barPct = 0;
+                if (targetScore > 0) {
+                    barPct = Math.max(0, Math.min(100, (currentScore / targetScore) * 100));
+                } else if (currentScore > 0) {
+                    barPct = 100; // Overshoot / unexpected positive
+                }
+                barCell.style.width = `${barPct}%`;
+                if(currentScore < 0) barCell.style.backgroundColor = '#f43f5e'; // rose-500 for negative
+                else barCell.style.backgroundColor = 'var(--theme-accent)';
+
+                // Render Breakdown Item
+                breakdownHtml += `
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-preview border border-theme rounded-lg p-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors gap-2">
+                        <div class="flex items-center gap-3 w-full sm:w-auto">
+                            <div class="w-8 h-8 rounded-full bg-card shadow-sm border border-theme flex items-center justify-center text-[10px] font-bold text-dim shrink-0">
+                                ${item.weight}%
+                            </div>
+                            <div>
+                                <span class="font-bold text-theme text-sm block leading-none mb-1">${item.name}</span>
+                                <span class="text-[10px] text-dim">Base: ${item.baseline} &rarr; Prog: ${item.progress}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center gap-3 bg-card px-3 py-2 rounded border border-theme w-full sm:w-auto justify-between sm:justify-end">
+                            <div class="text-right">
+                                <span class="text-[10px] text-dim block leading-none mb-1">Pertumbuhan</span>
+                                ${formatVal(currentGrowth, false)}
+                            </div>
+                            <div class="text-dim opacity-50">&times;</div>
+                            <div class="text-right">
+                                <span class="text-[10px] text-dim block leading-none mb-1">Skor Disumbang</span>
+                                <span class="font-bold text-sm ${currentScore < 0 ? 'text-rose-500' : 'text-orange-600 dark:text-orange-400'}">${currentScore > 0 ? '+' : ''}${currentScore.toFixed(2)}%</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Update Total Footer Table
+            document.getElementById('tf-target-score').textContent = totalTargetScore.toFixed(2) + '%';
+            document.getElementById('tf-current-score').textContent = totalCurrentScore.toFixed(2) + '%';
+
+            // Update Dashboard Cards
+            document.getElementById('card-target-score').textContent = totalTargetScore.toFixed(2) + '%';
+            document.getElementById('card-current-score').textContent = totalCurrentScore.toFixed(2) + '%';
+            
+            // Calculate Global Achievement Percentage
+            let globalPct = 0;
+            if (totalTargetScore > 0) {
+                globalPct = (totalCurrentScore / totalTargetScore) * 100;
+            }
+            document.getElementById('global-progress-pct').textContent = globalPct.toFixed(1) + '%';
+
+            // Inject Breakdown
+            breakdownArea.innerHTML = breakdownHtml;
+        }
+
+        // --- 4. EVENT LISTENERS ---
+        tableBody.addEventListener('input', (e) => {
+            if (e.target.tagName === 'INPUT') {
+                const id = e.target.dataset.id;
+                const field = e.target.dataset.field;
+                const val = parseFloat(e.target.value) || 0;
+                
+                appData = appData.map(item => {
+                    if (item.id === id) { return { ...item, [field]: val }; }
+                    return item;
+                });
+                
+                updateUI();
+            }
+        });
+
+        // --- 5. MODAL LOGIC ---
+        const modal = document.getElementById('terms-modal');
+        const modalContent = document.getElementById('modal-content');
+        function openModal() {
+            modal.classList.remove('opacity-0', 'invisible');
+            modalContent.classList.remove('scale-95');
+            modalContent.classList.add('scale-100');
+        }
+        function closeModal() {
+            modal.classList.add('opacity-0', 'invisible');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+        }
+        modal.addEventListener('click', (e) => { if(e.target === modal) closeModal(); });
+
+        // Initialize App
+        initTable();
+        updateUI();
+
+    </script>
+</body>
+</html>
