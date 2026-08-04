@@ -125,6 +125,21 @@
             opacity: 0.5;
             pointer-events: none;
         }
+        
+        /* Formula Math Styles */
+        .math-fraction {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            vertical-align: middle;
+            font-size: 0.8em;
+            line-height: 1.2;
+            margin: 0 4px;
+        }
+        .math-fraction > span:first-child {
+            border-bottom: 1px solid currentColor;
+            padding: 0 2px;
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col antialiased transition-colors duration-200">
@@ -137,7 +152,7 @@
             </div>
             <div>
                 <h1 class="font-bold text-base leading-tight bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">CapKin Studio</h1>
-                <p class="text-[10px] text-dim italic -mt-0.5" id="app-subtitle">Capaian Kinerja Pro v6.0</p>
+                <p class="text-[10px] text-dim italic -mt-0.5" id="app-subtitle">Capaian Kinerja Pro v7.0</p>
             </div>
         </div>
 
@@ -148,7 +163,7 @@
             <button class="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-dim transition-colors group relative" title="Help">
                 <i data-lucide="help-circle" class="w-4 h-4"></i>
                 <div class="absolute right-0 top-10 w-64 p-3 bg-card border border-theme shadow-lg rounded-xl text-[10px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 leading-relaxed text-dim">
-                    <span id="help-text">Distribusi Bobot Bulat (Integer): Kunci komponen dengan menekan tombol gembok. Geser slider lainnya dan sistem otomatis membagi sisa kuota bobot (100%) secara proporsional.</span>
+                    <span id="help-text">Simulasi berfokus pada Skenario Formula Resmi. Sistem akan membedah secara langsung kontribusi tiap komponen sesuai bobot target.</span>
                 </div>
             </button>
 
@@ -180,8 +195,8 @@
                             <span id="lbl-btn-chart">Grafik Tren</span>
                         </button>
                         <button onclick="resetWeights()" class="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-dim px-3 py-2 rounded-lg border border-theme shadow-sm transition-colors text-sm font-semibold">
-                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-                            <span id="lbl-weight-reset">Reset Bobot</span>
+                            <i data-lucide="target" class="w-4 h-4"></i>
+                            <span id="lbl-weight-reset">Bobot Default</span>
                         </button>
                     </div>
                 </div>
@@ -193,9 +208,9 @@
                                 <th class="p-4 w-1/4" id="th-comp">Komponen</th>
                                 <th class="p-3" id="th-prev">Baseline 2025</th>
                                 <th class="p-3" id="th-now">Target 2026</th>
-                                <th class="p-3" id="th-growth26">Skor Proyeksi '26</th>
+                                <th class="p-3" id="th-growth26">Pertumbuhan '26</th>
                                 <th class="p-3" id="th-future">Target 2027</th>
-                                <th class="p-3" id="th-growth27">Skor Proyeksi '27</th>
+                                <th class="p-3" id="th-growth27">Pertumbuhan '27</th>
                                 <th class="p-3 w-52 text-right" id="th-weight">Porsi Bobot (%)</th>
                             </tr>
                         </thead>
@@ -206,48 +221,50 @@
                 </div>
             </div>
 
-            <!-- KONTAINER BAWAH: ANALISIS SKOR -->
+            <!-- KONTAINER BAWAH: ANALISIS SKOR FORMULA -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Card Skenario 1 -->
+                <!-- Card Hasil Akhir -->
                 <div class="bg-card rounded-2xl shadow-md border border-theme p-6 relative overflow-hidden flex flex-col">
                     <div class="absolute top-0 left-0 w-1.5 h-full bg-emerald-500"></div>
-                    <h3 class="font-bold text-lg text-theme flex items-center gap-2 mb-1" id="title-sc1">Skor Bobot (Skenario 1)</h3>
-                    <p class="text-xs text-dim mb-6" id="desc-sc1">Skor proyeksi dihitung pada setiap komponen terlebih dahulu, kemudian dirata-rata sesuai porsi bobot yang dikunci/digeser.</p>
+                    <h3 class="font-bold text-lg text-theme flex items-center gap-2 mb-1" id="title-sc1">Skor Capaian Akhir</h3>
+                    <p class="text-xs text-dim mb-6" id="desc-sc1">Kalkulasi menggunakan formula tertimbang resmi Kementerian (Bebas dari Bias Whale Effect).</p>
                     
-                    <div class="mt-auto bg-slate-50 dark:bg-slate-800/30 rounded-xl p-5 flex flex-col md:flex-row items-center justify-around border border-theme gap-4">
+                    <div class="mt-auto bg-slate-50 dark:bg-slate-800/30 rounded-xl p-5 flex flex-col md:flex-row items-center justify-around border border-theme gap-4 h-full">
                         <div class="text-center w-full">
-                            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block mb-1" id="lbl-res1-26">Capaian 2026</span>
-                            <span class="text-3xl font-extrabold text-theme" id="val-scenario-1-26">0%</span>
+                            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block mb-2" id="lbl-res1-26">Proyeksi Skor 2026</span>
+                            <span class="text-5xl font-extrabold text-theme" id="val-scenario-1-26">0%</span>
                         </div>
-                        <div class="w-px h-12 bg-[var(--border-color)] hidden md:block"></div>
-                        <div class="text-center w-full border-t border-[var(--border-color)] md:border-0 pt-4 md:pt-0">
-                            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block mb-1" id="lbl-res1-27">Capaian 2027</span>
-                            <span class="text-3xl font-extrabold text-theme" id="val-scenario-1-27">0%</span>
+                        <div class="w-px h-24 bg-[var(--border-color)] hidden md:block"></div>
+                        <div class="text-center w-full border-t border-[var(--border-color)] md:border-0 pt-6 md:pt-0">
+                            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block mb-2" id="lbl-res1-27">Proyeksi Skor 2027</span>
+                            <span class="text-5xl font-extrabold text-theme" id="val-scenario-1-27">0%</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Card Skenario 2 -->
+                <!-- Card Rincian Formula -->
                 <div class="bg-card rounded-2xl shadow-md border border-theme p-6 relative overflow-hidden flex flex-col">
-                    <div class="absolute top-0 left-0 w-1.5 h-full bg-teal-600"></div>
-                    <h3 class="font-bold text-lg text-theme flex items-center gap-2 mb-1" id="title-sc2">Skor Mentah (Skenario 2)</h3>
-                    <p class="text-xs text-dim mb-6" id="desc-sc2">Seluruh volume target ditotal secara mentah tanpa bobot, lalu dihitung persentase peningkatannya. (Terkena Whale Effect)</p>
-                    
-                    <div class="mt-auto bg-slate-50 dark:bg-slate-800/30 rounded-xl p-5 flex flex-col md:flex-row items-center justify-around border border-theme gap-4 relative">
-                        <div class="text-center w-full">
-                            <span class="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider block mb-1" id="lbl-res2-26">Capaian 2026</span>
-                            <span class="text-3xl font-extrabold text-theme" id="val-scenario-2-26">0%</span>
-                        </div>
-                        <div class="w-px h-12 bg-[var(--border-color)] hidden md:block"></div>
-                        <div class="text-center w-full border-t border-[var(--border-color)] md:border-0 pt-4 md:pt-0">
-                            <span class="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider block mb-1" id="lbl-res2-27">Capaian 2027</span>
-                            <span class="text-3xl font-extrabold text-theme" id="val-scenario-2-27">0%</span>
-                        </div>
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-slate-300 dark:bg-slate-600"></div>
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="font-bold text-lg text-theme flex items-center gap-2" id="title-sc2">Rincian Kalkulasi (2026)</h3>
                         
-                        <!-- Mini footer totals -->
-                        <div class="absolute bottom-1 right-3 text-[9px] text-dim font-medium" id="val-totals">
-                            Tot '25: 0 | Tot '26: 0 | Tot '27: 0
+                        <!-- Toggle for 2026/2027 Breakdown -->
+                        <div class="flex bg-preview rounded-lg p-0.5 border border-theme">
+                            <button onclick="setBreakdownYear('26')" id="btn-breakdown-26" class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-card shadow-sm text-theme transition-all">2026</button>
+                            <button onclick="setBreakdownYear('27')" id="btn-breakdown-27" class="px-2 py-0.5 text-[10px] font-medium rounded-md text-dim hover:text-theme transition-all">2027</button>
                         </div>
+                    </div>
+                    
+                    <p class="text-xs text-dim mb-4" id="desc-sc2">Matematika Kontribusi: <i>(Tumbuh &times; Bobot = Skor)</i></p>
+                    
+                    <!-- Dynamic Breakdown Container -->
+                    <div class="mt-auto flex flex-col gap-2 font-mono text-[11px]" id="formula-breakdown-area">
+                        <!-- Rendered via JS -->
+                    </div>
+                    
+                    <!-- Formula Basis (Info) -->
+                    <div class="mt-4 pt-3 border-t border-dashed border-theme flex justify-center items-center text-[10px] text-dim opacity-80" id="formula-math-display">
+                        Skor = &Sigma; &nbsp; <div class="math-fraction"><span>(Kini - Lalu)</span><span>Lalu</span></div> &nbsp; &times; Bobot
                     </div>
                 </div>
             </div>
@@ -261,7 +278,7 @@
         <div id="chart-header" class="h-12 border-b border-theme flex items-center justify-between px-4 cursor-move shrink-0 bg-card/50">
             <div class="flex items-center gap-2">
                 <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-500"></i>
-                <span class="font-bold text-sm text-theme" id="title-chart-popup">Tren Skor Proyeksi</span>
+                <span class="font-bold text-sm text-theme" id="title-chart-popup">Tren Pertumbuhan</span>
             </div>
             <button onclick="toggleChartPopup()" class="p-1 rounded-md text-dim hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
                 <i data-lucide="x" class="w-4 h-4"></i>
@@ -270,7 +287,7 @@
         
         <!-- Legend & Desc -->
         <div class="px-4 pt-3 shrink-0 flex justify-between items-start">
-            <p class="text-[10px] text-dim max-w-[70%]" id="desc-chart">Membandingkan persentase kenaikan murni tiap komponen.</p>
+            <p class="text-[10px] text-dim max-w-[70%]" id="desc-chart">Persentase pertumbuhan riil per komponen.</p>
             <div class="flex items-center gap-2 text-[9px] font-bold shrink-0">
                 <span class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400"><div class="w-2 h-2 bg-emerald-400 rounded-sm shadow-sm"></div> '26</span>
                 <span class="flex items-center gap-1 text-teal-700 dark:text-teal-400"><div class="w-2 h-2 bg-teal-600 rounded-sm shadow-sm"></div> '27</span>
@@ -287,7 +304,7 @@
     <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 transition-colors duration-200 z-50 relative">
         <div class="flex items-center gap-2">
             <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span id="footer-status">Sistem Siap & Distribusi Integer Aktif</span>
+            <span id="footer-status">Sistem Siap (Fokus Formula Skenario 1)</span>
         </div>
         <div class="font-mono" id="footer-stats">Data: 4 Komponen</div>
         <button onclick="openModal()" class="hover:text-emerald-500 transition-colors font-medium" id="footer-terms">Syarat & Ketentuan</button>
@@ -315,18 +332,20 @@
 
     <!-- LOGIKA VANILLA JS PENGGERAK UI -->
     <script>
-        // Init Icons First time
+        // Init Icons
         lucide.createIcons();
 
-        // --- 1. STATE & DATA ---
+        // --- 1. STATE & DATA (Sesuai Formula 20, 5, 35, 40) ---
         let appData = [
-            { id: '1', name: 'Open Online Course', prev: 118, now: 120, future: 130, weight: 25, locked: false },
-            { id: '2', name: 'Kelas EMAS', prev: 5350, now: 5500, future: 5800, weight: 25, locked: false },
-            { id: '3', name: 'Non Degree Program', prev: 12, now: 15, future: 20, weight: 25, locked: false },
-            { id: '4', name: 'Kelas KPB', prev: 5, now: 5, future: 7, weight: 25, locked: false }
+            { id: '1', name: 'Open Online Course', prev: 118, now: 120, future: 130, weight: 20, locked: false },
+            { id: '2', name: 'MK Aktif di EMAS', prev: 5350, now: 5500, future: 5800, weight: 5, locked: false },
+            { id: '3', name: 'Non Degree Program', prev: 12, now: 15, future: 20, weight: 35, locked: false },
+            { id: '4', name: 'Kelas KPB', prev: 5, now: 5, future: 7, weight: 40, locked: false }
         ];
+        
         let lang = 'id';
         let chartPopupOpen = false;
+        let activeBreakdownYear = '26'; // '26' or '27'
 
         // --- 2. DARK MODE LOGIC ---
         const themeToggleBtn = document.getElementById('theme-toggle');
@@ -350,7 +369,6 @@
         let isDraggingPopup = false;
         let dragOffsetX = 0, dragOffsetY = 0;
 
-        // Drag handlers
         chartHeader.addEventListener('mousedown', (e) => {
             isDraggingPopup = true;
             let rect = chartPopup.getBoundingClientRect();
@@ -361,7 +379,6 @@
         
         window.addEventListener('mousemove', (e) => {
             if (!isDraggingPopup) return;
-            // Clear right/bottom constraints to allow free dragging
             chartPopup.style.right = 'auto';
             chartPopup.style.bottom = 'auto';
             chartPopup.style.left = (e.clientX - dragOffsetX) + 'px';
@@ -375,7 +392,6 @@
             }
         });
 
-        // Resize observer to re-render chart SVG natively on CSS resize
         const resizeObserver = new ResizeObserver(() => {
             if(chartPopupOpen) renderChart(appData);
         });
@@ -385,12 +401,10 @@
             chartPopupOpen = !chartPopupOpen;
             if (chartPopupOpen) {
                 chartPopup.classList.remove('hidden');
-                // Center if first open and no explicit left set
                 if(!chartPopup.style.left) {
                     chartPopup.style.top = '100px';
                     chartPopup.style.left = '50%';
                     chartPopup.style.transform = 'translateX(-50%)';
-                    // clear transform after a moment to allow dragging
                     setTimeout(() => {
                         let r = chartPopup.getBoundingClientRect();
                         chartPopup.style.transform = 'none';
@@ -426,15 +440,12 @@
                     <td class="p-2" id="cell-growth27-${row.id}"></td>
                     <td class="p-2 align-middle">
                         <div class="flex items-center gap-2">
-                            <!-- Lock Button -->
                             <button onclick="window.toggleLock('${row.id}')" id="btn-lock-${row.id}" title="Kunci Bobot"
                                 class="p-1.5 rounded-md transition-colors shrink-0 shadow-sm border ${row.locked ? 'bg-red-50 dark:bg-red-900/30 text-red-500 border-red-200 dark:border-red-800/50' : 'bg-card text-slate-400 hover:text-emerald-500 border-theme'}">
                                 <i data-lucide="${row.locked ? 'lock' : 'unlock'}" class="w-3 h-3"></i>
                             </button>
-                            <!-- Slider (Integer Only) -->
                             <input type="range" min="0" max="100" step="1" value="${row.weight}" data-id="${row.id}" data-field="weight" 
                                 class="flex-1 custom-slider ${row.locked ? 'opacity-50 pointer-events-none' : ''}" id="slider-${row.id}" ${row.locked ? 'disabled' : ''}>
-                            <!-- Badge -->
                             <div class="w-10 text-right shrink-0">
                                 <span id="badge-${row.id}" class="text-[10px] font-bold px-1.5 py-1 rounded shadow-sm border inline-block min-w-[42px] text-center
                                     ${row.locked ? 'text-red-700 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-900/30 dark:border-red-800' : 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/40 dark:border-emerald-800'}">
@@ -448,24 +459,19 @@
             lucide.createIcons();
         }
 
-        // Global function for lock toggle
         window.toggleLock = (id) => {
             let item = appData.find(i => i.id === id);
             item.locked = !item.locked;
-            
-            // Re-render table to easily refresh lock UI and disabled states
             initTable();
             updateAllUI();
         };
 
         window.resetWeights = () => {
-            const equalVal = Math.floor(100 / appData.length);
-            const remainder = 100 - (equalVal * appData.length);
-            
-            appData.forEach((item, index) => {
-                item.locked = false; // unlock all
-                item.weight = index < remainder ? equalVal + 1 : equalVal; // Exact distribution
-            });
+            // Hardcoded defaults: OOC 20, EMAS 5, NonDegree 35, KPB 40
+            appData[0].weight = 20; appData[0].locked = false;
+            appData[1].weight = 5;  appData[1].locked = false;
+            appData[2].weight = 35; appData[2].locked = false;
+            appData[3].weight = 40; appData[3].locked = false;
             initTable();
             updateAllUI();
         };
@@ -476,18 +482,38 @@
             return `<div class="font-bold text-xs ${colorClass}">${sign}${val.toFixed(1)}%</div>`;
         }
 
+        function setBreakdownYear(year) {
+            activeBreakdownYear = year;
+            
+            const btn26 = document.getElementById('btn-breakdown-26');
+            const btn27 = document.getElementById('btn-breakdown-27');
+            
+            if (year === '26') {
+                btn26.className = "px-2 py-0.5 text-[10px] font-bold rounded-md bg-card shadow-sm text-theme transition-all";
+                btn27.className = "px-2 py-0.5 text-[10px] font-medium rounded-md text-dim hover:text-theme transition-all";
+                document.getElementById('title-sc2').innerHTML = (lang === 'id' ? 'Rincian Kalkulasi (2026)' : 'Calculation Breakdown (2026)');
+            } else {
+                btn27.className = "px-2 py-0.5 text-[10px] font-bold rounded-md bg-card shadow-sm text-theme transition-all";
+                btn26.className = "px-2 py-0.5 text-[10px] font-medium rounded-md text-dim hover:text-theme transition-all";
+                document.getElementById('title-sc2').innerHTML = (lang === 'id' ? 'Rincian Kalkulasi (2027)' : 'Calculation Breakdown (2027)');
+            }
+            updateAllUI();
+        }
+
         function updateAllUI() {
-            let totalPrev = 0, totalNow = 0, totalFuture = 0;
             let finalScen1_26 = 0, finalScen1_27 = 0;
+            let breakdownHtml = '';
 
             // 1. Kalkulasi per Baris & Update Table Elements
             appData.forEach(item => {
                 let growth26 = item.prev === 0 ? (item.now > 0 ? 100 : 0) : ((item.now - item.prev) / item.prev) * 100;
                 let growth27 = item.now === 0 ? (item.future > 0 ? 100 : 0) : ((item.future - item.now) / item.now) * 100;
                 
-                totalPrev += item.prev; totalNow += item.now; totalFuture += item.future;
-                finalScen1_26 += (growth26 * (item.weight / 100));
-                finalScen1_27 += (growth27 * (item.weight / 100));
+                let contrib26 = growth26 * (item.weight / 100);
+                let contrib27 = growth27 * (item.weight / 100);
+
+                finalScen1_26 += contrib26;
+                finalScen1_27 += contrib27;
 
                 item.growth26 = growth26; 
                 item.growth27 = growth27;
@@ -501,24 +527,47 @@
                 const badge = document.getElementById(`badge-${item.id}`);
                 
                 if (document.activeElement !== slider) slider.value = item.weight;
-                
-                // Track style
                 slider.style.background = `linear-gradient(to right, var(--theme-accent) ${item.weight}%, var(--border-color) ${item.weight}%)`;
                 badge.textContent = item.weight + '%';
+
+                // Render Breakdown Line
+                let activeGrowth = activeBreakdownYear === '26' ? growth26 : growth27;
+                let activeContrib = activeBreakdownYear === '26' ? contrib26 : contrib27;
+                
+                let growthSign = activeGrowth > 0 ? '+' : '';
+                let contribSign = activeContrib > 0 ? '+' : '';
+                let colorClass = activeContrib < 0 ? 'text-red-500' : (activeContrib > 0 ? 'text-emerald-500' : 'text-dim');
+
+                breakdownHtml += `
+                    <div class="flex justify-between items-center bg-card border border-theme rounded-md p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <span class="truncate pr-2 font-medium max-w-[45%]" title="${item.name}">${item.name}</span>
+                        <div class="text-right">
+                            <span class="text-dim">${growthSign}${activeGrowth.toFixed(1)}% &times; ${item.weight}% = </span>
+                            <span class="font-bold ${colorClass}">${contribSign}${activeContrib.toFixed(2)}%</span>
+                        </div>
+                    </div>
+                `;
             });
 
-            // 2. Kalkulasi Skenario 2 
-            let finalScen2_26 = totalPrev === 0 ? (totalNow > 0 ? 100 : 0) : ((totalNow - totalPrev) / totalPrev) * 100;
-            let finalScen2_27 = totalNow === 0 ? (totalFuture > 0 ? 100 : 0) : ((totalFuture - totalNow) / totalNow) * 100;
+            // 2. Update Cards Hasil Akhir
+            document.getElementById('val-scenario-1-26').textContent = finalScen1_26.toFixed(2) + '%';
+            document.getElementById('val-scenario-1-27').textContent = finalScen1_27.toFixed(2) + '%';
+            
+            // Render Final Sum in Breakdown
+            let finalActiveSum = activeBreakdownYear === '26' ? finalScen1_26 : finalScen1_27;
+            let sumSign = finalActiveSum > 0 ? '+' : '';
+            let sumColor = finalActiveSum < 0 ? 'text-red-600' : 'text-theme';
 
-            // 3. Update Cards
-            document.getElementById('val-scenario-1-26').textContent = finalScen1_26.toFixed(1) + '%';
-            document.getElementById('val-scenario-1-27').textContent = finalScen1_27.toFixed(1) + '%';
-            document.getElementById('val-scenario-2-26').textContent = finalScen2_26.toFixed(1) + '%';
-            document.getElementById('val-scenario-2-27').textContent = finalScen2_27.toFixed(1) + '%';
-            document.getElementById('val-totals').innerHTML = `Tot '25: <b>${totalPrev.toLocaleString('id-ID')}</b> | Tot '26: <b>${totalNow.toLocaleString('id-ID')}</b> | Tot '27: <b>${totalFuture.toLocaleString('id-ID')}</b>`;
+            breakdownHtml += `
+                <div class="flex justify-between items-center p-2 pt-3 border-t-2 border-theme mt-1">
+                    <span class="font-bold text-theme tracking-wide uppercase text-[10px]">${lang === 'id' ? 'TOTAL SKOR CAPAIAN' : 'TOTAL ACHIEVED SCORE'}</span>
+                    <span class="font-extrabold text-sm ${sumColor}">${sumSign}${finalActiveSum.toFixed(2)}%</span>
+                </div>
+            `;
+            
+            document.getElementById('formula-breakdown-area').innerHTML = breakdownHtml;
 
-            // 4. Update Chart
+            // 3. Update Chart
             if (chartPopupOpen) renderChart(appData);
         }
 
@@ -531,56 +580,43 @@
                 
                 if (field === 'weight') {
                     let itemIndex = appData.findIndex(i => i.id === id);
-                    if(appData[itemIndex].locked) return; // safeguard
+                    if(appData[itemIndex].locked) return;
                     
-                    // Hitung total bobot item yang terkunci (selain item saat ini)
                     let lockedSum = appData.filter(i => i.locked && i.id !== id).reduce((sum, i) => sum + i.weight, 0);
-                    
-                    // Batasi nilai slider agar tidak melebihi sisa porsi dari yang terkunci
                     val = Math.max(0, Math.min(100 - lockedSum, val));
                     appData[itemIndex].weight = val; 
 
-                    // Cari item lain yang tidak terkunci
                     let unlocked = appData.filter(i => !i.locked && i.id !== id);
                     let remaining = 100 - val - lockedSum;
 
                     if (unlocked.length > 0) {
                         let currentUnlockedSum = unlocked.reduce((sum, i) => sum + i.weight, 0);
-                        
-                        // Kalkulasi persentase proporsional secara pecahan
                         let fractions = unlocked.map(u => {
                             let fraction = currentUnlockedSum > 0 ? (u.weight / currentUnlockedSum) * remaining : remaining / unlocked.length;
                             return { id: u.id, fraction: fraction };
                         });
                         
-                        // Implementasi Hare-Niemeyer (Largest Remainder) untuk Integer 100%
                         let intWeights = fractions.map(f => ({ id: f.id, val: Math.floor(f.fraction), rem: f.fraction - Math.floor(f.fraction) }));
                         let intSum = intWeights.reduce((s, i) => s + i.val, 0);
                         let diff = remaining - intSum;
 
-                        // Sort berdasarkan desimal sisa terbesar
                         intWeights.sort((a, b) => b.rem - a.rem);
                         for(let i=0; i<diff; i++) {
-                            intWeights[i].val += 1; // Tambah 1 ke remainder tertinggi
+                            intWeights[i].val += 1; 
                         }
 
-                        // Aplikasikan kembali nilai bulat ke appData
                         unlocked.forEach(u => {
                             u.weight = intWeights.find(iw => iw.id === u.id).val;
                         });
                     } else {
-                        // Jika semua yang lain terkunci, paksa nilai slider ini memenuhi 100
                         appData[itemIndex].weight = 100 - lockedSum;
                     }
                 } else {
-                    // Input angka biasa (Baseline / Target)
                     appData = appData.map(item => {
                         if (item.id === id) { return { ...item, [field]: val }; }
                         return item;
                     });
                 }
-                
-                // Update UI secara real-time
                 updateAllUI();
             }
         });
@@ -591,7 +627,7 @@
             if(!chartArea || !chartPopupOpen) return;
 
             const allGrowth = data.flatMap(d => [Math.abs(d.growth26), Math.abs(d.growth27)]);
-            const maxVal = Math.max(...allGrowth, 10); // min scale 10%
+            const maxVal = Math.max(...allGrowth, 10); 
 
             let html = `<div class="absolute bottom-2 left-0 w-full border-t border-dashed border-slate-300 dark:border-slate-700 z-0"></div>`;
             
@@ -624,7 +660,6 @@
             });
             html += `</div>`;
             
-            // SVG Overlay Line (Target 2027)
             if(data.length > 1) {
                 let svgHtml = `<svg class="absolute inset-0 w-full h-full pointer-events-none z-20 pb-[28px] pt-4" preserveAspectRatio="none">`;
                 let points = [];
@@ -654,39 +689,43 @@
         const btnLang = document.getElementById('lang-toggle');
         const dictionary = {
             id: {
-                subtitle: 'Capaian Kinerja Pro v6.0',
-                help: 'Distribusi Bobot Bulat (Integer): Kunci komponen dengan menekan tombol gembok. Geser slider lainnya dan sistem otomatis membagi sisa kuota bobot (100%) secara proporsional.',
+                subtitle: 'Capaian Kinerja Pro v7.0',
+                help: 'Simulasi berfokus pada Skenario Formula Resmi. Sistem akan membedah secara langsung kontribusi tiap komponen sesuai bobot target.',
                 titleEditor: 'Simulator Pembelajaran Digital',
                 subEditor: 'Evaluasi Baseline vs Proyeksi Target',
-                lblWeightReset: 'Reset Bobot',
+                lblWeightReset: 'Bobot Default',
                 lblBtnChart: 'Grafik Tren',
-                thComp: 'Komponen', thPrev: 'Baseline 2025', thNow: 'Target 2026', thGrowth26: "Skor Proyeksi '26", thFuture: 'Target 2027', thGrowth27: "Skor Proyeksi '27", thWeight: 'Porsi Bobot (%)',
-                sc1Title: 'Skor Bobot (Skenario 1)',
-                sc1Desc: 'Skor proyeksi dihitung pada setiap komponen terlebih dahulu, kemudian dirata-rata sesuai porsi bobot yang dikunci/digeser.',
-                sc2Title: 'Skor Mentah (Skenario 2)',
-                sc2Desc: 'Seluruh volume target ditotal secara mentah tanpa bobot, lalu dihitung persentase peningkatannya. (Terkena Whale Effect)',
-                chartTitle: 'Tren Skor Proyeksi',
-                chartDesc: 'Membandingkan persentase kenaikan murni tiap komponen.',
-                footReady: 'Sistem Siap & Distribusi Integer Aktif', footTerms: 'Syarat & Ketentuan',
+                thComp: 'Komponen', thPrev: 'Baseline 2025', thNow: 'Target 2026', thGrowth26: "Pertumbuhan '26", thFuture: 'Target 2027', thGrowth27: "Pertumbuhan '27", thWeight: 'Porsi Bobot (%)',
+                sc1Title: 'Skor Capaian Akhir',
+                sc1Desc: 'Kalkulasi menggunakan formula tertimbang resmi Kementerian (Bebas dari Bias Whale Effect).',
+                lblRes26: 'Proyeksi Skor 2026', lblRes27: 'Proyeksi Skor 2027',
+                sc2Title: 'Rincian Kalkulasi',
+                sc2Desc: 'Matematika Kontribusi: <i>(Tumbuh &times; Bobot = Skor)</i>',
+                mathBasis: 'Skor = &Sigma; &nbsp; <div class="math-fraction"><span>(Kini - Lalu)</span><span>Lalu</span></div> &nbsp; &times; Bobot',
+                chartTitle: 'Tren Pertumbuhan',
+                chartDesc: 'Persentase pertumbuhan riil per komponen.',
+                footReady: 'Sistem Siap (Fokus Formula Skenario 1)', footTerms: 'Syarat & Ketentuan',
                 modTitle: 'Terms of Use / Syarat Ketentuan',
                 modBody: 'Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan \'as-is\' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.',
                 btnOk: 'Mengerti'
             },
             en: {
-                subtitle: 'Performance Achievement Pro v6.0',
-                help: 'Integer Weight Distribution: Lock a component by clicking the padlock. Drag other sliders and the system automatically divides the remaining 100% quota proportionally.',
+                subtitle: 'Performance Achievement Pro v7.0',
+                help: 'Simulation focuses on the Official Formula Scenario. The system dynamically breaks down the contribution of each component based on its weight.',
                 titleEditor: 'Digital Learning Simulator',
                 subEditor: 'Baseline vs Target Projection',
-                lblWeightReset: 'Reset Weights',
+                lblWeightReset: 'Default Weights',
                 lblBtnChart: 'Trend Chart',
-                thComp: 'Component', thPrev: 'Baseline 2025', thNow: 'Target 2026', thGrowth26: "Proj. Score '26", thFuture: 'Target 2027', thGrowth27: "Proj. Score '27", thWeight: 'Weight Allocation (%)',
-                sc1Title: 'Weighted Score (Scenario 1)',
-                sc1Desc: 'Projected scores are calculated per component first, then averaged proportionally to the locked/dragged weights.',
-                sc2Title: 'Raw Score (Scenario 2)',
-                sc2Desc: 'All target volumes are summed up raw without weights, then the percentage increase is calculated. (Subject to Whale Effect)',
-                chartTitle: 'Projected Score Trend',
-                chartDesc: 'Comparing pure percentage increases of each component.',
-                footReady: 'System Ready & Integer Dist. Active', footTerms: 'Terms & Conditions',
+                thComp: 'Component', thPrev: 'Baseline 2025', thNow: 'Target 2026', thGrowth26: "Growth '26", thFuture: 'Target 2027', thGrowth27: "Growth '27", thWeight: 'Weight Allocation (%)',
+                sc1Title: 'Final Achieved Score',
+                sc1Desc: 'Calculated using the official weighted formula (Free from Whale Effect Bias).',
+                lblRes26: '2026 Projected Score', lblRes27: '2027 Projected Score',
+                sc2Title: 'Calculation Breakdown',
+                sc2Desc: 'Contribution Math: <i>(Growth &times; Weight = Score)</i>',
+                mathBasis: 'Score = &Sigma; &nbsp; <div class="math-fraction"><span>(Now - Prev)</span><span>Prev</span></div> &nbsp; &times; Weight',
+                chartTitle: 'Growth Trend',
+                chartDesc: 'Real growth percentage per component.',
+                footReady: 'System Ready (Scenario 1 Formula Focus)', footTerms: 'Terms & Conditions',
                 modTitle: 'Terms of Use / Disclaimer',
                 modBody: 'There is no coercion to use this app. This app is provided \'as-is\' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app does not store your personal data on our servers. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.',
                 btnOk: 'Understood'
@@ -718,8 +757,13 @@
             
             document.getElementById('title-sc1').textContent = dict.sc1Title;
             document.getElementById('desc-sc1').textContent = dict.sc1Desc;
-            document.getElementById('title-sc2').textContent = dict.sc2Title;
-            document.getElementById('desc-sc2').textContent = dict.sc2Desc;
+            document.getElementById('lbl-res1-26').textContent = dict.lblRes26;
+            document.getElementById('lbl-res1-27').textContent = dict.lblRes27;
+            
+            // Dynamic title for breakdown depends on active year
+            document.getElementById('title-sc2').innerHTML = dict.sc2Title + (activeBreakdownYear === '26' ? ' (2026)' : ' (2027)');
+            document.getElementById('desc-sc2').innerHTML = dict.sc2Desc;
+            document.getElementById('formula-math-display').innerHTML = dict.mathBasis;
             
             document.getElementById('title-chart-popup').textContent = dict.chartTitle;
             document.getElementById('desc-chart').textContent = dict.chartDesc;
