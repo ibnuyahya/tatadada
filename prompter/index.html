@@ -86,17 +86,6 @@
             --text-dim: #64748b;
             --theme-accent: #3b82f6;
         }
-        html.dark {
-            --header-bg: #161b22;
-            --editor-bg: #0d1117;
-            --preview-bg: #010409;
-            --card-bg: #0d1117;
-            --footer-bg: #161b22;
-            --border-color: #30363d;
-            --text-main: #e6edf3;
-            --text-dim: #8b949e;
-            color-scheme: dark;
-        }
 
         body { 
             background-color: var(--preview-bg); 
@@ -175,10 +164,6 @@
         </div>
         <div class="flex items-center gap-4">
             <button id="lang-toggle" class="text-sm font-semibold text-dim hover:text-main">ID</button>
-            <button id="theme-toggle" class="p-2 rounded-lg text-dim hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
-                <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
-                <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
-            </button>
         </div>
     </header>
 
@@ -224,11 +209,12 @@
                 <input type="color" id="text-color" value="#ffffff" title="Warna Teks" class="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0">
             </div>
             
-            <div class="w-px h-8 bg-slate-200 dark:bg-slate-800 mx-1"></div>
+            <div class="w-px h-8 bg-slate-200 mx-1"></div>
             
-            <button id="btn-save" class="p-2.5 rounded-lg text-dim hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-slate-800 transition-colors" title="Simpan Draft"><i data-lucide="save" class="w-5 h-5"></i></button>
-            <button id="btn-download" class="p-2.5 rounded-lg text-dim hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors" title="Unduh .txt"><i data-lucide="download" class="w-5 h-5"></i></button>
-            <button id="btn-clear" class="p-2.5 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors" title="Bersihkan Teks"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+            <button id="btn-save" class="p-2.5 rounded-lg text-dim hover:text-emerald-500 hover:bg-emerald-50 transition-colors" title="Simpan Draft Manual"><i data-lucide="save" class="w-5 h-5"></i></button>
+            <button id="btn-download" class="p-2.5 rounded-lg text-dim hover:text-blue-500 hover:bg-blue-50 transition-colors" title="Unduh .txt"><i data-lucide="download" class="w-5 h-5"></i></button>
+            <button id="btn-reset" class="p-2.5 rounded-lg text-dim hover:text-amber-500 hover:bg-amber-50 transition-colors" title="Reset Pengaturan"><i data-lucide="rotate-ccw" class="w-5 h-5"></i></button>
+            <button id="btn-clear" class="p-2.5 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 transition-colors" title="Bersihkan Teks"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
         </div>
     </div>
 
@@ -316,6 +302,7 @@
         // File Actions
         const btnSave = document.getElementById('btn-save');
         const btnDownload = document.getElementById('btn-download');
+        const btnReset = document.getElementById('btn-reset');
         const btnClear = document.getElementById('btn-clear');
         const toast = document.getElementById('toast');
         const toastMsg = document.getElementById('toast-msg');
@@ -552,6 +539,33 @@
             showToast('Naskah Diunduh!');
         });
 
+        btnReset.addEventListener('click', () => {
+            if(confirm('Kembalikan semua pengaturan kecepatan, ukuran, dan warna ke bawaan pabrik?')) {
+                // Kembalikan ke nilai Default
+                scrollSpeed = 20; speedSlider.value = 20;
+                textSize = 72; sizeSlider.value = 72;
+                textMargin = 10; marginSlider.value = 10;
+                bgColorVal = '#000000'; colorBg.value = '#000000';
+                textColorVal = '#ffffff'; colorText.value = '#ffffff';
+                
+                // Matikan semua mode
+                isFocusMode = false;
+                isFlipX = false;
+                isFlipY = false;
+
+                // Hapus style aktif dari tombol (jika sedang menyala)
+                btnFocus.classList.remove('bg-slate-700', 'text-blue-400');
+                btnFlipX.classList.remove('bg-slate-700', 'text-blue-400');
+                btnFlipY.classList.remove('bg-slate-700', 'text-blue-400');
+
+                // Terapkan dan Timpa Auto-Save
+                updateStyles();
+                applyTransforms();
+                saveSettings();
+                showToast('Pengaturan Direset!');
+            }
+        });
+
         btnClear.addEventListener('click', () => {
             if(confirm('Hapus seluruh naskah? Tindakan ini tidak dapat dibatalkan.')) {
                 editor.innerHTML = '<br>'; // Sisakan 1 baris agar tidak kolaps
@@ -669,15 +683,6 @@
             updateStyles();
             applyTransforms();
         }
-
-        // Initialize Dark Mode Toggle
-        const themeToggle = document.getElementById('theme-toggle');
-        if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
-        
-        themeToggle.addEventListener('click', () => {
-            document.documentElement.classList.toggle('dark');
-            localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
-        });
 
         // Modal Terms Logic
         const btnTerms = document.getElementById('btn-terms');
