@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Courserasera - Learner Tabulation</title>
+    
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+
+    <!-- Histats.com  START  (aync)-->
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+    <noscript><a href="/" target="_blank"><img  src="//sstatic1.histats.com/0.gif?5024490&101" alt="" border="0"></a></noscript>
+    <!-- Histats.com  END  -->
+
+    <!-- Auto-Favicon Injector (Zoomed & Textless) -->
+    <script>
+    fetch('icon.xml').then(r => r.text()).then(xml => {
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+        const cStart = doc.querySelector('color_start')?.textContent || '#0ea5e9';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#4338ca';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
+        const link = document.createElement('link');
+        link.rel = 'icon'; link.type = 'image/svg+xml';
+        link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+    }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+
+    <!-- Tailwind CSS & Lucide/FA -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Storage Service Module -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        window.DataStoreSDK = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, doc, setDoc, onSnapshot };
+        window.dispatchEvent(new CustomEvent('datastore-sdk-ready'));
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        
+        /* CSS Tokens & Vibrant Depth */
+        :root {
+            --header-bg: rgba(255, 255, 255, 0.85);
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+            --shadow-vibrant: 0 10px 40px -10px rgba(0,0,0,0.08);
+            --glass-border: rgba(255, 255, 255, 0.5);
+        }
+        
+        html.dark {
+            --header-bg: rgba(22, 27, 34, 0.85);
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --theme-accent: #3b82f6;
+            --shadow-vibrant: 0 10px 40px -10px rgba(0,0,0,0.5);
+            --glass-border: rgba(255, 255, 255, 0.05);
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            user-select: none;
+            -webkit-user-select: none;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        input, textarea, pre, code, .selectable {
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        .font-mono-custom { font-family: 'JetBrains Mono', monospace; }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; border: 2px solid var(--preview-bg); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        .glass-panel {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-vibrant);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        
+        .header-glass {
+            background-color: var(--header-bg);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        html.dark .gradient-text {
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .btn-ui {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+        .btn-ui:hover { border-color: var(--theme-accent); color: var(--theme-accent); }
+        
+        .input-ui {
+            background-color: var(--editor-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+        .input-ui:focus { border-color: var(--theme-accent); outline: none; }
+    </style>
+</head>
+<body class="h-screen flex flex-col selection:bg-blue-500/30">
+
+    <!-- A. HEADER (h-14) -->
+    <header class="h-14 header-glass flex items-center justify-between px-6 shrink-0 z-50">
+        <div class="flex items-center space-x-4">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
+                <i class="fa-solid fa-graduation-cap text-sm"></i>
+            </div>
+            <div class="flex flex-col justify-center">
+                <div class="flex items-baseline space-x-2">
+                    <h1 class="text-sm font-bold tracking-tight gradient-text">Courserasera</h1>
+                    <span class="text-[10px] italic text-[var(--text-dim)] font-medium">v7.0 Visionary</span>
+                </div>
+                <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-[var(--text-dim)] hover:text-blue-500 transition-colors">
+                    by AhmadDanial
+                </a>
+            </div>
+            
+            <div class="hidden sm:flex group relative ml-2">
+                <i class="fa-solid fa-circle-question text-[var(--text-dim)] hover:text-[var(--text-main)] cursor-help text-xs transition"></i>
+                <div class="absolute left-0 top-5 w-64 p-3 bg-[var(--card-bg)] border border-[var(--border-color)] shadow-2xl rounded-xl text-[10px] text-[var(--text-main)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                    <strong class="block mb-1 text-blue-500" data-i18n="help_title">Cara Penggunaan:</strong>
+                    <ol class="list-decimal pl-3 space-y-1" data-i18n="help_desc">
+                        <li>Buka halaman data Coursera Anda.</li>
+                        <li>Blok seluruh tabel yang ingin dianalisis.</li>
+                        <li>Tekan Ctrl+C untuk menyalin.</li>
+                        <li>Kembali ke aplikasi ini dan tekan Ctrl+V di mana saja.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2 sm:space-x-3">
+            <!-- Sync Status -->
+            <div id="sync-badge" class="hidden sm:inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-[var(--editor-bg)] text-[var(--text-dim)] border border-[var(--border-color)]">
+                <i id="sync-badge-icon" class="fa-solid fa-cloud text-[10px]"></i>
+                <span id="sync-badge-text">Memuat Storage...</span>
+            </div>
+
+            <button onclick="toggleAnalyticsView()" id="btn-toggle-analytics" class="btn-ui inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition">
+                <i class="fa-solid fa-chart-pie mr-1.5 text-indigo-500"></i> <span class="hidden sm:inline" data-i18n="btn_analytics">Analitik</span>
+            </button>
+            
+            <button onclick="openManualPasteModal()" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-bold rounded-lg text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/25 transition">
+                <i class="fa-solid fa-paste mr-1.5"></i> <span data-i18n="btn_paste">Paste Data</span>
+            </button>
+            
+            <input type="file" id="file-import-input" accept=".csv,.json,text/csv,application/json" onchange="handleFileImport(event)" class="hidden">
+            <button onclick="triggerFileInput()" class="btn-ui inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition">
+                <i class="fa-solid fa-file-import mr-1.5 text-emerald-500"></i> <span class="hidden sm:inline" data-i18n="btn_import">Impor</span>
+            </button>
+
+            <div class="relative inline-block text-left" id="export-dropdown-container">
+                <button onclick="toggleExportMenu(event)" class="btn-ui inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition">
+                    <i class="fa-solid fa-file-export mr-1.5 text-amber-500"></i> <span class="hidden sm:inline" data-i18n="btn_export">Ekspor</span>
+                    <i class="fa-solid fa-chevron-down ml-1.5 text-[9px] opacity-50"></i>
+                </button>
+                <div id="export-menu" class="hidden absolute right-0 mt-2 w-48 rounded-xl shadow-2xl glass-panel z-50 py-1.5">
+                    <button onclick="exportData('csv')" class="w-full text-left px-4 py-2 text-xs font-bold text-[var(--text-main)] hover:bg-[var(--preview-bg)] flex items-center transition">
+                        <i class="fa-solid fa-file-csv w-5 text-emerald-500 text-sm"></i> Excel CSV (.csv)
+                    </button>
+                    <button onclick="exportData('json')" class="w-full text-left px-4 py-2 text-xs font-bold text-[var(--text-main)] hover:bg-[var(--preview-bg)] flex items-center transition">
+                        <i class="fa-solid fa-code w-5 text-blue-500 text-sm"></i> Data JSON (.json)
+                    </button>
+                </div>
+            </div>
+
+            <div class="h-4 w-[1px] bg-[var(--border-color)] mx-1"></div>
+
+            <button onclick="toggleLanguage()" class="w-7 h-7 rounded-full btn-ui flex items-center justify-center text-xs transition" title="Toggle Language">
+                <span id="lang-indicator">ID</span>
+            </button>
+            <button onclick="toggleTheme()" class="w-7 h-7 rounded-full btn-ui flex items-center justify-center text-xs transition" title="Toggle Dark Mode">
+                <i id="theme-icon" class="fa-solid fa-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- B. MAIN WORKSPACE (Single View) -->
+    <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 selectable allow-context">
+        <div class="max-w-7xl mx-auto w-full space-y-6">
+            
+            <!-- KPI Cards -->
+            <section class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div class="glass-panel p-4 rounded-2xl flex items-center space-x-3.5 transition">
+                    <div class="w-10 h-10 bg-blue-500/10 text-blue-500 rounded-xl flex items-center justify-center shrink-0"><i class="fa-solid fa-users text-lg"></i></div>
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-bold text-[var(--text-dim)] uppercase tracking-wider">Total Learners</p>
+                        <p id="stat-total-learners" class="text-xl sm:text-2xl font-black text-[var(--text-main)] leading-tight">0</p>
+                    </div>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl flex items-center space-x-3.5 transition">
+                    <div class="w-10 h-10 bg-indigo-500/10 text-indigo-500 rounded-xl flex items-center justify-center shrink-0"><i class="fa-solid fa-book-bookmark text-lg"></i></div>
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-bold text-[var(--text-dim)] uppercase tracking-wider">Enrollments</p>
+                        <p id="stat-total-enrollments" class="text-xl sm:text-2xl font-black text-[var(--text-main)] leading-tight">0</p>
+                    </div>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl flex items-center space-x-3.5 transition">
+                    <div class="w-10 h-10 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center shrink-0"><i class="fa-solid fa-award text-lg"></i></div>
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-bold text-[var(--text-dim)] uppercase tracking-wider">Completions</p>
+                        <p id="stat-total-completions" class="text-xl sm:text-2xl font-black text-[var(--text-main)] leading-tight">0</p>
+                    </div>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl flex items-center space-x-3.5 transition">
+                    <div class="w-10 h-10 bg-purple-500/10 text-purple-500 rounded-xl flex items-center justify-center shrink-0"><i class="fa-solid fa-percent text-lg"></i></div>
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-bold text-[var(--text-dim)] uppercase tracking-wider">Success Rate</p>
+                        <p id="stat-avg-rate" class="text-xl sm:text-2xl font-black text-[var(--text-main)] leading-tight">0%</p>
+                    </div>
+                </div>
+                <div class="col-span-2 md:col-span-1 glass-panel p-4 rounded-2xl flex items-center space-x-3.5 transition">
+                    <div class="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center shrink-0"><i class="fa-solid fa-bolt text-lg"></i></div>
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-bold text-[var(--text-dim)] uppercase tracking-wider">Aktif Belajar</p>
+                        <p id="stat-active-rate" class="text-xl sm:text-2xl font-black text-[var(--text-main)] leading-tight">0</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Analytics Container -->
+            <section id="analytics-container" class="hidden glass-panel rounded-2xl p-6 transition-all duration-300">
+                <div class="flex items-center justify-between mb-5">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-2 h-2 rounded-full bg-blue-500"></div>
+                        <h3 class="text-xs font-bold text-[var(--text-main)] uppercase tracking-widest" data-i18n="chart_title">Visualisasi Data</h3>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-[var(--editor-bg)] p-4 rounded-xl border border-[var(--border-color)] flex flex-col items-center">
+                        <h4 class="text-xs font-bold text-[var(--text-main)] mb-3" data-i18n="chart_1">Rasio Kelulusan</h4>
+                        <div class="relative w-full h-48 flex items-center justify-center"><canvas id="chart-completion-status"></canvas></div>
+                    </div>
+                    <div class="bg-[var(--editor-bg)] p-4 rounded-xl border border-[var(--border-color)] flex flex-col items-center">
+                        <h4 class="text-xs font-bold text-[var(--text-main)] mb-3" data-i18n="chart_2">Distribusi Beban</h4>
+                        <div class="relative w-full h-48 flex items-center justify-center"><canvas id="chart-enrollment-dist"></canvas></div>
+                    </div>
+                    <div class="bg-[var(--editor-bg)] p-4 rounded-xl border border-[var(--border-color)] flex flex-col items-center">
+                        <h4 class="text-xs font-bold text-[var(--text-main)] mb-3" data-i18n="chart_3">Top 5 Completers</h4>
+                        <div class="relative w-full h-48 flex items-center justify-center"><canvas id="chart-top-completers"></canvas></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Filter Bar -->
+            <section class="glass-panel p-4 rounded-2xl space-y-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
+                    <div class="sm:col-span-2 lg:col-span-4 relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[var(--text-dim)]">
+                            <i class="fa-solid fa-magnifying-glass text-sm"></i>
+                        </div>
+                        <input type="text" id="filter-search" oninput="applyFilters()" placeholder="Cari nama, email, kursus..." class="input-ui w-full pl-9 pr-3 py-2 rounded-xl text-xs font-medium transition">
+                    </div>
+                    <div class="lg:col-span-3">
+                        <select id="filter-program" onchange="applyFilters()" class="input-ui w-full py-2 px-3 rounded-xl text-xs font-medium">
+                            <option value="">Semua Program</option>
+                        </select>
+                    </div>
+                    <div class="lg:col-span-2">
+                        <select id="filter-year" onchange="applyFilters()" class="input-ui w-full py-2 px-3 rounded-xl text-xs font-medium">
+                            <option value="">Semua Tahun</option>
+                        </select>
+                    </div>
+                    <div class="lg:col-span-1">
+                        <select id="filter-completion" onchange="applyFilters()" class="input-ui w-full py-2 px-2 rounded-xl text-xs font-medium">
+                            <option value="">Status</option>
+                            <option value="has_completions">> 0 Cmp</option>
+                            <option value="zero_completions">0 Cmp</option>
+                            <option value="fully_completed">Selesai Semua</option>
+                        </select>
+                    </div>
+                    <div class="lg:col-span-2 flex items-center space-x-2">
+                        <button onclick="resetFilters()" class="w-1/2 btn-ui py-2 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center">
+                            <i class="fa-solid fa-rotate-left mr-1"></i> Reset
+                        </button>
+                        <button onclick="clearAllData()" class="w-1/2 py-2 px-2 border border-rose-500/30 text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 rounded-xl text-xs font-bold transition flex items-center justify-center">
+                            <i class="fa-solid fa-trash-can mr-1"></i> Bersihkan
+                        </button>
+                    </div>
+                </div>
+
+                <div id="selection-bar" class="hidden items-center justify-between pt-2.5 pb-1 border-t border-[var(--border-color)] text-xs">
+                    <div class="flex items-center space-x-3">
+                        <span class="bg-blue-500/10 text-blue-500 font-bold px-3 py-1 rounded-lg border border-blue-500/20 flex items-center">
+                            <i class="fa-solid fa-check-double mr-1.5"></i> <span id="selected-count">0</span>&nbsp;terpilih
+                        </span>
+                        <button onclick="deleteSelected()" class="text-rose-500 hover:text-rose-400 font-bold flex items-center transition">
+                            <i class="fa-solid fa-trash-can mr-1.5"></i> Hapus Terpilih
+                        </button>
+                    </div>
+                    <button onclick="clearSelection()" class="text-[var(--text-dim)] hover:text-[var(--text-main)] font-medium">Batal Pilih</button>
+                </div>
+            </section>
+
+            <!-- Data Table -->
+            <section class="glass-panel rounded-2xl overflow-hidden flex flex-col">
+                <div class="overflow-x-auto flex-1">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-[var(--preview-bg)] border-b border-[var(--border-color)] text-[var(--text-dim)] font-bold select-none uppercase tracking-wider">
+                                <th class="p-3 w-10 text-center"><input type="checkbox" id="th-checkbox-all" onchange="toggleSelectAll(this.checked)" class="rounded text-blue-500 cursor-pointer border-[var(--border-color)] bg-[var(--editor-bg)]"></th>
+                                <th class="py-3 px-2 w-12 font-mono-custom text-center">#</th>
+                                <th class="py-3 px-4 cursor-pointer hover:text-[var(--text-main)] group" onclick="setSort('name')">Learner <i id="sort-icon-name" class="fa-solid fa-sort ml-1 opacity-40"></i></th>
+                                <th class="py-3 px-3 cursor-pointer hover:text-[var(--text-main)] group" onclick="setSort('program')">Program / Kursus <i id="sort-icon-program" class="fa-solid fa-sort ml-1 opacity-40"></i></th>
+                                <th class="py-3 px-3 cursor-pointer hover:text-[var(--text-main)] group" onclick="setSort('joinDate')">Join Date <i id="sort-icon-joinDate" class="fa-solid fa-sort ml-1 opacity-40"></i></th>
+                                <th class="py-3 px-3 text-center cursor-pointer hover:text-[var(--text-main)] group" onclick="setSort('enrollments')">Enr <i id="sort-icon-enrollments" class="fa-solid fa-sort ml-1 opacity-40"></i></th>
+                                <th class="py-3 px-3 text-center cursor-pointer hover:text-[var(--text-main)] group" onclick="setSort('completions')">Cmp <i id="sort-icon-completions" class="fa-solid fa-sort ml-1 opacity-40"></i></th>
+                                <th class="py-3 px-3 text-center cursor-pointer hover:text-[var(--text-main)] group" onclick="setSort('performanceScore')">Skor <i id="sort-icon-performanceScore" class="fa-solid fa-sort ml-1 opacity-40"></i></th>
+                                <th class="py-3 px-4 text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body" class="divide-y divide-[var(--border-color)] text-[var(--text-main)]"></tbody>
+                    </table>
+                </div>
+                
+                <div id="table-empty" class="p-16 text-center border-t border-[var(--border-color)] flex flex-col items-center justify-center">
+                    <div class="w-16 h-16 bg-[var(--preview-bg)] text-[var(--text-dim)] rounded-2xl flex items-center justify-center mb-4 border border-[var(--border-color)]">
+                        <i class="fa-solid fa-inbox text-2xl"></i>
+                    </div>
+                    <h3 class="text-sm font-bold text-[var(--text-main)]">Menunggu Input Data</h3>
+                    <p class="text-xs text-[var(--text-dim)] mt-2 max-w-sm mx-auto leading-relaxed">
+                        Blok tabel peserta di Coursera &rarr; <kbd class="px-1 py-0.5 bg-[var(--preview-bg)] border border-[var(--border-color)] rounded font-mono text-[10px]">Ctrl+C</kbd> &rarr; <kbd class="px-1 py-0.5 bg-blue-500/20 text-blue-500 border border-blue-500/30 rounded font-mono text-[10px]">Ctrl+V</kbd> di jendela ini.
+                    </p>
+                </div>
+
+                <div class="px-4 py-3 bg-[var(--editor-bg)] border-t border-[var(--border-color)] flex flex-col sm:flex-row items-center justify-between gap-3 text-[10px] font-medium">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-[var(--text-dim)]">Tampilkan:</span>
+                        <select id="items-per-page" onchange="changePageSize(this.value)" class="input-ui py-1 px-2 rounded-lg">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                        <span id="pagination-info" class="text-[var(--text-dim)] ml-2">0 Data</span>
+                    </div>
+                    <div class="flex items-center space-x-1" id="pagination-buttons"></div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- C. FOOTER (h-8) -->
+    <footer class="h-8 bg-[var(--footer-bg)] border-t border-[var(--border-color)] flex items-center justify-between px-6 shrink-0 text-[10px] text-[var(--text-dim)] z-50">
+        <div class="flex items-center space-x-2">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span class="font-medium tracking-wide">System Online</span>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span>Powered by Vanilla JS</span>
+            <button onclick="document.getElementById('modal-terms').classList.remove('hidden')" class="hover:text-[var(--text-main)] underline decoration-[var(--border-color)] transition">Terms of Use</button>
+        </div>
+    </footer>
+
+    <!-- D. MODAL TERMS OF USE -->
+    <div id="modal-terms" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 hidden">
+        <div class="glass-panel rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col text-[var(--text-main)] border border-[var(--border-color)]">
+            <h3 class="font-bold text-lg mb-4 flex items-center border-b border-[var(--border-color)] pb-3">
+                <i class="fa-solid fa-scale-balanced mr-2 text-indigo-500"></i> Terms of Use & Disclaimer
+            </h3>
+            <div class="space-y-3 text-xs leading-relaxed text-[var(--text-dim)] overflow-y-auto max-h-[60vh]">
+                <p class="font-bold text-[var(--text-main)]" data-i18n="terms_smart">Context: Courserasera (Learner Tabulation)</p>
+                <p data-i18n="terms_p1">Aplikasi ini dirancang sebagai parser dan visualisator mandiri untuk teks tabel Coursera. Aplikasi mengelola data secara lokal di browser Anda dan menyinkronkannya secara aman ke penyimpanan persisten sesi Anda (jika dikonfigurasi). Tidak ada algoritma pelacakan data pribadi peserta ke server pihak ketiga selain Firebase yang dienkripsi berdasarkan sesi Anda.</p>
+                <div class="bg-[var(--preview-bg)] p-3 rounded-xl border border-[var(--border-color)] mt-4">
+                    <p class="font-bold text-[var(--text-main)] mb-1" data-i18n="terms_legal_title">Klausul Legal Wajib:</p>
+                    <p data-i18n="terms_legal">Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.</p>
+                </div>
+            </div>
+            <div class="flex justify-end mt-6">
+                <button onclick="document.getElementById('modal-terms').classList.add('hidden')" class="btn-ui px-5 py-2 rounded-xl text-xs font-bold transition">Saya Mengerti</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PASTE PREVIEW -->
+    <div id="paste-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 hidden">
+        <div class="glass-panel rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col text-[var(--text-main)]">
+            <div class="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
+                <h3 class="font-bold flex items-center text-sm">
+                    <i class="fa-solid fa-file-circle-check text-emerald-500 mr-2 text-lg"></i> Pengecekan Data
+                </h3>
+                <button onclick="closePasteModal()" class="text-[var(--text-dim)] hover:text-[var(--text-main)] transition"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="py-5 space-y-4">
+                <div class="grid grid-cols-3 gap-3 text-center">
+                    <div class="bg-[var(--preview-bg)] rounded-xl p-3 border border-[var(--border-color)]">
+                        <div class="text-2xl font-black text-[var(--text-main)]" id="paste-stat-total">0</div>
+                        <div class="text-[9px] font-extrabold text-[var(--text-dim)] mt-1 uppercase">Total Terbaca</div>
+                    </div>
+                    <div class="bg-blue-500/10 rounded-xl p-3 border border-blue-500/20">
+                        <div class="text-2xl font-black text-blue-500" id="paste-stat-new">0</div>
+                        <div class="text-[9px] font-extrabold text-blue-500 mt-1 uppercase">Peserta Baru</div>
+                    </div>
+                    <div class="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20">
+                        <div class="text-2xl font-black text-amber-500" id="paste-stat-dup">0</div>
+                        <div class="text-[9px] font-extrabold text-amber-500 mt-1 uppercase">Update / Duplikat</div>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <label class="flex items-start space-x-3 p-3 border border-blue-500 bg-blue-500/5 rounded-xl cursor-pointer hover:bg-blue-500/10 transition">
+                        <input type="radio" name="paste-action" value="upsert" checked class="mt-0.5 text-blue-500">
+                        <div>
+                            <div class="text-xs font-bold text-[var(--text-main)]">Smart Merge (Gabung & Perbarui)</div>
+                            <div class="text-[10px] text-[var(--text-dim)] mt-0.5">Memasukkan peserta baru dan memperbarui data eksisting berdasarkan Email.</div>
+                        </div>
+                    </label>
+                    <label class="flex items-start space-x-3 p-3 border border-[var(--border-color)] rounded-xl cursor-pointer hover:bg-[var(--preview-bg)] transition">
+                        <input type="radio" name="paste-action" value="replace_all" class="mt-0.5 text-rose-500">
+                        <div>
+                            <div class="text-xs font-bold text-[var(--text-main)]">Replace All (Timpa Seluruh Data)</div>
+                            <div class="text-[10px] text-[var(--text-dim)] mt-0.5">Menghapus data saat ini dan menggantikannya dengan data yang baru.</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2 pt-3 border-t border-[var(--border-color)]">
+                <button onclick="closePasteModal()" class="btn-ui px-4 py-1.5 rounded-xl text-xs font-bold transition">Batal</button>
+                <button onclick="executePasteAction()" class="px-5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg transition">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL MANUAL PASTE -->
+    <div id="manual-paste-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 hidden">
+        <div class="glass-panel rounded-2xl max-w-xl w-full p-6 shadow-2xl flex flex-col text-[var(--text-main)] border border-[var(--border-color)]">
+            <div class="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
+                <h3 class="font-bold text-sm flex items-center"><i class="fa-solid fa-paste text-blue-500 mr-2"></i> Paste Teks Mentah (Raw Text)</h3>
+                <button onclick="closeManualPasteModal()" class="text-[var(--text-dim)] hover:text-[var(--text-main)]"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="py-4">
+                <textarea id="manual-paste-input" rows="8" placeholder="Tempel teks tabel Coursera di sini..." class="input-ui w-full p-3 rounded-xl text-xs font-mono-custom"></textarea>
+            </div>
+            <div class="flex justify-end space-x-2 pt-3 border-t border-[var(--border-color)]">
+                <button onclick="closeManualPasteModal()" class="btn-ui px-4 py-1.5 rounded-xl text-xs font-bold">Batal</button>
+                <button onclick="submitManualPaste()" class="px-5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg">Parse</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRM MODAL -->
+    <div id="confirm-modal" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 hidden">
+        <div class="glass-panel rounded-2xl max-w-sm w-full p-5 shadow-2xl text-center border border-[var(--border-color)]">
+            <div class="w-12 h-12 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto mb-3 border border-rose-500/20"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
+            <h3 class="text-sm font-bold text-[var(--text-main)] mb-1">Konfirmasi</h3>
+            <p id="confirm-modal-desc" class="text-xs text-[var(--text-dim)] mb-5">Apakah Anda yakin?</p>
+            <div class="flex space-x-2 justify-center">
+                <button onclick="closeConfirmModal(false)" class="w-1/2 py-2 btn-ui rounded-xl text-xs font-bold transition">Batal</button>
+                <button onclick="closeConfirmModal(true)" class="w-1/2 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-lg transition">Ya, Lanjutkan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast-container" class="fixed bottom-10 right-6 z-[80] space-y-2 pointer-events-none"></div>
+
+    <!-- UX Protection: Anti-Right Click (Kecuali input) -->
+    <script>
+    document.addEventListener('contextmenu', e => {
+        if (!e.target.closest('input, textarea, .allow-context, .selectable')) {
+            e.preventDefault();
+        }
+    });
+    </script>
+
+    <!-- CORE LOGIC & VANILLA JS -->
+    <script>
+        // --- TRANSLATION STATE ---
+        let appState = {
+            lang: localStorage.getItem('TATADADA_LANG') || 'id',
+            isDark: localStorage.getItem('TATADADA_THEME') === 'dark',
+            learners: [],
+            filtered: [],
+            selectedIds: new Set(),
+            sortKey: 'name',
+            sortDirection: 'asc',
+            currentPage: 1,
+            pageSize: 25,
+            analyticsVisible: false,
+            charts: { completionStatus: null, enrollmentDist: null, topCompleters: null }
+        };
+
+        const i18n = {
+            id: {
+                help_title: "Cara Penggunaan:",
+                help_desc: "<li>Buka data Coursera.</li><li>Blok tabel peserta.</li><li>Ctrl+C untuk salin.</li><li>Di sini tekan Ctrl+V.</li>",
+                btn_analytics: "Analitik", btn_paste: "Paste Data", btn_import: "Impor", btn_export: "Ekspor",
+                chart_title: "Visualisasi Data", chart_1: "Rasio Kelulusan", chart_2: "Distribusi Beban", chart_3: "Top 5 Completers",
+                terms_smart: "Context: Courserasera (Learner Tabulation)",
+                terms_p1: "Aplikasi ini dirancang sebagai parser dan visualisator mandiri untuk teks tabel Coursera. Aplikasi mengelola data secara lokal di browser Anda dan menyinkronkannya secara aman ke penyimpanan persisten sesi Anda (jika dikonfigurasi). Tidak ada algoritma pelacakan data pribadi peserta ke server pihak ketiga selain Firebase yang dienkripsi.",
+                terms_legal_title: "Klausul Legal Wajib:",
+                terms_legal: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya."
+            },
+            en: {
+                help_title: "How to Use:",
+                help_desc: "<li>Open Coursera data.</li><li>Select the table.</li><li>Press Ctrl+C.</li><li>Press Ctrl+V here.</li>",
+                btn_analytics: "Analytics", btn_paste: "Paste Data", btn_import: "Import", btn_export: "Export",
+                chart_title: "Data Visualization", chart_1: "Completion Ratio", chart_2: "Load Distribution", chart_3: "Top 5 Completers",
+                terms_smart: "Context: Courserasera (Learner Tabulation)",
+                terms_p1: "This application is designed as a standalone parser and visualizer for Coursera table text. It manages data locally in your browser and syncs it securely to your session's persistent storage (if configured). There is no tracking algorithm for participants' personal data to third-party servers other than encrypted Firebase.",
+                terms_legal_title: "Mandatory Legal Clause:",
+                terms_legal: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics and Histats to collect anonymous visit and usage statistics for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms."
+            }
+        };
+
+        function applyTheme() {
+            if (appState.isDark) { document.documentElement.classList.add('dark'); document.getElementById('theme-icon').className = 'fa-solid fa-sun text-amber-400'; }
+            else { document.documentElement.classList.remove('dark'); document.getElementById('theme-icon').className = 'fa-solid fa-moon text-indigo-500'; }
+            if (appState.analyticsVisible) renderCharts();
+        }
+        function toggleTheme() {
+            appState.isDark = !appState.isDark;
+            localStorage.setItem('TATADADA_THEME', appState.isDark ? 'dark' : 'light');
+            applyTheme();
+        }
+
+        function applyLanguage() {
+            const dict = i18n[appState.lang];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) el.innerHTML = dict[key];
+            });
+            document.getElementById('lang-indicator').textContent = appState.lang.toUpperCase();
+        }
+        function toggleLanguage() {
+            appState.lang = appState.lang === 'id' ? 'en' : 'id';
+            localStorage.setItem('TATADADA_LANG', appState.lang);
+            applyLanguage();
+        }
+
+        let tempPasteData = [];
+        let confirmCallback = null;
+        let storageContext = { appId: typeof __app_id !== 'undefined' ? __app_id : 'courserasera', db: null, auth: null, userId: null, userDocRef: null, isReady: false, hasInitialLoad: false };
+
+        function extractYear(dateStr) {
+            if (!dateStr || dateStr === '-') return '';
+            const match = String(dateStr).match(/\b(20\d\d|19\d\d)\b/);
+            return match ? match[1] : '';
+        }
+
+        function calcPerformance(learner) {
+            const enr = parseInt(learner.enrollments, 10) || 0;
+            const cmp = parseInt(learner.completions, 10) || 0;
+            if (enr <= 0) return { pct: 0, score: 0 };
+            const ratio = cmp / enr;
+            const pct = Math.round(Math.min(1, ratio) * 100);
+            const score = parseFloat(((cmp * cmp) / enr).toFixed(1));
+            return { pct, score };
+        }
+
+        function updateStorageStatus(state, msg) {
+            const badge = document.getElementById('sync-badge');
+            const icon = document.getElementById('sync-badge-icon');
+            const text = document.getElementById('sync-badge-text');
+            if (!badge) return;
+            badge.classList.remove('hidden');
+            
+            // Dynamic styling based on state using inline classes for tailwind
+            if (state === 'saving') { badge.className = 'hidden sm:inline-flex items-center space-x-1.5 px-2 py-1 rounded-md text-[9px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20'; icon.className = 'fa-solid fa-rotate fa-spin'; }
+            else if (state === 'saved') { badge.className = 'hidden sm:inline-flex items-center space-x-1.5 px-2 py-1 rounded-md text-[9px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'; icon.className = 'fa-solid fa-check-double'; }
+            else if (state === 'error') { badge.className = 'hidden sm:inline-flex items-center space-x-1.5 px-2 py-1 rounded-md text-[9px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20'; icon.className = 'fa-solid fa-triangle-exclamation'; }
+            else { badge.className = 'hidden sm:inline-flex items-center space-x-1.5 px-2 py-1 rounded-md text-[9px] font-bold bg-[var(--editor-bg)] text-[var(--text-dim)] border border-[var(--border-color)]'; icon.className = 'fa-solid fa-cloud'; }
+            text.textContent = msg;
+        }
+
+        async function initStorageEngine() {
+            if (typeof __firebase_config === 'undefined' || !window.DataStoreSDK) { updateStorageStatus('ready', 'Local Only'); return; }
+            try {
+                const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, doc, onSnapshot } = window.DataStoreSDK;
+                const app = initializeApp(JSON.parse(__firebase_config));
+                storageContext.auth = getAuth(app);
+                storageContext.db = getFirestore(app);
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(storageContext.auth, __initial_auth_token);
+                else await signInAnonymously(storageContext.auth);
+                
+                const user = storageContext.auth.currentUser;
+                if (!user) return;
+                storageContext.userId = user.uid || crypto.randomUUID();
+                storageContext.userDocRef = doc(storageContext.db, 'artifacts', storageContext.appId, 'users', storageContext.userId, 'coursera_data', 'tabulation_portal');
+                storageContext.isReady = true;
+
+                onSnapshot(storageContext.userDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const payload = docSnap.data();
+                        if (payload && Array.isArray(payload.learners) && !storageContext.hasInitialLoad) {
+                            storageContext.hasInitialLoad = true;
+                            appState.learners = payload.learners;
+                            populateDropdowns(); applyFilters();
+                            updateStorageStatus('saved', 'Synced');
+                        }
+                    } else {
+                        storageContext.hasInitialLoad = true;
+                        updateStorageStatus('ready', 'Storage Ready');
+                    }
+                }, err => { updateStorageStatus('error', 'Sync Failed'); });
+            } catch (e) { updateStorageStatus('error', 'Offline'); }
+        }
+
+        async function persistCurrentData() {
+            if (!storageContext.isReady || !storageContext.userDocRef || !window.DataStoreSDK) return;
+            updateStorageStatus('saving', 'Saving...');
+            try {
+                await window.DataStoreSDK.setDoc(storageContext.userDocRef, { learners: appState.learners, updatedAt: new Date().toISOString() }, { merge: true });
+                updateStorageStatus('saved', 'Synced');
+            } catch (e) { updateStorageStatus('error', 'Save Failed'); }
+        }
+
+        function parseRawTextData(rawInput) {
+            if (!rawInput.trim()) return [];
+            const lines = rawInput.replace(/\t/g, '\n').split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            const dateRegex = /^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2},? \d{4}$/i;
+            const eIndices = []; lines.forEach((l, i) => { if(emailRegex.test(l)) eIndices.push(i); });
+            if (!eIndices.length) return [];
+            const results = [];
+
+            for (let idx = 0; idx < eIndices.length; idx++) {
+                const eIdx = eIndices[idx]; const email = lines[eIdx].toLowerCase();
+                let name = 'Unknown';
+                if (eIdx > 0) {
+                    name = lines[eIdx - 1];
+                    if (/^(business units|current enrollments|program\(s\)|status|learner|program|actions)$/i.test(name) && eIdx > 1) name = lines[eIdx - 2];
+                }
+                const endIdx = (idx + 1 < eIndices.length) ? eIndices[idx + 1] - 1 : lines.length;
+                const tokens = lines.slice(eIdx + 1, endIdx);
+
+                let status='Joined', prog='UI - Independent Learning', join='-', act='-', enr=0, cmp=0, course='';
+                const nums = [], nonNums = [];
+                tokens.forEach(t => {
+                    if (/^(Joined|Pending|Inactive|Active|Invited|Declined)$/i.test(t)) status = t;
+                    else if (dateRegex.test(t)) { if (join === '-') join = t; else if (act === '-') act = t; }
+                    else if (/^\d+$/.test(t)) nums.push(parseInt(t, 10));
+                    else nonNums.push(t);
+                });
+                if (nums.length >= 2) { enr = nums[nums.length - 2]; cmp = nums[nums.length - 1]; } 
+                else if (nums.length === 1) { enr = nums[0]; }
+
+                const cParts = [];
+                nonNums.forEach(t => {
+                    if (t === '-' || t === '–') return;
+                    if (t.includes('UI - ') || t.includes('Faculty') || t.includes('AI Literacy') || t.toLowerCase().includes('program')) prog = t;
+                    else cParts.push(t);
+                });
+                if (cParts.length > 0) course = cParts.join(' ').replace(/\s*\(\s*/g, ' (').replace(/\s*\)\s*/g, ')').trim();
+
+                results.push({ id: 'lrn_' + Math.random().toString(36).substr(2, 9), name, email, status, program: prog, joinDate: join, latestActivity: act, activeCourse: course, enrollments: enr, completions: cmp });
+            }
+            return results;
+        }
+
+        function parseHtmlTable(text) {
+            const res = [];
+            try {
+                const doc = new DOMParser().parseFromString(text, 'text/html');
+                doc.querySelectorAll('tbody tr, tr').forEach(row => {
+                    const tds = row.querySelectorAll('td');
+                    if (tds.length >= 7) {
+                        const emailEl = Array.from(tds[1].querySelectorAll('div')).pop();
+                        const email = emailEl ? emailEl.textContent.trim().toLowerCase() : '';
+                        if (email.includes('@')) {
+                            const nameEl = tds[1].querySelector('a') || tds[1].querySelector('div:first-child');
+                            res.push({
+                                id: 'lrn_' + Math.random().toString(36).substr(2, 9),
+                                name: nameEl ? nameEl.textContent.trim() : 'Unknown', email,
+                                status: tds[2] ? tds[2].textContent.trim() : 'Joined',
+                                program: tds[3] ? tds[3].textContent.trim() : '',
+                                joinDate: tds[4] ? tds[4].textContent.trim() : '-',
+                                latestActivity: tds[5] ? tds[5].textContent.trim() : '-',
+                                activeCourse: tds[6] ? tds[6].textContent.replace(/\s+/g, ' ').trim() : '',
+                                enrollments: tds[7] ? parseInt(tds[7].textContent.trim() || '0', 10) : 0,
+                                completions: tds[8] ? parseInt(tds[8].textContent.trim() || '0', 10) : 0
+                            });
+                        }
+                    }
+                });
+            } catch(e){} return res;
+        }
+
+        function parseInputData(raw) {
+            if (!raw.trim()) return [];
+            return raw.includes('<table') || raw.includes('<tr') ? parseHtmlTable(raw) : parseRawTextData(raw);
+        }
+
+        function processImportedData(parsed) {
+            if (!parsed.length) { showToast('Tidak ada data terdeteksi', 'error'); return; }
+            tempPasteData = parsed;
+            const exEmails = new Set(appState.learners.map(l => l.email.toLowerCase()));
+            let dup = 0, newC = 0;
+            parsed.forEach(i => exEmails.has(i.email.toLowerCase()) ? dup++ : newC++);
+            document.getElementById('paste-stat-total').textContent = parsed.length;
+            document.getElementById('paste-stat-new').textContent = newC;
+            document.getElementById('paste-stat-dup').textContent = dup;
+            document.getElementById('paste-modal').classList.remove('hidden');
+        }
+
+        function executePasteAction() {
+            const act = document.querySelector('input[name="paste-action"]:checked')?.value || 'upsert';
+            if (act === 'replace_all') appState.learners = [...tempPasteData];
+            else {
+                const map = new Map(); appState.learners.forEach((l, i) => map.set(l.email, i));
+                tempPasteData.forEach(item => {
+                    if (map.has(item.email)) appState.learners[map.get(item.email)] = { ...item, id: appState.learners[map.get(item.email)].id };
+                    else { appState.learners.push(item); map.set(item.email, appState.learners.length - 1); }
+                });
+            }
+            closePasteModal(); populateDropdowns(); applyFilters(); persistCurrentData();
+            showToast(`${tempPasteData.length} data diproses`, 'success');
+        }
+
+        function closePasteModal() { document.getElementById('paste-modal').classList.add('hidden'); tempPasteData = []; }
+        function openManualPasteModal() { document.getElementById('manual-paste-modal').classList.remove('hidden'); }
+        function closeManualPasteModal() { document.getElementById('manual-paste-modal').classList.add('hidden'); document.getElementById('manual-paste-input').value=''; }
+        function submitManualPaste() { const v = document.getElementById('manual-paste-input').value; if(v){ closeManualPasteModal(); processImportedData(parseInputData(v)); } }
+        
+        function populateDropdowns() {
+            const pSel = document.getElementById('filter-program'); const ySel = document.getElementById('filter-year');
+            const pVal = pSel.value; const yVal = ySel.value;
+            const progs = Array.from(new Set(appState.learners.map(l => l.program).filter(Boolean))).sort();
+            const yrs = Array.from(new Set(appState.learners.map(l => extractYear(l.joinDate)).filter(Boolean))).sort((a,b)=>b.localeCompare(a));
+            
+            pSel.innerHTML = '<option value="">Semua Program</option>' + progs.map(p => `<option value="${p}" ${p===pVal?'selected':''}>${p}</option>`).join('');
+            ySel.innerHTML = '<option value="">Semua Tahun</option>' + yrs.map(y => `<option value="${y}" ${y===yVal?'selected':''}>${y}</option>`).join('');
+        }
+
+        function applyFilters() {
+            const q = document.getElementById('filter-search').value.toLowerCase().trim();
+            const p = document.getElementById('filter-program').value;
+            const y = document.getElementById('filter-year').value;
+            const c = document.getElementById('filter-completion').value;
+
+            appState.filtered = appState.learners.filter(l => {
+                if (q && !(l.name.toLowerCase().includes(q) || l.email.toLowerCase().includes(q) || l.activeCourse.toLowerCase().includes(q))) return false;
+                if (p && l.program !== p) return false;
+                if (y && extractYear(l.joinDate) !== y) return false;
+                if (c === 'has_completions' && l.completions <= 0) return false;
+                if (c === 'zero_completions' && l.completions > 0) return false;
+                if (c === 'fully_completed' && (l.completions < l.enrollments || l.enrollments <= 0)) return false;
+                return true;
+            });
+
+            const fIds = new Set(appState.filtered.map(l=>l.id));
+            appState.selectedIds = new Set([...appState.selectedIds].filter(id => fIds.has(id)));
+            updateSelBar();
+
+            const key = appState.sortKey; const dir = appState.sortDirection === 'asc' ? 1 : -1;
+            appState.filtered.sort((a,b) => {
+                if (key === 'performanceScore') return (calcPerformance(a).score - calcPerformance(b).score) * dir;
+                if (['enrollments', 'completions'].includes(key)) return ((a[key]||0) - (b[key]||0)) * dir;
+                if (['joinDate', 'latestActivity'].includes(key)) return ((Date.parse(a[key])||0) - (Date.parse(b[key])||0)) * dir;
+                return String(a[key]||'').localeCompare(String(b[key]||'')) * dir;
+            });
+
+            appState.currentPage = 1; renderTable(); updateMetrics(); if(appState.analyticsVisible) renderCharts();
+            updateSortIcons();
+        }
+
+        function setSort(k) { appState.sortDirection = (appState.sortKey === k && appState.sortDirection === 'asc') ? 'desc' : 'asc'; appState.sortKey = k; applyFilters(); }
+        function updateSortIcons() {
+            ['name', 'program', 'joinDate', 'enrollments', 'completions', 'performanceScore'].forEach(k => {
+                const el = document.getElementById(`sort-icon-${k}`);
+                if(el) el.className = (appState.sortKey === k) ? (appState.sortDirection==='asc' ? 'fa-solid fa-sort-up ml-1 text-blue-500' : 'fa-solid fa-sort-down ml-1 text-blue-500') : 'fa-solid fa-sort ml-1 opacity-40';
+            });
+        }
+
+        function resetFilters() { document.querySelectorAll('select, input#filter-search').forEach(e => e.value=''); appState.sortKey='name'; appState.sortDirection='asc'; applyFilters(); }
+        function clearAllData() { if(!appState.learners.length) return; openConfirmModal("Kosongkan semua data?", () => { appState.learners=[]; applyFilters(); persistCurrentData(); }); }
+        
+        function toggleSelect(id, chk) { chk ? appState.selectedIds.add(id) : appState.selectedIds.delete(id); updateSelBar(); }
+        function toggleSelectAll(chk) { appState.filtered.forEach(l => chk ? appState.selectedIds.add(l.id) : appState.selectedIds.delete(l.id)); renderTable(); updateSelBar(); }
+        function clearSelection() { appState.selectedIds.clear(); document.getElementById('th-checkbox-all').checked = false; renderTable(); updateSelBar(); }
+        function updateSelBar() {
+            const count = appState.selectedIds.size;
+            document.getElementById('selected-count').textContent = count;
+            const bar = document.getElementById('selection-bar');
+            if (count > 0) { bar.classList.remove('hidden'); bar.classList.add('flex'); } else { bar.classList.add('hidden'); bar.classList.remove('flex'); }
+        }
+        function deleteSingle(id) { openConfirmModal("Hapus peserta ini?", () => { appState.learners = appState.learners.filter(l=>l.id!==id); appState.selectedIds.delete(id); applyFilters(); persistCurrentData(); }); }
+        function deleteSelected() { openConfirmModal(`Hapus ${appState.selectedIds.size} terpilih?`, () => { appState.learners = appState.learners.filter(l=>!appState.selectedIds.has(l.id)); clearSelection(); applyFilters(); persistCurrentData(); }); }
+        function openConfirmModal(desc, cb) { document.getElementById('confirm-modal-desc').textContent = desc; document.getElementById('confirm-modal').classList.remove('hidden'); confirmCallback = cb; }
+        function closeConfirmModal(yes) { document.getElementById('confirm-modal').classList.add('hidden'); if (yes && confirmCallback) confirmCallback(); confirmCallback=null; }
+
+        function updateMetrics() {
+            const d = appState.filtered; const enr = d.reduce((a,c)=>a+(c.enrollments||0),0); const cmp = d.reduce((a,c)=>a+(c.completions||0),0);
+            document.getElementById('stat-total-learners').textContent = d.length.toLocaleString();
+            document.getElementById('stat-total-enrollments').textContent = enr.toLocaleString();
+            document.getElementById('stat-total-completions').textContent = cmp.toLocaleString();
+            document.getElementById('stat-avg-rate').textContent = (enr>0 ? Math.round((cmp/enr)*100) : 0) + '%';
+            document.getElementById('stat-active-rate').textContent = d.filter(x=>x.latestActivity && x.latestActivity!=='-').length.toLocaleString();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('table-body'); const total = appState.filtered.length;
+            if(!total) { tbody.innerHTML=''; document.getElementById('table-empty').classList.remove('hidden'); document.getElementById('pagination-info').textContent='0 Data'; document.getElementById('pagination-buttons').innerHTML=''; return; }
+            document.getElementById('table-empty').classList.add('hidden');
+            const start = (appState.currentPage-1)*appState.pageSize; const pageData = appState.filtered.slice(start, start+appState.pageSize);
+            
+            let html = '';
+            pageData.forEach((l,i) => {
+                const isSel = appState.selectedIds.has(l.id); const perf = calcPerformance(l);
+                let cBadge = `<span class="text-[10px] text-[var(--text-dim)] font-medium">0</span>`;
+                if(l.completions > 0) cBadge = l.completions >= l.enrollments ? `<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 font-bold"><i class="fa-solid fa-check mr-1 text-[8px]"></i>${l.completions}</span>` : `<span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-500 font-bold">${l.completions}</span>`;
+                let pBadge = `<span class="text-[10px] text-[var(--text-dim)]">-</span>`; let pColor = 'bg-[var(--border-color)]';
+                if(perf.score >= 10) { pBadge = `<span class="px-1 rounded bg-emerald-500/20 text-emerald-500 font-bold"><i class="fa-solid fa-crown text-[8px] mr-0.5"></i>${perf.score}</span>`; pColor = 'bg-emerald-500'; }
+                else if(perf.score >= 3) { pBadge = `<span class="px-1 rounded bg-blue-500/20 text-blue-500 font-bold"><i class="fa-solid fa-star text-[8px] mr-0.5"></i>${perf.score}</span>`; pColor = 'bg-blue-500'; }
+                else if(perf.score > 0) { pBadge = `<span class="px-1 rounded bg-[var(--preview-bg)] text-[var(--text-dim)] font-bold">${perf.score}</span>`; pColor = 'bg-amber-400'; }
+
+                html += `<tr class="hover:bg-[var(--preview-bg)] transition-colors ${isSel ? 'bg-blue-500/5' : ''}">
+                    <td class="p-3 text-center"><input type="checkbox" onchange="toggleSelect('${l.id}', this.checked)" ${isSel?'checked':''} class="rounded text-blue-500 border-[var(--border-color)] bg-[var(--editor-bg)]"></td>
+                    <td class="px-2 text-center text-[var(--text-dim)] font-mono-custom opacity-50">${start+i+1}</td>
+                    <td class="px-4 py-3"><div class="font-bold text-sm truncate max-w-[200px]" title="${l.name}">${l.name}</div><div class="text-[10px] text-[var(--text-dim)] font-mono-custom opacity-70">${l.email}</div></td>
+                    <td class="px-3 text-xs"><div class="font-medium bg-[var(--preview-bg)] text-[var(--text-main)] px-2 py-0.5 rounded inline-block truncate max-w-[200px]">${l.program}</div>${l.activeCourse ? `<div class="text-[9px] text-[var(--text-dim)] mt-1 truncate max-w-[200px]"><i class="fa-solid fa-layer-group text-[8px] mr-1"></i>${l.activeCourse}</div>` : ''}</td>
+                    <td class="px-3 text-[10px] text-[var(--text-dim)] font-medium whitespace-nowrap">${l.joinDate}</td>
+                    <td class="px-3 text-center font-bold font-mono-custom">${l.enrollments}</td>
+                    <td class="px-3 text-center">${cBadge}</td>
+                    <td class="px-3 text-center"><div class="flex flex-col items-center"><div class="flex items-center space-x-1.5"><span class="font-black ${perf.pct>0?'text-[var(--text-main)]':'opacity-30'}">${perf.pct}%</span>${pBadge}</div><div class="w-12 h-1 bg-[var(--preview-bg)] rounded-full mt-1 overflow-hidden"><div class="h-full ${pColor}" style="width:${perf.pct}%"></div></div></div></td>
+                    <td class="px-4 text-right"><button onclick="deleteSingle('${l.id}')" class="w-6 h-6 rounded bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 transition flex items-center justify-center ml-auto"><i class="fa-solid fa-trash-can text-[10px]"></i></button></td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+            document.getElementById('pagination-info').textContent = `${start+1}-${Math.min(start+appState.pageSize, total)} of ${total}`;
+            renderPagination(Math.ceil(total/appState.pageSize));
+        }
+
+        function renderPagination(tp) {
+            if(tp <= 1){ document.getElementById('pagination-buttons').innerHTML=''; return; }
+            let h = ''; const cp = appState.currentPage;
+            const btnClass = "w-6 h-6 rounded flex items-center justify-center font-bold text-[10px] transition border border-[var(--border-color)] bg-[var(--card-bg)] text-[var(--text-main)] hover:bg-[var(--preview-bg)]";
+            const actClass = "w-6 h-6 rounded flex items-center justify-center font-bold text-[10px] transition border-transparent bg-blue-600 text-white shadow-lg";
+            h += `<button onclick="goToPage(${cp-1})" ${cp===1?'disabled':''} class="${btnClass} ${cp===1?'opacity-50':''}"><i class="fa-solid fa-chevron-left"></i></button>`;
+            for(let p=Math.max(1,cp-2); p<=Math.min(tp,cp+2); p++) h += `<button onclick="goToPage(${p})" class="${p===cp?actClass:btnClass}">${p}</button>`;
+            h += `<button onclick="goToPage(${cp+1})" ${cp===tp?'disabled':''} class="${btnClass} ${cp===tp?'opacity-50':''}"><i class="fa-solid fa-chevron-right"></i></button>`;
+            document.getElementById('pagination-buttons').innerHTML = h;
+        }
+        function goToPage(p) { appState.currentPage = p; renderTable(); }
+        function changePageSize(s) { appState.pageSize = parseInt(s); appState.currentPage=1; renderTable(); }
+
+        function toggleAnalyticsView() {
+            appState.analyticsVisible = !appState.analyticsVisible;
+            document.getElementById('analytics-container').classList.toggle('hidden');
+            if(appState.analyticsVisible) renderCharts();
+        }
+
+        function renderCharts() {
+            const d = appState.filtered; if(!d.length) return;
+            const cColor = getComputedStyle(document.documentElement).getPropertyValue('--text-dim').trim() || '#64748b';
+            Chart.defaults.color = cColor; Chart.defaults.font.family = 'Inter';
+
+            // Chart 1
+            const cC = d.filter(x=>x.completions>0).length; const zC = d.length - cC;
+            if(appState.charts.completionStatus) appState.charts.completionStatus.destroy();
+            appState.charts.completionStatus = new Chart(document.getElementById('chart-completion-status'), { type: 'doughnut', data: { labels: ['Ada Cmp', 'Nol'], datasets: [{ data: [cC, zC], backgroundColor: ['#10b981', '#3b82f6'], borderWidth:0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: {size: 10} } } } } });
+
+            // Chart 2
+            let c1=0, c23=0, c45=0, c6=0; d.forEach(i=>{ if(i.enrollments<=1) c1++; else if(i.enrollments<=3) c23++; else if(i.enrollments<=5) c45++; else c6++; });
+            if(appState.charts.enrollmentDist) appState.charts.enrollmentDist.destroy();
+            appState.charts.enrollmentDist = new Chart(document.getElementById('chart-enrollment-dist'), { type: 'bar', data: { labels: ['0-1', '2-3', '4-5', '6+'], datasets: [{ data: [c1, c23, c45, c6], backgroundColor: '#6366f1', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,0.1)' } } } } });
+
+            // Chart 3
+            const t5 = [...d].sort((a,b)=>b.completions-a.completions).slice(0,5);
+            if(appState.charts.topCompleters) appState.charts.topCompleters.destroy();
+            appState.charts.topCompleters = new Chart(document.getElementById('chart-top-completers'), { type: 'bar', data: { labels: t5.map(x=>x.name.split(' ').slice(0,2).join(' ')), datasets: [{ data: t5.map(x=>x.completions), backgroundColor: '#8b5cf6', borderRadius: 4 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(128,128,128,0.1)' } }, y: { grid: { display: false } } } } });
+        }
+
+        // Import / Export
+        function toggleExportMenu(e) { e.stopPropagation(); document.getElementById('export-menu').classList.toggle('hidden'); }
+        document.addEventListener('click', e => { if(!e.target.closest('#export-dropdown-container')) document.getElementById('export-menu').classList.add('hidden'); });
+
+        function exportData(fmt) {
+            document.getElementById('export-menu').classList.add('hidden');
+            const data = appState.filtered.length ? appState.filtered : appState.learners;
+            if(!data.length) { showToast("Tidak ada data", "error"); return; }
+            const ts = new Date().toISOString().slice(0,10);
+            
+            if (fmt === 'csv') {
+                const rows = [['Nama', 'Email', 'Status', 'Program', 'Join Date', 'Course', 'Enr', 'Cmp', 'Score'].join(',')];
+                data.forEach(l => { rows.push([`"${l.name}"`, `"${l.email}"`, `"${l.status}"`, `"${l.program}"`, `"${l.joinDate}"`, `"${l.activeCourse}"`, l.enrollments, l.completions, calcPerformance(l).score].join(',')); });
+                const blob = new Blob(['\uFEFF' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+                triggerDownload(blob, `Courserasera_${ts}.csv`);
+            } else {
+                const jsonStr = JSON.stringify(data.map(l => ({ ...l, performanceScore: calcPerformance(l).score })), null, 2);
+                triggerDownload(new Blob([jsonStr], { type: 'application/json' }), `Courserasera_${ts}.json`);
+            }
+        }
+        function triggerDownload(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); }
+        function triggerFileInput() { document.getElementById('file-import-input').click(); }
+        
+        function parseCSVContent(text) {
+            const rows = []; let row = [], cur = '', inQ = false;
+            for (let i = 0; i < text.length; i++) {
+                const c = text[i];
+                if (c === '"') { if (inQ && text[i+1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
+                else if (c === ',' && !inQ) { row.push(cur.trim()); cur = ''; }
+                else if ((c === '\n' || c === '\r') && !inQ) {
+                    if (c === '\r' && text[i+1] === '\n') i++;
+                    row.push(cur.trim()); rows.push(row); row = []; cur = '';
+                } else cur += c;
+            }
+            if (cur || row.length) { row.push(cur.trim()); rows.push(row); }
+            return rows.filter(r => r.length > 1);
+        }
+
+        function handleFileImport(e) {
+            const f = e.target.files[0]; if(!f) return;
+            const r = new FileReader();
+            r.onload = ev => {
+                const txt = ev.target.result;
+                let p = [];
+                try {
+                    if (f.name.endsWith('.json')) p = JSON.parse(txt);
+                    else {
+                        // Menggunakan robust CSV parser yang kebal terhadap koma di dalam string
+                        const rows = parseCSVContent(txt);
+                        if(rows.length>1 && rows[0].includes('Email')) {
+                            const eIdx = rows[0].findIndex(c=>c==='Email');
+                            p = rows.slice(1).filter(r=>r[eIdx]).map(r=>({
+                                id: 'lrn_'+Math.random().toString(36).substr(2,9),
+                                name: r[0], email: r[eIdx], status: r[2], program: r[3], joinDate: r[4], activeCourse: r[5], enrollments: parseInt(r[6])||0, completions: parseInt(r[7])||0
+                            }));
+                        } else p = parseInputData(txt); // Fallback to raw text
+                    }
+                } catch(err) { p = parseInputData(txt); }
+                if(p.length) processImportedData(p); else showToast("Format gagal dibaca", "error");
+            };
+            r.readAsText(f); e.target.value = '';
+        }
+
+        document.addEventListener('paste', e => {
+            if(e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA') return;
+            const text = (e.clipboardData || window.clipboardData).getData('text');
+            if(text) { e.preventDefault(); processImportedData(parseInputData(text)); }
+        });
+
+        function showToast(msg, type='info') {
+            const c = document.getElementById('toast-container'); const d = document.createElement('div');
+            let s = 'bg-[var(--card-bg)] text-[var(--text-main)] border-[var(--border-color)]';
+            let i = 'fa-solid fa-circle-info text-blue-500';
+            if (type==='success') { s = 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'; i = 'fa-solid fa-circle-check'; }
+            if (type==='error') { s = 'bg-rose-500/10 text-rose-500 border-rose-500/20'; i = 'fa-solid fa-triangle-exclamation'; }
+            d.className = `flex items-center space-x-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-bold transition-all transform translate-y-2 opacity-0 glass-panel ${s}`;
+            d.innerHTML = `<i class="${i} text-lg"></i><span>${msg}</span>`;
+            c.appendChild(d); requestAnimationFrame(()=>d.classList.remove('translate-y-2','opacity-0'));
+            setTimeout(() => { d.classList.add('opacity-0'); setTimeout(()=>d.remove(),300); }, 3000);
+        }
+
+        window.addEventListener('datastore-sdk-ready', initStorageEngine);
+        window.addEventListener('DOMContentLoaded', () => { applyTheme(); applyLanguage(); populateDropdowns(); renderTable(); if(window.DataStoreSDK) initStorageEngine(); });
+    </script>
+</body>
+</html>
