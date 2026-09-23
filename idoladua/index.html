@@ -33,9 +33,12 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- html2canvas untuk fitur tangkapan layar Laporan Eksekutif -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
   <style>
+    /* CSS Variables & Tokens */
     :root {
       --header-bg: #ffffff;
       --editor-bg: #ffffff;
@@ -49,6 +52,7 @@
       --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
       --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     }
+    
     html.dark {
       --header-bg: #161b22;
       --editor-bg: #0d1117;
@@ -60,12 +64,25 @@
       --text-dim: #8b949e;
       color-scheme: dark;
     }
-    body { background-color: var(--preview-bg); color: var(--text-main); font-family: 'Inter', sans-serif; user-select: none; -webkit-user-select: none; }
-    input, textarea, pre, code, .selectable, .allow-context { user-select: text; -webkit-user-select: text; }
+
+    body { 
+      background-color: var(--preview-bg); 
+      color: var(--text-main); 
+      font-family: 'Inter', sans-serif; 
+      user-select: none; 
+      -webkit-user-select: none;
+    }
+
+    input, textarea, pre, code, .selectable, .allow-context {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
     .grid-indicator { grid-template-columns: repeat(11, minmax(0, 1fr)); }
     .custom-scroll::-webkit-scrollbar { height: 6px; width: 6px; }
     .custom-scroll::-webkit-scrollbar-track { background: var(--preview-bg); }
     .custom-scroll::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+
     @media print {
       body * { visibility: hidden; }
       #executiveReportContent, #executiveReportContent * { visibility: visible; }
@@ -74,6 +91,7 @@
     }
   </style>
 
+  <!-- Auto-Favicon Injector TATADADA -->
   <script>
     fetch('icon.xml').then(r => r.text()).then(xml => {
       const doc = new DOMParser().parseFromString(xml, "text/xml");
@@ -91,6 +109,7 @@
 </head>
 <body class="flex flex-col min-h-screen">
 
+  <!-- Modal Login -->
   <div id="loginOverlay" class="fixed inset-0 bg-slate-900/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 sm:p-8 space-y-5">
       <div class="text-center space-y-2">
@@ -282,6 +301,7 @@
           </div>
         </div>
 
+        <!-- TABEL UTAMA (Dengan Kolom Reviewer yang Telah Dikembalikan) -->
         <div class="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-xl overflow-hidden shadow-sm">
           <div class="overflow-x-auto custom-scroll max-h-[65vh]">
             <table class="w-full text-left border-collapse text-xs">
@@ -307,6 +327,10 @@
                   </th>
                   <th class="py-2.5 px-3 cursor-pointer hover:bg-[var(--border-color)] transition group" onclick="toggleSort('mhs_sertifikat')">
                     <div class="flex justify-between items-center"><span>Kelulusan Peserta</span><span id="sort-mhs_sertifikat" class="text-[10px] opacity-50 group-hover:opacity-100">↕</span></div>
+                  </th>
+                  <!-- KOLOM REVIEWER (Diperbaiki) -->
+                  <th class="py-2.5 px-3 cursor-pointer hover:bg-[var(--border-color)] transition group min-w-[120px]" onclick="toggleSort('verifikator_terakhir')">
+                    <div class="flex justify-between items-center"><span>Reviewer</span><span id="sort-verifikator_terakhir" class="text-[10px] opacity-50 group-hover:opacity-100">↕</span></div>
                   </th>
                   <th class="py-2.5 px-3 text-center min-w-[120px]">Tautan Aksi</th>
                 </tr>
@@ -343,7 +367,14 @@
                       <option value="none">Belum Dinilai</option>
                     </select>
                   </th>
-                  <th class="p-1"></th><th class="p-1"></th>
+                  <th class="p-1"></th> <!-- Sisa Kolom Siswa -->
+                  <!-- FILTER REVIEWER (Diperbaiki) -->
+                  <th class="p-1">
+                    <select id="filterColVerifier" class="w-full bg-[var(--preview-bg)] border border-[var(--border-color)] text-[var(--text-main)] rounded px-1.5 py-1 text-[10px] outline-none">
+                      <option value="">Semua Reviewer</option>
+                    </select>
+                  </th>
+                  <th class="p-1"></th>
                 </tr>
               </thead>
               <tbody id="courseTableBody" class="divide-y divide-[var(--border-color)] selectable text-[var(--text-main)]"></tbody>
@@ -748,7 +779,7 @@
       const btnEmpty = document.getElementById('btnTextEmptyImport');
       const btnHeader = document.getElementById('btnTextHeaderImport');
       const iconEmpty = document.getElementById('iconEmptyImport');
-      if(btnEmpty) { btnEmpty.textContent = "Memproses CSV..."; iconEmpty.setAttribute('data-lucide', 'loader-2'); iconEmpty.classList.add('animate-spin'); }
+      if(btnEmpty) { btnEmpty.textContent = "Memproses CSV..."; iconEmpty?.setAttribute('data-lucide', 'loader-2'); iconEmpty?.classList.add('animate-spin'); }
       if(btnHeader) btnHeader.textContent = "Memproses...";
       lucide.createIcons();
 
@@ -790,7 +821,7 @@
 
     function resetUploadButtons(e) {
       const btnEmpty = document.getElementById('btnTextEmptyImport'), btnHeader = document.getElementById('btnTextHeaderImport'), iconEmpty = document.getElementById('iconEmptyImport');
-      if(btnEmpty) { btnEmpty.textContent = "Pilih Berkas CSV"; iconEmpty.setAttribute('data-lucide', 'file-plus'); iconEmpty.classList.remove('animate-spin'); }
+      if(btnEmpty) { btnEmpty.textContent = "Pilih Berkas CSV"; iconEmpty?.setAttribute('data-lucide', 'file-plus'); iconEmpty?.classList.remove('animate-spin'); }
       if(btnHeader) btnHeader.textContent = "Import CSV";
       lucide.createIcons(); e.target.value = '';
     }
@@ -799,15 +830,16 @@
 
     function renderApp() {
       if(rawDataset.length === 0) return;
-      document.getElementById('emptyState').classList.add('hidden');
-      document.getElementById('dashboardContent').classList.remove('hidden');
-      document.getElementById('btnExecutiveReport').classList.remove('hidden');
-      document.getElementById('btnExecutiveReport').classList.add('inline-flex');
+      document.getElementById('emptyState')?.classList.add('hidden');
+      document.getElementById('dashboardContent')?.classList.remove('hidden');
+      document.getElementById('btnExecutiveReport')?.classList.remove('hidden');
+      document.getElementById('btnExecutiveReport')?.classList.add('inline-flex');
       populateDropdowns(); applyFilters(); updateExecutiveMetrics(); lucide.createIcons();
     }
 
     function resetFilters() {
-      document.getElementById('searchInput').value = ''; document.getElementById('moocFilter').value = 'all';
+      const search = document.getElementById('searchInput'); if(search) search.value = ''; 
+      const mooc = document.getElementById('moocFilter'); if(mooc) mooc.value = 'all';
       ['filterColDosen','filterColOwner','filterColPipeline','filterColScore','filterColVerifier'].forEach(id => { const el=document.getElementById(id); if(el) el.value = ''; });
       activeRole = 'all';
       document.querySelectorAll('.role-btn').forEach(b => { b.classList.remove('bg-[var(--card-bg)]','text-[var(--text-main)]','shadow-sm'); b.classList.add('text-[var(--text-dim)]'); if(b.dataset.role==='all'){ b.classList.add('bg-[var(--card-bg)]','text-[var(--text-main)]','shadow-sm'); b.classList.remove('text-[var(--text-dim)]'); } });
@@ -817,20 +849,28 @@
 
     function populateDropdowns() {
       const dSel = document.getElementById('filterColDosen'), vSel = document.getElementById('filterColVerifier');
-      const cD = dSel.value, cV = vSel.value, dSet = new Set(), vSet = new Set();
+      const cD = dSel?.value || '', cV = vSel?.value || '', dSet = new Set(), vSet = new Set();
+      
       rawDataset.forEach(r => {
         if(r.dosen_pengampu && r.dosen_pengampu !== '-') String(r.dosen_pengampu).split('|').forEach(n => { if(n.trim().length>1) dSet.add(n.trim()); });
         if(r.verifikator_terakhir && r.verifikator_terakhir !== '-') vSet.add(String(r.verifikator_terakhir).trim());
       });
-      dSel.innerHTML = '<option value="">Semua Dosen</option>'; Array.from(dSet).sort().forEach(d => dSel.appendChild(new Option(d, d))); dSel.value = cD;
-      vSel.innerHTML = '<option value="">Semua Reviewer</option>'; Array.from(vSet).sort().forEach(v => vSel.appendChild(new Option(v, v))); vSel.value = cV;
+      
+      if(dSel) { dSel.innerHTML = '<option value="">Semua Dosen</option>'; Array.from(dSet).sort().forEach(d => dSel.appendChild(new Option(d, d))); dSel.value = cD; }
+      if(vSel) { vSel.innerHTML = '<option value="">Semua Reviewer</option>'; Array.from(vSet).sort().forEach(v => vSel.appendChild(new Option(v, v))); vSel.value = cV; }
     }
 
     function toggleSort(col) { if(sortCol===col) sortAsc=!sortAsc; else{ sortCol=col; sortAsc=true; } updateSortInd(); applyFilters(); }
     function updateSortInd() { ['course_id','nama_kursus','dosen_pengampu','penanggung_jawab','posisi_alur','skor_num','mhs_sertifikat','verifikator_terakhir'].forEach(c => { const el=document.getElementById(`sort-${c}`); if(el){ el.textContent=sortCol===c?(sortAsc?'▲':'▼'):'↕'; el.className = sortCol===c ? 'text-indigo-500 font-bold text-[11px]' : 'text-[10px] opacity-50 group-hover:opacity-100'; } }); }
 
     function applyFilters() {
-      const q = document.getElementById('searchInput').value.toLowerCase(), mooc = document.getElementById('moocFilter').value, cD = document.getElementById('filterColDosen').value.toLowerCase(), cO = document.getElementById('filterColOwner').value, cP = document.getElementById('filterColPipeline').value, cS = document.getElementById('filterColScore').value, cV = document.getElementById('filterColVerifier').value;
+      const q = document.getElementById('searchInput')?.value.toLowerCase() || '';
+      const mooc = document.getElementById('moocFilter')?.value || 'all';
+      const cD = document.getElementById('filterColDosen')?.value.toLowerCase() || '';
+      const cO = document.getElementById('filterColOwner')?.value || '';
+      const cP = document.getElementById('filterColPipeline')?.value || '';
+      const cS = document.getElementById('filterColScore')?.value || '';
+      const cV = document.getElementById('filterColVerifier')?.value || '';
       let drf=0, rev=0, rvs=0, pbq=0, pub=0;
 
       let fil = rawDataset.filter(i => {
@@ -865,8 +905,12 @@
         return true;
       });
 
-      document.getElementById('pipelineTotal').textContent = drf+rev+rvs+pbq+pub;
-      document.getElementById('pipeCountDraf').textContent=drf; document.getElementById('pipeCountReview').textContent=rev; document.getElementById('pipeCountRevisi').textContent=rvs; document.getElementById('pipeCountPublishQ').textContent=pbq; document.getElementById('pipeCountPublished').textContent=pub;
+      const elTotal = document.getElementById('pipelineTotal'); if(elTotal) elTotal.textContent = drf+rev+rvs+pbq+pub;
+      const eDraf = document.getElementById('pipeCountDraf'); if(eDraf) eDraf.textContent=drf; 
+      const eRev = document.getElementById('pipeCountReview'); if(eRev) eRev.textContent=rev; 
+      const eRvs = document.getElementById('pipeCountRevisi'); if(eRvs) eRvs.textContent=rvs; 
+      const ePbq = document.getElementById('pipeCountPublishQ'); if(ePbq) ePbq.textContent=pbq; 
+      const ePub = document.getElementById('pipeCountPublished'); if(ePub) ePub.textContent=pub;
 
       fil.sort((a,b) => {
         let vA=a[sortCol], vB=b[sortCol];
@@ -874,75 +918,95 @@
         return vA<vB ? (sortAsc?-1:1) : (vA>vB ? (sortAsc?1:-1) : 0);
       });
 
-      document.getElementById('filteredCount').textContent = fil.length;
-      const tbody = document.getElementById('courseTableBody'); tbody.innerHTML = '';
-      fil.forEach(r => {
-        const tr = document.createElement('tr'); tr.className = 'hover:bg-[var(--preview-bg)] transition-colors border-b border-[var(--border-color)] group';
-        let pjB = 'bg-[var(--preview-bg)] text-[var(--text-main)] border border-[var(--border-color)]';
-        if(r.penanggung_jawab==='TIM REVIEWER') pjB='bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800/50';
-        else if(r.penanggung_jawab==='TIM PUBLISHER') pjB='bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800/50';
-        
-        let pC = 'text-[var(--text-dim)]'; const ps = String(r.posisi_alur||'');
-        if(ps.includes('Published')) pC='text-emerald-600 font-bold dark:text-emerald-400';
-        else if(ps.includes('Ditolak')) pC='text-rose-600 font-bold dark:text-rose-400';
-        else if(ps.includes('Revisi Dosen')||ps.includes('Antrean Baru')) pC='text-amber-600 font-bold dark:text-amber-500';
+      const elCount = document.getElementById('filteredCount'); if(elCount) elCount.textContent = fil.length;
+      
+      const tbody = document.getElementById('courseTableBody');
+      if(tbody) {
+        tbody.innerHTML = '';
+        fil.forEach(r => {
+          const tr = document.createElement('tr'); tr.className = 'hover:bg-[var(--preview-bg)] transition-colors border-b border-[var(--border-color)] group';
+          let pjB = 'bg-[var(--preview-bg)] text-[var(--text-main)] border border-[var(--border-color)]';
+          if(r.penanggung_jawab==='TIM REVIEWER') pjB='bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800/50';
+          else if(r.penanggung_jawab==='TIM PUBLISHER') pjB='bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800/50';
+          
+          let pC = 'text-[var(--text-dim)]'; const ps = String(r.posisi_alur||'');
+          if(ps.includes('Published')) pC='text-emerald-600 font-bold dark:text-emerald-400';
+          else if(ps.includes('Ditolak')) pC='text-rose-600 font-bold dark:text-rose-400';
+          else if(ps.includes('Revisi Dosen')||ps.includes('Antrean Baru')) pC='text-amber-600 font-bold dark:text-amber-500';
 
-        const uC=`https://idols2.ui.ac.id/course/view.php?id=${r.course_id}`, uE=`https://idols2.ui.ac.id/enrol/index.php?id=${r.course_id}`, uB=`https://idols2.ui.ac.id/local/checklist/borangnoncredit.php?id=${r.course_id}`, uP=`https://idols2.ui.ac.id/local/checklist/publishnoncredit.php?id=${r.course_id}`;
-        
-        let dHtml = '<span class="text-[var(--text-dim)]">-</span>';
-        if(r.dosen_pengampu && r.dosen_pengampu!=='-') {
-          const ns=String(r.dosen_pengampu).split('|').map(s=>s.trim()).filter(Boolean), em=String(r.email_dosen||'').split('|').map(s=>s.trim()).filter(Boolean);
-          if(ns.length>0) dHtml = `<div><div class="font-medium text-[var(--text-main)] leading-tight">${ns[0]}</div>${ns.length>1 ? `<button onclick="openDetailDrawer('${r.course_id}')" class="mt-0.5 px-1.5 py-0.5 bg-[var(--preview-bg)] text-[var(--text-dim)] hover:text-indigo-600 border border-[var(--border-color)] text-[9px] font-bold rounded cursor-pointer">+${ns.length-1} dosen</button>`:''}${em.length>0 ? `<div class="text-[9px] text-[var(--text-dim)] truncate max-w-[150px] font-mono">${em[0]}</div>`:''}</div>`;
-        }
+          const uC=`https://idols2.ui.ac.id/course/view.php?id=${r.course_id}`, uE=`https://idols2.ui.ac.id/enrol/index.php?id=${r.course_id}`, uB=`https://idols2.ui.ac.id/local/checklist/borangnoncredit.php?id=${r.course_id}`, uP=`https://idols2.ui.ac.id/local/checklist/publishnoncredit.php?id=${r.course_id}`;
+          
+          let dHtml = '<span class="text-[var(--text-dim)]">-</span>';
+          if(r.dosen_pengampu && r.dosen_pengampu!=='-') {
+            const ns=String(r.dosen_pengampu).split('|').map(s=>s.trim()).filter(Boolean), em=String(r.email_dosen||'').split('|').map(s=>s.trim()).filter(Boolean);
+            if(ns.length>0) dHtml = `<div><div class="font-medium text-[var(--text-main)] leading-tight">${ns[0]}</div>${ns.length>1 ? `<button onclick="openDetailDrawer('${r.course_id}')" class="mt-0.5 px-1.5 py-0.5 bg-[var(--preview-bg)] text-[var(--text-dim)] hover:text-indigo-600 border border-[var(--border-color)] text-[9px] font-bold rounded cursor-pointer">+${ns.length-1} dosen</button>`:''}${em.length>0 ? `<div class="text-[9px] text-[var(--text-dim)] truncate max-w-[150px] font-mono">${em[0]}</div>`:''}</div>`;
+          }
 
-        tr.innerHTML = `
-          <td class="py-2.5 px-3 font-mono text-[11px]"><a href="${uC}" target="_blank" class="text-indigo-600 hover:underline inline-flex items-center gap-1 dark:text-indigo-400">${r.course_id||'-'}</a></td>
-          <td class="py-2.5 px-4"><div class="font-bold text-[var(--text-main)] leading-tight">${r.nama_kursus||'-'}</div><div class="text-[10px] text-[var(--text-dim)] font-mono opacity-80">${r.kode_kursus||''}</div></td>
-          <td class="py-2.5 px-3">${dHtml}</td>
-          <td class="py-2.5 px-3"><span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ${pjB}">${r.penanggung_jawab||'-'}</span></td>
-          <td class="py-2.5 px-3 text-[10px] ${pC} leading-snug">${ps||'-'}</td>
-          <td class="py-2.5 px-3"><div class="font-bold text-[var(--text-main)]">${r.skor_borang||'-'}</div><div class="text-[9px] text-[var(--text-dim)] truncate max-w-[120px]" title="${r.butir_perlu_revisi||''}">${r.butir_perlu_revisi||''}</div></td>
-          <td class="py-2.5 px-3"><div class="text-[11px] font-bold text-[var(--text-main)]">${r.mhs_sertifikat||0} <span class="text-[9px] font-normal text-[var(--text-dim)]">/ ${r.mhs_terdaftar||0}</span></div><div class="text-[9px] text-emerald-600 font-bold dark:text-emerald-400">Rasio: ${r.rasio_kelulusan||'0%'}</div></td>
-          <td class="py-2.5 px-3 text-center">
-            <div class="inline-flex gap-1">
-              <a href="${uE}" target="_blank" class="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded transition dark:hover:bg-teal-900/30" title="Enrol (enrol/index)"><i data-lucide="key-round" class="w-3.5 h-3.5"></i></a>
-              <a href="${uB}" target="_blank" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition dark:hover:bg-indigo-900/30" title="Borang"><i data-lucide="clipboard-edit" class="w-3.5 h-3.5"></i></a>
-              <a href="${uP}" target="_blank" class="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition dark:hover:bg-emerald-900/30" title="Publish"><i data-lucide="rocket" class="w-3.5 h-3.5"></i></a>
-              <button onclick="openDetailDrawer('${r.course_id}')" class="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded transition dark:hover:bg-slate-800 dark:hover:text-white" title="Matriks 33 Butir"><i data-lucide="scan-line" class="w-3.5 h-3.5"></i></button>
-            </div>
-          </td>
-        `; tbody.appendChild(tr);
-      });
+          tr.innerHTML = `
+            <td class="py-2.5 px-3 font-mono text-[11px]"><a href="${uC}" target="_blank" class="text-indigo-600 hover:underline inline-flex items-center gap-1 dark:text-indigo-400">${r.course_id||'-'}</a></td>
+            <td class="py-2.5 px-4"><div class="font-bold text-[var(--text-main)] leading-tight">${r.nama_kursus||'-'}</div><div class="text-[10px] text-[var(--text-dim)] font-mono opacity-80">${r.kode_kursus||''}</div></td>
+            <td class="py-2.5 px-3">${dHtml}</td>
+            <td class="py-2.5 px-3"><span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ${pjB}">${r.penanggung_jawab||'-'}</span></td>
+            <td class="py-2.5 px-3 text-[10px] ${pC} leading-snug">${ps||'-'}</td>
+            <td class="py-2.5 px-3"><div class="font-bold text-[var(--text-main)]">${r.skor_borang||'-'}</div><div class="text-[9px] text-[var(--text-dim)] truncate max-w-[120px]" title="${r.butir_perlu_revisi||''}">${r.butir_perlu_revisi||''}</div></td>
+            <td class="py-2.5 px-3"><div class="text-[11px] font-bold text-[var(--text-main)]">${r.mhs_sertifikat||0} <span class="text-[9px] font-normal text-[var(--text-dim)]">/ ${r.mhs_terdaftar||0}</span></div><div class="text-[9px] text-emerald-600 font-bold dark:text-emerald-400">Rasio: ${r.rasio_kelulusan||'0%'}</div></td>
+            <td class="py-2.5 px-3 text-[10px] text-[var(--text-dim)]">${r.verifikator_terakhir||'-'}</td>
+            <td class="py-2.5 px-3 text-center">
+              <div class="inline-flex gap-1">
+                <a href="${uE}" target="_blank" class="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded transition dark:hover:bg-teal-900/30" title="Enrol (enrol/index)"><i data-lucide="key-round" class="w-3.5 h-3.5"></i></a>
+                <a href="${uB}" target="_blank" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition dark:hover:bg-indigo-900/30" title="Borang"><i data-lucide="clipboard-edit" class="w-3.5 h-3.5"></i></a>
+                <a href="${uP}" target="_blank" class="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition dark:hover:bg-emerald-900/30" title="Publish"><i data-lucide="rocket" class="w-3.5 h-3.5"></i></a>
+                <button onclick="openDetailDrawer('${r.course_id}')" class="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded transition dark:hover:bg-slate-800 dark:hover:text-white" title="Matriks 33 Butir"><i data-lucide="scan-line" class="w-3.5 h-3.5"></i></button>
+              </div>
+            </td>
+          `; tbody.appendChild(tr);
+        });
+      }
       lucide.createIcons();
     }
 
     function openDetailDrawer(cId) {
       const c = rawDataset.find(x => String(x.course_id) === String(cId)); if(!c) return; currentSelectedCourse=c;
       const sT = (id, v) => { const el=document.getElementById(id); if(el) el.textContent=v??'-'; };
-      sT('drawerBadge', `ID ${c.course_id}`); document.getElementById('drawerDirectCourseLink').href=`https://idols2.ui.ac.id/course/view.php?id=${c.course_id}`;
-      ['Enroll','EnrolMethod','Borang','Publish'].forEach(k => document.getElementById(`link${k}Drawer`).href=k==='Enroll'?`https://idols2.ui.ac.id/user/index.php?id=${c.course_id}`:k==='EnrolMethod'?`https://idols2.ui.ac.id/enrol/index.php?id=${c.course_id}`:k==='Borang'?`https://idols2.ui.ac.id/local/checklist/borangnoncredit.php?id=${c.course_id}`:`https://idols2.ui.ac.id/local/checklist/publishnoncredit.php?id=${c.course_id}`);
+      sT('drawerBadge', `ID ${c.course_id}`); 
+      const eDCL = document.getElementById('drawerDirectCourseLink'); if(eDCL) eDCL.href=`https://idols2.ui.ac.id/course/view.php?id=${c.course_id}`;
+      
+      const setLink = (id, url) => { const el = document.getElementById(id); if(el) el.href = url; };
+      setLink('linkEnrollDrawer', `https://idols2.ui.ac.id/user/index.php?id=${c.course_id}`);
+      setLink('linkEnrolMethodDrawer', `https://idols2.ui.ac.id/enrol/index.php?id=${c.course_id}`);
+      setLink('linkBorangDrawer', `https://idols2.ui.ac.id/local/checklist/borangnoncredit.php?id=${c.course_id}`);
+      setLink('linkPublishDrawer', `https://idols2.ui.ac.id/local/checklist/publishnoncredit.php?id=${c.course_id}`);
+      
       sT('drawerTitle', c.nama_kursus); sT('drawerCode', c.kode_kursus); sT('drawerAction', c.tindakan_selanjutnya); sT('drawerOwner', c.penanggung_jawab); sT('drawerPipeline', c.posisi_alur); sT('drawerVerifier', c.verifikator_terakhir); sT('drawerCreator', c.pengaju); sT('drawerScore', `${c.skor_borang||'-'} (${c.persen_kelengkapan||'0%'})`); sT('drawerMissingList', c.butir_perlu_revisi||'Semua Butir Terpenuhi'); sT('drawerEnrolled', c.mhs_terdaftar); sT('drawerCompleted', c.mhs_selesai); sT('drawerCertified', c.mhs_sertifikat); sT('drawerCertRate', c.rasio_kelulusan); sT('drawerTimeCreated', c.tgl_daftar_antrean); sT('drawerTimeEval', c.tgl_evaluasi_borang); sT('drawerTimeUpdate', c.tgl_update_terakhir_kursus);
 
-      const tc = document.getElementById('drawerTeacherTags'); tc.innerHTML='';
-      const ns=String(c.dosen_pengampu||c.pengaju||'').split('|').map(s=>s.trim()).filter(Boolean), es=String(c.email_dosen||'').split('|').map(s=>s.trim()).filter(Boolean);
-      if(!ns.length) tc.innerHTML='<span class="text-[var(--text-dim)]">-</span>'; else ns.forEach((n,i) => { const d=document.createElement('div'); d.className='px-2 py-1 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-md shadow-sm flex flex-col'; d.innerHTML=`<span class="font-bold text-[var(--text-main)] text-[10px]">${n}</span>${es[i]?`<span class="text-[9px] text-[var(--text-dim)] font-mono">${es[i]}</span>`:''}`; tc.appendChild(d); });
-      
-      const g = document.getElementById('indicatorGrid'); g.innerHTML=''; const ms=String(c.butir_perlu_revisi||''), hE=c.skor_borang&&c.skor_borang!=='-', ok=ms.includes('Semua Butir');
-      for(let i=1;i<=33;i++){
-        const b=document.createElement('div'); b.className='h-5 rounded flex items-center justify-center text-[9px] font-bold text-white transition'; b.textContent=i;
-        if(!hE) { b.classList.add('bg-slate-300','text-slate-600','dark:bg-slate-700','dark:text-slate-400'); } else if(new RegExp(`\\bButir\\s*${i}\\b`,'i').test(ms)&&!ok){ b.classList.add('bg-rose-400'); } else b.classList.add('bg-emerald-500'); g.appendChild(b);
+      const tc = document.getElementById('drawerTeacherTags'); 
+      if(tc) {
+        tc.innerHTML='';
+        const ns=String(c.dosen_pengampu||c.pengaju||'').split('|').map(s=>s.trim()).filter(Boolean), es=String(c.email_dosen||'').split('|').map(s=>s.trim()).filter(Boolean);
+        if(!ns.length) tc.innerHTML='<span class="text-[var(--text-dim)]">-</span>'; 
+        else ns.forEach((n,i) => { const d=document.createElement('div'); d.className='px-2 py-1 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-md shadow-sm flex flex-col'; d.innerHTML=`<span class="font-bold text-[var(--text-main)] text-[10px]">${n}</span>${es[i]?`<span class="text-[9px] text-[var(--text-dim)] font-mono">${es[i]}</span>`:''}`; tc.appendChild(d); });
       }
       
-      document.getElementById('drawerOverlay').classList.remove('hidden'); document.getElementById('detailDrawer').classList.remove('translate-x-full'); lucide.createIcons();
+      const g = document.getElementById('indicatorGrid'); 
+      if(g) {
+        g.innerHTML=''; const ms=String(c.butir_perlu_revisi||''), hE=c.skor_borang&&c.skor_borang!=='-', ok=ms.includes('Semua Butir');
+        for(let i=1;i<=33;i++){
+          const b=document.createElement('div'); b.className='h-5 rounded flex items-center justify-center text-[9px] font-bold text-white transition'; b.textContent=i;
+          if(!hE) { b.classList.add('bg-slate-300','text-slate-600','dark:bg-slate-700','dark:text-slate-400'); } else if(new RegExp(`\\bButir\\s*${i}\\b`,'i').test(ms)&&!ok){ b.classList.add('bg-rose-400'); } else b.classList.add('bg-emerald-500'); g.appendChild(b);
+        }
+      }
+      
+      document.getElementById('drawerOverlay')?.classList.remove('hidden'); document.getElementById('detailDrawer')?.classList.remove('translate-x-full'); lucide.createIcons();
     }
 
-    function closeDrawer() { document.getElementById('detailDrawer').classList.add('translate-x-full'); document.getElementById('drawerOverlay').classList.add('hidden'); }
+    function closeDrawer() { document.getElementById('detailDrawer')?.classList.add('translate-x-full'); document.getElementById('drawerOverlay')?.classList.add('hidden'); }
     function copyFeedback() { if(!currentSelectedCourse) return; const c=currentSelectedCourse; navigator.clipboard.writeText(`Yth. Bapak/Ibu Dosen Pengampu,\nHasil verifikasi borang IDOLS2 "${c.nama_kursus}" (ID: ${c.course_id}):\n- Status: ${c.posisi_alur}\n- Skor: ${c.skor_borang}\n- Catatan Revisi: ${c.butir_perlu_revisi||'Lengkap 100%'}\nLink: https://idols2.ui.ac.id/course/view.php?id=${c.course_id}`); alert("Teks berhasil disalin!"); }
 
     function updateExecutiveMetrics() {
       if(rawDataset.length === 0) return;
       const now = new Date();
-      document.getElementById('execTimestamp').textContent = `Generated on: ${now.toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit'})} WIB`;
+      const execTime = document.getElementById('execTimestamp');
+      if(execTime) execTime.textContent = `Generated on: ${now.toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit'})} WIB`;
 
       let tPub=0, tRev=0, tRvs=0, nk=0, kr=0, tEnr=0, tCrt=0;
       const vMap = {}, mMap = {};
@@ -969,41 +1033,42 @@
         }
       });
 
-      document.getElementById('exTotCourse').textContent = rawDataset.length;
-      document.getElementById('exTotPublished').textContent = tPub;
-      document.getElementById('exTotReviewing').textContent = tRev;
-      document.getElementById('exTotRevisi').textContent = tRvs;
+      const st = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+      st('exTotCourse', rawDataset.length); st('exTotPublished', tPub); st('exTotReviewing', tRev); st('exTotRevisi', tRvs);
 
       const rateP = ((tPub / rawDataset.length) * 100).toFixed(1);
-      document.getElementById('exRatePub').textContent = `${rateP}%`; document.getElementById('exBarPub').style.width = `${rateP}%`;
+      st('exRatePub', `${rateP}%`); const ebP = document.getElementById('exBarPub'); if(ebP) ebP.style.width = `${rateP}%`;
+      
       const totPath = nk+kr||1;
       const rateN = ((nk/totPath)*100).toFixed(1), rateK = ((kr/totPath)*100).toFixed(1);
-      document.getElementById('exRateNon').textContent = `${rateN}%`; document.getElementById('exBarNon').style.width = `${rateN}%`;
-      document.getElementById('exRateKre').textContent = `${rateK}%`; document.getElementById('exBarKre').style.width = `${rateK}%`;
+      st('exRateNon', `${rateN}%`); const ebN = document.getElementById('exBarNon'); if(ebN) ebN.style.width = `${rateN}%`;
+      st('exRateKre', `${rateK}%`); const ebK = document.getElementById('exBarKre'); if(ebK) ebK.style.width = `${rateK}%`;
 
-      document.getElementById('exSumEnrolled').textContent = tEnr.toLocaleString('id-ID');
-      document.getElementById('exSumCertified').textContent = tCrt.toLocaleString('id-ID');
-      document.getElementById('exSumRate').textContent = tEnr>0 ? `${((tCrt/tEnr)*100).toFixed(2)}%` : '0.00%';
+      st('exSumEnrolled', tEnr.toLocaleString('id-ID')); st('exSumCertified', tCrt.toLocaleString('id-ID'));
+      st('exSumRate', tEnr>0 ? `${((tCrt/tEnr)*100).toFixed(2)}%` : '0.00%');
 
       const mArr = Object.entries(mMap).sort((a,b)=>b[1]-a[1]).slice(0, 8);
-      const mg = document.getElementById('exTopMissingGrid'); mg.innerHTML = '';
-      mArr.forEach(m => {
-        mg.innerHTML += `<div class="bg-rose-50 border border-rose-100 rounded-lg p-3 text-center"><div class="text-[10px] font-bold text-rose-800 uppercase">${m[0]}</div><div class="text-xl font-black text-rose-600 leading-none mt-1">${m[1]} <span class="text-[9px] font-normal text-rose-400">kasus</span></div></div>`;
-      });
+      const mg = document.getElementById('exTopMissingGrid'); 
+      if(mg) {
+        mg.innerHTML = '';
+        mArr.forEach(m => { mg.innerHTML += `<div class="bg-rose-50 border border-rose-100 rounded-lg p-3 text-center"><div class="text-[10px] font-bold text-rose-800 uppercase">${m[0]}</div><div class="text-xl font-black text-rose-600 leading-none mt-1">${m[1]} <span class="text-[9px] font-normal text-rose-400">kasus</span></div></div>`; });
+      }
 
       const vArr = Object.entries(vMap).sort((a,b)=>b[1]-a[1]).slice(0, 5);
-      const vt = document.getElementById('exVerifierTable'); vt.innerHTML = '';
-      let totV = Object.values(vMap).reduce((a,b)=>a+b, 0) || 1;
-      vArr.forEach(v => {
-        vt.innerHTML += `<tr><td class="py-2 px-3">${v[0]}</td><td class="py-2 px-3 text-center">${v[1]}</td><td class="py-2 px-3"><div class="flex items-center gap-2"><div class="w-full bg-slate-100 h-1.5 rounded-full"><div class="bg-amber-400 h-full rounded-full" style="width:${((v[1]/totV)*100)}%"></div></div><span class="text-[10px] text-slate-400 w-8 text-right">${((v[1]/totV)*100).toFixed(0)}%</span></div></td></tr>`;
-      });
+      const vt = document.getElementById('exVerifierTable');
+      if(vt) {
+        vt.innerHTML = '';
+        let totV = Object.values(vMap).reduce((a,b)=>a+b, 0) || 1;
+        vArr.forEach(v => { vt.innerHTML += `<tr><td class="py-2 px-3">${v[0]}</td><td class="py-2 px-3 text-center">${v[1]}</td><td class="py-2 px-3"><div class="flex items-center gap-2"><div class="w-full bg-slate-100 h-1.5 rounded-full"><div class="bg-amber-400 h-full rounded-full" style="width:${((v[1]/totV)*100)}%"></div></div><span class="text-[10px] text-slate-400 w-8 text-right">${((v[1]/totV)*100).toFixed(0)}%</span></div></td></tr>`; });
+      }
     }
 
-    function openExecDrawer() { updateExecutiveMetrics(); document.getElementById('drawerOverlay').classList.remove('hidden'); document.getElementById('drawerExecutive').classList.remove('translate-x-full'); lucide.createIcons(); }
-    function closeExecDrawer() { document.getElementById('drawerExecutive').classList.add('translate-x-full'); document.getElementById('drawerOverlay').classList.add('hidden'); }
+    function openExecDrawer() { updateExecutiveMetrics(); document.getElementById('drawerOverlay')?.classList.remove('hidden'); document.getElementById('drawerExecutive')?.classList.remove('translate-x-full'); lucide.createIcons(); }
+    function closeExecDrawer() { document.getElementById('drawerExecutive')?.classList.add('translate-x-full'); document.getElementById('drawerOverlay')?.classList.add('hidden'); }
 
     function captureExecReportToPng() {
       const el = document.getElementById('executiveReportContent');
+      if(!el) return;
       document.querySelectorAll('.print-hide').forEach(n => n.style.display = 'none');
       html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#f1f5f9' }).then(canvas => {
         const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = `Executive_Report_IDOLS2_${Date.now()}.png`; a.click();
@@ -1012,20 +1077,21 @@
     }
 
     function copyExecMd() {
+      const gT = id => document.getElementById(id)?.textContent || '0';
       const md = `
 # Executive Report - IDOLS2 Course Review
 *Generated on: ${new Date().toLocaleString('id-ID')}*
 
 ## 📊 Macro Analytics
-- **Total Populasi Kursus:** ${document.getElementById('exTotCourse').textContent}
-- **Telah Terbit (Published):** ${document.getElementById('exTotPublished').textContent} (${document.getElementById('exRatePub').textContent})
-- **Dalam Antrean Review:** ${document.getElementById('exTotReviewing').textContent}
-- **Dalam Proses Revisi:** ${document.getElementById('exTotRevisi').textContent}
+- **Total Populasi Kursus:** ${gT('exTotCourse')}
+- **Telah Terbit (Published):** ${gT('exTotPublished')} (${gT('exRatePub')})
+- **Dalam Antrean Review:** ${gT('exTotReviewing')}
+- **Dalam Proses Revisi:** ${gT('exTotRevisi')}
 
 ## 🎓 Kinerja Kelulusan Peserta
-- **Agregat Terdaftar:** ${document.getElementById('exSumEnrolled').textContent}
-- **Agregat Bersertifikat:** ${document.getElementById('exSumCertified').textContent}
-- **Global Success Rate:** ${document.getElementById('exSumRate').textContent}
+- **Agregat Terdaftar:** ${gT('exSumEnrolled')}
+- **Agregat Bersertifikat:** ${gT('exSumCertified')}
+- **Global Success Rate:** ${gT('exSumRate')}
 
 *Data extracted via IDOLS2 TATADADA Core.*
       `;
