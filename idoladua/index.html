@@ -34,7 +34,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   
-  <!-- html2canvas untuk fitur tangkapan layar Resolusi Tinggi -->
+  <!-- html2canvas untuk fitur tangkapan layar Laporan Eksekutif -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
   <style>
@@ -83,7 +83,6 @@
     .custom-scroll::-webkit-scrollbar-track { background: var(--preview-bg); }
     .custom-scroll::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
 
-    /* Print Styles untuk fitur Laporan Eksekutif PDF */
     @media print {
       body * { visibility: hidden; }
       #executiveReportContent, #executiveReportContent * { visibility: visible; }
@@ -110,7 +109,7 @@
 </head>
 <body class="flex flex-col min-h-screen">
 
-  <!-- Modal Login (Hibrid Penyimpanan) -->
+  <!-- Modal Login -->
   <div id="loginOverlay" class="fixed inset-0 bg-slate-900/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 sm:p-8 space-y-5">
       <div class="text-center space-y-2">
@@ -185,7 +184,6 @@
               <span class="text-[var(--text-dim)] italic">v7.0</span>
               <span class="text-[var(--border-color)]">|</span>
               <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[var(--text-dim)] hover:text-blue-500 transition-colors">by AhmadDanial</a>
-              <button title="Panduan" class="text-slate-400 hover:text-indigo-500 ml-1"><i data-lucide="help-circle" class="w-3 h-3"></i></button>
             </div>
           </div>
         </div>
@@ -196,11 +194,13 @@
             <span class="hidden sm:inline">Executive Report</span>
           </button>
           
+          <!-- Tombol Import: Ditambahkan onclick="this.value=null" agar kebal cache -->
           <label class="cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm transition-colors">
             <i data-lucide="upload" class="w-4 h-4"></i>
-            <span class="hidden sm:inline">Import CSV</span>
-            <input type="file" id="csvFileInput" accept=".csv" class="hidden">
+            <span id="btnTextHeaderImport" class="hidden sm:inline">Import CSV</span>
+            <input type="file" id="csvFileInput" accept=".csv" class="hidden" onclick="this.value=null">
           </label>
+
           <button id="btnToggleTheme" class="p-1.5 text-[var(--text-dim)] hover:bg-[var(--preview-bg)] rounded-lg transition" title="Ganti Tema">
             <i data-lucide="moon" class="w-4 h-4"></i>
           </button>
@@ -213,17 +213,19 @@
 
     <main class="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 space-y-6 flex-1">
       
-      <!-- Area Kosong -->
+      <!-- Area Kosong (Empty Workspace) -->
       <div id="emptyState" class="max-w-2xl mx-auto bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-12 text-center shadow-lg transition-colors duration-300">
         <div class="w-16 h-16 bg-slate-50 border border-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-slate-800 dark:border-slate-700">
           <i data-lucide="file-spreadsheet" class="w-8 h-8 text-slate-400"></i>
         </div>
         <h3 class="text-lg font-bold text-[var(--text-main)] mb-1">Ruang Kerja Kosong</h3>
         <p class="text-xs text-[var(--text-dim)] mb-6">Unggah berkas CSV hasil ekspor Configurable Reports Moodle untuk memulai.</p>
+        
+        <!-- Tombol Pilih: Ditambahkan onclick="this.value=null" agar kebal cache -->
         <label class="cursor-pointer bg-[var(--text-main)] text-[var(--card-bg)] hover:opacity-90 text-xs font-semibold px-5 py-2.5 rounded-lg inline-flex items-center gap-2 shadow-md transition-all">
-          <i data-lucide="file-plus" class="w-4 h-4"></i>
-          <span>Pilih Berkas CSV</span>
-          <input type="file" id="csvFileInputEmpty" accept=".csv" class="hidden">
+          <i data-lucide="file-plus" class="w-4 h-4" id="iconEmptyImport"></i>
+          <span id="btnTextEmptyImport">Pilih Berkas CSV</span>
+          <input type="file" id="csvFileInputEmpty" accept=".csv" class="hidden" onclick="this.value=null">
         </label>
       </div>
 
@@ -410,7 +412,7 @@
       </div>
     </footer>
 
-  </div> <!-- End App Container -->
+  </div>
 
   <!-- DRAWER: Panel Laporan Detail Mata Kuliah -->
   <div id="drawerOverlay" class="fixed inset-0 bg-slate-900/40 z-40 hidden backdrop-blur-sm transition-opacity"></div>
@@ -500,7 +502,6 @@
         <p id="drawerMissingList" class="text-xs text-[var(--text-main)] bg-[var(--preview-bg)] p-2.5 rounded-lg border border-[var(--border-color)] font-mono leading-relaxed"></p>
       </div>
 
-      <!-- Notifikasi & Komunikasi -->
       <div class="border-t border-[var(--border-color)] pt-4 space-y-2 print-hide">
         <div class="text-xs font-bold text-[var(--text-main)]">Komunikasi Evaluasi:</div>
         <div class="grid grid-cols-2 gap-2">
@@ -519,9 +520,8 @@
     </div>
   </div>
 
-  <!-- DRAWER KHUSUS: Laporan Eksekutif (Full Dashboard) -->
-  <div id="drawerExecutive" class="fixed inset-y-0 right-0 max-w-4xl w-full bg-[var(--card-bg)] z-[60] shadow-2xl p-0 overflow-hidden transform translate-x-full transition-transform duration-300 border-l border-[var(--border-color)] flex flex-col">
-    <!-- Header Executive Drawer -->
+  <!-- DRAWER KHUSUS: Laporan Eksekutif -->
+  <div id="drawerExecutive" class="fixed inset-y-0 right-0 max-w-4xl w-full bg-[var(--card-bg)] z-[60] shadow-2xl p-0 overflow-hidden transform translate-x-full transition-transform duration-300 border-l border-[var(--border-color)] flex flex-col selectable">
     <div class="flex justify-between items-center p-6 border-b border-[var(--border-color)] bg-[var(--header-bg)] shrink-0 print-hide">
       <div>
         <h2 class="text-xl font-bold text-[var(--text-main)] flex items-center gap-2">
@@ -538,10 +538,8 @@
       </div>
     </div>
     
-    <!-- Area Konten Eksekutif (Bisa Di-Print / Capture) -->
     <div id="executiveReportContent" class="flex-1 overflow-y-auto p-6 sm:p-8 bg-[var(--preview-bg)] space-y-6">
       
-      <!-- Timestamp & Header Print -->
       <div class="flex justify-between items-end border-b-2 border-slate-800 pb-3 mb-6">
         <div>
           <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Executive Report</h1>
@@ -552,7 +550,6 @@
         </div>
       </div>
 
-      <!-- Top Metric Cards -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Populasi Kursus</div>
@@ -572,10 +569,7 @@
         </div>
       </div>
 
-      <!-- Macro Analytics Container -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        <!-- Rasio & Konversi -->
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-5">
           <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2"><i data-lucide="layers" class="w-4 h-4 text-slate-400"></i> Metrik Konversi & Jalur</h3>
           <div class="space-y-4">
@@ -594,7 +588,6 @@
           </div>
         </div>
 
-        <!-- Metrik Mahasiswa Massal -->
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between">
           <div>
             <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2 mb-4"><i data-lucide="graduation-cap" class="w-4 h-4 text-slate-400"></i> Dampak Peserta Didik Skala Makro</h3>
@@ -616,16 +609,12 @@
         </div>
       </div>
 
-      <!-- Root Cause Analysis (Indikator Paling Sulit) -->
       <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
         <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5 mb-1"><i data-lucide="alert-triangle" class="w-4 h-4 text-rose-500"></i> Analisis Akar Masalah Revisi (Top Bottleneck Indicators)</h3>
         <p class="text-[11px] text-slate-500 mb-4 pb-2 border-b border-slate-100">Butir indikator borang yang frekuensinya paling sering gagal dipenuhi oleh pengampu.</p>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="exTopMissingGrid">
-          <!-- Diisi JS -->
-        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="exTopMissingGrid"></div>
       </div>
 
-      <!-- Tabel Papan Peringkat Publisher & Reviewer -->
       <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
         <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5 mb-4 border-b border-slate-100 pb-2"><i data-lucide="award" class="w-4 h-4 text-amber-500"></i> Distribusi Beban Kerja Verifikator (Top Reviewers)</h3>
         <div class="overflow-x-auto">
@@ -637,9 +626,7 @@
                 <th class="py-2 px-3 font-semibold text-center w-32">Proporsi Beban Kerja</th>
               </tr>
             </thead>
-            <tbody id="exVerifierTable" class="divide-y divide-slate-100 font-medium text-slate-800">
-              <!-- Diisi JS -->
-            </tbody>
+            <tbody id="exVerifierTable" class="divide-y divide-slate-100 font-medium text-slate-800"></tbody>
           </table>
         </div>
       </div>
@@ -664,9 +651,7 @@
 
   <!-- Inti JavaScript -->
   <script>
-    // ----------------------------------------------------------------------
     // 1. KEAMANAN & SESI
-    // ----------------------------------------------------------------------
     const AUTH_SALT = "idols2_p4d_2026_salt";
     const VALID_HASHES = [
       "0d513f48e450a8f2625cd6b9fb1ad8d3f2c8bd1753be84b394ce629033fa883c", "27723c306a2651a9e7a84674e4b01a0587d36e16146ce41a322b16e2c8dc2155",
@@ -676,10 +661,7 @@
     const IDLE_LOCK_TIME = 10 * 60 * 1000, HARD_SESSION_EXPIRY = 30 * 60 * 1000;
     let isIdleLocked = false;
 
-    // TATADADA Anti-Right Click Protection
-    document.addEventListener('contextmenu', e => {
-      if (!e.target.closest('input, textarea, .allow-context, .selectable')) e.preventDefault();
-    });
+    document.addEventListener('contextmenu', e => { if (!e.target.closest('input, textarea, .allow-context, .selectable')) e.preventDefault(); });
 
     function sha256Pure(ascii) {
       function rightRotate(value, amount) { return (value >>> amount) | (value << (32 - amount)); }
@@ -712,31 +694,20 @@
 
     async function hashCredentials(msg) {
       if (window.crypto && crypto.subtle) {
-        try {
-          const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
-          return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
-        } catch (e) {}
-      }
-      return sha256Pure(msg);
+        try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg)); return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join(''); } catch (e) {}
+      } return sha256Pure(msg);
     }
 
     function saveStorageKey(k, v) { try { localStorage.setItem(k, v); } catch(e){} document.cookie = `${k}=${encodeURIComponent(v)}; path=/; max-age=1800; SameSite=Lax`; }
     function getStorageKey(k) { let v = null; try{ v=localStorage.getItem(k); }catch(e){} if(!v){ const m = document.cookie.match(new RegExp('(^| )'+k+'=([^;]+)')); if(m) v=decodeURIComponent(m[2]); } return v; }
     function removeStorageKey(k) { try{ localStorage.removeItem(k); }catch(e){} document.cookie = `${k}=; path=/; max-age=0`; }
 
-    // ----------------------------------------------------------------------
     // 2. STATE & DATA INITIALIZATION
-    // ----------------------------------------------------------------------
     let rawDataset = [];
     let activeRole = 'all', currentSelectedCourse = null, sortCol = 'course_id', sortAsc = true, activePipelinePhase = null;
 
     document.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
-      initTheme();
-      initAuthSession();
-      initEventListeners();
-      loadStoredData();
-      startActivityTracker();
+      lucide.createIcons(); initTheme(); initAuthSession(); initEventListeners(); loadStoredData(); startActivityTracker();
     });
 
     function initTheme() {
@@ -758,10 +729,8 @@
       } else showLogin();
 
       document.getElementById('btnTogglePassword').addEventListener('click', () => {
-        const i = document.getElementById('inputPassword'); const isP = i.type === 'password';
-        i.type = isP ? 'text' : 'password';
-        document.getElementById('btnTogglePassword').innerHTML = `<i data-lucide="${isP ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>`;
-        lucide.createIcons();
+        const i = document.getElementById('inputPassword'); const isP = i.type === 'password'; i.type = isP ? 'text' : 'password';
+        document.getElementById('btnTogglePassword').innerHTML = `<i data-lucide="${isP ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>`; lucide.createIcons();
       });
 
       document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -774,7 +743,6 @@
 
       const openTab = () => window.open(window.location.href, '_blank');
       document.getElementById('btnOpenNewTabLogin').addEventListener('click', openTab);
-      document.getElementById('btnOpenNewTabHeader').addEventListener('click', openTab);
       document.getElementById('btnResumeSession').addEventListener('click', () => { if(Date.now() - parseInt(getStorageKey('idols_last_active')||'0',10) < HARD_SESSION_EXPIRY) { touchActivity(); hideLock(); } else { resetAuth(); hideLock(); showLogin(); } });
       document.getElementById('btnReloginSession').addEventListener('click', () => { resetAuth(); hideLock(); showLogin(); });
       document.getElementById('btnLogout').addEventListener('click', () => { resetAuth(); showLogin(); });
@@ -801,9 +769,7 @@
       }, 5000);
     }
 
-    // ----------------------------------------------------------------------
-    // 3. CORE LOGIC & RENDERER
-    // ----------------------------------------------------------------------
+    // 3. CORE LOGIC & CSV PARSER
     function initEventListeners() {
       document.getElementById('csvFileInput').addEventListener('change', handleFile);
       document.getElementById('csvFileInputEmpty').addEventListener('change', handleFile);
@@ -832,7 +798,6 @@
       document.getElementById('drawerOverlay').addEventListener('click', () => { closeDrawer(); closeExecDrawer(); });
       document.getElementById('btnCopyFeedback').addEventListener('click', copyFeedback);
       
-      // Executive Report Handlers
       document.getElementById('btnExecutiveReport').addEventListener('click', openExecDrawer);
       document.getElementById('btnCloseExecDrawer').addEventListener('click', closeExecDrawer);
       document.getElementById('btnDownloadExecPng').addEventListener('click', captureExecReportToPng);
@@ -842,27 +807,88 @@
 
     function handleFile(e) {
       const f = e.target.files[0]; if(!f) return;
-      Papa.parse(f, { header:true, skipEmptyLines:true, complete: res => {
-        if(res.data && res.data.length > 0) {
-          rawDataset = res.data.map(item => {
-            let num = -1; if(item.skor_borang && item.skor_borang.includes('/')) num = parseInt(item.skor_borang.split('/')[0].trim(), 10)||0;
-            return { ...item, skor_num: num, mhs_terdaftar: parseInt(item.mhs_terdaftar,10)||0, mhs_selesai: parseInt(item.mhs_selesai,10)||0, mhs_sertifikat: parseInt(item.mhs_sertifikat,10)||0 };
-          });
-          try{ localStorage.setItem('idols_rvw_db', JSON.stringify(rawDataset)); }catch(e){}
-          renderApp();
+      
+      // Indikator Loading Visual
+      const btnEmpty = document.getElementById('btnTextEmptyImport');
+      const btnHeader = document.getElementById('btnTextHeaderImport');
+      const iconEmpty = document.getElementById('iconEmptyImport');
+      if(btnEmpty) { btnEmpty.textContent = "Memproses CSV..."; iconEmpty.setAttribute('data-lucide', 'loader-2'); iconEmpty.classList.add('animate-spin'); }
+      if(btnHeader) btnHeader.textContent = "Memproses...";
+      lucide.createIcons();
+
+      Papa.parse(f, { 
+        header: true, 
+        skipEmptyLines: 'greedy', 
+        complete: res => {
+          if(res.errors.length > 0 && res.data.length === 0) {
+            alert("Gagal membaca CSV: " + res.errors[0].message);
+            resetUploadButtons(e); return;
+          }
+          if(res.data && res.data.length > 0) {
+            // Validasi Format Header
+            if(!res.data[0].hasOwnProperty('course_id') && !res.data[0].hasOwnProperty('nama_kursus')) {
+              alert("Struktur CSV tidak cocok! Pastikan Anda mengunduh dari Configurable Reports IDOLS2 (bukan laporan acak).");
+              resetUploadButtons(e); return;
+            }
+
+            try {
+              rawDataset = res.data.map(item => {
+                let num = -1; 
+                if(item.skor_borang && String(item.skor_borang).includes('/')) {
+                   num = parseInt(String(item.skor_borang).split('/')[0].trim(), 10) || 0;
+                }
+                return { 
+                  ...item, 
+                  skor_num: num, 
+                  mhs_terdaftar: parseInt(item.mhs_terdaftar, 10) || 0, 
+                  mhs_selesai: parseInt(item.mhs_selesai, 10) || 0, 
+                  mhs_sertifikat: parseInt(item.mhs_sertifikat, 10) || 0 
+                };
+              });
+              
+              try { localStorage.setItem('idols_rvw_db', JSON.stringify(rawDataset)); } 
+              catch(storageErr) { console.warn("Penyimpanan lokal penuh, sesi akan hilang jika direfresh."); }
+              
+              renderApp();
+            } catch (mappingErr) {
+              console.error(mappingErr);
+              alert("Gagal memproses baris data: " + mappingErr.message);
+            }
+          } else {
+            alert("Berkas CSV kosong atau datanya tidak terbaca.");
+          }
+          resetUploadButtons(e);
         }
-      }});
+      });
+    }
+
+    function resetUploadButtons(e) {
+      const btnEmpty = document.getElementById('btnTextEmptyImport');
+      const btnHeader = document.getElementById('btnTextHeaderImport');
+      const iconEmpty = document.getElementById('iconEmptyImport');
+      if(btnEmpty) { btnEmpty.textContent = "Pilih Berkas CSV"; iconEmpty.setAttribute('data-lucide', 'file-plus'); iconEmpty.classList.remove('animate-spin'); }
+      if(btnHeader) btnHeader.textContent = "Import CSV";
+      lucide.createIcons();
+      e.target.value = ''; // Kosongkan input agar kebal cache
     }
 
     function loadStoredData() { const s = localStorage.getItem('idols_rvw_db'); if(s) { try{ rawDataset = JSON.parse(s); renderApp(); }catch(e){} } }
 
     function renderApp() {
-      if(rawDataset.length === 0) return;
-      document.getElementById('emptyState').classList.add('hidden');
-      document.getElementById('dashboardContent').classList.remove('hidden');
-      document.getElementById('btnExecutiveReport').classList.remove('hidden');
-      document.getElementById('btnExecutiveReport').classList.add('inline-flex');
-      populateDropdowns(); applyFilters(); updateExecutiveMetrics(); lucide.createIcons();
+      try {
+        if(rawDataset.length === 0) return;
+        document.getElementById('emptyState').classList.add('hidden');
+        document.getElementById('dashboardContent').classList.remove('hidden');
+        document.getElementById('btnExecutiveReport').classList.remove('hidden');
+        document.getElementById('btnExecutiveReport').classList.add('inline-flex');
+        populateDropdowns(); 
+        applyFilters(); 
+        updateExecutiveMetrics(); 
+        lucide.createIcons();
+      } catch (renderErr) {
+        console.error(renderErr);
+        alert("Gagal merender antarmuka Dasbor. Detail: " + renderErr.message);
+      }
     }
 
     function resetFilters() {
@@ -877,10 +903,16 @@
     function populateDropdowns() {
       const dSel = document.getElementById('filterColDosen'), vSel = document.getElementById('filterColVerifier');
       const cD = dSel.value, cV = vSel.value, dSet = new Set(), vSet = new Set();
+      
       rawDataset.forEach(r => {
-        if(r.dosen_pengampu && r.dosen_pengampu !== '-') r.dosen_pengampu.split('|').forEach(n => { if(n.trim().length>1) dSet.add(n.trim()); });
-        if(r.verifikator_terakhir && r.verifikator_terakhir !== '-') vSet.add(r.verifikator_terakhir.trim());
+        if(r.dosen_pengampu && r.dosen_pengampu !== '-') {
+          String(r.dosen_pengampu).split('|').forEach(n => { if(n.trim().length>1) dSet.add(n.trim()); });
+        }
+        if(r.verifikator_terakhir && r.verifikator_terakhir !== '-') {
+          vSet.add(String(r.verifikator_terakhir).trim());
+        }
       });
+      
       dSel.innerHTML = '<option value="">Semua Dosen</option>'; Array.from(dSet).sort().forEach(d => dSel.appendChild(new Option(d, d))); dSel.value = cD;
       vSel.innerHTML = '<option value="">Semua Reviewer</option>'; Array.from(vSet).sort().forEach(v => vSel.appendChild(new Option(v, v))); vSel.value = cV;
     }
@@ -893,21 +925,21 @@
       let drf=0, rev=0, rvs=0, pbq=0, pub=0;
 
       let fil = rawDataset.filter(i => {
-        const txt = `${i.nama_kursus} ${i.course_id} ${i.kode_kursus} ${i.dosen_pengampu} ${i.pengaju} ${i.verifikator_terakhir} ${i.butir_perlu_revisi}`.toLowerCase();
+        const txt = String(`${i.nama_kursus} ${i.course_id} ${i.kode_kursus} ${i.dosen_pengampu} ${i.pengaju} ${i.verifikator_terakhir} ${i.butir_perlu_revisi}`).toLowerCase();
         if(q && !txt.includes(q)) return false;
         
-        const pj = (i.penanggung_jawab||'').trim(), pos = (i.posisi_alur||'').trim(), sc = i.skor_num;
+        const pj = String(i.penanggung_jawab||'').trim(), pos = String(i.posisi_alur||'').trim(), sc = i.skor_num;
         if(activeRole==='reviewer' && pj!=='TIM REVIEWER') return false;
         if(activeRole==='publisher' && !(pos.includes('4b')||pos.includes('Ready to publish')||pos.includes('Published')||pj==='TIM PUBLISHER')) return false;
         if(activeRole==='dosen' && (pj==='TIM REVIEWER'||pj==='TIM PUBLISHER')) return false;
 
-        if(mooc==='non_kredit' && sc!==19 && !(i.nama_kursus||'').toLowerCase().includes('pengantar')) return false;
-        if(mooc==='kredit' && sc<32 && !(i.nama_kursus||'').toLowerCase().includes('praktikum')) return false;
+        if(mooc==='non_kredit' && sc!==19 && !String(i.nama_kursus||'').toLowerCase().includes('pengantar')) return false;
+        if(mooc==='kredit' && sc<32 && !String(i.nama_kursus||'').toLowerCase().includes('praktikum')) return false;
 
-        if(cD && !(i.dosen_pengampu||'').toLowerCase().includes(cD)) return false;
+        if(cD && !String(i.dosen_pengampu||'').toLowerCase().includes(cD)) return false;
         if(cO && !pj.includes(cO)) return false;
         if(cP && !pos.includes(cP)) return false;
-        if(cV && (i.verifikator_terakhir||'').trim()!==cV) return false;
+        if(cV && String(i.verifikator_terakhir||'').trim()!==cV) return false;
         
         if(cS==='full' && sc<33) return false;
         if(cS==='noncredit' && sc!==19) return false;
@@ -941,7 +973,7 @@
         if(r.penanggung_jawab==='TIM REVIEWER') pjB='bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800/50';
         else if(r.penanggung_jawab==='TIM PUBLISHER') pjB='bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800/50';
         
-        let pC = 'text-[var(--text-dim)]'; const ps = r.posisi_alur||'';
+        let pC = 'text-[var(--text-dim)]'; const ps = String(r.posisi_alur||'');
         if(ps.includes('Published')) pC='text-emerald-600 font-bold dark:text-emerald-400';
         else if(ps.includes('Ditolak')) pC='text-rose-600 font-bold dark:text-rose-400';
         else if(ps.includes('Revisi Dosen')||ps.includes('Antrean Baru')) pC='text-amber-600 font-bold dark:text-amber-500';
@@ -950,7 +982,7 @@
         
         let dHtml = '<span class="text-[var(--text-dim)]">-</span>';
         if(r.dosen_pengampu && r.dosen_pengampu!=='-') {
-          const ns=r.dosen_pengampu.split('|').map(s=>s.trim()).filter(Boolean), em=(r.email_dosen||'').split('|').map(s=>s.trim()).filter(Boolean);
+          const ns=String(r.dosen_pengampu).split('|').map(s=>s.trim()).filter(Boolean), em=String(r.email_dosen||'').split('|').map(s=>s.trim()).filter(Boolean);
           if(ns.length>0) dHtml = `<div><div class="font-medium text-[var(--text-main)] leading-tight">${ns[0]}</div>${ns.length>1 ? `<button onclick="openDetailDrawer('${r.course_id}')" class="mt-0.5 px-1.5 py-0.5 bg-[var(--preview-bg)] text-[var(--text-dim)] hover:text-indigo-600 border border-[var(--border-color)] text-[9px] font-bold rounded">+${ns.length-1} dosen</button>`:''}${em.length>0 ? `<div class="text-[9px] text-[var(--text-dim)] truncate max-w-[150px] font-mono">${em[0]}</div>`:''}</div>`;
         }
 
@@ -983,10 +1015,10 @@
       sT('drawerTitle', c.nama_kursus); sT('drawerCode', c.kode_kursus); sT('drawerAction', c.tindakan_selanjutnya); sT('drawerOwner', c.penanggung_jawab); sT('drawerPipeline', c.posisi_alur); sT('drawerVerifier', c.verifikator_terakhir); sT('drawerCreator', c.pengaju); sT('drawerScore', `${c.skor_borang||'-'} (${c.persen_kelengkapan||'0%'})`); sT('drawerMissingList', c.butir_perlu_revisi||'Semua Butir Terpenuhi'); sT('drawerEnrolled', c.mhs_terdaftar); sT('drawerCompleted', c.mhs_selesai); sT('drawerCertified', c.mhs_sertifikat); sT('drawerCertRate', c.rasio_kelulusan); sT('drawerTimeCreated', c.tgl_daftar_antrean); sT('drawerTimeEval', c.tgl_evaluasi_borang); sT('drawerTimeUpdate', c.tgl_update_terakhir_kursus);
 
       const tc = document.getElementById('drawerTeacherTags'); tc.innerHTML='';
-      const ns=(c.dosen_pengampu||c.pengaju||'').split('|').map(s=>s.trim()).filter(Boolean), es=(c.email_dosen||'').split('|').map(s=>s.trim()).filter(Boolean);
+      const ns=String(c.dosen_pengampu||c.pengaju||'').split('|').map(s=>s.trim()).filter(Boolean), es=String(c.email_dosen||'').split('|').map(s=>s.trim()).filter(Boolean);
       if(!ns.length) tc.innerHTML='<span class="text-[var(--text-dim)]">-</span>'; else ns.forEach((n,i) => { const d=document.createElement('div'); d.className='px-2 py-1 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-md shadow-sm flex flex-col'; d.innerHTML=`<span class="font-bold text-[var(--text-main)] text-[10px]">${n}</span>${es[i]?`<span class="text-[9px] text-[var(--text-dim)] font-mono">${es[i]}</span>`:''}`; tc.appendChild(d); });
       
-      const g = document.getElementById('indicatorGrid'); g.innerHTML=''; const ms=c.butir_perlu_revisi||'', hE=c.skor_borang&&c.skor_borang!=='-', ok=ms.includes('Semua Butir');
+      const g = document.getElementById('indicatorGrid'); g.innerHTML=''; const ms=String(c.butir_perlu_revisi||''), hE=c.skor_borang&&c.skor_borang!=='-', ok=ms.includes('Semua Butir');
       for(let i=1;i<=33;i++){
         const b=document.createElement('div'); b.className='h-5 rounded flex items-center justify-center text-[9px] font-bold text-white transition'; b.textContent=i;
         if(!hE) { b.classList.add('bg-slate-300','text-slate-600','dark:bg-slate-700','dark:text-slate-400'); } else if(new RegExp(`\\bButir\\s*${i}\\b`,'i').test(ms)&&!ok){ b.classList.add('bg-rose-400'); } else b.classList.add('bg-emerald-500'); g.appendChild(b);
@@ -996,11 +1028,9 @@
     }
 
     function closeDrawer() { document.getElementById('detailDrawer').classList.add('translate-x-full'); document.getElementById('drawerOverlay').classList.add('hidden'); }
-    function copyFeedback() { if(!currentSelectedCourse) return; const c=currentSelectedCourse; navigator.clipboard.writeText(`Yth. Bapak/Ibu Dosen Pengampu,\nHasil verifikasi borang IDOLS2 "${c.nama_kursus}" (ID: ${c.course_id}):\n- Status: ${c.posisi_alur}\n- Skor: ${c.skor_borang}\n- Catatan Revisi: ${c.butir_perlu_revisi||'Lengkap 100%'}\nLink: https://idols2.ui.ac.id/course/view.php?id=${c.course_id}`); alert("Copied!"); }
+    function copyFeedback() { if(!currentSelectedCourse) return; const c=currentSelectedCourse; navigator.clipboard.writeText(`Yth. Bapak/Ibu Dosen Pengampu,\nHasil verifikasi borang IDOLS2 "${c.nama_kursus}" (ID: ${c.course_id}):\n- Status: ${c.posisi_alur}\n- Skor: ${c.skor_borang}\n- Catatan Revisi: ${c.butir_perlu_revisi||'Lengkap 100%'}\nLink: https://idols2.ui.ac.id/course/view.php?id=${c.course_id}`); alert("Teks berhasil disalin!"); }
 
-    // ----------------------------------------------------------------------
-    // 4. EXECUTIVE REPORT LOGIC (FITUR BARU)
-    // ----------------------------------------------------------------------
+    // 4. EXECUTIVE REPORT LOGIC
     function updateExecutiveMetrics() {
       if(rawDataset.length === 0) return;
       const now = new Date();
@@ -1010,23 +1040,21 @@
       const vMap = {}, mMap = {};
 
       rawDataset.forEach(r => {
-        const p = r.posisi_alur||'', s = r.skor_num, pj = r.penanggung_jawab||'';
+        const p = String(r.posisi_alur||''), s = r.skor_num, pj = String(r.penanggung_jawab||'');
         if(p.includes('Published')) tPub++;
         if(p.startsWith('1b.')||p.startsWith('3b.')) tRev++;
         if(p.includes('Ditolak')||p.startsWith('3a.')) tRvs++;
 
-        if(s===19 || (r.nama_kursus||'').toLowerCase().includes('pengantar')) nk++;
-        if(s>=32 || (r.nama_kursus||'').toLowerCase().includes('praktikum')) kr++;
+        if(s===19 || String(r.nama_kursus||'').toLowerCase().includes('pengantar')) nk++;
+        if(s>=32 || String(r.nama_kursus||'').toLowerCase().includes('praktikum')) kr++;
 
-        tEnr += r.mhs_terdaftar; tCrt += r.mhs_sertifikat;
+        tEnr += (r.mhs_terdaftar || 0); tCrt += (r.mhs_sertifikat || 0);
 
-        // Top Reviewer
         if(r.verifikator_terakhir && r.verifikator_terakhir !== '-') {
-          const v = r.verifikator_terakhir.trim(); vMap[v] = (vMap[v]||0)+1;
+          const v = String(r.verifikator_terakhir).trim(); vMap[v] = (vMap[v]||0)+1;
         }
 
-        // Top Missing Indicator
-        const b = r.butir_perlu_revisi||'';
+        const b = String(r.butir_perlu_revisi||'');
         if(b && !b.includes('Semua Butir') && b !== '-') {
           const matches = b.match(/Butir\s+\d+/gi);
           if(matches) matches.forEach(m => { mMap[m] = (mMap[m]||0)+1; });
@@ -1049,14 +1077,12 @@
       document.getElementById('exSumCertified').textContent = tCrt.toLocaleString('id-ID');
       document.getElementById('exSumRate').textContent = tEnr>0 ? `${((tCrt/tEnr)*100).toFixed(2)}%` : '0.00%';
 
-      // Missing
       const mArr = Object.entries(mMap).sort((a,b)=>b[1]-a[1]).slice(0, 8);
       const mg = document.getElementById('exTopMissingGrid'); mg.innerHTML = '';
       mArr.forEach(m => {
         mg.innerHTML += `<div class="bg-rose-50 border border-rose-100 rounded-lg p-3 text-center"><div class="text-[10px] font-bold text-rose-800 uppercase">${m[0]}</div><div class="text-xl font-black text-rose-600 leading-none mt-1">${m[1]} <span class="text-[9px] font-normal text-rose-400">kasus</span></div></div>`;
       });
 
-      // Reviewers
       const vArr = Object.entries(vMap).sort((a,b)=>b[1]-a[1]).slice(0, 5);
       const vt = document.getElementById('exVerifierTable'); vt.innerHTML = '';
       let totV = Object.values(vMap).reduce((a,b)=>a+b, 0) || 1;
@@ -1070,7 +1096,6 @@
 
     function captureExecReportToPng() {
       const el = document.getElementById('executiveReportContent');
-      // Sembunyikan class print-hide sementara jika ada
       document.querySelectorAll('.print-hide').forEach(n => n.style.display = 'none');
       html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#f1f5f9' }).then(canvas => {
         const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = `Executive_Report_IDOLS2_${Date.now()}.png`; a.click();
@@ -1096,7 +1121,7 @@
 
 *Data extracted via IDOLS2 TATADADA Core.*
       `;
-      navigator.clipboard.writeText(md.trim()).then(() => alert('Markdown copied to clipboard!'));
+      navigator.clipboard.writeText(md.trim()).then(() => alert('Markdown berhasil disalin ke Clipboard!'));
     }
   </script>
 </body>
