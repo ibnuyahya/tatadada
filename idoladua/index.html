@@ -131,7 +131,6 @@
 
       <div id="dashboardContent" class="hidden space-y-6">
 
-        <!-- Bar Filter Peran -->
         <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Peran Aktif:</span>
@@ -157,7 +156,6 @@
           </div>
         </div>
 
-        <!-- Pipeline Stepper Dinamis -->
         <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex justify-between items-center mb-3">
             <span class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
@@ -210,7 +208,6 @@
           </div>
         </div>
 
-        <!-- Kolom Pencarian -->
         <div class="flex flex-col sm:flex-row justify-between items-center gap-3">
           <div class="relative w-full sm:w-96">
             <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
@@ -221,7 +218,6 @@
           </div>
         </div>
 
-        <!-- Tabel Data Master -->
         <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
           <div class="overflow-x-auto custom-scroll">
             <table class="w-full text-left border-collapse text-xs">
@@ -488,11 +484,11 @@
   <script>
     const AUTH_SALT = "idols2_p4d_2026_salt";
     const VALID_HASHES = [
-      "0d513f48e450a8f2625cd6b9fb1ad8d3f2c8bd1753be84b394ce629033fa883c", // S1ntaJ0jo
-      "27723c306a2651a9e7a84674e4b01a0587d36e16146ce41a322b16e2c8dc2155", // S1ntaJojo
-      "30c308ac17a7375157d21ad0afde6ed334efe8067c71400ddb8c0566afb164e8", // S1ntaJ0j0
-      "18e89f43c62200156631f26af1473dceb580565b614a0321b6748ac83b325b5e", // SintaJ0jo
-      "9f24bb1b4ce7a27722eac765e8b87cdf91c0c8d177746a1cd1499f78fe329087"  // SintaJojo
+      "0d513f48e450a8f2625cd6b9fb1ad8d3f2c8bd1753be84b394ce629033fa883c",
+      "27723c306a2651a9e7a84674e4b01a0587d36e16146ce41a322b16e2c8dc2155",
+      "30c308ac17a7375157d21ad0afde6ed334efe8067c71400ddb8c0566afb164e8",
+      "18e89f43c62200156631f26af1473dceb580565b614a0321b6748ac83b325b5e",
+      "9f24bb1b4ce7a27722eac765e8b87cdf91c0c8d177746a1cd1499f78fe329087" 
     ];
 
     const IDLE_LOCK_TIME = 10 * 60 * 1000;
@@ -506,7 +502,6 @@
     let activePipelinePhase = null;
     let isIdleLocked = false;
 
-    // Fallback Kriptografi agar sandi aman di environment non-HTTPS / Local HTML
     function sha256Pure(ascii) {
       function rightRotate(value, amount) { return (value >>> amount) | (value << (32 - amount)); }
       var mathPow = Math.pow, maxWord = mathPow(2, 32), lengthProperty = 'length', i, j, result = '', words = [];
@@ -562,7 +557,6 @@
       return sha256Pure(message);
     }
 
-    // Manajemen Sesi Penyimpanan Hibrid (Tahan F5 di dalam Iframe Pihak Ketiga)
     function saveStorageKey(key, val) {
       try { localStorage.setItem(key, val); } catch (e) {}
       document.cookie = `${key}=${encodeURIComponent(val)}; path=/; max-age=1800; SameSite=Lax`;
@@ -636,7 +630,6 @@
         }
       });
 
-      // Fitur Escape Iframe Google Sites
       const openFullWindow = () => window.open(window.location.href, '_blank');
       document.getElementById('btnOpenNewTabLogin').addEventListener('click', openFullWindow);
       document.getElementById('btnOpenNewTabHeader').addEventListener('click', openFullWindow);
@@ -814,7 +807,6 @@
       document.getElementById('filterColScore').value = '';
       document.getElementById('filterColVerifier').value = '';
       
-      // Pembongkaran Saringan Peran 100%
       activeRole = 'all';
       document.querySelectorAll('.role-btn').forEach(btn => {
         btn.classList.remove('bg-white', 'text-slate-800', 'shadow-sm');
@@ -849,7 +841,13 @@
 
       rawDataset.forEach(r => {
         const dStr = r.dosen_pengampu || r.pengaju;
-        if (dStr && dStr !== '-') dStr.split(',').forEach(n => { if(n.trim().length > 1) dosens.add(n.trim()); });
+        if (dStr && dStr !== '-') {
+          // Parse menggunakan garis vertikal (|)
+          dStr.split('|').forEach(n => {
+            const clean = n.trim();
+            if (clean && clean.length > 1) dosens.add(clean);
+          });
+        }
         if (r.verifikator_terakhir && r.verifikator_terakhir !== '-') verifiers.add(r.verifikator_terakhir.trim());
       });
 
@@ -888,7 +886,6 @@
       });
     }
 
-    // Pemrosesan Inti Saringan Tunggal (Single-pass Reactive Architecture)
     function applyFilters() {
       const query = document.getElementById('searchInput').value.toLowerCase();
       const moocMode = document.getElementById('moocFilter').value;
@@ -925,7 +922,8 @@
 
         let matchesColDosen = true;
         if (colDosen) {
-          const list = dosenStr.split(',').map(s => s.trim());
+          // Gunakan pemisah | untuk pencarian filter dosen
+          const list = dosenStr.split('|').map(s => s.trim());
           matchesColDosen = list.some(d => d.includes(colDosen));
         }
 
@@ -939,7 +937,6 @@
         else if (colScore === 'rejected') matchesColScore = score > 0 && score < 33;
         else if (colScore === 'none') matchesColScore = score === -1;
 
-        // Fase 1: Kalkulasi angka Stepper berdasarkan lingkungan filter saat ini (termasuk Role & Search)
         const baseMatch = matchesSearch && matchesRole && matchesMooc && matchesColDosen && matchesColOwner && matchesColPipeline && matchesColScore && matchesColVerifier;
 
         if (baseMatch) {
@@ -950,7 +947,6 @@
           else if (pos.includes('Published')) pub++;
         }
 
-        // Fase 2: Eksekusi saringan Stepper
         let matchesPipe = true;
         if (activePipelinePhase === 'draf') matchesPipe = pos.startsWith('1a.');
         else if (activePipelinePhase === 'review') matchesPipe = pos.startsWith('1b.') || pos.startsWith('3b.');
@@ -961,7 +957,6 @@
         return baseMatch && matchesPipe;
       });
 
-      // Update Tampilan Angka Real-Time
       document.getElementById('pipelineTotal').textContent = draf + review + revisi + pubQ + pub;
       document.getElementById('pipeCountDraf').textContent = draf;
       document.getElementById('pipeCountReview').textContent = review;
@@ -987,13 +982,19 @@
 
     function formatDosenCell(dosenStr, emailStr, courseId) {
       if (!dosenStr || dosenStr === '-') return '<span class="text-slate-400">-</span>';
-      const names = dosenStr.split(',').map(s => s.trim()).filter(Boolean);
+      // Ekstrak nama menggunakan garis vertikal |
+      const names = dosenStr.split('|').map(s => s.trim()).filter(Boolean);
       if (names.length === 0) return '<span class="text-slate-400">-</span>';
-      const primary = names[0], othersCount = names.length - 1;
+      
+      const primary = names[0];
+      const othersCount = names.length - 1;
       let badgeHtml = '';
-      if (othersCount > 0) badgeHtml = `<button type="button" onclick="openDetailDrawer('${courseId}')" class="inline-block mt-0.5 px-1.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-semibold rounded border border-indigo-200 cursor-pointer" title="${dosenStr}">+${othersCount} dosen lainnya</button>`;
-      const emails = (emailStr && emailStr !== '-') ? emailStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+      if (othersCount > 0) badgeHtml = `<button type="button" onclick="openDetailDrawer('${courseId}')" class="inline-block mt-0.5 px-1.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-semibold rounded border border-indigo-200 cursor-pointer" title="${names.join(', ')}">+${othersCount} dosen lainnya</button>`;
+      
+      // Ekstrak email menggunakan garis vertikal |
+      const emails = (emailStr && emailStr !== '-') ? emailStr.split('|').map(s => s.trim()).filter(Boolean) : [];
       const emailHtml = emails.length > 0 ? `<div class="text-[10px] text-slate-400 truncate max-w-[170px]" title="${emails[0]}">${emails[0]}</div>` : '';
+      
       return `<div><div class="font-medium text-slate-800 leading-tight">${primary}</div>${badgeHtml}${emailHtml}</div>`;
     }
 
@@ -1073,10 +1074,14 @@
 
       const teacherContainer = document.getElementById('drawerTeacherTags');
       teacherContainer.innerHTML = '';
-      const names = (course.dosen_pengampu || course.pengaju || '').split(',').map(s => s.trim()).filter(Boolean);
-      const emails = (course.email_dosen || '').split(',').map(s => s.trim()).filter(Boolean);
-      if (names.length === 0) teacherContainer.innerHTML = '<span class="text-slate-400">-</span>';
-      else {
+      
+      // Pemecahan dosen berdasarkan garis vertikal |
+      const names = (course.dosen_pengampu || course.pengaju || '').split('|').map(s => s.trim()).filter(Boolean);
+      const emails = (course.email_dosen || '').split('|').map(s => s.trim()).filter(Boolean);
+      
+      if (names.length === 0) {
+        teacherContainer.innerHTML = '<span class="text-slate-400">-</span>';
+      } else {
         names.forEach((name, idx) => {
           const email = emails[idx] || '';
           const tag = document.createElement('div');
