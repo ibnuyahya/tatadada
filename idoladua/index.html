@@ -33,12 +33,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
-  
-  <!-- html2canvas untuk fitur tangkapan layar Laporan Eksekutif -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
   <style>
-    /* CSS Variables & Tokens */
     :root {
       --header-bg: #ffffff;
       --editor-bg: #ffffff;
@@ -52,7 +49,6 @@
       --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
       --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     }
-    
     html.dark {
       --header-bg: #161b22;
       --editor-bg: #0d1117;
@@ -64,25 +60,12 @@
       --text-dim: #8b949e;
       color-scheme: dark;
     }
-
-    body { 
-      background-color: var(--preview-bg); 
-      color: var(--text-main); 
-      font-family: 'Inter', sans-serif; 
-      user-select: none; 
-      -webkit-user-select: none;
-    }
-
-    input, textarea, pre, code, .selectable, .allow-context {
-      user-select: text;
-      -webkit-user-select: text;
-    }
-
+    body { background-color: var(--preview-bg); color: var(--text-main); font-family: 'Inter', sans-serif; user-select: none; -webkit-user-select: none; }
+    input, textarea, pre, code, .selectable, .allow-context { user-select: text; -webkit-user-select: text; }
     .grid-indicator { grid-template-columns: repeat(11, minmax(0, 1fr)); }
     .custom-scroll::-webkit-scrollbar { height: 6px; width: 6px; }
     .custom-scroll::-webkit-scrollbar-track { background: var(--preview-bg); }
     .custom-scroll::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
-
     @media print {
       body * { visibility: hidden; }
       #executiveReportContent, #executiveReportContent * { visibility: visible; }
@@ -91,7 +74,6 @@
     }
   </style>
 
-  <!-- Auto-Favicon Injector TATADADA -->
   <script>
     fetch('icon.xml').then(r => r.text()).then(xml => {
       const doc = new DOMParser().parseFromString(xml, "text/xml");
@@ -109,7 +91,6 @@
 </head>
 <body class="flex flex-col min-h-screen">
 
-  <!-- Modal Login -->
   <div id="loginOverlay" class="fixed inset-0 bg-slate-900/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 sm:p-8 space-y-5">
       <div class="text-center space-y-2">
@@ -147,7 +128,6 @@
     </div>
   </div>
 
-  <!-- Idle Lock -->
   <div id="idleLockOverlay" class="fixed inset-0 bg-slate-900/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm hidden">
     <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 text-center space-y-4">
       <div class="inline-flex p-3 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
@@ -168,10 +148,7 @@
     </div>
   </div>
 
-  <!-- Wrapper Utama App -->
   <div id="appContainer" class="hidden flex-col flex-1">
-
-    <!-- Header Panel TATADADA -->
     <header class="bg-[var(--header-bg)] border-b border-[var(--border-color)] sticky top-0 z-30 shadow-sm transition-colors duration-300">
       <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
         <div class="flex items-center gap-3">
@@ -188,40 +165,28 @@
           </div>
         </div>
         <div class="flex items-center gap-2.5">
-          <!-- Tombol Laporan Eksekutif -->
           <button id="btnExecutiveReport" class="hidden bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold px-3 py-1.5 rounded-lg items-center gap-1.5 shadow-sm transition-colors dark:bg-indigo-900/30 dark:border-indigo-800/50 dark:text-indigo-400">
             <i data-lucide="pie-chart" class="w-4 h-4"></i>
             <span class="hidden sm:inline">Executive Report</span>
           </button>
-          
-          <!-- Tombol Import: Ditambahkan onclick="this.value=null" agar kebal cache -->
           <label class="cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm transition-colors">
             <i data-lucide="upload" class="w-4 h-4"></i>
             <span id="btnTextHeaderImport" class="hidden sm:inline">Import CSV</span>
             <input type="file" id="csvFileInput" accept=".csv" class="hidden" onclick="this.value=null">
           </label>
-
-          <button id="btnToggleTheme" class="p-1.5 text-[var(--text-dim)] hover:bg-[var(--preview-bg)] rounded-lg transition" title="Ganti Tema">
-            <i data-lucide="moon" class="w-4 h-4"></i>
-          </button>
-          <button id="btnLogout" class="p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition" title="Keluar Dasbor">
-            <i data-lucide="log-out" class="w-4 h-4"></i>
-          </button>
+          <button id="btnToggleTheme" class="p-1.5 text-[var(--text-dim)] hover:bg-[var(--preview-bg)] rounded-lg transition" title="Ganti Tema"><i data-lucide="moon" class="w-4 h-4"></i></button>
+          <button id="btnLogout" class="p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition" title="Keluar Dasbor"><i data-lucide="log-out" class="w-4 h-4"></i></button>
         </div>
       </div>
     </header>
 
     <main class="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 space-y-6 flex-1">
-      
-      <!-- Area Kosong (Empty Workspace) -->
       <div id="emptyState" class="max-w-2xl mx-auto bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-12 text-center shadow-lg transition-colors duration-300">
         <div class="w-16 h-16 bg-slate-50 border border-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-slate-800 dark:border-slate-700">
           <i data-lucide="file-spreadsheet" class="w-8 h-8 text-slate-400"></i>
         </div>
         <h3 class="text-lg font-bold text-[var(--text-main)] mb-1">Ruang Kerja Kosong</h3>
         <p class="text-xs text-[var(--text-dim)] mb-6">Unggah berkas CSV hasil ekspor Configurable Reports Moodle untuk memulai.</p>
-        
-        <!-- Tombol Pilih: Ditambahkan onclick="this.value=null" agar kebal cache -->
         <label class="cursor-pointer bg-[var(--text-main)] text-[var(--card-bg)] hover:opacity-90 text-xs font-semibold px-5 py-2.5 rounded-lg inline-flex items-center gap-2 shadow-md transition-all">
           <i data-lucide="file-plus" class="w-4 h-4" id="iconEmptyImport"></i>
           <span id="btnTextEmptyImport">Pilih Berkas CSV</span>
@@ -229,10 +194,7 @@
         </label>
       </div>
 
-      <!-- Konten Dasbor Utama -->
       <div id="dashboardContent" class="hidden space-y-5">
-        
-        <!-- Filter Bar -->
         <div class="bg-[var(--card-bg)] p-3 rounded-xl border border-[var(--border-color)] shadow-sm flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <span class="text-[11px] font-bold text-[var(--text-dim)] uppercase tracking-wider">Peran Aktif:</span>
@@ -258,7 +220,6 @@
           </div>
         </div>
 
-        <!-- Stepper Pipeline Alur -->
         <div class="bg-[var(--card-bg)] p-4 rounded-xl border border-[var(--border-color)] shadow-sm">
           <div class="flex justify-between items-center mb-3">
             <span class="text-xs font-bold uppercase tracking-wider text-[var(--text-dim)] flex items-center gap-1.5">
@@ -268,7 +229,6 @@
             <span class="text-xs text-[var(--text-dim)]">Total Terpilih: <strong id="pipelineTotal" class="text-[var(--text-main)] text-sm">0</strong></span>
           </div>
           <div class="grid grid-cols-2 md:grid-cols-5 gap-2.5" id="pipelineContainer">
-            <!-- Box 1 -->
             <div class="pipeline-step p-3 rounded-lg border border-[var(--border-color)] bg-[var(--preview-bg)] cursor-pointer hover:border-indigo-400 transition" data-phase="draf">
               <div class="flex justify-between items-start">
                 <span class="text-[10px] font-bold text-[var(--text-dim)] uppercase">Tahap 1</span>
@@ -277,7 +237,6 @@
               <div class="text-xs font-bold text-[var(--text-main)] mt-1">Draf Pengampu</div>
               <div class="text-[10px] text-[var(--text-dim)]">Sedang disiapkan dosen</div>
             </div>
-            <!-- Box 2 -->
             <div class="pipeline-step p-3 rounded-lg border border-[var(--border-color)] bg-[var(--preview-bg)] cursor-pointer hover:border-amber-400 transition" data-phase="review">
               <div class="flex justify-between items-start">
                 <span class="text-[10px] font-bold text-amber-600 uppercase">Tahap 2</span>
@@ -286,7 +245,6 @@
               <div class="text-xs font-bold text-[var(--text-main)] mt-1">Antrean Reviewer</div>
               <div class="text-[10px] text-[var(--text-dim)]">Menunggu penilaian borang</div>
             </div>
-            <!-- Box 3 -->
             <div class="pipeline-step p-3 rounded-lg border border-[var(--border-color)] bg-[var(--preview-bg)] cursor-pointer hover:border-rose-400 transition" data-phase="revisi">
               <div class="flex justify-between items-start">
                 <span class="text-[10px] font-bold text-rose-600 uppercase">Tahap 3</span>
@@ -295,7 +253,6 @@
               <div class="text-xs font-bold text-[var(--text-main)] mt-1">Perlu Revisi Dosen</div>
               <div class="text-[10px] text-[var(--text-dim)]">Belum memenuhi indikator</div>
             </div>
-            <!-- Box 4 -->
             <div class="pipeline-step p-3 rounded-lg border border-[var(--border-color)] bg-[var(--preview-bg)] cursor-pointer hover:border-blue-400 transition" data-phase="publish_queue">
               <div class="flex justify-between items-start">
                 <span class="text-[10px] font-bold text-blue-600 uppercase">Tahap 4</span>
@@ -304,7 +261,6 @@
               <div class="text-xs font-bold text-[var(--text-main)] mt-1">Ready to Publish</div>
               <div class="text-[10px] text-[var(--text-dim)]">Lolos borang, giliran penerbit</div>
             </div>
-            <!-- Box 5 -->
             <div class="pipeline-step p-3 rounded-lg border border-[var(--border-color)] bg-[var(--preview-bg)] cursor-pointer hover:border-emerald-400 transition" data-phase="published">
               <div class="flex justify-between items-start">
                 <span class="text-[10px] font-bold text-emerald-600 uppercase">Tahap 5</span>
@@ -316,7 +272,6 @@
           </div>
         </div>
 
-        <!-- Tabel Pencarian Bebas -->
         <div class="flex flex-col sm:flex-row justify-between items-center gap-3">
           <div class="relative w-full sm:w-96">
             <i data-lucide="search" class="w-4 h-4 text-[var(--text-dim)] absolute left-3 top-1/2 -translate-y-1/2"></i>
@@ -327,7 +282,6 @@
           </div>
         </div>
 
-        <!-- Kontainer Tabel dengan Card Layout -->
         <div class="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-xl overflow-hidden shadow-sm">
           <div class="overflow-x-auto custom-scroll max-h-[65vh]">
             <table class="w-full text-left border-collapse text-xs">
@@ -356,7 +310,6 @@
                   </th>
                   <th class="py-2.5 px-3 text-center min-w-[120px]">Tautan Aksi</th>
                 </tr>
-                <!-- Filter Dropdowns Row -->
                 <tr class="bg-[var(--card-bg)] border-b border-[var(--border-color)]">
                   <th class="p-1"></th><th class="p-1"></th>
                   <th class="p-1">
@@ -397,11 +350,9 @@
             </table>
           </div>
         </div>
-
       </div>
     </main>
 
-    <!-- Footer Laporan Kepatuhan -->
     <footer class="bg-[var(--footer-bg)] border-t border-[var(--border-color)] py-3 mt-auto">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 flex justify-between items-center">
         <div class="flex items-center gap-2">
@@ -411,10 +362,8 @@
         <button id="btnShowTerms" class="text-[10px] text-[var(--text-dim)] hover:text-indigo-500 hover:underline transition-colors font-medium">Terms of Use & Disclaimer</button>
       </div>
     </footer>
-
   </div>
 
-  <!-- DRAWER: Panel Laporan Detail Mata Kuliah -->
   <div id="drawerOverlay" class="fixed inset-0 bg-slate-900/40 z-40 hidden backdrop-blur-sm transition-opacity"></div>
   <div id="detailDrawer" class="fixed inset-y-0 right-0 max-w-xl w-full bg-[var(--card-bg)] z-50 shadow-2xl p-6 overflow-y-auto transform translate-x-full transition-transform duration-300 border-l border-[var(--border-color)] selectable">
     <div class="flex justify-between items-start pb-4 border-b border-[var(--border-color)]">
@@ -432,8 +381,6 @@
     </div>
 
     <div class="py-5 space-y-5">
-      
-      <!-- Tombol Pintas Fungsional -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 print-hide">
         <a id="linkEnrollDrawer" href="#" target="_blank" class="bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 rounded-lg p-2.5 text-center transition flex flex-col items-center dark:bg-sky-900/30 dark:border-sky-800/50 dark:text-sky-300">
           <i data-lucide="users" class="w-4 h-4 text-sky-600 dark:text-sky-400 mb-1"></i>
@@ -516,11 +463,9 @@
           <i data-lucide="copy" class="w-3.5 h-3.5"></i><span>Salin Draft Evaluasi ke Clipboard</span>
         </button>
       </div>
-
     </div>
   </div>
 
-  <!-- DRAWER KHUSUS: Laporan Eksekutif -->
   <div id="drawerExecutive" class="fixed inset-y-0 right-0 max-w-4xl w-full bg-[var(--card-bg)] z-[60] shadow-2xl p-0 overflow-hidden transform translate-x-full transition-transform duration-300 border-l border-[var(--border-color)] flex flex-col selectable">
     <div class="flex justify-between items-center p-6 border-b border-[var(--border-color)] bg-[var(--header-bg)] shrink-0 print-hide">
       <div>
@@ -539,7 +484,6 @@
     </div>
     
     <div id="executiveReportContent" class="flex-1 overflow-y-auto p-6 sm:p-8 bg-[var(--preview-bg)] space-y-6">
-      
       <div class="flex justify-between items-end border-b-2 border-slate-800 pb-3 mb-6">
         <div>
           <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Executive Report</h1>
@@ -630,14 +574,12 @@
           </table>
         </div>
       </div>
-
       <div class="text-center text-[10px] text-slate-400 mt-6 pt-4 border-t border-slate-200">
         Laporan ini digenerasi secara otomatis dari Dasbor Review IDOLS2 berdasarkan ekstraksi data Configurable Reports.
       </div>
     </div>
   </div>
 
-  <!-- Modal Terms TATADADA -->
   <div id="termsModal" class="fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center p-4 backdrop-blur-sm hidden">
     <div class="bg-[var(--card-bg)] rounded-xl shadow-xl border border-[var(--border-color)] max-w-lg w-full p-6 text-[var(--text-main)] selectable">
       <h2 class="text-lg font-bold border-b border-[var(--border-color)] pb-2 mb-4">Terms of Use & Disclaimer</h2>
@@ -649,9 +591,7 @@
     </div>
   </div>
 
-  <!-- Inti JavaScript -->
   <script>
-    // 1. KEAMANAN & SESI
     const AUTH_SALT = "idols2_p4d_2026_salt";
     const VALID_HASHES = [
       "0d513f48e450a8f2625cd6b9fb1ad8d3f2c8bd1753be84b394ce629033fa883c", "27723c306a2651a9e7a84674e4b01a0587d36e16146ce41a322b16e2c8dc2155",
@@ -702,7 +642,6 @@
     function getStorageKey(k) { let v = null; try{ v=localStorage.getItem(k); }catch(e){} if(!v){ const m = document.cookie.match(new RegExp('(^| )'+k+'=([^;]+)')); if(m) v=decodeURIComponent(m[2]); } return v; }
     function removeStorageKey(k) { try{ localStorage.removeItem(k); }catch(e){} document.cookie = `${k}=; path=/; max-age=0`; }
 
-    // 2. STATE & DATA INITIALIZATION
     let rawDataset = [];
     let activeRole = 'all', currentSelectedCourse = null, sortCol = 'course_id', sortAsc = true, activePipelinePhase = null;
 
@@ -713,7 +652,7 @@
     function initTheme() {
       const isDark = localStorage.getItem('idols_theme') === 'dark';
       if (isDark) document.documentElement.classList.add('dark');
-      document.getElementById('btnToggleTheme').addEventListener('click', () => {
+      document.getElementById('btnToggleTheme')?.addEventListener('click', () => {
         document.documentElement.classList.toggle('dark');
         localStorage.setItem('idols_theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
       });
@@ -728,12 +667,12 @@
         else { resetAuth(); showLogin(); }
       } else showLogin();
 
-      document.getElementById('btnTogglePassword').addEventListener('click', () => {
+      document.getElementById('btnTogglePassword')?.addEventListener('click', () => {
         const i = document.getElementById('inputPassword'); const isP = i.type === 'password'; i.type = isP ? 'text' : 'password';
         document.getElementById('btnTogglePassword').innerHTML = `<i data-lucide="${isP ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>`; lucide.createIcons();
       });
 
-      document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const u = document.getElementById('inputUsername').value.trim(), p = document.getElementById('inputPassword').value.trim();
         const h = await hashCredentials(`${u}:${p}:${AUTH_SALT}`);
@@ -741,13 +680,11 @@
         else document.getElementById('loginError').classList.remove('hidden');
       });
 
-      const openTab = () => window.open(window.location.href, '_blank');
-      document.getElementById('btnOpenNewTabLogin').addEventListener('click', openTab);
-      document.getElementById('btnResumeSession').addEventListener('click', () => { if(Date.now() - parseInt(getStorageKey('idols_last_active')||'0',10) < HARD_SESSION_EXPIRY) { touchActivity(); hideLock(); } else { resetAuth(); hideLock(); showLogin(); } });
-      document.getElementById('btnReloginSession').addEventListener('click', () => { resetAuth(); hideLock(); showLogin(); });
-      document.getElementById('btnLogout').addEventListener('click', () => { resetAuth(); showLogin(); });
-      document.getElementById('btnShowTerms').addEventListener('click', () => document.getElementById('termsModal').classList.remove('hidden'));
-      document.getElementById('btnCloseTerms').addEventListener('click', () => document.getElementById('termsModal').classList.add('hidden'));
+      document.getElementById('btnResumeSession')?.addEventListener('click', () => { if(Date.now() - parseInt(getStorageKey('idols_last_active')||'0',10) < HARD_SESSION_EXPIRY) { touchActivity(); hideLock(); } else { resetAuth(); hideLock(); showLogin(); } });
+      document.getElementById('btnReloginSession')?.addEventListener('click', () => { resetAuth(); hideLock(); showLogin(); });
+      document.getElementById('btnLogout')?.addEventListener('click', () => { resetAuth(); showLogin(); });
+      document.getElementById('btnShowTerms')?.addEventListener('click', () => document.getElementById('termsModal').classList.remove('hidden'));
+      document.getElementById('btnCloseTerms')?.addEventListener('click', () => document.getElementById('termsModal').classList.add('hidden'));
     }
 
     function touchActivity() { saveStorageKey('idols_last_active', String(Date.now())); }
@@ -756,6 +693,7 @@
     function unlockApp() { document.getElementById('loginOverlay').classList.add('hidden'); document.getElementById('appContainer').classList.remove('hidden'); lucide.createIcons(); }
     function showLock() { isIdleLocked = true; document.getElementById('idleLockOverlay').classList.remove('hidden'); lucide.createIcons(); }
     function hideLock() { isIdleLocked = false; document.getElementById('idleLockOverlay').classList.add('hidden'); }
+    
     function startActivityTracker() {
       let tmr = null;
       ['mousemove','keydown','scroll','touchstart'].forEach(e => window.addEventListener(e, () => {
@@ -769,15 +707,14 @@
       }, 5000);
     }
 
-    // 3. CORE LOGIC & CSV PARSER
     function initEventListeners() {
-      document.getElementById('csvFileInput').addEventListener('change', handleFile);
-      document.getElementById('csvFileInputEmpty').addEventListener('change', handleFile);
-      document.getElementById('searchInput').addEventListener('input', applyFilters);
-      document.getElementById('moocFilter').addEventListener('change', applyFilters);
-      document.getElementById('btnResetFilters').addEventListener('click', resetFilters);
+      document.getElementById('csvFileInput')?.addEventListener('change', handleFile);
+      document.getElementById('csvFileInputEmpty')?.addEventListener('change', handleFile);
+      document.getElementById('searchInput')?.addEventListener('input', applyFilters);
+      document.getElementById('moocFilter')?.addEventListener('change', applyFilters);
+      document.getElementById('btnResetFilters')?.addEventListener('click', resetFilters);
 
-      document.getElementById('roleFilterGroup').addEventListener('click', (e) => {
+      document.getElementById('roleFilterGroup')?.addEventListener('click', (e) => {
         if (e.target.tagName === 'BUTTON') {
           document.querySelectorAll('.role-btn').forEach(b => { b.classList.remove('bg-[var(--card-bg)]','text-[var(--text-main)]','shadow-sm'); b.classList.add('text-[var(--text-dim)]'); });
           e.target.classList.add('bg-[var(--card-bg)]','text-[var(--text-main)]','shadow-sm'); e.target.classList.remove('text-[var(--text-dim)]');
@@ -793,22 +730,21 @@
         });
       });
 
-      ['filterColDosen','filterColOwner','filterColPipeline','filterColScore','filterColVerifier'].forEach(id => document.getElementById(id).addEventListener('change', applyFilters));
-      document.getElementById('btnCloseDrawer').addEventListener('click', closeDrawer);
-      document.getElementById('drawerOverlay').addEventListener('click', () => { closeDrawer(); closeExecDrawer(); });
-      document.getElementById('btnCopyFeedback').addEventListener('click', copyFeedback);
+      ['filterColDosen','filterColOwner','filterColPipeline','filterColScore','filterColVerifier'].forEach(id => document.getElementById(id)?.addEventListener('change', applyFilters));
+      document.getElementById('btnCloseDrawer')?.addEventListener('click', closeDrawer);
+      document.getElementById('drawerOverlay')?.addEventListener('click', () => { closeDrawer(); closeExecDrawer(); });
+      document.getElementById('btnCopyFeedback')?.addEventListener('click', copyFeedback);
       
-      document.getElementById('btnExecutiveReport').addEventListener('click', openExecDrawer);
-      document.getElementById('btnCloseExecDrawer').addEventListener('click', closeExecDrawer);
-      document.getElementById('btnDownloadExecPng').addEventListener('click', captureExecReportToPng);
-      document.getElementById('btnDownloadExecPdf').addEventListener('click', () => window.print());
-      document.getElementById('btnCopyExecMd').addEventListener('click', copyExecMd);
+      document.getElementById('btnExecutiveReport')?.addEventListener('click', openExecDrawer);
+      document.getElementById('btnCloseExecDrawer')?.addEventListener('click', closeExecDrawer);
+      document.getElementById('btnDownloadExecPng')?.addEventListener('click', captureExecReportToPng);
+      document.getElementById('btnDownloadExecPdf')?.addEventListener('click', () => window.print());
+      document.getElementById('btnCopyExecMd')?.addEventListener('click', copyExecMd);
     }
 
     function handleFile(e) {
       const f = e.target.files[0]; if(!f) return;
       
-      // Indikator Loading Visual
       const btnEmpty = document.getElementById('btnTextEmptyImport');
       const btnHeader = document.getElementById('btnTextHeaderImport');
       const iconEmpty = document.getElementById('iconEmptyImport');
@@ -825,12 +761,10 @@
             resetUploadButtons(e); return;
           }
           if(res.data && res.data.length > 0) {
-            // Validasi Format Header
             if(!res.data[0].hasOwnProperty('course_id') && !res.data[0].hasOwnProperty('nama_kursus')) {
               alert("Struktur CSV tidak cocok! Pastikan Anda mengunduh dari Configurable Reports IDOLS2 (bukan laporan acak).");
               resetUploadButtons(e); return;
             }
-
             try {
               rawDataset = res.data.map(item => {
                 let num = -1; 
@@ -845,55 +779,36 @@
                   mhs_sertifikat: parseInt(item.mhs_sertifikat, 10) || 0 
                 };
               });
-              
-              try { localStorage.setItem('idols_rvw_db', JSON.stringify(rawDataset)); } 
-              catch(storageErr) { console.warn("Penyimpanan lokal penuh, sesi akan hilang jika direfresh."); }
-              
+              try { localStorage.setItem('idols_rvw_db', JSON.stringify(rawDataset)); } catch(err) {}
               renderApp();
-            } catch (mappingErr) {
-              console.error(mappingErr);
-              alert("Gagal memproses baris data: " + mappingErr.message);
-            }
-          } else {
-            alert("Berkas CSV kosong atau datanya tidak terbaca.");
-          }
+            } catch (err) { alert("Gagal memproses baris data: " + err.message); }
+          } else { alert("Berkas CSV kosong atau datanya tidak terbaca."); }
           resetUploadButtons(e);
         }
       });
     }
 
     function resetUploadButtons(e) {
-      const btnEmpty = document.getElementById('btnTextEmptyImport');
-      const btnHeader = document.getElementById('btnTextHeaderImport');
-      const iconEmpty = document.getElementById('iconEmptyImport');
+      const btnEmpty = document.getElementById('btnTextEmptyImport'), btnHeader = document.getElementById('btnTextHeaderImport'), iconEmpty = document.getElementById('iconEmptyImport');
       if(btnEmpty) { btnEmpty.textContent = "Pilih Berkas CSV"; iconEmpty.setAttribute('data-lucide', 'file-plus'); iconEmpty.classList.remove('animate-spin'); }
       if(btnHeader) btnHeader.textContent = "Import CSV";
-      lucide.createIcons();
-      e.target.value = ''; // Kosongkan input agar kebal cache
+      lucide.createIcons(); e.target.value = '';
     }
 
     function loadStoredData() { const s = localStorage.getItem('idols_rvw_db'); if(s) { try{ rawDataset = JSON.parse(s); renderApp(); }catch(e){} } }
 
     function renderApp() {
-      try {
-        if(rawDataset.length === 0) return;
-        document.getElementById('emptyState').classList.add('hidden');
-        document.getElementById('dashboardContent').classList.remove('hidden');
-        document.getElementById('btnExecutiveReport').classList.remove('hidden');
-        document.getElementById('btnExecutiveReport').classList.add('inline-flex');
-        populateDropdowns(); 
-        applyFilters(); 
-        updateExecutiveMetrics(); 
-        lucide.createIcons();
-      } catch (renderErr) {
-        console.error(renderErr);
-        alert("Gagal merender antarmuka Dasbor. Detail: " + renderErr.message);
-      }
+      if(rawDataset.length === 0) return;
+      document.getElementById('emptyState').classList.add('hidden');
+      document.getElementById('dashboardContent').classList.remove('hidden');
+      document.getElementById('btnExecutiveReport').classList.remove('hidden');
+      document.getElementById('btnExecutiveReport').classList.add('inline-flex');
+      populateDropdowns(); applyFilters(); updateExecutiveMetrics(); lucide.createIcons();
     }
 
     function resetFilters() {
       document.getElementById('searchInput').value = ''; document.getElementById('moocFilter').value = 'all';
-      ['filterColDosen','filterColOwner','filterColPipeline','filterColScore','filterColVerifier'].forEach(id => document.getElementById(id).value = '');
+      ['filterColDosen','filterColOwner','filterColPipeline','filterColScore','filterColVerifier'].forEach(id => { const el=document.getElementById(id); if(el) el.value = ''; });
       activeRole = 'all';
       document.querySelectorAll('.role-btn').forEach(b => { b.classList.remove('bg-[var(--card-bg)]','text-[var(--text-main)]','shadow-sm'); b.classList.add('text-[var(--text-dim)]'); if(b.dataset.role==='all'){ b.classList.add('bg-[var(--card-bg)]','text-[var(--text-main)]','shadow-sm'); b.classList.remove('text-[var(--text-dim)]'); } });
       activePipelinePhase = null; document.querySelectorAll('.pipeline-step').forEach(s => s.classList.remove('ring-2','ring-indigo-500','border-indigo-400','bg-indigo-50/50','dark:bg-indigo-900/30'));
@@ -903,16 +818,10 @@
     function populateDropdowns() {
       const dSel = document.getElementById('filterColDosen'), vSel = document.getElementById('filterColVerifier');
       const cD = dSel.value, cV = vSel.value, dSet = new Set(), vSet = new Set();
-      
       rawDataset.forEach(r => {
-        if(r.dosen_pengampu && r.dosen_pengampu !== '-') {
-          String(r.dosen_pengampu).split('|').forEach(n => { if(n.trim().length>1) dSet.add(n.trim()); });
-        }
-        if(r.verifikator_terakhir && r.verifikator_terakhir !== '-') {
-          vSet.add(String(r.verifikator_terakhir).trim());
-        }
+        if(r.dosen_pengampu && r.dosen_pengampu !== '-') String(r.dosen_pengampu).split('|').forEach(n => { if(n.trim().length>1) dSet.add(n.trim()); });
+        if(r.verifikator_terakhir && r.verifikator_terakhir !== '-') vSet.add(String(r.verifikator_terakhir).trim());
       });
-      
       dSel.innerHTML = '<option value="">Semua Dosen</option>'; Array.from(dSet).sort().forEach(d => dSel.appendChild(new Option(d, d))); dSel.value = cD;
       vSel.innerHTML = '<option value="">Semua Reviewer</option>'; Array.from(vSet).sort().forEach(v => vSel.appendChild(new Option(v, v))); vSel.value = cV;
     }
@@ -983,7 +892,7 @@
         let dHtml = '<span class="text-[var(--text-dim)]">-</span>';
         if(r.dosen_pengampu && r.dosen_pengampu!=='-') {
           const ns=String(r.dosen_pengampu).split('|').map(s=>s.trim()).filter(Boolean), em=String(r.email_dosen||'').split('|').map(s=>s.trim()).filter(Boolean);
-          if(ns.length>0) dHtml = `<div><div class="font-medium text-[var(--text-main)] leading-tight">${ns[0]}</div>${ns.length>1 ? `<button onclick="openDetailDrawer('${r.course_id}')" class="mt-0.5 px-1.5 py-0.5 bg-[var(--preview-bg)] text-[var(--text-dim)] hover:text-indigo-600 border border-[var(--border-color)] text-[9px] font-bold rounded">+${ns.length-1} dosen</button>`:''}${em.length>0 ? `<div class="text-[9px] text-[var(--text-dim)] truncate max-w-[150px] font-mono">${em[0]}</div>`:''}</div>`;
+          if(ns.length>0) dHtml = `<div><div class="font-medium text-[var(--text-main)] leading-tight">${ns[0]}</div>${ns.length>1 ? `<button onclick="openDetailDrawer('${r.course_id}')" class="mt-0.5 px-1.5 py-0.5 bg-[var(--preview-bg)] text-[var(--text-dim)] hover:text-indigo-600 border border-[var(--border-color)] text-[9px] font-bold rounded cursor-pointer">+${ns.length-1} dosen</button>`:''}${em.length>0 ? `<div class="text-[9px] text-[var(--text-dim)] truncate max-w-[150px] font-mono">${em[0]}</div>`:''}</div>`;
         }
 
         tr.innerHTML = `
@@ -1030,7 +939,6 @@
     function closeDrawer() { document.getElementById('detailDrawer').classList.add('translate-x-full'); document.getElementById('drawerOverlay').classList.add('hidden'); }
     function copyFeedback() { if(!currentSelectedCourse) return; const c=currentSelectedCourse; navigator.clipboard.writeText(`Yth. Bapak/Ibu Dosen Pengampu,\nHasil verifikasi borang IDOLS2 "${c.nama_kursus}" (ID: ${c.course_id}):\n- Status: ${c.posisi_alur}\n- Skor: ${c.skor_borang}\n- Catatan Revisi: ${c.butir_perlu_revisi||'Lengkap 100%'}\nLink: https://idols2.ui.ac.id/course/view.php?id=${c.course_id}`); alert("Teks berhasil disalin!"); }
 
-    // 4. EXECUTIVE REPORT LOGIC
     function updateExecutiveMetrics() {
       if(rawDataset.length === 0) return;
       const now = new Date();
