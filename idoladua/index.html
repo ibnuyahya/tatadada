@@ -23,7 +23,18 @@
     .custom-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
     .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
     .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    @media print { body * { visibility: hidden; } #executiveReportContent, #executiveReportContent * { visibility: visible; } #executiveReportContent { position: absolute; left: 0; top: 0; width: 100%; padding: 0; background: white;} .print-hide { display: none !important; } }
+    
+    @media print {
+      body.print-exec * { visibility: hidden; }
+      body.print-exec #executiveReportContent, body.print-exec #executiveReportContent * { visibility: visible; }
+      body.print-exec #executiveReportContent { position: absolute; left: 0; top: 0; width: 100%; padding: 0; background: white;}
+      
+      body.print-detail * { visibility: hidden; }
+      body.print-detail #detailDrawerContent, body.print-detail #detailDrawerContent * { visibility: visible; }
+      body.print-detail #detailDrawerContent { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; background: white;}
+      
+      .print-hide { display: none !important; }
+    }
   </style>
 
   <script>
@@ -89,7 +100,7 @@
           <div class="flex flex-col">
             <h1 class="text-base font-extrabold text-white tracking-tight">Idola2 Dasbor Review</h1>
             <div class="flex items-center gap-2 text-[11px]">
-              <span class="text-slate-400 font-bold">v7.4 Studio</span>
+              <span class="text-slate-400 font-bold">v7.6 Studio</span>
               <span class="text-slate-600">|</span>
               <a href="https://danial.my.id" target="_blank" class="lowercase font-black tracking-[0.2em] text-slate-400 hover:text-indigo-400 transition-colors">by AhmadDanial</a>
             </div>
@@ -115,7 +126,7 @@
       <div id="emptyState" class="max-w-2xl mx-auto bg-white border border-slate-200 rounded-[2rem] p-14 text-center shadow-xl mt-10">
         <div class="w-20 h-20 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm"><i data-lucide="file-spreadsheet" class="w-10 h-10 text-indigo-400"></i></div>
         <h3 class="text-2xl font-extrabold text-slate-900 mb-2">Ruang Kerja Kosong</h3>
-        <p class="text-sm text-slate-500 font-medium mb-8 leading-relaxed">Sesi dibersihkan untuk keamanan. Unggah file CSV SQL IDOLS2 terbaru untuk mensintesis metrik.</p>
+        <p class="text-sm text-slate-500 font-medium mb-8 leading-relaxed">Sesi dibersihkan otomatis. Unggah file CSV SQL IDOLS2 terbaru untuk mensintesis metrik.</p>
         <label class="cursor-pointer bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold px-7 py-4 rounded-xl inline-flex items-center gap-2.5 shadow-lg transition transform hover:-translate-y-0.5">
           <i data-lucide="file-plus" class="w-5 h-5" id="iconEmptyImport"></i><span id="btnTextEmptyImport">Pilih Berkas CSV</span>
           <input type="file" id="csvFileInputEmpty" accept=".csv" class="hidden" onclick="this.value=null">
@@ -123,7 +134,6 @@
       </div>
 
       <div id="dashboardContent" class="hidden space-y-5">
-        <!-- GLOBAL FILTER BAR (DI ATAS PIPELINE) -->
         <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
           <div class="flex flex-wrap items-center gap-4 w-full md:w-auto">
              <div class="flex items-center gap-2">
@@ -156,8 +166,8 @@
 
         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div class="flex justify-between items-center mb-4">
-            <span class="text-sm font-extrabold uppercase tracking-wide text-slate-800 flex items-center gap-2"><div class="p-1.5 bg-indigo-50 rounded-lg"><i data-lucide="git-pull-request" class="w-4 h-4 text-indigo-600"></i></div> Pipeline Publikasi Terpadu (Klik Modul untuk Saring Cepat)</span>
-            <span class="text-sm font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">Total Filter: <strong id="pipelineTotal" class="text-indigo-600 font-black text-lg ml-1">0</strong></span>
+            <span class="text-sm font-extrabold uppercase tracking-wide text-slate-800 flex items-center gap-2"><div class="p-1.5 bg-indigo-50 rounded-lg"><i data-lucide="git-pull-request" class="w-4 h-4 text-indigo-600"></i></div> Pipeline Publikasi Terpadu (Klik Modul untuk Saring)</span>
+            <span class="text-sm font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 shadow-inner">Total Filter: <strong id="pipelineTotal" class="text-indigo-600 font-black text-lg ml-1">0</strong></span>
           </div>
           <div class="grid grid-cols-2 md:grid-cols-5 gap-4" id="pipelineContainer">
             <div class="pipeline-step p-4 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:border-slate-400 hover:shadow-md transition" data-phase="draf">
@@ -229,78 +239,85 @@
         <h2 id="drawerTitle" class="text-2xl font-black text-slate-900 mt-3.5 leading-snug tracking-tight">Nama Kursus Lengkap</h2>
         <p id="drawerCode" class="text-sm text-slate-500 font-mono font-bold mt-1.5">KODE-KURSUS</p>
       </div>
-      <button id="btnCloseDrawer" class="text-slate-400 hover:text-slate-900 bg-slate-50 hover:bg-slate-200 p-2.5 rounded-xl transition shadow-sm border border-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
+      <div class="flex items-center gap-2 print-hide">
+        <button id="btnDownloadDetailPng" class="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition shadow-sm border border-slate-200 bg-slate-50" title="Unduh Tangkapan Layar (PNG)"><i data-lucide="image" class="w-5 h-5"></i></button>
+        <button id="btnDownloadDetailPdf" class="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition shadow-sm border border-slate-200 bg-slate-50" title="Cetak / Simpan PDF"><i data-lucide="printer" class="w-5 h-5"></i></button>
+        <div class="w-px h-8 bg-slate-200 mx-1"></div>
+        <button id="btnCloseDrawer" class="text-slate-400 hover:text-slate-900 bg-slate-50 hover:bg-slate-200 p-2.5 rounded-xl transition shadow-sm border border-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
+      </div>
     </div>
 
-    <div class="p-7 space-y-7 flex-1 bg-slate-50/50">
-      <div class="w-full h-48 bg-slate-200 rounded-3xl overflow-hidden shadow-inner border border-slate-200 relative group print-hide flex items-center justify-center">
-        <!-- Loader Fallback -->
-        <i data-lucide="image" class="w-12 h-12 text-slate-400 absolute"></i>
-        <img id="drawerThumbnailImg" src="" alt="Course Cover" class="w-full h-full object-cover z-10 opacity-0 transition-opacity duration-500" onload="this.classList.remove('opacity-0')" onerror="this.src=`https://ui-avatars.com/api/?name=${encodeURIComponent(document.getElementById('drawerTitle').textContent)}&background=0f172a&color=fff&size=512&font-size=0.25&bold=true`" />
-        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent z-20 flex items-end p-5">
-           <div class="text-white text-[10px] font-black tracking-widest uppercase bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/20 shadow-sm flex items-center gap-1.5"><i data-lucide="monitor-play" class="w-3.5 h-3.5"></i> Featured Cover API</div>
-        </div>
-      </div>
-
-      <div class="bg-amber-50 border border-amber-200 rounded-3xl p-5 shadow-sm">
-        <div class="text-xs font-black uppercase tracking-widest text-amber-800 flex items-center gap-2 mb-2"><div class="p-1.5 bg-amber-100 rounded-lg"><i data-lucide="compass" class="w-4 h-4 text-amber-700"></i></div> Rekomendasi Eksekusi Dasbor</div>
-        <p id="drawerAction" class="text-base font-bold text-amber-950 leading-relaxed"></p>
-      </div>
-
-      <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
-        <span class="text-slate-500 block text-[11px] font-black uppercase tracking-widest">Metrik Retensi & Kelulusan</span>
-        <div class="grid grid-cols-4 gap-4 text-center">
-          <a id="drawerBtnEnrol" href="#" target="_blank" class="bg-slate-50 hover:bg-sky-50 p-3 rounded-2xl border border-slate-200 hover:border-sky-300 shadow-sm transition block cursor-pointer group">
-             <span class="block text-[11px] text-slate-500 group-hover:text-sky-700 font-bold mb-1 flex items-center justify-center gap-1">Terdaftar <i data-lucide="external-link" class="w-3 h-3"></i></span>
-             <strong id="drawerEnrolled" class="text-xl font-black text-slate-900 group-hover:text-sky-800">0</strong>
-          </a>
-          <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100"><span class="block text-[11px] text-slate-500 font-bold mb-1">Selesai</span><strong id="drawerCompleted" class="text-xl font-black text-slate-900">0</strong></div>
-          <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-100"><span class="block text-[11px] text-emerald-700 font-bold mb-1">Sertifikat</span><strong id="drawerCertified" class="text-xl font-black text-emerald-600">0</strong></div>
-          <div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100"><span class="block text-[11px] text-indigo-700 font-bold mb-1">Rasio Lulus</span><strong id="drawerCertRate" class="text-xl font-black text-indigo-600">0%</strong></div>
-        </div>
-      </div>
-
-      <div class="space-y-5 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm text-sm">
-        <div>
-          <span class="text-slate-500 block text-[11px] font-black uppercase mb-3 tracking-widest">Hierarki Tim Dosen Pengampu:</span>
-          <div id="drawerTeacherTags" class="flex flex-wrap gap-2.5 max-h-48 overflow-y-auto custom-scroll pr-3"></div>
-        </div>
-        <div class="grid grid-cols-2 gap-5 pt-4 border-t border-slate-100">
-          <div><span class="text-slate-400 block text-xs font-bold mb-1">Wewenang Saat Ini:</span><span id="drawerOwner" class="font-black text-slate-900 text-sm bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200"></span></div>
-          <div><span class="text-slate-400 block text-xs font-bold mb-1">Posisi Tahapan:</span><span id="drawerPipeline" class="font-extrabold text-indigo-700 text-sm"></span></div>
-          <div><span class="text-slate-400 block text-xs font-bold mb-1">Reviewer Aktual:</span><span id="drawerVerifier" class="font-black text-slate-900 text-sm"></span></div>
-          <div><span class="text-slate-400 block text-xs font-bold mb-1">Pembaruan LMS:</span><span id="drawerTimeUpdate" class="font-bold text-slate-600 text-sm"></span></div>
-        </div>
-      </div>
-
-      <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-        <div class="flex justify-between items-center mb-4">
-          <span class="text-base font-black text-slate-900">Matriks 33 Butir Borang:</span>
-          <span id="drawerScore" class="text-sm font-black text-emerald-700 bg-emerald-50 px-4 py-1.5 rounded-xl border border-emerald-200 shadow-sm">0 / 33</span>
-        </div>
-        <div class="grid grid-indicator gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner" id="indicatorGrid"></div>
-      </div>
-
-      <div id="missingSection" class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-        <span class="text-base font-black text-slate-900 block mb-3">Rincian Indikator Gagal (Revisi):</span>
-        <p id="drawerMissingList" class="text-sm text-rose-800 bg-rose-50 p-4 rounded-2xl border border-rose-100 font-mono leading-relaxed font-bold shadow-sm"></p>
-      </div>
-
-      <div class="bg-slate-900 text-white rounded-3xl p-6 shadow-xl print-hide relative overflow-hidden">
-        <div class="absolute -right-4 -top-4 opacity-10"><i data-lucide="send" class="w-32 h-32"></i></div>
-        <div class="relative z-10">
-          <div class="text-xs font-black mb-4 tracking-widest text-slate-400 uppercase">Aksi Hubungi Dosen Utama:</div>
-          <div class="grid grid-cols-2 gap-4 mb-4">
-            <a id="btnSendEmail" href="#" target="_blank" class="bg-rose-600 hover:bg-rose-500 text-white text-sm font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition">
-              <i data-lucide="mail" class="w-5 h-5"></i><span>Compose Gmail</span>
-            </a>
-            <a id="btnSendWA" href="#" target="_blank" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition">
-              <i data-lucide="message-circle" class="w-5 h-5"></i><span>WhatsApp Web</span>
-            </a>
+    <!-- WRAPPER UNTUK PRINT / HTML2CANVAS -->
+    <div id="detailDrawerContent" class="flex-1 bg-slate-50/50">
+      <div class="p-7 space-y-7">
+        <div class="w-full h-48 bg-slate-200 rounded-3xl overflow-hidden shadow-inner border border-slate-200 relative group print-hide flex items-center justify-center">
+          <i data-lucide="image" class="w-12 h-12 text-slate-400 absolute"></i>
+          <img id="drawerThumbnailImg" src="" alt="Course Cover" class="w-full h-full object-cover z-10 opacity-0 transition-opacity duration-500" onload="this.classList.remove('opacity-0')" onerror="this.onerror=null; this.src=`https://ui-avatars.com/api/?name=${encodeURIComponent(document.getElementById('drawerTitle').textContent)}&background=0f172a&color=fff&size=512&font-size=0.25&bold=true`; this.classList.remove('opacity-0');" />
+          <div class="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent z-20 flex items-end p-5">
+             <div class="text-white text-[10px] font-black tracking-widest uppercase bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/20 shadow-sm flex items-center gap-1.5"><i data-lucide="monitor-play" class="w-3.5 h-3.5"></i> Featured Cover API</div>
           </div>
-          <button id="btnCopyFeedback" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-sm font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition shadow-md">
-            <i data-lucide="copy" class="w-5 h-5 text-slate-400"></i><span>Salin Draf Evaluasi ke Clipboard</span>
-          </button>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-200 rounded-3xl p-5 shadow-sm">
+          <div class="text-xs font-black uppercase tracking-widest text-amber-800 flex items-center gap-2 mb-2"><div class="p-1.5 bg-amber-100 rounded-lg"><i data-lucide="compass" class="w-4 h-4 text-amber-700"></i></div> Rekomendasi Eksekusi Dasbor</div>
+          <p id="drawerAction" class="text-base font-bold text-amber-950 leading-relaxed"></p>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+          <span class="text-slate-500 block text-[11px] font-black uppercase tracking-widest">Metrik Retensi & Kelulusan</span>
+          <div class="grid grid-cols-4 gap-4 text-center">
+            <a id="drawerBtnEnrol" href="#" target="_blank" class="bg-slate-50 hover:bg-sky-50 p-3 rounded-2xl border border-slate-200 hover:border-sky-300 shadow-sm transition block cursor-pointer group">
+               <span class="block text-[11px] text-slate-500 group-hover:text-sky-700 font-bold mb-1 flex items-center justify-center gap-1">Terdaftar <i data-lucide="external-link" class="w-3 h-3"></i></span>
+               <strong id="drawerEnrolled" class="text-xl font-black text-slate-900 group-hover:text-sky-800">0</strong>
+            </a>
+            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100"><span class="block text-[11px] text-slate-500 font-bold mb-1">Selesai</span><strong id="drawerCompleted" class="text-xl font-black text-slate-900">0</strong></div>
+            <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-100"><span class="block text-[11px] text-emerald-700 font-bold mb-1">Sertifikat</span><strong id="drawerCertified" class="text-xl font-black text-emerald-600">0</strong></div>
+            <div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100"><span class="block text-[11px] text-indigo-700 font-bold mb-1">Rasio Lulus</span><strong id="drawerCertRate" class="text-xl font-black text-indigo-600">0%</strong></div>
+          </div>
+        </div>
+
+        <div class="space-y-5 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm text-sm">
+          <div>
+            <span class="text-slate-500 block text-[11px] font-black uppercase mb-3 tracking-widest">Hierarki Tim Dosen Pengampu:</span>
+            <div id="drawerTeacherTags" class="flex flex-wrap gap-2.5 max-h-48 overflow-y-auto custom-scroll pr-3"></div>
+          </div>
+          <div class="grid grid-cols-2 gap-5 pt-4 border-t border-slate-100">
+            <div><span class="text-slate-400 block text-xs font-bold mb-1">Wewenang Saat Ini:</span><span id="drawerOwner" class="font-black text-slate-900 text-sm bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200"></span></div>
+            <div><span class="text-slate-400 block text-xs font-bold mb-1">Posisi Tahapan:</span><span id="drawerPipeline" class="font-extrabold text-indigo-700 text-sm"></span></div>
+            <div><span class="text-slate-400 block text-xs font-bold mb-1">Reviewer Aktual:</span><span id="drawerVerifier" class="font-black text-slate-900 text-sm"></span></div>
+            <div><span class="text-slate-400 block text-xs font-bold mb-1">Pembaruan LMS:</span><span id="drawerTimeUpdate" class="font-bold text-slate-600 text-sm"></span></div>
+          </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+          <div class="flex justify-between items-center mb-4">
+            <span class="text-base font-black text-slate-900">Matriks 33 Butir Borang:</span>
+            <span id="drawerScore" class="text-sm font-black text-emerald-700 bg-emerald-50 px-4 py-1.5 rounded-xl border border-emerald-200 shadow-sm">0 / 33</span>
+          </div>
+          <div class="grid grid-indicator gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner" id="indicatorGrid"></div>
+        </div>
+
+        <div id="missingSection" class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+          <span class="text-base font-black text-slate-900 block mb-3">Rincian Indikator Gagal (Revisi):</span>
+          <p id="drawerMissingList" class="text-sm text-rose-800 bg-rose-50 p-4 rounded-2xl border border-rose-100 font-mono leading-relaxed font-bold shadow-sm"></p>
+        </div>
+
+        <div class="bg-slate-900 text-white rounded-3xl p-6 shadow-xl print-hide relative overflow-hidden">
+          <div class="absolute -right-4 -top-4 opacity-10"><i data-lucide="send" class="w-32 h-32"></i></div>
+          <div class="relative z-10">
+            <div class="text-xs font-black mb-4 tracking-widest text-slate-400 uppercase">Aksi Hubungi Dosen Utama:</div>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+              <a id="btnSendEmail" href="#" target="_blank" class="bg-rose-600 hover:bg-rose-500 text-white text-sm font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition">
+                <i data-lucide="mail" class="w-5 h-5"></i><span>Compose Gmail</span>
+              </a>
+              <a id="btnSendWA" href="#" target="_blank" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition">
+                <i data-lucide="message-circle" class="w-5 h-5"></i><span>WhatsApp Web</span>
+              </a>
+            </div>
+            <button id="btnCopyFeedback" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-sm font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition shadow-md">
+              <i data-lucide="copy" class="w-5 h-5 text-slate-400"></i><span>Salin Draf Evaluasi ke Clipboard</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -418,7 +435,6 @@
         e.preventDefault(); const u = document.getElementById('inputUsername').value.trim(), p = document.getElementById('inputPassword').value.trim(); const h = await hashCredentials(`${u}:${p}:${AUTH_SALT}`); 
         if (VALID_HASHES.includes(h)) { 
           saveStorageKey('idols_auth_token', h); touchActivity(); document.getElementById('loginError').classList.add('hidden'); unlockApp(); 
-          // Paksa pengosongan memori tiap kali login baru (sesuai instruksi)
           removeStorageKey('idols_rvw_v8'); rawDataset = []; document.getElementById('emptyState')?.classList.remove('hidden'); document.getElementById('dashboardContent')?.classList.add('hidden'); document.getElementById('btnExecutiveReport')?.classList.add('hidden'); document.getElementById('btnDownloadExcel')?.classList.add('hidden');
         } else { document.getElementById('loginError').classList.remove('hidden'); }
       });
@@ -454,14 +470,16 @@
         });
       });
 
-      ['filterColDosen','filterColOwner','filterColPipeline','filterColScore','filterColVerifier'].forEach(id => document.getElementById(id)?.addEventListener('change', applyFilters));
       document.getElementById('btnCloseDrawer')?.addEventListener('click', closeDrawer);
       document.getElementById('drawerOverlay')?.addEventListener('click', () => { closeDrawer(); closeExecDrawer(); });
       document.getElementById('btnExecutiveReport')?.addEventListener('click', openExecDrawer);
       document.getElementById('btnCloseExecDrawer')?.addEventListener('click', closeExecDrawer);
-      document.getElementById('btnDownloadExecPng')?.addEventListener('click', captureExecReportToPng);
-      document.getElementById('btnDownloadExecPdf')?.addEventListener('click', () => window.print());
       document.getElementById('btnDownloadExcel')?.addEventListener('click', exportToExcel);
+      
+      document.getElementById('btnDownloadExecPng')?.addEventListener('click', () => captureToPng('executiveReportContent', 'Laporan_Eksekutif'));
+      document.getElementById('btnDownloadExecPdf')?.addEventListener('click', () => { document.body.classList.add('print-exec'); window.print(); document.body.classList.remove('print-exec'); });
+      document.getElementById('btnDownloadDetailPng')?.addEventListener('click', () => captureToPng('detailDrawerContent', `Detail_Kursus_${currentSelectedCourse?.course_id}`));
+      document.getElementById('btnDownloadDetailPdf')?.addEventListener('click', () => { document.body.classList.add('print-detail'); window.print(); document.body.classList.remove('print-detail'); });
     }
 
     function handleFile(e) {
@@ -499,30 +517,13 @@
     function renderApp() {
       if(rawDataset.length === 0) { document.getElementById('emptyState')?.classList.remove('hidden'); document.getElementById('dashboardContent')?.classList.add('hidden'); document.getElementById('btnExecutiveReport')?.classList.add('hidden'); document.getElementById('btnDownloadExcel')?.classList.add('hidden'); return; }
       document.getElementById('emptyState')?.classList.add('hidden'); document.getElementById('dashboardContent')?.classList.remove('hidden'); document.getElementById('btnExecutiveReport')?.classList.remove('hidden'); document.getElementById('btnExecutiveReport')?.classList.add('inline-flex'); document.getElementById('btnDownloadExcel')?.classList.remove('hidden'); document.getElementById('btnDownloadExcel')?.classList.add('inline-flex');
-      populateDropdowns(); applyFilters(); updateExecutiveMetrics(); lucide.createIcons();
+      applyFilters(); updateExecutiveMetrics(); lucide.createIcons();
     }
 
     function resetFilters() {
       const s = document.getElementById('searchInput'); if(s) s.value = ''; const m = document.getElementById('moocFilter'); if(m) m.value = 'all'; const r = document.getElementById('roleFilterDropdown'); if(r) r.value = 'all';
-      ['filterColDosen','filterColOwner','filterColPipeline','filterColScore','filterColVerifier'].forEach(id => { const el=document.getElementById(id); if(el) el.value = ''; });
       activeRole = 'all'; activePipelinePhase = null; document.querySelectorAll('.pipeline-step').forEach(st => st.classList.remove('ring-[3px]','ring-indigo-400','shadow-md','scale-[1.02]'));
       applyFilters();
-    }
-
-    function populateDropdowns() {
-      const dSel = document.getElementById('filterColDosen'), vSel = document.getElementById('filterColVerifier');
-      const cD = dSel?.value || '', cV = vSel?.value || '', dSet = new Set(), vSet = new Set();
-      rawDataset.forEach(r => {
-        if(r.dosen_pengampu && r.dosen_pengampu !== '-') {
-            String(r.dosen_pengampu).split('|').forEach(str => {
-                const parts = str.split('::'); const name = parts.length > 1 ? parts[1].trim() : parts[0].trim();
-                if(name.length > 1) dSet.add(name);
-            });
-        }
-        if(r.verifikator_terakhir && r.verifikator_terakhir !== '-') vSet.add(String(r.verifikator_terakhir).trim());
-      });
-      if(dSel) { dSel.innerHTML = '<option value="">Semua Dosen</option>'; Array.from(dSet).sort().forEach(d => dSel.appendChild(new Option(d, d))); dSel.value = cD; }
-      if(vSel) { vSel.innerHTML = '<option value="">Semua Reviewer</option>'; Array.from(vSet).sort().forEach(v => vSel.appendChild(new Option(v, v))); vSel.value = cV; }
     }
 
     function toggleSort(col) { if(sortCol===col) sortAsc=!sortAsc; else{ sortCol=col; sortAsc=true; } updateSortInd(); applyFilters(); }
@@ -530,7 +531,7 @@
 
     let currentFilteredData = [];
     function applyFilters() {
-      const q = document.getElementById('searchInput')?.value.toLowerCase() || ''; const mooc = document.getElementById('moocFilter')?.value || 'all'; const cD = document.getElementById('filterColDosen')?.value.toLowerCase() || ''; const cO = document.getElementById('filterColOwner')?.value || ''; const cP = document.getElementById('filterColPipeline')?.value || ''; const cS = document.getElementById('filterColScore')?.value || ''; const cV = document.getElementById('filterColVerifier')?.value || '';
+      const q = document.getElementById('searchInput')?.value.toLowerCase() || ''; const mooc = document.getElementById('moocFilter')?.value || 'all'; 
       let drf=0, rev=0, rvs=0, pbq=0, pub=0;
 
       currentFilteredData = rawDataset.filter(i => {
@@ -544,11 +545,6 @@
 
         if(mooc==='non_kredit' && sc!==19 && !String(i.nama_kursus||'').toLowerCase().includes('pengantar')) return false;
         if(mooc==='kredit' && sc<32 && !String(i.nama_kursus||'').toLowerCase().includes('praktikum')) return false;
-        if(cD && !String(i.dosen_pengampu||'').toLowerCase().includes(cD)) return false;
-        if(cO && pj !== cO) return false;
-        if(cP && !pos.includes(cP)) return false;
-        if(cV && String(i.verifikator_terakhir||'').trim()!==cV) return false;
-        if(cS==='full' && sc<33) return false; if(cS==='noncredit' && sc!==19) return false; if(cS==='rejected' && (sc<=0 || sc>=33)) return false; if(cS==='none' && sc!==-1) return false;
 
         if(pos.startsWith('1a')) drf++; else if(pos.startsWith('1b')||pos.startsWith('3b')) rev++; else if(pos.startsWith('3a')||pos.startsWith('2b')||pos.startsWith('4b')||pos.includes('Ditolak')) rvs++; else if(pos.startsWith('4a')||pos.includes('Ready to Publish')) pbq++; else if(pos.startsWith('5')) pub++;
 
@@ -561,7 +557,7 @@
       });
 
       const st=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
-      st('pipelineTotal', drf+rev+rvs+pbq+pub); st('pipeCountDraf', drf); st('pipeCountReview', rev); st('pipeCountRevisi', rvs); st('pipeCountPublishQ', pbq); st('pipeCountPublished', pub); st('filteredCount', currentFilteredData.length);
+      st('pipelineTotal', drf+rev+rvs+pbq+pub); st('pipeCountDraf', drf); st('pipeCountReview', rev); st('pipeCountRevisi', rvs); st('pipeCountPublishQ', pbq); st('pipeCountPublished', pub);
 
       currentFilteredData.sort((a,b) => { let vA=a[sortCol], vB=b[sortCol]; if(['course_id','skor_num','mhs_terdaftar','mhs_selesai','mhs_sertifikat'].includes(sortCol)){ vA=Number(vA)||0; vB=Number(vB)||0; } else { vA=String(vA||'').toLowerCase(); vB=String(vB||'').toLowerCase(); } return vA<vB ? (sortAsc?-1:1) : (vA>vB ? (sortAsc?1:-1) : 0); });
       
@@ -595,7 +591,7 @@
               <div class="text-[11px] text-slate-400 font-mono font-bold mt-1 mb-3">${r.kode_kursus||''}</div>
               <div class="inline-flex gap-2">
                 <button onclick="openDetailDrawer('${r.course_id}')" class="p-2 bg-slate-800 text-white hover:bg-slate-700 rounded-lg transition shadow-sm mr-2 px-3 text-xs font-bold flex items-center gap-1.5"><i data-lucide="scan-line" class="w-3.5 h-3.5 text-slate-300"></i> Detail Kursus</button>
-                <a href="https://idols2.ui.ac.id/enrol/index.php?id=${r.course_id}" target="_blank" class="p-2 bg-sky-50 text-sky-600 hover:bg-sky-500 hover:text-white rounded-lg transition border border-sky-100 shadow-sm" title="Panel Enrol"><i data-lucide="users" class="w-4 h-4"></i></a>
+                <a href="https://idols2.ui.ac.id/user/index.php?id=${r.course_id}" target="_blank" class="p-2 bg-sky-50 text-sky-600 hover:bg-sky-500 hover:text-white rounded-lg transition border border-sky-100 shadow-sm" title="Panel Enrol"><i data-lucide="users" class="w-4 h-4"></i></a>
                 <a href="https://idols2.ui.ac.id/local/checklist/borangnoncredit.php?id=${r.course_id}" target="_blank" class="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white rounded-lg transition border border-indigo-100 shadow-sm" title="Panel Borang"><i data-lucide="clipboard-edit" class="w-4 h-4"></i></a>
                 <a href="https://idols2.ui.ac.id/local/checklist/publishnoncredit.php?id=${r.course_id}" target="_blank" class="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded-lg transition border border-emerald-100 shadow-sm" title="Panel Publish"><i data-lucide="rocket" class="w-4 h-4"></i></a>
               </div>
@@ -618,21 +614,17 @@
       
       const thImg = document.getElementById('drawerThumbnailImg');
       if(thImg) {
-        // Trik khusus untuk memanggil API pluginfile Moodle dengan endpoint Overviewfiles. 
-        // Jika gagal dimuat (404/belum login), fallback menggunakan ui-avatars.
-        const cTitle = encodeURIComponent(c.nama_kursus || 'Course');
         thImg.classList.add('opacity-0');
-        // Proxy URL attempt (Berdasarkan Moodle standar format)
-        const coverUrl = `https://idols2.ui.ac.id/theme/image.php/remui/course/1/overviewfiles/`; 
-        thImg.src = coverUrl;
-        thImg.onerror = function() {
-            this.onerror = null;
-            this.src = `https://ui-avatars.com/api/?name=${cTitle}&background=0f172a&color=fff&size=512&font-size=0.25&bold=true`;
-        };
+        const cTitle = encodeURIComponent(c.nama_kursus || 'Course');
+        if(c.url_gambar && c.url_gambar !== '-' && c.url_gambar !== '') {
+            thImg.src = c.url_gambar;
+        } else {
+            thImg.src = `https://ui-avatars.com/api/?name=${cTitle}&background=0f172a&color=fff&size=512&font-size=0.25&bold=true`;
+        }
       }
 
       sT('drawerBadge', `ID ${c.course_id}`); const eDCL = document.getElementById('drawerDirectCourseLink'); if(eDCL) eDCL.href=`https://idols2.ui.ac.id/course/view.php?id=${c.course_id}`;
-      document.getElementById('drawerBtnEnrol').href = `https://idols2.ui.ac.id/enrol/users.php?id=${c.course_id}`;
+      document.getElementById('drawerBtnEnrol').href = `https://idols2.ui.ac.id/user/index.php?id=${c.course_id}`;
       sT('drawerTitle', c.nama_kursus); sT('drawerCode', c.kode_kursus); sT('drawerAction', c.tindakan_selanjutnya); sT('drawerOwner', c.penanggung_jawab); sT('drawerPipeline', c.posisi_alur); sT('drawerVerifier', c.verifikator_terakhir); sT('drawerCreator', c.pengaju); sT('drawerScore', `${c.skor_borang||'-'} (${c.persen_kelengkapan||'0%'})`); sT('drawerMissingList', c.butir_perlu_revisi||'Semua Butir Terpenuhi (100% Kriteria Lengkap)'); sT('drawerEnrolled', c.mhs_terdaftar); sT('drawerCompleted', c.mhs_selesai); sT('drawerCertified', c.mhs_sertifikat); sT('drawerCertRate', c.rasio_kelulusan); sT('drawerTimeUpdate', c.tgl_update_terakhir_kursus);
 
       const tc = document.getElementById('drawerTeacherTags'); 
@@ -657,74 +649,39 @@
         }
       }
 
-      // PREFILLED GMAIL COMPOSE
       const btnEmail = document.getElementById('btnSendEmail');
       if(btnEmail) {
           if(cleanEmails.length > 0) {
               btnEmail.onclick = (e) => {
-                  e.preventDefault();
-                  const targetEmail = cleanEmails.join(',');
-                  const subject = encodeURIComponent(`Evaluasi Borang IDOLS2 - ${c.nama_kursus}`);
-                  const body = encodeURIComponent(`Yth. Bapak/Ibu Dosen Pengampu,\n\nBerikut adalah hasil evaluasi sistem borang IDOLS2 untuk modul kursus "${c.nama_kursus}" (ID: ${c.course_id}).\n\n- Posisi Tahap: ${c.posisi_alur}\n- Skor Kelengkapan: ${c.skor_borang}\n- Catatan Indikator: ${c.butir_perlu_revisi||'Lengkap 100%'}\n\nMohon untuk menindaklanjuti status tersebut pada tautan berikut: https://idols2.ui.ac.id/course/view.php?id=${c.course_id}\n\nSalam,\nTim Reviewer IDOLS2 UI`);
-                  window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${targetEmail}&su=${subject}&body=${body}`, '_blank');
+                  e.preventDefault(); const targetEmail = cleanEmails.join(','); const subject = encodeURIComponent(`Evaluasi Borang IDOLS2 - ${c.nama_kursus}`); const body = encodeURIComponent(`Yth. Bapak/Ibu Dosen Pengampu,\n\nBerikut adalah hasil evaluasi sistem borang IDOLS2 untuk modul kursus "${c.nama_kursus}" (ID: ${c.course_id}).\n\n- Posisi Tahap: ${c.posisi_alur}\n- Skor Kelengkapan: ${c.skor_borang}\n- Catatan Indikator: ${c.butir_perlu_revisi||'Lengkap 100%'}\n\nMohon untuk menindaklanjuti status tersebut pada tautan berikut: https://idols2.ui.ac.id/course/view.php?id=${c.course_id}\n\nSalam,\nTim Reviewer IDOLS2 UI`); window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${targetEmail}&su=${subject}&body=${body}`, '_blank');
               };
               btnEmail.classList.remove('opacity-50','cursor-not-allowed');
           } else {
-              btnEmail.onclick = (e) => { e.preventDefault(); alert('Email dosen tidak terdeteksi di dalam database kursus ini.'); };
-              btnEmail.classList.add('opacity-50','cursor-not-allowed');
+              btnEmail.onclick = (e) => { e.preventDefault(); alert('Email dosen tidak terdeteksi di dalam database kursus ini.'); }; btnEmail.classList.add('opacity-50','cursor-not-allowed');
           }
       }
 
-      // WHATSAPP API (Memungkinkan user paste/ketik nomor manual di wa.me)
       const btnWA = document.getElementById('btnSendWA');
       if(btnWA) {
           btnWA.onclick = (e) => {
-              e.preventDefault();
-              const text = encodeURIComponent(`Yth. Bapak/Ibu Dosen Pengampu,\n\nInfo evaluasi IDOLS2 untuk kursus *${c.nama_kursus}* (ID: ${c.course_id}):\n- Status: ${c.posisi_alur}\n- Skor: ${c.skor_borang}\n- Catatan Revisi: ${c.butir_perlu_revisi||'Lengkap 100%'}\n\nTautan perbaikan: https://idols2.ui.ac.id/course/view.php?id=${c.course_id}`);
-              window.open(`https://wa.me/?text=${text}`, '_blank');
+              e.preventDefault(); const text = encodeURIComponent(`Yth. Bapak/Ibu Dosen Pengampu,\n\nInfo evaluasi IDOLS2 untuk kursus *${c.nama_kursus}* (ID: ${c.course_id}):\n- Status: ${c.posisi_alur}\n- Skor: ${c.skor_borang}\n- Catatan Revisi: ${c.butir_perlu_revisi||'Lengkap 100%'}\n\nTautan perbaikan: https://idols2.ui.ac.id/course/view.php?id=${c.course_id}`); window.open(`https://wa.me/?text=${text}`, '_blank');
           };
       }
 
-      document.getElementById('btnCopyFeedback').onclick = copyFeedback;
       document.getElementById('drawerOverlay')?.classList.remove('hidden'); document.getElementById('detailDrawer')?.classList.remove('translate-x-full'); lucide.createIcons();
     }
 
     function closeDrawer() { document.getElementById('detailDrawer')?.classList.add('translate-x-full'); document.getElementById('drawerOverlay')?.classList.add('hidden'); }
     function copyFeedback() { if(!currentSelectedCourse) return; const c=currentSelectedCourse; navigator.clipboard.writeText(`Yth. Bapak/Ibu Dosen Pengampu,\nHasil verifikasi borang IDOLS2 "${c.nama_kursus}" (ID: ${c.course_id}):\n- Status: ${c.posisi_alur}\n- Skor: ${c.skor_borang}\n- Catatan Revisi: ${c.butir_perlu_revisi||'Lengkap 100%'}\nLink: https://idols2.ui.ac.id/course/view.php?id=${c.course_id}`); alert("Teks instruksi evaluasi berhasil disalin ke clipboard!"); }
 
-    function updateExecutiveMetrics() {
-      if(rawDataset.length === 0) return;
-      const exT = document.getElementById('execTimestamp'); if(exT) exT.textContent = `Sintesis Data: ${new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit'})} WIB`;
-
-      let tPub=0, tRev=0, tRvs=0, nk=0, kr=0, tEnr=0, tCrt=0; const vMap = {}, mMap = {};
-      rawDataset.forEach(r => {
-        const p = String(r.posisi_alur||''), s = r.skor_num;
-        if(p.startsWith('5')) tPub++; if(p.startsWith('1b')||p.startsWith('3b')) tRev++; if(p.startsWith('3a')||p.startsWith('2b')||p.startsWith('4b')||p.includes('Ditolak')) tRvs++;
-        if(s===19 || String(r.nama_kursus||'').toLowerCase().includes('pengantar')) nk++; if(s>=32 || String(r.nama_kursus||'').toLowerCase().includes('praktikum')) kr++;
-        tEnr += (r.mhs_terdaftar || 0); tCrt += (r.mhs_sertifikat || 0);
-        if(r.verifikator_terakhir && r.verifikator_terakhir !== '-') { const v = String(r.verifikator_terakhir).trim(); vMap[v] = (vMap[v]||0)+1; }
-        const b = String(r.butir_perlu_revisi||''); if(b && !b.includes('Semua Butir') && b !== '-') { const matches = b.match(/Butir\s+\d+/gi); if(matches) matches.forEach(m => { mMap[m] = (mMap[m]||0)+1; }); }
-      });
-
-      const st = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
-      st('exTotCourse', rawDataset.length); st('exTotPublished', tPub); st('exTotReviewing', tRev); st('exTotRevisi', tRvs);
-      const rateP = ((tPub / rawDataset.length) * 100).toFixed(1); st('exRatePub', `${rateP}%`); const ebP = document.getElementById('exBarPub'); if(ebP) ebP.style.width = `${rateP}%`;
-      const totPath = nk+kr||1; const rateN = ((nk/totPath)*100).toFixed(1), rateK = ((kr/totPath)*100).toFixed(1);
-      st('exRateNon', `${rateN}%`); const ebN = document.getElementById('exBarNon'); if(ebN) ebN.style.width = `${rateN}%`;
-      st('exRateKre', `${rateK}%`); const ebK = document.getElementById('exBarKre'); if(ebK) ebK.style.width = `${rateK}%`;
-      st('exSumEnrolled', tEnr.toLocaleString('id-ID')); st('exSumCertified', tCrt.toLocaleString('id-ID')); st('exSumRate', tEnr>0 ? `${((tCrt/tEnr)*100).toFixed(2)}%` : '0.00%');
-
-      const mArr = Object.entries(mMap).sort((a,b)=>b[1]-a[1]).slice(0, 8); const mg = document.getElementById('exTopMissingGrid'); 
-      if(mg) { mg.innerHTML = ''; mArr.forEach(m => { mg.innerHTML += `<div class="bg-rose-50 border border-rose-100 rounded-xl p-4 text-center"><div class="text-[11px] font-black text-rose-800 uppercase tracking-wide">${m[0]}</div><div class="text-2xl font-black text-rose-600 leading-none mt-2">${m[1]} <span class="text-[10px] font-bold text-rose-400">kasus</span></div></div>`; }); }
-
-      const vArr = Object.entries(vMap).sort((a,b)=>b[1]-a[1]).slice(0, 5); const vt = document.getElementById('exVerifierTable');
-      if(vt) { vt.innerHTML = ''; let totV = Object.values(vMap).reduce((a,b)=>a+b, 0) || 1; vArr.forEach(v => { vt.innerHTML += `<tr><td class="py-3 px-4">${v[0]}</td><td class="py-3 px-4 text-center text-lg">${v[1]}</td><td class="py-3 px-4"><div class="flex items-center gap-3"><div class="w-full bg-slate-100 h-2.5 rounded-full"><div class="bg-amber-500 h-full rounded-full" style="width:${((v[1]/totV)*100)}%"></div></div><span class="text-xs text-slate-500 font-black w-10 text-right">${((v[1]/totV)*100).toFixed(0)}%</span></div></td></tr>`; }); }
+    function captureToPng(elemId, filename) {
+        const el = document.getElementById(elemId); if(!el) return;
+        document.querySelectorAll('.print-hide').forEach(n => n.style.display = 'none');
+        html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#f8fafc' }).then(canvas => {
+            const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = `${filename}_${Date.now()}.png`; a.click();
+            document.querySelectorAll('.print-hide').forEach(n => n.style.display = '');
+        });
     }
-
-    function openExecDrawer() { updateExecutiveMetrics(); document.getElementById('drawerOverlay')?.classList.remove('hidden'); document.getElementById('drawerExecutive')?.classList.remove('translate-x-full'); lucide.createIcons(); }
-    function closeExecDrawer() { document.getElementById('drawerExecutive')?.classList.add('translate-x-full'); document.getElementById('drawerOverlay')?.classList.add('hidden'); }
-    function captureExecReportToPng() { const el = document.getElementById('executiveReportContent'); if(!el) return; document.querySelectorAll('.print-hide').forEach(n => n.style.display = 'none'); html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#f8fafc' }).then(canvas => { const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = `Executive_Report_IDOLS2_${Date.now()}.png`; a.click(); document.querySelectorAll('.print-hide').forEach(n => n.style.display = ''); }); }
-    function copyExecMd() { const gT = id => document.getElementById(id)?.textContent || '0'; const md = `# Executive Report - IDOLS2\n*Generated: ${new Date().toLocaleString('id-ID')}*\n\n## 📊 Populasi:\n- Total: ${gT('exTotCourse')}\n- Published: ${gT('exTotPublished')} (${gT('exRatePub')})\n- Review: ${gT('exTotReviewing')}\n- Revisi: ${gT('exTotRevisi')}\n\n## 🎓 Kelulusan:\n- Terdaftar: ${gT('exSumEnrolled')}\n- Bersertifikat: ${gT('exSumCertified')}\n- Success Rate: ${gT('exSumRate')}`; navigator.clipboard.writeText(md.trim()).then(() => alert('Markdown disalin ke clipboard!')); }
 
     function exportToExcel() {
         if(!currentFilteredData || currentFilteredData.length === 0) { alert('Tidak ada data untuk diekspor!'); return; }
@@ -749,7 +706,6 @@
             };
         });
         const worksheet = XLSX.utils.json_to_sheet(wsData);
-        // Atur lebar kolom Excel agar rapi
         const wscols = [{wch:10}, {wch:45}, {wch:20}, {wch:35}, {wch:25}, {wch:30}, {wch:40}, {wch:15}, {wch:40}, {wch:25}, {wch:15}, {wch:15}, {wch:15}, {wch:20}];
         worksheet['!cols'] = wscols;
         const workbook = XLSX.utils.book_new();
