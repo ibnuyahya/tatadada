@@ -108,7 +108,7 @@
           <div class="flex flex-col">
             <h1 class="text-base font-extrabold text-white tracking-tight">Idola2 Dasbor Review</h1>
             <div class="flex items-center gap-2 text-[11px]">
-              <span class="text-slate-400 font-bold">v8.1 Studio</span>
+              <span class="text-slate-400 font-bold">v8.2 Studio</span>
               <span class="text-slate-600">|</span>
               <a href="https://danial.my.id" target="_blank" class="lowercase font-black tracking-[0.2em] text-slate-400 hover:text-indigo-400 transition-colors">by AhmadDanial</a>
             </div>
@@ -125,8 +125,8 @@
           <div class="w-px h-6 bg-slate-700 hidden sm:block mx-1"></div>
 
           <!-- Tombol Clear Data -->
-          <button id="btnClearData" class="hidden bg-rose-800 hover:bg-rose-600 text-rose-100 hover:text-white border border-rose-700 text-sm font-bold px-4 py-2 rounded-xl items-center gap-2 transition shadow">
-            <i data-lucide="trash-2" class="w-4 h-4"></i><span class="hidden sm:inline">Hapus CSV</span>
+          <button id="btnClearData" class="hidden bg-rose-800 hover:bg-rose-600 text-rose-100 hover:text-white border border-rose-700 text-sm font-bold px-4 py-2 rounded-xl items-center gap-2 transition shadow" title="Bersihkan Data CSV dari Memori">
+            <i data-lucide="trash-2" class="w-4 h-4"></i><span class="hidden sm:inline">Bersihkan CSV</span>
           </button>
 
           <label class="cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-4 py-2 rounded-xl flex items-center gap-2 shadow-md transition">
@@ -294,13 +294,12 @@
     <div id="detailDrawerContent" class="flex-1 bg-slate-50/50">
       <div class="p-7 space-y-7">
         
-        <!-- Thumbnail Cover Course -->
-        <div class="w-full h-48 bg-slate-200 rounded-3xl overflow-hidden shadow-inner border border-slate-200 relative group flex items-center justify-center">
+        <!-- Thumbnail Cover Course (Diberikan ID Khusus untuk manipulasi DOM saat print) -->
+        <div id="captureCoverContainer" class="w-full h-48 bg-slate-200 rounded-3xl overflow-hidden shadow-inner border border-slate-200 relative group flex items-center justify-center">
           <i data-lucide="image" class="w-12 h-12 text-slate-400 absolute"></i>
-          
           <img id="drawerThumbnailImg" src="" alt="Course Cover" class="w-full h-full object-cover z-10 opacity-0 transition-opacity duration-500" onload="this.classList.remove('opacity-0')" />
           
-          <div class="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent z-20 flex items-end p-5 print-hide">
+          <div class="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent z-20 flex items-end p-5 print-hide" id="captureCoverBadge">
              <div class="text-white text-[10px] font-black tracking-widest uppercase bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/20 shadow-sm flex items-center gap-1.5"><i data-lucide="monitor-play" class="w-3.5 h-3.5"></i> Featured Cover API</div>
           </div>
         </div>
@@ -458,7 +457,7 @@
     </div>
   </div>
 
-  <!-- CORE JAVASCRIPT LOGIC (V8.1 - UNMINIFIED) -->
+  <!-- CORE JAVASCRIPT LOGIC (V8.2 - UNMINIFIED) -->
   <script>
     const AUTH_SALT = "idols2_p4d_2026_salt";
     const VALID_HASHES = ["0d513f48e450a8f2625cd6b9fb1ad8d3f2c8bd1753be84b394ce629033fa883c", "27723c306a2651a9e7a84674e4b01a0587d36e16146ce41a322b16e2c8dc2155", "30c308ac17a7375157d21ad0afde6ed334efe8067c71400ddb8c0566afb164e8", "18e89f43c62200156631f26af1473dceb580565b614a0321b6748ac83b325b5e", "9f24bb1b4ce7a27722eac765e8b87cdf91c0c8d177746a1cd1499f78fe329087"];
@@ -812,7 +811,7 @@
       lucide.createIcons();
     }
 
-    // UPDATE V8.1: Parsing dosen_pengampu format baru (ID::Name::Email)
+    // UPDATE V8.2: Filter ekstrim pada string kosong sebelum diisi ke dropdown
     function populateDropdowns() {
       const dSel = document.getElementById('filterColDosen');
       const vSel = document.getElementById('filterColVerifier');
@@ -826,7 +825,7 @@
             String(r.dosen_pengampu).split('|').forEach(str => {
                 const parts = str.split('::'); 
                 const name = parts.length > 1 ? parts[1].trim() : parts[0].trim();
-                if(name.length > 1 && name !== '-') dSet.add(name);
+                if(name && name.length > 1 && name !== '-') dSet.add(name);
             });
         }
         if(r.verifikator_terakhir && r.verifikator_terakhir !== '-') {
@@ -958,7 +957,9 @@
               const dName = firstD.length>1 ? firstD[1].trim() : ''; 
               const dEmail = firstD.length>2 ? firstD[2].trim() : '';
               
-              dHtml = `<div><a ${dId ? `href="https://idols2.ui.ac.id/user/profile.php?id=${dId}" target="_blank"` : ''} class="font-extrabold text-slate-900 leading-tight hover:text-indigo-600 hover:underline inline-flex items-center gap-1">${dName} ${dId ? '<i data-lucide="external-link" class="w-2.5 h-2.5"></i>':''}</a>${rawD.length>1 ? `<button onclick="openDetailDrawer('${r.course_id}')" class="mt-1.5 px-2.5 py-1 bg-slate-100 text-slate-600 hover:bg-indigo-100 hover:text-indigo-700 border border-slate-200 text-[10px] font-black rounded-lg cursor-pointer transition shadow-sm block">+${rawD.length-1} Dosen Lain</button>`:''}${dEmail && dEmail!=='-' ? `<div class="text-[11px] text-slate-500 truncate max-w-[200px] font-mono mt-0.5">${dEmail}</div>`:''}</div>`;
+              if (dName) {
+                  dHtml = `<div><a ${dId ? `href="https://idols2.ui.ac.id/user/profile.php?id=${dId}" target="_blank"` : ''} class="font-extrabold text-slate-900 leading-tight hover:text-indigo-600 hover:underline inline-flex items-center gap-1">${dName} ${dId ? '<i data-lucide="external-link" class="w-2.5 h-2.5"></i>':''}</a>${rawD.length>1 ? `<button onclick="openDetailDrawer('${r.course_id}')" class="mt-1.5 px-2.5 py-1 bg-slate-100 text-slate-600 hover:bg-indigo-100 hover:text-indigo-700 border border-slate-200 text-[10px] font-black rounded-lg cursor-pointer transition shadow-sm block">+${rawD.length-1} Dosen Lain</button>`:''}${dEmail && dEmail!=='-' ? `<div class="text-[11px] text-slate-500 truncate max-w-[200px] font-mono mt-0.5">${dEmail}</div>`:''}</div>`;
+              }
             }
           }
 
@@ -1027,7 +1028,6 @@
       sT('drawerOwner', c.penanggung_jawab); 
       sT('drawerPipeline', c.posisi_alur); 
       sT('drawerVerifier', c.verifikator_terakhir); 
-      sT('drawerCreator', c.pengaju); 
       sT('drawerScore', `${c.skor_borang||'-'} (${c.persen_kelengkapan||'0%'})`); 
       sT('drawerMissingList', c.butir_perlu_revisi||'Semua Butir Terpenuhi (100% Kriteria Lengkap)'); 
       sT('drawerEnrolled', c.mhs_terdaftar); 
@@ -1051,12 +1051,15 @@
                 const dName = parts.length > 1 ? parts[1].trim() : ''; 
                 const dEmail = parts.length > 2 ? parts[2].trim() : '';
                 
-                if(dEmail && dEmail !== '-') cleanEmails.push(dEmail);
-                
-                const d = document.createElement('div'); 
-                d.className = 'px-3.5 py-2 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col min-w-[200px]'; 
-                d.innerHTML = `<a ${dId ? `href="https://idols2.ui.ac.id/user/profile.php?id=${dId}" target="_blank"`:''} class="font-extrabold text-slate-900 text-sm hover:text-indigo-600 hover:underline inline-flex items-center gap-1">${dName} ${dId ? '<i data-lucide="external-link" class="w-3 h-3 text-slate-400"></i>':''}</a>${dEmail && dEmail!=='-' ?`<span class="text-xs text-slate-500 font-mono mt-1">${dEmail}</span>`:''}`; 
-                tc.appendChild(d); 
+                // UPDATE V8.2: Filter Ekstrim terhadap Box Kosong
+                if(dName && dName !== '-') {
+                    if(dEmail && dEmail !== '-') cleanEmails.push(dEmail);
+                    
+                    const d = document.createElement('div'); 
+                    d.className = 'px-3.5 py-2 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col min-w-[200px]'; 
+                    d.innerHTML = `<a ${dId ? `href="https://idols2.ui.ac.id/user/profile.php?id=${dId}" target="_blank"`:''} class="font-extrabold text-slate-900 text-sm hover:text-indigo-600 hover:underline inline-flex items-center gap-1">${dName} ${dId ? '<i data-lucide="external-link" class="w-3 h-3 text-slate-400"></i>':''}</a>${dEmail && dEmail!=='-' ?`<span class="text-xs text-slate-500 font-mono mt-1">${dEmail}</span>`:''}`; 
+                    tc.appendChild(d); 
+                }
             });
         }
       }
@@ -1126,11 +1129,30 @@
         alert("Teks instruksi evaluasi berhasil disalin ke clipboard!"); 
     }
 
-    function captureToPng(elemId, filename) {
+    // UPDATE V8.2: Metode Proxy Bypass untuk HTML2Canvas agar gambar eksternal tidak diblokir
+    async function captureToPng(elemId, filename) {
         const el = document.getElementById(elemId); 
         if(!el) return;
         
         document.querySelectorAll('.print-hide').forEach(n => n.style.display = 'none');
+        const originalImg = document.getElementById('drawerThumbnailImg');
+        const oldSrc = originalImg ? originalImg.src : null;
+        
+        try {
+            // Jika gambar adalah URL eksternal (pluginfile), konversi paksa ke base64 secara internal sebelum rendering
+            if(originalImg && oldSrc && !oldSrc.startsWith('data:') && !oldSrc.includes('ui-avatars')) {
+                const response = await fetch(oldSrc);
+                const blob = await response.blob();
+                const reader = new FileReader();
+                const base64Data = await new Promise((resolve) => {
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.readAsDataURL(blob);
+                });
+                originalImg.src = base64Data;
+            }
+        } catch (e) {
+            console.warn("Proxy base64 gagal, mengandalkan html2canvas murni.", e);
+        }
         
         html2canvas(el, { 
             scale: 2, 
@@ -1143,9 +1165,11 @@
             a.download = `${filename}_${Date.now()}.png`; 
             a.click();
             document.querySelectorAll('.print-hide').forEach(n => n.style.display = '');
+            if(originalImg && oldSrc) originalImg.src = oldSrc;
         }).catch(err => {
-            alert("Terjadi kesalahan saat memproses gambar (kemungkinan limitasi CORS dari server Moodle).");
+            alert("Terjadi kesalahan sistem peramban saat mengekstrak PNG.");
             document.querySelectorAll('.print-hide').forEach(n => n.style.display = '');
+            if(originalImg && oldSrc) originalImg.src = oldSrc;
         });
     }
 
@@ -1251,8 +1275,8 @@
             const rawD = String(r.dosen_pengampu||'').split('|').map(s=>s.trim()).filter(Boolean);
             const cleanDosen = rawD.map(str => { 
                 const parts = str.split('::'); 
-                return parts.length > 1 ? parts[1] : parts[0]; 
-            }).join(', ');
+                return parts.length > 1 ? parts[1].trim() : parts[0].trim(); 
+            }).filter(Boolean).join(', ');
             
             return {
                 "ID Kursus": r.course_id || '-',
