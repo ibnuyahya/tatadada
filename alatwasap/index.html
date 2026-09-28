@@ -90,7 +90,6 @@
         body {
             background-color: var(--preview-bg);
             color: var(--text-main);
-            /* Prevent overscroll bounce on Mac */
             overscroll-behavior-y: none;
         }
 
@@ -130,9 +129,13 @@
         /* Fixing Tailwind Reset for Lists inside Editor */
         #editorInput ol { list-style-type: decimal; padding-left: 1.5rem; margin-top: 0.5em; margin-bottom: 0.5em; }
         #editorInput ul { list-style-type: disc; padding-left: 1.5rem; margin-top: 0.5em; margin-bottom: 0.5em; }
+        #editorInput ol ol { list-style-type: lower-alpha; }
+        #editorInput ol ol ol { list-style-type: lower-roman; }
+        #editorInput ul ul { list-style-type: circle; }
+        #editorInput ul ul ul { list-style-type: square; }
         #editorInput p { margin-bottom: 0.75em; }
         
-        /* Menampilkan batas tabel di dalam editor agar rapi saat di-paste */
+        /* Table visualization in editor */
         #editorInput table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.875rem; }
         #editorInput th, #editorInput td { border: 1px solid var(--border-color); padding: 0.5rem; text-align: left; }
         #editorInput th { background-color: var(--preview-bg); font-weight: 600; }
@@ -165,7 +168,7 @@
             <div class="flex flex-col leading-none">
                 <h1 class="text-base font-bold bg-clip-text text-transparent bg-gradient-to-r from-main to-dim tracking-tight" id="headerTitle">AlatWasap</h1>
                 <div class="flex items-center gap-2 mt-1">
-                    <span class="text-[10px] font-mono text-dim italic">v3.0</span>
+                    <span class="text-[10px] font-mono text-dim italic">v3.1</span>
                     <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-accent transition-colors">by AhmadDanial</a>
                 </div>
             </div>
@@ -179,8 +182,9 @@
                     <p class="font-semibold mb-1" id="helpTitle">Cara Penggunaan:</p>
                     <ul class="list-disc pl-4 space-y-1 text-dim" id="helpDesc">
                         <li>Paste hasil dari AI ke panel kiri.</li>
-                        <li>Format akan diubah otomatis ke sintaks WA.</li>
-                        <li>Masukkan nomor WA tujuan untuk chat langsung tanpa save nomor.</li>
+                        <li>Format seperti tabel dan list bertingkat akan dikonversi otomatis.</li>
+                        <li>Pilih gaya list bertingkat sesuai kenyamanan Anda.</li>
+                        <li>Masukkan nomor WA tujuan untuk chat langsung tanpa simpan nomor.</li>
                     </ul>
                 </div>
             </button>
@@ -222,9 +226,9 @@
             <div id="editorInput" contenteditable="true" 
                  class="flex-1 p-5 overflow-y-auto bg-editor outline-none text-[14px] leading-relaxed transition-colors duration-300"
                  data-placeholder="Paste teks / output AI di sini untuk diformat otomatis..."></div>
-                 
-            <!-- Editor Options (Toggles) -->
-            <div class="p-3 border-t border-border bg-preview/50 shrink-0 flex flex-col gap-2">
+
+            <!-- Editor Options (Toggles & Format Controls) -->
+            <div class="p-3.5 border-t border-border bg-preview/50 shrink-0 flex flex-col gap-2.5">
                 <label class="flex items-start gap-2 text-xs cursor-pointer group">
                     <input type="checkbox" id="spaceListCb" class="mt-0.5 accent-accent w-3.5 h-3.5 rounded border-border"> 
                     <span class="text-dim group-hover:text-main transition-colors">
@@ -232,6 +236,7 @@
                         <span id="lblSpaceDesc">Beri jarak 1 baris kosong antar item daftar (bullet/nomor).</span>
                     </span>
                 </label>
+
                 <label class="flex items-start gap-2 text-xs cursor-pointer group">
                     <input type="checkbox" id="removeFormatCb" class="mt-0.5 accent-red-500 w-3.5 h-3.5 rounded border-border"> 
                     <span class="text-dim group-hover:text-main transition-colors">
@@ -239,6 +244,19 @@
                         <span id="lblRemoveFormatDesc">Hilangkan format tebal (*), miring (_), dan coret (~).</span>
                     </span>
                 </label>
+
+                <!-- Multi-level List Style Selector -->
+                <div class="flex items-center justify-between gap-2 pt-2 border-t border-border/60">
+                    <label for="nestedListStyle" class="text-xs text-dim flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="list-tree" class="w-3.5 h-3.5 text-accent"></i>
+                        <span id="lblNestedTitle" class="font-medium text-main">Daftar Bertingkat:</span>
+                    </label>
+                    <select id="nestedListStyle" class="text-xs bg-editor text-main border border-border rounded-lg px-2.5 py-1 outline-none focus:ring-1 focus:ring-accent transition-colors cursor-pointer font-medium">
+                        <option value="em-space">Indentasi Em-Space ( a. /  •)</option>
+                        <option value="decimal">Hierarki Desimal (1.1, 1.2)</option>
+                        <option value="branch">Simbol Cabang (↳ a. / ↳ •)</option>
+                    </select>
+                </div>
             </div>
         </section>
 
@@ -349,7 +367,7 @@
                         <i data-lucide="cpu" class="w-3.5 h-3.5"></i> <span id="mdlSub1">Teknologi & Privasi</span>
                     </h4>
                     <p class="text-dim leading-relaxed" id="mdlTech">
-                        Aplikasi AlatWasap ini beroperasi 100% secara lokal di browser Anda. Tidak ada data pesan yang dikirim ke server.
+                        Aplikasi AlatWasap ini beroperasi 100% secara lokal di browser Anda. Tidak ada data pesan atau teks yang dikirim ke server.
                     </p>
                 </div>
                 
@@ -394,6 +412,8 @@
             actionCardPanel: document.getElementById('actionCardPanel'),
             spaceListCb: document.getElementById('spaceListCb'),
             removeFormatCb: document.getElementById('removeFormatCb'),
+            nestedListStyle: document.getElementById('nestedListStyle'),
+            lblNestedTitle: document.getElementById('lblNestedTitle'),
             timestampEl: document.getElementById('timestamp'),
             charCount: document.getElementById('charCount'),
             lblLength: document.getElementById('lblLength'),
@@ -424,7 +444,7 @@
             id: {
                 title: "AlatWasap",
                 helpTitle: "Cara Penggunaan:",
-                helpDesc: `<li>Paste hasil dari AI ke panel kiri.</li><li>Format akan diubah otomatis ke sintaks WA.</li><li>Masukkan nomor WA tujuan untuk chat langsung tanpa save nomor.</li>`,
+                helpDesc: `<li>Paste hasil dari AI ke panel kiri.</li><li>Format seperti tabel dan list bertingkat akan dikonversi otomatis.</li><li>Pilih gaya list bertingkat sesuai kenyamanan Anda.</li><li>Masukkan nomor WA tujuan untuk chat langsung tanpa simpan nomor.</li>`,
                 lblEditorTitle: "1. Editor Teks & HTML",
                 lblClear: "Bersihkan",
                 placeholder: "Paste teks / output AI di sini untuk diformat otomatis...",
@@ -441,9 +461,13 @@
                 lblSpaceDesc: "Beri jarak 1 baris kosong antar item daftar (bullet/nomor).",
                 lblRemoveFormatTitle: "🔤 Hapus Format Teks:",
                 lblRemoveFormatDesc: "Hilangkan format tebal (*), miring (_), dan coret (~).",
+                lblNestedTitle: "Daftar Bertingkat:",
+                optNestedEm: "Indentasi Em-Space ( a. /  •)",
+                optNestedDec: "Hierarki Desimal (1.1, 1.2)",
+                optNestedBr: "Simbol Cabang (↳ a. / ↳ •)",
                 mdlTitle: "Terms of Use & Disclaimer",
                 mdlSub1: "Teknologi & Privasi",
-                mdlTech: "Aplikasi AlatWasap ini beroperasi 100% secara lokal di browser Anda. Tidak ada data pesan yang dikirim ke server.",
+                mdlTech: "Aplikasi AlatWasap ini beroperasi 100% secara lokal di browser Anda. Tidak ada data pesan atau teks yang dikirim ke server.",
                 mdlSub2: "Ketentuan Legal",
                 mdlLegal: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics untuk mengumpulkan data penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
                 toastSuccessCopy: "Teks berhasil disalin!"
@@ -451,7 +475,7 @@
             en: {
                 title: "AlatWasap",
                 helpTitle: "How to use:",
-                helpDesc: `<li>Paste AI output into the left panel.</li><li>Formats are automatically converted to WA syntax.</li><li>Enter a destination WA number to chat directly without saving the contact.</li>`,
+                helpDesc: `<li>Paste AI output into the left panel.</li><li>Tables and multi-level lists are converted automatically.</li><li>Select your preferred multi-level list format.</li><li>Enter a destination WA number to chat directly without saving the contact.</li>`,
                 lblEditorTitle: "1. Text & HTML Editor",
                 lblClear: "Clear",
                 placeholder: "Paste text / AI output here to format automatically...",
@@ -468,9 +492,13 @@
                 lblSpaceDesc: "Add 1 blank line between list items (bullet/number).",
                 lblRemoveFormatTitle: "🔤 Remove Formatting:",
                 lblRemoveFormatDesc: "Strip bold (*), italic (_), and strikethrough (~) formats.",
+                lblNestedTitle: "Multi-level List:",
+                optNestedEm: "Em-Space Indent ( a. /  •)",
+                optNestedDec: "Decimal Hierarchy (1.1, 1.2)",
+                optNestedBr: "Branch Symbol (↳ a. / ↳ •)",
                 mdlTitle: "Terms of Use & Disclaimer",
                 mdlSub1: "Technology & Privacy",
-                mdlTech: "The AlatWasap application operates 100% locally in your browser. No message data are sent to servers.",
+                mdlTech: "The AlatWasap application operates 100% locally in your browser. No message data or text are sent to servers.",
                 mdlSub2: "Legal Terms",
                 mdlLegal: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics to collect anonymous usage data for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.",
                 toastSuccessCopy: "Text copied successfully!"
@@ -504,6 +532,14 @@
             if (document.getElementById('lblSpaceDesc')) document.getElementById('lblSpaceDesc').textContent = dict.lblSpaceDesc;
             if (document.getElementById('lblRemoveFormatTitle')) document.getElementById('lblRemoveFormatTitle').textContent = dict.lblRemoveFormatTitle;
             if (document.getElementById('lblRemoveFormatDesc')) document.getElementById('lblRemoveFormatDesc').textContent = dict.lblRemoveFormatDesc;
+            if (DOM.lblNestedTitle) DOM.lblNestedTitle.textContent = dict.lblNestedTitle;
+
+            const optEm = DOM.nestedListStyle.querySelector('option[value="em-space"]');
+            const optDec = DOM.nestedListStyle.querySelector('option[value="decimal"]');
+            const optBr = DOM.nestedListStyle.querySelector('option[value="branch"]');
+            if (optEm) optEm.textContent = dict.optNestedEm;
+            if (optDec) optDec.textContent = dict.optNestedDec;
+            if (optBr) optBr.textContent = dict.optNestedBr;
 
             document.getElementById('mdlTitle').textContent = dict.mdlTitle;
             document.getElementById('mdlSub1').textContent = dict.mdlSub1;
@@ -547,6 +583,8 @@
         DOM.modal.addEventListener('click', (e) => { if (e.target === DOM.modal) DOM.modal.close(); });
 
         // 7. Core Logic: HTML to WhatsApp Parser
+
+        // Fungsi pembantu parsing tabel HTML ke Card List vertikal
         function parseTable(tableNode) {
             if (!tableNode || tableNode.nodeName !== 'TABLE') return '';
 
@@ -584,7 +622,7 @@
                     let headerName = headers[colIndex] || `Kolom ${colIndex + 1}`;
                     let cellContent = convertNode(cell).trim().replace(/\n+/g, ' ');
                     cellContent = cellContent === '' ? '-' : cellContent;
-                    tableOutput += `▪️ *${headerName}:* ${cellContent}\n`;
+                    tableOutput += `▪️ *${headerName}:*${cellContent}\n`;
                 });
                 
                 tableOutput += `──────────────\n`;
@@ -596,6 +634,126 @@
             }
             
             return tableOutput;
+        }
+
+        // Helper untuk mendeteksi hierarki dan kedalaman daftar (nested list)
+        function getListHierarchy(liNode) {
+            const hierarchy = [];
+            let curr = liNode;
+            
+            while (curr) {
+                const parentList = curr.parentElement;
+                if (!parentList) break;
+                const tag = parentList.nodeName.toLowerCase();
+                if (tag !== 'ol' && tag !== 'ul') break;
+                
+                const isOl = tag === 'ol';
+                let index = 1;
+                if (isOl) {
+                    let start = parseInt(parentList.getAttribute('start')) || 1;
+                    index = start;
+                    for (let sib of parentList.children) {
+                        if (sib === curr) break;
+                        if (sib.nodeName.toLowerCase() === 'li') index++;
+                    }
+                }
+                hierarchy.unshift({ type: tag, index: index });
+                
+                // Cari ancestor li berikutnya
+                curr = parentList.closest('li');
+                if (!curr && parentList.parentElement) {
+                    const grandParent = parentList.parentElement;
+                    const gpTag = grandParent.nodeName.toLowerCase();
+                    if (gpTag === 'ol' || gpTag === 'ul') {
+                        curr = parentList.previousElementSibling;
+                        while (curr && curr.nodeName.toLowerCase() !== 'li') {
+                            curr = curr.previousElementSibling;
+                        }
+                    }
+                }
+            }
+
+            // Fallback dukungan untuk atribut aria-level dari Google Docs/Word paste
+            const ariaLevel = parseInt(liNode.getAttribute('aria-level'));
+            if (ariaLevel && ariaLevel > hierarchy.length) {
+                while (hierarchy.length < ariaLevel) {
+                    hierarchy.unshift({ type: hierarchy[0] ? hierarchy[0].type : 'ol', index: 1 });
+                }
+            }
+
+            return hierarchy.length > 0 ? hierarchy : [{ type: 'ol', index: 1 }];
+        }
+
+        // Helper untuk memformat penanda daftar (Top level vs Multi-level)
+        function formatListBullet(hierarchy, style, isSpaced) {
+            const depth = hierarchy.length;
+            const current = hierarchy[hierarchy.length - 1];
+            const isOl = current.type === 'ol';
+            const index = current.index;
+            
+            const linePrefix = isSpaced ? '\n\n' : '\n';
+            
+            // Level 1 (Top Level) selalu standar
+            if (depth <= 1) {
+                return isOl ? `${linePrefix}${index}. ` : `${linePrefix}- `;
+            }
+            
+            function getLetter(num) {
+                let str = '';
+                num = num - 1;
+                while (num >= 0) {
+                    str = String.fromCharCode(97 + (num % 26)) + str;
+                    num = Math.floor(num / 26) - 1;
+                }
+                return str || 'a';
+            }
+            
+            function getRoman(num) {
+                const lookup = { m:1000, cm:900, d:500, cd:400, c:100, xc:90, l:50, xl:40, x:10, ix:9, v:5, iv:4, i:1 };
+                let roman = '';
+                for (let i in lookup) {
+                    while (num >= lookup[i]) {
+                        roman += i;
+                        num -= lookup[i];
+                    }
+                }
+                return roman || 'i';
+            }
+
+            if (style === 'decimal') {
+                // Opsi A: Hierarki Desimal (1.1, 1.2, 1.1.1)
+                if (isOl) {
+                    const nums = hierarchy.map(h => h.type === 'ol' ? h.index : '1');
+                    return `${linePrefix}${nums.join('.')}. `;
+                } else {
+                    const emSpaces = '\u2003'.repeat(depth - 1);
+                    const bullets = ['•', '▪', '▫', '-'];
+                    const bullet = bullets[Math.min(depth - 2, bullets.length - 1)];
+                    return `${linePrefix}${emSpaces}${bullet} `;
+                }
+            } else if (style === 'branch') {
+                // Opsi B: Simbol Cabang (↳ a. / ↳ •)
+                const emSpaces = '\u2003'.repeat(depth - 2);
+                if (isOl) {
+                    let marker = depth === 2 ? `${getLetter(index)}.` : `${getRoman(index)}.`;
+                    return `${linePrefix}${emSpaces}↳${marker} `;
+                } else {
+                    const bullets = ['•', '▪', '▫'];
+                    const bullet = bullets[Math.min(depth - 2, bullets.length - 1)];
+                    return `${linePrefix}${emSpaces}↳${bullet} `;
+                }
+            } else {
+                // Opsi C (Default): Indentasi Em-Space (\u2003) + Alfabet/Bullet
+                const emSpaces = '\u2003'.repeat(depth - 1);
+                if (isOl) {
+                    let marker = depth === 2 ? `${getLetter(index)}.` : `${getRoman(index)}.`;
+                    return `${linePrefix}${emSpaces}${marker} `;
+                } else {
+                    const bullets = ['•', '▪', '▫', '-'];
+                    const bullet = bullets[Math.min(depth - 2, bullets.length - 1)];
+                    return `${linePrefix}${emSpaces}${bullet} `;
+                }
+            }
         }
 
         function convertNode(node) {
@@ -628,22 +786,17 @@
                 case 'p': case 'div': case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
                     return `\n\n${text}\n\n`;
                 case 'li':
-                    const parentList = node.parentNode;
+                    const hierarchy = getListHierarchy(node);
+                    const style = DOM.nestedListStyle ? DOM.nestedListStyle.value : 'em-space';
+                    const isSpaced = DOM.spaceListCb && DOM.spaceListCb.checked;
+                    const prefix = formatListBullet(hierarchy, style, isSpaced);
+
                     let cleanedText = text.trim();
-                    const prefix = (DOM.spaceListCb && DOM.spaceListCb.checked) ? '\n\n' : '\n';
-                    if (parentList && parentList.nodeName.toLowerCase() === 'ol') {
-                        // PERBAIKAN: Baca atribut 'start' jika ada agar penomoran list selalu sinkron
-                        let index = parseInt(parentList.getAttribute('start')) || 1;
-                        for (let sibling of parentList.children) {
-                            if (sibling === node) break;
-                            if (sibling.nodeName.toLowerCase() === 'li') index++;
-                        }
-                        cleanedText = cleanedText.replace(/^\s*[0-9]+[\.\)]\s*/, '');
-                        return `${prefix}${index}. ${cleanedText}`;
-                    }
-                    cleanedText = cleanedText.replace(/^\s*[\-\*•]\s*/, '');
-                    return `${prefix}- ${cleanedText}`;
-                case 'ul': case 'ol': return `\n${text}\n`;
+                    cleanedText = cleanedText.replace(/^\s*(?:[0-9]+(?:\.[0-9]+)*[\.\)]|[a-zA-Z][\.\)]|[\-\*•▪▫↳])\s*/, '');
+                    return `${prefix}${cleanedText}`;
+                case 'ul': case 'ol': 
+                    const isNestedList = node.parentElement && (node.parentElement.closest('ol') || node.parentElement.closest('ul'));
+                    return isNestedList ? text : `\n${text}\n`;
                 default: return text;
             }
         }
@@ -657,7 +810,7 @@
             return result.trim();
         }
 
-        // 8. Render WhatsApp Preview
+        // 8. Render WhatsApp Preview (Simulator Super Akurat)
         function renderWhatsAppPreview(waText) {
             if (!waText) return `<span class="text-dim italic text-sm" id="lblPlaceholder">${Dictionary[currentLang].lblPlaceholder}</span>`;
 
@@ -700,16 +853,24 @@
                     parsedLines.push(`<div class="border-l-4 border-accent pl-2 bg-black/5 dark:bg-white/5 py-1 my-1 text-[var(--wa-bubble-text)] opacity-80 italic rounded-r-sm">${formatInline(line.substring(5))}</div>`);
                     continue;
                 }
-                if (line.match(/^[\*\-] /)) {
-                    const content = formatInline(line.substring(2));
-                    parsedLines.push(`<div class="flex items-start"><span class="mr-1.5 flex-shrink-0 select-none">•</span><span>${content}</span></div>`);
+
+                // Render Bullet Lists (termasuk em-space dan branch)
+                const bulletMatch = line.match(/^([\s\u2003]*(?:↳\s*)?)([\-\*•▪▫])\s+(.*)$/);
+                if (bulletMatch) {
+                    const indent = bulletMatch[1];
+                    const bulletChar = bulletMatch[2] === '-' || bulletMatch[2] === '*' ? '•' : bulletMatch[2];
+                    const content = formatInline(bulletMatch[3]);
+                    parsedLines.push(`<div class="flex items-start"><span class="mr-1.5 flex-shrink-0 select-none">${indent}${bulletChar}</span><span>${content}</span></div>`);
                     continue;
                 }
-                const olMatch = line.match(/^(\d+)\. /);
-                if (olMatch) {
-                    const num = olMatch[1];
-                    const content = formatInline(line.replace(/^\d+\. /, ''));
-                    parsedLines.push(`<div class="flex items-start"><span class="mr-1.5 flex-shrink-0 select-none">${num}.</span><span>${content}</span></div>`);
+
+                // Render Numbered Lists (termasuk desimal 1.1, huruf a., romawi, em-space, dan branch)
+                const numMatch = line.match(/^([\s\u2003]*(?:↳\s*)?)(?:(\d+(?:\.\d+)*|[a-zA-Z]{1,2}|[ivxIVX]{1,5})[\.\)])\s+(.*)$/);
+                if (numMatch) {
+                    const indent = numMatch[1];
+                    const num = numMatch[2];
+                    const content = formatInline(numMatch[3]);
+                    parsedLines.push(`<div class="flex items-start"><span class="mr-1.5 flex-shrink-0 select-none">${indent}${num}.</span><span>${content}</span></div>`);
                     continue;
                 }
 
@@ -769,18 +930,24 @@
             processDirectChatButton();
         };
 
-        // Menggunakan event pengetikan alami dan observer yang tangguh
+        // Event pengetikan dan observer
         DOM.htmlInput.addEventListener('input', debouncedProcessInput);
         DOM.waNumberInput.addEventListener('input', processDirectChatButton);
         if (DOM.spaceListCb) DOM.spaceListCb.addEventListener('change', debouncedProcessInput);
         if (DOM.removeFormatCb) DOM.removeFormatCb.addEventListener('change', debouncedProcessInput);
         
-        // PERBAIKAN: Menggunakan MutationObserver. Sistem ini menjamin bahwa segala bentuk manipulasi 
-        // DOM (termasuk dari ekstensi Spellcheck/Grammarly, atau fitur hapus yang agresif) pasti tertangkap.
+        if (DOM.nestedListStyle) {
+            DOM.nestedListStyle.addEventListener('change', () => {
+                localStorage.setItem('app_nested_style', DOM.nestedListStyle.value);
+                debouncedProcessInput();
+            });
+        }
+        
+        // MutationObserver menjamin deteksi perubahan DOM dari ekstensi atau penghapusan manual
         const observer = new MutationObserver(debouncedProcessInput);
         observer.observe(DOM.htmlInput, { childList: true, subtree: true, characterData: true });
 
-        // Mencegah paste gambar/file ke dalam editor
+        // Sanitasi paste gambar / tag asing
         DOM.htmlInput.addEventListener('paste', (e) => {
             e.preventDefault();
             const clipboardData = e.clipboardData || window.clipboardData;
@@ -799,7 +966,6 @@
             } else if (textData) {
                 document.execCommand('insertText', false, textData);
             }
-            // PERBAIKAN: Paksa pemicu update segera setelah paste selesai
             debouncedProcessInput();
         });
 
@@ -860,6 +1026,11 @@
         });
 
         // Initialize App
+        const savedNestedStyle = localStorage.getItem('app_nested_style');
+        if (savedNestedStyle && DOM.nestedListStyle) {
+            DOM.nestedListStyle.value = savedNestedStyle;
+        }
+
         initTheme();
         updateLanguage();
         processInput(); 
