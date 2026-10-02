@@ -113,6 +113,8 @@
                     <span class="mr-1.5">📄</span> Cetak PDF
                 </button>
 
+                <span id="navUserBadge" class="text-xs font-bold bg-slate-800 text-amber-400 border border-slate-700 px-2.5 py-1.5 rounded-lg font-mono">👤 -</span>
+
                 <button onclick="lockScreen(false)" class="bg-slate-800 hover:bg-rose-900/60 text-slate-300 hover:text-rose-200 transition p-2 rounded-lg text-xs font-semibold border border-slate-700 cursor-pointer" title="Kunci Dasbor">
                     🔒 Kunci
                 </button>
@@ -535,9 +537,13 @@
             if (el) el.style.width = widthPct
         }
 
-        // Cryptographic Salt & Expected Hash
+        // Cryptographic Salt & Allowed Multi-User Hash Whitelist
         const _SALT = 'alex2026_salt_dppd'
-        const _TARGET_AUTH_HASH = 'f6898af666d392e08f0615c314aa8a6b5fcbf43da593d558440b5d6899d96532'
+        const _ALLOWED_AUTH = {
+            'alex': 'f6898af666d392e08f0615c314aa8a6b5fcbf43da593d558440b5d6899d96532',
+            'dsdm': 'b5d4f1903c193e7fa0209917b9645dfec13f9720e05b762a3a47cf8969aebfd5'
+        }
+        let currentLoggedUser = ''
 
         // PURE JAVASCRIPT SHA-256 (Zero external dependencies, 100% reliable across local file:// & web)
         function computeSHA256(str) {
@@ -756,13 +762,16 @@
             const overlay = document.getElementById('loginOverlay')
             if (overlay) overlay.classList.remove('hidden')
             setVal('loginPass', '')
-            
+            if (currentLoggedUser) {
+                setVal('loginUser', currentLoggedUser)
+            }
             const notice = document.getElementById('lockNotice')
             if (notice) {
                 if (isAutoLock) notice.classList.remove('hidden')
                 else notice.classList.add('hidden')
             }
             if (idleTimer) clearTimeout(idleTimer)
+            updateUrlAndTracker('Lock Screen')
         }
 
         const userActivityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll']
@@ -779,14 +788,18 @@
 
             try {
                 const computed = computeSHA256(u + ':' + p + ':' + _SALT)
-                if (computed === _TARGET_AUTH_HASH) {
+                if (_ALLOWED_AUTH[u] && _ALLOWED_AUTH[u] === computed) {
                     sessionStorage.setItem('alex_auth_token', computed)
+                    sessionStorage.setItem('alex_auth_user', u)
+                    currentLoggedUser = u
+                    setText('navUserBadge', `👤 ${u.toUpperCase()}`)
                     const overlay = document.getElementById('loginOverlay')
                     if (overlay) overlay.classList.add('hidden')
                     if (errDiv) errDiv.classList.add('hidden')
                     isScreenLocked = false
                     resetIdleTimer()
                     initDashboard()
+                    updateUrlAndTracker('Login Berhasil')
                 } else {
                     if (errDiv) errDiv.classList.remove('hidden')
                     setVal('loginPass', '')
@@ -807,13 +820,18 @@
         }
 
         function handleLogout() {
+            sessionStorage.removeItem('alex_auth_token')
+            sessionStorage.removeItem('alex_auth_user')
             lockScreen(false)
             location.reload()
         }
 
         function checkAuthSession() {
             const token = sessionStorage.getItem('alex_auth_token')
-            if (token === _TARGET_AUTH_HASH) {
+            const user = sessionStorage.getItem('alex_auth_user')
+            if (user && _ALLOWED_AUTH[user] === token) {
+                currentLoggedUser = user
+                setText('navUserBadge', `👤 ${user.toUpperCase()}`)
                 const overlay = document.getElementById('loginOverlay')
                 if (overlay) overlay.classList.add('hidden')
                 isScreenLocked = false
@@ -864,6 +882,89 @@
             }, 1000)
         }
 
+        let searchDebounceTimer = null
+
+        function updateUrlAndTracker(actionName) {
+            if (!currentLoggedUser) return
+
+            const fBatch = document.getElementById('filterBatch')?.value || 'Batch 1'
+            const fPilar = document.getElementById('filterPilar')?.value || 'All'
+            const fModul = document.getElementById('filterModul')?.value || 'All'
+            const fStatus = document.getElementById('filterStatus')?.value || 'All'
+            const searchVal = (document.getElementById('searchTable')?.value || '').trim()
+
+            const params = new URLSearchParams()
+            params.set('user', currentLoggedUser)
+            params.set('view', currentViewMode)
+            params.set('batch', fBatch)
+            params.set('pilar', fPilar)
+            if (fModul !== 'All') params.set('modul', fModul)
+            if (fStatus !== 'All') params.set('status', fStatus)
+            if (!isScoreMasked) params.set('mask', '0')
+            if (searchVal) params.set('q', searchVal)
+            if (actionName) params.set('action', actionName)
+
+            const viewName = currentViewMode === 'matrix' ? 'Matriks Peserta' : 'Log Asesmen'
+            const titleParts = ['UI ALEX 2026', viewName, fBatch]
+            if (fPilar !== 'All') titleParts.push(fPilar)
+            if (actionName) titleParts.push(actionName)
+            titleParts.push(`[${currentLoggedUser.toUpperCase()}]`)
+
+            const newTitle = titleParts.join(' >> ')
+            document.title = newTitle
+
+            const newUrl = window.location.pathname + '?' + params.toString()
+            window.history.replaceState({ path: newUrl }, newTitle, newUrl)
+
+            if (typeof window.gtag === 'function') {
+                window.gtag('event', 'page_view', {
+                    page_title: newTitle,
+                    page_location: window.location.href,
+                    page_path: newUrl
+                })
+                if (actionName) {
+                    window.gtag('event', 'user_action', {
+                        action_name: actionName,
+                        user_name: currentLoggedUser,
+                        batch: fBatch,
+                        pilar: fPilar
+                    })
+                }
+            }
+
+            if (window._Hasync && Array.isArray(window._Hasync)) {
+                window._Hasync.push(['Histats.start', '1', ''])
+            }
+        }
+
+        function loadFiltersFromUrl() {
+            const params = new URLSearchParams(window.location.search)
+            if (params.has('view')) {
+                const v = params.get('view')
+                if (v === 'matrix' || v === 'log') currentViewMode = v
+            }
+            if (params.has('batch')) {
+                setVal('filterBatch', params.get('batch'))
+            }
+            if (params.has('pilar')) {
+                setVal('filterPilar', params.get('pilar'))
+            }
+            if (params.has('modul')) {
+                setVal('filterModul', params.get('modul'))
+            }
+            if (params.has('status')) {
+                setVal('filterStatus', params.get('status'))
+            }
+            if (params.has('mask') && params.get('mask') === '0') {
+                isScoreMasked = false
+                setText('maskIcon', '👁️')
+                setText('maskText', 'Samarkan Nilai')
+            }
+            if (params.has('q')) {
+                setVal('searchTable', params.get('q'))
+            }
+        }
+
         document.addEventListener("DOMContentLoaded", async () => {
             setupRoleLinks()
             tippy('[data-tippy-content]', {
@@ -881,6 +982,7 @@
         })
 
         async function initDashboard() {
+            loadFiltersFromUrl()
             const savedData = await localforage.getItem('alex2026_groupData')
             const lastSync = await localforage.getItem('alex2026_groupSync')
             
@@ -901,11 +1003,12 @@
                 setText('maskText', 'Samarkan Nilai')
             }
             renderTable()
+            updateUrlAndTracker()
         }
 
         function cleanGroupName(raw) {
             if (!raw) return 'Batch 1'
-            let s = String(raw).replace(/[\(#]?\b\d{4,}\b\)?/g, '').trim()
+            let s = String(raw).replace(/[\(#]? \d{4,} \)?/g, '').trim()
             return s.length > 0 ? s : 'Batch 1'
         }
 
@@ -926,6 +1029,7 @@
                 setText('tableSubtitle', "Detail pengerjaan per baris kuis. Klik header kolom untuk sorting.")
             }
             renderTable()
+            updateUrlAndTracker()
         }
 
         function toggleTable() {
@@ -1012,6 +1116,7 @@
                     setWidth('progressBar', '100%')
                     setText('progressLog', `Berhasil mensinkronisasi ${rawMasterData.length} baris data peserta!`)
                     setTimeout(() => { if (panel) panel.classList.add('hidden') }, 1800)
+                    updateUrlAndTracker('Tarik Data Realtime')
                 }
                 
                 applyFilters()
@@ -1095,6 +1200,7 @@
             renderKPIs()
             renderCharts()
             renderTable()
+            updateUrlAndTracker()
         }
 
         function renderRoleSummaryWidget() {
@@ -1454,7 +1560,6 @@
                 const attempted = Number(d.jumlah_attempt || 0) > 0
                 const score = Number(d.nilai || 0)
 
-                // Capture progress completion per pilar kelas
                 if (d.progress_completion !== undefined && d.progress_completion !== null) {
                     const compNum = Number(d.progress_completion)
                     if (String(d.pilar).includes('Pilar 1') || d.course_id == 99544) {
@@ -1613,7 +1718,6 @@
                     }
                 }
 
-                // Format: <Nama Lengkap> - <username link>
                 const userLink = `<a href="${profileUrlBase + encodeURIComponent(p.user_id)}" target="_blank" rel="noopener noreferrer" class="font-mono text-amber-600 hover:text-amber-800 underline font-bold transition" title="Buka profil LMS">${p.username}</a>`
                 const participantCell = `<div class="flex items-center flex-wrap gap-1"><span class="font-medium text-slate-900">${p.nama}</span> <span class="text-slate-400">-</span> ${userLink}</div>`
 
@@ -1627,7 +1731,7 @@
                         <td class="px-2 py-2 text-center text-slate-600 font-medium">${p.batch}</td>
                         <td class="px-2.5 py-2 text-center whitespace-nowrap">${comp1Cell}</td>
                         <td class="px-2.5 py-2 text-center whitespace-nowrap">${comp2Cell}</td>
-                        <td class="px-2 py-2 text-center bg-amber-50/50">${formatScoreCell(p.p1_pre)}</td>
+                        <td class="px-2.5 py-2 text-center bg-amber-50/50">${formatScoreCell(p.p1_pre)}</td>
                         <td class="px-2 py-2 text-center">${formatScoreCell(p.post_scores['DPK'])}</td>
                         <td class="px-2 py-2 text-center">${formatScoreCell(p.post_scores['DSDMPT'])}</td>
                         <td class="px-2 py-2 text-center">${formatScoreCell(p.post_scores['DPBJ'])}</td>
@@ -1773,6 +1877,10 @@
 
         function filterTableSearch() {
             renderTable()
+            if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+            searchDebounceTimer = setTimeout(() => {
+                updateUrlAndTracker()
+            }, 400)
         }
 
         function exportXLSX(mode) {
@@ -1780,6 +1888,8 @@
                 alert("Tidak ada data untuk diekspor.")
                 return
             }
+            const actionName = mode === 'detailed' ? 'Unduh XLSX Detail' : 'Unduh XLSX Ringkas'
+            updateUrlAndTracker(actionName)
 
             // Sheet 1: Matriks Peserta
             const matrixRows = []
@@ -1910,6 +2020,7 @@
         }
 
         async function downloadPDF() {
+            updateUrlAndTracker('Unduh PDF')
             const btn = document.getElementById('btnPdf')
             if (btn) {
                 btn.innerHTML = '<span class="mr-1.5 animate-spin">⏳</span> Memproses PDF...'
