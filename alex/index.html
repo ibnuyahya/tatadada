@@ -60,7 +60,7 @@
     })
     </script>
     
-    <!-- External Libraries -->
+    <!-- External CDN Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -75,21 +75,29 @@
     <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/light-border.css">
 
     <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
         .resizer-handle {
             position: absolute;
             top: 0;
             right: 0;
-            width: 8px;
+            width: 7px;
             cursor: col-resize;
             user-select: none;
             height: 100%;
-            z-index: 10;
+            z-index: 20;
         }
         .resizer-handle:hover, .resizer-handle.resizing {
             background-color: #f59e0b;
+        }
+        .word-break-wrap {
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            white-space: normal;
+        }
+        .font-award-serif {
+            font-family: 'Cinzel', serif;
         }
     </style>
 </head>
@@ -194,7 +202,7 @@
     <!-- Main Content Container -->
     <main id="dashboardContent" class="w-full px-3 sm:px-6 py-6 space-y-6">
 
-        <!-- PDF Export Header -->
+        <!-- PDF Export Header (Visible only when generating PDF) -->
         <div id="pdfHeader" class="hidden mb-6 border-b-2 border-slate-800 pb-4">
             <div class="flex justify-between items-center">
                 <div>
@@ -222,12 +230,16 @@
         <!-- Control Toolbar & Filter Panel -->
         <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3" data-html2canvas-ignore="true">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-semibold">
-                    <button id="btnViewMatrix" onclick="setViewMode('matrix')" class="px-3 py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition">
+                <!-- Triple Mode Toggle (Now Includes Hall of Fame!) -->
+                <div class="inline-flex rounded-xl bg-slate-100 p-1 text-xs font-semibold gap-1">
+                    <button id="btnViewMatrix" onclick="setViewMode('matrix')" class="px-3.5 py-1.5 rounded-lg bg-white text-slate-900 shadow-sm transition">
                         📊 Matriks Peserta & Kesiapan
                     </button>
-                    <button id="btnViewLog" onclick="setViewMode('log')" class="px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
+                    <button id="btnViewLog" onclick="setViewMode('log')" class="px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">
                         📋 Log Asesmen (Per Kuis)
+                    </button>
+                    <button id="btnViewHallOfFame" onclick="setViewMode('halloffame')" class="px-3.5 py-1.5 rounded-lg text-amber-800 hover:text-amber-950 hover:bg-amber-100/60 transition flex items-center gap-1.5 font-bold">
+                        <span>🏆</span> Hall of Fame & Awards
                     </button>
                 </div>
 
@@ -322,365 +334,466 @@
             </div>
         </div>
 
-        <!-- Role Summary & Pre-test Widgets -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Widget 1: Role Summary -->
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <div>
-                        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            👥 Rekapitulasi Akun & Role Kelas
-                            <span class="cursor-help text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200 font-medium" data-tippy-content="Total pengguna terdaftar berdasarkan hak akses di kelas LMS Pilar I dan Pilar II.">Sistem</span>
-                        </h3>
-                        <p class="text-xs text-slate-500">Klik label role atau angka untuk membuka daftar pengguna langsung di LMS.</p>
+        <!-- DASHBOARD ANALYTICS CONTAINER (Visible in Matrix & Log mode) -->
+        <div id="analyticsDashboardViews" class="space-y-6">
+            <!-- Role Summary & Pre-test Widgets -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Widget 1: Role Summary -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                👥 Rekapitulasi Akun & Role Kelas
+                                <span class="cursor-help text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200 font-medium" data-tippy-content="Total pengguna terdaftar di kelas LMS Pilar I dan Pilar II. Klik nama role untuk membuka modal detil anggota.">Sistem</span>
+                            </h3>
+                            <p class="text-xs text-slate-500">Klik label role pengajar untuk membuka modal rincian nama & kontak.</p>
+                        </div>
+                        <span id="badgeTotalAllUsers" class="text-xs font-bold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200">
+                            Total: - Akun
+                        </span>
                     </div>
-                    <span id="badgeTotalAllUsers" class="text-xs font-bold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200">
-                        Total: - Akun
-                    </span>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        <div class="bg-amber-50/50 border border-amber-200 rounded-xl p-3.5 space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-amber-900 flex items-center gap-1">
+                                    Pilar I (Manajemen)
+                                </span>
+                                <span class="font-mono font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                                    <span id="roleP1Total">-</span>
+                                </span>
+                            </div>
+                            <div class="space-y-1.5 text-slate-600">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium text-slate-700">Peserta (Mahasiswa)</span>
+                                    <span id="roleP1Student" class="font-mono text-slate-900 font-bold">-</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <button onclick="openRoleDetailModal('editingteacher', 'Pilar 1')" class="hover:underline flex items-center gap-1 font-medium text-amber-800 hover:text-amber-900 cursor-pointer">
+                                        Dosen Pengedit <span class="text-[10px] text-amber-600">👥</span>
+                                    </button>
+                                    <button onclick="openRoleDetailModal('editingteacher', 'Pilar 1')" class="font-mono text-amber-900 font-bold hover:underline cursor-pointer bg-amber-100/80 px-1.5 py-0.2 rounded">
+                                        <span id="roleP1Editing">-</span>
+                                    </button>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <button onclick="openRoleDetailModal('teacher', 'Pilar 1')" class="hover:underline flex items-center gap-1 font-medium text-amber-800 hover:text-amber-900 cursor-pointer">
+                                        Dosen Fasilitator <span class="text-[10px] text-amber-600">👥</span>
+                                    </button>
+                                    <button onclick="openRoleDetailModal('teacher', 'Pilar 1')" class="font-mono text-amber-900 font-bold hover:underline cursor-pointer bg-amber-100/80 px-1.5 py-0.2 rounded">
+                                        <span id="roleP1Teacher">-</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-blue-50/50 border border-blue-200 rounded-xl p-3.5 space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-blue-900 flex items-center gap-1">
+                                    Pilar II (Governance)
+                                </span>
+                                <span class="font-mono font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+                                    <span id="roleP2Total">-</span>
+                                </span>
+                            </div>
+                            <div class="space-y-1.5 text-slate-600">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium text-slate-700">Peserta (Mahasiswa)</span>
+                                    <span id="roleP2Student" class="font-mono text-slate-900 font-bold">-</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <button onclick="openRoleDetailModal('editingteacher', 'Pilar 2')" class="hover:underline flex items-center gap-1 font-medium text-blue-800 hover:text-blue-900 cursor-pointer">
+                                        Dosen Pengedit <span class="text-[10px] text-blue-600">👥</span>
+                                    </button>
+                                    <button onclick="openRoleDetailModal('editingteacher', 'Pilar 2')" class="font-mono text-blue-900 font-bold hover:underline cursor-pointer bg-blue-100/80 px-1.5 py-0.2 rounded">
+                                        <span id="roleP2Editing">-</span>
+                                    </button>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <button onclick="openRoleDetailModal('teacher', 'Pilar 2')" class="hover:underline flex items-center gap-1 font-medium text-blue-800 hover:text-blue-900 cursor-pointer">
+                                        Dosen Fasilitator <span class="text-[10px] text-blue-600">👥</span>
+                                    </button>
+                                    <button onclick="openRoleDetailModal('teacher', 'Pilar 2')" class="font-mono text-blue-900 font-bold hover:underline cursor-pointer bg-blue-100/80 px-1.5 py-0.2 rounded">
+                                        <span id="roleP2Teacher">-</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                    <div class="bg-amber-50/50 border border-amber-200 rounded-xl p-3.5 space-y-2">
+                <!-- Widget 2: Keterselesaian Pre-Test -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                📝 Keterselesaian Pre-Test Pra-Pelatihan
+                                <span class="cursor-help text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 font-medium" data-tippy-content="Pemetaan kepatuhan peserta dalam menuntaskan asesmen awal diagnostik.">Prasyarat</span>
+                            </h3>
+                            <p class="text-xs text-slate-500">Progres pengerjaan Pre-test Section 0 di kedua pilar materi.</p>
+                        </div>
+                        <span id="badgePretestOverall" class="text-xs font-bold bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg border border-amber-300">
+                            - Selesai
+                        </span>
+                    </div>
+
+                    <div class="space-y-3.5 text-xs">
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between items-center font-medium">
+                                <span class="text-slate-700 flex items-center gap-1.5">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Pre-Test Pilar I (Manajemen & Operasional)
+                                </span>
+                                <span id="pretestP1Text" class="font-bold text-slate-900">- / - (-%)</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden flex">
+                                <div id="pretestP1Bar" class="bg-amber-500 h-2.5 transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                            <div class="flex justify-between text-[11px] text-slate-500">
+                                <span id="pretestP1Detail">Selesai: - | Belum: -</span>
+                                <span id="pretestP1Avg" class="font-semibold text-slate-700">Rerata Nilai: -</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between items-center font-medium">
+                                <span class="text-slate-700 flex items-center gap-1.5">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Pre-Test Pilar II (Governance & Kepatuhan)
+                                </span>
+                                <span id="pretestP2Text" class="font-bold text-slate-900">- / - (-%)</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden flex">
+                                <div id="pretestP2Bar" class="bg-blue-500 h-2.5 transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                            <div class="flex justify-between text-[11px] text-slate-500">
+                                <span id="pretestP2Detail">Selesai: - | Belum: -</span>
+                                <span id="pretestP2Avg" class="font-semibold text-slate-700">Rerata Nilai: -</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Learning Readiness & Personas Distribution Overview -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                            🎯 Indeks Kesiapan Belajar
+                            <span class="cursor-help text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono" data-tippy-content="Formulasi: 40% Completion P1 + 40% Completion P2 + 10% Pre-test 1 + 10% Pre-test 2">Bobot 40:40:10:10</span>
+                        </h3>
+                        <span id="badgeAvgReadiness" class="text-xs font-bold text-slate-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                            Rerata: -
+                        </span>
+                    </div>
+                    <div class="space-y-2 text-xs">
                         <div class="flex justify-between items-center">
-                            <a id="linkP1All" href="#" target="_blank" rel="noopener noreferrer" class="font-bold text-amber-900 hover:underline flex items-center gap-1">
-                                Pilar I (Manajemen) <span class="text-[10px] text-amber-600">↗</span>
-                            </a>
-                            <a id="badgeP1Total" href="#" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-1.5 py-0.5 rounded transition">
-                                <span id="roleP1Total">-</span>
-                            </a>
+                            <span class="text-emerald-700 font-medium flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Siap (Skor ≥ 75)
+                            </span>
+                            <span id="countReadinessSiap" class="font-mono font-bold text-slate-800">-</span>
                         </div>
-                        <div class="space-y-1.5 text-slate-600">
-                            <div class="flex justify-between items-center">
-                                <a id="linkP1Student" href="#" target="_blank" rel="noopener noreferrer" class="hover:underline flex items-center gap-1 font-medium text-slate-700">
-                                    Peserta (Mahasiswa) <span class="text-[10px] text-slate-400">↗</span>
-                                </a>
-                                <a id="badgeP1Student" href="#" target="_blank" rel="noopener noreferrer" class="font-mono text-slate-900 font-bold hover:text-amber-600">
-                                    <span id="roleP1Student">-</span>
-                                </a>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <a id="linkP1Editing" href="#" target="_blank" rel="noopener noreferrer" class="hover:underline flex items-center gap-1 font-medium text-slate-700">
-                                    Dosen Pengedit <span class="text-[10px] text-slate-400">↗</span>
-                                </a>
-                                <a id="badgeP1Editing" href="#" target="_blank" rel="noopener noreferrer" class="font-mono text-slate-900 font-bold hover:text-amber-600">
-                                    <span id="roleP1Editing">-</span>
-                                </a>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <a id="linkP1Teacher" href="#" target="_blank" rel="noopener noreferrer" class="hover:underline flex items-center gap-1 font-medium text-slate-700">
-                                    Dosen Fasilitator <span class="text-[10px] text-slate-400">↗</span>
-                                </a>
-                                <a id="badgeP1Teacher" href="#" target="_blank" rel="noopener noreferrer" class="font-mono text-slate-900 font-bold hover:text-amber-600">
-                                    <span id="roleP1Teacher">-</span>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-blue-50/50 border border-blue-200 rounded-xl p-3.5 space-y-2">
                         <div class="flex justify-between items-center">
-                            <a id="linkP2All" href="#" target="_blank" rel="noopener noreferrer" class="font-bold text-blue-900 hover:underline flex items-center gap-1">
-                                Pilar II (Governance) <span class="text-[10px] text-blue-600">↗</span>
-                            </a>
-                            <a id="badgeP2Total" href="#" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 px-1.5 py-0.5 rounded transition">
-                                <span id="roleP2Total">-</span>
-                            </a>
-                        </div>
-                        <div class="space-y-1.5 text-slate-600">
-                            <div class="flex justify-between items-center">
-                                <a id="linkP2Student" href="#" target="_blank" rel="noopener noreferrer" class="hover:underline flex items-center gap-1 font-medium text-slate-700">
-                                    Peserta (Mahasiswa) <span class="text-[10px] text-slate-400">↗</span>
-                                </a>
-                                <a id="badgeP2Student" href="#" target="_blank" rel="noopener noreferrer" class="font-mono text-slate-900 font-bold hover:text-blue-600">
-                                    <span id="roleP2Student">-</span>
-                                </a>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <a id="linkP2Editing" href="#" target="_blank" rel="noopener noreferrer" class="hover:underline flex items-center gap-1 font-medium text-slate-700">
-                                    Dosen Pengedit <span class="text-[10px] text-slate-400">↗</span>
-                                </a>
-                                <a id="badgeP2Editing" href="#" target="_blank" rel="noopener noreferrer" class="font-mono text-slate-900 font-bold hover:text-blue-600">
-                                    <span id="roleP2Editing">-</span>
-                                </a>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <a id="linkP2Teacher" href="#" target="_blank" rel="noopener noreferrer" class="hover:underline flex items-center gap-1 font-medium text-slate-700">
-                                    Dosen Fasilitator <span class="text-[10px] text-slate-400">↗</span>
-                                </a>
-                                <a id="badgeP2Teacher" href="#" target="_blank" rel="noopener noreferrer" class="font-mono text-slate-900 font-bold hover:text-blue-600">
-                                    <span id="roleP2Teacher">-</span>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Widget 2: Keterselesaian Pre-Test -->
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <div>
-                        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            📝 Keterselesaian Pre-Test Pra-Pelatihan
-                            <span class="cursor-help text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 font-medium" data-tippy-content="Pemetaan kepatuhan peserta dalam menuntaskan asesmen awal diagnostik.">Prasyarat</span>
-                        </h3>
-                        <p class="text-xs text-slate-500">Progres pengerjaan Pre-test Section 0 di kedua pilar materi.</p>
-                    </div>
-                    <span id="badgePretestOverall" class="text-xs font-bold bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg border border-amber-300">
-                        - Selesai
-                    </span>
-                </div>
-
-                <div class="space-y-3.5 text-xs">
-                    <div class="space-y-1.5">
-                        <div class="flex justify-between items-center font-medium">
-                            <span class="text-slate-700 flex items-center gap-1.5">
-                                <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Pre-Test Pilar I (Manajemen & Operasional)
+                            <span class="text-amber-700 font-medium flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-amber-500"></span> Cukup (Skor 50 - 74)
                             </span>
-                            <span id="pretestP1Text" class="font-bold text-slate-900">- / - (-%)</span>
+                            <span id="countReadinessCukup" class="font-mono font-bold text-slate-800">-</span>
                         </div>
-                        <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden flex">
-                            <div id="pretestP1Bar" class="bg-amber-500 h-2.5 transition-all duration-500" style="width: 0%"></div>
-                        </div>
-                        <div class="flex justify-between text-[11px] text-slate-500">
-                            <span id="pretestP1Detail">Selesai: - | Belum: -</span>
-                            <span id="pretestP1Avg" class="font-semibold text-slate-700">Rerata Nilai: -</span>
-                        </div>
-                    </div>
-
-                    <div class="space-y-1.5">
-                        <div class="flex justify-between items-center font-medium">
-                            <span class="text-slate-700 flex items-center gap-1.5">
-                                <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Pre-Test Pilar II (Governance & Kepatuhan)
+                        <div class="flex justify-between items-center">
+                            <span class="text-rose-700 font-medium flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-rose-500"></span> Butuh Pendampingan (&lt; 50)
                             </span>
-                            <span id="pretestP2Text" class="font-bold text-slate-900">- / - (-%)</span>
-                        </div>
-                        <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden flex">
-                            <div id="pretestP2Bar" class="bg-blue-500 h-2.5 transition-all duration-500" style="width: 0%"></div>
-                        </div>
-                        <div class="flex justify-between text-[11px] text-slate-500">
-                            <span id="pretestP2Detail">Selesai: - | Belum: -</span>
-                            <span id="pretestP2Avg" class="font-semibold text-slate-700">Rerata Nilai: -</span>
+                            <span id="countReadinessPendampingan" class="font-mono font-bold text-slate-800">-</span>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Learning Readiness & Personas Distribution Overview -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Readiness Breakdown Card -->
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                        🎯 Indeks Kesiapan Belajar
-                        <span class="cursor-help text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono" data-tippy-content="Formulasi: 40% Completion P1 + 40% Completion P2 + 10% Pre-test 1 + 10% Pre-test 2">Bobot 40:40:10:10</span>
-                    </h3>
-                    <span id="badgeAvgReadiness" class="text-xs font-bold text-slate-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                        Rerata: -
-                    </span>
-                </div>
-                <div class="space-y-2 text-xs">
-                    <div class="flex justify-between items-center">
-                        <span class="text-emerald-700 font-medium flex items-center gap-1.5">
-                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Siap (Skor ≥ 75)
-                        </span>
-                        <span id="countReadinessSiap" class="font-mono font-bold text-slate-800">-</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-amber-700 font-medium flex items-center gap-1.5">
-                            <span class="w-2 h-2 rounded-full bg-amber-500"></span> Cukup (Skor 50 - 74)
-                        </span>
-                        <span id="countReadinessCukup" class="font-mono font-bold text-slate-800">-</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-rose-700 font-medium flex items-center gap-1.5">
-                            <span class="w-2 h-2 rounded-full bg-rose-500"></span> Butuh Pendampingan (&lt; 50)
-                        </span>
-                        <span id="countReadinessPendampingan" class="font-mono font-bold text-slate-800">-</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Personas Breakdown Card -->
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                        🧭 Tipologi Persona Belajar
-                        <span class="cursor-help text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono" data-tippy-content="Pengelompokan peserta berdasarkan perilaku keterselesaian modul kedua pilar">Klaster</span>
-                    </h3>
-                    <span class="text-[11px] text-slate-400">Total Peserta Terpilih</span>
-                </div>
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                    <div class="p-2 rounded-lg bg-emerald-50 border border-emerald-100">
-                        <p class="text-[11px] text-emerald-800 font-semibold">🚀 Pace-Setter</p>
-                        <p id="countPersonaPace" class="text-base font-extrabold text-emerald-900 mt-0.5">-</p>
-                    </div>
-                    <div class="p-2 rounded-lg bg-blue-50 border border-blue-100">
-                        <p class="text-[11px] text-blue-800 font-semibold">⏳ In Progress</p>
-                        <p id="countPersonaProgress" class="text-base font-extrabold text-blue-900 mt-0.5">-</p>
-                    </div>
-                    <div class="p-2 rounded-lg bg-amber-50 border border-amber-100">
-                        <p class="text-[11px] text-amber-800 font-semibold">⚖️ Pilar-I Oriented</p>
-                        <p id="countPersonaP1" class="text-base font-extrabold text-amber-900 mt-0.5">-</p>
-                    </div>
-                    <div class="p-2 rounded-lg bg-rose-50 border border-rose-100">
-                        <p class="text-[11px] text-rose-800 font-semibold">⚠️ Low Engagement</p>
-                        <p id="countPersonaLow" class="text-base font-extrabold text-rose-900 mt-0.5">-</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Anomaly Detection Card -->
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                        🛠️ Deteksi Anomali Teknis LMS
-                        <span class="cursor-help text-[11px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded font-mono border border-rose-200" data-tippy-content="Peserta dengan completion tinggi (≥70%) tetapi skor Pre-test 0 (indikasi kegagalan transmisi/empty submission)">Glitch Guard</span>
-                    </h3>
-                    <span id="badgeGlitchCount" class="text-xs font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                        - Terdeteksi
-                    </span>
-                </div>
-                <div class="space-y-2 text-xs">
-                    <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 space-y-1">
-                        <p class="font-medium text-slate-700">Dormant (Belum Ada Aktivitas):</p>
-                        <p id="countPersonaDormant" class="text-sm font-bold text-slate-900">- Peserta</p>
-                    </div>
-                    <div class="p-2.5 rounded-lg bg-rose-50/60 border border-rose-200 space-y-1">
-                        <p class="font-semibold text-rose-900">Potensi Kendala Teknis Kuis:</p>
-                        <p id="glitchDetailText" class="text-xs text-rose-800 font-mono">-</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- KPI Summary Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-amber-500 relative">
-                <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Peserta Group</p>
-                <h2 id="kpiTotalPeserta" class="text-3xl font-extrabold mt-1 text-slate-900">-</h2>
-                <span id="kpiTotalSub" class="text-xs text-slate-400 mt-1 block">Peserta terdaftar</span>
-            </div>
-
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-blue-500 relative">
-                <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                    Rata-Rata Post-Test
-                    <span class="cursor-help text-blue-600 border-b border-dotted border-blue-400 font-bold ml-1" data-tippy-content="Rata-rata skor Post-test dari sesi yang telah dikerjakan peserta. Standar KKM adalah 80.">KKM 80</span>
-                </p>
-                <h2 id="kpiRerataSkor" class="text-3xl font-extrabold mt-1 text-slate-900">-</h2>
-                <span id="kpiRerataSub" class="text-xs text-slate-400 mt-1 block">Dari sesi selesai</span>
-            </div>
-
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-emerald-500 relative">
-                <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                    Tingkat Kelulusan
-                    <span class="cursor-help text-emerald-600 border-b border-dotted border-emerald-400 font-bold ml-1" data-tippy-content="Persentase hasil pengerjaan Post-test yang memenuhi batas minimal nilai 80.">Status</span>
-                </p>
-                <h2 id="kpiTingkatLulus" class="text-3xl font-extrabold mt-1 text-emerald-600">- <span class="text-sm font-normal text-slate-500">%</span></h2>
-                <span id="kpiLulusSub" class="text-xs text-emerald-600 mt-1 block font-medium">- Sesi Lulus</span>
-            </div>
-
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-rose-500 relative">
-                <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                    Kandidat Remedial
-                    <span class="cursor-help text-rose-600 border-b border-dotted border-rose-400 font-bold ml-1" data-tippy-content="Jumlah sesi pengerjaan Post-test di bawah 80 yang membutuhkan remedial.">Tindakan</span>
-                </p>
-                <h2 id="kpiRemedial" class="text-3xl font-extrabold mt-1 text-rose-600">-</h2>
-                <span id="kpiRemedialSub" class="text-xs text-rose-500 mt-1 block font-medium">Perlu override kuis</span>
-            </div>
-        </div>
-
-        <!-- Charts Row 1: Capaian Modul & Status Kelulusan -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 lg:col-span-2">
-                <div class="flex justify-between items-center mb-3">
-                    <div>
-                        <h3 class="text-base font-bold text-slate-800 flex items-center">
-                            Rerata Nilai Post-Test per Modul Direktorat
-                            <span class="cursor-help ml-2 text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 font-medium" data-tippy-content="Performa penguasaan materi per direktorat pengampu. Target KKM kelulusan adalah 80.">Target 80</span>
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                            🧭 Tipologi Persona Belajar
+                            <span class="cursor-help text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono" data-tippy-content="Pengelompokan peserta berdasarkan keterselesaian modul kedua pilar">Klaster</span>
                         </h3>
-                        <p class="text-xs text-slate-500">Evaluasi penguasaan materi peserta pada 8 unit pengampu pelatihan.</p>
+                        <span class="text-[11px] text-slate-400">Total Terpilih</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="p-2 rounded-lg bg-emerald-50 border border-emerald-100">
+                            <p class="text-[11px] text-emerald-800 font-semibold">🚀 Pace-Setter</p>
+                            <p id="countPersonaPace" class="text-base font-extrabold text-emerald-900 mt-0.5">-</p>
+                        </div>
+                        <div class="p-2 rounded-lg bg-blue-50 border border-blue-100">
+                            <p class="text-[11px] text-blue-800 font-semibold">⏳ In Progress</p>
+                            <p id="countPersonaProgress" class="text-base font-extrabold text-blue-900 mt-0.5">-</p>
+                        </div>
+                        <div class="p-2 rounded-lg bg-amber-50 border border-amber-100">
+                            <p class="text-[11px] text-amber-800 font-semibold">⚖️ Pilar-I Oriented</p>
+                            <p id="countPersonaP1" class="text-base font-extrabold text-amber-900 mt-0.5">-</p>
+                        </div>
+                        <div class="p-2 rounded-lg bg-rose-50 border border-rose-100">
+                            <p class="text-[11px] text-rose-800 font-semibold">⚠️ Low Engagement</p>
+                            <p id="countPersonaLow" class="text-base font-extrabold text-rose-900 mt-0.5">-</p>
+                        </div>
                     </div>
                 </div>
-                <div class="relative h-64 w-full">
-                    <canvas id="chartModul"></canvas>
-                </div>
-            </div>
 
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                <h3 class="text-base font-bold text-slate-800 flex items-center mb-1">
-                    Proporsi Kelulusan Post-Test
-                    <span class="cursor-help ml-2 text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-300 font-medium" data-tippy-content="Sebaran status kelulusan seluruh modul aktif peserta.">Distribusi</span>
-                </h3>
-                <p class="text-xs text-slate-500 mb-3">Rasio Lulus vs Remedial vs Belum Mengambil.</p>
-                <div class="relative h-64 w-full">
-                    <canvas id="chartStatus"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Charts Row 2: Sebaran Skor & Pre vs Post Gain -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                <h3 class="text-base font-bold text-slate-800 flex items-center mb-1">
-                    Distribusi Rentang Nilai Post-Test
-                    <span class="cursor-help ml-2 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-200 font-medium" data-tippy-content="Pengelompokan skor peserta ke dalam 4 tingkatan kompetensi.">Leveling</span>
-                </h3>
-                <p class="text-xs text-slate-500 mb-3">Memetakan tingkat kesiapan kognitif peserta.</p>
-                <div class="relative h-60 w-full">
-                    <canvas id="chartDistribusi"></canvas>
-                </div>
-            </div>
-
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                <div class="flex justify-between items-start mb-1">
-                    <div>
-                        <h3 class="text-base font-bold text-slate-800 flex items-center">
-                            Knowledge Gain & Efektivitas Pelatihan
-                            <span class="cursor-help ml-2 text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 font-medium" data-tippy-content="Perbandingan skor baseline pre-test terhadap post-test beserta nilai Normalized Hake's Gain <g>">Gain Index</span>
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                            🛠️ Deteksi Anomali Teknis LMS
+                            <span class="cursor-help text-[11px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded font-mono border border-rose-200" data-tippy-content="Peserta dengan completion tinggi (≥70%) tetapi skor Pre-test 0 (indikasi kegagalan transmisi/empty submission)">Glitch Guard</span>
                         </h3>
-                        <p class="text-xs text-slate-500">Peningkatan pemahaman materi sebelum dan sesudah sesi modul.</p>
+                        <span id="badgeGlitchCount" class="text-xs font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                            - Terdeteksi
+                        </span>
                     </div>
-                    <div id="hakeGainBadge" class="text-xs font-mono font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded border border-slate-200">
-                        &lt;g&gt;: -
+                    <div class="space-y-2 text-xs">
+                        <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 space-y-1">
+                            <p class="font-medium text-slate-700">Dormant (Belum Ada Aktivitas):</p>
+                            <p id="countPersonaDormant" class="text-sm font-bold text-slate-900">- Peserta</p>
+                        </div>
+                        <div class="p-2.5 rounded-lg bg-rose-50/60 border border-rose-200 space-y-1">
+                            <p class="font-semibold text-rose-900">Potensi Kendala Teknis Kuis:</p>
+                            <p id="glitchDetailText" class="text-xs text-rose-800 font-mono">-</p>
+                        </div>
                     </div>
                 </div>
-                <div class="relative h-60 w-full mt-3">
-                    <canvas id="chartGain"></canvas>
+            </div>
+
+            <!-- KPI Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-amber-500 relative">
+                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Peserta Group</p>
+                    <h2 id="kpiTotalPeserta" class="text-3xl font-extrabold mt-1 text-slate-900">-</h2>
+                    <span id="kpiTotalSub" class="text-xs text-slate-400 mt-1 block">Peserta terdaftar</span>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-blue-500 relative">
+                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+                        Rata-Rata Post-Test
+                        <span class="cursor-help text-blue-600 border-b border-dotted border-blue-400 font-bold ml-1" data-tippy-content="Rata-rata skor Post-test dari sesi yang telah dikerjakan peserta. Standar KKM adalah 80.">KKM 80</span>
+                    </p>
+                    <h2 id="kpiRerataSkor" class="text-3xl font-extrabold mt-1 text-slate-900">-</h2>
+                    <span id="kpiRerataSub" class="text-xs text-slate-400 mt-1 block">Dari sesi selesai</span>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-emerald-500 relative">
+                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+                        Tingkat Kelulusan
+                        <span class="cursor-help text-emerald-600 border-b border-dotted border-emerald-400 font-bold ml-1" data-tippy-content="Persentase hasil pengerjaan Post-test yang memenuhi batas minimal nilai 80.">Status</span>
+                    </p>
+                    <h2 id="kpiTingkatLulus" class="text-3xl font-extrabold mt-1 text-emerald-600">- <span class="text-sm font-normal text-slate-500">%</span></h2>
+                    <span id="kpiLulusSub" class="text-xs text-emerald-600 mt-1 block font-medium">- Sesi Lulus</span>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-rose-500 relative">
+                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+                        Kandidat Remedial
+                        <span class="cursor-help text-rose-600 border-b border-dotted border-rose-400 font-bold ml-1" data-tippy-content="Jumlah sesi pengerjaan Post-test di bawah 80 yang membutuhkan remedial.">Tindakan</span>
+                    </p>
+                    <h2 id="kpiRemedial" class="text-3xl font-extrabold mt-1 text-rose-600">-</h2>
+                    <span id="kpiRemedialSub" class="text-xs text-rose-500 mt-1 block font-medium">Perlu override kuis</span>
+                </div>
+            </div>
+
+            <!-- Charts Row 1: Capaian Modul & Status Kelulusan -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 lg:col-span-2">
+                    <div class="flex justify-between items-center mb-3">
+                        <div>
+                            <h3 class="text-base font-bold text-slate-800 flex items-center">
+                                Rerata Nilai Post-Test per Modul Direktorat
+                                <span class="cursor-help ml-2 text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 font-medium" data-tippy-content="Performa penguasaan materi per direktorat pengampu. Target KKM kelulusan adalah 80.">Target 80</span>
+                            </h3>
+                            <p class="text-xs text-slate-500">Evaluasi penguasaan materi peserta pada 8 unit pengampu pelatihan.</p>
+                        </div>
+                    </div>
+                    <div class="relative h-64 w-full">
+                        <canvas id="chartModul"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <h3 class="text-base font-bold text-slate-800 flex items-center mb-1">
+                        Proporsi Kelulusan Post-Test
+                        <span class="cursor-help ml-2 text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-300 font-medium" data-tippy-content="Sebaran status kelulusan seluruh modul aktif peserta.">Distribusi</span>
+                    </h3>
+                    <p class="text-xs text-slate-500 mb-3">Rasio Lulus vs Remedial vs Belum Mengambil.</p>
+                    <div class="relative h-64 w-full">
+                        <canvas id="chartStatus"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row 2: Sebaran Skor & Pre vs Post Gain -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <h3 class="text-base font-bold text-slate-800 flex items-center mb-1">
+                        Distribusi Rentang Nilai Post-Test
+                        <span class="cursor-help ml-2 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-200 font-medium" data-tippy-content="Pengelompokan skor peserta ke dalam 4 tingkatan kompetensi.">Leveling</span>
+                    </h3>
+                    <p class="text-xs text-slate-500 mb-3">Memetakan tingkat kesiapan kognitif peserta.</p>
+                    <div class="relative h-60 w-full">
+                        <canvas id="chartDistribusi"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <div class="flex justify-between items-start mb-1">
+                        <div>
+                            <h3 class="text-base font-bold text-slate-800 flex items-center">
+                                Knowledge Gain & Efektivitas Pelatihan
+                                <span class="cursor-help ml-2 text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 font-medium" data-tippy-content="Perbandingan skor baseline pre-test terhadap post-test beserta nilai Normalized Hake's Gain <g>">Gain Index</span>
+                            </h3>
+                            <p class="text-xs text-slate-500">Peningkatan pemahaman materi sebelum dan sesudah sesi modul.</p>
+                        </div>
+                        <div id="hakeGainBadge" class="text-xs font-mono font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded border border-slate-200">
+                            &lt;g&gt;: -
+                        </div>
+                    </div>
+                    <div class="relative h-60 w-full mt-3">
+                        <canvas id="chartGain"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Table Container -->
+            <div id="tableSectionWrapper" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap justify-between items-center gap-3">
+                    <div>
+                        <h3 id="tableTitle" class="text-base font-bold text-slate-800">Matriks Evaluasi Belajar & Kesiapan Peserta</h3>
+                        <p id="tableSubtitle" class="text-xs text-slate-500">Klik nama peserta untuk membuka rapor performa individual. Drag garis pembatas kolom untuk me-resize, klik ganda untuk reset auto-sizing.</p>
+                    </div>
+
+                    <div class="flex items-center gap-2" data-html2canvas-ignore="true">
+                        <button id="btnXlsxSimple" onclick="exportXLSX('simple')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm cursor-pointer" title="Unduh Excel Ringkas">
+                            📊 Unduh XLSX (Ringkas)
+                        </button>
+                        <button id="btnXlsxDetailed" onclick="exportXLSX('detailed')" class="bg-emerald-600 hover:bg-emerald-500 text-white transition px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm cursor-pointer" title="Unduh Excel Lengkap">
+                            📑 Unduh XLSX (Detail)
+                        </button>
+                        <button onclick="toggleTable()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 transition px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">
+                            <span id="tableToggleIcon">▲ Tutup Tabel</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="tableContainer" class="p-4 overflow-x-auto space-y-3">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2" data-html2canvas-ignore="true">
+                        <input type="text" id="searchTable" onkeyup="filterTableSearch()" placeholder="Cari Nama Peserta, Username, atau Modul..." class="w-full sm:w-80 p-2 border border-slate-300 rounded-lg text-xs md:text-sm focus:outline-none focus:border-amber-500">
+                        <span id="tableCountBadge" class="text-xs text-slate-500 font-medium">Menampilkan 0 baris</span>
+                    </div>
+
+                    <div id="tableWrapper" class="overflow-x-auto">
+                        <!-- Rendered by JS -->
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Data Table Container -->
-        <div id="tableSectionWrapper" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div class="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap justify-between items-center gap-3">
-                <div>
-                    <h3 id="tableTitle" class="text-base font-bold text-slate-800">Matriks Evaluasi Belajar & Kesiapan Peserta</h3>
-                    <p id="tableSubtitle" class="text-xs text-slate-500">Klik nama peserta untuk membuka rapor performa individual. Drag garis kolom nama untuk me-resize, klik 2x untuk auto-fit.</p>
+        <!-- ========================================== -->
+        <!-- NEW MENU: HALL OF FAME & LEADERSHIP AWARDS -->
+        <!-- ========================================== -->
+        <div id="hallOfFameViewContainer" class="hidden space-y-6" data-html2canvas-ignore="false">
+            <!-- Studio Toolbar & Award Category Selector -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4" data-html2canvas-ignore="true">
+                <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                    <div>
+                        <h2 class="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                            <span>🏆</span> UI ALEX 2026 Leadership Hall of Fame
+                        </h2>
+                        <p class="text-xs text-slate-500">Studio nominasi penghargaan peserta pelatihan kepemimpinan DPPD x DSDMPT UI.</p>
+                    </div>
+
+                    <!-- Toggle Top 3 / Top 5 -->
+                    <div class="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                        <span class="text-xs font-bold text-slate-500 ml-1">Format Juara:</span>
+                        <button id="btnAwardTop3" onclick="setAwardRankLimit(3)" class="px-3 py-1.5 rounded-lg text-xs font-bold transition bg-amber-500 text-slate-950 shadow-sm">
+                            🥉 Top 3 (Podium)
+                        </button>
+                        <button id="btnAwardTop5" onclick="setAwardRankLimit(5)" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition">
+                            🎖️ Top 5 (Honor Roll)
+                        </button>
+                    </div>
                 </div>
 
-                <div class="flex items-center gap-2" data-html2canvas-ignore="true">
-                    <button id="btnXlsxSimple" onclick="exportXLSX('simple')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm cursor-pointer" title="Unduh Excel Ringkas">
-                        📊 Unduh XLSX (Ringkas)
+                <!-- 10 Awards Horizontal Selector Pills -->
+                <div class="space-y-1.5">
+                    <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Pilih 10 Kategori Penghargaan:</span>
+                    <div id="awardCategoryTabs" class="flex flex-wrap gap-2 text-xs">
+                        <!-- Rendered dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Controls for PPT Export & Print -->
+            <div class="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-slate-900 to-indigo-950 p-4 rounded-xl text-white shadow-md" data-html2canvas-ignore="true">
+                <div class="flex items-center gap-2">
+                    <span class="text-amber-400 font-bold text-xs uppercase tracking-wider">Slide Preview:</span>
+                    <span id="activeAwardNavText" class="text-xs font-semibold text-slate-200">-</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <button onclick="navigateAward(-1)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition">
+                        ◀ Sebelumnya
                     </button>
-                    <button id="btnXlsxDetailed" onclick="exportXLSX('detailed')" class="bg-emerald-600 hover:bg-emerald-500 text-white transition px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm cursor-pointer" title="Unduh Excel Lengkap">
-                        📑 Unduh XLSX (Detail)
+                    <button onclick="navigateAward(1)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition">
+                        Selanjutnya ▶
                     </button>
-                    <button onclick="toggleTable()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 transition px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">
-                        <span id="tableToggleIcon">▲ Tutup Tabel</span>
+                    <span class="text-slate-700">|</span>
+                    <button onclick="copyAwardAnnouncementText()" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold transition flex items-center gap-1.5 border border-slate-700 cursor-pointer">
+                        📋 Salin Teks MC
+                    </button>
+                    <button onclick="downloadAwardCertificatePDF()" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition flex items-center gap-1.5 border border-slate-700 cursor-pointer">
+                        📄 Unduh Piagam PDF
+                    </button>
+                    <button onclick="exportAwardSlidePNG()" class="px-4 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 text-xs font-black transition flex items-center gap-1.5 shadow-lg shadow-amber-500/20 cursor-pointer">
+                        📸 Ekspor Slide PNG (Hi-Res 16:9)
                     </button>
                 </div>
             </div>
 
-            <div id="tableContainer" class="p-4 overflow-x-auto space-y-3">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2" data-html2canvas-ignore="true">
-                    <input type="text" id="searchTable" onkeyup="filterTableSearch()" placeholder="Cari Nama Peserta, Username, atau Modul..." class="w-full sm:w-80 p-2 border border-slate-300 rounded-lg text-xs md:text-sm focus:outline-none focus:border-amber-500">
-                    <span id="tableCountBadge" class="text-xs text-slate-500 font-medium">Menampilkan 0 baris</span>
-                </div>
+            <!-- PRESENTATION-READY 16:9 SLIDE CANVAS (Optimized for PPT Insertion) -->
+            <div class="w-full flex justify-center">
+                <div id="awardSlideCanvas" class="w-full max-w-6xl aspect-[16/9] min-h-[620px] bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-10 relative overflow-hidden shadow-2xl border-2 border-amber-500/30 flex flex-col justify-between select-none">
+                    <!-- Luxury Background Elements -->
+                    <div class="absolute -top-24 -right-24 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                    <div class="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
+                    <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(2,6,23,0.6)_100%)] pointer-events-none"></div>
 
-                <div id="tableWrapper" class="overflow-x-auto">
-                    <!-- Rendered by JS -->
+                    <!-- Slide Header -->
+                    <div class="relative z-10 flex justify-between items-start border-b border-amber-500/20 pb-4">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2">
+                                <span class="w-8 h-8 rounded-lg bg-amber-500 text-slate-950 font-black text-sm flex items-center justify-center shadow">UI</span>
+                                <span class="text-xs font-bold tracking-[0.2em] text-amber-400/90 uppercase font-mono">UI ALEX 2026 • LEADERSHIP AWARDS</span>
+                            </div>
+                            <h1 id="slideAwardTitle" class="text-2xl sm:text-3xl md:text-4xl font-award-serif font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-500">
+                                The Grand Luminary Award
+                            </h1>
+                            <p id="slideAwardSubtitle" class="text-xs sm:text-sm text-slate-300 font-medium">
+                                Performa Akademik & Asesmen Terbaik Keseluruhan
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <span id="slideAwardBadge" class="inline-block px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                Overall Mastery
+                            </span>
+                            <p id="slideAwardBatchTag" class="text-[11px] text-slate-400 font-mono mt-1">Batch 1</p>
+                        </div>
+                    </div>
+
+                    <!-- Slide Center Stage (Podium / Winners Grid) -->
+                    <div id="slideWinnersStage" class="relative z-10 py-4 flex-1 flex flex-col justify-center">
+                        <!-- Populated dynamically by renderAwardStage() -->
+                    </div>
+
+                    <!-- Slide Footer -->
+                    <div class="relative z-10 pt-3 border-t border-slate-800 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                        <div class="flex items-center gap-2">
+                            <span>Direktorat Pengembangan Pendidikan Digital (DPPD) x DSDMPT Universitas Indonesia</span>
+                        </div>
+                        <div>
+                            <span id="slideVerificationStamp">VERIFIED & ACCREDITED • ALEX 2026</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -821,6 +934,27 @@
                     </div>
                 </div>
 
+                <!-- Timeline / Access Journey Chart -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
+                    <div class="flex flex-wrap justify-between items-center border-b border-slate-100 pb-2">
+                        <div>
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                                <span>⏱️ Kronologi & Perjalanan Waktu Akses Asesmen</span>
+                            </h4>
+                            <p class="text-[11px] text-slate-500">Urutan kronologis pengerjaan kuis berdasarkan waktu submit dan perolehan skor.</p>
+                        </div>
+                        <div id="timelineSummaryBadge" class="text-[11px] font-mono text-slate-600 bg-slate-100 px-2.5 py-1 rounded border border-slate-200">
+                            -
+                        </div>
+                    </div>
+                    <div id="timelineChartContainer" class="relative h-60 w-full">
+                        <canvas id="chartModalTimeline"></canvas>
+                    </div>
+                    <p id="timelineEmptyNotice" class="hidden text-center py-8 text-xs text-slate-400 italic">
+                        Belum ada aktivitas pengerjaan kuis yang tercatat waktu submit-nya.
+                    </p>
+                </div>
+
                 <!-- Detailed Module Scores Table -->
                 <div class="space-y-2 pt-2">
                     <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700">Rincian Nilai Asesmen & Status Modul</h4>
@@ -833,6 +967,7 @@
                                     <th class="px-3 py-2 text-center">Nilai</th>
                                     <th class="px-3 py-2 text-center">KKM</th>
                                     <th class="px-3 py-2 text-center">Status</th>
+                                    <th class="px-3 py-2 text-center">Waktu Submit</th>
                                 </tr>
                             </thead>
                             <tbody id="modalTableBody" class="divide-y divide-slate-100 bg-white">
@@ -841,6 +976,42 @@
                         </table>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Pop-up Rincian Anggota Non-Student (Report 167) -->
+    <div id="roleMembersModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[120] hidden flex items-center justify-center p-3 sm:p-6" data-html2canvas-ignore="true">
+        <div class="max-w-xl w-full bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="bg-slate-900 text-white p-4 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">👥</span>
+                    <div>
+                        <h3 id="roleModalTitle" class="text-sm font-bold text-white tracking-tight">Rincian Akun Pengajar</h3>
+                        <p id="roleModalSubtitle" class="text-[11px] text-slate-400">-</p>
+                    </div>
+                </div>
+                <button onclick="closeRoleDetailModal()" class="text-slate-400 hover:text-white p-1 rounded cursor-pointer">
+                    ✕
+                </button>
+            </div>
+
+            <div class="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                <input type="text" id="roleMemberSearch" onkeyup="filterRoleMemberList()" placeholder="Cari nama atau email..." class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:border-amber-500">
+                <span id="roleMemberCount" class="text-xs font-mono text-slate-500 whitespace-nowrap">0 Akun</span>
+            </div>
+
+            <div id="roleMemberListContainer" class="p-4 overflow-y-auto space-y-2 flex-1 text-xs">
+                <!-- Rendered dynamically -->
+            </div>
+
+            <div class="p-3 border-t border-slate-100 bg-slate-50 flex justify-between items-center text-xs">
+                <a id="roleModalLmsLink" href="#" target="_blank" rel="noopener noreferrer" class="text-amber-600 hover:underline font-bold flex items-center gap-1">
+                    Buka Direktori di LMS ↗
+                </a>
+                <button onclick="closeRoleDetailModal()" class="px-3.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold cursor-pointer">
+                    Tutup
+                </button>
             </div>
         </div>
     </div>
@@ -859,7 +1030,7 @@
     </footer>
 
     <!-- Modal Terms of Use / Disclaimer -->
-    <div id="termsModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[125] flex items-center justify-center p-4 hidden" data-html2canvas-ignore="true">
+    <div id="termsModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[130] flex items-center justify-center p-4 hidden" data-html2canvas-ignore="true">
         <div class="max-w-lg w-full bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 flex flex-col max-h-[85vh]">
             <div class="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 class="font-bold text-sm text-slate-900">Ketentuan Penggunaan & Disclaimer</h3>
@@ -942,9 +1113,8 @@
             let iStr = 0
             while (iStr < str.length) {
                 let code = str.charCodeAt(iStr)
-                if (code < 0x80) {
-                    bytes.push(code)
-                } else if (code < 0x800) {
+                if (code < 0x80) bytes.push(code)
+                else if (code < 0x800) {
                     bytes.push(0xc0 | (code >> 6))
                     bytes.push(0x80 | (code & 0x3f))
                 } else if (code < 0xd800 || code >= 0xe000) {
@@ -964,34 +1134,22 @@
             
             const bitLen = bytes.length * 8
             bytes.push(0x80)
-            while ((bytes.length % 64) !== 56) {
-                bytes.push(0)
-            }
+            while ((bytes.length % 64) !== 56) bytes.push(0)
             
-            bytes.push(0)
-            bytes.push(0)
-            bytes.push(0)
-            bytes.push(0)
-            bytes.push((bitLen >>> 24) & 0xff)
-            bytes.push((bitLen >>> 16) & 0xff)
-            bytes.push((bitLen >>> 8) & 0xff)
-            bytes.push(bitLen & 0xff)
+            bytes.push(0); bytes.push(0); bytes.push(0); bytes.push(0)
+            bytes.push((bitLen >>> 24) & 0xff); bytes.push((bitLen >>> 16) & 0xff)
+            bytes.push((bitLen >>> 8) & 0xff); bytes.push(bitLen & 0xff)
             
             let chunkStart = 0
             while (chunkStart < bytes.length) {
                 const W = []
                 let tIdx = 0
                 while (tIdx < 16) {
-                    const b0 = bytes[chunkStart + tIdx * 4]
-                    const b1 = bytes[chunkStart + tIdx * 4 + 1]
-                    const b2 = bytes[chunkStart + tIdx * 4 + 2]
-                    const b3 = bytes[chunkStart + tIdx * 4 + 3]
-                    W.push((b0 << 24) | (b1 << 16) | (b2 << 8) | b3)
+                    W.push((bytes[chunkStart + tIdx * 4] << 24) | (bytes[chunkStart + tIdx * 4 + 1] << 16) | (bytes[chunkStart + tIdx * 4 + 2] << 8) | bytes[chunkStart + tIdx * 4 + 3])
                     tIdx++
                 }
                 while (tIdx < 64) {
-                    const w15 = W[tIdx - 15]
-                    const w2 = W[tIdx - 2]
+                    const w15 = W[tIdx - 15]; const w2 = W[tIdx - 2]
                     const s0 = (rotr(w15, 7) ^ rotr(w15, 18) ^ (w15 >>> 3))
                     const s1 = (rotr(w2, 17) ^ rotr(w2, 19) ^ (w2 >>> 10))
                     W.push((W[tIdx - 16] + s0 + W[tIdx - 7] + s1) | 0)
@@ -1052,26 +1210,6 @@
             }
         }
 
-        function setupRoleLinks() {
-            const map = {
-                'p1_all': ['linkP1All', 'badgeP1Total'],
-                'p1_student': ['linkP1Student', 'badgeP1Student'],
-                'p1_editing': ['linkP1Editing', 'badgeP1Editing'],
-                'p1_teacher': ['linkP1Teacher', 'badgeP1Teacher'],
-                'p2_all': ['linkP2All', 'badgeP2Total'],
-                'p2_student': ['linkP2Student', 'badgeP2Student'],
-                'p2_editing': ['linkP2Editing', 'badgeP2Editing'],
-                'p2_teacher': ['linkP2Teacher', 'badgeP2Teacher']
-            }
-            for (const [key, [linkId, badgeId]] of Object.entries(map)) {
-                const encToken = _ENC_ROLE_LINKS[key]
-                const linkEl = document.getElementById(linkId)
-                if (linkEl) linkEl.href = _resolveUri(encToken)
-                const badgeEl = document.getElementById(badgeId)
-                if (badgeEl) badgeEl.href = _resolveUri(encToken)
-            }
-        }
-
         // Screen Lock & Idle Timer
         const IDLE_LIMIT_MS = 5 * 60 * 1000
         let idleTimer = null
@@ -1080,9 +1218,7 @@
         function resetIdleTimer() {
             if (isScreenLocked) return
             if (idleTimer) clearTimeout(idleTimer)
-            idleTimer = setTimeout(() => {
-                lockScreen(true)
-            }, IDLE_LIMIT_MS)
+            idleTimer = setTimeout(() => { lockScreen(true) }, IDLE_LIMIT_MS)
         }
 
         function lockScreen(isAutoLock) {
@@ -1091,9 +1227,7 @@
             const overlay = document.getElementById('loginOverlay')
             if (overlay) overlay.classList.remove('hidden')
             setVal('loginPass', '')
-            if (currentLoggedUser) {
-                setVal('loginUser', currentLoggedUser)
-            }
+            if (currentLoggedUser) setVal('loginUser', currentLoggedUser)
             const notice = document.getElementById('lockNotice')
             if (notice) {
                 if (isAutoLock) notice.classList.remove('hidden')
@@ -1183,6 +1317,11 @@
         let currentViewMode = 'matrix'
         let isScoreMasked = true
         let activeModalUserId = null
+        let currentRoleDetailList = []
+
+        // Hall of Fame State
+        let currentAwardIndex = 0
+        let currentAwardRankLimit = 3 // 3 for Top 3, 5 for Top 5
 
         // Sorting State
         let matrixSortCol = 'nama'
@@ -1191,7 +1330,7 @@
         let logSortDir = 'asc'
 
         let chartModul, chartStatus, chartDistribusi, chartGain
-        let chartModalRadar, chartModalBar
+        let chartModalRadar, chartModalBar, chartModalTimeline
 
         // Auto Refresh Countdown Timer
         let autoSyncRemaining = 60
@@ -1243,7 +1382,10 @@
             if (searchVal) params.set('q', searchVal)
             if (actionName) params.set('action', actionName)
 
-            const viewName = currentViewMode === 'matrix' ? 'Matriks Kesiapan' : 'Log Asesmen'
+            let viewName = 'Matriks Kesiapan'
+            if (currentViewMode === 'log') viewName = 'Log Asesmen'
+            else if (currentViewMode === 'halloffame') viewName = 'Hall of Fame'
+
             const titleParts = ['UI ALEX 2026', viewName, fBatch]
             if (fPersona !== 'All') titleParts.push(fPersona)
             if (actionName) titleParts.push(actionName)
@@ -1271,7 +1413,7 @@
             const params = new URLSearchParams(window.location.search)
             if (params.has('view')) {
                 const v = params.get('view')
-                if (v === 'matrix' || v === 'log') currentViewMode = v
+                if (['matrix', 'log', 'halloffame'].includes(v)) currentViewMode = v
             }
             if (params.has('batch')) setVal('filterBatch', params.get('batch'))
             if (params.has('persona')) setVal('filterPersona', params.get('persona'))
@@ -1288,7 +1430,6 @@
         }
 
         document.addEventListener("DOMContentLoaded", async () => {
-            setupRoleLinks()
             tippy('[data-tippy-content]', {
                 animation: 'shift-away',
                 theme: 'light-border',
@@ -1338,19 +1479,36 @@
             currentViewMode = mode
             const btnMatrix = document.getElementById('btnViewMatrix')
             const btnLog = document.getElementById('btnViewLog')
+            const btnHallOfFame = document.getElementById('btnViewHallOfFame')
+
+            const dashboardViews = document.getElementById('analyticsDashboardViews')
+            const hallOfFameView = document.getElementById('hallOfFameViewContainer')
+
+            // Reset styles
+            btnMatrix.className = "px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition"
+            btnLog.className = "px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition"
+            btnHallOfFame.className = "px-3.5 py-1.5 rounded-lg text-amber-800 hover:text-amber-950 hover:bg-amber-100/60 transition flex items-center gap-1.5 font-bold"
 
             if (mode === 'matrix') {
-                if (btnMatrix) btnMatrix.className = "px-3 py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition"
-                if (btnLog) btnLog.className = "px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition"
+                btnMatrix.className = "px-3.5 py-1.5 rounded-lg bg-white text-slate-900 shadow-sm transition font-bold"
+                if (dashboardViews) dashboardViews.classList.remove('hidden')
+                if (hallOfFameView) hallOfFameView.classList.add('hidden')
                 setText('tableTitle', "Matriks Evaluasi Belajar & Kesiapan Peserta")
-                setText('tableSubtitle', "Klik nama peserta untuk membuka rapor performa individual. Drag garis kolom nama untuk me-resize, klik 2x untuk auto-fit.")
-            } else {
-                if (btnLog) btnLog.className = "px-3 py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition"
-                if (btnMatrix) btnMatrix.className = "px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition"
+                setText('tableSubtitle', "Klik nama peserta untuk membuka rapor performa individual. Drag garis pembatas kolom untuk me-resize, klik ganda untuk reset auto-sizing.")
+                renderTable()
+            } else if (mode === 'log') {
+                btnLog.className = "px-3.5 py-1.5 rounded-lg bg-white text-slate-900 shadow-sm transition font-bold"
+                if (dashboardViews) dashboardViews.classList.remove('hidden')
+                if (hallOfFameView) hallOfFameView.classList.add('hidden')
                 setText('tableTitle', "Log Rinci Asesmen Modul")
                 setText('tableSubtitle', "Detail pengerjaan per baris kuis. Klik header kolom untuk sorting.")
+                renderTable()
+            } else if (mode === 'halloffame') {
+                btnHallOfFame.className = "px-3.5 py-1.5 rounded-lg bg-amber-500 text-slate-950 shadow-sm transition flex items-center gap-1.5 font-bold"
+                if (dashboardViews) dashboardViews.classList.add('hidden')
+                if (hallOfFameView) hallOfFameView.classList.remove('hidden')
+                renderHallOfFameStudio()
             }
-            renderTable()
             updateUrlAndTracker()
         }
 
@@ -1561,22 +1719,24 @@
                 }
             })
 
-            // Hitung Indeks Kesiapan, Persona & Anomali
+            // Calculate Readiness, Personas & Anomaly
             Object.values(profiles).forEach(u => {
                 const cp1 = Number(u.progress_p1 || 0)
                 const cp2 = Number(u.progress_p2 || 0)
                 const pr1 = u.p1_pre !== null ? Number(u.p1_pre) : 0
                 const pr2 = u.p2_pre !== null ? Number(u.p2_pre) : 0
 
+                u.comp_total = Number(((cp1 + cp2) / 2).toFixed(1))
+
+                // Pre-test average
+                const preArr = [u.p1_pre, u.p2_pre].filter(v => v !== null)
+                u.pre_avg = preArr.length > 0 ? Number((preArr.reduce((a, b) => a + b, 0) / preArr.length).toFixed(1)) : null
+
                 // Formulasi Indeks Kesiapan Belajar (40:40:10:10)
                 u.readiness_score = Number(((0.4 * cp1) + (0.4 * cp2) + (0.1 * pr1) + (0.1 * pr2)).toFixed(1))
-                if (u.readiness_score >= 75) {
-                    u.readiness_cat = 'Siap'
-                } else if (u.readiness_score >= 50) {
-                    u.readiness_cat = 'Cukup'
-                } else {
-                    u.readiness_cat = 'Pendampingan'
-                }
+                if (u.readiness_score >= 75) u.readiness_cat = 'Siap'
+                else if (u.readiness_score >= 50) u.readiness_cat = 'Cukup'
+                else u.readiness_cat = 'Pendampingan'
 
                 // Deteksi Anomali Glitch LMS
                 const hasZeroPre = (u.p1_pre !== null && u.p1_pre === 0) || (u.p2_pre !== null && u.p2_pre === 0)
@@ -1606,7 +1766,23 @@
 
                 u.p1_post_avg = p1Vals.length > 0 ? Number((p1Vals.reduce((a, b) => a + b, 0) / p1Vals.length).toFixed(1)) : null
                 u.p2_post_avg = p2Vals.length > 0 ? Number((p2Vals.reduce((a, b) => a + b, 0) / p2Vals.length).toFixed(1)) : null
-                u.total_post_avg = allVals.length > 0 ? Number((allVals.reduce((a, b) => a + b, 0) / allVals.length).toFixed(1)) : null
+                u.total_post_avg = allVals.length > 0 ? Number((allVals.reduce((a, b) => a + b, 0) / allVals.length).toFixed(1)) : 0
+
+                // Timestamps of first & latest submission
+                const submitTimes = u.logs.filter(l => l.waktu_submit && l.waktu_submit !== '-').map(l => l.waktu_submit)
+                u.first_submit = submitTimes.length > 0 ? submitTimes.sort()[0] : '9999-99-99 99:99'
+                u.latest_submit = submitTimes.length > 0 ? submitTimes.sort()[submitTimes.length - 1] : '-'
+
+                // Normalized Knowledge Gain
+                if (u.pre_avg !== null && u.attempted_post > 0) {
+                    if (u.pre_avg >= 100) {
+                        u.hake_gain = u.total_post_avg >= 100 ? 1.0 : 0.0
+                    } else {
+                        u.hake_gain = Number(((u.total_post_avg - u.pre_avg) / (100 - u.pre_avg)).toFixed(2))
+                    }
+                } else {
+                    u.hake_gain = null
+                }
             })
 
             return profiles
@@ -1659,6 +1835,11 @@
             renderKPIs()
             renderCharts()
             renderTable()
+            
+            if (currentViewMode === 'halloffame') {
+                renderHallOfFameStudio()
+            }
+
             updateUrlAndTracker()
         }
 
@@ -1756,16 +1937,110 @@
 
                 setText('roleP1Student', p1Students > 0 ? p1Students : '-')
                 setText('roleP2Student', p2Students > 0 ? p2Students : '-')
-                setHtml('roleP1Editing', '<span class="text-amber-700 underline text-[11px] font-medium">Cek LMS ↗</span>')
-                setHtml('roleP1Teacher', '<span class="text-amber-700 underline text-[11px] font-medium">Cek LMS ↗</span>')
+                setText('roleP1Editing', '5')
+                setText('roleP1Teacher', '10')
                 setText('roleP1Total', p1Students > 0 ? `${p1Students}+ Akun` : '-')
 
-                setHtml('roleP2Editing', '<span class="text-blue-700 underline text-[11px] font-medium">Cek LMS ↗</span>')
-                setHtml('roleP2Teacher', '<span class="text-blue-700 underline text-[11px] font-medium">Cek LMS ↗</span>')
+                setText('roleP2Editing', '5')
+                setText('roleP2Teacher', '11')
                 setText('roleP2Total', p2Students > 0 ? `${p2Students}+ Akun` : '-')
 
-                setText('badgeTotalAllUsers', p1Students + p2Students > 0 ? `Peserta Terverifikasi: ${p1Students + p2Students} Akun` : 'Total: - Akun')
+                setText('badgeTotalAllUsers', p1Students + p2Students > 0 ? `Peserta: ${p1Students + p2Students} Akun` : 'Total: - Akun')
             }
+        }
+
+        // ==========================================
+        // ROLE MEMBERS POP-UP MODAL (REPORT 167)
+        // ==========================================
+        function openRoleDetailModal(roleCode, pilarName) {
+            const roleRows = rawMasterData.filter(d => d.role_code !== undefined && d.total_users !== undefined)
+            const targetRow = roleRows.find(r => {
+                const isMatchPilar = String(r.pilar || '').includes(pilarName) || 
+                    (pilarName.includes('1') && r.course_id == 99544) || 
+                    (pilarName.includes('2') && r.course_id == 99545)
+                return isMatchPilar && String(r.role_code || '').toLowerCase() === roleCode.toLowerCase()
+            })
+
+            const roleTitle = roleCode === 'editingteacher' ? 'Dosen Pengedit' : (roleCode === 'teacher' ? 'Dosen Fasilitator' : 'Pengguna Terdaftar')
+            setText('roleModalTitle', `${roleTitle} - ${pilarName}`)
+            setText('roleModalSubtitle', `Direktorat Pengembangan Pendidikan Digital (DPPD) x DSDMPT UI`)
+
+            const linkKey = pilarName.includes('1') ? (roleCode === 'editingteacher' ? 'p1_editing' : 'p1_teacher') : (roleCode === 'editingteacher' ? 'p2_editing' : 'p2_teacher')
+            const lmsUrl = _resolveUri(_ENC_ROLE_LINKS[linkKey] || '')
+            const lmsAnchor = document.getElementById('roleModalLmsLink')
+            if (lmsAnchor) lmsAnchor.href = lmsUrl
+
+            currentRoleDetailList = []
+            if (targetRow && targetRow.detail_anggota) {
+                const parts = String(targetRow.detail_anggota).split('||')
+                parts.forEach(p => {
+                    const match = p.trim().match(/^(.*?)\s*\((.*?)\)$/)
+                    if (match) {
+                        currentRoleDetailList.push({ nama: match[1].trim(), email: match[2].trim() })
+                    } else if (p.trim()) {
+                        currentRoleDetailList.push({ nama: p.trim(), email: '-' })
+                    }
+                })
+            }
+
+            renderRoleMembersList()
+            const modal = document.getElementById('roleMembersModal')
+            if (modal) modal.classList.remove('hidden')
+        }
+
+        function closeRoleDetailModal() {
+            const modal = document.getElementById('roleMembersModal')
+            if (modal) modal.classList.add('hidden')
+            currentRoleDetailList = []
+        }
+
+        function filterRoleMemberList() {
+            renderRoleMembersList()
+        }
+
+        function renderRoleMembersList() {
+            const container = document.getElementById('roleMemberListContainer')
+            const searchKeyword = (document.getElementById('roleMemberSearch')?.value || '').toLowerCase().trim()
+            if (!container) return
+
+            let list = currentRoleDetailList.slice()
+            if (searchKeyword) {
+                list = list.filter(m => m.nama.toLowerCase().includes(searchKeyword) || m.email.toLowerCase().includes(searchKeyword))
+            }
+
+            setText('roleMemberCount', `${list.length} Akun`)
+
+            if (list.length === 0) {
+                if (currentRoleDetailList.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-6 text-slate-500 space-y-2">
+                            <p class="font-medium">Data nama pengajar belum terintegrasi di berkas CSV saat ini.</p>
+                            <p class="text-[11px] text-slate-400">Silakan gunakan query SQL Report 167 dengan kolom <code>detail_anggota</code>, atau buka langsung di LMS via tombol di bawah.</p>
+                        </div>
+                    `
+                } else {
+                    container.innerHTML = `<p class="text-center py-6 text-slate-400">Tidak ada pengajar yang cocok dengan pencarian.</p>`
+                }
+                return
+            }
+
+            let html = '<div class="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white">'
+            list.forEach((m, idx) => {
+                html += `
+                    <div class="p-2.5 flex items-center justify-between hover:bg-slate-50 transition">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-5 text-center text-slate-400 font-mono text-[11px]">${idx + 1}.</span>
+                            <div>
+                                <p class="font-semibold text-slate-900">${m.nama}</p>
+                                <p class="text-[11px] text-slate-500 font-mono">${m.email}</p>
+                            </div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 font-mono">Pengajar</span>
+                    </div>
+                `
+            })
+            html += '</div>'
+            container.innerHTML = html
         }
 
         function renderPretestSummaryWidget() {
@@ -2007,7 +2282,7 @@
 
             if (currentViewMode === 'matrix') {
                 renderParticipantMatrix(wrapper, searchKeyword, false)
-            } else {
+            } else if (currentViewMode === 'log') {
                 renderAssessmentLog(wrapper, searchKeyword, false)
             }
         }
@@ -2055,7 +2330,7 @@
                 resizer.classList.add('resizing')
 
                 function onMouseMove(e) {
-                    const newWidth = Math.max(140, startWidth + (e.pageX - startX))
+                    const newWidth = Math.max(130, startWidth + (e.pageX - startX))
                     th.style.width = newWidth + 'px'
                     th.style.minWidth = newWidth + 'px'
                 }
@@ -2134,11 +2409,11 @@
                             <th class="px-2 py-2.5 text-center w-10 text-slate-400">No.</th>
                             <th id="thPesertaCol" class="relative px-3 py-2.5 text-left transition select-none">
                                 <span onclick="triggerSortMatrix('nama')" class="cursor-pointer hover:text-amber-600">Peserta ${getSortIndicator(matrixSortCol, matrixSortDir, 'nama')}</span>
-                                <div id="resizerPesertaCol" class="resizer-handle" title="Tarik untuk resize, klik 2x untuk auto-fit"></div>
+                                <div id="resizerPesertaCol" class="resizer-handle" title="Tarik untuk resize, klik 2x untuk auto-sizing"></div>
                             </th>
                             <th onclick="triggerSortMatrix('batch')" class="px-2 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">Batch ${getSortIndicator(matrixSortCol, matrixSortDir, 'batch')}</th>
                             <th onclick="triggerSortMatrix('persona')" class="px-2.5 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition" title="Tipologi Belajar Peserta">Persona ${getSortIndicator(matrixSortCol, matrixSortDir, 'persona')}</th>
-                            <th onclick="triggerSortMatrix('readiness_score')" class="px-2 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition" title="Indeks Kesiapan Belajar">Kesiapan ${getSortIndicator(matrixSortCol, matrixSortDir, 'readiness_score')}</th>
+                            <th onclick="triggerSortMatrix('readiness_score')" class="px-2.5 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition" title="Indeks Kesiapan Belajar">Kesiapan ${getSortIndicator(matrixSortCol, matrixSortDir, 'readiness_score')}</th>
                             <th onclick="triggerSortMatrix('progress_p1')" class="px-2 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">Comp-I ${getSortIndicator(matrixSortCol, matrixSortDir, 'progress_p1')}</th>
                             <th onclick="triggerSortMatrix('progress_p2')" class="px-2 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">Comp-II ${getSortIndicator(matrixSortCol, matrixSortDir, 'progress_p2')}</th>
                             <th onclick="triggerSortMatrix('p1_pre')" class="px-2 py-2.5 text-center bg-amber-50 cursor-pointer hover:bg-amber-100 transition">Pre-I ${getSortIndicator(matrixSortCol, matrixSortDir, 'p1_pre')}</th>
@@ -2235,20 +2510,20 @@
                     }
                 }
 
-                // Participant Name Clickable for Dossier Modal
+                // Participant Name Clickable with clean word-wrap
                 const participantCell = `
-                    <div class="flex flex-col">
-                        <span onclick="openParticipantReport(${p.user_id})" class="font-semibold text-slate-900 hover:text-amber-600 hover:underline cursor-pointer transition flex items-center gap-1" title="Buka Rapor Performa Lengkap">
+                    <div class="flex flex-col word-break-wrap">
+                        <span onclick="openParticipantReport(${p.user_id})" class="font-semibold text-slate-900 hover:text-amber-600 hover:underline cursor-pointer transition leading-snug" title="Klik untuk membuka Rapor Lengkap">
                             ${p.nama} <span class="text-[10px] text-amber-500">↗</span>
                         </span>
-                        <span class="text-[11px] text-slate-400 font-mono">${p.username}</span>
+                        <span class="text-[11px] text-slate-400 font-mono mt-0.5">${p.username}</span>
                     </div>
                 `
 
                 html += `
                     <tr class="hover:bg-slate-50 transition">
                         <td class="px-2 py-2 text-center text-slate-400 font-mono text-xs">${idx + 1}</td>
-                        <td class="px-3 py-2 whitespace-nowrap">${participantCell}</td>
+                        <td class="px-3 py-2 text-left">${participantCell}</td>
                         <td class="px-2 py-2 text-center text-slate-600 font-medium">${p.batch}</td>
                         <td class="px-2 py-2 text-center">${personaCell}</td>
                         <td class="px-2 py-2 text-center">${readinessCell}</td>
@@ -2401,7 +2676,7 @@
 
             setText('modalPesertaNama', u.nama)
             setText('modalPesertaBatch', u.batch)
-            setText('modalPesertaNip', `NIP/Username: ${u.username} | User ID: ${u.user_id}`)
+            setText('modalPesertaNip', `NIP/Username: ${u.username} | ID: ${u.user_id}`)
 
             setText('modalReadinessScore', u.readiness_score)
             const catBadge = document.getElementById('modalReadinessCat')
@@ -2435,12 +2710,10 @@
             setText('modalPre2Score', u.p2_pre !== null ? u.p2_pre : '-')
             setText('modalPostP2Avg', u.p2_post_avg !== null ? `${u.p2_post_avg} / 100` : '-')
             setText('modalAttemptedTotal', `${u.attempted_post} dari 8 Modul`)
-            setText('modalPostTotalAvg', u.total_post_avg !== null ? `${u.total_post_avg} / 100` : '-')
+            setText('modalPostTotalAvg', u.total_post_avg > 0 ? `${u.total_post_avg} / 100` : '-')
 
-            // Render Modal Radar & Bar Charts
             renderParticipantCharts(u)
 
-            // Render Modal Table Rows
             const tableBody = document.getElementById('modalTableBody')
             if (tableBody) {
                 const modules = [
@@ -2461,6 +2734,12 @@
                     let statusLabel = 'Belum Mengambil'
                     let statusClass = 'bg-slate-100 text-slate-500'
                     let scoreDisplay = '-'
+                    let submitTimeDisplay = '-'
+
+                    const logEntry = u.logs.find(l => String(l.modul_direktorat).includes(m.name.split(' ')[0]) && l.tipe_asesmen === 'Post-test')
+                    if (logEntry && logEntry.waktu_submit && logEntry.waktu_submit !== '-') {
+                        submitTimeDisplay = logEntry.waktu_submit
+                    }
 
                     if (hasTaken) {
                         scoreDisplay = score
@@ -2480,6 +2759,7 @@
                             <td class="px-3 py-2 text-center font-mono font-bold">${scoreDisplay}</td>
                             <td class="px-3 py-2 text-center font-mono text-slate-500">80</td>
                             <td class="px-3 py-2 text-center"><span class="px-2 py-0.5 rounded text-[11px] ${statusClass}">${statusLabel}</span></td>
+                            <td class="px-3 py-2 text-center text-slate-500 font-mono text-[11px]">${submitTimeDisplay}</td>
                         </tr>
                     `
                 })
@@ -2500,13 +2780,14 @@
         function renderParticipantCharts(u) {
             if (chartModalRadar) chartModalRadar.destroy()
             if (chartModalBar) chartModalBar.destroy()
+            if (chartModalTimeline) chartModalTimeline.destroy()
 
             const modKeys = ['DPK', 'DSDMPT', 'DPBJ', 'DKA', 'DAI', 'DPMA', 'DHK', 'DMRT']
             const modLabels = ['DPK (Renc)', 'DSDM (SDM)', 'DPBJ (PBJ)', 'DKA (Keu)', 'DAI (Audit)', 'DPMA (Mutu)', 'DHK (Hkm)', 'DMRT (Risiko)']
             const userScores = modKeys.map(k => u.post_scores[k] ?? 0)
             const kkmValues = [80, 80, 80, 80, 80, 80, 80, 80]
 
-            // Radar Chart
+            // 1. Radar Chart
             const canvasRadar = document.getElementById('chartModalRadar')
             if (canvasRadar) {
                 const ctxRadar = canvasRadar.getContext('2d')
@@ -2521,9 +2802,7 @@
                                 backgroundColor: 'rgba(245, 158, 11, 0.25)',
                                 borderColor: '#f59e0b',
                                 pointBackgroundColor: '#d97706',
-                                pointBorderColor: '#fff',
-                                pointHoverBackgroundColor: '#fff',
-                                pointHoverBorderColor: '#d97706'
+                                pointBorderColor: '#fff'
                             },
                             {
                                 label: 'Standar KKM 80',
@@ -2539,18 +2818,14 @@
                         responsive: true,
                         maintainAspectRatio: false,
                         scales: {
-                            r: {
-                                min: 0,
-                                max: 100,
-                                ticks: { stepSize: 25, display: false }
-                            }
+                            r: { min: 0, max: 100, ticks: { stepSize: 25, display: false } }
                         },
                         plugins: { legend: { position: 'bottom' } }
                     }
                 })
             }
 
-            // Bar Chart Capaian
+            // 2. Bar Chart Capaian
             const canvasBar = document.getElementById('chartModalBar')
             if (canvasBar) {
                 const ctxBar = canvasBar.getContext('2d')
@@ -2577,6 +2852,92 @@
                     }
                 })
             }
+
+            // 3. Timeline Access & Journey Chart
+            const timelineContainer = document.getElementById('timelineChartContainer')
+            const emptyNotice = document.getElementById('timelineEmptyNotice')
+            
+            const attemptedLogs = u.logs.filter(l => Number(l.jumlah_attempt || 0) > 0 && l.waktu_submit && l.waktu_submit !== '-')
+            attemptedLogs.sort((a, b) => String(a.waktu_submit).localeCompare(String(b.waktu_submit)))
+
+            if (attemptedLogs.length === 0) {
+                if (timelineContainer) timelineContainer.classList.add('hidden')
+                if (emptyNotice) emptyNotice.classList.remove('hidden')
+                setText('timelineSummaryBadge', 'Belum Ada Jejak Waktu')
+            } else {
+                if (timelineContainer) timelineContainer.classList.remove('hidden')
+                if (emptyNotice) emptyNotice.classList.add('hidden')
+
+                const timeLabels = []
+                const timeScores = []
+                const pointColors = []
+                const pointRadii = []
+
+                attemptedLogs.forEach(l => {
+                    const shortDate = String(l.waktu_submit).slice(5) // MM-DD HH:mm
+                    const modName = l.tipe_asesmen === 'Pre-test' ? (String(l.pilar).includes('Pilar 1') ? 'Pre-Test I' : 'Pre-Test II') : (l.modul_direktorat ? String(l.modul_direktorat).slice(0, 10) : 'Post-Test')
+                    timeLabels.push(`${shortDate} (${modName})`)
+                    
+                    const sc = Number(l.nilai || 0)
+                    timeScores.push(sc)
+                    pointColors.push(sc >= 80 ? '#10b981' : (sc >= 60 ? '#f59e0b' : '#f43f5e'))
+                    pointRadii.push(6)
+                })
+
+                setText('timelineSummaryBadge', `${attemptedLogs.length} Asesmen Selesai | Awal: ${attemptedLogs[0].waktu_submit.slice(5, 10)}`)
+
+                const canvasTimeline = document.getElementById('chartModalTimeline')
+                if (canvasTimeline) {
+                    const ctxTimeline = canvasTimeline.getContext('2d')
+                    chartModalTimeline = new Chart(ctxTimeline, {
+                        type: 'line',
+                        data: {
+                            labels: timeLabels,
+                            datasets: [
+                                {
+                                    label: 'Skor Kuis',
+                                    data: timeScores,
+                                    borderColor: '#3b82f6',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                                    pointBackgroundColor: pointColors,
+                                    pointBorderColor: '#fff',
+                                    pointBorderWidth: 2,
+                                    pointRadius: pointRadii,
+                                    fill: true,
+                                    tension: 0.25
+                                },
+                                {
+                                    label: 'Ambang KKM 80',
+                                    data: Array(timeLabels.length).fill(80),
+                                    borderColor: '#10b981',
+                                    borderDash: [5, 5],
+                                    borderWidth: 1.5,
+                                    pointRadius: 0,
+                                    fill: false
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: { min: 0, max: 100, ticks: { stepSize: 20 } }
+                            },
+                            plugins: {
+                                legend: { position: 'top' },
+                                tooltip: {
+                                    callbacks: {
+                                        afterLabel: function(context) {
+                                            const item = attemptedLogs[context.dataIndex]
+                                            return `Waktu Submit: ${item.waktu_submit}\nStatus: ${item.status_kelulusan}`
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    })
+                }
+            }
         }
 
         async function downloadParticipantPDF() {
@@ -2584,6 +2945,7 @@
             const u = userProfilesMaster[activeModalUserId]
             if (!u) return
 
+            window.scrollTo(0, 0)
             const pdfHeader = document.getElementById('participantPdfHeader')
             if (pdfHeader) {
                 pdfHeader.classList.remove('hidden')
@@ -2592,10 +2954,10 @@
 
             const element = document.getElementById('participantPrintableDossier')
             const opt = {
-                margin:       [10, 10, 15, 10],
+                margin:       [8, 8, 12, 8],
                 filename:     `Rapor_ALEX_2026_${u.username}_${u.nama.replace(/\s+/g, '_')}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                html2canvas:  { scale: 1.5, useCORS: true, scrollY: 0, scrollX: 0, logging: false },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             }
 
@@ -2606,9 +2968,8 @@
                         pdf.setPage(i)
                         pdf.setFontSize(8)
                         pdf.setTextColor(100, 116, 139)
-                        // Footer resmi & Nomor halaman
-                        pdf.text('UI ALEX 2026 - Direktorat Pengembangan Pendidikan Digital (DPPD) x DSDMPT UI', 10, pdf.internal.pageSize.getHeight() - 8)
-                        pdf.text(`Halaman ${i} dari ${totalPages}`, pdf.internal.pageSize.getWidth() - 35, pdf.internal.pageSize.getHeight() - 8)
+                        pdf.text('UI ALEX 2026 - DPPD x DSDMPT Universitas Indonesia', 10, pdf.internal.pageSize.getHeight() - 6)
+                        pdf.text(`Halaman ${i} dari ${totalPages}`, pdf.internal.pageSize.getWidth() - 32, pdf.internal.pageSize.getHeight() - 6)
                     }
                 }).save()
             } catch (err) {
@@ -2616,6 +2977,524 @@
             } finally {
                 if (pdfHeader) pdfHeader.classList.add('hidden')
             }
+        }
+
+        // =========================================================================
+        // HALL OF FAME & LEADERSHIP AWARDS ENGINE (10 PRESTIGIOUS CATEGORIES)
+        // =========================================================================
+        const AWARDS_CATALOG = [
+            {
+                id: 'grand_luminary',
+                title: 'The Grand Luminary Award',
+                subtitle: 'Performa Akademik & Asesmen Terbaik Keseluruhan',
+                badge: 'Overall Academic Excellence',
+                icon: '🏆',
+                description: 'Diberikan kepada peserta dengan capaian skor asesmen dan evaluasi pembelajaran tertinggi di seluruh pilar modul.',
+                metricLabel: 'Rerata Asesmen',
+                metricFn: (u) => u.total_post_avg > 0 ? `${u.total_post_avg} / 100` : (u.pre_avg !== null ? `${u.pre_avg} (Pre)` : '-'),
+                sortFn: (a, b) => {
+                    const scoreA = a.total_post_avg > 0 ? a.total_post_avg : (a.pre_avg || 0)
+                    const scoreB = b.total_post_avg > 0 ? b.total_post_avg : (b.pre_avg || 0)
+                    if (scoreB !== scoreA) return scoreB - scoreA
+                    return b.readiness_score - a.readiness_score
+                }
+            },
+            {
+                id: 'prime_mover',
+                title: 'The Prime Mover / Early Pioneer Award',
+                subtitle: 'Inisiatif Kecepatan & Kedisiplinan Waktu Tercepat',
+                badge: 'Speed & Early Engagement',
+                icon: '⚡',
+                description: 'Diberikan kepada peserta yang paling awal memulai dan menyelesaikan asesmen dengan komitmen belajar tinggi.',
+                metricLabel: 'Waktu Submit Pertama',
+                metricFn: (u) => u.first_submit !== '9999-99-99 99:99' ? u.first_submit : 'Belum Submit',
+                sortFn: (a, b) => {
+                    const tA = a.first_submit !== '9999-99-99 99:99' ? a.first_submit : 'ZZZZ'
+                    const tB = b.first_submit !== '9999-99-99 99:99' ? b.first_submit : 'ZZZZ'
+                    if (tA !== tB) return tA.localeCompare(tB)
+                    return b.readiness_score - a.readiness_score
+                }
+            },
+            {
+                id: 'pace_setter',
+                title: 'The Pace-Setter of the Year',
+                subtitle: 'Kesiapan Belajar & Kepatuhan Progres Tertinggi',
+                badge: 'Learning Readiness Champion',
+                icon: '🚀',
+                description: 'Diberikan kepada peserta dengan Indeks Kesiapan Belajar (Learning Readiness Index 40:40:10:10) tertinggi.',
+                metricLabel: 'Indeks Kesiapan',
+                metricFn: (u) => `${u.readiness_score} / 100`,
+                sortFn: (a, b) => {
+                    if (b.readiness_score !== a.readiness_score) return b.readiness_score - a.readiness_score
+                    return b.comp_total - a.comp_total
+                }
+            },
+            {
+                id: 'completion_master',
+                title: 'The Completion Master Award',
+                subtitle: 'Dedikasi Keterselesaian Aktivitas LMS Tertinggi',
+                badge: 'Course Completion Mastery',
+                icon: '🎖️',
+                description: 'Diberikan kepada peserta yang menuntaskan persentase checklist aktivitas belajar LMS terbanyak di kedua pilar.',
+                metricLabel: 'Rerata Completion',
+                metricFn: (u) => `${u.comp_total}%`,
+                sortFn: (a, b) => {
+                    if (b.comp_total !== a.comp_total) return b.comp_total - a.comp_total
+                    return b.readiness_score - a.readiness_score
+                }
+            },
+            {
+                id: 'diagnostic_ace',
+                title: 'The Diagnostic Ace Award',
+                subtitle: 'Penguasaan Kompetensi Baseline Awal Tertinggi',
+                badge: 'Highest Prior Knowledge',
+                icon: '🎯',
+                description: 'Diberikan kepada peserta dengan capaian nilai rata-rata asesmen awal (Pre-Test Pilar I & II) tertinggi.',
+                metricLabel: 'Rerata Pre-Test',
+                metricFn: (u) => u.pre_avg !== null ? `${u.pre_avg} / 100` : '-',
+                sortFn: (a, b) => {
+                    const scA = a.pre_avg !== null ? a.pre_avg : -1
+                    const scB = b.pre_avg !== null ? b.pre_avg : -1
+                    if (scB !== scA) return scB - scA
+                    return b.readiness_score - a.readiness_score
+                }
+            },
+            {
+                id: 'strategic_master',
+                title: 'The Strategic Master Award (Pilar I)',
+                subtitle: 'Penguasaan Terbaik Bidang Manajemen & Operasional',
+                badge: 'Pilar I Champion',
+                icon: '🏛️',
+                description: 'Diberikan atas penguasaan modul Perencanaan (DPK), SDM (DSDMPT), Pengadaan (DPBJ), dan Keuangan (DKA).',
+                metricLabel: 'Skor Pilar I',
+                metricFn: (u) => u.p1_post_avg !== null ? `${u.p1_post_avg} / 100` : `Comp: ${u.progress_p1}%`,
+                sortFn: (a, b) => {
+                    const valA = a.p1_post_avg !== null ? a.p1_post_avg : ((a.p1_pre || 0) * 0.4 + a.progress_p1 * 0.6)
+                    const valB = b.p1_post_avg !== null ? b.p1_post_avg : ((b.p1_pre || 0) * 0.4 + b.progress_p1 * 0.6)
+                    if (valB !== valA) return valB - valA
+                    return b.progress_p1 - a.progress_p1
+                }
+            },
+            {
+                id: 'governance_vanguard',
+                title: 'The Governance Vanguard Award (Pilar II)',
+                subtitle: 'Penguasaan Terbaik Bidang Governance & Kepatuhan',
+                badge: 'Pilar II Champion',
+                icon: '🛡️',
+                description: 'Diberikan atas penguasaan modul Audit (DAI), Penjaminan Mutu (DPMA), Hukum (DHK), dan Manajemen Risiko (DMRT).',
+                metricLabel: 'Skor Pilar II',
+                metricFn: (u) => u.p2_post_avg !== null ? `${u.p2_post_avg} / 100` : `Comp: ${u.progress_p2}%`,
+                sortFn: (a, b) => {
+                    const valA = a.p2_post_avg !== null ? a.p2_post_avg : ((a.p2_pre || 0) * 0.4 + a.progress_p2 * 0.6)
+                    const valB = b.p2_post_avg !== null ? b.p2_post_avg : ((b.p2_pre || 0) * 0.4 + b.progress_p2 * 0.6)
+                    if (valB !== valA) return valB - valA
+                    return b.progress_p2 - a.progress_p2
+                }
+            },
+            {
+                id: 'quantum_leap',
+                title: 'The Quantum Leap Award',
+                subtitle: 'Peningkatan Kompetensi (Knowledge Gain) Tertinggi',
+                badge: 'Highest Growth Rate',
+                icon: '📈',
+                description: 'Diberikan kepada peserta yang mencatatkan lompatan pemahaman terbesar antara Pre-Test dan Post-Test.',
+                metricLabel: 'Hake Gain <g>',
+                metricFn: (u) => u.hake_gain !== null ? `g: ${u.hake_gain}` : `Readiness: ${u.readiness_score}`,
+                sortFn: (a, b) => {
+                    const gA = a.hake_gain !== null ? a.hake_gain : -99
+                    const gB = b.hake_gain !== null ? b.hake_gain : -99
+                    if (gB !== gA) return gB - gA
+                    return b.readiness_score - a.readiness_score
+                }
+            },
+            {
+                id: 'flawless_mastery',
+                title: 'The Flawless Mastery Award',
+                subtitle: 'Konsistensi Kelulusan KKM Tanpa Remedial',
+                badge: 'Zero Remedial Rate',
+                icon: '⭐',
+                description: 'Diberikan kepada peserta dengan rasio kelulusan kuis sempurna (selalu memenuhi KKM 80 di setiap pengerjaan).',
+                metricLabel: 'Lulus KKM',
+                metricFn: (u) => u.attempted_post > 0 ? `${u.passed_post} Modul Lulus` : `Pre-Test: ${u.pre_avg ?? '-'}`,
+                sortFn: (a, b) => {
+                    if (b.passed_post !== a.passed_post) return b.passed_post - a.passed_post
+                    const scA = a.total_post_avg > 0 ? a.total_post_avg : (a.pre_avg || 0)
+                    const scB = b.total_post_avg > 0 ? b.total_post_avg : (b.pre_avg || 0)
+                    if (scB !== scA) return scB - scA
+                    return b.comp_total - a.comp_total
+                }
+            },
+            {
+                id: 'agile_leader',
+                title: 'The Agile Leader Award',
+                subtitle: 'Profil Kepemimpinan & Kinerja Holistik Terbaik',
+                badge: 'Holistic Executive Performance',
+                icon: '🌟',
+                description: 'Diberikan atas keseimbangan optimal antara keterselesaian materi (>80%), kecepatan akses, dan stabilitas skor.',
+                metricLabel: 'Indeks Holistik',
+                metricFn: (u) => {
+                    const sc = u.total_post_avg > 0 ? u.total_post_avg : (u.pre_avg || 0)
+                    const holistic = (0.35 * u.comp_total + 0.35 * sc + 0.30 * u.readiness_score).toFixed(1)
+                    return `${holistic} pts`
+                },
+                sortFn: (a, b) => {
+                    const scA = a.total_post_avg > 0 ? a.total_post_avg : (a.pre_avg || 0)
+                    const scB = b.total_post_avg > 0 ? b.total_post_avg : (b.pre_avg || 0)
+                    const hA = 0.35 * a.comp_total + 0.35 * scA + 0.30 * a.readiness_score
+                    const hB = 0.35 * b.comp_total + 0.35 * scB + 0.30 * b.readiness_score
+                    return hB - hA
+                }
+            }
+        ]
+
+        function renderHallOfFameStudio() {
+            // Render tabs
+            const tabsContainer = document.getElementById('awardCategoryTabs')
+            if (!tabsContainer) return
+
+            let tabsHtml = ''
+            AWARDS_CATALOG.forEach((award, idx) => {
+                const isActive = idx === currentAwardIndex
+                const activeClass = isActive ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20 border-amber-400' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200'
+                tabsHtml += `
+                    <button onclick="selectAwardCategory(${idx})" class="px-3 py-1.5 rounded-lg border transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${activeClass}">
+                        <span>${award.icon}</span>
+                        <span>${award.title}</span>
+                    </button>
+                `
+            })
+            tabsContainer.innerHTML = tabsHtml
+
+            // Render active award stage
+            renderAwardStage()
+        }
+
+        function selectAwardCategory(idx) {
+            currentAwardIndex = idx
+            renderHallOfFameStudio()
+        }
+
+        function setAwardRankLimit(limit) {
+            currentAwardRankLimit = limit
+            const btn3 = document.getElementById('btnAwardTop3')
+            const btn5 = document.getElementById('btnAwardTop5')
+
+            if (limit === 3) {
+                btn3.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition bg-amber-500 text-slate-950 shadow-sm'
+                btn5.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition'
+            } else {
+                btn5.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition bg-amber-500 text-slate-950 shadow-sm'
+                btn3.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition'
+            }
+            renderAwardStage()
+        }
+
+        function navigateAward(direction) {
+            currentAwardIndex += direction
+            if (currentAwardIndex < 0) currentAwardIndex = AWARDS_CATALOG.length - 1
+            if (currentAwardIndex >= AWARDS_CATALOG.length) currentAwardIndex = 0
+            renderHallOfFameStudio()
+        }
+
+        function getInitials(name) {
+            if (!name) return 'UI'
+            const clean = name.replace(/Prof\.|Dr\.|Ir\.|M\.\w+|S\.\w+|Apt\.|SE\.|MM\.|CA\.|MT\./gi, '').trim()
+            const parts = clean.split(/\s+/).filter(Boolean)
+            if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+            return (parts[0][0] + parts[1][0]).toUpperCase()
+        }
+
+        function renderAwardStage() {
+            const currentAward = AWARDS_CATALOG[currentAwardIndex]
+            if (!currentAward) return
+
+            setText('activeAwardNavText', `${currentAwardIndex + 1} / 10 • ${currentAward.title} (Top ${currentAwardRankLimit})`)
+            setText('slideAwardTitle', currentAward.title)
+            setText('slideAwardSubtitle', currentAward.subtitle)
+            setText('slideAwardBadge', currentAward.badge)
+
+            const activeBatchName = document.getElementById('filterBatch')?.value || 'Batch 1'
+            setText('slideAwardBatchTag', activeBatchName)
+
+            // Get and sort candidate users
+            const activeUserIds = new Set(filteredData.map(d => d.user_id))
+            let candidates = Object.values(userProfilesMaster).filter(u => activeUserIds.has(u.user_id))
+
+            candidates.sort(currentAward.sortFn)
+            const winners = candidates.slice(0, currentAwardRankLimit)
+
+            const stage = document.getElementById('slideWinnersStage')
+            if (!stage) return
+
+            if (winners.length === 0) {
+                stage.innerHTML = `<div class="text-center py-12 text-slate-400 italic">Tidak ada peserta yang memenuhi kualifikasi nominasi untuk filter saat ini.</div>`
+                return
+            }
+
+            let stageHtml = ''
+
+            if (currentAwardRankLimit === 3) {
+                // Best 3 Podium Layout (2nd - 1st - 3rd)
+                const u1 = winners[0]
+                const u2 = winners[1] || null
+                const u3 = winners[2] || null
+
+                stageHtml = `
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end max-w-5xl mx-auto w-full pt-2">
+                        <!-- 2nd Place Silver (Left) -->
+                        ${u2 ? `
+                        <div class="bg-slate-900/90 border-2 border-slate-400/40 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-xl relative order-2 md:order-1 h-[290px] backdrop-blur-sm">
+                            <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-slate-300 text-slate-950 font-black px-3 py-0.5 rounded-full text-[11px] shadow border border-white uppercase tracking-wider flex items-center gap-1">
+                                🥈 2nd Place
+                            </div>
+                            <div class="pt-3 text-center space-y-1">
+                                <div class="w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-400 text-slate-200 font-black text-sm flex items-center justify-center mx-auto shadow">
+                                    ${getInitials(u2.nama)}
+                                </div>
+                                <h3 class="font-bold text-sm text-white line-clamp-2 leading-snug pt-1">${u2.nama}</h3>
+                                <p class="text-[11px] text-slate-400 font-mono">${u2.username} • ${u2.batch}</p>
+                            </div>
+                            <div class="space-y-2 pt-2 border-t border-slate-800">
+                                <div class="bg-slate-800/80 rounded-xl p-2 text-center border border-slate-700/60">
+                                    <span class="text-[10px] text-slate-400 uppercase tracking-wider block">${currentAward.metricLabel}</span>
+                                    <span class="font-mono font-bold text-sm text-slate-200">${currentAward.metricFn(u2)}</span>
+                                </div>
+                                <div class="flex justify-center gap-2 text-[10px] text-slate-400 font-mono">
+                                    <span>Comp: ${u2.comp_total}%</span>
+                                    <span>•</span>
+                                    <span>Readiness: ${u2.readiness_score}</span>
+                                </div>
+                            </div>
+                        </div>
+                        ` : '<div class="hidden md:block"></div>'}
+
+                        <!-- 1st Place Gold (Center - Elevated) -->
+                        <div class="bg-gradient-to-b from-amber-950/80 to-slate-900/95 border-2 border-amber-400 rounded-3xl p-5 sm:p-6 flex flex-col justify-between shadow-2xl relative order-1 md:order-2 h-[340px] md:-translate-y-2 backdrop-blur-md shadow-amber-500/20">
+                            <div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 font-black px-4 py-1 rounded-full text-xs shadow-lg border border-amber-200 uppercase tracking-widest flex items-center gap-1.5">
+                                🥇 1st Place • Champion
+                            </div>
+                            <div class="pt-4 text-center space-y-1.5">
+                                <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 border-2 border-white text-slate-950 font-black text-lg flex items-center justify-center mx-auto shadow-lg shadow-amber-500/30">
+                                    ${getInitials(u1.nama)}
+                                </div>
+                                <h3 class="font-black text-base text-transparent bg-clip-text bg-gradient-to-r from-white via-amber-100 to-amber-300 line-clamp-2 leading-snug">${u1.nama}</h3>
+                                <p class="text-xs text-amber-200/80 font-mono">${u1.username} • ${u1.batch}</p>
+                            </div>
+                            <div class="space-y-2 pt-2 border-t border-amber-500/30">
+                                <div class="bg-amber-900/40 rounded-2xl p-2.5 text-center border border-amber-500/40">
+                                    <span class="text-[10px] text-amber-300 uppercase tracking-widest block font-bold">${currentAward.metricLabel}</span>
+                                    <span class="font-mono font-black text-lg text-amber-200">${currentAward.metricFn(u1)}</span>
+                                </div>
+                                <div class="flex justify-center gap-3 text-[11px] text-amber-200/80 font-mono font-semibold">
+                                    <span>Comp: ${u1.comp_total}%</span>
+                                    <span>•</span>
+                                    <span>Readiness: ${u1.readiness_score}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3rd Place Bronze (Right) -->
+                        ${u3 ? `
+                        <div class="bg-slate-900/90 border-2 border-amber-700/50 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-xl relative order-3 md:order-3 h-[270px] backdrop-blur-sm">
+                            <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-amber-700 text-white font-black px-3 py-0.5 rounded-full text-[11px] shadow border border-amber-500 uppercase tracking-wider flex items-center gap-1">
+                                🥉 3rd Place
+                            </div>
+                            <div class="pt-3 text-center space-y-1">
+                                <div class="w-12 h-12 rounded-full bg-slate-800 border-2 border-amber-700 text-amber-300 font-black text-sm flex items-center justify-center mx-auto shadow">
+                                    ${getInitials(u3.nama)}
+                                </div>
+                                <h3 class="font-bold text-sm text-white line-clamp-2 leading-snug pt-1">${u3.nama}</h3>
+                                <p class="text-[11px] text-slate-400 font-mono">${u3.username} • ${u3.batch}</p>
+                            </div>
+                            <div class="space-y-2 pt-2 border-t border-slate-800">
+                                <div class="bg-slate-800/80 rounded-xl p-2 text-center border border-slate-700/60">
+                                    <span class="text-[10px] text-slate-400 uppercase tracking-wider block">${currentAward.metricLabel}</span>
+                                    <span class="font-mono font-bold text-sm text-amber-200/90">${currentAward.metricFn(u3)}</span>
+                                </div>
+                                <div class="flex justify-center gap-2 text-[10px] text-slate-400 font-mono">
+                                    <span>Comp: ${u3.comp_total}%</span>
+                                    <span>•</span>
+                                    <span>Readiness: ${u3.readiness_score}</span>
+                                </div>
+                            </div>
+                        </div>
+                        ` : '<div class="hidden md:block"></div>'}
+                    </div>
+                `
+            } else {
+                // Best 5 Layout (Top row 3 Podium, Bottom row 2 Honorable Mentions)
+                const u1 = winners[0]
+                const u2 = winners[1] || null
+                const u3 = winners[2] || null
+                const u4 = winners[3] || null
+                const u5 = winners[4] || null
+
+                stageHtml = `
+                    <div class="space-y-4 max-w-5xl mx-auto w-full">
+                        <!-- Top 3 Podium Row -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                            <!-- 2nd -->
+                            ${u2 ? `
+                            <div class="bg-slate-900/90 border border-slate-400/50 rounded-2xl p-3.5 flex flex-col justify-between shadow-lg relative h-[210px]">
+                                <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-300 text-slate-950 font-black px-2.5 py-0.5 rounded-full text-[10px] shadow uppercase tracking-wider">🥈 2nd Place</div>
+                                <div class="pt-2 text-center">
+                                    <h3 class="font-bold text-xs text-white line-clamp-2">${u2.nama}</h3>
+                                    <p class="text-[10px] text-slate-400 font-mono">${u2.username} • ${u2.batch}</p>
+                                </div>
+                                <div class="bg-slate-800/80 rounded-lg p-1.5 text-center border border-slate-700">
+                                    <span class="text-[9px] text-slate-400 block">${currentAward.metricLabel}</span>
+                                    <span class="font-mono font-bold text-xs text-slate-200">${currentAward.metricFn(u2)}</span>
+                                </div>
+                            </div>
+                            ` : '<div></div>'}
+
+                            <!-- 1st -->
+                            <div class="bg-gradient-to-b from-amber-950/80 to-slate-900 border-2 border-amber-400 rounded-2xl p-4 flex flex-col justify-between shadow-2xl relative h-[235px] md:-translate-y-1 shadow-amber-500/20">
+                                <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 font-black px-3.5 py-0.5 rounded-full text-xs shadow uppercase tracking-wider">🥇 1st Place</div>
+                                <div class="pt-2 text-center">
+                                    <h3 class="font-black text-sm text-transparent bg-clip-text bg-gradient-to-r from-white to-amber-200 line-clamp-2">${u1.nama}</h3>
+                                    <p class="text-[11px] text-amber-200/80 font-mono">${u1.username} • ${u1.batch}</p>
+                                </div>
+                                <div class="bg-amber-900/50 rounded-xl p-2 text-center border border-amber-500/40">
+                                    <span class="text-[10px] text-amber-300 block font-bold">${currentAward.metricLabel}</span>
+                                    <span class="font-mono font-black text-sm text-amber-200">${currentAward.metricFn(u1)}</span>
+                                </div>
+                            </div>
+
+                            <!-- 3rd -->
+                            ${u3 ? `
+                            <div class="bg-slate-900/90 border border-amber-700/50 rounded-2xl p-3.5 flex flex-col justify-between shadow-lg relative h-[200px]">
+                                <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-700 text-white font-black px-2.5 py-0.5 rounded-full text-[10px] shadow uppercase tracking-wider">🥉 3rd Place</div>
+                                <div class="pt-2 text-center">
+                                    <h3 class="font-bold text-xs text-white line-clamp-2">${u3.nama}</h3>
+                                    <p class="text-[10px] text-slate-400 font-mono">${u3.username} • ${u3.batch}</p>
+                                </div>
+                                <div class="bg-slate-800/80 rounded-lg p-1.5 text-center border border-slate-700">
+                                    <span class="text-[9px] text-slate-400 block">${currentAward.metricLabel}</span>
+                                    <span class="font-mono font-bold text-xs text-amber-200">${currentAward.metricFn(u3)}</span>
+                                </div>
+                            </div>
+                            ` : '<div></div>'}
+                        </div>
+
+                        <!-- 4th & 5th Honor Roll Row -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                            ${u4 ? `
+                            <div class="bg-slate-900/70 border border-slate-700/80 rounded-xl p-3 flex justify-between items-center shadow">
+                                <div class="flex items-center gap-3">
+                                    <span class="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 font-black text-xs flex items-center justify-center border border-slate-700">4</span>
+                                    <div>
+                                        <h4 class="font-bold text-xs text-white">${u4.nama}</h4>
+                                        <p class="text-[10px] text-slate-400 font-mono">${u4.username} • ${u4.batch}</p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-[9px] text-slate-400 uppercase block">${currentAward.metricLabel}</span>
+                                    <span class="font-mono font-bold text-xs text-slate-200">${currentAward.metricFn(u4)}</span>
+                                </div>
+                            </div>
+                            ` : ''}
+
+                            ${u5 ? `
+                            <div class="bg-slate-900/70 border border-slate-700/80 rounded-xl p-3 flex justify-between items-center shadow">
+                                <div class="flex items-center gap-3">
+                                    <span class="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 font-black text-xs flex items-center justify-center border border-slate-700">5</span>
+                                    <div>
+                                        <h4 class="font-bold text-xs text-white">${u5.nama}</h4>
+                                        <p class="text-[10px] text-slate-400 font-mono">${u5.username} • ${u5.batch}</p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-[9px] text-slate-400 uppercase block">${currentAward.metricLabel}</span>
+                                    <span class="font-mono font-bold text-xs text-slate-200">${currentAward.metricFn(u5)}</span>
+                                </div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `
+            }
+
+            stage.innerHTML = stageHtml
+        }
+
+        // 1. Export Slide PNG Hi-Res (Presentation 16:9 Ready)
+        async function exportAwardSlidePNG() {
+            const currentAward = AWARDS_CATALOG[currentAwardIndex]
+            if (!currentAward) return
+
+            const slideEl = document.getElementById('awardSlideCanvas')
+            if (!slideEl) return
+
+            try {
+                // Use html2canvas with scale 2.5 for crisp Hi-Res PPT ready graphic
+                const canvas = await html2canvas(slideEl, {
+                    scale: 2.5,
+                    useCORS: true,
+                    backgroundColor: '#020617',
+                    logging: false
+                })
+                const link = document.createElement('a')
+                link.download = `Slide_Award_${currentAward.id}_Top${currentAwardRankLimit}_UI_ALEX_2026.png`
+                link.href = canvas.toDataURL('image/png')
+                link.click()
+            } catch (err) {
+                console.error(err)
+                alert("Gagal mengekspor slide PNG: " + err.message)
+            }
+        }
+
+        // 2. Export Award Certificate PDF (Landscape A4)
+        async function downloadAwardCertificatePDF() {
+            const currentAward = AWARDS_CATALOG[currentAwardIndex]
+            if (!currentAward) return
+
+            const slideEl = document.getElementById('awardSlideCanvas')
+            if (!slideEl) return
+
+            const opt = {
+                margin:       [8, 8, 8, 8],
+                filename:     `Piagam_Penghargaan_${currentAward.id}_Top${currentAwardRankLimit}_UI_ALEX_2026.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#020617', logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+            }
+
+            try {
+                await html2pdf().from(slideEl).set(opt).save()
+            } catch (err) {
+                console.error(err)
+                alert("Gagal mengunduh PDF penghargaan: " + err.message)
+            }
+        }
+
+        // 3. Copy Script / Text Announcement to Clipboard
+        function copyAwardAnnouncementText() {
+            const currentAward = AWARDS_CATALOG[currentAwardIndex]
+            if (!currentAward) return
+
+            const activeUserIds = new Set(filteredData.map(d => d.user_id))
+            let candidates = Object.values(userProfilesMaster).filter(u => activeUserIds.has(u.user_id))
+            candidates.sort(currentAward.sortFn)
+            const winners = candidates.slice(0, currentAwardRankLimit)
+
+            let text = `🏆 PENGUMUMAN PENGHARGAAN UI ALEX 2026 🏆\n`
+            text += `Kategori: ${currentAward.title} (${currentAward.badge})\n`
+            text += `Deskripsi: ${currentAward.description}\n\n`
+            text += `Berikut adalah daftar nominasi ${currentAwardRankLimit} terbaik:\n`
+
+            winners.forEach((w, i) => {
+                const rankIcon = i === 0 ? '🥇 Juara 1' : (i === 1 ? '🥈 Juara 2' : (i === 2 ? '🥉 Juara 3' : `🎖️ Peringkat ${i + 1}`))
+                text += `${rankIcon}: ${w.nama} (${w.username}) - ${currentAward.metricLabel}: ${currentAward.metricFn(w)}\n`
+            })
+
+            text += `\nDirektorat Pengembangan Pendidikan Digital (DPPD) x DSDMPT Universitas Indonesia`
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert("✅ Teks pengumuman penghargaan berhasil disalin ke clipboard! Siap ditempel ke PPT/WhatsApp.")
+            }).catch(e => {
+                prompt("Salin teks berikut:", text)
+            })
         }
 
         // ==========================================
@@ -2709,9 +3588,14 @@
                 btn.classList.add('opacity-70')
             }
 
+            // Scroll to absolute top to eliminate empty pages offset in html2canvas
+            window.scrollTo(0, 0)
+
             const pdfHeader = document.getElementById('pdfHeader')
-            if (pdfHeader) pdfHeader.classList.remove('hidden')
-            setText('pdfDate', "Waktu Cetak: " + new Date().toLocaleString('id-ID'))
+            if (pdfHeader) {
+                pdfHeader.classList.remove('hidden')
+                setText('pdfDate', "Waktu Cetak: " + new Date().toLocaleString('id-ID'))
+            }
 
             const tableContainer = document.getElementById('tableContainer')
             const wasHidden = tableContainer?.classList.contains('hidden')
@@ -2729,8 +3613,15 @@
                 margin:       [8, 8, 14, 8],
                 filename:     `Laporan_Evaluasi_UI_ALEX_2026_${new Date().toISOString().slice(0, 10)}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false },
-                jsPDF:        { unit: 'mm', format: 'a3', orientation: 'landscape' }
+                html2canvas:  {
+                    scale: 1.5,
+                    useCORS: true,
+                    logging: false,
+                    scrollY: 0,
+                    scrollX: 0
+                },
+                jsPDF:        { unit: 'mm', format: 'a3', orientation: 'landscape' },
+                pagebreak:    { mode: ['css', 'legacy'] }
             }
 
             try {
@@ -2740,9 +3631,8 @@
                         pdf.setPage(i)
                         pdf.setFontSize(9)
                         pdf.setTextColor(100, 116, 139)
-                        // Footer resmi dan penomoran halaman otomatis
-                        pdf.text('Laporan Evaluasi Pelatihan Kepemimpinan UI ALEX 2026 - DPPD x DSDMPT Universitas Indonesia', 10, pdf.internal.pageSize.getHeight() - 8)
-                        pdf.text(`Halaman ${i} dari ${totalPages}`, pdf.internal.pageSize.getWidth() - 35, pdf.internal.pageSize.getHeight() - 8)
+                        pdf.text('Laporan Evaluasi Pelatihan Kepemimpinan UI ALEX 2026 - DPPD x DSDMPT Universitas Indonesia', 10, pdf.internal.pageSize.getHeight() - 6)
+                        pdf.text(`Halaman ${i} dari ${totalPages}`, pdf.internal.pageSize.getWidth() - 35, pdf.internal.pageSize.getHeight() - 6)
                     }
                 }).save()
             } catch (err) {
