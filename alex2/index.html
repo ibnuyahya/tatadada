@@ -60,7 +60,7 @@
     })
     </script>
     
-    <!-- External Libraries (html2canvas included explicitly) -->
+    <!-- External Libraries & html2canvas CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -239,13 +239,17 @@
         <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3" data-html2canvas-ignore="true">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div class="inline-flex rounded-xl bg-slate-100 p-1 text-xs font-semibold gap-1">
-                    <button id="btnViewMatrix" onclick="setViewMode('matrix')" class="px-3.5 py-1.5 rounded-lg bg-white text-slate-900 shadow-sm transition font-bold">
+                    <button id="btnViewMatrix" onclick="setViewMode('matrix')" class="px-3.5 py-1.5 rounded-lg bg-white text-slate-900 shadow-sm transition font-bold cursor-pointer">
                         📊 Matriks Peserta & Kesiapan
                     </button>
-                    <button id="btnViewLog" onclick="setViewMode('log')" class="px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">
+                    <button id="btnViewLog" onclick="setViewMode('log')" class="px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer">
                         📋 Log Asesmen (Per Kuis)
                     </button>
-                    <button id="btnViewHallOfFame" onclick="setViewMode('halloffame')" class="px-3.5 py-1.5 rounded-lg text-amber-800 hover:text-amber-950 hover:bg-amber-100/60 transition flex items-center gap-1.5 font-bold">
+                    <!-- NEW TAB: REKAP POST-TEST -->
+                    <button id="btnViewRekap" onclick="setViewMode('rekap')" class="px-3.5 py-1.5 rounded-lg text-indigo-700 hover:text-indigo-950 hover:bg-indigo-100/60 transition flex items-center gap-1.5 font-bold cursor-pointer">
+                        <span>📑</span> Rekap Post-Test
+                    </button>
+                    <button id="btnViewHallOfFame" onclick="setViewMode('halloffame')" class="px-3.5 py-1.5 rounded-lg text-amber-800 hover:text-amber-950 hover:bg-amber-100/60 transition flex items-center gap-1.5 font-bold cursor-pointer">
                         <span>🏆</span> Hall of Fame & Awards
                     </button>
                 </div>
@@ -286,7 +290,7 @@
                         <option value="Pilar-I Oriented">⚖️ Pilar-I Oriented (Fokus Pilar 1)</option>
                         <option value="Low Engagement">⚠️ Low Engagement (Aktivitas Rendah)</option>
                         <option value="Dormant">💤 Dormant (Belum Mulai)</option>
-                        <option value="Glitch">🛠️ Anomali / Glitch LMS</option>
+                        <option value="Glitch">🛠️️ Anomali / Glitch LMS</option>
                     </select>
                 </div>
 
@@ -341,7 +345,7 @@
             </div>
         </div>
 
-        <!-- DASHBOARD ANALYTICS CONTAINER -->
+        <!-- DASHBOARD ANALYTICS CONTAINER (Matrix & Log Views) -->
         <div id="analyticsDashboardViews" class="space-y-6">
             <!-- Role Summary & Pre-test Widgets -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -378,7 +382,7 @@
                                         Dosen Pengedit <span class="text-[10px] text-amber-600">👥</span>
                                     </button>
                                     <button onclick="openRoleDetailModal('editingteacher', 'Pilar 1')" class="font-mono text-amber-900 font-bold hover:underline cursor-pointer bg-amber-100/80 px-1.5 py-0.2 rounded">
-                                        <span id="roleP1Editing">5</span>
+                                        <span id="roleP1Editing">-</span>
                                     </button>
                                 </div>
                                 <div class="flex justify-between items-center">
@@ -386,7 +390,7 @@
                                         Dosen Fasilitator <span class="text-[10px] text-amber-600">👥</span>
                                     </button>
                                     <button onclick="openRoleDetailModal('teacher', 'Pilar 1')" class="font-mono text-amber-900 font-bold hover:underline cursor-pointer bg-amber-100/80 px-1.5 py-0.2 rounded">
-                                        <span id="roleP1Teacher">10</span>
+                                        <span id="roleP1Teacher">-</span>
                                     </button>
                                 </div>
                             </div>
@@ -409,7 +413,7 @@
                                         Dosen Pengedit <span class="text-[10px] text-blue-600">👥</span>
                                     </button>
                                     <button onclick="openRoleDetailModal('editingteacher', 'Pilar 2')" class="font-mono text-blue-900 font-bold hover:underline cursor-pointer bg-blue-100/80 px-1.5 py-0.2 rounded">
-                                        <span id="roleP2Editing">5</span>
+                                        <span id="roleP2Editing">-</span>
                                     </button>
                                 </div>
                                 <div class="flex justify-between items-center">
@@ -417,7 +421,7 @@
                                         Dosen Fasilitator <span class="text-[10px] text-blue-600">👥</span>
                                     </button>
                                     <button onclick="openRoleDetailModal('teacher', 'Pilar 2')" class="font-mono text-blue-900 font-bold hover:underline cursor-pointer bg-blue-100/80 px-1.5 py-0.2 rounded">
-                                        <span id="roleP2Teacher">11</span>
+                                        <span id="roleP2Teacher">-</span>
                                     </button>
                                 </div>
                             </div>
@@ -648,7 +652,7 @@
                             </h3>
                             <p class="text-xs text-slate-500">Peningkatan pemahaman materi sebelum dan sesudah sesi modul.</p>
                         </div>
-                        <div id="hakeGainBadge" class="text-xs font-mono font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded border border-slate-200">
+                        <div id="hakeGainBadge" class="text-xs font-mono font-bold bg-slate-100 text-slate-700 px-2.5 py-1 rounded border border-slate-200">
                             &lt;g&gt;: -
                         </div>
                     </div>
@@ -693,110 +697,203 @@
             </div>
         </div>
 
-        <!-- ========================================== -->
-        <!-- HALL OF FAME & LEADERSHIP AWARDS (LIGHT THEME) -->
-        <!-- ========================================== -->
-        <div id="hallOfFameViewContainer" class="hidden space-y-6" data-html2canvas-ignore="false">
-            <!-- Studio Toolbar & Award Category Selector -->
-            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4" data-html2canvas-ignore="true">
-                <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                    <div>
-                        <h2 class="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
-                            <span>🏆</span> UI ALEX 2026 Leadership Hall of Fame
-                        </h2>
-                        <p class="text-xs text-slate-500">Studio nominasi penghargaan peserta pelatihan kepemimpinan Universitas Indonesia.</p>
-                    </div>
-
-                    <!-- Toggle Top 3 / Top 5 -->
-                    <div class="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-                        <span class="text-xs font-bold text-slate-500 ml-1">Format Juara:</span>
-                        <button id="btnAwardTop3" onclick="setAwardRankLimit(3)" class="px-3 py-1.5 rounded-lg text-xs font-bold transition bg-amber-500 text-slate-950 shadow-sm cursor-pointer">
-                            🥉 Top 3 (Podium)
-                        </button>
-                        <button id="btnAwardTop5" onclick="setAwardRankLimit(5)" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer">
-                            🎖️ Top 5 (Honor Roll)
-                        </button>
-                    </div>
+        <!-- ======================================================== -->
+        <!-- NEW MENU: REKAPITULASI POST-TEST (1 HALAMAN KOMPREHENSIF) -->
+        <!-- ======================================================== -->
+        <div id="rekapPostTestViewContainer" class="hidden space-y-6">
+            <!-- Studio Action Bar -->
+            <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm" data-html2canvas-ignore="true">
+                <div>
+                    <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <span>📑</span> Rekapitulasi Capaian Post-Test Pelatihan
+                    </h2>
+                    <p class="text-xs text-slate-500">Ringkasan eksekutif capaian 8 modul, perbandingan antar pilar, dan status kelulusan KKM 80.</p>
                 </div>
-
-                <!-- 10 Awards Selector Pills -->
-                <div class="space-y-1.5">
-                    <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Pilih 10 Kategori Penghargaan:</span>
-                    <div id="awardCategoryTabs" class="flex flex-wrap gap-2 text-xs">
-                        <!-- Rendered dynamically -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- Action Controls for PPT Export & Print -->
-            <div class="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 p-4 rounded-xl text-slate-950 shadow-md" data-html2canvas-ignore="true">
                 <div class="flex items-center gap-2">
-                    <span class="text-slate-950 font-black text-xs uppercase tracking-wider">Slide Preview:</span>
-                    <span id="activeAwardNavText" class="text-xs font-bold text-slate-900">-</span>
-                </div>
-                <div class="flex flex-wrap items-center gap-2">
-                    <button onclick="navigateAward(-1)" class="px-3 py-1.5 rounded-lg bg-white/80 hover:bg-white text-xs font-bold text-slate-900 transition cursor-pointer shadow-sm">
-                        ◀ Sebelumnya
+                    <button onclick="exportRekapXLSX()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                        📊 Unduh Excel Rekap
                     </button>
-                    <button onclick="navigateAward(1)" class="px-3 py-1.5 rounded-lg bg-white/80 hover:bg-white text-xs font-bold text-slate-900 transition cursor-pointer shadow-sm">
-                        Selanjutnya ▶
-                    </button>
-                    <span class="text-amber-800">|</span>
-                    <button onclick="copyAwardAnnouncementText()" class="px-3.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
-                        📋 Salin Teks MC
-                    </button>
-                    <button onclick="downloadAwardCertificatePDF()" class="px-3.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
-                        📄 Unduh Piagam PDF
-                    </button>
-                    <button onclick="exportAwardSlidePNG()" class="px-4 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-900 text-amber-400 text-xs font-black transition flex items-center gap-1.5 shadow-lg cursor-pointer">
-                        📸 Ekspor Slide PNG (Hi-Res 16:9)
+                    <button onclick="downloadRekapPostTestPDF()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3.5 py-1.5 rounded-lg text-xs shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                        📄 Cetak PDF Rekap Post-Test
                     </button>
                 </div>
             </div>
 
-            <!-- PRESENTATION-READY 16:9 SLIDE CANVAS (LIGHT THEME) -->
-            <div class="w-full flex justify-center">
-                <div id="awardSlideCanvas" class="w-full max-w-6xl min-h-[620px] bg-gradient-to-br from-amber-50/70 via-white to-slate-50 text-slate-900 rounded-3xl p-6 sm:p-10 relative shadow-xl border-2 border-amber-300 flex flex-col justify-between select-none">
-                    <!-- Clean Light Accents (No blur filters to ensure 100% stable html2canvas rendering) -->
-                    <div class="absolute -top-12 -right-12 w-64 h-64 bg-amber-200/30 rounded-full pointer-events-none"></div>
-                    <div class="absolute -bottom-12 -left-12 w-64 h-64 bg-yellow-200/30 rounded-full pointer-events-none"></div>
-
-                    <!-- Slide Header -->
-                    <div class="relative z-10 flex justify-between items-start border-b border-amber-200 pb-4">
-                        <div class="space-y-1">
-                            <div class="flex items-center gap-2">
-                                <span class="w-8 h-8 rounded-lg bg-amber-500 text-slate-950 font-black text-sm flex items-center justify-center shadow">UI</span>
-                                <span class="text-xs font-bold tracking-[0.2em] text-amber-800 uppercase font-mono">UI ALEX 2026 • LEADERSHIP AWARDS</span>
-                            </div>
-                            <h1 id="slideAwardTitle" class="text-2xl sm:text-3xl md:text-4xl font-award-serif font-black tracking-tight text-slate-950">
-                                The Grand Luminary Award
-                            </h1>
-                            <p id="slideAwardSubtitle" class="text-xs sm:text-sm text-slate-600 font-medium">
-                                Performa Akademik & Asesmen Terbaik Keseluruhan
-                            </p>
-                        </div>
-                        <div class="text-right">
-                            <span id="slideAwardBadge" class="inline-block px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 shadow-sm">
-                                Overall Mastery
-                            </span>
-                            <p id="slideAwardBatchTag" class="text-[11px] text-slate-500 font-mono mt-1 font-bold">Batch 1</p>
-                        </div>
-                    </div>
-
-                    <!-- Slide Center Stage (Podium / Winners Grid) -->
-                    <div id="slideWinnersStage" class="relative z-10 py-6 flex-1 flex flex-col justify-center">
-                        <!-- Populated dynamically -->
-                    </div>
-
-                    <!-- Slide Footer -->
-                    <div class="relative z-10 pt-3 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-500 font-mono">
+            <!-- PRINTABLE 1-PAGE RECAP CONTAINER -->
+            <div id="rekapPostTestPrintArea" class="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                <!-- PDF Printable Header -->
+                <div class="border-b-2 border-slate-800 pb-4 flex flex-wrap justify-between items-center gap-2">
+                    <div>
                         <div class="flex items-center gap-2">
-                            <span>Program Pelatihan Kepemimpinan Universitas Indonesia</span>
+                            <span class="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center">UI</span>
+                            <span class="text-xs font-bold text-slate-500 tracking-wider font-mono">UI ALEX 2026 • REKAPITULASI POST-TEST</span>
                         </div>
-                        <div>
-                            <span id="slideVerificationStamp" class="font-bold text-amber-800">VERIFIED & ACCREDITED • UI ALEX 2026</span>
+                        <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1">Laporan Evaluasi Capaian Post-Test</h1>
+                        <p class="text-xs text-slate-500">Program Pelatihan Kepemimpinan Universitas Indonesia</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="inline-block px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                            Passing Grade: 80
+                        </span>
+                        <p id="rekapPrintDate" class="text-[11px] text-slate-400 font-mono mt-1">Waktu: -</p>
+                    </div>
+                </div>
+
+                <!-- LEVEL 1: REKAP GABUNGAN 2 PILAR (OVERALL KPI) -->
+                <div class="space-y-2">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">1. Ringkasan Eksekutif Gabungan (Pilar I & Pilar II)</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl border-l-4 border-l-amber-500">
+                            <span class="text-[11px] text-slate-500 font-semibold uppercase block">Sesi Selesai / Target Slot</span>
+                            <h3 id="rekapKpiTotalSesi" class="text-2xl font-black text-slate-900 mt-1">-</h3>
+                            <span id="rekapKpiPesertaPartisipasi" class="text-[10px] text-slate-500 block mt-0.5">- Peserta Aktif</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl border-l-4 border-l-blue-500">
+                            <span class="text-[11px] text-slate-500 font-semibold uppercase block">Rerata Nilai Gabungan</span>
+                            <h3 id="rekapKpiRerataNilai" class="text-2xl font-black text-slate-900 mt-1">-</h3>
+                            <span class="text-[10px] text-slate-500 block mt-0.5">Dari sesi yang diselesaikan</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl border-l-4 border-l-emerald-500">
+                            <span class="text-[11px] text-slate-500 font-semibold uppercase block">Tingkat Kelulusan</span>
+                            <h3 id="rekapKpiTingkatLulus" class="text-2xl font-black text-emerald-600 mt-1">- %</h3>
+                            <span id="rekapKpiSesiLulus" class="text-[10px] text-emerald-700 block mt-0.5 font-semibold">- Sesi Lulus KKM</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl border-l-4 border-l-rose-500">
+                            <span class="text-[11px] text-slate-500 font-semibold uppercase block">Kandidat Remedial</span>
+                            <h3 id="rekapKpiRemedial" class="text-2xl font-black text-rose-600 mt-1">-</h3>
+                            <span class="text-[10px] text-rose-600 block mt-0.5 font-semibold">Skor di bawah 80</span>
                         </div>
                     </div>
+                </div>
+
+                <!-- LEVEL 2: REKAP MASING-MASING PILAR (HEAD-TO-HEAD) -->
+                <div class="space-y-2">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">2. Komparasi Capaian Antar Pilar Modul</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Pilar 1 Card -->
+                        <div class="bg-amber-50/50 border border-amber-200 rounded-xl p-4 space-y-3">
+                            <div class="flex justify-between items-center border-b border-amber-200/60 pb-2">
+                                <div>
+                                    <h4 class="font-bold text-amber-950 text-sm">Pilar I: Manajemen & Operasional</h4>
+                                    <p class="text-[11px] text-amber-800">4 Modul: DPK (Rencana), DSDMPT (SDM), DPBJ (PBJ), DKA (Keuangan)</p>
+                                </div>
+                                <span id="rekapPilar1Badge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-200 text-amber-900 border border-amber-300">
+                                    Pilar I
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-4 gap-2 text-center text-xs">
+                                <div class="bg-white/80 p-2 rounded-lg border border-amber-200">
+                                    <span class="text-[10px] text-slate-500 block">Sesi Selesai</span>
+                                    <span id="rekapP1Sesi" class="font-mono font-bold text-slate-900">-</span>
+                                </div>
+                                <div class="bg-white/80 p-2 rounded-lg border border-amber-200">
+                                    <span class="text-[10px] text-slate-500 block">Rerata Nilai</span>
+                                    <span id="rekapP1Avg" class="font-mono font-bold text-slate-900">-</span>
+                                </div>
+                                <div class="bg-white/80 p-2 rounded-lg border border-amber-200">
+                                    <span class="text-[10px] text-slate-500 block">% Kelulusan</span>
+                                    <span id="rekapP1PassPct" class="font-mono font-bold text-emerald-700">-</span>
+                                </div>
+                                <div class="bg-white/80 p-2 rounded-lg border border-amber-200">
+                                    <span class="text-[10px] text-slate-500 block">Remedial</span>
+                                    <span id="rekapP1Remedial" class="font-mono font-bold text-rose-700">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pilar 2 Card -->
+                        <div class="bg-blue-50/50 border border-blue-200 rounded-xl p-4 space-y-3">
+                            <div class="flex justify-between items-center border-b border-blue-200/60 pb-2">
+                                <div>
+                                    <h4 class="font-bold text-blue-950 text-sm">Pilar II: Governance & Kepatuhan</h4>
+                                    <p class="text-[11px] text-blue-800">4 Modul: DAI (Audit), DPMA (Mutu), DHK (Hukum), DMRT (Risiko)</p>
+                                </div>
+                                <span id="rekapPilar2Badge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-200 text-blue-900 border border-blue-300">
+                                    Pilar II
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-4 gap-2 text-center text-xs">
+                                <div class="bg-white/80 p-2 rounded-lg border border-blue-200">
+                                    <span class="text-[10px] text-slate-500 block">Sesi Selesai</span>
+                                    <span id="rekapP2Sesi" class="font-mono font-bold text-slate-900">-</span>
+                                </div>
+                                <div class="bg-white/80 p-2 rounded-lg border border-blue-200">
+                                    <span class="text-[10px] text-slate-500 block">Rerata Nilai</span>
+                                    <span id="rekapP2Avg" class="font-mono font-bold text-slate-900">-</span>
+                                </div>
+                                <div class="bg-white/80 p-2 rounded-lg border border-blue-200">
+                                    <span class="text-[10px] text-slate-500 block">% Kelulusan</span>
+                                    <span id="rekapP2PassPct" class="font-mono font-bold text-emerald-700">-</span>
+                                </div>
+                                <div class="bg-white/80 p-2 rounded-lg border border-blue-200">
+                                    <span class="text-[10px] text-slate-500 block">Remedial</span>
+                                    <span id="rekapP2Remedial" class="font-mono font-bold text-rose-700">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LEVEL 3: GRAFIK INTUITIF KOMPARATIF -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-1 avoid-page-break">
+                    <!-- Chart 1: Rerata Skor 8 Modul vs KKM 80 (2 cols) -->
+                    <div class="md:col-span-2 bg-slate-50/60 p-4 rounded-xl border border-slate-200">
+                        <div class="flex justify-between items-center mb-2">
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Performa Rerata Skor 8 Modul vs Ambang KKM 80</h4>
+                                <p class="text-[11px] text-slate-500">Hijau: Memenuhi KKM (≥80) • Merah: Butuh Remedial (&lt;80)</p>
+                            </div>
+                            <span class="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-300 font-mono">KKM: 80</span>
+                        </div>
+                        <div class="relative h-56 w-full">
+                            <canvas id="chartRekapModulBar"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 2: Proporsi Kelulusan Donut (1 col) -->
+                    <div class="bg-slate-50/60 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
+                        <div class="mb-2">
+                            <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Proporsi Kelulusan</h4>
+                            <p class="text-[11px] text-slate-500">Sebaran status seluruh sesi modul aktif</p>
+                        </div>
+                        <div class="relative h-48 w-full">
+                            <canvas id="chartRekapStatusDonut"></canvas>
+                        </div>
+                        <div id="rekapDonutLegend" class="text-center text-[11px] text-slate-600 font-mono pt-1">-</div>
+                    </div>
+                </div>
+
+                <!-- LEVEL 4: TABEL REKAP MASING-MASING MODUL (8 MODUL) -->
+                <div class="space-y-2 pt-1 avoid-page-break">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">3. Rincian Capaian 8 Modul Direktorat</h3>
+                    <div class="border border-slate-300 rounded-xl overflow-hidden shadow-sm">
+                        <table class="w-full border-collapse border border-slate-300 text-xs">
+                            <thead class="bg-slate-100 text-slate-800 font-bold uppercase text-[11px] border-b-2 border-slate-300 select-none">
+                                <tr>
+                                    <th class="border border-slate-300 px-2.5 py-2.5 text-center w-10 text-slate-500">No.</th>
+                                    <th class="border border-slate-300 px-3 py-2.5 text-left w-20">Pilar</th>
+                                    <th class="border border-slate-300 px-3 py-2.5 text-left">Kode & Nama Modul Pengampu</th>
+                                    <th class="border border-slate-300 px-2.5 py-2.5 text-center">Sesi Selesai</th>
+                                    <th class="border border-slate-300 px-2.5 py-2.5 text-center">Rerata Nilai</th>
+                                    <th class="border border-slate-300 px-2 py-2.5 text-center text-slate-600">Max</th>
+                                    <th class="border border-slate-300 px-2 py-2.5 text-center text-slate-600">Min</th>
+                                    <th class="border border-slate-300 px-2.5 py-2.5 text-center text-emerald-800">Lulus (≥80)</th>
+                                    <th class="border border-slate-300 px-2.5 py-2.5 text-center text-rose-800">Remedial (&lt;80)</th>
+                                    <th class="border border-slate-300 px-2.5 py-2.5 text-center">% Kelulusan</th>
+                                    <th class="border border-slate-300 px-3 py-2.5 text-center">Status Capaian</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rekapTableModulesBody" class="divide-y divide-slate-200 bg-white">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Footer stamp inside printable page -->
+                <div class="pt-3 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-500 font-mono">
+                    <span>Program Pelatihan Kepemimpinan Universitas Indonesia</span>
+                    <span class="font-bold text-slate-700">UI ALEX 2026 • OFFICIAL ASSESSMENT REPORT</span>
                 </div>
             </div>
         </div>
@@ -1372,6 +1469,8 @@
 
         let chartModul, chartStatus, chartDistribusi, chartGain
         let chartModalRadar, chartModalBar, chartModalTimeline
+        let chartRekapModulBarInstance = null
+        let chartRekapStatusDonutInstance = null
 
         // Auto Refresh Countdown Timer (Guaranteed 1 Minute Interval)
         let autoSyncRemaining = 60
@@ -1389,10 +1488,10 @@
                     autoSyncRemaining = 60
                     const searchBox = document.getElementById('searchTable')
                     if (searchBox && document.activeElement === searchBox) {
-                        autoSyncRemaining = 15 // tunda sebentar jika sedang aktif mengetik
+                        autoSyncRemaining = 15
                         return
                     }
-                    startSync(true) // Eksekusi sinkronisasi otomatis
+                    startSync(true)
                 }
             }, 1000)
         }
@@ -1425,6 +1524,7 @@
 
             let viewName = 'Matriks Kesiapan'
             if (currentViewMode === 'log') viewName = 'Log Asesmen'
+            else if (currentViewMode === 'rekap') viewName = 'Rekap Post-Test'
             else if (currentViewMode === 'halloffame') viewName = 'Hall of Fame'
 
             const titleParts = ['UI ALEX 2026', viewName, fBatch]
@@ -1454,7 +1554,7 @@
             const params = new URLSearchParams(window.location.search)
             if (params.has('view')) {
                 const v = params.get('view')
-                if (['matrix', 'log', 'halloffame'].includes(v)) currentViewMode = v
+                if (['matrix', 'log', 'rekap', 'halloffame'].includes(v)) currentViewMode = v
             }
             if (params.has('batch')) setVal('filterBatch', params.get('batch'))
             if (params.has('persona')) setVal('filterPersona', params.get('persona'))
@@ -1545,32 +1645,42 @@
             currentViewMode = mode
             const btnMatrix = document.getElementById('btnViewMatrix')
             const btnLog = document.getElementById('btnViewLog')
+            const btnRekap = document.getElementById('btnViewRekap')
             const btnHallOfFame = document.getElementById('btnViewHallOfFame')
 
             const dashboardViews = document.getElementById('analyticsDashboardViews')
+            const rekapView = document.getElementById('rekapPostTestViewContainer')
             const hallOfFameView = document.getElementById('hallOfFameViewContainer')
 
+            // Reset tab button states
             if (btnMatrix) btnMatrix.className = "px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer"
             if (btnLog) btnLog.className = "px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer"
+            if (btnRekap) btnRekap.className = "px-3.5 py-1.5 rounded-lg text-indigo-700 hover:text-indigo-950 hover:bg-indigo-100/60 transition flex items-center gap-1.5 font-bold cursor-pointer"
             if (btnHallOfFame) btnHallOfFame.className = "px-3.5 py-1.5 rounded-lg text-amber-800 hover:text-amber-950 hover:bg-amber-100/60 transition flex items-center gap-1.5 font-bold cursor-pointer"
+
+            // Hide all sub-containers first
+            if (dashboardViews) dashboardViews.classList.add('hidden')
+            if (rekapView) rekapView.classList.add('hidden')
+            if (hallOfFameView) hallOfFameView.classList.add('hidden')
 
             if (mode === 'matrix') {
                 if (btnMatrix) btnMatrix.className = "px-3.5 py-1.5 rounded-lg bg-white text-slate-900 shadow-sm transition font-bold cursor-pointer"
                 if (dashboardViews) dashboardViews.classList.remove('hidden')
-                if (hallOfFameView) hallOfFameView.classList.add('hidden')
                 setText('tableTitle', "Matriks Evaluasi Belajar & Kesiapan Peserta")
-                setText('tableSubtitle', "Klik nama peserta untuk membuka rapor performa individual. Drag garis pembatas kolom untuk me-resize, klik ganda untuk reset auto-sizing.")
+                setText('tableSubtitle', "Header tetap menempel di atas saat discroll. Garis tabel jelas dan nama peserta otomatis word-wrap.")
                 renderTable()
             } else if (mode === 'log') {
                 if (btnLog) btnLog.className = "px-3.5 py-1.5 rounded-lg bg-white text-slate-900 shadow-sm transition font-bold cursor-pointer"
                 if (dashboardViews) dashboardViews.classList.remove('hidden')
-                if (hallOfFameView) hallOfFameView.classList.add('hidden')
                 setText('tableTitle', "Log Rinci Asesmen Modul")
                 setText('tableSubtitle', "Detail pengerjaan per baris kuis. Klik header kolom untuk sorting.")
                 renderTable()
+            } else if (mode === 'rekap') {
+                if (btnRekap) btnRekap.className = "px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white shadow-sm transition flex items-center gap-1.5 font-bold cursor-pointer"
+                if (rekapView) rekapView.classList.remove('hidden')
+                renderRekapPostTest()
             } else if (mode === 'halloffame') {
                 if (btnHallOfFame) btnHallOfFame.className = "px-3.5 py-1.5 rounded-lg bg-amber-500 text-slate-950 shadow-sm transition flex items-center gap-1.5 font-bold cursor-pointer"
-                if (dashboardViews) dashboardViews.classList.add('hidden')
                 if (hallOfFameView) hallOfFameView.classList.remove('hidden')
                 renderHallOfFameStudio()
             }
@@ -1839,6 +1949,7 @@
                 renderKPIs()
                 renderCharts()
                 renderTable()
+                if (currentViewMode === 'rekap') renderRekapPostTest()
                 if (currentViewMode === 'halloffame') renderHallOfFameStudio()
                 updateUrlAndTracker()
                 return
@@ -1882,7 +1993,9 @@
             renderCharts()
             renderTable()
             
-            if (currentViewMode === 'halloffame') {
+            if (currentViewMode === 'rekap') {
+                renderRekapPostTest()
+            } else if (currentViewMode === 'halloffame') {
                 renderHallOfFameStudio()
             }
 
@@ -1938,6 +2051,47 @@
                 setText('glitchDetailText', '✅ Tidak ada anomali teknis kuis')
             }
         }
+
+        // ========================================================
+        // BASELINE INSTRUCTORS FALLBACK (REPORT 167 SOLUSI 1)
+        // ========================================================
+        const _BASELINE_INSTRUCTORS = [
+            // Pilar 1 - Editing Teacher (5)
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'editingteacher', nama: 'Annisa Apriani', email: 'annisaapriani@ui.ac.id' },
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'editingteacher', nama: 'Herry Santosa', email: 'herrysantosa@ui.ac.id' },
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'editingteacher', nama: 'Pengelola EMAS 3', email: 'desy.rachma@ui.ac.id' },
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'editingteacher', nama: 'student Widhi', email: 'widhi.kardina@ui.ac.id' },
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'editingteacher', nama: 'T. Ahmad Danial', email: 'ta.danial@ui.ac.id' },
+            // Pilar 1 - Teacher (10)
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'teacher', nama: 'a gamal', email: 'a.gamal@ui.ac.id' },
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'teacher', nama: 'Annisa Student', email: 'annisa.student@ui.ac.id' },
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'teacher', nama: 'Direktorat Keuangan', email: 'sekreditkeu@ui.ac.id' },
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'teacher', nama: 'Direktorat Pengadaan Barang dan Jasa 20250220001', email: 'dpbj@ui.edu' },
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'teacher', nama: 'Direktorat Perencanaan dan Kinerja UI', email: 'perencanaankinerja@ui.edu' },
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'teacher', nama: 'Hafid Haryanto 140825073', email: 'hafid.haryanto@ui.ac.id' },
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'teacher', nama: 'M. Derriansyah 140925018', email: 'derri98@ui.edu' },
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'teacher', nama: 'reza ulum', email: 'reza.ulum@ui.ac.id' },
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'teacher', nama: 'SDM UI -', email: 'sdm-ui@ui.edu' },
+            { course_id: 99544, pilar: 'Pilar 1', role_code: 'teacher', nama: 'Yasinta Estherina 060713036', email: 'sinta16@ui.ac.id' },
+            // Pilar 2 - Editing Teacher (5)
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'editingteacher', nama: 'Annisa Apriani', email: 'annisaapriani@ui.ac.id' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'editingteacher', nama: 'Herry Santosa', email: 'herrysantosa@ui.ac.id' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'editingteacher', nama: 'Pengelola EMAS 3', email: 'desy.rachma@ui.ac.id' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'editingteacher', nama: 'student Widhi', email: 'widhi.kardina@ui.ac.id' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'editingteacher', nama: 'T. Ahmad Danial', email: 'ta.danial@ui.ac.id' },
+            // Pilar 2 - Teacher (11)
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'teacher', nama: 'a gamal', email: 'a.gamal@ui.ac.id' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'teacher', nama: 'Alexander Garry Juandito 199101302022073001', email: 'garry.juandito@ui.edu' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'teacher', nama: 'Badan Penjaminan Mutu Akademik -', email: 'bpma@ui.ac.id' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'teacher', nama: 'Direktorat Manajemen Risiko, Transformasi Budaya dan Tata Kelola ND-20TREM2025', email: 'dmrt@ui.edu' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'teacher', nama: 'Direktorat Pengawasan dan Audit Internal ND-06/UN2.PI/2025', email: 'dpai@ui.edu' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'teacher', nama: 'filia -', email: 'filia@ui.ac.id' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'teacher', nama: 'M. Derriansyah 140925018', email: 'derri98@ui.edu' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'teacher', nama: 'reza ulum', email: 'reza.ulum@ui.ac.id' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'teacher', nama: 'SDM UI -', email: 'sdm-ui@ui.edu' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'teacher', nama: 'triaswarin sutanarihesti', email: 'triaswarin.sutanarihesti@ui.ac.id' },
+            { course_id: 99545, pilar: 'Pilar 2', role_code: 'teacher', nama: 'Yasinta Estherina 060713036', email: 'sinta16@ui.ac.id' }
+        ]
 
         function renderRoleSummaryWidget() {
             const roleRows = rawMasterData.filter(d => d.role_code !== undefined)
@@ -2052,115 +2206,177 @@
             container.innerHTML = html
         }
 
-        function renderPretestSummaryWidget() {
-            const p1PreData = filteredData.filter(d => String(d.pilar).includes('Pilar 1') && d.tipe_asesmen === 'Pre-test')
-            const p2PreData = filteredData.filter(d => String(d.pilar).includes('Pilar 2') && d.tipe_asesmen === 'Pre-test')
+        // =========================================================================
+        // REKAPITULASI POST-TEST ENGINE (1 HALAMAN LENGKAP & INTUITIF)
+        // =========================================================================
+        const _MODULES_META = [
+            { pilar: 'Pilar I', code: 'DPK', name: 'Perencanaan dan Kinerja', key: 'Perencanaan' },
+            { pilar: 'Pilar I', code: 'DSDMPT', name: 'Manajemen SDM & Pengembangan Talenta', key: 'SDM' },
+            { pilar: 'Pilar I', code: 'DPBJ', name: 'Manajemen Pengadaan Barang dan Jasa', key: 'Pengadaan' },
+            { pilar: 'Pilar I', code: 'DKA', name: 'Manajemen Keuangan dan Akuntansi', key: 'Keuangan' },
+            { pilar: 'Pilar II', code: 'DAI', name: 'Audit Internal', key: 'Audit' },
+            { pilar: 'Pilar II', code: 'DPMA', name: 'Penjaminan Mutu Akademik', key: 'Penjaminan Mutu' },
+            { pilar: 'Pilar II', code: 'DHK', name: 'Hukum dan Kearsipan', key: 'Hukum' },
+            { pilar: 'Pilar II', code: 'DMRT', name: 'Manajemen Risiko, Budaya & Governance', key: 'Risiko' }
+        ]
 
-            const p1Total = p1PreData.length || 0
-            const p1Done = p1PreData.filter(d => Number(d.jumlah_attempt || 0) > 0).length
-            const p1Pending = p1Total - p1Done
-            const p1Pct = p1Total > 0 ? ((p1Done / p1Total) * 100).toFixed(1) : 0.0
+        function renderRekapPostTest() {
+            setText('rekapPrintDate', "Waktu Cetak: " + new Date().toLocaleString('id-ID'))
 
-            const p1DoneScores = p1PreData.filter(d => Number(d.jumlah_attempt || 0) > 0)
-            const p1Avg = p1DoneScores.length > 0 ? (p1DoneScores.reduce((a, b) => a + Number(b.nilai || 0), 0) / p1DoneScores.length).toFixed(1) : '-'
+            const postRows = filteredData.filter(d => d.tipe_asesmen === 'Post-test')
+            const attemptedRows = postRows.filter(d => Number(d.jumlah_attempt || 0) > 0)
+            const totalAttempted = attemptedRows.length
 
-            const p2Total = p2PreData.length || 0
-            const p2Done = p2PreData.filter(d => Number(d.jumlah_attempt || 0) > 0).length
-            const p2Pending = p2Total - p2Done
-            const p2Pct = p2Total > 0 ? ((p2Done / p2Total) * 100).toFixed(1) : 0.0
+            const totalPassed = attemptedRows.filter(d => Number(d.nilai || 0) >= Number(d.kkm || 80)).length
+            const totalRemedial = attemptedRows.filter(d => Number(d.nilai || 0) < Number(d.kkm || 80)).length
 
-            const p2DoneScores = p2PreData.filter(d => Number(d.jumlah_attempt || 0) > 0)
-            const p2Avg = p2DoneScores.length > 0 ? (p2DoneScores.reduce((a, b) => a + Number(b.nilai || 0), 0) / p2DoneScores.length).toFixed(1) : '-'
+            const scores = attemptedRows.map(d => Number(d.nilai || 0))
+            const overallAvg = totalAttempted > 0 ? (scores.reduce((a, b) => a + b, 0) / totalAttempted).toFixed(1) : '-'
+            const passPct = totalAttempted > 0 ? ((totalPassed / totalAttempted) * 100).toFixed(1) : '0.0'
 
-            setText('pretestP1Text', p1Total > 0 ? `${p1Done} / ${p1Total} (${p1Pct}%)` : '- / - (-%)')
-            setWidth('pretestP1Bar', `${p1Pct}%`)
-            setText('pretestP1Detail', p1Total > 0 ? `Selesai: ${p1Done} | Belum: ${p1Pending}` : 'Selesai: - | Belum: -')
-            setText('pretestP1Avg', `Rerata Nilai: ${p1Avg}`)
+            const uniqueActiveUsers = new Set(attemptedRows.map(d => d.user_id)).size
+            const totalUsersRegistered = new Set(filteredData.map(d => d.user_id)).size
 
-            setText('pretestP2Text', p2Total > 0 ? `${p2Done} / ${p2Total} (${p2Pct}%)` : '- / - (-%)')
-            setWidth('pretestP2Bar', `${p2Pct}%`)
-            setText('pretestP2Detail', p2Total > 0 ? `Selesai: ${p2Done} | Belum: ${p2Pending}` : 'Selesai: - | Belum: -')
-            setText('pretestP2Avg', `Rerata Nilai: ${p2Avg}`)
+            // Update KPI Gabungan
+            setText('rekapKpiTotalSesi', `${totalAttempted} / ${postRows.length}`)
+            setText('rekapKpiPesertaPartisipasi', `${uniqueActiveUsers} dari ${totalUsersRegistered} Peserta Aktif`)
+            setText('rekapKpiRerataNilai', overallAvg)
+            setText('rekapKpiTingkatLulus', `${passPct} %`)
+            setText('rekapKpiSesiLulus', `${totalPassed} Sesi Memenuhi KKM`)
+            setText('rekapKpiRemedial', totalRemedial)
 
-            const totalDoneOverall = p1Done + p2Done
-            const totalPreOverall = p1Total + p2Total
-            const overallPct = totalPreOverall > 0 ? ((totalDoneOverall / totalPreOverall) * 100).toFixed(1) : 0.0
-            setText('badgePretestOverall', totalPreOverall > 0 ? `${totalDoneOverall}/${totalPreOverall} Selesai (${overallPct}%)` : '- Selesai')
-        }
+            // Pilar I Breakdown
+            const p1Rows = attemptedRows.filter(d => String(d.pilar).includes('Pilar 1') || d.course_id == 99544)
+            const p1Passed = p1Rows.filter(d => Number(d.nilai || 0) >= 80).length
+            const p1Remedial = p1Rows.length - p1Passed
+            const p1Avg = p1Rows.length > 0 ? (p1Rows.reduce((a, b) => a + Number(b.nilai || 0), 0) / p1Rows.length).toFixed(1) : '-'
+            const p1PassPct = p1Rows.length > 0 ? ((p1Passed / p1Rows.length) * 100).toFixed(1) : '0.0'
 
-        function renderKPIs() {
-            const uniqueUsers = new Set(filteredData.map(d => d.user_id)).size
-            const postTests = filteredData.filter(d => d.tipe_asesmen === 'Post-test')
-            const attemptedPost = postTests.filter(d => Number(d.jumlah_attempt || 0) > 0)
-            
-            let totalScore = 0
-            let passedCount = 0
-            let remedialCount = 0
+            setText('rekapP1Sesi', p1Rows.length)
+            setText('rekapP1Avg', p1Avg)
+            setText('rekapP1PassPct', `${p1PassPct}% (${p1Passed})`)
+            setText('rekapP1Remedial', p1Remedial)
 
-            attemptedPost.forEach(d => {
-                const score = Number(d.nilai || 0)
-                const kkm = Number(d.kkm || 80)
-                totalScore += score
-                if (score >= kkm) passedCount++
-                else remedialCount++
+            // Pilar II Breakdown
+            const p2Rows = attemptedRows.filter(d => String(d.pilar).includes('Pilar 2') || d.course_id == 99545)
+            const p2Passed = p2Rows.filter(d => Number(d.nilai || 0) >= 80).length
+            const p2Remedial = p2Rows.length - p2Passed
+            const p2Avg = p2Rows.length > 0 ? (p2Rows.reduce((a, b) => a + Number(b.nilai || 0), 0) / p2Rows.length).toFixed(1) : '-'
+            const p2PassPct = p2Rows.length > 0 ? ((p2Passed / p2Rows.length) * 100).toFixed(1) : '0.0'
+
+            setText('rekapP2Sesi', p2Rows.length)
+            setText('rekapP2Avg', p2Avg)
+            setText('rekapP2PassPct', `${p2PassPct}% (${p2Passed})`)
+            setText('rekapP2Remedial', p2Remedial)
+
+            // 8 Modules Breakdown Computation
+            const moduleStats = []
+            _MODULES_META.forEach((m, idx) => {
+                const mRows = postRows.filter(d => String(d.modul_direktorat || '').includes(m.key))
+                const mAttempted = mRows.filter(d => Number(d.jumlah_attempt || 0) > 0)
+                const mScores = mAttempted.map(d => Number(d.nilai || 0))
+
+                const mAvg = mScores.length > 0 ? (mScores.reduce((a, b) => a + b, 0) / mScores.length).toFixed(1) : '-'
+                const mMax = mScores.length > 0 ? Math.max(...mScores).toFixed(1) : '-'
+                const mMin = mScores.length > 0 ? Math.min(...mScores).toFixed(1) : '-'
+                const mPassed = mScores.filter(s => s >= 80).length
+                const mRemedial = mScores.length - mPassed
+                const mPassPct = mScores.length > 0 ? ((mPassed / mScores.length) * 100).toFixed(1) : '0.0'
+
+                moduleStats.push({
+                    no: idx + 1,
+                    pilar: m.pilar,
+                    code: m.code,
+                    name: m.name,
+                    totalSlots: mRows.length,
+                    attempted: mAttempted.length,
+                    avg: mAvg,
+                    max: mMax,
+                    min: mMin,
+                    passed: mPassed,
+                    remedial: mRemedial,
+                    passPct: mPassPct
+                })
             })
 
-            const avgScore = attemptedPost.length > 0 ? (totalScore / attemptedPost.length).toFixed(1) : '-'
-            const passPct = attemptedPost.length > 0 ? ((passedCount / attemptedPost.length) * 100).toFixed(1) : '0.0'
+            // Render Table Rows
+            const tableBody = document.getElementById('rekapTableModulesBody')
+            if (tableBody) {
+                let tbodyHtml = ''
+                moduleStats.forEach(st => {
+                    let statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 font-mono">Belum Selesai</span>'
+                    if (st.attempted > 0) {
+                        const numAvg = Number(st.avg)
+                        if (numAvg >= 80) {
+                            statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-800 font-bold">Optimal (≥80)</span>'
+                        } else {
+                            statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-rose-100 text-rose-800 font-bold">Perlu Remedial</span>'
+                        }
+                    }
 
-            setText('kpiTotalPeserta', uniqueUsers || '-')
-            setText('kpiTotalSub', `${filteredData.length} slot asesmen terpilih`)
-            setText('kpiRerataSkor', avgScore)
-            setText('kpiRerataSub', `Dari ${attemptedPost.length} sesi selesai`)
-            setHtml('kpiTingkatLulus', (attemptedPost.length > 0 ? passPct : '-') + ' <span class="text-sm font-normal text-slate-500">%</span>')
-            setText('kpiLulusSub', `${passedCount} dari ${attemptedPost.length} post-test lulus`)
-            setText('kpiRemedial', attemptedPost.length > 0 ? remedialCount : '-')
-            setText('kpiRemedialSub', `${remedialCount} sesi bernilai < 80`)
-        }
+                    const avgDisplay = st.avg !== '-' ? (Number(st.avg) >= 80 ? `<b class="text-emerald-700">${st.avg}</b>` : `<b class="text-rose-600">${st.avg}</b>`) : '-'
 
-        function renderCharts() {
-            destroyCharts()
-
-            const dirMap = {
-                'Perencanaan': { code: 'DPK' },
-                'SDM': { code: 'DSDMPT' },
-                'Pengadaan': { code: 'DPBJ' },
-                'Keuangan': { code: 'DKA' },
-                'Audit': { code: 'DAI' },
-                'Penjaminan Mutu': { code: 'DPMA' },
-                'Hukum': { code: 'DHK' },
-                'Risiko': { code: 'DMRT' }
+                    tbodyHtml += `
+                        <tr class="hover:bg-amber-50/30 transition text-slate-800">
+                            <td class="border border-slate-200 px-2 py-2 text-center text-slate-400 font-mono">${st.no}</td>
+                            <td class="border border-slate-200 px-3 py-2 font-semibold text-slate-600">${st.pilar}</td>
+                            <td class="border border-slate-200 px-3 py-2 font-medium">
+                                <span class="font-bold text-slate-900">${st.code}</span> - ${st.name}
+                            </td>
+                            <td class="border border-slate-200 px-2.5 py-2 text-center font-mono font-medium">${st.attempted} / ${st.totalSlots}</td>
+                            <td class="border border-slate-200 px-2.5 py-2 text-center font-mono">${avgDisplay}</td>
+                            <td class="border border-slate-200 px-2 py-2 text-center font-mono text-slate-600">${st.max}</td>
+                            <td class="border border-slate-200 px-2 py-2 text-center font-mono text-slate-600">${st.min}</td>
+                            <td class="border border-slate-200 px-2.5 py-2 text-center font-mono text-emerald-700 font-bold">${st.passed}</td>
+                            <td class="border border-slate-200 px-2.5 py-2 text-center font-mono text-rose-600 font-bold">${st.remedial}</td>
+                            <td class="border border-slate-200 px-2.5 py-2 text-center font-mono font-bold">${st.passPct}%</td>
+                            <td class="border border-slate-200 px-3 py-2 text-center">${statusBadge}</td>
+                        </tr>
+                    `
+                })
+                tableBody.innerHTML = tbodyHtml
             }
 
-            const dirLabels = []
-            const dirAverages = []
-            const dirBackgrounds = []
+            // Render Charts for Rekap
+            renderRekapCharts(moduleStats, totalPassed, totalRemedial, postRows.length - totalAttempted)
+        }
 
-            Object.entries(dirMap).forEach(([keyword, info]) => {
-                dirLabels.push(info.code)
-                const subset = filteredData.filter(d => 
-                    d.tipe_asesmen === 'Post-test' && 
-                    String(d.modul_direktorat).includes(keyword) && 
-                    Number(d.jumlah_attempt || 0) > 0
-                )
-                const avg = subset.length > 0 ? (subset.reduce((a, b) => a + Number(b.nilai || 0), 0) / subset.length) : 0
-                dirAverages.push(Number(avg.toFixed(1)))
-                dirBackgrounds.push(avg >= 80 ? '#10b981' : (avg > 0 ? '#f59e0b' : '#cbd5e1'))
-            })
+        function renderRekapCharts(moduleStats, passedCount, remedialCount, unattemptedCount) {
+            if (chartRekapModulBarInstance) chartRekapModulBarInstance.destroy()
+            if (chartRekapStatusDonutInstance) chartRekapStatusDonutInstance.destroy()
 
-            const canvasModul = document.getElementById('chartModul')
-            if (canvasModul) {
-                const ctxModul = canvasModul.getContext('2d')
-                chartModul = new Chart(ctxModul, {
+            // 1. Module Average vs KKM Bar Chart
+            const canvasBar = document.getElementById('chartRekapModulBar')
+            if (canvasBar) {
+                const ctxBar = canvasBar.getContext('2d')
+                const labels = moduleStats.map(m => m.code)
+                const dataValues = moduleStats.map(m => m.avg !== '-' ? Number(m.avg) : 0)
+                const barColors = dataValues.map(v => v >= 80 ? '#10b981' : (v > 0 ? '#f43f5e' : '#cbd5e1'))
+
+                chartRekapModulBarInstance = new Chart(ctxBar, {
                     type: 'bar',
                     data: {
-                        labels: dirLabels,
-                        datasets: [{
-                            label: 'Rerata Post-test',
-                            data: dirAverages,
-                            backgroundColor: dirBackgrounds,
-                            borderRadius: 5
-                        }]
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Rerata Nilai Modul',
+                                data: dataValues,
+                                backgroundColor: barColors,
+                                borderRadius: 4,
+                                order: 2
+                            },
+                            {
+                                label: 'Ambang KKM 80',
+                                data: Array(labels.length).fill(80),
+                                type: 'line',
+                                borderColor: '#f59e0b',
+                                borderWidth: 2,
+                                borderDash: [5, 5],
+                                pointRadius: 0,
+                                fill: false,
+                                order: 1
+                            }
+                        ]
                     },
                     options: {
                         responsive: true,
@@ -2168,858 +2384,72 @@
                         scales: {
                             y: { min: 0, max: 100, ticks: { stepSize: 20 } }
                         },
-                        plugins: { legend: { display: false } }
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    afterLabel: (ctx) => {
+                                        const mod = moduleStats[ctx.dataIndex]
+                                        return `Modul: ${mod.name}\nSelesai: ${mod.attempted}\nKelulusan: ${mod.passPct}%`
+                                    }
+                                }
+                            }
+                        }
                     }
                 })
             }
 
-            const postTests = filteredData.filter(d => d.tipe_asesmen === 'Post-test')
-            let cntLulus = 0, cntRemedial = 0, cntBelum = 0
-            postTests.forEach(d => {
-                if (Number(d.jumlah_attempt || 0) === 0) cntBelum++
-                else if (Number(d.nilai || 0) >= Number(d.kkm || 80)) cntLulus++
-                else cntRemedial++
-            })
-
-            const canvasStatus = document.getElementById('chartStatus')
-            if (canvasStatus) {
-                const ctxStatus = canvasStatus.getContext('2d')
-                chartStatus = new Chart(ctxStatus, {
+            // 2. Status Donut Chart
+            const canvasDonut = document.getElementById('chartRekapStatusDonut')
+            if (canvasDonut) {
+                const ctxDonut = canvasDonut.getContext('2d')
+                chartRekapStatusDonutInstance = new Chart(ctxDonut, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Lulus KKM (≥80)', 'Butuh Remedial (<80)', 'Belum Mengerjakan'],
+                        labels: ['Lulus (≥ 80)', 'Remedial (< 80)', 'Belum Mengerjakan'],
                         datasets: [{
-                            data: [cntLulus, cntRemedial, cntBelum],
+                            data: [passedCount, remedialCount, unattemptedCount],
                             backgroundColor: ['#10b981', '#f43f5e', '#e2e8f0']
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        cutout: '65%'
-                    }
-                })
-            }
-
-            const attemptedPost = postTests.filter(d => Number(d.jumlah_attempt || 0) > 0)
-            let b1 = 0, b2 = 0, b3 = 0, b4 = 0
-            attemptedPost.forEach(d => {
-                const s = Number(d.nilai || 0)
-                if (s < 60) b1++
-                else if (s < 80) b2++
-                else if (s < 90) b3++
-                else b4++
-            })
-
-            const canvasDist = document.getElementById('chartDistribusi')
-            if (canvasDist) {
-                const ctxDist = canvasDist.getContext('2d')
-                chartDistribusi = new Chart(ctxDist, {
-                    type: 'bar',
-                    data: {
-                        labels: ['< 60', '60 - 79 (Remedial)', '80 - 89 (Lulus)', '90 - 100 (Mastery)'],
-                        datasets: [{
-                            label: 'Sesi',
-                            data: [b1, b2, b3, b4],
-                            backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6', '#10b981'],
-                            borderRadius: 4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } }
-                    }
-                })
-            }
-
-            const p1Pre = filteredData.filter(d => String(d.pilar).includes('Pilar 1') && d.tipe_asesmen === 'Pre-test' && Number(d.jumlah_attempt || 0) > 0)
-            const p1Post = filteredData.filter(d => String(d.pilar).includes('Pilar 1') && d.tipe_asesmen === 'Post-test' && Number(d.jumlah_attempt || 0) > 0)
-            const p2Pre = filteredData.filter(d => String(d.pilar).includes('Pilar 2') && d.tipe_asesmen === 'Pre-test' && Number(d.jumlah_attempt || 0) > 0)
-            const p2Post = filteredData.filter(d => String(d.pilar).includes('Pilar 2') && d.tipe_asesmen === 'Post-test' && Number(d.jumlah_attempt || 0) > 0)
-
-            const avgP1Pre = p1Pre.length > 0 ? (p1Pre.reduce((a, b) => a + Number(b.nilai || 0), 0) / p1Pre.length).toFixed(1) : 0
-            const avgP1Post = p1Post.length > 0 ? (p1Post.reduce((a, b) => a + Number(b.nilai || 0), 0) / p1Post.length).toFixed(1) : 0
-            const avgP2Pre = p2Pre.length > 0 ? (p2Pre.reduce((a, b) => a + Number(b.nilai || 0), 0) / p2Pre.length).toFixed(1) : 0
-            const avgP2Post = p2Post.length > 0 ? (p2Post.reduce((a, b) => a + Number(b.nilai || 0), 0) / p2Post.length).toFixed(1) : 0
-
-            const hakeP1 = calculateHakeGain(Number(avgP1Pre), Number(avgP1Post))
-            const hakeP2 = calculateHakeGain(Number(avgP2Pre), Number(avgP2Post))
-            setText('hakeGainBadge', (p1Pre.length > 0 || p2Pre.length > 0) ? `Hake Gain: P1 (${hakeP1 ?? '-'}) | P2 (${hakeP2 ?? '-'})` : `Hake Gain: -`)
-
-            const canvasGain = document.getElementById('chartGain')
-            if (canvasGain) {
-                const ctxGain = canvasGain.getContext('2d')
-                chartGain = new Chart(ctxGain, {
-                    type: 'bar',
-                    data: {
-                        labels: ['Pilar I (Manajemen)', 'Pilar II (Governance)'],
-                        datasets: [
-                            {
-                                label: 'Rerata Pre-test',
-                                data: [Number(avgP1Pre), Number(avgP2Pre)],
-                                backgroundColor: '#94a3b8',
-                                borderRadius: 4
-                            },
-                            {
-                                label: 'Rerata Post-test',
-                                data: [Number(avgP1Post), Number(avgP2Post)],
-                                backgroundColor: '#f59e0b',
-                                borderRadius: 4
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: { y: { min: 0, max: 100 } }
-                    }
-                })
-            }
-        }
-
-        function destroyCharts() {
-            if (chartModul) chartModul.destroy()
-            if (chartStatus) chartStatus.destroy()
-            if (chartDistribusi) chartDistribusi.destroy()
-            if (chartGain) chartGain.destroy()
-        }
-
-        function renderTable() {
-            const wrapper = document.getElementById('tableWrapper')
-            const searchKeyword = (document.getElementById('searchTable')?.value || '').toLowerCase().trim()
-
-            if (currentViewMode === 'matrix') {
-                renderParticipantMatrix(wrapper, searchKeyword, false)
-            } else if (currentViewMode === 'log') {
-                renderAssessmentLog(wrapper, searchKeyword, false)
-            }
-        }
-
-        function triggerSortMatrix(col) {
-            if (matrixSortCol === col) {
-                matrixSortDir = matrixSortDir === 'asc' ? 'desc' : 'asc'
-            } else {
-                matrixSortCol = col
-                matrixSortDir = 'asc'
-            }
-            renderTable()
-        }
-
-        function triggerSortLog(col) {
-            if (logSortCol === col) {
-                logSortDir = logSortDir === 'asc' ? 'desc' : 'asc'
-            } else {
-                logSortCol = col
-                logSortDir = 'asc'
-            }
-            renderTable()
-        }
-
-        function getSortIndicator(activeCol, activeDir, colName) {
-            if (activeCol !== colName) return '<span class="text-slate-300 ml-1">⇅</span>'
-            return activeDir === 'asc' ? '<span class="text-amber-600 ml-1">▲</span>' : '<span class="text-amber-600 ml-1">▼</span>'
-        }
-
-        // ==========================================
-        // RESIZABLE COLUMN & AUTO SIZING LOGIC
-        // ==========================================
-        function initColumnResizer() {
-            const th = document.getElementById('thPesertaCol')
-            const resizer = document.getElementById('resizerPesertaCol')
-            if (!th || !resizer) return
-
-            let startX = 0
-            let startWidth = 0
-
-            resizer.addEventListener('mousedown', function (e) {
-                e.stopPropagation()
-                startX = e.pageX
-                startWidth = th.offsetWidth
-                resizer.classList.add('resizing')
-
-                function onMouseMove(e) {
-                    const newWidth = Math.max(130, startWidth + (e.pageX - startX))
-                    th.style.width = newWidth + 'px'
-                    th.style.minWidth = newWidth + 'px'
-                }
-
-                function onMouseUp() {
-                    resizer.classList.remove('resizing')
-                    document.removeEventListener('mousemove', onMouseMove)
-                    document.removeEventListener('mouseup', onMouseUp)
-                }
-
-                document.addEventListener('mousemove', onMouseMove)
-                document.addEventListener('mouseup', onMouseUp)
-            })
-
-            resizer.addEventListener('dblclick', function (e) {
-                e.stopPropagation()
-                th.style.width = ''
-                th.style.minWidth = ''
-            })
-        }
-
-        function renderParticipantMatrix(wrapper, searchKeyword, isFullExport) {
-            if (!wrapper) return
-
-            if (!rawMasterData || rawMasterData.length === 0) {
-                setText('tableCountBadge', 'Menampilkan 0 peserta')
-                wrapper.innerHTML = `
-                    <div class="text-center py-12 text-slate-400 space-y-2">
-                        <p class="font-medium text-sm">Belum ada data asesmen yang dimuat di peramban.</p>
-                        <p class="text-xs">Silakan klik tombol <b>🔄 Tarik Data Realtime</b> di atas untuk menyedot data terbaru.</p>
-                    </div>
-                `
-                return
-            }
-
-            const activeUserIds = new Set(filteredData.map(d => d.user_id))
-            let participants = Object.values(userProfilesMaster).filter(u => activeUserIds.has(u.user_id))
-
-            if (searchKeyword && !isFullExport) {
-                participants = participants.filter(p => 
-                    String(p.nama).toLowerCase().includes(searchKeyword) ||
-                    String(p.username).toLowerCase().includes(searchKeyword) ||
-                    String(p.persona).toLowerCase().includes(searchKeyword) ||
-                    String(p.batch).toLowerCase().includes(searchKeyword)
-                )
-            }
-
-            participants.sort((a, b) => {
-                let va = a[matrixSortCol]
-                let vb = b[matrixSortCol]
-
-                if (matrixSortCol.startsWith('post_')) {
-                    const key = matrixSortCol.replace('post_', '')
-                    va = a.post_scores[key] !== null && a.post_scores[key] !== undefined ? Number(a.post_scores[key]) : -1
-                    vb = b.post_scores[key] !== null && b.post_scores[key] !== undefined ? Number(b.post_scores[key]) : -1
-                } else if (matrixSortCol === 'p1_pre' || matrixSortCol === 'p2_pre') {
-                    va = va !== null && va !== undefined ? Number(va) : -1
-                    vb = vb !== null && vb !== undefined ? Number(vb) : -1
-                } else if (matrixSortCol === 'readiness_score') {
-                    va = Number(a.readiness_score || 0)
-                    vb = Number(b.readiness_score || 0)
-                } else if (matrixSortCol === 'progress_p1') {
-                    va = Number(a.progress_p1 || 0)
-                    vb = Number(b.progress_p1 || 0)
-                } else if (matrixSortCol === 'progress_p2') {
-                    va = Number(a.progress_p2 || 0)
-                    vb = Number(b.progress_p2 || 0)
-                } else if (matrixSortCol === 'status_akhir') {
-                    va = a.passed_post - a.remedial_post
-                    vb = b.passed_post - b.remedial_post
-                }
-
-                if (typeof va === 'number' && typeof vb === 'number') {
-                    return matrixSortDir === 'asc' ? va - vb : vb - va
-                }
-                return matrixSortDir === 'asc' ? String(va || '').localeCompare(String(vb || '')) : String(vb || '').localeCompare(String(va || ''))
-            })
-
-            setText('tableCountBadge', `Menampilkan ${participants.length} peserta`)
-
-            const outlineUrlBase = _resolveUri(_ENC_OUTLINE)
-
-            // TABLE WITH DISTINCT GRID BORDERS (border border-slate-300 / border-slate-200) & STICKY TH
-            let html = `
-                <table class="w-full border-collapse border border-slate-300 text-xs md:text-sm">
-                    <thead class="sticky top-0 z-20 bg-slate-100 text-slate-800 font-bold uppercase text-[11px] tracking-wider select-none shadow-[0_2px_4px_rgba(0,0,0,0.06)] border-b-2 border-slate-300">
-                        <tr>
-                            <th class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2.5 text-center w-10 text-slate-500">No.</th>
-                            <th id="thPesertaCol" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 relative px-3 py-2.5 text-left transition select-none">
-                                <span onclick="triggerSortMatrix('nama')" class="cursor-pointer hover:text-amber-600">Peserta ${getSortIndicator(matrixSortCol, matrixSortDir, 'nama')}</span>
-                                <div id="resizerPesertaCol" class="resizer-handle" title="Tarik untuk resize, klik 2x untuk auto-sizing"></div>
-                            </th>
-                            <th onclick="triggerSortMatrix('batch')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">Batch ${getSortIndicator(matrixSortCol, matrixSortDir, 'batch')}</th>
-                            <th onclick="triggerSortMatrix('persona')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2.5 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition" title="Tipologi Belajar Peserta">Persona ${getSortIndicator(matrixSortCol, matrixSortDir, 'persona')}</th>
-                            <th onclick="triggerSortMatrix('readiness_score')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2.5 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition" title="Indeks Kesiapan Belajar">Kesiapan ${getSortIndicator(matrixSortCol, matrixSortDir, 'readiness_score')}</th>
-                            <th onclick="triggerSortMatrix('progress_p1')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2.5 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">Comp-I ${getSortIndicator(matrixSortCol, matrixSortDir, 'progress_p1')}</th>
-                            <th onclick="triggerSortMatrix('progress_p2')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2.5 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">Comp-II ${getSortIndicator(matrixSortCol, matrixSortDir, 'progress_p2')}</th>
-                            <th onclick="triggerSortMatrix('p1_pre')" class="sticky top-0 z-20 bg-amber-100/70 border border-slate-300 px-2 py-2.5 text-center cursor-pointer hover:bg-amber-100 transition">Pre-I ${getSortIndicator(matrixSortCol, matrixSortDir, 'p1_pre')}</th>
-                            <th onclick="triggerSortMatrix('post_DPK')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">DPK ${getSortIndicator(matrixSortCol, matrixSortDir, 'post_DPK')}</th>
-                            <th onclick="triggerSortMatrix('post_DSDMPT')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">DSDM ${getSortIndicator(matrixSortCol, matrixSortDir, 'post_DSDMPT')}</th>
-                            <th onclick="triggerSortMatrix('post_DPBJ')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">DPBJ ${getSortIndicator(matrixSortCol, matrixSortDir, 'post_DPBJ')}</th>
-                            <th onclick="triggerSortMatrix('post_DKA')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">DKA ${getSortIndicator(matrixSortCol, matrixSortDir, 'post_DKA')}</th>
-                            <th onclick="triggerSortMatrix('p2_pre')" class="sticky top-0 z-20 bg-amber-100/70 border border-slate-300 px-2 py-2.5 text-center cursor-pointer hover:bg-amber-100 transition">Pre-II ${getSortIndicator(matrixSortCol, matrixSortDir, 'p2_pre')}</th>
-                            <th onclick="triggerSortMatrix('post_DAI')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">DAI ${getSortIndicator(matrixSortCol, matrixSortDir, 'post_DAI')}</th>
-                            <th onclick="triggerSortMatrix('post_DPMA')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">DPMA ${getSortIndicator(matrixSortCol, matrixSortDir, 'post_DPMA')}</th>
-                            <th onclick="triggerSortMatrix('post_DHK')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">DHK ${getSortIndicator(matrixSortCol, matrixSortDir, 'post_DHK')}</th>
-                            <th onclick="triggerSortMatrix('post_DMRT')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2.5 text-center cursor-pointer hover:bg-slate-200 transition">DMRT ${getSortIndicator(matrixSortCol, matrixSortDir, 'post_DMRT')}</th>
-                            <th onclick="triggerSortMatrix('status_akhir')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-3 py-2.5 text-center font-bold cursor-pointer hover:bg-slate-200 transition">Status Akhir ${getSortIndicator(matrixSortCol, matrixSortDir, 'status_akhir')}</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-200 bg-white">
-            `
-
-            participants.forEach((p, idx) => {
-                function formatScoreCell(val) {
-                    if (val === null || val === undefined || val === '-') {
-                        return `<span class="text-slate-300 font-mono">-</span>`
-                    }
-                    const num = Number(val)
-                    let textColor = 'text-rose-600 bg-rose-50'
-                    let labelStatus = 'Remedial (< 60)'
-                    if (num >= 80) {
-                        textColor = 'text-emerald-600 bg-emerald-50'
-                        labelStatus = 'Lulus (≥ 80)'
-                    } else if (num >= 60) {
-                        textColor = 'text-amber-600 bg-amber-50'
-                        labelStatus = 'Remedial (60-79)'
-                    }
-
-                    if (isScoreMasked && !isFullExport) {
-                        const tierColor = num >= 80 ? 'bg-emerald-500' : (num >= 60 ? 'bg-amber-500' : 'bg-rose-500')
-                        return `<span class="inline-block w-7 h-4 rounded ${tierColor} shadow-sm" data-tippy-content="${labelStatus}"></span>`
-                    }
-                    return `<span class="font-bold px-1.5 py-0.5 rounded ${textColor}">${num}</span>`
-                }
-
-                function formatCompletionBadge(val, courseId, pilarLabel) {
-                    if (val === null || val === undefined) return `<span class="text-slate-300 font-mono">-</span>`
-                    const num = Number(val)
-                    let badgeColor = 'text-slate-600 bg-slate-100 hover:bg-slate-200'
-                    if (num >= 80) badgeColor = 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-bold'
-                    else if (num > 0) badgeColor = 'text-blue-700 bg-blue-50 hover:bg-blue-100 font-semibold'
-
-                    const url = `${outlineUrlBase}${encodeURIComponent(p.user_id)}&course=${courseId}`
-                    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="inline-block px-1.5 py-0.5 rounded text-xs font-mono underline ${badgeColor} transition" title="Buka checklist ${pilarLabel}">${num}%</a>`
-                }
-
-                let personaBadgeClass = 'bg-slate-100 text-slate-700'
-                if (p.persona === 'Pace-Setter') personaBadgeClass = 'bg-emerald-100 text-emerald-800 font-bold'
-                else if (p.persona === 'In Progress') personaBadgeClass = 'bg-blue-100 text-blue-800 font-medium'
-                else if (p.persona === 'Pilar-I Oriented') personaBadgeClass = 'bg-amber-100 text-amber-800 font-medium'
-                else if (p.persona === 'Low Engagement') personaBadgeClass = 'bg-rose-100 text-rose-800 font-medium'
-                else if (p.persona === 'Dormant') personaBadgeClass = 'bg-slate-200 text-slate-600'
-
-                let glitchTag = ''
-                if (p.is_glitch) {
-                    glitchTag = `<span class="ml-1 cursor-help px-1 py-0.5 bg-rose-600 text-white font-black rounded text-[10px]" data-tippy-content="⚠️ Anomali Glitch: Completion tinggi namun Pre-test 0.">GLITCH</span>`
-                }
-
-                const personaCell = `<div class="flex items-center justify-center"><span class="px-2 py-0.5 rounded text-[11px] whitespace-nowrap ${personaBadgeClass}">${p.persona}</span>${glitchTag}</div>`
-
-                let readBadgeClass = 'bg-rose-100 text-rose-800'
-                if (p.readiness_cat === 'Siap') readBadgeClass = 'bg-emerald-100 text-emerald-800 font-bold'
-                else if (p.readiness_cat === 'Cukup') readBadgeClass = 'bg-amber-100 text-amber-800 font-medium'
-
-                const readinessCell = `
-                    <div class="flex flex-col items-center">
-                        <span class="font-mono font-bold text-xs">${p.readiness_score}</span>
-                        <span class="text-[10px] px-1.5 py-0.2 rounded font-semibold ${readBadgeClass}">${p.readiness_cat}</span>
-                    </div>
-                `
-
-                let badgeFinal = `<span class="px-2 py-0.5 rounded text-[11px] bg-slate-100 text-slate-500">Belum Selesai</span>`
-                if (p.attempted_post > 0) {
-                    if (p.remedial_post === 0 && p.attempted_post === 8) {
-                        badgeFinal = `<span class="px-2 py-0.5 rounded text-[11px] bg-emerald-100 text-emerald-800 font-bold">LULUS SEMUA</span>`
-                    } else if (p.remedial_post > 0) {
-                        badgeFinal = `<span class="px-2 py-0.5 rounded text-[11px] bg-rose-100 text-rose-800 font-bold">${p.remedial_post} Remedial</span>`
-                    } else {
-                        badgeFinal = `<span class="px-2 py-0.5 rounded text-[11px] bg-blue-100 text-blue-800 font-medium">${p.passed_post}/8 Selesai</span>`
-                    }
-                }
-
-                const participantCell = `
-                    <div class="flex flex-col word-break-wrap">
-                        <span onclick="openParticipantReport(${p.user_id})" class="font-semibold text-slate-900 hover:text-amber-600 hover:underline cursor-pointer transition leading-snug" title="Klik untuk membuka Rapor Lengkap">
-                            ${p.nama} <span class="text-[10px] text-amber-500">↗</span>
-                        </span>
-                        <span class="text-[11px] text-slate-400 font-mono mt-0.5">${p.username}</span>
-                    </div>
-                `
-
-                html += `
-                    <tr class="hover:bg-amber-50/40 transition">
-                        <td class="border border-slate-200 px-2 py-2 text-center text-slate-400 font-mono text-xs">${idx + 1}</td>
-                        <td class="border border-slate-200 px-3 py-2 text-left">${participantCell}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center text-slate-600 font-medium">${p.batch}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center">${personaCell}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center">${readinessCell}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center whitespace-nowrap">${formatCompletionBadge(p.progress_p1, 99544, 'Pilar I')}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center whitespace-nowrap">${formatCompletionBadge(p.progress_p2, 99545, 'Pilar II')}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center bg-amber-50/50">${formatScoreCell(p.p1_pre)}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center">${formatScoreCell(p.post_scores['DPK'])}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center">${formatScoreCell(p.post_scores['DSDMPT'])}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center">${formatScoreCell(p.post_scores['DPBJ'])}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center">${formatScoreCell(p.post_scores['DKA'])}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center bg-amber-50/50">${formatScoreCell(p.p2_pre)}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center">${formatScoreCell(p.post_scores['DAI'])}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center">${formatScoreCell(p.post_scores['DPMA'])}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center">${formatScoreCell(p.post_scores['DHK'])}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center">${formatScoreCell(p.post_scores['DMRT'])}</td>
-                        <td class="border border-slate-200 px-3 py-2 text-center whitespace-nowrap">${badgeFinal}</td>
-                    </tr>
-                `
-            })
-
-            html += `</tbody></table>`
-            wrapper.innerHTML = html
-            initColumnResizer()
-            tippy('[data-tippy-content]', { animation: 'shift-away', theme: 'light-border', allowHTML: true })
-        }
-
-        function renderAssessmentLog(wrapper, searchKeyword, isFullExport) {
-            if (!wrapper) return
-
-            if (!rawMasterData || rawMasterData.length === 0) {
-                setText('tableCountBadge', 'Menampilkan 0 baris log')
-                wrapper.innerHTML = `
-                    <div class="text-center py-12 text-slate-400 space-y-2">
-                        <p class="font-medium text-sm">Belum ada log asesmen yang dimuat di peramban.</p>
-                        <p class="text-xs">Silakan klik tombol <b>🔄 Tarik Data Realtime</b> di atas.</p>
-                    </div>
-                `
-                return
-            }
-
-            let data = filteredData.slice()
-
-            if (searchKeyword && !isFullExport) {
-                data = data.filter(d => 
-                    String(d.nama_peserta).toLowerCase().includes(searchKeyword) ||
-                    String(d.username || d.nip).toLowerCase().includes(searchKeyword) ||
-                    String(d.modul_direktorat).toLowerCase().includes(searchKeyword) ||
-                    String(d.nama_kuis).toLowerCase().includes(searchKeyword)
-                )
-            }
-
-            data.sort((a, b) => {
-                let va = a[logSortCol]
-                let vb = b[logSortCol]
-
-                if (['nilai', 'kkm', 'jumlah_attempt', 'progress_completion'].includes(logSortCol)) {
-                    va = Number(va || 0)
-                    vb = Number(vb || 0)
-                    return logSortDir === 'asc' ? va - vb : vb - va
-                }
-                return logSortDir === 'asc' ? String(va || '').localeCompare(String(vb || '')) : String(vb || '').localeCompare(String(va || ''))
-            })
-
-            setText('tableCountBadge', `Menampilkan ${data.length} baris log`)
-
-            const profileUrlBase = _resolveUri(_ENC_PROFILE)
-            const outlineUrlBase = _resolveUri(_ENC_OUTLINE)
-
-            let html = `
-                <table class="w-full border-collapse border border-slate-300 text-xs md:text-sm">
-                    <thead class="sticky top-0 z-20 bg-slate-100 text-slate-800 font-bold uppercase text-[11px] tracking-wider select-none shadow-[0_2px_4px_rgba(0,0,0,0.06)] border-b-2 border-slate-300">
-                        <tr>
-                            <th class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2.5 py-2.5 text-center w-12 text-slate-500">No.</th>
-                            <th onclick="triggerSortLog('nama_peserta')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-3 py-2 text-left cursor-pointer hover:bg-slate-200 transition">Peserta ${getSortIndicator(logSortCol, logSortDir, 'nama_peserta')}</th>
-                            <th onclick="triggerSortLog('batch')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2 text-center cursor-pointer hover:bg-slate-200 transition">Batch ${getSortIndicator(logSortCol, logSortDir, 'batch')}</th>
-                            <th onclick="triggerSortLog('progress_completion')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2 text-center cursor-pointer hover:bg-slate-200 transition">Progress ${getSortIndicator(logSortCol, logSortDir, 'progress_completion')}</th>
-                            <th onclick="triggerSortLog('pilar')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-3 py-2 text-left cursor-pointer hover:bg-slate-200 transition">Pilar ${getSortIndicator(logSortCol, logSortDir, 'pilar')}</th>
-                            <th onclick="triggerSortLog('modul_direktorat')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-3 py-2 text-left cursor-pointer hover:bg-slate-200 transition">Modul Direktorat ${getSortIndicator(logSortCol, logSortDir, 'modul_direktorat')}</th>
-                            <th onclick="triggerSortLog('nama_kuis')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-3 py-2 text-left cursor-pointer hover:bg-slate-200 transition">Nama Asesmen ${getSortIndicator(logSortCol, logSortDir, 'nama_kuis')}</th>
-                            <th onclick="triggerSortLog('nilai')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2 text-center cursor-pointer hover:bg-slate-200 transition">Nilai ${getSortIndicator(logSortCol, logSortDir, 'nilai')}</th>
-                            <th onclick="triggerSortLog('status_kelulusan')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2 text-center cursor-pointer hover:bg-slate-200 transition">Status ${getSortIndicator(logSortCol, logSortDir, 'status_kelulusan')}</th>
-                            <th onclick="triggerSortLog('jumlah_attempt')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-2 py-2 text-center cursor-pointer hover:bg-slate-200 transition">Attempt ${getSortIndicator(logSortCol, logSortDir, 'jumlah_attempt')}</th>
-                            <th onclick="triggerSortLog('waktu_submit')" class="sticky top-0 z-20 bg-slate-100 border border-slate-300 px-3 py-2 text-left cursor-pointer hover:bg-slate-200 transition">Waktu Submit ${getSortIndicator(logSortCol, logSortDir, 'waktu_submit')}</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-200 bg-white">
-            `
-
-            const rowsToRender = isFullExport ? data : data.slice(0, 150)
-            rowsToRender.forEach((d, idx) => {
-                const isLulus = d.status_kelulusan === 'Lulus'
-                const isRemedial = d.status_kelulusan === 'Butuh Remedial'
-                const isSelesai = d.status_kelulusan === 'Selesai'
-                
-                let badgeClass = 'bg-slate-100 text-slate-600'
-                if (isLulus) badgeClass = 'bg-emerald-100 text-emerald-800 font-bold'
-                else if (isRemedial) badgeClass = 'bg-rose-100 text-rose-800 font-bold'
-                else if (isSelesai) badgeClass = 'bg-blue-100 text-blue-800 font-semibold'
-
-                let scoreContent = `<span class="text-slate-300 font-mono">-</span>`
-                if (Number(d.jumlah_attempt) > 0) {
-                    const num = Number(d.nilai)
-                    let textColor = num >= 80 ? 'text-emerald-600 bg-emerald-50' : (num >= 60 ? 'text-amber-600 bg-amber-50' : 'text-rose-600 bg-rose-50')
-                    scoreContent = `<span class="font-bold px-1.5 py-0.5 rounded ${textColor}">${num}</span>`
-                }
-
-                const uName = d.username || d.nip || '-'
-                const userLink = `<a href="${profileUrlBase + encodeURIComponent(d.user_id)}" target="_blank" rel="noopener noreferrer" class="font-mono text-amber-600 hover:text-amber-800 underline font-bold transition mr-1.5">${uName}</a>`
-                const participantCell = `<div class="flex items-center flex-wrap gap-1"><span class="font-medium text-slate-900">${d.nama_peserta}</span> <span class="text-slate-400">-</span> ${userLink}</div>`
-
-                const compVal = d.progress_completion !== undefined ? `${d.progress_completion}%` : '-'
-                const compLink = `${outlineUrlBase}${encodeURIComponent(d.user_id)}&course=${encodeURIComponent(d.course_id)}`
-                const progressCell = `<a href="${compLink}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline font-bold text-xs">${compVal}</a>`
-
-                html += `
-                    <tr class="hover:bg-amber-50/40 transition">
-                        <td class="border border-slate-200 px-2.5 py-2 text-center text-slate-400 font-mono text-xs">${idx + 1}</td>
-                        <td class="border border-slate-200 px-3 py-2 whitespace-nowrap">${participantCell}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center text-slate-600 text-xs font-medium">${cleanGroupName(d.group_name || d.batch)}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center">${progressCell}</td>
-                        <td class="border border-slate-200 px-3 py-2 text-slate-600 text-xs">${String(d.pilar || '').split('-')[0].trim()}</td>
-                        <td class="border border-slate-200 px-3 py-2 text-slate-700 text-xs">${d.modul_direktorat || '-'}</td>
-                        <td class="border border-slate-200 px-3 py-2 text-slate-800">${d.nama_kuis || '-'}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center">${scoreContent}</td>
-                        <td class="border border-slate-200 px-2 py-2 text-center"><span class="px-2 py-0.5 rounded text-xs ${badgeClass}">${d.status_kelulusan}</span></td>
-                        <td class="border border-slate-200 px-2 py-2 text-center font-mono">${d.jumlah_attempt || 0}</td>
-                        <td class="border border-slate-200 px-3 py-2 text-slate-500 text-xs whitespace-nowrap">${d.waktu_submit || '-'}</td>
-                    </tr>
-                `
-            })
-
-            if (!isFullExport && data.length > 150) {
-                html += `<tr><td colspan="11" class="text-center py-2.5 text-xs text-slate-400 italic bg-slate-50">Menampilkan 150 baris pertama. Gunakan pencarian untuk menyaring spesifik.</td></tr>`
-            }
-
-            html += `</tbody></table>`
-            wrapper.innerHTML = html
-            tippy('[data-tippy-content]', { animation: 'shift-away', theme: 'light-border', allowHTML: true })
-        }
-
-        function filterTableSearch() {
-            renderTable()
-            if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
-            searchDebounceTimer = setTimeout(() => {
-                updateUrlAndTracker()
-            }, 400)
-        }
-
-        // ==========================================
-        // INDIVIDUAL PARTICIPANT REPORT MODAL LOGIC
-        // ==========================================
-        function openParticipantReport(userId) {
-            const u = userProfilesMaster[userId]
-            if (!u) return
-            activeModalUserId = userId
-
-            setText('modalPesertaNama', u.nama)
-            setText('modalPesertaBatch', u.batch)
-            setText('modalPesertaNip', `NIP/Username: ${u.username} • ID: ${u.user_id}`)
-
-            setText('modalReadinessScore', u.readiness_score)
-            const catBadge = document.getElementById('modalReadinessCat')
-            if (catBadge) {
-                catBadge.innerText = u.readiness_cat
-                catBadge.className = `text-[10px] font-bold px-2 py-0.5 rounded mt-1 inline-block ${u.readiness_cat === 'Siap' ? 'bg-emerald-100 text-emerald-800' : (u.readiness_cat === 'Cukup' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')}`
-            }
-
-            setText('modalPersonaType', u.persona)
-            setText('modalGlitchStatus', u.is_glitch ? '⚠️ Anomali Glitch Kuis' : 'Normal')
-            setText('modalCompP1', `${u.progress_p1}%`)
-            setText('modalCompP2', `${u.progress_p2}%`)
-
-            const finalStatusEl = document.getElementById('modalFinalStatus')
-            if (finalStatusEl) {
-                if (u.attempted_post === 8 && u.remedial_post === 0) {
-                    finalStatusEl.innerText = 'LULUS SEMUA'
-                    finalStatusEl.className = 'text-sm font-extrabold text-emerald-600 mt-1.5'
-                } else if (u.remedial_post > 0) {
-                    finalStatusEl.innerText = `${u.remedial_post} MODUL REMEDIAL`
-                    finalStatusEl.className = 'text-sm font-extrabold text-rose-600 mt-1.5'
-                } else {
-                    finalStatusEl.innerText = `${u.passed_post}/8 SELESAI`
-                    finalStatusEl.className = 'text-sm font-extrabold text-blue-600 mt-1.5'
-                }
-            }
-            setText('modalPassedSub', `${u.passed_post} Lulus | ${u.remedial_post} Remedial`)
-
-            setText('modalPre1Score', u.p1_pre !== null ? u.p1_pre : '-')
-            setText('modalPostP1Avg', u.p1_post_avg !== null ? `${u.p1_post_avg} / 100` : '-')
-            setText('modalPre2Score', u.p2_pre !== null ? u.p2_pre : '-')
-            setText('modalPostP2Avg', u.p2_post_avg !== null ? `${u.p2_post_avg} / 100` : '-')
-            setText('modalAttemptedTotal', `${u.attempted_post} dari 8 Modul`)
-            setText('modalPostTotalAvg', u.total_post_avg > 0 ? `${u.total_post_avg} / 100` : '-')
-
-            renderParticipantCharts(u)
-
-            // 1. Render Module Table Rows
-            const tableBody = document.getElementById('modalTableBody')
-            if (tableBody) {
-                const modules = [
-                    { pilar: 'Pilar I', code: 'DPK', name: 'Perencanaan & Kinerja' },
-                    { pilar: 'Pilar I', code: 'DSDMPT', name: 'Manajemen SDM & Talenta' },
-                    { pilar: 'Pilar I', code: 'DPBJ', name: 'Pengadaan Barang & Jasa' },
-                    { pilar: 'Pilar I', code: 'DKA', name: 'Keuangan & Akuntansi' },
-                    { pilar: 'Pilar II', code: 'DAI', name: 'Audit Internal' },
-                    { pilar: 'Pilar II', code: 'DPMA', name: 'Penjaminan Mutu' },
-                    { pilar: 'Pilar II', code: 'DHK', name: 'Hukum & Kearsipan' },
-                    { pilar: 'Pilar II', code: 'DMRT', name: 'Manajemen Risiko & Transformasi' }
-                ]
-
-                let rowsHtml = ''
-                modules.forEach(m => {
-                    const score = u.post_scores[m.code]
-                    const hasTaken = score !== null && score !== undefined
-                    let statusLabel = 'Belum Mengambil'
-                    let statusClass = 'bg-slate-100 text-slate-500'
-                    let scoreDisplay = '-'
-                    let submitTimeDisplay = '-'
-
-                    const logEntry = u.logs.find(l => String(l.modul_direktorat).includes(m.name.split(' ')[0]) && l.tipe_asesmen === 'Post-test')
-                    if (logEntry && logEntry.waktu_submit && logEntry.waktu_submit !== '-') {
-                        submitTimeDisplay = logEntry.waktu_submit
-                    }
-
-                    if (hasTaken) {
-                        scoreDisplay = score
-                        if (score >= 80) {
-                            statusLabel = 'Lulus'
-                            statusClass = 'bg-emerald-100 text-emerald-800 font-bold'
-                        } else {
-                            statusLabel = 'Remedial'
-                            statusClass = 'bg-rose-100 text-rose-800 font-bold'
+                        cutout: '65%',
+                        plugins: {
+                            legend: { display: false }
                         }
                     }
-
-                    rowsHtml += `
-                        <tr class="hover:bg-slate-50 transition">
-                            <td class="px-3 py-2 font-medium text-slate-600">${m.pilar}</td>
-                            <td class="px-3 py-2 text-slate-900 font-medium"><b>${m.code}</b> - ${m.name}</td>
-                            <td class="px-3 py-2 text-center font-mono font-bold">${scoreDisplay}</td>
-                            <td class="px-3 py-2 text-center font-mono text-slate-500">80</td>
-                            <td class="px-3 py-2 text-center"><span class="px-2 py-0.5 rounded text-[11px] ${statusClass}">${statusLabel}</span></td>
-                            <td class="px-3 py-2 text-center text-slate-500 font-mono text-[11px]">${submitTimeDisplay}</td>
-                        </tr>
-                    `
-                })
-                tableBody.innerHTML = rowsHtml
-            }
-
-            // 2. Render Daily Activity & Completion Table
-            const dailyLogsBody = document.getElementById('modalDailyLogsBody')
-            if (dailyLogsBody) {
-                const activityMap = []
-                u.logs.forEach(l => {
-                    const dateStr = l.waktu_submit && l.waktu_submit !== '-' ? l.waktu_submit.slice(0, 10) : (l.terakhir_akses_kursus && l.terakhir_akses_kursus !== '-' ? l.terakhir_akses_kursus.slice(0, 10) : null)
-                    if (dateStr) {
-                        activityMap.push({
-                            date: dateStr,
-                            module: l.nama_kuis || l.modul_direktorat || 'Aktivitas Modul',
-                            timeStart: l.waktu_mulai_kuis && l.waktu_mulai_kuis !== '-' ? l.waktu_mulai_kuis.slice(11) : '-',
-                            timeEnd: l.waktu_submit && l.waktu_submit !== '-' ? l.waktu_submit.slice(11) : '-',
-                            duration: l.durasi_pengerjaan_menit ? `${l.durasi_pengerjaan_menit} mnt` : '-',
-                            score: Number(l.jumlah_attempt || 0) > 0 ? l.nilai : '-',
-                            lastAccess: l.terakhir_akses_kursus || '-'
-                        })
-                    }
                 })
 
-                activityMap.sort((a, b) => b.date.localeCompare(a.date))
-
-                if (activityMap.length === 0) {
-                    dailyLogsBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-slate-400 italic">Belum ada rekaman riwayat akses harian.</td></tr>`
-                } else {
-                    let dHtml = ''
-                    activityMap.forEach(act => {
-                        dHtml += `
-                            <tr class="hover:bg-slate-50 transition">
-                                <td class="px-3 py-2 font-mono font-semibold text-slate-800 whitespace-nowrap">${act.date}</td>
-                                <td class="px-3 py-2 text-slate-900">${act.module}</td>
-                                <td class="px-3 py-2 text-center font-mono text-slate-600">${act.timeStart} - ${act.timeEnd}</td>
-                                <td class="px-3 py-2 text-center font-mono text-slate-600">${act.duration}</td>
-                                <td class="px-3 py-2 text-center font-mono font-bold">${act.score}</td>
-                                <td class="px-3 py-2 text-center font-mono text-[11px] text-slate-500 whitespace-nowrap">${act.lastAccess}</td>
-                            </tr>
-                        `
-                    })
-                    dailyLogsBody.innerHTML = dHtml
-                }
-            }
-
-            const modal = document.getElementById('participantModal')
-            if (modal) modal.classList.remove('hidden')
-            updateUrlAndTracker(`Rapor ${u.nama}`)
-        }
-
-        function closeParticipantReport() {
-            const modal = document.getElementById('participantModal')
-            if (modal) modal.classList.add('hidden')
-            activeModalUserId = null
-        }
-
-        function renderParticipantCharts(u) {
-            if (chartModalRadar) chartModalRadar.destroy()
-            if (chartModalBar) chartModalBar.destroy()
-            if (chartModalTimeline) chartModalTimeline.destroy()
-
-            const modKeys = ['DPK', 'DSDMPT', 'DPBJ', 'DKA', 'DAI', 'DPMA', 'DHK', 'DMRT']
-            const modLabels = ['DPK (Renc)', 'DSDM (SDM)', 'DPBJ (PBJ)', 'DKA (Keu)', 'DAI (Audit)', 'DPMA (Mutu)', 'DHK (Hkm)', 'DMRT (Risiko)']
-            const userScores = modKeys.map(k => u.post_scores[k] ?? 0)
-            const kkmValues = [80, 80, 80, 80, 80, 80, 80, 80]
-
-            // 1. Radar Chart
-            const canvasRadar = document.getElementById('chartModalRadar')
-            if (canvasRadar) {
-                const ctxRadar = canvasRadar.getContext('2d')
-                chartModalRadar = new Chart(ctxRadar, {
-                    type: 'radar',
-                    data: {
-                        labels: modLabels,
-                        datasets: [
-                            {
-                                label: 'Capaian Peserta',
-                                data: userScores,
-                                backgroundColor: 'rgba(245, 158, 11, 0.25)',
-                                borderColor: '#f59e0b',
-                                pointBackgroundColor: '#d97706',
-                                pointBorderColor: '#fff'
-                            },
-                            {
-                                label: 'Standar KKM 80',
-                                data: kkmValues,
-                                borderColor: '#10b981',
-                                borderDash: [4, 4],
-                                backgroundColor: 'transparent',
-                                pointRadius: 0
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            r: { min: 0, max: 100, ticks: { stepSize: 25, display: false } }
-                        },
-                        plugins: { legend: { position: 'bottom' } }
-                    }
-                })
-            }
-
-            // 2. Bar Chart Capaian
-            const canvasBar = document.getElementById('chartModalBar')
-            if (canvasBar) {
-                const ctxBar = canvasBar.getContext('2d')
-                const barColors = userScores.map(s => s >= 80 ? '#10b981' : (s > 0 ? '#f43f5e' : '#cbd5e1'))
-
-                chartModalBar = new Chart(ctxBar, {
-                    type: 'bar',
-                    data: {
-                        labels: modKeys,
-                        datasets: [{
-                            label: 'Skor Post-test',
-                            data: userScores,
-                            backgroundColor: barColors,
-                            borderRadius: 4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: { min: 0, max: 100, ticks: { stepSize: 20 } }
-                        },
-                        plugins: { legend: { display: false } }
-                    }
-                })
-            }
-
-            // 3. Daily Timeline Access Chart
-            const timelineContainer = document.getElementById('timelineChartContainer')
-            const emptyNotice = document.getElementById('timelineEmptyNotice')
-            
-            const attemptedLogs = u.logs.filter(l => Number(l.jumlah_attempt || 0) > 0 && l.waktu_submit && l.waktu_submit !== '-')
-            attemptedLogs.sort((a, b) => String(a.waktu_submit).localeCompare(String(b.waktu_submit)))
-
-            if (attemptedLogs.length === 0) {
-                if (timelineContainer) timelineContainer.classList.add('hidden')
-                if (emptyNotice) emptyNotice.classList.remove('hidden')
-                setText('timelineSummaryBadge', 'Belum Ada Jejak Waktu')
-            } else {
-                if (timelineContainer) timelineContainer.classList.remove('hidden')
-                if (emptyNotice) emptyNotice.classList.add('hidden')
-
-                const timeLabels = []
-                const timeScores = []
-                const pointColors = []
-                const pointRadii = []
-
-                attemptedLogs.forEach(l => {
-                    const shortDate = String(l.waktu_submit).slice(5)
-                    const modName = l.tipe_asesmen === 'Pre-test' ? (String(l.pilar).includes('Pilar 1') ? 'Pre-Test I' : 'Pre-Test II') : (l.modul_direktorat ? String(l.modul_direktorat).slice(0, 10) : 'Post-Test')
-                    timeLabels.push(`${shortDate} (${modName})`)
-                    
-                    const sc = Number(l.nilai || 0)
-                    timeScores.push(sc)
-                    pointColors.push(sc >= 80 ? '#10b981' : (sc >= 60 ? '#f59e0b' : '#f43f5e'))
-                    pointRadii.push(6)
-                })
-
-                setText('timelineSummaryBadge', `${attemptedLogs.length} Asesmen Selesai • Awal: ${attemptedLogs[0].waktu_submit.slice(5, 10)}`)
-
-                const canvasTimeline = document.getElementById('chartModalTimeline')
-                if (canvasTimeline) {
-                    const ctxTimeline = canvasTimeline.getContext('2d')
-                    chartModalTimeline = new Chart(ctxTimeline, {
-                        type: 'line',
-                        data: {
-                            labels: timeLabels,
-                            datasets: [
-                                {
-                                    label: 'Skor Kuis',
-                                    data: timeScores,
-                                    borderColor: '#3b82f6',
-                                    backgroundColor: 'rgba(59, 130, 246, 0.08)',
-                                    pointBackgroundColor: pointColors,
-                                    pointBorderColor: '#fff',
-                                    pointBorderWidth: 2,
-                                    pointRadius: pointRadii,
-                                    fill: true,
-                                    tension: 0.25
-                                },
-                                {
-                                    label: 'Ambang KKM 80',
-                                    data: Array(timeLabels.length).fill(80),
-                                    borderColor: '#10b981',
-                                    borderDash: [5, 5],
-                                    borderWidth: 1.5,
-                                    pointRadius: 0,
-                                    fill: false
-                                }
-                            ]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: {
-                                y: { min: 0, max: 100, ticks: { stepSize: 20 } }
-                            },
-                            plugins: {
-                                legend: { position: 'top' },
-                                tooltip: {
-                                    callbacks: {
-                                        afterLabel: function(context) {
-                                            const item = attemptedLogs[context.dataIndex]
-                                            return `Waktu Submit: ${item.waktu_submit}\nDurasi: ${item.durasi_pengerjaan_menit || '-'} mnt\nStatus: ${item.status_kelulusan}`
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    })
-                }
+                setText('rekapDonutLegend', `Lulus: ${passedCount} • Remedial: ${remedialCount} • Belum: ${unattemptedCount}`)
             }
         }
 
-        async function downloadParticipantPDF() {
-            if (!activeModalUserId) return
-            const u = userProfilesMaster[activeModalUserId]
-            if (!u) return
-
+        // Export Rekap Post-Test as Dedicated 1-Page Landscape PDF
+        async function downloadRekapPostTestPDF() {
+            updateUrlAndTracker('Unduh PDF Rekap Post-Test')
             window.scrollTo(0, 0)
-            const pdfHeader = document.getElementById('participantPdfHeader')
-            if (pdfHeader) {
-                pdfHeader.classList.remove('hidden')
-                setText('participantPdfDate', `Dicetak: ${new Date().toLocaleString('id-ID')}`)
-            }
 
-            const element = document.getElementById('participantPrintableDossier')
+            const element = document.getElementById('rekapPostTestPrintArea')
+            if (!element) return
+
+            const activeBatch = document.getElementById('filterBatch')?.value || 'Batch 1'
+            const dateStr = new Date().toISOString().slice(0, 10)
+
             const opt = {
                 margin:       [8, 8, 12, 8],
-                filename:     `Rapor_ALEX_2026_${u.username}_${u.nama.replace(/\s+/g, '_')}.pdf`,
+                filename:     `Rekap_PostTest_UI_ALEX_2026_${activeBatch.replace(/\s+/g, '_')}_${dateStr}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 1.5, useCORS: true, scrollY: 0, scrollX: 0, logging: false },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak:    { mode: ['css', 'legacy'], before: '.html2pdf__page-break', avoid: '.avoid-page-break' }
+                html2canvas:  {
+                    scale: 1.6,
+                    useCORS: true,
+                    logging: false,
+                    scrollY: 0,
+                    scrollX: 0
+                },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
+                pagebreak:    { mode: ['css', 'legacy'] }
             }
 
             try {
@@ -3029,695 +2459,63 @@
                         pdf.setPage(i)
                         pdf.setFontSize(8)
                         pdf.setTextColor(100, 116, 139)
-                        pdf.text('UI ALEX 2026 - Program Pelatihan Kepemimpinan Universitas Indonesia', 10, pdf.internal.pageSize.getHeight() - 6)
+                        pdf.text('UI ALEX 2026 - Rekapitulasi Capaian Post-Test Pelatihan Kepemimpinan Universitas Indonesia', 10, pdf.internal.pageSize.getHeight() - 6)
                         pdf.text(`Halaman ${i} dari ${totalPages}`, pdf.internal.pageSize.getWidth() - 32, pdf.internal.pageSize.getHeight() - 6)
                     }
                 }).save()
             } catch (err) {
-                console.error(err)
-            } finally {
-                if (pdfHeader) pdfHeader.classList.add('hidden')
+                console.error("PDF export error:", err)
+                alert("Gagal mengunduh PDF: " + err.message)
             }
         }
 
-        // =========================================================================
-        // HALL OF FAME & LEADERSHIP AWARDS ENGINE (10 PRESTIGIOUS CATEGORIES)
-        // =========================================================================
-        const AWARDS_CATALOG = [
-            {
-                id: 'grand_luminary',
-                title: 'The Grand Luminary Award',
-                subtitle: 'Performa Akademik & Asesmen Terbaik Keseluruhan',
-                badge: 'Overall Academic Excellence',
-                icon: '🏆',
-                description: 'Diberikan kepada peserta dengan capaian skor asesmen dan evaluasi pembelajaran tertinggi di seluruh pilar modul.',
-                metricLabel: 'Rerata Asesmen',
-                metricFn: (u) => u.total_post_avg > 0 ? `${u.total_post_avg} / 100` : (u.pre_avg !== null ? `${u.pre_avg} (Pre)` : '-'),
-                sortFn: (a, b) => {
-                    const scoreA = a.total_post_avg > 0 ? a.total_post_avg : (a.pre_avg || 0)
-                    const scoreB = b.total_post_avg > 0 ? b.total_post_avg : (b.pre_avg || 0)
-                    if (scoreB !== scoreA) return scoreB - scoreA
-                    return b.readiness_score - a.readiness_score
-                }
-            },
-            {
-                id: 'prime_mover',
-                title: 'The Prime Mover / Early Pioneer Award',
-                subtitle: 'Inisiatif Kecepatan & Kedisiplinan Waktu Tercepat',
-                badge: 'Speed & Early Engagement',
-                icon: '⚡',
-                description: 'Diberikan kepada peserta yang paling awal memulai dan menyelesaikan asesmen dengan komitmen belajar tinggi.',
-                metricLabel: 'Waktu Submit Pertama',
-                metricFn: (u) => u.first_submit !== '9999-99-99 99:99' ? u.first_submit : 'Belum Submit',
-                sortFn: (a, b) => {
-                    const tA = a.first_submit !== '9999-99-99 99:99' ? a.first_submit : 'ZZZZ'
-                    const tB = b.first_submit !== '9999-99-99 99:99' ? b.first_submit : 'ZZZZ'
-                    if (tA !== tB) return tA.localeCompare(tB)
-                    return b.readiness_score - a.readiness_score
-                }
-            },
-            {
-                id: 'pace_setter',
-                title: 'The Pace-Setter of the Year',
-                subtitle: 'Kesiapan Belajar & Kepatuhan Progres Tertinggi',
-                badge: 'Learning Readiness Champion',
-                icon: '🚀',
-                description: 'Diberikan kepada peserta dengan Indeks Kesiapan Belajar (Learning Readiness Index 40:40:10:10) tertinggi.',
-                metricLabel: 'Indeks Kesiapan',
-                metricFn: (u) => `${u.readiness_score} / 100`,
-                sortFn: (a, b) => {
-                    if (b.readiness_score !== a.readiness_score) return b.readiness_score - a.readiness_score
-                    return b.comp_total - a.comp_total
-                }
-            },
-            {
-                id: 'completion_master',
-                title: 'The Completion Master Award',
-                subtitle: 'Dedikasi Keterselesaian Aktivitas LMS Tertinggi',
-                badge: 'Course Completion Mastery',
-                icon: '🎖️',
-                description: 'Diberikan kepada peserta yang menuntaskan persentase checklist aktivitas belajar LMS terbanyak di kedua pilar.',
-                metricLabel: 'Rerata Completion',
-                metricFn: (u) => `${u.comp_total}%`,
-                sortFn: (a, b) => {
-                    if (b.comp_total !== a.comp_total) return b.comp_total - a.comp_total
-                    return b.readiness_score - a.readiness_score
-                }
-            },
-            {
-                id: 'diagnostic_ace',
-                title: 'The Diagnostic Ace Award',
-                subtitle: 'Penguasaan Kompetensi Baseline Awal Tertinggi',
-                badge: 'Highest Prior Knowledge',
-                icon: '🎯',
-                description: 'Diberikan kepada peserta dengan capaian nilai rata-rata asesmen awal (Pre-Test Pilar I & II) tertinggi.',
-                metricLabel: 'Rerata Pre-Test',
-                metricFn: (u) => u.pre_avg !== null ? `${u.pre_avg} / 100` : '-',
-                sortFn: (a, b) => {
-                    const scA = a.pre_avg !== null ? a.pre_avg : -1
-                    const scB = b.pre_avg !== null ? b.pre_avg : -1
-                    if (scB !== scA) return scB - scA
-                    return b.readiness_score - a.readiness_score
-                }
-            },
-            {
-                id: 'strategic_master',
-                title: 'The Strategic Master Award (Pilar I)',
-                subtitle: 'Penguasaan Terbaik Bidang Manajemen & Operasional',
-                badge: 'Pilar I Champion',
-                icon: '🏛️',
-                description: 'Diberikan atas penguasaan modul Perencanaan (DPK), SDM (DSDMPT), Pengadaan (DPBJ), dan Keuangan (DKA).',
-                metricLabel: 'Skor Pilar I',
-                metricFn: (u) => u.p1_post_avg !== null ? `${u.p1_post_avg} / 100` : `Comp: ${u.progress_p1}%`,
-                sortFn: (a, b) => {
-                    const valA = a.p1_post_avg !== null ? a.p1_post_avg : ((a.p1_pre || 0) * 0.4 + a.progress_p1 * 0.6)
-                    const valB = b.p1_post_avg !== null ? b.p1_post_avg : ((b.p1_pre || 0) * 0.4 + b.progress_p1 * 0.6)
-                    if (valB !== valA) return valB - valA
-                    return b.progress_p1 - a.progress_p1
-                }
-            },
-            {
-                id: 'governance_vanguard',
-                title: 'The Governance Vanguard Award (Pilar II)',
-                subtitle: 'Penguasaan Terbaik Bidang Governance & Kepatuhan',
-                badge: 'Pilar II Champion',
-                icon: '🛡️',
-                description: 'Diberikan atas penguasaan modul Audit (DAI), Penjaminan Mutu (DPMA), Hukum (DHK), dan Manajemen Risiko (DMRT).',
-                metricLabel: 'Skor Pilar II',
-                metricFn: (u) => u.p2_post_avg !== null ? `${u.p2_post_avg} / 100` : `Comp: ${u.progress_p2}%`,
-                sortFn: (a, b) => {
-                    const valA = a.p2_post_avg !== null ? a.p2_post_avg : ((a.p2_pre || 0) * 0.4 + a.progress_p2 * 0.6)
-                    const valB = b.p2_post_avg !== null ? b.p2_post_avg : ((b.p2_pre || 0) * 0.4 + b.progress_p2 * 0.6)
-                    if (valB !== valA) return valB - valA
-                    return b.progress_p2 - a.progress_p2
-                }
-            },
-            {
-                id: 'quantum_leap',
-                title: 'The Quantum Leap Award',
-                subtitle: 'Peningkatan Kompetensi (Knowledge Gain) Tertinggi',
-                badge: 'Highest Growth Rate',
-                icon: '📈',
-                description: 'Diberikan kepada peserta yang mencatatkan lompatan pemahaman terbesar antara Pre-Test dan Post-Test.',
-                metricLabel: 'Hake Gain <g>',
-                metricFn: (u) => u.hake_gain !== null ? `g: ${u.hake_gain}` : `Readiness: ${u.readiness_score}`,
-                sortFn: (a, b) => {
-                    const gA = a.hake_gain !== null ? a.hake_gain : -99
-                    const gB = b.hake_gain !== null ? b.hake_gain : -99
-                    if (gB !== gA) return gB - gA
-                    return b.readiness_score - a.readiness_score
-                }
-            },
-            {
-                id: 'flawless_mastery',
-                title: 'The Flawless Mastery Award',
-                subtitle: 'Konsistensi Kelulusan KKM Tanpa Remedial',
-                badge: 'Zero Remedial Rate',
-                icon: '⭐',
-                description: 'Diberikan kepada peserta dengan rasio kelulusan kuis sempurna (selalu memenuhi KKM 80 di setiap pengerjaan).',
-                metricLabel: 'Lulus KKM',
-                metricFn: (u) => u.attempted_post > 0 ? `${u.passed_post} Modul Lulus` : `Pre-Test: ${u.pre_avg ?? '-'}`,
-                sortFn: (a, b) => {
-                    if (b.passed_post !== a.passed_post) return b.passed_post - a.passed_post
-                    const scA = a.total_post_avg > 0 ? a.total_post_avg : (a.pre_avg || 0)
-                    const scB = b.total_post_avg > 0 ? b.total_post_avg : (b.pre_avg || 0)
-                    if (scB !== scA) return scB - scA
-                    return b.comp_total - a.comp_total
-                }
-            },
-            {
-                id: 'agile_leader',
-                title: 'The Agile Leader Award',
-                subtitle: 'Profil Kepemimpinan & Kinerja Holistik Terbaik',
-                badge: 'Holistic Executive Performance',
-                icon: '🌟',
-                description: 'Diberikan atas keseimbangan optimal antara keterselesaian materi (>80%), kecepatan akses, dan stabilitas skor.',
-                metricLabel: 'Indeks Holistik',
-                metricFn: (u) => {
-                    const sc = u.total_post_avg > 0 ? u.total_post_avg : (u.pre_avg || 0)
-                    const holistic = (0.35 * u.comp_total + 0.35 * sc + 0.30 * u.readiness_score).toFixed(1)
-                    return `${holistic} pts`
-                },
-                sortFn: (a, b) => {
-                    const scA = a.total_post_avg > 0 ? a.total_post_avg : (a.pre_avg || 0)
-                    const scB = b.total_post_avg > 0 ? b.total_post_avg : (b.pre_avg || 0)
-                    const hA = 0.35 * a.comp_total + 0.35 * scA + 0.30 * a.readiness_score
-                    const hB = 0.35 * b.comp_total + 0.35 * scB + 0.30 * b.readiness_score
-                    return hB - hA
-                }
-            }
-        ]
-
-        function renderHallOfFameStudio() {
-            const tabsContainer = document.getElementById('awardCategoryTabs')
-            if (!tabsContainer) return
-
-            let tabsHtml = ''
-            AWARDS_CATALOG.forEach((award, idx) => {
-                const isActive = idx === currentAwardIndex
-                const activeClass = isActive ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20 border-amber-400' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200'
-                tabsHtml += `
-                    <button onclick="selectAwardCategory(${idx})" class="px-3 py-1.5 rounded-lg border transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${activeClass}">
-                        <span>${award.icon}</span>
-                        <span>${award.title}</span>
-                    </button>
-                `
-            })
-            tabsContainer.innerHTML = tabsHtml
-
-            renderAwardStage()
-        }
-
-        function selectAwardCategory(idx) {
-            currentAwardIndex = idx
-            renderHallOfFameStudio()
-        }
-
-        function setAwardRankLimit(limit) {
-            currentAwardRankLimit = limit
-            const btn3 = document.getElementById('btnAwardTop3')
-            const btn5 = document.getElementById('btnAwardTop5')
-
-            if (limit === 3) {
-                if (btn3) btn3.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition bg-amber-500 text-slate-950 shadow-sm cursor-pointer'
-                if (btn5) btn5.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer'
-            } else {
-                if (btn5) btn5.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition bg-amber-500 text-slate-950 shadow-sm cursor-pointer'
-                if (btn3) btn3.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer'
-            }
-            renderAwardStage()
-        }
-
-        function navigateAward(direction) {
-            currentAwardIndex += direction
-            if (currentAwardIndex < 0) currentAwardIndex = AWARDS_CATALOG.length - 1
-            if (currentAwardIndex >= AWARDS_CATALOG.length) currentAwardIndex = 0
-            renderHallOfFameStudio()
-        }
-
-        function getInitials(name) {
-            if (!name) return 'UI'
-            const clean = name.replace(/Prof\.|Dr\.|Ir\.|M\.\w+|S\.\w+|Apt\.|SE\.|MM\.|CA\.|MT\./gi, '').trim()
-            const parts = clean.split(/\s+/).filter(Boolean)
-            if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-            return (parts[0][0] + parts[1][0]).toUpperCase()
-        }
-
-        function renderAwardStage() {
-            const currentAward = AWARDS_CATALOG[currentAwardIndex]
-            if (!currentAward) return
-
-            setText('activeAwardNavText', `${currentAwardIndex + 1} / 10 • ${currentAward.title} (Top ${currentAwardRankLimit})`)
-            setText('slideAwardTitle', currentAward.title)
-            setText('slideAwardSubtitle', currentAward.subtitle)
-            setText('slideAwardBadge', currentAward.badge)
-
-            const activeBatchName = document.getElementById('filterBatch')?.value || 'Batch 1'
-            setText('slideAwardBatchTag', activeBatchName)
-
-            const stage = document.getElementById('slideWinnersStage')
-            if (!stage) return
-
-            // Pure empty-state guard
-            if (!rawMasterData || rawMasterData.length === 0 || Object.keys(userProfilesMaster).length === 0) {
-                stage.innerHTML = `
-                    <div class="text-center py-16 text-slate-400 space-y-2">
-                        <p class="font-medium text-sm">Belum ada data peserta yang dimuat di peramban.</p>
-                        <p class="text-xs">Silakan klik tombol <b>🔄 Tarik Data Realtime</b> di bagian atas.</p>
-                    </div>
-                `
-                return
-            }
-
-            const activeUserIds = new Set(filteredData.map(d => d.user_id))
-            let candidates = Object.values(userProfilesMaster).filter(u => activeUserIds.has(u.user_id))
-
-            candidates.sort(currentAward.sortFn)
-            const winners = candidates.slice(0, currentAwardRankLimit)
-
-            if (winners.length === 0) {
-                stage.innerHTML = `<div class="text-center py-16 text-slate-400 italic">Tidak ada peserta yang memenuhi kualifikasi nominasi untuk filter saat ini.</div>`
-                return
-            }
-
-            let stageHtml = ''
-
-            if (currentAwardRankLimit === 3) {
-                const u1 = winners[0]
-                const u2 = winners[1] || null
-                const u3 = winners[2] || null
-
-                stageHtml = `
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end max-w-5xl mx-auto w-full pt-2">
-                        <!-- 2nd Place Silver (Left) -->
-                        ${u2 ? `
-                        <div class="bg-white border-2 border-slate-300 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-xl relative order-2 md:order-1 h-[290px]">
-                            <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-slate-200 text-slate-800 font-black px-3 py-0.5 rounded-full text-[11px] shadow border border-slate-300 uppercase tracking-wider flex items-center gap-1">
-                                🥈 2nd Place
-                            </div>
-                            <div class="pt-3 text-center space-y-1">
-                                <div class="w-12 h-12 rounded-full bg-slate-100 border-2 border-slate-400 text-slate-800 font-black text-sm flex items-center justify-center mx-auto shadow-sm">
-                                    ${getInitials(u2.nama)}
-                                </div>
-                                <h3 class="font-bold text-sm text-slate-900 line-clamp-2 leading-snug pt-1">${u2.nama}</h3>
-                                <p class="text-[11px] text-slate-500 font-mono">${u2.username} • ${u2.batch}</p>
-                            </div>
-                            <div class="space-y-2 pt-2 border-t border-slate-100">
-                                <div class="bg-slate-50 rounded-xl p-2 text-center border border-slate-200">
-                                    <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold">${currentAward.metricLabel}</span>
-                                    <span class="font-mono font-bold text-sm text-slate-900">${currentAward.metricFn(u2)}</span>
-                                </div>
-                                <div class="flex justify-center gap-2 text-[10px] text-slate-500 font-mono">
-                                    <span>Comp: ${u2.comp_total}%</span>
-                                    <span>•</span>
-                                    <span>Readiness: ${u2.readiness_score}</span>
-                                </div>
-                            </div>
-                        </div>
-                        ` : '<div class="hidden md:block"></div>'}
-
-                        <!-- 1st Place Gold (Center - Elevated) -->
-                        <div class="bg-gradient-to-b from-amber-50 to-white border-2 border-amber-500 rounded-3xl p-5 sm:p-6 flex flex-col justify-between shadow-2xl relative order-1 md:order-2 h-[340px] md:-translate-y-2 shadow-amber-500/20">
-                            <div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black px-4 py-1 rounded-full text-xs shadow-lg border border-amber-200 uppercase tracking-widest flex items-center gap-1.5">
-                                🥇 1st Place • Champion
-                            </div>
-                            <div class="pt-4 text-center space-y-1.5">
-                                <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 border-2 border-white text-slate-950 font-black text-lg flex items-center justify-center mx-auto shadow-md">
-                                    ${getInitials(u1.nama)}
-                                </div>
-                                <h3 class="font-black text-base text-slate-950 line-clamp-2 leading-snug">${u1.nama}</h3>
-                                <p class="text-xs text-amber-800 font-mono font-semibold">${u1.username} • ${u1.batch}</p>
-                            </div>
-                            <div class="space-y-2 pt-2 border-t border-amber-200">
-                                <div class="bg-amber-100/70 rounded-2xl p-2.5 text-center border border-amber-300">
-                                    <span class="text-[10px] text-amber-900 uppercase tracking-widest block font-bold">${currentAward.metricLabel}</span>
-                                    <span class="font-mono font-black text-xl text-amber-950">${currentAward.metricFn(u1)}</span>
-                                </div>
-                                <div class="flex justify-center gap-3 text-[11px] text-slate-700 font-mono font-bold">
-                                    <span>Comp: ${u1.comp_total}%</span>
-                                    <span>•</span>
-                                    <span>Readiness: ${u1.readiness_score}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 3rd Place Bronze (Right) -->
-                        ${u3 ? `
-                        <div class="bg-white border-2 border-amber-700/30 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-xl relative order-3 md:order-3 h-[270px]">
-                            <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-amber-100 text-amber-900 font-black px-3 py-0.5 rounded-full text-[11px] shadow border border-amber-400 uppercase tracking-wider flex items-center gap-1">
-                                🥉 3rd Place
-                            </div>
-                            <div class="pt-3 text-center space-y-1">
-                                <div class="w-12 h-12 rounded-full bg-amber-50 border-2 border-amber-700 text-amber-900 font-black text-sm flex items-center justify-center mx-auto shadow-sm">
-                                    ${getInitials(u3.nama)}
-                                </div>
-                                <h3 class="font-bold text-sm text-slate-900 line-clamp-2 leading-snug pt-1">${u3.nama}</h3>
-                                <p class="text-[11px] text-slate-500 font-mono">${u3.username} • ${u3.batch}</p>
-                            </div>
-                            <div class="space-y-2 pt-2 border-t border-slate-100">
-                                <div class="bg-amber-50/60 rounded-xl p-2 text-center border border-amber-200">
-                                    <span class="text-[10px] text-amber-800 uppercase tracking-wider block font-semibold">${currentAward.metricLabel}</span>
-                                    <span class="font-mono font-bold text-sm text-amber-950">${currentAward.metricFn(u3)}</span>
-                                </div>
-                                <div class="flex justify-center gap-2 text-[10px] text-slate-500 font-mono">
-                                    <span>Comp: ${u3.comp_total}%</span>
-                                    <span>•</span>
-                                    <span>Readiness: ${u3.readiness_score}</span>
-                                </div>
-                            </div>
-                        </div>
-                        ` : '<div class="hidden md:block"></div>'}
-                    </div>
-                `
-            } else {
-                const u1 = winners[0]
-                const u2 = winners[1] || null
-                const u3 = winners[2] || null
-                const u4 = winners[3] || null
-                const u5 = winners[4] || null
-
-                stageHtml = `
-                    <div class="space-y-4 max-w-5xl mx-auto w-full">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                            ${u2 ? `
-                            <div class="bg-white border border-slate-300 rounded-2xl p-3.5 flex flex-col justify-between shadow-md relative h-[210px]">
-                                <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-200 text-slate-800 font-black px-2.5 py-0.5 rounded-full text-[10px] shadow uppercase tracking-wider">🥈 2nd Place</div>
-                                <div class="pt-2 text-center">
-                                    <h3 class="font-bold text-xs text-slate-900 line-clamp-2">${u2.nama}</h3>
-                                    <p class="text-[10px] text-slate-500 font-mono">${u2.username} • ${u2.batch}</p>
-                                </div>
-                                <div class="bg-slate-50 rounded-lg p-1.5 text-center border border-slate-200">
-                                    <span class="text-[9px] text-slate-500 block">${currentAward.metricLabel}</span>
-                                    <span class="font-mono font-bold text-xs text-slate-900">${currentAward.metricFn(u2)}</span>
-                                </div>
-                            </div>
-                            ` : '<div></div>'}
-
-                            <div class="bg-gradient-to-b from-amber-50 to-white border-2 border-amber-400 rounded-2xl p-4 flex flex-col justify-between shadow-xl relative h-[235px] md:-translate-y-1 shadow-amber-500/20">
-                                <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black px-3.5 py-0.5 rounded-full text-xs shadow uppercase tracking-wider">🥇 1st Place</div>
-                                <div class="pt-2 text-center">
-                                    <h3 class="font-black text-sm text-slate-900 line-clamp-2">${u1.nama}</h3>
-                                    <p class="text-[11px] text-amber-800 font-mono font-bold">${u1.username} • ${u1.batch}</p>
-                                </div>
-                                <div class="bg-amber-100 rounded-xl p-2 text-center border border-amber-300">
-                                    <span class="text-[10px] text-amber-900 block font-bold">${currentAward.metricLabel}</span>
-                                    <span class="font-mono font-black text-sm text-amber-950">${currentAward.metricFn(u1)}</span>
-                                </div>
-                            </div>
-
-                            ${u3 ? `
-                            <div class="bg-white border border-amber-700/30 rounded-2xl p-3.5 flex flex-col justify-between shadow-md relative h-[200px]">
-                                <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-100 text-amber-900 font-black px-2.5 py-0.5 rounded-full text-[10px] shadow uppercase tracking-wider">🥉 3rd Place</div>
-                                <div class="pt-2 text-center">
-                                    <h3 class="font-bold text-xs text-slate-900 line-clamp-2">${u3.nama}</h3>
-                                    <p class="text-[10px] text-slate-500 font-mono">${u3.username} • ${u3.batch}</p>
-                                </div>
-                                <div class="bg-amber-50 rounded-lg p-1.5 text-center border border-amber-200">
-                                    <span class="text-[9px] text-amber-800 block">${currentAward.metricLabel}</span>
-                                    <span class="font-mono font-bold text-xs text-amber-950">${currentAward.metricFn(u3)}</span>
-                                </div>
-                            </div>
-                            ` : '<div></div>'}
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                            ${u4 ? `
-                            <div class="bg-white border border-slate-200 rounded-xl p-3 flex justify-between items-center shadow-sm">
-                                <div class="flex items-center gap-3">
-                                    <span class="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 font-black text-xs flex items-center justify-center border border-slate-300">4</span>
-                                    <div>
-                                        <h4 class="font-bold text-xs text-slate-900">${u4.nama}</h4>
-                                        <p class="text-[10px] text-slate-500 font-mono">${u4.username} • ${u4.batch}</p>
-                                    </div>
-                                </div>
-                                <div class="text-right">
-                                    <span class="text-[9px] text-slate-400 uppercase block">${currentAward.metricLabel}</span>
-                                    <span class="font-mono font-bold text-xs text-slate-900">${currentAward.metricFn(u4)}</span>
-                                </div>
-                            </div>
-                            ` : ''}
-
-                            ${u5 ? `
-                            <div class="bg-white border border-slate-200 rounded-xl p-3 flex justify-between items-center shadow-sm">
-                                <div class="flex items-center gap-3">
-                                    <span class="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 font-black text-xs flex items-center justify-center border border-slate-300">5</span>
-                                    <div>
-                                        <h4 class="font-bold text-xs text-slate-900">${u5.nama}</h4>
-                                        <p class="text-[10px] text-slate-500 font-mono">${u5.username} • ${u5.batch}</p>
-                                    </div>
-                                </div>
-                                <div class="text-right">
-                                    <span class="text-[9px] text-slate-400 uppercase block">${currentAward.metricLabel}</span>
-                                    <span class="font-mono font-bold text-xs text-slate-900">${currentAward.metricFn(u5)}</span>
-                                </div>
-                            </div>
-                            ` : ''}
-                        </div>
-                    </div>
-                `
-            }
-
-            stage.innerHTML = stageHtml
-        }
-
-        async function exportAwardSlidePNG() {
-            const currentAward = AWARDS_CATALOG[currentAwardIndex]
-            if (!currentAward) return
-
-            const slideEl = document.getElementById('awardSlideCanvas')
-            if (!slideEl) return
-
-            try {
-                window.scrollTo(0, 0)
-                const h2c = window.html2canvas || (typeof html2canvas !== 'undefined' ? html2canvas : null)
-                if (!h2c) throw new Error("Pustaka html2canvas belum terinisiasi.")
-
-                const canvas = await h2c(slideEl, {
-                    scale: 2.5,
-                    useCORS: true,
-                    backgroundColor: '#ffffff',
-                    logging: false,
-                    scrollX: 0,
-                    scrollY: 0
-                })
-                const link = document.createElement('a')
-                link.download = `Slide_Award_${currentAward.id}_Top${currentAwardRankLimit}_UI_ALEX_2026.png`
-                link.href = canvas.toDataURL('image/png')
-                link.click()
-            } catch (err) {
-                console.error("Export error:", err)
-                alert("Gagal mengekspor slide PNG: " + (err.message || err))
-            }
-        }
-
-        async function downloadAwardCertificatePDF() {
-            const currentAward = AWARDS_CATALOG[currentAwardIndex]
-            if (!currentAward) return
-
-            const slideEl = document.getElementById('awardSlideCanvas')
-            if (!slideEl) return
-
-            const opt = {
-                margin:       [8, 8, 8, 8],
-                filename:     `Piagam_Penghargaan_${currentAward.id}_Top${currentAwardRankLimit}_UI_ALEX_2026.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollX: 0, scrollY: 0 },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
-            }
-
-            try {
-                await html2pdf().from(slideEl).set(opt).save()
-            } catch (err) {
-                console.error(err)
-                alert("Gagal mengunduh PDF penghargaan: " + err.message)
-            }
-        }
-
-        function copyAwardAnnouncementText() {
-            const currentAward = AWARDS_CATALOG[currentAwardIndex]
-            if (!currentAward) return
-
-            const activeUserIds = new Set(filteredData.map(d => d.user_id))
-            let candidates = Object.values(userProfilesMaster).filter(u => activeUserIds.has(u.user_id))
-            candidates.sort(currentAward.sortFn)
-            const winners = candidates.slice(0, currentAwardRankLimit)
-
-            let text = `🏆 PENGUMUMAN PENGHARGAAN UI ALEX 2026 🏆\n`
-            text += `Kategori: ${currentAward.title} (${currentAward.badge})\n`
-            text += `Deskripsi: ${currentAward.description}\n\n`
-            text += `Berikut adalah daftar nominasi ${currentAwardRankLimit} terbaik:\n`
-
-            winners.forEach((w, i) => {
-                const rankIcon = i === 0 ? '🥇 Juara 1' : (i === 1 ? '🥈 Juara 2' : (i === 2 ? '🥉 Juara 3' : `🎖️ Peringkat ${i + 1}`))
-                text += `${rankIcon}: ${w.nama} (${w.username}) - ${currentAward.metricLabel}: ${currentAward.metricFn(w)}\n`
-            })
-
-            text += `\nProgram Pelatihan Kepemimpinan Universitas Indonesia`
-
-            navigator.clipboard.writeText(text).then(() => {
-                alert("✅ Teks pengumuman penghargaan berhasil disalin ke clipboard! Siap ditempel ke PPT/WhatsApp.")
-            }).catch(e => {
-                prompt("Salin teks berikut:", text)
-            })
-        }
-
-        // ==========================================
-        // EXPORT EXCEL & FULL REPORT PDF
-        // ==========================================
-        function exportXLSX(mode) {
+        // Export Rekap Post-Test as Excel Workbook
+        function exportRekapXLSX() {
             if (!filteredData || filteredData.length === 0) {
                 alert("Tidak ada data untuk diekspor.")
                 return
             }
-            const actionName = mode === 'detailed' ? 'Unduh XLSX Detail' : 'Unduh XLSX Ringkas'
-            updateUrlAndTracker(actionName)
+            updateUrlAndTracker('Unduh Excel Rekap Post-Test')
 
-            const activeUserIds = new Set(filteredData.map(d => d.user_id))
-            const activeProfiles = Object.values(userProfilesMaster).filter(u => activeUserIds.has(u.user_id))
+            const postRows = filteredData.filter(d => d.tipe_asesmen === 'Post-test')
+            const dateStr = new Date().toISOString().slice(0, 10)
 
-            let counter = 1
-            const matrixRows = activeProfiles.map(u => {
-                let statusAkhir = 'Belum Selesai'
-                if (u.attempted_post > 0) {
-                    if (u.remedial_post === 0 && u.attempted_post === 8) statusAkhir = 'LULUS SEMUA'
-                    else if (u.remedial_post > 0) statusAkhir = `${u.remedial_post} Remedial`
-                    else statusAkhir = `${u.passed_post}/8 Selesai`
-                }
+            // Sheet 1: Rincian 8 Modul
+            const moduleRows = []
+            _MODULES_META.forEach((m, idx) => {
+                const mRows = postRows.filter(d => String(d.modul_direktorat || '').includes(m.key))
+                const mAttempted = mRows.filter(d => Number(d.jumlah_attempt || 0) > 0)
+                const mScores = mAttempted.map(d => Number(d.nilai || 0))
 
-                return {
-                    'No': counter++,
-                    'Nama Lengkap': u.nama,
-                    'Username': u.username,
-                    'Batch': u.batch,
-                    'Persona Belajar': u.persona,
-                    'Indeks Kesiapan': u.readiness_score,
-                    'Kategori Kesiapan': u.readiness_cat,
-                    'Anomali Glitch': u.is_glitch ? 'Ya (Potensi Kendala Kuis)' : 'Normal',
-                    'Comp Pilar I (%)': `${u.progress_p1}%`,
-                    'Comp Pilar II (%)': `${u.progress_p2}%`,
-                    'Pre-Test I': u.p1_pre !== null ? u.p1_pre : '-',
-                    'DPK (Perencanaan)': u.post_scores['DPK'] ?? '-',
-                    'DSDMPT (SDM)': u.post_scores['DSDMPT'] ?? '-',
-                    'DPBJ (Pengadaan)': u.post_scores['DPBJ'] ?? '-',
-                    'DKA (Keuangan)': u.post_scores['DKA'] ?? '-',
-                    'Pre-Test II': u.p2_pre !== null ? u.p2_pre : '-',
-                    'DAI (Audit)': u.post_scores['DAI'] ?? '-',
-                    'DPMA (Mutu)': u.post_scores['DPMA'] ?? '-',
-                    'DHK (Hukum)': u.post_scores['DHK'] ?? '-',
-                    'DMRT (Risiko)': u.post_scores['DMRT'] ?? '-',
-                    'Total Post Diselesaikan': u.attempted_post,
-                    'Lulus KKM': u.passed_post,
-                    'Remedial': u.remedial_post,
-                    'Status Akhir': statusAkhir
-                }
+                const mAvg = mScores.length > 0 ? (mScores.reduce((a, b) => a + b, 0) / mScores.length).toFixed(1) : '-'
+                const mMax = mScores.length > 0 ? Math.max(...mScores).toFixed(1) : '-'
+                const mMin = mScores.length > 0 ? Math.min(...mScores).toFixed(1) : '-'
+                const mPassed = mScores.filter(s => s >= 80).length
+                const mRemedial = mScores.length - mPassed
+                const mPassPct = mScores.length > 0 ? ((mPassed / mScores.length) * 100).toFixed(1) : '0.0'
+
+                moduleRows.push({
+                    'No': idx + 1,
+                    'Pilar': m.pilar,
+                    'Kode Modul': m.code,
+                    'Nama Modul': m.name,
+                    'Total Target Slot': mRows.length,
+                    'Sesi Selesai': mAttempted.length,
+                    'Rerata Nilai': mAvg,
+                    'Nilai Max': mMax,
+                    'Nilai Min': mMin,
+                    'Lulus (>= 80)': mPassed,
+                    'Remedial (< 80)': mRemedial,
+                    '% Kelulusan': `${mPassPct}%`,
+                    'Status Capaian': mAvg !== '-' ? (Number(mAvg) >= 80 ? 'Optimal (>=80)' : 'Perlu Remedial') : 'Belum Mulai'
+                })
             })
 
             const wb = XLSX.utils.book_new()
-            const wsMatrix = XLSX.utils.json_to_sheet(matrixRows)
-            XLSX.utils.book_append_sheet(wb, wsMatrix, 'Matriks Peserta & Kesiapan')
+            const wsModules = XLSX.utils.json_to_sheet(moduleRows)
+            XLSX.utils.book_append_sheet(wb, wsModules, 'Rekap 8 Modul')
 
-            const dateStr = new Date().toISOString().slice(0, 10)
-
-            if (mode === 'detailed') {
-                let logCounter = 1
-                const logRows = filteredData.map(d => ({
-                    'No': logCounter++,
-                    'Nama Lengkap': d.nama_peserta || '-',
-                    'Username': d.username || d.nip || '-',
-                    'Batch': cleanGroupName(d.group_name || d.batch),
-                    'Completion %': d.progress_completion !== undefined ? `${d.progress_completion}%` : '-',
-                    'Pilar': String(d.pilar || '').split('-')[0].trim(),
-                    'Modul Direktorat': d.modul_direktorat || '-',
-                    'Nama Asesmen': d.nama_kuis || '-',
-                    'Tipe Asesmen': d.tipe_asesmen || '-',
-                    'Nilai': Number(d.jumlah_attempt || 0) > 0 ? d.nilai : '-',
-                    'KKM': d.kkm || 80,
-                    'Status Kelulusan': d.status_kelulusan || '-',
-                    'Jumlah Attempt': d.jumlah_attempt || 0,
-                    'Waktu Submit': d.waktu_submit || '-'
-                }))
-                const wsLog = XLSX.utils.json_to_sheet(logRows)
-                XLSX.utils.book_append_sheet(wb, wsLog, 'Detail Log Asesmen')
-                XLSX.writeFile(wb, `UI_ALEX_2026_Evaluasi_Detail_${dateStr}.xlsx`)
-            } else {
-                XLSX.writeFile(wb, `UI_ALEX_2026_Evaluasi_Ringkas_${dateStr}.xlsx`)
-            }
-        }
-
-        async function downloadPDF() {
-            updateUrlAndTracker('Unduh PDF')
-            const btn = document.getElementById('btnPdf')
-            if (btn) {
-                btn.innerHTML = '<span class="mr-1.5 animate-spin">⏳</span> Memproses PDF...'
-                btn.classList.add('opacity-70')
-            }
-
-            window.scrollTo(0, 0)
-
-            const pdfHeader = document.getElementById('pdfHeader')
-            if (pdfHeader) pdfHeader.classList.remove('hidden')
-            setText('pdfDate', "Waktu Cetak: " + new Date().toLocaleString('id-ID'))
-
-            const tableContainer = document.getElementById('tableContainer')
-            const wasHidden = tableContainer?.classList.contains('hidden')
-            if (wasHidden && tableContainer) tableContainer.classList.remove('hidden')
-
-            // Lepas sementara max-height dan overflow agar seluruh 88 baris tercetak ke PDF
-            const tableWrapper = document.getElementById('tableWrapper')
-            if (tableWrapper) {
-                tableWrapper.style.maxHeight = 'none'
-                tableWrapper.style.overflow = 'visible'
-            }
-
-            const wrapper = document.getElementById('tableWrapper')
-            if (currentViewMode === 'matrix') {
-                renderParticipantMatrix(wrapper, '', true)
-            } else if (currentViewMode === 'log') {
-                renderAssessmentLog(wrapper, '', true)
-            }
-
-            const element = document.getElementById('dashboardContent')
-            const opt = {
-                margin:       [8, 8, 14, 8],
-                filename:     `Laporan_Evaluasi_UI_ALEX_2026_${new Date().toISOString().slice(0, 10)}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  {
-                    scale: 1.5,
-                    useCORS: true,
-                    logging: false,
-                    scrollY: 0,
-                    scrollX: 0
-                },
-                jsPDF:        { unit: 'mm', format: 'a3', orientation: 'landscape' },
-                pagebreak:    { mode: ['css', 'legacy'] }
-            }
-
-            try {
-                await html2pdf().from(element).set(opt).toPdf().get('pdf').then(function (pdf) {
-                    const totalPages = pdf.internal.getNumberOfPages()
-                    for (let i = 1; i <= totalPages; i++) {
-                        pdf.setPage(i)
-                        pdf.setFontSize(9)
-                        pdf.setTextColor(100, 116, 139)
-                        pdf.text('Laporan Evaluasi Pelatihan Kepemimpinan UI ALEX 2026 - Universitas Indonesia', 10, pdf.internal.pageSize.getHeight() - 6)
-                        pdf.text(`Halaman ${i} dari ${totalPages}`, pdf.internal.pageSize.getWidth() - 35, pdf.internal.pageSize.getHeight() - 6)
-                    }
-                }).save()
-            } catch (err) {
-                console.error(err)
-            } finally {
-                if (pdfHeader) pdfHeader.classList.add('hidden')
-                if (btn) {
-                    btn.innerHTML = '<span class="mr-1.5">📄</span> Cetak PDF'
-                    btn.classList.remove('opacity-70')
-                }
-                if (wasHidden && tableContainer) tableContainer.classList.add('hidden')
-                if (tableWrapper) {
-                    tableWrapper.style.maxHeight = ''
-                    tableWrapper.style.overflow = ''
-                }
-                renderTable()
-            }
+            XLSX.writeFile(wb, `UI_ALEX_2026_Rekap_PostTest_${dateStr}.xlsx`)
         }
 
         // UX Protection: Anti Right-Click
