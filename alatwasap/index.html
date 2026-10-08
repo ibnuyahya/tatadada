@@ -168,7 +168,7 @@
             <div class="flex flex-col leading-none">
                 <h1 class="text-base font-bold bg-clip-text text-transparent bg-gradient-to-r from-main to-dim tracking-tight" id="headerTitle">AlatWasap</h1>
                 <div class="flex items-center gap-2 mt-1">
-                    <span class="text-[10px] font-mono text-dim italic">v3.1</span>
+                    <span class="text-[10px] font-mono text-dim italic">v3.3</span>
                     <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-accent transition-colors">by AhmadDanial</a>
                 </div>
             </div>
@@ -182,8 +182,8 @@
                     <p class="font-semibold mb-1" id="helpTitle">Cara Penggunaan:</p>
                     <ul class="list-disc pl-4 space-y-1 text-dim" id="helpDesc">
                         <li>Paste hasil dari AI ke panel kiri.</li>
-                        <li>Format seperti tabel dan list bertingkat akan dikonversi otomatis.</li>
-                        <li>Pilih gaya list bertingkat sesuai kenyamanan Anda.</li>
+                        <li>Format tabel, list bertingkat, dan tautan duplikat akan dirapikan otomatis.</li>
+                        <li>Pilih gaya list bertingkat sesuai selera.</li>
                         <li>Masukkan nomor WA tujuan untuk chat langsung tanpa simpan nomor.</li>
                     </ul>
                 </div>
@@ -444,7 +444,7 @@
             id: {
                 title: "AlatWasap",
                 helpTitle: "Cara Penggunaan:",
-                helpDesc: `<li>Paste hasil dari AI ke panel kiri.</li><li>Format seperti tabel dan list bertingkat akan dikonversi otomatis.</li><li>Pilih gaya list bertingkat sesuai kenyamanan Anda.</li><li>Masukkan nomor WA tujuan untuk chat langsung tanpa simpan nomor.</li>`,
+                helpDesc: `<li>Paste hasil dari AI ke panel kiri.</li><li>Format tabel, list bertingkat, dan tautan duplikat akan dirapikan otomatis.</li><li>Pilih gaya list bertingkat sesuai selera.</li><li>Masukkan nomor WA tujuan untuk chat langsung tanpa simpan nomor.</li>`,
                 lblEditorTitle: "1. Editor Teks & HTML",
                 lblClear: "Bersihkan",
                 placeholder: "Paste teks / output AI di sini untuk diformat otomatis...",
@@ -475,7 +475,7 @@
             en: {
                 title: "AlatWasap",
                 helpTitle: "How to use:",
-                helpDesc: `<li>Paste AI output into the left panel.</li><li>Tables and multi-level lists are converted automatically.</li><li>Select your preferred multi-level list format.</li><li>Enter a destination WA number to chat directly without saving the contact.</li>`,
+                helpDesc: `<li>Paste AI output into the left panel.</li><li>Tables, multi-level lists, and duplicate links are sanitized automatically.</li><li>Select your preferred multi-level list format.</li><li>Enter a destination WA number to chat directly without saving the contact.</li>`,
                 lblEditorTitle: "1. Text & HTML Editor",
                 lblClear: "Clear",
                 placeholder: "Paste text / AI output here to format automatically...",
@@ -584,7 +584,6 @@
 
         // 7. Core Logic: HTML to WhatsApp Parser
 
-        // Fungsi pembantu parsing tabel HTML ke Card List vertikal
         function parseTable(tableNode) {
             if (!tableNode || tableNode.nodeName !== 'TABLE') return '';
 
@@ -636,7 +635,6 @@
             return tableOutput;
         }
 
-        // Helper untuk mendeteksi hierarki dan kedalaman daftar (nested list)
         function getListHierarchy(liNode) {
             const hierarchy = [];
             let curr = liNode;
@@ -659,7 +657,6 @@
                 }
                 hierarchy.unshift({ type: tag, index: index });
                 
-                // Cari ancestor li berikutnya
                 curr = parentList.closest('li');
                 if (!curr && parentList.parentElement) {
                     const grandParent = parentList.parentElement;
@@ -673,7 +670,6 @@
                 }
             }
 
-            // Fallback dukungan untuk atribut aria-level dari Google Docs/Word paste
             const ariaLevel = parseInt(liNode.getAttribute('aria-level'));
             if (ariaLevel && ariaLevel > hierarchy.length) {
                 while (hierarchy.length < ariaLevel) {
@@ -684,7 +680,6 @@
             return hierarchy.length > 0 ? hierarchy : [{ type: 'ol', index: 1 }];
         }
 
-        // Helper untuk memformat penanda daftar (Top level vs Multi-level)
         function formatListBullet(hierarchy, style, isSpaced) {
             const depth = hierarchy.length;
             const current = hierarchy[hierarchy.length - 1];
@@ -693,7 +688,6 @@
             
             const linePrefix = isSpaced ? '\n\n' : '\n';
             
-            // Level 1 (Top Level) selalu standar
             if (depth <= 1) {
                 return isOl ? `${linePrefix}${index}. ` : `${linePrefix}- `;
             }
@@ -721,7 +715,6 @@
             }
 
             if (style === 'decimal') {
-                // Opsi A: Hierarki Desimal (1.1, 1.2, 1.1.1)
                 if (isOl) {
                     const nums = hierarchy.map(h => h.type === 'ol' ? h.index : '1');
                     return `${linePrefix}${nums.join('.')}. `;
@@ -732,7 +725,6 @@
                     return `${linePrefix}${emSpaces}${bullet} `;
                 }
             } else if (style === 'branch') {
-                // Opsi B: Simbol Cabang (↳ a. / ↳ •)
                 const emSpaces = '\u2003'.repeat(depth - 2);
                 if (isOl) {
                     let marker = depth === 2 ? `${getLetter(index)}.` : `${getRoman(index)}.`;
@@ -743,7 +735,6 @@
                     return `${linePrefix}${emSpaces}↳${bullet} `;
                 }
             } else {
-                // Opsi C (Default): Indentasi Em-Space (\u2003) + Alfabet/Bullet
                 const emSpaces = '\u2003'.repeat(depth - 1);
                 if (isOl) {
                     let marker = depth === 2 ? `${getLetter(index)}.` : `${getRoman(index)}.`;
@@ -754,6 +745,68 @@
                     return `${linePrefix}${emSpaces}${bullet} `;
                 }
             }
+        }
+
+        function cleanLatex(text) {
+            if (!text) return '';
+            let res = text;
+
+            res = res.replace(/\\text\{([^}]+)\}/g, '$1');
+            res = res.replace(/\\mathbf\{([^}]+)\}/g, '*$1*');
+            res = res.replace(/\\mathit\{([^}]+)\}/g, '_$1_');
+            res = res.replace(/\\mathrm\{([^}]+)\}/g, '$1');
+            res = res.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1/$2)');
+
+            const symbolMap = [
+                [/\\(?:rightarrow|to|longrightarrow)\b/g, '→'],
+                [/\\(?:leftarrow|gets|longleftarrow)\b/g, '←'],
+                [/\\(?:Rightarrow|implies|Longrightarrow)\b/g, '⇒'],
+                [/\\(?:Leftarrow|Longleftarrow)\b/g, '⇐'],
+                [/\\(?:leftrightarrow|longleftrightarrow)\b/g, '↔'],
+                [/\\(?:Leftrightarrow|iff|Longleftrightarrow)\b/g, '⇔'],
+                [/\\uparrow\b/g, '↑'],
+                [/\\downarrow\b/g, '↓'],
+                [/\\(?:le|leq)\b/g, '≤'],
+                [/\\(?:ge|geq)\b/g, '≥'],
+                [/\\(?:ne|neq)\b/g, '≠'],
+                [/\\approx\b/g, '≈'],
+                [/\\equiv\b/g, '≡'],
+                [/\\times\b/g, '×'],
+                [/\\div\b/g, '÷'],
+                [/\\pm\b/g, '±'],
+                [/\\mp\b/g, '∓'],
+                [/\\cdot\b/g, '·'],
+                [/\\circ\b/g, '°'],
+                [/\\infty\b/g, '∞'],
+                [/\\sqrt\b/g, '√'],
+                [/\\(?:dots|ldots|cdots)\b/g, '...'],
+                [/\\checkmark\b/g, '✓'],
+                [/\\degree\b/g, '°'],
+                [/\\alpha\b/g, 'α'],
+                [/\\beta\b/g, 'β'],
+                [/\\gamma\b/g, 'γ'],
+                [/\\delta\b/g, 'δ'],
+                [/\\epsilon\b/g, 'ε'],
+                [/\\theta\b/g, 'θ'],
+                [/\\lambda\b/g, 'λ'],
+                [/\\mu\b/g, 'μ'],
+                [/\\pi\b/g, 'π'],
+                [/\\sigma\b/g, 'σ'],
+                [/\\omega\b/g, 'ω'],
+                [/\\Delta\b/g, 'Δ'],
+                [/\\Omega\b/g, 'Ω']
+            ];
+
+            for (const [pattern, replacement] of symbolMap) {
+                res = res.replace(pattern, replacement);
+            }
+
+            res = res.replace(/\$\$([\s\S]*?)\$\$/g, '$1');
+            res = res.replace(/\\\[([\s\S]*?)\\\]/g, '$1');
+            res = res.replace(/\\\(([\s\S]*?)\\\)/g, '$1');
+            res = res.replace(/\$([^\$\n]+?)\$/g, '$1');
+
+            return res;
         }
 
         function convertNode(node) {
@@ -780,8 +833,20 @@
                 case 'pre': return `\n\`\`\`\n${text.trim()}\n\`\`\`\n`;
                 case 'blockquote': return `\n> ${text.trim().replace(/\n/g, '\n> ')}\n`;
                 case 'a':
-                    const href = node.getAttribute('href');
-                    return href ? `${text.trim()} ${href}` : text;
+                    const href = (node.getAttribute('href') || '').trim();
+                    const trimmedText = text.trim();
+                    if (!href) return trimmedText;
+                    if (!trimmedText) return href;
+                    
+                    // Normalisasi URL untuk perbandingan
+                    const cleanT = trimmedText.replace(/\/+$/, '').toLowerCase();
+                    const cleanH = href.replace(/\/+$/, '').toLowerCase();
+
+                    // Mencegah cetak duplikat jika label sama dengan link atau teks sudah mengandung link
+                    if (cleanT === cleanH || trimmedText.endsWith(href)) {
+                        return href;
+                    }
+                    return `${trimmedText} ${href}`;
                 case 'br': return '\n';
                 case 'p': case 'div': case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
                     return `\n\n${text}\n\n`;
@@ -806,11 +871,12 @@
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlString, 'text/html');
             let result = convertNode(doc.body);
+            result = cleanLatex(result);
             result = result.replace(/\n{3,}/g, '\n\n');
             return result.trim();
         }
 
-        // 8. Render WhatsApp Preview (Simulator Super Akurat)
+        // 8. Render WhatsApp Preview
         function renderWhatsAppPreview(waText) {
             if (!waText) return `<span class="text-dim italic text-sm" id="lblPlaceholder">${Dictionary[currentLang].lblPlaceholder}</span>`;
 
@@ -854,7 +920,6 @@
                     continue;
                 }
 
-                // Render Bullet Lists (termasuk em-space dan branch)
                 const bulletMatch = line.match(/^([\s\u2003]*(?:↳\s*)?)([\-\*•▪▫])\s+(.*)$/);
                 if (bulletMatch) {
                     const indent = bulletMatch[1];
@@ -864,7 +929,6 @@
                     continue;
                 }
 
-                // Render Numbered Lists (termasuk desimal 1.1, huruf a., romawi, em-space, dan branch)
                 const numMatch = line.match(/^([\s\u2003]*(?:↳\s*)?)(?:(\d+(?:\.\d+)*|[a-zA-Z]{1,2}|[ivxIVX]{1,5})[\.\)])\s+(.*)$/);
                 if (numMatch) {
                     const indent = numMatch[1];
@@ -930,7 +994,6 @@
             processDirectChatButton();
         };
 
-        // Event pengetikan dan observer
         DOM.htmlInput.addEventListener('input', debouncedProcessInput);
         DOM.waNumberInput.addEventListener('input', processDirectChatButton);
         if (DOM.spaceListCb) DOM.spaceListCb.addEventListener('change', debouncedProcessInput);
@@ -943,11 +1006,9 @@
             });
         }
         
-        // MutationObserver menjamin deteksi perubahan DOM dari ekstensi atau penghapusan manual
         const observer = new MutationObserver(debouncedProcessInput);
         observer.observe(DOM.htmlInput, { childList: true, subtree: true, characterData: true });
 
-        // Sanitasi paste gambar / tag asing
         DOM.htmlInput.addEventListener('paste', (e) => {
             e.preventDefault();
             const clipboardData = e.clipboardData || window.clipboardData;
@@ -1025,7 +1086,6 @@
             window.open(url, '_blank');
         });
 
-        // Initialize App
         const savedNestedStyle = localStorage.getItem('app_nested_style');
         if (savedNestedStyle && DOM.nestedListStyle) {
             DOM.nestedListStyle.value = savedNestedStyle;
