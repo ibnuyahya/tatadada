@@ -325,14 +325,13 @@
                 </h2>
                 
                 <div class="flex items-center gap-1.5 flex-wrap">
-                    <select id="render-profile" class="bg-theme-bg border border-emerald-500/40 rounded px-2 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 outline-none focus:border-emerald-500 cursor-pointer shadow-sm" title="Profil Mastering Bitstream & Keyframe YouTube">
-                        <option value="YT_PRO" selected>YT_PRO (GOP 2s + IGN Dither)</option>
-                        <option value="STUDIO_MAX">STUDIO_MAX (Extreme Bitrate + GOP 1s)</option>
-                        <option value="FAST_VBR">FAST_VBR (Speed Priority + GOP 4s)</option>
-                    </select>
+                    <label for="yt-max-mode" class="flex items-center gap-1.5 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/40 rounded px-2.5 py-1 text-xs font-extrabold text-emerald-600 dark:text-emerald-400 cursor-pointer shadow-sm select-none transition-colors" title="Kualitas Maksimal YouTube (Extreme Bitrate + Keyframe Rapat GOP 1s + Anti-Banding Dither)">
+                        <input type="checkbox" id="yt-max-mode" checked class="w-3.5 h-3.5 accent-emerald-500 cursor-pointer">
+                        <span>YT MAX</span>
+                    </label>
                     <select id="render-resolution" class="bg-theme-bg border border-theme-border rounded px-2 py-1 text-xs font-bold text-theme-text outline-none focus:border-theme-accent cursor-pointer shadow-sm" title="Resolusi Hasil Video (Pilih 1440p 2K untuk memaksa codec VP9 di YouTube!)">
-                        <option value="2160">2160p (4K UHD - VP9/AV1)</option>
-                        <option value="1440">1440p (2K QHD - YT VP9 Forcer ★)</option>
+                        <option value="2160">2160p (4K UHD)</option>
+                        <option value="1440">1440p (2K VP9 ★)</option>
                         <option value="1080" selected>1080p (FHD)</option>
                         <option value="720">720p (HD)</option>
                     </select>
@@ -515,9 +514,9 @@
                 <i data-lucide="help-circle" class="w-5 h-5 text-theme-accent"></i> Panduan Cepat OlahVideo BULK PRO (v14.6 YT-MASTER)
             </h3>
             <ul class="space-y-2 text-xs text-theme-muted mb-5 list-disc pl-4 leading-relaxed">
-                <li><strong class="text-theme-text">YouTube VP9 Forcer (1440p 2K QHD):</strong> Pilih resolusi <code>1440p (2K QHD)</code> untuk memaksa server YouTube menggunakan encoder premium <strong>vp09 (VP9)</strong> sehingga video tidak buram saat diunggah ke YouTube!</li>
-                <li><strong class="text-theme-text">Profil YT_PRO &amp; Anti-Banding IGN Dither:</strong> Mengaktifkan <em>Keyframe Density</em> tinggi (GOP 2 detik) dan <em>Pre-Baked Interleaved Gradient Noise (IGN) Dither</em> (0.00ms overhead) agar gradasi gelap bebas belang (<em>color banding</em>) di YouTube.</li>
-                <li><strong class="text-theme-text">Zero-COW Multi-Surface Ring-Pool:</strong> Menyesuaikan jumlah kanvas di memori secara otomatis antara <strong>Discrete GPU (RTX/NVENC)</strong> dan <strong>Integrated GPU (UMA Iris Xe/AMD)</strong> agar bebas <em>Copy-On-Write</em> &amp; bebas <em>L3 SmartCache Eviction</em>.</li>
+                <li><strong class="text-theme-text">Checklist YT MAX:</strong> Saat dicentang, mesin mengaktifkan <em>Extreme Bitrate</em>, kerapatan <em>Keyframe</em> tertinggi (GOP 1 detik), dan <em>Anti-Banding IGN Dither</em> agar kualitas video tetap tajam dan bebas pecah saat dikompres ulang oleh YouTube.</li>
+                <li><strong class="text-theme-text">Resolusi 1440p (2K VP9 ★):</strong> Pilih resolusi <code>1440p (2K VP9 ★)</code> untuk memaksa server YouTube menggunakan encoder premium <strong>vp09 (VP9)</strong> sehingga video tidak buram di YouTube.</li>
+                <li><strong class="text-theme-text">Zero-COW Multi-Surface Ring-Pool:</strong> Menyesuaikan jumlah kanvas di memori secara otomatis antara <strong>Discrete GPU (RTX/NVENC)</strong> dan <strong>Integrated GPU (UMA Iris Xe/AMD)</strong> agar render berjalan secepat kilat.</li>
                 <li><strong class="text-theme-text">Urutan Klip &amp; BGM:</strong> <code>Intro &rarr; Video Utama (+BGM) &rarr; Credit Title &rarr; Outro</code>.</li>
             </ul>
             <button onclick="document.getElementById('help-modal').style.display='none'" class="btn btn-primary w-full !py-2">Tutup Panduan</button>
@@ -929,7 +928,7 @@
                     ratio: document.getElementById('canvas-ratio').value,
                     fitMode: document.getElementById('video-fit-mode').value,
                     resolution: document.getElementById('render-resolution').value,
-                    profile: document.getElementById('render-profile').value,
+                    ytMax: document.getElementById('yt-max-mode').checked,
                     fps: document.getElementById('render-fps-select').value,
                     wmMainOnly: document.getElementById('wm-main-only').checked
                 },
@@ -943,7 +942,7 @@
             document.getElementById('canvas-ratio').value = state.config.ratio || '16/9';
             document.getElementById('video-fit-mode').value = state.config.fitMode || 'contain';
             document.getElementById('render-resolution').value = state.config.resolution || '1080';
-            document.getElementById('render-profile').value = state.config.profile || 'YT_PRO';
+            document.getElementById('yt-max-mode').checked = state.config.ytMax ?? true;
             document.getElementById('render-fps-select').value = state.config.fps || '30';
             document.getElementById('wm-main-only').checked = state.config.wmMainOnly ?? true;
 
@@ -1296,7 +1295,7 @@
             });
         });
 
-        document.getElementById('render-profile').addEventListener('change', () => { saveState(); });
+        document.getElementById('yt-max-mode').addEventListener('change', () => { saveState(); });
         document.getElementById('render-resolution').addEventListener('change', () => { saveState(); });
         document.getElementById('render-fps-select').addEventListener('change', () => { saveState(); });
         document.getElementById('canvas-ratio').addEventListener('change', () => { resizePreview(); saveState(); });
@@ -2587,7 +2586,8 @@
 
                 const globalFitMode = document.getElementById('video-fit-mode').value;
                 const logoMainOnly = document.getElementById('wm-main-only').checked;
-                const renderProfile = document.getElementById('render-profile').value || 'YT_PRO';
+                const isYtMax = document.getElementById('yt-max-mode').checked;
+                const renderProfile = isYtMax ? 'YT_MAX (Extreme Bitrate + GOP 1s)' : 'YT_STANDARD (Balanced + GOP 2s)';
                 const ratioStr = document.getElementById('canvas-ratio').value;
                 const resStr = document.getElementById('render-resolution').value;
                 const targetFPS = parseInt(document.getElementById('render-fps-select').value, 10) || 30;
@@ -2595,29 +2595,29 @@
 
                 // HUKUM 12: Dimensi Kanvas (termasuk 1440p 2K QHD YouTube VP9 Forcer) & Target Bitrate Mastering
                 let targetWidth = 1920, targetHeight = 1080;
-                let baseBitrate = 8000000;
+                let baseBitrate = 12000000;
 
                 if (resStr === '720') {
-                    baseBitrate = renderProfile === 'STUDIO_MAX' ? 12000000 : (renderProfile === 'YT_PRO' ? (isUMA ? 4500000 : 10000000) : 3000000);
+                    baseBitrate = isYtMax ? 12000000 : (isUMA ? 5000000 : 8000000);
                     if (ratioStr === '16/9') { targetWidth = 1280; targetHeight = 720; }
                     else if (ratioStr === '21/9') { targetWidth = 1680; targetHeight = 720; }
                     else if (ratioStr === '9/16') { targetWidth = 720; targetHeight = 1280; }
                     else if (ratioStr === '1/1') { targetWidth = 720; targetHeight = 720; }
                 } else if (resStr === '1440') {
                     // 1440p 2K QHD: Memaksa server YouTube mengaktifkan codec vp09 (VP9) dengan 44% piksel dari 4K!
-                    baseBitrate = renderProfile === 'STUDIO_MAX' ? 43200000 : (renderProfile === 'YT_PRO' ? 24000000 : 14000000);
+                    baseBitrate = isYtMax ? 45000000 : 24000000;
                     if (ratioStr === '16/9') { targetWidth = 2560; targetHeight = 1440; }
                     else if (ratioStr === '21/9') { targetWidth = 2560; targetHeight = 1096; }
                     else if (ratioStr === '9/16') { targetWidth = 1440; targetHeight = 2560; }
                     else if (ratioStr === '1/1') { targetWidth = 1440; targetHeight = 1440; }
                 } else if (resStr === '2160') {
-                    baseBitrate = renderProfile === 'STUDIO_MAX' ? 60000000 : (renderProfile === 'YT_PRO' ? 35000000 : 20000000);
+                    baseBitrate = isYtMax ? 65000000 : 35000000;
                     if (ratioStr === '16/9') { targetWidth = 3840; targetHeight = 2160; }
                     else if (ratioStr === '21/9') { targetWidth = 3840; targetHeight = 1644; }
                     else if (ratioStr === '9/16') { targetWidth = 2160; targetHeight = 3840; }
                     else if (ratioStr === '1/1') { targetWidth = 2160; targetHeight = 2160; }
                 } else {
-                    baseBitrate = renderProfile === 'STUDIO_MAX' ? 22000000 : (renderProfile === 'YT_PRO' ? 12000000 : 6000000);
+                    baseBitrate = isYtMax ? 24000000 : 12000000;
                     if (ratioStr === '16/9') { targetWidth = 1920; targetHeight = 1080; }
                     else if (ratioStr === '21/9') { targetWidth = 2560; targetHeight = 1080; }
                     else if (ratioStr === '9/16') { targetWidth = 1080; targetHeight = 1920; }
@@ -2630,8 +2630,8 @@
                 const totalPoolMB = ((targetWidth * targetHeight * 4 * poolSize) / 1048576).toFixed(1);
                 txtPoolBadge.textContent = `Pool x${poolSize} | Q ${resumeQueueLimit}..${maxQueueLimit}`;
 
-                // HUKUM 12: GOP Keyframe Interval (STUDIO_MAX = 1s, YT_PRO = 2s, FAST_VBR = 4s)
-                const gopSeconds = renderProfile === 'STUDIO_MAX' ? 1 : (renderProfile === 'YT_PRO' ? 2 : 4);
+                // HUKUM 12: GOP Keyframe Interval (YT MAX = 1s, Unchecked = 2s)
+                const gopSeconds = isYtMax ? 1 : 2;
                 const gopLen = Math.max(1, Math.round(targetFPS * gopSeconds));
 
                 const outName = generateMergedFileName(targetItem.file.name);
@@ -2714,7 +2714,7 @@
                     forensicLogger.warn("AUDIO-CFG", "Seluruh klip tidak memiliki track audio. Mode Tanpa Audio diaktifkan.");
                 }
 
-                const bestConfig = await negotiateHyperStreamEncoderConfig(targetWidth, targetHeight, targetFPS, baseBitrate, renderProfile);
+                const bestConfig = await negotiateHyperStreamEncoderConfig(targetWidth, targetHeight, targetFPS, baseBitrate, isYtMax ? 'STUDIO_MAX' : 'YT_PRO');
                 targetWidth = bestConfig.width;
                 targetHeight = bestConfig.height;
 
