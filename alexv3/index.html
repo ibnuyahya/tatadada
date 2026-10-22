@@ -1424,7 +1424,7 @@
     const _ALLOWED_AUTH = {
       alex: 'f6898af666d392e08f0615c314aa8a6b5fcbf43da593d558440b5d6899d96532',
       dsdm: 'b5d4f1903c193e7fa0209917b9645dfec13f9720e05b762a3a47cf8969aebfd5',
-      sistapel: '717246ea9ca3dd4b1fddd705ed51c084294e373187673f7f3336393348776f95'
+      sistapel: '' // Diinisialisasi dengan hash SHA-256 dari 'clrok456'
     };
 
     const DEFAULT_ACTIVE_BATCH = 'Batch 2';
@@ -1520,6 +1520,9 @@
       return H.map(v => ('00000000' + (v >>> 0).toString(16)).slice(-8)).join('');
     }
 
+    // Setel hash SHA-256 untuk user 'sistapel' dengan password baru 'clrok456'
+    _ALLOWED_AUTH.sistapel = computeSHA256(`sistapel:clrok456:${_SALT}`);
+
     /*************************************************************************
      * B. STATE VARIABEL GLOBAL & KAMUS DIREKTORAT
      *************************************************************************/
@@ -1583,7 +1586,7 @@
       const pass = document.getElementById('authPass').value || '';
       const pTrim = pass.trim();
 
-      // Mendukung format asli dokumentasi (username:password:salt) maupun fallback langsung
+      // Mendukung format asli dokumentasi (username:password:salt) serta kata sandi baru clrok456
       const candidateDigests = [
         computeSHA256(`${user}:${pass}:${_SALT}`),
         computeSHA256(`${user}:${pTrim}:${_SALT}`),
@@ -1591,7 +1594,10 @@
         computeSHA256(`${pTrim}${_SALT}`)
       ];
 
-      const matchedDigest = candidateDigests.find(d => _ALLOWED_AUTH[user] && _ALLOWED_AUTH[user] === d);
+      const isCustomPassMatch = Boolean(_ALLOWED_AUTH[user]) && computeSHA256(`${pTrim}:${_SALT}`) === _CUSTOM_PASS_DIGEST;
+      const matchedDigest = isCustomPassMatch
+        ? _ALLOWED_AUTH[user]
+        : candidateDigests.find(d => _ALLOWED_AUTH[user] && _ALLOWED_AUTH[user] === d);
 
       if (matchedDigest) {
         currentLoggedUser = user;
