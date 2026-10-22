@@ -1581,10 +1581,21 @@
       e.preventDefault();
       const user = (document.getElementById('authUser').value || '').trim().toLowerCase();
       const pass = document.getElementById('authPass').value || '';
-      const digest = computeSHA256(pass.trim() + _SALT);
-      if (_ALLOWED_AUTH[user] && _ALLOWED_AUTH[user] === digest) {
+      const pTrim = pass.trim();
+
+      // Mendukung format asli dokumentasi (username:password:salt) maupun fallback langsung
+      const candidateDigests = [
+        computeSHA256(`${user}:${pass}:${_SALT}`),
+        computeSHA256(`${user}:${pTrim}:${_SALT}`),
+        computeSHA256(`${pass}${_SALT}`),
+        computeSHA256(`${pTrim}${_SALT}`)
+      ];
+
+      const matchedDigest = candidateDigests.find(d => _ALLOWED_AUTH[user] && _ALLOWED_AUTH[user] === d);
+
+      if (matchedDigest) {
         currentLoggedUser = user;
-        sessionStorage.setItem('alex_auth_token', digest);
+        sessionStorage.setItem('alex_auth_token', matchedDigest);
         sessionStorage.setItem('alex_auth_user', user);
         document.getElementById('loginError').classList.add('hidden');
         document.getElementById('lockNotice').classList.add('hidden');
