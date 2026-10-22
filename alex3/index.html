@@ -46,7 +46,8 @@
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-    gtag('config', 'G-FK620QSKYN');
+    // Matikan automatic initial page_view agar tidak bentrok dengan SPA virtual page_view
+    gtag('config', 'G-FK620QSKYN', { send_page_view: true });
 
     var _Hasync = _Hasync || [];
     _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
@@ -1544,6 +1545,8 @@
     let isMatrixCollapsed = false;
     let currentKkm = 80.0;
     let lastPimtiSummaryRows = [];
+    let lastTrackedUrl = window.location.href;
+    let lastTrackedPath = window.location.pathname + window.location.search;
 
     // Sorting State for Matrix Table (Default: Sort by Peserta A-Z like Screenshot 3)
     let matrixSortState = { key: 'nama_peserta', dir: 'asc' };
@@ -3487,9 +3490,11 @@
     /*************************************************************************
      * M. TWO-WAY URL STATE BINDING (PERMALINK HYDRATION & MUTATION) & EKSPOR
      *************************************************************************/
-    // 1. PENULIS PERMALINK (Memperbarui URL & Title tanpa Reload)
+    // 1. PENULIS PERMALINK (Memperbarui URL, Title & Mengirim Real Page Navigation ke GA4 + Histats)
     function updateUrlAndTracker(actionName = '') {
       if (!currentLoggedUser) return;
+
+      const prevUrl = lastTrackedUrl || window.location.href;
 
       const fBatch = document.getElementById('filterBatch')?.value || DEFAULT_ACTIVE_BATCH;
       const fPersona = document.getElementById('filterPersona')?.value || 'ALL';
@@ -3530,24 +3535,57 @@
       const newTitle = titleParts.join(' >> ');
       document.title = newTitle;
 
-      // Perbarui URL di Address Bar tanpa me-reload halaman
+      // Perbarui URL di Address Bar menggunakan pushState (jika URL berubah) agar tercatat sebagai riwayat navigasi baru
       const newUrl = window.location.pathname + '?' + params.toString();
       try {
-        window.history.replaceState({ path: newUrl }, newTitle, newUrl);
+        if (newUrl !== lastTrackedPath) {
+          window.history.pushState({ path: newUrl, title: newTitle }, newTitle, newUrl);
+        } else {
+          window.history.replaceState({ path: newUrl, title: newTitle }, newTitle, newUrl);
+        }
       } catch (e) {}
 
-      // Kirim sinyal ke Google Analytics 4 & Histats
+      const fullCurrentUrl = window.location.href;
+      lastTrackedPath = newUrl;
+      lastTrackedUrl = fullCurrentUrl;
+
+      // 1A. Kirim sinyal Real Page Navigation ke Google Analytics 4 (GA4)
       if (typeof window.gtag === 'function') {
-        window.gtag('event', 'page_view', {
+        // Update config GA4 dan tembak event page_view lengkap dengan page_referrer dari URL sebelumnya
+        window.gtag('config', 'G-FK620QSKYN', {
           page_title: newTitle,
-          page_location: window.location.href,
+          page_location: fullCurrentUrl,
           page_path: newUrl
         });
+        window.gtag('event', 'page_view', {
+          page_title: newTitle,
+          page_location: fullCurrentUrl,
+          page_path: newUrl,
+          page_referrer: prevUrl,
+          operator_user: currentLoggedUser,
+          active_view: currentViewMode,
+          active_batch: fBatch
+        });
       }
-      if (window._Hasync && Array.isArray(window._Hasync)) {
-        window._Hasync.push(['Histats.start', '1', '']);
-      }
+
+      // 1B. Kirim sinyal Real Hit / Page Navigation ke Histats (Mendukung SPA URL Mutation)
+      try {
+        if (window.Histats && typeof window.Histats.track_hits === 'function') {
+          // Jika objek runtime Histats (js15_as.js) sudah siap, panggil langsung track_hits() agar mengirim beacon HTTP baru ke server Histats
+          window.Histats.track_hits();
+        } else if (window._Hasync && Array.isArray(window._Hasync)) {
+          window._Hasync.push(['Histats.track_hits', '']);
+        }
+      } catch (e) {}
     }
+
+    // Listener popstate agar tombol Back/Forward browser juga memulihkan filter & tercatat di GA4 + Histats
+    window.addEventListener('popstate', () => {
+      if (!currentLoggedUser) return;
+      loadFiltersFromUrl();
+      applyFilters(true);
+      updateUrlAndTracker('Navigasi Riwayat');
+    });
 
     // 2. PEMBACA PERMALINK (Memulihkan State dari URL saat Halaman Dimuat)
     function loadFiltersFromUrl() {
