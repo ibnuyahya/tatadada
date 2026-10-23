@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>UI ALEX 2026 — Leadership Learning Analytics (Edisi Terpadu v3)</title>
+  <title>UI ALEX 2026 — Learning Analytics (Edisi Terpadu v3)</title>
 
   <!-- Google Fonts: Inter, Cinzel & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -135,6 +135,38 @@
     .grid-table { border-collapse: collapse; width: 100%; }
     .grid-table th, .grid-table td { border: 1px solid #cbd5e1; }
 
+    /* Sticky Table Header Guard (Kompatibel Penuh di Chrome/Edge/Firefox/Safari) */
+    .sticky-matrix-table {
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+    }
+    .sticky-matrix-table th,
+    .sticky-matrix-table td {
+      border-right: 1px solid #cbd5e1;
+      border-bottom: 1px solid #cbd5e1;
+    }
+    .sticky-matrix-table th:first-child,
+    .sticky-matrix-table td:first-child {
+      border-left: 1px solid #cbd5e1;
+    }
+    .sticky-matrix-table thead tr:first-child th {
+      border-top: 1px solid #cbd5e1;
+    }
+    .sticky-matrix-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 25;
+      background-color: #f1f5f9;
+      box-shadow: 0 2px 4px -1px rgba(15, 23, 42, 0.08);
+    }
+    .sticky-matrix-table thead th.th-amber-sticky {
+      background-color: #fef3c7;
+    }
+    .sticky-matrix-table thead th.th-purple-sticky {
+      background-color: #f3e8ff;
+    }
+
     .sortable-th {
       cursor: pointer;
       user-select: none;
@@ -175,6 +207,35 @@
       line-height: 1.4;
     }
 
+    /* Fast & Intuitive Animated Drawer (CSS Grid 0fr -> 1fr Transition) */
+    .drawer-wrapper {
+      display: grid;
+      grid-template-rows: 0fr;
+      opacity: 0;
+      transition: grid-template-rows 220ms cubic-bezier(0.22, 1, 0.36, 1),
+                  opacity 180ms ease-out;
+      pointer-events: none;
+    }
+    .drawer-wrapper.drawer-open {
+      grid-template-rows: 1fr;
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .drawer-inner {
+      overflow: hidden;
+      min-height: 0;
+    }
+    .drawer-chevron {
+      display: inline-block;
+      transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .drawer-chevron.chevron-open {
+      transform: rotate(180deg);
+    }
+    .pills-fade {
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+
     /* Native Vector Print Rules for A3 Landscape Report (Selectable Text & No Blank Pages) */
     @media print {
       @page {
@@ -199,6 +260,14 @@
       }
       #matrixTableScrollContainer {
         max-height: none !important;
+        overflow: visible !important;
+      }
+      .drawer-wrapper {
+        grid-template-rows: 1fr !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+      }
+      .drawer-inner {
         overflow: visible !important;
       }
       .grid-table {
@@ -288,7 +357,7 @@
             </span>
           </div>
           <p class="text-xs text-slate-400">
-            Leadership Learning Analytics • EMAS3 Universitas Indonesia
+            Learning Analytics • EMAS3 Universitas Indonesia
           </p>
         </div>
       </div>
@@ -443,12 +512,12 @@
             <option value="SDMPT">SDMPT — Manajemen SDM dan Pengembangan Talenta</option>
             <option value="PBJ">PBJ — Manajemen Pengadaan Barang dan Jasa</option>
             <option value="KA">KA — Manajemen Keuangan dan Akuntansi</option>
-            <option value="ESSAY_P1">ESSAY-I — Uji Kompetensi Essay Pilar I</option>
+            <option value="ESSAY_P1">ESSAY-I — Soal Essay Pilar I</option>
             <option value="AI">AI — Audit Internal</option>
             <option value="PMA">PMA — Penjaminan Mutu Akademik</option>
             <option value="HK">HK — Hukum dan Kearsipan</option>
             <option value="MRT">MRT — Manajemen Risiko, Transformasi Budaya, dan Tata Kelola</option>
-            <option value="ESSAY_P2">ESSAY-II — Uji Kompetensi Essay Pilar II</option>
+            <option value="ESSAY_P2">ESSAY-II — Soal Essay Pilar II</option>
           </select>
         </div>
       </div>
@@ -602,7 +671,7 @@
 
         <!-- Card 2: Keterselesaian Asesmen Awal / Pre-Test Pra-Pelatihan (Section 0) -->
         <div class="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between">
-          <div class="flex items-start justify-between gap-2 mb-3">
+          <div class="flex flex-wrap items-start justify-between gap-2 mb-3">
             <div>
               <div class="flex items-center gap-2">
                 <span>📑</span>
@@ -611,9 +680,18 @@
               </div>
               <p id="lblPreCardSub" class="text-xs text-slate-500 mt-0.5">Progres pengerjaan Asesmen Awal (Section 0) di kedua pilar materi.</p>
             </div>
-            <span id="preOverallBadge" class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 font-bold text-xs border border-amber-200">
-              - Selesai
-            </span>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span id="preOverallBadge"
+                data-tippy-content="Jumlah peserta yang telah menuntaskan Asesmen Awal di kedua pilar secara lengkap (Pilar I & Pilar II)"
+                class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 font-bold text-xs border border-amber-200">
+                - Selesai Lengkap
+              </span>
+              <span id="preOverallInProgressBadge"
+                data-tippy-content="Jumlah peserta yang sedang dalam proses pengerjaan (baru menyelesaikan 1 pilar atau sedang mengerjakan kuis Asesmen Awal di LMS)"
+                class="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-800 font-bold text-xs border border-sky-200">
+                ⏳ - In-Progress
+              </span>
+            </div>
           </div>
 
           <div class="space-y-4">
@@ -626,11 +704,12 @@
                 </span>
                 <span id="preP1CountText" class="font-mono font-bold text-slate-900">- / - (-%)</span>
               </div>
-              <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div id="preP1Bar" class="h-full bg-amber-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+              <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex">
+                <div id="preP1Bar" class="h-full bg-amber-500 transition-all duration-500" style="width: 0%" title="Selesai"></div>
+                <div id="preP1InProgBar" class="h-full bg-amber-300/90 transition-all duration-500" style="width: 0%" title="In-Progress"></div>
               </div>
               <div class="flex items-center justify-between text-[11px] text-slate-500">
-                <span id="preP1DetailText">Selesai: - | Belum: -</span>
+                <span id="preP1DetailText">Selesai: - | In-Progress: - | Belum: -</span>
                 <span>Rerata Nilai: <strong id="preP1AvgText" class="text-slate-700">-</strong></span>
               </div>
             </div>
@@ -644,11 +723,12 @@
                 </span>
                 <span id="preP2CountText" class="font-mono font-bold text-slate-900">- / - (-%)</span>
               </div>
-              <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div id="preP2Bar" class="h-full bg-blue-600 rounded-full transition-all duration-500" style="width: 0%"></div>
+              <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex">
+                <div id="preP2Bar" class="h-full bg-blue-600 transition-all duration-500" style="width: 0%" title="Selesai"></div>
+                <div id="preP2InProgBar" class="h-full bg-sky-300 transition-all duration-500" style="width: 0%" title="In-Progress"></div>
               </div>
               <div class="flex items-center justify-between text-[11px] text-slate-500">
-                <span id="preP2DetailText">Selesai: - | Belum: -</span>
+                <span id="preP2DetailText">Selesai: - | In-Progress: - | Belum: -</span>
                 <span>Rerata Nilai: <strong id="preP2AvgText" class="text-slate-700">-</strong></span>
               </div>
             </div>
@@ -692,267 +772,437 @@
         </div>
       </div>
 
-      <!-- ROW 3: 3 KARTU TENGAH (INDEKS KESIAPAN, TIPOLOGI PERSONA 2x2, DETEKSI ANOMALI) -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        <!-- Col 1: Indeks Kesiapan Belajar -->
-        <div id="cardQuickReadiness" class="lg:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between transition-all duration-150">
-          <div class="flex items-start justify-between gap-2 mb-4">
-            <div class="flex items-center gap-2">
-              <span>🎯</span>
-              <h2 class="text-sm font-extrabold text-slate-900">Indeks Kesiapan Belajar</h2>
-              <span class="px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-100 text-slate-600 border border-slate-200"
-                data-tippy-content="Formula Bobot: 40% Comp Pilar I + 40% Comp Pilar II + 10% Pre-Test I + 10% Pre-Test II">
-                Bobot 40:40:10:10
-              </span>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <button id="btnResetQuickReadiness" onclick="QuickFilterReadiness('ALL')" class="hidden px-2 py-0.5 rounded bg-rose-100 text-rose-700 hover:bg-rose-200 font-extrabold text-[10px] transition">
-                ✕ Reset
-              </button>
-              <span id="avgReadinessBadge" class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 font-bold text-xs border border-amber-200">
-                Rerata: 0.0 / 100
-              </span>
-            </div>
-          </div>
-
-          <div class="space-y-2.5 my-auto">
-            <div id="qf_ready_Siap" onclick="QuickFilterReadiness('Siap')"
-              data-tippy-content="Kategori Siap (Skor ≥ 75.0): Peserta memiliki penyelesaian modul mandiri dan nilai awal (Pre-Test) yang sangat memadai untuk mengikuti sesi evaluasi. Klik untuk memfilter."
-              class="cursor-pointer flex items-center justify-between text-xs hover:bg-emerald-50/70 p-2.5 rounded-xl border border-transparent transition-all duration-150">
-              <span class="font-bold text-emerald-700 flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                <span>Siap (Skor ≥ 75)</span>
-                <span id="badge_qf_ready_Siap" class="hidden px-2 py-0.5 rounded-full bg-emerald-600 text-white font-mono font-extrabold text-[9px] uppercase tracking-wider shadow-sm flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-                  <span>FILTER AKTIF</span>
-                </span>
-              </span>
-              <strong id="readySiapText" class="font-extrabold text-slate-900">0 Peserta (0%)</strong>
+      <!-- ROW 3: 3 KARTU TENGAH (INDEKS KESIAPAN, TIPOLOGI PERSONA 2x2, DETEKSI ANOMALI) DENGAN COLLAPSE/EXPAND & UDL MICRO-PILLS -->
+      <section id="clustersSection" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div onclick="toggleClustersCollapse()" class="px-5 py-3.5 bg-slate-50/80 hover:bg-slate-100/80 cursor-pointer select-none transition space-y-3">
+          <!-- Baris 1: Judul di Kiri & Tombol Aksi Terkunci di Kanan -->
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5 min-w-0"
+              data-tippy-content="Indeks Kesiapan Belajar (Bobot 40:40:10:10), Tipologi Persona 2x2, serta Deteksi Dormant & Glitch Guard.">
+              <span class="shrink-0">🧭</span>
+              <div class="flex flex-wrap items-center gap-2 min-w-0">
+                <h3 class="text-sm font-extrabold text-slate-900 border-b border-dotted border-slate-400 truncate">Klaster Kesiapan, Persona &amp; Anomali LMS</h3>
+                <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 shrink-0">3 Panel Filter</span>
+              </div>
             </div>
 
-            <div id="qf_ready_Cukup" onclick="QuickFilterReadiness('Cukup')"
-              data-tippy-content="Kategori Cukup (Skor 50.0 s.d. 74.9): Peserta memiliki keterlibatan belajar moderat namun perlu menuntaskan sisa aktivitas materi mandiri. Klik untuk memfilter."
-              class="cursor-pointer flex items-center justify-between text-xs hover:bg-amber-50/70 p-2.5 rounded-xl border border-transparent transition-all duration-150">
-              <span class="font-bold text-amber-700 flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                <span>Cukup (Skor 50 - 74)</span>
-                <span id="badge_qf_ready_Cukup" class="hidden px-2 py-0.5 rounded-full bg-amber-600 text-white font-mono font-extrabold text-[9px] uppercase tracking-wider shadow-sm flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-                  <span>FILTER AKTIF</span>
-                </span>
-              </span>
-              <strong id="readyCukupText" class="font-extrabold text-slate-900">0 Peserta (0%)</strong>
-            </div>
-
-            <div id="qf_ready_Pendampingan" onclick="QuickFilterReadiness('Butuh Pendampingan')"
-              data-tippy-content="Kategori Butuh Pendampingan (Skor < 50.0): Progres belajar mandiri peserta masih rendah atau belum memulai aktivitas kursus di LMS. Klik untuk memfilter."
-              class="cursor-pointer flex items-center justify-between text-xs hover:bg-rose-50/70 p-2.5 rounded-xl border border-transparent transition-all duration-150">
-              <span class="font-bold text-rose-700 flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-                <span>Butuh Pendampingan (&lt; 50)</span>
-                <span id="badge_qf_ready_Pendampingan" class="hidden px-2 py-0.5 rounded-full bg-rose-600 text-white font-mono font-extrabold text-[9px] uppercase tracking-wider shadow-sm flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-                  <span>FILTER AKTIF</span>
-                </span>
-              </span>
-              <strong id="readyKurangText" class="font-extrabold text-slate-900">0 Peserta (0%)</strong>
-            </div>
-          </div>
-        </div>
-
-        <!-- Col 2: Tipologi Persona Belajar (2x2 Grid) -->
-        <div id="cardQuickPersona" class="lg:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between transition-all duration-150">
-          <div class="flex items-center justify-between gap-2 mb-3">
-            <div class="flex items-center gap-2">
-              <span>🧭</span>
-              <h2 class="text-sm font-extrabold text-slate-900">Tipologi Persona Belajar</h2>
-              <span class="px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-100 text-slate-600 border border-slate-200">Klaster</span>
-            </div>
-            <button id="btnResetQuickPersona" onclick="QuickFilterPersona('ALL')" class="text-[11px] font-semibold text-slate-400 hover:text-amber-600 transition">
-              Total Terpilih
+            <button type="button" id="btnCollapseClusters" onclick="event.stopPropagation(); toggleClustersCollapse()"
+              class="px-3.5 py-1.5 rounded-xl bg-white hover:bg-amber-50 text-slate-800 hover:text-amber-900 font-bold text-xs border border-slate-300 shadow-sm transition flex items-center gap-1.5 shrink-0 no-print">
+              <span id="chevronClusters" class="drawer-chevron">▼</span>
+              <span id="lblCollapseClusters">Tampilkan Klaster</span>
             </button>
           </div>
 
-          <div class="grid grid-cols-2 gap-2.5">
-            <button id="qf_persona_Pace" onclick="QuickFilterPersona('Pace-Setter')"
-              data-tippy-content="Pace-Setter: Peserta berkinerja tinggi yang telah menuntaskan ≥ 75% aktivitas belajar di kedua pilar (Pilar I ≥ 75% dan Pilar II ≥ 75%). Klik untuk memfilter."
-              class="p-3 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/70 text-left transition-all duration-150 relative">
-              <div class="flex items-center justify-between gap-1">
-                <span class="text-[11px] font-bold text-emerald-800">🚀 Pace-Setter</span>
-                <span id="badge_qf_persona_Pace" class="hidden px-1.5 py-0.5 rounded-full bg-emerald-600 text-white font-mono font-extrabold text-[9px] uppercase shadow-sm flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-                  <span>AKTIF</span>
-                </span>
+          <!-- Baris 2: UDL Micro-Visuals Preview dalam Grid 3 Kolom Simetris (Tampil saat collapsed, otomatis hilang saat di-expand) -->
+          <div id="clustersQuickSummaryPills" class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-0.5">
+            <!-- 1. Mini Speedometer & Stacked Bar Indeks Kesiapan -->
+            <div class="px-3 py-2 rounded-xl bg-white border border-slate-200/90 shadow-sm flex items-center justify-between gap-3"
+              data-tippy-content="Pratinjau Panel 1: Rerata Indeks Kesiapan Belajar & Proporsi Siap (Hijau) / Cukup (Kuning) / Pendampingan (Merah)">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center justify-between gap-2 text-[10px] font-extrabold uppercase tracking-wider leading-none">
+                  <span class="text-slate-500">1. Kesiapan Belajar</span>
+                  <span id="pillReadySub" class="font-mono text-emerald-700">0 Siap</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex border border-slate-200/60 my-1.5">
+                  <div id="miniBarReadySiap" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
+                  <div id="miniBarReadyCukup" class="h-full bg-amber-500 transition-all duration-300" style="width: 0%"></div>
+                  <div id="miniBarReadyKurang" class="h-full bg-rose-500 transition-all duration-300" style="width: 100%"></div>
+                </div>
+                <div id="pillReadyRatio" class="text-[10px] font-mono text-slate-500 leading-none">0 Siap • 0 Cukup • 0 Pendampingan</div>
               </div>
-              <div id="personaPaceCount" class="text-base font-extrabold text-emerald-950 mt-1">0 Peserta</div>
+              <div class="relative w-11 h-7 flex items-end justify-center shrink-0">
+                <svg viewBox="0 0 36 20" class="w-11 h-7 overflow-visible">
+                  <path d="M 3 17 A 15 15 0 0 1 33 17" fill="none" stroke="#e2e8f0" stroke-width="4.5" stroke-linecap="round" />
+                  <path id="miniReadyGaugeArc" d="M 3 17 A 15 15 0 0 1 33 17" fill="none" stroke="#f59e0b" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="47.12" stroke-dashoffset="47.12" class="transition-all duration-500" />
+                </svg>
+                <span id="miniReadyGaugeVal" class="absolute -bottom-0.5 text-[9px] font-mono font-extrabold text-slate-800 bg-white/90 px-0.5 rounded leading-none">0.0</span>
+              </div>
+            </div>
+
+            <!-- 2. Mini Stacked Bar & Sparkline 4 Klaster Persona Aktif -->
+            <div class="px-3 py-2 rounded-xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-center"
+              data-tippy-content="Pratinjau Panel 2: Proporsi 4 Klaster Persona Aktif (Hijau: Pace-Setter, Biru: In Progress, Kuning: Pilar-I, Merah: Low Engagement)">
+              <div class="flex items-center justify-between gap-2 text-[10px] font-extrabold uppercase tracking-wider leading-none">
+                <span class="text-slate-500">2. Tipologi Persona</span>
+                <span id="pillPersonaTop" class="font-mono text-emerald-700">0🚀 Pace</span>
+              </div>
+              <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex border border-slate-200/60 my-1.5">
+                <div id="miniBarPersPace" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
+                <div id="miniBarPersProg" class="h-full bg-blue-500 transition-all duration-300" style="width: 0%"></div>
+                <div id="miniBarPersP1" class="h-full bg-amber-500 transition-all duration-300" style="width: 0%"></div>
+                <div id="miniBarPersLow" class="h-full bg-rose-500 transition-all duration-300" style="width: 0%"></div>
+              </div>
+              <div id="pillPersonaSub" class="text-[10px] font-mono text-slate-500 leading-none">0🚀 • 0⏳ • 0⚖️ • 0⚠️</div>
+            </div>
+
+            <!-- 3. Mini Visual Bar Dormant & Indikator Glitch Guard -->
+            <div class="px-3 py-2 rounded-xl bg-white border border-slate-200/90 shadow-sm flex items-center justify-between gap-3"
+              data-tippy-content="Pratinjau Panel 3: Rasio Peserta Dormant (Belum Ada Aktivitas) & Status Anomali Teknis Kuis (Glitch Guard)">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center justify-between gap-2 text-[10px] font-extrabold uppercase tracking-wider leading-none">
+                  <span class="text-slate-500">3. Status Anomali</span>
+                  <span id="pillGlitchBadge" class="font-mono text-emerald-700">0 Glitch</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex border border-slate-200/60 my-1.5">
+                  <div id="miniBarDormant" class="h-full bg-slate-600 transition-all duration-300" style="width: 0%"></div>
+                  <div id="miniBarActiveUsers" class="h-full bg-emerald-400 transition-all duration-300" style="width: 100%"></div>
+                </div>
+                <div id="pillDormantText" class="text-[10px] font-mono text-slate-600 leading-none">💤 0 Dormant (0%)</div>
+              </div>
+              <div id="miniAnomalyIconBox" class="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-xs shrink-0">
+                ✅
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="clustersCollapsibleBody" class="drawer-wrapper">
+          <div class="drawer-inner">
+            <div class="p-5 border-t border-slate-200 bg-slate-50/30">
+              <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <!-- Col 1: Indeks Kesiapan Belajar -->
+            <div id="cardQuickReadiness" class="lg:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between transition-all duration-150">
+              <div class="flex items-start justify-between gap-2 mb-4">
+                <div class="flex items-center gap-2">
+                  <span>🎯</span>
+                  <h2 class="text-sm font-extrabold text-slate-900">Indeks Kesiapan Belajar</h2>
+                  <span class="px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-100 text-slate-600 border border-slate-200"
+                    data-tippy-content="Formula Bobot: 40% Comp Pilar I + 40% Comp Pilar II + 10% Pre-Test I + 10% Pre-Test II">
+                    Bobot 40:40:10:10
+                  </span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <button id="btnResetQuickReadiness" onclick="QuickFilterReadiness('ALL')" class="hidden px-2 py-0.5 rounded bg-rose-100 text-rose-700 hover:bg-rose-200 font-extrabold text-[10px] transition">
+                    ✕ Reset
+                  </button>
+                  <span id="avgReadinessBadge" class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 font-bold text-xs border border-amber-200">
+                    Rerata: 0.0 / 100
+                  </span>
+                </div>
+              </div>
+
+              <div class="space-y-2.5 my-auto">
+                <div id="qf_ready_Siap" onclick="QuickFilterReadiness('Siap')"
+                  data-tippy-content="Kategori Siap (Skor ≥ 75.0): Peserta memiliki penyelesaian modul mandiri dan nilai awal (Pre-Test) yang sangat memadai untuk mengikuti sesi evaluasi. Klik untuk memfilter."
+                  class="cursor-pointer flex items-center justify-between text-xs hover:bg-emerald-50/70 p-2.5 rounded-xl border border-transparent transition-all duration-150">
+                  <span class="font-bold text-emerald-700 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    <span>Siap (Skor ≥ 75)</span>
+                    <span id="badge_qf_ready_Siap" class="hidden px-2 py-0.5 rounded-full bg-emerald-600 text-white font-mono font-extrabold text-[9px] uppercase tracking-wider shadow-sm flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                      <span>FILTER AKTIF</span>
+                    </span>
+                  </span>
+                  <strong id="readySiapText" class="font-extrabold text-slate-900">0 Peserta (0%)</strong>
+                </div>
+
+                <div id="qf_ready_Cukup" onclick="QuickFilterReadiness('Cukup')"
+                  data-tippy-content="Kategori Cukup (Skor 50.0 s.d. 74.9): Peserta memiliki keterlibatan belajar moderat namun perlu menuntaskan sisa aktivitas materi mandiri. Klik untuk memfilter."
+                  class="cursor-pointer flex items-center justify-between text-xs hover:bg-amber-50/70 p-2.5 rounded-xl border border-transparent transition-all duration-150">
+                  <span class="font-bold text-amber-700 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                    <span>Cukup (Skor 50 - 74)</span>
+                    <span id="badge_qf_ready_Cukup" class="hidden px-2 py-0.5 rounded-full bg-amber-600 text-white font-mono font-extrabold text-[9px] uppercase tracking-wider shadow-sm flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                      <span>FILTER AKTIF</span>
+                    </span>
+                  </span>
+                  <strong id="readyCukupText" class="font-extrabold text-slate-900">0 Peserta (0%)</strong>
+                </div>
+
+                <div id="qf_ready_Pendampingan" onclick="QuickFilterReadiness('Butuh Pendampingan')"
+                  data-tippy-content="Kategori Butuh Pendampingan (Skor < 50.0): Progres belajar mandiri peserta masih rendah atau belum memulai aktivitas kursus di LMS. Klik untuk memfilter."
+                  class="cursor-pointer flex items-center justify-between text-xs hover:bg-rose-50/70 p-2.5 rounded-xl border border-transparent transition-all duration-150">
+                  <span class="font-bold text-rose-700 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                    <span>Butuh Pendampingan (&lt; 50)</span>
+                    <span id="badge_qf_ready_Pendampingan" class="hidden px-2 py-0.5 rounded-full bg-rose-600 text-white font-mono font-extrabold text-[9px] uppercase tracking-wider shadow-sm flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                      <span>FILTER AKTIF</span>
+                    </span>
+                  </span>
+                  <strong id="readyKurangText" class="font-extrabold text-slate-900">0 Peserta (0%)</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Col 2: Tipologi Persona Belajar (2x2 Grid) -->
+            <div id="cardQuickPersona" class="lg:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between transition-all duration-150">
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <div class="flex items-center gap-2">
+                  <span>🧭</span>
+                  <h2 class="text-sm font-extrabold text-slate-900">Tipologi Persona Belajar</h2>
+                  <span class="px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-100 text-slate-600 border border-slate-200">Klaster</span>
+                </div>
+                <button id="btnResetQuickPersona" onclick="QuickFilterPersona('ALL')" class="text-[11px] font-semibold text-slate-400 hover:text-amber-600 transition">
+                  Total Terpilih
+                </button>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2.5">
+                <button id="qf_persona_Pace" onclick="QuickFilterPersona('Pace-Setter')"
+                  data-tippy-content="Pace-Setter: Peserta berkinerja tinggi yang telah menuntaskan ≥ 75% aktivitas belajar di kedua pilar (Pilar I ≥ 75% dan Pilar II ≥ 75%). Klik untuk memfilter."
+                  class="p-3 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/70 text-left transition-all duration-150 relative">
+                  <div class="flex items-center justify-between gap-1">
+                    <span class="text-[11px] font-bold text-emerald-800">🚀 Pace-Setter</span>
+                    <span id="badge_qf_persona_Pace" class="hidden px-1.5 py-0.5 rounded-full bg-emerald-600 text-white font-mono font-extrabold text-[9px] uppercase shadow-sm flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                      <span>AKTIF</span>
+                    </span>
+                  </div>
+                  <div id="personaPaceCount" class="text-base font-extrabold text-emerald-950 mt-1">0 Peserta</div>
+                </button>
+
+                <button id="qf_persona_Progress" onclick="QuickFilterPersona('In Progress')"
+                  data-tippy-content="In Progress: Peserta dengan progres belajar aktif yang sedang berjalan menuju ketuntasan penuh di kedua pilar. Klik untuk memfilter."
+                  class="p-3 rounded-xl border border-blue-200 bg-blue-50/60 hover:bg-blue-100/70 text-left transition-all duration-150 relative">
+                  <div class="flex items-center justify-between gap-1">
+                    <span class="text-[11px] font-bold text-blue-800">⏳ In Progress</span>
+                    <span id="badge_qf_persona_Progress" class="hidden px-1.5 py-0.5 rounded-full bg-blue-600 text-white font-mono font-extrabold text-[9px] uppercase shadow-sm flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                      <span>AKTIF</span>
+                    </span>
+                  </div>
+                  <div id="personaProgressCount" class="text-base font-extrabold text-blue-950 mt-1">0 Peserta</div>
+                </button>
+
+                <button id="qf_persona_P1" onclick="QuickFilterPersona('Pilar-I Oriented')"
+                  data-tippy-content="Pilar-I Oriented: Peserta yang sudah mencapai progres ≥ 50% di Pilar I namun progres di Pilar II masih di bawah 25%. Klik untuk memfilter."
+                  class="p-3 rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-amber-100/70 text-left transition-all duration-150 relative">
+                  <div class="flex items-center justify-between gap-1">
+                    <span class="text-[11px] font-bold text-amber-800">⚖️ Pilar-I Oriented</span>
+                    <span id="badge_qf_persona_P1" class="hidden px-1.5 py-0.5 rounded-full bg-amber-600 text-white font-mono font-extrabold text-[9px] uppercase shadow-sm flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                      <span>AKTIF</span>
+                    </span>
+                  </div>
+                  <div id="personaP1Count" class="text-base font-extrabold text-amber-950 mt-1">0 Peserta</div>
+                </button>
+
+                <button id="qf_persona_Low" onclick="QuickFilterPersona('Low Engagement')"
+                  data-tippy-content="Low Engagement: Peserta yang sudah masuk/mengerjakan Pre-Test tetapi progres penyelesaian materi di kedua pilar masih di bawah 50%. Klik untuk memfilter."
+                  class="p-3 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100/70 text-left transition-all duration-150 relative">
+                  <div class="flex items-center justify-between gap-1">
+                    <span class="text-[11px] font-bold text-rose-800">⚠️ Low Engagement</span>
+                    <span id="badge_qf_persona_Low" class="hidden px-1.5 py-0.5 rounded-full bg-rose-600 text-white font-mono font-extrabold text-[9px] uppercase shadow-sm flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                      <span>AKTIF</span>
+                    </span>
+                  </div>
+                  <div id="personaLowCount" class="text-base font-extrabold text-rose-950 mt-1">0 Peserta</div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Col 3: Deteksi Anomali Teknis LMS (Dormant & Glitch Guard) -->
+            <div id="cardQuickAnomaly" class="lg:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between transition-all duration-150">
+              <div class="flex items-start justify-between gap-2 mb-3">
+                <div class="flex items-center gap-2">
+                  <span>🛠️</span>
+                  <h2 class="text-sm font-extrabold text-slate-900">Deteksi Anomali Teknis LMS</h2>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <button id="btnResetQuickAnomaly" onclick="QuickFilterPersona('ALL')" class="hidden px-2 py-0.5 rounded bg-rose-100 text-rose-700 hover:bg-rose-200 font-extrabold text-[10px] transition">
+                    ✕ Reset
+                  </button>
+                  <span class="px-2 py-0.5 text-[10px] font-bold rounded bg-rose-50 text-rose-700 border border-rose-200"
+                    data-tippy-content="Glitch Guard mendeteksi peserta dengan Completion ≥ 70% namun nilai Pre-Test tercatat 0 akibat kendala kirim jawaban.">
+                    Glitch Guard
+                  </span>
+                  <span id="glitchTopBadge" class="px-2 py-0.5 text-[10px] font-bold rounded bg-rose-50 text-rose-700 border border-rose-200">
+                    0 Terdeteksi
+                  </span>
+                </div>
+              </div>
+
+              <div class="space-y-2.5">
+                <div id="qf_persona_Dormant" onclick="QuickFilterPersona('Dormant')"
+                  data-tippy-content="Dormant: Peserta terdaftar yang belum memiliki jejak penyelesaian aktivitas (0%) dan belum mengerjakan Pre-Test di kedua pilar. Klik untuk memfilter."
+                  class="cursor-pointer p-3 rounded-xl border border-slate-200 bg-slate-50/80 hover:bg-slate-100 transition-all duration-150">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="text-xs text-slate-600">Dormant (Belum Ada Aktivitas):</div>
+                    <span id="badge_qf_persona_Dormant" class="hidden px-2 py-0.5 rounded-full bg-slate-900 text-amber-400 font-mono font-extrabold text-[9px] uppercase shadow-sm flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
+                      <span>FILTER AKTIF</span>
+                    </span>
+                  </div>
+                  <div id="personaDormantCount" class="text-sm font-extrabold text-slate-900 mt-0.5">0 Peserta</div>
+                </div>
+
+                <div id="qf_persona_Glitch" onclick="QuickFilterPersona('GLITCH')"
+                  data-tippy-content="Klik untuk menyaring peserta yang mengalami anomali nilai Pre-Test = 0 meskipun progres belajarnya ≥ 70%."
+                  class="cursor-pointer p-3 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100/60 transition-all duration-150">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="text-xs font-semibold text-rose-800">Potensi Kendala Teknis Kuis:</div>
+                    <span id="badge_qf_persona_Glitch" class="hidden px-2 py-0.5 rounded-full bg-rose-600 text-white font-mono font-extrabold text-[9px] uppercase shadow-sm flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                      <span>FILTER AKTIF</span>
+                    </span>
+                  </div>
+                  <div id="glitchStatusText" class="text-xs font-mono font-bold text-emerald-700 mt-0.5">
+                    ✅ Tidak ada anomali teknis kuis
+                  </div>
+                </div>
+              </div>
+            </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROW 4: 4 ANALYTICS CHARTS (DEFAULT COLLAPSED DENGAN TOMBOL EXPAND) -->
+      <section id="chartsSection" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div onclick="toggleChartsCollapse()" class="px-5 py-3.5 bg-slate-50/80 hover:bg-slate-100/80 cursor-pointer select-none transition space-y-3">
+          <!-- Baris 1: Judul di Kiri & Tombol Aksi Terkunci di Kanan -->
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5 min-w-0"
+              data-tippy-content="Rerata Nilai per Modul, Proporsi Kelulusan, Distribusi Rentang Nilai, dan Knowledge Gain (Hake Index).">
+              <span class="shrink-0">📈</span>
+              <div class="flex flex-wrap items-center gap-2 min-w-0">
+                <h3 class="text-sm font-extrabold text-slate-900 border-b border-dotted border-slate-400 truncate">Visualisasi Grafik Analitik &amp; Distribusi Nilai</h3>
+                <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-800 border border-amber-200 shrink-0">4 Grafik</span>
+              </div>
+            </div>
+
+            <button type="button" id="btnCollapseCharts" onclick="event.stopPropagation(); toggleChartsCollapse()"
+              class="px-3.5 py-1.5 rounded-xl bg-white hover:bg-amber-50 text-slate-800 hover:text-amber-900 font-bold text-xs border border-slate-300 shadow-sm transition flex items-center gap-1.5 shrink-0 no-print">
+              <span id="chevronCharts" class="drawer-chevron">▼</span>
+              <span id="lblCollapseCharts">Tampilkan Grafik</span>
             </button>
-
-            <button id="qf_persona_Progress" onclick="QuickFilterPersona('In Progress')"
-              data-tippy-content="In Progress: Peserta dengan progres belajar aktif yang sedang berjalan menuju ketuntasan penuh di kedua pilar. Klik untuk memfilter."
-              class="p-3 rounded-xl border border-blue-200 bg-blue-50/60 hover:bg-blue-100/70 text-left transition-all duration-150 relative">
-              <div class="flex items-center justify-between gap-1">
-                <span class="text-[11px] font-bold text-blue-800">⏳ In Progress</span>
-                <span id="badge_qf_persona_Progress" class="hidden px-1.5 py-0.5 rounded-full bg-blue-600 text-white font-mono font-extrabold text-[9px] uppercase shadow-sm flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-                  <span>AKTIF</span>
-                </span>
-              </div>
-              <div id="personaProgressCount" class="text-base font-extrabold text-blue-950 mt-1">0 Peserta</div>
-            </button>
-
-            <button id="qf_persona_P1" onclick="QuickFilterPersona('Pilar-I Oriented')"
-              data-tippy-content="Pilar-I Oriented: Peserta yang sudah mencapai progres ≥ 50% di Pilar I namun progres di Pilar II masih di bawah 25%. Klik untuk memfilter."
-              class="p-3 rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-amber-100/70 text-left transition-all duration-150 relative">
-              <div class="flex items-center justify-between gap-1">
-                <span class="text-[11px] font-bold text-amber-800">⚖️ Pilar-I Oriented</span>
-                <span id="badge_qf_persona_P1" class="hidden px-1.5 py-0.5 rounded-full bg-amber-600 text-white font-mono font-extrabold text-[9px] uppercase shadow-sm flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-                  <span>AKTIF</span>
-                </span>
-              </div>
-              <div id="personaP1Count" class="text-base font-extrabold text-amber-950 mt-1">0 Peserta</div>
-            </button>
-
-            <button id="qf_persona_Low" onclick="QuickFilterPersona('Low Engagement')"
-              data-tippy-content="Low Engagement: Peserta yang sudah masuk/mengerjakan Pre-Test tetapi progres penyelesaian materi di kedua pilar masih di bawah 50%. Klik untuk memfilter."
-              class="p-3 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100/70 text-left transition-all duration-150 relative">
-              <div class="flex items-center justify-between gap-1">
-                <span class="text-[11px] font-bold text-rose-800">⚠️ Low Engagement</span>
-                <span id="badge_qf_persona_Low" class="hidden px-1.5 py-0.5 rounded-full bg-rose-600 text-white font-mono font-extrabold text-[9px] uppercase shadow-sm flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-                  <span>AKTIF</span>
-                </span>
-              </div>
-              <div id="personaLowCount" class="text-base font-extrabold text-rose-950 mt-1">0 Peserta</div>
-            </button>
-          </div>
-        </div>
-
-        <!-- Col 3: Deteksi Anomali Teknis LMS (Dormant & Glitch Guard) -->
-        <div id="cardQuickAnomaly" class="lg:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between transition-all duration-150">
-          <div class="flex items-start justify-between gap-2 mb-3">
-            <div class="flex items-center gap-2">
-              <span>🛠️</span>
-              <h2 class="text-sm font-extrabold text-slate-900">Deteksi Anomali Teknis LMS</h2>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <button id="btnResetQuickAnomaly" onclick="QuickFilterPersona('ALL')" class="hidden px-2 py-0.5 rounded bg-rose-100 text-rose-700 hover:bg-rose-200 font-extrabold text-[10px] transition">
-                ✕ Reset
-              </button>
-              <span class="px-2 py-0.5 text-[10px] font-bold rounded bg-rose-50 text-rose-700 border border-rose-200"
-                data-tippy-content="Glitch Guard mendeteksi peserta dengan Completion ≥ 70% namun nilai Pre-Test tercatat 0 akibat kendala kirim jawaban.">
-                Glitch Guard
-              </span>
-              <span id="glitchTopBadge" class="px-2 py-0.5 text-[10px] font-bold rounded bg-rose-50 text-rose-700 border border-rose-200">
-                0 Terdeteksi
-              </span>
-            </div>
           </div>
 
-          <div class="space-y-2.5">
-            <div id="qf_persona_Dormant" onclick="QuickFilterPersona('Dormant')"
-              data-tippy-content="Dormant: Peserta terdaftar yang belum memiliki jejak penyelesaian aktivitas (0%) dan belum mengerjakan Pre-Test di kedua pilar. Klik untuk memfilter."
-              class="cursor-pointer p-3 rounded-xl border border-slate-200 bg-slate-50/80 hover:bg-slate-100 transition-all duration-150">
-              <div class="flex items-center justify-between gap-2">
-                <div class="text-xs text-slate-600">Dormant (Belum Ada Aktivitas):</div>
-                <span id="badge_qf_persona_Dormant" class="hidden px-2 py-0.5 rounded-full bg-slate-900 text-amber-400 font-mono font-extrabold text-[9px] uppercase shadow-sm flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
-                  <span>FILTER AKTIF</span>
-                </span>
+          <!-- Baris 2: UDL Micro-Visuals Preview dalam Grid 4 Kolom Simetris (Tampil hanya saat collapsed, otomatis hilang saat di-expand) -->
+          <div id="chartsQuickSummaryPills" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-0.5">
+            <!-- 1. Mini Sparkline Bar 8 Modul -->
+            <div class="px-3 py-2 rounded-xl bg-white border border-slate-200/90 shadow-sm flex items-center justify-between gap-2.5"
+              data-tippy-content="Pratinjau Grafik 1: Mini Bar Rerata Nilai per Modul Pelatihan (Hijau ≥ 80, Kuning < 80, Abu = Belum)">
+              <div class="min-w-0 flex-1">
+                <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 leading-none">1. Rerata Modul</div>
+                <div id="pillTopMod" class="text-xs font-mono font-extrabold text-slate-800 truncate mt-1.5 leading-none">-</div>
               </div>
-              <div id="personaDormantCount" class="text-sm font-extrabold text-slate-900 mt-0.5">0 Peserta</div>
+              <div id="miniSparkModul" class="flex items-end gap-[2.5px] h-7 pt-1 px-1.5 bg-slate-50 rounded border border-slate-100 shrink-0"></div>
             </div>
 
-            <div id="qf_persona_Glitch" onclick="QuickFilterPersona('GLITCH')"
-              data-tippy-content="Klik untuk menyaring peserta yang mengalami anomali nilai Pre-Test = 0 meskipun progres belajarnya ≥ 70%."
-              class="cursor-pointer p-3 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100/60 transition-all duration-150">
-              <div class="flex items-center justify-between gap-2">
-                <div class="text-xs font-semibold text-rose-800">Potensi Kendala Teknis Kuis:</div>
-                <span id="badge_qf_persona_Glitch" class="hidden px-2 py-0.5 rounded-full bg-rose-600 text-white font-mono font-extrabold text-[9px] uppercase shadow-sm flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-                  <span>FILTER AKTIF</span>
-                </span>
+            <!-- 2. Mini Stacked Bar Proporsi Status -->
+            <div class="px-3 py-2 rounded-xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-center"
+              data-tippy-content="Pratinjau Grafik 2: Proporsi Kelulusan (Hijau: Lulus KKM, Merah: Remedial, Abu: Belum Mengerjakan)">
+              <div class="flex items-center justify-between gap-2 text-[10px] font-extrabold uppercase tracking-wider leading-none">
+                <span class="text-slate-500">2. Kelulusan</span>
+                <span id="pillStatusRatio" class="font-mono text-emerald-700">0%</span>
               </div>
-              <div id="glitchStatusText" class="text-xs font-mono font-bold text-emerald-700 mt-0.5">
-                ✅ Tidak ada anomali teknis kuis
+              <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex border border-slate-200/60 my-1.5">
+                <div id="miniBarLulus" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
+                <div id="miniBarRem" class="h-full bg-rose-500 transition-all duration-300" style="width: 0%"></div>
+                <div id="miniBarBelum" class="h-full bg-slate-200 transition-all duration-300" style="width: 100%"></div>
+              </div>
+              <div id="miniStatusSub" class="text-[10px] font-mono text-slate-500 leading-none">0L • 0R • 0B</div>
+            </div>
+
+            <!-- 3. Mini Leveling Histogram 4 Kategori -->
+            <div class="px-3 py-2 rounded-xl bg-white border border-slate-200/90 shadow-sm flex items-center justify-between gap-2.5"
+              data-tippy-content="Pratinjau Grafik 3: Distribusi Rentang Nilai (<60, 60-79, 80-89, dan Mastery 90-100)">
+              <div class="min-w-0 flex-1">
+                <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 leading-none">3. Level Nilai</div>
+                <div id="pillMasteryCount" class="text-xs font-mono font-extrabold text-blue-700 truncate mt-1.5 leading-none">0 Mastery</div>
+              </div>
+              <div id="miniHistDist" class="flex items-end gap-1 h-7 pt-1 px-1.5 bg-slate-50 rounded border border-slate-100 shrink-0"></div>
+            </div>
+
+            <!-- 4. Mini Speedometer / Gauge SVG Hake Gain -->
+            <div class="px-3 py-2 rounded-xl bg-white border border-slate-200/90 shadow-sm flex items-center justify-between gap-2.5"
+              data-tippy-content="Pratinjau Grafik 4: Speedometer Efektivitas Pembelajaran (Normalized Hake's Gain ⟨g⟩ & Perbandingan Awal → Uji)">
+              <div class="min-w-0 flex-1">
+                <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 leading-none">4. Gain ⟨g⟩</div>
+                <div id="pillHakeMini" class="text-xs font-mono font-extrabold text-amber-900 truncate mt-1.5 leading-none">-</div>
+              </div>
+              <div class="relative w-11 h-7 flex items-end justify-center shrink-0">
+                <svg viewBox="0 0 36 20" class="w-11 h-7 overflow-visible">
+                  <path d="M 3 17 A 15 15 0 0 1 33 17" fill="none" stroke="#e2e8f0" stroke-width="4.5" stroke-linecap="round" />
+                  <path id="miniGaugeArc" d="M 3 17 A 15 15 0 0 1 33 17" fill="none" stroke="#f59e0b" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="47.12" stroke-dashoffset="47.12" class="transition-all duration-500" />
+                </svg>
+                <span id="miniGaugeVal" class="absolute -bottom-0.5 text-[9px] font-mono font-extrabold text-slate-800 bg-white/90 px-0.5 rounded leading-none">-</span>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- ROW 4: 4 ANALYTICS CHARTS -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        <!-- Chart 1: Rerata Nilai Uji Kompetensi / Post-Test per Modul -->
-        <div class="lg:col-span-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div class="flex items-center gap-2 mb-0.5">
-            <h3 id="lblChartModulTitle" class="text-sm font-extrabold text-slate-900">Rerata Nilai Uji Kompetensi per Modul</h3>
-            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-200">Target 80</span>
-          </div>
-          <p class="text-xs text-slate-500 mb-4">Evaluasi penguasaan materi peserta pada 8 modul pelatihan (+ Essay per Pilar).</p>
-          <div class="h-64">
-            <canvas id="chartModul"></canvas>
-          </div>
-        </div>
-
-        <!-- Chart 2: Proporsi Kelulusan Uji Kompetensi / Post-Test -->
-        <div class="lg:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div class="flex items-center gap-2 mb-0.5">
-            <h3 id="lblChartStatusTitle" class="text-sm font-extrabold text-slate-900">Proporsi Kelulusan Uji Kompetensi</h3>
-            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-600 border border-slate-200">Distribusi</span>
-          </div>
-          <p class="text-xs text-slate-500 mb-4">Rasio Lulus vs Remedial vs Belum Mengambil.</p>
-          <div class="h-64 flex items-center justify-center">
-            <canvas id="chartStatus"></canvas>
-          </div>
-        </div>
-
-        <!-- Chart 3: Distribusi Rentang Nilai Uji Kompetensi / Post-Test -->
-        <div class="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div class="flex items-center gap-2 mb-0.5">
-            <h3 id="lblChartDistTitle" class="text-sm font-extrabold text-slate-900">Distribusi Rentang Nilai Uji Kompetensi</h3>
-            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-200">Leveling</span>
-          </div>
-          <p class="text-xs text-slate-500 mb-4">Memetakan tingkat kesiapan kognitif peserta.</p>
-          <div class="h-60">
-            <canvas id="chartDistribusi"></canvas>
-          </div>
-        </div>
-
-        <!-- Chart 4: Knowledge Gain & Efektivitas Pelatihan -->
-        <div class="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div class="flex items-center justify-between gap-2 mb-0.5">
-            <div class="flex items-center gap-2">
-              <h3 class="text-sm font-extrabold text-slate-900">Knowledge Gain &amp; Efektivitas Pelatihan</h3>
-              <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"
-                data-tippy-content="Normalized Hake's Gain ⟨g⟩ = (Post - Pre) / (100 - Pre). Kategori: Tinggi (≥ 0.70), Sedang (0.30 - 0.69), Rendah (< 0.30).">
-                Gain Index
-              </span>
+        <div id="chartsCollapsibleBody" class="drawer-wrapper">
+          <div class="drawer-inner">
+            <div class="p-5 border-t border-slate-200 bg-slate-50/30">
+              <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <!-- Chart 1: Rerata Nilai Uji Kompetensi / Post-Test per Modul -->
+            <div class="lg:col-span-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+              <div class="flex items-center gap-2 mb-0.5">
+                <h3 id="lblChartModulTitle" class="text-sm font-extrabold text-slate-900">Rerata Nilai Uji Kompetensi per Modul</h3>
+                <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-200">Target 80</span>
+              </div>
+              <p class="text-xs text-slate-500 mb-4">Evaluasi penguasaan materi peserta pada 8 modul pelatihan (+ Essay per Pilar).</p>
+              <div class="h-64">
+                <canvas id="chartModul"></canvas>
+              </div>
             </div>
-            <span id="chartHakeBadge"
-              data-tippy-content="Rata-rata Normalized Hake's Gain dari peserta yang telah menyelesaikan Asesmen Awal (Pre-Test) dan Uji Kompetensi (Post-Test)."
-              class="px-2.5 py-1 rounded bg-slate-100 text-slate-800 font-mono font-bold text-xs border border-slate-200">
-              Hake Gain: -
-            </span>
-          </div>
-          <p id="lblChartGainSub" class="text-xs text-slate-500 mb-4">Perbandingan peningkatan skor antara Asesmen Awal dan Uji Kompetensi per Pilar.</p>
-          <div class="h-60">
-            <canvas id="chartGain"></canvas>
+
+            <!-- Chart 2: Proporsi Kelulusan Uji Kompetensi / Post-Test -->
+            <div class="lg:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+              <div class="flex items-center gap-2 mb-0.5">
+                <h3 id="lblChartStatusTitle" class="text-sm font-extrabold text-slate-900">Proporsi Kelulusan Uji Kompetensi</h3>
+                <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-600 border border-slate-200">Distribusi</span>
+              </div>
+              <p class="text-xs text-slate-500 mb-4">Rasio Lulus vs Remedial vs Belum Mengambil.</p>
+              <div class="h-64 flex items-center justify-center">
+                <canvas id="chartStatus"></canvas>
+              </div>
+            </div>
+
+            <!-- Chart 3: Distribusi Rentang Nilai Uji Kompetensi / Post-Test -->
+            <div class="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+              <div class="flex items-center gap-2 mb-0.5">
+                <h3 id="lblChartDistTitle" class="text-sm font-extrabold text-slate-900">Distribusi Rentang Nilai Uji Kompetensi</h3>
+                <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-200">Leveling</span>
+              </div>
+              <p class="text-xs text-slate-500 mb-4">Memetakan tingkat kesiapan kognitif peserta.</p>
+              <div class="h-60">
+                <canvas id="chartDistribusi"></canvas>
+              </div>
+            </div>
+
+            <!-- Chart 4: Knowledge Gain & Efektivitas Pelatihan -->
+            <div class="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+              <div class="flex items-center justify-between gap-2 mb-0.5">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-extrabold text-slate-900">Knowledge Gain &amp; Efektivitas Pelatihan</h3>
+                  <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    data-tippy-content="Normalized Hake's Gain ⟨g⟩ = (Post - Pre) / (100 - Pre). Kategori: Tinggi (≥ 0.70), Sedang (0.30 - 0.69), Rendah (< 0.30).">
+                    Gain Index
+                  </span>
+                </div>
+                <span id="chartHakeBadge"
+                  data-tippy-content="Rata-rata Normalized Hake's Gain dari peserta yang telah menyelesaikan Asesmen Awal (Pre-Test) dan Uji Kompetensi (Post-Test)."
+                  class="px-2.5 py-1 rounded bg-slate-100 text-slate-800 font-mono font-bold text-xs border border-slate-200">
+                  Hake Gain: -
+                </span>
+              </div>
+              <p id="lblChartGainSub" class="text-xs text-slate-500 mb-4">Perbandingan peningkatan skor antara Asesmen Awal dan Uji Kompetensi per Pilar.</p>
+              <div class="h-60">
+                <canvas id="chartGain"></canvas>
+              </div>
+            </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
       <!-- =================================================================
            MATRIKS EVALUASI BELAJAR & KESIAPAN PESERTA
            ================================================================= -->
       <section id="matrixSection" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <!-- Header & Action Buttons (termasuk Tombol Ungkap Angka Nilai) -->
-        <div class="p-5 border-b border-slate-200 space-y-3">
-          <div>
-            <h3 class="text-base font-extrabold text-slate-900">Matriks Evaluasi Belajar &amp; Kesiapan Peserta</h3>
-            <p class="text-xs text-slate-500 mt-0.5">
-              Klik nama peserta untuk membuka rapor performa individual. Drag garis pembatas kolom untuk me-resize, klik ganda untuk reset auto-sizing.
-            </p>
+        <div class="p-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2"
+            data-tippy-content="Klik nama peserta untuk membuka rapor performa individual. Geser garis pembatas kolom untuk me-resize, klik ganda untuk reset auto-sizing.">
+            <h3 class="text-base font-extrabold text-slate-900 border-b border-dotted border-slate-400 cursor-help">Matriks Evaluasi Belajar &amp; Kesiapan Peserta</h3>
           </div>
 
           <div class="flex flex-wrap items-center gap-2 no-print">
@@ -971,13 +1221,15 @@
               <span>📑</span><span>Unduh XLSX (Detail)</span>
             </button>
             <button id="btnCollapseMatrix" onclick="toggleMatrixCollapse()"
-              class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 transition">
-              ▲ Tutup Tabel
+              class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 transition flex items-center gap-1.5">
+              <span id="chevronMatrix" class="drawer-chevron chevron-open">▼</span>
+              <span id="lblCollapseMatrix">Tutup Tabel</span>
             </button>
           </div>
         </div>
 
-        <div id="matrixCollapsibleBody">
+        <div id="matrixCollapsibleBody" class="drawer-wrapper drawer-open">
+          <div class="drawer-inner">
           <!-- Search Bar & Participant Count Row (dengan indikator aktif) -->
           <div class="px-5 py-3 bg-white flex flex-wrap items-center justify-between gap-3 no-print">
             <div class="w-full sm:w-80 relative">
@@ -993,68 +1245,71 @@
           </div>
 
           <!-- Table Container -->
-          <div id="matrixTableScrollContainer" class="px-5 pb-5 overflow-x-auto max-h-[680px] overflow-y-auto">
-            <table class="grid-table text-xs rounded-lg overflow-hidden">
-              <thead class="sticky top-0 z-20 bg-slate-100 text-slate-600 select-none">
-                <tr class="font-extrabold text-[11px] uppercase tracking-wider">
-                  <th onclick="sortMatrixBy('no')" class="sortable-th p-2.5 text-center w-12">NO.<span id="sort_mat_no"></span></th>
-                  <th id="thPesertaCol" onclick="sortMatrixBy('nama_peserta')" class="sortable-th p-2.5 text-left relative min-w-[200px]" style="width: 240px;">
-                    <span>PESERTA</span><span id="sort_mat_nama_peserta"></span>
-                    <div id="resizerPesertaCol" onclick="event.stopPropagation()" class="col-resizer" title="Geser untuk mengubah lebar kolom, klik ganda untuk auto-fit"></div>
-                  </th>
-                  <th onclick="sortMatrixBy('batch')" class="sortable-th p-2.5 text-center w-20">BATCH<span id="sort_mat_batch"></span></th>
-                  <th onclick="sortMatrixBy('persona')" class="sortable-th p-2.5 text-center w-36"
-                    data-tippy-content="Klaster perilaku belajar peserta berdasarkan progres penyelesaian materi dan pengerjaan Asesmen Awal / Pre-Test">
-                    PERSONA<span id="sort_mat_persona"></span>
-                  </th>
-                  <th onclick="sortMatrixBy('readiness_score')" class="sortable-th p-2.5 text-center w-28"
-                    data-tippy-content="Indeks Kesiapan Belajar (0-100): 40% Comp-I + 40% Comp-II + 10% Awal-I + 10% Awal-II">
-                    KESIAPAN<span id="sort_mat_readiness_score"></span>
-                  </th>
-                  <th onclick="sortMatrixBy('progress_p1')" class="sortable-th p-2.5 text-center w-20"
-                    data-tippy-content="Persentase penyelesaian aktivitas belajar mandiri pada Kursus Pilar I">
-                    COMP-I<span id="sort_mat_progress_p1"></span>
-                  </th>
-                  <th onclick="sortMatrixBy('progress_p2')" class="sortable-th p-2.5 text-center w-20"
-                    data-tippy-content="Persentase penyelesaian aktivitas belajar mandiri pada Kursus Pilar II">
-                    COMP-II<span id="sort_mat_progress_p2"></span>
-                  </th>
-                  <th id="thPreP1" onclick="sortMatrixBy('pre_p1')" class="sortable-th p-2.5 text-center w-16 bg-amber-50/90 text-amber-900"
-                    data-tippy-content="Nilai Asesmen Awal (Pre-Test) Pilar I">
-                    <span id="lblThPreP1">AWAL-I</span><span id="sort_mat_pre_p1"></span>
-                  </th>
-                  <th onclick="sortMatrixBy('PK')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Perencanaan dan Kinerja (Pilar I)">PK<span id="sort_mat_PK"></span></th>
-                  <th onclick="sortMatrixBy('SDMPT')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Manajemen SDM dan Pengembangan Talenta (Pilar I)">SDMPT<span id="sort_mat_SDMPT"></span></th>
-                  <th onclick="sortMatrixBy('PBJ')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Manajemen Pengadaan Barang dan Jasa (Pilar I)">PBJ<span id="sort_mat_PBJ"></span></th>
-                  <th onclick="sortMatrixBy('KA')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Manajemen Keuangan dan Akuntansi (Pilar I)">KA<span id="sort_mat_KA"></span></th>
-                  <th id="thEssayP1" onclick="sortMatrixBy('essay_p1')" class="sortable-th p-2.5 text-center w-20 bg-purple-50/90 text-purple-900"
-                    data-tippy-content="Nilai Uji Kompetensi Essay Pilar I (Section 5 - Batch 2 & Batch 3)">
-                    <span>ESSAY-I</span><span id="sort_mat_essay_p1"></span>
-                  </th>
-                  <th id="thPreP2" onclick="sortMatrixBy('pre_p2')" class="sortable-th p-2.5 text-center w-16 bg-amber-50/90 text-amber-900"
-                    data-tippy-content="Nilai Asesmen Awal (Pre-Test) Pilar II">
-                    <span id="lblThPreP2">AWAL-II</span><span id="sort_mat_pre_p2"></span>
-                  </th>
-                  <th onclick="sortMatrixBy('AI')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Audit Internal (Pilar II)">AI<span id="sort_mat_AI"></span></th>
-                  <th onclick="sortMatrixBy('PMA')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Penjaminan Mutu Akademik (Pilar II)">PMA<span id="sort_mat_PMA"></span></th>
-                  <th onclick="sortMatrixBy('HK')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Hukum dan Kearsipan (Pilar II)">HK<span id="sort_mat_HK"></span></th>
-                  <th onclick="sortMatrixBy('MRT')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Manajemen Risiko, Transformasi Budaya, dan Tata Kelola (Pilar II)">MRT<span id="sort_mat_MRT"></span></th>
-                  <th id="thEssayP2" onclick="sortMatrixBy('essay_p2')" class="sortable-th p-2.5 text-center w-20 bg-purple-50/90 text-purple-900"
-                    data-tippy-content="Nilai Uji Kompetensi Essay Pilar II (Section 5 - Batch 2 & Batch 3)">
-                    <span>ESSAY-II</span><span id="sort_mat_essay_p2"></span>
-                  </th>
-                  <th onclick="sortMatrixBy('final_status')" class="sortable-th p-2.5 text-center w-32"
-                    data-tippy-content="Status ketuntasan evaluasi akhir peserta pada 8 modul">
-                    STATUS AKHIR<span id="sort_mat_final_status"></span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody id="participantMatrixBody" class="selectable divide-y divide-slate-200">
-                <tr>
-                  <td colspan="20" class="p-8 text-center text-slate-400">Memuat data matriks peserta...</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="px-5 pb-5">
+            <div id="matrixTableScrollContainer" class="overflow-x-auto max-h-[680px] overflow-y-auto rounded-lg border border-slate-300 shadow-inner">
+              <table class="sticky-matrix-table text-xs">
+                <thead class="bg-slate-100 text-slate-600 select-none">
+                  <tr class="font-extrabold text-[11px] uppercase tracking-wider">
+                    <th onclick="sortMatrixBy('no')" class="sortable-th p-2.5 text-center w-12">NO.<span id="sort_mat_no"></span></th>
+                    <th id="thPesertaCol" onclick="sortMatrixBy('nama_peserta')" class="sortable-th p-2.5 text-left min-w-[200px]" style="width: 240px;">
+                      <span>PESERTA</span><span id="sort_mat_nama_peserta"></span>
+                      <div id="resizerPesertaCol" onclick="event.stopPropagation()" class="col-resizer" title="Geser untuk mengubah lebar kolom, klik ganda untuk auto-fit"></div>
+                    </th>
+                    <th onclick="sortMatrixBy('batch')" class="sortable-th p-2.5 text-center w-20">BATCH<span id="sort_mat_batch"></span></th>
+                    <th onclick="sortMatrixBy('persona')" class="sortable-th p-2.5 text-center w-36"
+                      data-tippy-content="Klaster perilaku belajar peserta berdasarkan progres penyelesaian materi dan pengerjaan Asesmen Awal / Pre-Test">
+                      PERSONA<span id="sort_mat_persona"></span>
+                    </th>
+                    <th onclick="sortMatrixBy('readiness_score')" class="sortable-th p-2.5 text-center w-28"
+                      data-tippy-content="Indeks Kesiapan Belajar (0-100): 40% Comp-I + 40% Comp-II + 10% Awal-I + 10% Awal-II">
+                      KESIAPAN<span id="sort_mat_readiness_score"></span>
+                    </th>
+                    <th onclick="sortMatrixBy('progress_p1')" class="sortable-th p-2.5 text-center w-20"
+                      data-tippy-content="Persentase penyelesaian aktivitas belajar mandiri pada Kursus Pilar I">
+                      COMP-I<span id="sort_mat_progress_p1"></span>
+                    </th>
+                    <th onclick="sortMatrixBy('progress_p2')" class="sortable-th p-2.5 text-center w-20"
+                      data-tippy-content="Persentase penyelesaian aktivitas belajar mandiri pada Kursus Pilar II">
+                      COMP-II<span id="sort_mat_progress_p2"></span>
+                    </th>
+                    <th id="thPreP1" onclick="sortMatrixBy('pre_p1')" class="sortable-th th-amber-sticky p-2.5 text-center w-16 text-amber-900"
+                      data-tippy-content="Nilai Asesmen Awal (Pre-Test) Pilar I">
+                      <span id="lblThPreP1">AWAL-I</span><span id="sort_mat_pre_p1"></span>
+                    </th>
+                    <th onclick="sortMatrixBy('PK')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Perencanaan dan Kinerja (Pilar I)">PK<span id="sort_mat_PK"></span></th>
+                    <th onclick="sortMatrixBy('SDMPT')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Manajemen SDM dan Pengembangan Talenta (Pilar I)">SDMPT<span id="sort_mat_SDMPT"></span></th>
+                    <th onclick="sortMatrixBy('PBJ')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Manajemen Pengadaan Barang dan Jasa (Pilar I)">PBJ<span id="sort_mat_PBJ"></span></th>
+                    <th onclick="sortMatrixBy('KA')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Manajemen Keuangan dan Akuntansi (Pilar I)">KA<span id="sort_mat_KA"></span></th>
+                    <th id="thEssayP1" onclick="sortMatrixBy('essay_p1')" class="sortable-th th-purple-sticky p-2.5 text-center w-20 text-purple-900"
+                      data-tippy-content="Nilai Soal Essay Pilar I (Section 5 - Batch 2 & Batch 3)">
+                      <span>ESSAY-I</span><span id="sort_mat_essay_p1"></span>
+                    </th>
+                    <th id="thPreP2" onclick="sortMatrixBy('pre_p2')" class="sortable-th th-amber-sticky p-2.5 text-center w-16 text-amber-900"
+                      data-tippy-content="Nilai Asesmen Awal (Pre-Test) Pilar II">
+                      <span id="lblThPreP2">AWAL-II</span><span id="sort_mat_pre_p2"></span>
+                    </th>
+                    <th onclick="sortMatrixBy('AI')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Audit Internal (Pilar II)">AI<span id="sort_mat_AI"></span></th>
+                    <th onclick="sortMatrixBy('PMA')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Penjaminan Mutu Akademik (Pilar II)">PMA<span id="sort_mat_PMA"></span></th>
+                    <th onclick="sortMatrixBy('HK')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Hukum dan Kearsipan (Pilar II)">HK<span id="sort_mat_HK"></span></th>
+                    <th onclick="sortMatrixBy('MRT')" class="sortable-th p-2.5 text-center w-16" data-tippy-content="Manajemen Risiko, Transformasi Budaya, dan Tata Kelola (Pilar II)">MRT<span id="sort_mat_MRT"></span></th>
+                    <th id="thEssayP2" onclick="sortMatrixBy('essay_p2')" class="sortable-th th-purple-sticky p-2.5 text-center w-20 text-purple-900"
+                      data-tippy-content="Nilai Soal Essay Pilar II (Section 5 - Batch 2 & Batch 3)">
+                      <span>ESSAY-II</span><span id="sort_mat_essay_p2"></span>
+                    </th>
+                    <th onclick="sortMatrixBy('final_status')" class="sortable-th p-2.5 text-center w-32"
+                      data-tippy-content="Status ketuntasan evaluasi akhir peserta pada 8 modul">
+                      STATUS AKHIR<span id="sort_mat_final_status"></span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody id="participantMatrixBody" class="selectable divide-y divide-slate-200">
+                  <tr>
+                    <td colspan="20" class="p-8 text-center text-slate-400">Memuat data matriks peserta...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
           </div>
         </div>
       </section>
@@ -1168,7 +1423,7 @@
               </div>
               <div>
                 <div class="text-[11px] font-mono font-bold uppercase tracking-widest text-amber-700">
-                  UNIVERSITAS INDONESIA • LEADERSHIP LEARNING ANALYTICS
+                  UNIVERSITAS INDONESIA • UI ALEX 2026
                 </div>
                 <h2 id="awardTitleText" class="text-2xl font-serif font-extrabold text-slate-900 tracking-wide mt-0.5">
                   Nilai Rata-Rata Post-Test Tertinggi (8 Modul)
@@ -1187,7 +1442,7 @@
           <div id="awardStageBody" class="my-auto py-4"></div>
 
           <div class="border-t border-slate-200 pt-3 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-            <span>Program Pelatihan Kepemimpinan Universitas Indonesia (Course ID: 99544 &amp; 99545)</span>
+            <span>UI ALEX 2026 • Universitas Indonesia (Course ID: 99544 &amp; 99545)</span>
             <span id="awardCriteriaFooter" class="font-semibold text-slate-700"></span>
           </div>
         </div>
@@ -1199,7 +1454,7 @@
           <div class="space-y-2">
             <div class="text-xs font-mono uppercase tracking-widest text-amber-800 font-bold">UNIVERSITAS INDONESIA</div>
             <h1 class="text-4xl font-serif font-extrabold text-slate-900 tracking-wider">PIAGAM PENGHARGAAN</h1>
-            <p class="text-sm text-slate-600">Program Pelatihan Kepemimpinan Universitas Indonesia (UI ALEX 2026)</p>
+            <p class="text-sm text-slate-600">UI ALEX 2026 — Universitas Indonesia</p>
           </div>
           <div class="space-y-3 my-auto">
             <p class="text-sm text-slate-600 italic">Diberikan dengan bangga kepada:</p>
@@ -1252,7 +1507,7 @@
 
         <div class="flex flex-wrap items-center gap-2">
           <button onclick="copyPimtiTableText()"
-            data-tippy-content="Salin tabel rekapitulasi dan catatan narasi ke format poin WhatsApp / Plaintext"
+            data-tippy-content="Salin tabel rekapitulasi ke format poin WhatsApp / Plaintext"
             class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
             <span>📋</span><span id="btnCopyPimtiText">Salin Tabel (WA)</span>
           </button>
@@ -1279,13 +1534,13 @@
             </div>
             <div>
               <div class="text-[10px] font-mono font-extrabold uppercase tracking-widest text-amber-700">
-                UNIVERSITAS INDONESIA • EXECUTIVE LEADERSHIP BRIEFING (PIMTI)
+                UNIVERSITAS INDONESIA • EXECUTIVE BRIEFING (PIMTI)
               </div>
               <h2 id="pimtiMainHeading" class="text-lg md:text-xl font-extrabold text-slate-900 mt-0.5">
-                Rekapitulasi Capaian Evaluasi Akhir (Uji Kompetensi / Post-Test) Pelatihan Kepemimpinan
+                Rekapitulasi Capaian Evaluasi Akhir (Uji Kompetensi / Post-Test) UI ALEX 2026
               </h2>
               <p id="pimtiHeaderSub" class="text-xs text-slate-500 mt-0.5">
-                Agregasi populasi utuh per angkatan pada 8 Modul Pelatihan &amp; Essay (Satuan Peserta / Orang • Bebas Kontaminasi Asesmen Awal)
+                Agregasi populasi utuh per angkatan pada 8 Modul &amp; Essay (Satuan Peserta / Orang • Bebas Kontaminasi Asesmen Awal)
               </p>
             </div>
           </div>
@@ -1323,21 +1578,6 @@
               </tr>
             </tbody>
           </table>
-        </div>
-
-        <!-- Catatan Narasi Eksekutif Otomatis (updateExecutiveNote) -->
-        <div class="rounded-xl border border-amber-200 bg-amber-50/50 p-4 space-y-1.5 selectable">
-          <div class="flex items-center justify-between">
-            <div class="text-xs font-extrabold uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
-              <span>📝</span><span>Catatan Narasi Eksekutif Otomatis</span>
-            </div>
-            <span class="text-[10px] font-mono font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
-              Sumber: Live Pipeline LMS (169, 171)
-            </span>
-          </div>
-          <p id="pimtiExecutiveNote" class="text-xs text-slate-800 leading-relaxed font-medium">
-            Menunggu data evaluasi...
-          </p>
         </div>
       </div>
     </section>
@@ -1378,7 +1618,7 @@
           <div class="border-b-2 border-slate-900 pb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <div class="text-[10px] font-mono font-bold uppercase tracking-widest text-amber-600">
-                UNIVERSITAS INDONESIA • INDIVIDUAL LEADERSHIP DOSSIER
+                UNIVERSITAS INDONESIA • INDIVIDUAL PERFORMANCE DOSSIER
               </div>
               <h2 id="dossierName" class="text-xl font-extrabold text-slate-900">-</h2>
               <p id="dossierMeta" class="text-xs font-mono text-slate-500">-</p>
@@ -1540,7 +1780,7 @@
        ===================================================================== -->
   <footer class="max-w-[1600px] mx-auto px-4 py-6 border-t border-slate-200 text-xs text-slate-500 flex flex-wrap items-center justify-between gap-2 selectable">
     <div>
-      <strong>UI ALEX 2026 — Leadership Learning Analytics (Edisi Lengkap Terpadu v3)</strong> •
+      <strong>UI ALEX 2026 — Learning Analytics (Edisi Lengkap Terpadu v3)</strong> •
       Moodle LMS EMAS3 Universitas Indonesia (<code class="font-mono">Course ID: 99544 &amp; 99545</code>)
     </div>
     <div>
@@ -1677,6 +1917,8 @@
     let currentLoggedUser = '';
     let searchDebounceTimer = null;
     let isMatrixCollapsed = false;
+    let isClustersCollapsed = true;
+    let isChartsCollapsed = true;
     let currentKkm = 80.0;
     let lastPimtiSummaryRows = [];
     let lastTrackedUrl = window.location.href;
@@ -1691,12 +1933,12 @@
       SDMPT:    { code: 'SDMPT',    keyword: 'SDM',             name: 'Manajemen SDM dan Pengembangan Talenta (SDMPT)',                         pilar: 'Pilar 1' },
       PBJ:      { code: 'PBJ',      keyword: 'Pengadaan',       name: 'Manajemen Pengadaan Barang dan Jasa (PBJ)',                              pilar: 'Pilar 1' },
       KA:       { code: 'KA',       keyword: 'Keuangan',        name: 'Manajemen Keuangan dan Akuntansi (KA)',                                  pilar: 'Pilar 1' },
-      ESSAY_P1: { code: 'ESSAY_P1', keyword: 'Essay Pilar I',   name: 'Uji Kompetensi Essay Pilar I',                                           pilar: 'Pilar 1' },
+      ESSAY_P1: { code: 'ESSAY_P1', keyword: 'Essay Pilar I',   name: 'Soal Essay Pilar I',                                                     pilar: 'Pilar 1' },
       AI:       { code: 'AI',       keyword: 'Audit',           name: 'Audit Internal (AI)',                                                    pilar: 'Pilar 2' },
       PMA:      { code: 'PMA',      keyword: 'Penjaminan Mutu', name: 'Penjaminan Mutu Akademik (PMA)',                                         pilar: 'Pilar 2' },
       HK:       { code: 'HK',       keyword: 'Hukum',           name: 'Hukum dan Kearsipan (HK)',                                               pilar: 'Pilar 2' },
       MRT:      { code: 'MRT',      keyword: 'Risiko',          name: 'Manajemen Risiko, Transformasi Budaya, dan Tata Kelola (MRT)',           pilar: 'Pilar 2' },
-      ESSAY_P2: { code: 'ESSAY_P2', keyword: 'Essay Pilar II',  name: 'Uji Kompetensi Essay Pilar II',                                          pilar: 'Pilar 2' }
+      ESSAY_P2: { code: 'ESSAY_P2', keyword: 'Essay Pilar II',  name: 'Soal Essay Pilar II',                                                    pilar: 'Pilar 2' }
     };
 
     /**
@@ -2122,6 +2364,8 @@
             pre_p2: null,
             pre_p1_attempt: 0,
             pre_p2_attempt: 0,
+            pre_p1_inprogress: false,
+            pre_p2_inprogress: false,
             essay_p1: null,
             essay_p2: null,
             essay_p1_attempt: 0,
@@ -2155,15 +2399,36 @@
         const status = String(row.status_kelulusan || '');
         const attempt = Number(row.jumlah_attempt ?? 0);
         const nilai = Number(row.nilai ?? 0);
-        const hasAttempted = status !== 'Belum Mengerjakan' && (attempt > 0 || nilai > 0);
+        const wMulai = String(row.waktu_mulai_kuis || '-').trim();
+        const wSubmit = String(row.waktu_submit || '-').trim();
+        const isQuizInProgress = status === 'In-Progress' || (wMulai !== '-' && wMulai !== '' && (wSubmit === '-' || wSubmit === '') && attempt === 0 && nilai === 0);
+        const hasAttempted = status !== 'Belum Mengerjakan' && status !== 'In-Progress' && (attempt > 0 || nilai > 0);
 
         if (tipe === 'Pre-test') {
           if (isP1) {
             u.pre_p1_attempt = Math.max(u.pre_p1_attempt, attempt);
-            if (hasAttempted) u.pre_p1 = u.pre_p1 === null ? nilai : Math.max(u.pre_p1, nilai);
+            if (hasAttempted) {
+              u.pre_p1 = u.pre_p1 === null ? nilai : Math.max(u.pre_p1, nilai);
+              u.pre_p1_inprogress = false;
+              const subPre = row.waktu_submit;
+              if (subPre && subPre !== '-' && (!u.first_pre_submit || subPre < u.first_pre_submit)) {
+                u.first_pre_submit = subPre;
+              }
+            } else if (isQuizInProgress && u.pre_p1 === null) {
+              u.pre_p1_inprogress = true;
+            }
           } else if (isP2) {
             u.pre_p2_attempt = Math.max(u.pre_p2_attempt, attempt);
-            if (hasAttempted) u.pre_p2 = u.pre_p2 === null ? nilai : Math.max(u.pre_p2, nilai);
+            if (hasAttempted) {
+              u.pre_p2 = u.pre_p2 === null ? nilai : Math.max(u.pre_p2, nilai);
+              u.pre_p2_inprogress = false;
+              const subPre = row.waktu_submit;
+              if (subPre && subPre !== '-' && (!u.first_pre_submit || subPre < u.first_pre_submit)) {
+                u.first_pre_submit = subPre;
+              }
+            } else if (isQuizInProgress && u.pre_p2 === null) {
+              u.pre_p2_inprogress = true;
+            }
           }
         } else if (isEssay) {
           const eCode = isP1 ? 'ESSAY_P1' : 'ESSAY_P2';
@@ -2264,6 +2529,8 @@
         const p2Scores = p2Keys.map(k => u.modules[k]).filter(v => v !== null);
         const allScores = MODULE_KEYS.map(k => u.modules[k]).filter(v => v !== null);
 
+        u.p1_attempted_post = p1Scores.length;
+        u.p2_attempted_post = p2Scores.length;
         u.p1_post_avg = p1Scores.length ? Number((p1Scores.reduce((a, b) => a + b, 0) / p1Scores.length).toFixed(1)) : 0;
         u.p2_post_avg = p2Scores.length ? Number((p2Scores.reduce((a, b) => a + b, 0) / p2Scores.length).toFixed(1)) : 0;
         u.post_total_avg = allScores.length ? Number((allScores.reduce((a, b) => a + b, 0) / allScores.length).toFixed(1)) : 0;
@@ -2613,24 +2880,47 @@
       const p1Done = filteredProfilesList.filter(u => u.pre_p1 !== null);
       const p2Done = filteredProfilesList.filter(u => u.pre_p2 !== null);
 
+      // Peserta yang sedang In-Progress pada Pilar I / II (sedang membuka kuis Asesmen Awal atau sudah memiliki aktivitas di pilar tersebut namun belum submit Asesmen Awal)
+      const p1InProg = filteredProfilesList.filter(u => u.pre_p1 === null && (u.pre_p1_inprogress || u.progress_p1 > 0 || u.pre_p2 !== null));
+      const p2InProg = filteredProfilesList.filter(u => u.pre_p2 === null && (u.pre_p2_inprogress || u.progress_p2 > 0 || u.pre_p1 !== null));
+
+      const p1Belum = Math.max(0, total - p1Done.length - p1InProg.length);
+      const p2Belum = Math.max(0, total - p2Done.length - p2InProg.length);
+
       const p1Pct = total ? ((p1Done.length / total) * 100).toFixed(1) : '0.0';
       const p2Pct = total ? ((p2Done.length / total) * 100).toFixed(1) : '0.0';
+
+      const p1InProgPct = total ? ((p1InProg.length / total) * 100).toFixed(1) : '0.0';
+      const p2InProgPct = total ? ((p2InProg.length / total) * 100).toFixed(1) : '0.0';
 
       const p1Avg = p1Done.length ? (p1Done.reduce((s, u) => s + u.pre_p1, 0) / p1Done.length).toFixed(1) : '-';
       const p2Avg = p2Done.length ? (p2Done.reduce((s, u) => s + u.pre_p2, 0) / p2Done.length).toFixed(1) : '-';
 
       document.getElementById('preP1CountText').textContent = `${p1Done.length} / ${total} (${p1Pct}%)`;
       document.getElementById('preP1Bar').style.width = `${Math.min(100, Number(p1Pct))}%`;
-      document.getElementById('preP1DetailText').textContent = `Selesai: ${p1Done.length} | Belum: ${total - p1Done.length}`;
+      const p1InBar = document.getElementById('preP1InProgBar');
+      if (p1InBar) p1InBar.style.width = `${Math.max(0, Math.min(100 - Number(p1Pct), Number(p1InProgPct)))}%`;
+      document.getElementById('preP1DetailText').innerHTML = `Selesai: <strong class="text-slate-700">${p1Done.length}</strong> | <span class="text-amber-700 font-semibold">In-Progress: ${p1InProg.length}</span> | Belum: ${p1Belum}`;
       document.getElementById('preP1AvgText').textContent = p1Avg;
 
       document.getElementById('preP2CountText').textContent = `${p2Done.length} / ${total} (${p2Pct}%)`;
       document.getElementById('preP2Bar').style.width = `${Math.min(100, Number(p2Pct))}%`;
-      document.getElementById('preP2DetailText').textContent = `Selesai: ${p2Done.length} | Belum: ${total - p2Done.length}`;
+      const p2InBar = document.getElementById('preP2InProgBar');
+      if (p2InBar) p2InBar.style.width = `${Math.max(0, Math.min(100 - Number(p2Pct), Number(p2InProgPct)))}%`;
+      document.getElementById('preP2DetailText').innerHTML = `Selesai: <strong class="text-slate-700">${p2Done.length}</strong> | <span class="text-sky-700 font-semibold">In-Progress: ${p2InProg.length}</span> | Belum: ${p2Belum}`;
       document.getElementById('preP2AvgText').textContent = p2Avg;
 
       const bothDone = filteredProfilesList.filter(u => u.pre_p1 !== null && u.pre_p2 !== null).length;
+      const overallInProgress = filteredProfilesList.filter(u =>
+        !(u.pre_p1 !== null && u.pre_p2 !== null) &&
+        (u.pre_p1 !== null || u.pre_p2 !== null || u.pre_p1_inprogress || u.pre_p2_inprogress || u.progress_p1 > 0 || u.progress_p2 > 0)
+      ).length;
+
       document.getElementById('preOverallBadge').textContent = `${bothDone} / ${total} Selesai Lengkap`;
+      const inProgBadge = document.getElementById('preOverallInProgressBadge');
+      if (inProgBadge) {
+        inProgBadge.textContent = `⏳ ${overallInProgress} In-Progress`;
+      }
     }
 
     function renderReadinessAndPersonasOverview() {
@@ -2671,6 +2961,81 @@
       } else {
         gText.className = 'text-xs font-mono font-bold text-emerald-700 mt-0.5';
         gText.textContent = '✅ Tidak ada anomali teknis kuis';
+      }
+
+      // =====================================================================
+      // Update 3 UDL Micro-Visuals pada Header Baris Klaster (Saat Collapsed)
+      // =====================================================================
+      // 1. Mini Speedometer & Stacked Bar Kesiapan Belajar
+      const sPct = total ? ((siap / total) * 100).toFixed(1) : 0;
+      const cPct = total ? ((cukup / total) * 100).toFixed(1) : 0;
+      const kPct = total ? Math.max(0, 100 - Number(sPct) - Number(cPct)).toFixed(1) : 100;
+
+      const barRS = document.getElementById('miniBarReadySiap');
+      const barRC = document.getElementById('miniBarReadyCukup');
+      const barRK = document.getElementById('miniBarReadyKurang');
+      if (barRS) barRS.style.width = `${sPct}%`;
+      if (barRC) barRC.style.width = `${cPct}%`;
+      if (barRK) barRK.style.width = `${kPct}%`;
+
+      const pillReadySub = document.getElementById('pillReadySub');
+      if (pillReadySub) pillReadySub.textContent = `${siap} Siap (${pct(siap)}%)`;
+      const pillReadyRatio = document.getElementById('pillReadyRatio');
+      if (pillReadyRatio) pillReadyRatio.textContent = `${siap}S • ${cukup}C • ${kurang}P`;
+
+      const readyArc = document.getElementById('miniReadyGaugeArc');
+      const readyVal = document.getElementById('miniReadyGaugeVal');
+      if (readyArc && readyVal) {
+        const arcLen = 47.12;
+        const rNum = Math.max(0, Math.min(100, parseFloat(avgReady) || 0));
+        const ratio = rNum / 100;
+        const strokeColor = rNum >= 75 ? '#10b981' : (rNum >= 50 ? '#f59e0b' : '#f43f5e');
+        readyArc.style.strokeDashoffset = String((arcLen * (1 - ratio)).toFixed(2));
+        readyArc.setAttribute('stroke', strokeColor);
+        readyVal.textContent = avgReady;
+      }
+
+      // 2. Mini Stacked Bar 4 Klaster Persona Aktif
+      const activeTotal = Math.max(1, pace + prog + p1or + low);
+      const barPPace = document.getElementById('miniBarPersPace');
+      const barPProg = document.getElementById('miniBarPersProg');
+      const barPP1 = document.getElementById('miniBarPersP1');
+      const barPLow = document.getElementById('miniBarPersLow');
+      if (barPPace) barPPace.style.width = `${((pace / activeTotal) * 100).toFixed(1)}%`;
+      if (barPProg) barPProg.style.width = `${((prog / activeTotal) * 100).toFixed(1)}%`;
+      if (barPP1) barPP1.style.width = `${((p1or / activeTotal) * 100).toFixed(1)}%`;
+      if (barPLow) barPLow.style.width = `${((low / activeTotal) * 100).toFixed(1)}%`;
+
+      const pillPersonaTop = document.getElementById('pillPersonaTop');
+      if (pillPersonaTop) pillPersonaTop.textContent = `${pace}🚀 Pace`;
+      const pillPersonaSub = document.getElementById('pillPersonaSub');
+      if (pillPersonaSub) pillPersonaSub.textContent = `${pace}🚀 • ${prog}⏳ • ${p1or}⚖️ • ${low}⚠️`;
+
+      // 3. Mini Bar Dormant & Indikator Glitch Guard
+      const dormPct = total ? ((dorm / total) * 100).toFixed(1) : 0;
+      const actPct = total ? Math.max(0, 100 - Number(dormPct)).toFixed(1) : 100;
+      const barDorm = document.getElementById('miniBarDormant');
+      const barAct = document.getElementById('miniBarActiveUsers');
+      if (barDorm) barDorm.style.width = `${dormPct}%`;
+      if (barAct) barAct.style.width = `${actPct}%`;
+
+      const pillDormText = document.getElementById('pillDormantText');
+      if (pillDormText) pillDormText.textContent = `💤 ${dorm} Dormant (${pct(dorm)}%)`;
+
+      const pillGlitchBadge = document.getElementById('pillGlitchBadge');
+      const iconBox = document.getElementById('miniAnomalyIconBox');
+      if (pillGlitchBadge && iconBox) {
+        if (glitch > 0) {
+          pillGlitchBadge.textContent = `⚠️ ${glitch} Glitch`;
+          pillGlitchBadge.className = 'font-mono text-rose-700 font-extrabold';
+          iconBox.className = 'w-7 h-7 rounded-lg bg-rose-100 border border-rose-300 flex items-center justify-center text-xs shrink-0 animate-pulse';
+          iconBox.textContent = '⚠️';
+        } else {
+          pillGlitchBadge.textContent = '0 Glitch';
+          pillGlitchBadge.className = 'font-mono text-emerald-700';
+          iconBox.className = 'w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-xs shrink-0';
+          iconBox.textContent = '✅';
+        }
       }
     }
 
@@ -2828,6 +3193,109 @@
       const gList = filteredProfilesList.map(u => u.hake_gain).filter(v => v !== null);
       const avgG = gList.length ? (gList.reduce((a, b) => a + b, 0) / gList.length).toFixed(2) : '-';
       document.getElementById('chartHakeBadge').textContent = `Hake Gain: ${avgG}`;
+
+      // =====================================================================
+      // Update 4 UDL Micro-Visuals pada Header Baris Grafik (Saat Collapsed)
+      // =====================================================================
+      // 1. Mini Sparkline Bar Modul
+      const pillTopModEl = document.getElementById('pillTopMod');
+      const sparkEl = document.getElementById('miniSparkModul');
+      const activeMods = chartKeys.map((k, idx) => ({ k, v: modAvgs[idx] })).filter(m => m.v > 0);
+      if (pillTopModEl) {
+        if (activeMods.length > 0) {
+          const sortedM = [...activeMods].sort((a, b) => b.v - a.v);
+          pillTopModEl.textContent = `${sortedM[0].k}: ${sortedM[0].v.toFixed(1)}`;
+        } else {
+          pillTopModEl.textContent = 'Belum Mulai';
+        }
+      }
+      if (sparkEl) {
+        sparkEl.innerHTML = MODULE_KEYS.map(k => {
+          const idx = chartKeys.indexOf(k);
+          const val = idx >= 0 ? modAvgs[idx] : 0;
+          const hPct = val > 0 ? Math.max(20, Math.round(val)) : 15;
+          const barColor = val >= 80 ? 'bg-emerald-500' : (val > 0 ? 'bg-amber-500' : 'bg-slate-300');
+          return `<div class="w-1.5 rounded-t ${barColor} transition-all duration-300" style="height:${hPct}%" title="${k}: ${val > 0 ? val.toFixed(1) : 'Belum'}"></div>`;
+        }).join('');
+      }
+
+      // 2. Mini Stacked Bar Proporsi Status
+      const totalSlots = lulus + rem + belum;
+      const lPctBar = totalSlots ? ((lulus / totalSlots) * 100).toFixed(1) : 0;
+      const rPctBar = totalSlots ? ((rem / totalSlots) * 100).toFixed(1) : 0;
+      const bPctBar = totalSlots ? Math.max(0, 100 - Number(lPctBar) - Number(rPctBar)).toFixed(1) : 100;
+      const doneSlots = lulus + rem;
+      const passRateMini = doneSlots ? Math.round((lulus / doneSlots) * 100) : 0;
+
+      const barL = document.getElementById('miniBarLulus');
+      const barR = document.getElementById('miniBarRem');
+      const barB = document.getElementById('miniBarBelum');
+      if (barL) barL.style.width = `${lPctBar}%`;
+      if (barR) barR.style.width = `${rPctBar}%`;
+      if (barB) barB.style.width = `${bPctBar}%`;
+
+      const pillStatusEl = document.getElementById('pillStatusRatio');
+      if (pillStatusEl) pillStatusEl.textContent = doneSlots > 0 ? `${passRateMini}% Lulus` : '0 Sesi';
+      const miniStatusSubEl = document.getElementById('miniStatusSub');
+      if (miniStatusSubEl) miniStatusSubEl.textContent = `${lulus}L • ${rem}R • ${belum}B`;
+
+      // 3. Mini Histogram 4 Rentang Nilai
+      const pillMasteryEl = document.getElementById('pillMasteryCount');
+      if (pillMasteryEl) {
+        pillMasteryEl.textContent = `${r4} Mastery`;
+      }
+      const histEl = document.getElementById('miniHistDist');
+      if (histEl) {
+        const buckets = [
+          { label: '<60', val: r1, cls: 'bg-rose-500' },
+          { label: '60-79', val: r2, cls: 'bg-amber-500' },
+          { label: '80-89', val: r3, cls: 'bg-blue-500' },
+          { label: '90-100', val: r4, cls: 'bg-emerald-500' }
+        ];
+        const maxB = Math.max(1, r1, r2, r3, r4);
+        histEl.innerHTML = buckets.map(b => {
+          const h = b.val > 0 ? Math.max(22, Math.round((b.val / maxB) * 100)) : 15;
+          const c = b.val > 0 ? b.cls : 'bg-slate-300';
+          return `<div class="w-2 rounded-t ${c} transition-all duration-300" style="height:${h}%" title="${b.label}: ${b.val} sesi"></div>`;
+        }).join('');
+      }
+
+      // 4. Mini Speedometer / Gauge SVG Hake Gain & Skor Awal -> Uji
+      const pillHakeEl = document.getElementById('pillHakeMini');
+      const gaugeArc = document.getElementById('miniGaugeArc');
+      const gaugeVal = document.getElementById('miniGaugeVal');
+      const allPreAvg = avg([...p1PreList, ...p2PreList]);
+      const allPostAvg = avg([...p1PostList, ...p2PostList]);
+
+      if (pillHakeEl) {
+        if (allPostAvg > 0) {
+          pillHakeEl.textContent = `${allPreAvg} → ${allPostAvg}`;
+        } else if (allPreAvg > 0) {
+          pillHakeEl.textContent = `Awal: ${allPreAvg}`;
+        } else {
+          pillHakeEl.textContent = 'Belum Ada';
+        }
+      }
+
+      if (gaugeArc && gaugeVal) {
+        const arcLen = 47.12;
+        let ratio = 0;
+        let strokeColor = '#94a3b8';
+        if (avgG !== '-') {
+          const gNum = Math.max(0, Math.min(1, parseFloat(avgG)));
+          ratio = gNum;
+          strokeColor = gNum >= 0.7 ? '#10b981' : (gNum >= 0.3 ? '#f59e0b' : '#f43f5e');
+          gaugeVal.textContent = avgG;
+        } else if (allPreAvg > 0) {
+          ratio = Math.max(0, Math.min(1, allPreAvg / 100));
+          strokeColor = '#3b82f6';
+          gaugeVal.textContent = `${Math.round(allPreAvg)}`;
+        } else {
+          gaugeVal.textContent = '-';
+        }
+        gaugeArc.style.strokeDashoffset = String((arcLen * (1 - ratio)).toFixed(2));
+        gaugeArc.setAttribute('stroke', strokeColor);
+      }
 
       if (chartInstances.gain) chartInstances.gain.destroy();
       const ctxGain = document.getElementById('chartGain')?.getContext('2d');
@@ -3015,13 +3483,63 @@
     function toggleMatrixCollapse() {
       isMatrixCollapsed = !isMatrixCollapsed;
       const body = document.getElementById('matrixCollapsibleBody');
-      const btn = document.getElementById('btnCollapseMatrix');
+      const lbl = document.getElementById('lblCollapseMatrix');
+      const chev = document.getElementById('chevronMatrix');
+      if (!body) return;
       if (isMatrixCollapsed) {
-        body.classList.add('hidden');
-        btn.textContent = '▼ Buka Tabel';
+        body.classList.remove('drawer-open');
+        if (lbl) lbl.textContent = 'Buka Tabel';
+        if (chev) chev.classList.remove('chevron-open');
       } else {
-        body.classList.remove('hidden');
-        btn.textContent = '▲ Tutup Tabel';
+        body.classList.add('drawer-open');
+        if (lbl) lbl.textContent = 'Tutup Tabel';
+        if (chev) chev.classList.add('chevron-open');
+      }
+    }
+
+    function toggleClustersCollapse() {
+      isClustersCollapsed = !isClustersCollapsed;
+      const body = document.getElementById('clustersCollapsibleBody');
+      const lbl = document.getElementById('lblCollapseClusters');
+      const chev = document.getElementById('chevronClusters');
+      const quickPreview = document.getElementById('clustersQuickSummaryPills');
+      if (!body) return;
+      if (isClustersCollapsed) {
+        body.classList.remove('drawer-open');
+        if (lbl) lbl.textContent = 'Tampilkan Klaster';
+        if (chev) chev.classList.remove('chevron-open');
+        if (quickPreview) quickPreview.className = 'grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-0.5 pills-fade opacity-100';
+      } else {
+        body.classList.add('drawer-open');
+        if (lbl) lbl.textContent = 'Sembunyikan Klaster';
+        if (chev) chev.classList.add('chevron-open');
+        if (quickPreview) quickPreview.className = 'hidden';
+      }
+    }
+
+    function toggleChartsCollapse() {
+      isChartsCollapsed = !isChartsCollapsed;
+      const body = document.getElementById('chartsCollapsibleBody');
+      const lbl = document.getElementById('lblCollapseCharts');
+      const chev = document.getElementById('chevronCharts');
+      const quickPreview = document.getElementById('chartsQuickSummaryPills');
+      if (!body) return;
+      if (isChartsCollapsed) {
+        body.classList.remove('drawer-open');
+        if (lbl) lbl.textContent = 'Tampilkan Grafik';
+        if (chev) chev.classList.remove('chevron-open');
+        if (quickPreview) quickPreview.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-0.5 pills-fade opacity-100';
+      } else {
+        body.classList.add('drawer-open');
+        if (lbl) lbl.textContent = 'Sembunyikan Grafik';
+        if (chev) chev.classList.add('chevron-open');
+        if (quickPreview) quickPreview.className = 'hidden';
+        renderCharts();
+        setTimeout(() => {
+          Object.values(chartInstances).forEach(ch => {
+            if (ch && typeof ch.resize === 'function') ch.resize();
+          });
+        }, 230);
       }
     }
 
@@ -3258,21 +3776,27 @@
         id: 'grand_luminary',
         title: 'Nilai Rata-Rata Uji Kompetensi / Post-Test Tertinggi (8 Modul)',
         subtitle: 'Peserta dengan capaian nilai evaluasi akhir (Uji Kompetensi / Post-Test) tertinggi lintas 8 modul pelatihan',
-        criteria: 'Kriteria: Rerata Uji Kompetensi / Post-Test Tertinggi (Tie-breaker: Indeks Kesiapan)',
-        metricFn: u => `${(u.post_total_avg || u.pre_avg || 0).toFixed(1)} Poin`,
-        sortFn: (a, b) => ((b.post_total_avg || b.pre_avg || 0) - (a.post_total_avg || a.pre_avg || 0)) || (b.readiness_score - a.readiness_score)
+        criteria: 'Kriteria: Rerata Uji Kompetensi / Post-Test Tertinggi (Wajib sudah mengerjakan Uji Kompetensi)',
+        filterFn: u => u.attempted_post > 0,
+        emptyMsg: 'Belum ada peserta pada kelompok/filter ini yang mengerjakan Uji Kompetensi / Post-Test.',
+        metricFn: u => `${u.post_total_avg.toFixed(1)} Poin (${u.attempted_post}/8 Modul)`,
+        sortFn: (a, b) => (b.post_total_avg - a.post_total_avg) || (b.attempted_post - a.attempted_post) || (b.readiness_score - a.readiness_score)
       },
       {
         id: 'prime_mover',
         title: 'Penyelesaian Asesmen Awal / Pre-Test Tercepat',
-        subtitle: 'Peserta yang paling awal menyelesaikan dan mengirimkan (submit) asesmen di LMS EMAS3',
-        criteria: 'Kriteria: Waktu Submit Kuis Paling Awal',
-        metricFn: u => u.first_submit || 'Belum Submit',
+        subtitle: 'Peserta yang paling awal menyelesaikan dan mengirimkan (submit) Asesmen Awal / Pre-Test di LMS EMAS3',
+        criteria: 'Kriteria: Waktu Submit Asesmen Awal (Pre-Test) Paling Awal',
+        filterFn: u => Boolean(u.first_pre_submit || (u.pre_avg !== null && u.first_submit)),
+        emptyMsg: 'Belum ada data waktu penyelesaian Asesmen Awal / Pre-Test pada kelompok ini.',
+        metricFn: u => u.first_pre_submit || u.first_submit || '-',
         sortFn: (a, b) => {
-          if (!a.first_submit && !b.first_submit) return b.readiness_score - a.readiness_score;
-          if (!a.first_submit) return 1;
-          if (!b.first_submit) return -1;
-          return a.first_submit.localeCompare(b.first_submit) || (b.readiness_score - a.readiness_score);
+          const sa = a.first_pre_submit || a.first_submit;
+          const sb = b.first_pre_submit || b.first_submit;
+          if (!sa && !sb) return b.readiness_score - a.readiness_score;
+          if (!sa) return 1;
+          if (!sb) return -1;
+          return sa.localeCompare(sb) || ((b.pre_avg || 0) - (a.pre_avg || 0));
         }
       },
       {
@@ -3280,6 +3804,8 @@
         title: 'Indeks Kesiapan Belajar Tertinggi',
         subtitle: 'Peserta dengan skor kesiapan belajar terbaik (gabungan progres materi mandiri & nilai Asesmen Awal / Pre-Test)',
         criteria: 'Kriteria: Indeks Kesiapan Belajar Tertinggi (Bobot 40:40:10:10)',
+        filterFn: u => u.readiness_score > 0,
+        emptyMsg: 'Belum ada peserta dengan progres kesiapan belajar pada kelompok ini.',
         metricFn: u => `Kesiapan: ${u.readiness_score.toFixed(1)}`,
         sortFn: (a, b) => (b.readiness_score - a.readiness_score) || (b.comp_total - a.comp_total)
       },
@@ -3288,6 +3814,8 @@
         title: 'Progres Penyelesaian Materi (Completion) Tertinggi',
         subtitle: 'Peserta dengan persentase ketuntasan aktivitas belajar mandiri tertinggi di Pilar I & Pilar II',
         criteria: 'Kriteria: Rerata Course Completion Tertinggi',
+        filterFn: u => u.comp_total > 0,
+        emptyMsg: 'Belum ada peserta dengan progres penyelesaian materi mandiri pada kelompok ini.',
         metricFn: u => `Completion: ${u.comp_total.toFixed(1)}%`,
         sortFn: (a, b) => (b.comp_total - a.comp_total) || (b.readiness_score - a.readiness_score)
       },
@@ -3296,61 +3824,65 @@
         title: 'Nilai Rata-Rata Asesmen Awal / Pre-Test Tertinggi',
         subtitle: 'Peserta dengan penguasaan pengetahuan awal terbaik sebelum mengikuti materi pelatihan',
         criteria: 'Kriteria: Rerata Nilai Asesmen Awal (Pre-Test) Pilar I & II Tertinggi',
+        filterFn: u => u.pre_avg !== null && u.pre_avg > 0,
+        emptyMsg: 'Belum ada peserta yang menyelesaikan Asesmen Awal / Pre-Test pada kelompok ini.',
         metricFn: u => `Skor Awal: ${(u.pre_avg || 0).toFixed(1)}`,
         sortFn: (a, b) => ((b.pre_avg || 0) - (a.pre_avg || 0)) || (b.readiness_score - a.readiness_score)
       },
       {
         id: 'strategic_master',
-        title: 'Capaian Terbaik Pilar I (Manajemen & Operasional)',
-        subtitle: 'Peserta dengan nilai rata-rata dan progres tertinggi pada 4 modul Pilar I (PK, SDMPT, PBJ, KA)',
-        criteria: 'Kriteria: Skor Capaian Pilar I Tertinggi',
-        metricFn: u => `Pilar I: ${(u.p1_post_avg || (0.4 * (u.pre_p1 || 0) + 0.6 * u.progress_p1)).toFixed(1)}`,
-        sortFn: (a, b) => {
-          const sa = a.p1_post_avg || (0.4 * (a.pre_p1 || 0) + 0.6 * a.progress_p1);
-          const sb = b.p1_post_avg || (0.4 * (b.pre_p1 || 0) + 0.6 * b.progress_p1);
-          return (sb - sa) || (b.progress_p1 - a.progress_p1);
-        }
+        title: 'Capaian Uji Kompetensi Terbaik Pilar I (Manajemen & Operasional)',
+        subtitle: 'Peserta dengan nilai rata-rata Uji Kompetensi / Post-Test tertinggi pada 4 modul Pilar I (PK, SDMPT, PBJ, KA)',
+        criteria: 'Kriteria: Rerata Uji Kompetensi Pilar I Tertinggi (Wajib sudah mengerjakan modul Pilar I)',
+        filterFn: u => u.p1_attempted_post > 0,
+        emptyMsg: 'Uji Kompetensi Pilar I (PK, SDMPT, PBJ, KA) belum dilaksanakan pada kelompok ini.',
+        metricFn: u => `Pilar I: ${u.p1_post_avg.toFixed(1)} (${u.p1_attempted_post}/4 Modul)`,
+        sortFn: (a, b) => (b.p1_post_avg - a.p1_post_avg) || (b.p1_attempted_post - a.p1_attempted_post) || (b.progress_p1 - a.progress_p1)
       },
       {
         id: 'governance_vanguard',
-        title: 'Capaian Terbaik Pilar II (Governance & Kepatuhan)',
-        subtitle: 'Peserta dengan nilai rata-rata dan progres tertinggi pada 4 modul Pilar II (AI, PMA, HK, MRT)',
-        criteria: 'Kriteria: Skor Capaian Pilar II Tertinggi',
-        metricFn: u => `Pilar II: ${(u.p2_post_avg || (0.4 * (u.pre_p2 || 0) + 0.6 * u.progress_p2)).toFixed(1)}`,
-        sortFn: (a, b) => {
-          const sa = a.p2_post_avg || (0.4 * (a.pre_p2 || 0) + 0.6 * a.progress_p2);
-          const sb = b.p2_post_avg || (0.4 * (b.pre_p2 || 0) + 0.6 * b.progress_p2);
-          return (sb - sa) || (b.progress_p2 - a.progress_p2);
-        }
+        title: 'Capaian Uji Kompetensi Terbaik Pilar II (Governance & Kepatuhan)',
+        subtitle: 'Peserta dengan nilai rata-rata Uji Kompetensi / Post-Test tertinggi pada 4 modul Pilar II (AI, PMA, HK, MRT)',
+        criteria: 'Kriteria: Rerata Uji Kompetensi Pilar II Tertinggi (Wajib sudah mengerjakan modul Pilar II)',
+        filterFn: u => u.p2_attempted_post > 0,
+        emptyMsg: 'Uji Kompetensi Pilar II (AI, PMA, HK, MRT) belum dilaksanakan pada kelompok ini.',
+        metricFn: u => `Pilar II: ${u.p2_post_avg.toFixed(1)} (${u.p2_attempted_post}/4 Modul)`,
+        sortFn: (a, b) => (b.p2_post_avg - a.p2_post_avg) || (b.p2_attempted_post - a.p2_attempted_post) || (b.progress_p2 - a.progress_p2)
       },
       {
         id: 'quantum_leap',
         title: 'Peningkatan Nilai (Knowledge Gain) Tertinggi',
         subtitle: 'Peserta dengan lonjakan peningkatan pemahaman terbaik dari Asesmen Awal ke Uji Kompetensi / Post-Test',
-        criteria: 'Kriteria: Indeks Normalized Hake Gain ⟨g⟩ Tertinggi',
+        criteria: 'Kriteria: Indeks Normalized Hake Gain ⟨g⟩ Tertinggi (Wajib memiliki nilai Awal & Uji Kompetensi)',
+        filterFn: u => u.attempted_post > 0 && u.hake_gain !== null,
+        emptyMsg: 'Perhitungan Knowledge Gain membutuhkan nilai Uji Kompetensi / Post-Test (belum dilaksanakan).',
         metricFn: u => `Gain ⟨g⟩: ${(u.hake_gain ?? 0).toFixed(2)}`,
-        sortFn: (a, b) => ((b.hake_gain ?? -1) - (a.hake_gain ?? -1)) || (b.readiness_score - a.readiness_score)
+        sortFn: (a, b) => ((b.hake_gain ?? -1) - (a.hake_gain ?? -1)) || (b.post_total_avg - a.post_total_avg)
       },
       {
         id: 'flawless_mastery',
         title: 'Kelulusan Sempurna 8 Modul Tanpa Remedial',
-        subtitle: 'Peserta dengan jumlah kelulusan modul (≥ KKM 80) terbanyak disertai rata-rata nilai tertinggi',
-        criteria: 'Kriteria: Jumlah Modul Lulus KKM Terbanyak & Skor Tertinggi',
+        subtitle: 'Peserta dengan jumlah kelulusan modul Uji Kompetensi (≥ KKM 80) terbanyak disertai rata-rata nilai tertinggi',
+        criteria: 'Kriteria: Jumlah Modul Uji Kompetensi Lulus KKM Terbanyak & Skor Tertinggi',
+        filterFn: u => u.passed_post > 0,
+        emptyMsg: 'Belum ada peserta yang menyelesaikan dan lulus Uji Kompetensi modul pada kelompok ini.',
         metricFn: u => `${u.passed_post}/8 Lulus (${u.post_total_avg.toFixed(1)})`,
         sortFn: (a, b) => (b.passed_post - a.passed_post) || (b.post_total_avg - a.post_total_avg) || (b.comp_total - a.comp_total)
       },
       {
         id: 'agile_leader',
-        title: 'Performa Belajar Terpadu Terbaik (Nilai & Progres)',
-        subtitle: 'Peserta dengan keseimbangan tertinggi antara penyelesaian materi mandiri, nilai ujian, dan kesiapan',
-        criteria: 'Kriteria: Skor Gabungan (35% Completion + 35% Nilai + 30% Kesiapan)',
+        title: 'Performa Belajar Terpadu Terbaik (Nilai Uji Kompetensi & Progres)',
+        subtitle: 'Peserta dengan keseimbangan tertinggi antara penyelesaian materi mandiri, nilai Uji Kompetensi, dan kesiapan',
+        criteria: 'Kriteria: Skor Gabungan (35% Completion + 35% Uji Kompetensi + 30% Kesiapan)',
+        filterFn: u => u.attempted_post > 0,
+        emptyMsg: 'Kategori Performa Terpadu membutuhkan nilai Uji Kompetensi / Post-Test (belum dilaksanakan).',
         metricFn: u => {
-          const pts = 0.35 * u.comp_total + 0.35 * (u.post_total_avg || u.pre_avg || 0) + 0.30 * u.readiness_score;
-          return `Skor: ${pts.toFixed(1)}`;
+          const pts = 0.35 * u.comp_total + 0.35 * u.post_total_avg + 0.30 * u.readiness_score;
+          return `Skor Terpadu: ${pts.toFixed(1)}`;
         },
         sortFn: (a, b) => {
-          const pa = 0.35 * a.comp_total + 0.35 * (a.post_total_avg || a.pre_avg || 0) + 0.30 * a.readiness_score;
-          const pb = 0.35 * b.comp_total + 0.35 * (b.post_total_avg || b.pre_avg || 0) + 0.30 * b.readiness_score;
+          const pa = 0.35 * a.comp_total + 0.35 * a.post_total_avg + 0.30 * a.readiness_score;
+          const pb = 0.35 * b.comp_total + 0.35 * b.post_total_avg + 0.30 * b.readiness_score;
           return pb - pa;
         }
       }
@@ -3399,12 +3931,18 @@
       document.getElementById('awardBatchBadge').textContent = fBatch === 'ALL' ? 'Semua Batch' : fBatch;
 
       const limit = awardDisplayMode === 'top3' ? 3 : 5;
-      const ranked = [...filteredProfilesList].sort(cat.sortFn).slice(0, limit);
+      const eligibleList = cat.filterFn ? filteredProfilesList.filter(cat.filterFn) : [...filteredProfilesList];
+      const ranked = eligibleList.sort(cat.sortFn).slice(0, limit);
       const stage = document.getElementById('awardStageBody');
       if (!stage) return;
 
       if (ranked.length === 0) {
-        stage.innerHTML = `<div class="text-center text-slate-400 py-12 font-semibold">Belum ada data peserta untuk kategori ini.</div>`;
+        stage.innerHTML = `
+          <div class="text-center py-10 px-6 rounded-2xl bg-white/80 border border-dashed border-amber-300 max-w-xl mx-auto space-y-2">
+            <div class="text-2xl">⏳</div>
+            <div class="text-sm font-extrabold text-slate-800">${cat.emptyMsg || 'Belum ada data peserta yang memenuhi syarat untuk kategori ini.'}</div>
+            <div class="text-xs text-slate-500">Pilih kategori tahap pra-pelatihan (seperti <strong>Asesmen Awal Tercepat</strong>, <strong>Nilai Asesmen Awal Tertinggi</strong>, atau <strong>Indeks Kesiapan Belajar Tertinggi</strong>) selama Uji Kompetensi belum berlangsung.</div>
+          </div>`;
         return;
       }
 
@@ -3432,7 +3970,12 @@
     function copyAwardAnnouncementText() {
       const catId = document.getElementById('awardCategorySelect')?.value || 'grand_luminary';
       const cat = AWARDS_CATALOG.find(a => a.id === catId) || AWARDS_CATALOG[0];
-      const ranked = [...filteredProfilesList].sort(cat.sortFn).slice(0, awardDisplayMode === 'top3' ? 3 : 5);
+      const eligibleList = cat.filterFn ? filteredProfilesList.filter(cat.filterFn) : [...filteredProfilesList];
+      const ranked = eligibleList.sort(cat.sortFn).slice(0, awardDisplayMode === 'top3' ? 3 : 5);
+      if (ranked.length === 0) {
+        setSyncBanner('Belum ada nominasi yang memenuhi kriteria pada kategori ini', 'rose');
+        return;
+      }
       const lines = [
         `🏆 *PENGUMUMAN PENGHARGAAN UI ALEX 2026*`,
         `Kategori: *${cat.title}*`,
@@ -3458,8 +4001,12 @@
     function downloadAwardCertificatePDF() {
       const catId = document.getElementById('awardCategorySelect')?.value || 'grand_luminary';
       const cat = AWARDS_CATALOG.find(a => a.id === catId) || AWARDS_CATALOG[0];
-      const winner = [...filteredProfilesList].sort(cat.sortFn)[0];
-      if (!winner) return;
+      const eligibleList = cat.filterFn ? filteredProfilesList.filter(cat.filterFn) : [...filteredProfilesList];
+      const winner = eligibleList.sort(cat.sortFn)[0];
+      if (!winner) {
+        setSyncBanner('Belum ada pemenang yang memenuhi kriteria pada kategori ini', 'rose');
+        return;
+      }
 
       document.getElementById('certRecipientName').textContent = winner.nama_peserta;
       document.getElementById('certAwardName').textContent = cat.title;
@@ -3507,7 +4054,7 @@
       document.getElementById('pimtiTimestampLabel').textContent = `Diperbarui: ${document.getElementById('lastSyncTimestamp')?.textContent || '-'}`;
       const pimtiMainHead = document.getElementById('pimtiMainHeading');
       if (pimtiMainHead) {
-        pimtiMainHead.textContent = `Rekapitulasi Capaian Evaluasi Akhir (${t.postShort}) Pelatihan Kepemimpinan`;
+        pimtiMainHead.textContent = `Rekapitulasi Capaian Evaluasi Akhir (${t.postShort}) UI ALEX 2026`;
       }
       const pimtiThAvg = document.getElementById('pimtiThAvgCol');
       if (pimtiThAvg) {
@@ -3541,7 +4088,7 @@
         calcModuleRow('KA', '1.4. Manajemen Keuangan dan Akuntansi (KA)')
       ];
       if (t.hasEssay) {
-        p1Mods.push(calcModuleRow('ESSAY_P1', '1.5. Uji Kompetensi Essay Pilar I'));
+        p1Mods.push(calcModuleRow('ESSAY_P1', '1.5. Soal Essay Pilar I'));
       }
 
       const p2Mods = [
@@ -3551,7 +4098,7 @@
         calcModuleRow('MRT', '2.4. Manajemen Risiko, Transformasi Budaya, dan Tata Kelola (MRT)')
       ];
       if (t.hasEssay) {
-        p2Mods.push(calcModuleRow('ESSAY_P2', '2.5. Uji Kompetensi Essay Pilar II'));
+        p2Mods.push(calcModuleRow('ESSAY_P2', '2.5. Soal Essay Pilar II'));
       }
 
       // Metode A: Participant-based Pilar Summary
@@ -3632,22 +4179,6 @@
           </tr>`;
         }).join('');
       }
-
-      updateExecutiveNote(bVal, N, kkm, topRow, p1Row, p2Row);
-    }
-
-    function updateExecutiveNote(bVal, N, kkm, topRow, p1Row, p2Row) {
-      const noteEl = document.getElementById('pimtiExecutiveNote');
-      if (!noteEl) return;
-      const t = getBatchTerminology(bVal);
-      const gLabel = bVal === 'ALL' ? 'Seluruh Angkatan (Konsolidasi)' : bVal;
-      if (topRow.isPending) {
-        noteEl.textContent = `Pada kelompok ${gLabel} (${N} peserta terdaftar), evaluasi akhir (${t.postShort}) untuk Pilar I maupun Pilar II saat ini belum memiliki nilai masuk (masih berada pada tahap belajar mandiri / ${t.preShort}).`;
-      } else if (p2Row.isPending) {
-        noteEl.textContent = `Pada kelompok ${gLabel} (${N} peserta), pelaksanaan ${t.postShort} Pilar I mencatatkan rata-rata ${p1Row.avg.toFixed(1)} dengan tingkat kelulusan ${p1Row.lulus} orang dari ${p1Row.tested} peserta yang telah mengikuti ujian (Ambang KKM ≥ ${kkm.toFixed(1)}). Sementara itu, rangkaian evaluasi pada Pilar II belum memiliki data nilai masuk.`;
-      } else {
-        noteEl.textContent = `Secara konsolidasi pada ${gLabel} (${N} peserta), rata-rata ${t.postShort} Gabungan 2 Pilar mencapai ${topRow.avg.toFixed(1)} (Pilar I: ${p1Row.avg.toFixed(1)} | Pilar II: ${p2Row.avg.toFixed(1)}). Sebanyak ${topRow.lulus} peserta telah memenuhi standar kelulusan KKM ≥ ${kkm.toFixed(1)}, sedangkan ${topRow.rem} peserta tercatat dalam daftar pembinaan/remedial.`;
-      }
     }
 
     function copyPimtiTableText() {
@@ -3664,7 +4195,6 @@
           lines.push(`• *${r.label}*: Rerata *${r.avg.toFixed(1)}* | Lulus: ${r.lulus} | Remedial: ${r.rem}`);
         }
       });
-      lines.push(``, `_${document.getElementById('pimtiExecutiveNote')?.textContent || ''}_`);
       copyTextToClipboard(lines.join('\n'), 'Rekap WA Tersalin!');
     }
 
