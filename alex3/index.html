@@ -295,7 +295,7 @@
         overflow: visible !important;
         font-size: 10px !important;
       }
-      header, footer, #loginOverlay, #participantModal, #roleMembersModal, .no-print {
+      header, footer, #loginOverlay, #participantModal, #roleMembersModal, #pimtiModuleDetailModal, .no-print {
         display: none !important;
       }
       #dashboardRoot {
@@ -1951,7 +1951,7 @@
               </div>
             </div>
             <div class="p-3 rounded-xl border border-slate-200">
-              <h4 id="lblModalBarTitle" class="text-xs font-extrabold uppercase text-slate-700 mb-2">Capaian Skor Modul vs Standar KKM</h4>
+              <h4 id="lblModalBarTitle" class="text-xs font-extrabold uppercase text-slate-700 mb-2">Capaian Skor Modul vs Standar KKM 100</h4>
               <div class="h-56">
                 <canvas id="chartModalBar"></canvas>
               </div>
@@ -2023,6 +2023,119 @@
           </thead>
           <tbody id="roleMembersTableBody" class="selectable divide-y divide-slate-200"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       5B. MODAL 3: RINCIAN PESERTA PER MODUL PIMTI (#pimtiModuleDetailModal)
+       ===================================================================== -->
+  <div id="pimtiModuleDetailModal" class="fixed inset-0 z-50 hidden bg-slate-900/80 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl border border-slate-300 shadow-2xl max-w-5xl w-full my-6 overflow-hidden">
+      <!-- Top Bar Action & Export Controls -->
+      <div class="bg-slate-900 text-white px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 font-extrabold text-sm flex items-center justify-center shadow">
+            UI
+          </div>
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span id="pimtiModModalPilarBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-amber-500 text-slate-950">Pilar</span>
+              <span id="pimtiModModalBatchBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-slate-800 text-amber-400 border border-slate-700">Batch</span>
+              <span id="pimtiModModalKkmBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">KKM 100</span>
+              <span id="pimtiModModalLastUpdateBadge" class="px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-slate-800/90 text-slate-300 border border-slate-700">🕒 Last Update: -</span>
+            </div>
+            <h3 id="pimtiModModalTitle" class="text-base font-extrabold text-white mt-1">Rincian Peserta Modul</h3>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" onclick="exportPimtiModuleDetailXLSX()"
+            class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
+            <span>📊</span><span>Unduh XLSX</span>
+          </button>
+          <button type="button" id="btnExportPimtiModPng" onclick="exportPimtiModuleDetailPNG()"
+            class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition flex items-center gap-1.5">
+            <span>🖼️</span><span id="lblExportPimtiModPng">Unduh PNG Hi-Res</span>
+          </button>
+          <button type="button" onclick="closePimtiModuleDetailModal()"
+            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition">
+            ✕ Tutup
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter Tabs & Search Bar (No-Capture in PNG) -->
+      <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div class="inline-flex flex-wrap rounded-xl border border-slate-300 bg-white p-1 text-xs font-bold gap-1">
+          <button type="button" id="pmTab_ALL" onclick="setPimtiModFilter('ALL')" class="px-2.5 py-1 rounded-lg bg-slate-900 text-amber-400 transition">Semua (0)</button>
+          <button type="button" id="pmTab_LULUS" onclick="setPimtiModFilter('Lulus')" class="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-100 transition">🟢 Lulus KKM (0)</button>
+          <button type="button" id="pmTab_REMEDIAL" onclick="setPimtiModFilter('Butuh Remedial')" class="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-100 transition">🔴 Remedial (0)</button>
+          <button type="button" id="pmTab_INPROG" onclick="setPimtiModFilter('In-Progress')" class="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-100 transition">⏳ In-Progress (0)</button>
+          <button type="button" id="pmTab_BELUM" onclick="setPimtiModFilter('Belum Mengerjakan')" class="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-100 transition">⚪ Belum (0)</button>
+        </div>
+
+        <div class="flex items-center gap-2 w-full sm:w-64">
+          <input id="pimtiModSearchInput" type="text" oninput="renderPimtiModuleDetailTable()"
+            placeholder="Cari nama, username, NIP..."
+            class="allow-context w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-500" />
+        </div>
+      </div>
+
+      <!-- Area Kanvas Hi-Res PNG (#pimtiModuleCaptureArea) -->
+      <div id="pimtiModuleCaptureArea" class="p-5 bg-white space-y-4">
+        <!-- Kop Resmi untuk Hasil Tangkapan PNG Hi-Res -->
+        <div class="border-b-2 border-slate-900 pb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div class="text-[10px] font-mono font-extrabold uppercase tracking-widest text-amber-700">
+              UNIVERSITAS INDONESIA • UI ALEX 2026 EXECUTIVE DETAIL
+            </div>
+            <h4 id="pimtiModCaptureHeading" class="text-base font-extrabold text-slate-900 mt-0.5">-</h4>
+            <p id="pimtiModCaptureSub" class="text-xs text-slate-500 font-mono mt-0.5">-</p>
+            <p id="pimtiModCaptureTimestamp" class="text-[11px] text-slate-500 font-mono mt-0.5">🕒 Last Update Data: -</p>
+          </div>
+          <div class="grid grid-cols-5 gap-2 text-center">
+            <div class="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
+              <div class="text-[9px] font-bold uppercase text-slate-400">Populasi</div>
+              <div id="pmStatPop" class="text-xs font-mono font-extrabold text-slate-900">0</div>
+            </div>
+            <div class="px-2.5 py-1.5 rounded-lg bg-blue-50/70 border border-blue-200">
+              <div class="text-[9px] font-bold uppercase text-blue-700">Rerata</div>
+              <div id="pmStatAvg" class="text-xs font-mono font-extrabold text-blue-900">-</div>
+            </div>
+            <div class="px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200">
+              <div class="text-[9px] font-bold uppercase text-emerald-700">Lulus</div>
+              <div id="pmStatLulus" class="text-xs font-mono font-extrabold text-emerald-800">0</div>
+            </div>
+            <div class="px-2.5 py-1.5 rounded-lg bg-rose-50 border border-rose-200">
+              <div class="text-[9px] font-bold uppercase text-rose-700">Remedial</div>
+              <div id="pmStatRem" class="text-xs font-mono font-extrabold text-rose-700">0</div>
+            </div>
+            <div class="px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200">
+              <div class="text-[9px] font-bold uppercase text-slate-500">Belum</div>
+              <div id="pmStatBelum" class="text-xs font-mono font-extrabold text-slate-700">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabel Daftar Peserta -->
+        <div id="pimtiModTableScrollBox" class="max-h-[58vh] overflow-y-auto rounded-lg border border-slate-300">
+          <table class="sticky-matrix-table text-xs">
+            <thead class="bg-slate-100 text-slate-700 font-extrabold text-[11px] uppercase tracking-wider">
+              <tr>
+                <th class="p-2.5 text-center w-12">No</th>
+                <th class="p-2.5 text-left min-w-[220px]">Nama Peserta &amp; Username</th>
+                <th class="p-2.5 text-center w-24">Batch</th>
+                <th class="p-2.5 text-center w-24">Nilai</th>
+                <th class="p-2.5 text-center w-20">KKM</th>
+                <th class="p-2.5 text-center w-36">Status Kelulusan</th>
+                <th class="p-2.5 text-center w-20">Attempt</th>
+                <th class="p-2.5 text-center w-36">Waktu Submit</th>
+              </tr>
+            </thead>
+            <tbody id="pimtiModDetailTableBody" class="selectable divide-y divide-slate-200"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -2175,6 +2288,7 @@
     let currentKkm = 100.0;
     let lastSyncedBatchForKkm = DEFAULT_ACTIVE_BATCH;
     let lastPimtiSummaryRows = [];
+    let activePimtiModalState = { code: 'PK', label: '', pilar: '', statusFilter: 'ALL', rows: [] };
     let liveFeedFilterMode = 'ALL'; // 'ALL' | 'INPROG' | 'SUBMIT'
     let isLiveFeedAutoScroll = true;
     let isLiveFeedHovered = false;
@@ -2410,6 +2524,7 @@
       filteredProfilesList = [];
       closeParticipantModal();
       closeRoleModal();
+      closePimtiModuleDetailModal();
       try {
         await localforage.removeItem('alex2026_v3_groupData');
         await localforage.removeItem('alex2026_v3_groupSync');
@@ -5065,12 +5180,12 @@
         }).filter(v => v !== null);
         const tested = scores.length;
         if (tested === 0) {
-          return { level: 3, label, N, isPending: true, avg: null, lulus: 0, rem: 0, tested: 0 };
+          return { level: 3, code, label, N, isPending: true, avg: null, lulus: 0, rem: 0, tested: 0 };
         }
         const avg = scores.reduce((a, b) => a + b, 0) / tested;
         const lulus = scores.filter(v => v >= kkm).length;
         const rem = scores.filter(v => v < kkm).length;
-        return { level: 3, label, N, isPending: false, avg, lulus, rem, tested };
+        return { level: 3, code, label, N, isPending: false, avg, lulus, rem, tested };
       };
 
       const p1Mods = [
@@ -5093,6 +5208,7 @@
 
       const p1Row = {
         level: 2,
+        code: 'PILAR_1',
         label: 'PILAR I — MANAJEMEN & OPERASIONAL',
         N,
         isPending: p1Users.length === 0,
@@ -5104,6 +5220,7 @@
 
       const p2Row = {
         level: 2,
+        code: 'PILAR_2',
         label: 'PILAR II — GOVERNANCE & KEPATUHAN',
         N,
         isPending: p2Users.length === 0,
@@ -5117,6 +5234,7 @@
       const anyUsers = pop.filter(u => u.attempted_post > 0);
       const topRow = {
         level: 1,
+        code: 'ALL_PILAR',
         label: `★ ${t.postUpper} GABUNGAN 2 PILAR`,
         N,
         isPending: anyUsers.length === 0,
@@ -5151,19 +5269,343 @@
             } else {
               const lPct = r.tested ? ((r.lulus / r.tested) * 100).toFixed(1) : '0.0';
               const rPct = r.tested ? ((r.rem / r.tested) * 100).toFixed(1) : '0.0';
-              lulusHtml = `<span class="font-mono font-bold text-emerald-700">${r.lulus} (${lPct}%)</span>`;
-              remHtml = `<span class="font-mono font-bold text-rose-600">${r.rem} (${rPct}%)</span>`;
+              lulusHtml = `<button type="button" onclick="openPimtiModuleDetailModal('${r.code}', 'Lulus')" class="font-mono font-bold text-emerald-700 hover:underline" title="Klik untuk melihat daftar peserta yang Lulus">${r.lulus} (${lPct}%)</button>`;
+              remHtml = `<button type="button" onclick="openPimtiModuleDetailModal('${r.code}', 'Butuh Remedial')" class="font-mono font-bold text-rose-600 hover:underline" title="Klik untuk melihat daftar peserta yang Butuh Remedial">${r.rem} (${rPct}%)</button>`;
             }
           }
 
+          const detailBtnHtml = `
+            <button type="button" onclick="openPimtiModuleDetailModal('${r.code}', 'ALL')"
+              data-tippy-content="Lihat daftar rincian nilai & status seluruh peserta pada ${r.label} (Dilengkapi Export XLSX & PNG Hi-Res)"
+              class="no-print ml-1.5 px-2 py-0.5 rounded-md bg-amber-50 hover:bg-amber-400 text-amber-900 hover:text-slate-950 border border-amber-300 font-mono font-extrabold text-[10px] shadow-sm transition inline-flex items-center gap-1 shrink-0">
+              <span>📋</span><span>Detail</span>
+            </button>`;
+
           return `<tr class="${rowCls}">
-            <td class="p-2.5 ${padCls}">${r.label}</td>
+            <td class="p-2.5 ${padCls}">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span>${r.label}</span>
+                ${detailBtnHtml}
+              </div>
+            </td>
             <td class="p-2.5 text-center font-mono font-bold">${r.N}</td>
             <td class="p-2.5 text-center">${avgHtml}</td>
             <td class="p-2.5 text-center">${lulusHtml}</td>
             <td class="p-2.5 text-center">${remHtml}</td>
           </tr>`;
         }).join('');
+      }
+      initTippyTooltips();
+    }
+
+    function openPimtiModuleDetailModal(code, initialStatusFilter = 'ALL') {
+      const bVal = document.getElementById('pimtiBatchSelect')?.value || 'ALL';
+      const pop = getActivePimtiParticipants();
+      const kkm = currentKkm;
+
+      let title = '';
+      let pilarLabel = '';
+
+      if ( MODULE_META[code] ) {
+        title = MODULE_META[code].name;
+        pilarLabel = MODULE_META[code].pilar;
+      } else if (code === 'PILAR_1') {
+        title = 'Pilar I — Manajemen & Operasional (Gabungan 4 Modul)';
+        pilarLabel = 'Pilar 1';
+      } else if (code === 'PILAR_2') {
+        title = 'Pilar II — Governance & Kepatuhan (Gabungan 4 Modul)';
+        pilarLabel = 'Pilar 2';
+      } else {
+        title = 'Uji Kompetensi Gabungan 2 Pilar (8 Modul)';
+        pilarLabel = 'Semua Pilar';
+      }
+
+      const builtRows = pop.map(u => {
+        if (MODULE_KEYS.includes(code)) {
+          const val = u.modules[code];
+          const det = u.moduleDetails[code];
+          const isInProg = val === null && det && det.inprogress;
+          let status = 'Belum Mengerjakan';
+          if (val !== null) {
+            status = val >= kkm ? 'Lulus' : 'Butuh Remedial';
+          } else if (isInProg) {
+            status = 'In-Progress';
+          }
+          return {
+            user_id: u.user_id,
+            nama_peserta: u.nama_peserta,
+            username: u.username,
+            nip: u.nip || '-',
+            batch: u.batch,
+            nilai: val,
+            kkm: kkm,
+            status: status,
+            attempt: det?.attempt ?? 0,
+            waktu_submit: val !== null ? (det?.waktu_submit || '-') : (isInProg ? `Mulai: ${det?.waktu_mulai || '-'}` : '-')
+          };
+        } else if (code === 'PILAR_1') {
+          const hasTried = u.p1_attempted_post > 0;
+          const val = hasTried ? u.p1_post_avg : null;
+          const status = hasTried ? (val >= kkm ? 'Lulus' : 'Butuh Remedial') : 'Belum Mengerjakan';
+          return {
+            user_id: u.user_id,
+            nama_peserta: u.nama_peserta,
+            username: u.username,
+            nip: u.nip || '-',
+            batch: u.batch,
+            nilai: val,
+            kkm: kkm,
+            status: status,
+            attempt: `${u.p1_attempted_post}/4 Modul`,
+            waktu_submit: u.terakhir_akses || '-'
+          };
+        } else if (code === 'PILAR_2') {
+          const hasTried = u.p2_attempted_post > 0;
+          const val = hasTried ? u.p2_post_avg : null;
+          const status = hasTried ? (val >= kkm ? 'Lulus' : 'Butuh Remedial') : 'Belum Mengerjakan';
+          return {
+            user_id: u.user_id,
+            nama_peserta: u.nama_peserta,
+            username: u.username,
+            nip: u.nip || '-',
+            batch: u.batch,
+            nilai: val,
+            kkm: kkm,
+            status: status,
+            attempt: `${u.p2_attempted_post}/4 Modul`,
+            waktu_submit: u.terakhir_akses || '-'
+          };
+        } else {
+          const hasTried = u.attempted_post > 0;
+          const val = hasTried ? u.post_total_avg : null;
+          const status = hasTried ? (val >= kkm ? 'Lulus' : 'Butuh Remedial') : 'Belum Mengerjakan';
+          return {
+            user_id: u.user_id,
+            nama_peserta: u.nama_peserta,
+            username: u.username,
+            nip: u.nip || '-',
+            batch: u.batch,
+            nilai: val,
+            kkm: kkm,
+            status: status,
+            attempt: `${u.attempted_post}/8 Modul`,
+            waktu_submit: u.terakhir_akses || '-'
+          };
+        }
+      });
+
+      // Urutkan: Nilai tertinggi ke terendah, kemudian In-Progress, lalu Belum Mengerjakan sesuai abjad
+      builtRows.sort((a, b) => {
+        const va = a.nilai !== null ? a.nilai : (a.status === 'In-Progress' ? -0.5 : -1);
+        const vb = b.nilai !== null ? b.nilai : (b.status === 'In-Progress' ? -0.5 : -1);
+        if (vb !== va) return vb - va;
+        return a.nama_peserta.localeCompare(b.nama_peserta, 'id');
+      });
+
+      activePimtiModalState = {
+        code,
+        label: title,
+        pilar: pilarLabel,
+        batch: bVal === 'ALL' ? 'Semua Batch' : bVal,
+        kkm,
+        statusFilter: initialStatusFilter,
+        rows: builtRows
+      };
+
+      document.getElementById('pimtiModModalPilarBadge').textContent = pilarLabel;
+      document.getElementById('pimtiModModalBatchBadge').textContent = activePimtiModalState.batch;
+      document.getElementById('pimtiModModalKkmBadge').textContent = `KKM ≥ ${kkm.toFixed(1)}`;
+      const lastSyncStr = document.getElementById('lastSyncTimestamp')?.textContent || '-';
+      const modalUpdBadge = document.getElementById('pimtiModModalLastUpdateBadge');
+      if (modalUpdBadge) modalUpdBadge.textContent = `🕒 Last Update: ${lastSyncStr}`;
+      document.getElementById('pimtiModModalTitle').textContent = title;
+      document.getElementById('pimtiModSearchInput').value = '';
+
+      // Hitung statistik untuk kop dan tab
+      const totalPop = builtRows.length;
+      const lulusCount = builtRows.filter(r => r.status === 'Lulus').length;
+      const remCount = builtRows.filter(r => r.status === 'Butuh Remedial').length;
+      const inProgCount = builtRows.filter(r => r.status === 'In-Progress').length;
+      const belumCount = builtRows.filter(r => r.status === 'Belum Mengerjakan').length;
+      const scored = builtRows.filter(r => r.nilai !== null);
+      const avgScore = scored.length ? (scored.reduce((s, r) => s + r.nilai, 0) / scored.length).toFixed(1) : '-';
+
+      document.getElementById('pmStatPop').textContent = totalPop;
+      document.getElementById('pmStatAvg').textContent = avgScore;
+      document.getElementById('pmStatLulus').textContent = lulusCount;
+      document.getElementById('pmStatRem').textContent = remCount;
+      document.getElementById('pmStatBelum').textContent = belumCount + inProgCount;
+
+      document.getElementById('pmTab_ALL').textContent = `Semua (${totalPop})`;
+      document.getElementById('pmTab_LULUS').textContent = `🟢 Lulus KKM (${lulusCount})`;
+      document.getElementById('pmTab_REMEDIAL').textContent = `🔴 Remedial (${remCount})`;
+      document.getElementById('pmTab_INPROG').textContent = `⏳ In-Progress (${inProgCount})`;
+      document.getElementById('pmTab_BELUM').textContent = `⚪ Belum (${belumCount})`;
+
+      document.getElementById('pimtiModuleDetailModal').classList.remove('hidden');
+      setPimtiModFilter(initialStatusFilter);
+    }
+
+    function setPimtiModFilter(statusVal) {
+      activePimtiModalState.statusFilter = statusVal;
+      const mapBtn = {
+        'ALL': 'pmTab_ALL',
+        'Lulus': 'pmTab_LULUS',
+        'Butuh Remedial': 'pmTab_REMEDIAL',
+        'In-Progress': 'pmTab_INPROG',
+        'Belum Mengerjakan': 'pmTab_BELUM'
+      };
+      Object.keys(mapBtn).forEach(k => {
+        const btn = document.getElementById(mapBtn[k]);
+        if (!btn) return;
+        btn.className = k === statusVal
+          ? 'px-2.5 py-1 rounded-lg bg-slate-900 text-amber-400 transition'
+          : 'px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-100 transition';
+      });
+      renderPimtiModuleDetailTable();
+    }
+
+    function renderPimtiModuleDetailTable() {
+      const { label, pilar, batch, kkm, statusFilter, rows } = activePimtiModalState;
+      const q = (document.getElementById('pimtiModSearchInput')?.value || '').trim().toLowerCase();
+
+      const filtered = rows.filter(r => {
+        if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
+        if (q) {
+          const hay = `${r.nama_peserta} ${r.username} ${r.nip} ${r.batch} ${r.status}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      const filterLabel = statusFilter === 'ALL' ? 'Semua Status' : statusFilter;
+      const lastSyncStr = document.getElementById('lastSyncTimestamp')?.textContent || '-';
+      document.getElementById('pimtiModCaptureHeading').textContent = `${label} — ${batch}`;
+      document.getElementById('pimtiModCaptureSub').textContent = `${pilar} • Standar KKM ≥ ${kkm.toFixed(1)} • Filter: ${filterLabel} (${filtered.length} Peserta)`;
+      const capTsEl = document.getElementById('pimtiModCaptureTimestamp');
+      if (capTsEl) capTsEl.textContent = `🕒 Last Update Data: ${lastSyncStr}`;
+
+      const tbody = document.getElementById('pimtiModDetailTableBody');
+      if (!tbody) return;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400 font-medium">Tidak ada peserta pada kategori filter ini.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map((r, i) => {
+        let badgeCls = 'bg-slate-100 text-slate-600 border-slate-200';
+        let scoreHtml = `<span class="text-slate-400 font-mono">-</span>`;
+
+        if (r.status === 'Lulus') {
+          badgeCls = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+          scoreHtml = `<span class="font-mono font-extrabold text-emerald-700">${r.nilai.toFixed(1)}</span>`;
+        } else if (r.status === 'Butuh Remedial') {
+          badgeCls = 'bg-rose-100 text-rose-800 border-rose-300';
+          scoreHtml = `<span class="font-mono font-extrabold text-rose-600">${r.nilai.toFixed(1)}</span>`;
+        } else if (r.status === 'In-Progress') {
+          badgeCls = 'bg-sky-100 text-sky-800 border-sky-300';
+          scoreHtml = `<span class="font-mono font-bold text-sky-700">⏳ Aktif</span>`;
+        }
+
+        return `<tr class="hover:bg-amber-50/40 transition">
+          <td class="p-2.5 text-center font-mono text-slate-500">${i + 1}</td>
+          <td class="p-2.5">
+            <button type="button" onclick="closePimtiModuleDetailModal(); openParticipantReport('${r.user_id}')" class="text-left group">
+              <div class="font-bold text-slate-900 group-hover:text-amber-600 transition flex items-center gap-1">
+                <span>${r.nama_peserta}</span>
+                <span class="text-[10px] text-amber-500">↗</span>
+              </div>
+              <div class="text-[11px] font-mono text-slate-400">${r.username}${r.nip && r.nip !== '-' ? ' • ' + r.nip : ''}</div>
+            </button>
+          </td>
+          <td class="p-2.5 text-center font-semibold text-slate-700">${r.batch}</td>
+          <td class="p-2.5 text-center">${scoreHtml}</td>
+          <td class="p-2.5 text-center font-mono text-slate-500">${r.kkm.toFixed(1)}</td>
+          <td class="p-2.5 text-center">
+            <span class="px-2 py-0.5 rounded border text-[11px] font-bold ${badgeCls}">${r.status}</span>
+          </td>
+          <td class="p-2.5 text-center font-mono">${r.attempt}</td>
+          <td class="p-2.5 text-center font-mono text-slate-600">${r.waktu_submit}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function closePimtiModuleDetailModal() {
+      const m = document.getElementById('pimtiModuleDetailModal');
+      if (m) m.classList.add('hidden');
+    }
+
+    function exportPimtiModuleDetailXLSX() {
+      const { code, label, batch, statusFilter, rows } = activePimtiModalState;
+      const lastSyncStr = document.getElementById('lastSyncTimestamp')?.textContent || '-';
+      const q = (document.getElementById('pimtiModSearchInput')?.value || '').trim().toLowerCase();
+      const filtered = rows.filter(r => {
+        if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
+        if (q) {
+          const hay = `${r.nama_peserta} ${r.username} ${r.nip} ${r.batch} ${r.status}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      const sheetData = filtered.map((r, idx) => ({
+        'No': idx + 1,
+        'Nama Peserta': r.nama_peserta,
+        'Username': r.username,
+        'NIP': r.nip,
+        'Batch': r.batch,
+        'Modul / Kelompok': label,
+        'Nilai Uji Kompetensi': r.nilai !== null ? Number(r.nilai.toFixed(1)) : '-',
+        'Standar KKM': r.kkm,
+        'Status Kelulusan': r.status,
+        'Jumlah Attempt': r.attempt,
+        'Waktu Submit / Aktivitas': r.waktu_submit,
+        'Last Update Data': lastSyncStr
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(sheetData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, `Detail_${code}`.slice(0, 31));
+      XLSX.writeFile(wb, `Detail_Peserta_${code}_${batch.replace(/\s+/g, '_')}_${Date.now()}.xlsx`);
+    }
+
+    async function exportPimtiModuleDetailPNG() {
+      const captureEl = document.getElementById('pimtiModuleCaptureArea');
+      const scrollBox = document.getElementById('pimtiModTableScrollBox');
+      const btn = document.getElementById('btnExportPimtiModPng');
+      const lbl = document.getElementById('lblExportPimtiModPng');
+      if (!captureEl || !scrollBox) return;
+
+      const prevMaxH = scrollBox.style.maxHeight;
+      const prevOverflow = scrollBox.style.overflow;
+      try {
+        if (btn) btn.disabled = true;
+        if (lbl) lbl.textContent = 'Merender HD...';
+
+        // Buka tinggi tabel penuh sementara agar seluruh baris peserta ikut ter-render dalam PNG Hi-Res
+        scrollBox.style.maxHeight = 'none';
+        scrollBox.style.overflow = 'visible';
+
+        const canvas = await html2canvas(captureEl, {
+          scale: 2.5,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          windowWidth: 1280
+        });
+
+        const { code, batch, statusFilter } = activePimtiModalState;
+        const link = document.createElement('a');
+        link.download = `UI_ALEX_2026_Detail_${code}_${batch.replace(/\s+/g, '_')}_${statusFilter}_${Date.now()}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      } catch (err) {
+        console.error('Export PNG Hi-Res error:', err);
+      } finally {
+        scrollBox.style.maxHeight = prevMaxH;
+        scrollBox.style.overflow = prevOverflow;
+        if (btn) btn.disabled = false;
+        if (lbl) lbl.textContent = 'Unduh PNG Hi-Res';
       }
     }
 
