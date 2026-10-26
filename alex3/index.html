@@ -1643,8 +1643,12 @@
                 🥇 Top 3 (Podium)
               </button>
               <button id="btnModeTop5" onclick="setAwardDisplayMode('top5')"
-                class="px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100">
+                class="px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 border-l border-slate-300">
                 🎖️ Top 5 (Honor Roll)
+              </button>
+              <button id="btnModeTop10" onclick="setAwardDisplayMode('top10')"
+                class="px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 border-l border-slate-300">
+                📋 Top 10 (List)
               </button>
             </div>
           </div>
@@ -1659,7 +1663,7 @@
             class="px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition">
             🖼️ Unduh Slide PNG (2.5x HD)
           </button>
-          <button onclick="downloadAwardCertificatePDF()"
+          <button id="btnDownloadCertPDF" onclick="downloadAwardCertificatePDF()"
             class="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow transition">
             📜 Unduh Piagam Juara #1 (PDF A4)
           </button>
@@ -1700,29 +1704,56 @@
         </div>
       </div>
 
-      <!-- Hidden Printable Certificate Template -->
-      <div class="hidden">
-        <div id="certificatePrintCanvas" class="w-[1050px] h-[740px] bg-amber-50 p-10 border-[10px] border-double border-amber-700 text-center flex flex-col justify-between font-sans">
-          <div class="space-y-2">
-            <div class="text-xs font-mono uppercase tracking-widest text-amber-800 font-bold">UNIVERSITAS INDONESIA</div>
-            <h1 class="text-4xl font-serif font-extrabold text-slate-900 tracking-wider">PIAGAM PENGHARGAAN</h1>
-            <p class="text-sm text-slate-600">UI ALEX 2026 — Universitas Indonesia</p>
-          </div>
-          <div class="space-y-3 my-auto">
-            <p class="text-sm text-slate-600 italic">Diberikan dengan bangga kepada:</p>
-            <h2 id="certRecipientName" class="text-3xl font-serif font-extrabold text-slate-950 border-b-2 border-amber-500 inline-block px-8 pb-2">-</h2>
-            <p class="text-sm text-slate-700">Atas pencapaian luar biasa sebagai Peringkat Terbaik pada kategori:</p>
-            <h3 id="certAwardName" class="text-2xl font-serif font-bold text-amber-800">-</h3>
-            <p id="certMetricSummary" class="text-xs font-mono text-slate-600 bg-white inline-block px-4 py-1.5 rounded-full border border-amber-300">-</p>
-          </div>
-          <div class="pt-4 border-t border-amber-700/30 flex items-center justify-between text-xs text-slate-600">
-            <div class="text-left font-mono">
-              <div>Course ID: 99544 &amp; 99545</div>
-              <div id="certDateText">Tanggal: -</div>
+      <!-- Off-Screen Printable Certificate Template (A4 Landscape 1120x790 - Bebas Offset & Overflow) -->
+      <div id="certificateOffscreenWrapper" style="position: fixed; left: -10000px; top: 0; width: 1120px; height: 790px; z-index: -50; pointer-events: none; overflow: hidden;">
+        <div id="certificatePrintCanvas" style="width: 1120px; height: 790px; padding: 24px; background: #FFFDF7; box-sizing: border-box;" class="font-sans">
+          <div style="width: 100%; height: 100%; border: 6px double #B45309; padding: 38px 54px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; text-align: center; background: #FFFDF7;">
+            <!-- Header Piagam -->
+            <div style=" display: flex; flex-direction: column; gap: 6px;">
+              <div style="font-size: 13px; font-weight: 700; letter-spacing: 0.22em; color: #92400E; text-transform: uppercase;" class="font-mono">
+                UNIVERSITAS INDONESIA
+              </div>
+              <h1 style="font-size: 40px; font-weight: 800; letter-spacing: 0.06em; color: #0F172A; margin: 0; line-height: 1.2;" class="font-serif">
+                PIAGAM PENGHARGAAN
+              </h1>
+              <p style="font-size: 15px; color: #475569; font-weight: 500; margin: 0;">
+                UI ALEX 2026 — Universitas Indonesia
+              </p>
             </div>
-            <div class="text-right">
-              <div class="font-bold text-slate-900">Sistem Analitik Pembelajaran UI ALEX 2026</div>
-              <div class="text-[11px] text-slate-500">Terverifikasi Otomatis dari Pipeline EMAS3 UI</div>
+
+            <!-- Bagian Tengah: Nama Pemenang & Kategori -->
+            <div style="margin: auto 0; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+              <p style="font-size: 15px; font-style: italic; color: #64748B; margin: 0;">
+                Diberikan dengan bangga kepada:
+              </p>
+              <div style="padding: 4px 0;">
+                <h2 id="certRecipientName" style="font-size: 30px; font-weight: 800; color: #0F172A; letter-spacing: 0.02em; padding: 0 32px 14px 32px; border-bottom: 2px solid #F59E0B; display: inline-block; min-width: 480px; max-width: 960px; margin: 0; line-height: 1.35;" class="font-serif">
+                  -
+                </h2>
+              </div>
+              <p style="font-size: 14px; color: #334155; margin: 0;">
+                Atas pencapaian luar biasa sebagai Peringkat Terbaik pada kategori:
+              </p>
+              <h3 id="certAwardName" style="font-size: 22px; font-weight: 800; color: #92400E; letter-spacing: 0.02em; margin: 0; max-width: 920px; line-height: 1.35;" class="font-serif">
+                -
+              </h3>
+              <div style="padding-top: 6px;">
+                <p id="certMetricSummary" style="display: inline-block; padding: 8px 24px; border-radius: 9999px; border: 1px solid #FCD34D; background: #FFFFFF; color: #1E293B; font-size: 12px; font-weight: 600; margin: 0; line-height: 1.4;" class="font-mono">
+                  -
+                </p>
+              </div>
+            </div>
+
+            <!-- Footer Piagam -->
+            <div style="border-top: 1px solid rgba(180, 83, 9, 0.28); padding-top: 16px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 12px; color: #475569;">
+              <div style="text-align: left; line-height: 1.5;" class="font-mono">
+                <div>Course ID: 99544 &amp; 99545</div>
+                <div id="certDateText">Tanggal: -</div>
+              </div>
+              <div style="text-align: right; line-height: 1.5;">
+                <div style="font-weight: 700; color: #0F172A;">Sistem Analitik Pembelajaran UI ALEX 2026</div>
+                <div style="font-size: 11px; color: #64748B;">Terverifikasi Otomatis dari Pipeline EMAS3 UI</div>
+              </div>
             </div>
           </div>
         </div>
@@ -2880,6 +2911,11 @@
             moduleDetails: {},
             logs: [],
             first_submit: null,
+            last_post_submit: null,
+            last_pre_submit: null,
+            total_post_durasi: 0,
+            total_pre_durasi: 0,
+            total_post_attempts: 0,
             terakhir_akses: row.terakhir_akses_kursus || '-'
           });
         }
@@ -2905,9 +2941,11 @@
         const attempt = Number(row.jumlah_attempt ?? 0);
         const nilai = Number(row.nilai ?? 0);
         const rowKkm = Number(row.kkm ?? u.kkm);
+        const durasi = Number(row.durasi_pengerjaan_menit ?? 0);
         const wMulai = String(row.waktu_mulai_kuis || '-').trim();
         const wSubmit = String(row.waktu_submit || '-').trim();
         const isQuizInProgress = status === 'In-Progress' || (wMulai !== '-' && wMulai !== '' && (wSubmit === '-' || wSubmit === '') && attempt === 0 && nilai === 0);
+
         const hasAttempted = status !== 'Belum Mengerjakan' && status !== 'In-Progress' && (attempt > 0 || nilai > 0);
 
         if (tipe === 'Pre-test') {
@@ -2916,9 +2954,11 @@
             if (hasAttempted) {
               u.pre_p1 = u.pre_p1 === null ? nilai : Math.max(u.pre_p1, nilai);
               u.pre_p1_inprogress = false;
+              u.total_pre_durasi = Number(((u.total_pre_durasi || 0) + durasi).toFixed(1));
               const subPre = row.waktu_submit;
-              if (subPre && subPre !== '-' && (!u.first_pre_submit || subPre < u.first_pre_submit)) {
-                u.first_pre_submit = subPre;
+              if (subPre && subPre !== '-') {
+                if (!u.first_pre_submit || subPre < u.first_pre_submit) u.first_pre_submit = subPre;
+                if (!u.last_pre_submit || subPre > u.last_pre_submit) u.last_pre_submit = subPre;
               }
             } else if (isQuizInProgress && u.pre_p1 === null) {
               u.pre_p1_inprogress = true;
@@ -2929,9 +2969,11 @@
             if (hasAttempted) {
               u.pre_p2 = u.pre_p2 === null ? nilai : Math.max(u.pre_p2, nilai);
               u.pre_p2_inprogress = false;
+              u.total_pre_durasi = Number(((u.total_pre_durasi || 0) + durasi).toFixed(1));
               const subPre = row.waktu_submit;
-              if (subPre && subPre !== '-' && (!u.first_pre_submit || subPre < u.first_pre_submit)) {
-                u.first_pre_submit = subPre;
+              if (subPre && subPre !== '-') {
+                if (!u.first_pre_submit || subPre < u.first_pre_submit) u.first_pre_submit = subPre;
+                if (!u.last_pre_submit || subPre > u.last_pre_submit) u.last_pre_submit = subPre;
               }
             } else if (isQuizInProgress && u.pre_p2 === null) {
               u.pre_p2_inprogress = true;
@@ -2962,6 +3004,12 @@
           if (mCode && MODULE_KEYS.includes(mCode)) {
             if (hasAttempted) {
               u.modules[mCode] = u.modules[mCode] === null ? nilai : Math.max(u.modules[mCode], nilai);
+              u.total_post_durasi = Number(((u.total_post_durasi || 0) + durasi).toFixed(1));
+              u.total_post_attempts = (u.total_post_attempts || 0) + Math.max(1, attempt);
+              const subPost = row.waktu_submit;
+              if (subPost && subPost !== '-' && (!u.last_post_submit || subPost > u.last_post_submit)) {
+                u.last_post_submit = subPost;
+              }
             }
             const prevDet = u.moduleDetails[mCode];
             const isNowInProg = !hasAttempted && (isQuizInProgress || (prevDet && prevDet.inprogress && prevDet.nilai === null));
@@ -4878,119 +4926,181 @@
     /*************************************************************************
      * J. STUDIO HALL OF FAME & LEADERSHIP AWARDS (MODE 3)
      *************************************************************************/
+    // Fungsi Pembanding Objektif (Anti-Dispute Tie-Breaker) untuk Skor Seri
+    function compareTimestampAsc(ta, tb) {
+      const aValid = Boolean(ta && ta !== '-');
+      const bValid = Boolean(tb && tb !== '-');
+      if (aValid && bValid && ta !== tb) return String(ta).localeCompare(String(tb));
+      if (aValid && !bValid) return -1;
+      if (!aValid && bValid) return 1;
+      return 0;
+    }
+
+    function comparePositiveAsc(va, vb) {
+      const aPos = va > 0 ? va : 999999;
+      const bPos = vb > 0 ? vb : 999999;
+      return aPos - bPos;
+    }
+
+    function tieBreakPostTest(a, b) {
+      return (b.attempted_post - a.attempted_post)
+        || (b.passed_post - a.passed_post)
+        || comparePositiveAsc(a.total_post_attempts, b.total_post_attempts)
+        || comparePositiveAsc(a.total_post_durasi, b.total_post_durasi)
+        || compareTimestampAsc(a.last_post_submit, b.last_post_submit)
+        || (b.readiness_score - a.readiness_score)
+        || a.nama_peserta.localeCompare(b.nama_peserta, 'id');
+    }
+
+    function tieBreakPreTest(a, b) {
+      const aPreCnt = (a.pre_p1 !== null ? 1 : 0) + (a.pre_p2 !== null ? 1 : 0);
+      const bPreCnt = (b.pre_p1 !== null ? 1 : 0) + (b.pre_p2 !== null ? 1 : 0);
+      return (bPreCnt - aPreCnt)
+        || comparePositiveAsc(a.total_pre_durasi, b.total_pre_durasi)
+        || compareTimestampAsc(a.last_pre_submit || a.first_pre_submit, b.last_pre_submit || b.first_pre_submit)
+        || (b.comp_total - a.comp_total)
+        || a.nama_peserta.localeCompare(b.nama_peserta, 'id');
+    }
+
     const AWARDS_CATALOG = [
       {
         id: 'grand_luminary',
         title: 'Nilai Rata-Rata Uji Kompetensi / Post-Test Tertinggi (8 Modul)',
         subtitle: 'Peserta dengan capaian nilai evaluasi akhir (Uji Kompetensi / Post-Test) tertinggi lintas 8 modul pelatihan',
-        criteria: 'Kriteria: Rerata Uji Kompetensi / Post-Test Tertinggi (Wajib sudah mengerjakan Uji Kompetensi)',
+        criteria: 'Kriteria: Rerata Uji Kompetensi → Jml Modul → Attempt Terkecil → Durasi Tercepat → Waktu Submit',
         filterFn: u => u.attempted_post > 0,
         emptyMsg: 'Belum ada peserta pada kelompok/filter ini yang mengerjakan Uji Kompetensi / Post-Test.',
         metricFn: u => `${u.post_total_avg.toFixed(1)} Poin (${u.attempted_post}/8 Modul)`,
-        sortFn: (a, b) => (b.post_total_avg - a.post_total_avg) || (b.attempted_post - a.attempted_post) || (b.readiness_score - a.readiness_score)
+        tieBreakerFn: u => `${u.total_post_attempts || u.attempted_post}x Attempt • Durasi ${u.total_post_durasi.toFixed(1)}m • Submit ${u.last_post_submit || '-'}`,
+        sortFn: (a, b) => (b.post_total_avg - a.post_total_avg) || tieBreakPostTest(a, b)
       },
       {
         id: 'prime_mover',
         title: 'Penyelesaian Asesmen Awal / Pre-Test Tercepat',
         subtitle: 'Peserta yang paling awal menyelesaikan dan mengirimkan (submit) Asesmen Awal / Pre-Test di LMS EMAS3',
-        criteria: 'Kriteria: Waktu Submit Asesmen Awal (Pre-Test) Paling Awal',
+        criteria: 'Kriteria: Timestamp Submit Asesmen Awal Paling Awal → Durasi Kuis Tercepat → Skor Awal Tertinggi',
         filterFn: u => Boolean(u.first_pre_submit || (u.pre_avg !== null && u.first_submit)),
         emptyMsg: 'Belum ada data waktu penyelesaian Asesmen Awal / Pre-Test pada kelompok ini.',
         metricFn: u => u.first_pre_submit || u.first_submit || '-',
+        tieBreakerFn: u => `Skor Awal ${(u.pre_avg || 0).toFixed(1)} • Durasi ${u.total_pre_durasi.toFixed(1)}m • Comp ${u.comp_total.toFixed(1)}%`,
         sortFn: (a, b) => {
           const sa = a.first_pre_submit || a.first_submit;
           const sb = b.first_pre_submit || b.first_submit;
-          if (!sa && !sb) return b.readiness_score - a.readiness_score;
-          if (!sa) return 1;
-          if (!sb) return -1;
-          return sa.localeCompare(sb) || ((b.pre_avg || 0) - (a.pre_avg || 0));
+          return compareTimestampAsc(sa, sb)
+            || comparePositiveAsc(a.total_pre_durasi, b.total_pre_durasi)
+            || ((b.pre_avg || 0) - (a.pre_avg || 0))
+            || (b.readiness_score - a.readiness_score);
         }
       },
       {
         id: 'pace_setter',
         title: 'Indeks Kesiapan Belajar Tertinggi',
         subtitle: 'Peserta dengan skor kesiapan belajar terbaik (gabungan progres materi mandiri & nilai Asesmen Awal / Pre-Test)',
-        criteria: 'Kriteria: Indeks Kesiapan Belajar Tertinggi (Bobot 40:40:10:10)',
+        criteria: 'Kriteria: Indeks Kesiapan (40:40:10:10) → Completion (%) → Rerata Awal → Waktu Submit Awal Tercepat',
         filterFn: u => u.readiness_score > 0,
         emptyMsg: 'Belum ada peserta dengan progres kesiapan belajar pada kelompok ini.',
         metricFn: u => `Kesiapan: ${u.readiness_score.toFixed(1)}`,
-        sortFn: (a, b) => (b.readiness_score - a.readiness_score) || (b.comp_total - a.comp_total)
+        tieBreakerFn: u => `Comp ${u.comp_total.toFixed(1)}% • Skor Awal ${(u.pre_avg || 0).toFixed(1)} • Submit ${u.first_pre_submit || '-'}`,
+        sortFn: (a, b) => (b.readiness_score - a.readiness_score)
+          || (b.comp_total - a.comp_total)
+          || ((b.pre_avg || 0) - (a.pre_avg || 0))
+          || tieBreakPreTest(a, b)
       },
       {
         id: 'completion_master',
         title: 'Progres Penyelesaian Materi (Completion) Tertinggi',
         subtitle: 'Peserta dengan persentase ketuntasan aktivitas belajar mandiri tertinggi di Pilar I & Pilar II',
-        criteria: 'Kriteria: Rerata Course Completion Tertinggi',
+        criteria: 'Kriteria: Rerata Completion (%) → Indeks Kesiapan → Skor Awal → Waktu Submit Awal Tercepat',
         filterFn: u => u.comp_total > 0,
         emptyMsg: 'Belum ada peserta dengan progres penyelesaian materi mandiri pada kelompok ini.',
         metricFn: u => `Completion: ${u.comp_total.toFixed(1)}%`,
-        sortFn: (a, b) => (b.comp_total - a.comp_total) || (b.readiness_score - a.readiness_score)
+        tieBreakerFn: u => `Kesiapan ${u.readiness_score.toFixed(1)} • Skor Awal ${(u.pre_avg || 0).toFixed(1)} • Submit ${u.first_pre_submit || '-'}`,
+        sortFn: (a, b) => (b.comp_total - a.comp_total)
+          || (b.readiness_score - a.readiness_score)
+          || ((b.pre_avg || 0) - (a.pre_avg || 0))
+          || tieBreakPreTest(a, b)
       },
       {
         id: 'diagnostic_ace',
         title: 'Nilai Rata-Rata Asesmen Awal / Pre-Test Tertinggi',
         subtitle: 'Peserta dengan penguasaan pengetahuan awal terbaik sebelum mengikuti materi pelatihan',
-        criteria: 'Kriteria: Rerata Nilai Asesmen Awal (Pre-Test) Pilar I & II Tertinggi',
+        criteria: 'Kriteria: Rerata Asesmen Awal → Lengkap 2 Pilar → Durasi Kuis Tercepat → Waktu Submit Awal Tercepat',
         filterFn: u => u.pre_avg !== null && u.pre_avg > 0,
         emptyMsg: 'Belum ada peserta yang menyelesaikan Asesmen Awal / Pre-Test pada kelompok ini.',
         metricFn: u => `Skor Awal: ${(u.pre_avg || 0).toFixed(1)}`,
-        sortFn: (a, b) => ((b.pre_avg || 0) - (a.pre_avg || 0)) || (b.readiness_score - a.readiness_score)
+        tieBreakerFn: u => `P1: ${u.pre_p1 ?? '-'} | P2: ${u.pre_p2 ?? '-'} • Durasi ${u.total_pre_durasi.toFixed(1)}m • Submit ${u.last_pre_submit || u.first_pre_submit || '-'}`,
+        sortFn: (a, b) => ((b.pre_avg || 0) - (a.pre_avg || 0)) || tieBreakPreTest(a, b)
       },
       {
         id: 'strategic_master',
         title: 'Capaian Uji Kompetensi Terbaik Pilar I (Manajemen & Operasional)',
         subtitle: 'Peserta dengan nilai rata-rata Uji Kompetensi / Post-Test tertinggi pada 4 modul Pilar I (PK, SDMPT, PBJ, KA)',
-        criteria: 'Kriteria: Rerata Uji Kompetensi Pilar I Tertinggi (Wajib sudah mengerjakan modul Pilar I)',
+        criteria: 'Kriteria: Rerata Ujikom Pilar I → Jml Modul P1 → Attempt Terkecil → Durasi Tercepat → Waktu Submit',
         filterFn: u => u.p1_attempted_post > 0,
         emptyMsg: 'Uji Kompetensi Pilar I (PK, SDMPT, PBJ, KA) belum dilaksanakan pada kelompok ini.',
         metricFn: u => `Pilar I: ${u.p1_post_avg.toFixed(1)} (${u.p1_attempted_post}/4 Modul)`,
-        sortFn: (a, b) => (b.p1_post_avg - a.p1_post_avg) || (b.p1_attempted_post - a.p1_attempted_post) || (b.progress_p1 - a.progress_p1)
+        tieBreakerFn: u => `Comp P1 ${u.progress_p1.toFixed(1)}% • Durasi ${u.total_post_durasi.toFixed(1)}m • Submit ${u.last_post_submit || '-'}`,
+        sortFn: (a, b) => (b.p1_post_avg - a.p1_post_avg)
+          || (b.p1_attempted_post - a.p1_attempted_post)
+          || (b.progress_p1 - a.progress_p1)
+          || tieBreakPostTest(a, b)
       },
       {
         id: 'governance_vanguard',
         title: 'Capaian Uji Kompetensi Terbaik Pilar II (Governance & Kepatuhan)',
         subtitle: 'Peserta dengan nilai rata-rata Uji Kompetensi / Post-Test tertinggi pada 4 modul Pilar II (AI, PMA, HK, MRT)',
-        criteria: 'Kriteria: Rerata Uji Kompetensi Pilar II Tertinggi (Wajib sudah mengerjakan modul Pilar II)',
+        criteria: 'Kriteria: Rerata Ujikom Pilar II → Jml Modul P2 → Attempt Terkecil → Durasi Tercepat → Waktu Submit',
         filterFn: u => u.p2_attempted_post > 0,
         emptyMsg: 'Uji Kompetensi Pilar II (AI, PMA, HK, MRT) belum dilaksanakan pada kelompok ini.',
         metricFn: u => `Pilar II: ${u.p2_post_avg.toFixed(1)} (${u.p2_attempted_post}/4 Modul)`,
-        sortFn: (a, b) => (b.p2_post_avg - a.p2_post_avg) || (b.p2_attempted_post - a.p2_attempted_post) || (b.progress_p2 - a.progress_p2)
+        tieBreakerFn: u => `Comp P2 ${u.progress_p2.toFixed(1)}% • Durasi ${u.total_post_durasi.toFixed(1)}m • Submit ${u.last_post_submit || '-'}`,
+        sortFn: (a, b) => (b.p2_post_avg - a.p2_post_avg)
+          || (b.p2_attempted_post - a.p2_attempted_post)
+          || (b.progress_p2 - a.progress_p2)
+          || tieBreakPostTest(a, b)
       },
       {
         id: 'quantum_leap',
         title: 'Peningkatan Nilai (Knowledge Gain) Tertinggi',
         subtitle: 'Peserta dengan lonjakan peningkatan pemahaman terbaik dari Asesmen Awal ke Uji Kompetensi / Post-Test',
-        criteria: 'Kriteria: Indeks Normalized Hake Gain ⟨g⟩ Tertinggi (Wajib memiliki nilai Awal & Uji Kompetensi)',
+        criteria: 'Kriteria: Indeks Hake Gain ⟨g⟩ → Rerata Uji Kompetensi → Jml Modul → Durasi Tercepat',
         filterFn: u => u.attempted_post > 0 && u.hake_gain !== null,
         emptyMsg: 'Perhitungan Knowledge Gain membutuhkan nilai Uji Kompetensi / Post-Test (belum dilaksanakan).',
         metricFn: u => `Gain ⟨g⟩: ${(u.hake_gain ?? 0).toFixed(2)}`,
-        sortFn: (a, b) => ((b.hake_gain ?? -1) - (a.hake_gain ?? -1)) || (b.post_total_avg - a.post_total_avg)
+        tieBreakerFn: u => `Awal ${(u.pre_avg || 0).toFixed(1)} → Uji ${u.post_total_avg.toFixed(1)} • Durasi ${u.total_post_durasi.toFixed(1)}m`,
+        sortFn: (a, b) => ((b.hake_gain ?? -1) - (a.hake_gain ?? -1))
+          || (b.post_total_avg - a.post_total_avg)
+          || tieBreakPostTest(a, b)
       },
       {
         id: 'flawless_mastery',
         title: 'Kelulusan Sempurna 8 Modul Tanpa Remedial',
-        subtitle: 'Peserta dengan jumlah kelulusan modul Uji Kompetensi (≥ KKM 80) terbanyak disertai rata-rata nilai tertinggi',
-        criteria: 'Kriteria: Jumlah Modul Uji Kompetensi Lulus KKM Terbanyak & Skor Tertinggi',
+        subtitle: 'Peserta dengan jumlah kelulusan modul Uji Kompetensi terbanyak disertai rata-rata nilai tertinggi',
+        criteria: 'Kriteria: Jml Modul Lulus KKM → Rerata Ujikom → Attempt Terkecil → Durasi Tercepat → Waktu Submit',
         filterFn: u => u.passed_post > 0,
         emptyMsg: 'Belum ada peserta yang menyelesaikan dan lulus Uji Kompetensi modul pada kelompok ini.',
         metricFn: u => `${u.passed_post}/8 Lulus (${u.post_total_avg.toFixed(1)})`,
-        sortFn: (a, b) => (b.passed_post - a.passed_post) || (b.post_total_avg - a.post_total_avg) || (b.comp_total - a.comp_total)
+        tieBreakerFn: u => `${u.total_post_attempts || u.attempted_post}x Attempt • Durasi ${u.total_post_durasi.toFixed(1)}m • Submit ${u.last_post_submit || '-'}`,
+        sortFn: (a, b) => (b.passed_post - a.passed_post)
+          || (b.post_total_avg - a.post_total_avg)
+          || tieBreakPostTest(a, b)
       },
       {
         id: 'agile_leader',
         title: 'Performa Belajar Terpadu Terbaik (Nilai Uji Kompetensi & Progres)',
         subtitle: 'Peserta dengan keseimbangan tertinggi antara penyelesaian materi mandiri, nilai Uji Kompetensi, dan kesiapan',
-        criteria: 'Kriteria: Skor Gabungan (35% Completion + 35% Uji Kompetensi + 30% Kesiapan)',
+        criteria: 'Kriteria: Skor Terpadu (35% Comp + 35% Ujikom + 30% Kesiapan) → Durasi Tercepat → Waktu Submit',
         filterFn: u => u.attempted_post > 0,
         emptyMsg: 'Kategori Performa Terpadu membutuhkan nilai Uji Kompetensi / Post-Test (belum dilaksanakan).',
         metricFn: u => {
           const pts = 0.35 * u.comp_total + 0.35 * u.post_total_avg + 0.30 * u.readiness_score;
           return `Skor Terpadu: ${pts.toFixed(1)}`;
         },
+        tieBreakerFn: u => `Ujikom ${u.post_total_avg.toFixed(1)} • Comp ${u.comp_total.toFixed(1)}% • Durasi ${u.total_post_durasi.toFixed(1)}m`,
         sortFn: (a, b) => {
           const pa = 0.35 * a.comp_total + 0.35 * a.post_total_avg + 0.30 * a.readiness_score;
           const pb = 0.35 * b.comp_total + 0.35 * b.post_total_avg + 0.30 * b.readiness_score;
-          return pb - pa;
+          return (pb - pa) || tieBreakPostTest(a, b);
         }
       }
     ];
@@ -5014,12 +5124,14 @@
 
     function setAwardDisplayMode(mode) {
       awardDisplayMode = mode;
-      document.getElementById('btnModeTop3').className = mode === 'top3'
-        ? 'px-3 py-1.5 text-xs font-bold bg-slate-900 text-amber-400'
-        : 'px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100';
-      document.getElementById('btnModeTop5').className = mode === 'top5'
-        ? 'px-3 py-1.5 text-xs font-bold bg-slate-900 text-amber-400'
-        : 'px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100';
+      const activeCls = 'px-3 py-1.5 text-xs font-bold bg-slate-900 text-amber-400';
+      const idleCls = 'px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 border-l border-slate-300';
+      const btn3 = document.getElementById('btnModeTop3');
+      const btn5 = document.getElementById('btnModeTop5');
+      const btn10 = document.getElementById('btnModeTop10');
+      if (btn3) btn3.className = mode === 'top3' ? activeCls : 'px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100';
+      if (btn5) btn5.className = mode === 'top5' ? `${activeCls} border-l border-slate-700` : idleCls;
+      if (btn10) btn10.className = mode === 'top10' ? `${activeCls} border-l border-slate-700` : idleCls;
       renderAwardStage();
     }
 
@@ -5037,7 +5149,16 @@
       document.getElementById('awardCriteriaFooter').textContent = cat.criteria;
       document.getElementById('awardBatchBadge').textContent = fBatch === 'ALL' ? 'Semua Batch' : fBatch;
 
-      const limit = awardDisplayMode === 'top3' ? 3 : 5;
+      const canvasEl = document.getElementById('awardSlideCanvas');
+      if (canvasEl) {
+        if (awardDisplayMode === 'top10') {
+          canvasEl.classList.remove('aspect-16-9');
+        } else {
+          canvasEl.classList.add('aspect-16-9');
+        }
+      }
+
+      const limit = awardDisplayMode === 'top3' ? 3 : (awardDisplayMode === 'top5' ? 5 : 10);
       const eligibleList = cat.filterFn ? filteredProfilesList.filter(cat.filterFn) : [...filteredProfilesList];
       const ranked = eligibleList.sort(cat.sortFn).slice(0, limit);
       const stage = document.getElementById('awardStageBody');
@@ -5053,23 +5174,72 @@
         return;
       }
 
+      if (awardDisplayMode === 'top10') {
+        stage.innerHTML = `
+          <div class="rounded-xl border border-amber-300/90 bg-white/95 shadow-sm overflow-hidden">
+            <div class="grid grid-cols-12 bg-slate-900 text-amber-400 text-[10px] font-mono font-extrabold uppercase tracking-wider px-3.5 py-2.5">
+              <div class="col-span-1 text-center">Rank</div>
+              <div class="col-span-4 text-left">Nama Peserta &amp; Batch</div>
+              <div class="col-span-3 text-left">Metrik Utama</div>
+              <div class="col-span-4 text-right">Faktor Pembeda Objektif (Tie-Breaker)</div>
+            </div>
+            <div class="divide-y divide-slate-200/80">
+              ${ranked.map((u, i) => {
+                const isTop3 = i < 3;
+                const medal = i === 0 ? '🥇 #1' : (i === 1 ? '🥈 #2' : (i === 2 ? '🥉 #3' : `#${i + 1}`));
+                const rowBg = i === 0 ? 'bg-amber-50/80' : (isTop3 ? 'bg-amber-50/30' : 'bg-white');
+                const tbInfo = cat.tieBreakerFn ? cat.tieBreakerFn(u) : `Kesiapan ${u.readiness_score.toFixed(1)}`;
+                return `
+                  <div class="grid grid-cols-12 items-center px-3.5 py-2.5 text-xs ${rowBg} hover:bg-amber-100/40 transition">
+                    <div class="col-span-1 text-center font-mono font-extrabold ${isTop3 ? 'text-amber-700' : 'text-slate-500'}">
+                      ${medal}
+                    </div>
+                    <div class="col-span-4 flex items-center gap-2.5 min-w-0 pr-2">
+                      <div class="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center font-serif font-extrabold text-[11px] ${i === 0 ? 'bg-slate-900 text-amber-400' : (isTop3 ? 'bg-amber-200 text-amber-950' : 'bg-slate-100 text-slate-700')}">
+                        ${getInitials(u.nama_peserta)}
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <div class="font-bold text-slate-900 leading-snug break-words">${u.nama_peserta}</div>
+                        <div class="text-[10px] font-mono text-slate-500 leading-normal mt-0.5">${u.batch} • ${u.persona}</div>
+                      </div>
+                    </div>
+                    <div class="col-span-3 font-mono font-extrabold text-amber-900 pr-2">
+                      <span class="px-2.5 py-1 rounded bg-amber-100/80 border border-amber-300/70 inline-block leading-snug">${cat.metricFn(u)}</span>
+                    </div>
+                    <div class="col-span-4 text-right font-mono text-[11px] text-slate-600 leading-snug break-words" title="${tbInfo}">
+                      ${tbInfo}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+        return;
+      }
+
       stage.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-${limit} gap-4 items-stretch">
-          ${ranked.map((u, i) => `
+          ${ranked.map((u, i) => {
+            const tbInfo = cat.tieBreakerFn ? cat.tieBreakerFn(u) : '';
+            return `
             <div class="p-4 rounded-2xl border ${i === 0 ? 'border-amber-400 bg-gradient-to-b from-amber-50 to-white shadow-lg' : 'border-slate-200 bg-white shadow-sm'} flex flex-col justify-between text-center">
               <div>
                 <div class="text-xs font-mono font-extrabold uppercase ${i === 0 ? 'text-amber-700' : 'text-slate-500'}">Peringkat #${i + 1}</div>
                 <div class="w-14 h-14 rounded-2xl mx-auto my-3 flex items-center justify-center font-serif font-extrabold text-lg ${i === 0 ? 'bg-slate-900 text-amber-400' : 'bg-slate-100 text-slate-800'}">
                   ${getInitials(u.nama_peserta)}
                 </div>
-                <div class="font-bold text-slate-900 text-sm line-clamp-2">${u.nama_peserta}</div>
-                <div class="text-[11px] font-mono text-slate-500 mt-0.5">${u.batch} • ${u.persona}</div>
+                <div class="font-bold text-slate-900 text-sm leading-snug break-words">${u.nama_peserta}</div>
+                <div class="text-[11px] font-mono text-slate-500 mt-1 leading-normal">${u.batch} • ${u.persona}</div>
               </div>
-              <div class="mt-4 pt-2 border-t border-slate-100 font-mono font-extrabold text-xs text-amber-900 bg-amber-50/70 py-1.5 px-2 rounded-lg">
-                ${cat.metricFn(u)}
+              <div class="mt-4 pt-2.5 border-t border-slate-100 space-y-1.5">
+                <div class="font-mono font-extrabold text-xs text-amber-900 bg-amber-50/70 py-1.5 px-2.5 rounded-lg leading-snug">
+                  ${cat.metricFn(u)}
+                </div>
+                ${tbInfo ? `<div class="text-[10px] font-mono text-slate-500 leading-snug break-words" title="${tbInfo}">${tbInfo}</div>` : ''}
               </div>
             </div>
-          `).join('')}
+          `;}).join('')}
         </div>
       `;
     }
@@ -5078,19 +5248,22 @@
       const catId = document.getElementById('awardCategorySelect')?.value || 'grand_luminary';
       const cat = AWARDS_CATALOG.find(a => a.id === catId) || AWARDS_CATALOG[0];
       const eligibleList = cat.filterFn ? filteredProfilesList.filter(cat.filterFn) : [...filteredProfilesList];
-      const ranked = eligibleList.sort(cat.sortFn).slice(0, awardDisplayMode === 'top3' ? 3 : 5);
+      const limit = awardDisplayMode === 'top3' ? 3 : (awardDisplayMode === 'top5' ? 5 : 10);
+      const ranked = eligibleList.sort(cat.sortFn).slice(0, limit);
       if (ranked.length === 0) {
         setSyncBanner('Belum ada nominasi yang memenuhi kriteria pada kategori ini', 'rose');
         return;
       }
       const lines = [
-        `🏆 *PENGUMUMAN PENGHARGAAN UI ALEX 2026*`,
+        `🏆 *PENGUMUMAN PENGHARGAAN UI ALEX 2026 (TOP ${limit})*`,
         `Kategori: *${cat.title}*`,
         `_${cat.subtitle}_`,
+        `_${cat.criteria}_`,
         ``
       ];
       ranked.forEach((u, i) => {
-        lines.push(`#${i + 1} *${u.nama_peserta}* (${u.batch}) — ${cat.metricFn(u)}`);
+        const tbInfo = cat.tieBreakerFn ? ` [${cat.tieBreakerFn(u)}]` : '';
+        lines.push(`#${i + 1} *${u.nama_peserta}* (${u.batch}) — ${cat.metricFn(u)}${tbInfo}`);
       });
       copyTextToClipboard(lines.join('\n'), 'Teks pengumuman berhasil disalin!');
     }
@@ -5098,14 +5271,40 @@
     async function exportAwardSlidePNG() {
       const el = document.getElementById('awardSlideCanvas');
       if (!el) return;
-      const canvas = await html2canvas(el, { scale: 2.5, useCORS: true, backgroundColor: '#ffffff' });
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+      const canvas = await html2canvas(el, {
+        scale: 2.5,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 1440,
+        onclone: (clonedDoc) => {
+          const clonedCanvas = clonedDoc.getElementById('awardSlideCanvas');
+          if (clonedCanvas) {
+            clonedCanvas.style.width = '1120px';
+            clonedCanvas.style.maxWidth = 'none';
+            clonedCanvas.style.height = 'auto';
+            clonedCanvas.style.aspectRatio = 'auto';
+            clonedCanvas.style.overflow = 'visible';
+            clonedCanvas.querySelectorAll('.truncate, .line-clamp-2, .overflow-hidden').forEach(node => {
+              node.classList.remove('truncate', 'line-clamp-2', 'overflow-hidden');
+              node.style.overflow = 'visible';
+              node.style.whiteSpace = 'normal';
+              node.style.lineHeight = '1.45';
+            });
+          }
+        }
+      });
       const link = document.createElement('a');
       link.download = `UI_ALEX_2026_Award_${Date.now()}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     }
 
-    function downloadAwardCertificatePDF() {
+    async function downloadAwardCertificatePDF() {
       const catId = document.getElementById('awardCategorySelect')?.value || 'grand_luminary';
       const cat = AWARDS_CATALOG.find(a => a.id === catId) || AWARDS_CATALOG[0];
       const eligibleList = cat.filterFn ? filteredProfilesList.filter(cat.filterFn) : [...filteredProfilesList];
@@ -5115,19 +5314,94 @@
         return;
       }
 
-      document.getElementById('certRecipientName').textContent = winner.nama_peserta;
-      document.getElementById('certAwardName').textContent = cat.title;
-      document.getElementById('certMetricSummary').textContent = `${winner.batch} • ${cat.metricFn(winner)} • Indeks Kesiapan: ${winner.readiness_score}`;
-      document.getElementById('certDateText').textContent = `Tanggal: ${new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })}`;
+      const btn = document.getElementById('btnDownloadCertPDF');
+      const originalHtml = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Merender Piagam PDF...';
+      }
 
-      const el = document.getElementById('certificatePrintCanvas');
-      html2pdf().set({
-        margin: 5,
-        filename: `Piagam_${winner.nama_peserta.replace(/\s+/g, '_')}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-      }).from(el).save();
+      try {
+        const tbText = cat.tieBreakerFn ? ` • ${cat.tieBreakerFn(winner)}` : '';
+        document.getElementById('certRecipientName').textContent = winner.nama_peserta;
+        document.getElementById('certAwardName').textContent = cat.title;
+        document.getElementById('certMetricSummary').textContent = `${winner.batch} • ${cat.metricFn(winner)}${tbText}`;
+        document.getElementById('certDateText').textContent = `Tanggal: ${new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })}`;
+
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.ready;
+        }
+
+        const el = document.getElementById('certificatePrintCanvas');
+        const canvas = await html2canvas(el, {
+          scale: 2.5,
+          useCORS: true,
+          backgroundColor: '#FFFDF7',
+          width: 1120,
+          height: 790,
+          windowWidth: 1200,
+          windowHeight: 900,
+          scrollX: 0,
+          scrollY: 0,
+          onclone: (clonedDoc) => {
+            const clonedWrapper = clonedDoc.getElementById('certificateOffscreenWrapper');
+            if (clonedWrapper) {
+              clonedWrapper.style.position = 'static';
+              clonedWrapper.style.left = '0px';
+              clonedWrapper.style.top = '0px';
+              clonedWrapper.style.width = '1120px';
+              clonedWrapper.style.height = '790px';
+              clonedWrapper.style.overflow = 'visible';
+            }
+            const clonedCert = clonedDoc.getElementById('certificatePrintCanvas');
+            if (clonedCert) {
+              clonedCert.style.position = 'relative';
+              clonedCert.style.left = '0px';
+              clonedCert.style.top = '0px';
+              clonedCert.style.margin = '0px';
+              clonedCert.style.width = '1120px';
+              clonedCert.style.height = '790px';
+              clonedCert.style.boxSizing = 'border-box';
+              clonedCert.style.overflow = 'hidden';
+            }
+          }
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+        const jsPDFConstructor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+        let pdf = null;
+
+        if (jsPDFConstructor) {
+          pdf = new jsPDFConstructor({
+            orientation: 'landscape',
+            unit: 'mm',
+            format: 'a4',
+            compress: true
+          });
+        } else if (window.html2pdf) {
+          const worker = html2pdf().set({
+            margin: 0,
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+          });
+          await worker.from(document.createElement('div')).toPdf();
+          pdf = await worker.get('pdf');
+        }
+
+        if (pdf) {
+          // A4 Landscape: 297mm x 210mm -> Margin simetris 6mm di 4 sisi (Area cetak: 285mm x 198mm)
+          pdf.addImage(imgData, 'JPEG', 6, 6, 285, 198);
+          const cleanName = winner.nama_peserta.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+          pdf.save(`Piagam_UI_ALEX_2026_${cleanName}.pdf`);
+        }
+      } catch (err) {
+        console.error('Gagal mengunduh Piagam PDF:', err);
+        setSyncBanner('Gagal membuat Piagam PDF', 'rose');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalHtml;
+        }
+      }
     }
 
     /*************************************************************************
