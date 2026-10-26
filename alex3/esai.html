@@ -34,6 +34,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
   <script src="https://unpkg.com/@popperjs/core@2"></script>
   <script src="https://unpkg.com/tippy.js@6"></script>
 
@@ -393,12 +397,12 @@
       <div class="flex flex-wrap items-center gap-2">
         <input id="reportIdInput" type="hidden" value="175" />
 
-        <!-- Salin Permalink -->
+        <!-- Salin Shortlink (?s=...) -->
         <button id="btnCopyPermalink" onclick="copyPermalink()"
-          data-tippy-content="Salin tautan Permalink dengan kondisi filter, batch, mode kolom, dan halaman aktif saat ini ke clipboard"
+          data-tippy-content="Salin tautan Stateless Shortlink (?s=...) dengan kondisi filter, batch, mode tampilan, dan Unix Timestamp saat ini ke clipboard"
           class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition flex items-center gap-1.5">
           <span id="permalinkIcon">🔗</span>
-          <span id="permalinkText">Salin Permalink</span>
+          <span id="permalinkText">Shortlink</span>
         </button>
 
         <!-- Kontrol Besarkan / Kecilkan Ukuran Font (A- / % / A+) -->
@@ -435,6 +439,14 @@
         <span id="lastSyncTimestamp" class="hidden">-</span>
         <span id="totalRawRowsBadge" class="hidden">0</span>
 
+        <!-- Tombol Cetak PDF Vektor + QR Audit Stamp -->
+        <button onclick="exportActiveViewVectorPDF()"
+          data-tippy-content="Unduh Laporan PDF Vektor Multi-Halaman (Anti-Potong Baris) dilengkapi QR Code Verifikasi & Shortlink"
+          class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
+          <span>🖨️</span>
+          <span>PDF Vektor</span>
+        </button>
+
         <!-- Tombol Export Excel (.xlsx) Bersih -->
         <button onclick="exportToExcel(true)"
           data-tippy-content="Unduh file Excel (.xlsx) 17 kolom dengan teks tabel esai yang sudah dirapikan dari tag HTML + Sheet Rekap Modul"
@@ -460,7 +472,7 @@
 
         <!-- Kunci Sesi -->
         <button onclick="lockScreen(false)"
-          data-tippy-content="Kunci sesi dasbor sekarang"
+          data-tippy-content="Kunci sesi dasbor sekarang (mengunci semua tab aktif)"
           class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 transition">
           🔒 Kunci
         </button>
@@ -469,9 +481,33 @@
   </header>
 
   <!-- =====================================================================
-       2. MAIN APPLICATION CONTAINER
+       2. MAIN APPLICATION CONTAINER (5-TAB BROWSER DECK ARCHITECTURE)
        ===================================================================== -->
   <main id="dashboardRoot" class="dashboard-unloaded max-w-[1600px] mx-auto px-4 py-5">
+
+    <!-- Banner Verifikasi QR / Shortlink Permalink (Tampil Otomatis Saat Membuka Link ?s=...) -->
+    <div id="qrVerificationBanner" class="hidden mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-900 text-white border border-emerald-500/40 shadow-md flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center text-lg font-bold shrink-0">
+          ✓
+        </div>
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-emerald-500 text-slate-950 font-mono font-extrabold text-[10px] uppercase tracking-wider">
+              QR / SHORTLINK VERIFIED
+            </span>
+            <span id="qrVerifyCodeBadge" class="font-mono text-xs text-amber-300 font-bold">?s=-</span>
+          </div>
+          <p id="qrVerifyDetailText" class="text-xs text-slate-300 mt-0.5">
+            Menampilkan tangkapan state halaman sesuai tautan dokumen yang dipindai.
+          </p>
+        </div>
+      </div>
+      <button type="button" onclick="document.getElementById('qrVerificationBanner').classList.add('hidden')"
+        class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 transition">
+        ✕ Tutup Info
+      </button>
+    </div>
 
     <!-- Overlay Arsir & Indikator Tarik Data CSV -->
     <div id="dashboardUnloadedShield">
@@ -496,85 +532,86 @@
       </div>
     </div>
 
-    <div id="mainViewportDeck" class="space-y-5">
-
-      <!-- =================================================================
-           1. PALING ATAS: KPI SUMMARY CARDS
-           ================================================================= -->
-      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-white rounded-2xl border border-slate-200 border-l-4 border-l-slate-800 shadow-sm p-4">
-          <div class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">TOTAL SLOT SUBMISI ESAI</div>
-          <div id="kpiTotalRows" class="text-2xl font-extrabold text-slate-900 font-mono mt-1">0</div>
-          <div id="kpiUniqueUsers" class="text-xs text-slate-500 mt-1">0 peserta unik terfilter</div>
-        </div>
-
-        <div onclick="quickFilterStatus('submitted')" class="cursor-pointer bg-white hover:bg-emerald-50/40 rounded-2xl border border-slate-200 border-l-4 border-l-emerald-500 shadow-sm p-4 transition">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">SUDAH SUBMIT (SUBMITTED)</span>
-            <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono font-bold text-[10px]" id="kpiSubmittedPct">0.0%</span>
+    <!-- =================================================================
+         BROWSER-STYLE 5-TAB STRIP NAVIGATION (KONSISTEN DENGAN ALEX UTAMA)
+         ================================================================= -->
+    <nav aria-label="Mode Tampilan Assignment Studio" class="bg-slate-300/80 pt-2.5 px-2.5 rounded-t-2xl border-t border-x border-slate-300/90 select-none">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-1.5 items-end" role="tablist">
+        <!-- Tab 1 (Default): Direktori & Rapor 8 Modul Per Orang -->
+        <button type="button" id="tabViewDirectory" role="tab" aria-selected="true" onclick="setWorkspaceMode('directory')"
+          class="group relative z-10 -mb-[1px] w-full px-4 py-3 rounded-t-xl text-xs font-extrabold transition-all duration-150 flex items-center justify-between gap-2 bg-white text-slate-950 border-t-[3px] border-t-amber-500 border-x border-slate-300 border-b border-b-white shadow-[0_-3px_10px_rgba(15,23,42,0.06)]">
+          <div class="flex items-center gap-2 truncate">
+            <span id="num_tabDirectory" class="w-5 h-5 rounded-md bg-amber-500 text-slate-950 font-mono text-[11px] font-extrabold flex items-center justify-center shadow-sm shrink-0">1</span>
+            <span class="truncate">👥 Direktori &amp; Rapor 8 Modul</span>
           </div>
-          <div id="kpiSubmittedCount" class="text-2xl font-extrabold text-emerald-600 font-mono mt-1">0</div>
-          <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter yang sudah kumpul</div>
-        </div>
-
-        <div onclick="quickFilterStatus('new')" class="cursor-pointer bg-white hover:bg-amber-50/40 rounded-2xl border border-slate-200 border-l-4 border-l-amber-500 shadow-sm p-4 transition">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-700">DRAFT / BUKA SOAL (NEW)</span>
-            <span class="px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-mono font-bold text-[10px]" id="kpiNewPct">0.0%</span>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <span id="badgeCountParticipants" class="px-1.5 py-0.5 rounded-full bg-slate-900 text-amber-300 font-mono text-[10px]">0</span>
+            <span id="dot_tabDirectory" class="w-2 h-2 rounded-full bg-emerald-500" title="Tab Aktif"></span>
           </div>
-          <div id="kpiNewCount" class="text-2xl font-extrabold text-amber-600 font-mono mt-1">0</div>
-          <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter status draft</div>
-        </div>
+        </button>
 
-        <div onclick="quickFilterStatus('belum_submit')" class="cursor-pointer bg-white hover:bg-slate-100/70 rounded-2xl border border-slate-200 border-l-4 border-l-slate-400 shadow-sm p-4 transition">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-600">BELUM SUBMIT</span>
-            <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono font-bold text-[10px]" id="kpiBelumPct">0.0%</span>
+        <!-- Tab 2: Submisi & Pantauan Modul -->
+        <button type="button" id="tabViewSubmissions" role="tab" aria-selected="false" onclick="setWorkspaceMode('submissions')"
+          class="group relative w-full px-4 py-2.5 rounded-t-xl text-xs font-semibold transition-all duration-150 flex items-center justify-between gap-2 bg-slate-200/80 text-slate-600 hover:bg-slate-100/90 hover:text-slate-900 border-t-[3px] border-t-transparent border-x border-slate-300/60 border-b border-b-slate-300">
+          <div class="flex items-center gap-2 truncate">
+            <span id="num_tabSubmissions" class="w-5 h-5 rounded-md bg-slate-300 text-slate-700 group-hover:bg-slate-400/50 font-mono text-[11px] font-bold flex items-center justify-center shrink-0">2</span>
+            <span class="truncate">📋 Submisi &amp; Pantauan Modul</span>
           </div>
-          <div id="kpiBelumCount" class="text-2xl font-extrabold text-slate-700 font-mono mt-1">0</div>
-          <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter yang belum submit</div>
-        </div>
-      </section>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <span id="badgeCountSubmissions" class="px-1.5 py-0.5 rounded-full bg-slate-300/80 text-slate-700 font-mono text-[10px]">0</span>
+            <span id="dot_tabSubmissions" class="hidden w-2 h-2 rounded-full bg-emerald-500" title="Tab Aktif"></span>
+          </div>
+        </button>
+
+        <!-- Tab 3: Studio Hall of Fame & Top Writers -->
+        <button type="button" id="tabViewHallOfFame" role="tab" aria-selected="false" onclick="setWorkspaceMode('halloffame')"
+          class="group relative w-full px-4 py-2.5 rounded-t-xl text-xs font-semibold transition-all duration-150 flex items-center justify-between gap-2 bg-slate-200/80 text-slate-600 hover:bg-slate-100/90 hover:text-slate-900 border-t-[3px] border-t-transparent border-x border-slate-300/60 border-b border-b-slate-300">
+          <div class="flex items-center gap-2 truncate">
+            <span id="num_tabHallOfFame" class="w-5 h-5 rounded-md bg-slate-300 text-slate-700 group-hover:bg-slate-400/50 font-mono text-[11px] font-bold flex items-center justify-center shrink-0">3</span>
+            <span class="truncate">🏆 Hall of Fame &amp; Top Writers</span>
+          </div>
+          <span id="dot_tabHallOfFame" class="hidden w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Tab Aktif"></span>
+        </button>
+
+        <!-- Tab 4: Rekapitulasi Eksekutif Pimti -->
+        <button type="button" id="tabViewPimti" role="tab" aria-selected="false" onclick="setWorkspaceMode('pimti')"
+          data-tippy-content="Buka Sajian Rekapitulasi Eksekutif Pimpinan Tinggi (1-Page Executive Briefing: Hierarki Gabungan, Pilar & 8 Modul Esai)"
+          class="group relative w-full px-4 py-2.5 rounded-t-xl text-xs font-semibold transition-all duration-150 flex items-center justify-between gap-2 bg-slate-200/80 text-slate-600 hover:bg-slate-100/90 hover:text-slate-900 border-t-[3px] border-t-transparent border-x border-slate-300/60 border-b border-b-slate-300">
+          <div class="flex items-center gap-2 truncate">
+            <span id="num_tabPimti" class="w-5 h-5 rounded-md bg-slate-300 text-slate-700 group-hover:bg-slate-400/50 font-mono text-[11px] font-bold flex items-center justify-center shrink-0">4</span>
+            <span class="truncate">🏛️ Rekapitulasi Eksekutif Pimti</span>
+          </div>
+          <span id="dot_tabPimti" class="hidden w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Tab Aktif"></span>
+        </button>
+
+        <!-- Tab 5: Link Balik ke Learning Analytics Utama -->
+        <a id="tabMainAlex" href="https://danial.my.id/alex3/" target="_blank" rel="noopener noreferrer"
+          data-tippy-content="Buka Dasbor Utama UI ALEX 2026 Learning Analytics (danial.my.id/alex3/) di tab baru"
+          class="group relative w-full px-4 py-2.5 rounded-t-xl text-xs font-semibold transition-all duration-150 flex items-center justify-between gap-2 bg-slate-200/80 text-slate-600 hover:bg-amber-50/90 hover:text-slate-950 border-t-[3px] border-t-transparent hover:border-t-amber-500 border-x border-slate-300/60 border-b border-b-slate-300">
+          <div class="flex items-center gap-2 truncate">
+            <span class="w-5 h-5 rounded-md bg-slate-300 text-slate-700 group-hover:bg-amber-500 group-hover:text-slate-950 font-mono text-[11px] font-bold flex items-center justify-center shrink-0 transition-colors">5</span>
+            <span class="truncate">📊 Learning Analytics Utama</span>
+          </div>
+          <span class="text-[11px] font-mono font-bold text-slate-400 group-hover:text-amber-600 shrink-0">↗</span>
+        </a>
+      </div>
+    </nav>
+
+    <!-- Browser Active Tab Viewport Deck -->
+    <div id="mainViewportDeck" class="bg-white rounded-b-2xl border border-slate-300 shadow-sm p-4 md:p-5 space-y-5">
 
       <!-- =================================================================
-           2. WIDGET PER PILAR & MODUL DIREKTORAT
+           FILTER BAR GLOBAL (DENGAN INDIKATOR FILTER AKTIF & PULSE DOT)
            ================================================================= -->
-      <div id="moduleBreakdownGrid" class="space-y-4"></div>
-
-      <!-- =================================================================
-           2B. MENU SWITCHER MODE TAMPILAN: TABEL SUBMISI vs RAPOR PER ORANG
-           ================================================================= -->
-      <nav aria-label="Mode Tampilan Data" class="bg-slate-200/90 p-1.5 rounded-2xl border border-slate-300 flex flex-wrap items-center justify-between gap-2 select-none">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 w-full lg:w-auto flex-1">
-          <button type="button" id="tabViewSubmissions" onclick="setWorkspaceMode('submissions')"
-            class="px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-between gap-3 bg-slate-900 text-amber-400 shadow-sm">
-            <div class="flex items-center gap-2 truncate">
-              <span class="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-mono text-[10px] font-extrabold">MODE 1</span>
-              <span class="truncate">📋 Tabel Submisi Esai (Per Baris Modul)</span>
-            </div>
-            <span id="badgeCountSubmissions" class="px-2 py-0.5 rounded-full bg-slate-800 text-amber-300 font-mono text-[10px]">0 Baris</span>
-          </button>
-
-          <button type="button" id="tabViewDirectory" onclick="setWorkspaceMode('directory')"
-            class="px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between gap-3 bg-white/80 text-slate-700 hover:bg-white hover:text-slate-950 border border-slate-300/80">
-            <div class="flex items-center gap-2 truncate">
-              <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px] font-extrabold">MODE 2</span>
-              <span class="truncate">👥 Direktori &amp; Rapor Per Orang (Rekap 8 Modul)</span>
-            </div>
-            <span id="badgeCountParticipants" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-mono text-[10px]">0 Peserta</span>
-          </button>
-        </div>
-      </nav>
-
-      <!-- =================================================================
-           3. FILTER BAR (DI ATAS TABEL)
-           ================================================================= -->
-      <section id="topFilterCard" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3 transition-colors duration-200">
+      <section id="topFilterCard" class="bg-slate-50/80 rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3 transition-colors duration-200">
         <div class="flex flex-wrap items-center justify-between gap-4">
           <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
             <!-- 1. Filter Batch -->
-            <div class="flex items-center gap-2">
-              <label for="filterBatch" class="text-[11px] font-bold uppercase tracking-wider text-slate-500">BATCH:</label>
+            <div id="wrap_filterBatch" class="flex items-center gap-2 px-2.5 py-1 -mx-1 rounded-xl border border-transparent transition-all duration-150">
+              <label id="lbl_filterBatch" for="filterBatch" class="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 cursor-pointer">
+                <span id="dot_filterBatch" class="hidden w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                <span>BATCH:</span>
+              </label>
               <select id="filterBatch" onchange="currentPage = 1; applyFilters()"
                 class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500">
                 <option value="ALL">Semua Batch</option>
@@ -585,8 +622,11 @@
             </div>
 
             <!-- 2. Filter Pilar -->
-            <div class="flex items-center gap-2">
-              <label for="filterPilar" class="text-[11px] font-bold uppercase tracking-wider text-slate-500">PILAR:</label>
+            <div id="wrap_filterPilar" class="flex items-center gap-2 px-2.5 py-1 -mx-1 rounded-xl border border-transparent transition-all duration-150">
+              <label id="lbl_filterPilar" for="filterPilar" class="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 cursor-pointer">
+                <span id="dot_filterPilar" class="hidden w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                <span>PILAR:</span>
+              </label>
               <select id="filterPilar" onchange="currentPage = 1; applyFilters()"
                 class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500">
                 <option value="ALL">Semua Pilar</option>
@@ -596,8 +636,11 @@
             </div>
 
             <!-- 3. Filter Modul -->
-            <div class="flex items-center gap-2">
-              <label for="filterModul" class="text-[11px] font-bold uppercase tracking-wider text-slate-500">MODUL:</label>
+            <div id="wrap_filterModul" class="flex items-center gap-2 px-2.5 py-1 -mx-1 rounded-xl border border-transparent transition-all duration-150">
+              <label id="lbl_filterModul" for="filterModul" class="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 cursor-pointer">
+                <span id="dot_filterModul" class="hidden w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                <span>MODUL:</span>
+              </label>
               <select id="filterModul" onchange="currentPage = 1; applyFilters()"
                 class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500">
                 <option value="ALL">Semua Modul (8 Modul)</option>
@@ -613,8 +656,11 @@
             </div>
 
             <!-- 4. Filter Status Submisi -->
-            <div class="flex items-center gap-2">
-              <label for="filterStatus" class="text-[11px] font-bold uppercase tracking-wider text-slate-500">STATUS SUBMISI:</label>
+            <div id="wrap_filterStatus" class="flex items-center gap-2 px-2.5 py-1 -mx-1 rounded-xl border border-transparent transition-all duration-150">
+              <label id="lbl_filterStatus" for="filterStatus" class="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 cursor-pointer">
+                <span id="dot_filterStatus" class="hidden w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                <span>STATUS SUBMISI:</span>
+              </label>
               <select id="filterStatus" onchange="currentPage = 1; applyFilters()"
                 class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500">
                 <option value="ALL">Semua Status</option>
@@ -625,14 +671,18 @@
             </div>
           </div>
 
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="activeFilterCountBadge" class="hidden px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-extrabold tracking-tight flex items-center gap-1.5 shadow-sm">
+              <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+              <span id="activeFilterCountText">1 Filter Aktif</span>
+            </span>
             <span id="activeModulWidgetBadge" class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-mono font-bold text-[11px]">
               Semua Pilar &amp; Modul Aktif
             </span>
             <span id="lastUpdateVisibleBadge" class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-mono text-[11px] border border-slate-200">
               🕒 Update: -
             </span>
-            <button onclick="resetFilters()" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition">
+            <button id="btnResetFilter" onclick="resetFilters()" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition">
               Reset Filter
             </button>
           </div>
@@ -640,142 +690,190 @@
       </section>
 
       <!-- =================================================================
-           4. TABEL VIEWER (MODE SIMPLE 9 KOLOM & DETAILED 17 KOLOM)
+           WORKSPACE TAB 2: SUBMISI & PANTAUAN MODUL (#submissionsWorkspace)
            ================================================================= -->
-      <section id="submissionsTableSection" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <!-- Collapsible Header Bar Tabel -->
-        <div onclick="toggleTableCollapse()" class="px-5 py-3.5 bg-slate-50/90 hover:bg-slate-100/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none transition">
-          <div class="flex items-center gap-2.5">
-            <span>📋</span>
-            <div>
-              <div class="flex flex-wrap items-center gap-2">
-                <h2 id="tableSectionHeading" class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-900">Tabel Rincian Submisi Esai Peserta (Mode Ringkas)</h2>
-                <span id="tableHeaderQuickCount" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-full bg-amber-100 text-amber-900 border border-amber-300">0 Baris Terfilter</span>
+      <div id="submissionsWorkspace" class="hidden space-y-5">
+        <!-- 1. KPI SUMMARY CARDS -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white rounded-2xl border border-slate-200 border-l-4 border-l-slate-800 shadow-sm p-4">
+            <div class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">TOTAL SLOT SUBMISI ESAI</div>
+            <div id="kpiTotalRows" class="text-2xl font-extrabold text-slate-900 font-mono mt-1">0</div>
+            <div id="kpiUniqueUsers" class="text-xs text-slate-500 mt-1">0 peserta unik terfilter</div>
+          </div>
+
+          <div onclick="quickFilterStatus('submitted')" class="cursor-pointer bg-white hover:bg-emerald-50/40 rounded-2xl border border-slate-200 border-l-4 border-l-emerald-500 shadow-sm p-4 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">SUDAH SUBMIT (SUBMITTED)</span>
+              <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono font-bold text-[10px]" id="kpiSubmittedPct">0.0%</span>
+            </div>
+            <div id="kpiSubmittedCount" class="text-2xl font-extrabold text-emerald-600 font-mono mt-1">0</div>
+            <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter yang sudah kumpul</div>
+          </div>
+
+          <div onclick="quickFilterStatus('new')" class="cursor-pointer bg-white hover:bg-amber-50/40 rounded-2xl border border-slate-200 border-l-4 border-l-amber-500 shadow-sm p-4 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-700">DRAFT / BUKA SOAL (NEW)</span>
+              <span class="px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-mono font-bold text-[10px]" id="kpiNewPct">0.0%</span>
+            </div>
+            <div id="kpiNewCount" class="text-2xl font-extrabold text-amber-600 font-mono mt-1">0</div>
+            <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter status draft</div>
+          </div>
+
+          <div onclick="quickFilterStatus('belum_submit')" class="cursor-pointer bg-white hover:bg-slate-100/70 rounded-2xl border border-slate-200 border-l-4 border-l-slate-400 shadow-sm p-4 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-600">BELUM SUBMIT</span>
+              <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono font-bold text-[10px]" id="kpiBelumPct">0.0%</span>
+            </div>
+            <div id="kpiBelumCount" class="text-2xl font-extrabold text-slate-700 font-mono mt-1">0</div>
+            <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter yang belum submit</div>
+          </div>
+        </section>
+
+        <!-- 2. WIDGET PER PILAR & MODUL DIREKTORAT -->
+        <div id="moduleBreakdownGrid" class="space-y-4"></div>
+
+        <!-- 3. TABEL VIEWER (MODE SIMPLE 9 KOLOM & DETAILED 17 KOLOM) -->
+        <section id="submissionsTableSection" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <!-- Collapsible Header Bar Tabel -->
+          <div onclick="toggleTableCollapse()" class="px-5 py-3.5 bg-slate-50/90 hover:bg-slate-100/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none transition">
+            <div class="flex items-center gap-2.5">
+              <span>📋</span>
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <h2 id="tableSectionHeading" class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-900">Tabel Rincian Submisi Esai Peserta (Mode Ringkas)</h2>
+                  <span id="tableHeaderQuickCount" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-full bg-amber-100 text-amber-900 border border-amber-300">0 Baris Terfilter</span>
+                </div>
+                <p class="text-[11px] text-slate-500">Default urutan: Batch → Pilar → Urutan Modul (PK s.d. MRT) → Nama Peserta. Klik bar ini untuk membuka/menutup tabel.</p>
               </div>
-              <p class="text-[11px] text-slate-500">Default urutan: Batch → Pilar → Urutan Modul (PK s.d. MRT) → Nama Peserta. Klik bar ini untuk membuka/menutup tabel.</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2" onclick="event.stopPropagation()">
+              <!-- Toggle Mode Kolom: Simple (Ringkas) vs Detailed (17 Kolom) -->
+              <div class="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 text-xs font-bold shadow-sm">
+                <button type="button" id="btnColModeSimple" onclick="setTableColumnMode('simple')"
+                  data-tippy-content="Tampilkan kolom-kolom penting dengan urutan ergonomis (Peserta di kiri, Aksi di kanan)"
+                  class="px-2.5 py-1 rounded-md bg-slate-900 text-amber-400 transition flex items-center gap-1">
+                  <span>⚡</span><span>Simple (Ringkas)</span>
+                </button>
+                <button type="button" id="btnColModeDetailed" onclick="setTableColumnMode('detailed')"
+                  data-tippy-content="Tampilkan seluruh 17 kolom lengkap sesuai skema Configurable Report ID 175"
+                  class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition flex items-center gap-1">
+                  <span>📑</span><span>Detailed (17 Kolom)</span>
+                </button>
+              </div>
+
+              <button type="button" onclick="exportFilteredTableToExcel()"
+                data-tippy-content="Unduh file Excel (.xlsx) 17 kolom sesuai dengan isi tabel yang sedang terfilter & terurut saat ini"
+                class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5">
+                <span>📥</span>
+                <span>Excel Tabel</span>
+              </button>
+              <button type="button" onclick="exportActiveTableVectorPDF()"
+                data-tippy-content="Cetak isi tabel terfilter ke PDF Vektor Multi-Halaman lengkap dengan QR Code & Shortlink"
+                class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5">
+                <span>🖨️</span>
+                <span>PDF Tabel</span>
+              </button>
+              <button type="button" onclick="resetDefaultSort()"
+                data-tippy-content="Kembalikan urutan tabel ke default (Batch → Pilar → Urutan Modul → Nama Lengkap)"
+                class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs border border-slate-300 transition">
+                ⇅ Default Sort
+              </button>
+              <button type="button" id="btnCollapseTable" onclick="toggleTableCollapse()"
+                class="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs shadow-sm transition flex items-center gap-1.5">
+                <span id="chevronTable" class="drawer-chevron">▼</span>
+                <span id="lblCollapseTable">Buka Tabel</span>
+              </button>
             </div>
           </div>
 
-          <div class="flex flex-wrap items-center gap-2" onclick="event.stopPropagation()">
-            <!-- Toggle Mode Kolom: Simple (Ringkas) vs Detailed (17 Kolom) -->
-            <div class="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 text-xs font-bold shadow-sm">
-              <button type="button" id="btnColModeSimple" onclick="setTableColumnMode('simple')"
-                data-tippy-content="Tampilkan kolom-kolom penting dengan urutan ergonomis (Peserta di kiri, Aksi di kanan)"
-                class="px-2.5 py-1 rounded-md bg-slate-900 text-amber-400 transition flex items-center gap-1">
-                <span>⚡</span><span>Simple (Ringkas)</span>
-              </button>
-              <button type="button" id="btnColModeDetailed" onclick="setTableColumnMode('detailed')"
-                data-tippy-content="Tampilkan seluruh 17 kolom lengkap sesuai skema Configurable Report ID 175"
-                class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition flex items-center gap-1">
-                <span>📑</span><span>Detailed (17 Kolom)</span>
-              </button>
-            </div>
+          <!-- Collapsible Body (Default: Collapsed) -->
+          <div id="tableCollapsibleBody" class="drawer-wrapper">
+            <div class="drawer-inner">
+              <!-- Top Table Toolbar: Search, Page Size, Info Count -->
+              <div class="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/60">
+                <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto flex-1">
+                  <div class="w-full sm:w-96 relative">
+                    <input id="searchTable" type="text" oninput="onSearchInput()"
+                      placeholder="Cari Nama Peserta, Username, NIP, Email, atau Isi Jawaban..."
+                      class="allow-context w-full px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                  </div>
 
-            <button type="button" onclick="exportFilteredTableToExcel()"
-              data-tippy-content="Unduh file Excel (.xlsx) 17 kolom sesuai dengan isi tabel yang sedang terfilter & terurut saat ini"
-              class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5">
-              <span>📥</span>
-              <span>Download Excel Isi Tabel</span>
-            </button>
-            <button type="button" onclick="resetDefaultSort()"
-              data-tippy-content="Kembalikan urutan tabel ke default (Batch → Pilar → Urutan Modul → Nama Lengkap)"
-              class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs border border-slate-300 transition">
-              ⇅ Default Sort
-            </button>
-            <button type="button" id="btnCollapseTable" onclick="toggleTableCollapse()"
-              class="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs shadow-sm transition flex items-center gap-1.5">
-              <span id="chevronTable" class="drawer-chevron">▼</span>
-              <span id="lblCollapseTable">Buka Tabel</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Collapsible Body (Default: Collapsed) -->
-        <div id="tableCollapsibleBody" class="drawer-wrapper">
-          <div class="drawer-inner">
-            <!-- Top Table Toolbar: Search, Page Size, Info Count -->
-            <div class="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/60">
-              <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto flex-1">
-                <div class="w-full sm:w-96 relative">
-                  <input id="searchTable" type="text" oninput="onSearchInput()"
-                    placeholder="Cari Nama Peserta, Username, NIP, Email, atau Isi Jawaban..."
-                    class="allow-context w-full px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                  <div class="flex items-center gap-1.5 text-xs">
+                    <label for="pageSizeSelect" class="font-bold text-slate-500 uppercase text-[10px]">Baris / Hal:</label>
+                    <select id="pageSizeSelect" onchange="onPageSizeChange()"
+                      class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 font-mono font-bold text-xs focus:outline-none focus:ring-2 focus:ring-amber-500">
+                      <option value="25">25</option>
+                      <option value="50" selected>50</option>
+                      <option value="100">100</option>
+                      <option value="250">250</option>
+                      <option value="ALL">Semua</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div class="flex items-center gap-1.5 text-xs">
-                  <label for="pageSizeSelect" class="font-bold text-slate-500 uppercase text-[10px]">Baris / Hal:</label>
-                  <select id="pageSizeSelect" onchange="onPageSizeChange()"
-                    class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 font-mono font-bold text-xs focus:outline-none focus:ring-2 focus:ring-amber-500">
-                    <option value="25">25</option>
-                    <option value="50" selected>50</option>
-                    <option value="100">100</option>
-                    <option value="250">250</option>
-                    <option value="ALL">Semua</option>
-                  </select>
+                <div class="flex flex-wrap items-center gap-2">
+                  <span id="tableCountBadge" class="text-xs font-mono font-bold text-slate-600">
+                    Menampilkan 0 - 0 dari 0 baris
+                  </span>
                 </div>
               </div>
 
-              <div class="flex flex-wrap items-center gap-2">
-                <span id="tableCountBadge" class="text-xs font-mono font-bold text-slate-600">
-                  Menampilkan 0 - 0 dari 0 baris
-                </span>
-              </div>
-            </div>
-
-            <!-- Table Container -->
-            <div class="p-4">
-              <div class="overflow-x-auto max-h-[650px] overflow-y-auto rounded-lg border border-slate-300 shadow-inner">
-                <table class="sticky-matrix-table text-xs">
-                  <thead id="essayTableHead" class="bg-slate-100 text-slate-700 select-none"></thead>
-                  <tbody id="essayTableBody" class="selectable divide-y divide-slate-200">
-                    <tr>
-                      <td colspan="9" class="p-8 text-center text-slate-400">Menunggu sinkronisasi data live dari Report ID 175...</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <!-- Bottom Pagination Bar -->
-            <div class="px-5 py-3.5 border-t border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3 select-none">
-              <div id="paginationSummaryText" class="text-xs text-slate-600 font-medium">
-                Halaman <strong class="font-mono text-slate-900">1</strong> dari <strong class="font-mono text-slate-900">1</strong>
+              <!-- Table Container -->
+              <div class="p-4">
+                <div class="overflow-x-auto max-h-[650px] overflow-y-auto rounded-lg border border-slate-300 shadow-inner">
+                  <table class="sticky-matrix-table text-xs">
+                    <thead id="essayTableHead" class="bg-slate-100 text-slate-700 select-none"></thead>
+                    <tbody id="essayTableBody" class="selectable divide-y divide-slate-200">
+                      <tr>
+                        <td colspan="9" class="p-8 text-center text-slate-400">Menunggu sinkronisasi data live dari Report ID 175...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              <div class="flex flex-wrap items-center gap-1.5">
-                <button type="button" id="btnPageFirst" onclick="goToPage(1)"
-                  class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-mono font-bold text-xs disabled:opacity-40 disabled:pointer-events-none transition"
-                  title="Halaman Pertama">
-                  « Awal
-                </button>
-                <button type="button" id="btnPagePrev" onclick="changePage(-1)"
-                  class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-mono font-bold text-xs disabled:opacity-40 disabled:pointer-events-none transition"
-                  title="Halaman Sebelumnya">
-                  ‹ Prev
-                </button>
+              <!-- Bottom Pagination Bar -->
+              <div class="px-5 py-3.5 border-t border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3 select-none">
+                <div id="paginationSummaryText" class="text-xs text-slate-600 font-medium">
+                  Halaman <strong class="font-mono text-slate-900">1</strong> dari <strong class="font-mono text-slate-900">1</strong>
+                </div>
 
-                <div id="paginationNumbersContainer" class="flex items-center gap-1"></div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <button type="button" id="btnPageFirst" onclick="goToPage(1)"
+                    class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-mono font-bold text-xs disabled:opacity-40 disabled:pointer-events-none transition"
+                    title="Halaman Pertama">
+                    « Awal
+                  </button>
+                  <button type="button" id="btnPagePrev" onclick="changePage(-1)"
+                    class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-mono font-bold text-xs disabled:opacity-40 disabled:pointer-events-none transition"
+                    title="Halaman Sebelumnya">
+                    ‹ Prev
+                  </button>
 
-                <button type="button" id="btnPageNext" onclick="changePage(1)"
-                  class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-mono font-bold text-xs disabled:opacity-40 disabled:pointer-events-none transition"
-                  title="Halaman Berikutnya">
-                  Next ›
-                </button>
-                <button type="button" id="btnPageLast" onclick="goToLastPage()"
-                  class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-mono font-bold text-xs disabled:opacity-40 disabled:pointer-events-none transition"
-                  title="Halaman Terakhir">
-                  Akhir »
-                </button>
+                  <div id="paginationNumbersContainer" class="flex items-center gap-1"></div>
+
+                  <button type="button" id="btnPageNext" onclick="changePage(1)"
+                    class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-mono font-bold text-xs disabled:opacity-40 disabled:pointer-events-none transition"
+                    title="Halaman Berikutnya">
+                    Next ›
+                  </button>
+                  <button type="button" id="btnPageLast" onclick="goToLastPage()"
+                    class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-mono font-bold text-xs disabled:opacity-40 disabled:pointer-events-none transition"
+                    title="Halaman Terakhir">
+                    Akhir »
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
       <!-- =================================================================
-           5. DIREKTORI & MATRIKS RAPOR PER ORANG (URUTAN KOLOM ERGONOMIS)
+           WORKSPACE TAB 1 (DEFAULT): DIREKTORI & MATRIKS RAPOR PER ORANG (#participantDirectorySection)
            ================================================================= -->
-      <section id="participantDirectorySection" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <section id="participantDirectorySection" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="px-5 py-4 bg-slate-50/90 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2.5">
             <span>👥</span>
@@ -802,6 +900,12 @@
               <option value="HAS_NEW">📝 Ada Status Draft (New)</option>
               <option value="ZERO">⚪ Belum Ada Submitted (0/8)</option>
             </select>
+            <button type="button" onclick="exportDirectoryVectorPDF()"
+              data-tippy-content="Unduh Direktori Rekap 8 Modul Peserta ke PDF Vektor Multi-Halaman + QR Code"
+              class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5">
+              <span>🖨️</span>
+              <span>PDF Direktori</span>
+            </button>
           </div>
         </div>
 
@@ -813,11 +917,11 @@
                   <th class="p-2.5 text-center w-12">No</th>
                   <th class="p-2.5 text-left min-w-[230px]">Nama Peserta &amp; Identitas</th>
                   <th class="p-2.5 text-center w-24">Batch</th>
-                  <th class="p-2.5 text-center w-44">Progres 8 Modul</th>
-                  <th class="p-2.5 text-center w-[260px] bg-amber-50/70 text-amber-950">Pilar I (PK • SDMPT • PBJ • KA)</th>
-                  <th class="p-2.5 text-center w-[260px] bg-blue-50/70 text-blue-950">Pilar II (AI • PMA • HK • MRT)</th>
+                  <th class="p-2.5 text-center w-48">Progres &amp; Volume Esai</th>
+                  <th class="p-2.5 text-center w-[280px] bg-amber-50/70 text-amber-950">Pilar I (PK • SDMPT • PBJ • KA)</th>
+                  <th class="p-2.5 text-center w-[280px] bg-blue-50/70 text-blue-950">Pilar II (AI • PMA • HK • MRT)</th>
                   <th class="p-2.5 text-center w-36">Submit Terakhir</th>
-                  <th class="p-2.5 text-center w-44 bg-emerald-50/80 text-emerald-950">Aksi Rapor &amp; Unduh</th>
+                  <th class="p-2.5 text-center w-52 bg-emerald-50/80 text-emerald-950">Aksi Rapor &amp; Unduh</th>
                 </tr>
               </thead>
               <tbody id="participantDirectoryBody" class="selectable divide-y divide-slate-200">
@@ -830,6 +934,177 @@
         </div>
       </section>
 
+      <!-- =================================================================
+           WORKSPACE TAB 3: STUDIO HALL OF FAME & TOP WRITERS (#hallOfFameSection)
+           ================================================================= -->
+      <section id="hallOfFameSection" class="hidden space-y-5">
+        <div class="bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-3">
+            <div>
+              <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Pilih Kategori Penghargaan Esai (6 Kategori)</label>
+              <select id="essayAwardCategorySelect" onchange="renderEssayHallOfFame()"
+                class="px-3 py-2 rounded-lg border border-slate-300 text-xs font-bold bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <option value="fastest_complete8">1. Ketuntasan 8/8 Modul Esai Tercepat (Speed Master)</option>
+                <option value="top_volume_words">2. Analis Esai Terkomprehensif (Total Kata Terbanyak)</option>
+                <option value="pilar1_champion">3. Ekselen Submisi &amp; Kedalaman Esai Pilar I (Manajemen)</option>
+                <option value="pilar2_champion">4. Ekselen Submisi &amp; Kedalaman Esai Pilar II (Governance)</option>
+                <option value="early_pioneer">5. Pionir Submisi Esai Pertama (Early Bird Submitter)</option>
+                <option value="consistent_scholar">6. Konsistensi Kedalaman Analisis Lintas 8 Modul</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Mode Tampilan Panggung</label>
+              <div class="inline-flex rounded-lg border border-slate-300 overflow-hidden bg-white">
+                <button type="button" id="btnEssayAwardTop3" onclick="setEssayAwardMode('top3')"
+                  class="px-3 py-1.5 text-xs font-bold bg-slate-900 text-amber-400">
+                  🥇 Top 3 (Podium)
+                </button>
+                <button type="button" id="btnEssayAwardTop5" onclick="setEssayAwardMode('top5')"
+                  class="px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 border-l border-slate-300">
+                  🎖️ Top 5
+                </button>
+                <button type="button" id="btnEssayAwardTop10" onclick="setEssayAwardMode('top10')"
+                  class="px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 border-l border-slate-300">
+                  📋 Top 10
+                </button>
+                <button type="button" id="btnEssayAwardAll" onclick="setEssayAwardMode('all')"
+                  class="px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 border-l border-slate-300">
+                  👥 Semua Peserta
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="copyEssayAwardAnnouncement()"
+              class="px-3 py-2 rounded-lg bg-white hover:bg-slate-100 text-slate-800 font-bold text-xs border border-slate-300 transition">
+              📋 Salin Teks MC / WA
+            </button>
+            <button type="button" onclick="exportEssayAwardSlidePNG()"
+              class="px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow transition">
+              🖼️ Slide PNG (2.5x HD)
+            </button>
+            <button type="button" onclick="exportEssayAwardVectorPDF()"
+              class="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow transition">
+              🖨️ PDF Peringkat
+            </button>
+          </div>
+        </div>
+
+        <!-- Panggung Utama Hall of Fame Esai -->
+        <div id="essayAwardSlideCanvas" class="w-full bg-gradient-to-br from-amber-50 via-white to-slate-100 rounded-2xl border-2 border-amber-400/80 shadow-xl p-6 lg:p-8 flex flex-col justify-between relative overflow-hidden">
+          <div class="flex flex-wrap items-start justify-between gap-4 border-b border-amber-300/80 pb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-xl bg-slate-900 text-amber-400 font-serif font-extrabold text-xl flex items-center justify-center shadow-md border border-amber-400">
+                UI
+              </div>
+              <div>
+                <div class="text-[11px] font-mono font-bold uppercase tracking-widest text-amber-700">
+                  UNIVERSITAS INDONESIA • UI ALEX 2026 ASSIGNMENT STUDIO
+                </div>
+                <h2 id="essayAwardTitleText" class="text-xl sm:text-2xl font-serif font-extrabold text-slate-900 tracking-wide mt-0.5">
+                  Ketuntasan 8/8 Modul Esai Tercepat
+                </h2>
+                <p id="essayAwardSubtitleText" class="text-xs text-slate-600 font-medium">-</p>
+              </div>
+            </div>
+            <div class="text-right font-mono">
+              <span id="essayAwardBatchBadge" class="px-3 py-1 rounded-full bg-slate-900 text-amber-400 text-xs font-bold">
+                Batch 2
+              </span>
+              <div id="essayAwardPopText" class="text-[10px] text-slate-500 mt-1">UI ALEX 2026 Hall of Fame</div>
+            </div>
+          </div>
+
+          <div id="essayAwardStageBody" class="my-auto py-5"></div>
+
+          <div class="border-t border-slate-200 pt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 font-mono">
+            <span>UI ALEX 2026 • Universitas Indonesia (Course ID: 99544 &amp; 99545 • Report ID: 175)</span>
+            <span id="essayAwardCriteriaFooter" class="font-semibold text-slate-700">-</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           WORKSPACE TAB 4: REKAPITULASI EKSEKUTIF PIMTI (#pimtiSection)
+           ================================================================= -->
+      <section id="pimtiSection" class="hidden space-y-5">
+        <div class="bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-900 border border-amber-400/40 font-mono font-extrabold text-[10px] uppercase">
+              1-PAGE EXECUTIVE BRIEFING (PIMTI)
+            </span>
+            <h3 class="text-sm font-extrabold text-slate-900 mt-1">
+              Matriks Hierarkis Ketuntasan Submisi &amp; Kedalaman Esai (Gabungan 2 Pilar, Per Pilar &amp; 8 Modul Direktorat)
+            </h3>
+            <p class="text-xs text-slate-500">Klik angka <strong>Submitted</strong>, <strong>Draft</strong>, atau <strong>Belum Submit</strong> pada baris mana pun untuk langsung memfilter tabel submisi.</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="copyPimtiEssayText()"
+              class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
+              <span>📋</span><span>Salin Rekap (WA)</span>
+            </button>
+            <button type="button" onclick="exportPimtiEssayExcel()"
+              class="px-3.5 py-2 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
+              <span>📊</span><span>Export Excel Rekap</span>
+            </button>
+            <button type="button" onclick="exportPimtiEssayVectorPDF()"
+              class="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs shadow transition flex items-center gap-1.5">
+              <span>🖨️</span><span>Unduh PDF Eksekutif</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="pimtiEssayPrintArea" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+          <div class="border-b-2 border-slate-900 pb-4 flex flex-wrap items-start justify-between gap-4">
+            <div class="flex items-center gap-3.5">
+              <div class="w-12 h-12 rounded-xl bg-amber-500 text-slate-950 font-extrabold text-xl flex items-center justify-center shadow-sm border border-amber-600">
+                UI
+              </div>
+              <div>
+                <div class="text-[10px] font-mono font-extrabold uppercase tracking-widest text-amber-700">
+                  UNIVERSITAS INDONESIA • EXECUTIVE BRIEFING (PIMTI) — ASSIGNMENT STUDIO
+                </div>
+                <h2 class="text-lg md:text-xl font-extrabold text-slate-900 mt-0.5">
+                  Rekapitulasi Submisi Uji Kompetensi Esai Terstruktur (8 Modul Direktorat)
+                </h2>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  Agregasi Populasi Peserta, Persentase Ketuntasan Submisi, Status Draft, dan Rerata Volume Analisis Kata per Modul
+                </p>
+              </div>
+            </div>
+
+            <div class="text-right font-mono">
+              <span id="pimtiEssayBatchBadge" class="px-3 py-1 rounded-full bg-slate-900 text-amber-400 text-xs font-bold">
+                BATCH 2
+              </span>
+              <div id="pimtiEssayTimestamp" class="text-[11px] text-slate-500 mt-1">
+                Diperbarui: -
+              </div>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="sticky-matrix-table text-xs">
+              <thead>
+                <tr class="text-slate-700 font-extrabold uppercase tracking-wider bg-slate-100">
+                  <th class="p-3 text-left min-w-[290px]">1. Kelompok Pilar &amp; Modul Direktorat</th>
+                  <th class="p-3 text-center w-32">2. Populasi Target</th>
+                  <th class="p-3 text-center w-44 bg-emerald-50/80 text-emerald-950">3. Sudah Submit (Submitted)</th>
+                  <th class="p-3 text-center w-36 bg-amber-50/80 text-amber-950">4. Draft / Buka Soal (New)</th>
+                  <th class="p-3 text-center w-36">5. Belum Submit</th>
+                  <th class="p-3 text-center w-44 bg-indigo-50/70 text-indigo-950">6. Rerata Volume Analisis</th>
+                  <th class="p-3 text-center w-36">7. Submit Terakhir</th>
+                </tr>
+              </thead>
+              <tbody id="pimtiEssayTableBody" class="selectable divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
     </div>
   </main>
 
@@ -837,7 +1112,7 @@
        2C. MODAL RAPOR SUBMISI PER ORANG (#participantRaporModal)
        ===================================================================== -->
   <div id="participantRaporModal" class="fixed inset-0 z-40 hidden bg-slate-900/80 flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-white rounded-2xl border border-slate-300 shadow-2xl max-w-6xl w-full my-6 overflow-hidden">
+    <div id="participantRaporCard" class="bg-white rounded-2xl border border-slate-300 shadow-2xl max-w-6xl w-full my-6 overflow-hidden">
       <div class="bg-slate-900 text-white px-6 py-4 flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-3.5">
           <div id="raporAvatarInitials" class="w-11 h-11 rounded-xl bg-amber-500 text-slate-950 font-extrabold text-base flex items-center justify-center shadow-md border border-amber-300">
@@ -860,61 +1135,152 @@
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="flex flex-wrap items-center gap-1.5">
           <button type="button" onclick="copyRaporPermalink()"
-            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition flex items-center gap-1.5">
-            <span>🔗</span><span id="lblCopyRaporLink">Link Rapor</span>
+            data-tippy-content="Salin Shortlink Rapor Peserta (?s=...)"
+            class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition flex items-center gap-1">
+            <span>🔗</span><span id="lblCopyRaporLink">Shortlink</span>
+          </button>
+          <button type="button" onclick="exportActiveRaporVectorPDF()"
+            data-tippy-content="Unduh Rapor 8 Modul Peserta dalam format PDF Vektor + QR Code Verifikasi"
+            class="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow transition flex items-center gap-1">
+            <span>🖨️</span><span>PDF Vektor</span>
+          </button>
+          <button type="button" onclick="exportActiveRaporSinglePagePDF()"
+            data-tippy-content="Unduh Kanvas Visual Rapor 1-Halaman (Smart Auto-Orientasi & Pemaksimalan Ruang) + QR Stamp"
+            class="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow transition flex items-center gap-1">
+            <span>📜</span><span>PDF 1-Hal</span>
+          </button>
+          <button type="button" onclick="exportActiveRaporPNG()"
+            data-tippy-content="Unduh Gambar Rapor Resolusi Tinggi (PNG 2.5x HD) + QR Stamp"
+            class="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow transition flex items-center gap-1">
+            <span>🖼️</span><span>PNG HD</span>
           </button>
           <button type="button" id="btnRaporExportAll" onclick="exportActiveRaporParticipantExcel()"
-            class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
-            <span>📥</span><span>Unduh XLSX 8 Modul</span>
+            data-tippy-content="Unduh File Excel (.xlsx) 8 Modul milik peserta ini"
+            class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition flex items-center gap-1">
+            <span>📥</span><span>XLSX</span>
           </button>
           <button type="button" onclick="closeParticipantRaporModal()"
-            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">
+            class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">
             ✕ Tutup
           </button>
         </div>
       </div>
 
-      <div class="p-6 space-y-5 max-h-[82vh] overflow-y-auto bg-slate-50">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          <div class="bg-white rounded-xl border border-slate-200 p-3.5 shadow-sm">
-            <div class="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-              <span>Progres 8 Modul</span>
-              <span id="raporKpiPct" class="font-mono text-emerald-700">0%</span>
+      <div id="participantRaporPrintBody" class="p-4 sm:p-5 space-y-4 max-h-[82vh] overflow-y-auto overflow-x-hidden bg-slate-50">
+        <!-- BARIS 1: 4 KARTU ANALITIK KOMPREHENSIF -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <!-- Widget 1: Progres Ketuntasan 8 Modul & SVG Donut -->
+          <div class="min-w-0 bg-white rounded-xl border border-slate-200 p-3 shadow-sm flex items-center justify-between gap-2.5">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                <span>Progres 8 Modul</span>
+                <span id="raporKpiPct" class="font-mono text-emerald-700">0.0%</span>
+              </div>
+              <div id="raporKpiTotalSub" class="text-base font-mono font-extrabold text-slate-900 mt-0.5 truncate">0 / 8 Submitted</div>
+              <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex my-1.5">
+                <div id="raporBarSub" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
+                <div id="raporBarNew" class="h-full bg-amber-400 transition-all duration-300" style="width: 0%"></div>
+              </div>
+              <div id="raporKpiSubDetail" class="text-[10px] font-mono text-slate-600 truncate">🟢 0 Sub • 🟡 0 Draft • ⚪ 8 Belum</div>
             </div>
-            <div id="raporKpiTotalSub" class="text-xl font-mono font-extrabold text-slate-900 mt-1">0 / 8 Submitted</div>
-            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex my-2 border border-slate-200/60">
-              <div id="raporBarSub" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
-              <div id="raporBarNew" class="h-full bg-amber-400 transition-all duration-300" style="width: 0%"></div>
+            <div class="relative w-12 h-12 flex items-center justify-center shrink-0">
+              <svg viewBox="0 0 36 36" class="w-12 h-12 -rotate-90">
+                <circle cx="18" cy="18" r="14.5" fill="none" stroke="#e2e8f0" stroke-width="4"></circle>
+                <circle id="raporDonutRing" cx="18" cy="18" r="14.5" fill="none" stroke="#10b981" stroke-width="4" stroke-dasharray="91.1" stroke-dashoffset="91.1" stroke-linecap="round" class="transition-all duration-500"></circle>
+              </svg>
+              <span id="raporDonutText" class="absolute font-mono font-extrabold text-[10px] text-slate-800">0/8</span>
             </div>
-            <div id="raporKpiSubDetail" class="text-[11px] font-mono text-slate-500">🟢 0 Sub • 🟡 0 New • ⚪ 8 Belum</div>
           </div>
 
-          <div class="bg-white rounded-xl border border-amber-200 bg-amber-50/20 p-3.5 shadow-sm">
-            <div class="text-[10px] font-extrabold uppercase tracking-wider text-amber-800">Pilar I (Manajemen)</div>
-            <div id="raporKpiP1" class="text-xl font-mono font-extrabold text-slate-900 mt-1">0 / 4 Modul</div>
-            <div id="raporKpiP1Badges" class="grid grid-cols-4 gap-1 mt-2"></div>
+          <!-- Widget 2: Analitik Volume Kata, Karakter & Kepadatan Esai -->
+          <div class="min-w-0 bg-white rounded-xl border border-indigo-200/80 p-3 shadow-sm flex flex-col justify-between">
+            <div class="min-w-0">
+              <div class="flex items-center justify-between gap-1 text-[10px] font-extrabold uppercase tracking-wider text-indigo-800">
+                <span class="truncate">Volume &amp; Kedalaman</span>
+                <span id="raporAvgWordsBadge" class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono text-[9px] shrink-0">~0 kata/modul</span>
+              </div>
+              <div class="flex flex-wrap items-baseline gap-1.5 mt-1">
+                <div id="raporKpiChars" class="text-base font-mono font-extrabold text-indigo-700">0 Karakter</div>
+                <div id="raporKpiWords" class="text-[11px] font-mono font-bold text-slate-500">(0 Kata)</div>
+              </div>
+            </div>
+            <div class="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between gap-1 text-[10px] font-mono text-slate-600">
+              <span id="raporMaxModVolume" class="truncate">Terpanjang: -</span>
+              <span id="raporMinModVolume" class="truncate">Terpendek: -</span>
+            </div>
           </div>
 
-          <div class="bg-white rounded-xl border border-blue-200 bg-blue-50/20 p-3.5 shadow-sm">
-            <div class="text-[10px] font-extrabold uppercase tracking-wider text-blue-800">Pilar II (Governance)</div>
-            <div id="raporKpiP2" class="text-xl font-mono font-extrabold text-slate-900 mt-1">0 / 4 Modul</div>
-            <div id="raporKpiP2Badges" class="grid grid-cols-4 gap-1 mt-2"></div>
+          <!-- Widget 3: Grafik Mini Distribusi Volume 8 Modul (Sparkbar) -->
+          <div class="min-w-0 bg-white rounded-xl border border-slate-200 p-3 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between gap-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+              <span class="truncate">Proporsi Volume</span>
+              <span id="raporSparkSummary" class="font-mono text-slate-700 shrink-0">PK–MRT</span>
+            </div>
+            <div id="raporVolumeSparkbars" class="grid grid-cols-8 gap-1 items-end h-11 pt-1.5 px-0.5"></div>
+            <div class="grid grid-cols-8 gap-0.5 text-center font-mono text-[8px] font-bold text-slate-500 pt-1 border-t border-slate-100">
+              <span>PK</span><span>SDM</span><span>PBJ</span><span>KA</span><span>AI</span><span>PMA</span><span>HK</span><span>MRT</span>
+            </div>
           </div>
 
-          <div class="bg-white rounded-xl border border-slate-200 p-3.5 shadow-sm">
-            <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Volume &amp; Aktivitas Esai</div>
-            <div id="raporKpiChars" class="text-xl font-mono font-extrabold text-indigo-700 mt-1">0 Karakter</div>
-            <div id="raporKpiLastSubmit" class="text-[11px] font-mono text-slate-500 mt-2 truncate">🕒 Terakhir: -</div>
+          <!-- Widget 4: Jejak Waktu & Kecepatan Submisi -->
+          <div class="min-w-0 bg-white rounded-xl border border-slate-200 p-3 shadow-sm flex flex-col justify-between">
+            <div class="min-w-0">
+              <div class="flex items-center justify-between gap-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                <span class="truncate">Rentang Waktu</span>
+                <span id="raporGradeAvgPill" class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[9px] shrink-0">Nilai: -</span>
+              </div>
+              <div id="raporKpiLastSubmit" class="text-[11px] font-mono font-extrabold text-slate-900 mt-1.5 truncate">🕒 Akhir: -</div>
+              <div id="raporKpiFirstSubmit" class="text-[10px] font-mono text-slate-500 mt-0.5 truncate">🏁 Awal: -</div>
+            </div>
+            <div class="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] font-mono text-slate-600">
+              <span id="raporSpanDuration" class="truncate">Rentang Pengerjaan: -</span>
+            </div>
           </div>
         </div>
 
+        <!-- BARIS 2: MATRIKS KARTU MINI PILAR I & PILAR II (RICH INTERACTIVE MODULE CARDS) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <!-- Kartu Matriks Pilar I -->
+          <div class="min-w-0 bg-white rounded-xl border border-amber-300/90 bg-gradient-to-br from-amber-50/40 via-white to-white p-3 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-2 mb-2 border-b border-amber-200/80">
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-mono font-extrabold text-[10px]">PILAR I</span>
+                <span class="text-xs font-extrabold uppercase tracking-wider text-amber-950">Manajemen &amp; Operasional</span>
+              </div>
+              <div class="flex items-center gap-2 font-mono text-[11px]">
+                <span id="raporKpiP1" class="font-extrabold text-slate-900">0/4 Submitted</span>
+                <span class="text-slate-300">|</span>
+                <span id="raporKpiP1Volume" class="font-bold text-amber-900">0 kata (0 kar)</span>
+              </div>
+            </div>
+            <div id="raporKpiP1Badges" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+          </div>
+
+          <!-- Kartu Matriks Pilar II -->
+          <div class="min-w-0 bg-white rounded-xl border border-blue-300/90 bg-gradient-to-br from-blue-50/40 via-white to-white p-3 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-2 mb-2 border-b border-blue-200/80">
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded-md bg-blue-600 text-white font-mono font-extrabold text-[10px]">PILAR II</span>
+                <span class="text-xs font-extrabold uppercase tracking-wider text-blue-950">Governance &amp; Kepatuhan</span>
+              </div>
+              <div class="flex items-center gap-2 font-mono text-[11px]">
+                <span id="raporKpiP2" class="font-extrabold text-slate-900">0/4 Submitted</span>
+                <span class="text-slate-300">|</span>
+                <span id="raporKpiP2Volume" class="font-bold text-blue-900">0 kata (0 kar)</span>
+              </div>
+            </div>
+            <div id="raporKpiP2Badges" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+          </div>
+        </div>
+
+        <!-- BARIS 3: TABEL RINCIAN 8 MODUL SUBMISI ESAI PESERTA -->
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="px-4 py-3 bg-slate-100/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
             <div>
               <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-800">Daftar Lengkap 8 Modul Submisi Esai Peserta</h4>
-              <p class="text-[11px] text-slate-500">Gunakan tombol <strong>🔍 Buka Submisi</strong> untuk melihat tabel jawaban esai, atau <strong>📍 Ke Baris Tabel</strong> untuk melompat ke baris modul tersebut di tabel utama.</p>
+              <p class="text-[11px] text-slate-500">Klik <strong>🔍 Lihat Jawaban</strong> untuk membuka tabel jawaban esai, <strong>📍 Baris</strong> untuk melompat ke tabel utama, atau <strong>📥 XLSX</strong> untuk mengunduh.</p>
             </div>
           </div>
 
@@ -923,13 +1289,13 @@
               <thead class="bg-slate-50 text-slate-700 font-extrabold text-[11px] uppercase tracking-wider">
                 <tr>
                   <th class="p-2.5 text-center w-10">No</th>
-                  <th class="p-2.5 text-left w-48">Pilar &amp; Kode Modul</th>
-                  <th class="p-2.5 text-left min-w-[180px]">Nama Assignment Esai</th>
+                  <th class="p-2.5 text-left w-52">Pilar &amp; Kode Modul</th>
+                  <th class="p-2.5 text-left min-w-[170px]">Nama Assignment Esai</th>
                   <th class="p-2.5 text-center w-28">Status Submisi</th>
                   <th class="p-2.5 text-center w-36">Waktu Submit</th>
-                  <th class="p-2.5 text-left min-w-[240px]">Ringkasan &amp; Volume Jawaban</th>
-                  <th class="p-2.5 text-center w-20">Nilai</th>
-                  <th class="p-2.5 text-center min-w-[265px] bg-amber-50/80 text-amber-950">Navigasi &amp; Aksi Submisi</th>
+                  <th class="p-2.5 text-left min-w-[250px]">Ringkasan &amp; Statistik Jawaban</th>
+                  <th class="p-2.5 text-center w-16">Nilai</th>
+                  <th class="p-2.5 text-center w-64 bg-amber-50/80 text-amber-950">Aksi Cepat (1-Klik)</th>
                 </tr>
               </thead>
               <tbody id="raporModulesTableBody" class="selectable divide-y divide-slate-200"></tbody>
@@ -944,7 +1310,7 @@
        3. MODAL VIEWER DETAIL TABEL SOAL & JAWABAN ESAI PESERTA
        ===================================================================== -->
   <div id="essayDetailModal" class="fixed inset-0 z-50 hidden bg-slate-900/80 flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-white rounded-2xl border border-slate-300 shadow-2xl max-w-6xl w-full my-6 overflow-hidden">
+    <div id="essayDetailCard" class="bg-white rounded-2xl border border-slate-300 shadow-2xl max-w-6xl w-full my-6 overflow-hidden">
       <div class="bg-slate-900 text-white px-6 py-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <div class="flex items-center gap-2">
@@ -956,7 +1322,7 @@
           <h3 id="modalPesertaName" class="text-base font-extrabold text-white mt-1">-</h3>
           <p id="modalPesertaMeta" class="text-xs font-mono text-slate-400">-</p>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="flex flex-wrap items-center gap-1.5">
           <!-- Kontrol Ukuran Huruf di dalam Modal Esai -->
           <div class="inline-flex items-center rounded-lg bg-slate-800 border border-slate-700 p-0.5 text-xs select-none">
             <button type="button" onclick="adjustFontSize(-1)"
@@ -986,27 +1352,42 @@
               📝 Sumber HTML Asli
             </button>
           </div>
+          <button onclick="copyActiveEssayShortlink()"
+            data-tippy-content="Salin Shortlink langsung ke popup jawaban esai ini (?s=...)"
+            class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition flex items-center gap-1">
+            <span>🔗</span><span id="lblCopyEssayShortlink">Shortlink</span>
+          </button>
+          <button onclick="exportActiveEssayVectorPDF()"
+            data-tippy-content="Unduh PDF Vektor Jawaban Esai + QR Code Verifikasi"
+            class="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow transition flex items-center gap-1">
+            <span>🖨️</span><span>PDF</span>
+          </button>
+          <button onclick="exportActiveEssayPNG()"
+            data-tippy-content="Unduh PNG 2.5x HD Jawaban Esai + QR Stamp"
+            class="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow transition flex items-center gap-1">
+            <span>🖼️</span><span>PNG</span>
+          </button>
           <button onclick="copyActiveEssayAnswer()"
-            class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition">
-            📋 Salin Jawaban
+            class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition">
+            📋 Salin Teks
           </button>
           <button id="btnBackToRaporModal" onclick="returnToParticipantRaporModal()"
-            class="hidden px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow transition">
-            ← Kembali ke Rapor
+            class="hidden px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow transition">
+            ← Rapor
           </button>
           <button onclick="closeEssayModal()"
-            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">
+            class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">
             ✕ Tutup
           </button>
         </div>
       </div>
 
-      <div class="p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 max-h-[80vh] overflow-y-auto bg-slate-50">
+      <div id="essayDetailPrintBody" class="p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 max-h-[80vh] overflow-y-auto bg-slate-50">
         <!-- Kiri: Soal / Instruksi Esai -->
         <div class="lg:col-span-5 bg-white rounded-xl border border-slate-200 p-4 flex flex-col">
           <div class="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
             <span class="text-xs font-extrabold uppercase tracking-wider text-slate-700">📑 Soal / Instruksi Esai</span>
-            <span id="modalAssignmentTitle" class="text-xs font-mono text-slate-500 truncate max-w-[220px]">-</span>
+            <span id="modalAssignmentTitle" class="text-[11px] font-mono text-slate-500 truncate max-w-[220px]">-</span>
           </div>
           <div id="modalSoalHtml" class="essay-html-prose selectable text-sm text-slate-700 overflow-x-auto"></div>
         </div>
@@ -1015,7 +1396,7 @@
         <div class="lg:col-span-7 bg-white rounded-xl border border-emerald-200 p-4 flex flex-col shadow-sm">
           <div class="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
             <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-800">✍️ Jawaban Peserta Essay (HTML TinyMCE)</span>
-            <span id="modalCharCount" class="text-xs font-mono text-slate-500">0 karakter</span>
+            <span id="modalCharCount" class="text-[11px] font-mono text-slate-500">0 karakter</span>
           </div>
           <div id="modalJawabanHtml" class="essay-html-prose selectable text-sm text-slate-800 overflow-x-auto"></div>
         </div>
@@ -1041,7 +1422,7 @@
        ===================================================================== -->
   <script>
     /*************************************************************************
-     * A. KONSTANTA SISTEM, KEAMANAN SHA-256 & OBFUSKASI ENDPOINT WORKER
+     * A. KONSTANTA SISTEM, KEAMANAN SHA-256, SHARED CROSS-TAB SESSION & DOC ENGINE
      *************************************************************************/
     const _SALT = 'alex2026_salt_dppd';
     const _ALLOWED_AUTH = {
@@ -1052,6 +1433,588 @@
     const IDLE_LIMIT_MS = 5 * 60 * 1000;
     let idleTimer = null;
     let currentLoggedUser = '';
+    let pendingRestoredShortlink = null;
+    let essayAwardMode = 'top3';
+    let lastPimtiEssayRows = [];
+
+    /**
+     * SHARED CROSS-TAB SESSION (100% Kompatibel Dua Arah dengan Dasbor Utama UI ALEX 2026 v3)
+     * Menyimpan ke alex_auth_token, alex_auth_user, alex_auth_last_active DAN ALEX2026_SHARED_AUTH_SESSION_V3
+     */
+    const AUTH_STORAGE_KEYS = {
+      token: 'alex_auth_token',
+      user: 'alex_auth_user',
+      lastActive: 'alex_auth_last_active'
+    };
+
+    const AuthSession = {
+      KEY: 'ALEX2026_SHARED_AUTH_SESSION_V3',
+      TTL_MS: IDLE_LIMIT_MS,
+
+      touch(username, token) {
+        try {
+          const prev = JSON.parse(localStorage.getItem(this.KEY) || 'null');
+          const resolvedUser = username || prev?.user || localStorage.getItem(AUTH_STORAGE_KEYS.user) || currentLoggedUser;
+          const resolvedToken = token || prev?.token || localStorage.getItem(AUTH_STORAGE_KEYS.token) || sessionStorage.getItem('alex_auth_token');
+          if (!resolvedUser || !resolvedToken) return;
+          const nowStr = String(Date.now());
+          localStorage.setItem(this.KEY, JSON.stringify({
+            user: resolvedUser,
+            token: resolvedToken,
+            lastActive: Date.now()
+          }));
+          localStorage.setItem(AUTH_STORAGE_KEYS.user, resolvedUser);
+          localStorage.setItem(AUTH_STORAGE_KEYS.token, resolvedToken);
+          localStorage.setItem(AUTH_STORAGE_KEYS.lastActive, nowStr);
+        } catch (e) {}
+      },
+      getValidSession() {
+        try {
+          // 1. Cek kunci standar alexv3-mantap (alex_auth_token)
+          const directUser = localStorage.getItem(AUTH_STORAGE_KEYS.user);
+          const directToken = localStorage.getItem(AUTH_STORAGE_KEYS.token);
+          const directLast = Number(localStorage.getItem(AUTH_STORAGE_KEYS.lastActive) || 0);
+          if (directUser && directToken && _ALLOWED_AUTH[directUser] === directToken) {
+            if (directLast === 0 || (Date.now() - directLast <= this.TTL_MS)) {
+              this.touch(directUser, directToken);
+              return { user: directUser, token: directToken };
+            }
+          }
+          // 2. Cek struktur JSON ALEX2026_SHARED_AUTH_SESSION_V3
+          const raw = localStorage.getItem(this.KEY);
+          if (!raw) return null;
+          const data = JSON.parse(raw);
+          if (!data || !data.user || !data.token) return null;
+          if (_ALLOWED_AUTH[data.user] !== data.token) return null;
+          if (Date.now() - Number(data.lastActive || 0) > this.TTL_MS) {
+            this.lockAllTabs();
+            return null;
+          }
+          this.touch(data.user, data.token);
+          return data;
+        } catch (e) {
+          return null;
+        }
+      },
+      lockAllTabs() {
+        try {
+          localStorage.removeItem(this.KEY);
+          localStorage.removeItem(AUTH_STORAGE_KEYS.token);
+          localStorage.removeItem(AUTH_STORAGE_KEYS.user);
+          localStorage.removeItem(AUTH_STORAGE_KEYS.lastActive);
+        } catch (e) {}
+      }
+    };
+
+    window.addEventListener('storage', (e) => {
+      if ((e.key === AuthSession.KEY || e.key === AUTH_STORAGE_KEYS.token) && !e.newValue && currentLoggedUser) {
+        lockScreen(true, true);
+      } else if (e.key === AUTH_STORAGE_KEYS.token && e.newValue && !currentLoggedUser) {
+        checkAuthSession();
+      }
+    });
+
+    /**
+     * UNIVERSAL DOCUMENT, QR AUDIT & STATELESS SHORTENER ENGINE (DocEngine)
+     */
+    const DocEngine = (() => {
+      const DICT = {
+        views:   ['directory', 'submissions', 'halloffame', 'pimti', 'modal_rapor', 'modal_essay'],
+        batches: ['ALL', 'Batch 1', 'Batch 2', 'Batch 3'],
+        pilars:  ['ALL', 'Pilar I', 'Pilar II'],
+        status:  ['ALL', 'submitted', 'new', 'belum_submit'],
+        moduls:  ['ALL', 'PK', 'SDMPT', 'PBJ', 'KA', 'AI', 'PMA', 'HK', 'MRT'],
+        cols:    ['simple', 'detailed']
+      };
+
+      const idxToChar = (idx) => Math.max(0, idx).toString(36).toUpperCase();
+      const charToIdx = (ch) => parseInt(ch || '0', 36) || 0;
+
+      function generateShortlink(appState = {}) {
+        const unixNow = Math.floor(Date.now() / 1000);
+        const tsBase36 = unixNow.toString(36);
+
+        const vIdx = idxToChar(DICT.views.indexOf(appState.view || 'directory'));
+        const bIdx = idxToChar(DICT.batches.indexOf(appState.batch || 'ALL'));
+        const pIdx = idxToChar(DICT.pilars.indexOf(appState.pilar || 'ALL'));
+        const sIdx = idxToChar(DICT.status.indexOf(appState.status || 'ALL'));
+        const mIdx = idxToChar(DICT.moduls.indexOf(appState.modul || 'ALL'));
+        const cIdx = idxToChar(DICT.cols.indexOf(appState.cols || 'simple'));
+
+        let extraCode = '0';
+        if (appState.entityId) {
+          extraCode = encodeURIComponent(String(appState.entityId));
+        }
+
+        const packedState = `${vIdx}${bIdx}${pIdx}${sIdx}${mIdx}${cIdx}${extraCode}-${tsBase36}`;
+        const PRODUCTION_URL = 'https://danial.my.id/alex3/esai.html';
+        const isSandboxOrLocal = (
+          window.location.protocol === 'blob:' ||
+          window.location.protocol === 'data:' ||
+          window.location.protocol === 'file:' ||
+          window.location.href === 'about:srcdoc' ||
+          window.location.hostname.includes('scf.usercontent.goog') ||
+          window.location.hostname.includes('localhost') ||
+          window.location.hostname.includes('127.0.0.1')
+        );
+        const baseUrl = isSandboxOrLocal
+          ? PRODUCTION_URL
+          : (window.location.origin + window.location.pathname);
+
+        return {
+          shortUrl: `${baseUrl}?s=${packedState}`,
+          relativeParam: `?s=${packedState}`,
+          code: packedState,
+          unixTime: unixNow,
+          formattedTime: new Date(unixNow * 1000).toLocaleString('id-ID', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+          })
+        };
+      }
+
+      function parseShortlinkFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const raw = params.get('s');
+        if (!raw || !raw.includes('-')) return null;
+
+        const lastDashIdx = raw.lastIndexOf('-');
+        const statePart = raw.slice(0, lastDashIdx);
+        const tsPart = raw.slice(lastDashIdx + 1);
+        const unixTime = parseInt(tsPart, 36) || 0;
+
+        const rawEntity = statePart.slice(6);
+        const entityId = rawEntity && rawEntity !== '0' ? decodeURIComponent(rawEntity) : null;
+
+        return {
+          view:     DICT.views[charToIdx(statePart[0])]   || 'directory',
+          batch:    DICT.batches[charToIdx(statePart[1])] || 'ALL',
+          pilar:    DICT.pilars[charToIdx(statePart[2])]  || 'ALL',
+          status:   DICT.status[charToIdx(statePart[3])]  || 'ALL',
+          modul:    DICT.moduls[charToIdx(statePart[4])]  || 'ALL',
+          cols:     DICT.cols[charToIdx(statePart[5])]    || 'simple',
+          entityId,
+          unixTime,
+          formattedTime: unixTime ? new Date(unixTime * 1000).toLocaleString('id-ID') : '-'
+        };
+      }
+
+      function createQrDataUrl(text, size = 160) {
+        if (typeof QRious === 'undefined') return null;
+        const qr = new QRious({
+          value: text,
+          size: size,
+          level: 'L',
+          background: '#FFFFFF',
+          foreground: '#0F172A',
+          padding: 4
+        });
+        return qr.toDataURL('image/png');
+      }
+
+      /**
+       * Menggambar Kop Dokumen + Kotak Verifikasi QR Code di Pojok Kanan Atas Tanpa Menabrak Judul
+       * Mengembalikan koordinat Y awal untuk tabel di bawahnya (startY).
+       */
+      function drawPdfHeaderAndQrBox(pdf, { title, subtitle, shortMeta }) {
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const margin = 12;
+        const qrBoxWidth = 82;
+        const qrBoxHeight = 20;
+        const qrBoxX = pageWidth - margin - qrBoxWidth;
+        const qrBoxY = 8;
+        const maxTitleWidth = qrBoxX - margin - 6;
+
+        // 1. Kotak Latar & Border untuk Stamp Verifikasi QR di Kanan Atas
+        pdf.setDrawColor(203, 213, 225);
+        pdf.setFillColor(248, 250, 252);
+        pdf.roundedRect(qrBoxX, qrBoxY, qrBoxWidth, qrBoxHeight, 2, 2, 'FD');
+
+        const qrSize = 16.5;
+        const qrDataUrl = createQrDataUrl(shortMeta.shortUrl, 160);
+        if (qrDataUrl) {
+          pdf.addImage(qrDataUrl, 'PNG', qrBoxX + 1.8, qrBoxY + 1.75, qrSize, qrSize);
+        }
+
+        const textX = qrBoxX + qrSize + 3.5;
+        const maxQrTextWidth = qrBoxWidth - qrSize - 5.5;
+
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(6.5);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text('VERIFIKASI LIVE (SCAN QR):', textX, qrBoxY + 4.8);
+
+        pdf.setFont('courier', 'bold');
+        pdf.setFontSize(5.8);
+        pdf.setTextColor(37, 99, 235);
+        const wrappedUrl = pdf.splitTextToSize(shortMeta.shortUrl, maxQrTextWidth);
+        pdf.text(wrappedUrl.slice(0, 2), textX, qrBoxY + 8.8);
+
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(5.8);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(`Gen: ${shortMeta.formattedTime} • Unix: ${shortMeta.unixTime}`, textX, qrBoxY + 17.5);
+
+        // 2. Kop Judul & Subjudul di Kiri Atas (Otomatis Word-Wrap sebelum menyentuh Kotak QR)
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(8);
+        pdf.setTextColor(217, 119, 6);
+        pdf.text('UNIVERSITAS INDONESIA • UI ALEX 2026 ASSIGNMENT EXPORTER', margin, 11.5);
+
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(12);
+        pdf.setTextColor(15, 23, 42);
+        const titleLines = pdf.splitTextToSize(String(title || ''), maxTitleWidth);
+        pdf.text(titleLines, margin, 17);
+
+        const subtitleY = 17 + (titleLines.length * 5);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(8.2);
+        pdf.setTextColor(71, 85, 105);
+        const subLines = pdf.splitTextToSize(String(subtitle || ''), maxTitleWidth);
+        pdf.text(subLines, margin, subtitleY);
+
+        const bottomHeaderY = Math.max(qrBoxY + qrBoxHeight + 3, subtitleY + (subLines.length * 4) + 2);
+        pdf.setDrawColor(226, 232, 240);
+        pdf.setLineWidth(0.4);
+        pdf.line(margin, bottomHeaderY, pageWidth - margin, bottomHeaderY);
+
+        return bottomHeaderY + 4;
+      }
+
+      function drawPdfPageFooter(pdf, shortMeta) {
+        const pageCount = pdf.internal.getNumberOfPages();
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        for (let i = 1; i <= pageCount; i++) {
+          pdf.setPage(i);
+          pdf.setFont('courier', 'normal');
+          pdf.setFontSize(7);
+          pdf.setTextColor(100, 116, 139);
+          pdf.text(
+            `${shortMeta.shortUrl} • Unix: ${shortMeta.unixTime}`,
+            12,
+            pageHeight - 6
+          );
+          pdf.text(
+            `Halaman ${i} dari ${pageCount}`,
+            pageWidth - 12,
+            pageHeight - 6,
+            { align: 'right' }
+          );
+        }
+      }
+
+      /**
+       * Smart Auto-Detect Orientation & Page Size untuk PDF Vektor
+       * Mendeteksi otomatis apakah tabel lebih optimal dicetak Portrait atau Landscape,
+       * serta memilih A4 atau A3 berdasarkan jumlah kolom dan kepadatan teks agar ruang kertas maksimal.
+       */
+      function detectOptimalVectorLayout({ headers = [], rows = [], extraTables = [], preferredOrientation = 'auto', preferredFormat = 'auto' }) {
+        const mainCols = (headers[0] && headers[0].length) || (rows[0] && rows[0].length) || 2;
+        let maxCols = mainCols;
+        if (Array.isArray(extraTables)) {
+          extraTables.forEach(t => {
+            const cLen = (t.headers && t.headers[0] && t.headers[0].length) || (t.rows && t.rows[0] && t.rows[0].length) || 0;
+            if (cLen > maxCols) maxCols = cLen;
+          });
+        }
+
+        // Hitung rata-rata panjang karakter per baris
+        let maxRowChars = 0;
+        const sampleRows = rows.slice(0, 25);
+        sampleRows.forEach(r => {
+          if (Array.isArray(r)) {
+            const len = r.reduce((acc, cell) => acc + String(cell ?? '').length, 0);
+            if (len > maxRowChars) maxRowChars = len;
+          }
+        });
+
+        let orientation = preferredOrientation;
+        if (!orientation || orientation === 'auto') {
+          if (maxCols >= 6 || (maxCols >= 4 && maxRowChars > 140)) {
+            orientation = 'landscape';
+          } else {
+            orientation = 'portrait';
+          }
+        }
+
+        let format = preferredFormat;
+        if (!format || format === 'auto') {
+          format = maxCols >= 13 ? 'a3' : 'a4';
+        }
+
+        return { orientation, format, maxCols };
+      }
+
+      function exportVectorTablePDF({
+        title = 'LAPORAN SUBMISI ESAI — UI ALEX 2026',
+        subtitle = '',
+        headers = [],
+        rows = [],
+        columnStyles = {},
+        extraTables = [],
+        appState = {},
+        orientation = 'auto',
+        format = 'auto',
+        filename = 'Laporan_Vektor.pdf'
+      }) {
+        const jsPDFConstructor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+        if (!jsPDFConstructor) {
+          setSyncBanner('Library jsPDF belum siap', 'rose');
+          return;
+        }
+
+        const detected = detectOptimalVectorLayout({
+          headers,
+          rows,
+          extraTables,
+          preferredOrientation: orientation,
+          preferredFormat: format
+        });
+
+        const pdf = new jsPDFConstructor({
+          orientation: detected.orientation,
+          unit: 'mm',
+          format: detected.format,
+          compress: true
+        });
+        const shortMeta = generateShortlink(appState);
+
+        let currentY = drawPdfHeaderAndQrBox(pdf, { title, subtitle, shortMeta });
+
+        const dynamicFontSize = detected.maxCols >= 12 ? 7.2 : (detected.maxCols >= 8 ? 8.0 : 8.5);
+        const dynamicPadding = detected.maxCols >= 12 ? 1.8 : 2.5;
+
+        pdf.autoTable({
+          startY: currentY,
+          head: headers,
+          body: rows,
+          columnStyles: columnStyles,
+          theme: 'grid',
+          tableWidth: 'auto',
+          rowPageBreak: 'avoid',
+          showHead: 'everyPage',
+          margin: { top: 12, right: 10, bottom: 12, left: 10 },
+          styles: {
+            font: 'helvetica',
+            fontSize: dynamicFontSize,
+            cellPadding: dynamicPadding,
+            valign: 'top',
+            textColor: [30, 41, 59],
+            overflow: 'linebreak'
+          },
+          headStyles: {
+            fillColor: [15, 23, 42],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold'
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252]
+          }
+        });
+
+        if (Array.isArray(extraTables) && extraTables.length > 0) {
+          extraTables.forEach((tbl) => {
+            let nextY = (pdf.lastAutoTable && pdf.lastAutoTable.finalY ? pdf.lastAutoTable.finalY : currentY) + 6;
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            if (nextY > pageHeight - 32) {
+              pdf.addPage();
+              nextY = 14;
+            }
+            if (tbl.sectionTitle) {
+              pdf.setFont('helvetica', 'bold');
+              pdf.setFontSize(9.5);
+              pdf.setTextColor(15, 23, 42);
+              pdf.text(tbl.sectionTitle, 10, nextY);
+              nextY += 3.5;
+            }
+            const tblCols = (tbl.headers && tbl.headers[0] && tbl.headers[0].length) || 4;
+            pdf.autoTable({
+              startY: nextY,
+              head: tbl.headers || [],
+              body: tbl.rows || [],
+              columnStyles: tbl.columnStyles || {},
+              theme: 'grid',
+              tableWidth: 'auto',
+              rowPageBreak: 'avoid',
+              showHead: 'everyPage',
+              margin: { top: 12, right: 10, bottom: 12, left: 10 },
+              styles: {
+                font: 'helvetica',
+                fontSize: tblCols >= 6 ? 7.8 : 8.5,
+                cellPadding: tblCols >= 6 ? 2.0 : 2.5,
+                valign: 'top',
+                textColor: [30, 41, 59],
+                overflow: 'linebreak'
+              },
+              headStyles: {
+                fillColor: tbl.headFillColor || [15, 23, 42],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold'
+              },
+              alternateRowStyles: {
+                fillColor: [248, 250, 252]
+              }
+            });
+          });
+        }
+
+        drawPdfPageFooter(pdf, shortMeta);
+        pdf.save(filename);
+      }
+
+      async function renderCleanDomToCanvas(targetEl, { width = 1120, height = null, scale = 2.5, bg = '#FFFFFF' } = {}) {
+        const originalCanvases = targetEl.querySelectorAll('canvas');
+        const canvasBitmaps = Array.from(originalCanvases).map(c => {
+          try { return c.toDataURL('image/png'); } catch (e) { return null; }
+        });
+
+        return await html2canvas(targetEl, {
+          scale: scale,
+          useCORS: true,
+          backgroundColor: bg,
+          width: width,
+          height: height || undefined,
+          windowWidth: width + 60,
+          scrollX: 0,
+          scrollY: 0,
+          onclone: (clonedDoc) => {
+            const clonedTarget = clonedDoc.getElementById(targetEl.id);
+            if (!clonedTarget) return;
+
+            clonedTarget.style.position = 'relative';
+            clonedTarget.style.left = '0px';
+            clonedTarget.style.top = '0px';
+            clonedTarget.style.margin = '0px';
+            clonedTarget.style.width = `${width}px`;
+            clonedTarget.style.boxSizing = 'border-box';
+            if (height) clonedTarget.style.height = `${height}px`;
+            clonedTarget.style.maxHeight = 'none';
+            clonedTarget.style.overflow = 'visible';
+
+            clonedTarget.querySelectorAll('*').forEach(el => {
+              const cls = el.className || '';
+              if (typeof cls === 'string' && (cls.includes('truncate') || cls.includes('overflow-') || cls.includes('max-h-') || cls.includes('line-clamp-'))) {
+                el.style.overflow = 'visible';
+                el.style.maxHeight = 'none';
+                el.style.textOverflow = 'clip';
+                el.style.whiteSpace = 'normal';
+                el.style.webkitLineClamp = 'unset';
+                el.style.lineHeight = '1.4';
+              }
+            });
+
+            const clonedCanvases = clonedTarget.querySelectorAll('canvas');
+            clonedCanvases.forEach((cCanvas, idx) => {
+              if (canvasBitmaps[idx]) {
+                const img = clonedDoc.createElement('img');
+                img.src = canvasBitmaps[idx];
+                img.style.width = cCanvas.style.width || `${cCanvas.width}px`;
+                img.style.height = cCanvas.style.height || `${cCanvas.height}px`;
+                cCanvas.parentNode.replaceChild(img, cCanvas);
+              }
+            });
+          }
+        });
+      }
+
+      function injectDomQrFooter(containerEl, appState = {}) {
+        const shortMeta = generateShortlink(appState);
+        const qrDataUrl = createQrDataUrl(shortMeta.shortUrl, 120);
+        let qrBox = containerEl.querySelector('.doc-engine-qr-stamp');
+        if (!qrBox) {
+          qrBox = document.createElement('div');
+          qrBox.className = 'doc-engine-qr-stamp col-span-full w-full';
+          qrBox.style.cssText = 'grid-column: 1 / -1; width: 100%; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-top:8px; padding:10px 14px; border:1px solid #CBD5E1; border-radius:12px; background:#FFFFFF; font-family:monospace; font-size:11px; color:#334155; box-shadow: 0 1px 2px rgba(15,23,42,0.04);';
+          containerEl.appendChild(qrBox);
+        }
+        qrBox.innerHTML = `
+          <div style="display:flex;align-items:center;gap:12px;">
+            <img src="${qrDataUrl}" style="width:48px;height:48px;border-radius:6px;border:1px solid #CBD5E1;padding:2px;background:#fff;flex-shrink:0;" alt="QR" />
+            <div style="line-height:1.45;text-align:left;">
+              <div style="font-weight:800;color:#0F172A;font-size:10px;letter-spacing:0.04em;text-transform:uppercase;">VERIFIKASI DOKUMEN LIVE (SCAN QR / BUKA TAUTAN):</div>
+              <a href="${shortMeta.shortUrl}" target="_blank" rel="noopener" style="font-weight:700;color:#2563EB;text-decoration:underline;word-break:break-all;">${shortMeta.shortUrl}</a>
+              <div style="color:#64748B;font-size:10px;">🕒 Generated: ${shortMeta.formattedTime} • Unix: ${shortMeta.unixTime} • UI ALEX 2026</div>
+            </div>
+          </div>
+          <div style="text-align:right;font-size:10px;color:#64748B;">
+            <div style="font-weight:700;color:#0F172A;">EMAS3 Universitas Indonesia</div>
+            <div>danial.my.id/alex3/esai.html</div>
+          </div>
+        `;
+        return shortMeta;
+      }
+
+      async function exportElementToPNG(elementId, appState = {}, filename = 'Export_HD.png', width = 1140) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        setSyncBanner('Merender gambar PNG 2.5x HD + QR Stamp...', 'amber');
+        injectDomQrFooter(el, appState);
+        const canvas = await renderCleanDomToCanvas(el, { width, scale: 2.5, bg: '#F8FAFC' });
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL('image/png', 1.0);
+        link.click();
+        setSyncBanner('Gambar PNG 2.5x HD berhasil diunduh!', 'emerald');
+      }
+
+      /**
+       * Smart Single-Page / Custom-Fit PDF Exporter:
+       * Otomatis mendeteksi rasio dimensi kanvas (Portrait vs Landscape) dan menyesuaikan
+       * ukuran halaman PDF agar 100% ruang kertas termanfaatkan maksimal tanpa ruang putih kosong di kiri-kanan!
+       */
+      async function exportCertificateSinglePagePDF(elementId, appState = {}, filename = 'Rapor_1Halaman_SmartFit.pdf') {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        setSyncBanner('Mendeteksi rasio & merender PDF Smart-Fit...', 'amber');
+        injectDomQrFooter(el, appState);
+
+        const captureWidth = 1080;
+        const canvas = await renderCleanDomToCanvas(el, { width: captureWidth, scale: 2.3, bg: '#F8FAFC' });
+        const imgData = canvas.toDataURL('image/jpeg', 0.96);
+
+        const jsPDFConstructor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+        const aspect = canvas.width / canvas.height;
+        const isLandscape = aspect >= 1.05;
+
+        // Gunakan lebar standar A4 (210mm untuk Portrait, 297mm untuk Landscape)
+        // dan sesuaikan tinggi halaman secara presisi mengikuti rasio konten (minimal setinggi A4)
+        // sehingga gambar memenuhi 100% lebar kertas tanpa mengecil di tengah!
+        const margin = 5;
+        const pageW = isLandscape ? 297 : 210;
+        const stdPageH = isLandscape ? 210 : 297;
+        const targetW = pageW - (margin * 2);
+        const targetH = targetW / aspect;
+        const finalPageH = Math.max(stdPageH, Math.ceil(targetH + (margin * 2)));
+
+        const pdf = new jsPDFConstructor({
+          orientation: isLandscape ? 'landscape' : 'portrait',
+          unit: 'mm',
+          format: [pageW, finalPageH],
+          compress: true
+        });
+
+        const offsetX = margin;
+        const offsetY = finalPageH > targetH + (margin * 2)
+          ? margin + ((finalPageH - (margin * 2) - targetH) / 2)
+          : margin;
+
+        pdf.addImage(imgData, 'JPEG', offsetX, offsetY, targetW, targetH);
+        pdf.save(filename);
+        setSyncBanner('PDF 1-Halaman Smart-Fit berhasil diunduh!', 'emerald');
+      }
+
+      return {
+        generateShortlink,
+        parseShortlinkFromUrl,
+        createQrDataUrl,
+        exportVectorTablePDF,
+        exportElementToPNG,
+        exportCertificateSinglePagePDF,
+        injectDomQrFooter
+      };
+    })();
 
     function computeSHA256(ascii) {
       function rotr(n, x) { return (x >>> n) | (x << (32 - n)); }
@@ -1140,6 +2103,7 @@
         currentLoggedUser = user;
         sessionStorage.setItem('alex_auth_token', matchedDigest);
         sessionStorage.setItem('alex_auth_user', user);
+        AuthSession.touch(user, matchedDigest);
         document.getElementById('loginError').classList.add('hidden');
         document.getElementById('lockNotice').classList.add('hidden');
         document.getElementById('loginOverlay').classList.add('hidden');
@@ -1155,10 +2119,23 @@
     }
 
     function checkAuthSession() {
-      const token = sessionStorage.getItem('alex_auth_token');
-      const user = sessionStorage.getItem('alex_auth_user');
+      let token = sessionStorage.getItem('alex_auth_token');
+      let user = sessionStorage.getItem('alex_auth_user');
+
+      // Cek Shared Cross-Tab Session di localStorage jika tab baru dibuka dari hasil scan QR / Shortlink
+      if (!user || !token || _ALLOWED_AUTH[user] !== token) {
+        const shared = AuthSession.getValidSession();
+        if (shared) {
+          user = shared.user;
+          token = shared.token;
+          sessionStorage.setItem('alex_auth_user', user);
+          sessionStorage.setItem('alex_auth_token', token);
+        }
+      }
+
       if (user && token && _ALLOWED_AUTH[user] === token) {
         currentLoggedUser = user;
+        AuthSession.touch(user, token);
         document.getElementById('loginOverlay').classList.add('hidden');
         const opBadge = document.getElementById('activeOperatorBadge');
         if (opBadge) opBadge.textContent = `USER: ${user.toUpperCase()}`;
@@ -1170,10 +2147,13 @@
       }
     }
 
-    async function lockScreen(isAutoLock = false) {
+    async function lockScreen(isAutoLock = false, fromCrossTab = false) {
       hideAllTooltips();
       sessionStorage.removeItem('alex_auth_token');
       sessionStorage.removeItem('alex_auth_user');
+      if (!fromCrossTab) {
+        AuthSession.lockAllTabs();
+      }
       currentLoggedUser = '';
       const userEl = document.getElementById('authUser');
       const passEl = document.getElementById('authPass');
@@ -1203,6 +2183,9 @@
     }
 
     function resetIdleTimer() {
+      if (currentLoggedUser) {
+        AuthSession.touch(currentLoggedUser);
+      }
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
         if (sessionStorage.getItem('alex_auth_token')) {
@@ -1283,7 +2266,7 @@
     let pageSize = 50;
     let activeModalRow = null;
     let modalRenderMode = 'formatted';
-    let workspaceMode = 'submissions';
+    let workspaceMode = 'directory';
     let activeRaporUsername = null;
     let openedEssayFromRapor = false;
     let highlightedRowKey = null;
@@ -1607,7 +2590,18 @@
           setDashboardLoadedState(true);
           populateDynamicBatchOptions();
           applyFilters(true);
-          if (activeRaporUsername) {
+          if (pendingRestoredShortlink) {
+            const rest = pendingRestoredShortlink;
+            pendingRestoredShortlink = null;
+            if (rest.view === 'modal_rapor' && rest.entityId) {
+              openParticipantRaporModal(rest.entityId, true);
+            } else if (rest.view === 'modal_essay' && rest.entityId) {
+              const [uName, mCode] = String(rest.entityId).split('__');
+              if (uName && mCode) {
+                openSubmissionByUserAndModule(uName, mCode, false);
+              }
+            }
+          } else if (activeRaporUsername) {
             openParticipantRaporModal(activeRaporUsername, true);
           }
         } else {
@@ -1790,24 +2784,30 @@
       if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
       searchDebounceTimer = setTimeout(() => {
         currentPage = 1;
-        applyFilters(true);
-        updateUrlAndTracker('Cari Peserta');
-      }, 300);
+        applyFilters();
+      }, 250);
+    }
+
+    function getTotalPages() {
+      const total = sortedData.length;
+      if (total === 0 || pageSize === 'ALL') return 1;
+      return Math.max(1, Math.ceil(total / pageSize));
     }
 
     function onPageSizeChange() {
-      const val = document.getElementById('pageSizeSelect')?.value || '50';
-      pageSize = val === 'ALL' ? 'ALL' : parseInt(val, 10) || 50;
+      const sel = document.getElementById('pageSizeSelect');
+      if (!sel) return;
+      pageSize = sel.value === 'ALL' ? 'ALL' : (parseInt(sel.value, 10) || 50);
       currentPage = 1;
       renderTable();
-      updateUrlAndTracker(`Baris ${pageSize}`);
+      updateUrlAndTracker(`Page Size ${pageSize}`);
     }
 
-    function goToPage(pageNum) {
+    function goToPage(p) {
       const totalPages = getTotalPages();
-      currentPage = Math.max(1, Math.min(totalPages, pageNum));
+      currentPage = Math.max(1, Math.min(totalPages, p));
       renderTable();
-      updateUrlAndTracker(`Hal ${currentPage}`);
+      updateUrlAndTracker(`Page ${currentPage}`);
     }
 
     function changePage(delta) {
@@ -1818,12 +2818,55 @@
       goToPage(getTotalPages());
     }
 
-    function getTotalPages() {
-      if (pageSize === 'ALL' || sortedData.length === 0) return 1;
-      return Math.max(1, Math.ceil(sortedData.length / pageSize));
+    function updateActiveFilterVisuals() {
+      const filterConfigs = [
+        { id: 'filterBatch', isActive: (val) => val !== 'ALL' },
+        { id: 'filterPilar', isActive: (val) => val !== 'ALL' },
+        { id: 'filterModul', isActive: (val) => val !== 'ALL' },
+        { id: 'filterStatus', isActive: (val) => val !== 'ALL' }
+      ];
+
+      let activeCount = 0;
+
+      filterConfigs.forEach(cfg => {
+        const selectEl = document.getElementById(cfg.id);
+        const wrapEl = document.getElementById(`wrap_${cfg.id}`);
+        const lblEl = document.getElementById(`lbl_${cfg.id}`);
+        const dotEl = document.getElementById(`dot_${cfg.id}`);
+        if (!selectEl) return;
+
+        const active = cfg.isActive(selectEl.value);
+        if (active) {
+          activeCount++;
+          selectEl.className = 'px-3 py-1.5 rounded-lg border-2 border-amber-500 text-xs font-extrabold bg-amber-50 text-amber-950 shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all duration-150';
+          if (wrapEl) wrapEl.className = 'flex items-center gap-2 px-2.5 py-1 -mx-1 rounded-xl bg-amber-50/80 border border-amber-300 shadow-sm transition-all duration-150';
+          if (lblEl) lblEl.className = 'text-[11px] font-extrabold uppercase tracking-wider text-amber-900 flex items-center gap-1 cursor-pointer';
+          if (dotEl) dotEl.classList.remove('hidden');
+        } else {
+          selectEl.className = 'px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all duration-150';
+          if (wrapEl) wrapEl.className = 'flex items-center gap-2 px-2.5 py-1 -mx-1 rounded-xl border border-transparent transition-all duration-150';
+          if (lblEl) lblEl.className = 'text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 cursor-pointer';
+          if (dotEl) dotEl.classList.add('hidden');
+        }
+      });
+
+      const countBadge = document.getElementById('activeFilterCountBadge');
+      const countText = document.getElementById('activeFilterCountText');
+      const topCard = document.getElementById('topFilterCard');
+      if (countBadge && countText) {
+        if (activeCount > 0) {
+          countBadge.classList.remove('hidden');
+          countText.textContent = `${activeCount} Filter Aktif`;
+          if (topCard) topCard.className = 'bg-amber-50/25 rounded-2xl border-2 border-amber-300 shadow-sm p-4 space-y-3 transition-colors duration-200';
+        } else {
+          countBadge.classList.add('hidden');
+          if (topCard) topCard.className = 'bg-slate-50/80 rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3 transition-colors duration-200';
+        }
+      }
     }
 
     function applyFilters(isSilentInit = false) {
+      updateActiveFilterVisuals();
       const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
       const fPilar = document.getElementById('filterPilar')?.value || 'ALL';
       const fModul = document.getElementById('filterModul')?.value || 'ALL';
@@ -1861,6 +2904,8 @@
       renderKPIsAndModuleGrid(fBatch, fPilar, fModul, fStatus);
       renderTable();
       renderParticipantDirectory();
+      if (workspaceMode === 'halloffame') renderEssayHallOfFame();
+      if (workspaceMode === 'pimti') renderPimtiEssayStudio();
       if (!isSilentInit) {
         updateUrlAndTracker('Filter Data');
       }
@@ -2177,14 +3222,14 @@
         thead.innerHTML = `
           <tr class="font-extrabold text-[11px] uppercase tracking-wider">
             <th class="p-2.5 text-center w-12">No</th>
-            <th onclick="sortBy('nama_peserta')" class="sortable-th p-2.5 text-left min-w-[225px]">Nama Peserta &amp; Identitas<span id="sort_nama_peserta" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('nama_peserta')" class="sortable-th p-2.5 text-left min-w-[220px]">Nama Peserta &amp; Identitas<span id="sort_nama_peserta" class="text-slate-400 font-normal"> ⇅</span></th>
             <th onclick="sortBy('batch')" class="sortable-th p-2.5 text-center w-24">Batch<span id="sort_batch" class="text-slate-400 font-normal"> ⇅</span></th>
             <th onclick="sortBy('kode_modul')" class="sortable-th p-2.5 text-left min-w-[175px]">Modul &amp; Pilar<span id="sort_kode_modul" class="text-slate-400 font-normal"> ⇅</span></th>
-            <th onclick="sortBy('status_submisi')" class="sortable-th p-2.5 text-center w-32">Status<span id="sort_status_submisi" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('status_submisi')" class="sortable-th p-2.5 text-center w-28">Status<span id="sort_status_submisi" class="text-slate-400 font-normal"> ⇅</span></th>
             <th onclick="sortBy('waktu_submit')" class="sortable-th p-2.5 text-center w-36">Waktu Submit<span id="sort_waktu_submit" class="text-slate-400 font-normal"> ⇅</span></th>
-            <th onclick="sortBy('_jawaban_text')" class="sortable-th p-2.5 text-left min-w-[270px]">Ringkasan Jawaban Esai<span id="sort__jawaban_text" class="text-slate-400 font-normal"> ⇅</span></th>
-            <th onclick="sortBy('nilai_di_emas3')" class="sortable-th p-2.5 text-center w-20">Nilai<span id="sort_nilai_di_emas3" class="text-slate-400 font-normal"> ⇅</span></th>
-            <th class="p-2.5 text-center min-w-[250px] bg-emerald-50/90 text-emerald-950" data-tippy-content="Buka Popup Jawaban Esai, Rapor 8 Modul Peserta, atau Unduh Excel">Aksi &amp; Unduh</th>
+            <th onclick="sortBy('_jawaban_text')" class="sortable-th p-2.5 text-left min-w-[260px]">Ringkasan Jawaban Esai<span id="sort__jawaban_text" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('nilai_di_emas3')" class="sortable-th p-2.5 text-center w-16">Nilai<span id="sort_nilai_di_emas3" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th class="p-2.5 text-center w-[280px] bg-slate-200/70 text-slate-900" data-tippy-content="Buka Popup Jawaban Esai, Rapor 8 Modul Peserta, atau Unduh Excel">Aksi Cepat &amp; Unduh</th>
           </tr>
         `;
       } else {
@@ -2208,7 +3253,7 @@
             <th onclick="sortBy('waktu_submit')" class="sortable-th p-2.5 text-center w-36">waktu_submit<span id="sort_waktu_submit" class="text-slate-400 font-normal"> ⇅</span></th>
             <th onclick="sortBy('nilai_di_emas3')" class="sortable-th p-2.5 text-center w-28">nilai_di_emas3<span id="sort_nilai_di_emas3" class="text-slate-400 font-normal"> ⇅</span></th>
             <th onclick="sortBy('target_kelulusan')" class="sortable-th p-2.5 text-center w-36">target_kelulusan<span id="sort_target_kelulusan" class="text-slate-400 font-normal"> ⇅</span></th>
-            <th class="p-2.5 text-center min-w-[250px] bg-emerald-50/90 text-emerald-950">Shortcut Aksi</th>
+            <th class="p-2.5 text-center w-[280px] bg-slate-200/70 text-slate-900">Aksi Cepat &amp; Unduh</th>
           </tr>
         `;
       }
@@ -2369,32 +3414,39 @@
 
         const soalPreview = r._soal_text ? escapeHtml(r._soal_text.slice(0, 75)) + '...' : '-';
         const hasJawaban = r._jawaban_text && r._jawaban_text.length > 0;
+        const charCount = (r._jawaban_text || '').length;
+        const wordCount = hasJawaban ? r._jawaban_text.trim().split(/\s+/).filter(Boolean).length : 0;
         const jawabanPreview = hasJawaban
-          ? `<div class="line-clamp-2 text-[11px] text-slate-700">${escapeHtml(r._jawaban_text.slice(0, 140))}</div>`
+          ? `<div class="flex items-center gap-1.5 mb-0.5">
+               <span class="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono text-[9px] font-bold">${wordCount} kata • ${charCount.toLocaleString('id-ID')} kar</span>
+             </div>
+             <div class="line-clamp-2 text-[11px] text-slate-700">${escapeHtml(r._jawaban_text.slice(0, 135))}</div>`
           : `<span class="text-slate-300 italic">Belum ada jawaban</span>`;
 
         const shortcutActionsHtml = `
-          <div class="inline-flex items-center gap-1">
+          <div class="inline-flex items-center justify-center gap-1 whitespace-nowrap">
             <button type="button" onclick="openEssayModal(${absoluteIdx}, false)"
               title="Buka Popup Jawaban Esai & Soal (${escapeHtml(r.nama_peserta)} - Modul ${escapeHtml(r.kode_modul)})"
-              class="px-2 py-1 rounded bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-[10px] shadow-sm transition flex items-center gap-1">
+              class="px-2.5 py-1 rounded-md bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-[10px] shadow-sm border border-amber-500/40 transition inline-flex items-center gap-1">
               <span>🔍</span><span>Jawaban</span>
             </button>
             <button type="button" onclick="openParticipantRaporModal('${escapeHtml(r.username)}')"
               title="Buka Rapor Submisi 8 Modul milik ${escapeHtml(r.nama_peserta)}"
-              class="px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[10px] shadow-sm transition flex items-center gap-1">
+              class="px-2 py-1 rounded-md bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-[10px] shadow-sm transition inline-flex items-center gap-1">
               <span>📊</span><span>Rapor</span>
             </button>
-            <button type="button" onclick="exportSingleRowToExcel(${absoluteIdx})"
-              title="Unduh Excel baris ini (${escapeHtml(r.nama_peserta)} - Modul ${escapeHtml(r.kode_modul)})"
-              class="px-1.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] shadow-sm transition">
-              📥 Baris
-            </button>
-            <button type="button" onclick="exportParticipantAllModulesToExcel('${escapeHtml(r.username)}')"
-              title="Unduh Excel seluruh 8 modul milik ${escapeHtml(r.nama_peserta)}"
-              class="px-1.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-[10px] shadow-sm transition">
-              👤 8 Modul
-            </button>
+            <div class="inline-flex rounded-md shadow-sm border border-slate-300 overflow-hidden">
+              <button type="button" onclick="exportSingleRowToExcel(${absoluteIdx})"
+                title="Unduh Excel modul ${escapeHtml(r.kode_modul)} ini saja"
+                class="px-2 py-1 bg-white hover:bg-emerald-50 text-emerald-800 font-mono font-bold text-[10px] border-r border-slate-200 transition">
+                📥 1
+              </button>
+              <button type="button" onclick="exportParticipantAllModulesToExcel('${escapeHtml(r.username)}')"
+                title="Unduh Excel lengkap 8 modul milik ${escapeHtml(r.nama_peserta)}"
+                class="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-[10px] transition">
+                📦 8
+              </button>
+            </div>
           </div>
         `;
 
@@ -2425,16 +3477,12 @@
             <td class="p-2.5 text-center">${statusBadge}</td>
             <td class="p-2.5 text-center font-mono text-[11px] text-slate-600">${escapeHtml(r.waktu_submit || '-')}</td>
             <td class="p-2.5">
-              <div class="flex items-start justify-between gap-2">
+              <div onclick="openEssayModal(${absoluteIdx}, false)" class="cursor-pointer group">
                 ${jawabanPreview}
-                <button type="button" onclick="openEssayModal(${absoluteIdx}, false)"
-                  class="shrink-0 px-2 py-1 rounded bg-amber-100 hover:bg-amber-400 text-amber-950 font-bold text-[10px] transition">
-                  🔍 Tabel
-                </button>
               </div>
             </td>
             <td class="p-2.5 text-center font-mono font-bold text-slate-700">${escapeHtml(r.nilai_di_emas3 || '-')}</td>
-            <td class="p-2.5 text-center bg-emerald-50/30">${shortcutActionsHtml}</td>
+            <td class="p-2.5 text-center bg-slate-50/70">${shortcutActionsHtml}</td>
           </tr>`;
         }
 
@@ -2454,12 +3502,8 @@
             <div class="line-clamp-2">${soalPreview}</div>
           </td>
           <td class="p-2">
-            <div class="flex items-start justify-between gap-2">
+            <div onclick="openEssayModal(${absoluteIdx}, false)" class="cursor-pointer">
               ${jawabanPreview}
-              <button type="button" onclick="openEssayModal(${absoluteIdx}, false)"
-                class="shrink-0 px-2 py-1 rounded bg-amber-100 hover:bg-amber-400 text-amber-950 font-bold text-[10px] transition">
-                🔍 Tabel
-              </button>
             </div>
           </td>
           <td class="p-2 text-center bg-amber-50/30 font-mono text-slate-300">""</td>
@@ -2467,7 +3511,7 @@
           <td class="p-2 text-center font-mono text-[11px] text-slate-600">${escapeHtml(r.waktu_submit || '-')}</td>
           <td class="p-2 text-center font-mono font-bold">${escapeHtml(r.nilai_di_emas3 || '-')}</td>
           <td class="p-2 text-center text-[11px] text-slate-500">${escapeHtml(r.target_kelulusan)}</td>
-          <td class="p-2 text-center bg-emerald-50/30">${shortcutActionsHtml}</td>
+          <td class="p-2 text-center bg-slate-50/70">${shortcutActionsHtml}</td>
         </tr>`;
       }).join('');
 
@@ -2475,39 +3519,487 @@
     }
 
     /*************************************************************************
-     * D2. DIREKTORI PESERTA & MODAL RAPOR SUBMISI PER ORANG (8 MODUL)
+     * D2. NAVIGASI 5-TAB BROWSER DECK, DIREKTORI, HALL OF FAME & REKAP PIMTI
      *************************************************************************/
     function setWorkspaceMode(mode, isSilent = false) {
-      workspaceMode = mode === 'directory' ? 'directory' : 'submissions';
-      const subSec = document.getElementById('submissionsTableSection');
-      const dirSec = document.getElementById('participantDirectorySection');
-      const btnSub = document.getElementById('tabViewSubmissions');
-      const btnDir = document.getElementById('tabViewDirectory');
+      workspaceMode = ['submissions', 'directory', 'halloffame', 'pimti'].includes(mode) ? mode : 'submissions';
 
-      if (subSec && dirSec) {
-        subSec.classList.toggle('hidden', workspaceMode !== 'submissions');
-        dirSec.classList.toggle('hidden', workspaceMode !== 'directory');
+      const views = {
+        directory: document.getElementById('participantDirectorySection'),
+        submissions: document.getElementById('submissionsWorkspace'),
+        halloffame: document.getElementById('hallOfFameSection'),
+        pimti: document.getElementById('pimtiSection')
+      };
+
+      const tabConfigs = [
+        { mode: 'directory',   btnId: 'tabViewDirectory',   numId: 'num_tabDirectory',   dotId: 'dot_tabDirectory' },
+        { mode: 'submissions', btnId: 'tabViewSubmissions', numId: 'num_tabSubmissions', dotId: 'dot_tabSubmissions' },
+        { mode: 'halloffame',  btnId: 'tabViewHallOfFame',  numId: 'num_tabHallOfFame',  dotId: 'dot_tabHallOfFame' },
+        { mode: 'pimti',       btnId: 'tabViewPimti',       numId: 'num_tabPimti',       dotId: 'dot_tabPimti' }
+      ];
+
+      Object.keys(views).forEach(k => {
+        if (views[k]) views[k].classList.toggle('hidden', k !== workspaceMode);
+      });
+
+      tabConfigs.forEach(cfg => {
+        const isActive = cfg.mode === workspaceMode;
+        const btn = document.getElementById(cfg.btnId);
+        const num = document.getElementById(cfg.numId);
+        const dot = document.getElementById(cfg.dotId);
+
+        if (btn) {
+          btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+          btn.className = isActive
+            ? 'group relative z-10 -mb-[1px] w-full px-4 py-3 rounded-t-xl text-xs font-extrabold transition-all duration-150 flex items-center justify-between gap-2 bg-white text-slate-950 border-t-[3px] border-t-amber-500 border-x border-slate-300 border-b border-b-white shadow-[0_-3px_10px_rgba(15,23,42,0.06)]'
+            : 'group relative w-full px-4 py-2.5 rounded-t-xl text-xs font-semibold transition-all duration-150 flex items-center justify-between gap-2 bg-slate-200/80 text-slate-600 hover:bg-slate-100/90 hover:text-slate-900 border-t-[3px] border-t-transparent border-x border-slate-300/60 border-b border-b-slate-300';
+        }
+        if (num) {
+          num.className = isActive
+            ? 'w-5 h-5 rounded-md bg-amber-500 text-slate-950 font-mono text-[11px] font-extrabold flex items-center justify-center shadow-sm shrink-0'
+            : 'w-5 h-5 rounded-md bg-slate-300 text-slate-700 group-hover:bg-slate-400/50 font-mono text-[11px] font-bold flex items-center justify-center shrink-0';
+        }
+        if (dot) {
+          dot.classList.toggle('hidden', !isActive);
+        }
+      });
+
+      if (workspaceMode === 'directory') renderParticipantDirectory();
+      if (workspaceMode === 'halloffame') renderEssayHallOfFame();
+      if (workspaceMode === 'pimti') renderPimtiEssayStudio();
+
+      if (!isSilent) {
+        updateUrlAndTracker(`Tab ${workspaceMode}`);
       }
-      if (btnSub && btnDir) {
-        if (workspaceMode === 'submissions') {
-          btnSub.className = 'px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-between gap-3 bg-slate-900 text-amber-400 shadow-sm';
-          btnDir.className = 'px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between gap-3 bg-white/80 text-slate-700 hover:bg-white hover:text-slate-950 border border-slate-300/80';
-        } else {
-          btnSub.className = 'px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between gap-3 bg-white/80 text-slate-700 hover:bg-white hover:text-slate-950 border border-slate-300/80';
-          btnDir.className = 'px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-between gap-3 bg-slate-900 text-amber-400 shadow-sm';
+    }
+
+    const ESSAY_AWARDS_CATALOG = {
+      fastest_complete8: {
+        title: 'Ketuntasan 8/8 Modul Esai Tercepat (Speed Master)',
+        subtitle: 'Peserta yang telah menuntaskan seluruh 8 modul esai (atau progres tertinggi) dengan waktu penyelesaian paling awal',
+        criteria: 'Kriteria: Jumlah Modul Submitted Terbanyak → Waktu Submit Terakhir Paling Awal → Total Kata Terbanyak',
+        filterFn: p => p.submittedCount > 0,
+        metricFn: p => `${p.submittedCount}/8 Modul • Akhir: ${p.latestSubmit}`,
+        subMetricFn: p => `${p.totalWords.toLocaleString('id-ID')} kata (${p.totalChars.toLocaleString('id-ID')} karakter)`,
+        sortFn: (a, b) => {
+          if (b.submittedCount !== a.submittedCount) return b.submittedCount - a.submittedCount;
+          if (a.latestSubmit !== '-' && b.latestSubmit !== '-' && a.latestSubmit !== b.latestSubmit) {
+            return a.latestSubmit.localeCompare(b.latestSubmit);
+          }
+          return b.totalWords - a.totalWords;
+        }
+      },
+      top_volume_words: {
+        title: 'Analis Esai Terkomprehensif (Total Kata Terbanyak)',
+        subtitle: 'Peserta dengan kedalaman analisis dan volume penulisan esai terstruktur paling komprehensif lintas 8 modul',
+        criteria: 'Kriteria: Total Kata Bersih Terbanyak → Total Karakter → Jumlah Modul Submitted',
+        filterFn: p => p.totalWords > 0,
+        metricFn: p => `${p.totalWords.toLocaleString('id-ID')} Kata (${p.totalChars.toLocaleString('id-ID')} Kar)`,
+        subMetricFn: p => `${p.submittedCount}/8 Submitted • ~${Math.round(p.totalWords / Math.max(1, p.submittedCount))} kata/modul`,
+        sortFn: (a, b) => (b.totalWords - a.totalWords) || (b.totalChars - a.totalChars) || (b.submittedCount - a.submittedCount)
+      },
+      pilar1_champion: {
+        title: 'Ekselen Submisi & Kedalaman Esai Pilar I (Manajemen)',
+        subtitle: 'Peserta dengan ketuntasan dan kedalaman analisis terbaik pada 4 modul Pilar I (PK, SDMPT, PBJ, KA)',
+        criteria: 'Kriteria: Modul Pilar I Submitted (4/4) → Total Kata Pilar I Terbanyak',
+        filterFn: p => p.p1Submitted > 0,
+        metricFn: p => `Pilar I: ${p.p1Submitted}/4 Modul (${p.p1Words.toLocaleString('id-ID')} Kata)`,
+        subMetricFn: p => `${p.p1Chars.toLocaleString('id-ID')} karakter di Pilar I • Total: ${p.submittedCount}/8 Modul`,
+        sortFn: (a, b) => (b.p1Submitted - a.p1Submitted) || (b.p1Words - a.p1Words) || (b.submittedCount - a.submittedCount)
+      },
+      pilar2_champion: {
+        title: 'Ekselen Submisi & Kedalaman Esai Pilar II (Governance)',
+        subtitle: 'Peserta dengan ketuntasan dan kedalaman analisis terbaik pada 4 modul Pilar II (AI, PMA, HK, MRT)',
+        criteria: 'Kriteria: Modul Pilar II Submitted (4/4) → Total Kata Pilar II Terbanyak',
+        filterFn: p => p.p2Submitted > 0,
+        metricFn: p => `Pilar II: ${p.p2Submitted}/4 Modul (${p.p2Words.toLocaleString('id-ID')} Kata)`,
+        subMetricFn: p => `${p.p2Chars.toLocaleString('id-ID')} karakter di Pilar II • Total: ${p.submittedCount}/8 Modul`,
+        sortFn: (a, b) => (b.p2Submitted - a.p2Submitted) || (b.p2Words - a.p2Words) || (b.submittedCount - a.submittedCount)
+      },
+      early_pioneer: {
+        title: 'Pionir Submisi Esai Pertama (Early Bird Submitter)',
+        subtitle: 'Peserta yang paling awal memulai dan mengumpulkan tugas esai pertama di EMAS3',
+        criteria: 'Kriteria: Timestamp Submisi Pertama Paling Awal → Total Modul Submitted → Total Kata',
+        filterFn: p => p.firstSubmit && p.firstSubmit !== '-',
+        metricFn: p => `Submit Awal: ${p.firstSubmit}`,
+        subMetricFn: p => `Progres: ${p.submittedCount}/8 Modul (${p.totalWords.toLocaleString('id-ID')} kata)`,
+        sortFn: (a, b) => a.firstSubmit.localeCompare(b.firstSubmit) || (b.submittedCount - a.submittedCount) || (b.totalWords - a.totalWords)
+      },
+      consistent_scholar: {
+        title: 'Konsistensi Kedalaman Analisis Lintas 8 Modul',
+        subtitle: 'Peserta dengan rata-rata kata per modul paling seimbang dan konsisten di seluruh modul yang dikerjakan',
+        criteria: 'Kriteria: Ketuntasan Modul → Rerata Kata per Modul Tertinggi',
+        filterFn: p => p.submittedCount > 0,
+        metricFn: p => `Rerata ${Math.round(p.totalWords / Math.max(1, p.submittedCount)).toLocaleString('id-ID')} Kata/Modul`,
+        subMetricFn: p => `${p.submittedCount}/8 Modul Submitted • Total ${p.totalWords.toLocaleString('id-ID')} kata`,
+        sortFn: (a, b) => {
+          if (b.submittedCount !== a.submittedCount) return b.submittedCount - a.submittedCount;
+          const avgA = a.totalWords / Math.max(1, a.submittedCount);
+          const avgB = b.totalWords / Math.max(1, b.submittedCount);
+          return avgB - avgA;
         }
       }
-      if (workspaceMode === 'directory') {
-        renderParticipantDirectory();
+    };
+
+    function setEssayAwardMode(mode) {
+      essayAwardMode = ['top3', 'top5', 'top10', 'all'].includes(mode) ? mode : 'top3';
+      const btns = {
+        top3: 'btnEssayAwardTop3',
+        top5: 'btnEssayAwardTop5',
+        top10: 'btnEssayAwardTop10',
+        all: 'btnEssayAwardAll'
+      };
+      Object.keys(btns).forEach((k, idx) => {
+        const el = document.getElementById(btns[k]);
+        if (!el) return;
+        const borderCls = idx === 0 ? '' : 'border-l border-slate-300';
+        el.className = k === essayAwardMode
+          ? `px-3 py-1.5 text-xs font-bold bg-slate-900 text-amber-400 ${borderCls}`
+          : `px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 ${borderCls}`;
+      });
+      renderEssayHallOfFame();
+    }
+
+    function getRankedEssayAwardList() {
+      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const catKey = document.getElementById('essayAwardCategorySelect')?.value || 'fastest_complete8';
+      const cat = ESSAY_AWARDS_CATALOG[catKey] || ESSAY_AWARDS_CATALOG.fastest_complete8;
+
+      const baseRows = rawMasterData.filter(r => fBatch === 'ALL' || r.batch === fBatch);
+      const profilesMap = buildParticipantProfilesMap(baseRows);
+      const allProfiles = Array.from(profilesMap.values());
+      const eligible = allProfiles.filter(cat.filterFn);
+      eligible.sort(cat.sortFn);
+
+      const limit = essayAwardMode === 'top3'
+        ? 3
+        : (essayAwardMode === 'top5' ? 5 : (essayAwardMode === 'top10' ? 10 : eligible.length));
+
+      return {
+        fBatch,
+        catKey,
+        cat,
+        allCount: allProfiles.length,
+        eligibleCount: eligible.length,
+        ranked: eligible.slice(0, limit)
+      };
+    }
+
+    function renderEssayHallOfFame() {
+      const stage = document.getElementById('essayAwardStageBody');
+      if (!stage) return;
+
+      const { fBatch, catKey, cat, allCount, eligibleCount, ranked } = getRankedEssayAwardList();
+
+      document.getElementById('essayAwardTitleText').textContent = cat.title;
+      document.getElementById('essayAwardSubtitleText').textContent = cat.subtitle;
+      document.getElementById('essayAwardBatchBadge').textContent = fBatch === 'ALL' ? 'Semua Batch' : fBatch;
+      document.getElementById('essayAwardPopText').textContent = `Menampilkan ${ranked.length} dari ${eligibleCount} Peserta Memenuhi Kriteria (Populasi: ${allCount})`;
+      document.getElementById('essayAwardCriteriaFooter').textContent = cat.criteria;
+
+      if (ranked.length === 0) {
+        stage.innerHTML = `<div class="p-10 text-center text-slate-500 font-medium bg-white/80 rounded-2xl border border-dashed border-amber-300">Belum ada peserta yang memenuhi kriteria pada kategori ini.</div>`;
+        return;
       }
-      if (!isSilent) {
-        updateUrlAndTracker(`View ${workspaceMode}`);
+
+      if (essayAwardMode === 'top3' || essayAwardMode === 'top5') {
+        const colsCls = essayAwardMode === 'top3' ? 'md:grid-cols-3' : 'md:grid-cols-5';
+        stage.innerHTML = `
+          <div class="grid grid-cols-1 ${colsCls} gap-4 items-stretch">
+            ${ranked.map((p, i) => `
+              <div onclick="openParticipantRaporModal('${escapeHtml(p.username)}')"
+                class="cursor-pointer p-4 rounded-2xl border transition hover:shadow-xl flex flex-col justify-between text-center ${i === 0 ? 'border-2 border-amber-400 bg-gradient-to-b from-amber-50 to-white shadow-lg' : 'border-slate-200 bg-white shadow-sm'}">
+                <div>
+                  <div class="text-xs font-mono font-extrabold uppercase ${i === 0 ? 'text-amber-700' : 'text-slate-500'}">
+                    ${i === 0 ? '🥇 Peringkat #1' : (i === 1 ? '🥈 Peringkat #2' : (i === 2 ? '🥉 Peringkat #3' : `🎖️ Peringkat #${i + 1}`))}
+                  </div>
+                  <div class="w-14 h-14 rounded-2xl mx-auto my-3 flex items-center justify-center font-serif font-extrabold text-lg ${i === 0 ? 'bg-slate-900 text-amber-400 shadow' : 'bg-slate-100 text-slate-800'}">
+                    ${getInitials(p.nama_peserta)}
+                  </div>
+                  <div class="font-bold text-slate-900 text-sm leading-snug">${escapeHtml(p.nama_peserta)}</div>
+                  <div class="text-[11px] font-mono text-slate-400 mt-0.5">${escapeHtml(p.username)} • ${escapeHtml(p.batch)}</div>
+                </div>
+                <div class="mt-4 pt-2.5 border-t border-slate-100 space-y-1.5">
+                  <div class="font-mono font-extrabold text-xs text-amber-950 bg-amber-100/80 border border-amber-300 py-1.5 px-2 rounded-lg">
+                    ${escapeHtml(cat.metricFn(p))}
+                  </div>
+                  <div class="text-[10px] font-mono text-slate-600">
+                    ${escapeHtml(cat.subMetricFn(p))}
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } else {
+        stage.innerHTML = `
+          <div class="overflow-x-auto max-h-[540px] overflow-y-auto rounded-xl border border-slate-300 bg-white shadow-sm">
+            <table class="sticky-matrix-table text-xs">
+              <thead class="bg-slate-900 text-amber-400 font-mono text-[10px] uppercase">
+                <tr>
+                  <th class="p-2.5 text-center w-16 bg-slate-900 text-amber-400">Rank</th>
+                  <th class="p-2.5 text-left bg-slate-900 text-amber-400">Nama Peserta &amp; Username</th>
+                  <th class="p-2.5 text-center w-24 bg-slate-900 text-amber-400">Batch</th>
+                  <th class="p-2.5 text-center bg-slate-900 text-amber-400">Metrik Utama Kategori</th>
+                  <th class="p-2.5 text-center bg-slate-900 text-amber-400">Progres 8 Modul</th>
+                  <th class="p-2.5 text-center bg-slate-900 text-amber-400">Total Kata &amp; Karakter</th>
+                  <th class="p-2.5 text-center bg-slate-900 text-amber-400">Submit Terakhir</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                ${ranked.map((p, i) => `
+                  <tr onclick="openParticipantRaporModal('${escapeHtml(p.username)}')" class="cursor-pointer hover:bg-amber-50/50 transition ${i < 3 ? 'bg-amber-50/30 font-semibold' : ''}">
+                    <td class="p-2.5 text-center font-mono font-extrabold text-slate-800">#${i + 1}</td>
+                    <td class="p-2.5 font-bold text-slate-900">${escapeHtml(p.nama_peserta)} <span class="font-mono text-[11px] text-slate-400 font-normal">(${escapeHtml(p.username)})</span></td>
+                    <td class="p-2.5 text-center font-mono">${escapeHtml(p.batch)}</td>
+                    <td class="p-2.5 text-center font-mono font-extrabold text-amber-900 bg-amber-50/60">${escapeHtml(cat.metricFn(p))}</td>
+                    <td class="p-2.5 text-center font-mono font-bold text-emerald-700">${p.submittedCount}/8 Submitted</td>
+                    <td class="p-2.5 text-center font-mono">${p.totalWords.toLocaleString('id-ID')} kata (${p.totalChars.toLocaleString('id-ID')} kar)</td>
+                    <td class="p-2.5 text-center font-mono text-slate-500">${escapeHtml(p.latestSubmit)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
       }
+
+      DocEngine.injectDomQrFooter(document.getElementById('essayAwardSlideCanvas'), {
+        view: 'halloffame',
+        batch: fBatch,
+        entityId: catKey
+      });
+    }
+
+    function copyEssayAwardAnnouncement() {
+      const { fBatch, cat, ranked } = getRankedEssayAwardList();
+      if (ranked.length === 0) return;
+      const lines = [
+        `🏆 *HALL OF FAME SUBMISI ESAI — UI ALEX 2026*`,
+        `Kategori: *${cat.title}* (${fBatch})`,
+        `_${cat.subtitle}_`,
+        ``
+      ];
+      ranked.forEach((p, idx) => {
+        lines.push(`#${idx + 1} *${p.nama_peserta}* (${p.batch}) — ${cat.metricFn(p)} [${cat.subMetricFn(p)}]`);
+      });
+      copyTextToClipboard(lines.join('\n'), 'Teks pengumuman Hall of Fame disalin!');
+    }
+
+    function exportEssayAwardSlidePNG() {
+      const { fBatch, catKey } = getRankedEssayAwardList();
+      DocEngine.exportElementToPNG(
+        'essayAwardSlideCanvas',
+        { view: 'halloffame', batch: fBatch, entityId: catKey },
+        `HallOfFame_Esai_${catKey}_${Date.now()}.png`,
+        1160
+      );
+    }
+
+    function exportEssayAwardVectorPDF() {
+      const { fBatch, catKey, cat, ranked } = getRankedEssayAwardList();
+      if (ranked.length === 0) return;
+      const headers = [['Rank', 'Nama Peserta', 'Username', 'Batch', 'Metrik Utama', 'Progres Modul', 'Volume Esai', 'Submit Terakhir']];
+      const rows = ranked.map((p, idx) => [
+        `#${idx + 1}`,
+        p.nama_peserta,
+        p.username,
+        p.batch,
+        cat.metricFn(p),
+        `${p.submittedCount}/8 Submitted`,
+        `${p.totalWords.toLocaleString('id-ID')} kata (${p.totalChars.toLocaleString('id-ID')} kar)`,
+        p.latestSubmit
+      ]);
+      DocEngine.exportVectorTablePDF({
+        title: `HALL OF FAME SUBMISI ESAI — ${cat.title.toUpperCase()}`,
+        subtitle: `${cat.subtitle} • Kelompok: ${fBatch}`,
+        headers,
+        rows,
+        appState: { view: 'halloffame', batch: fBatch, entityId: catKey },
+        orientation: 'landscape',
+        format: 'a4',
+        filename: `HallOfFame_Esai_${catKey}.pdf`
+      });
+    }
+
+    function renderPimtiEssayStudio() {
+      const tbody = document.getElementById('pimtiEssayTableBody');
+      if (!tbody) return;
+
+      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const baseRows = rawMasterData.filter(r => fBatch === 'ALL' || r.batch === fBatch);
+      const tsStr = document.getElementById('lastSyncTimestamp')?.textContent || '-';
+
+      const bBadge = document.getElementById('pimtiEssayBatchBadge');
+      const tsLabel = document.getElementById('pimtiEssayTimestamp');
+      if (bBadge) bBadge.textContent = fBatch === 'ALL' ? 'SEMUA BATCH' : fBatch.toUpperCase();
+      if (tsLabel) tsLabel.textContent = `Diperbarui: ${tsStr}`;
+
+      const buildRowStats = (level, code, label, rowsSubset) => {
+        const pop = rowsSubset.length;
+        const sub = rowsSubset.filter(r => r.status_submisi === 'submitted').length;
+        const nw = rowsSubset.filter(r => r.status_submisi === 'new').length;
+        const blm = rowsSubset.filter(r => r.status_submisi === 'belum_submit').length;
+        const subPct = pop ? ((sub / pop) * 100).toFixed(1) : '0.0';
+        const nwPct = pop ? ((nw / pop) * 100).toFixed(1) : '0.0';
+        const blmPct = pop ? ((blm / pop) * 100).toFixed(1) : '0.0';
+
+        let totalWords = 0, totalChars = 0, activeAnsCount = 0;
+        const times = [];
+        rowsSubset.forEach(r => {
+          const w = countWordsClean(r._jawaban_text);
+          if (w > 0) {
+            totalWords += w;
+            totalChars += (r._jawaban_text || '').length;
+            activeAnsCount++;
+          }
+          if (r.waktu_submit && r.waktu_submit !== '-') times.push(r.waktu_submit);
+        });
+        times.sort();
+        const avgWords = activeAnsCount > 0 ? Math.round(totalWords / activeAnsCount) : 0;
+        const avgChars = activeAnsCount > 0 ? Math.round(totalChars / activeAnsCount) : 0;
+        const latest = times.length > 0 ? times[times.length - 1] : '-';
+
+        return { level, code, label, pop, sub, nw, blm, subPct, nwPct, blmPct, avgWords, avgChars, latest };
+      };
+
+      const p1Codes = ['PK', 'SDMPT', 'PBJ', 'KA'];
+      const p2Codes = ['AI', 'PMA', 'HK', 'MRT'];
+
+      const topRow = buildRowStats(1, 'ALL', '★ GABUNGAN 2 PILAR (8 MODUL ESAI)', baseRows);
+      const p1Row = buildRowStats(2, 'Pilar I', 'PILAR I — MANAJEMEN & OPERASIONAL (4 MODUL)', baseRows.filter(r => p1Codes.includes(r.kode_modul)));
+      const p1ModRows = p1Codes.map((c, i) => buildRowStats(3, c, `1.${i + 1}. ${c} — ${MODULE_INFO[c].name}`, baseRows.filter(r => r.kode_modul === c)));
+
+      const p2Row = buildRowStats(2, 'Pilar II', 'PILAR II — GOVERNANCE & KEPATUHAN (4 MODUL)', baseRows.filter(r => p2Codes.includes(r.kode_modul)));
+      const p2ModRows = p2Codes.map((c, i) => buildRowStats(3, c, `2.${i + 1}. ${c} — ${MODULE_INFO[c].name}`, baseRows.filter(r => r.kode_modul === c)));
+
+      lastPimtiEssayRows = [topRow, p1Row, ...p1ModRows, p2Row, ...p2ModRows];
+
+      tbody.innerHTML = lastPimtiEssayRows.map(r => {
+        const rowCls = r.level === 1
+          ? 'bg-amber-50/90 font-extrabold text-slate-950'
+          : (r.level === 2 ? 'bg-slate-100/90 font-extrabold text-slate-900' : 'bg-white text-slate-700 hover:bg-amber-50/30');
+        const padCls = r.level === 3 ? 'pl-7' : 'pl-3';
+
+        return `<tr class="${rowCls} transition">
+          <td class="p-3 ${padCls}">${escapeHtml(r.label)}</td>
+          <td class="p-3 text-center font-mono font-bold">${r.pop.toLocaleString('id-ID')} Slot</td>
+          <td class="p-3 text-center bg-emerald-50/30">
+            <button type="button" onclick="jumpFromPimtiToSubmissions('${r.code}', 'submitted')"
+              class="font-mono font-extrabold text-emerald-700 hover:underline">
+              ${r.sub.toLocaleString('id-ID')} (${r.subPct}%)
+            </button>
+          </td>
+          <td class="p-3 text-center bg-amber-50/30">
+            <button type="button" onclick="jumpFromPimtiToSubmissions('${r.code}', 'new')"
+              class="font-mono font-bold text-amber-800 hover:underline">
+              ${r.nw.toLocaleString('id-ID')} (${r.nwPct}%)
+            </button>
+          </td>
+          <td class="p-3 text-center">
+            <button type="button" onclick="jumpFromPimtiToSubmissions('${r.code}', 'belum_submit')"
+              class="font-mono font-semibold text-slate-600 hover:underline">
+              ${r.blm.toLocaleString('id-ID')} (${r.blmPct}%)
+            </button>
+          </td>
+          <td class="p-3 text-center font-mono bg-indigo-50/20">
+            <span class="font-extrabold text-indigo-800">~${r.avgWords.toLocaleString('id-ID')} kata</span>
+            <span class="text-[10px] text-slate-500 block">(${r.avgChars.toLocaleString('id-ID')} kar)</span>
+          </td>
+          <td class="p-3 text-center font-mono text-[11px] text-slate-600">${escapeHtml(r.latest)}</td>
+        </tr>`;
+      }).join('');
+
+      DocEngine.injectDomQrFooter(document.getElementById('pimtiEssayPrintArea'), {
+        view: 'pimti',
+        batch: fBatch
+      });
+    }
+
+    function jumpFromPimtiToSubmissions(code, statusVal) {
+      const pEl = document.getElementById('filterPilar');
+      const mEl = document.getElementById('filterModul');
+      const sEl = document.getElementById('filterStatus');
+
+      if (code === 'ALL') {
+        if (pEl) pEl.value = 'ALL';
+        if (mEl) mEl.value = 'ALL';
+      } else if (code === 'Pilar I' || code === 'Pilar II') {
+        if (pEl) pEl.value = code;
+        if (mEl) mEl.value = 'ALL';
+      } else {
+        if (pEl) pEl.value = 'ALL';
+        if (mEl) mEl.value = code;
+      }
+      if (sEl) sEl.value = statusVal || 'ALL';
+
+      setWorkspaceMode('submissions', true);
+      toggleTableCollapse(true);
+      currentPage = 1;
+      applyFilters();
+    }
+
+    function copyPimtiEssayText() {
+      if (lastPimtiEssayRows.length === 0) renderPimtiEssayStudio();
+      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const lines = [
+        `🏛️ *REKAPITULASI EKSEKUTIF PIMTI (SUBMISI ESAI) — UI ALEX 2026*`,
+        `Kelompok: *${fBatch}* | Update: ${document.getElementById('lastSyncTimestamp')?.textContent || '-'}`,
+        ``
+      ];
+      lastPimtiEssayRows.forEach(r => {
+        lines.push(`• *${r.label}*: Submitted *${r.sub}/${r.pop} (${r.subPct}%)* | Draft: ${r.nw} | Belum: ${r.blm} | Rerata: ~${r.avgWords} kata`);
+      });
+      copyTextToClipboard(lines.join('\n'), 'Rekap Eksekutif Pimti (WA) disalin!');
+    }
+
+    function exportPimtiEssayExcel() {
+      if (lastPimtiEssayRows.length === 0) renderPimtiEssayStudio();
+      const sheetRows = lastPimtiEssayRows.map(r => ({
+        'Kelompok Pilar & Modul Direktorat': r.label,
+        'Populasi Target (Slot)': r.pop,
+        'Sudah Submit (Submitted)': r.sub,
+        'Persentase Submit (%)': Number(r.subPct),
+        'Draft / Buka Soal (New)': r.nw,
+        'Belum Submit': r.blm,
+        'Rerata Kata per Esai': r.avgWords,
+        'Rerata Karakter per Esai': r.avgChars,
+        'Submit Terakhir': r.latest
+      }));
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(sheetRows);
+      XLSX.utils.book_append_sheet(wb, ws, 'Rekap_Eksekutif_Pimti');
+      XLSX.writeFile(wb, `Rekap_Eksekutif_Pimti_Esai_UI_ALEX_2026_${Date.now()}.xlsx`);
+    }
+
+    function exportPimtiEssayVectorPDF() {
+      if (lastPimtiEssayRows.length === 0) renderPimtiEssayStudio();
+      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const headers = [['1. Kelompok Pilar & Modul Direktorat', '2. Populasi', '3. Submitted', '4. Draft (New)', '5. Belum Submit', '6. Rerata Volume', '7. Submit Terakhir']];
+      const rows = lastPimtiEssayRows.map(r => [
+        r.label,
+        `${r.pop} Slot`,
+        `${r.sub} (${r.subPct}%)`,
+        `${r.nw} (${r.nwPct}%)`,
+        `${r.blm} (${r.blmPct}%)`,
+        `~${r.avgWords} kata (${r.avgChars} kar)`,
+        r.latest
+      ]);
+      DocEngine.exportVectorTablePDF({
+        title: 'REKAPITULASI EKSEKUTIF PIMTI — SUBMISI UJI KOMPETENSI ESAI (8 MODUL)',
+        subtitle: `Kelompok: ${fBatch} • Diperbarui: ${document.getElementById('lastSyncTimestamp')?.textContent || '-'}`,
+        headers,
+        rows,
+        appState: { view: 'pimti', batch: fBatch },
+        orientation: 'landscape',
+        format: 'a4',
+        filename: `Laporan_Eksekutif_Pimti_Esai_${fBatch.replace(/\s+/g, '')}.pdf`
+      });
     }
 
     function getInitials(name) {
       const cleaned = String(name || '')
-        .replace(/\b(Prof|Dr|Ir|Apt|SE|MM|CA|MT|SH|MH|M\.Si|M\.Sc|M\.Ak|S\.Ikom|S\.Kom|S\.E|Ph\.D|dr|drg)\b\.?,?/gi, '')
+        .replace(/\b(Prof|Dr|Ir|Apt|SE|MM|CA|MT|SH|MH|M\.Si|M\.Sc|M\.Ak|S\.Ikom|S\.Kom|S\.E|Ph\.D|dr|drg|Sp\.[A-Za-z]+)\b\.?,?/gi, '')
         .replace(/[.,]/g, ' ')
         .trim();
       const parts = cleaned.split(/\s+/).filter(Boolean);
@@ -2515,6 +4007,15 @@
       if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
       return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     }
+
+    function countWordsClean(str) {
+      if (!str || typeof str !== 'string') return 0;
+      const s = str.trim();
+      if (!s || s === '[Belum Mengumpulkan Jawaban]') return 0;
+      return s.split(/\s+/).filter(Boolean).length;
+    }
+
+    const countWords = countWordsClean;
 
     function buildParticipantProfilesMap(sourceRows) {
       const map = new Map();
@@ -2534,7 +4035,15 @@
             belumCount: 0,
             p1Submitted: 0,
             p2Submitted: 0,
+            p1Chars: 0,
+            p2Chars: 0,
+            p1Words: 0,
+            p2Words: 0,
             totalChars: 0,
+            totalWords: 0,
+            gradedCount: 0,
+            gradeSum: 0,
+            firstSubmit: '-',
             latestSubmit: '-'
           });
         }
@@ -2543,34 +4052,59 @@
       }
 
       for (const p of map.values()) {
-        let sub = 0, nw = 0, blm = 0, p1Sub = 0, p2Sub = 0, chars = 0;
+        let sub = 0, nw = 0, blm = 0, p1Sub = 0, p2Sub = 0;
+        let chars = 0, words = 0, p1C = 0, p2C = 0, p1W = 0, p2W = 0;
+        let graded = 0, gSum = 0;
         const times = [];
+
         MODULE_ORDER.forEach(code => {
           const row = p.modules[code];
           const st = row?.status_submisi || 'belum_submit';
+          const isP1 = ['PK', 'SDMPT', 'PBJ', 'KA'].includes(code);
+          const cLen = (row && row._jawaban_text && row._jawaban_text !== '[Belum Mengumpulkan Jawaban]') ? row._jawaban_text.length : 0;
+          const wLen = (row && row._jawaban_text) ? countWordsClean(row._jawaban_text) : 0;
+
           if (st === 'submitted') {
             sub++;
-            if (['PK', 'SDMPT', 'PBJ', 'KA'].includes(code)) p1Sub++;
-            if (['AI', 'PMA', 'HK', 'MRT'].includes(code)) p2Sub++;
+            if (isP1) p1Sub++;
+            else p2Sub++;
           } else if (st === 'new') {
             nw++;
           } else {
             blm++;
           }
-          if (row && row._jawaban_text) {
-            chars += row._jawaban_text.length;
+
+          chars += cLen;
+          words += wLen;
+          if (isP1) { p1C += cLen; p1W += wLen; }
+          else { p2C += cLen; p2W += wLen; }
+
+          const gVal = parseFloat(row?.nilai_di_emas3);
+          if (!isNaN(gVal) && gVal >= 0) {
+            graded++;
+            gSum += gVal;
           }
+
           if (row && row.waktu_submit && row.waktu_submit !== '-' && row.waktu_submit.trim() !== '') {
             times.push(row.waktu_submit.trim());
           }
         });
+
         times.sort();
         p.submittedCount = sub;
         p.newCount = nw;
         p.belumCount = blm;
         p.p1Submitted = p1Sub;
         p.p2Submitted = p2Sub;
+        p.p1Chars = p1C;
+        p.p2Chars = p2C;
+        p.p1Words = p1W;
+        p.p2Words = p2W;
         p.totalChars = chars;
+        p.totalWords = words;
+        p.gradedCount = graded;
+        p.gradeAvg = graded > 0 ? Number((gSum / graded).toFixed(1)) : null;
+        p.firstSubmit = times.length > 0 ? times[0] : '-';
         p.latestSubmit = times.length > 0 ? times[times.length - 1] : '-';
       }
       return map;
@@ -2578,21 +4112,67 @@
 
     function renderModuleStatusPillButton(username, code, row) {
       const st = row?.status_submisi || 'belum_submit';
-      let cls = 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200';
-      let dotCls = 'bg-slate-400';
+      const cLen = (row && row._jawaban_text && row._jawaban_text !== '[Belum Mengumpulkan Jawaban]') ? row._jawaban_text.length : 0;
+      const shortChar = cLen >= 1000 ? (cLen / 1000).toFixed(1) + 'k' : (cLen > 0 ? String(cLen) : '-');
+
+      let cls = 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100';
+      let icon = '○';
       if (st === 'submitted') {
-        cls = 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200 font-extrabold';
-        dotCls = 'bg-emerald-600';
+        cls = 'bg-emerald-50/90 text-emerald-900 border-emerald-300 hover:bg-emerald-100 font-extrabold shadow-sm';
+        icon = '✓';
       } else if (st === 'new') {
-        cls = 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 font-bold';
-        dotCls = 'bg-amber-500';
+        cls = 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 font-bold';
+        icon = '✎';
       }
       return `<button type="button" onclick="openSubmissionByUserAndModule('${escapeHtml(username)}', '${code}', false)"
-        title="Modul ${code} (${st}) — Klik untuk membuka popup submisi ini"
-        class="w-full px-1.5 py-1 rounded-md border font-mono text-[10px] transition flex items-center justify-center gap-1 ${cls}">
-        <span class="w-1.5 h-1.5 rounded-full ${dotCls} shrink-0"></span>
-        <span>${code}</span>
+        title="Modul ${code} (${st} • ${cLen.toLocaleString('id-ID')} karakter) — Klik untuk membuka jawaban"
+        class="w-full px-1.5 py-1 rounded-lg border font-mono text-[10px] transition flex flex-col items-center justify-center leading-tight ${cls}">
+        <div class="flex items-center gap-0.5">
+          <span>${icon}</span>
+          <span>${code}</span>
+        </div>
+        <span class="text-[8px] font-normal opacity-75 mt-0.5">${shortChar}</span>
       </button>`;
+    }
+
+    function renderRaporRichModuleCard(username, code, row) {
+      const info = MODULE_INFO[code] || { name: code };
+      const st = row?.status_submisi || 'belum_submit';
+      const cLen = (row && row._jawaban_text && row._jawaban_text !== '[Belum Mengumpulkan Jawaban]') ? row._jawaban_text.length : 0;
+      const wLen = (row && row._jawaban_text) ? countWordsClean(row._jawaban_text) : 0;
+      const rawTime = row?.waktu_submit && row.waktu_submit !== '-' ? row.waktu_submit.trim() : '';
+      const shortTime = rawTime ? rawTime.slice(5) : 'Belum submit';
+
+      let cardCls = 'bg-slate-50/80 border-slate-200 text-slate-500 hover:bg-slate-100';
+      let badgeCls = 'bg-slate-200 text-slate-600';
+      let statusLabel = 'BELUM';
+      if (st === 'submitted') {
+        cardCls = 'bg-white border-emerald-300 text-slate-900 hover:border-emerald-500 hover:shadow-md shadow-sm';
+        badgeCls = 'bg-emerald-600 text-white';
+        statusLabel = '✓ SUBMIT';
+      } else if (st === 'new') {
+        cardCls = 'bg-amber-50/70 border-amber-300 text-slate-900 hover:border-amber-500 shadow-sm';
+        badgeCls = 'bg-amber-500 text-slate-950';
+        statusLabel = '✎ DRAFT';
+      }
+
+      return `
+        <button type="button" onclick="openSubmissionByUserAndModule('${escapeHtml(username)}', '${code}', true)"
+          title="${code} — ${escapeHtml(info.name)} (${st})"
+          class="min-w-0 p-2 rounded-xl border text-left transition flex flex-col justify-between group ${cardCls}">
+          <div class="w-full min-w-0">
+            <div class="flex items-center justify-between gap-1">
+              <span class="px-1.5 py-0.5 rounded bg-slate-900 text-amber-400 font-mono font-extrabold text-[9px] group-hover:bg-amber-500 group-hover:text-slate-950 transition shrink-0">${code}</span>
+              <span class="px-1 py-0.5 rounded font-mono font-extrabold text-[8px] uppercase whitespace-nowrap shrink-0 ${badgeCls}">${statusLabel}</span>
+            </div>
+            <div class="text-[10px] font-bold text-slate-700 line-clamp-2 leading-snug mt-1.5" title="${escapeHtml(info.name)}">${escapeHtml(info.name)}</div>
+          </div>
+          <div class="w-full mt-2 pt-1.5 border-t border-slate-200/70 flex items-center justify-between gap-1 font-mono text-[9px]">
+            <span class="${cLen > 0 ? 'font-extrabold text-indigo-700' : 'text-slate-400'} whitespace-nowrap">${wLen > 0 ? wLen + ' kata' : '0 kata'}</span>
+            <span class="text-slate-400 truncate max-w-[58px]" title="${escapeHtml(rawTime || '-')}">${escapeHtml(shortTime)}</span>
+          </div>
+        </button>
+      `;
     }
 
     function renderParticipantDirectory() {
@@ -2658,11 +4238,15 @@
           <td class="p-2.5">
             <div class="flex items-center justify-between text-[11px] font-mono mb-1">
               <span class="font-extrabold ${p.submittedCount === 8 ? 'text-emerald-700' : 'text-slate-800'}">${p.submittedCount}/8 Submitted</span>
-              <span class="text-slate-400">${subPct}%</span>
+              <span class="text-slate-500 font-bold">${subPct}%</span>
             </div>
             <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden flex">
               <div class="h-full bg-emerald-500" style="width: ${subPct}%"></div>
               <div class="h-full bg-amber-400" style="width: ${newPct}%"></div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] font-mono text-slate-500 mt-1">
+              <span>${p.totalWords.toLocaleString('id-ID')} kata</span>
+              <span>${p.totalChars.toLocaleString('id-ID')} kar</span>
             </div>
           </td>
           <td class="p-2.5 bg-amber-50/20">
@@ -2672,16 +4256,16 @@
             <div class="grid grid-cols-4 gap-1">${p2Pills}</div>
           </td>
           <td class="p-2.5 text-center font-mono text-[11px] text-slate-600">${escapeHtml(p.latestSubmit)}</td>
-          <td class="p-2.5 text-center bg-emerald-50/30">
-            <div class="inline-flex items-center gap-1">
+          <td class="p-2.5 text-center bg-slate-50/80">
+            <div class="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
               <button type="button" onclick="openParticipantRaporModal('${escapeHtml(p.username)}')"
-                class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[10px] shadow-sm transition flex items-center gap-1">
+                class="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold text-[10px] shadow-sm transition inline-flex items-center gap-1">
                 <span>📊</span><span>Buka Rapor</span>
               </button>
               <button type="button" onclick="exportParticipantAllModulesToExcel('${escapeHtml(p.username)}')"
                 title="Unduh Excel 8 Modul milik ${escapeHtml(p.nama_peserta)}"
-                class="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] shadow-sm transition">
-                📥 XLSX
+                class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] shadow-sm transition inline-flex items-center gap-1">
+                <span>📦</span><span>XLSX</span>
               </button>
             </div>
           </td>
@@ -2708,23 +4292,116 @@
       document.getElementById('raporAvatarInitials').textContent = getInitials(p.nama_peserta);
       document.getElementById('raporBatchBadge').textContent = p.batch;
       document.getElementById('raporOverallStatusBadge').textContent = `${p.submittedCount}/8 Submitted (${subPct}%)`;
+      const gradeBadge = document.getElementById('raporGradeSummaryBadge');
+      if (gradeBadge) {
+        gradeBadge.textContent = p.gradedCount > 0 ? `${p.gradedCount}/8 Dinilai (Rerata: ${p.gradeAvg})` : 'Belum Dinilai (0/8)';
+      }
       document.getElementById('raporPesertaName').textContent = p.nama_peserta;
       document.getElementById('raporPesertaMeta').textContent = `Username: ${p.username} | NIP: ${p.nip || '-'} | Email: ${p.email || '-'}`;
 
+      // Widget 1: Ketuntasan & Donut SVG
       document.getElementById('raporKpiPct').textContent = `${subPct}%`;
       document.getElementById('raporKpiTotalSub').textContent = `${p.submittedCount} / 8 Submitted`;
       document.getElementById('raporBarSub').style.width = `${subPct}%`;
       document.getElementById('raporBarNew').style.width = `${newPct}%`;
-      document.getElementById('raporKpiSubDetail').textContent = `🟢 ${p.submittedCount} Sub • 🟡 ${p.newCount} New • ⚪ ${p.belumCount} Belum`;
+      document.getElementById('raporKpiSubDetail').textContent = `🟢 ${p.submittedCount} Sub • 🟡 ${p.newCount} Draft • ⚪ ${p.belumCount} Belum`;
 
+      const donutRing = document.getElementById('raporDonutRing');
+      const donutText = document.getElementById('raporDonutText');
+      if (donutRing && donutText) {
+        const circumference = 91.1;
+        const offset = circumference * (1 - (p.submittedCount / 8));
+        donutRing.style.strokeDashoffset = String(offset.toFixed(2));
+        donutRing.setAttribute('stroke', p.submittedCount === 8 ? '#10b981' : (p.submittedCount >= 4 ? '#f59e0b' : '#64748b'));
+        donutText.textContent = `${p.submittedCount}/8`;
+      }
+
+      // Widget 2: Analitik Volume Karakter, Kata, Min & Max Modul
+      const activeModStats = [];
+      const allModLengths = [];
+      MODULE_ORDER.forEach(code => {
+        const r = p.modules[code];
+        const cLen = (r && r._jawaban_text && r._jawaban_text !== '[Belum Mengumpulkan Jawaban]') ? r._jawaban_text.length : 0;
+        const wLen = (r && r._jawaban_text) ? countWordsClean(r._jawaban_text) : 0;
+        allModLengths.push({ code, cLen, wLen, status: r?.status_submisi || 'belum_submit' });
+        if (cLen > 0) activeModStats.push({ code, cLen, wLen });
+      });
+
+      const avgWordsPerMod = activeModStats.length > 0 ? Math.round(p.totalWords / activeModStats.length) : 0;
+      document.getElementById('raporKpiChars').textContent = `${p.totalChars.toLocaleString('id-ID')} Karakter`;
+      const wordsEl = document.getElementById('raporKpiWords');
+      if (wordsEl) wordsEl.textContent = `(${p.totalWords.toLocaleString('id-ID')} Kata)`;
+      const avgWordsEl = document.getElementById('raporAvgWordsBadge');
+      if (avgWordsEl) avgWordsEl.textContent = `~${avgWordsPerMod.toLocaleString('id-ID')} kata/modul`;
+
+      if (activeModStats.length > 0) {
+        const sortedByLen = [...activeModStats].sort((a, b) => b.cLen - a.cLen);
+        const longest = sortedByLen[0];
+        const shortest = sortedByLen[sortedByLen.length - 1];
+        document.getElementById('raporMaxModVolume').textContent = `Terpanjang: ${longest.code} (${longest.wLen} kata)`;
+        document.getElementById('raporMinModVolume').textContent = `Terpendek: ${shortest.code} (${shortest.wLen} kata)`;
+      } else {
+        document.getElementById('raporMaxModVolume').textContent = 'Terpanjang: -';
+        document.getElementById('raporMinModVolume').textContent = 'Terpendek: -';
+      }
+
+      // Widget 3: Sparkbar Proporsi Volume 8 Modul
+      const maxCharInMod = Math.max(1, ...allModLengths.map(m => m.cLen));
+      const sparkEl = document.getElementById('raporVolumeSparkbars');
+      if (sparkEl) {
+        sparkEl.innerHTML = allModLengths.map(m => {
+          const hPct = m.cLen > 0 ? Math.max(18, Math.round((m.cLen / maxCharInMod) * 100)) : 10;
+          const barColor = m.status === 'submitted'
+            ? (['PK', 'SDMPT', 'PBJ', 'KA'].includes(m.code) ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700')
+            : (m.status === 'new' ? 'bg-amber-300' : 'bg-slate-200');
+          return `<div onclick="openSubmissionByUserAndModule('${escapeHtml(p.username)}', '${m.code}', true)"
+            title="${m.code}: ${m.wLen} kata (${m.cLen.toLocaleString('id-ID')} karakter) — Klik untuk melihat"
+            class="cursor-pointer w-full rounded-t transition-all duration-300 ${barColor}"
+            style="height: ${hPct}%"></div>`;
+        }).join('');
+      }
+
+      // Widget 4: Rentang Waktu Pengerjaan & Nilai
+      document.getElementById('raporKpiLastSubmit').textContent = `🕒 Akhir: ${p.latestSubmit}`;
+      const firstSubEl = document.getElementById('raporKpiFirstSubmit');
+      if (firstSubEl) firstSubEl.textContent = `🏁 Awal: ${p.firstSubmit}`;
+      const gradePill = document.getElementById('raporGradeAvgPill');
+      if (gradePill) {
+        gradePill.textContent = p.gradeAvg !== null ? `Rerata Nilai: ${p.gradeAvg}` : `${p.gradedCount}/8 Dinilai`;
+      }
+
+      const spanEl = document.getElementById('raporSpanDuration');
+      if (spanEl) {
+        if (p.firstSubmit !== '-' && p.latestSubmit !== '-' && p.firstSubmit !== p.latestSubmit) {
+          const d1 = new Date(p.firstSubmit.replace('.', ':').replace(' ', 'T'));
+          const d2 = new Date(p.latestSubmit.replace('.', ':').replace(' ', 'T'));
+          const diffHrs = !isNaN(d1) && !isNaN(d2) ? Math.abs(d2 - d1) / 36e5 : null;
+          if (diffHrs !== null) {
+            spanEl.textContent = diffHrs >= 24
+              ? `Rentang: ${(diffHrs / 24).toFixed(1)} hari (${Math.round(diffHrs)} jam)`
+              : `Rentang: ${diffHrs.toFixed(1)} jam`;
+          } else {
+            spanEl.textContent = `${p.submittedCount} modul terkumpul`;
+          }
+        } else if (p.firstSubmit !== '-') {
+          spanEl.textContent = 'Terkumpul pada waktu yang sama';
+        } else {
+          spanEl.textContent = 'Belum ada riwayat waktu submit';
+        }
+      }
+
+      // Baris 2: Rich Module Cards Pilar I & Pilar II
       document.getElementById('raporKpiP1').textContent = `${p.p1Submitted} / 4 Submitted`;
       document.getElementById('raporKpiP2').textContent = `${p.p2Submitted} / 4 Submitted`;
-      document.getElementById('raporKpiP1Badges').innerHTML = ['PK', 'SDMPT', 'PBJ', 'KA'].map(c => renderModuleStatusPillButton(p.username, c, p.modules[c])).join('');
-      document.getElementById('raporKpiP2Badges').innerHTML = ['AI', 'PMA', 'HK', 'MRT'].map(c => renderModuleStatusPillButton(p.username, c, p.modules[c])).join('');
+      const p1VolEl = document.getElementById('raporKpiP1Volume');
+      const p2VolEl = document.getElementById('raporKpiP2Volume');
+      if (p1VolEl) p1VolEl.textContent = `${p.p1Words.toLocaleString('id-ID')} kata (${p.p1Chars.toLocaleString('id-ID')} kar)`;
+      if (p2VolEl) p2VolEl.textContent = `${p.p2Words.toLocaleString('id-ID')} kata (${p.p2Chars.toLocaleString('id-ID')} kar)`;
 
-      document.getElementById('raporKpiChars').textContent = `${p.totalChars.toLocaleString('id-ID')} Karakter`;
-      document.getElementById('raporKpiLastSubmit').textContent = `🕒 Submit Terakhir: ${p.latestSubmit}`;
+      document.getElementById('raporKpiP1Badges').innerHTML = ['PK', 'SDMPT', 'PBJ', 'KA'].map(c => renderRaporRichModuleCard(p.username, c, p.modules[c])).join('');
+      document.getElementById('raporKpiP2Badges').innerHTML = ['AI', 'PMA', 'HK', 'MRT'].map(c => renderRaporRichModuleCard(p.username, c, p.modules[c])).join('');
 
+      // Baris 3: Tabel 8 Modul dengan Susunan Tombol 1 Baris Rapi
       const tbody = document.getElementById('raporModulesTableBody');
       if (tbody) {
         tbody.innerHTML = MODULE_ORDER.map((code, idx) => {
@@ -2758,10 +4435,15 @@
             statusBadge = `<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 font-mono text-[10px] font-bold">new</span>`;
           }
 
-          const charLen = (r._jawaban_text || '').length;
+          const charLen = (r._jawaban_text && r._jawaban_text !== '[Belum Mengumpulkan Jawaban]') ? r._jawaban_text.length : 0;
+          const wordLen = countWordsClean(r._jawaban_text);
+          const pctOfTotal = p.totalChars > 0 ? Math.round((charLen / p.totalChars) * 100) : 0;
           const previewHtml = charLen > 0
-            ? `<div class="text-[10px] font-mono font-bold text-emerald-700 mb-0.5">${charLen.toLocaleString('id-ID')} karakter bersih</div>
-               <div class="line-clamp-2 text-[11px] text-slate-700">${escapeHtml(r._jawaban_text.slice(0, 150))}</div>`
+            ? `<div class="flex flex-wrap items-center gap-1.5 mb-1">
+                 <span class="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono text-[10px] font-extrabold">${wordLen.toLocaleString('id-ID')} kata</span>
+                 <span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-mono text-[10px] font-semibold">${charLen.toLocaleString('id-ID')} karakter (${pctOfTotal}%)</span>
+               </div>
+               <div class="line-clamp-2 text-[11px] text-slate-700">${escapeHtml(r._jawaban_text.slice(0, 155))}</div>`
             : `<span class="text-slate-400 italic text-[11px]">[Belum Mengumpulkan Jawaban]</span>`;
 
           return `<tr class="hover:bg-amber-50/40 transition">
@@ -2774,29 +4456,33 @@
               <div class="font-bold text-slate-900 text-xs mt-1">${escapeHtml(r.modul_direktorat)}</div>
             </td>
             <td class="p-2.5 text-[11px] text-slate-600">
-              <div>${escapeHtml(r.nama_assignment_esai)}</div>
+              <div class="font-medium text-slate-800">${escapeHtml(r.nama_assignment_esai)}</div>
               <div class="font-mono text-[10px] text-slate-400 mt-0.5">ID Submisi: ${escapeHtml(r.id_submisi || '-')}</div>
             </td>
             <td class="p-2.5 text-center">${statusBadge}</td>
             <td class="p-2.5 text-center font-mono text-[11px] text-slate-600">${escapeHtml(r.waktu_submit || '-')}</td>
-            <td class="p-2.5">${previewHtml}</td>
+            <td class="p-2.5">
+              <div onclick="openSubmissionByUserAndModule('${escapeHtml(p.username)}', '${code}', true)" class="cursor-pointer">
+                ${previewHtml}
+              </div>
+            </td>
             <td class="p-2.5 text-center font-mono font-bold text-slate-700">${escapeHtml(r.nilai_di_emas3 || '-')}</td>
-            <td class="p-2.5 text-center bg-amber-50/30">
-              <div class="flex flex-wrap items-center justify-center gap-1">
+            <td class="p-2.5 text-center bg-amber-50/25">
+              <div class="inline-flex items-center justify-center gap-1 whitespace-nowrap">
                 <button type="button" onclick="openSubmissionByUserAndModule('${escapeHtml(p.username)}', '${code}', true)"
                   title="Buka Popup Soal & Tabel Jawaban untuk modul ${code}"
-                  class="px-2.5 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-[10px] shadow-sm transition flex items-center gap-1">
-                  <span>🔍</span><span>Buka Submisi</span>
+                  class="px-2.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-[10px] shadow-sm border border-amber-500/40 transition inline-flex items-center gap-1">
+                  <span>🔍</span><span>Jawaban</span>
                 </button>
                 <button type="button" onclick="jumpToSubmissionRow('${escapeHtml(p.username)}', '${code}')"
                   title="Menuju ke baris modul ${code} milik ${escapeHtml(p.nama_peserta)} di Tabel Utama"
-                  class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-[10px] shadow-sm transition flex items-center gap-1">
-                  <span>📍</span><span>Ke Baris Tabel</span>
+                  class="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-[10px] shadow-sm transition inline-flex items-center gap-1">
+                  <span>📍</span><span>Baris</span>
                 </button>
                 <button type="button" onclick="exportUserModuleRowToExcel('${escapeHtml(p.username)}', '${code}')"
                   title="Unduh Excel 1 baris untuk modul ${code}"
-                  class="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] shadow-sm transition">
-                  📥 XLSX
+                  class="px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] shadow-sm transition inline-flex items-center gap-1">
+                  <span>📥</span><span>XLSX</span>
                 </button>
               </div>
             </td>
@@ -2904,17 +4590,41 @@
     }
 
     function copyRaporPermalink() {
-      updateUrlAndTracker('Salin Link Rapor');
-      copyTextToClipboard(window.location.href, 'Tautan Rapor peserta berhasil disalin!');
+      if (!activeRaporUsername) return;
+      const fBatch = document.getElementById('filterBatch')?.value || 'Batch 2';
+      const shortMeta = DocEngine.generateShortlink({
+        view: 'modal_rapor',
+        batch: fBatch,
+        entityId: activeRaporUsername
+      });
+      updateUrlWithShortlink(shortMeta, `Rapor ${activeRaporUsername}`);
+      copyTextToClipboard(shortMeta.shortUrl, `Shortlink Rapor (${shortMeta.code}) disalin!`);
       const lbl = document.getElementById('lblCopyRaporLink');
       if (lbl) {
         lbl.textContent = 'Tersalin!';
-        setTimeout(() => { lbl.textContent = 'Link Rapor'; }, 1800);
+        setTimeout(() => { lbl.textContent = 'Shortlink'; }, 1800);
+      }
+    }
+
+    function copyActiveEssayShortlink() {
+      if (!activeModalRow) return;
+      const shortMeta = DocEngine.generateShortlink({
+        view: 'modal_essay',
+        batch: activeModalRow.batch || 'Batch 2',
+        modul: activeModalRow.kode_modul || 'ALL',
+        entityId: `${activeModalRow.username}__${activeModalRow.kode_modul}`
+      });
+      updateUrlWithShortlink(shortMeta, `Esai ${activeModalRow.username} ${activeModalRow.kode_modul}`);
+      copyTextToClipboard(shortMeta.shortUrl, `Shortlink Jawaban Esai (${shortMeta.code}) disalin!`);
+      const lbl = document.getElementById('lblCopyEssayShortlink');
+      if (lbl) {
+        lbl.textContent = 'Tersalin!';
+        setTimeout(() => { lbl.textContent = 'Shortlink'; }, 1800);
       }
     }
 
     /*************************************************************************
-     * E. MODAL DETAIL ESAI & EKSPOR EXCEL (.XLSX) 17 KOLOM
+     * E. MODAL DETAIL ESAI & EKSPOR EXCEL (.XLSX) / PDF VEKTOR / PNG HD
      *************************************************************************/
     function setModalRenderMode(mode) {
       modalRenderMode = mode === 'raw' ? 'raw' : 'formatted';
@@ -2997,6 +4707,12 @@
       }
 
       renderActiveModalContent();
+      DocEngine.injectDomQrFooter(document.getElementById('essayDetailPrintBody'), {
+        view: 'modal_essay',
+        batch: r.batch || 'Batch 2',
+        modul: r.kode_modul || 'ALL',
+        entityId: `${r.username}__${r.kode_modul}`
+      });
       document.getElementById('essayDetailModal').classList.remove('hidden');
     }
 
@@ -3031,13 +4747,51 @@
     }
 
     function copyPermalink() {
-      updateUrlAndTracker('Salin Permalink');
-      copyTextToClipboard(window.location.href, 'Permalink tersalin ke clipboard!');
+      const fBatch = document.getElementById('filterBatch')?.value || 'Batch 2';
+      const fPilar = document.getElementById('filterPilar')?.value || 'ALL';
+      const fModul = document.getElementById('filterModul')?.value || 'ALL';
+      const fStatus = document.getElementById('filterStatus')?.value || 'ALL';
+      const searchVal = (document.getElementById('searchTable')?.value || '').trim();
+
+      let currentView = workspaceMode;
+      let entityId = searchVal || null;
+      if (activeModalRow) {
+        currentView = 'modal_essay';
+        entityId = `${activeModalRow.username}__${activeModalRow.kode_modul}`;
+      } else if (activeRaporUsername) {
+        currentView = 'modal_rapor';
+        entityId = activeRaporUsername;
+      }
+
+      const shortMeta = DocEngine.generateShortlink({
+        view: currentView,
+        batch: fBatch,
+        pilar: fPilar,
+        status: fStatus,
+        modul: fModul,
+        cols: tableColumnMode,
+        entityId
+      });
+
+      updateUrlWithShortlink(shortMeta, 'Salin Shortlink');
+      copyTextToClipboard(shortMeta.shortUrl, `Shortlink (${shortMeta.code}) tersalin ke clipboard!`);
       const txt = document.getElementById('permalinkText');
       if (txt) {
         txt.textContent = 'Tersalin!';
-        setTimeout(() => { txt.textContent = 'Salin Permalink'; }, 1800);
+        setTimeout(() => { txt.textContent = 'Shortlink'; }, 1800);
       }
+    }
+
+    function updateUrlWithShortlink(shortMeta, actionName) {
+      if (!shortMeta) return;
+      const newPath = window.location.pathname + shortMeta.relativeParam;
+      const newTitle = `Assignment Exporter >> ${actionName || shortMeta.code}`;
+      document.title = newTitle;
+      try {
+        if (window.location.protocol !== 'blob:' && window.location.protocol !== 'data:' && window.location.href !== 'about:srcdoc') {
+          window.history.pushState({ path: newPath }, newTitle, newPath);
+        }
+      } catch (e) {}
     }
 
     function updateUrlAndTracker(actionName) {
@@ -3049,23 +4803,25 @@
       const fStatus = document.getElementById('filterStatus')?.value || 'ALL';
       const searchVal = (document.getElementById('searchTable')?.value || '').trim();
 
-      const params = new URLSearchParams();
-      params.set('user', currentLoggedUser);
-      params.set('mode', workspaceMode);
-      params.set('cols', tableColumnMode);
-      params.set('batch', fBatch);
-      if (fPilar !== 'ALL') params.set('pilar', fPilar);
-      if (fModul !== 'ALL') params.set('modul', fModul);
-      if (fStatus !== 'ALL') params.set('status', fStatus);
-      if (searchVal) params.set('q', searchVal);
-      if (activeRaporUsername) params.set('rapor', activeRaporUsername);
-      if (currentPage > 1) params.set('page', String(currentPage));
-      if (pageSize !== 50) params.set('psize', String(pageSize));
-      if (!isTableCollapsed) params.set('tbl', 'open');
-      if (pilarCollapsedState['Pilar I'] === false) params.set('p1', 'open');
-      if (pilarCollapsedState['Pilar II'] === false) params.set('p2', 'open');
-      if (currentFontScaleIdx !== 2) params.set('font', String(currentFontScaleIdx));
-      if (actionName) params.set('action', actionName);
+      let currentView = workspaceMode;
+      let entityId = searchVal || null;
+      if (activeModalRow) {
+        currentView = 'modal_essay';
+        entityId = `${activeModalRow.username}__${activeModalRow.kode_modul}`;
+      } else if (activeRaporUsername) {
+        currentView = 'modal_rapor';
+        entityId = activeRaporUsername;
+      }
+
+      const shortMeta = DocEngine.generateShortlink({
+        view: currentView,
+        batch: fBatch,
+        pilar: fPilar,
+        status: fStatus,
+        modul: fModul,
+        cols: tableColumnMode,
+        entityId
+      });
 
       const titleParts = ['Assignment Exporter', fBatch];
       if (fPilar !== 'ALL') titleParts.push(fPilar);
@@ -3076,7 +4832,7 @@
       const newTitle = titleParts.join(' >> ');
       document.title = newTitle;
 
-      const newPath = window.location.pathname + '?' + params.toString();
+      const newPath = window.location.pathname + shortMeta.relativeParam;
       try {
         if (window.location.protocol !== 'blob:' && window.location.protocol !== 'data:' && window.location.href !== 'about:srcdoc') {
           if (newPath !== lastTrackedPath) {
@@ -3116,11 +4872,52 @@
     }
 
     function loadFiltersFromUrl() {
-      const params = new URLSearchParams(window.location.search);
       const setVal = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
 
+      // 1. Cek apakah URL menggunakan Stateless Bit-Packing Shortlink (?s=...)
+      const restored = DocEngine.parseShortlinkFromUrl();
+      if (restored) {
+        pendingRestoredShortlink = restored;
+        setVal('filterBatch', restored.batch);
+        setVal('filterPilar', restored.pilar);
+        setVal('filterModul', restored.modul);
+        setVal('filterStatus', restored.status);
+        setTableColumnMode(restored.cols, true);
+
+        if ([' submissions', 'directory', 'halloffame', 'pimti'].map(s => s.trim()).includes(restored.view)) {
+          setWorkspaceMode(restored.view, true);
+        } else {
+          setWorkspaceMode('directory', true);
+        }
+
+        if (restored.view === 'submissions' && restored.entityId) {
+          setVal('searchTable', restored.entityId);
+          toggleTableCollapse(true);
+        } else if (restored.view === 'halloffame' && restored.entityId) {
+          setVal('essayAwardCategorySelect', restored.entityId);
+        } else if (restored.view === 'modal_rapor' && restored.entityId) {
+          activeRaporUsername = restored.entityId;
+        }
+
+        const banner = document.getElementById('qrVerificationBanner');
+        const badge = document.getElementById('qrVerifyCodeBadge');
+        const detail = document.getElementById('qrVerifyDetailText');
+        if (banner && badge && detail) {
+          const rawS = new URLSearchParams(window.location.search).get('s') || '-';
+          banner.classList.remove('hidden');
+          badge.textContent = `?s=${rawS}`;
+          detail.innerHTML = `Mode: <strong>${restored.view.toUpperCase()}</strong> • Batch: <strong>${restored.batch}</strong> • Modul: <strong>${restored.modul}</strong> • Dicetak pada: <strong>${restored.formattedTime} WIB</strong> <span class="font-mono text-[11px] text-amber-300">(Unix: ${restored.unixTime})</span>`;
+        }
+        return;
+      }
+
+      // 2. Fallback: Parameter URL Klasik (?batch=...&modul=...)
+      const params = new URLSearchParams(window.location.search);
       if (params.has('mode')) {
-        setWorkspaceMode(params.get('mode') === 'directory' ? 'directory' : 'submissions', true);
+        const m = params.get('mode');
+        setWorkspaceMode(['directory', 'submissions', 'halloffame', 'pimti'].includes(m) ? m : 'directory', true);
+      } else {
+        setWorkspaceMode('directory', true);
       }
       if (params.has('rapor')) {
         activeRaporUsername = params.get('rapor');
@@ -3161,6 +4958,308 @@
           applyFontScale();
         }
       }
+    }
+
+    function exportActiveViewVectorPDF() {
+      if (activeModalRow) {
+        exportActiveEssayVectorPDF();
+      } else if (activeRaporUsername) {
+        exportActiveRaporVectorPDF();
+      } else if (workspaceMode === 'directory') {
+        exportDirectoryVectorPDF();
+      } else if (workspaceMode === 'halloffame') {
+        exportEssayAwardVectorPDF();
+      } else if (workspaceMode === 'pimti') {
+        exportPimtiEssayVectorPDF();
+      } else {
+        exportActiveTableVectorPDF();
+      }
+    }
+
+    function exportActiveTableVectorPDF() {
+      const source = sortedData.length > 0 ? sortedData : filteredData;
+      if (source.length === 0) {
+        setSyncBanner('Tidak ada baris di tabel untuk dicetak ke PDF', 'rose');
+        return;
+      }
+      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const fPilar = document.getElementById('filterPilar')?.value || 'ALL';
+      const fModul = document.getElementById('filterModul')?.value || 'ALL';
+      const fStatus = document.getElementById('filterStatus')?.value || 'ALL';
+
+      const headers = [['No', 'Nama Peserta', 'Username', 'Batch', 'Modul', 'Status', 'Waktu Submit', 'Volume', 'Ringkasan Jawaban Esai']];
+      const rows = source.map((r, idx) => {
+        const cleanAns = (r._jawaban_text || '').replace(/\s+/g, ' ').trim();
+        const wLen = countWordsClean(cleanAns);
+        const cLen = cleanAns.length;
+        return [
+          idx + 1,
+          r.nama_peserta,
+          r.username,
+          r.batch,
+          `${r.kode_modul} — ${r.modul_direktorat}`,
+          r.status_submisi,
+          r.waktu_submit || '-',
+          `${wLen} kata (${cLen} kar)`,
+          cleanAns ? cleanAns.slice(0, 180) + (cleanAns.length > 180 ? '...' : '') : '[Belum Mengumpulkan Jawaban]'
+        ];
+      });
+
+      DocEngine.exportVectorTablePDF({
+        title: 'LAPORAN RINCIAN SUBMISI ESAI PESERTA — UI ALEX 2026',
+        subtitle: `Batch: ${fBatch} • Pilar: ${fPilar} • Modul: ${fModul} • Status: ${fStatus} • Total Baris: ${source.length.toLocaleString('id-ID')}`,
+        headers,
+        rows,
+        appState: { view: 'submissions', batch: fBatch, pilar: fPilar, modul: fModul, status: fStatus, cols: tableColumnMode },
+        orientation: 'auto',
+        format: 'auto',
+        filename: `UI_ALEX_2026_Submisi_Esai_${fBatch.replace(/\s+/g, '')}_${fModul}_${Date.now()}.pdf`
+      });
+    }
+
+    function exportDirectoryVectorPDF() {
+      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const qTop = (document.getElementById('searchTable')?.value || '').trim().toLowerCase();
+      const qDir = (document.getElementById('searchDirectoryInput')?.value || '').trim().toLowerCase();
+      const compFilter = document.getElementById('filterDirCompletion')?.value || 'ALL';
+
+      const baseRows = rawMasterData.filter(r => fBatch === 'ALL' || r.batch === fBatch);
+      const profilesMap = buildParticipantProfilesMap(baseRows);
+      let list = Array.from(profilesMap.values());
+
+      list = list.filter(p => {
+        if (compFilter === 'COMPLETE_8' && p.submittedCount < 8) return false;
+        if (compFilter === 'PARTIAL' && (p.submittedCount === 0 || p.submittedCount >= 8)) return false;
+        if (compFilter === 'HAS_NEW' && p.newCount === 0) return false;
+        if (compFilter === 'ZERO' && p.submittedCount > 0) return false;
+
+        const q = qDir || qTop;
+        if (q) {
+          const hay = `${p.nama_peserta} ${p.username} ${p.nip} ${p.email} ${p.batch}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      if (list.length === 0) {
+        setSyncBanner('Tidak ada peserta di direktori untuk dicetak ke PDF', 'rose');
+        return;
+      }
+
+      list.sort((a, b) => (b.submittedCount - a.submittedCount) || String(a.nama_peserta).localeCompare(String(b.nama_peserta), 'id'));
+
+      const headers = [['No', 'Nama Peserta', 'Username', 'Batch', 'Progres', 'PK', 'SDMPT', 'PBJ', 'KA', 'AI', 'PMA', 'HK', 'MRT', 'Total Kata', 'Submit Terakhir']];
+      const stShort = (row) => {
+        const s = row?.status_submisi || 'belum_submit';
+        if (s === 'submitted') return 'SUBMIT';
+        if (s === 'new') return 'DRAFT';
+        return '-';
+      };
+
+      const rows = list.map((p, idx) => [
+        idx + 1,
+        p.nama_peserta,
+        p.username,
+        p.batch,
+        `${p.submittedCount}/8`,
+        stShort(p.modules.PK),
+        stShort(p.modules.SDMPT),
+        stShort(p.modules.PBJ),
+        stShort(p.modules.KA),
+        stShort(p.modules.AI),
+        stShort(p.modules.PMA),
+        stShort(p.modules.HK),
+        stShort(p.modules.MRT),
+        `${p.totalWords.toLocaleString('id-ID')} kata`,
+        p.latestSubmit
+      ]);
+
+      DocEngine.exportVectorTablePDF({
+        title: 'DIREKTORI REKAPITULASI SUBMISI 8 MODUL ESAI — UI ALEX 2026',
+        subtitle: `Kelompok: ${fBatch} • Total Peserta: ${list.length} Orang`,
+        headers,
+        rows,
+        appState: { view: 'directory', batch: fBatch },
+        orientation: 'auto',
+        format: 'auto',
+        filename: `UI_ALEX_2026_Direktori_8Modul_${fBatch.replace(/\s+/g, '')}_${Date.now()}.pdf`
+      });
+    }
+
+    function exportActiveRaporVectorPDF() {
+      if (!activeRaporUsername) return;
+      const userRows = rawMasterData.filter(r => r.username === activeRaporUsername);
+      if (userRows.length === 0) return;
+      const profilesMap = buildParticipantProfilesMap(userRows);
+      const p = profilesMap.get(activeRaporUsername);
+      if (!p) return;
+
+      const headers = [['No', 'Pilar', 'Kode', 'Modul Direktorat', 'Status', 'Waktu Submit', 'Volume', 'Ringkasan Jawaban Esai']];
+      const rows = MODULE_ORDER.map((code, idx) => {
+        const info = MODULE_INFO[code] || { name: code, pilar: '-' };
+        const r = p.modules[code];
+        const st = r?.status_submisi || 'belum_submit';
+        const cleanAns = (r?._jawaban_text || '').replace(/\s+/g, ' ').trim();
+        const wLen = countWordsClean(cleanAns);
+        const cLen = cleanAns ? cleanAns.length : 0;
+        return [
+          idx + 1,
+          ['PK', 'SDMPT', 'PBJ', 'KA'].includes(code) ? 'Pilar I' : 'Pilar II',
+          code,
+          r?.modul_direktorat || info.name,
+          st,
+          r?.waktu_submit || '-',
+          `${wLen} kata (${cLen} kar)`,
+          cleanAns ? cleanAns.slice(0, 240) + (cleanAns.length > 240 ? '...' : '') : '[Belum Mengumpulkan Jawaban]'
+        ];
+      });
+
+      const safeName = String(p.nama_peserta || p.username).replace(/[^a-zA-Z0-9_-]/g, '_');
+      DocEngine.exportVectorTablePDF({
+        title: `RAPOR SUBMISI 8 MODUL ESAI — ${p.nama_peserta.toUpperCase()}`,
+        subtitle: `Username: ${p.username} • NIP: ${p.nip || '-'} • Batch: ${p.batch} • Ketuntasan: ${p.submittedCount}/8 Submitted (${p.totalWords.toLocaleString('id-ID')} Kata / ${p.totalChars.toLocaleString('id-ID')} Karakter)`,
+        headers,
+        rows,
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 18, halign: 'center' },
+          2: { cellWidth: 16, halign: 'center', fontStyle: 'bold' },
+          3: { cellWidth: 48, fontStyle: 'bold' },
+          4: { cellWidth: 22, halign: 'center' },
+          5: { cellWidth: 28, halign: 'center' },
+          6: { cellWidth: 28, halign: 'center' }
+        },
+        appState: { view: 'modal_rapor', batch: p.batch, entityId: p.username },
+        orientation: 'auto',
+        format: 'auto',
+        filename: `Rapor_8Modul_${safeName}.pdf`
+      });
+    }
+
+    function exportActiveRaporSinglePagePDF() {
+      if (!activeRaporUsername) return;
+      const userRows = rawMasterData.filter(r => r.username === activeRaporUsername);
+      const safeName = String(userRows[0]?.nama_peserta || activeRaporUsername).replace(/[^a-zA-Z0-9_-]/g, '_');
+      DocEngine.exportCertificateSinglePagePDF(
+        'participantRaporPrintBody',
+        { view: 'modal_rapor', batch: userRows[0]?.batch || 'Batch 2', entityId: activeRaporUsername },
+        `Rapor_1Halaman_${safeName}.pdf`
+      );
+    }
+
+    function exportActiveRaporPNG() {
+      if (!activeRaporUsername) return;
+      const userRows = rawMasterData.filter(r => r.username === activeRaporUsername);
+      const safeName = String(userRows[0]?.nama_peserta || activeRaporUsername).replace(/[^a-zA-Z0-9_-]/g, '_');
+      DocEngine.exportElementToPNG(
+        'participantRaporPrintBody',
+        { view: 'modal_rapor', batch: userRows[0]?.batch || 'Batch 2', entityId: activeRaporUsername },
+        `Rapor_HD_${safeName}.png`
+      );
+    }
+
+    function extractHtmlTablesForPdf(rawHtml, fallbackTitle) {
+      if (!rawHtml || typeof rawHtml !== 'string') return [];
+      const decoded = decodeHtmlEntitiesIfNeeded(rawHtml);
+      if (!decoded.includes('<table')) return [];
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(decoded, 'text/html');
+      const tables = Array.from(doc.querySelectorAll('table'));
+      const extracted = [];
+
+      tables.forEach((tbl, idx) => {
+        const allTrs = Array.from(tbl.querySelectorAll('tr'));
+        if (allTrs.length === 0) return;
+
+        let headers = [];
+        let bodyRows = [];
+
+        allTrs.forEach((tr, rIdx) => {
+          const cells = Array.from(tr.querySelectorAll('th, td')).map(c =>
+            (c.textContent || '').replace(/\s+/g, ' ').trim()
+          );
+          if (cells.length === 0) return;
+          if (rIdx === 0) {
+            headers = [cells];
+          } else {
+            bodyRows.push(cells);
+          }
+        });
+
+        if (headers.length > 0 && bodyRows.length > 0) {
+          extracted.push({
+            sectionTitle: tables.length > 1 ? `${fallbackTitle} (Tabel ${idx + 1})` : fallbackTitle,
+            headers,
+            rows: bodyRows,
+            headFillColor: fallbackTitle.includes('Jawaban') ? [6, 95, 70] : [30, 41, 59]
+          });
+        }
+      });
+
+      return extracted;
+    }
+
+    function exportActiveEssayVectorPDF() {
+      if (!activeModalRow) return;
+      const r = activeModalRow;
+      const words = countWords(r._jawaban_text || '');
+
+      const headers = [['Atribut Submisi', 'Keterangan Lengkap']];
+      const rows = [
+        ['Nama Peserta & Identitas', `${r.nama_peserta} (Username: ${r.username} | NIP: ${r.nip || '-'} | Email: ${r.email})`],
+        ['Batch & Pilar', `${r.batch} • ${r.pilar}`],
+        ['Modul Direktorat', `${r.kode_modul} — ${r.modul_direktorat}`],
+        ['Nama Assignment & ID', `${r.nama_assignment_esai} (ID Submisi: ${r.id_submisi})`],
+        ['Status & Waktu Submit', `${r.status_submisi.toUpperCase()} • Submit: ${r.waktu_submit || '-'} • Volume: ${words} kata (${(r._jawaban_text || '').length.toLocaleString('id-ID')} karakter)`]
+      ];
+
+      const rawSoalSource = (r.soal_atau_instruksi_esai && r.soal_atau_instruksi_esai.length >= 160)
+        ? r.soal_atau_instruksi_esai
+        : (MASTER_SOAL_HTML[r.kode_modul] || r.soal_atau_instruksi_esai || '');
+
+      const answerTables = extractHtmlTablesForPdf(r.jawaban_peserta_essay, '✍️ Tabel Jawaban Peserta Esai');
+      const questionTables = extractHtmlTablesForPdf(rawSoalSource, '📑 Tabel Instruksi / Soal Esai');
+
+      const extraTables = [];
+      if (answerTables.length > 0) {
+        extraTables.push(...answerTables);
+      } else {
+        rows.push(['Jawaban Peserta Esai', r._jawaban_text || '[Belum Mengumpulkan Jawaban]']);
+      }
+
+      if (questionTables.length > 0) {
+        extraTables.push(...questionTables);
+      } else {
+        rows.push(['Soal / Instruksi Esai', r._soal_text || '-']);
+      }
+
+      const safeName = String(r.nama_peserta || r.username).replace(/[^a-zA-Z0-9_-]/g, '_');
+      DocEngine.exportVectorTablePDF({
+        title: `DOKUMEN SUBMISI ESAI MODUL ${r.kode_modul} — ${r.nama_peserta.toUpperCase()}`,
+        subtitle: `${r.modul_direktorat} • Status: ${r.status_submisi.toUpperCase()} • Submit: ${r.waktu_submit || '-'}`,
+        headers,
+        rows,
+        columnStyles: {
+          0: { cellWidth: 46, fontStyle: 'bold', fillColor: [248, 250, 252] }
+        },
+        extraTables,
+        appState: { view: 'modal_essay', batch: r.batch, modul: r.kode_modul, entityId: `${r.username}__${r.kode_modul}` },
+        orientation: 'auto',
+        format: 'auto',
+        filename: `Submisi_Esai_${r.kode_modul}_${safeName}.pdf`
+      });
+    }
+
+    function exportActiveEssayPNG() {
+      if (!activeModalRow) return;
+      const r = activeModalRow;
+      const safeName = String(r.nama_peserta || r.username).replace(/[^a-zA-Z0-9_-]/g, '_');
+      DocEngine.exportElementToPNG(
+        'essayDetailPrintBody',
+        { view: 'modal_essay', batch: r.batch, modul: r.kode_modul, entityId: `${r.username}__${r.kode_modul}` },
+        `Submisi_Esai_${r.kode_modul}_${safeName}.png`
+      );
     }
 
     function formatRowsForSheet(sourceRows, stripHtml = true) {
