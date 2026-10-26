@@ -39,6 +39,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
   <script src="https://unpkg.com/@popperjs/core@2"></script>
   <script src="https://unpkg.com/tippy.js@6"></script>
 
@@ -462,6 +463,30 @@
        3. MAIN APPLICATION CONTAINER (4 VIEW MODES - BROWSER TAB DECK)
        ===================================================================== -->
   <main id="dashboardRoot" class="dashboard-unloaded max-w-[1600px] mx-auto px-4 py-5">
+
+    <!-- Banner Verifikasi QR / Shortlink Permalink (Tampil Otomatis Saat Membuka Link ?s=...) -->
+    <div id="qrVerificationBanner" class="hidden mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-900 text-white border border-emerald-500/40 shadow-md flex flex-wrap items-center justify-between gap-3 no-print">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center text-lg font-bold shrink-0">
+          ✓
+        </div>
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-emerald-500 text-slate-950 font-mono font-extrabold text-[10px] uppercase tracking-wider">
+              QR / SHORTLINK VERIFIED
+            </span>
+            <span id="qrVerifyCodeBadge" class="font-mono text-xs text-amber-300 font-bold">?s=-</span>
+          </div>
+          <p id="qrVerifyDetailText" class="text-xs text-slate-300 mt-0.5">
+            Menampilkan tangkapan state halaman sesuai tautan dokumen yang dipindai.
+          </p>
+        </div>
+      </div>
+      <button type="button" onclick="document.getElementById('qrVerificationBanner').classList.add('hidden')"
+        class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 transition">
+        ✕ Tutup Info
+      </button>
+    </div>
 
     <!-- Overlay Arsir & Indikator Tarik Data CSV (Tampil saat data belum dimuat / pasca relogin) -->
     <div id="dashboardUnloadedShield" class="no-print">
@@ -1866,9 +1891,20 @@
 
           <div id="awardStageBody" class="my-auto py-4"></div>
 
-          <div class="border-t border-slate-200 pt-3 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-            <span>UI ALEX 2026 • Universitas Indonesia (Course ID: 99544 &amp; 99545)</span>
-            <span id="awardCriteriaFooter" class="font-semibold text-slate-700"></span>
+          <div class="border-t border-slate-200 pt-3 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-500 font-mono">
+            <div>
+              <div>UI ALEX 2026 • Universitas Indonesia (Course ID: 99544 &amp; 99545)</div>
+              <div id="awardCriteriaFooter" class="font-semibold text-slate-700 mt-0.5"></div>
+            </div>
+            <!-- Kotak QR & Shortlink Dinamis pada Slide Award -->
+            <div id="awardSlideQrFooter" class="flex items-center gap-2.5 bg-white/90 px-2.5 py-1.5 rounded-xl border border-amber-300/80 shadow-sm">
+              <img id="awardSlideQrImg" src="" alt="QR" class="w-11 h-11 rounded border border-slate-200 bg-white p-0.5 shrink-0" />
+              <div class="text-left leading-tight">
+                <div class="text-[9px] font-extrabold uppercase tracking-wider text-amber-800">Scan Verifikasi Live</div>
+                <div id="awardSlideShortUrlText" class="text-[10px] font-mono font-bold text-slate-900">https://danial.my.id/alex3/?s=-</div>
+                <div id="awardSlideUnixText" class="text-[9px] font-mono text-slate-500">Unix: -</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1913,12 +1949,24 @@
               </div>
             </div>
 
-            <!-- Footer Piagam -->
-            <div style="border-top: 1px solid rgba(180, 83, 9, 0.28); padding-top: 16px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 12px; color: #475569;">
+            <!-- Footer Piagam (Dilengkapi QR Code Verifikasi & Short URL) -->
+            <div style="border-top: 1px solid rgba(180, 83, 9, 0.28); padding-top: 14px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #475569;">
               <div style="text-align: left; line-height: 1.5;" class="font-mono">
                 <div>Course ID: 99544 &amp; 99545</div>
                 <div id="certDateText">Tanggal: -</div>
+                <div id="certUnixText" style="font-size: 10px; color: #92400E; font-weight: 700;">Generated Unix: -</div>
               </div>
+
+              <!-- Tengah: QR Code Verifikasi + Short URL -->
+              <div style="display: flex; align-items: center; gap: 10px; background: #FFFFFF; padding: 6px 12px; border-radius: 10px; border: 1px solid #FCD34D;">
+                <img id="certQrImg" src="" alt="QR" style="width: 54px; height: 54px; display: block;" />
+                <div style="text-align: left; line-height: 1.35;" class="font-mono">
+                  <div style="font-size: 9px; font-weight: 800; color: #92400E; text-transform: uppercase; letter-spacing: 0.06em;">Scan Verifikasi Piagam</div>
+                  <div id="certShortUrlText" style="font-size: 10px; font-weight: 700; color: #0F172A;">https://danial.my.id/alex3/?s=-</div>
+                  <div id="certQrSubText" style="font-size: 9px; color: #64748B;">Tautan Permanen Penghasil Dokumen</div>
+                </div>
+              </div>
+
               <div style="text-align: right; line-height: 1.5;">
                 <div style="font-weight: 700; color: #0F172A;">Sistem Analitik Pembelajaran UI ALEX 2026</div>
                 <div style="font-size: 11px; color: #64748B;">Terverifikasi Otomatis dari Pipeline EMAS3 UI</div>
@@ -2181,6 +2229,22 @@
               <tbody id="modalDailyLogsBody" class="selectable divide-y divide-slate-200"></tbody>
             </table>
           </div>
+
+          <!-- Footer Verifikasi QR Rapor Individu -->
+          <div class="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-500 font-mono">
+            <div>
+              <div class="font-bold text-slate-800">UI ALEX 2026 — Individual Performance Dossier</div>
+              <div>Course ID: 99544 &amp; 99545 • Terverifikasi dari Pipeline EMAS3 UI</div>
+            </div>
+            <div class="flex items-center gap-2.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+              <img id="dossierQrImg" src="" alt="QR" class="w-12 h-12 rounded border border-slate-200 bg-white p-0.5 shrink-0" />
+              <div class="text-left leading-tight">
+                <div class="text-[9px] font-extrabold uppercase tracking-wider text-amber-800">Scan Rapor Digital</div>
+                <div id="dossierShortUrlText" class="text-[10px] font-mono font-bold text-slate-900">https://danial.my.id/alex3/?s=-</div>
+                <div id="dossierUnixText" class="text-[9px] font-mono text-slate-500">Unix: -</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2340,6 +2404,22 @@
             </thead>
             <tbody id="pimtiModDetailTableBody" class="selectable divide-y divide-slate-200"></tbody>
           </table>
+        </div>
+
+        <!-- Footer QR & Shortlink pada Tangkapan PNG Detail Modul Pimti -->
+        <div class="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-500 font-mono">
+          <div>
+            <div class="font-bold text-slate-800">UI ALEX 2026 • Executive Module Detail Report</div>
+            <div>Universitas Indonesia (Course ID: 99544 &amp; 99545)</div>
+          </div>
+          <div class="flex items-center gap-2.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+            <img id="pimtiModQrImg" src="" alt="QR" class="w-11 h-11 rounded border border-slate-200 bg-white p-0.5 shrink-0" />
+            <div class="text-left leading-tight">
+              <div class="text-[9px] font-extrabold uppercase tracking-wider text-amber-800">Scan Verifikasi Live</div>
+              <div id="pimtiModShortUrlText" class="text-[10px] font-mono font-bold text-slate-900">https://danial.my.id/alex3/?s=-</div>
+              <div id="pimtiModUnixText" class="text-[9px] font-mono text-slate-500">Unix: -</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2501,6 +2581,338 @@
     let isDataLoaded = false;
     let lastTrackedUrl = window.location.href;
     let lastTrackedPath = window.location.pathname + window.location.search;
+    let pendingPostSyncAction = null;
+    let activeDecodedShortlinkInfo = null;
+
+    // =========================================================================
+    // INTERNAL QR CODE GENERATOR & BIT-PACKING SHORTENER ENGINE (?s=...)
+    // =========================================================================
+    const _SHORT_BATCH_ENC = { 'ALL': '0', 'Batch 1': '1', 'Batch 2': '2', 'Batch 3': '3' };
+    const _SHORT_BATCH_DEC = { '0': 'ALL', '1': 'Batch 1', '2': 'Batch 2', '3': 'Batch 3' };
+
+    const _SHORT_PILAR_ENC = { 'ALL': '0', 'Pilar 1': '1', 'Pilar 2': '2' };
+    const _SHORT_PILAR_DEC = { '0': 'ALL', '1': 'Pilar 1', '2': 'Pilar 2' };
+
+    const _SHORT_MOD_ENC = { 'ALL': '0', 'PK': '1', 'SDMPT': '2', 'PBJ': '3', 'KA': '4', 'AI': '5', 'PMA': '6', 'HK': '7', 'MRT': '8', 'PILAR_1': 'A', 'PILAR_2': 'B', 'ALL_PILAR': 'C' };
+    const _SHORT_MOD_DEC = { '0': 'ALL', '1': 'PK', '2': 'SDMPT', '3': 'PBJ', '4': 'KA', '5': 'AI', '6': 'PMA', '7': 'HK', '8': 'MRT', 'A': 'PILAR_1', 'B': 'PILAR_2', 'C': 'ALL_PILAR' };
+
+    const _SHORT_PERS_ENC = { 'ALL': '0', 'Pace-Setter': '1', 'In Progress': '2', 'Pilar-I Oriented': '3', 'Low Engagement': '4', 'Dormant': '5', 'GLITCH': '6' };
+    const _SHORT_PERS_DEC = { '0': 'ALL', '1': 'Pace-Setter', '2': 'In Progress', '3': 'Pilar-I Oriented', '4': 'Low Engagement', '5': 'Dormant', '6': 'GLITCH' };
+
+    const _SHORT_READY_ENC = { 'ALL': '0', 'Siap': '1', 'Cukup': '2', 'Butuh Pendampingan': '3' };
+    const _SHORT_READY_DEC = { '0': 'ALL', '1': 'Siap', '2': 'Cukup', '3': 'Butuh Pendampingan' };
+
+    const _SHORT_STAT_ENC = { 'ALL': '0', 'Lulus': '1', 'Butuh Remedial': '2', 'Belum Mengerjakan': '3', 'In-Progress': '4' };
+    const _SHORT_STAT_DEC = { '0': 'ALL', '1': 'Lulus', '2': 'Butuh Remedial', '3': 'Belum Mengerjakan', '4': 'In-Progress' };
+
+    const _SHORT_AWARD_MODE_ENC = { 'top3': '3', 'top5': '5', 'top10': 'T', 'all': 'A' };
+    const _SHORT_AWARD_MODE_DEC = { '3': 'top3', '5': 'top5', 'T': 'top10', 'A': 'all' };
+
+    function getCanonicalBaseUrl() {
+      try {
+        const loc = window.location;
+        if (loc.protocol === 'http:' || loc.protocol === 'https:') {
+          return loc.origin + loc.pathname;
+        }
+      } catch (e) {}
+      return 'https://danial.my.id/alex3/';
+    }
+
+    /**
+     * Menghasilkan paket informasi Shortlink (?s=...) + Unix Timestamp + Gambar QR Code DataURL
+     * @param {Object} customCtx Opsional: { type: 'matrix'|'benchmark'|'halloffame'|'pimti'|'pimti_detail'|'dossier'|'cert', extra: ... }
+     */
+    function buildDocumentQrPayload(customCtx = {}) {
+      const unixSec = Math.floor(Date.now() / 1000);
+      const tsBase36 = unixSec.toString(36);
+      const readableTime = new Date(unixSec * 1000).toLocaleString('id-ID', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+
+      const ctxType = customCtx.type || currentViewMode || 'matrix';
+      const fBatch = document.getElementById('filterBatch')?.value || DEFAULT_ACTIVE_BATCH;
+      const fPilar = document.getElementById('filterPilar')?.value || 'ALL';
+      const fModul = document.getElementById('filterModul')?.value || 'ALL';
+      const fPersona = document.getElementById('filterPersona')?.value || 'ALL';
+      const fReady = document.getElementById('filterReadiness')?.value || 'ALL';
+      const fStatus = document.getElementById('filterStatus')?.value || 'ALL';
+      const maskChar = isScoreMasked ? '1' : '0';
+
+      let stateCode = '';
+
+      if (ctxType === 'matrix') {
+        stateCode = '1'
+          + (_SHORT_BATCH_ENC[fBatch] || '2')
+          + (_SHORT_PILAR_ENC[fPilar] || '0')
+          + (_SHORT_MOD_ENC[fModul] || '0')
+          + (_SHORT_PERS_ENC[fPersona] || '0')
+          + (_SHORT_READY_ENC[fReady] || '0')
+          + (_SHORT_STAT_ENC[fStatus] || '0')
+          + maskChar;
+      } else if (ctxType === 'benchmark') {
+        let maskBits = 0;
+        if (selectedBenchmarkBatches.includes('Batch 1')) maskBits |= 1;
+        if (selectedBenchmarkBatches.includes('Batch 2')) maskBits |= 2;
+        if (selectedBenchmarkBatches.includes('Batch 3')) maskBits |= 4;
+        if (maskBits === 0) maskBits = 7;
+        stateCode = '2'
+          + String(maskBits)
+          + (_SHORT_PILAR_ENC[fPilar] || '0')
+          + (_SHORT_MOD_ENC[fModul] || '0')
+          + (_SHORT_PERS_ENC[fPersona] || '0')
+          + (_SHORT_READY_ENC[fReady] || '0')
+          + (_SHORT_STAT_ENC[fStatus] || '0');
+      } else if (ctxType === 'halloffame' || ctxType === 'cert') {
+        const catId = document.getElementById('awardCategorySelect')?.value || 'grand_luminary';
+        const catIdx = Math.max(0, AWARDS_CATALOG.findIndex(a => a.id === catId));
+        const modeChar = _SHORT_AWARD_MODE_ENC[awardDisplayMode] || '3';
+        const typePrefix = ctxType === 'cert' ? '7' : '3';
+        stateCode = typePrefix
+          + (_SHORT_BATCH_ENC[fBatch] || '2')
+          + (_SHORT_PILAR_ENC[fPilar] || '0')
+          + (_SHORT_MOD_ENC[fModul] || '0')
+          + (_SHORT_PERS_ENC[fPersona] || '0')
+          + (_SHORT_READY_ENC[fReady] || '0')
+          + (_SHORT_STAT_ENC[fStatus] || '0')
+          + String(catIdx)
+          + modeChar;
+      } else if (ctxType === 'pimti') {
+        const pBatch = document.getElementById('pimtiBatchSelect')?.value || DEFAULT_ACTIVE_BATCH;
+        const kkmInt = Math.round(currentKkm).toString(36);
+        stateCode = '4'
+          + (_SHORT_BATCH_ENC[pBatch] || '2')
+          + kkmInt;
+      } else if (ctxType === 'pimti_detail') {
+        const pBatch = document.getElementById('pimtiBatchSelect')?.value || DEFAULT_ACTIVE_BATCH;
+        const mCode = activePimtiModalState.code || 'PK';
+        const stFilter = activePimtiModalState.statusFilter || 'ALL';
+        const kkmInt = Math.round(currentKkm).toString(36);
+        stateCode = '5'
+          + (_SHORT_BATCH_ENC[pBatch] || '2')
+          + (_SHORT_MOD_ENC[mCode] || '1')
+          + (_SHORT_STAT_ENC[stFilter] || '0')
+          + kkmInt;
+      } else if (ctxType === 'dossier') {
+        const uid = String(customCtx.uid || activeParticipantId || '0');
+        const uidEnc = /^\d+$/.test(uid) ? parseInt(uid, 10).toString(36) : encodeURIComponent(uid);
+        stateCode = '6' + uidEnc;
+      }
+
+      const shortToken = `${stateCode}-${tsBase36}`;
+      const baseUrl = getCanonicalBaseUrl();
+      const shortUrl = `${baseUrl}?s=${shortToken}`;
+      const qrDataUrl = generateInternalQrDataUrl(shortUrl, 4);
+
+      return {
+        shortToken,
+        shortUrl,
+        unixSec,
+        readableTime,
+        qrDataUrl
+      };
+    }
+
+    /**
+     * Mesin Generator QR Code Internal (Berbasis Canvas 2D Murni & Cepat)
+     */
+    function generateInternalQrDataUrl(text, cellSize = 4) {
+      try {
+        if (typeof qrcode === 'function') {
+          const qr = qrcode(0, 'M');
+          qr.addData(String(text));
+          qr.make();
+          const count = qr.getModuleCount();
+          const margin = 2;
+          const size = (count + margin * 2) * cellSize;
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, size, size);
+          ctx.fillStyle = '#0F172A';
+          for (let r = 0; r < count; r++) {
+            for (let c = 0; c < count; c++) {
+              if (qr.isDark(r, c)) {
+                ctx.fillRect((c + margin) * cellSize, (r + margin) * cellSize, cellSize, cellSize);
+              }
+            }
+          }
+          return canvas.toDataURL('image/png');
+        }
+      } catch (err) {
+        console.warn('QR generation fallback:', err);
+      }
+      // Fallback Canvas jika library belum termuat
+      const cnv = document.createElement('canvas');
+      cnv.width = 80;
+      cnv.height = 80;
+      const cx = cnv.getContext('2d');
+      cx.fillStyle = '#ffffff';
+      cx.fillRect(0, 0, 80, 80);
+      cx.strokeStyle = '#0f172a';
+      cx.lineWidth = 4;
+      cx.strokeRect(6, 6, 68, 68);
+      cx.fillStyle = '#0f172a';
+      cx.font = 'bold 12px monospace';
+      cx.fillText('UI QR', 22, 44);
+      return cnv.toDataURL('image/png');
+    }
+
+    /**
+     * Mendekode parameter ?s=... (Internal Shortener & Auto-Redirector)
+     */
+    function decodeAndApplyShortToken(rawToken) {
+      if (!rawToken || typeof rawToken !== 'string') return false;
+      const parts = rawToken.trim().split('-');
+      const code = parts[0] || '';
+      const ts36 = parts[1] || '';
+      if (!code) return false;
+
+      const unixSec = ts36 ? parseInt(ts36, 36) : null;
+      const genDateStr = (unixSec && !isNaN(unixSec))
+        ? new Date(unixSec * 1000).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'medium' })
+        : null;
+
+      const prefix = code[0];
+      let descLabel = 'Tampilan Analitik';
+
+      if (prefix === '1') {
+        currentViewMode = 'matrix';
+        const st = tabFilterStates.matrix;
+        st.batch = _SHORT_BATCH_DEC[code[1]] || DEFAULT_ACTIVE_BATCH;
+        st.pilar = _SHORT_PILAR_DEC[code[2]] || 'ALL';
+        st.modul = _SHORT_MOD_DEC[code[3]] || 'ALL';
+        st.persona = _SHORT_PERS_DEC[code[4]] || 'ALL';
+        st.readiness = _SHORT_READY_DEC[code[5]] || 'ALL';
+        st.status = _SHORT_STAT_DEC[code[6]] || 'ALL';
+        if (code[7] === '0') {
+          isScoreMasked = false;
+          const mIcon = document.getElementById('maskIcon');
+          const mTxt = document.getElementById('maskText');
+          if (mIcon) mIcon.textContent = '👁️';
+          if (mTxt) mTxt.textContent = 'Samarkan Angka Nilai';
+        }
+        descLabel = `Matriks Evaluasi Peserta (${st.batch})`;
+      } else if (prefix === '2') {
+        currentViewMode = 'benchmark';
+        const maskBits = parseInt(code[1] || '7', 10) || 7;
+        const selB = [];
+        if (maskBits & 1) selB.push('Batch 1');
+        if (maskBits & 2) selB.push('Batch 2');
+        if (maskBits & 4) selB.push('Batch 3');
+        selectedBenchmarkBatches = selB.length ? selB : ['Batch 1', 'Batch 2', 'Batch 3'];
+        const st = tabFilterStates.benchmark;
+        st.selectedBatches = [...selectedBenchmarkBatches];
+        st.pilar = _SHORT_PILAR_DEC[code[2]] || 'ALL';
+        st.modul = _SHORT_MOD_DEC[code[3]] || 'ALL';
+        st.persona = _SHORT_PERS_DEC[code[4]] || 'ALL';
+        st.readiness = _SHORT_READY_DEC[code[5]] || 'ALL';
+        st.status = _SHORT_STAT_DEC[code[6]] || 'ALL';
+        descLabel = `Studio Komparasi (${selectedBenchmarkBatches.join(' vs ')})`;
+      } else if (prefix === '3' || prefix === '7') {
+        currentViewMode = 'halloffame';
+        const st = tabFilterStates.halloffame;
+        st.batch = _SHORT_BATCH_DEC[code[1]] || DEFAULT_ACTIVE_BATCH;
+        st.pilar = _SHORT_PILAR_DEC[code[2]] || 'ALL';
+        st.modul = _SHORT_MOD_DEC[code[3]] || 'ALL';
+        st.persona = _SHORT_PERS_DEC[code[4]] || 'ALL';
+        st.readiness = _SHORT_READY_DEC[code[5]] || 'ALL';
+        st.status = _SHORT_STAT_DEC[code[6]] || 'ALL';
+        const catIdx = parseInt(code[7] || '0', 10) || 0;
+        const modeChar = code[8] || '3';
+        awardDisplayMode = _SHORT_AWARD_MODE_DEC[modeChar] || 'top3';
+        const catObj = AWARDS_CATALOG[catIdx] || AWARDS_CATALOG[0];
+        pendingPostSyncAction = () => {
+          populateAwardsDropdown();
+          const sel = document.getElementById('awardCategorySelect');
+          if (sel && catObj) sel.value = catObj.id;
+          setAwardDisplayMode(awardDisplayMode);
+        };
+        descLabel = `${prefix === '7' ? 'Piagam Juara #1' : 'Hall of Fame'} — ${catObj ? catObj.title : 'Award'} (${st.batch})`;
+      } else if (prefix === '4') {
+        currentViewMode = 'pimti';
+        const bVal = _SHORT_BATCH_DEC[code[1]] || DEFAULT_ACTIVE_BATCH;
+        const kkmParsed = parseInt(code.slice(2) || '2s', 36);
+        tabFilterStates.pimti.batch = bVal;
+        tabFilterStates.pimti.kkm = !isNaN(kkmParsed) ? kkmParsed : (bVal === 'Batch 1' ? 80 : 100);
+        currentKkm = tabFilterStates.pimti.kkm;
+        descLabel = `Rekapitulasi Eksekutif Pimti (${bVal} • KKM ${currentKkm})`;
+      } else if (prefix === '5') {
+        currentViewMode = 'pimti';
+        const bVal = _SHORT_BATCH_DEC[code[1]] || DEFAULT_ACTIVE_BATCH;
+        const mCode = _SHORT_MOD_DEC[code[2]] || 'PK';
+        const stFilter = _SHORT_STAT_DEC[code[3]] || 'ALL';
+        const kkmParsed = parseInt(code.slice(4) || '2s', 36);
+        tabFilterStates.pimti.batch = bVal;
+        tabFilterStates.pimti.kkm = !isNaN(kkmParsed) ? kkmParsed : (bVal === 'Batch 1' ? 80 : 100);
+        currentKkm = tabFilterStates.pimti.kkm;
+        pendingPostSyncAction = () => {
+          openPimtiModuleDetailModal(mCode, stFilter);
+        };
+        descLabel = `Detail Peserta Modul ${mCode} (${bVal} • Filter: ${stFilter})`;
+      } else if (prefix === '6') {
+        currentViewMode = 'matrix';
+        const rawUid = code.slice(1);
+        const uidDec = /^[0-9a-z]+$/i.test(rawUid) ? String(parseInt(rawUid, 36)) : decodeURIComponent(rawUid);
+        pendingPostSyncAction = () => {
+          if (userProfilesMap.has(uidDec)) {
+            openParticipantReport(uidDec);
+          } else if (userProfilesMap.has(rawUid)) {
+            openParticipantReport(rawUid);
+          }
+        };
+        descLabel = `Rapor Individu Peserta (ID: ${uidDec})`;
+      }
+
+      activeDecodedShortlinkInfo = {
+        rawToken,
+        unixSec,
+        genDateStr,
+        descLabel
+      };
+
+      const banner = document.getElementById('qrVerificationBanner');
+      const badge = document.getElementById('qrVerifyCodeBadge');
+      const detail = document.getElementById('qrVerifyDetailText');
+      if (banner && badge && detail) {
+        banner.classList.remove('hidden');
+        badge.textContent = `?s=${rawToken}`;
+        detail.innerHTML = `Membuka otomatis: <strong>${descLabel}</strong>${genDateStr ? ` • Dicetak pada: <strong>${genDateStr} WIB</strong> <span class="font-mono text-[11px] text-amber-300">(Unix: ${unixSec})</span>` : ''}`;
+      }
+      return true;
+    }
+
+    /**
+     * Menggambar Kotak QR Code + Teks URL Pendek + Unix Timestamp di Pojok Kanan Atas Kop jsPDF
+     */
+    function stampQrOnJsPdfBanner(doc, qrPayload, boxX = 212, boxY = 10, boxW = 73, boxH = 18) {
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(245, 158, 11);
+      doc.setLineWidth(0.35);
+      doc.roundedRect(boxX, boxY, boxW, boxH, 1.8, 1.8, 'FD');
+
+      if (qrPayload && qrPayload.qrDataUrl) {
+        doc.addImage(qrPayload.qrDataUrl, 'PNG', boxX + 1.5, boxY + 1.5, 15, 15);
+      }
+
+      const textX = boxX + 18;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.2);
+      doc.setTextColor(180, 83, 9);
+      doc.text('SCAN VERIFIKASI LIVE & REPRODUCE:', textX, boxY + 4.8);
+
+      doc.setFont('courier', 'bold');
+      doc.setFontSize(6.2);
+      doc.setTextColor(15, 23, 42);
+      doc.text(qrPayload.shortUrl, textX, boxY + 9.8);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.8);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Gen: ${qrPayload.readableTime} (Unix: ${qrPayload.unixSec})`, textX, boxY + 14.5);
+    }
 
     // Isolasi State Filter Mandiri untuk Setiap Tab agar tidak saling mempengaruhi
     const tabFilterStates = {
@@ -3100,6 +3512,11 @@
           setSyncBanner(`Pipeline (${(activeLoadedIds.length ? activeLoadedIds : idList).join(', ')}) aktif`, 'emerald');
           setDashboardLoadedState(true);
           applyFilters(true);
+          if (typeof pendingPostSyncAction === 'function') {
+            const fn = pendingPostSyncAction;
+            pendingPostSyncAction = null;
+            setTimeout(() => { try { fn(); } catch (e) {} }, 120);
+          }
         } else {
           // Jika jaringan gagal total, pulihkan dari cache IndexedDB bila tersedia agar UI tetap jalan
           const cachedData = await localforage.getItem('alex2026_v3_groupData');
@@ -3111,6 +3528,11 @@
             setSyncBanner('Menampilkan data Cache terakhir (Pipeline sedang sibuk)', 'amber');
             setDashboardLoadedState(true);
             applyFilters(true);
+            if (typeof pendingPostSyncAction === 'function') {
+              const fn = pendingPostSyncAction;
+              pendingPostSyncAction = null;
+              setTimeout(() => { try { fn(); } catch (e) {} }, 120);
+            }
           } else {
             setSyncBanner('Pipeline mengembalikan 0 baris', 'rose');
             if (!isDataLoaded) {
@@ -6106,6 +6528,7 @@
       const isSingleMode = stats.length === 1;
       const batchScopeText = stats.map(s => s.batchName).join(' vs ');
       const lastSyncStr = document.getElementById('lastSyncTimestamp')?.textContent || new Date().toLocaleString('id-ID');
+      const qrPayload = buildDocumentQrPayload({ type: 'benchmark' });
 
       // Kop Resmi Halaman 1
       doc.setFillColor(15, 23, 42);
@@ -6122,20 +6545,23 @@
       doc.setTextColor(251, 191, 36);
       doc.text('UNIVERSITAS INDONESIA • UI ALEX 2026 MULTI-BATCH ANALYTICS STUDIO', 33, 14.5);
 
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.setTextColor(255, 255, 255);
       doc.text(
         isSingleMode
           ? `LAPORAN ANALISIS MENDALAM (DEEP-DIVE) — ${stats[0].batchName.toUpperCase()} (KKM ${stats[0].kkm})`
           : `LAPORAN KOMPARASI KINERJA & KESIAPAN LINTAS-BATCH (${batchScopeText.toUpperCase()})`,
         33,
-        21
+        20.8
       );
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(7.8);
       doc.setTextColor(203, 213, 225);
-      doc.text(`Total Populasi Dianalisis: ${stats.reduce((acc, s) => acc + s.n, 0)} Peserta • Last Update: ${lastSyncStr}`, 33, 26.5);
+      doc.text(`Total Populasi: ${stats.reduce((acc, s) => acc + s.n, 0)} Peserta • Last Update: ${lastSyncStr}`, 33, 26.2);
+
+      // Sematkan QR Code + Shortlink + Unix Timestamp di Pojok Kanan Kop
+      stampQrOnJsPdfBanner(doc, qrPayload, 211, 10, 74, 18);
 
       // Tabel 1: Matriks Heatmap 8 Modul Inti
       doc.setFont('helvetica', 'bold');
@@ -6292,9 +6718,9 @@
         doc.setLineWidth(0.25);
         doc.line(10, 201, 287, 201);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
+        doc.setFontSize(7);
         doc.setTextColor(100, 116, 139);
-        doc.text(`UI ALEX 2026 • Studio Komparasi Antar-Batch (${batchScopeText}) • Dicetak otomatis dari Pipeline EMAS3 UI`, 10, 205.5);
+        doc.text(`UI ALEX 2026 • Studio Komparasi (${batchScopeText}) • URL: ${qrPayload.shortUrl} (Unix: ${qrPayload.unixSec})`, 10, 205.5);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(15, 23, 42);
         doc.text(`Halaman ${p} dari ${totalPages}`, 287, 205.5, { align: 'right' });
@@ -6790,6 +7216,15 @@
         filterSumEl.textContent = `UI ALEX 2026 Hall of Fame • Menampilkan ${ranked.length} dari ${sortedEligible.length} Peserta Memenuhi Kriteria (Populasi Filter: ${scopedList.length})`;
       }
 
+      // Perbarui QR Code & Shortlink di sudut kanan bawah Slide Award
+      const slideQr = buildDocumentQrPayload({ type: 'halloffame' });
+      const qrImgEl = document.getElementById('awardSlideQrImg');
+      const qrUrlEl = document.getElementById('awardSlideShortUrlText');
+      const qrUnixEl = document.getElementById('awardSlideUnixText');
+      if (qrImgEl) qrImgEl.src = slideQr.qrDataUrl;
+      if (qrUrlEl) qrUrlEl.textContent = slideQr.shortUrl;
+      if (qrUnixEl) qrUnixEl.textContent = `Gen: ${slideQr.readableTime} (Unix: ${slideQr.unixSec})`;
+
       const stage = document.getElementById('awardStageBody');
       if (!stage) return;
 
@@ -7007,6 +7442,15 @@
     async function exportAwardSlidePNG() {
       const el = document.getElementById('awardSlideCanvas');
       if (!el) return;
+      // Segarkan QR Code dengan unixtime tepat pada detik tombol diklik
+      const freshQr = buildDocumentQrPayload({ type: 'halloffame' });
+      const qrImgEl = document.getElementById('awardSlideQrImg');
+      const qrUrlEl = document.getElementById('awardSlideShortUrlText');
+      const qrUnixEl = document.getElementById('awardSlideUnixText');
+      if (qrImgEl) qrImgEl.src = freshQr.qrDataUrl;
+      if (qrUrlEl) qrUrlEl.textContent = freshQr.shortUrl;
+      if (qrUnixEl) qrUnixEl.textContent = `Gen: ${freshQr.readableTime} (Unix: ${freshQr.unixSec})`;
+
       if (document.fonts && document.fonts.ready) {
         await document.fonts.ready;
       }
@@ -7070,8 +7514,17 @@
       if (lbl) lbl.textContent = 'Merender PDF...';
 
       try {
+        const qrPayload = buildDocumentQrPayload({ type: 'halloffame' });
+
         // 1. Jika Mode Podium Kotak (Top 3 atau Top 5), muat pas dalam 1 Halaman A4 Landscape
         if (awardDisplayMode === 'top3' || awardDisplayMode === 'top5') {
+          const qrImgEl = document.getElementById('awardSlideQrImg');
+          const qrUrlEl = document.getElementById('awardSlideShortUrlText');
+          const qrUnixEl = document.getElementById('awardSlideUnixText');
+          if (qrImgEl) qrImgEl.src = qrPayload.qrDataUrl;
+          if (qrUrlEl) qrUrlEl.textContent = qrPayload.shortUrl;
+          if (qrUnixEl) qrUnixEl.textContent = `Gen: ${qrPayload.readableTime} (Unix: ${qrPayload.unixSec})`;
+
           const el = document.getElementById('awardSlideCanvas');
           if (document.fonts && document.fonts.ready) {
             await document.fonts.ready;
@@ -7153,28 +7606,17 @@
           doc.text(`UNIVERSITAS INDONESIA • UI ALEX 2026 HALL OF FAME (${modeTitleLabel})`, 34, 14.5);
 
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(12);
+          doc.setFontSize(11);
           doc.setTextColor(255, 255, 255);
-          doc.text(resolvedTitle.toUpperCase(), 34, 21);
+          doc.text(resolvedTitle.toUpperCase(), 34, 20.8);
 
           doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
+          doc.setFontSize(7.8);
           doc.setTextColor(203, 213, 225); // Slate-300
-          doc.text(`${cat.subtitle}`, 34, 26.5);
+          doc.text(`${batchLabel} • Populasi: ${ranked.length}/${sortedEligible.length} Peserta • Update: ${lastSyncStr}`, 34, 26.5);
 
-          // Badge Batch di Kanan Kop
-          doc.setFillColor(245, 158, 11);
-          doc.roundedRect(245, 11.5, 38, 7, 1.5, 1.5, 'F');
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8.5);
-          doc.setTextColor(15, 23, 42);
-          doc.text(batchLabel.toUpperCase(), 264, 16.2, { align: 'center' });
-
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(7.5);
-          doc.setTextColor(226, 232, 240);
-          doc.text(`Populasi: ${ranked.length}/${sortedEligible.length} Peserta`, 283, 23, { align: 'right' });
-          doc.text(`Update: ${lastSyncStr}`, 283, 27.5, { align: 'right' });
+          // Sematkan QR Code + Shortlink + Unix Timestamp di Pojok Kanan Kop
+          stampQrOnJsPdfBanner(doc, qrPayload, 211, 10, 74, 18);
 
           // Sub-bar Urutan Prioritas Tie-Breaker
           doc.setFillColor(254, 243, 199); // Amber-100
@@ -7291,9 +7733,9 @@
           doc.line(10, 201, 287, 201);
 
           doc.setFont('helvetica', 'normal');
-          doc.setFontSize(7.5);
+          doc.setFontSize(7);
           doc.setTextColor(100, 116, 139);
-          doc.text(`UI ALEX 2026 • Universitas Indonesia (Course ID: 99544 & 99545) • ${cat.criteria}`, 10, 205.5);
+          doc.text(`UI ALEX 2026 • URL: ${qrPayload.shortUrl} (Unix: ${qrPayload.unixSec}) • ${cat.criteria}`, 10, 205.5);
 
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(15, 23, 42);
@@ -7334,11 +7776,18 @@
       }
 
       try {
+        const certQr = buildDocumentQrPayload({ type: 'cert' });
         const tbText = cat.tieBreakerFn ? ` • ${cat.tieBreakerFn(winner)}` : '';
         document.getElementById('certRecipientName').textContent = winner.nama_peserta;
         document.getElementById('certAwardName').textContent = resolvedTitle;
         document.getElementById('certMetricSummary').textContent = `${winner.batch} • ${cat.metricFn(winner)}${tbText}`;
         document.getElementById('certDateText').textContent = `Tanggal: ${new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })}`;
+        const certUnixEl = document.getElementById('certUnixText');
+        const certQrImgEl = document.getElementById('certQrImg');
+        const certUrlEl = document.getElementById('certShortUrlText');
+        if (certUnixEl) certUnixEl.textContent = `Gen: ${certQr.readableTime} (Unix: ${certQr.unixSec})`;
+        if (certQrImgEl) certQrImgEl.src = certQr.qrDataUrl;
+        if (certUrlEl) certUrlEl.textContent = certQr.shortUrl;
 
         if (document.fonts && document.fonts.ready) {
           await document.fonts.ready;
@@ -7781,6 +8230,15 @@
       const capTsEl = document.getElementById('pimtiModCaptureTimestamp');
       if (capTsEl) capTsEl.textContent = `🕒 Last Update Data: ${lastSyncStr}`;
 
+      // Perbarui QR Code & Shortlink pada Modal Detail Modul Pimti
+      const modQr = buildDocumentQrPayload({ type: 'pimti_detail' });
+      const pmQrImg = document.getElementById('pimtiModQrImg');
+      const pmQrUrl = document.getElementById('pimtiModShortUrlText');
+      const pmQrUnix = document.getElementById('pimtiModUnixText');
+      if (pmQrImg) pmQrImg.src = modQr.qrDataUrl;
+      if (pmQrUrl) pmQrUrl.textContent = modQr.shortUrl;
+      if (pmQrUnix) pmQrUnix.textContent = `Gen: ${modQr.readableTime} (Unix: ${modQr.unixSec})`;
+
       const tbody = document.getElementById('pimtiModDetailTableBody');
       if (!tbody) return;
 
@@ -7903,6 +8361,7 @@
       const scored = rows.filter(r => r.nilai !== null);
       const avgScore = scored.length ? (scored.reduce((s, r) => s + r.nilai, 0) / scored.length).toFixed(1) : '-';
       const filterLabel = statusFilter === 'ALL' ? 'Semua Status' : statusFilter;
+      const qrPayload = buildDocumentQrPayload({ type: 'pimti_detail' });
 
       // Kop Resmi Halaman 1
       doc.setFillColor(15, 23, 42);
@@ -7915,28 +8374,21 @@
       doc.setTextColor(15, 23, 42);
       doc.text('UI', 21.5, 21.5, { align: 'center' });
 
-      doc.setFontSize(8);
+      doc.setFontSize(7.8);
       doc.setTextColor(251, 191, 36);
-      doc.text(`UNIVERSITAS INDONESIA • RINCIAN CAPAIAN PESERTA (${pilar.toUpperCase()})`, 33, 14.5);
+      doc.text(`UNIVERSITAS INDONESIA • RINCIAN CAPAIAN PESERTA (${pilar.toUpperCase()}) • POPULASI: ${totalPop} (LULUS: ${lulusCount} | REM: ${remCount})`, 33, 14.5);
 
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.setTextColor(255, 255, 255);
-      doc.text(`${label.toUpperCase()} — ${batch.toUpperCase()}`, 33, 21);
+      doc.text(`${label.toUpperCase()} — ${batch.toUpperCase()}`, 33, 20.8);
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(7.8);
       doc.setTextColor(203, 213, 225);
-      doc.text(`Standar KKM >= ${kkm.toFixed(1)} • Filter Aktif: ${filterLabel} (${filtered.length} Peserta) • Last Update: ${lastSyncStr}`, 33, 26.8);
+      doc.text(`KKM >= ${kkm.toFixed(1)} • Rerata: ${avgScore} • Filter: ${filterLabel} (${filtered.length} Org) • Update: ${lastSyncStr}`, 33, 26.5);
 
-      // Kotak Ringkasan Statistik di Kanan Kop
-      doc.setFillColor(30, 41, 59);
-      doc.roundedRect(205, 11, 78, 17, 2, 2, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
-      doc.setTextColor(251, 191, 36);
-      doc.text(`Populasi: ${totalPop}  |  Rerata Skor: ${avgScore}`, 244, 16.5, { align: 'center' });
-      doc.setTextColor(226, 232, 240);
-      doc.text(`Lulus: ${lulusCount}  |  Remedial: ${remCount}  |  Belum: ${belumCount + inProgCount}`, 244, 23.5, { align: 'center' });
+      // Sematkan QR Code + Shortlink + Unix Timestamp di Pojok Kanan Kop
+      stampQrOnJsPdfBanner(doc, qrPayload, 211, 10.5, 74, 18);
 
       const tableHead = [[
         'NO',
@@ -8033,9 +8485,9 @@
         doc.setLineWidth(0.25);
         doc.line(10, 201, 287, 201);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
+        doc.setFontSize(7);
         doc.setTextColor(100, 116, 139);
-        doc.text(`UI ALEX 2026 • Universitas Indonesia (Course ID: 99544 & 99545) • Last Update Data: ${lastSyncStr}`, 10, 205.5);
+        doc.text(`UI ALEX 2026 • URL: ${qrPayload.shortUrl} (Unix: ${qrPayload.unixSec}) • Last Update: ${lastSyncStr}`, 10, 205.5);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(15, 23, 42);
         doc.text(`Halaman ${p} dari ${totalPages}`, 287, 205.5, { align: 'right' });
@@ -8051,6 +8503,15 @@
       const btn = document.getElementById('btnExportPimtiModPng');
       const lbl = document.getElementById('lblExportPimtiModPng');
       if (!captureEl || !scrollBox) return;
+
+      // Segarkan QR Code dengan unixtime tepat saat tombol PNG diklik
+      const freshQr = buildDocumentQrPayload({ type: 'pimti_detail' });
+      const pmQrImg = document.getElementById('pimtiModQrImg');
+      const pmQrUrl = document.getElementById('pimtiModShortUrlText');
+      const pmQrUnix = document.getElementById('pimtiModUnixText');
+      if (pmQrImg) pmQrImg.src = freshQr.qrDataUrl;
+      if (pmQrUrl) pmQrUrl.textContent = freshQr.shortUrl;
+      if (pmQrUnix) pmQrUnix.textContent = `Gen: ${freshQr.readableTime} (Unix: ${freshQr.unixSec})`;
 
       const prevMaxH = scrollBox.style.maxHeight;
       const prevOverflow = scrollBox.style.overflow;
@@ -8133,6 +8594,7 @@
       const batchTitle = bVal === 'ALL' ? 'SEMUA BATCH KONSOLIDASI' : bVal.toUpperCase();
       const t = getBatchTerminology(bVal);
       const lastSyncStr = document.getElementById('lastSyncTimestamp')?.textContent || new Date().toLocaleString('id-ID');
+      const qrPayload = buildDocumentQrPayload({ type: 'pimti' });
 
       // Kop Eksekutif Pimti 1 Halaman A4 Landscape
       doc.setFillColor(15, 23, 42);
@@ -8145,31 +8607,21 @@
       doc.setTextColor(15, 23, 42);
       doc.text('UI', 22, 24.5, { align: 'center' });
 
-      doc.setFontSize(8.5);
+      doc.setFontSize(8);
       doc.setTextColor(251, 191, 36);
-      doc.text('UNIVERSITAS INDONESIA • EXECUTIVE BRIEFING (PIMPINAN TINGGI)', 34, 17);
+      doc.text(`UNIVERSITAS INDONESIA • EXECUTIVE BRIEFING (PIMTI) • ${batchTitle} (KKM >= ${currentKkm.toFixed(1)})`, 34, 17);
 
-      doc.setFontSize(13);
+      doc.setFontSize(12);
       doc.setTextColor(255, 255, 255);
-      doc.text(`REKAPITULASI CAPAIAN EVALUASI AKHIR (${t.postUpper}) UI ALEX 2026`, 34, 24);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(203, 213, 225);
-      doc.text('Agregasi populasi utuh per angkatan pada 8 Modul Inti (Satuan Peserta / Orang • Bebas Kontaminasi Asesmen Awal)', 34, 30);
-
-      // Lencana Kanan Kop
-      doc.setFillColor(245, 158, 11);
-      doc.roundedRect(235, 13.5, 48, 7.5, 1.5, 1.5, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(15, 23, 42);
-      doc.text(`${batchTitle} • KKM >= ${currentKkm.toFixed(1)}`, 259, 18.5, { align: 'center' });
+      doc.text(`REKAPITULASI CAPAIAN EVALUASI AKHIR (${t.postUpper}) UI ALEX 2026`, 34, 23.8);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
-      doc.setTextColor(226, 232, 240);
-      doc.text(`Diperbarui: ${lastSyncStr}`, 283, 28.5, { align: 'right' });
+      doc.setTextColor(203, 213, 225);
+      doc.text(`Agregasi populasi utuh 8 Modul Inti • Diperbarui: ${lastSyncStr}`, 34, 29.8);
+
+      // Sematkan QR Code + Shortlink + Unix Timestamp di Pojok Kanan Kop
+      stampQrOnJsPdfBanner(doc, qrPayload, 211, 13.5, 74, 18);
 
       const tableHead = [[
         '1. KELOMPOK DATA ASESMEN',
@@ -8260,9 +8712,9 @@
       doc.setLineWidth(0.25);
       doc.line(10, 200, 287, 200);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(7.5);
       doc.setTextColor(100, 116, 139);
-      doc.text(`UI ALEX 2026 • Universitas Indonesia (Course ID: 99544 & 99545) • Standar KKM >= ${currentKkm.toFixed(1)}`, 10, 205);
+      doc.text(`UI ALEX 2026 • Universitas Indonesia • URL: ${qrPayload.shortUrl} (Unix: ${qrPayload.unixSec})`, 10, 205);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42);
       doc.text('Halaman 1 dari 1', 287, 205, { align: 'right' });
@@ -8338,6 +8790,16 @@
 
       document.getElementById('participantModal').classList.remove('hidden');
       renderParticipantCharts(u);
+
+      // Perbarui QR Code & Shortlink pada Rapor Individu
+      const dQr = buildDocumentQrPayload({ type: 'dossier', uid: u.user_id });
+      const dQrImg = document.getElementById('dossierQrImg');
+      const dQrUrl = document.getElementById('dossierShortUrlText');
+      const dQrUnix = document.getElementById('dossierUnixText');
+      if (dQrImg) dQrImg.src = dQr.qrDataUrl;
+      if (dQrUrl) dQrUrl.textContent = dQr.shortUrl;
+      if (dQrUnix) dQrUnix.textContent = `Gen: ${dQr.readableTime} (Unix: ${dQr.unixSec})`;
+
       updateUrlAndTracker(`Rapor ${u.username}`);
     }
 
@@ -8664,6 +9126,7 @@
       const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
       const t = getBatchTerminology(fBatch);
       const lastSyncStr = document.getElementById('lastSyncTimestamp')?.textContent || new Date().toLocaleString('id-ID');
+      const qrPayload = buildDocumentQrPayload({ type: 'matrix' });
 
       // Urutkan daftar peserta persis seperti urutan aktif di tabel matriks
       const list = [...filteredProfilesList];
@@ -8714,14 +9177,17 @@
       doc.setTextColor(251, 191, 36);
       doc.text('UNIVERSITAS INDONESIA • UI ALEX 2026 LEARNING ANALYTICS MATRIX', 31, 14.5);
 
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.setTextColor(255, 255, 255);
-      doc.text(`MATRIKS EVALUASI BELAJAR & KESIAPAN PESERTA (${fBatch === 'ALL' ? 'SEMUA BATCH' : fBatch.toUpperCase()})`, 31, 21);
+      doc.text(`MATRIKS EVALUASI BELAJAR & KESIAPAN PESERTA (${fBatch === 'ALL' ? 'SEMUA BATCH' : fBatch.toUpperCase()})`, 31, 20.8);
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(7.8);
       doc.setTextColor(203, 213, 225);
-      doc.text(`Menampilkan ${list.length} Peserta • Standar KKM ${t.kkmLabel} • Last Update Data: ${lastSyncStr}`, 31, 26.5);
+      doc.text(`Menampilkan ${list.length} Peserta • Standar KKM ${t.kkmLabel} • Last Update Data: ${lastSyncStr}`, 31, 26.2);
+
+      // Sematkan QR Code + Shortlink + Unix Timestamp di Pojok Kanan Kop
+      stampQrOnJsPdfBanner(doc, qrPayload, 213, 10, 74, 18);
 
       const fmtVal = (v) => (v !== null && v !== undefined ? v.toFixed(1) : '-');
 
@@ -8861,9 +9327,9 @@
         doc.setLineWidth(0.25);
         doc.line(8, 201, 289, 201);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
+        doc.setFontSize(7);
         doc.setTextColor(100, 116, 139);
-        doc.text(`UI ALEX 2026 • Universitas Indonesia (Course ID: 99544 & 99545) • Matriks Evaluasi Peserta (${list.length} Orang)`, 8, 205.5);
+        doc.text(`UI ALEX 2026 • Matriks Peserta (${list.length} Org) • URL: ${qrPayload.shortUrl} (Unix: ${qrPayload.unixSec})`, 8, 205.5);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(15, 23, 42);
         doc.text(`Halaman ${p} dari ${totalPages}`, 289, 205.5, { align: 'right' });
@@ -8898,8 +9364,8 @@
     }
 
     function copyPermalink() {
-      updateUrlAndTracker();
-      copyTextToClipboard(window.location.href, 'Permalink tersalin ke clipboard!');
+      const qrPayload = buildDocumentQrPayload();
+      copyTextToClipboard(qrPayload.shortUrl, `Shortlink tersalin: ${qrPayload.shortUrl}`);
       const txt = document.getElementById('permalinkText');
       if (txt) {
         txt.textContent = 'Tersalin!';
@@ -8993,6 +9459,16 @@
     function loadFiltersFromUrl() {
       const params = new URLSearchParams(window.location.search);
       const setVal = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+
+      // 1. Prioritaskan Dekode Parameter Shortlink (?s=...) jika ada
+      if (params.has('s')) {
+        const decodedOk = decodeAndApplyShortToken(params.get('s'));
+        if (decodedOk) {
+          setViewMode(currentViewMode, true);
+          updateActiveFilterVisuals();
+          return;
+        }
+      }
 
       if (params.has('view')) {
         const v = params.get('view');
