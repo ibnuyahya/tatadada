@@ -2333,6 +2333,90 @@
     let lastTrackedUrl = window.location.href;
     let lastTrackedPath = window.location.pathname + window.location.search;
 
+    // Isolasi State Filter Mandiri untuk Setiap Tab agar tidak saling mempengaruhi
+    const tabFilterStates = {
+      matrix: {
+        batch: DEFAULT_ACTIVE_BATCH,
+        pilar: 'ALL',
+        modul: 'ALL',
+        persona: 'ALL',
+        readiness: 'ALL',
+        status: 'ALL',
+        q: ''
+      },
+      benchmark: {
+        batch: 'ALL',
+        pilar: 'ALL',
+        modul: 'ALL',
+        persona: 'ALL',
+        readiness: 'ALL',
+        status: 'ALL',
+        q: ''
+      },
+      halloffame: {
+        batch: DEFAULT_ACTIVE_BATCH,
+        pilar: 'ALL',
+        modul: 'ALL',
+        persona: 'ALL',
+        readiness: 'ALL',
+        status: 'ALL',
+        q: ''
+      },
+      pimti: {
+        batch: DEFAULT_ACTIVE_BATCH,
+        kkm: 100.0
+      }
+    };
+
+    function saveCurrentTabFilterState(mode) {
+      if (!mode) return;
+      if (mode === 'matrix' || mode === 'halloffame') {
+        tabFilterStates[mode] = {
+          batch: document.getElementById('filterBatch')?.value || DEFAULT_ACTIVE_BATCH,
+          pilar: document.getElementById('filterPilar')?.value || 'ALL',
+          modul: document.getElementById('filterModul')?.value || 'ALL',
+          persona: document.getElementById('filterPersona')?.value || 'ALL',
+          readiness: document.getElementById('filterReadiness')?.value || 'ALL',
+          status: document.getElementById('filterStatus')?.value || 'ALL',
+          q: document.getElementById('searchTable')?.value || ''
+        };
+      } else if (mode === 'pimti') {
+        tabFilterStates.pimti.batch = document.getElementById('pimtiBatchSelect')?.value || DEFAULT_ACTIVE_BATCH;
+        tabFilterStates.pimti.kkm = currentKkm;
+      }
+    }
+
+    function restoreTabFilterStateToDOM(mode) {
+      const topCard = document.getElementById('topFilterCard');
+      if (topCard) {
+        // Tampilkan kotak filter atas hanya di Tab 1 (Matrix) dan Tab 3 (Hall of Fame)
+        topCard.classList.toggle('hidden', mode === 'benchmark' || mode === 'pimti');
+      }
+
+      if (mode === 'matrix' || mode === 'halloffame') {
+        const st = tabFilterStates[mode] || tabFilterStates.matrix;
+        const setVal = (id, val) => {
+          const el = document.getElementById(id);
+          if (el) el.value = val;
+        };
+        setVal('filterBatch', st.batch);
+        setVal('filterPilar', st.pilar);
+        setVal('filterModul', st.modul);
+        setVal('filterPersona', st.persona);
+        setVal('filterReadiness', st.readiness);
+        setVal('filterStatus', st.status);
+        setVal('searchTable', st.q || '');
+      } else if (mode === 'pimti') {
+        const pimtiBatchEl = document.getElementById('pimtiBatchSelect');
+        if (pimtiBatchEl) pimtiBatchEl.value = tabFilterStates.pimti.batch;
+        currentKkm = tabFilterStates.pimti.kkm;
+        const kkmInputEl = document.getElementById('inputKkmValue');
+        if (kkmInputEl) kkmInputEl.value = String(currentKkm);
+        const kkmBadgeEl = document.getElementById('pimtiActiveKkmBadge');
+        if (kkmBadgeEl) kkmBadgeEl.innerHTML = `KKM &ge; ${currentKkm.toFixed(1)}`;
+      }
+    }
+
     // Sorting State for Matrix Table
     let matrixSortState = { key: 'nama_peserta', dir: 'asc' };
 
@@ -3388,6 +3472,11 @@
     }
 
     function applyFilters(isSilentInit = false) {
+      // Simpan perubahan filter ke state milik tab yang sedang aktif saja
+      if (currentViewMode === 'matrix' || currentViewMode === 'halloffame') {
+        saveCurrentTabFilterState(currentViewMode);
+      }
+
       updateActiveFilterVisuals();
       updateBatchTerminologyUI();
 
@@ -3397,21 +3486,7 @@
       const fPilar = document.getElementById('filterPilar')?.value || 'ALL';
       const fModul = document.getElementById('filterModul')?.value || 'ALL';
       const fStatus = document.getElementById('filterStatus')?.value || 'ALL';
-      const q = (document.getElementById('searchTable')?.value || '').trim().toLowerCase();
-
-      // Sinkronkan juga pilihan batch di Tab 4 Pimti & sesuaikan KKM otomatis jika Batch diganti
-      const pimtiBatchEl = document.getElementById('pimtiBatchSelect');
-      if (pimtiBatchEl && pimtiBatchEl.value !== fBatch) {
-        pimtiBatchEl.value = fBatch;
-      }
-      if (fBatch !== lastSyncedBatchForKkm) {
-        lastSyncedBatchForKkm = fBatch;
-        currentKkm = fBatch === 'Batch 1' ? 80.0 : 100.0;
-        const kkmInputEl = document.getElementById('inputKkmValue');
-        if (kkmInputEl) kkmInputEl.value = String(currentKkm);
-        const kkmBadgeEl = document.getElementById('pimtiActiveKkmBadge');
-        if (kkmBadgeEl) kkmBadgeEl.innerHTML = `KKM &ge; ${currentKkm.toFixed(1)}`;
-      }
+      const q = (currentViewMode === 'matrix' ? (document.getElementById('searchTable')?.value || '') : '').trim().toLowerCase();
 
       userProfilesMap = computeUserProfiles(rawMasterData);
       const allProfiles = Array.from(userProfilesMap.values());
@@ -3464,18 +3539,22 @@
         return true;
       });
 
-      renderRoleSummaryWidget();
-      renderPretestSummaryWidget();
-      renderUjikomMonitoringWidget();
-      renderCompanionCourseActivityWidget();
-      renderReadinessAndPersonasOverview();
-      renderKPIs();
-      renderCharts();
-      renderParticipantMatrix();
-
-      if (currentViewMode === 'benchmark') renderBenchmarkStudio();
-      if (currentViewMode === 'halloffame') renderHallOfFameStudio();
-      if (currentViewMode === 'pimti') renderPimtiExecutiveStudio();
+      if (currentViewMode === 'matrix') {
+        renderRoleSummaryWidget();
+        renderPretestSummaryWidget();
+        renderUjikomMonitoringWidget();
+        renderCompanionCourseActivityWidget();
+        renderReadinessAndPersonasOverview();
+        renderKPIs();
+        renderCharts();
+        renderParticipantMatrix();
+      } else if (currentViewMode === 'benchmark') {
+        renderBenchmarkStudio();
+      } else if (currentViewMode === 'halloffame') {
+        renderHallOfFameStudio();
+      } else if (currentViewMode === 'pimti') {
+        renderPimtiExecutiveStudio();
+      }
 
       initTippyTooltips();
       if (!isSilentInit) {
@@ -4843,8 +4922,13 @@
     /*************************************************************************
      * H. SWITCH VIEW MODES (MATRIX, BENCHMARK, HALL OF FAME, PIMTI)
      *************************************************************************/
-    function setViewMode(mode) {
+    function setViewMode(mode, isFromUrlInit = false) {
+      if (!isFromUrlInit && currentViewMode && currentViewMode !== mode) {
+        saveCurrentTabFilterState(currentViewMode);
+      }
       currentViewMode = mode;
+      restoreTabFilterStateToDOM(mode);
+
       const views = {
         matrix: document.getElementById('mainAnalyticsContainer'),
         benchmark: document.getElementById('benchmarkViewContainer'),
@@ -4882,11 +4966,13 @@
         }
       });
 
-      if (mode === 'benchmark') renderBenchmarkStudio();
-      if (mode === 'halloffame') renderHallOfFameStudio();
-      if (mode === 'pimti') renderPimtiExecutiveStudio();
+      if (rawMasterData.length > 0) {
+        applyFilters(true);
+      }
 
-      updateUrlAndTracker(`Mode ${mode}`);
+      if (!isFromUrlInit) {
+        updateUrlAndTracker(`Mode ${mode}`);
+      }
     }
 
     /*************************************************************************
@@ -4895,6 +4981,7 @@
     function computeBatchStats(batchName) {
       const users = Array.from(userProfilesMap.values()).filter(u => u.batch === batchName);
       const n = users.length;
+      const bKkm = getBatchKkm(batchName);
       const avg = fn => n ? Number((users.reduce((s, u) => s + fn(u), 0) / n).toFixed(1)) : 0;
 
       const pre1Done = users.filter(u => u.pre_p1 !== null);
@@ -4911,7 +4998,7 @@
 
       return {
         batchName,
-        kkm: getBatchKkm(batchName),
+        kkm: bKkm,
         n,
         compP1: avg(u => u.progress_p1),
         compP2: avg(u => u.progress_p2),
@@ -4934,9 +5021,8 @@
     }
 
     function jumpToBatchFilter(batchName) {
-      document.getElementById('filterBatch').value = batchName;
+      tabFilterStates.matrix.batch = batchName;
       setViewMode('matrix');
-      applyFilters();
     }
 
     function renderBenchmarkStudio() {
@@ -4948,7 +5034,10 @@
         cardsEl.innerHTML = stats.map(s => `
           <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
             <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 class="text-base font-extrabold text-slate-900">${s.batchName}</h3>
+              <div class="flex items-center gap-2">
+                <h3 class="text-base font-extrabold text-slate-900">${s.batchName}</h3>
+                <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono font-bold text-[10px] border border-slate-200">KKM ${s.kkm}</span>
+              </div>
               <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-mono font-bold text-xs">${s.n} Peserta</span>
             </div>
             <div class="grid grid-cols-2 gap-2 text-xs">
@@ -4961,7 +5050,7 @@
                 <div class="text-base font-mono font-extrabold text-amber-700">${s.readiness}</div>
               </div>
               <div class="p-2.5 rounded-lg bg-slate-50">
-                <div class="text-slate-500">Rerata Post-Test</div>
+                <div class="text-slate-500">Rerata Evaluasi Akhir</div>
                 <div class="text-base font-mono font-extrabold text-indigo-700">${s.postAvg}</div>
               </div>
               <div class="p-2.5 rounded-lg bg-slate-50">
@@ -4982,7 +5071,7 @@
         chartInstances.benchMetrics = new Chart(ctxBM, {
           type: 'bar',
           data: {
-            labels: ['Comp Pilar I', 'Comp Pilar II', 'Rerata Pre-Test', 'Rerata Post-Test', 'Indeks Kesiapan'],
+            labels: ['Comp Pilar I', 'Comp Pilar II', 'Rerata Awal', 'Rerata Ujikom', 'Indeks Kesiapan'],
             datasets: stats.map((s, idx) => ({
               label: s.batchName,
               data: [s.compP1, s.compP2, s.preAvg, s.postAvg, s.readiness],
@@ -5020,7 +5109,7 @@
             <thead class="bg-slate-100 font-extrabold text-slate-700">
               <tr>
                 <th class="p-3 text-left">Indikator Benchmarking</th>
-                ${stats.map(s => `<th class="p-3 text-center">${s.batchName} (n=${s.n})</th>`).join('')}
+                ${stats.map(s => `<th class="p-3 text-center">${s.batchName} (n=${s.n} • KKM ${s.kkm})</th>`).join('')}
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-200">
@@ -5028,8 +5117,8 @@
               <tr><td class="p-2.5 font-semibold">Completion Pilar II (%)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.compP2}%</td>`).join('')}</tr>
               <tr><td class="p-2.5 font-semibold">Selesai Asesmen Awal (P1 / P2)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.pre1Count} / ${s.pre2Count}</td>`).join('')}</tr>
               <tr><td class="p-2.5 font-semibold">Rerata Indeks Kesiapan Belajar</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold text-amber-700">${s.readiness}</td>`).join('')}</tr>
-              <tr><td class="p-2.5 font-semibold">Rerata Nilai Uji Kompetensi / Post-Test</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold text-indigo-700">${s.postAvg}</td>`).join('')}</tr>
-              <tr><td class="p-2.5 font-semibold">Tingkat Kelulusan (KKM Batch)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold text-emerald-700">${s.passRate}% (KKM ${s.kkm})</td>`).join('')}</tr>
+              <tr><td class="p-2.5 font-semibold">Rerata Nilai Evaluasi Akhir</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold text-indigo-700">${s.postAvg}</td>`).join('')}</tr>
+              <tr><td class="p-2.5 font-semibold">Tingkat Kelulusan KKM Batch</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold text-emerald-700">${s.passRate}%</td>`).join('')}</tr>
               <tr><td class="p-2.5 font-semibold">Normalized Hake's Gain ⟨g⟩</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.hakeGain}</td>`).join('')}</tr>
             </tbody>
           </table>
@@ -5620,14 +5709,24 @@
      * K. REKAPITULASI EKSEKUTIF PIMTI (MODE 4 - 1-PAGE EXECUTIVE BRIEFING)
      *************************************************************************/
     function onPimtiBatchChange(val) {
-      const topBatch = document.getElementById('filterBatch');
-      if (topBatch) topBatch.value = val;
-      applyFilters();
+      tabFilterStates.pimti.batch = val;
+      if (val !== lastSyncedBatchForKkm) {
+        lastSyncedBatchForKkm = val;
+        currentKkm = val === 'Batch 1' ? 80.0 : 100.0;
+        tabFilterStates.pimti.kkm = currentKkm;
+        const kkmInputEl = document.getElementById('inputKkmValue');
+        if (kkmInputEl) kkmInputEl.value = String(currentKkm);
+        const kkmBadgeEl = document.getElementById('pimtiActiveKkmBadge');
+        if (kkmBadgeEl) kkmBadgeEl.innerHTML = `KKM &ge; ${currentKkm.toFixed(1)}`;
+      }
+      renderPimtiExecutiveStudio();
+      updateUrlAndTracker(`Pimti Batch ${val}`);
     }
 
     function onKkmChanged(val) {
       const num = parseFloat(val);
       currentKkm = isNaN(num) ? 80.0 : Math.max(0, Math.min(100, num));
+      tabFilterStates.pimti.kkm = currentKkm;
       document.getElementById('pimtiActiveKkmBadge').innerHTML = `KKM &ge; ${currentKkm.toFixed(1)}`;
       renderPimtiExecutiveStudio();
       updateUrlAndTracker(`Simulasi KKM ${currentKkm}`);
@@ -6430,13 +6529,16 @@
     function updateUrlAndTracker(actionName) {
       if (!currentLoggedUser) return;
 
-      const fBatch = document.getElementById('filterBatch')?.value || DEFAULT_ACTIVE_BATCH;
-      const fPersona = document.getElementById('filterPersona')?.value || 'ALL';
-      const fReadiness = document.getElementById('filterReadiness')?.value || 'ALL';
-      const fPilar = document.getElementById('filterPilar')?.value || 'ALL';
-      const fModul = document.getElementById('filterModul')?.value || 'ALL';
-      const fStatus = document.getElementById('filterStatus')?.value || 'ALL';
-      const searchVal = (document.getElementById('searchTable')?.value || '').trim();
+      const isPimti = currentViewMode === 'pimti';
+      const fBatch = isPimti
+        ? (document.getElementById('pimtiBatchSelect')?.value || DEFAULT_ACTIVE_BATCH)
+        : (document.getElementById('filterBatch')?.value || DEFAULT_ACTIVE_BATCH);
+      const fPersona = isPimti ? 'ALL' : (document.getElementById('filterPersona')?.value || 'ALL');
+      const fReadiness = isPimti ? 'ALL' : (document.getElementById('filterReadiness')?.value || 'ALL');
+      const fPilar = isPimti ? 'ALL' : (document.getElementById('filterPilar')?.value || 'ALL');
+      const fModul = isPimti ? 'ALL' : (document.getElementById('filterModul')?.value || 'ALL');
+      const fStatus = isPimti ? 'ALL' : (document.getElementById('filterStatus')?.value || 'ALL');
+      const searchVal = currentViewMode === 'matrix' ? (document.getElementById('searchTable')?.value || '').trim() : '';
 
       const params = new URLSearchParams();
       params.set('user', currentLoggedUser);
@@ -6448,7 +6550,7 @@
       if (fModul !== 'ALL') params.set('modul', fModul);
       if (fStatus !== 'ALL') params.set('status', fStatus);
       if (!isScoreMasked) params.set('mask', '0');
-      if (currentKkm !== 80) params.set('kkm', String(currentKkm));
+      if (isPimti && currentKkm !== (fBatch === 'Batch 1' ? 80 : 100)) params.set('kkm', String(currentKkm));
       if (searchVal) params.set('q', searchVal);
       if (actionName) params.set('action', actionName);
 
@@ -6515,16 +6617,29 @@
         const v = params.get('view');
         if (['matrix', 'benchmark', 'halloffame', 'pimti'].includes(v)) currentViewMode = v;
       }
-      if (params.has('batch')) setVal('filterBatch', params.get('batch'));
-      if (params.has('persona')) setVal('filterPersona', params.get('persona'));
-      if (params.has('readiness')) setVal('filterReadiness', params.get('readiness'));
-      if (params.has('pilar')) setVal('filterPilar', params.get('pilar'));
-      if (params.has('modul')) setVal('filterModul', params.get('modul'));
-      if (params.has('status')) setVal('filterStatus', params.get('status'));
+
+      const targetTab = (currentViewMode === 'halloffame' || currentViewMode === 'matrix') ? currentViewMode : 'matrix';
+      if (params.has('batch')) {
+        const bVal = params.get('batch');
+        if (currentViewMode === 'pimti') {
+          tabFilterStates.pimti.batch = bVal;
+          tabFilterStates.pimti.kkm = bVal === 'Batch 1' ? 80.0 : 100.0;
+        } else {
+          tabFilterStates[targetTab].batch = bVal;
+        }
+      }
+      if (params.has('persona')) tabFilterStates[targetTab].persona = params.get('persona');
+      if (params.has('readiness')) tabFilterStates[targetTab].readiness = params.get('readiness');
+      if (params.has('pilar')) tabFilterStates[targetTab].pilar = params.get('pilar');
+      if (params.has('modul')) tabFilterStates[targetTab].modul = params.get('modul');
+      if (params.has('status')) tabFilterStates[targetTab].status = params.get('status');
+      if (params.has('q')) tabFilterStates.matrix.q = params.get('q');
+
       if (params.has('kkm')) {
         const k = parseFloat(params.get('kkm'));
         if (!isNaN(k)) {
           currentKkm = k;
+          tabFilterStates.pimti.kkm = k;
           setVal('inputKkmValue', String(k));
         }
       }
@@ -6533,9 +6648,8 @@
         document.getElementById('maskIcon').textContent = '👁️';
         document.getElementById('maskText').textContent = 'Samarkan Angka Nilai';
       }
-      if (params.has('q')) setVal('searchTable', params.get('q'));
 
-      setViewMode(currentViewMode);
+      setViewMode(currentViewMode, true);
       updateActiveFilterVisuals();
     }
 
