@@ -3152,8 +3152,82 @@
     const chartInstances = {};
 
     /*************************************************************************
-     * C. MANAJEMEN SESI, LOGIN, AUTO-LOCK & ANTI-RIGHT CLICK
+     * C. MANAJEMEN SESI, LOGIN, AUTO-LOCK & ANTI-RIGHT CLICK (SHARED LINTAS-TAB)
      *************************************************************************/
+    const AUTH_STORAGE_KEYS = {
+      token: 'alex_auth_token',
+      user: 'alex_auth_user',
+      lastActive: 'alex_auth_last_active'
+    };
+
+    function saveAuthSession(user, digest) {
+      const now = String(Date.now());
+      try {
+        localStorage.setItem(AUTH_STORAGE_KEYS.token, digest);
+        localStorage.setItem(AUTH_STORAGE_KEYS.user, user);
+        localStorage.setItem(AUTH_STORAGE_KEYS.lastActive, now);
+      } catch (e) {}
+      try {
+        sessionStorage.setItem(AUTH_STORAGE_KEYS.token, digest);
+        sessionStorage.setItem(AUTH_STORAGE_KEYS.user, user);
+      } catch (e) {}
+    }
+
+    function readAuthSession() {
+      let token = null, user = null, lastActive = 0;
+      try {
+        token = localStorage.getItem(AUTH_STORAGE_KEYS.token);
+        user = localStorage.getItem(AUTH_STORAGE_KEYS.user);
+        lastActive = Number(localStorage.getItem(AUTH_STORAGE_KEYS.lastActive) || 0);
+      } catch (e) {}
+
+      // Fallback kompatibilitas jika sebelumnya hanya tersimpan di sessionStorage tab ini
+      if (!token || !user) {
+        try {
+          const sToken = sessionStorage.getItem(AUTH_STORAGE_KEYS.token);
+          const sUser = sessionStorage.getItem(AUTH_STORAGE_KEYS.user);
+          if (sToken && sUser) {
+            token = sToken;
+            user = sUser;
+            lastActive = Date.now();
+            saveAuthSession(user, token);
+          }
+        } catch (e) {}
+      }
+
+      if (!token || !user || _ALLOWED_AUTH[user] !== token) {
+        return null;
+      }
+
+      // Periksa apakah sesi sudah kedaluwarsa karena idle > 5 menit di seluruh tab
+      if (lastActive > 0 && (Date.now() - lastActive > IDLE_LIMIT_MS)) {
+        clearAuthStorage();
+        return { expired: true };
+      }
+
+      return { user, token, expired: false };
+    }
+
+    function clearAuthStorage() {
+      try {
+        localStorage.removeItem(AUTH_STORAGE_KEYS.token);
+        localStorage.removeItem(AUTH_STORAGE_KEYS.user);
+        localStorage.removeItem(AUTH_STORAGE_KEYS.lastActive);
+      } catch (e) {}
+      try {
+        sessionStorage.removeItem(AUTH_STORAGE_KEYS.token);
+        sessionStorage.removeItem(AUTH_STORAGE_KEYS.user);
+      } catch (e) {}
+    }
+
+    function touchAuthActivityTimestamp() {
+      try {
+        if (localStorage.getItem(AUTH_STORAGE_KEYS.token)) {
+          localStorage.setItem(AUTH_STORAGE_KEYS.lastActive, String(Date.now()));
+        }
+      } catch (e) {}
+    }
+
     function handleLogin(e) {
       e.preventDefault();
       const user = (document.getElementById('authUser').value || '').trim().toLowerCase();
@@ -3171,8 +3245,7 @@
 
       if (matchedDigest) {
         currentLoggedUser = user;
-        sessionStorage.setItem('alex_auth_token', matchedDigest);
-        sessionStorage.setItem('alex_auth_user', user);
+        saveAuthSession(user, matchedDigest);
         document.getElementById('loginError').classList.add('hidden');
         document.getElementById('lockNotice').classList.add('hidden');
         document.getElementById('loginOverlay').classList.add('hidden');
@@ -3187,17 +3260,20 @@
     }
 
     function checkAuthSession() {
-      const token = sessionStorage.getItem('alex_auth_token');
-      const user = sessionStorage.getItem('alex_auth_user');
-      if (user && token && _ALLOWED_AUTH[user] === token) {
-        currentLoggedUser = user;
+      const session = readAuthSession();
+      if (session && !session.expired && session.user) {
+        currentLoggedUser = session.user;
+        touchAuthActivityTimestamp();
         document.getElementById('loginOverlay').classList.add('hidden');
-        document.getElementById('activeOperatorBadge').textContent = `USER: ${user.toUpperCase()}`;
+        document.getElementById('activeOperatorBadge').textContent = `USER: ${session.user.toUpperCase()}`;
         resetIdleTimer();
         initDashboard();
       } else {
         setDashboardLoadedState(false, 'Menunggu Otorisasi Sesi...', 'Silakan masuk terlebih dahulu untuk memuat aliran data CSV EMAS3.');
         document.getElementById('loginOverlay').classList.remove('hidden');
+        if (session && session.expired) {
+          document.getElementById('lockNotice').classList.remove('hidden');
+        }
       }
     }
 
@@ -3257,8 +3333,7 @@
 
     function lockScreen(isAutoLock = false) {
       hideAllTooltips();
-      sessionStorage.removeItem('alex_auth_token');
-      sessionStorage.removeItem('alex_auth_user');
+      clearAuthStorage();
       currentLoggedUser = '';
       const userEl = document.getElementById('authUser');
       const passEl = document.getElementById('authPass');
@@ -3273,14 +3348,36 @@
       }
     }
 
+    let lastActivityTouchMs = 0;
     function resetIdleTimer() {
+      const now = Date.now();
+      if (now - lastActivityTouchMs > 4000) {
+        lastActivityTouchMs = now;
+        touchAuthActivityTimestamp();
+      }
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
-        if (sessionStorage.getItem('alex_auth_token')) {
+        const session = readAuthSession();
+        if (!session || session.expired) {
           lockScreen(true);
+        } else {
+          resetIdleTimer();
         }
       }, IDLE_LIMIT_MS);
     }
+
+    // Sinkronisasi status Login / Lock secara real-time antar-tab browser
+    window.addEventListener('storage', (e) => {
+      if (e.key === AUTH_STORAGE_KEYS.token) {
+        if (!e.newValue && currentLoggedUser) {
+          // Tab lain menekan tombol Kunci -> kunci tab ini juga
+          lockScreen(false);
+        } else if (e.newValue && !currentLoggedUser) {
+          // Tab lain baru saja Login -> otomatis buka kunci di tab ini
+          checkAuthSession();
+        }
+      }
+    });
 
     ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'].forEach(evt => {
       window.addEventListener(evt, resetIdleTimer, { passive: true });
@@ -3568,7 +3665,8 @@
     function initAutoSyncTicker() {
       if (autoSyncInterval) clearInterval(autoSyncInterval);
       autoSyncInterval = setInterval(() => {
-        if (!sessionStorage.getItem('alex_auth_token')) return;
+        const activeSession = readAuthSession();
+        if (!activeSession || activeSession.expired) return;
         autoSyncRemaining--;
         if (autoSyncRemaining <= 0) {
           const activeEl = document.activeElement;
