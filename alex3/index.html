@@ -486,7 +486,7 @@
 
     <!-- View Mode Switcher Tabs (True Browser-Style Tab Strip) -->
     <nav aria-label="Mode Tampilan Analitik" class="bg-slate-300/80 pt-2.5 px-2.5 rounded-t-2xl border-t border-x border-slate-300/90 select-none no-print">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 items-end" role="tablist">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-1.5 items-end" role="tablist">
         <!-- Tab 1 -->
         <button id="tabMatrix" role="tab" aria-selected="true" onclick="setViewMode('matrix')"
           class="group relative z-10 -mb-[1px] w-full px-4 py-3 rounded-t-xl text-xs font-extrabold transition-all duration-150 flex items-center justify-between gap-2 bg-white text-slate-950 border-t-[3px] border-t-amber-500 border-x border-slate-300 border-b border-b-white shadow-[0_-3px_10px_rgba(15,23,42,0.06)]">
@@ -527,6 +527,17 @@
           </div>
           <span id="dot_tabPimti" class="hidden w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Tab Aktif"></span>
         </button>
+
+        <!-- Tab 5 (External Link: Assignment Studio) -->
+        <a id="tabAssignmentStudio" href="https://danial.my.id/alex3/esai.html" target="_blank" rel="noopener noreferrer"
+          data-tippy-content="Buka Assignment Studio (danial.my.id/alex3/esai.html) di tab baru"
+          class="group relative w-full px-4 py-2.5 rounded-t-xl text-xs font-semibold transition-all duration-150 flex items-center justify-between gap-2 bg-slate-200/80 text-slate-600 hover:bg-amber-50/90 hover:text-slate-950 border-t-[3px] border-t-transparent hover:border-t-amber-500 border-x border-slate-300/60 border-b border-b-slate-300">
+          <div class="flex items-center gap-2.5 truncate">
+            <span class="w-5 h-5 rounded-md bg-slate-300 text-slate-700 group-hover:bg-amber-500 group-hover:text-slate-950 font-mono text-[11px] font-bold flex items-center justify-center shrink-0 transition-colors">5</span>
+            <span class="truncate">📝 Assignment Studio</span>
+          </div>
+          <span class="text-[11px] font-mono font-bold text-slate-400 group-hover:text-amber-600 shrink-0">↗</span>
+        </a>
       </div>
     </nav>
 
@@ -2370,9 +2381,9 @@
 
     function saveCurrentTabFilterState(mode) {
       if (!mode) return;
-      if (mode === 'matrix' || mode === 'halloffame') {
+      if (mode === 'matrix' || mode === 'benchmark' || mode === 'halloffame') {
         tabFilterStates[mode] = {
-          batch: document.getElementById('filterBatch')?.value || DEFAULT_ACTIVE_BATCH,
+          batch: mode === 'benchmark' ? 'ALL' : (document.getElementById('filterBatch')?.value || DEFAULT_ACTIVE_BATCH),
           pilar: document.getElementById('filterPilar')?.value || 'ALL',
           modul: document.getElementById('filterModul')?.value || 'ALL',
           persona: document.getElementById('filterPersona')?.value || 'ALL',
@@ -2389,17 +2400,23 @@
     function restoreTabFilterStateToDOM(mode) {
       const topCard = document.getElementById('topFilterCard');
       if (topCard) {
-        // Tampilkan kotak filter atas hanya di Tab 1 (Matrix) dan Tab 3 (Hall of Fame)
-        topCard.classList.toggle('hidden', mode === 'benchmark' || mode === 'pimti');
+        // Sembunyikan kotak filter atas hanya di Tab 4 (Pimti) yang memiliki kontrol mandiri
+        topCard.classList.toggle('hidden', mode === 'pimti');
       }
 
-      if (mode === 'matrix' || mode === 'halloffame') {
+      const wrapBatch = document.getElementById('wrap_filterBatch');
+      if (wrapBatch) {
+        // Di Tab 2 (Studio Komparasi Antar-Batch), filter Batch tidak relevan sehingga disembunyikan
+        wrapBatch.classList.toggle('hidden', mode === 'benchmark');
+      }
+
+      if (mode === 'matrix' || mode === 'benchmark' || mode === 'halloffame') {
         const st = tabFilterStates[mode] || tabFilterStates.matrix;
         const setVal = (id, val) => {
           const el = document.getElementById(id);
           if (el) el.value = val;
         };
-        setVal('filterBatch', st.batch);
+        setVal('filterBatch', mode === 'benchmark' ? 'ALL' : st.batch);
         setVal('filterPilar', st.pilar);
         setVal('filterModul', st.modul);
         setVal('filterPersona', st.persona);
@@ -3325,7 +3342,7 @@
      *************************************************************************/
     function updateActiveFilterVisuals() {
       const filterConfigs = [
-        { id: 'filterBatch', isActive: (val) => val !== 'ALL' },
+        { id: 'filterBatch', isActive: (val) => currentViewMode !== 'benchmark' && val !== 'ALL' },
         { id: 'filterPersona', isActive: (val) => val !== 'ALL' },
         { id: 'filterReadiness', isActive: (val) => val !== 'ALL' },
         { id: 'filterPilar', isActive: (val) => val !== 'ALL' },
@@ -3341,6 +3358,11 @@
         const lblEl = document.getElementById(`lbl_${cfg.id}`);
         const dotEl = document.getElementById(`dot_${cfg.id}`);
         if (!selectEl) return;
+
+        if (cfg.id === 'filterBatch' && currentViewMode === 'benchmark') {
+          if (wrapEl) wrapEl.className = 'hidden';
+          return;
+        }
 
         const active = cfg.isActive(selectEl.value);
         if (active) {
@@ -3473,7 +3495,7 @@
 
     function applyFilters(isSilentInit = false) {
       // Simpan perubahan filter ke state milik tab yang sedang aktif saja
-      if (currentViewMode === 'matrix' || currentViewMode === 'halloffame') {
+      if (currentViewMode === 'matrix' || currentViewMode === 'benchmark' || currentViewMode === 'halloffame') {
         saveCurrentTabFilterState(currentViewMode);
       }
 
@@ -3563,7 +3585,7 @@
     }
 
     function resetFilters() {
-      document.getElementById('filterBatch').value = DEFAULT_ACTIVE_BATCH;
+      document.getElementById('filterBatch').value = currentViewMode === 'benchmark' ? 'ALL' : DEFAULT_ACTIVE_BATCH;
       document.getElementById('filterPersona').value = 'ALL';
       document.getElementById('filterReadiness').value = 'ALL';
       document.getElementById('filterPilar').value = 'ALL';
@@ -4979,22 +5001,63 @@
      * I. STUDIO KOMPARASI ANTAR-BATCH (MODE 2)
      *************************************************************************/
     function computeBatchStats(batchName) {
-      const users = Array.from(userProfilesMap.values()).filter(u => u.batch === batchName);
-      const n = users.length;
+      const fPilar = document.getElementById('filterPilar')?.value || 'ALL';
+      const fModul = document.getElementById('filterModul')?.value || 'ALL';
+      const fPersona = document.getElementById('filterPersona')?.value || 'ALL';
+      const fReadiness = document.getElementById('filterReadiness')?.value || 'ALL';
+      const fStatus = document.getElementById('filterStatus')?.value || 'ALL';
+
       const bKkm = getBatchKkm(batchName);
+      let activeKeys = [...MODULE_KEYS];
+      if (fModul !== 'ALL' && MODULE_KEYS.includes(fModul)) {
+        activeKeys = [fModul];
+      } else if (fPilar === 'Pilar 1') {
+        activeKeys = ['PK', 'SDMPT', 'PBJ', 'KA'];
+      } else if (fPilar === 'Pilar 2') {
+        activeKeys = ['AI', 'PMA', 'HK', 'MRT'];
+      }
+
+      const users = Array.from(userProfilesMap.values()).filter(u => {
+        if (u.batch !== batchName) return false;
+        if (fPersona !== 'ALL') {
+          if (fPersona === 'GLITCH') {
+            if (!u.is_glitch) return false;
+          } else if (u.persona !== fPersona) {
+            return false;
+          }
+        }
+        if (fReadiness !== 'ALL' && u.readiness_cat !== fReadiness) return false;
+        if (fStatus !== 'ALL') {
+          const scores = activeKeys.map(k => u.modules[k]);
+          const passed = scores.filter(v => v !== null && v >= bKkm).length;
+          const rem = scores.filter(v => v !== null && v < bKkm).length;
+          const attempted = scores.filter(v => v !== null).length;
+          if (fStatus === 'Lulus' && passed === 0) return false;
+          if (fStatus === 'Butuh Remedial' && rem === 0) return false;
+          if (fStatus === 'Belum Mengerjakan' && attempted === activeKeys.length) return false;
+        }
+        return true;
+      });
+
+      const n = users.length;
       const avg = fn => n ? Number((users.reduce((s, u) => s + fn(u), 0) / n).toFixed(1)) : 0;
 
       const pre1Done = users.filter(u => u.pre_p1 !== null);
       const pre2Done = users.filter(u => u.pre_p2 !== null);
       const preList = users.filter(u => u.pre_avg !== null);
-      const postList = users.filter(u => u.attempted_post > 0);
-      const gainList = users.filter(u => u.hake_gain !== null);
 
       let doneSlots = 0, passSlots = 0;
+      const postUserAvgs = [];
       users.forEach(u => {
-        doneSlots += u.attempted_post;
-        passSlots += u.passed_post;
+        const sc = activeKeys.map(k => u.modules[k]).filter(v => v !== null);
+        doneSlots += sc.length;
+        passSlots += sc.filter(v => v >= bKkm).length;
+        if (sc.length > 0) {
+          postUserAvgs.push(sc.reduce((a, b) => a + b, 0) / sc.length);
+        }
       });
+
+      const gainList = users.filter(u => u.hake_gain !== null);
 
       return {
         batchName,
@@ -5005,7 +5068,7 @@
         compTotal: avg(u => u.comp_total),
         readiness: avg(u => u.readiness_score),
         preAvg: preList.length ? Number((preList.reduce((s, u) => s + u.pre_avg, 0) / preList.length).toFixed(1)) : 0,
-        postAvg: postList.length ? Number((postList.reduce((s, u) => s + u.post_total_avg, 0) / postList.length).toFixed(1)) : 0,
+        postAvg: postUserAvgs.length ? Number((postUserAvgs.reduce((s, v) => s + v, 0) / postUserAvgs.length).toFixed(1)) : 0,
         passRate: doneSlots ? Number(((passSlots / doneSlots) * 100).toFixed(1)) : 0,
         hakeGain: gainList.length ? Number((gainList.reduce((s, u) => s + u.hake_gain, 0) / gainList.length).toFixed(2)) : 0,
         pre1Count: pre1Done.length,
