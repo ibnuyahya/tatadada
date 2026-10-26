@@ -37,6 +37,8 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <script src="https://unpkg.com/@popperjs/core@2"></script>
   <script src="https://unpkg.com/tippy.js@6"></script>
 
@@ -1483,6 +1485,11 @@
               class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5">
               <span>📑</span><span>Unduh XLSX (Detail)</span>
             </button>
+            <button onclick="exportMatrixVectorPDF()"
+              data-tippy-content="Unduh Matriks Evaluasi & Kesiapan Peserta dalam format PDF Vektor Multi-Halaman (Anti-Terpotong Baris & Teks Tajam)"
+              class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5">
+              <span>📄</span><span>Unduh PDF Matriks</span>
+            </button>
             <button id="btnCollapseMatrix" onclick="toggleMatrixCollapse()"
               class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 transition flex items-center gap-1.5">
               <span id="chevronMatrix" class="drawer-chevron chevron-open">▼</span>
@@ -1616,6 +1623,11 @@
               data-tippy-content="Unduh Buku Kerja Excel (.xlsx) berisi Ringkasan Makro & Matriks 8 Modul sesuai Batch yang dipilih"
               class="px-3.5 py-2 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5">
               <span>📊</span><span>Unduh XLSX Analisis</span>
+            </button>
+            <button type="button" onclick="exportBenchmarkVectorPDF()"
+              data-tippy-content="Unduh Laporan Komparasi & Matriks 8 Modul dalam format PDF Vektor Multi-Halaman (Anti-Gagal)"
+              class="px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5">
+              <span>📄</span><span>Unduh PDF Analisis</span>
             </button>
           </div>
         </div>
@@ -1814,11 +1826,16 @@
             class="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow transition">
             📜 Unduh Piagam Juara #1 (PDF A4)
           </button>
+          <button id="btnDownloadAwardStagePDF" onclick="downloadAwardStagePDF()"
+            data-tippy-content="Unduh tampilan panggung / daftar peringkat yang sedang aktif saat ini (Top 3, Top 5, Top 10, atau Semua Peserta) ke dalam dokumen PDF A4"
+            class="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
+            <span>📄</span><span id="lblDownloadAwardStagePDF">Unduh PDF Tampilan</span>
+          </button>
         </div>
       </div>
 
-      <div class="max-w-5xl mx-auto">
-        <div id="awardSlideCanvas" class="aspect-16-9 w-full bg-gradient-to-br from-amber-50 via-white to-slate-100 rounded-2xl border-2 border-amber-400/80 shadow-xl p-8 flex flex-col justify-between relative overflow-hidden select-none">
+      <div class="w-full">
+        <div id="awardSlideCanvas" class="w-full bg-gradient-to-br from-amber-50 via-white to-slate-100 rounded-2xl border-2 border-amber-400/80 shadow-xl p-6 lg:p-8 flex flex-col justify-between relative overflow-hidden select-none">
           <div class="flex items-start justify-between border-b border-amber-300/80 pb-4">
             <div class="flex items-center gap-3">
               <div class="w-12 h-12 rounded-xl bg-slate-900 text-amber-400 font-serif font-extrabold text-xl flex items-center justify-center shadow-md border border-amber-400">
@@ -2236,6 +2253,11 @@
           <button type="button" onclick="exportPimtiModuleDetailXLSX()"
             class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
             <span>📊</span><span>Unduh XLSX</span>
+          </button>
+          <button type="button" onclick="exportPimtiModuleDetailPDF()"
+            data-tippy-content="Unduh daftar peserta modul ini dalam format PDF Vektor Multi-Halaman (Anti-Terpotong & Teks Tajam)"
+            class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
+            <span>📄</span><span>Unduh PDF Vektor</span>
           </button>
           <button type="button" id="btnExportPimtiModPng" onclick="exportPimtiModuleDetailPNG()"
             class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition flex items-center gap-1.5">
@@ -2955,19 +2977,36 @@
       setSyncBanner(msg, colorMap[type] || 'emerald');
     }
 
-    function fetchSingleCSV(reportId) {
+    async function fetchSingleCSV(reportId, retries = 2) {
       const baseUri = _resolveUri(_ENC_WORKER);
-      const targetUrl = `${baseUri}${encodeURIComponent(reportId)}&_t=${Date.now()}`;
-      return new Promise((resolve, reject) => {
-        Papa.parse(targetUrl, {
-          download: true,
-          header: true,
-          skipEmptyLines: true,
-          dynamicTyping: true,
-          complete: results => resolve(results.data || []),
-          error: err => reject(err)
-        });
-      });
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const targetUrl = `${baseUri}${encodeURIComponent(reportId)}&_t=${Date.now()}_${attempt}`;
+          const res = await fetch(targetUrl, {
+            method: 'GET',
+            mode: 'cors',
+            cache: 'no-store',
+            credentials: 'omit'
+          });
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status} pada Report ${reportId}`);
+          }
+          const csvText = await res.text();
+          if (!csvText || !csvText.trim()) return [];
+          const parsed = Papa.parse(csvText, {
+            header: true,
+            skipEmptyLines: true,
+            dynamicTyping: true
+          });
+          return parsed.data || [];
+        } catch (err) {
+          if (attempt === retries) {
+            throw new Error(err?.message || `Koneksi ke Report ${reportId} gagal`);
+          }
+          await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
+        }
+      }
+      return [];
     }
 
     async function startSync(isSilent = false) {
@@ -2993,10 +3032,34 @@
         const rawIds = document.getElementById('reportIdInput')?.value || '173, 171';
         const idList = rawIds.split(',').map(s => s.trim()).filter(Boolean);
         let combinedRows = [];
+        const activeLoadedIds = [];
 
         for (const repId of idList) {
-          const rows = await fetchSingleCSV(repId);
-          combinedRows = combinedRows.concat(rows);
+          try {
+            const rows = await fetchSingleCSV(repId);
+            if (rows && rows.length > 0) {
+              combinedRows = combinedRows.concat(rows);
+              activeLoadedIds.push(repId);
+            } else if (repId === '173') {
+              // Fallback otomatis ke Report 169 apabila Report 173 mengembalikan 0 baris
+              const fallbackRows = await fetchSingleCSV('169', 1);
+              if (fallbackRows && fallbackRows.length > 0) {
+                combinedRows = combinedRows.concat(fallbackRows);
+                activeLoadedIds.push('169');
+              }
+            }
+          } catch (singleErr) {
+            // Jika Report 173 terkendala jaringan/worker, coba fallback ke 169 tanpa menghentikan Report 171
+            if (repId === '173') {
+              try {
+                const fallbackRows = await fetchSingleCSV('169', 1);
+                if (fallbackRows && fallbackRows.length > 0) {
+                  combinedRows = combinedRows.concat(fallbackRows);
+                  activeLoadedIds.push('169');
+                }
+              } catch (_) {}
+            }
+          }
         }
 
         const sanitized = [];
@@ -3034,21 +3097,34 @@
 
           document.getElementById('lastSyncTimestamp').textContent = nowStr;
           document.getElementById('totalRawRowsBadge').textContent = rawMasterData.length.toLocaleString('id-ID');
-          setSyncBanner(`Pipeline (${idList.join(', ')}) aktif`, 'emerald');
+          setSyncBanner(`Pipeline (${(activeLoadedIds.length ? activeLoadedIds : idList).join(', ')}) aktif`, 'emerald');
           setDashboardLoadedState(true);
           applyFilters(true);
         } else {
-          setSyncBanner('Pipeline mengembalikan 0 baris', 'rose');
-          if (!isDataLoaded) {
-            setDashboardLoadedState(
-              false,
-              'Data CSV Belum Tersedia (0 Baris)',
-              'Klik tombol "Sync Data" di bagian header atas untuk mencoba menarik ulang.'
-            );
+          // Jika jaringan gagal total, pulihkan dari cache IndexedDB bila tersedia agar UI tetap jalan
+          const cachedData = await localforage.getItem('alex2026_v3_groupData');
+          const cachedSync = await localforage.getItem('alex2026_v3_groupSync');
+          if (Array.isArray(cachedData) && cachedData.length > 0) {
+            rawMasterData = cachedData;
+            document.getElementById('lastSyncTimestamp').textContent = `${cachedSync || '-'} (Cache)`;
+            document.getElementById('totalRawRowsBadge').textContent = rawMasterData.length.toLocaleString('id-ID');
+            setSyncBanner('Menampilkan data Cache terakhir (Pipeline sedang sibuk)', 'amber');
+            setDashboardLoadedState(true);
+            applyFilters(true);
+          } else {
+            setSyncBanner('Pipeline mengembalikan 0 baris', 'rose');
+            if (!isDataLoaded) {
+              setDashboardLoadedState(
+                false,
+                'Data CSV Belum Tersedia (0 Baris)',
+                'Klik tombol "Sync Data" di bagian header atas untuk mencoba menarik ulang.'
+              );
+            }
           }
         }
       } catch (err) {
-        console.error('Sync error:', err);
+        const errMsg = err instanceof Error ? err.message : 'Koneksi pipeline terputus';
+        console.warn('Sync warning:', errMsg);
         setSyncBanner('Gagal menarik CSV dari pipeline', 'rose');
         if (!isDataLoaded) {
           setDashboardLoadedState(
@@ -6010,10 +6086,228 @@
       updateUrlAndTracker('Unduh XLSX Komparasi Batch');
     }
 
+    function exportBenchmarkVectorPDF() {
+      if (!lastBenchmarkStatsCache || lastBenchmarkStatsCache.length === 0) {
+        renderBenchmarkStudio();
+      }
+      const stats = lastBenchmarkStatsCache;
+      if (!stats || stats.length === 0) return;
+
+      const jsPDFConstructor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+      if (!jsPDFConstructor) return;
+
+      const doc = new jsPDFConstructor({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      const isSingleMode = stats.length === 1;
+      const batchScopeText = stats.map(s => s.batchName).join(' vs ');
+      const lastSyncStr = document.getElementById('lastSyncTimestamp')?.textContent || new Date().toLocaleString('id-ID');
+
+      // Kop Resmi Halaman 1
+      doc.setFillColor(15, 23, 42);
+      doc.roundedRect(10, 8, 277, 22, 2.5, 2.5, 'F');
+
+      doc.setFillColor(245, 158, 11);
+      doc.roundedRect(14, 11, 15, 16, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text('UI', 21.5, 21, { align: 'center' });
+
+      doc.setFontSize(8);
+      doc.setTextColor(251, 191, 36);
+      doc.text('UNIVERSITAS INDONESIA • UI ALEX 2026 MULTI-BATCH ANALYTICS STUDIO', 33, 14.5);
+
+      doc.setFontSize(12);
+      doc.setTextColor(255, 255, 255);
+      doc.text(
+        isSingleMode
+          ? `LAPORAN ANALISIS MENDALAM (DEEP-DIVE) — ${stats[0].batchName.toUpperCase()} (KKM ${stats[0].kkm})`
+          : `LAPORAN KOMPARASI KINERJA & KESIAPAN LINTAS-BATCH (${batchScopeText.toUpperCase()})`,
+        33,
+        21
+      );
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(203, 213, 225);
+      doc.text(`Total Populasi Dianalisis: ${stats.reduce((acc, s) => acc + s.n, 0)} Peserta • Last Update: ${lastSyncStr}`, 33, 26.5);
+
+      // Tabel 1: Matriks Heatmap 8 Modul Inti
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text('I. MATRIKS CAPAIAN & KELULUSAN 8 MODUL INTI', 10, 36);
+
+      const modHeadRow = ['PILAR', 'KODE & NAMA MODUL INTI', ...stats.map(s => `${s.batchName.toUpperCase()} (n=${s.n} • KKM ${s.kkm})`)];
+      if (isSingleMode) {
+        modHeadRow.push('PARTISIPASI', `LULUS KKM (${stats[0].kkm})`, 'REMEDIAL');
+      } else {
+        modHeadRow.push(`SELISIH (${stats[1].batchName.replace('Batch ', 'B')} vs ${stats[0].batchName.replace('Batch ', 'B')})`);
+      }
+
+      const modBodyRows = MODULE_KEYS.map(k => {
+        const meta = MODULE_META[k];
+        const row = [meta.pilar, meta.name];
+        stats.forEach(s => {
+          const mb = s.moduleBreakdown[k];
+          if (!mb || mb.tested === 0 || mb.avg === null) {
+            row.push('-');
+          } else {
+            row.push(`${mb.avg.toFixed(1)}  (Lulus: ${mb.pass}/${mb.tested} • ${mb.passRate}%)`);
+          }
+        });
+        if (isSingleMode) {
+          const mb = stats[0].moduleBreakdown[k];
+          row.push(
+            `${mb.tested}/${stats[0].n} (${mb.partRate}%)`,
+            mb.tested ? `${mb.pass} (${mb.passRate}%)` : '-',
+            mb.tested ? `${mb.rem}` : '-'
+          );
+        } else {
+          const mA = stats[0].moduleBreakdown[k];
+          const mB = stats[1].moduleBreakdown[k];
+          if (mA?.avg !== null && mB?.avg !== null) {
+            const diff = Number((mB.avg - mA.avg).toFixed(1));
+            row.push(`${diff > 0 ? '+' : ''}${diff} poin`);
+          } else {
+            row.push('-');
+          }
+        }
+        return row;
+      });
+
+      doc.autoTable({
+        head: [modHeadRow],
+        body: modBodyRows,
+        startY: 38.5,
+        margin: { top: 14, right: 10, bottom: 14, left: 10 },
+        theme: 'grid',
+        rowPageBreak: 'avoid',
+        showHead: 'everyPage',
+        styles: {
+          font: 'helvetica',
+          fontSize: 8,
+          cellPadding: 2.2,
+          valign: 'middle',
+          textColor: [15, 23, 42],
+          lineColor: [203, 213, 225],
+          lineWidth: 0.2
+        },
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: [251, 191, 36],
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        columnStyles: {
+          0: { cellWidth: 20, fontStyle: 'bold' },
+          1: { cellWidth: 78, fontStyle: 'bold' }
+        },
+        didParseCell: function(data) {
+          if (data.section === 'body' && data.column.index >= 2) {
+            data.cell.styles.halign = 'center';
+          }
+        }
+      });
+
+      // Tabel 2: 18 Indikator Benchmarking Komprehensif
+      let nextY = doc.lastAutoTable.finalY + 8;
+      if (nextY > 175) {
+        doc.addPage();
+        nextY = 16;
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text('II. TABEL INDIKATOR BENCHMARKING KOMPREHENSIF (18 PARAMETER)', 10, nextY);
+
+      const benchHead = [['DIMENSI & INDIKATOR ANALISIS', ...stats.map(s => `${s.batchName.toUpperCase()} (n=${s.n} • KKM ${s.kkm})`)]];
+      const benchBody = [
+        ['1. Rerata Course Completion Gabungan (%)', ...stats.map(s => `${s.compTotal}%`)],
+        ['2. Completion Kursus Pilar I vs Pilar II (%)', ...stats.map(s => `${s.compP1}% / ${s.compP2}% (Gap: ${s.compGap}%)`)],
+        ['3. Rerata Indeks Kesiapan Belajar (0 - 100)', ...stats.map(s => `${s.readiness}`)],
+        ['4. Distribusi Kesiapan (Siap / Cukup / Pendampingan)', ...stats.map(s => `${s.readySiap} Siap / ${s.readyCukup} Cukup / ${s.readyKurang} Pendampingan`)],
+        ['5. Ketuntasan Asesmen Awal Lengkap 2 Pilar', ...stats.map(s => `${s.preBothCount} / ${s.n} (${s.preBothPct}%)`)],
+        ['6. Selesai Asesmen Awal per Pilar (Pilar I / Pilar II)', ...stats.map(s => `${s.pre1Count} / ${s.pre2Count}`)],
+        ['7. Rerata Nilai Asesmen Awal (Pilar I / Pilar II / Gabungan)', ...stats.map(s => `${s.pre1Avg} / ${s.pre2Avg} (Gabungan: ${s.preAvg})`)],
+        ['8. Partisipasi Slot Evaluasi Akhir (Sesi Selesai)', ...stats.map(s => `${s.doneSlots} Sesi (${s.slotParticipationRate}%)`)],
+        ['9. Rerata Nilai Evaluasi Akhir (Skala 0 - 100)', ...stats.map(s => `${s.postAvg}`)],
+        ['10. Tingkat Kelulusan Sesuai KKM Batch', ...stats.map(s => `${s.passRate}% (${s.passSlots} Lulus • ${s.remSlots} Rem)`)],
+        ['11. Proporsi Pencapaian Nilai Sempurna (Skor = 100)', ...stats.map(s => `${s.mastery100Rate}% (${s.score100Slots} Sesi)`)],
+        ['12. Peserta Lulus Sempurna Seluruh Modul Aktif', ...stats.map(s => `${s.full8PassUsers} Peserta`)],
+        ['13. Normalized Hake\'s Gain <g> (Efektivitas Pelatihan)', ...stats.map(s => `${s.hakeGain}`)],
+        ['14. Rasio Lulus Sekali Coba (First-Try Pass Rate)', ...stats.map(s => `${s.firstTryPassRate}%`)],
+        ['15. Rerata Jumlah Attempt per Kuis Selesai', ...stats.map(s => `${s.avgAttemptsPerQuiz}x`)],
+        ['16. Rerata Durasi Pengerjaan per Kuis (Menit)', ...stats.map(s => `${s.avgDurationMinutes} menit`)],
+        ['17. Sebaran Persona (Pace / Prog / P1 / Low / Dormant)', ...stats.map(s => `${s.personas['Pace-Setter']} / ${s.personas['In Progress']} / ${s.personas['Pilar-I Oriented']} / ${s.personas['Low Engagement']} / ${s.personas['Dormant']}`)],
+        ['18. Deteksi Anomali Teknis Kuis (Glitch Guard)', ...stats.map(s => `${s.glitchCount} Peserta`)]
+      ];
+
+      doc.autoTable({
+        head: benchHead,
+        body: benchBody,
+        startY: nextY + 2.5,
+        margin: { top: 14, right: 10, bottom: 14, left: 10 },
+        theme: 'grid',
+        rowPageBreak: 'avoid',
+        showHead: 'everyPage',
+        styles: {
+          font: 'helvetica',
+          fontSize: 8,
+          cellPadding: 2,
+          valign: 'middle',
+          textColor: [15, 23, 42],
+          lineColor: [203, 213, 225],
+          lineWidth: 0.2
+        },
+        headStyles: {
+          fillColor: [30, 41, 59],
+          textColor: [251, 191, 36],
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        columnStyles: {
+          0: { cellWidth: 98, fontStyle: 'bold' }
+        },
+        didParseCell: function(data) {
+          if (data.section === 'body' && data.column.index >= 1) {
+            data.cell.styles.halign = 'center';
+          }
+          if (data.section === 'body' && data.row.index % 2 === 1) {
+            data.cell.styles.fillColor = [248, 250, 252];
+          }
+        }
+      });
+
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setDrawColor(203, 213, 225);
+        doc.setLineWidth(0.25);
+        doc.line(10, 201, 287, 201);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`UI ALEX 2026 • Studio Komparasi Antar-Batch (${batchScopeText}) • Dicetak otomatis dari Pipeline EMAS3 UI`, 10, 205.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        doc.text(`Halaman ${p} dari ${totalPages}`, 287, 205.5, { align: 'right' });
+      }
+
+      doc.save(`UI_ALEX_2026_Analisis_Batch_${batchScopeText.replace(/\s+/g, '_')}.pdf`);
+      updateUrlAndTracker('Unduh PDF Vektor Komparasi Batch');
+    }
+
     /*************************************************************************
      * J. STUDIO HALL OF FAME & LEADERSHIP AWARDS (MODE 3)
      *************************************************************************/
-    // Fungsi Pembanding Objektif (Anti-Dispute Tie-Breaker) untuk Skor Seri
+    // Fungsi Pembanding Objektif 7 Lapis (Anti-Dispute Tie-Breaker) untuk Skor Seri
     function compareTimestampAsc(ta, tb) {
       const aValid = Boolean(ta && ta !== '-');
       const bValid = Boolean(tb && tb !== '-');
@@ -6029,6 +6323,81 @@
       return aPos - bPos;
     }
 
+    function formatShortTimestamp(ts) {
+      if (!ts || ts === '-') return '-';
+      const s = String(ts).trim();
+      // Format YYYY-MM-DD HH:mm(:ss) -> DD/MM HH:mm(:ss)
+      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})\s+(.+)$/);
+      if (m) return `${m[3]}/${m[2]} ${m[4]}`;
+      return s;
+    }
+
+    function getAwardTieBreakColumns(catId, u) {
+      const isPreCat = ['prime_mover', 'pace_setter', 'completion_master', 'diagnostic_ace'].includes(catId);
+      if (isPreCat) {
+        const preCnt = u.s_pre_cnt !== undefined ? u.s_pre_cnt : ((u.pre_p1 !== null ? 1 : 0) + (u.pre_p2 !== null ? 1 : 0));
+        const preMax = (u.s_max_slots && u.s_max_slots <= 4) ? 1 : 2;
+        return {
+          col1Label: 'Kelengkapan',
+          col1Val: `${preCnt}/${preMax} Pilar`,
+          col2Label: 'Completion',
+          col2Val: `${(u.s_comp ?? u.comp_total).toFixed(1)}%`,
+          col3Label: 'Durasi Awal',
+          col3Val: `${(u.s_pre_durasi ?? u.total_pre_durasi ?? 0).toFixed(1)} mnt`,
+          col4Label: 'Submit Awal',
+          col4Val: formatShortTimestamp(u.s_first_pre_submit || u.s_last_pre_submit || u.first_submit),
+          col5Label: 'Kesiapan',
+          col5Val: (u.s_readiness ?? u.readiness_score).toFixed(1)
+        };
+      }
+
+      if (catId === 'strategic_master') {
+        return {
+          col1Label: 'Modul Lulus',
+          col1Val: `${u.p1_attempted_post}/4 Modul`,
+          col2Label: 'Attempt',
+          col2Val: `${u.s_post_attempts || u.p1_attempted_post}x`,
+          col3Label: 'Total Durasi',
+          col3Val: `${(u.s_post_durasi ?? u.total_post_durasi ?? 0).toFixed(1)} mnt`,
+          col4Label: 'Submit Terakhir',
+          col4Val: formatShortTimestamp(u.s_last_post_submit || u.last_post_submit),
+          col5Label: 'Comp Pilar I',
+          col5Val: `${u.progress_p1.toFixed(1)}%`
+        };
+      }
+
+      if (catId === 'governance_vanguard') {
+        return {
+          col1Label: 'Modul Lulus',
+          col1Val: `${u.p2_attempted_post}/4 Modul`,
+          col2Label: 'Attempt',
+          col2Val: `${u.s_post_attempts || u.p2_attempted_post}x`,
+          col3Label: 'Total Durasi',
+          col3Val: `${(u.s_post_durasi ?? u.total_post_durasi ?? 0).toFixed(1)} mnt`,
+          col4Label: 'Submit Terakhir',
+          col4Val: formatShortTimestamp(u.s_last_post_submit || u.last_post_submit),
+          col5Label: 'Comp Pilar II',
+          col5Val: `${u.progress_p2.toFixed(1)}%`
+        };
+      }
+
+      const passCnt = u.s_passed_post ?? u.passed_post;
+      const attCnt = u.s_attempted_post ?? u.attempted_post;
+      const maxSlots = u.s_max_slots ?? 8;
+      return {
+        col1Label: 'Modul Lulus',
+        col1Val: `${passCnt}/${maxSlots} Lulus (${attCnt} Selesai)`,
+        col2Label: 'Jml Attempt',
+        col2Val: `${u.s_post_attempts || attCnt}x`,
+        col3Label: 'Total Durasi',
+        col3Val: `${(u.s_post_durasi ?? u.total_post_durasi ?? 0).toFixed(1)} mnt`,
+        col4Label: 'Submit Terakhir',
+        col4Val: formatShortTimestamp(u.s_last_post_submit || u.last_post_submit),
+        col5Label: 'Kesiapan',
+        col5Val: (u.s_readiness ?? u.readiness_score).toFixed(1)
+      };
+    }
+
     function tieBreakPostTest(a, b) {
       const aAtt = a.s_attempted_post ?? a.attempted_post;
       const bAtt = b.s_attempted_post ?? b.attempted_post;
@@ -6042,6 +6411,12 @@
       const bSub = b.s_last_post_submit !== undefined ? b.s_last_post_submit : b.last_post_submit;
       const aReady = a.s_readiness ?? a.readiness_score;
       const bReady = b.s_readiness ?? b.readiness_score;
+      const aComp = a.s_comp ?? a.comp_total;
+      const bComp = b.s_comp ?? b.comp_total;
+      const aPre = a.s_pre_avg ?? (a.pre_avg || 0);
+      const bPre = b.s_pre_avg ?? (b.pre_avg || 0);
+      const aFirst = a.s_first_pre_submit || a.first_submit;
+      const bFirst = b.s_first_pre_submit || b.first_submit;
 
       return (bAtt - aAtt)
         || (bPass - aPass)
@@ -6049,6 +6424,9 @@
         || comparePositiveAsc(aDur, bDur)
         || compareTimestampAsc(aSub, bSub)
         || (bReady - aReady)
+        || (bComp - aComp)
+        || (bPre - aPre)
+        || compareTimestampAsc(aFirst, bFirst)
         || a.nama_peserta.localeCompare(b.nama_peserta, 'id');
     }
 
@@ -6061,12 +6439,85 @@
       const bSub = b.s_last_pre_submit !== undefined ? b.s_last_pre_submit : (b.last_pre_submit || b.first_pre_submit);
       const aComp = a.s_comp !== undefined ? a.s_comp : a.comp_total;
       const bComp = b.s_comp !== undefined ? b.s_comp : b.comp_total;
+      const aReady = a.s_readiness ?? a.readiness_score;
+      const bReady = b.s_readiness ?? b.readiness_score;
+      const aPost = a.s_post_avg ?? a.post_total_avg;
+      const bPost = b.s_post_avg ?? b.post_total_avg;
 
       return (bPreCnt - aPreCnt)
         || comparePositiveAsc(aDur, bDur)
         || compareTimestampAsc(aSub, bSub)
         || (bComp - aComp)
+        || (bReady - aReady)
+        || (bPost - aPost)
         || a.nama_peserta.localeCompare(b.nama_peserta, 'id');
+    }
+
+    /**
+     * Mendeteksi dan menjelaskan secara otomatis faktor pembeda (Winning Edge)
+     * antara peserta peringkat ke-i (`curr`) dibanding peringkat tepat di bawahnya (`next`)
+     * apabila metrik utama keduanya bernilai sama (seri di permukaan).
+     */
+    function getTieBreakWinningReason(cat, curr, next, rankBelow) {
+      if (!curr || !next) return null;
+      const mCurr = cat.metricFn(curr);
+      const mNext = cat.metricFn(next);
+      // Hanya tampilkan lencana penentu jika Metrik Utama keduanya sama atau sangat berdekatan
+      if (mCurr !== mNext) return null;
+
+      const cAtt = curr.s_attempted_post ?? curr.attempted_post;
+      const nAtt = next.s_attempted_post ?? next.attempted_post;
+      if (cAtt !== nAtt) return `Unggul #${rankBelow}: Modul Selesai (${cAtt} vs ${nAtt})`;
+
+      const cPass = curr.s_passed_post ?? curr.passed_post;
+      const nPass = next.s_passed_post ?? next.passed_post;
+      if (cPass !== nPass) return `Unggul #${rankBelow}: Lulus KKM (${cPass} vs ${nPass})`;
+
+      const isPreCat = ['prime_mover', 'pace_setter', 'completion_master', 'diagnostic_ace'].includes(cat.id);
+
+      if (!isPreCat) {
+        const cTries = curr.s_post_attempts || cAtt;
+        const nTries = next.s_post_attempts || nAtt;
+        if (cTries !== nTries) return `Unggul #${rankBelow}: Attempt Lebih Sedikit (${cTries}x vs ${nTries}x)`;
+
+        const cDur = Number((curr.s_post_durasi ?? curr.total_post_durasi ?? 0).toFixed(2));
+        const nDur = Number((next.s_post_durasi ?? next.total_post_durasi ?? 0).toFixed(2));
+        if (cDur !== nDur) return `Unggul #${rankBelow}: Durasi Lebih Cepat (${cDur}m vs ${nDur}m)`;
+
+        const cSub = curr.s_last_post_submit || curr.last_post_submit || '-';
+        const nSub = next.s_last_post_submit || next.last_post_submit || '-';
+        if (cSub !== nSub) {
+          const shortC = String(cSub).slice(-8).trim();
+          const shortN = String(nSub).slice(-8).trim();
+          return `Unggul #${rankBelow}: Submit Lebih Awal (${shortC} vs ${shortN})`;
+        }
+      } else {
+        const cDur = Number((curr.s_pre_durasi ?? curr.total_pre_durasi ?? 0).toFixed(2));
+        const nDur = Number((next.s_pre_durasi ?? next.total_pre_durasi ?? 0).toFixed(2));
+        if (cDur !== nDur) return `Unggul #${rankBelow}: Durasi Awal Lebih Cepat (${cDur}m vs ${nDur}m)`;
+
+        const cSub = curr.s_last_pre_submit || curr.s_first_pre_submit || '-';
+        const nSub = next.s_last_pre_submit || next.s_first_pre_submit || '-';
+        if (cSub !== nSub) {
+          const shortC = String(cSub).slice(-8).trim();
+          const shortN = String(nSub).slice(-8).trim();
+          return `Unggul #${rankBelow}: Submit Lebih Awal (${shortC} vs ${shortN})`;
+        }
+      }
+
+      const cReady = curr.s_readiness ?? curr.readiness_score;
+      const nReady = next.s_readiness ?? next.readiness_score;
+      if (cReady !== nReady) return `Unggul #${rankBelow}: Indeks Kesiapan (${cReady.toFixed(1)} vs ${nReady.toFixed(1)})`;
+
+      const cComp = curr.s_comp ?? curr.comp_total;
+      const nComp = next.s_comp ?? next.comp_total;
+      if (cComp !== nComp) return `Unggul #${rankBelow}: Completion (${cComp.toFixed(1)}% vs ${nComp.toFixed(1)}%)`;
+
+      const cPre = curr.s_pre_avg ?? (curr.pre_avg || 0);
+      const nPre = next.s_pre_avg ?? (next.pre_avg || 0);
+      if (cPre !== nPre) return `Unggul #${rankBelow}: Skor Awal (${cPre.toFixed(1)} vs ${nPre.toFixed(1)})`;
+
+      return `Unggul #${rankBelow}: Urutan Alfabetis Nama`;
     }
 
     const AWARDS_CATALOG = [
@@ -6074,38 +6525,39 @@
         id: 'grand_luminary',
         title: 'Nilai Rata-Rata Uji Kompetensi / Post-Test Tertinggi',
         subtitle: 'Peserta dengan capaian nilai evaluasi akhir (Uji Kompetensi / Post-Test) tertinggi pada cakupan modul terpilih',
-        criteria: 'Kriteria: Rerata Uji Kompetensi → Jml Modul → Attempt Terkecil → Durasi Tercepat → Waktu Submit',
+        criteria: 'Kriteria 7 Lapis: Rerata Ujikom → Jml Modul → Attempt → Durasi → Waktu Submit → Kesiapan → Completion',
         filterFn: u => u.s_attempted_post > 0,
         emptyMsg: 'Belum ada peserta pada cakupan filter ini yang mengerjakan Uji Kompetensi / Post-Test.',
         metricFn: u => `${u.s_post_avg.toFixed(1)} Poin (${u.s_attempted_post}/${u.s_max_slots} Modul)`,
-        tieBreakerFn: u => `${u.s_post_attempts || u.s_attempted_post}x Attempt • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'}`,
+        tieBreakerFn: u => `${u.s_post_attempts || u.s_attempted_post}x Attempt • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'} • Kesiapan ${u.s_readiness.toFixed(1)}`,
         sortFn: (a, b) => (b.s_post_avg - a.s_post_avg) || tieBreakPostTest(a, b)
       },
       {
         id: 'prime_mover',
         title: 'Penyelesaian Asesmen Awal / Pre-Test Tercepat',
         subtitle: 'Peserta yang paling awal menyelesaikan dan mengirimkan (submit) Asesmen Awal / Pre-Test di LMS EMAS3',
-        criteria: 'Kriteria: Timestamp Submit Asesmen Awal Paling Awal → Durasi Kuis Tercepat → Skor Awal Tertinggi',
+        criteria: 'Kriteria: Timestamp Submit Asesmen Awal Paling Awal → Durasi Kuis Tercepat → Skor Awal → Kesiapan',
         filterFn: u => Boolean(u.s_first_pre_submit && u.s_pre_avg !== null),
         emptyMsg: 'Belum ada data waktu penyelesaian Asesmen Awal / Pre-Test pada cakupan filter ini.',
         metricFn: u => u.s_first_pre_submit || '-',
-        tieBreakerFn: u => `Skor Awal ${(u.s_pre_avg || 0).toFixed(1)} • Durasi ${u.s_pre_durasi.toFixed(1)}m • Comp ${u.s_comp.toFixed(1)}%`,
+        tieBreakerFn: u => `Skor Awal ${(u.s_pre_avg || 0).toFixed(1)} • Durasi ${u.s_pre_durasi.toFixed(1)}m • Kesiapan ${u.s_readiness.toFixed(1)} • Comp ${u.s_comp.toFixed(1)}%`,
         sortFn: (a, b) => {
           return compareTimestampAsc(a.s_first_pre_submit, b.s_first_pre_submit)
             || comparePositiveAsc(a.s_pre_durasi, b.s_pre_durasi)
             || ((b.s_pre_avg || 0) - (a.s_pre_avg || 0))
-            || (b.s_readiness - a.s_readiness);
+            || (b.s_readiness - a.s_readiness)
+            || tieBreakPreTest(a, b);
         }
       },
       {
         id: 'pace_setter',
         title: 'Indeks Kesiapan Belajar Tertinggi',
         subtitle: 'Peserta dengan skor kesiapan belajar terbaik (gabungan progres materi mandiri & nilai Asesmen Awal / Pre-Test)',
-        criteria: 'Kriteria: Indeks Kesiapan → Completion (%) → Rerata Awal → Waktu Submit Awal Tercepat',
+        criteria: 'Kriteria: Indeks Kesiapan → Completion (%) → Rerata Awal → Durasi Awal → Waktu Submit Awal',
         filterFn: u => u.s_readiness > 0,
         emptyMsg: 'Belum ada peserta dengan progres kesiapan belajar pada cakupan filter ini.',
         metricFn: u => `Kesiapan: ${u.s_readiness.toFixed(1)}`,
-        tieBreakerFn: u => `Comp ${u.s_comp.toFixed(1)}% • Skor Awal ${(u.s_pre_avg || 0).toFixed(1)} • Submit ${u.s_first_pre_submit || '-'}`,
+        tieBreakerFn: u => `Comp ${u.s_comp.toFixed(1)}% • Skor Awal ${(u.s_pre_avg || 0).toFixed(1)} • Durasi ${u.s_pre_durasi.toFixed(1)}m • Submit ${u.s_first_pre_submit || '-'}`,
         sortFn: (a, b) => (b.s_readiness - a.s_readiness)
           || (b.s_comp - a.s_comp)
           || ((b.s_pre_avg || 0) - (a.s_pre_avg || 0))
@@ -6115,11 +6567,11 @@
         id: 'completion_master',
         title: 'Progres Penyelesaian Materi (Completion) Tertinggi',
         subtitle: 'Peserta dengan persentase ketuntasan aktivitas belajar mandiri tertinggi pada cakupan kursus terpilih',
-        criteria: 'Kriteria: Rerata Completion (%) → Indeks Kesiapan → Skor Awal → Waktu Submit Awal Tercepat',
+        criteria: 'Kriteria: Rerata Completion (%) → Indeks Kesiapan → Skor Awal → Durasi Awal → Waktu Submit Awal',
         filterFn: u => u.s_comp > 0,
         emptyMsg: 'Belum ada peserta dengan progres penyelesaian materi mandiri pada cakupan filter ini.',
         metricFn: u => `Completion: ${u.s_comp.toFixed(1)}%`,
-        tieBreakerFn: u => `Kesiapan ${u.s_readiness.toFixed(1)} • Skor Awal ${(u.s_pre_avg || 0).toFixed(1)} • Submit ${u.s_first_pre_submit || '-'}`,
+        tieBreakerFn: u => `Kesiapan ${u.s_readiness.toFixed(1)} • Skor Awal ${(u.s_pre_avg || 0).toFixed(1)} • Durasi ${u.s_pre_durasi.toFixed(1)}m • Submit ${u.s_first_pre_submit || '-'}`,
         sortFn: (a, b) => (b.s_comp - a.s_comp)
           || (b.s_readiness - a.s_readiness)
           || ((b.s_pre_avg || 0) - (a.s_pre_avg || 0))
@@ -6129,50 +6581,50 @@
         id: 'diagnostic_ace',
         title: 'Nilai Rata-Rata Asesmen Awal / Pre-Test Tertinggi',
         subtitle: 'Peserta dengan penguasaan pengetahuan awal terbaik sebelum mengikuti materi pelatihan',
-        criteria: 'Kriteria: Rerata Asesmen Awal → Kelengkapan Pilar → Durasi Kuis Tercepat → Waktu Submit Awal Tercepat',
+        criteria: 'Kriteria: Rerata Asesmen Awal → Kelengkapan Pilar → Durasi Kuis Tercepat → Waktu Submit → Kesiapan',
         filterFn: u => u.s_pre_avg !== null && u.s_pre_avg > 0,
         emptyMsg: 'Belum ada peserta yang menyelesaikan Asesmen Awal / Pre-Test pada cakupan filter ini.',
         metricFn: u => `Skor Awal: ${(u.s_pre_avg || 0).toFixed(1)}`,
-        tieBreakerFn: u => `P1: ${u.pre_p1 ?? '-'} | P2: ${u.pre_p2 ?? '-'} • Durasi ${u.s_pre_durasi.toFixed(1)}m • Submit ${u.s_last_pre_submit || '-'}`,
+        tieBreakerFn: u => `P1: ${u.pre_p1 ?? '-'} | P2: ${u.pre_p2 ?? '-'} • Durasi ${u.s_pre_durasi.toFixed(1)}m • Submit ${u.s_last_pre_submit || '-'} • Kesiapan ${u.s_readiness.toFixed(1)}`,
         sortFn: (a, b) => ((b.s_pre_avg || 0) - (a.s_pre_avg || 0)) || tieBreakPreTest(a, b)
       },
       {
         id: 'strategic_master',
         title: 'Capaian Uji Kompetensi Terbaik Pilar I (Manajemen & Operasional)',
         subtitle: 'Peserta dengan nilai rata-rata Uji Kompetensi / Post-Test tertinggi pada modul Pilar I (PK, SDMPT, PBJ, KA)',
-        criteria: 'Kriteria: Rerata Ujikom Pilar I → Jml Modul P1 → Attempt Terkecil → Durasi Tercepat → Waktu Submit',
+        criteria: 'Kriteria: Rerata Ujikom Pilar I → Jml Modul P1 → Attempt → Durasi → Submit → Kesiapan',
         filterFn: u => u.p1_attempted_post > 0,
         emptyMsg: 'Uji Kompetensi Pilar I (PK, SDMPT, PBJ, KA) belum dilaksanakan pada cakupan filter ini.',
         metricFn: u => `Pilar I: ${u.p1_post_avg.toFixed(1)} (${u.p1_attempted_post}/4 Modul)`,
-        tieBreakerFn: u => `Comp P1 ${u.progress_p1.toFixed(1)}% • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'}`,
+        tieBreakerFn: u => `${u.s_post_attempts || u.p1_attempted_post}x Attempt • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'} • Comp P1 ${u.progress_p1.toFixed(1)}%`,
         sortFn: (a, b) => (b.p1_post_avg - a.p1_post_avg)
           || (b.p1_attempted_post - a.p1_attempted_post)
-          || (b.progress_p1 - a.progress_p1)
           || tieBreakPostTest(a, b)
+          || (b.progress_p1 - a.progress_p1)
       },
       {
         id: 'governance_vanguard',
         title: 'Capaian Uji Kompetensi Terbaik Pilar II (Governance & Kepatuhan)',
         subtitle: 'Peserta dengan nilai rata-rata Uji Kompetensi / Post-Test tertinggi pada modul Pilar II (AI, PMA, HK, MRT)',
-        criteria: 'Kriteria: Rerata Ujikom Pilar II → Jml Modul P2 → Attempt Terkecil → Durasi Tercepat → Waktu Submit',
+        criteria: 'Kriteria: Rerata Ujikom Pilar II → Jml Modul P2 → Attempt → Durasi → Submit → Kesiapan',
         filterFn: u => u.p2_attempted_post > 0,
         emptyMsg: 'Uji Kompetensi Pilar II (AI, PMA, HK, MRT) belum dilaksanakan pada cakupan filter ini.',
         metricFn: u => `Pilar II: ${u.p2_post_avg.toFixed(1)} (${u.p2_attempted_post}/4 Modul)`,
-        tieBreakerFn: u => `Comp P2 ${u.progress_p2.toFixed(1)}% • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'}`,
+        tieBreakerFn: u => `${u.s_post_attempts || u.p2_attempted_post}x Attempt • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'} • Comp P2 ${u.progress_p2.toFixed(1)}%`,
         sortFn: (a, b) => (b.p2_post_avg - a.p2_post_avg)
           || (b.p2_attempted_post - a.p2_attempted_post)
-          || (b.progress_p2 - a.progress_p2)
           || tieBreakPostTest(a, b)
+          || (b.progress_p2 - a.progress_p2)
       },
       {
         id: 'quantum_leap',
         title: 'Peningkatan Nilai (Knowledge Gain) Tertinggi',
         subtitle: 'Peserta dengan lonjakan peningkatan pemahaman terbaik dari Asesmen Awal ke Uji Kompetensi / Post-Test',
-        criteria: 'Kriteria: Indeks Hake Gain ⟨g⟩ → Rerata Uji Kompetensi → Jml Modul → Durasi Tercepat',
+        criteria: 'Kriteria: Indeks Hake Gain ⟨g⟩ → Rerata Ujikom → Jml Modul → Attempt → Durasi → Submit → Kesiapan',
         filterFn: u => u.s_attempted_post > 0 && u.s_hake_gain !== null,
         emptyMsg: 'Perhitungan Knowledge Gain membutuhkan nilai Uji Kompetensi / Post-Test pada cakupan filter ini.',
         metricFn: u => `Gain ⟨g⟩: ${(u.s_hake_gain ?? 0).toFixed(2)}`,
-        tieBreakerFn: u => `Awal ${(u.s_pre_avg || 0).toFixed(1)} → Uji ${u.s_post_avg.toFixed(1)} • Durasi ${u.s_post_durasi.toFixed(1)}m`,
+        tieBreakerFn: u => `Awal ${(u.s_pre_avg || 0).toFixed(1)} → Uji ${u.s_post_avg.toFixed(1)} • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'} • Kesiapan ${u.s_readiness.toFixed(1)}`,
         sortFn: (a, b) => ((b.s_hake_gain ?? -1) - (a.s_hake_gain ?? -1))
           || (b.s_post_avg - a.s_post_avg)
           || tieBreakPostTest(a, b)
@@ -6181,11 +6633,11 @@
         id: 'flawless_mastery',
         title: 'Kelulusan Sempurna Modul Tanpa Remedial',
         subtitle: 'Peserta dengan jumlah kelulusan modul Uji Kompetensi terbanyak disertai rata-rata nilai tertinggi pada filter aktif',
-        criteria: 'Kriteria: Jml Modul Lulus KKM → Rerata Ujikom → Attempt Terkecil → Durasi Tercepat → Waktu Submit',
+        criteria: 'Kriteria: Jml Modul Lulus KKM → Rerata Ujikom → Attempt → Durasi → Waktu Submit → Kesiapan',
         filterFn: u => u.s_passed_post > 0,
         emptyMsg: 'Belum ada peserta yang menyelesaikan dan lulus Uji Kompetensi modul pada cakupan filter ini.',
         metricFn: u => `${u.s_passed_post}/${u.s_max_slots} Lulus (${u.s_post_avg.toFixed(1)})`,
-        tieBreakerFn: u => `${u.s_post_attempts || u.s_attempted_post}x Attempt • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'}`,
+        tieBreakerFn: u => `${u.s_post_attempts || u.s_attempted_post}x Attempt • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'} • Kesiapan ${u.s_readiness.toFixed(1)}`,
         sortFn: (a, b) => (b.s_passed_post - a.s_passed_post)
           || (b.s_post_avg - a.s_post_avg)
           || tieBreakPostTest(a, b)
@@ -6194,14 +6646,14 @@
         id: 'agile_leader',
         title: 'Performa Belajar Terpadu Terbaik (Nilai Uji Kompetensi & Progres)',
         subtitle: 'Peserta dengan keseimbangan tertinggi antara penyelesaian materi mandiri, nilai Uji Kompetensi, dan kesiapan',
-        criteria: 'Kriteria: Skor Terpadu (35% Comp + 35% Ujikom + 30% Kesiapan) → Durasi Tercepat → Waktu Submit',
+        criteria: 'Kriteria: Skor Terpadu (35% Comp + 35% Ujikom + 30% Kesiapan) → Attempt → Durasi → Submit',
         filterFn: u => u.s_attempted_post > 0,
         emptyMsg: 'Kategori Performa Terpadu membutuhkan nilai Uji Kompetensi / Post-Test pada cakupan filter ini.',
         metricFn: u => {
           const pts = 0.35 * u.s_comp + 0.35 * u.s_post_avg + 0.30 * u.s_readiness;
           return `Skor Terpadu: ${pts.toFixed(1)}`;
         },
-        tieBreakerFn: u => `Ujikom ${u.s_post_avg.toFixed(1)} • Comp ${u.s_comp.toFixed(1)}% • Durasi ${u.s_post_durasi.toFixed(1)}m`,
+        tieBreakerFn: u => `Ujikom ${u.s_post_avg.toFixed(1)} • Comp ${u.s_comp.toFixed(1)}% • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'}`,
         sortFn: (a, b) => {
           const pa = 0.35 * a.s_comp + 0.35 * a.s_post_avg + 0.30 * a.s_readiness;
           const pb = 0.35 * b.s_comp + 0.35 * b.s_post_avg + 0.30 * b.s_readiness;
@@ -6338,15 +6790,6 @@
         filterSumEl.textContent = `UI ALEX 2026 Hall of Fame • Menampilkan ${ranked.length} dari ${sortedEligible.length} Peserta Memenuhi Kriteria (Populasi Filter: ${scopedList.length})`;
       }
 
-      const canvasEl = document.getElementById('awardSlideCanvas');
-      if (canvasEl) {
-        if (isListMode) {
-          canvasEl.classList.remove('aspect-16-9');
-        } else {
-          canvasEl.classList.add('aspect-16-9');
-        }
-      }
-
       const stage = document.getElementById('awardStageBody');
       if (!stage) return;
 
@@ -6360,47 +6803,73 @@
         return;
       }
 
+      const sampleCols = getAwardTieBreakColumns(cat.id, ranked[0]);
+
       if (isListMode) {
-        const scrollCls = awardDisplayMode === 'all' && ranked.length > 12
-          ? 'max-h-[560px] overflow-y-auto divide-y divide-slate-200/80'
-          : 'divide-y divide-slate-200/80';
+        const scrollCls = awardDisplayMode === 'all' && ranked.length > 15
+          ? 'max-h-[640px] overflow-y-auto'
+          : '';
         stage.innerHTML = `
           <div class="rounded-xl border border-amber-300/90 bg-white/95 shadow-sm overflow-hidden">
-            <div class="grid grid-cols-12 bg-slate-900 text-amber-400 text-[10px] font-mono font-extrabold uppercase tracking-wider px-3.5 py-2.5">
-              <div class="col-span-1 text-center">Rank</div>
-              <div class="col-span-4 text-left">Nama Peserta &amp; Batch</div>
-              <div class="col-span-3 text-left">Metrik Utama</div>
-              <div class="col-span-4 text-right">Faktor Pembeda Objektif (Tie-Breaker)</div>
+            <div class="px-4 py-2 bg-amber-50/90 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <span class="font-bold text-amber-950">🧭 Urutan Prioritas Pemecah Seri (Dibaca dari Kiri ke Kanan):</span>
+              <span class="font-mono text-slate-700">1. Metrik Utama ➔ 2. ${sampleCols.col1Label} ➔ 3. ${sampleCols.col2Label} ➔ 4. ${sampleCols.col3Label} ➔ 5. ${sampleCols.col4Label} ➔ 6. ${sampleCols.col5Label}</span>
             </div>
-            <div id="awardListScrollContainer" class="${scrollCls}">
-              ${ranked.map((u, i) => {
-                const isTop3 = i < 3;
-                const medal = i === 0 ? '🥇 #1' : (i === 1 ? '🥈 #2' : (i === 2 ? '🥉 #3' : `#${i + 1}`));
-                const rowBg = i === 0 ? 'bg-amber-50/80' : (isTop3 ? 'bg-amber-50/30' : 'bg-white');
-                const tbInfo = cat.tieBreakerFn ? cat.tieBreakerFn(u) : `Kesiapan ${u.s_readiness.toFixed(1)}`;
-                return `
-                  <div class="grid grid-cols-12 items-center px-3.5 py-2.5 text-xs ${rowBg} hover:bg-amber-100/40 transition">
-                    <div class="col-span-1 text-center font-mono font-extrabold ${isTop3 ? 'text-amber-700' : 'text-slate-500'}">
-                      ${medal}
-                    </div>
-                    <div class="col-span-4 flex items-center gap-2.5 min-w-0 pr-2">
-                      <div class="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center font-serif font-extrabold text-[11px] ${i === 0 ? 'bg-slate-900 text-amber-400' : (isTop3 ? 'bg-amber-200 text-amber-950' : 'bg-slate-100 text-slate-700')}">
-                        ${getInitials(u.nama_peserta)}
-                      </div>
-                      <div class="min-w-0 flex-1">
-                        <div class="font-bold text-slate-900 leading-snug break-words">${u.nama_peserta}</div>
-                        <div class="text-[10px] font-mono text-slate-500 leading-normal mt-0.5">${u.batch} • ${u.persona}</div>
-                      </div>
-                    </div>
-                    <div class="col-span-3 font-mono font-extrabold text-amber-900 pr-2">
-                      <span class="px-2.5 py-1 rounded bg-amber-100/80 border border-amber-300/70 inline-block leading-snug">${cat.metricFn(u)}</span>
-                    </div>
-                    <div class="col-span-4 text-right font-mono text-[11px] text-slate-600 leading-snug break-words" title="${tbInfo}">
-                      ${tbInfo}
-                    </div>
-                  </div>
-                `;
-              }).join('')}
+            <div id="awardListScrollContainer" class="${scrollCls} overflow-x-auto">
+              <table class="w-full text-xs border-collapse">
+                <thead class="bg-slate-900 text-amber-400 text-[10px] font-mono font-extrabold uppercase tracking-wider sticky top-0 z-10">
+                  <tr>
+                    <th class="py-2.5 px-3 text-center w-16">Rank</th>
+                    <th class="py-2.5 px-3 text-left min-w-[240px]">Nama Peserta</th>
+                    <th class="py-2.5 px-3 text-center w-24">Batch</th>
+                    <th class="py-2.5 px-3 text-center w-36">Persona</th>
+                    <th class="py-2.5 px-3 text-center bg-amber-500/20 text-amber-300 border-x border-slate-700">1. Metrik Utama</th>
+                    <th class="py-2.5 px-3 text-center">2. ${sampleCols.col1Label}</th>
+                    <th class="py-2.5 px-3 text-center">3. ${sampleCols.col2Label}</th>
+                    <th class="py-2.5 px-3 text-center">4. ${sampleCols.col3Label}</th>
+                    <th class="py-2.5 px-3 text-center">5. ${sampleCols.col4Label}</th>
+                    <th class="py-2.5 px-3 text-center">6. ${sampleCols.col5Label}</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200/80">
+                  ${ranked.map((u, i) => {
+                    const isTop3 = i < 3;
+                    const medal = i === 0 ? '🥇 #1' : (i === 1 ? '🥈 #2' : (i === 2 ? '🥉 #3' : `#${i + 1}`));
+                    const rowBg = i === 0 ? 'bg-amber-50/90' : (isTop3 ? 'bg-amber-50/35' : 'bg-white');
+                    const cols = getAwardTieBreakColumns(cat.id, u);
+                    return `
+                      <tr class="${rowBg} hover:bg-amber-100/40 transition">
+                        <td class="py-2.5 px-3 text-center font-mono font-extrabold ${isTop3 ? 'text-amber-700 text-sm' : 'text-slate-500'}">
+                          ${medal}
+                        </td>
+                        <td class="py-2.5 px-3">
+                          <div class="flex items-center gap-2.5">
+                            <div class="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center font-serif font-extrabold text-[11px] ${i === 0 ? 'bg-slate-900 text-amber-400' : (isTop3 ? 'bg-amber-200 text-amber-950' : 'bg-slate-100 text-slate-700')}">
+                              ${getInitials(u.nama_peserta)}
+                            </div>
+                            <div>
+                              <div class="font-bold text-slate-900 leading-snug">${u.nama_peserta}</div>
+                              <div class="text-[10px] font-mono text-slate-400">${u.username}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td class="py-2.5 px-3 text-center font-mono font-semibold text-slate-700">${u.batch}</td>
+                        <td class="py-2.5 px-3 text-center">
+                          <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[10px] border border-slate-200">${u.persona}</span>
+                        </td>
+                        <td class="py-2.5 px-3 text-center font-mono font-extrabold text-amber-950 bg-amber-50/60 border-x border-amber-200/60">
+                          <span class="px-2.5 py-1 rounded bg-amber-100/90 border border-amber-300 inline-block">${cat.metricFn(u)}</span>
+                        </td>
+                        <td class="py-2.5 px-3 text-center font-mono font-bold text-slate-800">${cols.col1Val}</td>
+                        <td class="py-2.5 px-3 text-center font-mono font-bold text-indigo-700">${cols.col2Val}</td>
+                        <td class="py-2.5 px-3 text-center font-mono font-bold text-emerald-700">${cols.col3Val}</td>
+                        <td class="py-2.5 px-3 text-center font-mono text-slate-600">${cols.col4Val}</td>
+                        <td class="py-2.5 px-3 text-center font-mono font-semibold text-slate-700">${cols.col5Val}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
             </div>
           </div>
         `;
@@ -6410,7 +6879,7 @@
       stage.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-${limit} gap-4 items-stretch">
           ${ranked.map((u, i) => {
-            const tbInfo = cat.tieBreakerFn ? cat.tieBreakerFn(u) : '';
+            const cols = getAwardTieBreakColumns(cat.id, u);
             return `
             <div class="p-4 rounded-2xl border ${i === 0 ? 'border-amber-400 bg-gradient-to-b from-amber-50 to-white shadow-lg' : 'border-slate-200 bg-white shadow-sm'} flex flex-col justify-between text-center">
               <div>
@@ -6421,11 +6890,24 @@
                 <div class="font-bold text-slate-900 text-sm leading-snug break-words">${u.nama_peserta}</div>
                 <div class="text-[11px] font-mono text-slate-500 mt-1 leading-normal">${u.batch} • ${u.persona}</div>
               </div>
-              <div class="mt-4 pt-2.5 border-t border-slate-100 space-y-1.5">
-                <div class="font-mono font-extrabold text-xs text-amber-900 bg-amber-50/70 py-1.5 px-2.5 rounded-lg leading-snug">
+              <div class="mt-4 pt-2.5 border-t border-slate-100 space-y-2">
+                <div class="font-mono font-extrabold text-xs text-amber-900 bg-amber-100/80 border border-amber-300/80 py-1.5 px-2.5 rounded-lg leading-snug">
                   ${cat.metricFn(u)}
                 </div>
-                ${tbInfo ? `<div class="text-[10px] font-mono text-slate-500 leading-snug break-words" title="${tbInfo}">${tbInfo}</div>` : ''}
+                <div class="grid grid-cols-3 gap-1 text-[10px] font-mono bg-slate-50 p-1.5 rounded-lg border border-slate-200/80">
+                  <div>
+                    <div class="text-[9px] text-slate-400 uppercase">${cols.col2Label}</div>
+                    <div class="font-bold text-indigo-700">${cols.col2Val}</div>
+                  </div>
+                  <div class="border-x border-slate-200">
+                    <div class="text-[9px] text-slate-400 uppercase">Durasi</div>
+                    <div class="font-bold text-emerald-700">${cols.col3Val}</div>
+                  </div>
+                  <div>
+                    <div class="text-[9px] text-slate-400 uppercase">Submit</div>
+                    <div class="font-bold text-slate-700">${cols.col4Val}</div>
+                  </div>
+                </div>
               </div>
             </div>
           `;}).join('')}
@@ -6459,7 +6941,9 @@
         ``
       ];
       ranked.forEach((u, i) => {
-        const tbInfo = cat.tieBreakerFn ? ` [${cat.tieBreakerFn(u)}]` : '';
+        const nextUser = sortedEligible[i + 1] || null;
+        const winReason = getTieBreakWinningReason(cat, u, nextUser, i + 2);
+        const tbInfo = cat.tieBreakerFn ? ` [${cat.tieBreakerFn(u)}${winReason ? ' • ' + winReason : ''}]` : '';
         lines.push(`#${i + 1} *${u.nama_peserta}* (${u.batch}) — ${cat.metricFn(u)}${tbInfo}`);
       });
       copyTextToClipboard(lines.join('\n'), 'Teks pengumuman berhasil disalin!');
@@ -6481,30 +6965,35 @@
       const lastSyncStr = document.getElementById('lastSyncTimestamp')?.textContent || '-';
       const filterDesc = activeFilterTags.length > 0 ? `${fBatch} (${activeFilterTags.join(', ')})` : fBatch;
 
-      const rowsData = sortedEligible.map((u, idx) => ({
-        'Peringkat': idx + 1,
-        'Kategori Penghargaan': resolvedTitle,
-        'Cakupan Filter': filterDesc,
-        'Nama Peserta': u.nama_peserta,
-        'Username': u.username,
-        'NIP': u.nip || '-',
-        'Batch': u.batch,
-        'Persona Belajar': u.persona,
-        'Metrik Utama Award': cat.metricFn(u),
-        'Faktor Pembeda Objektif (Tie-Breaker)': cat.tieBreakerFn ? cat.tieBreakerFn(u) : '-',
-        'Rerata Ujikom (Cakupan)': u.s_attempted_post > 0 ? u.s_post_avg : '-',
-        'Modul Selesai (Cakupan)': `${u.s_attempted_post}/${u.s_max_slots}`,
-        'Modul Lulus KKM (Cakupan)': `${u.s_passed_post}/${u.s_max_slots}`,
-        'Total Attempt Ujikom (Cakupan)': u.s_post_attempts || 0,
-        'Total Durasi Ujikom (Menit)': u.s_post_durasi || 0,
-        'Submit Ujikom Terakhir': u.s_last_post_submit || '-',
-        'Indeks Kesiapan Belajar': u.s_readiness,
-        'Completion Mandiri (%)': u.s_comp,
-        'Rerata Asesmen Awal': u.s_pre_avg !== null ? u.s_pre_avg : '-',
-        'Normalized Hake Gain': u.s_hake_gain !== null ? u.s_hake_gain : '-',
-        'Status Evaluasi 8 Modul': u.final_status,
-        'Last Update Data': lastSyncStr
-      }));
+      const rowsData = sortedEligible.map((u, idx) => {
+        const nextUser = sortedEligible[idx + 1] || null;
+        const winReason = getTieBreakWinningReason(cat, u, nextUser, idx + 2);
+        return {
+          'Peringkat': idx + 1,
+          'Kategori Penghargaan': resolvedTitle,
+          'Cakupan Filter': filterDesc,
+          'Nama Peserta': u.nama_peserta,
+          'Username': u.username,
+          'NIP': u.nip || '-',
+          'Batch': u.batch,
+          'Persona Belajar': u.persona,
+          'Metrik Utama Award': cat.metricFn(u),
+          'Penentu Peringkat (Winning Edge)': winReason || 'Unggul Metrik Utama',
+          'Faktor Pembeda Objektif (Tie-Breaker)': cat.tieBreakerFn ? cat.tieBreakerFn(u) : '-',
+          'Rerata Ujikom (Cakupan)': u.s_attempted_post > 0 ? u.s_post_avg : '-',
+          'Modul Selesai (Cakupan)': `${u.s_attempted_post}/${u.s_max_slots}`,
+          'Modul Lulus KKM (Cakupan)': `${u.s_passed_post}/${u.s_max_slots}`,
+          'Total Attempt Ujikom (Cakupan)': u.s_post_attempts || 0,
+          'Total Durasi Ujikom (Menit)': u.s_post_durasi || 0,
+          'Submit Ujikom Terakhir': u.s_last_post_submit || '-',
+          'Indeks Kesiapan Belajar': u.s_readiness,
+          'Completion Mandiri (%)': u.s_comp,
+          'Rerata Asesmen Awal': u.s_pre_avg !== null ? u.s_pre_avg : '-',
+          'Normalized Hake Gain': u.s_hake_gain !== null ? u.s_hake_gain : '-',
+          'Status Evaluasi 8 Modul': u.final_status,
+          'Last Update Data': lastSyncStr
+        };
+      });
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(rowsData);
@@ -6554,6 +7043,275 @@
       link.download = `UI_ALEX_2026_Award_${Date.now()}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
+    }
+
+    async function downloadAwardStagePDF() {
+      const catId = document.getElementById('awardCategorySelect')?.value || 'grand_luminary';
+      const cat = AWARDS_CATALOG.find(a => a.id === catId) || AWARDS_CATALOG[0];
+      const { scopedList, fBatch, fPilar, fModul, scopeLabel, activeFilterTags } = getAwardFilteredPool();
+      const resolvedTitle = getAwardResolvedTitle(cat, scopeLabel, fModul, fPilar);
+      const eligibleList = cat.filterFn ? scopedList.filter(cat.filterFn) : [...scopedList];
+      const sortedEligible = [...eligibleList].sort(cat.sortFn);
+
+      if (sortedEligible.length === 0) {
+        setSyncBanner('Belum ada data peserta pada tampilan ini untuk diekspor ke PDF', 'rose');
+        return;
+      }
+
+      const limit = awardDisplayMode === 'top3'
+        ? 3
+        : (awardDisplayMode === 'top5' ? 5 : (awardDisplayMode === 'top10' ? 10 : sortedEligible.length));
+      const ranked = sortedEligible.slice(0, limit);
+
+      const btn = document.getElementById('btnDownloadAwardStagePDF');
+      const lbl = document.getElementById('lblDownloadAwardStagePDF');
+      const origText = lbl ? lbl.textContent : 'Unduh PDF Tampilan';
+      if (btn) btn.disabled = true;
+      if (lbl) lbl.textContent = 'Merender PDF...';
+
+      try {
+        // 1. Jika Mode Podium Kotak (Top 3 atau Top 5), muat pas dalam 1 Halaman A4 Landscape
+        if (awardDisplayMode === 'top3' || awardDisplayMode === 'top5') {
+          const el = document.getElementById('awardSlideCanvas');
+          if (document.fonts && document.fonts.ready) {
+            await document.fonts.ready;
+          }
+          const canvas = await html2canvas(el, {
+            scale: 2.4,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            scrollX: 0,
+            scrollY: 0,
+            windowWidth: 1440,
+            onclone: (clonedDoc) => {
+              const clonedCanvas = clonedDoc.getElementById('awardSlideCanvas');
+              if (clonedCanvas) {
+                clonedCanvas.style.width = '1200px';
+                clonedCanvas.style.maxWidth = 'none';
+                clonedCanvas.style.height = 'auto';
+                clonedCanvas.style.overflow = 'visible';
+              }
+            }
+          });
+
+          const jsPDFConstructor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+          const pdf = new jsPDFConstructor({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+          const pageW = 297, pageH = 210, margin = 8;
+          const maxW = pageW - margin * 2;
+          const maxH = pageH - margin * 2;
+          let drawW = maxW;
+          let drawH = (canvas.height * drawW) / canvas.width;
+          if (drawH > maxH) {
+            drawH = maxH;
+            drawW = (canvas.width * drawH) / canvas.height;
+          }
+          const xOffset = margin + (maxW - drawW) / 2;
+          const yOffset = margin + (maxH - drawH) / 2;
+          pdf.addImage(canvas.toDataURL('image/jpeg', 0.97), 'JPEG', xOffset, yOffset, drawW, drawH);
+
+          const cleanCat = cat.id.toUpperCase();
+          const cleanBatch = fBatch.replace(/\s+/g, '_');
+          pdf.save(`UI_ALEX_2026_Award_${awardDisplayMode.toUpperCase()}_${cleanCat}_${cleanBatch}.pdf`);
+          updateUrlAndTracker(`Unduh PDF Award ${awardDisplayMode.toUpperCase()}`);
+          return;
+        }
+
+        // 2. Untuk Mode Tabel Daftar (Top 10 & Semua Peserta / All):
+        // Gunakan Native Vector PDF (jsPDF + AutoTable) -> Anti Terpotong Baris & Header Berulang di Tiap Halaman
+        const jsPDFConstructor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+        const doc = new jsPDFConstructor({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4',
+          compress: true
+        });
+
+        const sampleCols = getAwardTieBreakColumns(cat.id, ranked[0]);
+        const batchLabel = fBatch === 'ALL' ? 'Semua Batch' : fBatch;
+        const filterStr = activeFilterTags.length > 0 ? ` • Filter: ${activeFilterTags.join(' | ')}` : '';
+        const lastSyncStr = document.getElementById('lastSyncTimestamp')?.textContent || new Date().toLocaleString('id-ID');
+        const modeTitleLabel = awardDisplayMode === 'top10' ? 'TOP 10 LEADERBOARD' : `DAFTAR PERINGKAT LENGKAP (${ranked.length} PESERTA)`;
+
+        // Fungsi penggambar Kop & Bingkai di Halaman Pertama
+        const drawHeaderBanner = () => {
+          // Kotak aksen kuning emas atas
+          doc.setFillColor(15, 23, 42); // Slate-900
+          doc.roundedRect(10, 8, 277, 24, 2.5, 2.5, 'F');
+
+          // Badge UI di kiri
+          doc.setFillColor(245, 158, 11); // Amber-500
+          doc.roundedRect(14, 11, 16, 18, 2, 2, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(13);
+          doc.setTextColor(15, 23, 42);
+          doc.text('UI', 22, 22, { align: 'center' });
+
+          // Teks Judul & Subjudul di dalam Kop
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.setTextColor(251, 191, 36); // Amber-400
+          doc.text(`UNIVERSITAS INDONESIA • UI ALEX 2026 HALL OF FAME (${modeTitleLabel})`, 34, 14.5);
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(12);
+          doc.setTextColor(255, 255, 255);
+          doc.text(resolvedTitle.toUpperCase(), 34, 21);
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(203, 213, 225); // Slate-300
+          doc.text(`${cat.subtitle}`, 34, 26.5);
+
+          // Badge Batch di Kanan Kop
+          doc.setFillColor(245, 158, 11);
+          doc.roundedRect(245, 11.5, 38, 7, 1.5, 1.5, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8.5);
+          doc.setTextColor(15, 23, 42);
+          doc.text(batchLabel.toUpperCase(), 264, 16.2, { align: 'center' });
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7.5);
+          doc.setTextColor(226, 232, 240);
+          doc.text(`Populasi: ${ranked.length}/${sortedEligible.length} Peserta`, 283, 23, { align: 'right' });
+          doc.text(`Update: ${lastSyncStr}`, 283, 27.5, { align: 'right' });
+
+          // Sub-bar Urutan Prioritas Tie-Breaker
+          doc.setFillColor(254, 243, 199); // Amber-100
+          doc.setDrawColor(245, 158, 11);
+          doc.roundedRect(10, 34, 277, 7, 1, 1, 'FD');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7.5);
+          doc.setTextColor(146, 64, 14); // Amber-800
+          const priorityRule = `Urutan Prioritas Penentuan Peringkat (Kiri ke Kanan):  1. Metrik Utama  ->  2. ${sampleCols.col1Label}  ->  3. ${sampleCols.col2Label}  ->  4. ${sampleCols.col3Label}  ->  5. ${sampleCols.col4Label}  ->  6. ${sampleCols.col5Label}${filterStr}`;
+          doc.text(priorityRule, 13, 38.6);
+        };
+
+        drawHeaderBanner();
+
+        const tableHead = [[
+          'RANK',
+          'NAMA PESERTA & USERNAME',
+          'BATCH',
+          'PERSONA',
+          '1. METRIK UTAMA',
+          `2. ${sampleCols.col1Label.toUpperCase()}`,
+          `3. ${sampleCols.col2Label.toUpperCase()}`,
+          `4. ${sampleCols.col3Label.toUpperCase()}`,
+          `5. ${sampleCols.col4Label.toUpperCase()}`,
+          `6. ${sampleCols.col5Label.toUpperCase()}`
+        ]];
+
+        const tableBody = ranked.map((u, i) => {
+          const cols = getAwardTieBreakColumns(cat.id, u);
+          const rankStr = `#${i + 1}`;
+          return [
+            rankStr,
+            `${u.nama_peserta}\n(${u.username})`,
+            u.batch,
+            u.persona,
+            cat.metricFn(u),
+            cols.col1Val,
+            cols.col2Val,
+            cols.col3Val,
+            cols.col4Val,
+            cols.col5Val
+          ];
+        });
+
+        doc.autoTable({
+          head: tableHead,
+          body: tableBody,
+          startY: 43,
+          margin: { top: 14, right: 10, bottom: 14, left: 10 },
+          theme: 'grid',
+          rowPageBreak: 'avoid', // KUNCI ANTI-TERPOTONG: Baris tidak akan pernah dibelah dua antar-halaman
+          showHead: 'everyPage', // Header tabel selalu muncul di setiap halaman baru
+          styles: {
+            font: 'helvetica',
+            fontSize: 8,
+            cellPadding: { top: 2.2, right: 2, bottom: 2.2, left: 2 },
+            valign: 'middle',
+            textColor: [15, 23, 42],
+            lineColor: [203, 213, 225],
+            lineWidth: 0.2
+          },
+          headStyles: {
+            fillColor: [15, 23, 42],
+            textColor: [251, 191, 36],
+            fontStyle: 'bold',
+            fontSize: 7.5,
+            halign: 'center',
+            valign: 'middle'
+          },
+          columnStyles: {
+            0: { halign: 'center', cellWidth: 14, fontStyle: 'bold' },
+            1: { halign: 'left', cellWidth: 68, fontStyle: 'bold' },
+            2: { halign: 'center', cellWidth: 18 },
+            3: { halign: 'center', cellWidth: 26 },
+            4: { halign: 'center', cellWidth: 37, fontStyle: 'bold', fillColor: [254, 243, 199], textColor: [120, 53, 15] },
+            5: { halign: 'center', cellWidth: 32, fontStyle: 'bold' },
+            6: { halign: 'center', cellWidth: 20, fontStyle: 'bold', textColor: [67, 56, 202] },
+            7: { halign: 'center', cellWidth: 22, fontStyle: 'bold', textColor: [4, 120, 87] },
+            8: { halign: 'center', cellWidth: 23 },
+            9: { halign: 'center', cellWidth: 17, fontStyle: 'bold' }
+          },
+          didParseCell: function(data) {
+            if (data.section === 'body') {
+              const rowIdx = data.row.index;
+              // Beri warna latar lembut khusus untuk Top 3 Podium (#1, #2, #3)
+              if (rowIdx === 0) {
+                if (data.column.index !== 4) data.cell.styles.fillColor = [254, 249, 195]; // Emas lembut #1
+              } else if (rowIdx === 1 || rowIdx === 2) {
+                if (data.column.index !== 4) data.cell.styles.fillColor = [255, 251, 235]; // Krem lembut #2 & #3
+              } else if (rowIdx % 2 === 1) {
+                if (data.column.index !== 4) data.cell.styles.fillColor = [248, 250, 252]; // Zebra striping
+              }
+            }
+          },
+          didDrawPage: function(data) {
+            // Gambar teks header kecil di halaman ke-2 dst.
+            if (data.pageNumber > 1) {
+              doc.setFont('helvetica', 'bold');
+              doc.setFontSize(8);
+              doc.setTextColor(71, 85, 105);
+              doc.text(`UI ALEX 2026 — ${resolvedTitle} (${batchLabel})`, 10, 9.5);
+              doc.setFont('helvetica', 'normal');
+              doc.text(`Lanjutan Daftar Peringkat`, 287, 9.5, { align: 'right' });
+            }
+          }
+        });
+
+        // Tambahkan Footer Nomor Halaman ("Halaman X dari Y") di semua halaman
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let p = 1; p <= totalPages; p++) {
+          doc.setPage(p);
+          doc.setDrawColor(203, 213, 225);
+          doc.setLineWidth(0.25);
+          doc.line(10, 201, 287, 201);
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7.5);
+          doc.setTextColor(100, 116, 139);
+          doc.text(`UI ALEX 2026 • Universitas Indonesia (Course ID: 99544 & 99545) • ${cat.criteria}`, 10, 205.5);
+
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(15, 23, 42);
+          doc.text(`Halaman ${p} dari ${totalPages}`, 287, 205.5, { align: 'right' });
+        }
+
+        const cleanCat = cat.id.toUpperCase();
+        const cleanBatch = fBatch.replace(/\s+/g, '_');
+        const modeTag = awardDisplayMode.toUpperCase();
+        doc.save(`UI_ALEX_2026_Award_${modeTag}_${cleanCat}_${cleanBatch}.pdf`);
+        updateUrlAndTracker(`Unduh PDF Award ${modeTag}`);
+      } catch (err) {
+        console.error('Gagal mengunduh PDF Tampilan Award:', err);
+        setSyncBanner('Gagal membuat PDF Tampilan Award', 'rose');
+      } finally {
+        if (btn) btn.disabled = false;
+        if (lbl) lbl.textContent = origText;
+      }
     }
 
     async function downloadAwardCertificatePDF() {
@@ -7108,6 +7866,185 @@
       XLSX.writeFile(wb, `Detail_Peserta_${code}_${batch.replace(/\s+/g, '_')}_${Date.now()}.xlsx`);
     }
 
+    function exportPimtiModuleDetailPDF() {
+      const { code, label, pilar, batch, kkm, statusFilter, rows } = activePimtiModalState;
+      const lastSyncStr = document.getElementById('lastSyncTimestamp')?.textContent || '-';
+      const q = (document.getElementById('pimtiModSearchInput')?.value || '').trim().toLowerCase();
+
+      const filtered = rows.filter(r => {
+        if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
+        if (q) {
+          const hay = `${r.nama_peserta} ${r.username} ${r.nip} ${r.batch} ${r.status}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        setSyncBanner('Tidak ada peserta pada filter ini untuk diekspor ke PDF', 'rose');
+        return;
+      }
+
+      const jsPDFConstructor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+      if (!jsPDFConstructor) return;
+
+      const doc = new jsPDFConstructor({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      const totalPop = rows.length;
+      const lulusCount = rows.filter(r => r.status === 'Lulus').length;
+      const remCount = rows.filter(r => r.status === 'Butuh Remedial').length;
+      const inProgCount = rows.filter(r => r.status === 'In-Progress').length;
+      const belumCount = rows.filter(r => r.status === 'Belum Mengerjakan').length;
+      const scored = rows.filter(r => r.nilai !== null);
+      const avgScore = scored.length ? (scored.reduce((s, r) => s + r.nilai, 0) / scored.length).toFixed(1) : '-';
+      const filterLabel = statusFilter === 'ALL' ? 'Semua Status' : statusFilter;
+
+      // Kop Resmi Halaman 1
+      doc.setFillColor(15, 23, 42);
+      doc.roundedRect(10, 8, 277, 23, 2.5, 2.5, 'F');
+
+      doc.setFillColor(245, 158, 11);
+      doc.roundedRect(14, 11, 15, 17, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text('UI', 21.5, 21.5, { align: 'center' });
+
+      doc.setFontSize(8);
+      doc.setTextColor(251, 191, 36);
+      doc.text(`UNIVERSITAS INDONESIA • RINCIAN CAPAIAN PESERTA (${pilar.toUpperCase()})`, 33, 14.5);
+
+      doc.setFontSize(12);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`${label.toUpperCase()} — ${batch.toUpperCase()}`, 33, 21);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(203, 213, 225);
+      doc.text(`Standar KKM >= ${kkm.toFixed(1)} • Filter Aktif: ${filterLabel} (${filtered.length} Peserta) • Last Update: ${lastSyncStr}`, 33, 26.8);
+
+      // Kotak Ringkasan Statistik di Kanan Kop
+      doc.setFillColor(30, 41, 59);
+      doc.roundedRect(205, 11, 78, 17, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(251, 191, 36);
+      doc.text(`Populasi: ${totalPop}  |  Rerata Skor: ${avgScore}`, 244, 16.5, { align: 'center' });
+      doc.setTextColor(226, 232, 240);
+      doc.text(`Lulus: ${lulusCount}  |  Remedial: ${remCount}  |  Belum: ${belumCount + inProgCount}`, 244, 23.5, { align: 'center' });
+
+      const tableHead = [[
+        'NO',
+        'NAMA PESERTA & USERNAME / NIP',
+        'BATCH',
+        'NILAI',
+        'KKM',
+        'STATUS KELULUSAN',
+        'ATTEMPT',
+        'WAKTU SUBMIT / AKTIVITAS'
+      ]];
+
+      const tableBody = filtered.map((r, i) => [
+        String(i + 1),
+        `${r.nama_peserta}\n(${r.username}${r.nip && r.nip !== '-' ? ' • NIP: ' + r.nip : ''})`,
+        r.batch,
+        r.nilai !== null ? r.nilai.toFixed(1) : (r.status === 'In-Progress' ? 'Aktif' : '-'),
+        r.kkm.toFixed(1),
+        r.status,
+        String(r.attempt),
+        r.waktu_submit
+      ]);
+
+      doc.autoTable({
+        head: tableHead,
+        body: tableBody,
+        startY: 34,
+        margin: { top: 14, right: 10, bottom: 14, left: 10 },
+        theme: 'grid',
+        rowPageBreak: 'avoid',
+        showHead: 'everyPage',
+        styles: {
+          font: 'helvetica',
+          fontSize: 8.2,
+          cellPadding: { top: 2.2, right: 2.5, bottom: 2.2, left: 2.5 },
+          valign: 'middle',
+          textColor: [15, 23, 42],
+          lineColor: [203, 213, 225],
+          lineWidth: 0.2
+        },
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: [251, 191, 36],
+          fontStyle: 'bold',
+          fontSize: 8,
+          halign: 'center'
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 14, fontStyle: 'bold' },
+          1: { halign: 'left', cellWidth: 96, fontStyle: 'bold' },
+          2: { halign: 'center', cellWidth: 24 },
+          3: { halign: 'center', cellWidth: 24, fontStyle: 'bold' },
+          4: { halign: 'center', cellWidth: 20 },
+          5: { halign: 'center', cellWidth: 38, fontStyle: 'bold' },
+          6: { halign: 'center', cellWidth: 22 },
+          7: { halign: 'center', cellWidth: 39 }
+        },
+        didParseCell: function(data) {
+          if (data.section === 'body') {
+            const st = filtered[data.row.index]?.status;
+            if (data.column.index === 3 || data.column.index === 5) {
+              if (st === 'Lulus') {
+                data.cell.styles.textColor = [4, 120, 87];
+                if (data.column.index === 5) data.cell.styles.fillColor = [209, 250, 229];
+              } else if (st === 'Butuh Remedial') {
+                data.cell.styles.textColor = [190, 18, 60];
+                if (data.column.index === 5) data.cell.styles.fillColor = [255, 228, 230];
+              } else if (st === 'In-Progress') {
+                data.cell.styles.textColor = [3, 105, 161];
+                if (data.column.index === 5) data.cell.styles.fillColor = [224, 242, 254];
+              }
+            }
+            if (data.row.index % 2 === 1 && data.column.index !== 5) {
+              data.cell.styles.fillColor = [248, 250, 252];
+            }
+          }
+        },
+        didDrawPage: function(data) {
+          if (data.pageNumber > 1) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(71, 85, 105);
+            doc.text(`UI ALEX 2026 — Rincian Peserta: ${label} (${batch})`, 10, 9.5);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Filter: ${filterLabel} • Last Update: ${lastSyncStr}`, 287, 9.5, { align: 'right' });
+          }
+        }
+      });
+
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setDrawColor(203, 213, 225);
+        doc.setLineWidth(0.25);
+        doc.line(10, 201, 287, 201);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`UI ALEX 2026 • Universitas Indonesia (Course ID: 99544 & 99545) • Last Update Data: ${lastSyncStr}`, 10, 205.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        doc.text(`Halaman ${p} dari ${totalPages}`, 287, 205.5, { align: 'right' });
+      }
+
+      doc.save(`Detail_Peserta_${code}_${batch.replace(/\s+/g, '_')}_${statusFilter}.pdf`);
+      updateUrlAndTracker(`Unduh PDF Vektor Detail ${code}`);
+    }
+
     async function exportPimtiModuleDetailPNG() {
       const captureEl = document.getElementById('pimtiModuleCaptureArea');
       const scrollBox = document.getElementById('pimtiModTableScrollBox');
@@ -7179,15 +8116,159 @@
     }
 
     function downloadPimtiPDF() {
-      const el = document.getElementById('printAreaContainer');
-      if (!el) return;
-      html2pdf().set({
-        margin: 8,
-        filename: `Laporan_Eksekutif_Pimti_UI_ALEX_2026.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-      }).from(el).save();
+      if (!lastPimtiSummaryRows || lastPimtiSummaryRows.length === 0) {
+        renderPimtiExecutiveStudio();
+      }
+      const jsPDFConstructor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+      if (!jsPDFConstructor) return;
+
+      const doc = new jsPDFConstructor({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      const bVal = document.getElementById('pimtiBatchSelect')?.value || 'ALL';
+      const batchTitle = bVal === 'ALL' ? 'SEMUA BATCH KONSOLIDASI' : bVal.toUpperCase();
+      const t = getBatchTerminology(bVal);
+      const lastSyncStr = document.getElementById('lastSyncTimestamp')?.textContent || new Date().toLocaleString('id-ID');
+
+      // Kop Eksekutif Pimti 1 Halaman A4 Landscape
+      doc.setFillColor(15, 23, 42);
+      doc.roundedRect(10, 10, 277, 25, 2.5, 2.5, 'F');
+
+      doc.setFillColor(245, 158, 11);
+      doc.roundedRect(14, 13.5, 16, 18, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(15, 23, 42);
+      doc.text('UI', 22, 24.5, { align: 'center' });
+
+      doc.setFontSize(8.5);
+      doc.setTextColor(251, 191, 36);
+      doc.text('UNIVERSITAS INDONESIA • EXECUTIVE BRIEFING (PIMPINAN TINGGI)', 34, 17);
+
+      doc.setFontSize(13);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`REKAPITULASI CAPAIAN EVALUASI AKHIR (${t.postUpper}) UI ALEX 2026`, 34, 24);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(203, 213, 225);
+      doc.text('Agregasi populasi utuh per angkatan pada 8 Modul Inti (Satuan Peserta / Orang • Bebas Kontaminasi Asesmen Awal)', 34, 30);
+
+      // Lencana Kanan Kop
+      doc.setFillColor(245, 158, 11);
+      doc.roundedRect(235, 13.5, 48, 7.5, 1.5, 1.5, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`${batchTitle} • KKM >= ${currentKkm.toFixed(1)}`, 259, 18.5, { align: 'center' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(226, 232, 240);
+      doc.text(`Diperbarui: ${lastSyncStr}`, 283, 28.5, { align: 'right' });
+
+      const tableHead = [[
+        '1. KELOMPOK DATA ASESMEN',
+        '2. TOTAL PESERTA GROUP',
+        `3. RATA-RATA ${t.postUpper}`,
+        '4. TINGKAT KELULUSAN (ORANG)',
+        '5. TINGKAT REMEDIAL (ORANG)'
+      ]];
+
+      const tableBody = lastPimtiSummaryRows.map(r => {
+        const cleanLabel = r.label.replace('★ ', '* ');
+        let avgStr = '-';
+        let lulusStr = '-';
+        let remStr = '-';
+        if (!r.isPending && r.avg !== null) {
+          avgStr = r.avg.toFixed(1);
+          if (!(r.level === 1 && r.isPartial)) {
+            const lPct = r.tested ? ((r.lulus / r.tested) * 100).toFixed(1) : '0.0';
+            const rPct = r.tested ? ((r.rem / r.tested) * 100).toFixed(1) : '0.0';
+            lulusStr = `${r.lulus} (${lPct}%)`;
+            remStr = `${r.rem} (${rPct}%)`;
+          }
+        }
+        return [
+          r.level === 3 ? `    ${cleanLabel}` : cleanLabel,
+          String(r.N),
+          avgStr,
+          lulusStr,
+          remStr
+        ];
+      });
+
+      doc.autoTable({
+        head: tableHead,
+        body: tableBody,
+        startY: 39,
+        margin: { top: 12, right: 10, bottom: 14, left: 10 },
+        theme: 'grid',
+        rowPageBreak: 'avoid',
+        styles: {
+          font: 'helvetica',
+          fontSize: 9.5,
+          cellPadding: { top: 3.5, right: 3.5, bottom: 3.5, left: 3.5 },
+          valign: 'middle',
+          textColor: [15, 23, 42],
+          lineColor: [203, 213, 225],
+          lineWidth: 0.25
+        },
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: [251, 191, 36],
+          fontStyle: 'bold',
+          fontSize: 9,
+          halign: 'center'
+        },
+        columnStyles: {
+          0: { halign: 'left', cellWidth: 117 },
+          1: { halign: 'center', cellWidth: 38, fontStyle: 'bold' },
+          2: { halign: 'center', cellWidth: 40, fontStyle: 'bold' },
+          3: { halign: 'center', cellWidth: 41, fontStyle: 'bold' },
+          4: { halign: 'center', cellWidth: 41, fontStyle: 'bold' }
+        },
+        didParseCell: function(data) {
+          if (data.section === 'body') {
+            const rowObj = lastPimtiSummaryRows[data.row.index];
+            if (!rowObj) return;
+            if (rowObj.level === 1) {
+              data.cell.styles.fillColor = [254, 243, 199];
+              data.cell.styles.fontStyle = 'bold';
+            } else if (rowObj.level === 2) {
+              data.cell.styles.fillColor = [241, 245, 249];
+              data.cell.styles.fontStyle = 'bold';
+            }
+            if (!rowObj.isPending && rowObj.avg !== null) {
+              if (data.column.index === 2) {
+                data.cell.styles.textColor = rowObj.avg >= currentKkm ? [4, 120, 87] : [190, 18, 60];
+              } else if (data.column.index === 3 && !(rowObj.level === 1 && rowObj.isPartial)) {
+                data.cell.styles.textColor = [4, 120, 87];
+              } else if (data.column.index === 4 && !(rowObj.level === 1 && rowObj.isPartial)) {
+                data.cell.styles.textColor = [190, 18, 60];
+              }
+            }
+          }
+        }
+      });
+
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.25);
+      doc.line(10, 200, 287, 200);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`UI ALEX 2026 • Universitas Indonesia (Course ID: 99544 & 99545) • Standar KKM >= ${currentKkm.toFixed(1)}`, 10, 205);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text('Halaman 1 dari 1', 287, 205, { align: 'right' });
+
+      doc.save(`Laporan_Eksekutif_Pimti_UI_ALEX_2026_${bVal.replace(/\s+/g, '_')}.pdf`);
+      updateUrlAndTracker('Unduh PDF Vektor Pimti');
     }
 
     /*************************************************************************
@@ -7564,9 +8645,246 @@
       updateUrlAndTracker(`Unduh XLSX ${mode}`);
     }
 
+    function exportMatrixVectorPDF() {
+      if (filteredProfilesList.length === 0) {
+        setSyncBanner('Tidak ada data peserta pada filter ini untuk diekspor ke PDF', 'rose');
+        return;
+      }
+
+      const jsPDFConstructor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+      if (!jsPDFConstructor) return;
+
+      const doc = new jsPDFConstructor({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const t = getBatchTerminology(fBatch);
+      const lastSyncStr = document.getElementById('lastSyncTimestamp')?.textContent || new Date().toLocaleString('id-ID');
+
+      // Urutkan daftar peserta persis seperti urutan aktif di tabel matriks
+      const list = [...filteredProfilesList];
+      const { key, dir } = matrixSortState;
+      const mult = dir === 'asc' ? 1 : -1;
+
+      list.sort((a, b) => {
+        if (key === 'post_total_avg') {
+          const aHas = a.attempted_post > 0;
+          const bHas = b.attempted_post > 0;
+          if (!aHas && !bHas) return a.nama_peserta.localeCompare(b.nama_peserta, 'id');
+          if (!aHas) return 1;
+          if (!bHas) return -1;
+          if (a.post_total_avg !== b.post_total_avg) return (a.post_total_avg - b.post_total_avg) * mult;
+          if (a.remedial_post !== b.remedial_post) return (b.remedial_post - a.remedial_post) * mult;
+          if (a.attempted_post !== b.attempted_post) return (a.attempted_post - b.attempted_post) * mult;
+          const aDur = a.total_post_durasi > 0 ? a.total_post_durasi : 999999;
+          const bDur = b.total_post_durasi > 0 ? b.total_post_durasi : 999999;
+          if (aDur !== bDur) return (bDur - aDur) * mult;
+          return a.nama_peserta.localeCompare(b.nama_peserta, 'id');
+        } else if (key === 'final_status') {
+          return compareFinalStatus(a, b, mult);
+        } else if (MODULE_KEYS.includes(key)) {
+          return ((a.modules[key] ?? -1) - (b.modules[key] ?? -1)) * mult;
+        } else if (key === 'pre_p1' || key === 'pre_p2') {
+          return ((a[key] ?? -1) - (b[key] ?? -1)) * mult;
+        } else if (key === 'no' || key === 'nama_peserta') {
+          return a.nama_peserta.localeCompare(b.nama_peserta, 'id') * mult;
+        }
+        const va = a[key] ?? '';
+        const vb = b[key] ?? '';
+        if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * mult;
+        return String(va).localeCompare(String(vb), 'id') * mult;
+      });
+
+      // Kop Resmi Halaman 1
+      doc.setFillColor(15, 23, 42);
+      doc.roundedRect(8, 8, 281, 22, 2.5, 2.5, 'F');
+
+      doc.setFillColor(245, 158, 11);
+      doc.roundedRect(12, 11, 15, 16, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text('UI', 19.5, 21, { align: 'center' });
+
+      doc.setFontSize(8);
+      doc.setTextColor(251, 191, 36);
+      doc.text('UNIVERSITAS INDONESIA • UI ALEX 2026 LEARNING ANALYTICS MATRIX', 31, 14.5);
+
+      doc.setFontSize(12);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`MATRIKS EVALUASI BELAJAR & KESIAPAN PESERTA (${fBatch === 'ALL' ? 'SEMUA BATCH' : fBatch.toUpperCase()})`, 31, 21);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(203, 213, 225);
+      doc.text(`Menampilkan ${list.length} Peserta • Standar KKM ${t.kkmLabel} • Last Update Data: ${lastSyncStr}`, 31, 26.5);
+
+      const fmtVal = (v) => (v !== null && v !== undefined ? v.toFixed(1) : '-');
+
+      const tableHead = [[
+        'NO',
+        'NAMA PESERTA & USERNAME',
+        'BATCH',
+        'PERSONA',
+        'KESIAPAN',
+        'COMP I',
+        'COMP II',
+        t.preCol1,
+        'PK',
+        'SDMPT',
+        'PBJ',
+        'KA',
+        t.preCol2,
+        'AI',
+        'PMA',
+        'HK',
+        'MRT',
+        'SKOR UJIKOM',
+        'STATUS AKHIR'
+      ]];
+
+      const tableBody = list.map((u, idx) => [
+        String(idx + 1),
+        `${u.nama_peserta}\n(${u.username})`,
+        u.batch.replace('Batch ', 'B'),
+        u.persona,
+        `${u.readiness_score.toFixed(1)}\n(${u.readiness_cat === 'Butuh Pendampingan' ? 'Pendampingan' : u.readiness_cat})`,
+        `${u.progress_p1.toFixed(0)}%`,
+        `${u.progress_p2.toFixed(0)}%`,
+        fmtVal(u.pre_p1),
+        fmtVal(u.modules.PK),
+        fmtVal(u.modules.SDMPT),
+        fmtVal(u.modules.PBJ),
+        fmtVal(u.modules.KA),
+        fmtVal(u.pre_p2),
+        fmtVal(u.modules.AI),
+        fmtVal(u.modules.PMA),
+        fmtVal(u.modules.HK),
+        fmtVal(u.modules.MRT),
+        u.attempted_post > 0 ? `${u.post_total_avg.toFixed(1)}\n(${u.remedial_post}R • ${u.total_post_durasi.toFixed(0)}m)` : '-',
+        u.final_status
+      ]);
+
+      doc.autoTable({
+        head: tableHead,
+        body: tableBody,
+        startY: 33,
+        margin: { top: 14, right: 8, bottom: 14, left: 8 },
+        theme: 'grid',
+        rowPageBreak: 'avoid',
+        showHead: 'everyPage',
+        styles: {
+          font: 'helvetica',
+          fontSize: 6.8,
+          cellPadding: { top: 1.8, right: 1.2, bottom: 1.8, left: 1.2 },
+          valign: 'middle',
+          halign: 'center',
+          textColor: [15, 23, 42],
+          lineColor: [203, 213, 225],
+          lineWidth: 0.18
+        },
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: [251, 191, 36],
+          fontStyle: 'bold',
+          fontSize: 6.5,
+          halign: 'center'
+        },
+        columnStyles: {
+          0: { cellWidth: 9, fontStyle: 'bold' },
+          1: { halign: 'left', cellWidth: 47, fontStyle: 'bold' },
+          2: { cellWidth: 10 },
+          3: { cellWidth: 20 },
+          4: { cellWidth: 18, fontStyle: 'bold' },
+          5: { cellWidth: 12 },
+          6: { cellWidth: 12 },
+          7: { cellWidth: 11, fillColor: [254, 243, 199] },
+          8: { cellWidth: 11 },
+          9: { cellWidth: 12 },
+          10: { cellWidth: 11 },
+          11: { cellWidth: 11 },
+          12: { cellWidth: 11, fillColor: [254, 243, 199] },
+          13: { cellWidth: 11 },
+          14: { cellWidth: 11 },
+          15: { cellWidth: 11 },
+          16: { cellWidth: 11 },
+          17: { cellWidth: 19, fontStyle: 'bold', fillColor: [255, 251, 235] },
+          18: { cellWidth: 23, fontStyle: 'bold' }
+        },
+        didParseCell: function(data) {
+          if (data.section === 'body') {
+            const u = list[data.row.index];
+            if (!u) return;
+            const uKkm = u.kkm || getBatchKkm(u.batch);
+            const modColMap = { 8: 'PK', 9: 'SDMPT', 10: 'PBJ', 11: 'KA', 13: 'AI', 14: 'PMA', 15: 'HK', 16: 'MRT' };
+            if (modColMap[data.column.index]) {
+              const val = u.modules[modColMap[data.column.index]];
+              if (val !== null && val !== undefined) {
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.textColor = val >= uKkm ? [4, 120, 87] : [190, 18, 60];
+              }
+            }
+            if (data.column.index === 18) {
+              if (u.remedial_post > 0) {
+                data.cell.styles.textColor = [190, 18, 60];
+                data.cell.styles.fillColor = [255, 228, 230];
+              } else if (u.passed_post === 8) {
+                data.cell.styles.textColor = [4, 120, 87];
+                data.cell.styles.fillColor = [209, 250, 229];
+              } else if (u.passed_post > 0) {
+                data.cell.styles.textColor = [67, 56, 202];
+                data.cell.styles.fillColor = [224, 231, 255];
+              }
+            }
+          }
+        },
+        didDrawPage: function(data) {
+          if (data.pageNumber > 1) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(71, 85, 105);
+            doc.text(`UI ALEX 2026 — Matriks Evaluasi Belajar & Kesiapan Peserta (${fBatch})`, 8, 9.5);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Last Update: ${lastSyncStr}`, 289, 9.5, { align: 'right' });
+          }
+        }
+      });
+
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setDrawColor(203, 213, 225);
+        doc.setLineWidth(0.25);
+        doc.line(8, 201, 289, 201);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`UI ALEX 2026 • Universitas Indonesia (Course ID: 99544 & 99545) • Matriks Evaluasi Peserta (${list.length} Orang)`, 8, 205.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        doc.text(`Halaman ${p} dari ${totalPages}`, 289, 205.5, { align: 'right' });
+      }
+
+      doc.save(`UI_ALEX_2026_Matriks_Peserta_${fBatch.replace(/\s+/g, '_')}.pdf`);
+      updateUrlAndTracker('Unduh PDF Vektor Matriks');
+    }
+
     function downloadPDF() {
-      updateUrlAndTracker('Unduh PDF A3');
-      window.print();
+      if (currentViewMode === 'matrix') {
+        exportMatrixVectorPDF();
+      } else if (currentViewMode === 'benchmark') {
+        exportBenchmarkVectorPDF();
+      } else if (currentViewMode === 'halloffame') {
+        downloadAwardStagePDF();
+      } else if (currentViewMode === 'pimti') {
+        downloadPimtiPDF();
+      } else {
+        window.print();
+      }
     }
 
     function copyTextToClipboard(text, successLabel = 'Tersalin!') {
