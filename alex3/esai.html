@@ -40,7 +40,6 @@
   <!-- Google Analytics 4 (G-FK620QSKYN) & Histats (5024490) + Global Error Shield -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN" onerror="window.__gaBlocked=true"></script>
   <script>
-    // Global Error Shield untuk mencegah cross-origin "Script error." menghentikan eksekusi UI
     window.addEventListener('error', function(e) {
       if (e && e.message === 'Script error.' && !e.filename) {
         e.preventDefault();
@@ -123,7 +122,6 @@
   </script>
 
   <style>
-    /* Skala Dasar Ukuran Font Dasbor (Default 112% agar lebih besar, jelas & nyaman di mata) */
     html {
       font-size: 18px;
       transition: font-size 0.15s ease;
@@ -169,7 +167,7 @@
       background-color: #e2e8f0 !important;
     }
 
-    /* Fast & Intuitive Animated Drawer (CSS Grid 0fr -> 1fr Transition) */
+    /* Fast & Intuitive Animated Drawer */
     .drawer-wrapper {
       display: grid;
       grid-template-rows: 0fr;
@@ -195,64 +193,86 @@
       transform: rotate(180deg);
     }
 
-    /* Styling Tabel HTML & Hasil Rekonstruksi TinyMCE di dalam Modal Esai */
-    .essay-html-prose {
-      line-height: 1.7;
-      font-size: 0.95rem;
-      word-break: break-word;
+    /* Animasi Highlight Baris Tabel saat Lompat dari Rapor Peserta */
+    @keyframes rowPulseHighlight {
+      0%, 100% { background-color: rgba(251, 191, 36, 0.38); }
+      50% { background-color: rgba(16, 185, 129, 0.28); }
     }
+    .row-jump-highlight td {
+      animation: rowPulseHighlight 1.1s ease-in-out 4;
+      background-color: rgba(254, 243, 199, 0.85) !important;
+      border-top: 2px solid #f59e0b !important;
+      border-bottom: 2px solid #f59e0b !important;
+    }
+
+    /* Styling Tabel HTML Asli TinyMCE di dalam Modal Esai */
+    .essay-html-prose {
+      line-height: 1.65;
+      font-size: 0.92rem;
+      overflow-wrap: break-word;
+    }
+    .essay-html-prose th {
+      word-break: normal;
+      overflow-wrap: normal;
+    }
+    .essay-html-prose h1,
+    .essay-html-prose h2,
+    .essay-html-prose h3,
+    .essay-html-prose h4,
+    .essay-html-prose h5,
+    .essay-html-prose h6 {
+      font-weight: 800;
+      color: #0f172a;
+      margin-top: 0.75rem;
+      margin-bottom: 0.4rem;
+    }
+    .essay-html-prose h1 { font-size: 1.15rem; }
+    .essay-html-prose h2 { font-size: 1.05rem; }
+    .essay-html-prose h3 { font-size: 0.98rem; }
     .essay-html-prose table {
-      border-collapse: separate;
-      border-spacing: 0;
-      width: 100%;
+      border-collapse: collapse;
+      width: 100% !important;
+      max-width: 100% !important;
       margin: 0.75rem 0;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       background: #ffffff;
       border: 1px solid #cbd5e1;
-      border-radius: 0.5rem;
-      overflow: hidden;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
     }
     .essay-html-prose th,
     .essay-html-prose td {
-      border-right: 1px solid #cbd5e1;
-      border-bottom: 1px solid #cbd5e1;
-      padding: 0.65rem 0.85rem;
+      border: 1px solid #cbd5e1 !important;
+      padding: 0.55rem 0.75rem !important;
       vertical-align: top;
       text-align: left;
     }
-    .essay-html-prose th:last-child,
-    .essay-html-prose td:last-child {
-      border-right: none;
-    }
-    .essay-html-prose tr:last-child td {
-      border-bottom: none;
-    }
     .essay-html-prose thead th,
-    .essay-html-prose tr:first-child th,
-    .essay-html-prose thead td {
+    .essay-html-prose thead td,
+    .essay-html-prose tbody tr:first-child th {
       background-color: #0f172a;
       color: #f8fafc;
       font-weight: 700;
-      font-size: 0.82rem;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
+    }
+    .essay-html-prose tbody tr:first-child td {
+      background-color: #f1f5f9;
+      font-weight: 700;
+      color: #0f172a;
     }
     .essay-html-prose tbody tr:nth-child(even) td {
       background-color: #f8fafc;
     }
-    .essay-html-prose tbody tr:hover td {
-      background-color: #fef3c7/40;
-    }
     .essay-html-prose p {
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.45rem;
     }
     .essay-html-prose ul, .essay-html-prose ol {
-      padding-left: 1.25rem;
+      padding-left: 1.35rem;
       margin-bottom: 0.5rem;
     }
     .essay-html-prose ul { list-style-type: disc; }
     .essay-html-prose ol { list-style-type: decimal; }
+    .essay-html-prose hr {
+      margin: 0.75rem 0;
+      border-color: #e2e8f0;
+    }
 
     /* Disabled & Hatched (Arsir Diagonal) State saat CSV Belum Terbaca */
     #dashboardRoot.dashboard-unloaded {
@@ -293,7 +313,6 @@
       line-height: 1.4;
     }
 
-    /* Pastikan Tooltip Tippy tidak pernah muncul saat Login Overlay aktif */
     body:has(#loginOverlay:not(.hidden)) div[data-tippy-root] {
       display: none !important;
     }
@@ -370,12 +389,11 @@
         </div>
       </div>
 
-      <!-- Pipeline Ingestion & Global Actions (Tanpa Upload Manual & Tanpa Preload) -->
+      <!-- Pipeline Ingestion & Global Actions -->
       <div class="flex flex-wrap items-center gap-2">
-        <!-- Terkunci ke Configurable Report ID 175 -->
         <input id="reportIdInput" type="hidden" value="175" />
 
-        <!-- Salin Permalink (di sebelah kiri Font Scale & Sync Data) -->
+        <!-- Salin Permalink -->
         <button id="btnCopyPermalink" onclick="copyPermalink()"
           data-tippy-content="Salin tautan Permalink dengan kondisi filter, batch, mode kolom, dan halaman aktif saat ini ke clipboard"
           class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition flex items-center gap-1.5">
@@ -403,7 +421,7 @@
           </button>
         </div>
 
-        <!-- Tombol Sync Data (dengan Timer di dalamnya + Hover Info Last Updated) -->
+        <!-- Tombol Sync Data -->
         <button id="btnSyncNow" onclick="startSync(false)"
           data-tippy-content="Last Updated: Memuat..."
           class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition flex items-center gap-1.5">
@@ -413,7 +431,6 @@
           <span class="px-1.5 py-0.5 rounded bg-slate-950/15 text-slate-950 font-mono text-[10px] font-extrabold" id="autoSyncCountdown">60s</span>
         </button>
 
-        <!-- Elemen penyimpanan state untuk hover tooltip (hidden) -->
         <span id="syncStatusText" class="hidden">Menunggu sinkronisasi...</span>
         <span id="lastSyncTimestamp" class="hidden">-</span>
         <span id="totalRawRowsBadge" class="hidden">0</span>
@@ -456,7 +473,7 @@
        ===================================================================== -->
   <main id="dashboardRoot" class="dashboard-unloaded max-w-[1600px] mx-auto px-4 py-5">
 
-    <!-- Overlay Arsir & Indikator Tarik Data CSV (Persis UI ALEX 2026 v3) -->
+    <!-- Overlay Arsir & Indikator Tarik Data CSV -->
     <div id="dashboardUnloadedShield">
       <div class="bg-white/95 border-2 border-amber-400 rounded-2xl shadow-2xl px-6 py-5 max-w-md w-full mx-4 text-center space-y-3">
         <div class="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center mx-auto text-2xl animate-pulse" id="shieldSpinnerIcon">
@@ -520,12 +537,37 @@
       </section>
 
       <!-- =================================================================
-           2. WIDGET PER PILAR & MODUL DIREKTORAT (TANPA HEADER YANG DI-X)
+           2. WIDGET PER PILAR & MODUL DIREKTORAT
            ================================================================= -->
       <div id="moduleBreakdownGrid" class="space-y-4"></div>
 
       <!-- =================================================================
-           3. FILTER BAR (DIPINDAHKAN KE ATAS TABEL)
+           2B. MENU SWITCHER MODE TAMPILAN: TABEL SUBMISI vs RAPOR PER ORANG
+           ================================================================= -->
+      <nav aria-label="Mode Tampilan Data" class="bg-slate-200/90 p-1.5 rounded-2xl border border-slate-300 flex flex-wrap items-center justify-between gap-2 select-none">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 w-full lg:w-auto flex-1">
+          <button type="button" id="tabViewSubmissions" onclick="setWorkspaceMode('submissions')"
+            class="px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-between gap-3 bg-slate-900 text-amber-400 shadow-sm">
+            <div class="flex items-center gap-2 truncate">
+              <span class="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-mono text-[10px] font-extrabold">MODE 1</span>
+              <span class="truncate">📋 Tabel Submisi Esai (Per Baris Modul)</span>
+            </div>
+            <span id="badgeCountSubmissions" class="px-2 py-0.5 rounded-full bg-slate-800 text-amber-300 font-mono text-[10px]">0 Baris</span>
+          </button>
+
+          <button type="button" id="tabViewDirectory" onclick="setWorkspaceMode('directory')"
+            class="px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between gap-3 bg-white/80 text-slate-700 hover:bg-white hover:text-slate-950 border border-slate-300/80">
+            <div class="flex items-center gap-2 truncate">
+              <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px] font-extrabold">MODE 2</span>
+              <span class="truncate">👥 Direktori &amp; Rapor Per Orang (Rekap 8 Modul)</span>
+            </div>
+            <span id="badgeCountParticipants" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-mono text-[10px]">0 Peserta</span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- =================================================================
+           3. FILTER BAR (DI ATAS TABEL)
            ================================================================= -->
       <section id="topFilterCard" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3 transition-colors duration-200">
         <div class="flex flex-wrap items-center justify-between gap-4">
@@ -600,7 +642,7 @@
       <!-- =================================================================
            4. TABEL VIEWER (MODE SIMPLE 9 KOLOM & DETAILED 17 KOLOM)
            ================================================================= -->
-      <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <section id="submissionsTableSection" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <!-- Collapsible Header Bar Tabel -->
         <div onclick="toggleTableCollapse()" class="px-5 py-3.5 bg-slate-50/90 hover:bg-slate-100/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none transition">
           <div class="flex items-center gap-2.5">
@@ -618,7 +660,7 @@
             <!-- Toggle Mode Kolom: Simple (Ringkas) vs Detailed (17 Kolom) -->
             <div class="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 text-xs font-bold shadow-sm">
               <button type="button" id="btnColModeSimple" onclick="setTableColumnMode('simple')"
-                data-tippy-content="Tampilkan kolom-kolom penting saja agar tabel ringkas dan nyaman dibaca"
+                data-tippy-content="Tampilkan kolom-kolom penting dengan urutan ergonomis (Peserta di kiri, Aksi di kanan)"
                 class="px-2.5 py-1 rounded-md bg-slate-900 text-amber-400 transition flex items-center gap-1">
                 <span>⚡</span><span>Simple (Ringkas)</span>
               </button>
@@ -730,8 +772,173 @@
         </div>
       </section>
 
+      <!-- =================================================================
+           5. DIREKTORI & MATRIKS RAPOR PER ORANG (URUTAN KOLOM ERGONOMIS)
+           ================================================================= -->
+      <section id="participantDirectorySection" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 bg-slate-50/90 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <span>👥</span>
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-900">Direktori &amp; Matriks Rapor Submisi Per Orang (8 Modul)</h2>
+                <span id="dirParticipantCountBadge" class="px-2.5 py-0.5 text-[10px] font-mono font-bold rounded-full bg-amber-100 text-amber-900 border border-amber-300">0 Peserta</span>
+              </div>
+              <p class="text-[11px] text-slate-500">Klik nama peserta atau tombol <strong>📊 Buka Rapor</strong> untuk melihat rincian 8 modul, atau klik kode modul (`PK` s.d. `MRT`) untuk langsung membuka submisinya.</p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="w-full sm:w-72">
+              <input id="searchDirectoryInput" type="text" oninput="renderParticipantDirectory()"
+                placeholder="Cari nama peserta, username, NIP..."
+                class="allow-context w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            </div>
+            <select id="filterDirCompletion" onchange="renderParticipantDirectory()"
+              class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="ALL">Semua Progres (0-8 Modul)</option>
+              <option value="COMPLETE_8">🟢 Lengkap 8/8 Submitted</option>
+              <option value="PARTIAL">🟡 Sebagian Submitted (1-7 Modul)</option>
+              <option value="HAS_NEW">📝 Ada Status Draft (New)</option>
+              <option value="ZERO">⚪ Belum Ada Submitted (0/8)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="p-4">
+          <div class="overflow-x-auto max-h-[680px] overflow-y-auto rounded-lg border border-slate-300 shadow-inner">
+            <table class="sticky-matrix-table text-xs">
+              <thead class="bg-slate-100 text-slate-700 select-none">
+                <tr class="font-extrabold text-[11px] uppercase tracking-wider">
+                  <th class="p-2.5 text-center w-12">No</th>
+                  <th class="p-2.5 text-left min-w-[230px]">Nama Peserta &amp; Identitas</th>
+                  <th class="p-2.5 text-center w-24">Batch</th>
+                  <th class="p-2.5 text-center w-44">Progres 8 Modul</th>
+                  <th class="p-2.5 text-center w-[260px] bg-amber-50/70 text-amber-950">Pilar I (PK • SDMPT • PBJ • KA)</th>
+                  <th class="p-2.5 text-center w-[260px] bg-blue-50/70 text-blue-950">Pilar II (AI • PMA • HK • MRT)</th>
+                  <th class="p-2.5 text-center w-36">Submit Terakhir</th>
+                  <th class="p-2.5 text-center w-44 bg-emerald-50/80 text-emerald-950">Aksi Rapor &amp; Unduh</th>
+                </tr>
+              </thead>
+              <tbody id="participantDirectoryBody" class="selectable divide-y divide-slate-200">
+                <tr>
+                  <td colspan="8" class="p-8 text-center text-slate-400">Memuat direktori peserta...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
     </div>
   </main>
+
+  <!-- =====================================================================
+       2C. MODAL RAPOR SUBMISI PER ORANG (#participantRaporModal)
+       ===================================================================== -->
+  <div id="participantRaporModal" class="fixed inset-0 z-40 hidden bg-slate-900/80 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl border border-slate-300 shadow-2xl max-w-6xl w-full my-6 overflow-hidden">
+      <div class="bg-slate-900 text-white px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3.5">
+          <div id="raporAvatarInitials" class="w-11 h-11 rounded-xl bg-amber-500 text-slate-950 font-extrabold text-base flex items-center justify-center shadow-md border border-amber-300">
+            UI
+          </div>
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="px-2 py-0.5 text-[10px] font-mono font-extrabold uppercase rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                RAPOR SUBMISI ESAI INDIVIDU
+              </span>
+              <span id="raporBatchBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-slate-800 text-slate-200 border border-slate-700">
+                Batch 2
+              </span>
+              <span id="raporOverallStatusBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                0/8 Submitted
+              </span>
+            </div>
+            <h3 id="raporPesertaName" class="text-base sm:text-lg font-extrabold text-white mt-0.5">-</h3>
+            <p id="raporPesertaMeta" class="text-xs font-mono text-slate-400">-</p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" onclick="copyRaporPermalink()"
+            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition flex items-center gap-1.5">
+            <span>🔗</span><span id="lblCopyRaporLink">Link Rapor</span>
+          </button>
+          <button type="button" id="btnRaporExportAll" onclick="exportActiveRaporParticipantExcel()"
+            class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
+            <span>📥</span><span>Unduh XLSX 8 Modul</span>
+          </button>
+          <button type="button" onclick="closeParticipantRaporModal()"
+            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">
+            ✕ Tutup
+          </button>
+        </div>
+      </div>
+
+      <div class="p-6 space-y-5 max-h-[82vh] overflow-y-auto bg-slate-50">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <div class="bg-white rounded-xl border border-slate-200 p-3.5 shadow-sm">
+            <div class="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+              <span>Progres 8 Modul</span>
+              <span id="raporKpiPct" class="font-mono text-emerald-700">0%</span>
+            </div>
+            <div id="raporKpiTotalSub" class="text-xl font-mono font-extrabold text-slate-900 mt-1">0 / 8 Submitted</div>
+            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex my-2 border border-slate-200/60">
+              <div id="raporBarSub" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
+              <div id="raporBarNew" class="h-full bg-amber-400 transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <div id="raporKpiSubDetail" class="text-[11px] font-mono text-slate-500">🟢 0 Sub • 🟡 0 New • ⚪ 8 Belum</div>
+          </div>
+
+          <div class="bg-white rounded-xl border border-amber-200 bg-amber-50/20 p-3.5 shadow-sm">
+            <div class="text-[10px] font-extrabold uppercase tracking-wider text-amber-800">Pilar I (Manajemen)</div>
+            <div id="raporKpiP1" class="text-xl font-mono font-extrabold text-slate-900 mt-1">0 / 4 Modul</div>
+            <div id="raporKpiP1Badges" class="grid grid-cols-4 gap-1 mt-2"></div>
+          </div>
+
+          <div class="bg-white rounded-xl border border-blue-200 bg-blue-50/20 p-3.5 shadow-sm">
+            <div class="text-[10px] font-extrabold uppercase tracking-wider text-blue-800">Pilar II (Governance)</div>
+            <div id="raporKpiP2" class="text-xl font-mono font-extrabold text-slate-900 mt-1">0 / 4 Modul</div>
+            <div id="raporKpiP2Badges" class="grid grid-cols-4 gap-1 mt-2"></div>
+          </div>
+
+          <div class="bg-white rounded-xl border border-slate-200 p-3.5 shadow-sm">
+            <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Volume &amp; Aktivitas Esai</div>
+            <div id="raporKpiChars" class="text-xl font-mono font-extrabold text-indigo-700 mt-1">0 Karakter</div>
+            <div id="raporKpiLastSubmit" class="text-[11px] font-mono text-slate-500 mt-2 truncate">🕒 Terakhir: -</div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-4 py-3 bg-slate-100/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-800">Daftar Lengkap 8 Modul Submisi Esai Peserta</h4>
+              <p class="text-[11px] text-slate-500">Gunakan tombol <strong>🔍 Buka Submisi</strong> untuk melihat tabel jawaban esai, atau <strong>📍 Ke Baris Tabel</strong> untuk melompat ke baris modul tersebut di tabel utama.</p>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="sticky-matrix-table text-xs">
+              <thead class="bg-slate-50 text-slate-700 font-extrabold text-[11px] uppercase tracking-wider">
+                <tr>
+                  <th class="p-2.5 text-center w-10">No</th>
+                  <th class="p-2.5 text-left w-48">Pilar &amp; Kode Modul</th>
+                  <th class="p-2.5 text-left min-w-[180px]">Nama Assignment Esai</th>
+                  <th class="p-2.5 text-center w-28">Status Submisi</th>
+                  <th class="p-2.5 text-center w-36">Waktu Submit</th>
+                  <th class="p-2.5 text-left min-w-[240px]">Ringkasan &amp; Volume Jawaban</th>
+                  <th class="p-2.5 text-center w-20">Nilai</th>
+                  <th class="p-2.5 text-center min-w-[265px] bg-amber-50/80 text-amber-950">Navigasi &amp; Aksi Submisi</th>
+                </tr>
+              </thead>
+              <tbody id="raporModulesTableBody" class="selectable divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- =====================================================================
        3. MODAL VIEWER DETAIL TABEL SOAL & JAWABAN ESAI PESERTA
@@ -744,7 +951,7 @@
             <span id="modalModulBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-amber-500 text-slate-950">PK</span>
             <span id="modalStatusBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">submitted</span>
             <span id="modalWaktuBadge" class="text-xs font-mono text-slate-400">-</span>
-            <span id="modalFormatDetectedBadge" class="px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">TinyMCE HTML</span>
+            <span id="modalFormatDetectedBadge" class="px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">Raw HTML TinyMCE</span>
           </div>
           <h3 id="modalPesertaName" class="text-base font-extrabold text-white mt-1">-</h3>
           <p id="modalPesertaMeta" class="text-xs font-mono text-slate-400">-</p>
@@ -768,7 +975,7 @@
               A+
             </button>
           </div>
-          <!-- Toggle Mode Tampilan: Tabel Terformat vs Teks/HTML Mentah -->
+          <!-- Toggle Mode Tampilan: Tabel Terformat vs Sumber HTML Mentah -->
           <div class="inline-flex rounded-lg border border-slate-700 bg-slate-800 p-0.5 text-xs font-bold">
             <button type="button" id="btnViewModeFormatted" onclick="setModalRenderMode('formatted')"
               class="px-2.5 py-1 rounded-md bg-amber-500 text-slate-950 transition">
@@ -776,12 +983,16 @@
             </button>
             <button type="button" id="btnViewModeRaw" onclick="setModalRenderMode('raw')"
               class="px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition">
-              📝 Sumber HTML / Teks
+              📝 Sumber HTML Asli
             </button>
           </div>
           <button onclick="copyActiveEssayAnswer()"
             class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition">
             📋 Salin Jawaban
+          </button>
+          <button id="btnBackToRaporModal" onclick="returnToParticipantRaporModal()"
+            class="hidden px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow transition">
+            ← Kembali ke Rapor
           </button>
           <button onclick="closeEssayModal()"
             class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">
@@ -803,7 +1014,7 @@
         <!-- Kanan: Jawaban Peserta Essay -->
         <div class="lg:col-span-7 bg-white rounded-xl border border-emerald-200 p-4 flex flex-col shadow-sm">
           <div class="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
-            <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-800">✍️ Jawaban Peserta Essay (TinyMCE / Tabel Terformat)</span>
+            <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-800">✍️ Jawaban Peserta Essay (HTML TinyMCE)</span>
             <span id="modalCharCount" class="text-xs font-mono text-slate-500">0 karakter</span>
           </div>
           <div id="modalJawabanHtml" class="essay-html-prose selectable text-sm text-slate-800 overflow-x-auto"></div>
@@ -826,7 +1037,7 @@
   </footer>
 
   <!-- =====================================================================
-       5. CORE JAVASCRIPT ENGINE (MURNI PIPELINE WORKER CORS ID 175)
+       5. CORE JAVASCRIPT ENGINE (MURNI RENDER HTML ASLI REPORT ID 175)
        ===================================================================== -->
   <script>
     /*************************************************************************
@@ -838,11 +1049,10 @@
       dsdm: 'b5d4f1903c193e7fa0209917b9645dfec13f9720e05b762a3a47cf8969aebfd5',
       sistapel: ''
     };
-    const IDLE_LIMIT_MS = 5 * 60 * 1000; // 5 Menit Auto-Lock
+    const IDLE_LIMIT_MS = 5 * 60 * 1000;
     let idleTimer = null;
     let currentLoggedUser = '';
 
-    // Pure Bitwise JavaScript SHA-256 Implementation
     function computeSHA256(ascii) {
       function rotr(n, x) { return (x >>> n) | (x << (32 - n)); }
       const utf8 = unescape(encodeURIComponent(ascii));
@@ -974,10 +1184,11 @@
         autoSyncInterval = null;
       }
       closeEssayModal();
+      closeParticipantRaporModal(true);
       rawMasterData = [];
       filteredData = [];
       sortedData = [];
-      applyFilters();
+      applyFilters(true);
       setDashboardLoadedState(
         false,
         'Sesi Dikunci — Data Belum Dimuat',
@@ -1014,7 +1225,6 @@
       }
     }
 
-    // Urutan baku 17 kolom dari Configurable Report ID 175
     const REPORT_175_COLUMNS = [
       'id_submisi',
       'batch',
@@ -1036,6 +1246,16 @@
     ];
 
     const MODULE_ORDER = ['PK', 'SDMPT', 'PBJ', 'KA', 'AI', 'PMA', 'HK', 'MRT'];
+    const CMID_TO_MODUL = {
+      '3187184': { code: 'PK',    name: 'Perencanaan dan Kinerja', pilar: 'Pilar I (Manajemen)' },
+      '3187187': { code: 'SDMPT', name: 'Manajemen SDM dan Pengembangan Talenta', pilar: 'Pilar I (Manajemen)' },
+      '3187188': { code: 'PBJ',   name: 'Manajemen Pengadaan Barang dan Jasa', pilar: 'Pilar I (Manajemen)' },
+      '3187189': { code: 'KA',    name: 'Manajemen Keuangan dan Akuntansi', pilar: 'Pilar I (Manajemen)' },
+      '3187201': { code: 'AI',    name: 'Audit Internal', pilar: 'Pilar II (Governance)' },
+      '3187202': { code: 'PMA',   name: 'Penjaminan Mutu Akademik', pilar: 'Pilar II (Governance)' },
+      '3187203': { code: 'HK',    name: 'Hukum dan Kearsipan', pilar: 'Pilar II (Governance)' },
+      '3187204': { code: 'MRT',   name: 'Manajemen Risiko, Transformasi Budaya, dan Tata Kelola', pilar: 'Pilar II (Governance)' }
+    };
     const MODULE_INFO = {
       PK:    { name: 'Perencanaan dan Kinerja', pilar: 'Pilar I (Manajemen)' },
       SDMPT: { name: 'Manajemen SDM dan Pengembangan Talenta', pilar: 'Pilar I (Manajemen)' },
@@ -1047,7 +1267,6 @@
       MRT:   { name: 'Manajemen Risiko, Transformasi Budaya, dan Tata Kelola', pilar: 'Pilar II (Governance)' }
     };
 
-    // State Global — Murni dimulai kosong (0 baris, tanpa preload / sampel)
     let rawMasterData = [];
     let filteredData = [];
     let sortedData = [];
@@ -1056,19 +1275,21 @@
     let autoSyncInterval = null;
     let autoSyncRemaining = 60;
     let searchDebounceTimer = null;
-    // Default sorting: multi-level (batch -> pilar -> urutan modul -> nama_peserta)
     let sortState = { key: 'DEFAULT', dir: 'asc' };
-    let tableColumnMode = 'simple'; // 'simple' | 'detailed'
+    let tableColumnMode = 'simple';
     let isTableCollapsed = true;
     let pilarCollapsedState = { 'Pilar I': true, 'Pilar II': true };
     let currentPage = 1;
     let pageSize = 50;
     let activeModalRow = null;
-    let modalRenderMode = 'formatted'; // 'formatted' | 'raw'
+    let modalRenderMode = 'formatted';
+    let workspaceMode = 'submissions';
+    let activeRaporUsername = null;
+    let openedEssayFromRapor = false;
+    let highlightedRowKey = null;
     let lastTrackedUrl = window.location.href;
     let lastTrackedPath = window.location.pathname + window.location.search;
 
-    // Sistem Kontrol Skala Ukuran Font (Default index 2 = 18px / 112% agar lebih besar & jelas)
     const FONT_SCALE_STEPS = [
       { px: 15, pct: '94%' },
       { px: 16, pct: '100%' },
@@ -1098,7 +1319,7 @@
     }
 
     function resetFontSize() {
-      currentFontScaleIdx = 2; // Standar nyaman 18px (112%)
+      currentFontScaleIdx = 2;
       applyFontScale();
       updateUrlAndTracker('Reset Font');
     }
@@ -1129,150 +1350,28 @@
       }
     }
 
-    // Cache Memoization agar teks soal yang sama (diulang 186x per modul) hanya di-parse 1x
     const _htmlCleanCache = new Map();
 
     /*************************************************************************
-     * B. MASTER SOAL HTML & SKEMA REKONSTRUKSI TABEL 8 MODUL DIREKTORAT
+     * B. RENDERING 100% RAW HTML ASLI DARI CSV REPORT 175 & MASTER SOAL HTML
+     * Otomatis menerjemahkan token [[LT]] dari SQL Ultra-Ringan kembali ke '<'
      *************************************************************************/
     const MASTER_SOAL_HTML = {
-      PK: `<h3 dir="ltr">Kompetensi yang Dinilai</h3><p dir="ltr">Peserta mampu memahami dan menerapkan prinsip penyusunan Rencana Kerja Tahunan (RKT) di lingkungan Universitas Indonesia melalui identifikasi sasaran, program, kegiatan, indikator kinerja, target, dan keterkaitan dengan Renstra Unit Kerja.</p><p dir="ltr"><strong>Waktu: 15 Menit</strong><br><strong>Bentuk: Esai Terstruktur (1 Soal)</strong></p><hr><h1>SOAL</h1><p dir="ltr">Sebagai seorang Manajer/Kasubdirektorat, Saudara akan menyusun Rencana Kerja Tahunan (RKT) unit kerja untuk tahun anggaran berikutnya.</p><p dir="ltr">Lengkapi tabel berikut dengan menjelaskan norma atau konsep utama yang harus diperhatikan dalam penyusunan RKT.</p><table><thead><tr><th>Komponen RKT</th><th>Jelaskan Fungsi/Norma Penyusunannya</th><th>Output yang Dihasilkan</th><th>Contoh pada Unit Kerja Saudara</th></tr></thead><tbody><tr><td><strong>Sasaran Unit Kerja</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Program Kerja</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Kegiatan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Indikator Kinerja</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Target Tahunan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Anggaran</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Risiko Pelaksanaan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Monitoring dan Evaluasi</strong></td><td>-</td><td>-</td><td>-</td></tr></tbody></table>`,
-      SDMPT: `<h1>Uji Kompetensi Manajemen SDM Tingkat Manajer</h1><h2>Analisis Fungsi Manajemen SDM, Tujuan, dan Output Strategis</h2><h3>Kompetensi yang Diukur</h3><ul><li>Memahami keterkaitan fungsi Manajemen SDM dengan pencapaian sasaran organisasi.</li><li>Mengidentifikasi tujuan strategis setiap fungsi Manajemen SDM.</li><li>Menentukan output yang harus dihasilkan oleh Manajer SDM.</li><li>Menganalisis permasalahan organisasi dan menentukan intervensi Manajemen SDM yang tepat.</li></ul><p>Mengacu pada Peraturan Rektor Universitas Indonesia Nomor 45 Tahun 2025 tentang Manajemen Sumber Daya Manusia Universitas Indonesia.</p><h2>Kasus</h2><ol><li>Dalam 3 tahun mendatang akan terjadi pensiun terhadap 20% pegawai pada jabatan supervisor dan manajerial.</li><li>Hasil evaluasi kinerja menunjukkan 35% pegawai belum mencapai target kinerja unit.</li><li>Fakultas sedang melaksanakan transformasi digital, namun sebagian besar pegawai belum memiliki kompetensi yang memadai.</li><li>Struktur organisasi terakhir dievaluasi lebih dari 5 tahun yang lalu dan terdapat indikasi tumpang tindih fungsi pada beberapa unit.</li><li>Tingkat turnover pegawai non-dosen meningkat dalam dua tahun terakhir.</li><li>Hasil survei menunjukkan persepsi pegawai terhadap sistem penghargaan dan remunerasi belum optimal.</li></ol><h2>Tugas Peserta</h2><p>Lengkapilah tabel berikut.</p><table><thead><tr><th>No</th><th>Permasalahan Strategis</th><th>Fungsi Manajemen SDM yang Relevan</th><th>Tujuan yang Ingin Dicapai</th><th>Output yang Dihasilkan</th></tr></thead><tbody><tr><td>1</td><td><strong>Risiko kekosongan jabatan akibat pensiun</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td>2</td><td><strong>Kinerja pegawai belum mencapai target</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td>3</td><td><strong>Kompetensi digital pegawai belum memadai</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td>4</td><td><strong>Struktur organisasi belum optimal</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td>5</td><td><strong>Turnover pegawai meningkat</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td>6</td><td><strong>Persepsi remunerasi belum optimal</strong></td><td>-</td><td>-</td><td>-</td></tr></tbody></table>`,
-      PBJ: `<p><strong>Penetapan Skema Pengadaan Sesuai PR UI Nomor 20 Tahun 2026</strong></p><p><strong>Kompetensi yang Dinilai:</strong> Peserta mampu menjelaskan norma, kewenangan, ambang batas, dan syarat penggunaan masing-masing skema pengadaan.</p><p><strong>Instruksi:</strong> Lengkapi tabel berikut berdasarkan pemahaman Saudara terhadap ketentuan dalam Peraturan Rektor Universitas Indonesia Nomor 20 Tahun 2026.</p><table><thead><tr><th>Skema Pengadaan</th><th>Definisi/Norma</th><th>Kapan Digunakan</th><th>Ambang Nilai</th><th>Pelaku Utama</th><th>Dokumen Kunci</th><th>Syarat Khusus</th></tr></thead><tbody><tr><td><strong>Pembelian Langsung</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>e-Purchasing</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Pengadaan Langsung</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Tender</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Seleksi</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Swakelola</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Penunjukan Langsung</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr></tbody></table>`,
-      KA: `<h3>Penyusunan dan Pelaporan Keuangan Kegiatan Non-Rutin Unit Kerja Universitas Indonesia</h3><p><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami siklus pertanggungjawaban keuangan kegiatan non-rutin mulai dari perencanaan anggaran, pelaksanaan belanja, pengumpulan bukti transaksi, rekonsiliasi, hingga penyusunan laporan pertanggungjawaban kegiatan.</p><p><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai Terstruktur</strong></p><hr><h1>SOAL</h1><p>Saudara ditugaskan sebagai penanggung jawab administrasi keuangan kegiatan non-rutin di unit kerja Universitas Indonesia, misalnya: Seminar Internasional, Capacity Building Pegawai, Workshop Akreditasi, Pelatihan Pegawai, Konferensi Ilmiah, atau Kegiatan Pengabdian Masyarakat. Lengkapi tabel berikut:</p><table><thead><tr><th>Tahapan Pelaporan Keuangan</th><th>Tujuan</th><th>Dokumen Utama</th><th>Output</th></tr></thead><tbody><tr><td><strong>Perencanaan Anggaran</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Pelaksanaan Kegiatan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Pengumpulan Bukti Transaksi</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Verifikasi dan Rekonsiliasi</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Penyusunan Laporan Keuangan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Pertanggungjawaban Kegiatan</strong></td><td>-</td><td>-</td><td>-</td></tr></tbody></table><h2 class="mt-4 font-extrabold">SOAL LANJUTAN</h2><p>Jelaskan secara singkat fungsi setiap dokumen berikut dalam pelaporan keuangan kegiatan non-rutin:</p><table><thead><tr><th>Dokumen</th><th>Fungsi</th></tr></thead><tbody><tr><td><strong>RAB</strong></td><td>-</td></tr><tr><td><strong>Invoice</strong></td><td>-</td></tr><tr><td><strong>Kwitansi</strong></td><td>-</td></tr><tr><td><strong>BAST</strong></td><td>-</td></tr><tr><td><strong>Daftar Hadir</strong></td><td>-</td></tr><tr><td><strong>Laporan Realisasi Anggaran</strong></td><td>-</td></tr><tr><td><strong>LPJ Kegiatan</strong></td><td>-</td></tr></tbody></table>`,
-      AI: `<h3>Three Lines Model dan Audit Internal Universitas</h3><p><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami peran dan tanggung jawab masing-masing lini pertahanan (Three Lines Model) dalam tata kelola, manajemen risiko, kepatuhan, dan audit internal.</p><p><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai Terstruktur</strong></p><hr><h1>SOAL</h1><p>Lengkapi tabel berikut berdasarkan pemahaman Saudara mengenai Three Lines Model dan fungsi Direktorat Audit Internal, Direktorat Manajemen Risiko dan Penugasan Khusus, serta Unit Kerja Operasional.</p><table><thead><tr><th>Komponen</th><th>Peran Utama</th><th>Tanggung Jawab</th><th>Contoh di Universitas Indonesia</th></tr></thead><tbody><tr><td><strong>First Line (Manajemen Operasional)</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Second Line (Manajemen Risiko &amp; Kepatuhan)</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Third Line (Audit Internal)</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Manajemen Risiko</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Pengendalian Internal</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Assurance</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Konsultasi Audit</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Tindak Lanjut Hasil Audit</strong></td><td>-</td><td>-</td><td>-</td></tr></tbody></table><h2 class="mt-4 font-extrabold">SOAL LANJUTAN</h2><p>Jelaskan secara singkat siapa yang bertanggung jawab pada setiap aktivitas berikut:</p><table><thead><tr><th>Aktivitas</th><th>First Line</th><th>Second Line</th><th>Third Line</th></tr></thead><tbody><tr><td><strong>Pelaksanaan proses bisnis</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Pengelolaan risiko</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Penyusunan kebijakan kepatuhan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Audit kepatuhan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Evaluasi pengendalian internal</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Monitoring tindak lanjut audit</strong></td><td>-</td><td>-</td><td>-</td></tr></tbody></table>`,
-      PMA: `<h3>Pemahaman PR UI Nomor 33 Tahun 2025 tentang Sistem Penjaminan Mutu Internal (SPMI)</h3><p><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami konsep dasar SPMI UI, siklus PPEPP, standar mutu UI, serta peran unit kerja dalam implementasi mutu berkelanjutan.</p><p><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai Terstruktur</strong></p><hr><h1>SOAL</h1><p>Lengkapi tabel berikut berdasarkan pemahaman Saudara mengenai Sistem Penjaminan Mutu Internal (SPMI) Universitas Indonesia.</p><table><thead><tr><th>Komponen SPMI</th><th>Tujuan/Fungsi</th><th>Output Utama</th></tr></thead><tbody><tr><td><strong>Penetapan Standar</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Pelaksanaan Standar</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Evaluasi Standar</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Pengendalian Standar</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Peningkatan Standar</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Standar Pendidikan</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Standar Penelitian</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Standar Pengabdian kepada Masyarakat</strong></td><td>-</td><td>-</td></tr></tbody></table>`,
-      HK: `<h3>Norma Penyusunan Peraturan Rektor dan Keputusan Rektor Universitas Indonesia</h3><p><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami norma, struktur, fungsi, dan penggunaan dokumen hukum internal Universitas Indonesia (Peraturan Rektor vs Keputusan Rektor).</p><p><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai</strong></p><hr><h1>SOAL</h1><p>Lengkapi tabel berikut dengan menjelaskan norma penyusunan dokumen hukum Universitas Indonesia.</p><table><thead><tr><th>Komponen</th><th>Peraturan Rektor</th><th>Keputusan Rektor</th></tr></thead><tbody><tr><td><strong>Tujuan Dokumen</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Sifat Pengaturan</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Materi Muatan</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Jangka Waktu Berlaku</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Objek yang Diatur</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Dasar Hukum</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Struktur Dokumen</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Contoh Penggunaan</strong></td><td>-</td><td>-</td></tr></tbody></table>`,
-      MRT: `<h3>Manajemen Risiko Universitas Indonesia</h3><p><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami prinsip dasar manajemen risiko, identifikasi risiko, analisis risiko, mitigasi risiko, monitoring risiko, dan pelaporan risiko dalam pengelolaan unit kerja universitas.</p><p><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai Terstruktur</strong></p><hr><h1>SOAL</h1><p>Lengkapi tabel berikut berdasarkan pemahaman Saudara mengenai penerapan Manajemen Risiko di unit kerja.</p><table><thead><tr><th>Komponen Manajemen Risiko</th><th>Tujuan/Fungsi</th><th>Output Utama</th></tr></thead><tbody><tr><td><strong>Identifikasi Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Analisis Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Evaluasi Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Mitigasi Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Kontrol/Pengendalian Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Monitoring Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Pelaporan Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Tindak Lanjut Risiko</strong></td><td>-</td><td>-</td></tr></tbody></table>`
+      PK: `<h3 dir="ltr">Kompetensi yang Dinilai</h3><p dir="ltr">Peserta mampu memahami dan menerapkan prinsip penyusunan Rencana Kerja Tahunan (RKT) di lingkungan Universitas Indonesia melalui identifikasi sasaran, program, kegiatan, indikator kinerja, target, dan keterkaitan dengan Renstra Unit Kerja.</p><p dir="ltr"><strong>Waktu: 15 Menit</strong><br><strong>Bentuk: Esai Terstruktur (1 Soal)</strong></p><hr><h1 dir="ltr">SOAL</h1><p dir="ltr">Sebagai seorang Manajer/Kasubdirektorat, Saudara akan menyusun Rencana Kerja Tahunan (RKT) unit kerja untuk tahun anggaran berikutnya.</p><p dir="ltr">Lengkapi tabel berikut dengan menjelaskan norma atau konsep utama yang harus diperhatikan dalam penyusunan RKT.</p><table border="1"><thead><tr><th>Komponen RKT</th><th>Jelaskan Fungsi/Norma Penyusunannya</th><th>Output yang Dihasilkan</th><th>Contoh pada Unit Kerja Saudara</th></tr></thead><tbody><tr><td><strong>Sasaran Unit Kerja</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Program Kerja</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Kegiatan</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Indikator Kinerja</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Target Tahunan</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Anggaran</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Risiko Pelaksanaan</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Monitoring dan Evaluasi</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table>`,
+      SDMPT: `<h1 dir="ltr">Uji Kompetensi Manajemen SDM Tingkat Manajer</h1><h2 dir="ltr">Analisis Fungsi Manajemen SDM, Tujuan, dan Output Strategis</h2><h3 dir="ltr">Kompetensi yang Diukur</h3><p dir="ltr">Peserta mampu:</p><ul><li>Memahami keterkaitan fungsi Manajemen SDM dengan pencapaian sasaran organisasi.</li><li>Mengidentifikasi tujuan strategis setiap fungsi Manajemen SDM.</li><li>Menentukan output yang harus dihasilkan oleh Manajer SDM.</li><li>Menganalisis permasalahan organisasi dan menentukan intervensi Manajemen SDM yang tepat.</li></ul><p dir="ltr">Mengacu pada Peraturan Rektor Universitas Indonesia Nomor 45 Tahun 2025 tentang Manajemen Sumber Daya Manusia Universitas Indonesia yang mengatur pengelolaan SDM mulai dari perencanaan kebutuhan pegawai, pengembangan kompetensi, manajemen kinerja, karier, remunerasi, hingga disiplin pegawai.</p><h1 dir="ltr">Soal Studi Kasus</h1><p dir="ltr">Dalam rapat evaluasi tahunan, Dekan menyampaikan beberapa isu strategis Fakultas sebagai berikut:</p><ol><li>Dalam 3 tahun mendatang akan terjadi pensiun terhadap 20% pegawai pada jabatan supervisor dan manajerial.</li><li>Hasil evaluasi kinerja menunjukkan 35% pegawai belum mencapai target kinerja unit.</li><li>Fakultas sedang melaksanakan transformasi digital, namun sebagian besar pegawai belum memiliki kompetensi yang memadai.</li><li>Struktur organisasi terakhir dievaluasi lebih dari 5 tahun yang lalu dan terdapat indikasi tumpang tindih fungsi pada beberapa unit.</li><li>Tingkat turnover pegawai non-dosen meningkat dalam dua tahun terakhir.</li><li>Hasil survei menunjukkan persepsi pegawai terhadap sistem penghargaan dan remunerasi belum optimal.</li></ol><p dir="ltr">Sebagai Manajer SDM Fakultas, Anda diminta menyusun rekomendasi fungsi Manajemen SDM yang perlu dilaksanakan untuk mengatasi isu tersebut.</p><hr><h2 dir="ltr">Tugas Peserta</h2><p dir="ltr">Lengkapilah tabel berikut.</p><table border="1"><thead><tr><th>No</th><th>Permasalahan Strategis</th><th>Fungsi Manajemen SDM yang Relevan</th><th>Tujuan yang Ingin Dicapai</th><th>Output yang Dihasilkan</th></tr></thead><tbody><tr><td>1</td><td>Risiko kekosongan jabatan akibat pensiun</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>2</td><td>Kinerja pegawai belum mencapai target</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>3</td><td>Kompetensi digital pegawai belum memadai</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>4</td><td>Struktur organisasi belum optimal</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>5</td><td>Turnover pegawai meningkat</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>6</td><td>Persepsi remunerasi belum optimal</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table>`,
+      PBJ: `<p dir="ltr"><strong>Penetapan Skema Pengadaan Sesuai PR UI Nomor 20 Tahun 2026</strong></p><p dir="ltr"><strong>Kompetensi yang Dinilai:</strong> Peserta mampu menjelaskan norma, kewenangan, ambang batas, dan syarat penggunaan masing-masing skema pengadaan.</p><p dir="ltr"><strong>Instruksi:</strong> Lengkapi tabel berikut berdasarkan pemahaman Saudara terhadap ketentuan dalam Peraturan Rektor Universitas Indonesia Nomor 20 Tahun 2026.</p><table border="1"><thead><tr><th>Skema Pengadaan</th><th>Definisi/Norma</th><th>Kapan Digunakan</th><th>Ambang Nilai</th><th>Pelaku Utama</th><th>Dokumen Kunci</th><th>Syarat Khusus</th></tr></thead><tbody><tr><td><strong>Pembelian Langsung</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>e-Purchasing</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Pengadaan Langsung</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Tender</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Seleksi</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Swakelola</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Penunjukan Langsung</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table>`,
+      KA: `<h3 dir="ltr">Penyusunan dan Pelaporan Keuangan Kegiatan Non-Rutin Unit Kerja Universitas Indonesia</h3><p dir="ltr"><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami siklus pertanggungjawaban keuangan kegiatan non-rutin mulai dari perencanaan anggaran, pelaksanaan belanja, pengumpulan bukti transaksi, rekonsiliasi, hingga penyusunan laporan pertanggungjawaban kegiatan.</p><p dir="ltr"><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai Terstruktur</strong></p><hr><h1 dir="ltr">SOAL</h1><p dir="ltr">Saudara ditugaskan sebagai penanggung jawab administrasi keuangan kegiatan non-rutin di unit kerja Universitas Indonesia, misalnya:</p><ul><li>Seminar Internasional</li><li>Capacity Building Pegawai</li><li>Workshop Akreditasi</li><li>Pelatihan Pegawai</li><li>Konferensi Ilmiah</li><li>Kegiatan Pengabdian Masyarakat</li></ul><p dir="ltr">Lengkapi tabel berikut berdasarkan pemahaman Saudara mengenai proses pelaporan keuangan kegiatan non-rutin.</p><table border="1"><thead><tr><th>Tahapan Pelaporan Keuangan</th><th>Tujuan</th><th>Dokumen Utama</th><th>Output</th></tr></thead><tbody><tr><td><strong>Perencanaan Anggaran</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Pelaksanaan Kegiatan</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Pengumpulan Bukti Transaksi</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Verifikasi dan Rekonsiliasi</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Penyusunan Laporan Keuangan</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Pertanggungjawaban Kegiatan</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table><h1 dir="ltr">SOAL LANJUTAN</h1><p dir="ltr">Jelaskan secara singkat fungsi setiap dokumen berikut dalam pelaporan keuangan kegiatan non-rutin:</p><table border="1"><thead><tr><th>Dokumen</th><th>Fungsi</th></tr></thead><tbody><tr><td><strong>RAB</strong></td><td>&nbsp;</td></tr><tr><td><strong>Invoice</strong></td><td>&nbsp;</td></tr><tr><td><strong>Kwitansi</strong></td><td>&nbsp;</td></tr><tr><td><strong>BAST</strong></td><td>&nbsp;</td></tr><tr><td><strong>Daftar Hadir</strong></td><td>&nbsp;</td></tr><tr><td><strong>Laporan Realisasi Anggaran</strong></td><td>&nbsp;</td></tr><tr><td><strong>LPJ Kegiatan</strong></td><td>&nbsp;</td></tr></tbody></table>`,
+      AI: `<h3 dir="ltr">Three Lines Model dan Audit Internal Universitas</h3><p dir="ltr"><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami peran dan tanggung jawab masing-masing lini pertahanan (Three Lines Model) dalam tata kelola, manajemen risiko, kepatuhan, dan audit internal.</p><p dir="ltr"><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai Terstruktur</strong></p><hr><h1 dir="ltr">SOAL</h1><p dir="ltr">Lengkapi tabel berikut berdasarkan pemahaman Saudara mengenai Three Lines Model dan fungsi Direktorat Audit Internal, Direktorat Manajemen Risiko dan Penugasan Khusus, serta Unit Kerja Operasional.</p><table border="1"><thead><tr><th>Komponen</th><th>Peran Utama</th><th>Tanggung Jawab</th><th>Contoh di Universitas Indonesia</th></tr></thead><tbody><tr><td><strong>First Line (Manajemen Operasional)</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Second Line (Manajemen Risiko &amp; Kepatuhan)</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Third Line (Audit Internal)</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Manajemen Risiko</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Pengendalian Internal</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Assurance</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Konsultasi Audit</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Tindak Lanjut Hasil Audit</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table><h1 dir="ltr">SOAL LANJUTAN</h1><p dir="ltr">Jelaskan secara singkat siapa yang bertanggung jawab pada setiap aktivitas berikut:</p><table border="1"><thead><tr><th>Aktivitas</th><th>First Line</th><th>Second Line</th><th>Third Line</th></tr></thead><tbody><tr><td><strong>Pelaksanaan proses bisnis</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Pengelolaan risiko</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Penyusunan kebijakan kepatuhan</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Audit kepatuhan</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Evaluasi pengendalian internal</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Monitoring tindak lanjut audit</strong></td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table>`,
+      PMA: `<h3 dir="ltr">Pemahaman Peraturan Rektor Universitas Indonesia Nomor 33 Tahun 2025 tentang Sistem Penjaminan Mutu Internal (SPMI)</h3><p dir="ltr"><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami konsep dasar SPMI UI, siklus PPEPP, standar mutu UI, serta peran unit kerja dalam implementasi mutu berkelanjutan.</p><p dir="ltr"><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai Terstruktur</strong></p><hr><h1 dir="ltr">SOAL</h1><p dir="ltr">Lengkapi tabel berikut berdasarkan pemahaman Saudara mengenai Sistem Penjaminan Mutu Internal (SPMI) Universitas Indonesia.</p><table border="1"><thead><tr><th>Komponen SPMI</th><th>Tujuan/Fungsi</th><th>Output Utama</th></tr></thead><tbody><tr><td><strong>Penetapan Standar</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Pelaksanaan Standar</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Evaluasi Standar</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Pengendalian Standar</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Peningkatan Standar</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Standar Pendidikan</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Standar Penelitian</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Standar Pengabdian kepada Masyarakat</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table>`,
+      HK: `<h3 dir="ltr">Norma Penyusunan Peraturan Rektor dan Keputusan Rektor Universitas Indonesia</h3><p dir="ltr"><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami norma, struktur, fungsi, dan penggunaan dokumen hukum internal Universitas Indonesia berupa:</p><ul><li>Peraturan Rektor (PR)</li><li>Keputusan Rektor (KR)</li><li>Perbedaan karakteristik kedua dokumen</li><li>Unsur wajib dalam penyusunannya</li><li>Kewenangan penetapan dan implementasinya</li></ul><p dir="ltr"><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai</strong></p><hr><h2 dir="ltr">SOAL</h2><p dir="ltr">Lengkapi tabel berikut dengan menjelaskan norma penyusunan dokumen hukum Universitas Indonesia.</p><table border="1"><thead><tr><th>Komponen</th><th>Peraturan Rektor</th><th>Keputusan Rektor</th></tr></thead><tbody><tr><td><strong>Tujuan Dokumen</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Sifat Pengaturan</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Materi Muatan</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Jangka Waktu Berlaku</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Objek yang Diatur</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Dasar Hukum</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Struktur Dokumen</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Contoh Penggunaan</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table>`,
+      MRT: `<h3 dir="ltr">Manajemen Risiko Universitas Indonesia</h3><p dir="ltr"><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami prinsip dasar manajemen risiko, identifikasi risiko, analisis risiko, mitigasi risiko, monitoring risiko, dan pelaporan risiko dalam pengelolaan unit kerja universitas.</p><p dir="ltr"><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai Terstruktur</strong></p><hr><h1 dir="ltr">SOAL</h1><p dir="ltr">Lengkapi tabel berikut berdasarkan pemahaman Saudara mengenai penerapan Manajemen Risiko di unit kerja.</p><table border="1"><thead><tr><th>Komponen Manajemen Risiko</th><th>Tujuan/Fungsi</th><th>Output Utama</th></tr></thead><tbody><tr><td><strong>Identifikasi Risiko</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Analisis Risiko</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Evaluasi Risiko</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Mitigasi Risiko</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Kontrol/Pengendalian Risiko</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Monitoring Risiko</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Pelaporan Risiko</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td><strong>Tindak Lanjut Risiko</strong></td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table>`
     };
 
-    const MODULE_TABLE_SCHEMAS = {
-      PK: [
-        {
-          headers: ['Komponen RKT', 'Jelaskan Fungsi/Norma Penyusunannya', 'Output yang Dihasilkan', 'Contoh pada Unit Kerja Saudara'],
-          headerEndMarker: 'Contoh pada Unit Kerja Saudara',
-          rows: ['Sasaran Unit Kerja', 'Program Kerja', 'Kegiatan', 'Indikator Kinerja', 'Target Tahunan', 'Anggaran', 'Risiko Pelaksanaan', 'Monitoring dan Evaluasi']
-        }
-      ],
-      SDMPT: [
-        {
-          headers: ['Permasalahan Strategis', 'Fungsi Manajemen SDM yang Relevan', 'Tujuan yang Ingin Dicapai', 'Output yang Dihasilkan'],
-          headerEndMarker: 'Output yang Dihasilkan',
-          rows: [
-            'Risiko kekosongan jabatan akibat pensiun',
-            'Kinerja pegawai belum mencapai target',
-            'Kompetensi digital pegawai belum memadai',
-            'Struktur organisasi belum optimal',
-            'Turnover pegawai meningkat',
-            'Persepsi remunerasi belum optimal'
-          ]
-        }
-      ],
-      PBJ: [
-        {
-          headers: ['Skema Pengadaan', 'Definisi/Norma', 'Kapan Digunakan', 'Ambang Nilai', 'Pelaku Utama', 'Dokumen Kunci', 'Syarat Khusus'],
-          headerEndMarker: 'Syarat Khusus',
-          rows: ['Pembelian Langsung', 'e-Purchasing', 'Pengadaan Langsung', 'Tender', 'Seleksi', 'Swakelola', 'Penunjukan Langsung']
-        }
-      ],
-      KA: [
-        {
-          title: 'Tabel 1 — Siklus Pelaporan Keuangan Kegiatan Non-Rutin',
-          headers: ['Tahapan Pelaporan Keuangan', 'Tujuan', 'Dokumen Utama', 'Output'],
-          headerEndMarker: 'Output',
-          rows: ['Perencanaan Anggaran', 'Pelaksanaan Kegiatan', 'Pengumpulan Bukti Transaksi', 'Verifikasi dan Rekonsiliasi', 'Penyusunan Laporan Keuangan', 'Pertanggungjawaban Kegiatan']
-        },
-        {
-          title: 'Tabel 2 — Soal Lanjutan: Fungsi Dokumen Pelaporan Keuangan',
-          headers: ['Dokumen', 'Fungsi'],
-          headerEndMarker: 'Dokumen Fungsi',
-          rows: ['RAB', 'Invoice', 'Kwitansi', 'BAST', 'Daftar Hadir', 'Laporan Realisasi Anggaran', 'LPJ Kegiatan']
-        }
-      ],
-      AI: [
-        {
-          title: 'Tabel 1 — Three Lines Model & Fungsi Audit Internal',
-          headers: ['Komponen', 'Peran Utama', 'Tanggung Jawab', 'Contoh di Universitas Indonesia'],
-          headerEndMarker: 'Contoh di Universitas Indonesia',
-          rows: [
-            'First Line (Manajemen Operasional)',
-            'Second Line (Manajemen Risiko & Kepatuhan)',
-            'Third Line (Audit Internal)',
-            'Manajemen Risiko',
-            'Pengendalian Internal',
-            'Assurance',
-            'Konsultasi Audit',
-            'Tindak Lanjut Hasil Audit'
-          ]
-        },
-        {
-          title: 'Tabel 2 — Soal Lanjutan: Pembagian Tanggung Jawab Aktivitas',
-          headers: ['Aktivitas', 'First Line', 'Second Line', 'Third Line'],
-          headerEndMarker: 'Third Line',
-          rows: [
-            'Pelaksanaan proses bisnis',
-            'Pengelolaan risiko',
-            'Penyusunan kebijakan kepatuhan',
-            'Audit kepatuhan',
-            'Evaluasi pengendalian internal',
-            'Monitoring tindak lanjut audit'
-          ]
-        }
-      ],
-      PMA: [
-        {
-          headers: ['Komponen SPMI', 'Tujuan/Fungsi', 'Output Utama'],
-          headerEndMarker: 'Output Utama',
-          rows: [
-            'Penetapan Standar',
-            'Pelaksanaan Standar',
-            'Evaluasi Standar',
-            'Pengendalian Standar',
-            'Peningkatan Standar',
-            'Standar Pendidikan',
-            'Standar Penelitian',
-            'Standar Pengabdian kepada Masyarakat'
-          ]
-        }
-      ],
-      HK: [
-        {
-          headers: ['Komponen', 'Peraturan Rektor', 'Keputusan Rektor'],
-          headerEndMarker: 'Keputusan Rektor',
-          rows: [
-            'Tujuan Dokumen',
-            'Sifat Pengaturan',
-            'Materi Muatan',
-            'Jangka Waktu Berlaku',
-            'Objek yang Diatur',
-            'Dasar Hukum',
-            'Struktur Dokumen',
-            'Contoh Penggunaan'
-          ]
-        }
-      ],
-      MRT: [
-        {
-          headers: ['Komponen Manajemen Risiko', 'Tujuan/Fungsi', 'Output Utama'],
-          headerEndMarker: 'Output Utama',
-          rows: [
-            'Identifikasi Risiko',
-            'Analisis Risiko',
-            'Evaluasi Risiko',
-            'Mitigasi Risiko',
-            'Kontrol/Pengendalian Risiko',
-            'Monitoring Risiko',
-            'Pelaporan Risiko',
-            'Tindak Lanjut Risiko'
-          ]
-        }
-      ]
-    };
-
-    // Decode HTML Entities jika string dari CSV ter-escape (&lt;table&gt; -> <table>)
     function decodeHtmlEntitiesIfNeeded(str) {
       if (!str || typeof str !== 'string') return '';
-      let s = str.trim();
+      let s = str.trim()
+        .replace(/\[\[LT\]\]/g, '<')
+        .replace(/\[\[GT\]\]/g, '>');
       if (s.includes('&lt;') || s.includes('&gt;') || s.includes('&amp;lt;')) {
         const txt = document.createElement('textarea');
         txt.innerHTML = s;
@@ -1285,315 +1384,20 @@
       return s;
     }
 
-    // Format penomoran inline "1. ... 2. ... 3. ..." menjadi daftar baris baru yang rapi
-    function formatNumberedPointsHtml(text) {
-      if (!text) return '<span class="text-slate-300">-</span>';
-      const escaped = escapeHtml(String(text || '').trim());
-      if (!escaped) return '<span class="text-slate-300">-</span>';
-      if (/(?:^|\s)1\.\s+.+(?:\s+2\.\s+)/.test(escaped)) {
-        const parts = escaped.split(/(?=\b\d+\.\s)/).map(p => p.trim()).filter(Boolean);
-        if (parts.length > 1) {
-          return '<div class="space-y-1">' + parts.map(p => `<div class="leading-relaxed">${p}</div>`).join('') + '</div>';
-        }
-      }
-      return `<div class="leading-relaxed">${escaped.replace(/\n/g, '<br/>')}</div>`;
-    }
-
-    function splitFlattenedRowIntoColumns(rawCellText, targetAdditionalCols) {
-      const cleaned = String(rawCellText || '').trim();
-      if (!cleaned) {
-        return Array(targetAdditionalCols).fill('<span class="text-slate-300 italic">-</span>');
-      }
-      if (targetAdditionalCols <= 1) {
-        return [formatNumberedPointsHtml(cleaned)];
-      }
-
-      if (cleaned.includes(' | ')) {
-        const pipeParts = cleaned.split(' | ').map(s => s.trim()).filter(Boolean);
-        if (pipeParts.length >= targetAdditionalCols) {
-          const cols = pipeParts.slice(0, targetAdditionalCols - 1);
-          cols.push(pipeParts.slice(targetAdditionalCols - 1).join(' | '));
-          return cols.map(c => formatNumberedPointsHtml(c));
-        }
-      }
-
-      // Jika di ujung ada daftar bernomor "1. ... 2. ..." (umum pada PK kolom ke-4)
-      const firstNumMatch = cleaned.match(/\s+(?=1\.\s+)/);
-      if (targetAdditionalCols === 3 && firstNumMatch && firstNumMatch.index > 0) {
-        const beforeExamples = cleaned.slice(0, firstNumMatch.index).trim();
-        const col3 = cleaned.slice(firstNumMatch.index).trim();
-        const sentencesBefore = beforeExamples.split(/(?<=\.)\s+(?=[A-Z0-9])/g).map(s => s.trim()).filter(Boolean);
-        if (sentencesBefore.length >= 2) {
-          return [
-            formatNumberedPointsHtml(sentencesBefore[0]),
-            formatNumberedPointsHtml(sentencesBefore.slice(1).join(' ')),
-            formatNumberedPointsHtml(col3)
-          ];
-        }
-        const words = beforeExamples.split(/\s+/);
-        if (words.length >= 2) {
-          const half = Math.ceil(words.length / 2);
-          return [
-            formatNumberedPointsHtml(words.slice(0, half).join(' ')),
-            formatNumberedPointsHtml(words.slice(half).join(' ')),
-            formatNumberedPointsHtml(col3)
-          ];
-        }
-      }
-
-      // Pisahkan kalimat berdasarkan titik diikuti huruf kapital atau pola daftar
-      const sentences = cleaned
-        .split(/(?<=\.)\s+(?=[A-Z0-9])/g)
-        .map(s => s.trim())
-        .filter(Boolean);
-
-      if (sentences.length >= targetAdditionalCols) {
-        const resultCols = [];
-        const perCol = Math.floor(sentences.length / targetAdditionalCols);
-        let cursor = 0;
-        for (let c = 0; c < targetAdditionalCols; c++) {
-          if (c === targetAdditionalCols - 1) {
-            resultCols.push(formatNumberedPointsHtml(sentences.slice(cursor).join(' ')));
-          } else {
-            const chunk = sentences.slice(cursor, cursor + perCol).join(' ');
-            resultCols.push(formatNumberedPointsHtml(chunk));
-            cursor += perCol;
-          }
-        }
-        return resultCols;
-      }
-
-      return [formatNumberedPointsHtml(cleaned)];
-    }
-
-    function detectModuleFromText(normText, explicitModCode) {
-      if (explicitModCode && MODULE_TABLE_SCHEMAS[explicitModCode]) return explicitModCode;
-      if (normText.includes('Komponen RKT') || normText.includes('Sasaran Unit Kerja')) return 'PK';
-      if (normText.includes('Tahapan Pelaporan Keuangan') || normText.includes('Perencanaan Anggaran')) return 'KA';
-      if (normText.includes('Permasalahan Strategis') || normText.includes('Risiko kekosongan jabatan')) return 'SDMPT';
-      if (normText.includes('Skema Pengadaan') || normText.includes('e-Purchasing')) return 'PBJ';
-      if (normText.includes('First Line') || normText.includes('Assurance')) return 'AI';
-      if (normText.includes('Komponen SPMI') || normText.includes('Penetapan Standar')) return 'PMA';
-      if (normText.includes('Peraturan Rektor') && normText.includes('Sifat Pengaturan')) return 'HK';
-      if (normText.includes('Komponen Manajemen Risiko') || normText.includes('Identifikasi Risiko')) return 'MRT';
-      return null;
-    }
-
-    function reconstructTableBlock(segmentText, schema, isSoal = false) {
-      let bodyText = segmentText;
-      const lastHeaderWord = schema.headers[schema.headers.length - 1];
-      const hdrIdx = bodyText.indexOf(lastHeaderWord);
-      if (hdrIdx !== -1 && hdrIdx < 160) {
-        bodyText = bodyText.slice(hdrIdx + lastHeaderWord.length).trim();
-      }
-
-      const foundPositions = [];
-      let searchFrom = 0;
-
-      schema.rows.forEach(marker => {
-        const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`(?:^|\\s|\\b)(?:\\d+\\s+)?(${escapedMarker})\\b`, 'i');
-        const sliceToSearch = bodyText.slice(searchFrom);
-        const match = regex.exec(sliceToSearch);
-        if (match) {
-          const exactMarkerIdx = searchFrom + match.index + match[0].toLowerCase().indexOf(marker.toLowerCase());
-          foundPositions.push({
-            marker,
-            index: exactMarkerIdx,
-            endMarkerIndex: exactMarkerIdx + marker.length
-          });
-          searchFrom = exactMarkerIdx + marker.length;
-        }
-      });
-
-      if (foundPositions.length < 2) return null;
-
-      const targetExtraCols = schema.headers.length - 1;
-
-      const rowsHtml = foundPositions.map((pos, idx) => {
-        const startContent = pos.endMarkerIndex;
-        const endContent = idx + 1 < foundPositions.length ? foundPositions[idx + 1].index : bodyText.length;
-        let rawCellContent = bodyText.slice(startContent, endContent).trim();
-        rawCellContent = rawCellContent.replace(/\s+\d+\s*$/, '').trim();
-
-        if (isSoal || !rawCellContent) {
-          const emptyCols = Array(targetExtraCols).fill('<td class="text-slate-400 italic">-</td>').join('');
-          return `<tr>
-            <td class="font-bold text-slate-900 bg-slate-50/80 w-48">${escapeHtml(pos.marker)}</td>
-            ${emptyCols}
-          </tr>`;
-        }
-
-        const splitCols = splitFlattenedRowIntoColumns(rawCellContent, targetExtraCols);
-        if (splitCols.length === targetExtraCols && targetExtraCols > 1) {
-          return `<tr>
-            <td class="font-bold text-slate-900 bg-amber-50/50 w-48">${escapeHtml(pos.marker)}</td>
-            ${splitCols.map(c => `<td>${c}</td>`).join('')}
-          </tr>`;
-        }
-
-        return `<tr>
-          <td class="font-bold text-slate-900 bg-amber-50/50 w-48">${escapeHtml(pos.marker)}</td>
-          <td colspan="${targetExtraCols}">${splitCols[0]}</td>
-        </tr>`;
-      }).join('');
-
-      return `
-        <div class="mb-4">
-          ${schema.title ? `<div class="text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-1.5">${escapeHtml(schema.title)}</div>` : ''}
-          <table>
-            <thead>
-              <tr>
-                ${schema.headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}
-              </tr>
-            </thead>
-            <tbody>${rowsHtml}</tbody>
-          </table>
-        </div>
-      `;
-    }
-
-    function tryReconstructStructuredEssay(flatText, kodeModul = '', isSoal = false) {
-      if (!flatText || typeof flatText !== 'string') return null;
-      const norm = flatText.replace(/\r\n/g, '\n').replace(/\s+/g, ' ').trim();
-      const resolvedMod = detectModuleFromText(norm, kodeModul);
-
-      if (resolvedMod && isSoal && MASTER_SOAL_HTML[resolvedMod]) {
-        return MASTER_SOAL_HTML[resolvedMod];
-      }
-
-      if (resolvedMod && MODULE_TABLE_SCHEMAS[resolvedMod]) {
-        const schemas = MODULE_TABLE_SCHEMAS[resolvedMod];
-        const renderedTables = [];
-
-        if (schemas.length === 2) {
-          const splitMarker = schemas[1].headerEndMarker;
-          let splitIdx = norm.indexOf(splitMarker);
-          if (splitIdx === -1 && resolvedMod === 'KA') {
-            const rabMatch = /\bRAB\b/.exec(norm);
-            if (rabMatch && rabMatch.index > 200) splitIdx = rabMatch.index;
-          }
-          if (splitIdx === -1 && resolvedMod === 'AI') {
-            const actMatch = /Pelaksanaan proses bisnis/i.exec(norm);
-            if (actMatch) splitIdx = actMatch.index;
-          }
-
-          if (splitIdx !== -1) {
-            const part1 = norm.slice(0, splitIdx).trim();
-            const part2 = norm.slice(splitIdx).trim();
-            const t1 = reconstructTableBlock(part1, schemas[0], isSoal);
-            const t2 = reconstructTableBlock(part2, schemas[1], isSoal);
-            if (t1) renderedTables.push(t1);
-            if (t2) renderedTables.push(t2);
-          } else {
-            const t1 = reconstructTableBlock(norm, schemas[0], isSoal);
-            if (t1) renderedTables.push(t1);
-          }
-        } else {
-          const t1 = reconstructTableBlock(norm, schemas[0], isSoal);
-          if (t1) renderedTables.push(t1);
-        }
-
-        if (renderedTables.length > 0) {
-          return renderedTables.join('');
-        }
-      }
-
-      if (norm.includes(' | ')) {
-        const lines = flatText.replace(/\r\n/g, '\n').split('\n').map(l => l.trim()).filter(Boolean);
-        const pipeLines = lines.filter(l => l.includes(' | '));
-        if (pipeLines.length >= 2) {
-          let tbl = '<table><tbody>';
-          lines.forEach((line, idx) => {
-            if (line.includes(' | ')) {
-              const cells = line.split(' | ').map(c => c.trim());
-              const tag = idx === 0 ? 'th' : 'td';
-              tbl += `<tr>${cells.map(c => `<${tag}>${formatNumberedPointsHtml(c)}</${tag}>`).join('')}</tr>`;
-            } else {
-              tbl += `<tr><td colspan="4" class="bg-slate-50 font-semibold">${escapeHtml(line)}</td></tr>`;
-            }
-          });
-          tbl += '</tbody></table>';
-          return tbl;
-        }
-      }
-
-      return null;
-    }
-
-    function sanitizeMoodleHtmlForPreview(rawHtml, kodeModul = '', isSoal = false) {
+    function renderRawMoodleHtml(rawHtml, isQuestion = false, modCode = null) {
       if (!rawHtml || typeof rawHtml !== 'string' || !rawHtml.trim()) {
-        if (isSoal && kodeModul && MASTER_SOAL_HTML[kodeModul]) {
-          return MASTER_SOAL_HTML[kodeModul];
+        if (isQuestion && modCode && MASTER_SOAL_HTML[modCode]) {
+          return MASTER_SOAL_HTML[modCode];
         }
         return '<span class="text-slate-400 italic">Kosong / Belum ada isi</span>';
       }
-
-      // Jika ini panel Soal dan teks dari CSV sudah kehilangan tag <table>, tampilkan Master Soal HTML asli yang utuh
       const decoded = decodeHtmlEntitiesIfNeeded(rawHtml);
-      const hasTableTag = /<\s*table\b/i.test(decoded);
-      if (isSoal && !hasTableTag && kodeModul && MASTER_SOAL_HTML[kodeModul]) {
-        return MASTER_SOAL_HTML[kodeModul];
+      // Jika dari SQL Ultra-Ringan kolom soal hanya berisi ringkasan singkat "Soal Esai Terstruktur - ...", tampilkan HTML soal lengkap dari MASTER_SOAL_HTML
+      if (isQuestion && modCode && MASTER_SOAL_HTML[modCode] && !decoded.includes('<table') && decoded.length < 160) {
+        return MASTER_SOAL_HTML[modCode];
       }
-
-      // Cek apakah mengandung elemen HTML nyata dari TinyMCE (<table, <p, <div, <ul, <ol, <br, <strong, dll.)
-      const hasRealHtmlTags = /<\s*\/?\s*(table|thead|tbody|tr|td|th|p|div|span|br|ul|ol|li|strong|b|i|em|u|h[1-6])\b[^>]*>/i.test(decoded);
-
-      if (hasRealHtmlTags) {
-        try {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(decoded, 'text/html');
-
-          // Bersihkan elemen berbahaya & atribut sampah TinyMCE / MS Word tanpa merusak struktur tabel
-          doc.querySelectorAll('script, style, iframe, object, embed, link, meta').forEach(el => el.remove());
-          doc.body.querySelectorAll('*').forEach(el => {
-            el.removeAttribute('id');
-            if (el.getAttribute('class') === 'MsoNormal') el.removeAttribute('class');
-            // Bersihkan inline style yang merusak lebar tabel di modal
-            if (el.hasAttribute('style')) {
-              const cleanStyle = el.getAttribute('style')
-                .replace(/width\s*:\s*[^;]+;?/gi, '')
-                .replace(/font-family\s*:\s*[^;]+;?/gi, '')
-                .replace(/font-size\s*:\s*[^;]+;?/gi, '')
-                .trim();
-              if (cleanStyle) el.setAttribute('style', cleanStyle);
-              else el.removeAttribute('style');
-            }
-            if (el.tagName === 'TABLE') {
-              el.removeAttribute('width');
-              el.removeAttribute('border');
-              el.removeAttribute('cellspacing');
-              el.removeAttribute('cellpadding');
-            }
-          });
-
-          // Jika di dalam HTML TinyMCE belum ada <table> tapi teksnya punya pola tabel yang di-flatten
-          if (doc.querySelectorAll('table').length === 0) {
-            const plainFromHtml = (doc.body.textContent || '').trim();
-            const reconstructed = tryReconstructStructuredEssay(plainFromHtml, kodeModul, isSoal);
-            if (reconstructed) return reconstructed;
-          }
-
-          return doc.body.innerHTML;
-        } catch (e) {
-          return decoded.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-        }
-      }
-
-      // 3. Jika murni teks rata (karena di-strip di level SQL Report 175), rekonstruksi menjadi tabel / paragraf terformat
-      const reconstructed = tryReconstructStructuredEssay(decoded, kodeModul, isSoal);
-      if (reconstructed) {
-        return reconstructed;
-      }
-
-      // 4. Format paragraf & penomoran otomatis untuk teks esai non-tabel
-      const paragraphs = decoded
-        .replace(/\r\n/g, '\n')
-        .split(/\n+/)
-        .map(p => p.trim())
-        .filter(Boolean);
-
-      return paragraphs.map(p => `<p>${formatNumberedPointsHtml(p)}</p>`).join('');
+      // Hanya buang tag <script> demi keamanan XSS, biarkan 100% tag <table>, <tr>, <td>, <p>, <ol>, <ul>, dll utuh apa adanya!
+      return decoded.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
     }
 
     function htmlToCleanExcelText(rawHtml) {
@@ -1648,7 +1452,7 @@
     }
 
     /*************************************************************************
-     * C. PIPELINE INGESTI REALTIME CSV (PERSIS UI ALEX 2026 v3)
+     * C. PIPELINE INGESTI REALTIME CSV (MURNI WORKER CORS REPORT ID 175)
      *************************************************************************/
     function setDashboardLoadedState(loaded, titleMsg, subMsg) {
       isDataLoaded = Boolean(loaded);
@@ -1694,7 +1498,6 @@
       updateSyncHoverTooltip();
     }
 
-    // Penarikan CSV Murni lewat URL Worker CORS Khusus (Tanpa Upload Manual)
     function fetchSingleCSV(reportId) {
       const baseUri = _resolveUri(_ENC_WORKER);
       const targetUrl = `${baseUri}${encodeURIComponent(reportId)}&_t=${Date.now()}`;
@@ -1712,7 +1515,6 @@
 
     async function initDashboard() {
       loadFiltersFromUrl();
-      // Mulai dari state belum ada data ter-load (0 baris, area di bawah header diarsir & disabled)
       rawMasterData = [];
       filteredData = [];
       applyFilters(true);
@@ -1765,14 +1567,26 @@
           const cleanRow = {};
           REPORT_175_COLUMNS.forEach(col => {
             if (col === 'kunci_jawaban') {
-              // Sesuai instruksi: kolom tetap ada tapi dikosongkan
               cleanRow[col] = '';
             } else {
               cleanRow[col] = r[col] !== undefined && r[col] !== null ? String(r[col]) : '';
             }
           });
 
-          cleanRow._soal_text = htmlToCleanExcelText(cleanRow.soal_atau_instruksi_esai);
+          // Koreksi otomatis kode_modul & modul_direktorat berdasarkan suffix cm.id pada id_submisi
+          // (mencegah bug SQL LIKE '%AI%' yang tidak sengaja menangkap kata 'Esai' pada PMA, HK, dan MRT)
+          const idParts = String(cleanRow.id_submisi || '').split('_');
+          const cmIdSuffix = idParts.length > 1 ? idParts[idParts.length - 1].trim() : '';
+          if (CMID_TO_MODUL[cmIdSuffix]) {
+            cleanRow.kode_modul = CMID_TO_MODUL[cmIdSuffix].code;
+            cleanRow.modul_direktorat = CMID_TO_MODUL[cmIdSuffix].name;
+            cleanRow.pilar = CMID_TO_MODUL[cmIdSuffix].pilar;
+          }
+
+          const rawSoalForText = (cleanRow.soal_atau_instruksi_esai.length < 160 && MASTER_SOAL_HTML[cleanRow.kode_modul])
+            ? MASTER_SOAL_HTML[cleanRow.kode_modul]
+            : cleanRow.soal_atau_instruksi_esai;
+          cleanRow._soal_text = htmlToCleanExcelText(rawSoalForText);
           cleanRow._jawaban_text = htmlToCleanExcelText(cleanRow.jawaban_peserta_essay);
           sanitized.push(cleanRow);
         }
@@ -1793,6 +1607,9 @@
           setDashboardLoadedState(true);
           populateDynamicBatchOptions();
           applyFilters(true);
+          if (activeRaporUsername) {
+            openParticipantRaporModal(activeRaporUsername, true);
+          }
         } else {
           setSyncBanner('Pipeline mengembalikan 0 baris', 'rose');
           if (!isDataLoaded) {
@@ -1830,8 +1647,9 @@
         autoSyncRemaining--;
         if (autoSyncRemaining <= 0) {
           const activeEl = document.activeElement;
-          const isModalOpen = !document.getElementById('essayDetailModal')?.classList.contains('hidden');
-          if ((activeEl && activeEl.id === 'searchTable') || isModalOpen) {
+          const isModalOpen = !document.getElementById('essayDetailModal')?.classList.contains('hidden') ||
+                              !document.getElementById('participantRaporModal')?.classList.contains('hidden');
+          if ((activeEl && (activeEl.id === 'searchTable' || activeEl.id === 'searchDirectoryInput')) || isModalOpen) {
             autoSyncRemaining = 15;
           } else {
             autoSyncRemaining = 60;
@@ -2042,157 +1860,10 @@
 
       renderKPIsAndModuleGrid(fBatch, fPilar, fModul, fStatus);
       renderTable();
+      renderParticipantDirectory();
       if (!isSilentInit) {
         updateUrlAndTracker('Filter Data');
       }
-    }
-
-    function quickFilterStatus(statusVal) {
-      const el = document.getElementById('filterStatus');
-      if (!el) return;
-      el.value = el.value === statusVal ? 'ALL' : statusVal;
-      currentPage = 1;
-      applyFilters();
-    }
-
-    function quickFilterPilar(pilarVal) {
-      const el = document.getElementById('filterPilar');
-      const modEl = document.getElementById('filterModul');
-      if (!el) return;
-      el.value = el.value === pilarVal ? 'ALL' : pilarVal;
-      if (modEl && el.value !== 'ALL') {
-        modEl.value = 'ALL';
-      }
-      currentPage = 1;
-      applyFilters();
-    }
-
-    function quickFilterModul(modulCode) {
-      const el = document.getElementById('filterModul');
-      if (!el) return;
-      el.value = el.value === modulCode ? 'ALL' : modulCode;
-      currentPage = 1;
-      applyFilters();
-    }
-
-    function quickFilterModulAndStatus(event, modulCode, statusVal) {
-      if (event) event.stopPropagation();
-      const modEl = document.getElementById('filterModul');
-      const statEl = document.getElementById('filterStatus');
-      if (!modEl || !statEl) return;
-
-      if (modEl.value === modulCode && statEl.value === statusVal) {
-        statEl.value = 'ALL';
-      } else {
-        modEl.value = modulCode;
-        statEl.value = statusVal;
-      }
-      currentPage = 1;
-      applyFilters();
-    }
-
-    function togglePilarDrawer(event, pilarKey) {
-      if (event) event.stopPropagation();
-      pilarCollapsedState[pilarKey] = !pilarCollapsedState[pilarKey];
-      const safeId = pilarKey.replace(/\s+/g, '_');
-      const drawer = document.getElementById(`pilarDrawer_${safeId}`);
-      const mini = document.getElementById(`pilarMini_${safeId}`);
-      const chev = document.getElementById(`pilarChev_${safeId}`);
-      const lbl = document.getElementById(`pilarBtnLbl_${safeId}`);
-
-      const isCollapsed = pilarCollapsedState[pilarKey];
-      if (drawer) drawer.classList.toggle('drawer-open', !isCollapsed);
-      if (mini) mini.classList.toggle('hidden', !isCollapsed);
-      if (chev) chev.classList.toggle('chevron-open', !isCollapsed);
-      if (lbl) lbl.textContent = isCollapsed ? 'Buka Detail Modul' : 'Tutup Detail';
-    }
-
-    function resetFilters() {
-      const bEl = document.getElementById('filterBatch');
-      const pEl = document.getElementById('filterPilar');
-      const mEl = document.getElementById('filterModul');
-      const sEl = document.getElementById('filterStatus');
-      const qEl = document.getElementById('searchTable');
-      if (bEl) bEl.value = 'Batch 2';
-      if (pEl) pEl.value = 'ALL';
-      if (mEl) mEl.value = 'ALL';
-      if (sEl) sEl.value = 'ALL';
-      if (qEl) qEl.value = '';
-      currentPage = 1;
-      applyFilters();
-    }
-
-    function onSearchInput() {
-      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-      searchDebounceTimer = setTimeout(() => {
-        currentPage = 1;
-        applyFilters();
-      }, 250);
-    }
-
-    function onPageSizeChange() {
-      const val = document.getElementById('pageSizeSelect')?.value || '50';
-      pageSize = val === 'ALL' ? 'ALL' : parseInt(val, 10) || 50;
-      currentPage = 1;
-      renderTable();
-    }
-
-    function goToPage(pageNum) {
-      const totalPages = getTotalPages();
-      currentPage = Math.max(1, Math.min(totalPages, pageNum));
-      renderTable();
-    }
-
-    function changePage(delta) {
-      goToPage(currentPage + delta);
-    }
-
-    function goToLastPage() {
-      goToPage(getTotalPages());
-    }
-
-    function getTotalPages() {
-      if (pageSize === 'ALL' || sortedData.length === 0) return 1;
-      return Math.max(1, Math.ceil(sortedData.length / pageSize));
-    }
-
-    function applyFilters() {
-      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
-      const fPilar = document.getElementById('filterPilar')?.value || 'ALL';
-      const fModul = document.getElementById('filterModul')?.value || 'ALL';
-      const fStatus = document.getElementById('filterStatus')?.value || 'ALL';
-      const q = (document.getElementById('searchTable')?.value || '').trim().toLowerCase();
-
-      filteredData = rawMasterData.filter(r => {
-        if (fBatch !== 'ALL' && r.batch !== fBatch) return false;
-        if (fPilar !== 'ALL' && !r.pilar.includes(fPilar)) return false;
-        if (fModul !== 'ALL' && r.kode_modul !== fModul) return false;
-        if (fStatus !== 'ALL' && r.status_submisi !== fStatus) return false;
-
-        if (q) {
-          const hay = `${r.nama_peserta} ${r.username} ${r.nip} ${r.email} ${r.kode_modul} ${r.id_submisi} ${r._jawaban_text}`.toLowerCase();
-          if (!hay.includes(q)) return false;
-        }
-        return true;
-      });
-
-      const activeBadge = document.getElementById('activeModulWidgetBadge');
-      if (activeBadge) {
-        if (fModul === 'ALL' && fPilar === 'ALL') {
-          activeBadge.textContent = fStatus === 'ALL' ? 'Semua Pilar & Modul Aktif' : `Semua Modul • Status: ${fStatus}`;
-          activeBadge.className = 'px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-mono font-bold text-[11px]';
-        } else if (fModul === 'ALL' && fPilar !== 'ALL') {
-          activeBadge.textContent = `Filter Pilar: ${fPilar}${fStatus !== 'ALL' ? ' • ' + fStatus : ''}`;
-          activeBadge.className = 'px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-950 border border-indigo-300 font-mono font-extrabold text-[11px]';
-        } else {
-          const info = MODULE_INFO[fModul] || { name: fModul };
-          activeBadge.textContent = `Filter Aktif: ${fModul} (${info.name})${fStatus !== 'ALL' ? ' • ' + fStatus : ''}`;
-          activeBadge.className = 'px-2.5 py-1 rounded-lg bg-amber-100 text-amber-950 border border-amber-300 font-mono font-extrabold text-[11px]';
-        }
-      }
-
-      renderKPIsAndModuleGrid(fBatch, fPilar, fModul, fStatus);
-      renderTable();
     }
 
     function renderKPIsAndModuleGrid(fBatch, activePilar, activeModul, activeStatus) {
@@ -2211,6 +1882,8 @@
 
       setTxt('kpiTotalRows', total.toLocaleString('id-ID'));
       setTxt('kpiUniqueUsers', `${uniqueUsers} peserta unik terfilter`);
+      setTxt('badgeCountSubmissions', `${total.toLocaleString('id-ID')} Baris`);
+      setTxt('badgeCountParticipants', `${uniqueUsers.toLocaleString('id-ID')} Peserta`);
       setTxt('kpiSubmittedCount', submitted.toLocaleString('id-ID'));
       setTxt('kpiSubmittedPct', pct(submitted));
       setTxt('kpiNewCount', newCount.toLocaleString('id-ID'));
@@ -2276,7 +1949,6 @@
           <div onclick="quickFilterModul('${code}')"
             class="cursor-pointer p-3.5 rounded-xl border transition-all duration-150 flex flex-col justify-between ${isSelected ? 'border-2 border-amber-500 bg-amber-50/90 ring-4 ring-amber-500/15 shadow-md' : 'border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-sm'}">
             <div>
-              <!-- Header Kartu Modul -->
               <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-1.5">
                   <span class="px-2 py-0.5 rounded-md bg-slate-900 text-amber-400 font-mono font-extrabold text-xs">${code}</span>
@@ -2285,16 +1957,13 @@
                 <span class="font-mono text-xs font-extrabold ${mSub > 0 ? 'text-emerald-700' : 'text-slate-400'}">${mSubPct}% Selesai</span>
               </div>
 
-              <!-- Nama Lengkap Modul Direktorat -->
               <h3 class="text-xs font-extrabold text-slate-900 mt-2 line-clamp-1" title="${escapeHtml(mName)}">${escapeHtml(mName)}</h3>
 
-              <!-- Progress Bar Bertumpuk -->
               <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden flex my-2.5" title="Submitted: ${mSub} | New (Draft): ${mNew} | Belum Submit: ${mBelum}">
                 <div class="h-full bg-emerald-500 transition-all duration-300" style="width: ${mSubPct}%"></div>
                 <div class="h-full bg-amber-400 transition-all duration-300" style="width: ${mNewPct}%"></div>
               </div>
 
-              <!-- 3 Kotak Metrik Interaktif per Modul -->
               <div class="grid grid-cols-3 gap-1.5 text-center mt-1">
                 <button type="button" onclick="quickFilterModulAndStatus(event, '${code}', 'submitted')"
                   class="p-1.5 rounded-lg border transition ${isSelected && activeStatus === 'submitted' ? 'bg-emerald-600 text-white border-emerald-700 font-extrabold' : 'bg-emerald-50/80 hover:bg-emerald-100 border-emerald-200 text-emerald-800'}">
@@ -2314,7 +1983,6 @@
               </div>
             </div>
 
-            <!-- Footer Kartu Modul (Dilengkapi Tombol Download Excel per Modul) -->
             <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-[10px] font-mono text-slate-500">
               <div class="truncate">
                 <span>Pop: <strong class="text-slate-700">${mTotal}</strong></span>
@@ -2331,7 +1999,7 @@
         `;
       };
 
-      const renderMiniModulePill = (code, isPilar1) => {
+      const renderMiniModulePill = (code) => {
         const mRows = baseRows.filter(r => r.kode_modul === code);
         const info = MODULE_INFO[code] || { name: code, pilar: '-' };
         const mName = mRows[0]?.modul_direktorat || info.name;
@@ -2384,7 +2052,6 @@
 
         return `
           <div class="rounded-2xl border p-3.5 transition-all ${isPilarSelected ? grp.theme.activeWrapper : grp.theme.wrapperBg}">
-            <!-- Header Kelompok Pilar (Klik untuk Expand/Collapse Animated Drawer) -->
             <div onclick="togglePilarDrawer(event, '${grp.key}')"
               class="cursor-pointer rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3 ${grp.theme.headerBg} hover:opacity-95 transition select-none">
               <div class="flex items-center gap-2.5">
@@ -2402,7 +2069,6 @@
                 </div>
               </div>
 
-              <!-- Ringkasan Statistik Pilar & Tombol Drawer -->
               <div class="flex flex-wrap items-center gap-2 text-xs font-mono">
                 <span class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 font-bold">
                   Slot: <strong>${pTotal.toLocaleString('id-ID')}</strong>
@@ -2424,12 +2090,10 @@
               </div>
             </div>
 
-            <!-- Mini Widget Pratinjau 4 Modul (Tampil saat Pilar Collapsed, otomatis sembunyi saat Expanded) -->
             <div id="pilarMini_${safeId}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mt-3 ${!isCollapsed ? 'hidden' : ''}">
-              ${grp.codes.map(code => renderMiniModulePill(code, isPilar1)).join('')}
+              ${grp.codes.map(code => renderMiniModulePill(code)).join('')}
             </div>
 
-            <!-- Animated Drawer 4 Kartu Modul Lengkap -->
             <div id="pilarDrawer_${safeId}" class="drawer-wrapper ${!isCollapsed ? 'drawer-open' : ''}">
               <div class="drawer-inner">
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3">
@@ -2477,29 +2141,19 @@
       updateUrlAndTracker('Default Sort');
     }
 
-    function resetDefaultSort() {
-      sortState = { key: 'DEFAULT', dir: 'asc' };
-      currentPage = 1;
-      renderTable();
-    }
-
     function compareDefaultHierarchy(a, b) {
-      // 1. Batch
       const cBatch = String(a.batch || '').localeCompare(String(b.batch || ''), 'id', { numeric: true });
       if (cBatch !== 0) return cBatch;
 
-      // 2. Pilar
       const cPilar = String(a.pilar || '').localeCompare(String(b.pilar || ''), 'id', { numeric: true });
       if (cPilar !== 0) return cPilar;
 
-      // 3. Urutan Modul (PK, SDMPT, PBJ, KA, AI, PMA, HK, MRT)
       const idxA = MODULE_ORDER.indexOf(a.kode_modul);
       const idxB = MODULE_ORDER.indexOf(b.kode_modul);
       const rankA = idxA === -1 ? 999 : idxA;
       const rankB = idxB === -1 ? 999 : idxB;
       if (rankA !== rankB) return rankA - rankB;
 
-      // 4. Nama Lengkap Peserta (Fullname)
       return String(a.nama_peserta || '').localeCompare(String(b.nama_peserta || ''), 'id', { sensitivity: 'base' });
     }
 
@@ -2523,21 +2177,20 @@
         thead.innerHTML = `
           <tr class="font-extrabold text-[11px] uppercase tracking-wider">
             <th class="p-2.5 text-center w-12">No</th>
-            <th class="p-2.5 text-center min-w-[215px] bg-emerald-50/90 text-emerald-950" data-tippy-content="Buka Popup Jawaban Esai atau Unduh data Excel per peserta (1 baris ini / seluruh 8 modul)">Shortcut Aksi</th>
+            <th onclick="sortBy('nama_peserta')" class="sortable-th p-2.5 text-left min-w-[225px]">Nama Peserta &amp; Identitas<span id="sort_nama_peserta" class="text-slate-400 font-normal"> ⇅</span></th>
             <th onclick="sortBy('batch')" class="sortable-th p-2.5 text-center w-24">Batch<span id="sort_batch" class="text-slate-400 font-normal"> ⇅</span></th>
-            <th onclick="sortBy('kode_modul')" class="sortable-th p-2.5 text-left min-w-[165px]">Modul &amp; Pilar<span id="sort_kode_modul" class="text-slate-400 font-normal"> ⇅</span></th>
-            <th onclick="sortBy('nama_peserta')" class="sortable-th p-2.5 text-left min-w-[220px]">Peserta<span id="sort_nama_peserta" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('kode_modul')" class="sortable-th p-2.5 text-left min-w-[175px]">Modul &amp; Pilar<span id="sort_kode_modul" class="text-slate-400 font-normal"> ⇅</span></th>
             <th onclick="sortBy('status_submisi')" class="sortable-th p-2.5 text-center w-32">Status<span id="sort_status_submisi" class="text-slate-400 font-normal"> ⇅</span></th>
             <th onclick="sortBy('waktu_submit')" class="sortable-th p-2.5 text-center w-36">Waktu Submit<span id="sort_waktu_submit" class="text-slate-400 font-normal"> ⇅</span></th>
-            <th onclick="sortBy('_jawaban_text')" class="sortable-th p-2.5 text-left min-w-[280px]">Ringkasan Jawaban Esai<span id="sort__jawaban_text" class="text-slate-400 font-normal"> ⇅</span></th>
-            <th onclick="sortBy('nilai_di_emas3')" class="sortable-th p-2.5 text-center w-24">Nilai<span id="sort_nilai_di_emas3" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('_jawaban_text')" class="sortable-th p-2.5 text-left min-w-[270px]">Ringkasan Jawaban Esai<span id="sort__jawaban_text" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('nilai_di_emas3')" class="sortable-th p-2.5 text-center w-20">Nilai<span id="sort_nilai_di_emas3" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th class="p-2.5 text-center min-w-[250px] bg-emerald-50/90 text-emerald-950" data-tippy-content="Buka Popup Jawaban Esai, Rapor 8 Modul Peserta, atau Unduh Excel">Aksi &amp; Unduh</th>
           </tr>
         `;
       } else {
         thead.innerHTML = `
           <tr class="font-extrabold text-[11px] uppercase tracking-wider">
             <th class="p-2.5 text-center w-12">No</th>
-            <th class="p-2.5 text-center min-w-[215px] bg-emerald-50/90 text-emerald-950" data-tippy-content="Buka Popup Jawaban Esai atau Unduh data Excel per peserta (1 baris ini / seluruh 8 modul)">Shortcut Aksi</th>
             <th onclick="sortBy('id_submisi')" class="sortable-th p-2.5 text-left w-28">id_submisi<span id="sort_id_submisi" class="text-slate-400 font-normal"> ⇅</span></th>
             <th onclick="sortBy('batch')" class="sortable-th p-2.5 text-center w-24">batch<span id="sort_batch" class="text-slate-400 font-normal"> ⇅</span></th>
             <th onclick="sortBy('pilar')" class="sortable-th p-2.5 text-left w-40">pilar<span id="sort_pilar" class="text-slate-400 font-normal"> ⇅</span></th>
@@ -2555,6 +2208,7 @@
             <th onclick="sortBy('waktu_submit')" class="sortable-th p-2.5 text-center w-36">waktu_submit<span id="sort_waktu_submit" class="text-slate-400 font-normal"> ⇅</span></th>
             <th onclick="sortBy('nilai_di_emas3')" class="sortable-th p-2.5 text-center w-28">nilai_di_emas3<span id="sort_nilai_di_emas3" class="text-slate-400 font-normal"> ⇅</span></th>
             <th onclick="sortBy('target_kelulusan')" class="sortable-th p-2.5 text-center w-36">target_kelulusan<span id="sort_target_kelulusan" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th class="p-2.5 text-center min-w-[250px] bg-emerald-50/90 text-emerald-950">Shortcut Aksi</th>
           </tr>
         `;
       }
@@ -2704,6 +2358,8 @@
 
       tbody.innerHTML = displaySlice.map((r, idx) => {
         const absoluteIdx = startIdx + idx;
+        const rowKey = `${r.username}__${r.kode_modul}`;
+        const rowHighlightCls = highlightedRowKey === rowKey ? 'row-jump-highlight' : '';
         let statusBadge = `<span class="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[10px] font-semibold">belum_submit</span>`;
         if (r.status_submisi === 'submitted') {
           statusBadge = `<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono text-[10px] font-extrabold">submitted</span>`;
@@ -2719,10 +2375,15 @@
 
         const shortcutActionsHtml = `
           <div class="inline-flex items-center gap-1">
-            <button type="button" onclick="openEssayModal(${absoluteIdx})"
+            <button type="button" onclick="openEssayModal(${absoluteIdx}, false)"
               title="Buka Popup Jawaban Esai & Soal (${escapeHtml(r.nama_peserta)} - Modul ${escapeHtml(r.kode_modul)})"
               class="px-2 py-1 rounded bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-[10px] shadow-sm transition flex items-center gap-1">
               <span>🔍</span><span>Jawaban</span>
+            </button>
+            <button type="button" onclick="openParticipantRaporModal('${escapeHtml(r.username)}')"
+              title="Buka Rapor Submisi 8 Modul milik ${escapeHtml(r.nama_peserta)}"
+              class="px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[10px] shadow-sm transition flex items-center gap-1">
+              <span>📊</span><span>Rapor</span>
             </button>
             <button type="button" onclick="exportSingleRowToExcel(${absoluteIdx})"
               title="Unduh Excel baris ini (${escapeHtml(r.nama_peserta)} - Modul ${escapeHtml(r.kode_modul)})"
@@ -2737,10 +2398,22 @@
           </div>
         `;
 
+        const clickablePesertaHtml = `
+          <button type="button" onclick="openParticipantRaporModal('${escapeHtml(r.username)}')"
+            class="text-left group focus:outline-none"
+            title="Klik untuk membuka Rapor Submisi 8 Modul milik ${escapeHtml(r.nama_peserta)}">
+            <div class="font-bold text-slate-900 group-hover:text-indigo-600 transition flex items-center gap-1.5">
+              <span>${escapeHtml(r.nama_peserta)}</span>
+              <span class="px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono text-[9px] font-extrabold opacity-85 group-hover:opacity-100">📊 Rapor ↗</span>
+            </div>
+            <div class="text-[11px] font-mono text-slate-400">${escapeHtml(r.username)}${r.nip && r.nip !== '-' ? ' • ' + escapeHtml(r.nip) : ''}</div>
+          </button>
+        `;
+
         if (tableColumnMode === 'simple') {
-          return `<tr class="hover:bg-amber-50/40 transition">
+          return `<tr id="row_sub_${escapeHtml(rowKey)}" class="hover:bg-amber-50/40 transition ${rowHighlightCls}">
             <td class="p-2.5 text-center font-mono text-slate-400">${absoluteIdx + 1}</td>
-            <td class="p-2.5 text-center bg-emerald-50/30">${shortcutActionsHtml}</td>
+            <td class="p-2.5">${clickablePesertaHtml}</td>
             <td class="p-2.5 text-center font-semibold text-slate-700">${escapeHtml(r.batch)}</td>
             <td class="p-2.5">
               <div class="flex items-center gap-1.5">
@@ -2749,28 +2422,24 @@
               </div>
               <div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(r.pilar)}</div>
             </td>
-            <td class="p-2.5">
-              <div class="font-bold text-slate-900">${escapeHtml(r.nama_peserta)}</div>
-              <div class="text-[11px] font-mono text-slate-400">${escapeHtml(r.username)}${r.nip && r.nip !== '-' ? ' • ' + escapeHtml(r.nip) : ''}</div>
-            </td>
             <td class="p-2.5 text-center">${statusBadge}</td>
             <td class="p-2.5 text-center font-mono text-[11px] text-slate-600">${escapeHtml(r.waktu_submit || '-')}</td>
             <td class="p-2.5">
               <div class="flex items-start justify-between gap-2">
                 ${jawabanPreview}
-                <button type="button" onclick="openEssayModal(${absoluteIdx})"
+                <button type="button" onclick="openEssayModal(${absoluteIdx}, false)"
                   class="shrink-0 px-2 py-1 rounded bg-amber-100 hover:bg-amber-400 text-amber-950 font-bold text-[10px] transition">
                   🔍 Tabel
                 </button>
               </div>
             </td>
             <td class="p-2.5 text-center font-mono font-bold text-slate-700">${escapeHtml(r.nilai_di_emas3 || '-')}</td>
+            <td class="p-2.5 text-center bg-emerald-50/30">${shortcutActionsHtml}</td>
           </tr>`;
         }
 
-        return `<tr class="hover:bg-amber-50/40 transition">
+        return `<tr id="row_sub_${escapeHtml(rowKey)}" class="hover:bg-amber-50/40 transition ${rowHighlightCls}">
           <td class="p-2 text-center font-mono text-slate-400">${absoluteIdx + 1}</td>
-          <td class="p-2 text-center bg-emerald-50/30">${shortcutActionsHtml}</td>
           <td class="p-2 font-mono text-[11px] text-slate-600">${escapeHtml(r.id_submisi)}</td>
           <td class="p-2 text-center font-semibold">${escapeHtml(r.batch)}</td>
           <td class="p-2 text-[11px] text-slate-600">${escapeHtml(r.pilar)}</td>
@@ -2779,7 +2448,7 @@
           <td class="p-2 text-[11px] text-slate-600">${escapeHtml(r.nama_assignment_esai)}</td>
           <td class="p-2 font-mono text-[11px] text-slate-700">${escapeHtml(r.username)}</td>
           <td class="p-2 font-mono text-[11px] text-slate-500">${escapeHtml(r.nip)}</td>
-          <td class="p-2 font-bold text-slate-900">${escapeHtml(r.nama_peserta)}</td>
+          <td class="p-2">${clickablePesertaHtml}</td>
           <td class="p-2 font-mono text-[11px] text-slate-500">${escapeHtml(r.email)}</td>
           <td class="p-2 text-[11px] text-slate-500">
             <div class="line-clamp-2">${soalPreview}</div>
@@ -2787,7 +2456,7 @@
           <td class="p-2">
             <div class="flex items-start justify-between gap-2">
               ${jawabanPreview}
-              <button type="button" onclick="openEssayModal(${absoluteIdx})"
+              <button type="button" onclick="openEssayModal(${absoluteIdx}, false)"
                 class="shrink-0 px-2 py-1 rounded bg-amber-100 hover:bg-amber-400 text-amber-950 font-bold text-[10px] transition">
                 🔍 Tabel
               </button>
@@ -2798,10 +2467,450 @@
           <td class="p-2 text-center font-mono text-[11px] text-slate-600">${escapeHtml(r.waktu_submit || '-')}</td>
           <td class="p-2 text-center font-mono font-bold">${escapeHtml(r.nilai_di_emas3 || '-')}</td>
           <td class="p-2 text-center text-[11px] text-slate-500">${escapeHtml(r.target_kelulusan)}</td>
+          <td class="p-2 text-center bg-emerald-50/30">${shortcutActionsHtml}</td>
         </tr>`;
       }).join('');
 
       window._currentDisplayedList = sortedData;
+    }
+
+    /*************************************************************************
+     * D2. DIREKTORI PESERTA & MODAL RAPOR SUBMISI PER ORANG (8 MODUL)
+     *************************************************************************/
+    function setWorkspaceMode(mode, isSilent = false) {
+      workspaceMode = mode === 'directory' ? 'directory' : 'submissions';
+      const subSec = document.getElementById('submissionsTableSection');
+      const dirSec = document.getElementById('participantDirectorySection');
+      const btnSub = document.getElementById('tabViewSubmissions');
+      const btnDir = document.getElementById('tabViewDirectory');
+
+      if (subSec && dirSec) {
+        subSec.classList.toggle('hidden', workspaceMode !== 'submissions');
+        dirSec.classList.toggle('hidden', workspaceMode !== 'directory');
+      }
+      if (btnSub && btnDir) {
+        if (workspaceMode === 'submissions') {
+          btnSub.className = 'px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-between gap-3 bg-slate-900 text-amber-400 shadow-sm';
+          btnDir.className = 'px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between gap-3 bg-white/80 text-slate-700 hover:bg-white hover:text-slate-950 border border-slate-300/80';
+        } else {
+          btnSub.className = 'px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between gap-3 bg-white/80 text-slate-700 hover:bg-white hover:text-slate-950 border border-slate-300/80';
+          btnDir.className = 'px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-between gap-3 bg-slate-900 text-amber-400 shadow-sm';
+        }
+      }
+      if (workspaceMode === 'directory') {
+        renderParticipantDirectory();
+      }
+      if (!isSilent) {
+        updateUrlAndTracker(`View ${workspaceMode}`);
+      }
+    }
+
+    function getInitials(name) {
+      const cleaned = String(name || '')
+        .replace(/\b(Prof|Dr|Ir|Apt|SE|MM|CA|MT|SH|MH|M\.Si|M\.Sc|M\.Ak|S\.Ikom|S\.Kom|S\.E|Ph\.D|dr|drg)\b\.?,?/gi, '')
+        .replace(/[.,]/g, ' ')
+        .trim();
+      const parts = cleaned.split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return 'UI';
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    function buildParticipantProfilesMap(sourceRows) {
+      const map = new Map();
+      for (const r of sourceRows) {
+        const uname = r.username || r.nama_peserta;
+        if (!uname) continue;
+        if (!map.has(uname)) {
+          map.set(uname, {
+            username: r.username || '-',
+            nama_peserta: r.nama_peserta || '-',
+            nip: r.nip || '-',
+            email: r.email || '-',
+            batch: r.batch || '-',
+            modules: {},
+            submittedCount: 0,
+            newCount: 0,
+            belumCount: 0,
+            p1Submitted: 0,
+            p2Submitted: 0,
+            totalChars: 0,
+            latestSubmit: '-'
+          });
+        }
+        const p = map.get(uname);
+        p.modules[r.kode_modul] = r;
+      }
+
+      for (const p of map.values()) {
+        let sub = 0, nw = 0, blm = 0, p1Sub = 0, p2Sub = 0, chars = 0;
+        const times = [];
+        MODULE_ORDER.forEach(code => {
+          const row = p.modules[code];
+          const st = row?.status_submisi || 'belum_submit';
+          if (st === 'submitted') {
+            sub++;
+            if (['PK', 'SDMPT', 'PBJ', 'KA'].includes(code)) p1Sub++;
+            if (['AI', 'PMA', 'HK', 'MRT'].includes(code)) p2Sub++;
+          } else if (st === 'new') {
+            nw++;
+          } else {
+            blm++;
+          }
+          if (row && row._jawaban_text) {
+            chars += row._jawaban_text.length;
+          }
+          if (row && row.waktu_submit && row.waktu_submit !== '-' && row.waktu_submit.trim() !== '') {
+            times.push(row.waktu_submit.trim());
+          }
+        });
+        times.sort();
+        p.submittedCount = sub;
+        p.newCount = nw;
+        p.belumCount = blm;
+        p.p1Submitted = p1Sub;
+        p.p2Submitted = p2Sub;
+        p.totalChars = chars;
+        p.latestSubmit = times.length > 0 ? times[times.length - 1] : '-';
+      }
+      return map;
+    }
+
+    function renderModuleStatusPillButton(username, code, row) {
+      const st = row?.status_submisi || 'belum_submit';
+      let cls = 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200';
+      let dotCls = 'bg-slate-400';
+      if (st === 'submitted') {
+        cls = 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200 font-extrabold';
+        dotCls = 'bg-emerald-600';
+      } else if (st === 'new') {
+        cls = 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 font-bold';
+        dotCls = 'bg-amber-500';
+      }
+      return `<button type="button" onclick="openSubmissionByUserAndModule('${escapeHtml(username)}', '${code}', false)"
+        title="Modul ${code} (${st}) — Klik untuk membuka popup submisi ini"
+        class="w-full px-1.5 py-1 rounded-md border font-mono text-[10px] transition flex items-center justify-center gap-1 ${cls}">
+        <span class="w-1.5 h-1.5 rounded-full ${dotCls} shrink-0"></span>
+        <span>${code}</span>
+      </button>`;
+    }
+
+    function renderParticipantDirectory() {
+      const tbody = document.getElementById('participantDirectoryBody');
+      if (!tbody) return;
+
+      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const qTop = (document.getElementById('searchTable')?.value || '').trim().toLowerCase();
+      const qDir = (document.getElementById('searchDirectoryInput')?.value || '').trim().toLowerCase();
+      const compFilter = document.getElementById('filterDirCompletion')?.value || 'ALL';
+
+      const baseRows = rawMasterData.filter(r => fBatch === 'ALL' || r.batch === fBatch);
+      const profilesMap = buildParticipantProfilesMap(baseRows);
+      let list = Array.from(profilesMap.values());
+
+      list = list.filter(p => {
+        if (compFilter === 'COMPLETE_8' && p.submittedCount < 8) return false;
+        if (compFilter === 'PARTIAL' && (p.submittedCount === 0 || p.submittedCount >= 8)) return false;
+        if (compFilter === 'HAS_NEW' && p.newCount === 0) return false;
+        if (compFilter === 'ZERO' && p.submittedCount > 0) return false;
+
+        const q = qDir || qTop;
+        if (q) {
+          const hay = `${p.nama_peserta} ${p.username} ${p.nip} ${p.email} ${p.batch}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      list.sort((a, b) => {
+        const cBatch = String(a.batch).localeCompare(String(b.batch), 'id', { numeric: true });
+        if (cBatch !== 0) return cBatch;
+        if (b.submittedCount !== a.submittedCount) return b.submittedCount - a.submittedCount;
+        return String(a.nama_peserta).localeCompare(String(b.nama_peserta), 'id');
+      });
+
+      const countBadge = document.getElementById('dirParticipantCountBadge');
+      if (countBadge) countBadge.textContent = `${list.length.toLocaleString('id-ID')} Peserta`;
+
+      if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400 font-medium">Tidak ada peserta yang sesuai dengan filter direktori.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = list.map((p, idx) => {
+        const subPct = ((p.submittedCount / 8) * 100).toFixed(0);
+        const newPct = ((p.newCount / 8) * 100).toFixed(0);
+        const p1Pills = ['PK', 'SDMPT', 'PBJ', 'KA'].map(c => renderModuleStatusPillButton(p.username, c, p.modules[c])).join('');
+        const p2Pills = ['AI', 'PMA', 'HK', 'MRT'].map(c => renderModuleStatusPillButton(p.username, c, p.modules[c])).join('');
+
+        return `<tr class="hover:bg-amber-50/40 transition">
+          <td class="p-2.5 text-center font-mono text-slate-400">${idx + 1}</td>
+          <td class="p-2.5">
+            <button type="button" onclick="openParticipantRaporModal('${escapeHtml(p.username)}')" class="text-left group">
+              <div class="font-bold text-slate-900 group-hover:text-indigo-600 transition flex items-center gap-1.5">
+                <span>${escapeHtml(p.nama_peserta)}</span>
+                <span class="px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono text-[9px] font-extrabold">📊 Rapor ↗</span>
+              </div>
+              <div class="text-[11px] font-mono text-slate-400">${escapeHtml(p.username)}${p.nip && p.nip !== '-' ? ' • ' + escapeHtml(p.nip) : ''}</div>
+            </button>
+          </td>
+          <td class="p-2.5 text-center font-semibold text-slate-700">${escapeHtml(p.batch)}</td>
+          <td class="p-2.5">
+            <div class="flex items-center justify-between text-[11px] font-mono mb-1">
+              <span class="font-extrabold ${p.submittedCount === 8 ? 'text-emerald-700' : 'text-slate-800'}">${p.submittedCount}/8 Submitted</span>
+              <span class="text-slate-400">${subPct}%</span>
+            </div>
+            <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden flex">
+              <div class="h-full bg-emerald-500" style="width: ${subPct}%"></div>
+              <div class="h-full bg-amber-400" style="width: ${newPct}%"></div>
+            </div>
+          </td>
+          <td class="p-2.5 bg-amber-50/20">
+            <div class="grid grid-cols-4 gap-1">${p1Pills}</div>
+          </td>
+          <td class="p-2.5 bg-blue-50/20">
+            <div class="grid grid-cols-4 gap-1">${p2Pills}</div>
+          </td>
+          <td class="p-2.5 text-center font-mono text-[11px] text-slate-600">${escapeHtml(p.latestSubmit)}</td>
+          <td class="p-2.5 text-center bg-emerald-50/30">
+            <div class="inline-flex items-center gap-1">
+              <button type="button" onclick="openParticipantRaporModal('${escapeHtml(p.username)}')"
+                class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[10px] shadow-sm transition flex items-center gap-1">
+                <span>📊</span><span>Buka Rapor</span>
+              </button>
+              <button type="button" onclick="exportParticipantAllModulesToExcel('${escapeHtml(p.username)}')"
+                title="Unduh Excel 8 Modul milik ${escapeHtml(p.nama_peserta)}"
+                class="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] shadow-sm transition">
+                📥 XLSX
+              </button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    function openParticipantRaporModal(username, isSilent = false) {
+      if (!username) return;
+      const userRows = rawMasterData.filter(r => r.username === username);
+      if (userRows.length === 0) {
+        setSyncBanner(`Data peserta ${username} belum ditemukan`, 'rose');
+        return;
+      }
+
+      activeRaporUsername = username;
+      const profilesMap = buildParticipantProfilesMap(userRows);
+      const p = profilesMap.get(username);
+      if (!p) return;
+
+      const subPct = ((p.submittedCount / 8) * 100).toFixed(1);
+      const newPct = ((p.newCount / 8) * 100).toFixed(1);
+
+      document.getElementById('raporAvatarInitials').textContent = getInitials(p.nama_peserta);
+      document.getElementById('raporBatchBadge').textContent = p.batch;
+      document.getElementById('raporOverallStatusBadge').textContent = `${p.submittedCount}/8 Submitted (${subPct}%)`;
+      document.getElementById('raporPesertaName').textContent = p.nama_peserta;
+      document.getElementById('raporPesertaMeta').textContent = `Username: ${p.username} | NIP: ${p.nip || '-'} | Email: ${p.email || '-'}`;
+
+      document.getElementById('raporKpiPct').textContent = `${subPct}%`;
+      document.getElementById('raporKpiTotalSub').textContent = `${p.submittedCount} / 8 Submitted`;
+      document.getElementById('raporBarSub').style.width = `${subPct}%`;
+      document.getElementById('raporBarNew').style.width = `${newPct}%`;
+      document.getElementById('raporKpiSubDetail').textContent = `🟢 ${p.submittedCount} Sub • 🟡 ${p.newCount} New • ⚪ ${p.belumCount} Belum`;
+
+      document.getElementById('raporKpiP1').textContent = `${p.p1Submitted} / 4 Submitted`;
+      document.getElementById('raporKpiP2').textContent = `${p.p2Submitted} / 4 Submitted`;
+      document.getElementById('raporKpiP1Badges').innerHTML = ['PK', 'SDMPT', 'PBJ', 'KA'].map(c => renderModuleStatusPillButton(p.username, c, p.modules[c])).join('');
+      document.getElementById('raporKpiP2Badges').innerHTML = ['AI', 'PMA', 'HK', 'MRT'].map(c => renderModuleStatusPillButton(p.username, c, p.modules[c])).join('');
+
+      document.getElementById('raporKpiChars').textContent = `${p.totalChars.toLocaleString('id-ID')} Karakter`;
+      document.getElementById('raporKpiLastSubmit').textContent = `🕒 Submit Terakhir: ${p.latestSubmit}`;
+
+      const tbody = document.getElementById('raporModulesTableBody');
+      if (tbody) {
+        tbody.innerHTML = MODULE_ORDER.map((code, idx) => {
+          const info = MODULE_INFO[code] || { name: code, pilar: '-' };
+          const r = p.modules[code] || {
+            id_submisi: '-',
+            batch: p.batch,
+            pilar: info.pilar,
+            kode_modul: code,
+            modul_direktorat: info.name,
+            nama_assignment_esai: `Tempat Pengumpulan Uji Kompetensi - ${info.name}`,
+            username: p.username,
+            nip: p.nip,
+            nama_peserta: p.nama_peserta,
+            email: p.email,
+            status_submisi: 'belum_submit',
+            waktu_submit: '-',
+            nilai_di_emas3: '-',
+            _jawaban_text: ''
+          };
+
+          const isP1 = ['PK', 'SDMPT', 'PBJ', 'KA'].includes(code);
+          const pilarPill = isP1
+            ? `<span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-mono text-[10px] font-bold">Pilar I</span>`
+            : `<span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-300 font-mono text-[10px] font-bold">Pilar II</span>`;
+
+          let statusBadge = `<span class="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[10px] font-semibold">belum_submit</span>`;
+          if (r.status_submisi === 'submitted') {
+            statusBadge = `<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono text-[10px] font-extrabold">submitted</span>`;
+          } else if (r.status_submisi === 'new') {
+            statusBadge = `<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 font-mono text-[10px] font-bold">new</span>`;
+          }
+
+          const charLen = (r._jawaban_text || '').length;
+          const previewHtml = charLen > 0
+            ? `<div class="text-[10px] font-mono font-bold text-emerald-700 mb-0.5">${charLen.toLocaleString('id-ID')} karakter bersih</div>
+               <div class="line-clamp-2 text-[11px] text-slate-700">${escapeHtml(r._jawaban_text.slice(0, 150))}</div>`
+            : `<span class="text-slate-400 italic text-[11px]">[Belum Mengumpulkan Jawaban]</span>`;
+
+          return `<tr class="hover:bg-amber-50/40 transition">
+            <td class="p-2.5 text-center font-mono text-slate-400">${idx + 1}</td>
+            <td class="p-2.5">
+              <div class="flex items-center gap-1.5">
+                ${pilarPill}
+                <span class="px-2 py-0.5 rounded bg-slate-900 text-amber-400 font-mono font-extrabold text-xs">${code}</span>
+              </div>
+              <div class="font-bold text-slate-900 text-xs mt-1">${escapeHtml(r.modul_direktorat)}</div>
+            </td>
+            <td class="p-2.5 text-[11px] text-slate-600">
+              <div>${escapeHtml(r.nama_assignment_esai)}</div>
+              <div class="font-mono text-[10px] text-slate-400 mt-0.5">ID Submisi: ${escapeHtml(r.id_submisi || '-')}</div>
+            </td>
+            <td class="p-2.5 text-center">${statusBadge}</td>
+            <td class="p-2.5 text-center font-mono text-[11px] text-slate-600">${escapeHtml(r.waktu_submit || '-')}</td>
+            <td class="p-2.5">${previewHtml}</td>
+            <td class="p-2.5 text-center font-mono font-bold text-slate-700">${escapeHtml(r.nilai_di_emas3 || '-')}</td>
+            <td class="p-2.5 text-center bg-amber-50/30">
+              <div class="flex flex-wrap items-center justify-center gap-1">
+                <button type="button" onclick="openSubmissionByUserAndModule('${escapeHtml(p.username)}', '${code}', true)"
+                  title="Buka Popup Soal & Tabel Jawaban untuk modul ${code}"
+                  class="px-2.5 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-[10px] shadow-sm transition flex items-center gap-1">
+                  <span>🔍</span><span>Buka Submisi</span>
+                </button>
+                <button type="button" onclick="jumpToSubmissionRow('${escapeHtml(p.username)}', '${code}')"
+                  title="Menuju ke baris modul ${code} milik ${escapeHtml(p.nama_peserta)} di Tabel Utama"
+                  class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-[10px] shadow-sm transition flex items-center gap-1">
+                  <span>📍</span><span>Ke Baris Tabel</span>
+                </button>
+                <button type="button" onclick="exportUserModuleRowToExcel('${escapeHtml(p.username)}', '${code}')"
+                  title="Unduh Excel 1 baris untuk modul ${code}"
+                  class="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] shadow-sm transition">
+                  📥 XLSX
+                </button>
+              </div>
+            </td>
+          </tr>`;
+        }).join('');
+      }
+
+      document.getElementById('participantRaporModal').classList.remove('hidden');
+      if (!isSilent) {
+        updateUrlAndTracker(`Rapor ${username}`);
+      }
+    }
+
+    function closeParticipantRaporModal(isSilent = false) {
+      document.getElementById('participantRaporModal')?.classList.add('hidden');
+      activeRaporUsername = null;
+      if (!isSilent) {
+        updateUrlAndTracker('Tutup Rapor');
+      }
+    }
+
+    function openSubmissionByUserAndModule(username, kodeModul, fromRapor = false) {
+      const targetRow = rawMasterData.find(r => r.username === username && r.kode_modul === kodeModul);
+      if (!targetRow) {
+        setSyncBanner(`Submisi ${kodeModul} untuk ${username} tidak ditemukan`, 'rose');
+        return;
+      }
+      openedEssayFromRapor = Boolean(fromRapor);
+      openEssayModalByRowObject(targetRow);
+    }
+
+    function returnToParticipantRaporModal() {
+      const prevUser = activeModalRow?.username || activeRaporUsername;
+      closeEssayModal();
+      if (prevUser) {
+        openParticipantRaporModal(prevUser);
+      }
+    }
+
+    function jumpToSubmissionRow(username, kodeModul) {
+      if (!username || !kodeModul) return;
+      const targetRow = rawMasterData.find(r => r.username === username && r.kode_modul === kodeModul);
+      if (!targetRow) {
+        setSyncBanner(`Baris ${kodeModul} untuk ${username} tidak ditemukan`, 'rose');
+        return;
+      }
+
+      closeParticipantRaporModal(true);
+      setWorkspaceMode('submissions', true);
+      toggleTableCollapse(true);
+
+      let targetIdx = sortedData.findIndex(r => r.username === username && r.kode_modul === kodeModul);
+      if (targetIdx === -1) {
+        const bEl = document.getElementById('filterBatch');
+        const pEl = document.getElementById('filterPilar');
+        const mEl = document.getElementById('filterModul');
+        const sEl = document.getElementById('filterStatus');
+        const qEl = document.getElementById('searchTable');
+        if (bEl) bEl.value = targetRow.batch || 'ALL';
+        if (pEl) pEl.value = 'ALL';
+        if (mEl) mEl.value = 'ALL';
+        if (sEl) sEl.value = 'ALL';
+        if (qEl) qEl.value = username;
+        applyFilters(true);
+        targetIdx = sortedData.findIndex(r => r.username === username && r.kode_modul === kodeModul);
+      }
+
+      const rowKey = `${username}__${kodeModul}`;
+      highlightedRowKey = rowKey;
+      if (targetIdx !== -1 && pageSize !== 'ALL') {
+        currentPage = Math.floor(targetIdx / pageSize) + 1;
+      } else {
+        currentPage = 1;
+      }
+
+      renderTable();
+      updateUrlAndTracker(`Ke Baris ${username} ${kodeModul}`);
+
+      setTimeout(() => {
+        const rowEl = document.getElementById(`row_sub_${rowKey}`);
+        if (rowEl) {
+          rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        setTimeout(() => {
+          highlightedRowKey = null;
+          rowEl?.classList.remove('row-jump-highlight');
+        }, 4800);
+      }, 180);
+    }
+
+    function exportActiveRaporParticipantExcel() {
+      if (!activeRaporUsername) return;
+      exportParticipantAllModulesToExcel(activeRaporUsername);
+    }
+
+    function exportUserModuleRowToExcel(username, kodeModul) {
+      const r = rawMasterData.find(row => row.username === username && row.kode_modul === kodeModul);
+      if (!r) return;
+      const rows = formatRowsForSheet([r], true);
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows, { header: REPORT_175_COLUMNS });
+      XLSX.utils.book_append_sheet(wb, ws, `${r.kode_modul}_${r.username}`.slice(0, 31));
+      const safeName = String(r.nama_peserta || r.username || 'Peserta').replace(/[^a-zA-Z0-9_-]/g, '_');
+      XLSX.writeFile(wb, `Esai_${r.kode_modul}_${safeName}.xlsx`);
+    }
+
+    function copyRaporPermalink() {
+      updateUrlAndTracker('Salin Link Rapor');
+      copyTextToClipboard(window.location.href, 'Tautan Rapor peserta berhasil disalin!');
+      const lbl = document.getElementById('lblCopyRaporLink');
+      if (lbl) {
+        lbl.textContent = 'Tersalin!';
+        setTimeout(() => { lbl.textContent = 'Link Rapor'; }, 1800);
+      }
     }
 
     /*************************************************************************
@@ -2831,47 +2940,46 @@
       const jawabContainer = document.getElementById('modalJawabanHtml');
       const fmtBadge = document.getElementById('modalFormatDetectedBadge');
 
+      const rawSoal = r.soal_atau_instruksi_esai || '';
       const rawJawab = r.jawaban_peserta_essay || '';
-      const decodedJawab = decodeHtmlEntitiesIfNeeded(rawJawab);
-      const hasHtmlTag = /<\s*\/?\s*(table|tr|td|p|div|ul|ol|li|br|strong|span)\b/i.test(decodedJawab);
 
       if (fmtBadge) {
-        if (!rawJawab.trim()) {
-          fmtBadge.textContent = 'Kosong';
+        if (!rawJawab.trim() || rawJawab.includes('[Belum Mengumpulkan Jawaban]')) {
+          fmtBadge.textContent = 'Belum Mengumpulkan';
           fmtBadge.className = 'px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-slate-700 text-slate-300';
-        } else if (hasHtmlTag) {
-          fmtBadge.textContent = '✨ TinyMCE HTML Rendered';
-          fmtBadge.className = 'px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-sky-500/20 text-sky-300 border border-sky-500/30';
         } else {
-          fmtBadge.textContent = '⚡ Smart Table Reconstructed';
-          fmtBadge.className = 'px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-amber-500/20 text-amber-300 border border-amber-500/30';
+          fmtBadge.textContent = '✨ Raw HTML TinyMCE';
+          fmtBadge.className = 'px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
         }
       }
 
       if (modalRenderMode === 'raw') {
+        const rawSoalSource = (rawSoal.length < 160 && MASTER_SOAL_HTML[r.kode_modul])
+          ? MASTER_SOAL_HTML[r.kode_modul]
+          : rawSoal;
+        const decodedRawSoal = decodeHtmlEntitiesIfNeeded(rawSoalSource);
+        const decodedRawJawab = decodeHtmlEntitiesIfNeeded(rawJawab);
         if (soalContainer) {
-          soalContainer.innerHTML = `<pre class="p-3 rounded-lg bg-slate-900 text-slate-200 font-mono text-[11px] whitespace-pre-wrap overflow-x-auto">${escapeHtml(r.soal_atau_instruksi_esai || 'Kosong')}</pre>`;
+          soalContainer.innerHTML = `<pre class="p-3 rounded-lg bg-slate-900 text-slate-200 font-mono text-[11px] whitespace-pre-wrap overflow-x-auto">${escapeHtml(decodedRawSoal || 'Kosong')}</pre>`;
         }
         if (jawabContainer) {
-          jawabContainer.innerHTML = rawJawab.trim()
-            ? `<pre class="p-3 rounded-lg bg-slate-900 text-emerald-300 font-mono text-[11px] whitespace-pre-wrap overflow-x-auto">${escapeHtml(rawJawab)}</pre>`
+          jawabContainer.innerHTML = decodedRawJawab.trim()
+            ? `<pre class="p-3 rounded-lg bg-slate-900 text-emerald-300 font-mono text-[11px] whitespace-pre-wrap overflow-x-auto">${escapeHtml(decodedRawJawab)}</pre>`
             : '<div class="p-6 text-center text-slate-400 italic">Peserta ini belum mengumpulkan jawaban esai.</div>';
         }
       } else {
         if (soalContainer) {
-          soalContainer.innerHTML = sanitizeMoodleHtmlForPreview(r.soal_atau_instruksi_esai, r.kode_modul, true);
+          soalContainer.innerHTML = renderRawMoodleHtml(rawSoal, true, r.kode_modul);
         }
         if (jawabContainer) {
           jawabContainer.innerHTML = rawJawab.trim()
-            ? sanitizeMoodleHtmlForPreview(rawJawab, r.kode_modul, false)
+            ? renderRawMoodleHtml(rawJawab, false, r.kode_modul)
             : '<div class="p-6 text-center text-slate-400 italic">Peserta ini belum mengumpulkan jawaban esai.</div>';
         }
       }
     }
 
-    function openEssayModal(idxInList) {
-      const list = window._currentDisplayedList || sortedData;
-      const r = list[idxInList];
+    function openEssayModalByRowObject(r) {
       if (!r) return;
       activeModalRow = r;
 
@@ -2883,13 +2991,27 @@
       document.getElementById('modalAssignmentTitle').textContent = r.nama_assignment_esai;
       document.getElementById('modalCharCount').textContent = `${(r._jawaban_text || '').length.toLocaleString('id-ID')} karakter bersih`;
 
+      const backBtn = document.getElementById('btnBackToRaporModal');
+      if (backBtn) {
+        backBtn.classList.toggle('hidden', !openedEssayFromRapor);
+      }
+
       renderActiveModalContent();
       document.getElementById('essayDetailModal').classList.remove('hidden');
+    }
+
+    function openEssayModal(idxInList, fromRapor = false) {
+      const list = window._currentDisplayedList || sortedData;
+      const r = list[idxInList];
+      if (!r) return;
+      openedEssayFromRapor = Boolean(fromRapor);
+      openEssayModalByRowObject(r);
     }
 
     function closeEssayModal() {
       document.getElementById('essayDetailModal').classList.add('hidden');
       activeModalRow = null;
+      openedEssayFromRapor = false;
     }
 
     function copyTextToClipboard(text, successLabel = 'Tersalin!') {
@@ -2929,12 +3051,14 @@
 
       const params = new URLSearchParams();
       params.set('user', currentLoggedUser);
+      params.set('mode', workspaceMode);
       params.set('cols', tableColumnMode);
       params.set('batch', fBatch);
       if (fPilar !== 'ALL') params.set('pilar', fPilar);
       if (fModul !== 'ALL') params.set('modul', fModul);
       if (fStatus !== 'ALL') params.set('status', fStatus);
       if (searchVal) params.set('q', searchVal);
+      if (activeRaporUsername) params.set('rapor', activeRaporUsername);
       if (currentPage > 1) params.set('page', String(currentPage));
       if (pageSize !== 50) params.set('psize', String(pageSize));
       if (!isTableCollapsed) params.set('tbl', 'open');
@@ -2995,6 +3119,12 @@
       const params = new URLSearchParams(window.location.search);
       const setVal = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
 
+      if (params.has('mode')) {
+        setWorkspaceMode(params.get('mode') === 'directory' ? 'directory' : 'submissions', true);
+      }
+      if (params.has('rapor')) {
+        activeRaporUsername = params.get('rapor');
+      }
       if (params.has('cols')) {
         const c = params.get('cols');
         setTableColumnMode(c === 'detailed' ? 'detailed' : 'simple', true);
@@ -3038,7 +3168,7 @@
         const obj = {};
         REPORT_175_COLUMNS.forEach(col => {
           if (col === 'kunci_jawaban') {
-            obj[col] = ''; // Selalu kosong sesuai spesifikasi
+            obj[col] = '';
           } else if (stripHtml && col === 'soal_atau_instruksi_esai') {
             obj[col] = r._soal_text;
           } else if (stripHtml && col === 'jawaban_peserta_essay') {
@@ -3056,7 +3186,6 @@
       return formatRowsForSheet(source, stripHtml);
     }
 
-    // 1. Download Excel khusus Isi Tabel yang sedang terfilter & terurut
     function exportFilteredTableToExcel() {
       const source = sortedData.length > 0 ? sortedData : filteredData;
       if (source.length === 0) {
@@ -3075,7 +3204,6 @@
       XLSX.writeFile(wb, `UI_ALEX_2026_Tabel_${tag}_${Date.now()}.xlsx`);
     }
 
-    // 2. Download Excel per Modul langsung dari tombol pada Widget Modul
     function exportSingleModuleToExcel(event, modulCode) {
       if (event) event.stopPropagation();
       const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
@@ -3116,7 +3244,6 @@
       XLSX.writeFile(wb, `UI_ALEX_2026_Modul_${modulCode}_${batchTag}_${Date.now()}.xlsx`);
     }
 
-    // 3. Download Excel per Orang (1 Baris Submisi Spesifik atau Seluruh 8 Modul Milik Peserta Tersebut)
     function exportSingleRowToExcel(idxInSorted) {
       const list = window._currentDisplayedList || sortedData;
       const r = list[idxInSorted];
@@ -3162,7 +3289,6 @@
       const ws1 = XLSX.utils.json_to_sheet(rows, { header: REPORT_175_COLUMNS });
       XLSX.utils.book_append_sheet(wb, ws1, 'Data_Submisi_ID175');
 
-      // Sheet 2: Rekapitulasi per Modul Direktorat
       const source = filteredData.length > 0 ? filteredData : rawMasterData;
       const rekapRows = MODULE_ORDER.map(code => {
         const mRows = source.filter(r => r.kode_modul === code);
