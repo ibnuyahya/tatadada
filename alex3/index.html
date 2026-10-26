@@ -1559,15 +1559,19 @@
                       data-tippy-content="Nilai Soal Essay Pilar II (Section 5 - Batch 2 & Batch 3)">
                       <span>ESSAY-II</span><span id="sort_mat_essay_p2"></span>
                     </th>
+                    <th onclick="sortMatrixBy('post_total_avg')" class="sortable-th th-amber-sticky p-2.5 text-center w-28 text-amber-950"
+                      data-tippy-content="Skor Akhir (Rerata Uji Kompetensi). Urutan Ranking: 1) Rerata Tertinggi → 2) Total Remedial Paling Minimalis → 3) Modul Selesai Terbanyak → 4) Total Durasi Pengerjaan Tercepat → 5) Attempt Terkecil">
+                      <span>SKOR UJIKOM</span><span id="sort_mat_post_total_avg"></span>
+                    </th>
                     <th onclick="sortMatrixBy('final_status')" class="sortable-th p-2.5 text-center w-32"
-                      data-tippy-content="Status ketuntasan evaluasi akhir peserta pada 8 modul">
+                      data-tippy-content="Status ketuntasan evaluasi akhir peserta pada 8 modul. Urutan Ranking: 1) 8/8 Lulus → 2) X/8 Selesai (Tanpa Remedial, dari 7/8 ke 1/8) → 3) Butuh Remedial (1 Rem s.d. 8 Rem) → 4) Tahap Belajar Mandiri">
                       STATUS AKHIR<span id="sort_mat_final_status"></span>
                     </th>
                   </tr>
                 </thead>
                 <tbody id="participantMatrixBody" class="selectable divide-y divide-slate-200">
                   <tr>
-                    <td colspan="20" class="p-8 text-center text-slate-400">Memuat data matriks peserta...</td>
+                    <td colspan="21" class="p-8 text-center text-slate-400">Memuat data matriks peserta...</td>
                   </tr>
                 </tbody>
               </table>
@@ -1582,43 +1586,106 @@
          MODE 2 WORKSPACE: STUDIO KOMPARASI ANTAR-BATCH (#benchmarkViewContainer)
          =================================================================== -->
     <section id="benchmarkViewContainer" class="hidden space-y-5">
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <span class="px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-indigo-100 text-indigo-800">
-            Multi-Batch Benchmarking Studio
-          </span>
-          <h2 class="text-lg font-extrabold text-slate-900 mt-1">
-            Komparasi Kinerja, Kesiapan &amp; Persona Lintas Angkatan (Batch 1 vs Batch 2 vs Batch 3)
-          </h2>
-          <p class="text-xs text-slate-500">
-            Pemetaan langsung ke ID Grup Moodle EMAS3: Batch 1 (<code class="font-mono">142345 / 142346</code>), Batch 2 (<code class="font-mono">142957 / 142806</code>), dan Batch 3 (<code class="font-mono">142805 / 142807</code>).
-          </p>
+      <!-- Header, Batch Scope Selector & Action Export Controls -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-indigo-100 text-indigo-800">
+                Multi-Batch Analytics &amp; Benchmarking Studio
+              </span>
+              <span class="px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-amber-100 text-amber-900 border border-amber-300">
+                Mode: 1 Batch (Deep-Dive) • 2 Batch (Head-to-Head) • 3 Batch
+              </span>
+            </div>
+            <h2 id="benchMainTitle" class="text-lg font-extrabold text-slate-900 mt-1">
+              Analisis &amp; Komparasi Kinerja, Kesiapan, Modul &amp; Perilaku Belajar
+            </h2>
+            <p class="text-xs text-slate-500">
+              Pilih 1 angkatan untuk analisis diagnostik mendalam per-batch, atau pilih 2 s.d. 3 angkatan untuk komparasi lintas-batch.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 no-print">
+            <button type="button" onclick="copyBenchmarkExecutiveText()"
+              data-tippy-content="Salin ringkasan analisis/komparasi batch yang dipilih ke format WhatsApp / Laporan Singkat"
+              class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5">
+              <span>📋</span><span>Salin Insight (WA)</span>
+            </button>
+            <button type="button" onclick="exportBenchmarkXLSX()"
+              data-tippy-content="Unduh Buku Kerja Excel (.xlsx) berisi Ringkasan Makro & Matriks 8 Modul sesuai Batch yang dipilih"
+              class="px-3.5 py-2 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5">
+              <span>📊</span><span>Unduh XLSX Analisis</span>
+            </button>
+          </div>
         </div>
-        <div class="flex flex-wrap items-center gap-2 text-xs font-mono">
-          <span class="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300 text-slate-800">
-            <strong>Batch 1:</strong> 142345 (P1) • 142346 (P2)
-          </span>
-          <span class="px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-300 text-amber-900">
-            <strong>Batch 2 (Default):</strong> 142957 (P1) • 142806 (P2)
-          </span>
-          <span class="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300 text-slate-600">
-            <strong>Batch 3:</strong> 142805 (P1) • 142807 (P2)
-          </span>
+
+        <!-- Baris Pemilih Cakupan Batch (Preset Cepat & Toggle Per-Batch) -->
+        <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 no-print">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mr-1">PILIH CAKUPAN BATCH:</span>
+            <button type="button" id="btnBenchToggle_B1" onclick="toggleBenchmarkBatch('Batch 1')"
+              class="px-3 py-1.5 rounded-xl border-2 border-slate-900 bg-slate-900 text-amber-400 font-bold text-xs transition flex items-center gap-1.5 shadow-sm">
+              <span id="chkBench_B1">☑️</span>
+              <span>Batch 1 (KKM 80)</span>
+            </button>
+            <button type="button" id="btnBenchToggle_B2" onclick="toggleBenchmarkBatch('Batch 2')"
+              class="px-3 py-1.5 rounded-xl border-2 border-amber-500 bg-amber-500 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-sm">
+              <span id="chkBench_B2">☑️</span>
+              <span>Batch 2 (KKM 100)</span>
+            </button>
+            <button type="button" id="btnBenchToggle_B3" onclick="toggleBenchmarkBatch('Batch 3')"
+              class="px-3 py-1.5 rounded-xl border-2 border-blue-600 bg-blue-600 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm">
+              <span id="chkBench_B3">☑️</span>
+              <span>Batch 3 (KKM 100)</span>
+            </button>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Preset Cepat:</span>
+            <button type="button" onclick="setBenchmarkPreset(['Batch 1'])"
+              class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] transition">
+              Hanya Batch 1
+            </button>
+            <button type="button" onclick="setBenchmarkPreset(['Batch 2'])"
+              class="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-[11px] transition">
+              Hanya Batch 2
+            </button>
+            <button type="button" onclick="setBenchmarkPreset(['Batch 1', 'Batch 2'])"
+              class="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold text-[11px] transition">
+              B1 vs B2 (2 Batch)
+            </button>
+            <button type="button" onclick="setBenchmarkPreset(['Batch 1', 'Batch 2', 'Batch 3'])"
+              class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-[11px] transition">
+              Semua (3 Batch)
+            </button>
+          </div>
         </div>
       </div>
 
+      <!-- Report 1: Executive Key Insights & Automated Diagnostic Banner -->
+      <div id="benchmarkInsightsBanner" class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl p-5 shadow-md space-y-3"></div>
+
+      <!-- Report 2: 3 Kartu Profil Makro per Batch -->
       <div id="benchmarkSummaryCards" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
 
+      <!-- Report 3 & 4: Komparasi 5 Metrik Utama & Sebaran 5 Tipologi Persona -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-800 mb-1">Komparasi 5 Metrik Utama Lintas-Batch</h3>
-          <p class="text-[11px] text-slate-500 mb-3">Perbandingan Completion Pilar I/II, Rerata Pre-Test, Rerata Post-Test, dan Indeks Kesiapan</p>
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-800">1. Komparasi 5 Metrik Utama Lintas-Batch</h3>
+            <span class="px-2 py-0.5 text-[10px] font-bold rounded bg-indigo-50 text-indigo-700 border border-indigo-200">Makro</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mb-3">Perbandingan Completion Pilar I/II, Rerata Asesmen Awal, Rerata Evaluasi Akhir, dan Indeks Kesiapan</p>
           <div class="h-72">
             <canvas id="chartBenchMetrics"></canvas>
           </div>
         </div>
-        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-800 mb-1">Sebaran 5 Tipologi Persona Belajar Lintas-Batch</h3>
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-800">2. Sebaran 5 Tipologi Persona Belajar Lintas-Batch</h3>
+            <span class="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-50 text-emerald-700 border border-emerald-200">Perilaku</span>
+          </div>
           <p class="text-[11px] text-slate-500 mb-3">Distribusi jumlah peserta pada setiap klaster perilaku belajar per angkatan</p>
           <div class="h-72">
             <canvas id="chartBenchPersona"></canvas>
@@ -1626,10 +1693,70 @@
         </div>
       </div>
 
-      <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="p-4 border-b border-slate-200 bg-slate-50">
-          <h3 class="text-sm font-extrabold text-slate-800">Tabel Matriks Benchmarking Head-to-Head Antar-Batch</h3>
-          <p class="text-[11px] text-slate-500">Perbandingan komprehensif seluruh indikator kuantitatif dan efektivitas pembelajaran</p>
+      <!-- Report 5: Komparasi Penguasaan 8 Modul Inti Lintas-Batch (Full-Width Chart) -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+          <div>
+            <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-800">3. Peta Komparasi Rerata Nilai 8 Modul Inti Antar-Batch</h3>
+            <p class="text-[11px] text-slate-500">Membandingkan daya serap peserta pada masing-masing modul di Pilar I (PK, SDMPT, PBJ, KA) &amp; Pilar II (AI, PMA, HK, MRT)</p>
+          </div>
+          <span id="benchHardestEasierBadge" class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 font-mono font-bold text-[11px]">
+            Memetakan modul...
+          </span>
+        </div>
+        <div class="h-72 mt-3">
+          <canvas id="chartBenchModules"></canvas>
+        </div>
+      </div>
+
+      <!-- Report 6 & 7: Efektivitas Pembelajaran (Knowledge Gain) & Proporsi Kesiapan + Perilaku Ujian -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-800">4. Lonjakan Kognitif (Asesmen Awal → Evaluasi Akhir &amp; Gain)</h3>
+            <span class="px-2 py-0.5 text-[10px] font-bold rounded bg-amber-50 text-amber-800 border border-amber-200">Efektivitas</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mb-3">Perbandingan nilai awal vs evaluasi akhir beserta Normalized Hake's Gain (×100) per angkatan</p>
+          <div class="h-64">
+            <canvas id="chartBenchGain"></canvas>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-800">5. Proporsi Kategori Kesiapan &amp; Efisiensi Ujian</h3>
+            <span class="px-2 py-0.5 text-[10px] font-bold rounded bg-blue-50 text-blue-700 border border-blue-200">Kesiapan &amp; Speed</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mb-3">Persentase peserta kategori Siap (≥75), Lulus Sekali Coba (First-Try Pass), dan Partisipasi Evaluasi</p>
+          <div class="h-64">
+            <canvas id="chartBenchEfficiency"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Report 8: Matriks Heatmap 8 Modul Lintas-Batch -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="text-sm font-extrabold text-slate-800">6. Matriks Heatmap Capaian &amp; Kelulusan per Modul Lintas-Batch</h3>
+            <p class="text-[11px] text-slate-500">Perbandingan Rerata Skor, Tingkat Kelulusan KKM, dan Rasio Partisipasi Peserta pada 8 Modul Inti</p>
+          </div>
+          <div class="flex items-center gap-2 text-[10px] font-mono font-bold">
+            <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">🟢 &ge; KKM</span>
+            <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">🟡 &ge; 80 (Di Bawah KKM 100)</span>
+            <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200">🔴 &lt; 80</span>
+          </div>
+        </div>
+        <div id="benchmarkModuleMatrixWrapper" class="overflow-x-auto"></div>
+      </div>
+
+      <!-- Report 9: Tabel Matriks Benchmarking Head-to-Head Komprehensif (18 Indikator) -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="text-sm font-extrabold text-slate-800">7. Tabel Indikator Benchmarking Komprehensif Antar-Batch (18 Parameter)</h3>
+            <p class="text-[11px] text-slate-500">Rekapitulasi kuantitatif menyeluruh: Keterlibatan Mandiri, Diagnostik Awal, Evaluasi Akhir, Perilaku Attempt, Durasi, dan Anomali</p>
+          </div>
         </div>
         <div id="benchmarkTableWrapper" class="overflow-x-auto"></div>
       </div>
@@ -1661,6 +1788,10 @@
                 class="px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 border-l border-slate-300">
                 📋 Top 10 (List)
               </button>
+              <button id="btnModeAll" onclick="setAwardDisplayMode('all')"
+                class="px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 border-l border-slate-300">
+                👥 Semua Peserta (All)
+              </button>
             </div>
           </div>
         </div>
@@ -1669,6 +1800,11 @@
           <button onclick="copyAwardAnnouncementText()"
             class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 transition">
             📋 Salin Teks MC / Pengumuman
+          </button>
+          <button onclick="exportAwardXLSX()"
+            data-tippy-content="Unduh daftar peringkat lengkap kategori penghargaan ini beserta rincian metrik & faktor pembeda (Tie-Breaker) ke format Excel (.xlsx)"
+            class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
+            <span>📊</span><span>Unduh XLSX Award</span>
           </button>
           <button onclick="exportAwardSlidePNG()"
             class="px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition">
@@ -1900,7 +2036,7 @@
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <button onclick="downloadParticipantPDF()"
+          <button id="btnDownloadDossierPDF" onclick="downloadParticipantPDF()"
             class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition">
             🖨️ Unduh Rapor PDF (2 Halaman A4)
           </button>
@@ -2357,6 +2493,7 @@
       },
       benchmark: {
         batch: 'ALL',
+        selectedBatches: ['Batch 1', 'Batch 2', 'Batch 3'],
         pilar: 'ALL',
         modul: 'ALL',
         persona: 'ALL',
@@ -2382,8 +2519,10 @@
     function saveCurrentTabFilterState(mode) {
       if (!mode) return;
       if (mode === 'matrix' || mode === 'benchmark' || mode === 'halloffame') {
+        const prevSelectedBatches = tabFilterStates.benchmark?.selectedBatches || ['Batch 1', 'Batch 2', 'Batch 3'];
         tabFilterStates[mode] = {
           batch: mode === 'benchmark' ? 'ALL' : (document.getElementById('filterBatch')?.value || DEFAULT_ACTIVE_BATCH),
+          selectedBatches: mode === 'benchmark' ? [...selectedBenchmarkBatches] : prevSelectedBatches,
           pilar: document.getElementById('filterPilar')?.value || 'ALL',
           modul: document.getElementById('filterModul')?.value || 'ALL',
           persona: document.getElementById('filterPersona')?.value || 'ALL',
@@ -2406,12 +2545,16 @@
 
       const wrapBatch = document.getElementById('wrap_filterBatch');
       if (wrapBatch) {
-        // Di Tab 2 (Studio Komparasi Antar-Batch), filter Batch tidak relevan sehingga disembunyikan
+        // Di Tab 2 (Studio Komparasi Antar-Batch), filter Batch menggunakan pemilih cakupan multi-batch tersendiri
         wrapBatch.classList.toggle('hidden', mode === 'benchmark');
       }
 
       if (mode === 'matrix' || mode === 'benchmark' || mode === 'halloffame') {
         const st = tabFilterStates[mode] || tabFilterStates.matrix;
+        if (mode === 'benchmark' && Array.isArray(st.selectedBatches) && st.selectedBatches.length > 0) {
+          selectedBenchmarkBatches = [...st.selectedBatches];
+          updateBenchmarkScopeButtonsUI();
+        }
         const setVal = (id, val) => {
           const el = document.getElementById(id);
           if (el) el.value = val;
@@ -4680,9 +4823,61 @@
         matrixSortState.dir = matrixSortState.dir === 'asc' ? 'desc' : 'asc';
       } else {
         matrixSortState.key = key;
-        matrixSortState.dir = ['nama_peserta', 'batch', 'persona', 'final_status'].includes(key) ? 'asc' : 'desc';
+        matrixSortState.dir = ['nama_peserta', 'batch'].includes(key) ? 'asc' : 'desc';
       }
       renderParticipantMatrix();
+    }
+
+    function getFinalStatusRankTuple(u) {
+      // Tier 4: Belum mengambil Uji Kompetensi sama sekali
+      if (u.attempted_post === 0) {
+        return {
+          tier: 1,
+          primary: u.readiness_score,
+          secondary: u.comp_total,
+          tertiary: u.pre_avg || 0,
+          speed: 0
+        };
+      }
+      // Tier 3: Memiliki Remedial (Semakin sedikit remedial semakin baik: -1 > -5)
+      if (u.remedial_post > 0) {
+        return {
+          tier: 2,
+          primary: -u.remedial_post,
+          secondary: u.passed_post,
+          tertiary: u.post_total_avg,
+          speed: -(u.total_post_durasi || 999999)
+        };
+      }
+      // Tier 1: Lulus Sempurna 8/8 Modul Tanpa Remedial
+      if (u.passed_post === 8) {
+        return {
+          tier: 4,
+          primary: u.post_total_avg,
+          secondary: -(u.total_post_attempts || 8),
+          tertiary: -(u.total_post_durasi || 999999),
+          speed: u.readiness_score
+        };
+      }
+      // Tier 2: Sedang berjalan dan lulus bersih tanpa remedial (7/8 Selesai -> 1/8 Selesai)
+      return {
+        tier: 3,
+        primary: u.passed_post,
+        secondary: u.post_total_avg,
+        tertiary: -(u.total_post_durasi || 999999),
+        speed: u.readiness_score
+      };
+    }
+
+    function compareFinalStatus(a, b, mult) {
+      const ra = getFinalStatusRankTuple(a);
+      const rb = getFinalStatusRankTuple(b);
+      if (ra.tier !== rb.tier) return (ra.tier - rb.tier) * mult;
+      if (ra.primary !== rb.primary) return (ra.primary - rb.primary) * mult;
+      if (ra.secondary !== rb.secondary) return (ra.secondary - rb.secondary) * mult;
+      if (ra.tertiary !== rb.tertiary) return (ra.tertiary - rb.tertiary) * mult;
+      if (ra.speed !== rb.speed) return (ra.speed - rb.speed) * mult;
+      return a.nama_peserta.localeCompare(b.nama_peserta, 'id');
     }
 
     function renderScoreCell(val, isPre = false, kkm = 100) {
@@ -4713,9 +4908,82 @@
       const { key, dir } = matrixSortState;
       const mult = dir === 'asc' ? 1 : -1;
 
+      const getFinalStatusRankTuple = (u) => {
+        // Tier 4 (Tertinggi): 8/8 Lulus Sempurna tanpa remedial
+        if (u.passed_post === 8 && u.remedial_post === 0) {
+          return { tier: 4, subRank: 8 };
+        }
+        // Tier 3: Sedang berjalan & seluruh modul yang dikerjakan LULUS (0 Remedial: 7/8 Selesai s.d. 1/8 Selesai)
+        if (u.attempted_post > 0 && u.remedial_post === 0) {
+          return { tier: 3, subRank: u.passed_post };
+        }
+        // Tier 2: Memiliki modul Butuh Remedial (1 Remedial lebih baik daripada 8 Remedial -> subRank = -remedial_post)
+        if (u.remedial_post > 0) {
+          return { tier: 2, subRank: -u.remedial_post };
+        }
+        // Tier 1 (Terendah): Tahap Belajar Mandiri (Belum ada modul Ujikom yang dikerjakan)
+        return { tier: 1, subRank: 0 };
+      };
+
+      const personaRankOrder = {
+        'Pace-Setter': 5,
+        'In Progress': 4,
+        'Pilar-I Oriented': 3,
+        'Low Engagement': 2,
+        'Dormant': 1
+      };
+
       list.sort((a, b) => {
         let va, vb;
-        if (MODULE_KEYS.includes(key)) {
+        if (key === 'post_total_avg') {
+          // Peserta yang belum mengerjakan Ujikom sama sekali selalu ditaruh di urutan paling bawah
+          const aHas = a.attempted_post > 0;
+          const bHas = b.attempted_post > 0;
+          if (!aHas && !bHas) return a.nama_peserta.localeCompare(b.nama_peserta, 'id');
+          if (!aHas) return 1;
+          if (!bHas) return -1;
+
+          // 1. Rerata Nilai Semua Ujikom (Tertinggi lebih unggul pada mode desc)
+          if (a.post_total_avg !== b.post_total_avg) {
+            return (a.post_total_avg - b.post_total_avg) * mult;
+          }
+          // 2. Total Remedial Paling Minimalis (Sedikit remedial lebih unggul)
+          if (a.remedial_post !== b.remedial_post) {
+            return (b.remedial_post - a.remedial_post) * mult;
+          }
+          // 3. Jumlah Modul Ujikom Selesai Terbanyak
+          if (a.attempted_post !== b.attempted_post) {
+            return (a.attempted_post - b.attempted_post) * mult;
+          }
+          // 4. Total Waktu / Durasi Attempt Tercepat (Menit terkecil lebih unggul)
+          const aDur = a.total_post_durasi > 0 ? a.total_post_durasi : 999999;
+          const bDur = b.total_post_durasi > 0 ? b.total_post_durasi : 999999;
+          if (aDur !== bDur) {
+            return (bDur - aDur) * mult;
+          }
+          // 5. Total Attempt Paling Sedikit
+          const aAtt = a.total_post_attempts > 0 ? a.total_post_attempts : 999999;
+          const bAtt = b.total_post_attempts > 0 ? b.total_post_attempts : 999999;
+          if (aAtt !== bAtt) {
+            return (bAtt - aAtt) * mult;
+          }
+          return a.nama_peserta.localeCompare(b.nama_peserta, 'id');
+        } else if (key === 'final_status') {
+          return compareFinalStatus(a, b, mult);
+        } else if (key === 'persona') {
+          const personaRank = {
+            'Pace-Setter': 5,
+            'In Progress': 4,
+            'Pilar-I Oriented': 3,
+            'Low Engagement': 2,
+            'Dormant': 1
+          };
+          const pa = personaRank[a.persona] || 0;
+          const pb = personaRank[b.persona] || 0;
+          if (pa !== pb) return (pa - pb) * mult;
+          if (a.readiness_score !== b.readiness_score) return (a.readiness_score - b.readiness_score) * mult;
+          return a.nama_peserta.localeCompare(b.nama_peserta, 'id');
+        } else if (MODULE_KEYS.includes(key)) {
           va = a.modules[key] ?? -1;
           vb = b.modules[key] ?? -1;
         } else if (key === 'pre_p1' || key === 'pre_p2' || key === 'essay_p1' || key === 'essay_p2') {
@@ -4740,7 +5008,7 @@
 
       document.getElementById('matrixCountBadge').textContent = `Menampilkan ${list.length} peserta`;
 
-      const colSpanCount = t.hasEssay ? 20 : 18;
+      const colSpanCount = t.hasEssay ? 21 : 19;
       if (list.length === 0) {
         tbody.innerHTML = `<tr><td colspan="${colSpanCount}" class="p-8 text-center text-slate-400 font-medium">Tidak ada peserta yang sesuai dengan kriteria filter aktif.</td></tr>`;
         return;
@@ -4780,6 +5048,31 @@
         const p2Color = u.progress_p2 >= 75 ? 'text-emerald-700' : 'text-indigo-700';
         const uKkm = u.kkm || getBatchKkm(u.batch);
 
+        // Render sel Skor Ujikom (Rerata + info mini Remedial & Total Durasi Attempt)
+        let skorUjikomHtml = `<span class="text-slate-300">-</span>`;
+        if (u.attempted_post > 0) {
+          const tipDetail = `Rerata Ujikom: ${u.post_total_avg.toFixed(1)} (${u.attempted_post}/8 Modul) • Remedial: ${u.remedial_post} modul • Total Durasi: ${u.total_post_durasi.toFixed(1)} menit (${u.total_post_attempts}x attempt)`;
+          if (isScoreMasked) {
+            const mColor = (u.post_total_avg >= uKkm && u.remedial_post === 0)
+              ? 'bg-emerald-500'
+              : (u.post_total_avg < 60 ? 'bg-rose-500' : 'bg-amber-500');
+            skorUjikomHtml = `
+              <div data-tippy-content="${tipDetail}" class="cursor-help flex flex-col items-center">
+                <span class="inline-block w-10 h-3.5 rounded ${mColor} shadow-sm"></span>
+                <span class="text-[9px] font-mono text-slate-500 mt-0.5">${u.remedial_post}Rem • ${u.total_post_durasi.toFixed(0)}m</span>
+              </div>`;
+          } else {
+            const sCls = (u.post_total_avg >= uKkm && u.remedial_post === 0)
+              ? 'text-emerald-700'
+              : 'text-rose-600';
+            skorUjikomHtml = `
+              <div data-tippy-content="${tipDetail}" class="cursor-help leading-tight">
+                <div class="font-mono font-extrabold text-xs ${sCls}">${u.post_total_avg.toFixed(1)}</div>
+                <div class="text-[9px] font-mono text-slate-500 mt-0.5">${u.remedial_post}Rem • ${u.total_post_durasi.toFixed(1)}m</div>
+              </div>`;
+          }
+        }
+
         return `<tr class="hover:bg-amber-50/40 transition">
           <td class="p-2.5 text-center font-mono text-slate-500">${idx + 1}</td>
           <td class="p-2.5">
@@ -4816,6 +5109,7 @@
           <td class="p-2.5 text-center">${renderScoreCell(u.modules.PMA, false, uKkm)}</td>
           <td class="p-2.5 text-center">${renderScoreCell(u.modules.HK, false, uKkm)}</td>
           <td class="p-2.5 text-center">${renderScoreCell(u.modules.MRT, false, uKkm)}</td>
+          <td class="p-2.5 text-center bg-amber-50/60">${skorUjikomHtml}</td>
           <td class="p-2.5 text-center">${statusBadge}</td>
         </tr>`;
       }).join('');
@@ -4998,8 +5292,73 @@
     }
 
     /*************************************************************************
-     * I. STUDIO KOMPARASI ANTAR-BATCH (MODE 2)
+     * I. STUDIO KOMPARASI ANTAR-BATCH (MODE 2: 1 BATCH / 2 BATCH / 3 BATCH)
      *************************************************************************/
+    let lastBenchmarkStatsCache = [];
+    let selectedBenchmarkBatches = ['Batch 1', 'Batch 2', 'Batch 3'];
+
+    const BENCH_BATCH_STYLES = {
+      'Batch 1': {
+        color: '#0f172a',
+        btnId: 'btnBenchToggle_B1',
+        chkId: 'chkBench_B1',
+        activeCls: 'px-3 py-1.5 rounded-xl border-2 border-slate-900 bg-slate-900 text-amber-400 font-bold text-xs transition flex items-center gap-1.5 shadow-sm',
+        idleCls: 'px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-slate-500 hover:bg-slate-50 font-semibold text-xs transition flex items-center gap-1.5'
+      },
+      'Batch 2': {
+        color: '#f59e0b',
+        btnId: 'btnBenchToggle_B2',
+        chkId: 'chkBench_B2',
+        activeCls: 'px-3 py-1.5 rounded-xl border-2 border-amber-500 bg-amber-500 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-sm',
+        idleCls: 'px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-slate-500 hover:bg-slate-50 font-semibold text-xs transition flex items-center gap-1.5'
+      },
+      'Batch 3': {
+        color: '#2563eb',
+        btnId: 'btnBenchToggle_B3',
+        chkId: 'chkBench_B3',
+        activeCls: 'px-3 py-1.5 rounded-xl border-2 border-blue-600 bg-blue-600 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm',
+        idleCls: 'px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-slate-500 hover:bg-slate-50 font-semibold text-xs transition flex items-center gap-1.5'
+      }
+    };
+
+    function updateBenchmarkScopeButtonsUI() {
+      ['Batch 1', 'Batch 2', 'Batch 3'].forEach(bName => {
+        const cfg = BENCH_BATCH_STYLES[bName];
+        const btn = document.getElementById(cfg.btnId);
+        const chk = document.getElementById(cfg.chkId);
+        const isSel = selectedBenchmarkBatches.includes(bName);
+        if (btn) btn.className = isSel ? cfg.activeCls : cfg.idleCls;
+        if (chk) chk.textContent = isSel ? '☑️' : '⬜';
+      });
+    }
+
+    function toggleBenchmarkBatch(batchName) {
+      const idx = selectedBenchmarkBatches.indexOf(batchName);
+      if (idx >= 0) {
+        // Jangan izinkan semua dimatikan (minimal 1 batch harus aktif)
+        if (selectedBenchmarkBatches.length <= 1) return;
+        selectedBenchmarkBatches.splice(idx, 1);
+      } else {
+        selectedBenchmarkBatches.push(batchName);
+      }
+      // Jaga urutan kronologis Batch 1 -> Batch 2 -> Batch 3
+      const order = ['Batch 1', 'Batch 2', 'Batch 3'];
+      selectedBenchmarkBatches.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+      tabFilterStates.benchmark.selectedBatches = [...selectedBenchmarkBatches];
+      updateBenchmarkScopeButtonsUI();
+      renderBenchmarkStudio();
+      updateUrlAndTracker(`Komparasi ${selectedBenchmarkBatches.join(' vs ')}`);
+    }
+
+    function setBenchmarkPreset(batchArray) {
+      if (!Array.isArray(batchArray) || batchArray.length === 0) return;
+      selectedBenchmarkBatches = [...batchArray];
+      tabFilterStates.benchmark.selectedBatches = [...selectedBenchmarkBatches];
+      updateBenchmarkScopeButtonsUI();
+      renderBenchmarkStudio();
+      updateUrlAndTracker(`Preset Analisis ${selectedBenchmarkBatches.join(' vs ')}`);
+    }
+
     function computeBatchStats(batchName) {
       const fPilar = document.getElementById('filterPilar')?.value || 'ALL';
       const fModul = document.getElementById('filterModul')?.value || 'ALL';
@@ -5044,20 +5403,85 @@
 
       const pre1Done = users.filter(u => u.pre_p1 !== null);
       const pre2Done = users.filter(u => u.pre_p2 !== null);
+      const preBothDone = users.filter(u => u.pre_p1 !== null && u.pre_p2 !== null);
       const preList = users.filter(u => u.pre_avg !== null);
 
-      let doneSlots = 0, passSlots = 0;
+      const pre1Avg = pre1Done.length ? Number((pre1Done.reduce((s, u) => s + u.pre_p1, 0) / pre1Done.length).toFixed(1)) : 0;
+      const pre2Avg = pre2Done.length ? Number((pre2Done.reduce((s, u) => s + u.pre_p2, 0) / pre2Done.length).toFixed(1)) : 0;
+
+      let doneSlots = 0, passSlots = 0, remSlots = 0, score100Slots = 0, firstTryPassSlots = 0;
+      let totalAttemptsSum = 0, totalDurationSum = 0, durationCount = 0;
       const postUserAvgs = [];
+      let full8PassUsers = 0;
+      let activePostUsers = 0;
+
       users.forEach(u => {
         const sc = activeKeys.map(k => u.modules[k]).filter(v => v !== null);
         doneSlots += sc.length;
-        passSlots += sc.filter(v => v >= bKkm).length;
+        const uPassed = sc.filter(v => v >= bKkm).length;
+        passSlots += uPassed;
+        remSlots += sc.filter(v => v < bKkm).length;
+        score100Slots += sc.filter(v => v >= 100).length;
         if (sc.length > 0) {
+          activePostUsers++;
           postUserAvgs.push(sc.reduce((a, b) => a + b, 0) / sc.length);
+        }
+        if (uPassed === activeKeys.length && activeKeys.length > 0) {
+          full8PassUsers++;
+        }
+        activeKeys.forEach(k => {
+          const det = u.moduleDetails[k];
+          if (det && det.nilai !== null) {
+            const att = Math.max(1, Number(det.attempt || 1));
+            totalAttemptsSum += att;
+            if (det.nilai >= bKkm && att === 1) {
+              firstTryPassSlots++;
+            }
+          }
+        });
+        if (u.total_post_durasi > 0 && u.attempted_post > 0) {
+          totalDurationSum += (u.total_post_durasi / u.attempted_post);
+          durationCount++;
         }
       });
 
+      // Rincian statistik per modul (8 Modul)
+      const moduleBreakdown = {};
+      MODULE_KEYS.forEach(mKey => {
+        const mScores = users.map(u => u.modules[mKey]).filter(v => v !== null);
+        const mTested = mScores.length;
+        const mAvg = mTested ? Number((mScores.reduce((a, b) => a + b, 0) / mTested).toFixed(1)) : null;
+        const mPass = mScores.filter(v => v >= bKkm).length;
+        const mPass80 = mScores.filter(v => v >= 80).length;
+        const mPass100 = mScores.filter(v => v >= 100).length;
+        const mRem = mScores.filter(v => v < bKkm).length;
+        const mPassRate = mTested ? Number(((mPass / mTested) * 100).toFixed(1)) : null;
+        const mPartRate = n ? Number(((mTested / n) * 100).toFixed(1)) : 0;
+        moduleBreakdown[mKey] = {
+          code: mKey,
+          tested: mTested,
+          avg: mAvg,
+          pass: mPass,
+          pass80: mPass80,
+          pass100: mPass100,
+          rem: mRem,
+          passRate: mPassRate,
+          partRate: mPartRate
+        };
+      });
+
       const gainList = users.filter(u => u.hake_gain !== null);
+      const totalPossibleSlots = n * activeKeys.length;
+      const slotParticipationRate = totalPossibleSlots ? Number(((doneSlots / totalPossibleSlots) * 100).toFixed(1)) : 0;
+      const avgAttemptsPerQuiz = doneSlots ? Number((totalAttemptsSum / doneSlots).toFixed(2)) : 0;
+      const avgDurationMinutes = durationCount ? Number((totalDurationSum / durationCount).toFixed(1)) : 0;
+      const firstTryPassRate = doneSlots ? Number(((firstTryPassSlots / doneSlots) * 100).toFixed(1)) : 0;
+      const mastery100Rate = doneSlots ? Number(((score100Slots / doneSlots) * 100).toFixed(1)) : 0;
+
+      const readySiap = users.filter(u => u.readiness_cat === 'Siap').length;
+      const readyCukup = users.filter(u => u.readiness_cat === 'Cukup').length;
+      const readyKurang = users.filter(u => u.readiness_cat === 'Butuh Pendampingan').length;
+      const glitchCount = users.filter(u => u.is_glitch).length;
 
       return {
         batchName,
@@ -5066,13 +5490,35 @@
         compP1: avg(u => u.progress_p1),
         compP2: avg(u => u.progress_p2),
         compTotal: avg(u => u.comp_total),
+        compGap: Number(Math.abs(avg(u => u.progress_p1) - avg(u => u.progress_p2)).toFixed(1)),
         readiness: avg(u => u.readiness_score),
+        readySiap,
+        readyCukup,
+        readyKurang,
+        readySiapPct: n ? Number(((readySiap / n) * 100).toFixed(1)) : 0,
+        pre1Avg,
+        pre2Avg,
         preAvg: preList.length ? Number((preList.reduce((s, u) => s + u.pre_avg, 0) / preList.length).toFixed(1)) : 0,
         postAvg: postUserAvgs.length ? Number((postUserAvgs.reduce((s, v) => s + v, 0) / postUserAvgs.length).toFixed(1)) : 0,
         passRate: doneSlots ? Number(((passSlots / doneSlots) * 100).toFixed(1)) : 0,
+        mastery100Rate,
+        firstTryPassRate,
+        slotParticipationRate,
+        doneSlots,
+        passSlots,
+        remSlots,
+        score100Slots,
+        activePostUsers,
+        full8PassUsers,
+        avgAttemptsPerQuiz,
+        avgDurationMinutes,
+        glitchCount,
         hakeGain: gainList.length ? Number((gainList.reduce((s, u) => s + u.hake_gain, 0) / gainList.length).toFixed(2)) : 0,
         pre1Count: pre1Done.length,
         pre2Count: pre2Done.length,
+        preBothCount: preBothDone.length,
+        preBothPct: n ? Number(((preBothDone.length / n) * 100).toFixed(1)) : 0,
+        moduleBreakdown,
         personas: {
           'Pace-Setter': users.filter(u => u.persona === 'Pace-Setter').length,
           'In Progress': users.filter(u => u.persona === 'In Progress').length,
@@ -5089,45 +5535,169 @@
     }
 
     function renderBenchmarkStudio() {
-      const batches = ['Batch 1', 'Batch 2', 'Batch 3'];
+      updateBenchmarkScopeButtonsUI();
+      const batches = selectedBenchmarkBatches.length > 0 ? selectedBenchmarkBatches : ['Batch 1', 'Batch 2', 'Batch 3'];
       const stats = batches.map(b => computeBatchStats(b));
+      lastBenchmarkStatsCache = stats;
 
+      const isSingleMode = stats.length === 1;
+      const isTwoMode = stats.length === 2;
+
+      const mainTitleEl = document.getElementById('benchMainTitle');
+      if (mainTitleEl) {
+        if (isSingleMode) {
+          mainTitleEl.textContent = `Analisis Diagnostik Mendalam (Deep-Dive) — ${stats[0].batchName} (KKM ${stats[0].kkm})`;
+        } else {
+          mainTitleEl.textContent = `Komparasi Kinerja, Kesiapan & Perilaku Belajar (${batches.join(' vs ')})`;
+        }
+      }
+
+      // 1. Render Automated Executive Insights Banner (Adaptif 1 Batch vs Multi-Batch)
+      const insightsEl = document.getElementById('benchmarkInsightsBanner');
+      if (insightsEl) {
+        const activeBatches = stats.filter(s => s.n > 0);
+        const bestReadyBatch = [...activeBatches].sort((a, b) => b.readiness - a.readiness)[0] || stats[0];
+        const bestGainBatch = [...activeBatches].sort((a, b) => b.hakeGain - a.hakeGain)[0] || stats[0];
+
+        // Cari modul tertinggi dan terendah secara agregat pada batch yang dipilih
+        const modAggList = MODULE_KEYS.map(k => {
+          let sum = 0, cnt = 0;
+          stats.forEach(s => {
+            const mb = s.moduleBreakdown[k];
+            if (mb && mb.avg !== null && mb.tested > 0) {
+              sum += mb.avg * mb.tested;
+              cnt += mb.tested;
+            }
+          });
+          return { code: k, avg: cnt ? Number((sum / cnt).toFixed(1)) : null, cnt };
+        }).filter(m => m.avg !== null);
+
+        const sortedMods = [...modAggList].sort((a, b) => b.avg - a.avg);
+        const easiestMod = sortedMods[0];
+        const hardestMod = sortedMods[sortedMods.length - 1];
+
+        const badgeModEl = document.getElementById('benchHardestEasierBadge');
+        if (badgeModEl) {
+          if (easiestMod && hardestMod) {
+            badgeModEl.innerHTML = `🏆 Tertinggi: <strong>${easiestMod.code} (${easiestMod.avg})</strong> • ⚠️ Terendah: <strong>${hardestMod.code} (${hardestMod.avg})</strong>`;
+          } else {
+            badgeModEl.textContent = 'Belum ada data modul selesai';
+          }
+        }
+
+        let card1Html = '', card2Html = '', card3Html = '', card4Html = '';
+        if (isSingleMode) {
+          const s = stats[0];
+          card1Html = `Rerata kesiapan belajar <strong>${s.batchName}</strong> mencapai <strong>${s.readiness} / 100</strong> dengan <strong>${s.readySiap} peserta (${s.readySiapPct}%)</strong> berstatus <em>Siap</em> dan completion gabungan <strong>${s.compTotal}%</strong> (Gap P1-P2: ${s.compGap}%).`;
+          card2Html = `Pada standar <strong>KKM ${s.kkm}</strong>, tingkat kelulusan evaluasi akhir mencapai <strong>${s.passRate}%</strong> (${s.passSlots} lulus &amp; ${s.remSlots} remedial dari ${s.doneSlots} sesi selesai). Rasio nilai sempurna 100 adalah <strong>${s.mastery100Rate}%</strong>.`;
+          card3Html = easiestMod && hardestMod
+            ? `Di <strong>${s.batchName}</strong>, modul dengan penguasaan tertinggi adalah <strong>${easiestMod.code} (${easiestMod.avg})</strong>, sedangkan modul yang paling membutuhkan penguatan adalah <strong>${hardestMod.code} (${hardestMod.avg})</strong>.`
+            : `Menunggu penyelesaian kuis evaluasi akhir pada <strong>${s.batchName}</strong> untuk memetakan tingkat kesulitan modul.`;
+          card4Html = `Lonjakan pemahaman (<em>Hake's Gain</em>) tercatat <strong>⟨g⟩ = ${s.hakeGain}</strong> (Awal ${s.preAvg} → Akhir ${s.postAvg}), rasio lulus sekali coba <strong>${s.firstTryPassRate}%</strong>, dan rerata durasi <strong>${s.avgDurationMinutes} menit/kuis</strong>.`;
+        } else {
+          const sA = stats[0], sB = stats[1];
+          card1Html = `Indeks kesiapan tertinggi dicapai oleh <strong>${bestReadyBatch ? bestReadyBatch.batchName : '-'} (${bestReadyBatch ? bestReadyBatch.readiness : 0})</strong> dengan <strong>${bestReadyBatch ? bestReadyBatch.readySiapPct : 0}%</strong> peserta berstatus <em>Siap</em>.`;
+          card2Html = (sA.doneSlots > 0 && sB.doneSlots > 0)
+            ? `Jika disetarakan pada <strong>Skor Sempurna 100</strong>, proporsi sesi bernilai 100 di <strong>${sA.batchName}</strong> adalah <strong>${sA.mastery100Rate}%</strong> vs <strong>${sB.batchName}</strong> sebesar <strong>${sB.mastery100Rate}%</strong>.`
+            : `Perbandingan mengevaluasi setiap angkatan sesuai standar KKM masing-masing (${stats.map(x => `${x.batchName}: KKM ${x.kkm}`).join(' • ')}).`;
+          card3Html = easiestMod && hardestMod
+            ? `Pada cakupan terpilih, modul dengan rerata skor tertinggi adalah <strong>${easiestMod.code} (${easiestMod.avg})</strong>, sedangkan yang paling menantang adalah <strong>${hardestMod.code} (${hardestMod.avg})</strong>.`
+            : `Menunggu penyelesaian kuis evaluasi akhir untuk memetakan tingkat kesulitan modul.`;
+          card4Html = `Lonjakan pemahaman (<em>Hake's Gain</em>) tertinggi tercatat pada <strong>${bestGainBatch ? bestGainBatch.batchName : '-'} (⟨g⟩ = ${bestGainBatch ? bestGainBatch.hakeGain : 0})</strong> dengan rerata durasi ujian <strong>${bestGainBatch ? bestGainBatch.avgDurationMinutes : 0} menit/kuis</strong>.`;
+        }
+
+        const popSummary = stats.map(s => `${s.n} ${s.batchName.replace('Batch ', 'B')}`).join(' • ');
+
+        insightsEl.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/15 pb-2.5">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">💡</span>
+              <h3 class="text-xs font-mono font-extrabold uppercase tracking-widest text-amber-400">
+                ${isSingleMode ? `Executive Diagnostic — Fokus ${stats[0].batchName}` : `Executive Intelligence — Komparasi ${batches.join(' vs ')}`}
+              </h3>
+            </div>
+            <span class="text-[11px] font-mono text-slate-300">
+              Total Populasi Dianalisis: <strong>${stats.reduce((acc, s) => acc + s.n, 0)} Peserta</strong> (${popSummary})
+            </span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div class="p-3 rounded-xl bg-white/10 border border-white/10 space-y-1">
+              <div class="text-[10px] font-mono uppercase text-amber-300 font-bold">1. Kesiapan &amp; Keterlibatan</div>
+              <p class="text-slate-100 leading-relaxed">${card1Html}</p>
+            </div>
+            <div class="p-3 rounded-xl bg-white/10 border border-white/10 space-y-1">
+              <div class="text-[10px] font-mono uppercase text-emerald-300 font-bold">2. Evaluasi KKM &amp; Skor 100</div>
+              <p class="text-slate-100 leading-relaxed">${card2Html}</p>
+            </div>
+            <div class="p-3 rounded-xl bg-white/10 border border-white/10 space-y-1">
+              <div class="text-[10px] font-mono uppercase text-sky-300 font-bold">3. Peta Kesulitan Modul</div>
+              <p class="text-slate-100 leading-relaxed">${card3Html}</p>
+            </div>
+            <div class="p-3 rounded-xl bg-white/10 border border-white/10 space-y-1">
+              <div class="text-[10px] font-mono uppercase text-purple-300 font-bold">4. Efektivitas &amp; Kecepatan</div>
+              <p class="text-slate-100 leading-relaxed">${card4Html}</p>
+            </div>
+          </div>
+        `;
+      }
+
+      // 2. Render Summary Cards (Grid menyesuaikan 1, 2, atau 3 kolom secara otomatis)
       const cardsEl = document.getElementById('benchmarkSummaryCards');
       if (cardsEl) {
+        cardsEl.className = `grid grid-cols-1 md:grid-cols-${stats.length} gap-4`;
         cardsEl.innerHTML = stats.map(s => `
-          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-              <div class="flex items-center gap-2">
-                <h3 class="text-base font-extrabold text-slate-900">${s.batchName}</h3>
-                <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono font-bold text-[10px] border border-slate-200">KKM ${s.kkm}</span>
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-base font-extrabold text-slate-900">${s.batchName}</h3>
+                  <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono font-bold text-[10px] border border-slate-200">KKM ${s.kkm}</span>
+                </div>
+                <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-mono font-bold text-xs">${s.n} Peserta</span>
               </div>
-              <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-mono font-bold text-xs">${s.n} Peserta</span>
+              <div class="grid grid-cols-3 sm:grid-cols-${isSingleMode ? '6' : '3'} gap-2 text-xs mt-3">
+                <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                  <div class="text-[10px] text-slate-500 font-semibold">Completion</div>
+                  <div class="text-sm font-mono font-extrabold text-slate-900 mt-0.5">${s.compTotal}%</div>
+                  <div class="text-[10px] font-mono text-slate-400">P1:${s.compP1}% • P2:${s.compP2}%</div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-amber-50/50 border border-amber-100">
+                  <div class="text-[10px] text-amber-800 font-semibold">Kesiapan</div>
+                  <div class="text-sm font-mono font-extrabold text-amber-700 mt-0.5">${s.readiness}</div>
+                  <div class="text-[10px] font-mono text-amber-700/80">${s.readySiapPct}% Siap</div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-indigo-50/50 border border-indigo-100">
+                  <div class="text-[10px] text-indigo-800 font-semibold">Rerata Ujikom</div>
+                  <div class="text-sm font-mono font-extrabold text-indigo-700 mt-0.5">${s.postAvg}</div>
+                  <div class="text-[10px] font-mono text-indigo-600/80">Awal: ${s.preAvg}</div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-emerald-50/50 border border-emerald-100">
+                  <div class="text-[10px] text-emerald-800 font-semibold">Lulus KKM ${s.kkm}</div>
+                  <div class="text-sm font-mono font-extrabold text-emerald-700 mt-0.5">${s.passRate}%</div>
+                  <div class="text-[10px] font-mono text-emerald-700/80">${s.passSlots}/${s.doneSlots} Sesi</div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-sky-50/50 border border-sky-100">
+                  <div class="text-[10px] text-sky-800 font-semibold">Skor 100</div>
+                  <div class="text-sm font-mono font-extrabold text-sky-700 mt-0.5">${s.mastery100Rate}%</div>
+                  <div class="text-[10px] font-mono text-sky-700/80">${s.score100Slots} Sesi 100</div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-purple-50/50 border border-purple-100">
+                  <div class="text-[10px] text-purple-800 font-semibold">Hake Gain ⟨g⟩</div>
+                  <div class="text-sm font-mono font-extrabold text-purple-700 mt-0.5">${s.hakeGain}</div>
+                  <div class="text-[10px] font-mono text-purple-700/80">${s.avgDurationMinutes}m / kuis</div>
+                </div>
+              </div>
             </div>
-            <div class="grid grid-cols-2 gap-2 text-xs">
-              <div class="p-2.5 rounded-lg bg-slate-50">
-                <div class="text-slate-500">Rerata Completion</div>
-                <div class="text-base font-mono font-extrabold text-slate-900">${s.compTotal}%</div>
-              </div>
-              <div class="p-2.5 rounded-lg bg-slate-50">
-                <div class="text-slate-500">Indeks Kesiapan</div>
-                <div class="text-base font-mono font-extrabold text-amber-700">${s.readiness}</div>
-              </div>
-              <div class="p-2.5 rounded-lg bg-slate-50">
-                <div class="text-slate-500">Rerata Evaluasi Akhir</div>
-                <div class="text-base font-mono font-extrabold text-indigo-700">${s.postAvg}</div>
-              </div>
-              <div class="p-2.5 rounded-lg bg-slate-50">
-                <div class="text-slate-500">Kelulusan KKM ${s.kkm}</div>
-                <div class="text-base font-mono font-extrabold text-emerald-700">${s.passRate}%</div>
-              </div>
-            </div>
-            <button onclick="jumpToBatchFilter('${s.batchName}')" class="w-full py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs transition">
-              Analisis ${s.batchName} Ini →
+            <button onclick="jumpToBatchFilter('${s.batchName}')" class="w-full mt-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs transition">
+              Buka Matriks Peserta ${s.batchName} →
             </button>
           </div>
         `).join('');
       }
 
+      const getBatchColor = bName => BENCH_BATCH_STYLES[bName]?.color || '#0f172a';
+
+      // 3. Chart 1: Komparasi 5 Metrik Utama
       if (chartInstances.benchMetrics) chartInstances.benchMetrics.destroy();
       const ctxBM = document.getElementById('chartBenchMetrics')?.getContext('2d');
       if (ctxBM) {
@@ -5135,10 +5705,10 @@
           type: 'bar',
           data: {
             labels: ['Comp Pilar I', 'Comp Pilar II', 'Rerata Awal', 'Rerata Ujikom', 'Indeks Kesiapan'],
-            datasets: stats.map((s, idx) => ({
+            datasets: stats.map(s => ({
               label: s.batchName,
               data: [s.compP1, s.compP2, s.preAvg, s.postAvg, s.readiness],
-              backgroundColor: ['#0f172a', '#f59e0b', '#94a3b8'][idx],
+              backgroundColor: getBatchColor(s.batchName),
               borderRadius: 5
             }))
           },
@@ -5146,6 +5716,7 @@
         });
       }
 
+      // 4. Chart 2: Sebaran 5 Tipologi Persona
       if (chartInstances.benchPersona) chartInstances.benchPersona.destroy();
       const ctxBP = document.getElementById('chartBenchPersona')?.getContext('2d');
       if (ctxBP) {
@@ -5154,10 +5725,10 @@
           type: 'bar',
           data: {
             labels: pKeys,
-            datasets: stats.map((s, idx) => ({
+            datasets: stats.map(s => ({
               label: s.batchName,
               data: pKeys.map(k => s.personas[k]),
-              backgroundColor: ['#0f172a', '#f59e0b', '#94a3b8'][idx],
+              backgroundColor: getBatchColor(s.batchName),
               borderRadius: 5
             }))
           },
@@ -5165,28 +5736,278 @@
         });
       }
 
-      const tblWrap = document.getElementById('benchmarkTableWrapper');
-      if (tblWrap) {
-        tblWrap.innerHTML = `
+      // 5. Chart 3: Komparasi Penguasaan 8 Modul Inti
+      if (chartInstances.benchModules) chartInstances.benchModules.destroy();
+      const ctxBMod = document.getElementById('chartBenchModules')?.getContext('2d');
+      if (ctxBMod) {
+        chartInstances.benchModules = new Chart(ctxBMod, {
+          type: 'bar',
+          data: {
+            labels: MODULE_KEYS.map(k => `${k} (${MODULE_META[k].pilar === 'Pilar 1' ? 'P1' : 'P2'})`),
+            datasets: stats.map(s => ({
+              label: `${s.batchName} (KKM ${s.kkm})`,
+              data: MODULE_KEYS.map(k => s.moduleBreakdown[k]?.avg ?? 0),
+              backgroundColor: getBatchColor(s.batchName),
+              borderRadius: 5
+            }))
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, max: 100 } }
+          }
+        });
+      }
+
+      // 6. Chart 4: Lonjakan Kognitif (Pre-Test P1/P2, Post-Test, & Hake Gain x100)
+      if (chartInstances.benchGain) chartInstances.benchGain.destroy();
+      const ctxBGain = document.getElementById('chartBenchGain')?.getContext('2d');
+      if (ctxBGain) {
+        chartInstances.benchGain = new Chart(ctxBGain, {
+          type: 'bar',
+          data: {
+            labels: ['Awal Pilar I', 'Awal Pilar II', 'Rerata Awal Gabungan', 'Rerata Evaluasi Akhir', 'Hake Gain Index (×100)'],
+            datasets: stats.map(s => ({
+              label: s.batchName,
+              data: [s.pre1Avg, s.pre2Avg, s.preAvg, s.postAvg, Number((s.hakeGain * 100).toFixed(1))],
+              backgroundColor: getBatchColor(s.batchName),
+              borderRadius: 5
+            }))
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, max: 100 } }
+          }
+        });
+      }
+
+      // 7. Chart 5: Efisiensi Ujian & Kesiapan
+      if (chartInstances.benchEfficiency) chartInstances.benchEfficiency.destroy();
+      const ctxBEff = document.getElementById('chartBenchEfficiency')?.getContext('2d');
+      if (ctxBEff) {
+        chartInstances.benchEfficiency = new Chart(ctxBEff, {
+          type: 'bar',
+          data: {
+            labels: ['Kategori Siap (≥75)', 'Partisipasi Ujikom (%)', 'Lulus KKM Batch (%)', 'Rasio Skor 100 (%)', 'Lulus 1x Attempt (%)'],
+            datasets: stats.map(s => ({
+              label: s.batchName,
+              data: [s.readySiapPct, s.slotParticipationRate, s.passRate, s.mastery100Rate, s.firstTryPassRate],
+              backgroundColor: getBatchColor(s.batchName),
+              borderRadius: 5
+            }))
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, max: 100 } }
+          }
+        });
+      }
+
+      // 8. Tabel Matriks Heatmap 8 Modul (Adaptif: 1 Batch menampilkan Rincian Lulus/Remedial, >=2 Batch menampilkan Selisih/Delta)
+      const modMatrixWrap = document.getElementById('benchmarkModuleMatrixWrapper');
+      if (modMatrixWrap) {
+        const formatModCell = (mb, kkm) => {
+          if (!mb || mb.tested === 0 || mb.avg === null) {
+            return `<td class="p-2.5 text-center text-slate-300 font-mono">-</td>`;
+          }
+          let cellCls = 'bg-emerald-50/70 text-emerald-900';
+          if (mb.avg < 80) cellCls = 'bg-rose-50/70 text-rose-900';
+          else if (mb.avg < kkm) cellCls = 'bg-amber-50/70 text-amber-900';
+
+          return `<td class="p-2.5 text-center font-mono ${cellCls}">
+            <div class="font-extrabold text-xs">${mb.avg.toFixed(1)}</div>
+            <div class="text-[10px] opacity-85">Lulus: ${mb.pass}/${mb.tested} (${mb.passRate}%)</div>
+          </td>`;
+        };
+
+        const extraHeader = isSingleMode
+          ? `<th class="p-2.5 text-center bg-slate-100 text-slate-700">Partisipasi Peserta</th>
+             <th class="p-2.5 text-center bg-emerald-50 text-emerald-900">Lulus KKM (${stats[0].kkm})</th>
+             <th class="p-2.5 text-center bg-rose-50 text-rose-900">Butuh Remedial</th>`
+          : `<th class="p-2.5 text-center bg-amber-50 text-amber-900">Selisih (${stats[1].batchName.replace('Batch ', 'B')} vs ${stats[0].batchName.replace('Batch ', 'B')})</th>`;
+
+        modMatrixWrap.innerHTML = `
           <table class="grid-table text-xs">
             <thead class="bg-slate-100 font-extrabold text-slate-700">
               <tr>
-                <th class="p-3 text-left">Indikator Benchmarking</th>
-                ${stats.map(s => `<th class="p-3 text-center">${s.batchName} (n=${s.n} • KKM ${s.kkm})</th>`).join('')}
+                <th class="p-2.5 text-left">Pilar</th>
+                <th class="p-2.5 text-left">Kode &amp; Nama Modul Inti</th>
+                ${stats.map(s => `<th class="p-2.5 text-center">${s.batchName} (n=${s.n} • KKM ${s.kkm})</th>`).join('')}
+                ${extraHeader}
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-200">
-              <tr><td class="p-2.5 font-semibold">Completion Pilar I (%)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.compP1}%</td>`).join('')}</tr>
-              <tr><td class="p-2.5 font-semibold">Completion Pilar II (%)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.compP2}%</td>`).join('')}</tr>
-              <tr><td class="p-2.5 font-semibold">Selesai Asesmen Awal (P1 / P2)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.pre1Count} / ${s.pre2Count}</td>`).join('')}</tr>
-              <tr><td class="p-2.5 font-semibold">Rerata Indeks Kesiapan Belajar</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold text-amber-700">${s.readiness}</td>`).join('')}</tr>
-              <tr><td class="p-2.5 font-semibold">Rerata Nilai Evaluasi Akhir</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold text-indigo-700">${s.postAvg}</td>`).join('')}</tr>
-              <tr><td class="p-2.5 font-semibold">Tingkat Kelulusan KKM Batch</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold text-emerald-700">${s.passRate}%</td>`).join('')}</tr>
-              <tr><td class="p-2.5 font-semibold">Normalized Hake's Gain ⟨g⟩</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.hakeGain}</td>`).join('')}</tr>
+              ${MODULE_KEYS.map(k => {
+                const meta = MODULE_META[k];
+                let extraColsHtml = '';
+                if (isSingleMode) {
+                  const mb = stats[0].moduleBreakdown[k];
+                  extraColsHtml = `
+                    <td class="p-2.5 text-center font-mono">${mb.tested} / ${stats[0].n} (${mb.partRate}%)</td>
+                    <td class="p-2.5 text-center font-mono font-bold text-emerald-700">${mb.tested ? `${mb.pass} (${mb.passRate}%)` : '-'}</td>
+                    <td class="p-2.5 text-center font-mono font-bold text-rose-600">${mb.tested ? mb.rem : '-'}</td>
+                  `;
+                } else {
+                  const mA = stats[0].moduleBreakdown[k];
+                  const mB = stats[1].moduleBreakdown[k];
+                  let deltaHtml = `<span class="text-slate-300 font-mono">-</span>`;
+                  if (mA?.avg !== null && mB?.avg !== null) {
+                    const diff = Number((mB.avg - mA.avg).toFixed(1));
+                    const sign = diff > 0 ? '+' : '';
+                    const dCls = diff >= 0 ? 'text-emerald-700 font-extrabold' : 'text-rose-600 font-extrabold';
+                    deltaHtml = `<span class="font-mono ${dCls}">${sign}${diff} poin</span>`;
+                  }
+                  extraColsHtml = `<td class="p-2.5 text-center bg-amber-50/30">${deltaHtml}</td>`;
+                }
+                return `<tr class="hover:bg-slate-50/80">
+                  <td class="p-2.5 font-semibold text-slate-600">${meta.pilar}</td>
+                  <td class="p-2.5 font-bold text-slate-900">${meta.name}</td>
+                  ${stats.map(s => formatModCell(s.moduleBreakdown[k], s.kkm)).join('')}
+                  ${extraColsHtml}
+                </tr>`;
+              }).join('')}
             </tbody>
           </table>
         `;
       }
+
+      // 9. Tabel Benchmarking Komprehensif (18 Indikator) menyesuaikan kolom batch terpilih
+      const tblWrap = document.getElementById('benchmarkTableWrapper');
+      if (tblWrap) {
+        const colSpanTotal = stats.length + 1;
+        tblWrap.innerHTML = `
+          <table class="grid-table text-xs">
+            <thead class="bg-slate-100 font-extrabold text-slate-700">
+              <tr>
+                <th class="p-3 text-left">Dimensi &amp; Indikator Analisis</th>
+                ${stats.map(s => `<th class="p-3 text-center">${s.batchName} (n=${s.n} • KKM ${s.kkm})</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+              <tr class="bg-slate-50/90 font-extrabold text-[11px] uppercase tracking-wider text-slate-600">
+                <td colspan="${colSpanTotal}" class="p-2 pl-3">A. Partisipasi &amp; Penyelesaian Materi Mandiri (Course Completion)</td>
+              </tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">1. Rerata Course Completion Gabungan (%)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold">${s.compTotal}%</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">2. Completion Kursus Pilar I vs Pilar II (%)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.compP1}% / ${s.compP2}% (Gap: ${s.compGap}%)</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">3. Rerata Indeks Kesiapan Belajar (0 - 100)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold text-amber-700">${s.readiness}</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">4. Distribusi Kesiapan (Siap / Cukup / Pendampingan)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.readySiap}🟢 / ${s.readyCukup}🟡 / ${s.readyKurang}🔴</td>`).join('')}</tr>
+
+              <tr class="bg-slate-50/90 font-extrabold text-[11px] uppercase tracking-wider text-slate-600">
+                <td colspan="${colSpanTotal}" class="p-2 pl-3">B. Diagnostik Pra-Pelatihan (Asesmen Awal / Pre-Test)</td>
+              </tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">5. Ketuntasan Asesmen Awal Lengkap 2 Pilar</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.preBothCount} / ${s.n} (${s.preBothPct}%)</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">6. Selesai Asesmen Awal per Pilar (Pilar I / Pilar II)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.pre1Count} / ${s.pre2Count}</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">7. Rerata Nilai Asesmen Awal (Pilar I / Pilar II / Gabungan)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.pre1Avg} / ${s.pre2Avg} (<strong>${s.preAvg}</strong>)</td>`).join('')}</tr>
+
+              <tr class="bg-slate-50/90 font-extrabold text-[11px] uppercase tracking-wider text-slate-600">
+                <td colspan="${colSpanTotal}" class="p-2 pl-3">C. Evaluasi Akhir (Uji Kompetensi / Post-Test 8 Modul)</td>
+              </tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">8. Partisipasi Slot Evaluasi Akhir (Sesi Selesai)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.doneSlots} Sesi (${s.slotParticipationRate}%)</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">9. Rerata Nilai Evaluasi Akhir (Skala 0 - 100)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold text-indigo-700">${s.postAvg}</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">10. Tingkat Kelulusan Sesuai KKM Batch</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold text-emerald-700">${s.passRate}% (${s.passSlots} Lulus • ${s.remSlots} Rem)</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">11. Proporsi Pencapaian Nilai Sempurna (Skor = 100)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold text-sky-700">${s.mastery100Rate}% (${s.score100Slots} Sesi)</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">12. Peserta Lulus Sempurna Seluruh Modul Aktif</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.full8PassUsers} Peserta</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">13. Normalized Hake's Gain ⟨g⟩ (Efektivitas Pelatihan)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono font-bold">${s.hakeGain}</td>`).join('')}</tr>
+
+              <tr class="bg-slate-50/90 font-extrabold text-[11px] uppercase tracking-wider text-slate-600">
+                <td colspan="${colSpanTotal}" class="p-2 pl-3">D. Perilaku Pengerjaan Kuis, Kecepatan &amp; Anomali Teknis</td>
+              </tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">14. Rasio Lulus Sekali Coba (First-Try Pass Rate)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.firstTryPassRate}%</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">15. Rerata Jumlah Attempt per Kuis Selesai</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.avgAttemptsPerQuiz}x</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">16. Rerata Durasi Pengerjaan per Kuis (Menit)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.avgDurationMinutes} menit</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">17. Sebaran Persona (Pace / Prog / P1 / Low / Dormant)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono">${s.personas['Pace-Setter']}🚀 / ${s.personas['In Progress']}⏳ / ${s.personas['Pilar-I Oriented']}⚖️ / ${s.personas['Low Engagement']}⚠️ / ${s.personas['Dormant']}💤</td>`).join('')}</tr>
+              <tr><td class="p-2.5 pl-5 font-semibold">18. Deteksi Anomali Teknis Kuis (Glitch Guard)</td>${stats.map(s => `<td class="p-2.5 text-center font-mono ${s.glitchCount > 0 ? 'text-rose-600 font-bold' : 'text-emerald-700'}">${s.glitchCount} Peserta</td>`).join('')}</tr>
+            </tbody>
+          </table>
+        `;
+      }
+    }
+
+    function copyBenchmarkExecutiveText() {
+      if (!lastBenchmarkStatsCache || lastBenchmarkStatsCache.length === 0) {
+        renderBenchmarkStudio();
+      }
+      const lines = [
+        `📊 *LAPORAN KOMPARASI ANTAR-BATCH — UI ALEX 2026*`,
+        `Diperbarui: ${document.getElementById('lastSyncTimestamp')?.textContent || '-'}`,
+        ``
+      ];
+      lastBenchmarkStatsCache.forEach(s => {
+        lines.push(`*${s.batchName} (Populasi: ${s.n} Peserta • KKM ${s.kkm})*`);
+        lines.push(`• Completion Mandiri: *${s.compTotal}%* (P1: ${s.compP1}% | P2: ${s.compP2}%)`);
+        lines.push(`• Indeks Kesiapan: *${s.readiness}* (${s.readySiapPct}% Kategori Siap)`);
+        lines.push(`• Asesmen Awal Selesai Lengkap: *${s.preBothCount}/${s.n}* (Rerata: ${s.preAvg})`);
+        lines.push(`• Evaluasi Akhir: Rerata *${s.postAvg}* | Lulus KKM: *${s.passRate}%* (${s.passSlots}/${s.doneSlots} sesi)`);
+        lines.push(`• Rasio Skor 100: *${s.mastery100Rate}%* | Hake Gain ⟨g⟩: *${s.hakeGain}* | Durasi: *${s.avgDurationMinutes} mnt*`);
+        lines.push(``);
+      });
+      copyTextToClipboard(lines.join('\n'), 'Ringkasan Komparasi Antar-Batch disalin!');
+    }
+
+    function exportBenchmarkXLSX() {
+      if (!lastBenchmarkStatsCache || lastBenchmarkStatsCache.length === 0) {
+        renderBenchmarkStudio();
+      }
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Ringkasan 18 Indikator Makro
+      const macroRows = lastBenchmarkStatsCache.map(s => ({
+        'Batch': s.batchName,
+        'Standar KKM': s.kkm,
+        'Total Peserta': s.n,
+        'Completion Gabungan (%)': s.compTotal,
+        'Completion Pilar I (%)': s.compP1,
+        'Completion Pilar II (%)': s.compP2,
+        'Indeks Kesiapan Belajar': s.readiness,
+        'Peserta Siap (≥75)': s.readySiap,
+        'Peserta Cukup (50-74)': s.readyCukup,
+        'Butuh Pendampingan (<50)': s.readyKurang,
+        'Selesai Awal Lengkap 2 Pilar': s.preBothCount,
+        'Rerata Asesmen Awal': s.preAvg,
+        'Sesi Evaluasi Akhir Selesai': s.doneSlots,
+        'Partisipasi Evaluasi Akhir (%)': s.slotParticipationRate,
+        'Rerata Evaluasi Akhir': s.postAvg,
+        'Sesi Lulus KKM': s.passSlots,
+        'Sesi Remedial': s.remSlots,
+        'Tingkat Kelulusan KKM (%)': s.passRate,
+        'Rasio Skor Sempurna 100 (%)': s.mastery100Rate,
+        'Lulus Sekali Coba / First-Try (%)': s.firstTryPassRate,
+        'Rerata Attempt per Kuis': s.avgAttemptsPerQuiz,
+        'Rerata Durasi Kuis (Menit)': s.avgDurationMinutes,
+        'Normalized Hake Gain': s.hakeGain,
+        'Pace-Setter': s.personas['Pace-Setter'],
+        'In Progress': s.personas['In Progress'],
+        'Pilar-I Oriented': s.personas['Pilar-I Oriented'],
+        'Low Engagement': s.personas['Low Engagement'],
+        'Dormant': s.personas['Dormant'],
+        'Anomali Glitch': s.glitchCount
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(macroRows), '1_Ringkasan_Antar_Batch');
+
+      // Sheet 2: Komparasi 8 Modul Inti Lintas-Batch
+      const modRows = MODULE_KEYS.map(k => {
+        const meta = MODULE_META[k];
+        const rowObj = {
+          'Pilar': meta.pilar,
+          'Kode Modul': k,
+          'Nama Modul': meta.name
+        };
+        lastBenchmarkStatsCache.forEach(s => {
+          const mb = s.moduleBreakdown[k];
+          rowObj[`${s.batchName} - Peserta Selesai`] = mb?.tested ?? 0;
+          rowObj[`${s.batchName} - Rerata Nilai`] = mb?.avg ?? '-';
+          rowObj[`${s.batchName} - Lulus KKM (${s.kkm})`] = mb?.pass ?? 0;
+          rowObj[`${s.batchName} - Remedial`] = mb?.rem ?? 0;
+          rowObj[`${s.batchName} - % Lulus`] = mb?.passRate !== null ? `${mb.passRate}%` : '-';
+        });
+        return rowObj;
+      });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(modRows), '2_Matriks_8_Modul');
+
+      XLSX.writeFile(wb, `UI_ALEX_2026_Komparasi_Antar_Batch_${Date.now()}.xlsx`);
+      updateUrlAndTracker('Unduh XLSX Komparasi Batch');
     }
 
     /*************************************************************************
@@ -5471,9 +6292,11 @@
       const btn3 = document.getElementById('btnModeTop3');
       const btn5 = document.getElementById('btnModeTop5');
       const btn10 = document.getElementById('btnModeTop10');
+      const btnAll = document.getElementById('btnModeAll');
       if (btn3) btn3.className = mode === 'top3' ? activeCls : 'px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100';
       if (btn5) btn5.className = mode === 'top5' ? `${activeCls} border-l border-slate-700` : idleCls;
       if (btn10) btn10.className = mode === 'top10' ? `${activeCls} border-l border-slate-700` : idleCls;
+      if (btnAll) btnAll.className = mode === 'all' ? `${activeCls} border-l border-slate-700` : idleCls;
       renderAwardStage();
     }
 
@@ -5502,23 +6325,28 @@
         }
       }
 
+      const eligibleList = cat.filterFn ? scopedList.filter(cat.filterFn) : [...scopedList];
+      const sortedEligible = [...eligibleList].sort(cat.sortFn);
+      const isListMode = awardDisplayMode === 'top10' || awardDisplayMode === 'all';
+      const limit = awardDisplayMode === 'top3'
+        ? 3
+        : (awardDisplayMode === 'top5' ? 5 : (awardDisplayMode === 'top10' ? 10 : sortedEligible.length));
+      const ranked = sortedEligible.slice(0, limit);
+
       const filterSumEl = document.getElementById('awardFilterSummaryText');
       if (filterSumEl) {
-        filterSumEl.textContent = `UI ALEX 2026 Hall of Fame • Populasi Filter: ${scopedList.length} Peserta`;
+        filterSumEl.textContent = `UI ALEX 2026 Hall of Fame • Menampilkan ${ranked.length} dari ${sortedEligible.length} Peserta Memenuhi Kriteria (Populasi Filter: ${scopedList.length})`;
       }
 
       const canvasEl = document.getElementById('awardSlideCanvas');
       if (canvasEl) {
-        if (awardDisplayMode === 'top10') {
+        if (isListMode) {
           canvasEl.classList.remove('aspect-16-9');
         } else {
           canvasEl.classList.add('aspect-16-9');
         }
       }
 
-      const limit = awardDisplayMode === 'top3' ? 3 : (awardDisplayMode === 'top5' ? 5 : 10);
-      const eligibleList = cat.filterFn ? scopedList.filter(cat.filterFn) : [...scopedList];
-      const ranked = eligibleList.sort(cat.sortFn).slice(0, limit);
       const stage = document.getElementById('awardStageBody');
       if (!stage) return;
 
@@ -5532,7 +6360,10 @@
         return;
       }
 
-      if (awardDisplayMode === 'top10') {
+      if (isListMode) {
+        const scrollCls = awardDisplayMode === 'all' && ranked.length > 12
+          ? 'max-h-[560px] overflow-y-auto divide-y divide-slate-200/80'
+          : 'divide-y divide-slate-200/80';
         stage.innerHTML = `
           <div class="rounded-xl border border-amber-300/90 bg-white/95 shadow-sm overflow-hidden">
             <div class="grid grid-cols-12 bg-slate-900 text-amber-400 text-[10px] font-mono font-extrabold uppercase tracking-wider px-3.5 py-2.5">
@@ -5541,7 +6372,7 @@
               <div class="col-span-3 text-left">Metrik Utama</div>
               <div class="col-span-4 text-right">Faktor Pembeda Objektif (Tie-Breaker)</div>
             </div>
-            <div class="divide-y divide-slate-200/80">
+            <div id="awardListScrollContainer" class="${scrollCls}">
               ${ranked.map((u, i) => {
                 const isTop3 = i < 3;
                 const medal = i === 0 ? '🥇 #1' : (i === 1 ? '🥈 #2' : (i === 2 ? '🥉 #3' : `#${i + 1}`));
@@ -5608,15 +6439,19 @@
       const { scopedList, fBatch, fPilar, fModul, scopeLabel, activeFilterTags } = getAwardFilteredPool();
       const resolvedTitle = getAwardResolvedTitle(cat, scopeLabel, fModul, fPilar);
       const eligibleList = cat.filterFn ? scopedList.filter(cat.filterFn) : [...scopedList];
-      const limit = awardDisplayMode === 'top3' ? 3 : (awardDisplayMode === 'top5' ? 5 : 10);
-      const ranked = eligibleList.sort(cat.sortFn).slice(0, limit);
+      const sortedEligible = [...eligibleList].sort(cat.sortFn);
+      const limit = awardDisplayMode === 'top3'
+        ? 3
+        : (awardDisplayMode === 'top5' ? 5 : (awardDisplayMode === 'top10' ? 10 : sortedEligible.length));
+      const ranked = sortedEligible.slice(0, limit);
       if (ranked.length === 0) {
         setSyncBanner('Belum ada nominasi yang memenuhi kriteria pada kategori & filter ini', 'rose');
         return;
       }
+      const modeHeaderLabel = awardDisplayMode === 'all' ? `SEMUA PESERTA (${ranked.length})` : `TOP ${limit}`;
       const filterLine = activeFilterTags.length > 0 ? `Cakupan Filter: *${fBatch} • ${activeFilterTags.join(' • ')}*` : `Kelompok: *${fBatch}*`;
       const lines = [
-        `🏆 *PENGUMUMAN PENGHARGAAN UI ALEX 2026 (TOP ${limit})*`,
+        `🏆 *PENGUMUMAN PENGHARGAAN UI ALEX 2026 (${modeHeaderLabel})*`,
         `Kategori: *${resolvedTitle}*`,
         filterLine,
         `_${cat.subtitle}_`,
@@ -5628,6 +6463,56 @@
         lines.push(`#${i + 1} *${u.nama_peserta}* (${u.batch}) — ${cat.metricFn(u)}${tbInfo}`);
       });
       copyTextToClipboard(lines.join('\n'), 'Teks pengumuman berhasil disalin!');
+    }
+
+    function exportAwardXLSX() {
+      const catId = document.getElementById('awardCategorySelect')?.value || 'grand_luminary';
+      const cat = AWARDS_CATALOG.find(a => a.id === catId) || AWARDS_CATALOG[0];
+      const { scopedList, fBatch, fPilar, fModul, scopeLabel, activeFilterTags } = getAwardFilteredPool();
+      const resolvedTitle = getAwardResolvedTitle(cat, scopeLabel, fModul, fPilar);
+      const eligibleList = cat.filterFn ? scopedList.filter(cat.filterFn) : [...scopedList];
+      const sortedEligible = [...eligibleList].sort(cat.sortFn);
+
+      if (sortedEligible.length === 0) {
+        setSyncBanner('Belum ada data peserta yang memenuhi syarat untuk diekspor pada kategori ini', 'rose');
+        return;
+      }
+
+      const lastSyncStr = document.getElementById('lastSyncTimestamp')?.textContent || '-';
+      const filterDesc = activeFilterTags.length > 0 ? `${fBatch} (${activeFilterTags.join(', ')})` : fBatch;
+
+      const rowsData = sortedEligible.map((u, idx) => ({
+        'Peringkat': idx + 1,
+        'Kategori Penghargaan': resolvedTitle,
+        'Cakupan Filter': filterDesc,
+        'Nama Peserta': u.nama_peserta,
+        'Username': u.username,
+        'NIP': u.nip || '-',
+        'Batch': u.batch,
+        'Persona Belajar': u.persona,
+        'Metrik Utama Award': cat.metricFn(u),
+        'Faktor Pembeda Objektif (Tie-Breaker)': cat.tieBreakerFn ? cat.tieBreakerFn(u) : '-',
+        'Rerata Ujikom (Cakupan)': u.s_attempted_post > 0 ? u.s_post_avg : '-',
+        'Modul Selesai (Cakupan)': `${u.s_attempted_post}/${u.s_max_slots}`,
+        'Modul Lulus KKM (Cakupan)': `${u.s_passed_post}/${u.s_max_slots}`,
+        'Total Attempt Ujikom (Cakupan)': u.s_post_attempts || 0,
+        'Total Durasi Ujikom (Menit)': u.s_post_durasi || 0,
+        'Submit Ujikom Terakhir': u.s_last_post_submit || '-',
+        'Indeks Kesiapan Belajar': u.s_readiness,
+        'Completion Mandiri (%)': u.s_comp,
+        'Rerata Asesmen Awal': u.s_pre_avg !== null ? u.s_pre_avg : '-',
+        'Normalized Hake Gain': u.s_hake_gain !== null ? u.s_hake_gain : '-',
+        'Status Evaluasi 8 Modul': u.final_status,
+        'Last Update Data': lastSyncStr
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rowsData);
+      XLSX.utils.book_append_sheet(wb, ws, 'Peringkat_Award');
+      const cleanCat = cat.id.toUpperCase();
+      const cleanBatch = fBatch.replace(/\s+/g, '_');
+      XLSX.writeFile(wb, `UI_ALEX_2026_Award_${cleanCat}_${cleanBatch}_${Date.now()}.xlsx`);
+      updateUrlAndTracker(`Unduh XLSX Award ${cat.id}`);
     }
 
     async function exportAwardSlidePNG() {
@@ -5651,6 +6536,11 @@
             clonedCanvas.style.height = 'auto';
             clonedCanvas.style.aspectRatio = 'auto';
             clonedCanvas.style.overflow = 'visible';
+            const scrollList = clonedCanvas.querySelector('#awardListScrollContainer');
+            if (scrollList) {
+              scrollList.style.maxHeight = 'none';
+              scrollList.style.overflow = 'visible';
+            }
             clonedCanvas.querySelectorAll('.truncate, .line-clamp-2, .overflow-hidden').forEach(node => {
               node.classList.remove('truncate', 'line-clamp-2', 'overflow-hidden');
               node.style.overflow = 'visible';
@@ -6438,16 +7328,123 @@
       document.getElementById('participantModal').classList.add('hidden');
     }
 
-    function downloadParticipantPDF() {
-      const el = document.getElementById('participantDossierPrintArea');
-      if (!el) return;
-      html2pdf().set({
-        margin: 8,
-        filename: `Rapor_Individu_${activeParticipantId || 'Peserta'}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      }).from(el).save();
+    async function downloadParticipantPDF() {
+      const page1El = document.getElementById('dossierPage1');
+      const page2El = document.getElementById('dossierPage2');
+      if (!page1El || !page2El) return;
+
+      const btn = document.getElementById('btnDownloadDossierPDF');
+      const origHtml = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Merender PDF 2 Halaman...';
+      }
+
+      try {
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.ready;
+        }
+
+        // Ambil dataURL gambar dari ketiga canvas Chart.js pada modal asli agar tidak kosong di klon
+        const chartDataUrls = {};
+        ['chartModalRadar', 'chartModalBar', 'chartModalTimeline'].forEach(cid => {
+          const cEl = document.getElementById(cid);
+          if (cEl && typeof cEl.toDataURL === 'function') {
+            try {
+              chartDataUrls[cid] = cEl.toDataURL('image/png', 1.0);
+            } catch (e) {}
+          }
+        });
+
+        const renderSectionToCanvas = async (sectionEl, sectionId) => {
+          return await html2canvas(sectionEl, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            scrollX: 0,
+            scrollY: 0,
+            windowWidth: 1024,
+            onclone: (clonedDoc) => {
+              const modalClone = clonedDoc.getElementById('participantModal');
+              if (modalClone) {
+                modalClone.style.position = 'static';
+                modalClone.style.overflow = 'visible';
+                modalClone.style.background = '#ffffff';
+              }
+              const areaClone = clonedDoc.getElementById('participantDossierPrintArea');
+              if (areaClone) {
+                areaClone.style.maxHeight = 'none';
+                areaClone.style.overflow = 'visible';
+                areaClone.style.padding = '16px';
+              }
+              const targetClone = clonedDoc.getElementById(sectionId);
+              if (targetClone) {
+                targetClone.style.width = '840px';
+                targetClone.style.padding = '16px';
+                targetClone.style.background = '#ffffff';
+                targetClone.style.borderTop = 'none';
+              }
+              // Ganti setiap elemen <canvas> Chart.js di dalam klon dengan <img> beresolusi tinggi
+              Object.keys(chartDataUrls).forEach(cid => {
+                const clonedCanvas = clonedDoc.getElementById(cid);
+                if (clonedCanvas && chartDataUrls[cid]) {
+                  const img = clonedDoc.createElement('img');
+                  img.src = chartDataUrls[cid];
+                  img.style.width = '100%';
+                  img.style.height = '100%';
+                  img.style.objectFit = 'contain';
+                  clonedCanvas.parentNode.replaceChild(img, clonedCanvas);
+                }
+              });
+            }
+          });
+        };
+
+        const canvas1 = await renderSectionToCanvas(page1El, 'dossierPage1');
+        const canvas2 = await renderSectionToCanvas(page2El, 'dossierPage2');
+
+        const jsPDFConstructor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+        let pdf = null;
+        if (jsPDFConstructor) {
+          pdf = new jsPDFConstructor({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+        } else if (window.html2pdf) {
+          const worker = html2pdf().set({ margin: 0, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } });
+          await worker.from(document.createElement('div')).toPdf();
+          pdf = await worker.get('pdf');
+        }
+
+        if (pdf) {
+          const addCanvasToPage = (cnv) => {
+            const pageW = 210, pageH = 297, margin = 10;
+            const maxW = pageW - margin * 2;
+            const maxH = pageH - margin * 2;
+            let drawW = maxW;
+            let drawH = (cnv.height * drawW) / cnv.width;
+            if (drawH > maxH) {
+              drawH = maxH;
+              drawW = (cnv.width * drawH) / cnv.height;
+            }
+            const xOffset = margin + (maxW - drawW) / 2;
+            pdf.addImage(cnv.toDataURL('image/jpeg', 0.96), 'JPEG', xOffset, margin, drawW, drawH);
+          };
+
+          addCanvasToPage(canvas1);
+          pdf.addPage();
+          addCanvasToPage(canvas2);
+
+          const u = userProfilesMap.get(String(activeParticipantId));
+          const cleanName = u ? u.nama_peserta.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '') : (activeParticipantId || 'Peserta');
+          pdf.save(`Rapor_Individu_${cleanName}.pdf`);
+        }
+      } catch (err) {
+        console.error('Gagal mengunduh Rapor Individu PDF:', err);
+        setSyncBanner('Gagal membuat Rapor PDF', 'rose');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = origHtml;
+        }
+      }
     }
 
     function openRoleDetailModal(roleCode, pilarName) {
@@ -6529,9 +7526,12 @@
         'PMA (Penjaminan Mutu Akademik)': u.modules.PMA ?? '-',
         'HK (Hukum dan Kearsipan)': u.modules.HK ?? '-',
         'MRT (Manajemen Risiko, Transformasi Budaya, dan Tata Kelola)': u.modules.MRT ?? '-',
+        'Skor Ujikom (Rerata)': u.attempted_post > 0 ? u.post_total_avg : '-',
         'Total Modul Diselesaikan': u.attempted_post,
         'Lulus KKM': u.passed_post,
         'Remedial': u.remedial_post,
+        'Total Durasi Ujikom (Menit)': u.attempted_post > 0 ? u.total_post_durasi : '-',
+        'Total Attempt Ujikom': u.attempted_post > 0 ? u.total_post_attempts : '-',
         'Status Akhir': u.final_status
       }));
 
