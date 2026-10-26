@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>UI ALEX 2026 — Dashboard Viewer &amp; Exporter Esai (Report ID: 175)</title>
+  <title>UI ALEX 2026 — Assignment Exporter</title>
 
   <!-- Google Fonts: Inter, Cinzel & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -37,14 +37,36 @@
   <script src="https://unpkg.com/@popperjs/core@2"></script>
   <script src="https://unpkg.com/tippy.js@6"></script>
 
-  <!-- Global Error Shield -->
+  <!-- Google Analytics 4 (G-FK620QSKYN) & Histats (5024490) + Global Error Shield -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN" onerror="window.__gaBlocked=true"></script>
   <script>
+    // Global Error Shield untuk mencegah cross-origin "Script error." menghentikan eksekusi UI
     window.addEventListener('error', function(e) {
       if (e && e.message === 'Script error.' && !e.filename) {
         e.preventDefault();
         return true;
       }
     }, true);
+
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    try {
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', { send_page_view: true });
+    } catch (err) {}
+
+    var _Hasync = _Hasync || [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+      try {
+        var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+        hs.src = 'https://s10.histats.com/js15_as.js';
+        hs.onerror = function() {};
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+      } catch (err) {}
+    })();
   </script>
 
   <!-- Dynamic Auto-Favicon Injector (icon.xml + Fallback SVG) -->
@@ -101,6 +123,12 @@
   </script>
 
   <style>
+    /* Skala Dasar Ukuran Font Dasbor (Default 112% agar lebih besar, jelas & nyaman di mata) */
+    html {
+      font-size: 18px;
+      transition: font-size 0.15s ease;
+    }
+
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: #f1f5f9; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -169,15 +197,16 @@
 
     /* Styling Tabel HTML & Hasil Rekonstruksi TinyMCE di dalam Modal Esai */
     .essay-html-prose {
-      line-height: 1.6;
+      line-height: 1.7;
+      font-size: 0.95rem;
       word-break: break-word;
     }
     .essay-html-prose table {
       border-collapse: separate;
       border-spacing: 0;
       width: 100%;
-      margin: 0.65rem 0;
-      font-size: 0.78rem;
+      margin: 0.75rem 0;
+      font-size: 0.9rem;
       background: #ffffff;
       border: 1px solid #cbd5e1;
       border-radius: 0.5rem;
@@ -188,7 +217,7 @@
     .essay-html-prose td {
       border-right: 1px solid #cbd5e1;
       border-bottom: 1px solid #cbd5e1;
-      padding: 0.55rem 0.75rem;
+      padding: 0.65rem 0.85rem;
       vertical-align: top;
       text-align: left;
     }
@@ -205,7 +234,7 @@
       background-color: #0f172a;
       color: #f8fafc;
       font-weight: 700;
-      font-size: 0.72rem;
+      font-size: 0.82rem;
       text-transform: uppercase;
       letter-spacing: 0.03em;
     }
@@ -263,9 +292,60 @@
       font-size: 11px;
       line-height: 1.4;
     }
+
+    /* Pastikan Tooltip Tippy tidak pernah muncul saat Login Overlay aktif */
+    body:has(#loginOverlay:not(.hidden)) div[data-tippy-root] {
+      display: none !important;
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased selection:bg-amber-200 selection:text-slate-900">
+
+  <!-- =====================================================================
+       0. LOGIN OVERLAY (PURE BITWISE SHA-256 AUTHENTICATION GATE)
+       ===================================================================== -->
+  <div id="loginOverlay" class="fixed inset-0 z-50 bg-slate-900/95 flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+      <div class="bg-gradient-to-r from-amber-500 to-amber-600 p-6 text-slate-950">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-xl bg-slate-950 text-amber-400 font-extrabold text-xl flex items-center justify-center shadow">
+            UI
+          </div>
+          <div>
+            <h1 class="text-xl font-extrabold tracking-tight">Assignment Exporter</h1>
+            <p class="text-xs font-semibold text-slate-900/80">UI ALEX 2026 • Edisi v3</p>
+          </div>
+        </div>
+      </div>
+
+      <form id="loginForm" onsubmit="handleLogin(event)" class="p-6 space-y-4">
+        <div id="lockNotice" class="hidden p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-xs font-medium">
+          🔒 Sesi Anda otomatis dikunci karena tidak ada aktivitas selama 5 menit. Silakan masuk kembali.
+        </div>
+        <div id="loginError" class="hidden p-3 rounded-lg bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold">
+          ⚠️ Kombinasi Username atau Kata Sandi tidak valid.
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Username</label>
+          <input id="authUser" type="text" required autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Masukkan username..."
+            class="allow-context w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Kata Sandi</label>
+          <input id="authPass" type="password" required autocomplete="new-password" placeholder="Masukkan kata sandi..."
+            class="allow-context w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500" />
+        </div>
+
+        <button type="submit"
+          class="w-full py-2.5 px-4 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-sm shadow transition flex items-center justify-center gap-2">
+          <span>Buka Assignment Exporter</span>
+          <span>→</span>
+        </button>
+      </form>
+    </div>
+  </div>
 
   <!-- =====================================================================
        1. TOP HEADER & PIPELINE CONTROL BAR (MURNI WORKER CORS REPORT ID 175)
@@ -279,16 +359,13 @@
         </div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="text-base md:text-lg font-extrabold tracking-tight text-white">UI ALEX 2026 — Viewer &amp; Exporter Esai</h1>
-            <span class="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
-              REPORT ID: 175
-            </span>
-            <span class="px-2 py-0.5 text-[10px] font-mono font-semibold uppercase rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              LIVE STREAM
+            <h1 class="text-base md:text-lg font-extrabold tracking-tight text-white">Assignment Exporter</h1>
+            <span id="activeOperatorBadge" class="px-2 py-0.5 text-[10px] font-mono font-semibold uppercase rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              USER: -
             </span>
           </div>
           <p class="text-xs text-slate-400">
-            Learning Analytics • EMAS3 Universitas Indonesia
+            UI ALEX 2026 • EMAS3 Universitas Indonesia
           </p>
         </div>
       </div>
@@ -297,6 +374,34 @@
       <div class="flex flex-wrap items-center gap-2">
         <!-- Terkunci ke Configurable Report ID 175 -->
         <input id="reportIdInput" type="hidden" value="175" />
+
+        <!-- Salin Permalink (di sebelah kiri Font Scale & Sync Data) -->
+        <button id="btnCopyPermalink" onclick="copyPermalink()"
+          data-tippy-content="Salin tautan Permalink dengan kondisi filter, batch, mode kolom, dan halaman aktif saat ini ke clipboard"
+          class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition flex items-center gap-1.5">
+          <span id="permalinkIcon">🔗</span>
+          <span id="permalinkText">Salin Permalink</span>
+        </button>
+
+        <!-- Kontrol Besarkan / Kecilkan Ukuran Font (A- / % / A+) -->
+        <div class="inline-flex items-center rounded-lg bg-slate-800 border border-slate-700 p-0.5 text-xs select-none"
+          data-tippy-content="Atur ukuran huruf seluruh tampilan dasbor & tabel agar nyaman di mata (Klik angka % untuk reset)">
+          <button type="button" onclick="adjustFontSize(-1)"
+            class="px-2 py-1 rounded-md hover:bg-slate-700 text-slate-200 hover:text-amber-400 font-extrabold transition"
+            title="Kecilkan Ukuran Huruf (A-)">
+            A-
+          </button>
+          <button type="button" onclick="resetFontSize()" id="fontScaleLabel"
+            class="px-2 py-1 font-mono font-bold text-[11px] text-amber-400 hover:text-amber-300 transition"
+            title="Klik untuk kembalikan ke ukuran standar (112%)">
+            112%
+          </button>
+          <button type="button" onclick="adjustFontSize(1)"
+            class="px-2 py-1 rounded-md hover:bg-slate-700 text-slate-200 hover:text-amber-400 font-extrabold transition"
+            title="Besarkan Ukuran Huruf (A+)">
+            A+
+          </button>
+        </div>
 
         <!-- Tombol Sync Data (dengan Timer di dalamnya + Hover Info Last Updated) -->
         <button id="btnSyncNow" onclick="startSync(false)"
@@ -318,7 +423,7 @@
           data-tippy-content="Unduh file Excel (.xlsx) 17 kolom dengan teks tabel esai yang sudah dirapikan dari tag HTML + Sheet Rekap Modul"
           class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
           <span>📊</span>
-          <span>Unduh XLSX (Bersih)</span>
+          <span>XLSX Bersih</span>
         </button>
 
         <!-- Tombol Export Excel (.xlsx) Raw HTML -->
@@ -326,14 +431,21 @@
           data-tippy-content="Unduh file Excel (.xlsx) 17 kolom dengan kode HTML asli dari EMAS3"
           class="px-2.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-semibold text-xs transition flex items-center gap-1.5">
           <span>📑</span>
-          <span>Unduh XLSX (Raw HTML)</span>
+          <span>XLSX Raw</span>
         </button>
 
         <!-- Reset Cache IndexedDB -->
         <button onclick="clearBrowserData()"
           data-tippy-content="Hapus cache IndexedDB (alex2026_v3_report175Data) dan reset memori RAM"
           class="px-2.5 py-1.5 rounded-lg bg-rose-600/80 hover:bg-rose-600 text-white font-semibold text-xs transition">
-          🗑️ Reset Cache
+          🗑️ Reset
+        </button>
+
+        <!-- Kunci Sesi -->
+        <button onclick="lockScreen(false)"
+          data-tippy-content="Kunci sesi dasbor sekarang"
+          class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 transition">
+          🔒 Kunci
         </button>
       </div>
     </div>
@@ -370,7 +482,50 @@
     <div id="mainViewportDeck" class="space-y-5">
 
       <!-- =================================================================
-           FILTER BAR (BATCH -> PILAR -> MODUL -> STATUS SUBMISI)
+           1. PALING ATAS: KPI SUMMARY CARDS
+           ================================================================= -->
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl border border-slate-200 border-l-4 border-l-slate-800 shadow-sm p-4">
+          <div class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">TOTAL SLOT SUBMISI ESAI</div>
+          <div id="kpiTotalRows" class="text-2xl font-extrabold text-slate-900 font-mono mt-1">0</div>
+          <div id="kpiUniqueUsers" class="text-xs text-slate-500 mt-1">0 peserta unik terfilter</div>
+        </div>
+
+        <div onclick="quickFilterStatus('submitted')" class="cursor-pointer bg-white hover:bg-emerald-50/40 rounded-2xl border border-slate-200 border-l-4 border-l-emerald-500 shadow-sm p-4 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">SUDAH SUBMIT (SUBMITTED)</span>
+            <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono font-bold text-[10px]" id="kpiSubmittedPct">0.0%</span>
+          </div>
+          <div id="kpiSubmittedCount" class="text-2xl font-extrabold text-emerald-600 font-mono mt-1">0</div>
+          <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter yang sudah kumpul</div>
+        </div>
+
+        <div onclick="quickFilterStatus('new')" class="cursor-pointer bg-white hover:bg-amber-50/40 rounded-2xl border border-slate-200 border-l-4 border-l-amber-500 shadow-sm p-4 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-700">DRAFT / BUKA SOAL (NEW)</span>
+            <span class="px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-mono font-bold text-[10px]" id="kpiNewPct">0.0%</span>
+          </div>
+          <div id="kpiNewCount" class="text-2xl font-extrabold text-amber-600 font-mono mt-1">0</div>
+          <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter status draft</div>
+        </div>
+
+        <div onclick="quickFilterStatus('belum_submit')" class="cursor-pointer bg-white hover:bg-slate-100/70 rounded-2xl border border-slate-200 border-l-4 border-l-slate-400 shadow-sm p-4 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-600">BELUM SUBMIT</span>
+            <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono font-bold text-[10px]" id="kpiBelumPct">0.0%</span>
+          </div>
+          <div id="kpiBelumCount" class="text-2xl font-extrabold text-slate-700 font-mono mt-1">0</div>
+          <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter yang belum submit</div>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           2. WIDGET PER PILAR & MODUL DIREKTORAT (TANPA HEADER YANG DI-X)
+           ================================================================= -->
+      <div id="moduleBreakdownGrid" class="space-y-4"></div>
+
+      <!-- =================================================================
+           3. FILTER BAR (DIPINDAHKAN KE ATAS TABEL)
            ================================================================= -->
       <section id="topFilterCard" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3 transition-colors duration-200">
         <div class="flex flex-wrap items-center justify-between gap-4">
@@ -429,6 +584,9 @@
           </div>
 
           <div class="flex items-center gap-2">
+            <span id="activeModulWidgetBadge" class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-mono font-bold text-[11px]">
+              Semua Pilar &amp; Modul Aktif
+            </span>
             <span id="lastUpdateVisibleBadge" class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-mono text-[11px] border border-slate-200">
               🕒 Update: -
             </span>
@@ -440,66 +598,7 @@
       </section>
 
       <!-- =================================================================
-           KPI SUMMARY CARDS
-           ================================================================= -->
-      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-white rounded-2xl border border-slate-200 border-l-4 border-l-slate-800 shadow-sm p-4">
-          <div class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">TOTAL SLOT SUBMISI ESAI</div>
-          <div id="kpiTotalRows" class="text-2xl font-extrabold text-slate-900 font-mono mt-1">0</div>
-          <div id="kpiUniqueUsers" class="text-xs text-slate-500 mt-1">0 peserta unik terfilter</div>
-        </div>
-
-        <div onclick="quickFilterStatus('submitted')" class="cursor-pointer bg-white hover:bg-emerald-50/40 rounded-2xl border border-slate-200 border-l-4 border-l-emerald-500 shadow-sm p-4 transition">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">SUDAH SUBMIT (SUBMITTED)</span>
-            <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono font-bold text-[10px]" id="kpiSubmittedPct">0.0%</span>
-          </div>
-          <div id="kpiSubmittedCount" class="text-2xl font-extrabold text-emerald-600 font-mono mt-1">0</div>
-          <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter yang sudah kumpul</div>
-        </div>
-
-        <div onclick="quickFilterStatus('new')" class="cursor-pointer bg-white hover:bg-amber-50/40 rounded-2xl border border-slate-200 border-l-4 border-l-amber-500 shadow-sm p-4 transition">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-700">DRAFT / BUKA SOAL (NEW)</span>
-            <span class="px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-mono font-bold text-[10px]" id="kpiNewPct">0.0%</span>
-          </div>
-          <div id="kpiNewCount" class="text-2xl font-extrabold text-amber-600 font-mono mt-1">0</div>
-          <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter status draft</div>
-        </div>
-
-        <div onclick="quickFilterStatus('belum_submit')" class="cursor-pointer bg-white hover:bg-slate-100/70 rounded-2xl border border-slate-200 border-l-4 border-l-slate-400 shadow-sm p-4 transition">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-600">BELUM SUBMIT</span>
-            <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono font-bold text-[10px]" id="kpiBelumPct">0.0%</span>
-          </div>
-          <div id="kpiBelumCount" class="text-2xl font-extrabold text-slate-700 font-mono mt-1">0</div>
-          <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter yang belum submit</div>
-        </div>
-      </section>
-
-      <!-- =================================================================
-           WIDGET MONITORING LANGSUNG PER MODUL DIREKTORAT (DIKELOMPOKKAN PER PILAR)
-           ================================================================= -->
-      <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-          <div class="flex items-center gap-2">
-            <span>📊</span>
-            <div>
-              <h2 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-900">Widget Pantauan Langsung per Pilar &amp; Modul Direktorat (8 Modul)</h2>
-              <p class="text-[11px] text-slate-500">Dikelompokkan berdasarkan Pilar I (Manajemen) &amp; Pilar II (Governance). Klik header pilar, kartu modul, atau kotak angka status untuk memfilter tabel.</p>
-            </div>
-          </div>
-          <div class="flex items-center gap-2">
-            <span id="activeModulWidgetBadge" class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 font-mono font-bold text-[11px]">
-              Semua Pilar &amp; Modul Aktif
-            </span>
-          </div>
-        </div>
-        <div id="moduleBreakdownGrid" class="space-y-4"></div>
-      </section>
-
-      <!-- =================================================================
-           TABEL VIEWER 17 KOLOM DENGAN SORTING, COLLAPSE & PAGINATION
+           4. TABEL VIEWER (MODE SIMPLE 9 KOLOM & DETAILED 17 KOLOM)
            ================================================================= -->
       <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <!-- Collapsible Header Bar Tabel -->
@@ -508,7 +607,7 @@
             <span>📋</span>
             <div>
               <div class="flex flex-wrap items-center gap-2">
-                <h2 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-900">Tabel Rincian Submisi Esai Peserta (17 Kolom)</h2>
+                <h2 id="tableSectionHeading" class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-900">Tabel Rincian Submisi Esai Peserta (Mode Ringkas)</h2>
                 <span id="tableHeaderQuickCount" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-full bg-amber-100 text-amber-900 border border-amber-300">0 Baris Terfilter</span>
               </div>
               <p class="text-[11px] text-slate-500">Default urutan: Batch → Pilar → Urutan Modul (PK s.d. MRT) → Nama Peserta. Klik bar ini untuk membuka/menutup tabel.</p>
@@ -516,8 +615,22 @@
           </div>
 
           <div class="flex flex-wrap items-center gap-2" onclick="event.stopPropagation()">
+            <!-- Toggle Mode Kolom: Simple (Ringkas) vs Detailed (17 Kolom) -->
+            <div class="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 text-xs font-bold shadow-sm">
+              <button type="button" id="btnColModeSimple" onclick="setTableColumnMode('simple')"
+                data-tippy-content="Tampilkan kolom-kolom penting saja agar tabel ringkas dan nyaman dibaca"
+                class="px-2.5 py-1 rounded-md bg-slate-900 text-amber-400 transition flex items-center gap-1">
+                <span>⚡</span><span>Simple (Ringkas)</span>
+              </button>
+              <button type="button" id="btnColModeDetailed" onclick="setTableColumnMode('detailed')"
+                data-tippy-content="Tampilkan seluruh 17 kolom lengkap sesuai skema Configurable Report ID 175"
+                class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition flex items-center gap-1">
+                <span>📑</span><span>Detailed (17 Kolom)</span>
+              </button>
+            </div>
+
             <button type="button" onclick="exportFilteredTableToExcel()"
-              data-tippy-content="Unduh file Excel (.xlsx) sesuai dengan isi tabel yang sedang terfilter & terurut saat ini"
+              data-tippy-content="Unduh file Excel (.xlsx) 17 kolom sesuai dengan isi tabel yang sedang terfilter & terurut saat ini"
               class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5">
               <span>📥</span>
               <span>Download Excel Isi Tabel</span>
@@ -571,32 +684,10 @@
             <div class="p-4">
               <div class="overflow-x-auto max-h-[650px] overflow-y-auto rounded-lg border border-slate-300 shadow-inner">
                 <table class="sticky-matrix-table text-xs">
-                  <thead class="bg-slate-100 text-slate-700 select-none">
-                    <tr class="font-extrabold text-[11px] uppercase tracking-wider">
-                      <th class="p-2.5 text-center w-12">No</th>
-                      <th class="p-2.5 text-center w-28 bg-emerald-50/90 text-emerald-950" data-tippy-content="Unduh data Excel per peserta (1 baris ini atau seluruh 8 modul milik peserta ini)">Aksi Unduh</th>
-                      <th onclick="sortBy('id_submisi')" class="sortable-th p-2.5 text-left w-28">id_submisi<span id="sort_id_submisi" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('batch')" class="sortable-th p-2.5 text-center w-24">batch<span id="sort_batch" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('pilar')" class="sortable-th p-2.5 text-left w-40">pilar<span id="sort_pilar" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('kode_modul')" class="sortable-th p-2.5 text-center w-24">kode_modul<span id="sort_kode_modul" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('modul_direktorat')" class="sortable-th p-2.5 text-left min-w-[170px]">modul_direktorat<span id="sort_modul_direktorat" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('nama_assignment_esai')" class="sortable-th p-2.5 text-left min-w-[180px]">nama_assignment_esai<span id="sort_nama_assignment_esai" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('username')" class="sortable-th p-2.5 text-left w-32">username<span id="sort_username" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('nip')" class="sortable-th p-2.5 text-left w-36">nip<span id="sort_nip" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('nama_peserta')" class="sortable-th p-2.5 text-left min-w-[190px]">nama_peserta<span id="sort_nama_peserta" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('email')" class="sortable-th p-2.5 text-left min-w-[160px]">email<span id="sort_email" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('_soal_text')" class="sortable-th p-2.5 text-left min-w-[190px]">soal_atau_instruksi_esai<span id="sort__soal_text" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('_jawaban_text')" class="sortable-th p-2.5 text-left min-w-[240px]">jawaban_peserta_essay<span id="sort__jawaban_text" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th class="p-2.5 text-center w-28 bg-amber-50/80 text-amber-900" data-tippy-content="Sesuai instruksi: Kolom tetap ada namun dikosongkan otomatis">kunci_jawaban</th>
-                      <th onclick="sortBy('status_submisi')" class="sortable-th p-2.5 text-center w-32">status_submisi<span id="sort_status_submisi" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('waktu_submit')" class="sortable-th p-2.5 text-center w-36">waktu_submit<span id="sort_waktu_submit" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('nilai_di_emas3')" class="sortable-th p-2.5 text-center w-28">nilai_di_emas3<span id="sort_nilai_di_emas3" class="text-slate-400 font-normal"> ⇅</span></th>
-                      <th onclick="sortBy('target_kelulusan')" class="sortable-th p-2.5 text-center w-36">target_kelulusan<span id="sort_target_kelulusan" class="text-slate-400 font-normal"> ⇅</span></th>
-                    </tr>
-                  </thead>
+                  <thead id="essayTableHead" class="bg-slate-100 text-slate-700 select-none"></thead>
                   <tbody id="essayTableBody" class="selectable divide-y divide-slate-200">
                     <tr>
-                      <td colspan="19" class="p-8 text-center text-slate-400">Menunggu sinkronisasi data live dari Report ID 175...</td>
+                      <td colspan="9" class="p-8 text-center text-slate-400">Menunggu sinkronisasi data live dari Report ID 175...</td>
                     </tr>
                   </tbody>
                 </table>
@@ -659,8 +750,26 @@
           <p id="modalPesertaMeta" class="text-xs font-mono text-slate-400">-</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+          <!-- Kontrol Ukuran Huruf di dalam Modal Esai -->
+          <div class="inline-flex items-center rounded-lg bg-slate-800 border border-slate-700 p-0.5 text-xs select-none">
+            <button type="button" onclick="adjustFontSize(-1)"
+              class="px-2 py-1 rounded-md hover:bg-slate-700 text-slate-200 hover:text-amber-400 font-extrabold transition"
+              title="Kecilkan Huruf">
+              A-
+            </button>
+            <button type="button" onclick="resetFontSize()" id="modalFontScaleLabel"
+              class="px-2 py-1 font-mono font-bold text-[11px] text-amber-400"
+              title="Reset Ukuran Huruf">
+              112%
+            </button>
+            <button type="button" onclick="adjustFontSize(1)"
+              class="px-2 py-1 rounded-md hover:bg-slate-700 text-slate-200 hover:text-amber-400 font-extrabold transition"
+              title="Besarkan Huruf">
+              A+
+            </button>
+          </div>
           <!-- Toggle Mode Tampilan: Tabel Terformat vs Teks/HTML Mentah -->
-          <div class="inline-flex rounded-lg border border-slate-700 bg-slate-800 p-0.5 text-[11px] font-bold">
+          <div class="inline-flex rounded-lg border border-slate-700 bg-slate-800 p-0.5 text-xs font-bold">
             <button type="button" id="btnViewModeFormatted" onclick="setModalRenderMode('formatted')"
               class="px-2.5 py-1 rounded-md bg-amber-500 text-slate-950 transition">
               📊 Tabel &amp; WYSIWYG
@@ -686,18 +795,18 @@
         <div class="lg:col-span-5 bg-white rounded-xl border border-slate-200 p-4 flex flex-col">
           <div class="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
             <span class="text-xs font-extrabold uppercase tracking-wider text-slate-700">📑 Soal / Instruksi Esai</span>
-            <span id="modalAssignmentTitle" class="text-[11px] font-mono text-slate-500 truncate max-w-[220px]">-</span>
+            <span id="modalAssignmentTitle" class="text-xs font-mono text-slate-500 truncate max-w-[220px]">-</span>
           </div>
-          <div id="modalSoalHtml" class="essay-html-prose selectable text-xs text-slate-700 overflow-x-auto"></div>
+          <div id="modalSoalHtml" class="essay-html-prose selectable text-sm text-slate-700 overflow-x-auto"></div>
         </div>
 
         <!-- Kanan: Jawaban Peserta Essay -->
         <div class="lg:col-span-7 bg-white rounded-xl border border-emerald-200 p-4 flex flex-col shadow-sm">
           <div class="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
             <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-800">✍️ Jawaban Peserta Essay (TinyMCE / Tabel Terformat)</span>
-            <span id="modalCharCount" class="text-[11px] font-mono text-slate-500">0 karakter</span>
+            <span id="modalCharCount" class="text-xs font-mono text-slate-500">0 karakter</span>
           </div>
-          <div id="modalJawabanHtml" class="essay-html-prose selectable text-xs text-slate-800 overflow-x-auto"></div>
+          <div id="modalJawabanHtml" class="essay-html-prose selectable text-sm text-slate-800 overflow-x-auto"></div>
         </div>
       </div>
     </div>
@@ -721,8 +830,180 @@
        ===================================================================== -->
   <script>
     /*************************************************************************
-     * A. KONSTANTA OBFUSKASI ENDPOINT CORS WORKER (PERSIS UI ALEX 2026 v3)
+     * A. KONSTANTA SISTEM, KEAMANAN SHA-256 & OBFUSKASI ENDPOINT WORKER
      *************************************************************************/
+    const _SALT = 'alex2026_salt_dppd';
+    const _ALLOWED_AUTH = {
+      alex: 'f6898af666d392e08f0615c314aa8a6b5fcbf43da593d558440b5d6899d96532',
+      dsdm: 'b5d4f1903c193e7fa0209917b9645dfec13f9720e05b762a3a47cf8969aebfd5',
+      sistapel: ''
+    };
+    const IDLE_LIMIT_MS = 5 * 60 * 1000; // 5 Menit Auto-Lock
+    let idleTimer = null;
+    let currentLoggedUser = '';
+
+    // Pure Bitwise JavaScript SHA-256 Implementation
+    function computeSHA256(ascii) {
+      function rotr(n, x) { return (x >>> n) | (x << (32 - n)); }
+      const utf8 = unescape(encodeURIComponent(ascii));
+      const words = [];
+      const asciiBitLength = utf8.length * 8;
+
+      let H = [
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+      ];
+      const K = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+      ];
+
+      for (let i = 0; i < utf8.length; i++) {
+        words[i >> 2] |= (utf8.charCodeAt(i) & 0xff) << (24 - (i % 4) * 8);
+      }
+      words[utf8.length >> 2] |= 0x80 << (24 - (utf8.length % 4) * 8);
+      words[(((utf8.length + 8) >> 6) << 4) + 15] = asciiBitLength;
+
+      const W = new Array(64);
+      for (let j = 0; j < words.length; j += 16) {
+        let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+        for (let i = 0; i < 64; i++) {
+          if (i < 16) {
+            W[i] = words[j + i] | 0;
+          } else {
+            const gamma0x = W[i - 15];
+            const sigma0 = rotr(7, gamma0x) ^ rotr(18, gamma0x) ^ (gamma0x >>> 3);
+            const gamma1x = W[i - 2];
+            const sigma1 = rotr(17, gamma1x) ^ rotr(19, gamma1x) ^ (gamma1x >>> 10);
+            W[i] = (W[i - 16] + sigma0 + W[i - 7] + sigma1) | 0;
+          }
+          const ch = (e & f) ^ (~e & g);
+          const maj = (a & b) ^ (a & c) ^ (b & c);
+          const Sigma0 = rotr(2, a) ^ rotr(13, a) ^ rotr(22, a);
+          const Sigma1 = rotr(6, e) ^ rotr(11, e) ^ rotr(25, e);
+
+          const t1 = (h + Sigma1 + ch + K[i] + W[i]) | 0;
+          const t2 = (Sigma0 + maj) | 0;
+          h = g; g = f; f = e; e = (d + t1) | 0;
+          d = c; c = b; b = a; a = (t1 + t2) | 0;
+        }
+        H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+        H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+      }
+
+      return H.map(v => ('00000000' + (v >>> 0).toString(16)).slice(-8)).join('');
+    }
+
+    _ALLOWED_AUTH.sistapel = computeSHA256(`sistapel:clrok456:${_SALT}`);
+
+    function hideAllTooltips() {
+      try {
+        if (typeof tippy === 'function' && typeof tippy.hideAll === 'function') {
+          tippy.hideAll({ duration: 0 });
+        }
+        document.querySelectorAll('[data-tippy-root]').forEach(el => el.remove());
+      } catch (e) {}
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const user = (document.getElementById('authUser').value || '').trim().toLowerCase();
+      const pass = document.getElementById('authPass').value || '';
+      const pTrim = pass.trim();
+
+      const candidateDigests = [
+        computeSHA256(`${user}:${pass}:${_SALT}`),
+        computeSHA256(`${user}:${pTrim}:${_SALT}`),
+        computeSHA256(`${pass}${_SALT}`),
+        computeSHA256(`${pTrim}${_SALT}`)
+      ];
+
+      const matchedDigest = candidateDigests.find(d => _ALLOWED_AUTH[user] && _ALLOWED_AUTH[user] === d);
+
+      if (matchedDigest) {
+        currentLoggedUser = user;
+        sessionStorage.setItem('alex_auth_token', matchedDigest);
+        sessionStorage.setItem('alex_auth_user', user);
+        document.getElementById('loginError').classList.add('hidden');
+        document.getElementById('lockNotice').classList.add('hidden');
+        document.getElementById('loginOverlay').classList.add('hidden');
+        const opBadge = document.getElementById('activeOperatorBadge');
+        if (opBadge) opBadge.textContent = `USER: ${user.toUpperCase()}`;
+        document.getElementById('authPass').value = '';
+        resetIdleTimer();
+        initDashboard();
+        updateUrlAndTracker('Login Berhasil');
+      } else {
+        document.getElementById('loginError').classList.remove('hidden');
+      }
+    }
+
+    function checkAuthSession() {
+      const token = sessionStorage.getItem('alex_auth_token');
+      const user = sessionStorage.getItem('alex_auth_user');
+      if (user && token && _ALLOWED_AUTH[user] === token) {
+        currentLoggedUser = user;
+        document.getElementById('loginOverlay').classList.add('hidden');
+        const opBadge = document.getElementById('activeOperatorBadge');
+        if (opBadge) opBadge.textContent = `USER: ${user.toUpperCase()}`;
+        resetIdleTimer();
+        initDashboard();
+      } else {
+        setDashboardLoadedState(false, 'Menunggu Otorisasi Sesi...', 'Silakan masuk terlebih dahulu untuk memuat aliran data CSV EMAS3.');
+        document.getElementById('loginOverlay').classList.remove('hidden');
+      }
+    }
+
+    async function lockScreen(isAutoLock = false) {
+      hideAllTooltips();
+      sessionStorage.removeItem('alex_auth_token');
+      sessionStorage.removeItem('alex_auth_user');
+      currentLoggedUser = '';
+      const userEl = document.getElementById('authUser');
+      const passEl = document.getElementById('authPass');
+      if (userEl) userEl.value = '';
+      if (passEl) passEl.value = '';
+      if (autoSyncInterval) {
+        clearInterval(autoSyncInterval);
+        autoSyncInterval = null;
+      }
+      closeEssayModal();
+      rawMasterData = [];
+      filteredData = [];
+      sortedData = [];
+      applyFilters();
+      setDashboardLoadedState(
+        false,
+        'Sesi Dikunci — Data Belum Dimuat',
+        'Saat masuk kembali, dasbor akan menarik ulang data CSV terbaru dari pipeline EMAS3.'
+      );
+      document.getElementById('loginOverlay').classList.remove('hidden');
+      if (isAutoLock) {
+        document.getElementById('lockNotice').classList.remove('hidden');
+      } else {
+        document.getElementById('lockNotice').classList.add('hidden');
+      }
+    }
+
+    function resetIdleTimer() {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        if (sessionStorage.getItem('alex_auth_token')) {
+          lockScreen(true);
+        }
+      }, IDLE_LIMIT_MS);
+    }
+
+    ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'].forEach(evt => {
+      window.addEventListener(evt, resetIdleTimer, { passive: true });
+    });
+
     const _ENC_WORKER = '9QWa/8idlRmLzJXZrJ3b35CZhRXbhlnbucWa0NXYt9yL6MHc0RHa';
 
     function _resolveUri(token) {
@@ -777,30 +1058,226 @@
     let searchDebounceTimer = null;
     // Default sorting: multi-level (batch -> pilar -> urutan modul -> nama_peserta)
     let sortState = { key: 'DEFAULT', dir: 'asc' };
+    let tableColumnMode = 'simple'; // 'simple' | 'detailed'
     let isTableCollapsed = true;
     let pilarCollapsedState = { 'Pilar I': true, 'Pilar II': true };
     let currentPage = 1;
     let pageSize = 50;
     let activeModalRow = null;
     let modalRenderMode = 'formatted'; // 'formatted' | 'raw'
+    let lastTrackedUrl = window.location.href;
+    let lastTrackedPath = window.location.pathname + window.location.search;
+
+    // Sistem Kontrol Skala Ukuran Font (Default index 2 = 18px / 112% agar lebih besar & jelas)
+    const FONT_SCALE_STEPS = [
+      { px: 15, pct: '94%' },
+      { px: 16, pct: '100%' },
+      { px: 18, pct: '112%' },
+      { px: 19.5, pct: '122%' },
+      { px: 21, pct: '131%' },
+      { px: 23, pct: '144%' }
+    ];
+    let currentFontScaleIdx = 2;
+
+    function applyFontScale() {
+      const step = FONT_SCALE_STEPS[currentFontScaleIdx] || FONT_SCALE_STEPS[2];
+      document.documentElement.style.fontSize = `${step.px}px`;
+      const lblHeader = document.getElementById('fontScaleLabel');
+      const lblModal = document.getElementById('modalFontScaleLabel');
+      if (lblHeader) lblHeader.textContent = step.pct;
+      if (lblModal) lblModal.textContent = step.pct;
+      try {
+        localforage.setItem('alex2026_v3_report175FontIdx', currentFontScaleIdx);
+      } catch (e) {}
+    }
+
+    function adjustFontSize(delta) {
+      currentFontScaleIdx = Math.max(0, Math.min(FONT_SCALE_STEPS.length - 1, currentFontScaleIdx + delta));
+      applyFontScale();
+      updateUrlAndTracker('Ukuran Font');
+    }
+
+    function resetFontSize() {
+      currentFontScaleIdx = 2; // Standar nyaman 18px (112%)
+      applyFontScale();
+      updateUrlAndTracker('Reset Font');
+    }
+
+    function setTableColumnMode(mode, isSilent = false) {
+      tableColumnMode = mode === 'detailed' ? 'detailed' : 'simple';
+      const btnSimple = document.getElementById('btnColModeSimple');
+      const btnDetailed = document.getElementById('btnColModeDetailed');
+      const headingEl = document.getElementById('tableSectionHeading');
+
+      if (btnSimple && btnDetailed) {
+        if (tableColumnMode === 'simple') {
+          btnSimple.className = 'px-2.5 py-1 rounded-md bg-slate-900 text-amber-400 transition flex items-center gap-1';
+          btnDetailed.className = 'px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition flex items-center gap-1';
+        } else {
+          btnSimple.className = 'px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition flex items-center gap-1';
+          btnDetailed.className = 'px-2.5 py-1 rounded-md bg-slate-900 text-amber-400 transition flex items-center gap-1';
+        }
+      }
+      if (headingEl) {
+        headingEl.textContent = tableColumnMode === 'simple'
+          ? 'Tabel Rincian Submisi Esai Peserta (Mode Ringkas)'
+          : 'Tabel Rincian Submisi Esai Peserta (17 Kolom Lengkap)';
+      }
+      if (!isSilent) {
+        renderTable();
+        updateUrlAndTracker(`Mode Tabel ${tableColumnMode}`);
+      }
+    }
 
     // Cache Memoization agar teks soal yang sama (diulang 186x per modul) hanya di-parse 1x
     const _htmlCleanCache = new Map();
 
     /*************************************************************************
-     * B. SANITASI HTML TINYMCE MOODLE, REKONSTRUKSI TABEL & EKSTRAKSI TEKS
+     * B. MASTER SOAL HTML & SKEMA REKONSTRUKSI TABEL 8 MODUL DIREKTORAT
      *************************************************************************/
+    const MASTER_SOAL_HTML = {
+      PK: `<h3 dir="ltr">Kompetensi yang Dinilai</h3><p dir="ltr">Peserta mampu memahami dan menerapkan prinsip penyusunan Rencana Kerja Tahunan (RKT) di lingkungan Universitas Indonesia melalui identifikasi sasaran, program, kegiatan, indikator kinerja, target, dan keterkaitan dengan Renstra Unit Kerja.</p><p dir="ltr"><strong>Waktu: 15 Menit</strong><br><strong>Bentuk: Esai Terstruktur (1 Soal)</strong></p><hr><h1>SOAL</h1><p dir="ltr">Sebagai seorang Manajer/Kasubdirektorat, Saudara akan menyusun Rencana Kerja Tahunan (RKT) unit kerja untuk tahun anggaran berikutnya.</p><p dir="ltr">Lengkapi tabel berikut dengan menjelaskan norma atau konsep utama yang harus diperhatikan dalam penyusunan RKT.</p><table><thead><tr><th>Komponen RKT</th><th>Jelaskan Fungsi/Norma Penyusunannya</th><th>Output yang Dihasilkan</th><th>Contoh pada Unit Kerja Saudara</th></tr></thead><tbody><tr><td><strong>Sasaran Unit Kerja</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Program Kerja</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Kegiatan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Indikator Kinerja</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Target Tahunan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Anggaran</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Risiko Pelaksanaan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Monitoring dan Evaluasi</strong></td><td>-</td><td>-</td><td>-</td></tr></tbody></table>`,
+      SDMPT: `<h1>Uji Kompetensi Manajemen SDM Tingkat Manajer</h1><h2>Analisis Fungsi Manajemen SDM, Tujuan, dan Output Strategis</h2><h3>Kompetensi yang Diukur</h3><ul><li>Memahami keterkaitan fungsi Manajemen SDM dengan pencapaian sasaran organisasi.</li><li>Mengidentifikasi tujuan strategis setiap fungsi Manajemen SDM.</li><li>Menentukan output yang harus dihasilkan oleh Manajer SDM.</li><li>Menganalisis permasalahan organisasi dan menentukan intervensi Manajemen SDM yang tepat.</li></ul><p>Mengacu pada Peraturan Rektor Universitas Indonesia Nomor 45 Tahun 2025 tentang Manajemen Sumber Daya Manusia Universitas Indonesia.</p><h2>Kasus</h2><ol><li>Dalam 3 tahun mendatang akan terjadi pensiun terhadap 20% pegawai pada jabatan supervisor dan manajerial.</li><li>Hasil evaluasi kinerja menunjukkan 35% pegawai belum mencapai target kinerja unit.</li><li>Fakultas sedang melaksanakan transformasi digital, namun sebagian besar pegawai belum memiliki kompetensi yang memadai.</li><li>Struktur organisasi terakhir dievaluasi lebih dari 5 tahun yang lalu dan terdapat indikasi tumpang tindih fungsi pada beberapa unit.</li><li>Tingkat turnover pegawai non-dosen meningkat dalam dua tahun terakhir.</li><li>Hasil survei menunjukkan persepsi pegawai terhadap sistem penghargaan dan remunerasi belum optimal.</li></ol><h2>Tugas Peserta</h2><p>Lengkapilah tabel berikut.</p><table><thead><tr><th>No</th><th>Permasalahan Strategis</th><th>Fungsi Manajemen SDM yang Relevan</th><th>Tujuan yang Ingin Dicapai</th><th>Output yang Dihasilkan</th></tr></thead><tbody><tr><td>1</td><td><strong>Risiko kekosongan jabatan akibat pensiun</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td>2</td><td><strong>Kinerja pegawai belum mencapai target</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td>3</td><td><strong>Kompetensi digital pegawai belum memadai</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td>4</td><td><strong>Struktur organisasi belum optimal</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td>5</td><td><strong>Turnover pegawai meningkat</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td>6</td><td><strong>Persepsi remunerasi belum optimal</strong></td><td>-</td><td>-</td><td>-</td></tr></tbody></table>`,
+      PBJ: `<p><strong>Penetapan Skema Pengadaan Sesuai PR UI Nomor 20 Tahun 2026</strong></p><p><strong>Kompetensi yang Dinilai:</strong> Peserta mampu menjelaskan norma, kewenangan, ambang batas, dan syarat penggunaan masing-masing skema pengadaan.</p><p><strong>Instruksi:</strong> Lengkapi tabel berikut berdasarkan pemahaman Saudara terhadap ketentuan dalam Peraturan Rektor Universitas Indonesia Nomor 20 Tahun 2026.</p><table><thead><tr><th>Skema Pengadaan</th><th>Definisi/Norma</th><th>Kapan Digunakan</th><th>Ambang Nilai</th><th>Pelaku Utama</th><th>Dokumen Kunci</th><th>Syarat Khusus</th></tr></thead><tbody><tr><td><strong>Pembelian Langsung</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>e-Purchasing</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Pengadaan Langsung</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Tender</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Seleksi</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Swakelola</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Penunjukan Langsung</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr></tbody></table>`,
+      KA: `<h3>Penyusunan dan Pelaporan Keuangan Kegiatan Non-Rutin Unit Kerja Universitas Indonesia</h3><p><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami siklus pertanggungjawaban keuangan kegiatan non-rutin mulai dari perencanaan anggaran, pelaksanaan belanja, pengumpulan bukti transaksi, rekonsiliasi, hingga penyusunan laporan pertanggungjawaban kegiatan.</p><p><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai Terstruktur</strong></p><hr><h1>SOAL</h1><p>Saudara ditugaskan sebagai penanggung jawab administrasi keuangan kegiatan non-rutin di unit kerja Universitas Indonesia, misalnya: Seminar Internasional, Capacity Building Pegawai, Workshop Akreditasi, Pelatihan Pegawai, Konferensi Ilmiah, atau Kegiatan Pengabdian Masyarakat. Lengkapi tabel berikut:</p><table><thead><tr><th>Tahapan Pelaporan Keuangan</th><th>Tujuan</th><th>Dokumen Utama</th><th>Output</th></tr></thead><tbody><tr><td><strong>Perencanaan Anggaran</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Pelaksanaan Kegiatan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Pengumpulan Bukti Transaksi</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Verifikasi dan Rekonsiliasi</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Penyusunan Laporan Keuangan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Pertanggungjawaban Kegiatan</strong></td><td>-</td><td>-</td><td>-</td></tr></tbody></table><h2 class="mt-4 font-extrabold">SOAL LANJUTAN</h2><p>Jelaskan secara singkat fungsi setiap dokumen berikut dalam pelaporan keuangan kegiatan non-rutin:</p><table><thead><tr><th>Dokumen</th><th>Fungsi</th></tr></thead><tbody><tr><td><strong>RAB</strong></td><td>-</td></tr><tr><td><strong>Invoice</strong></td><td>-</td></tr><tr><td><strong>Kwitansi</strong></td><td>-</td></tr><tr><td><strong>BAST</strong></td><td>-</td></tr><tr><td><strong>Daftar Hadir</strong></td><td>-</td></tr><tr><td><strong>Laporan Realisasi Anggaran</strong></td><td>-</td></tr><tr><td><strong>LPJ Kegiatan</strong></td><td>-</td></tr></tbody></table>`,
+      AI: `<h3>Three Lines Model dan Audit Internal Universitas</h3><p><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami peran dan tanggung jawab masing-masing lini pertahanan (Three Lines Model) dalam tata kelola, manajemen risiko, kepatuhan, dan audit internal.</p><p><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai Terstruktur</strong></p><hr><h1>SOAL</h1><p>Lengkapi tabel berikut berdasarkan pemahaman Saudara mengenai Three Lines Model dan fungsi Direktorat Audit Internal, Direktorat Manajemen Risiko dan Penugasan Khusus, serta Unit Kerja Operasional.</p><table><thead><tr><th>Komponen</th><th>Peran Utama</th><th>Tanggung Jawab</th><th>Contoh di Universitas Indonesia</th></tr></thead><tbody><tr><td><strong>First Line (Manajemen Operasional)</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Second Line (Manajemen Risiko &amp; Kepatuhan)</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Third Line (Audit Internal)</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Manajemen Risiko</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Pengendalian Internal</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Assurance</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Konsultasi Audit</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Tindak Lanjut Hasil Audit</strong></td><td>-</td><td>-</td><td>-</td></tr></tbody></table><h2 class="mt-4 font-extrabold">SOAL LANJUTAN</h2><p>Jelaskan secara singkat siapa yang bertanggung jawab pada setiap aktivitas berikut:</p><table><thead><tr><th>Aktivitas</th><th>First Line</th><th>Second Line</th><th>Third Line</th></tr></thead><tbody><tr><td><strong>Pelaksanaan proses bisnis</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Pengelolaan risiko</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Penyusunan kebijakan kepatuhan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Audit kepatuhan</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Evaluasi pengendalian internal</strong></td><td>-</td><td>-</td><td>-</td></tr><tr><td><strong>Monitoring tindak lanjut audit</strong></td><td>-</td><td>-</td><td>-</td></tr></tbody></table>`,
+      PMA: `<h3>Pemahaman PR UI Nomor 33 Tahun 2025 tentang Sistem Penjaminan Mutu Internal (SPMI)</h3><p><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami konsep dasar SPMI UI, siklus PPEPP, standar mutu UI, serta peran unit kerja dalam implementasi mutu berkelanjutan.</p><p><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai Terstruktur</strong></p><hr><h1>SOAL</h1><p>Lengkapi tabel berikut berdasarkan pemahaman Saudara mengenai Sistem Penjaminan Mutu Internal (SPMI) Universitas Indonesia.</p><table><thead><tr><th>Komponen SPMI</th><th>Tujuan/Fungsi</th><th>Output Utama</th></tr></thead><tbody><tr><td><strong>Penetapan Standar</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Pelaksanaan Standar</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Evaluasi Standar</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Pengendalian Standar</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Peningkatan Standar</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Standar Pendidikan</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Standar Penelitian</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Standar Pengabdian kepada Masyarakat</strong></td><td>-</td><td>-</td></tr></tbody></table>`,
+      HK: `<h3>Norma Penyusunan Peraturan Rektor dan Keputusan Rektor Universitas Indonesia</h3><p><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami norma, struktur, fungsi, dan penggunaan dokumen hukum internal Universitas Indonesia (Peraturan Rektor vs Keputusan Rektor).</p><p><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai</strong></p><hr><h1>SOAL</h1><p>Lengkapi tabel berikut dengan menjelaskan norma penyusunan dokumen hukum Universitas Indonesia.</p><table><thead><tr><th>Komponen</th><th>Peraturan Rektor</th><th>Keputusan Rektor</th></tr></thead><tbody><tr><td><strong>Tujuan Dokumen</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Sifat Pengaturan</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Materi Muatan</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Jangka Waktu Berlaku</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Objek yang Diatur</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Dasar Hukum</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Struktur Dokumen</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Contoh Penggunaan</strong></td><td>-</td><td>-</td></tr></tbody></table>`,
+      MRT: `<h3>Manajemen Risiko Universitas Indonesia</h3><p><strong>Kompetensi yang Dinilai:</strong> Peserta mampu memahami prinsip dasar manajemen risiko, identifikasi risiko, analisis risiko, mitigasi risiko, monitoring risiko, dan pelaporan risiko dalam pengelolaan unit kerja universitas.</p><p><strong>Waktu: 15 Menit | Bentuk: 1 Soal Esai Terstruktur</strong></p><hr><h1>SOAL</h1><p>Lengkapi tabel berikut berdasarkan pemahaman Saudara mengenai penerapan Manajemen Risiko di unit kerja.</p><table><thead><tr><th>Komponen Manajemen Risiko</th><th>Tujuan/Fungsi</th><th>Output Utama</th></tr></thead><tbody><tr><td><strong>Identifikasi Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Analisis Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Evaluasi Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Mitigasi Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Kontrol/Pengendalian Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Monitoring Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Pelaporan Risiko</strong></td><td>-</td><td>-</td></tr><tr><td><strong>Tindak Lanjut Risiko</strong></td><td>-</td><td>-</td></tr></tbody></table>`
+    };
+
+    const MODULE_TABLE_SCHEMAS = {
+      PK: [
+        {
+          headers: ['Komponen RKT', 'Jelaskan Fungsi/Norma Penyusunannya', 'Output yang Dihasilkan', 'Contoh pada Unit Kerja Saudara'],
+          headerEndMarker: 'Contoh pada Unit Kerja Saudara',
+          rows: ['Sasaran Unit Kerja', 'Program Kerja', 'Kegiatan', 'Indikator Kinerja', 'Target Tahunan', 'Anggaran', 'Risiko Pelaksanaan', 'Monitoring dan Evaluasi']
+        }
+      ],
+      SDMPT: [
+        {
+          headers: ['Permasalahan Strategis', 'Fungsi Manajemen SDM yang Relevan', 'Tujuan yang Ingin Dicapai', 'Output yang Dihasilkan'],
+          headerEndMarker: 'Output yang Dihasilkan',
+          rows: [
+            'Risiko kekosongan jabatan akibat pensiun',
+            'Kinerja pegawai belum mencapai target',
+            'Kompetensi digital pegawai belum memadai',
+            'Struktur organisasi belum optimal',
+            'Turnover pegawai meningkat',
+            'Persepsi remunerasi belum optimal'
+          ]
+        }
+      ],
+      PBJ: [
+        {
+          headers: ['Skema Pengadaan', 'Definisi/Norma', 'Kapan Digunakan', 'Ambang Nilai', 'Pelaku Utama', 'Dokumen Kunci', 'Syarat Khusus'],
+          headerEndMarker: 'Syarat Khusus',
+          rows: ['Pembelian Langsung', 'e-Purchasing', 'Pengadaan Langsung', 'Tender', 'Seleksi', 'Swakelola', 'Penunjukan Langsung']
+        }
+      ],
+      KA: [
+        {
+          title: 'Tabel 1 — Siklus Pelaporan Keuangan Kegiatan Non-Rutin',
+          headers: ['Tahapan Pelaporan Keuangan', 'Tujuan', 'Dokumen Utama', 'Output'],
+          headerEndMarker: 'Output',
+          rows: ['Perencanaan Anggaran', 'Pelaksanaan Kegiatan', 'Pengumpulan Bukti Transaksi', 'Verifikasi dan Rekonsiliasi', 'Penyusunan Laporan Keuangan', 'Pertanggungjawaban Kegiatan']
+        },
+        {
+          title: 'Tabel 2 — Soal Lanjutan: Fungsi Dokumen Pelaporan Keuangan',
+          headers: ['Dokumen', 'Fungsi'],
+          headerEndMarker: 'Dokumen Fungsi',
+          rows: ['RAB', 'Invoice', 'Kwitansi', 'BAST', 'Daftar Hadir', 'Laporan Realisasi Anggaran', 'LPJ Kegiatan']
+        }
+      ],
+      AI: [
+        {
+          title: 'Tabel 1 — Three Lines Model & Fungsi Audit Internal',
+          headers: ['Komponen', 'Peran Utama', 'Tanggung Jawab', 'Contoh di Universitas Indonesia'],
+          headerEndMarker: 'Contoh di Universitas Indonesia',
+          rows: [
+            'First Line (Manajemen Operasional)',
+            'Second Line (Manajemen Risiko & Kepatuhan)',
+            'Third Line (Audit Internal)',
+            'Manajemen Risiko',
+            'Pengendalian Internal',
+            'Assurance',
+            'Konsultasi Audit',
+            'Tindak Lanjut Hasil Audit'
+          ]
+        },
+        {
+          title: 'Tabel 2 — Soal Lanjutan: Pembagian Tanggung Jawab Aktivitas',
+          headers: ['Aktivitas', 'First Line', 'Second Line', 'Third Line'],
+          headerEndMarker: 'Third Line',
+          rows: [
+            'Pelaksanaan proses bisnis',
+            'Pengelolaan risiko',
+            'Penyusunan kebijakan kepatuhan',
+            'Audit kepatuhan',
+            'Evaluasi pengendalian internal',
+            'Monitoring tindak lanjut audit'
+          ]
+        }
+      ],
+      PMA: [
+        {
+          headers: ['Komponen SPMI', 'Tujuan/Fungsi', 'Output Utama'],
+          headerEndMarker: 'Output Utama',
+          rows: [
+            'Penetapan Standar',
+            'Pelaksanaan Standar',
+            'Evaluasi Standar',
+            'Pengendalian Standar',
+            'Peningkatan Standar',
+            'Standar Pendidikan',
+            'Standar Penelitian',
+            'Standar Pengabdian kepada Masyarakat'
+          ]
+        }
+      ],
+      HK: [
+        {
+          headers: ['Komponen', 'Peraturan Rektor', 'Keputusan Rektor'],
+          headerEndMarker: 'Keputusan Rektor',
+          rows: [
+            'Tujuan Dokumen',
+            'Sifat Pengaturan',
+            'Materi Muatan',
+            'Jangka Waktu Berlaku',
+            'Objek yang Diatur',
+            'Dasar Hukum',
+            'Struktur Dokumen',
+            'Contoh Penggunaan'
+          ]
+        }
+      ],
+      MRT: [
+        {
+          headers: ['Komponen Manajemen Risiko', 'Tujuan/Fungsi', 'Output Utama'],
+          headerEndMarker: 'Output Utama',
+          rows: [
+            'Identifikasi Risiko',
+            'Analisis Risiko',
+            'Evaluasi Risiko',
+            'Mitigasi Risiko',
+            'Kontrol/Pengendalian Risiko',
+            'Monitoring Risiko',
+            'Pelaporan Risiko',
+            'Tindak Lanjut Risiko'
+          ]
+        }
+      ]
+    };
+
     // Decode HTML Entities jika string dari CSV ter-escape (&lt;table&gt; -> <table>)
     function decodeHtmlEntitiesIfNeeded(str) {
       if (!str || typeof str !== 'string') return '';
       let s = str.trim();
-      // Jika mengandung entity HTML tag seperti &lt;table, &lt;p, &lt;tr, &lt;td, &lt;ol, &lt;ul
-      if (/&lt;\s*\/?\s*(table|thead|tbody|tr|td|th|p|div|span|br|ul|ol|li|strong|b|i|em|h[1-6])\b/i.test(s)) {
+      if (s.includes('&lt;') || s.includes('&gt;') || s.includes('&amp;lt;')) {
         const txt = document.createElement('textarea');
         txt.innerHTML = s;
         s = txt.value;
-        // Double decode jika ter-escape 2 lapis
-        if (/&lt;\s*\/?\s*(table|tr|td|p)\b/i.test(s)) {
+        if (s.includes('&lt;') || s.includes('&gt;')) {
           txt.innerHTML = s;
           s = txt.value;
         }
@@ -810,151 +1287,220 @@
 
     // Format penomoran inline "1. ... 2. ... 3. ..." menjadi daftar baris baru yang rapi
     function formatNumberedPointsHtml(text) {
-      if (!text) return '';
-      const escaped = escapeHtml(text.trim());
-      // Pisahkan jika ada pola "1. xxx 2. yyy" di dalam satu sel
-      const parts = escaped.split(/(?=\b[1-9]\.\s+)/g).map(p => p.trim()).filter(Boolean);
-      if (parts.length > 1) {
-        return `<div class="space-y-1">${parts.map(p => `<div class="pl-3 -indent-3">${p}</div>`).join('')}</div>`;
+      if (!text) return '<span class="text-slate-300">-</span>';
+      const escaped = escapeHtml(String(text || '').trim());
+      if (!escaped) return '<span class="text-slate-300">-</span>';
+      if (/(?:^|\s)1\.\s+.+(?:\s+2\.\s+)/.test(escaped)) {
+        const parts = escaped.split(/(?=\b\d+\.\s)/).map(p => p.trim()).filter(Boolean);
+        if (parts.length > 1) {
+          return '<div class="space-y-1">' + parts.map(p => `<div class="leading-relaxed">${p}</div>`).join('') + '</div>';
+        }
       }
-      return escaped.replace(/\n/g, '<br/>');
+      return `<div class="leading-relaxed">${escaped.replace(/\n/g, '<br/>')}</div>`;
     }
 
-    // Skema Kolom & Baris Tabel Esai Terstruktur (Untuk merekonstruksi teks rata jika SQL men-strip tag <table>)
-    const STRUCTURED_ESSAY_SCHEMAS = {
-      PK: {
-        headers: ['Komponen RKT', 'Jelaskan Fungsi/Norma Penyusunannya', 'Output yang Dihasilkan', 'Contoh pada Unit Kerja Saudara'],
-        rows: [
-          'Sasaran Unit Kerja',
-          'Program Kerja',
-          'Kegiatan',
-          'Indikator Kinerja',
-          'Target Tahunan',
-          'Anggaran',
-          'Risiko Pelaksanaan',
-          'Monitoring dan Evaluasi'
-        ]
+    function splitFlattenedRowIntoColumns(rawCellText, targetAdditionalCols) {
+      const cleaned = String(rawCellText || '').trim();
+      if (!cleaned) {
+        return Array(targetAdditionalCols).fill('<span class="text-slate-300 italic">-</span>');
       }
-    };
+      if (targetAdditionalCols <= 1) {
+        return [formatNumberedPointsHtml(cleaned)];
+      }
 
-    // Rekonstruksi teks esai atau soal yang kehilangan tag <table> menjadi tabel HTML utuh
-    function tryReconstructStructuredEssay(flatText, kodeModul, isSoal = false) {
+      if (cleaned.includes(' | ')) {
+        const pipeParts = cleaned.split(' | ').map(s => s.trim()).filter(Boolean);
+        if (pipeParts.length >= targetAdditionalCols) {
+          const cols = pipeParts.slice(0, targetAdditionalCols - 1);
+          cols.push(pipeParts.slice(targetAdditionalCols - 1).join(' | '));
+          return cols.map(c => formatNumberedPointsHtml(c));
+        }
+      }
+
+      // Jika di ujung ada daftar bernomor "1. ... 2. ..." (umum pada PK kolom ke-4)
+      const firstNumMatch = cleaned.match(/\s+(?=1\.\s+)/);
+      if (targetAdditionalCols === 3 && firstNumMatch && firstNumMatch.index > 0) {
+        const beforeExamples = cleaned.slice(0, firstNumMatch.index).trim();
+        const col3 = cleaned.slice(firstNumMatch.index).trim();
+        const sentencesBefore = beforeExamples.split(/(?<=\.)\s+(?=[A-Z0-9])/g).map(s => s.trim()).filter(Boolean);
+        if (sentencesBefore.length >= 2) {
+          return [
+            formatNumberedPointsHtml(sentencesBefore[0]),
+            formatNumberedPointsHtml(sentencesBefore.slice(1).join(' ')),
+            formatNumberedPointsHtml(col3)
+          ];
+        }
+        const words = beforeExamples.split(/\s+/);
+        if (words.length >= 2) {
+          const half = Math.ceil(words.length / 2);
+          return [
+            formatNumberedPointsHtml(words.slice(0, half).join(' ')),
+            formatNumberedPointsHtml(words.slice(half).join(' ')),
+            formatNumberedPointsHtml(col3)
+          ];
+        }
+      }
+
+      // Pisahkan kalimat berdasarkan titik diikuti huruf kapital atau pola daftar
+      const sentences = cleaned
+        .split(/(?<=\.)\s+(?=[A-Z0-9])/g)
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      if (sentences.length >= targetAdditionalCols) {
+        const resultCols = [];
+        const perCol = Math.floor(sentences.length / targetAdditionalCols);
+        let cursor = 0;
+        for (let c = 0; c < targetAdditionalCols; c++) {
+          if (c === targetAdditionalCols - 1) {
+            resultCols.push(formatNumberedPointsHtml(sentences.slice(cursor).join(' ')));
+          } else {
+            const chunk = sentences.slice(cursor, cursor + perCol).join(' ');
+            resultCols.push(formatNumberedPointsHtml(chunk));
+            cursor += perCol;
+          }
+        }
+        return resultCols;
+      }
+
+      return [formatNumberedPointsHtml(cleaned)];
+    }
+
+    function detectModuleFromText(normText, explicitModCode) {
+      if (explicitModCode && MODULE_TABLE_SCHEMAS[explicitModCode]) return explicitModCode;
+      if (normText.includes('Komponen RKT') || normText.includes('Sasaran Unit Kerja')) return 'PK';
+      if (normText.includes('Tahapan Pelaporan Keuangan') || normText.includes('Perencanaan Anggaran')) return 'KA';
+      if (normText.includes('Permasalahan Strategis') || normText.includes('Risiko kekosongan jabatan')) return 'SDMPT';
+      if (normText.includes('Skema Pengadaan') || normText.includes('e-Purchasing')) return 'PBJ';
+      if (normText.includes('First Line') || normText.includes('Assurance')) return 'AI';
+      if (normText.includes('Komponen SPMI') || normText.includes('Penetapan Standar')) return 'PMA';
+      if (normText.includes('Peraturan Rektor') && normText.includes('Sifat Pengaturan')) return 'HK';
+      if (normText.includes('Komponen Manajemen Risiko') || normText.includes('Identifikasi Risiko')) return 'MRT';
+      return null;
+    }
+
+    function reconstructTableBlock(segmentText, schema, isSoal = false) {
+      let bodyText = segmentText;
+      const lastHeaderWord = schema.headers[schema.headers.length - 1];
+      const hdrIdx = bodyText.indexOf(lastHeaderWord);
+      if (hdrIdx !== -1 && hdrIdx < 160) {
+        bodyText = bodyText.slice(hdrIdx + lastHeaderWord.length).trim();
+      }
+
+      const foundPositions = [];
+      let searchFrom = 0;
+
+      schema.rows.forEach(marker => {
+        const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(?:^|\\s|\\b)(?:\\d+\\s+)?(${escapedMarker})\\b`, 'i');
+        const sliceToSearch = bodyText.slice(searchFrom);
+        const match = regex.exec(sliceToSearch);
+        if (match) {
+          const exactMarkerIdx = searchFrom + match.index + match[0].toLowerCase().indexOf(marker.toLowerCase());
+          foundPositions.push({
+            marker,
+            index: exactMarkerIdx,
+            endMarkerIndex: exactMarkerIdx + marker.length
+          });
+          searchFrom = exactMarkerIdx + marker.length;
+        }
+      });
+
+      if (foundPositions.length < 2) return null;
+
+      const targetExtraCols = schema.headers.length - 1;
+
+      const rowsHtml = foundPositions.map((pos, idx) => {
+        const startContent = pos.endMarkerIndex;
+        const endContent = idx + 1 < foundPositions.length ? foundPositions[idx + 1].index : bodyText.length;
+        let rawCellContent = bodyText.slice(startContent, endContent).trim();
+        rawCellContent = rawCellContent.replace(/\s+\d+\s*$/, '').trim();
+
+        if (isSoal || !rawCellContent) {
+          const emptyCols = Array(targetExtraCols).fill('<td class="text-slate-400 italic">-</td>').join('');
+          return `<tr>
+            <td class="font-bold text-slate-900 bg-slate-50/80 w-48">${escapeHtml(pos.marker)}</td>
+            ${emptyCols}
+          </tr>`;
+        }
+
+        const splitCols = splitFlattenedRowIntoColumns(rawCellContent, targetExtraCols);
+        if (splitCols.length === targetExtraCols && targetExtraCols > 1) {
+          return `<tr>
+            <td class="font-bold text-slate-900 bg-amber-50/50 w-48">${escapeHtml(pos.marker)}</td>
+            ${splitCols.map(c => `<td>${c}</td>`).join('')}
+          </tr>`;
+        }
+
+        return `<tr>
+          <td class="font-bold text-slate-900 bg-amber-50/50 w-48">${escapeHtml(pos.marker)}</td>
+          <td colspan="${targetExtraCols}">${splitCols[0]}</td>
+        </tr>`;
+      }).join('');
+
+      return `
+        <div class="mb-4">
+          ${schema.title ? `<div class="text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-1.5">${escapeHtml(schema.title)}</div>` : ''}
+          <table>
+            <thead>
+              <tr>
+                ${schema.headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function tryReconstructStructuredEssay(flatText, kodeModul = '', isSoal = false) {
       if (!flatText || typeof flatText !== 'string') return null;
-      const text = flatText.replace(/\r\n/g, '\n').trim();
+      const norm = flatText.replace(/\r\n/g, '\n').replace(/\s+/g, ' ').trim();
+      const resolvedMod = detectModuleFromText(norm, kodeModul);
 
-      // Cek apakah teks mengandung struktur tabel RKT (Modul PK)
-      const isPkRktPattern =
-        kodeModul === 'PK' ||
-        (text.includes('Komponen RKT') && text.includes('Sasaran Unit Kerja') && text.includes('Program Kerja'));
+      if (resolvedMod && isSoal && MASTER_SOAL_HTML[resolvedMod]) {
+        return MASTER_SOAL_HTML[resolvedMod];
+      }
 
-      if (isPkRktPattern) {
-        const schema = STRUCTURED_ESSAY_SCHEMAS.PK;
-        const headerAnchor = 'Contoh pada Unit Kerja Saudara';
-        const headerIdx = text.indexOf(headerAnchor);
+      if (resolvedMod && MODULE_TABLE_SCHEMAS[resolvedMod]) {
+        const schemas = MODULE_TABLE_SCHEMAS[resolvedMod];
+        const renderedTables = [];
 
-        let introPart = '';
-        let bodyPart = text;
-
-        if (headerIdx !== -1) {
-          const beforeHeader = text.slice(0, headerIdx);
-          const kompIdx = beforeHeader.indexOf('Komponen RKT');
-          if (kompIdx !== -1) {
-            introPart = beforeHeader.slice(0, kompIdx).trim();
+        if (schemas.length === 2) {
+          const splitMarker = schemas[1].headerEndMarker;
+          let splitIdx = norm.indexOf(splitMarker);
+          if (splitIdx === -1 && resolvedMod === 'KA') {
+            const rabMatch = /\bRAB\b/.exec(norm);
+            if (rabMatch && rabMatch.index > 200) splitIdx = rabMatch.index;
           }
-          bodyPart = text.slice(headerIdx + headerAnchor.length).trim();
+          if (splitIdx === -1 && resolvedMod === 'AI') {
+            const actMatch = /Pelaksanaan proses bisnis/i.exec(norm);
+            if (actMatch) splitIdx = actMatch.index;
+          }
+
+          if (splitIdx !== -1) {
+            const part1 = norm.slice(0, splitIdx).trim();
+            const part2 = norm.slice(splitIdx).trim();
+            const t1 = reconstructTableBlock(part1, schemas[0], isSoal);
+            const t2 = reconstructTableBlock(part2, schemas[1], isSoal);
+            if (t1) renderedTables.push(t1);
+            if (t2) renderedTables.push(t2);
+          } else {
+            const t1 = reconstructTableBlock(norm, schemas[0], isSoal);
+            if (t1) renderedTables.push(t1);
+          }
+        } else {
+          const t1 = reconstructTableBlock(norm, schemas[0], isSoal);
+          if (t1) renderedTables.push(t1);
         }
 
-        // Cari posisi setiap baris komponen di dalam bodyPart
-        const foundRows = [];
-        schema.rows.forEach(rowName => {
-          const regex = new RegExp(`\\b${rowName.replace(/\s+/g, '\\s+')}\\b`, 'i');
-          const match = regex.exec(bodyPart);
-          if (match) {
-            foundRows.push({ name: rowName, index: match.index, matchLen: match[0].length });
-          }
-        });
-
-        foundRows.sort((a, b) => a.index - b.index);
-
-        if (foundRows.length >= 3) {
-          let htmlOut = '';
-
-          // Jika ini adalah Soal/Instruksi dan memiliki pengantar kompetensi
-          if (introPart) {
-            const cleanIntro = escapeHtml(introPart)
-              .replace(/(Kompetensi yang Dinilai)/g, '<strong class="text-slate-900 block mb-1">$1:</strong>')
-              .replace(/(Waktu:\s*\d+\s*Menit)/g, '<span class="inline-block px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[11px] my-1 mr-2">$1</span>')
-              .replace(/(Bentuk:\s*[^S]+)(?=SOAL)/g, '<span class="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-bold text-[11px] my-1">$1</span><br/>')
-              .replace(/\b(SOAL)\b/g, '<strong class="text-slate-900 block mt-2 mb-1">$1:</strong>');
-            htmlOut += `<div class="mb-3 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs leading-relaxed">${cleanIntro}</div>`;
-          }
-
-          htmlOut += `<table><thead><tr>${schema.headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>`;
-
-          for (let i = 0; i < foundRows.length; i++) {
-            const current = foundRows[i];
-            const next = foundRows[i + 1];
-            const rawSegment = bodyPart.slice(current.index + current.matchLen, next ? next.index : bodyPart.length).trim();
-
-            if (isSoal && !rawSegment) {
-              htmlOut += `<tr>
-                <td class="font-bold text-slate-900 bg-slate-50/80 w-36">${escapeHtml(current.name)}</td>
-                <td class="text-slate-400 italic">Diisi peserta</td>
-                <td class="text-slate-400 italic">Diisi peserta</td>
-                <td class="text-slate-400 italic">Diisi peserta</td>
-              </tr>`;
-            } else {
-              // Bagi segmen jawaban menjadi 3 kolom (Fungsi/Norma, Output, Contoh) jika memungkinkan
-              let col1 = '', col2 = '', col3 = '';
-              // Pola umum: peserta mengisi nomor "1. ... 2. ..." pada kolom Contoh (kolom ke-4)
-              const firstNumMatch = rawSegment.match(/\s+(?=1\.\s+)/);
-              if (firstNumMatch && firstNumMatch.index > 0) {
-                const beforeExamples = rawSegment.slice(0, firstNumMatch.index).trim();
-                col3 = rawSegment.slice(firstNumMatch.index).trim();
-                const midSplit = beforeExamples.split(/\s{2,}|\t+/);
-                if (midSplit.length >= 2) {
-                  col1 = midSplit[0];
-                  col2 = midSplit.slice(1).join(' ');
-                } else {
-                  const words = beforeExamples.split(/\s+/);
-                  if (words.length >= 2) {
-                    col1 = words[0];
-                    col2 = words.slice(1).join(' ');
-                  } else {
-                    col1 = beforeExamples;
-                  }
-                }
-              } else {
-                const multiSpaceParts = rawSegment.split(/\s{2,}|\t+/).map(s => s.trim()).filter(Boolean);
-                if (multiSpaceParts.length >= 3) {
-                  col1 = multiSpaceParts[0];
-                  col2 = multiSpaceParts[1];
-                  col3 = multiSpaceParts.slice(2).join('\n');
-                } else if (multiSpaceParts.length === 2) {
-                  col1 = multiSpaceParts[0];
-                  col3 = multiSpaceParts[1];
-                } else {
-                  col3 = rawSegment;
-                }
-              }
-
-              htmlOut += `<tr>
-                <td class="font-bold text-slate-900 bg-slate-50/80 w-36">${escapeHtml(current.name)}</td>
-                <td>${col1 ? formatNumberedPointsHtml(col1) : '<span class="text-slate-300">-</span>'}</td>
-                <td>${col2 ? formatNumberedPointsHtml(col2) : '<span class="text-slate-300">-</span>'}</td>
-                <td>${col3 ? formatNumberedPointsHtml(col3) : '<span class="text-slate-300">-</span>'}</td>
-              </tr>`;
-            }
-          }
-
-          htmlOut += `</tbody></table>`;
-          return htmlOut;
+        if (renderedTables.length > 0) {
+          return renderedTables.join('');
         }
       }
 
-      // Jika teks mengandung baris-baris dengan pemisah pipa (|) hasil ekstraksi tabel
-      if (text.includes(' | ')) {
-        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      if (norm.includes(' | ')) {
+        const lines = flatText.replace(/\r\n/g, '\n').split('\n').map(l => l.trim()).filter(Boolean);
         const pipeLines = lines.filter(l => l.includes(' | '));
         if (pipeLines.length >= 2) {
           let tbl = '<table><tbody>';
@@ -977,13 +1523,20 @@
 
     function sanitizeMoodleHtmlForPreview(rawHtml, kodeModul = '', isSoal = false) {
       if (!rawHtml || typeof rawHtml !== 'string' || !rawHtml.trim()) {
+        if (isSoal && kodeModul && MASTER_SOAL_HTML[kodeModul]) {
+          return MASTER_SOAL_HTML[kodeModul];
+        }
         return '<span class="text-slate-400 italic">Kosong / Belum ada isi</span>';
       }
 
-      // 1. Decode jika tag HTML dari TinyMCE ter-escape menjadi &lt;...&gt;
+      // Jika ini panel Soal dan teks dari CSV sudah kehilangan tag <table>, tampilkan Master Soal HTML asli yang utuh
       const decoded = decodeHtmlEntitiesIfNeeded(rawHtml);
+      const hasTableTag = /<\s*table\b/i.test(decoded);
+      if (isSoal && !hasTableTag && kodeModul && MASTER_SOAL_HTML[kodeModul]) {
+        return MASTER_SOAL_HTML[kodeModul];
+      }
 
-      // 2. Cek apakah mengandung elemen HTML nyata dari TinyMCE (<table, <p, <div, <ul, <ol, <br, <strong, dll.)
+      // Cek apakah mengandung elemen HTML nyata dari TinyMCE (<table, <p, <div, <ul, <ol, <br, <strong, dll.)
       const hasRealHtmlTags = /<\s*\/?\s*(table|thead|tbody|tr|td|th|p|div|span|br|ul|ol|li|strong|b|i|em|u|h[1-6])\b[^>]*>/i.test(decoded);
 
       if (hasRealHtmlTags) {
@@ -1158,10 +1711,11 @@
     }
 
     async function initDashboard() {
+      loadFiltersFromUrl();
       // Mulai dari state belum ada data ter-load (0 baris, area di bawah header diarsir & disabled)
       rawMasterData = [];
       filteredData = [];
-      applyFilters();
+      applyFilters(true);
       setDashboardLoadedState(
         false,
         'Menarik Data Live CSV dari Pipeline EMAS3...',
@@ -1238,7 +1792,7 @@
           setSyncBanner(`Pipeline (${idList.join(', ')}) aktif`, 'emerald');
           setDashboardLoadedState(true);
           populateDynamicBatchOptions();
-          applyFilters();
+          applyFilters(true);
         } else {
           setSyncBanner('Pipeline mengembalikan 0 baris', 'rose');
           if (!isDataLoaded) {
@@ -1272,6 +1826,7 @@
     function initAutoSyncTicker() {
       if (autoSyncInterval) clearInterval(autoSyncInterval);
       autoSyncInterval = setInterval(() => {
+        if (!sessionStorage.getItem('alex_auth_token')) return;
         autoSyncRemaining--;
         if (autoSyncRemaining <= 0) {
           const activeEl = document.activeElement;
@@ -1304,7 +1859,7 @@
       if (visEl) visEl.textContent = '🕒 Update: Reset';
       if (rowsEl) rowsEl.textContent = '0';
       setSyncBanner('Cache IndexedDB Report 175 dibersihkan', 'amber');
-      applyFilters();
+      applyFilters(true);
       setDashboardLoadedState(
         false,
         'Cache & Memori Telah Direset',
@@ -1318,7 +1873,8 @@
     function populateDynamicBatchOptions() {
       const sel = document.getElementById('filterBatch');
       if (!sel) return;
-      const currentVal = sel.value;
+      const urlBatch = new URLSearchParams(window.location.search).get('batch');
+      const currentVal = urlBatch || sel.value;
       const batches = Array.from(new Set(rawMasterData.map(r => r.batch).filter(Boolean))).sort();
       if (batches.length === 0) return;
 
@@ -1327,12 +1883,167 @@
         options.push(`<option value="${b}">${b}</option>`);
       });
       sel.innerHTML = options.join('');
-      if (batches.includes(currentVal)) {
+      if (currentVal === 'ALL' || batches.includes(currentVal)) {
         sel.value = currentVal;
       } else if (batches.includes('Batch 2')) {
         sel.value = 'Batch 2';
       } else {
         sel.value = 'ALL';
+      }
+    }
+
+    function quickFilterStatus(statusVal) {
+      const el = document.getElementById('filterStatus');
+      if (!el) return;
+      el.value = el.value === statusVal ? 'ALL' : statusVal;
+      currentPage = 1;
+      applyFilters();
+    }
+
+    function quickFilterPilar(pilarVal) {
+      const el = document.getElementById('filterPilar');
+      const modEl = document.getElementById('filterModul');
+      if (!el) return;
+      el.value = el.value === pilarVal ? 'ALL' : pilarVal;
+      if (modEl && el.value !== 'ALL') {
+        modEl.value = 'ALL';
+      }
+      currentPage = 1;
+      applyFilters();
+    }
+
+    function quickFilterModul(modulCode) {
+      const el = document.getElementById('filterModul');
+      if (!el) return;
+      el.value = el.value === modulCode ? 'ALL' : modulCode;
+      currentPage = 1;
+      applyFilters();
+    }
+
+    function quickFilterModulAndStatus(event, modulCode, statusVal) {
+      if (event) event.stopPropagation();
+      const modEl = document.getElementById('filterModul');
+      const statEl = document.getElementById('filterStatus');
+      if (!modEl || !statEl) return;
+
+      if (modEl.value === modulCode && statEl.value === statusVal) {
+        statEl.value = 'ALL';
+      } else {
+        modEl.value = modulCode;
+        statEl.value = statusVal;
+      }
+      currentPage = 1;
+      applyFilters();
+    }
+
+    function togglePilarDrawer(event, pilarKey) {
+      if (event) event.stopPropagation();
+      pilarCollapsedState[pilarKey] = !pilarCollapsedState[pilarKey];
+      const safeId = pilarKey.replace(/\s+/g, '_');
+      const drawer = document.getElementById(`pilarDrawer_${safeId}`);
+      const mini = document.getElementById(`pilarMini_${safeId}`);
+      const chev = document.getElementById(`pilarChev_${safeId}`);
+      const lbl = document.getElementById(`pilarBtnLbl_${safeId}`);
+
+      const isCollapsed = pilarCollapsedState[pilarKey];
+      if (drawer) drawer.classList.toggle('drawer-open', !isCollapsed);
+      if (mini) mini.classList.toggle('hidden', !isCollapsed);
+      if (chev) chev.classList.toggle('chevron-open', !isCollapsed);
+      if (lbl) lbl.textContent = isCollapsed ? 'Buka Detail Modul' : 'Tutup Detail';
+      updateUrlAndTracker(`Drawer ${pilarKey}`);
+    }
+
+    function resetFilters() {
+      const bEl = document.getElementById('filterBatch');
+      const pEl = document.getElementById('filterPilar');
+      const mEl = document.getElementById('filterModul');
+      const sEl = document.getElementById('filterStatus');
+      const qEl = document.getElementById('searchTable');
+      if (bEl) bEl.value = 'Batch 2';
+      if (pEl) pEl.value = 'ALL';
+      if (mEl) mEl.value = 'ALL';
+      if (sEl) sEl.value = 'ALL';
+      if (qEl) qEl.value = '';
+      currentPage = 1;
+      applyFilters();
+    }
+
+    function onSearchInput() {
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        currentPage = 1;
+        applyFilters(true);
+        updateUrlAndTracker('Cari Peserta');
+      }, 300);
+    }
+
+    function onPageSizeChange() {
+      const val = document.getElementById('pageSizeSelect')?.value || '50';
+      pageSize = val === 'ALL' ? 'ALL' : parseInt(val, 10) || 50;
+      currentPage = 1;
+      renderTable();
+      updateUrlAndTracker(`Baris ${pageSize}`);
+    }
+
+    function goToPage(pageNum) {
+      const totalPages = getTotalPages();
+      currentPage = Math.max(1, Math.min(totalPages, pageNum));
+      renderTable();
+      updateUrlAndTracker(`Hal ${currentPage}`);
+    }
+
+    function changePage(delta) {
+      goToPage(currentPage + delta);
+    }
+
+    function goToLastPage() {
+      goToPage(getTotalPages());
+    }
+
+    function getTotalPages() {
+      if (pageSize === 'ALL' || sortedData.length === 0) return 1;
+      return Math.max(1, Math.ceil(sortedData.length / pageSize));
+    }
+
+    function applyFilters(isSilentInit = false) {
+      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const fPilar = document.getElementById('filterPilar')?.value || 'ALL';
+      const fModul = document.getElementById('filterModul')?.value || 'ALL';
+      const fStatus = document.getElementById('filterStatus')?.value || 'ALL';
+      const q = (document.getElementById('searchTable')?.value || '').trim().toLowerCase();
+
+      filteredData = rawMasterData.filter(r => {
+        if (fBatch !== 'ALL' && r.batch !== fBatch) return false;
+        if (fPilar !== 'ALL' && !r.pilar.includes(fPilar)) return false;
+        if (fModul !== 'ALL' && r.kode_modul !== fModul) return false;
+        if (fStatus !== 'ALL' && r.status_submisi !== fStatus) return false;
+
+        if (q) {
+          const hay = `${r.nama_peserta} ${r.username} ${r.nip} ${r.email} ${r.kode_modul} ${r.id_submisi} ${r._jawaban_text}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      const activeBadge = document.getElementById('activeModulWidgetBadge');
+      if (activeBadge) {
+        if (fModul === 'ALL' && fPilar === 'ALL') {
+          activeBadge.textContent = fStatus === 'ALL' ? 'Semua Pilar & Modul Aktif' : `Semua Modul • Status: ${fStatus}`;
+          activeBadge.className = 'px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-mono font-bold text-[11px]';
+        } else if (fModul === 'ALL' && fPilar !== 'ALL') {
+          activeBadge.textContent = `Filter Pilar: ${fPilar}${fStatus !== 'ALL' ? ' • ' + fStatus : ''}`;
+          activeBadge.className = 'px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-950 border border-indigo-300 font-mono font-extrabold text-[11px]';
+        } else {
+          const info = MODULE_INFO[fModul] || { name: fModul };
+          activeBadge.textContent = `Filter Aktif: ${fModul} (${info.name})${fStatus !== 'ALL' ? ' • ' + fStatus : ''}`;
+          activeBadge.className = 'px-2.5 py-1 rounded-lg bg-amber-100 text-amber-950 border border-amber-300 font-mono font-extrabold text-[11px]';
+        }
+      }
+
+      renderKPIsAndModuleGrid(fBatch, fPilar, fModul, fStatus);
+      renderTable();
+      if (!isSilentInit) {
+        updateUrlAndTracker('Filter Data');
       }
     }
 
@@ -1754,6 +2465,16 @@
         if (chev) chev.classList.add('chevron-open');
         if (btn) btn.className = 'px-3.5 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs transition flex items-center gap-1.5';
       }
+      if (typeof forceOpen !== 'boolean') {
+        updateUrlAndTracker(isTableCollapsed ? 'Tutup Tabel' : 'Buka Tabel');
+      }
+    }
+
+    function resetDefaultSort() {
+      sortState = { key: 'DEFAULT', dir: 'asc' };
+      currentPage = 1;
+      renderTable();
+      updateUrlAndTracker('Default Sort');
     }
 
     function resetDefaultSort() {
@@ -1791,6 +2512,52 @@
       }
       currentPage = 1;
       renderTable();
+      updateUrlAndTracker(`Sort ${key}`);
+    }
+
+    function renderTableHead() {
+      const thead = document.getElementById('essayTableHead');
+      if (!thead) return;
+
+      if (tableColumnMode === 'simple') {
+        thead.innerHTML = `
+          <tr class="font-extrabold text-[11px] uppercase tracking-wider">
+            <th class="p-2.5 text-center w-12">No</th>
+            <th class="p-2.5 text-center min-w-[215px] bg-emerald-50/90 text-emerald-950" data-tippy-content="Buka Popup Jawaban Esai atau Unduh data Excel per peserta (1 baris ini / seluruh 8 modul)">Shortcut Aksi</th>
+            <th onclick="sortBy('batch')" class="sortable-th p-2.5 text-center w-24">Batch<span id="sort_batch" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('kode_modul')" class="sortable-th p-2.5 text-left min-w-[165px]">Modul &amp; Pilar<span id="sort_kode_modul" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('nama_peserta')" class="sortable-th p-2.5 text-left min-w-[220px]">Peserta<span id="sort_nama_peserta" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('status_submisi')" class="sortable-th p-2.5 text-center w-32">Status<span id="sort_status_submisi" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('waktu_submit')" class="sortable-th p-2.5 text-center w-36">Waktu Submit<span id="sort_waktu_submit" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('_jawaban_text')" class="sortable-th p-2.5 text-left min-w-[280px]">Ringkasan Jawaban Esai<span id="sort__jawaban_text" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('nilai_di_emas3')" class="sortable-th p-2.5 text-center w-24">Nilai<span id="sort_nilai_di_emas3" class="text-slate-400 font-normal"> ⇅</span></th>
+          </tr>
+        `;
+      } else {
+        thead.innerHTML = `
+          <tr class="font-extrabold text-[11px] uppercase tracking-wider">
+            <th class="p-2.5 text-center w-12">No</th>
+            <th class="p-2.5 text-center min-w-[215px] bg-emerald-50/90 text-emerald-950" data-tippy-content="Buka Popup Jawaban Esai atau Unduh data Excel per peserta (1 baris ini / seluruh 8 modul)">Shortcut Aksi</th>
+            <th onclick="sortBy('id_submisi')" class="sortable-th p-2.5 text-left w-28">id_submisi<span id="sort_id_submisi" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('batch')" class="sortable-th p-2.5 text-center w-24">batch<span id="sort_batch" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('pilar')" class="sortable-th p-2.5 text-left w-40">pilar<span id="sort_pilar" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('kode_modul')" class="sortable-th p-2.5 text-center w-24">kode_modul<span id="sort_kode_modul" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('modul_direktorat')" class="sortable-th p-2.5 text-left min-w-[170px]">modul_direktorat<span id="sort_modul_direktorat" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('nama_assignment_esai')" class="sortable-th p-2.5 text-left min-w-[180px]">nama_assignment_esai<span id="sort_nama_assignment_esai" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('username')" class="sortable-th p-2.5 text-left w-32">username<span id="sort_username" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('nip')" class="sortable-th p-2.5 text-left w-36">nip<span id="sort_nip" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('nama_peserta')" class="sortable-th p-2.5 text-left min-w-[190px]">nama_peserta<span id="sort_nama_peserta" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('email')" class="sortable-th p-2.5 text-left min-w-[160px]">email<span id="sort_email" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('_soal_text')" class="sortable-th p-2.5 text-left min-w-[190px]">soal_atau_instruksi_esai<span id="sort__soal_text" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('_jawaban_text')" class="sortable-th p-2.5 text-left min-w-[240px]">jawaban_peserta_essay<span id="sort__jawaban_text" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th class="p-2.5 text-center w-28 bg-amber-50/80 text-amber-900" data-tippy-content="Sesuai instruksi: Kolom tetap ada namun dikosongkan otomatis">kunci_jawaban</th>
+            <th onclick="sortBy('status_submisi')" class="sortable-th p-2.5 text-center w-32">status_submisi<span id="sort_status_submisi" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('waktu_submit')" class="sortable-th p-2.5 text-center w-36">waktu_submit<span id="sort_waktu_submit" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('nilai_di_emas3')" class="sortable-th p-2.5 text-center w-28">nilai_di_emas3<span id="sort_nilai_di_emas3" class="text-slate-400 font-normal"> ⇅</span></th>
+            <th onclick="sortBy('target_kelulusan')" class="sortable-th p-2.5 text-center w-36">target_kelulusan<span id="sort_target_kelulusan" class="text-slate-400 font-normal"> ⇅</span></th>
+          </tr>
+        `;
+      }
     }
 
     function updateSortHeaderIndicators() {
@@ -1872,6 +2639,7 @@
       const tbody = document.getElementById('essayTableBody');
       if (!tbody) return;
 
+      renderTableHead();
       updateSortHeaderIndicators();
 
       sortedData = [...filteredData];
@@ -1926,8 +2694,9 @@
 
       renderPaginationControls(totalFiltered, startIdx, endIdx);
 
+      const colSpanCount = tableColumnMode === 'simple' ? 9 : 19;
       if (totalFiltered === 0) {
-        tbody.innerHTML = `<tr><td colspan="19" class="p-8 text-center text-slate-400 font-medium">Tidak ada data yang sesuai dengan filter aktif.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${colSpanCount}" class="p-8 text-center text-slate-400 font-medium">Tidak ada data yang sesuai dengan filter aktif.</td></tr>`;
         return;
       }
 
@@ -1945,25 +2714,63 @@
         const soalPreview = r._soal_text ? escapeHtml(r._soal_text.slice(0, 75)) + '...' : '-';
         const hasJawaban = r._jawaban_text && r._jawaban_text.length > 0;
         const jawabanPreview = hasJawaban
-          ? `<div class="line-clamp-2 text-[11px] text-slate-700">${escapeHtml(r._jawaban_text.slice(0, 120))}</div>`
+          ? `<div class="line-clamp-2 text-[11px] text-slate-700">${escapeHtml(r._jawaban_text.slice(0, 140))}</div>`
           : `<span class="text-slate-300 italic">Belum ada jawaban</span>`;
+
+        const shortcutActionsHtml = `
+          <div class="inline-flex items-center gap-1">
+            <button type="button" onclick="openEssayModal(${absoluteIdx})"
+              title="Buka Popup Jawaban Esai & Soal (${escapeHtml(r.nama_peserta)} - Modul ${escapeHtml(r.kode_modul)})"
+              class="px-2 py-1 rounded bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-[10px] shadow-sm transition flex items-center gap-1">
+              <span>🔍</span><span>Jawaban</span>
+            </button>
+            <button type="button" onclick="exportSingleRowToExcel(${absoluteIdx})"
+              title="Unduh Excel baris ini (${escapeHtml(r.nama_peserta)} - Modul ${escapeHtml(r.kode_modul)})"
+              class="px-1.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] shadow-sm transition">
+              📥 Baris
+            </button>
+            <button type="button" onclick="exportParticipantAllModulesToExcel('${escapeHtml(r.username)}')"
+              title="Unduh Excel seluruh 8 modul milik ${escapeHtml(r.nama_peserta)}"
+              class="px-1.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-[10px] shadow-sm transition">
+              👤 8 Modul
+            </button>
+          </div>
+        `;
+
+        if (tableColumnMode === 'simple') {
+          return `<tr class="hover:bg-amber-50/40 transition">
+            <td class="p-2.5 text-center font-mono text-slate-400">${absoluteIdx + 1}</td>
+            <td class="p-2.5 text-center bg-emerald-50/30">${shortcutActionsHtml}</td>
+            <td class="p-2.5 text-center font-semibold text-slate-700">${escapeHtml(r.batch)}</td>
+            <td class="p-2.5">
+              <div class="flex items-center gap-1.5">
+                <span class="px-2 py-0.5 rounded bg-slate-900 text-amber-400 font-mono font-extrabold text-[11px]">${escapeHtml(r.kode_modul)}</span>
+                <span class="text-[11px] font-bold text-slate-800 truncate max-w-[160px]" title="${escapeHtml(r.modul_direktorat)}">${escapeHtml(r.modul_direktorat)}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(r.pilar)}</div>
+            </td>
+            <td class="p-2.5">
+              <div class="font-bold text-slate-900">${escapeHtml(r.nama_peserta)}</div>
+              <div class="text-[11px] font-mono text-slate-400">${escapeHtml(r.username)}${r.nip && r.nip !== '-' ? ' • ' + escapeHtml(r.nip) : ''}</div>
+            </td>
+            <td class="p-2.5 text-center">${statusBadge}</td>
+            <td class="p-2.5 text-center font-mono text-[11px] text-slate-600">${escapeHtml(r.waktu_submit || '-')}</td>
+            <td class="p-2.5">
+              <div class="flex items-start justify-between gap-2">
+                ${jawabanPreview}
+                <button type="button" onclick="openEssayModal(${absoluteIdx})"
+                  class="shrink-0 px-2 py-1 rounded bg-amber-100 hover:bg-amber-400 text-amber-950 font-bold text-[10px] transition">
+                  🔍 Tabel
+                </button>
+              </div>
+            </td>
+            <td class="p-2.5 text-center font-mono font-bold text-slate-700">${escapeHtml(r.nilai_di_emas3 || '-')}</td>
+          </tr>`;
+        }
 
         return `<tr class="hover:bg-amber-50/40 transition">
           <td class="p-2 text-center font-mono text-slate-400">${absoluteIdx + 1}</td>
-          <td class="p-2 text-center bg-emerald-50/30">
-            <div class="inline-flex items-center gap-1">
-              <button type="button" onclick="exportSingleRowToExcel(${absoluteIdx})"
-                title="Unduh Excel baris ini (${escapeHtml(r.nama_peserta)} - Modul ${escapeHtml(r.kode_modul)})"
-                class="px-1.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] shadow-sm transition">
-                📥 Baris
-              </button>
-              <button type="button" onclick="exportParticipantAllModulesToExcel('${escapeHtml(r.username)}')"
-                title="Unduh Excel seluruh 8 modul milik ${escapeHtml(r.nama_peserta)}"
-                class="px-1.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-[10px] shadow-sm transition">
-                👤 8 Modul
-              </button>
-            </div>
-          </td>
+          <td class="p-2 text-center bg-emerald-50/30">${shortcutActionsHtml}</td>
           <td class="p-2 font-mono text-[11px] text-slate-600">${escapeHtml(r.id_submisi)}</td>
           <td class="p-2 text-center font-semibold">${escapeHtml(r.batch)}</td>
           <td class="p-2 text-[11px] text-slate-600">${escapeHtml(r.pilar)}</td>
@@ -2085,16 +2892,145 @@
       activeModalRow = null;
     }
 
-    function copyActiveEssayAnswer() {
-      if (!activeModalRow) return;
-      const text = activeModalRow._jawaban_text || 'Belum ada jawaban';
+    function copyTextToClipboard(text, successLabel = 'Tersalin!') {
       const ta = document.createElement('textarea');
       ta.value = text;
       document.body.appendChild(ta);
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
-      setSyncBanner('Teks jawaban peserta disalin!', 'emerald');
+      setSyncBanner(successLabel, 'emerald');
+    }
+
+    function copyActiveEssayAnswer() {
+      if (!activeModalRow) return;
+      const text = activeModalRow._jawaban_text || 'Belum ada jawaban';
+      copyTextToClipboard(text, 'Teks jawaban peserta disalin!');
+    }
+
+    function copyPermalink() {
+      updateUrlAndTracker('Salin Permalink');
+      copyTextToClipboard(window.location.href, 'Permalink tersalin ke clipboard!');
+      const txt = document.getElementById('permalinkText');
+      if (txt) {
+        txt.textContent = 'Tersalin!';
+        setTimeout(() => { txt.textContent = 'Salin Permalink'; }, 1800);
+      }
+    }
+
+    function updateUrlAndTracker(actionName) {
+      if (!currentLoggedUser) return;
+
+      const fBatch = document.getElementById('filterBatch')?.value || 'Batch 2';
+      const fPilar = document.getElementById('filterPilar')?.value || 'ALL';
+      const fModul = document.getElementById('filterModul')?.value || 'ALL';
+      const fStatus = document.getElementById('filterStatus')?.value || 'ALL';
+      const searchVal = (document.getElementById('searchTable')?.value || '').trim();
+
+      const params = new URLSearchParams();
+      params.set('user', currentLoggedUser);
+      params.set('cols', tableColumnMode);
+      params.set('batch', fBatch);
+      if (fPilar !== 'ALL') params.set('pilar', fPilar);
+      if (fModul !== 'ALL') params.set('modul', fModul);
+      if (fStatus !== 'ALL') params.set('status', fStatus);
+      if (searchVal) params.set('q', searchVal);
+      if (currentPage > 1) params.set('page', String(currentPage));
+      if (pageSize !== 50) params.set('psize', String(pageSize));
+      if (!isTableCollapsed) params.set('tbl', 'open');
+      if (pilarCollapsedState['Pilar I'] === false) params.set('p1', 'open');
+      if (pilarCollapsedState['Pilar II'] === false) params.set('p2', 'open');
+      if (currentFontScaleIdx !== 2) params.set('font', String(currentFontScaleIdx));
+      if (actionName) params.set('action', actionName);
+
+      const titleParts = ['Assignment Exporter', fBatch];
+      if (fPilar !== 'ALL') titleParts.push(fPilar);
+      if (fModul !== 'ALL') titleParts.push(fModul);
+      if (fStatus !== 'ALL') titleParts.push(fStatus);
+      if (actionName) titleParts.push(actionName);
+      titleParts.push(`[${currentLoggedUser.toUpperCase()}]`);
+      const newTitle = titleParts.join(' >> ');
+      document.title = newTitle;
+
+      const newPath = window.location.pathname + '?' + params.toString();
+      try {
+        if (window.location.protocol !== 'blob:' && window.location.protocol !== 'data:' && window.location.href !== 'about:srcdoc') {
+          if (newPath !== lastTrackedPath) {
+            window.history.pushState({ path: newPath }, newTitle, newPath);
+          } else {
+            window.history.replaceState({ path: newPath }, newTitle, newPath);
+          }
+        }
+      } catch (histErr) {}
+
+      try {
+        if (typeof window.gtag === 'function') {
+          window.gtag('config', 'G-FK620QSKYN', {
+            page_title: newTitle,
+            page_location: window.location.href,
+            page_path: newPath
+          });
+          window.gtag('event', 'page_view', {
+            page_title: newTitle,
+            page_location: window.location.href,
+            page_path: newPath,
+            page_referrer: lastTrackedUrl
+          });
+        }
+      } catch (gaErr) {}
+
+      try {
+        if (window.Histats && typeof window.Histats.track_hits === 'function') {
+          window.Histats.track_hits();
+        } else if (window._Hasync && Array.isArray(window._Hasync)) {
+          window._Hasync.push(['Histats.track_hits', '']);
+        }
+      } catch (hsErr) {}
+
+      lastTrackedUrl = window.location.href;
+      lastTrackedPath = newPath;
+    }
+
+    function loadFiltersFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const setVal = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+
+      if (params.has('cols')) {
+        const c = params.get('cols');
+        setTableColumnMode(c === 'detailed' ? 'detailed' : 'simple', true);
+      } else {
+        setTableColumnMode('simple', true);
+      }
+      if (params.has('batch')) setVal('filterBatch', params.get('batch'));
+      if (params.has('pilar')) setVal('filterPilar', params.get('pilar'));
+      if (params.has('modul')) setVal('filterModul', params.get('modul'));
+      if (params.has('status')) setVal('filterStatus', params.get('status'));
+      if (params.has('q')) setVal('searchTable', params.get('q'));
+      if (params.has('psize')) {
+        const ps = params.get('psize');
+        setVal('pageSizeSelect', ps);
+        pageSize = ps === 'ALL' ? 'ALL' : (parseInt(ps, 10) || 50);
+      }
+      if (params.has('page')) {
+        const pg = parseInt(params.get('page'), 10);
+        if (!isNaN(pg) && pg >= 1) currentPage = pg;
+      }
+      if (params.get('tbl') === 'open') {
+        toggleTableCollapse(true);
+      }
+      if (params.get('p1') === 'open') {
+        pilarCollapsedState['Pilar I'] = false;
+      }
+      if (params.get('p2') === 'open') {
+        pilarCollapsedState['Pilar II'] = false;
+      }
+      if (params.has('font')) {
+        const fIdx = parseInt(params.get('font'), 10);
+        if (!isNaN(fIdx) && fIdx >= 0 && fIdx < FONT_SCALE_STEPS.length) {
+          currentFontScaleIdx = fIdx;
+          applyFontScale();
+        }
+      }
     }
 
     function formatRowsForSheet(sourceRows, stripHtml = true) {
@@ -2274,9 +3210,21 @@
       e.preventDefault();
     });
 
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('popstate', () => {
+      loadFiltersFromUrl();
+      applyFilters(true);
+    });
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const savedIdx = await localforage.getItem('alex2026_v3_report175FontIdx');
+        if (typeof savedIdx === 'number' && savedIdx >= 0 && savedIdx < FONT_SCALE_STEPS.length) {
+          currentFontScaleIdx = savedIdx;
+        }
+      } catch (e) {}
+      applyFontScale();
       initTippyTooltips();
-      initDashboard();
+      checkAuthSession();
     });
   </script>
 </body>
