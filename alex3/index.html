@@ -1688,10 +1688,15 @@
               </div>
             </div>
             <div class="text-right font-mono">
-              <span id="awardBatchBadge" class="px-3 py-1 rounded-full bg-slate-900 text-amber-400 text-xs font-bold">
-                Batch 2
-              </span>
-              <div class="text-[10px] text-slate-500 mt-1">UI ALEX 2026 Hall of Fame</div>
+              <div class="inline-flex flex-wrap items-center justify-end gap-1.5">
+                <span id="awardScopeBadge" class="hidden px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-extrabold">
+                  Semua Modul
+                </span>
+                <span id="awardBatchBadge" class="px-3 py-1 rounded-full bg-slate-900 text-amber-400 text-xs font-bold">
+                  Batch 2
+                </span>
+              </div>
+              <div id="awardFilterSummaryText" class="text-[10px] text-slate-500 mt-1">UI ALEX 2026 Hall of Fame</div>
             </div>
           </div>
 
@@ -3120,6 +3125,115 @@
       }
 
       return map;
+    }
+
+    /**
+     * Menghitung metrik peserta secara dinamis mengikuti filter atas (Pilar & Modul)
+     * khusus untuk kalkulasi peringkat objektif di Studio Hall of Fame & Awards.
+     */
+    function computeScopedAwardEntry(u, fPilar, fModul) {
+      const userKkm = u.kkm || getBatchKkm(u.batch);
+      let activeModKeys = [...MODULE_KEYS];
+      if (fModul !== 'ALL' && MODULE_KEYS.includes(fModul)) {
+        activeModKeys = [fModul];
+      } else if (fPilar === 'Pilar 1') {
+        activeModKeys = ['PK', 'SDMPT', 'PBJ', 'KA'];
+      } else if (fPilar === 'Pilar 2') {
+        activeModKeys = ['AI', 'PMA', 'HK', 'MRT'];
+      }
+
+      const maxSlots = activeModKeys.length;
+      const scores = activeModKeys.map(k => u.modules[k]).filter(v => v !== null && v !== undefined);
+      const s_attempted_post = scores.length;
+      const s_passed_post = scores.filter(v => v >= userKkm).length;
+      const s_post_avg = s_attempted_post > 0
+        ? Number((scores.reduce((a, b) => a + b, 0) / s_attempted_post).toFixed(1))
+        : 0;
+
+      // Hitung attempt, durasi, dan waktu submit khusus untuk modul yang masuk dalam cakupan filter
+      let s_post_attempts = 0;
+      let s_post_durasi = 0;
+      let s_last_post_submit = null;
+
+      for (const row of u.logs) {
+        if (String(row.tipe_asesmen || '') !== 'Post-test') continue;
+        const mCode = resolveModuleCode(row.modul_direktorat, row.nama_kuis, row.course_id, row.pilar);
+        if (mCode && activeModKeys.includes(mCode)) {
+          s_post_attempts += Math.max(1, Number(row.jumlah_attempt ?? 1));
+          s_post_durasi += Number(row.durasi_pengerjaan_menit ?? 0);
+          const sub = row.waktu_submit;
+          if (sub && sub !== '-' && (!s_last_post_submit || sub > s_last_post_submit)) {
+            s_last_post_submit = sub;
+          }
+        }
+      }
+      s_post_durasi = Number(s_post_durasi.toFixed(1));
+
+      // Hitung Pre-Test, Completion, dan Readiness sesuai cakupan Pilar (atau Pilar dari Modul terpilih)
+      const effectivePilar = (fModul !== 'ALL' && MODULE_META[fModul]) ? MODULE_META[fModul].pilar : fPilar;
+      let s_comp = u.comp_total;
+      let s_pre_avg = u.pre_avg;
+      let s_pre_cnt = (u.pre_p1 !== null ? 1 : 0) + (u.pre_p2 !== null ? 1 : 0);
+      let s_readiness = u.readiness_score;
+      let s_first_pre_submit = u.first_pre_submit || u.first_submit;
+      let s_last_pre_submit = u.last_pre_submit || u.first_pre_submit;
+      let s_pre_durasi = u.total_pre_durasi || 0;
+
+      if (effectivePilar === 'Pilar 1') {
+        s_comp = u.progress_p1;
+        s_pre_avg = u.pre_p1;
+        s_pre_cnt = u.pre_p1 !== null ? 1 : 0;
+        s_readiness = Number(((0.8 * u.progress_p1) + (0.2 * (u.pre_p1 ?? 0))).toFixed(1));
+      } else if (effectivePilar === 'Pilar 2') {
+        s_comp = u.progress_p2;
+        s_pre_avg = u.pre_p2;
+        s_pre_cnt = u.pre_p2 !== null ? 1 : 0;
+        s_readiness = Number(((0.8 * u.progress_p2) + (0.2 * (u.pre_p2 ?? 0))).toFixed(1));
+      }
+
+      if (effectivePilar === 'Pilar 1' || effectivePilar === 'Pilar 2') {
+        let pDur = 0;
+        let pFirst = null;
+        let pLast = null;
+        for (const row of u.logs) {
+          if (String(row.tipe_asesmen || '') !== 'Pre-test') continue;
+          const isP1 = String(row.course_id) === '99544' || String(row.pilar || '').includes('Pilar 1');
+          if ((effectivePilar === 'Pilar 1' && isP1) || (effectivePilar === 'Pilar 2' && !isP1)) {
+            pDur += Number(row.durasi_pengerjaan_menit ?? 0);
+            const sub = row.waktu_submit;
+            if (sub && sub !== '-') {
+              if (!pFirst || sub < pFirst) pFirst = sub;
+              if (!pLast || sub > pLast) pLast = sub;
+            }
+          }
+        }
+        s_pre_durasi = Number(pDur.toFixed(1));
+        s_first_pre_submit = pFirst;
+        s_last_pre_submit = pLast;
+      }
+
+      const s_hake_gain = s_attempted_post > 0 && s_pre_avg !== null
+        ? calculateHakeGain(s_pre_avg, s_post_avg)
+        : null;
+
+      return {
+        ...u,
+        s_max_slots: maxSlots,
+        s_attempted_post,
+        s_passed_post,
+        s_post_avg,
+        s_post_attempts,
+        s_post_durasi,
+        s_last_post_submit,
+        s_comp,
+        s_pre_avg,
+        s_pre_cnt,
+        s_readiness,
+        s_first_pre_submit,
+        s_last_pre_submit,
+        s_pre_durasi,
+        s_hake_gain
+      };
     }
 
     /*************************************************************************
@@ -4943,103 +5057,121 @@
     }
 
     function tieBreakPostTest(a, b) {
-      return (b.attempted_post - a.attempted_post)
-        || (b.passed_post - a.passed_post)
-        || comparePositiveAsc(a.total_post_attempts, b.total_post_attempts)
-        || comparePositiveAsc(a.total_post_durasi, b.total_post_durasi)
-        || compareTimestampAsc(a.last_post_submit, b.last_post_submit)
-        || (b.readiness_score - a.readiness_score)
+      const aAtt = a.s_attempted_post ?? a.attempted_post;
+      const bAtt = b.s_attempted_post ?? b.attempted_post;
+      const aPass = a.s_passed_post ?? a.passed_post;
+      const bPass = b.s_passed_post ?? b.passed_post;
+      const aTries = a.s_post_attempts ?? a.total_post_attempts;
+      const bTries = b.s_post_attempts ?? b.total_post_attempts;
+      const aDur = a.s_post_durasi ?? a.total_post_durasi;
+      const bDur = b.s_post_durasi ?? b.total_post_durasi;
+      const aSub = a.s_last_post_submit !== undefined ? a.s_last_post_submit : a.last_post_submit;
+      const bSub = b.s_last_post_submit !== undefined ? b.s_last_post_submit : b.last_post_submit;
+      const aReady = a.s_readiness ?? a.readiness_score;
+      const bReady = b.s_readiness ?? b.readiness_score;
+
+      return (bAtt - aAtt)
+        || (bPass - aPass)
+        || comparePositiveAsc(aTries, bTries)
+        || comparePositiveAsc(aDur, bDur)
+        || compareTimestampAsc(aSub, bSub)
+        || (bReady - aReady)
         || a.nama_peserta.localeCompare(b.nama_peserta, 'id');
     }
 
     function tieBreakPreTest(a, b) {
-      const aPreCnt = (a.pre_p1 !== null ? 1 : 0) + (a.pre_p2 !== null ? 1 : 0);
-      const bPreCnt = (b.pre_p1 !== null ? 1 : 0) + (b.pre_p2 !== null ? 1 : 0);
+      const aPreCnt = a.s_pre_cnt !== undefined ? a.s_pre_cnt : ((a.pre_p1 !== null ? 1 : 0) + (a.pre_p2 !== null ? 1 : 0));
+      const bPreCnt = b.s_pre_cnt !== undefined ? b.s_pre_cnt : ((b.pre_p1 !== null ? 1 : 0) + (b.pre_p2 !== null ? 1 : 0));
+      const aDur = a.s_pre_durasi !== undefined ? a.s_pre_durasi : a.total_pre_durasi;
+      const bDur = b.s_pre_durasi !== undefined ? b.s_pre_durasi : b.total_pre_durasi;
+      const aSub = a.s_last_pre_submit !== undefined ? a.s_last_pre_submit : (a.last_pre_submit || a.first_pre_submit);
+      const bSub = b.s_last_pre_submit !== undefined ? b.s_last_pre_submit : (b.last_pre_submit || b.first_pre_submit);
+      const aComp = a.s_comp !== undefined ? a.s_comp : a.comp_total;
+      const bComp = b.s_comp !== undefined ? b.s_comp : b.comp_total;
+
       return (bPreCnt - aPreCnt)
-        || comparePositiveAsc(a.total_pre_durasi, b.total_pre_durasi)
-        || compareTimestampAsc(a.last_pre_submit || a.first_pre_submit, b.last_pre_submit || b.first_pre_submit)
-        || (b.comp_total - a.comp_total)
+        || comparePositiveAsc(aDur, bDur)
+        || compareTimestampAsc(aSub, bSub)
+        || (bComp - aComp)
         || a.nama_peserta.localeCompare(b.nama_peserta, 'id');
     }
 
     const AWARDS_CATALOG = [
       {
         id: 'grand_luminary',
-        title: 'Nilai Rata-Rata Uji Kompetensi / Post-Test Tertinggi (8 Modul)',
-        subtitle: 'Peserta dengan capaian nilai evaluasi akhir (Uji Kompetensi / Post-Test) tertinggi lintas 8 modul pelatihan',
+        title: 'Nilai Rata-Rata Uji Kompetensi / Post-Test Tertinggi',
+        subtitle: 'Peserta dengan capaian nilai evaluasi akhir (Uji Kompetensi / Post-Test) tertinggi pada cakupan modul terpilih',
         criteria: 'Kriteria: Rerata Uji Kompetensi → Jml Modul → Attempt Terkecil → Durasi Tercepat → Waktu Submit',
-        filterFn: u => u.attempted_post > 0,
-        emptyMsg: 'Belum ada peserta pada kelompok/filter ini yang mengerjakan Uji Kompetensi / Post-Test.',
-        metricFn: u => `${u.post_total_avg.toFixed(1)} Poin (${u.attempted_post}/8 Modul)`,
-        tieBreakerFn: u => `${u.total_post_attempts || u.attempted_post}x Attempt • Durasi ${u.total_post_durasi.toFixed(1)}m • Submit ${u.last_post_submit || '-'}`,
-        sortFn: (a, b) => (b.post_total_avg - a.post_total_avg) || tieBreakPostTest(a, b)
+        filterFn: u => u.s_attempted_post > 0,
+        emptyMsg: 'Belum ada peserta pada cakupan filter ini yang mengerjakan Uji Kompetensi / Post-Test.',
+        metricFn: u => `${u.s_post_avg.toFixed(1)} Poin (${u.s_attempted_post}/${u.s_max_slots} Modul)`,
+        tieBreakerFn: u => `${u.s_post_attempts || u.s_attempted_post}x Attempt • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'}`,
+        sortFn: (a, b) => (b.s_post_avg - a.s_post_avg) || tieBreakPostTest(a, b)
       },
       {
         id: 'prime_mover',
         title: 'Penyelesaian Asesmen Awal / Pre-Test Tercepat',
         subtitle: 'Peserta yang paling awal menyelesaikan dan mengirimkan (submit) Asesmen Awal / Pre-Test di LMS EMAS3',
         criteria: 'Kriteria: Timestamp Submit Asesmen Awal Paling Awal → Durasi Kuis Tercepat → Skor Awal Tertinggi',
-        filterFn: u => Boolean(u.first_pre_submit || (u.pre_avg !== null && u.first_submit)),
-        emptyMsg: 'Belum ada data waktu penyelesaian Asesmen Awal / Pre-Test pada kelompok ini.',
-        metricFn: u => u.first_pre_submit || u.first_submit || '-',
-        tieBreakerFn: u => `Skor Awal ${(u.pre_avg || 0).toFixed(1)} • Durasi ${u.total_pre_durasi.toFixed(1)}m • Comp ${u.comp_total.toFixed(1)}%`,
+        filterFn: u => Boolean(u.s_first_pre_submit && u.s_pre_avg !== null),
+        emptyMsg: 'Belum ada data waktu penyelesaian Asesmen Awal / Pre-Test pada cakupan filter ini.',
+        metricFn: u => u.s_first_pre_submit || '-',
+        tieBreakerFn: u => `Skor Awal ${(u.s_pre_avg || 0).toFixed(1)} • Durasi ${u.s_pre_durasi.toFixed(1)}m • Comp ${u.s_comp.toFixed(1)}%`,
         sortFn: (a, b) => {
-          const sa = a.first_pre_submit || a.first_submit;
-          const sb = b.first_pre_submit || b.first_submit;
-          return compareTimestampAsc(sa, sb)
-            || comparePositiveAsc(a.total_pre_durasi, b.total_pre_durasi)
-            || ((b.pre_avg || 0) - (a.pre_avg || 0))
-            || (b.readiness_score - a.readiness_score);
+          return compareTimestampAsc(a.s_first_pre_submit, b.s_first_pre_submit)
+            || comparePositiveAsc(a.s_pre_durasi, b.s_pre_durasi)
+            || ((b.s_pre_avg || 0) - (a.s_pre_avg || 0))
+            || (b.s_readiness - a.s_readiness);
         }
       },
       {
         id: 'pace_setter',
         title: 'Indeks Kesiapan Belajar Tertinggi',
         subtitle: 'Peserta dengan skor kesiapan belajar terbaik (gabungan progres materi mandiri & nilai Asesmen Awal / Pre-Test)',
-        criteria: 'Kriteria: Indeks Kesiapan (40:40:10:10) → Completion (%) → Rerata Awal → Waktu Submit Awal Tercepat',
-        filterFn: u => u.readiness_score > 0,
-        emptyMsg: 'Belum ada peserta dengan progres kesiapan belajar pada kelompok ini.',
-        metricFn: u => `Kesiapan: ${u.readiness_score.toFixed(1)}`,
-        tieBreakerFn: u => `Comp ${u.comp_total.toFixed(1)}% • Skor Awal ${(u.pre_avg || 0).toFixed(1)} • Submit ${u.first_pre_submit || '-'}`,
-        sortFn: (a, b) => (b.readiness_score - a.readiness_score)
-          || (b.comp_total - a.comp_total)
-          || ((b.pre_avg || 0) - (a.pre_avg || 0))
+        criteria: 'Kriteria: Indeks Kesiapan → Completion (%) → Rerata Awal → Waktu Submit Awal Tercepat',
+        filterFn: u => u.s_readiness > 0,
+        emptyMsg: 'Belum ada peserta dengan progres kesiapan belajar pada cakupan filter ini.',
+        metricFn: u => `Kesiapan: ${u.s_readiness.toFixed(1)}`,
+        tieBreakerFn: u => `Comp ${u.s_comp.toFixed(1)}% • Skor Awal ${(u.s_pre_avg || 0).toFixed(1)} • Submit ${u.s_first_pre_submit || '-'}`,
+        sortFn: (a, b) => (b.s_readiness - a.s_readiness)
+          || (b.s_comp - a.s_comp)
+          || ((b.s_pre_avg || 0) - (a.s_pre_avg || 0))
           || tieBreakPreTest(a, b)
       },
       {
         id: 'completion_master',
         title: 'Progres Penyelesaian Materi (Completion) Tertinggi',
-        subtitle: 'Peserta dengan persentase ketuntasan aktivitas belajar mandiri tertinggi di Pilar I & Pilar II',
+        subtitle: 'Peserta dengan persentase ketuntasan aktivitas belajar mandiri tertinggi pada cakupan kursus terpilih',
         criteria: 'Kriteria: Rerata Completion (%) → Indeks Kesiapan → Skor Awal → Waktu Submit Awal Tercepat',
-        filterFn: u => u.comp_total > 0,
-        emptyMsg: 'Belum ada peserta dengan progres penyelesaian materi mandiri pada kelompok ini.',
-        metricFn: u => `Completion: ${u.comp_total.toFixed(1)}%`,
-        tieBreakerFn: u => `Kesiapan ${u.readiness_score.toFixed(1)} • Skor Awal ${(u.pre_avg || 0).toFixed(1)} • Submit ${u.first_pre_submit || '-'}`,
-        sortFn: (a, b) => (b.comp_total - a.comp_total)
-          || (b.readiness_score - a.readiness_score)
-          || ((b.pre_avg || 0) - (a.pre_avg || 0))
+        filterFn: u => u.s_comp > 0,
+        emptyMsg: 'Belum ada peserta dengan progres penyelesaian materi mandiri pada cakupan filter ini.',
+        metricFn: u => `Completion: ${u.s_comp.toFixed(1)}%`,
+        tieBreakerFn: u => `Kesiapan ${u.s_readiness.toFixed(1)} • Skor Awal ${(u.s_pre_avg || 0).toFixed(1)} • Submit ${u.s_first_pre_submit || '-'}`,
+        sortFn: (a, b) => (b.s_comp - a.s_comp)
+          || (b.s_readiness - a.s_readiness)
+          || ((b.s_pre_avg || 0) - (a.s_pre_avg || 0))
           || tieBreakPreTest(a, b)
       },
       {
         id: 'diagnostic_ace',
         title: 'Nilai Rata-Rata Asesmen Awal / Pre-Test Tertinggi',
         subtitle: 'Peserta dengan penguasaan pengetahuan awal terbaik sebelum mengikuti materi pelatihan',
-        criteria: 'Kriteria: Rerata Asesmen Awal → Lengkap 2 Pilar → Durasi Kuis Tercepat → Waktu Submit Awal Tercepat',
-        filterFn: u => u.pre_avg !== null && u.pre_avg > 0,
-        emptyMsg: 'Belum ada peserta yang menyelesaikan Asesmen Awal / Pre-Test pada kelompok ini.',
-        metricFn: u => `Skor Awal: ${(u.pre_avg || 0).toFixed(1)}`,
-        tieBreakerFn: u => `P1: ${u.pre_p1 ?? '-'} | P2: ${u.pre_p2 ?? '-'} • Durasi ${u.total_pre_durasi.toFixed(1)}m • Submit ${u.last_pre_submit || u.first_pre_submit || '-'}`,
-        sortFn: (a, b) => ((b.pre_avg || 0) - (a.pre_avg || 0)) || tieBreakPreTest(a, b)
+        criteria: 'Kriteria: Rerata Asesmen Awal → Kelengkapan Pilar → Durasi Kuis Tercepat → Waktu Submit Awal Tercepat',
+        filterFn: u => u.s_pre_avg !== null && u.s_pre_avg > 0,
+        emptyMsg: 'Belum ada peserta yang menyelesaikan Asesmen Awal / Pre-Test pada cakupan filter ini.',
+        metricFn: u => `Skor Awal: ${(u.s_pre_avg || 0).toFixed(1)}`,
+        tieBreakerFn: u => `P1: ${u.pre_p1 ?? '-'} | P2: ${u.pre_p2 ?? '-'} • Durasi ${u.s_pre_durasi.toFixed(1)}m • Submit ${u.s_last_pre_submit || '-'}`,
+        sortFn: (a, b) => ((b.s_pre_avg || 0) - (a.s_pre_avg || 0)) || tieBreakPreTest(a, b)
       },
       {
         id: 'strategic_master',
         title: 'Capaian Uji Kompetensi Terbaik Pilar I (Manajemen & Operasional)',
-        subtitle: 'Peserta dengan nilai rata-rata Uji Kompetensi / Post-Test tertinggi pada 4 modul Pilar I (PK, SDMPT, PBJ, KA)',
+        subtitle: 'Peserta dengan nilai rata-rata Uji Kompetensi / Post-Test tertinggi pada modul Pilar I (PK, SDMPT, PBJ, KA)',
         criteria: 'Kriteria: Rerata Ujikom Pilar I → Jml Modul P1 → Attempt Terkecil → Durasi Tercepat → Waktu Submit',
         filterFn: u => u.p1_attempted_post > 0,
-        emptyMsg: 'Uji Kompetensi Pilar I (PK, SDMPT, PBJ, KA) belum dilaksanakan pada kelompok ini.',
+        emptyMsg: 'Uji Kompetensi Pilar I (PK, SDMPT, PBJ, KA) belum dilaksanakan pada cakupan filter ini.',
         metricFn: u => `Pilar I: ${u.p1_post_avg.toFixed(1)} (${u.p1_attempted_post}/4 Modul)`,
-        tieBreakerFn: u => `Comp P1 ${u.progress_p1.toFixed(1)}% • Durasi ${u.total_post_durasi.toFixed(1)}m • Submit ${u.last_post_submit || '-'}`,
+        tieBreakerFn: u => `Comp P1 ${u.progress_p1.toFixed(1)}% • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'}`,
         sortFn: (a, b) => (b.p1_post_avg - a.p1_post_avg)
           || (b.p1_attempted_post - a.p1_attempted_post)
           || (b.progress_p1 - a.progress_p1)
@@ -5048,12 +5180,12 @@
       {
         id: 'governance_vanguard',
         title: 'Capaian Uji Kompetensi Terbaik Pilar II (Governance & Kepatuhan)',
-        subtitle: 'Peserta dengan nilai rata-rata Uji Kompetensi / Post-Test tertinggi pada 4 modul Pilar II (AI, PMA, HK, MRT)',
+        subtitle: 'Peserta dengan nilai rata-rata Uji Kompetensi / Post-Test tertinggi pada modul Pilar II (AI, PMA, HK, MRT)',
         criteria: 'Kriteria: Rerata Ujikom Pilar II → Jml Modul P2 → Attempt Terkecil → Durasi Tercepat → Waktu Submit',
         filterFn: u => u.p2_attempted_post > 0,
-        emptyMsg: 'Uji Kompetensi Pilar II (AI, PMA, HK, MRT) belum dilaksanakan pada kelompok ini.',
+        emptyMsg: 'Uji Kompetensi Pilar II (AI, PMA, HK, MRT) belum dilaksanakan pada cakupan filter ini.',
         metricFn: u => `Pilar II: ${u.p2_post_avg.toFixed(1)} (${u.p2_attempted_post}/4 Modul)`,
-        tieBreakerFn: u => `Comp P2 ${u.progress_p2.toFixed(1)}% • Durasi ${u.total_post_durasi.toFixed(1)}m • Submit ${u.last_post_submit || '-'}`,
+        tieBreakerFn: u => `Comp P2 ${u.progress_p2.toFixed(1)}% • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'}`,
         sortFn: (a, b) => (b.p2_post_avg - a.p2_post_avg)
           || (b.p2_attempted_post - a.p2_attempted_post)
           || (b.progress_p2 - a.progress_p2)
@@ -5064,25 +5196,25 @@
         title: 'Peningkatan Nilai (Knowledge Gain) Tertinggi',
         subtitle: 'Peserta dengan lonjakan peningkatan pemahaman terbaik dari Asesmen Awal ke Uji Kompetensi / Post-Test',
         criteria: 'Kriteria: Indeks Hake Gain ⟨g⟩ → Rerata Uji Kompetensi → Jml Modul → Durasi Tercepat',
-        filterFn: u => u.attempted_post > 0 && u.hake_gain !== null,
-        emptyMsg: 'Perhitungan Knowledge Gain membutuhkan nilai Uji Kompetensi / Post-Test (belum dilaksanakan).',
-        metricFn: u => `Gain ⟨g⟩: ${(u.hake_gain ?? 0).toFixed(2)}`,
-        tieBreakerFn: u => `Awal ${(u.pre_avg || 0).toFixed(1)} → Uji ${u.post_total_avg.toFixed(1)} • Durasi ${u.total_post_durasi.toFixed(1)}m`,
-        sortFn: (a, b) => ((b.hake_gain ?? -1) - (a.hake_gain ?? -1))
-          || (b.post_total_avg - a.post_total_avg)
+        filterFn: u => u.s_attempted_post > 0 && u.s_hake_gain !== null,
+        emptyMsg: 'Perhitungan Knowledge Gain membutuhkan nilai Uji Kompetensi / Post-Test pada cakupan filter ini.',
+        metricFn: u => `Gain ⟨g⟩: ${(u.s_hake_gain ?? 0).toFixed(2)}`,
+        tieBreakerFn: u => `Awal ${(u.s_pre_avg || 0).toFixed(1)} → Uji ${u.s_post_avg.toFixed(1)} • Durasi ${u.s_post_durasi.toFixed(1)}m`,
+        sortFn: (a, b) => ((b.s_hake_gain ?? -1) - (a.s_hake_gain ?? -1))
+          || (b.s_post_avg - a.s_post_avg)
           || tieBreakPostTest(a, b)
       },
       {
         id: 'flawless_mastery',
-        title: 'Kelulusan Sempurna 8 Modul Tanpa Remedial',
-        subtitle: 'Peserta dengan jumlah kelulusan modul Uji Kompetensi terbanyak disertai rata-rata nilai tertinggi',
+        title: 'Kelulusan Sempurna Modul Tanpa Remedial',
+        subtitle: 'Peserta dengan jumlah kelulusan modul Uji Kompetensi terbanyak disertai rata-rata nilai tertinggi pada filter aktif',
         criteria: 'Kriteria: Jml Modul Lulus KKM → Rerata Ujikom → Attempt Terkecil → Durasi Tercepat → Waktu Submit',
-        filterFn: u => u.passed_post > 0,
-        emptyMsg: 'Belum ada peserta yang menyelesaikan dan lulus Uji Kompetensi modul pada kelompok ini.',
-        metricFn: u => `${u.passed_post}/8 Lulus (${u.post_total_avg.toFixed(1)})`,
-        tieBreakerFn: u => `${u.total_post_attempts || u.attempted_post}x Attempt • Durasi ${u.total_post_durasi.toFixed(1)}m • Submit ${u.last_post_submit || '-'}`,
-        sortFn: (a, b) => (b.passed_post - a.passed_post)
-          || (b.post_total_avg - a.post_total_avg)
+        filterFn: u => u.s_passed_post > 0,
+        emptyMsg: 'Belum ada peserta yang menyelesaikan dan lulus Uji Kompetensi modul pada cakupan filter ini.',
+        metricFn: u => `${u.s_passed_post}/${u.s_max_slots} Lulus (${u.s_post_avg.toFixed(1)})`,
+        tieBreakerFn: u => `${u.s_post_attempts || u.s_attempted_post}x Attempt • Durasi ${u.s_post_durasi.toFixed(1)}m • Submit ${u.s_last_post_submit || '-'}`,
+        sortFn: (a, b) => (b.s_passed_post - a.s_passed_post)
+          || (b.s_post_avg - a.s_post_avg)
           || tieBreakPostTest(a, b)
       },
       {
@@ -5090,20 +5222,78 @@
         title: 'Performa Belajar Terpadu Terbaik (Nilai Uji Kompetensi & Progres)',
         subtitle: 'Peserta dengan keseimbangan tertinggi antara penyelesaian materi mandiri, nilai Uji Kompetensi, dan kesiapan',
         criteria: 'Kriteria: Skor Terpadu (35% Comp + 35% Ujikom + 30% Kesiapan) → Durasi Tercepat → Waktu Submit',
-        filterFn: u => u.attempted_post > 0,
-        emptyMsg: 'Kategori Performa Terpadu membutuhkan nilai Uji Kompetensi / Post-Test (belum dilaksanakan).',
+        filterFn: u => u.s_attempted_post > 0,
+        emptyMsg: 'Kategori Performa Terpadu membutuhkan nilai Uji Kompetensi / Post-Test pada cakupan filter ini.',
         metricFn: u => {
-          const pts = 0.35 * u.comp_total + 0.35 * u.post_total_avg + 0.30 * u.readiness_score;
+          const pts = 0.35 * u.s_comp + 0.35 * u.s_post_avg + 0.30 * u.s_readiness;
           return `Skor Terpadu: ${pts.toFixed(1)}`;
         },
-        tieBreakerFn: u => `Ujikom ${u.post_total_avg.toFixed(1)} • Comp ${u.comp_total.toFixed(1)}% • Durasi ${u.total_post_durasi.toFixed(1)}m`,
+        tieBreakerFn: u => `Ujikom ${u.s_post_avg.toFixed(1)} • Comp ${u.s_comp.toFixed(1)}% • Durasi ${u.s_post_durasi.toFixed(1)}m`,
         sortFn: (a, b) => {
-          const pa = 0.35 * a.comp_total + 0.35 * a.post_total_avg + 0.30 * a.readiness_score;
-          const pb = 0.35 * b.comp_total + 0.35 * b.post_total_avg + 0.30 * b.readiness_score;
+          const pa = 0.35 * a.s_comp + 0.35 * a.s_post_avg + 0.30 * a.s_readiness;
+          const pb = 0.35 * b.s_comp + 0.35 * b.s_post_avg + 0.30 * b.s_readiness;
           return (pb - pa) || tieBreakPostTest(a, b);
         }
       }
     ];
+
+    function getAwardFilteredPool() {
+      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const fPilar = document.getElementById('filterPilar')?.value || 'ALL';
+      const fModul = document.getElementById('filterModul')?.value || 'ALL';
+      const fPersona = document.getElementById('filterPersona')?.value || 'ALL';
+      const fReadiness = document.getElementById('filterReadiness')?.value || 'ALL';
+      const fStatus = document.getElementById('filterStatus')?.value || 'ALL';
+
+      // Bangun entri peserta dengan metrik yang dihitung khusus sesuai cakupan Pilar & Modul terpilih
+      let scopedList = filteredProfilesList.map(u => computeScopedAwardEntry(u, fPilar, fModul));
+
+      // Jika filter Pilar aktif tetapi Modul = ALL, terapkan juga filter Status terhadap modul-modul di Pilar tersebut
+      if (fPilar !== 'ALL' && fModul === 'ALL' && fStatus !== 'ALL') {
+        scopedList = scopedList.filter(u => {
+          if (fStatus === 'Lulus') return u.s_passed_post > 0;
+          if (fStatus === 'Butuh Remedial') return (u.s_attempted_post - u.s_passed_post) > 0;
+          if (fStatus === 'Belum Mengerjakan') return u.s_attempted_post < u.s_max_slots;
+          return true;
+        });
+      }
+
+      let scopeLabel = '8 Modul';
+      if (fModul !== 'ALL' && MODULE_META[fModul]) {
+        scopeLabel = `Modul ${fModul}`;
+      } else if (fPilar === 'Pilar 1') {
+        scopeLabel = 'Pilar I (4 Modul)';
+      } else if (fPilar === 'Pilar 2') {
+        scopeLabel = 'Pilar II (4 Modul)';
+      }
+
+      const activeFilterTags = [];
+      if (fPilar !== 'ALL') activeFilterTags.push(fPilar);
+      if (fModul !== 'ALL') activeFilterTags.push(`Modul: ${fModul}`);
+      if (fPersona !== 'ALL') activeFilterTags.push(`Persona: ${fPersona}`);
+      if (fReadiness !== 'ALL') activeFilterTags.push(`Kesiapan: ${fReadiness}`);
+      if (fStatus !== 'ALL') activeFilterTags.push(`Status: ${fStatus}`);
+
+      return {
+        scopedList,
+        fBatch,
+        fPilar,
+        fModul,
+        scopeLabel,
+        activeFilterTags
+      };
+    }
+
+    function getAwardResolvedTitle(cat, scopeLabel, fModul, fPilar) {
+      if (cat.id === 'grand_luminary' || cat.id === 'flawless_mastery' || cat.id === 'quantum_leap' || cat.id === 'agile_leader') {
+        return `${cat.title} (${scopeLabel})`;
+      }
+      if ((cat.id === 'prime_mover' || cat.id === 'pace_setter' || cat.id === 'completion_master' || cat.id === 'diagnostic_ace') && (fPilar !== 'ALL' || fModul !== 'ALL')) {
+        const pLabel = fModul !== 'ALL' && MODULE_META[fModul] ? MODULE_META[fModul].pilar : fPilar;
+        return `${cat.title} (${pLabel})`;
+      }
+      return cat.title;
+    }
 
     function getInitials(name) {
       const cleaned = String(name || '')
@@ -5142,12 +5332,28 @@
     function renderAwardStage() {
       const catId = document.getElementById('awardCategorySelect')?.value || 'grand_luminary';
       const cat = AWARDS_CATALOG.find(a => a.id === catId) || AWARDS_CATALOG[0];
-      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const { scopedList, fBatch, fPilar, fModul, scopeLabel, activeFilterTags } = getAwardFilteredPool();
+      const resolvedTitle = getAwardResolvedTitle(cat, scopeLabel, fModul, fPilar);
 
-      document.getElementById('awardTitleText').textContent = cat.title;
+      document.getElementById('awardTitleText').textContent = resolvedTitle;
       document.getElementById('awardSubtitleText').textContent = cat.subtitle;
       document.getElementById('awardCriteriaFooter').textContent = cat.criteria;
       document.getElementById('awardBatchBadge').textContent = fBatch === 'ALL' ? 'Semua Batch' : fBatch;
+
+      const scopeBadge = document.getElementById('awardScopeBadge');
+      if (scopeBadge) {
+        if (activeFilterTags.length > 0) {
+          scopeBadge.textContent = activeFilterTags.join(' • ');
+          scopeBadge.classList.remove('hidden');
+        } else {
+          scopeBadge.classList.add('hidden');
+        }
+      }
+
+      const filterSumEl = document.getElementById('awardFilterSummaryText');
+      if (filterSumEl) {
+        filterSumEl.textContent = `UI ALEX 2026 Hall of Fame • Populasi Filter: ${scopedList.length} Peserta`;
+      }
 
       const canvasEl = document.getElementById('awardSlideCanvas');
       if (canvasEl) {
@@ -5159,7 +5365,7 @@
       }
 
       const limit = awardDisplayMode === 'top3' ? 3 : (awardDisplayMode === 'top5' ? 5 : 10);
-      const eligibleList = cat.filterFn ? filteredProfilesList.filter(cat.filterFn) : [...filteredProfilesList];
+      const eligibleList = cat.filterFn ? scopedList.filter(cat.filterFn) : [...scopedList];
       const ranked = eligibleList.sort(cat.sortFn).slice(0, limit);
       const stage = document.getElementById('awardStageBody');
       if (!stage) return;
@@ -5169,7 +5375,7 @@
           <div class="text-center py-10 px-6 rounded-2xl bg-white/80 border border-dashed border-amber-300 max-w-xl mx-auto space-y-2">
             <div class="text-2xl">⏳</div>
             <div class="text-sm font-extrabold text-slate-800">${cat.emptyMsg || 'Belum ada data peserta yang memenuhi syarat untuk kategori ini.'}</div>
-            <div class="text-xs text-slate-500">Pilih kategori tahap pra-pelatihan (seperti <strong>Asesmen Awal Tercepat</strong>, <strong>Nilai Asesmen Awal Tertinggi</strong>, atau <strong>Indeks Kesiapan Belajar Tertinggi</strong>) selama Uji Kompetensi belum berlangsung.</div>
+            <div class="text-xs text-slate-500">Coba ubah atau reset filter di bagian atas (Pilar / Modul / Persona / Kesiapan / Status) atau pilih kategori penghargaan lainnya.</div>
           </div>`;
         return;
       }
@@ -5188,7 +5394,7 @@
                 const isTop3 = i < 3;
                 const medal = i === 0 ? '🥇 #1' : (i === 1 ? '🥈 #2' : (i === 2 ? '🥉 #3' : `#${i + 1}`));
                 const rowBg = i === 0 ? 'bg-amber-50/80' : (isTop3 ? 'bg-amber-50/30' : 'bg-white');
-                const tbInfo = cat.tieBreakerFn ? cat.tieBreakerFn(u) : `Kesiapan ${u.readiness_score.toFixed(1)}`;
+                const tbInfo = cat.tieBreakerFn ? cat.tieBreakerFn(u) : `Kesiapan ${u.s_readiness.toFixed(1)}`;
                 return `
                   <div class="grid grid-cols-12 items-center px-3.5 py-2.5 text-xs ${rowBg} hover:bg-amber-100/40 transition">
                     <div class="col-span-1 text-center font-mono font-extrabold ${isTop3 ? 'text-amber-700' : 'text-slate-500'}">
@@ -5247,16 +5453,20 @@
     function copyAwardAnnouncementText() {
       const catId = document.getElementById('awardCategorySelect')?.value || 'grand_luminary';
       const cat = AWARDS_CATALOG.find(a => a.id === catId) || AWARDS_CATALOG[0];
-      const eligibleList = cat.filterFn ? filteredProfilesList.filter(cat.filterFn) : [...filteredProfilesList];
+      const { scopedList, fBatch, fPilar, fModul, scopeLabel, activeFilterTags } = getAwardFilteredPool();
+      const resolvedTitle = getAwardResolvedTitle(cat, scopeLabel, fModul, fPilar);
+      const eligibleList = cat.filterFn ? scopedList.filter(cat.filterFn) : [...scopedList];
       const limit = awardDisplayMode === 'top3' ? 3 : (awardDisplayMode === 'top5' ? 5 : 10);
       const ranked = eligibleList.sort(cat.sortFn).slice(0, limit);
       if (ranked.length === 0) {
-        setSyncBanner('Belum ada nominasi yang memenuhi kriteria pada kategori ini', 'rose');
+        setSyncBanner('Belum ada nominasi yang memenuhi kriteria pada kategori & filter ini', 'rose');
         return;
       }
+      const filterLine = activeFilterTags.length > 0 ? `Cakupan Filter: *${fBatch} • ${activeFilterTags.join(' • ')}*` : `Kelompok: *${fBatch}*`;
       const lines = [
         `🏆 *PENGUMUMAN PENGHARGAAN UI ALEX 2026 (TOP ${limit})*`,
-        `Kategori: *${cat.title}*`,
+        `Kategori: *${resolvedTitle}*`,
+        filterLine,
         `_${cat.subtitle}_`,
         `_${cat.criteria}_`,
         ``
@@ -5307,10 +5517,12 @@
     async function downloadAwardCertificatePDF() {
       const catId = document.getElementById('awardCategorySelect')?.value || 'grand_luminary';
       const cat = AWARDS_CATALOG.find(a => a.id === catId) || AWARDS_CATALOG[0];
-      const eligibleList = cat.filterFn ? filteredProfilesList.filter(cat.filterFn) : [...filteredProfilesList];
+      const { scopedList, fPilar, fModul, scopeLabel } = getAwardFilteredPool();
+      const resolvedTitle = getAwardResolvedTitle(cat, scopeLabel, fModul, fPilar);
+      const eligibleList = cat.filterFn ? scopedList.filter(cat.filterFn) : [...scopedList];
       const winner = eligibleList.sort(cat.sortFn)[0];
       if (!winner) {
-        setSyncBanner('Belum ada pemenang yang memenuhi kriteria pada kategori ini', 'rose');
+        setSyncBanner('Belum ada pemenang yang memenuhi kriteria pada kategori & filter ini', 'rose');
         return;
       }
 
@@ -5324,7 +5536,7 @@
       try {
         const tbText = cat.tieBreakerFn ? ` • ${cat.tieBreakerFn(winner)}` : '';
         document.getElementById('certRecipientName').textContent = winner.nama_peserta;
-        document.getElementById('certAwardName').textContent = cat.title;
+        document.getElementById('certAwardName').textContent = resolvedTitle;
         document.getElementById('certMetricSummary').textContent = `${winner.batch} • ${cat.metricFn(winner)}${tbText}`;
         document.getElementById('certDateText').textContent = `Tanggal: ${new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })}`;
 
