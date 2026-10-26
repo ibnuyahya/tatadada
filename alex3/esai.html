@@ -1,0 +1,2283 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UI ALEX 2026 — Dashboard Viewer &amp; Exporter Esai (Report ID: 175)</title>
+
+  <!-- Google Fonts: Inter, Cinzel & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS 3.x CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            serif: ['Cinzel', 'Georgia', 'serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Tippy.js & Popper.js CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/light-border.css" />
+  <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/shift-away.css" />
+
+  <!-- Core Client-Side Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+  <script src="https://unpkg.com/@popperjs/core@2"></script>
+  <script src="https://unpkg.com/tippy.js@6"></script>
+
+  <!-- Global Error Shield -->
+  <script>
+    window.addEventListener('error', function(e) {
+      if (e && e.message === 'Script error.' && !e.filename) {
+        e.preventDefault();
+        return true;
+      }
+    }, true);
+  </script>
+
+  <!-- Dynamic Auto-Favicon Injector (icon.xml + Fallback SVG) -->
+  <script>
+    (function injectDynamicFavicon() {
+      const setFaviconSvg = (svgString) => {
+        let link = document.querySelector("link[rel~='icon']");
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'icon';
+          link.type = 'image/svg+xml';
+          document.head.appendChild(link);
+        }
+        link.href = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgString);
+      };
+
+      const applyFallbackIcon = () => {
+        const fallbackSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" rx="22" fill="#f59e0b"/>
+          <text x="50" y="67" font-family="Inter, sans-serif" font-weight="800" font-size="48" text-anchor="middle" fill="#0f172a">UI</text>
+        </svg>`;
+        setFaviconSvg(fallbackSvg);
+      };
+
+      fetch('icon.xml')
+        .then(res => {
+          if (!res.ok) throw new Error('icon.xml not found');
+          return res.text();
+        })
+        .then(xmlText => {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(xmlText, 'application/xml');
+          const svgElementsNode = doc.querySelector('svg_elements');
+          if (!svgElementsNode) throw new Error('No svg_elements');
+          const cStart = doc.querySelector('color_start')?.textContent?.trim() || '#f59e0b';
+          const cEnd = doc.querySelector('color_end')?.textContent?.trim() || '#d97706';
+          const clone = svgElementsNode.cloneNode(true);
+          clone.querySelectorAll('text').forEach(t => t.remove());
+          const innerContent = clone.innerHTML;
+          const builtSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76">
+            <defs>
+              <linearGradient id="uiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="${cStart}"/>
+                <stop offset="100%" stop-color="${cEnd}"/>
+              </linearGradient>
+            </defs>
+            <rect x="12" y="12" width="76" height="76" rx="18" fill="url(#uiGrad)"/>
+            ${innerContent}
+          </svg>`;
+          setFaviconSvg(builtSvg);
+        })
+        .catch(() => applyFallbackIcon());
+    })();
+  </script>
+
+  <style>
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* Sticky Table Header Guard */
+    .sticky-matrix-table {
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+    }
+    .sticky-matrix-table th,
+    .sticky-matrix-table td {
+      border-right: 1px solid #cbd5e1;
+      border-bottom: 1px solid #cbd5e1;
+    }
+    .sticky-matrix-table th:first-child,
+    .sticky-matrix-table td:first-child {
+      border-left: 1px solid #cbd5e1;
+    }
+    .sticky-matrix-table thead tr:first-child th {
+      border-top: 1px solid #cbd5e1;
+    }
+    .sticky-matrix-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 25;
+      background-color: #f1f5f9;
+      box-shadow: 0 2px 4px -1px rgba(15, 23, 42, 0.08);
+    }
+
+    .sortable-th {
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.15s ease;
+    }
+    .sortable-th:hover {
+      background-color: #e2e8f0 !important;
+    }
+
+    /* Fast & Intuitive Animated Drawer (CSS Grid 0fr -> 1fr Transition) */
+    .drawer-wrapper {
+      display: grid;
+      grid-template-rows: 0fr;
+      opacity: 0;
+      transition: grid-template-rows 220ms cubic-bezier(0.22, 1, 0.36, 1),
+                  opacity 180ms ease-out;
+      pointer-events: none;
+    }
+    .drawer-wrapper.drawer-open {
+      grid-template-rows: 1fr;
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .drawer-inner {
+      overflow: hidden;
+      min-height: 0;
+    }
+    .drawer-chevron {
+      display: inline-block;
+      transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .drawer-chevron.chevron-open {
+      transform: rotate(180deg);
+    }
+
+    /* Styling Tabel HTML & Hasil Rekonstruksi TinyMCE di dalam Modal Esai */
+    .essay-html-prose {
+      line-height: 1.6;
+      word-break: break-word;
+    }
+    .essay-html-prose table {
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+      margin: 0.65rem 0;
+      font-size: 0.78rem;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    }
+    .essay-html-prose th,
+    .essay-html-prose td {
+      border-right: 1px solid #cbd5e1;
+      border-bottom: 1px solid #cbd5e1;
+      padding: 0.55rem 0.75rem;
+      vertical-align: top;
+      text-align: left;
+    }
+    .essay-html-prose th:last-child,
+    .essay-html-prose td:last-child {
+      border-right: none;
+    }
+    .essay-html-prose tr:last-child td {
+      border-bottom: none;
+    }
+    .essay-html-prose thead th,
+    .essay-html-prose tr:first-child th,
+    .essay-html-prose thead td {
+      background-color: #0f172a;
+      color: #f8fafc;
+      font-weight: 700;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .essay-html-prose tbody tr:nth-child(even) td {
+      background-color: #f8fafc;
+    }
+    .essay-html-prose tbody tr:hover td {
+      background-color: #fef3c7/40;
+    }
+    .essay-html-prose p {
+      margin-bottom: 0.5rem;
+    }
+    .essay-html-prose ul, .essay-html-prose ol {
+      padding-left: 1.25rem;
+      margin-bottom: 0.5rem;
+    }
+    .essay-html-prose ul { list-style-type: disc; }
+    .essay-html-prose ol { list-style-type: decimal; }
+
+    /* Disabled & Hatched (Arsir Diagonal) State saat CSV Belum Terbaca */
+    #dashboardRoot.dashboard-unloaded {
+      position: relative;
+      pointer-events: none !important;
+      user-select: none !important;
+      min-height: 75vh;
+    }
+    #dashboardRoot.dashboard-unloaded > #mainViewportDeck {
+      filter: grayscale(85%) opacity(0.42);
+      transition: filter 0.35s ease, opacity 0.35s ease;
+    }
+    #dashboardUnloadedShield {
+      display: none;
+    }
+    #dashboardRoot.dashboard-unloaded > #dashboardUnloadedShield {
+      display: flex;
+      position: absolute;
+      inset: 0;
+      z-index: 40;
+      border-radius: 1rem;
+      background-image: repeating-linear-gradient(
+        -45deg,
+        rgba(15, 23, 42, 0.055),
+        rgba(15, 23, 42, 0.055) 12px,
+        rgba(245, 158, 11, 0.085) 12px,
+        rgba(245, 158, 11, 0.085) 24px
+      );
+      backdrop-filter: blur(1.5px);
+      border: 2px dashed #cbd5e1;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 9rem;
+    }
+
+    .tippy-box[data-theme~='light-border'] {
+      font-size: 11px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased selection:bg-amber-200 selection:text-slate-900">
+
+  <!-- =====================================================================
+       1. TOP HEADER & PIPELINE CONTROL BAR (MURNI WORKER CORS REPORT ID 175)
+       ===================================================================== -->
+  <header class="sticky top-0 z-30 bg-slate-900 text-white border-b border-slate-800 shadow-md">
+    <div class="max-w-[1600px] mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <!-- Brand Identity -->
+      <div class="flex items-center gap-3 select-none">
+        <div class="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 font-extrabold text-lg flex items-center justify-center shadow">
+          UI
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base md:text-lg font-extrabold tracking-tight text-white">UI ALEX 2026 — Viewer &amp; Exporter Esai</h1>
+            <span class="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              REPORT ID: 175
+            </span>
+            <span class="px-2 py-0.5 text-[10px] font-mono font-semibold uppercase rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              LIVE STREAM
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">
+            Learning Analytics • EMAS3 Universitas Indonesia
+          </p>
+        </div>
+      </div>
+
+      <!-- Pipeline Ingestion & Global Actions (Tanpa Upload Manual & Tanpa Preload) -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Terkunci ke Configurable Report ID 175 -->
+        <input id="reportIdInput" type="hidden" value="175" />
+
+        <!-- Tombol Sync Data (dengan Timer di dalamnya + Hover Info Last Updated) -->
+        <button id="btnSyncNow" onclick="startSync(false)"
+          data-tippy-content="Last Updated: Memuat..."
+          class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition flex items-center gap-1.5">
+          <span id="syncStatusDot" class="w-2 h-2 rounded-full bg-emerald-700"></span>
+          <span id="syncIcon">🔄</span>
+          <span id="syncBtnText">Sync Data</span>
+          <span class="px-1.5 py-0.5 rounded bg-slate-950/15 text-slate-950 font-mono text-[10px] font-extrabold" id="autoSyncCountdown">60s</span>
+        </button>
+
+        <!-- Elemen penyimpanan state untuk hover tooltip (hidden) -->
+        <span id="syncStatusText" class="hidden">Menunggu sinkronisasi...</span>
+        <span id="lastSyncTimestamp" class="hidden">-</span>
+        <span id="totalRawRowsBadge" class="hidden">0</span>
+
+        <!-- Tombol Export Excel (.xlsx) Bersih -->
+        <button onclick="exportToExcel(true)"
+          data-tippy-content="Unduh file Excel (.xlsx) 17 kolom dengan teks tabel esai yang sudah dirapikan dari tag HTML + Sheet Rekap Modul"
+          class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
+          <span>📊</span>
+          <span>Unduh XLSX (Bersih)</span>
+        </button>
+
+        <!-- Tombol Export Excel (.xlsx) Raw HTML -->
+        <button onclick="exportToExcel(false)"
+          data-tippy-content="Unduh file Excel (.xlsx) 17 kolom dengan kode HTML asli dari EMAS3"
+          class="px-2.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-semibold text-xs transition flex items-center gap-1.5">
+          <span>📑</span>
+          <span>Unduh XLSX (Raw HTML)</span>
+        </button>
+
+        <!-- Reset Cache IndexedDB -->
+        <button onclick="clearBrowserData()"
+          data-tippy-content="Hapus cache IndexedDB (alex2026_v3_report175Data) dan reset memori RAM"
+          class="px-2.5 py-1.5 rounded-lg bg-rose-600/80 hover:bg-rose-600 text-white font-semibold text-xs transition">
+          🗑️ Reset Cache
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- =====================================================================
+       2. MAIN APPLICATION CONTAINER
+       ===================================================================== -->
+  <main id="dashboardRoot" class="dashboard-unloaded max-w-[1600px] mx-auto px-4 py-5">
+
+    <!-- Overlay Arsir & Indikator Tarik Data CSV (Persis UI ALEX 2026 v3) -->
+    <div id="dashboardUnloadedShield">
+      <div class="bg-white/95 border-2 border-amber-400 rounded-2xl shadow-2xl px-6 py-5 max-w-md w-full mx-4 text-center space-y-3">
+        <div class="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center mx-auto text-2xl animate-pulse" id="shieldSpinnerIcon">
+          ⏳
+        </div>
+        <div>
+          <div class="text-[10px] font-mono font-extrabold uppercase tracking-widest text-amber-700">
+            PIPELINE DATA STREAM • EMAS3 UI (ID: 175)
+          </div>
+          <h3 id="shieldTitleText" class="text-sm font-extrabold text-slate-900 mt-0.5">
+            Menarik Data Live CSV dari Server...
+          </h3>
+          <p id="shieldSubText" class="text-xs text-slate-500 mt-1">
+            Seluruh modul analitik di bawah header dikunci sementara hingga sinkronisasi selesai.
+          </p>
+        </div>
+        <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div class="h-full bg-amber-500 w-2/3 animate-pulse rounded-full"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="mainViewportDeck" class="space-y-5">
+
+      <!-- =================================================================
+           FILTER BAR (BATCH -> PILAR -> MODUL -> STATUS SUBMISI)
+           ================================================================= -->
+      <section id="topFilterCard" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3 transition-colors duration-200">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
+            <!-- 1. Filter Batch -->
+            <div class="flex items-center gap-2">
+              <label for="filterBatch" class="text-[11px] font-bold uppercase tracking-wider text-slate-500">BATCH:</label>
+              <select id="filterBatch" onchange="currentPage = 1; applyFilters()"
+                class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <option value="ALL">Semua Batch</option>
+                <option value="Batch 1">Batch 1</option>
+                <option value="Batch 2" selected>Batch 2</option>
+                <option value="Batch 3">Batch 3</option>
+              </select>
+            </div>
+
+            <!-- 2. Filter Pilar -->
+            <div class="flex items-center gap-2">
+              <label for="filterPilar" class="text-[11px] font-bold uppercase tracking-wider text-slate-500">PILAR:</label>
+              <select id="filterPilar" onchange="currentPage = 1; applyFilters()"
+                class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <option value="ALL">Semua Pilar</option>
+                <option value="Pilar I">Pilar I (Manajemen)</option>
+                <option value="Pilar II">Pilar II (Governance)</option>
+              </select>
+            </div>
+
+            <!-- 3. Filter Modul -->
+            <div class="flex items-center gap-2">
+              <label for="filterModul" class="text-[11px] font-bold uppercase tracking-wider text-slate-500">MODUL:</label>
+              <select id="filterModul" onchange="currentPage = 1; applyFilters()"
+                class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <option value="ALL">Semua Modul (8 Modul)</option>
+                <option value="PK">PK — Perencanaan dan Kinerja</option>
+                <option value="SDMPT">SDMPT — Manajemen SDM dan Pengembangan Talenta</option>
+                <option value="PBJ">PBJ — Manajemen Pengadaan Barang dan Jasa</option>
+                <option value="KA">KA — Manajemen Keuangan dan Akuntansi</option>
+                <option value="AI">AI — Audit Internal</option>
+                <option value="PMA">PMA — Penjaminan Mutu Akademik</option>
+                <option value="HK">HK — Hukum dan Kearsipan</option>
+                <option value="MRT">MRT — Manajemen Risiko, Transformasi Budaya, dan Tata Kelola</option>
+              </select>
+            </div>
+
+            <!-- 4. Filter Status Submisi -->
+            <div class="flex items-center gap-2">
+              <label for="filterStatus" class="text-[11px] font-bold uppercase tracking-wider text-slate-500">STATUS SUBMISI:</label>
+              <select id="filterStatus" onchange="currentPage = 1; applyFilters()"
+                class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <option value="ALL">Semua Status</option>
+                <option value="submitted">🟢 Submitted (Sudah Kumpul)</option>
+                <option value="new">🟡 New (Draft / Buka Soal)</option>
+                <option value="belum_submit">⚪ Belum Submit</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span id="lastUpdateVisibleBadge" class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-mono text-[11px] border border-slate-200">
+              🕒 Update: -
+            </span>
+            <button onclick="resetFilters()" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition">
+              Reset Filter
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           KPI SUMMARY CARDS
+           ================================================================= -->
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl border border-slate-200 border-l-4 border-l-slate-800 shadow-sm p-4">
+          <div class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">TOTAL SLOT SUBMISI ESAI</div>
+          <div id="kpiTotalRows" class="text-2xl font-extrabold text-slate-900 font-mono mt-1">0</div>
+          <div id="kpiUniqueUsers" class="text-xs text-slate-500 mt-1">0 peserta unik terfilter</div>
+        </div>
+
+        <div onclick="quickFilterStatus('submitted')" class="cursor-pointer bg-white hover:bg-emerald-50/40 rounded-2xl border border-slate-200 border-l-4 border-l-emerald-500 shadow-sm p-4 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">SUDAH SUBMIT (SUBMITTED)</span>
+            <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono font-bold text-[10px]" id="kpiSubmittedPct">0.0%</span>
+          </div>
+          <div id="kpiSubmittedCount" class="text-2xl font-extrabold text-emerald-600 font-mono mt-1">0</div>
+          <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter yang sudah kumpul</div>
+        </div>
+
+        <div onclick="quickFilterStatus('new')" class="cursor-pointer bg-white hover:bg-amber-50/40 rounded-2xl border border-slate-200 border-l-4 border-l-amber-500 shadow-sm p-4 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-700">DRAFT / BUKA SOAL (NEW)</span>
+            <span class="px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-mono font-bold text-[10px]" id="kpiNewPct">0.0%</span>
+          </div>
+          <div id="kpiNewCount" class="text-2xl font-extrabold text-amber-600 font-mono mt-1">0</div>
+          <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter status draft</div>
+        </div>
+
+        <div onclick="quickFilterStatus('belum_submit')" class="cursor-pointer bg-white hover:bg-slate-100/70 rounded-2xl border border-slate-200 border-l-4 border-l-slate-400 shadow-sm p-4 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-600">BELUM SUBMIT</span>
+            <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono font-bold text-[10px]" id="kpiBelumPct">0.0%</span>
+          </div>
+          <div id="kpiBelumCount" class="text-2xl font-extrabold text-slate-700 font-mono mt-1">0</div>
+          <div class="text-xs text-slate-500 mt-1">Klik untuk memfilter yang belum submit</div>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           WIDGET MONITORING LANGSUNG PER MODUL DIREKTORAT (DIKELOMPOKKAN PER PILAR)
+           ================================================================= -->
+      <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span>📊</span>
+            <div>
+              <h2 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-900">Widget Pantauan Langsung per Pilar &amp; Modul Direktorat (8 Modul)</h2>
+              <p class="text-[11px] text-slate-500">Dikelompokkan berdasarkan Pilar I (Manajemen) &amp; Pilar II (Governance). Klik header pilar, kartu modul, atau kotak angka status untuk memfilter tabel.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="activeModulWidgetBadge" class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 font-mono font-bold text-[11px]">
+              Semua Pilar &amp; Modul Aktif
+            </span>
+          </div>
+        </div>
+        <div id="moduleBreakdownGrid" class="space-y-4"></div>
+      </section>
+
+      <!-- =================================================================
+           TABEL VIEWER 17 KOLOM DENGAN SORTING, COLLAPSE & PAGINATION
+           ================================================================= -->
+      <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <!-- Collapsible Header Bar Tabel -->
+        <div onclick="toggleTableCollapse()" class="px-5 py-3.5 bg-slate-50/90 hover:bg-slate-100/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none transition">
+          <div class="flex items-center gap-2.5">
+            <span>📋</span>
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-900">Tabel Rincian Submisi Esai Peserta (17 Kolom)</h2>
+                <span id="tableHeaderQuickCount" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-full bg-amber-100 text-amber-900 border border-amber-300">0 Baris Terfilter</span>
+              </div>
+              <p class="text-[11px] text-slate-500">Default urutan: Batch → Pilar → Urutan Modul (PK s.d. MRT) → Nama Peserta. Klik bar ini untuk membuka/menutup tabel.</p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2" onclick="event.stopPropagation()">
+            <button type="button" onclick="exportFilteredTableToExcel()"
+              data-tippy-content="Unduh file Excel (.xlsx) sesuai dengan isi tabel yang sedang terfilter & terurut saat ini"
+              class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5">
+              <span>📥</span>
+              <span>Download Excel Isi Tabel</span>
+            </button>
+            <button type="button" onclick="resetDefaultSort()"
+              data-tippy-content="Kembalikan urutan tabel ke default (Batch → Pilar → Urutan Modul → Nama Lengkap)"
+              class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs border border-slate-300 transition">
+              ⇅ Default Sort
+            </button>
+            <button type="button" id="btnCollapseTable" onclick="toggleTableCollapse()"
+              class="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs shadow-sm transition flex items-center gap-1.5">
+              <span id="chevronTable" class="drawer-chevron">▼</span>
+              <span id="lblCollapseTable">Buka Tabel</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Collapsible Body (Default: Collapsed) -->
+        <div id="tableCollapsibleBody" class="drawer-wrapper">
+          <div class="drawer-inner">
+            <!-- Top Table Toolbar: Search, Page Size, Info Count -->
+            <div class="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/60">
+              <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto flex-1">
+                <div class="w-full sm:w-96 relative">
+                  <input id="searchTable" type="text" oninput="onSearchInput()"
+                    placeholder="Cari Nama Peserta, Username, NIP, Email, atau Isi Jawaban..."
+                    class="allow-context w-full px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                </div>
+
+                <div class="flex items-center gap-1.5 text-xs">
+                  <label for="pageSizeSelect" class="font-bold text-slate-500 uppercase text-[10px]">Baris / Hal:</label>
+                  <select id="pageSizeSelect" onchange="onPageSizeChange()"
+                    class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 font-mono font-bold text-xs focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="250">250</option>
+                    <option value="ALL">Semua</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2">
+                <span id="tableCountBadge" class="text-xs font-mono font-bold text-slate-600">
+                  Menampilkan 0 - 0 dari 0 baris
+                </span>
+              </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="p-4">
+              <div class="overflow-x-auto max-h-[650px] overflow-y-auto rounded-lg border border-slate-300 shadow-inner">
+                <table class="sticky-matrix-table text-xs">
+                  <thead class="bg-slate-100 text-slate-700 select-none">
+                    <tr class="font-extrabold text-[11px] uppercase tracking-wider">
+                      <th class="p-2.5 text-center w-12">No</th>
+                      <th class="p-2.5 text-center w-28 bg-emerald-50/90 text-emerald-950" data-tippy-content="Unduh data Excel per peserta (1 baris ini atau seluruh 8 modul milik peserta ini)">Aksi Unduh</th>
+                      <th onclick="sortBy('id_submisi')" class="sortable-th p-2.5 text-left w-28">id_submisi<span id="sort_id_submisi" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('batch')" class="sortable-th p-2.5 text-center w-24">batch<span id="sort_batch" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('pilar')" class="sortable-th p-2.5 text-left w-40">pilar<span id="sort_pilar" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('kode_modul')" class="sortable-th p-2.5 text-center w-24">kode_modul<span id="sort_kode_modul" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('modul_direktorat')" class="sortable-th p-2.5 text-left min-w-[170px]">modul_direktorat<span id="sort_modul_direktorat" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('nama_assignment_esai')" class="sortable-th p-2.5 text-left min-w-[180px]">nama_assignment_esai<span id="sort_nama_assignment_esai" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('username')" class="sortable-th p-2.5 text-left w-32">username<span id="sort_username" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('nip')" class="sortable-th p-2.5 text-left w-36">nip<span id="sort_nip" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('nama_peserta')" class="sortable-th p-2.5 text-left min-w-[190px]">nama_peserta<span id="sort_nama_peserta" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('email')" class="sortable-th p-2.5 text-left min-w-[160px]">email<span id="sort_email" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('_soal_text')" class="sortable-th p-2.5 text-left min-w-[190px]">soal_atau_instruksi_esai<span id="sort__soal_text" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('_jawaban_text')" class="sortable-th p-2.5 text-left min-w-[240px]">jawaban_peserta_essay<span id="sort__jawaban_text" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th class="p-2.5 text-center w-28 bg-amber-50/80 text-amber-900" data-tippy-content="Sesuai instruksi: Kolom tetap ada namun dikosongkan otomatis">kunci_jawaban</th>
+                      <th onclick="sortBy('status_submisi')" class="sortable-th p-2.5 text-center w-32">status_submisi<span id="sort_status_submisi" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('waktu_submit')" class="sortable-th p-2.5 text-center w-36">waktu_submit<span id="sort_waktu_submit" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('nilai_di_emas3')" class="sortable-th p-2.5 text-center w-28">nilai_di_emas3<span id="sort_nilai_di_emas3" class="text-slate-400 font-normal"> ⇅</span></th>
+                      <th onclick="sortBy('target_kelulusan')" class="sortable-th p-2.5 text-center w-36">target_kelulusan<span id="sort_target_kelulusan" class="text-slate-400 font-normal"> ⇅</span></th>
+                    </tr>
+                  </thead>
+                  <tbody id="essayTableBody" class="selectable divide-y divide-slate-200">
+                    <tr>
+                      <td colspan="19" class="p-8 text-center text-slate-400">Menunggu sinkronisasi data live dari Report ID 175...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Bottom Pagination Bar -->
+            <div class="px-5 py-3.5 border-t border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3 select-none">
+              <div id="paginationSummaryText" class="text-xs text-slate-600 font-medium">
+                Halaman <strong class="font-mono text-slate-900">1</strong> dari <strong class="font-mono text-slate-900">1</strong>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-1.5">
+                <button type="button" id="btnPageFirst" onclick="goToPage(1)"
+                  class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-mono font-bold text-xs disabled:opacity-40 disabled:pointer-events-none transition"
+                  title="Halaman Pertama">
+                  « Awal
+                </button>
+                <button type="button" id="btnPagePrev" onclick="changePage(-1)"
+                  class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-mono font-bold text-xs disabled:opacity-40 disabled:pointer-events-none transition"
+                  title="Halaman Sebelumnya">
+                  ‹ Prev
+                </button>
+
+                <div id="paginationNumbersContainer" class="flex items-center gap-1"></div>
+
+                <button type="button" id="btnPageNext" onclick="changePage(1)"
+                  class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-mono font-bold text-xs disabled:opacity-40 disabled:pointer-events-none transition"
+                  title="Halaman Berikutnya">
+                  Next ›
+                </button>
+                <button type="button" id="btnPageLast" onclick="goToLastPage()"
+                  class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-mono font-bold text-xs disabled:opacity-40 disabled:pointer-events-none transition"
+                  title="Halaman Terakhir">
+                  Akhir »
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- =====================================================================
+       3. MODAL VIEWER DETAIL TABEL SOAL & JAWABAN ESAI PESERTA
+       ===================================================================== -->
+  <div id="essayDetailModal" class="fixed inset-0 z-50 hidden bg-slate-900/80 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl border border-slate-300 shadow-2xl max-w-6xl w-full my-6 overflow-hidden">
+      <div class="bg-slate-900 text-white px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span id="modalModulBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-amber-500 text-slate-950">PK</span>
+            <span id="modalStatusBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">submitted</span>
+            <span id="modalWaktuBadge" class="text-xs font-mono text-slate-400">-</span>
+            <span id="modalFormatDetectedBadge" class="px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">TinyMCE HTML</span>
+          </div>
+          <h3 id="modalPesertaName" class="text-base font-extrabold text-white mt-1">-</h3>
+          <p id="modalPesertaMeta" class="text-xs font-mono text-slate-400">-</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Toggle Mode Tampilan: Tabel Terformat vs Teks/HTML Mentah -->
+          <div class="inline-flex rounded-lg border border-slate-700 bg-slate-800 p-0.5 text-[11px] font-bold">
+            <button type="button" id="btnViewModeFormatted" onclick="setModalRenderMode('formatted')"
+              class="px-2.5 py-1 rounded-md bg-amber-500 text-slate-950 transition">
+              📊 Tabel &amp; WYSIWYG
+            </button>
+            <button type="button" id="btnViewModeRaw" onclick="setModalRenderMode('raw')"
+              class="px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition">
+              📝 Sumber HTML / Teks
+            </button>
+          </div>
+          <button onclick="copyActiveEssayAnswer()"
+            class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition">
+            📋 Salin Jawaban
+          </button>
+          <button onclick="closeEssayModal()"
+            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">
+            ✕ Tutup
+          </button>
+        </div>
+      </div>
+
+      <div class="p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 max-h-[80vh] overflow-y-auto bg-slate-50">
+        <!-- Kiri: Soal / Instruksi Esai -->
+        <div class="lg:col-span-5 bg-white rounded-xl border border-slate-200 p-4 flex flex-col">
+          <div class="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
+            <span class="text-xs font-extrabold uppercase tracking-wider text-slate-700">📑 Soal / Instruksi Esai</span>
+            <span id="modalAssignmentTitle" class="text-[11px] font-mono text-slate-500 truncate max-w-[220px]">-</span>
+          </div>
+          <div id="modalSoalHtml" class="essay-html-prose selectable text-xs text-slate-700 overflow-x-auto"></div>
+        </div>
+
+        <!-- Kanan: Jawaban Peserta Essay -->
+        <div class="lg:col-span-7 bg-white rounded-xl border border-emerald-200 p-4 flex flex-col shadow-sm">
+          <div class="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
+            <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-800">✍️ Jawaban Peserta Essay (TinyMCE / Tabel Terformat)</span>
+            <span id="modalCharCount" class="text-[11px] font-mono text-slate-500">0 karakter</span>
+          </div>
+          <div id="modalJawabanHtml" class="essay-html-prose selectable text-xs text-slate-800 overflow-x-auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       4. FOOTER
+       ===================================================================== -->
+  <footer class="max-w-[1600px] mx-auto px-4 py-6 border-t border-slate-200 text-xs text-slate-500 flex flex-wrap items-center justify-between gap-2 selectable">
+    <div>
+      <strong>UI ALEX 2026 — Dashboard Viewer &amp; Exporter Esai (Report ID: 175)</strong> •
+      Moodle LMS EMAS3 Universitas Indonesia (<code class="font-mono">Course ID: 99544 &amp; 99545</code>)
+    </div>
+    <div>
+      Arsitektur &amp; Pengembangan oleh <a href="https://danial.my.id" target="_blank" rel="noopener" class="font-bold text-slate-700 hover:text-amber-600 underline">Ahmad Danial</a>
+    </div>
+  </footer>
+
+  <!-- =====================================================================
+       5. CORE JAVASCRIPT ENGINE (MURNI PIPELINE WORKER CORS ID 175)
+       ===================================================================== -->
+  <script>
+    /*************************************************************************
+     * A. KONSTANTA OBFUSKASI ENDPOINT CORS WORKER (PERSIS UI ALEX 2026 v3)
+     *************************************************************************/
+    const _ENC_WORKER = '9QWa/8idlRmLzJXZrJ3b35CZhRXbhlnbucWa0NXYt9yL6MHc0RHa';
+
+    function _resolveUri(token) {
+      try {
+        return atob(token.split('').reverse().join(''));
+      } catch (e) {
+        return '#';
+      }
+    }
+
+    // Urutan baku 17 kolom dari Configurable Report ID 175
+    const REPORT_175_COLUMNS = [
+      'id_submisi',
+      'batch',
+      'pilar',
+      'kode_modul',
+      'modul_direktorat',
+      'nama_assignment_esai',
+      'username',
+      'nip',
+      'nama_peserta',
+      'email',
+      'soal_atau_instruksi_esai',
+      'jawaban_peserta_essay',
+      'kunci_jawaban',
+      'status_submisi',
+      'waktu_submit',
+      'nilai_di_emas3',
+      'target_kelulusan'
+    ];
+
+    const MODULE_ORDER = ['PK', 'SDMPT', 'PBJ', 'KA', 'AI', 'PMA', 'HK', 'MRT'];
+    const MODULE_INFO = {
+      PK:    { name: 'Perencanaan dan Kinerja', pilar: 'Pilar I (Manajemen)' },
+      SDMPT: { name: 'Manajemen SDM dan Pengembangan Talenta', pilar: 'Pilar I (Manajemen)' },
+      PBJ:   { name: 'Manajemen Pengadaan Barang dan Jasa', pilar: 'Pilar I (Manajemen)' },
+      KA:    { name: 'Manajemen Keuangan dan Akuntansi', pilar: 'Pilar I (Manajemen)' },
+      AI:    { name: 'Audit Internal', pilar: 'Pilar II (Governance)' },
+      PMA:   { name: 'Penjaminan Mutu Akademik', pilar: 'Pilar II (Governance)' },
+      HK:    { name: 'Hukum dan Kearsipan', pilar: 'Pilar II (Governance)' },
+      MRT:   { name: 'Manajemen Risiko, Transformasi Budaya, dan Tata Kelola', pilar: 'Pilar II (Governance)' }
+    };
+
+    // State Global — Murni dimulai kosong (0 baris, tanpa preload / sampel)
+    let rawMasterData = [];
+    let filteredData = [];
+    let sortedData = [];
+    let isDataLoaded = false;
+    let isSyncing = false;
+    let autoSyncInterval = null;
+    let autoSyncRemaining = 60;
+    let searchDebounceTimer = null;
+    // Default sorting: multi-level (batch -> pilar -> urutan modul -> nama_peserta)
+    let sortState = { key: 'DEFAULT', dir: 'asc' };
+    let isTableCollapsed = true;
+    let pilarCollapsedState = { 'Pilar I': true, 'Pilar II': true };
+    let currentPage = 1;
+    let pageSize = 50;
+    let activeModalRow = null;
+    let modalRenderMode = 'formatted'; // 'formatted' | 'raw'
+
+    // Cache Memoization agar teks soal yang sama (diulang 186x per modul) hanya di-parse 1x
+    const _htmlCleanCache = new Map();
+
+    /*************************************************************************
+     * B. SANITASI HTML TINYMCE MOODLE, REKONSTRUKSI TABEL & EKSTRAKSI TEKS
+     *************************************************************************/
+    // Decode HTML Entities jika string dari CSV ter-escape (&lt;table&gt; -> <table>)
+    function decodeHtmlEntitiesIfNeeded(str) {
+      if (!str || typeof str !== 'string') return '';
+      let s = str.trim();
+      // Jika mengandung entity HTML tag seperti &lt;table, &lt;p, &lt;tr, &lt;td, &lt;ol, &lt;ul
+      if (/&lt;\s*\/?\s*(table|thead|tbody|tr|td|th|p|div|span|br|ul|ol|li|strong|b|i|em|h[1-6])\b/i.test(s)) {
+        const txt = document.createElement('textarea');
+        txt.innerHTML = s;
+        s = txt.value;
+        // Double decode jika ter-escape 2 lapis
+        if (/&lt;\s*\/?\s*(table|tr|td|p)\b/i.test(s)) {
+          txt.innerHTML = s;
+          s = txt.value;
+        }
+      }
+      return s;
+    }
+
+    // Format penomoran inline "1. ... 2. ... 3. ..." menjadi daftar baris baru yang rapi
+    function formatNumberedPointsHtml(text) {
+      if (!text) return '';
+      const escaped = escapeHtml(text.trim());
+      // Pisahkan jika ada pola "1. xxx 2. yyy" di dalam satu sel
+      const parts = escaped.split(/(?=\b[1-9]\.\s+)/g).map(p => p.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        return `<div class="space-y-1">${parts.map(p => `<div class="pl-3 -indent-3">${p}</div>`).join('')}</div>`;
+      }
+      return escaped.replace(/\n/g, '<br/>');
+    }
+
+    // Skema Kolom & Baris Tabel Esai Terstruktur (Untuk merekonstruksi teks rata jika SQL men-strip tag <table>)
+    const STRUCTURED_ESSAY_SCHEMAS = {
+      PK: {
+        headers: ['Komponen RKT', 'Jelaskan Fungsi/Norma Penyusunannya', 'Output yang Dihasilkan', 'Contoh pada Unit Kerja Saudara'],
+        rows: [
+          'Sasaran Unit Kerja',
+          'Program Kerja',
+          'Kegiatan',
+          'Indikator Kinerja',
+          'Target Tahunan',
+          'Anggaran',
+          'Risiko Pelaksanaan',
+          'Monitoring dan Evaluasi'
+        ]
+      }
+    };
+
+    // Rekonstruksi teks esai atau soal yang kehilangan tag <table> menjadi tabel HTML utuh
+    function tryReconstructStructuredEssay(flatText, kodeModul, isSoal = false) {
+      if (!flatText || typeof flatText !== 'string') return null;
+      const text = flatText.replace(/\r\n/g, '\n').trim();
+
+      // Cek apakah teks mengandung struktur tabel RKT (Modul PK)
+      const isPkRktPattern =
+        kodeModul === 'PK' ||
+        (text.includes('Komponen RKT') && text.includes('Sasaran Unit Kerja') && text.includes('Program Kerja'));
+
+      if (isPkRktPattern) {
+        const schema = STRUCTURED_ESSAY_SCHEMAS.PK;
+        const headerAnchor = 'Contoh pada Unit Kerja Saudara';
+        const headerIdx = text.indexOf(headerAnchor);
+
+        let introPart = '';
+        let bodyPart = text;
+
+        if (headerIdx !== -1) {
+          const beforeHeader = text.slice(0, headerIdx);
+          const kompIdx = beforeHeader.indexOf('Komponen RKT');
+          if (kompIdx !== -1) {
+            introPart = beforeHeader.slice(0, kompIdx).trim();
+          }
+          bodyPart = text.slice(headerIdx + headerAnchor.length).trim();
+        }
+
+        // Cari posisi setiap baris komponen di dalam bodyPart
+        const foundRows = [];
+        schema.rows.forEach(rowName => {
+          const regex = new RegExp(`\\b${rowName.replace(/\s+/g, '\\s+')}\\b`, 'i');
+          const match = regex.exec(bodyPart);
+          if (match) {
+            foundRows.push({ name: rowName, index: match.index, matchLen: match[0].length });
+          }
+        });
+
+        foundRows.sort((a, b) => a.index - b.index);
+
+        if (foundRows.length >= 3) {
+          let htmlOut = '';
+
+          // Jika ini adalah Soal/Instruksi dan memiliki pengantar kompetensi
+          if (introPart) {
+            const cleanIntro = escapeHtml(introPart)
+              .replace(/(Kompetensi yang Dinilai)/g, '<strong class="text-slate-900 block mb-1">$1:</strong>')
+              .replace(/(Waktu:\s*\d+\s*Menit)/g, '<span class="inline-block px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[11px] my-1 mr-2">$1</span>')
+              .replace(/(Bentuk:\s*[^S]+)(?=SOAL)/g, '<span class="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-bold text-[11px] my-1">$1</span><br/>')
+              .replace(/\b(SOAL)\b/g, '<strong class="text-slate-900 block mt-2 mb-1">$1:</strong>');
+            htmlOut += `<div class="mb-3 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs leading-relaxed">${cleanIntro}</div>`;
+          }
+
+          htmlOut += `<table><thead><tr>${schema.headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>`;
+
+          for (let i = 0; i < foundRows.length; i++) {
+            const current = foundRows[i];
+            const next = foundRows[i + 1];
+            const rawSegment = bodyPart.slice(current.index + current.matchLen, next ? next.index : bodyPart.length).trim();
+
+            if (isSoal && !rawSegment) {
+              htmlOut += `<tr>
+                <td class="font-bold text-slate-900 bg-slate-50/80 w-36">${escapeHtml(current.name)}</td>
+                <td class="text-slate-400 italic">Diisi peserta</td>
+                <td class="text-slate-400 italic">Diisi peserta</td>
+                <td class="text-slate-400 italic">Diisi peserta</td>
+              </tr>`;
+            } else {
+              // Bagi segmen jawaban menjadi 3 kolom (Fungsi/Norma, Output, Contoh) jika memungkinkan
+              let col1 = '', col2 = '', col3 = '';
+              // Pola umum: peserta mengisi nomor "1. ... 2. ..." pada kolom Contoh (kolom ke-4)
+              const firstNumMatch = rawSegment.match(/\s+(?=1\.\s+)/);
+              if (firstNumMatch && firstNumMatch.index > 0) {
+                const beforeExamples = rawSegment.slice(0, firstNumMatch.index).trim();
+                col3 = rawSegment.slice(firstNumMatch.index).trim();
+                const midSplit = beforeExamples.split(/\s{2,}|\t+/);
+                if (midSplit.length >= 2) {
+                  col1 = midSplit[0];
+                  col2 = midSplit.slice(1).join(' ');
+                } else {
+                  const words = beforeExamples.split(/\s+/);
+                  if (words.length >= 2) {
+                    col1 = words[0];
+                    col2 = words.slice(1).join(' ');
+                  } else {
+                    col1 = beforeExamples;
+                  }
+                }
+              } else {
+                const multiSpaceParts = rawSegment.split(/\s{2,}|\t+/).map(s => s.trim()).filter(Boolean);
+                if (multiSpaceParts.length >= 3) {
+                  col1 = multiSpaceParts[0];
+                  col2 = multiSpaceParts[1];
+                  col3 = multiSpaceParts.slice(2).join('\n');
+                } else if (multiSpaceParts.length === 2) {
+                  col1 = multiSpaceParts[0];
+                  col3 = multiSpaceParts[1];
+                } else {
+                  col3 = rawSegment;
+                }
+              }
+
+              htmlOut += `<tr>
+                <td class="font-bold text-slate-900 bg-slate-50/80 w-36">${escapeHtml(current.name)}</td>
+                <td>${col1 ? formatNumberedPointsHtml(col1) : '<span class="text-slate-300">-</span>'}</td>
+                <td>${col2 ? formatNumberedPointsHtml(col2) : '<span class="text-slate-300">-</span>'}</td>
+                <td>${col3 ? formatNumberedPointsHtml(col3) : '<span class="text-slate-300">-</span>'}</td>
+              </tr>`;
+            }
+          }
+
+          htmlOut += `</tbody></table>`;
+          return htmlOut;
+        }
+      }
+
+      // Jika teks mengandung baris-baris dengan pemisah pipa (|) hasil ekstraksi tabel
+      if (text.includes(' | ')) {
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        const pipeLines = lines.filter(l => l.includes(' | '));
+        if (pipeLines.length >= 2) {
+          let tbl = '<table><tbody>';
+          lines.forEach((line, idx) => {
+            if (line.includes(' | ')) {
+              const cells = line.split(' | ').map(c => c.trim());
+              const tag = idx === 0 ? 'th' : 'td';
+              tbl += `<tr>${cells.map(c => `<${tag}>${formatNumberedPointsHtml(c)}</${tag}>`).join('')}</tr>`;
+            } else {
+              tbl += `<tr><td colspan="4" class="bg-slate-50 font-semibold">${escapeHtml(line)}</td></tr>`;
+            }
+          });
+          tbl += '</tbody></table>';
+          return tbl;
+        }
+      }
+
+      return null;
+    }
+
+    function sanitizeMoodleHtmlForPreview(rawHtml, kodeModul = '', isSoal = false) {
+      if (!rawHtml || typeof rawHtml !== 'string' || !rawHtml.trim()) {
+        return '<span class="text-slate-400 italic">Kosong / Belum ada isi</span>';
+      }
+
+      // 1. Decode jika tag HTML dari TinyMCE ter-escape menjadi &lt;...&gt;
+      const decoded = decodeHtmlEntitiesIfNeeded(rawHtml);
+
+      // 2. Cek apakah mengandung elemen HTML nyata dari TinyMCE (<table, <p, <div, <ul, <ol, <br, <strong, dll.)
+      const hasRealHtmlTags = /<\s*\/?\s*(table|thead|tbody|tr|td|th|p|div|span|br|ul|ol|li|strong|b|i|em|u|h[1-6])\b[^>]*>/i.test(decoded);
+
+      if (hasRealHtmlTags) {
+        try {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(decoded, 'text/html');
+
+          // Bersihkan elemen berbahaya & atribut sampah TinyMCE / MS Word tanpa merusak struktur tabel
+          doc.querySelectorAll('script, style, iframe, object, embed, link, meta').forEach(el => el.remove());
+          doc.body.querySelectorAll('*').forEach(el => {
+            el.removeAttribute('id');
+            if (el.getAttribute('class') === 'MsoNormal') el.removeAttribute('class');
+            // Bersihkan inline style yang merusak lebar tabel di modal
+            if (el.hasAttribute('style')) {
+              const cleanStyle = el.getAttribute('style')
+                .replace(/width\s*:\s*[^;]+;?/gi, '')
+                .replace(/font-family\s*:\s*[^;]+;?/gi, '')
+                .replace(/font-size\s*:\s*[^;]+;?/gi, '')
+                .trim();
+              if (cleanStyle) el.setAttribute('style', cleanStyle);
+              else el.removeAttribute('style');
+            }
+            if (el.tagName === 'TABLE') {
+              el.removeAttribute('width');
+              el.removeAttribute('border');
+              el.removeAttribute('cellspacing');
+              el.removeAttribute('cellpadding');
+            }
+          });
+
+          // Jika di dalam HTML TinyMCE belum ada <table> tapi teksnya punya pola tabel yang di-flatten
+          if (doc.querySelectorAll('table').length === 0) {
+            const plainFromHtml = (doc.body.textContent || '').trim();
+            const reconstructed = tryReconstructStructuredEssay(plainFromHtml, kodeModul, isSoal);
+            if (reconstructed) return reconstructed;
+          }
+
+          return doc.body.innerHTML;
+        } catch (e) {
+          return decoded.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+        }
+      }
+
+      // 3. Jika murni teks rata (karena di-strip di level SQL Report 175), rekonstruksi menjadi tabel / paragraf terformat
+      const reconstructed = tryReconstructStructuredEssay(decoded, kodeModul, isSoal);
+      if (reconstructed) {
+        return reconstructed;
+      }
+
+      // 4. Format paragraf & penomoran otomatis untuk teks esai non-tabel
+      const paragraphs = decoded
+        .replace(/\r\n/g, '\n')
+        .split(/\n+/)
+        .map(p => p.trim())
+        .filter(Boolean);
+
+      return paragraphs.map(p => `<p>${formatNumberedPointsHtml(p)}</p>`).join('');
+    }
+
+    function htmlToCleanExcelText(rawHtml) {
+      if (rawHtml === null || rawHtml === undefined) return '';
+      const str = decodeHtmlEntitiesIfNeeded(String(rawHtml).trim());
+      if (!str) return '';
+      if (!str.includes('<') && !str.includes('&')) return str;
+
+      if (_htmlCleanCache.has(str)) {
+        return _htmlCleanCache.get(str);
+      }
+
+      let result = '';
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(str, 'text/html');
+
+        const tables = doc.querySelectorAll('table');
+        if (tables.length > 0) {
+          tables.forEach(tbl => {
+            const rowsText = [];
+            tbl.querySelectorAll('tr').forEach(tr => {
+              const cells = Array.from(tr.querySelectorAll('th, td')).map(td =>
+                td.textContent.replace(/\s+/g, ' ').trim()
+              ).filter(Boolean);
+              if (cells.length > 0) {
+                rowsText.push(cells.join(' | '));
+              }
+            });
+            const replacement = doc.createTextNode('\n' + rowsText.join('\n') + '\n');
+            tbl.parentNode.replaceChild(replacement, tbl);
+          });
+        }
+
+        doc.querySelectorAll('br, p, div, li, tr').forEach(el => {
+          el.appendChild(doc.createTextNode('\n'));
+        });
+
+        result = (doc.body.textContent || '')
+          .replace(/\r\n/g, '\n')
+          .replace(/[ \t]+/g, ' ')
+          .replace(/\n\s*\n+/g, '\n')
+          .trim();
+      } catch (e) {
+        result = str.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      }
+
+      if (_htmlCleanCache.size < 2500) {
+        _htmlCleanCache.set(str, result);
+      }
+      return result;
+    }
+
+    /*************************************************************************
+     * C. PIPELINE INGESTI REALTIME CSV (PERSIS UI ALEX 2026 v3)
+     *************************************************************************/
+    function setDashboardLoadedState(loaded, titleMsg, subMsg) {
+      isDataLoaded = Boolean(loaded);
+      const root = document.getElementById('dashboardRoot');
+      const titleEl = document.getElementById('shieldTitleText');
+      const subEl = document.getElementById('shieldSubText');
+      if (!root) return;
+      if (isDataLoaded) {
+        root.classList.remove('dashboard-unloaded');
+      } else {
+        root.classList.add('dashboard-unloaded');
+        if (titleEl && titleMsg) titleEl.textContent = titleMsg;
+        if (subEl && subMsg) subEl.textContent = subMsg;
+      }
+    }
+
+    function updateSyncHoverTooltip() {
+      const btn = document.getElementById('btnSyncNow');
+      if (!btn) return;
+      const statusMsg = document.getElementById('syncStatusText')?.textContent || 'Siap';
+      const lastSync = document.getElementById('lastSyncTimestamp')?.textContent || '-';
+      const totalRec = document.getElementById('totalRawRowsBadge')?.textContent || '0';
+      const hoverText = `Last Updated: ${lastSync} • Total Record: ${totalRec} baris (${statusMsg})`;
+      btn.setAttribute('data-tippy-content', hoverText);
+      btn.setAttribute('title', hoverText);
+      if (btn._tippy) {
+        btn._tippy.setContent(hoverText);
+      }
+    }
+
+    function setSyncBanner(msg, color = 'emerald') {
+      const dot = document.getElementById('syncStatusDot');
+      const txt = document.getElementById('syncStatusText');
+      if (txt) txt.textContent = msg;
+      if (dot) {
+        const dotColorMap = {
+          emerald: 'bg-emerald-700',
+          amber: 'bg-amber-800 animate-pulse',
+          rose: 'bg-rose-700'
+        };
+        dot.className = `w-2 h-2 rounded-full ${dotColorMap[color] || 'bg-emerald-700'}`;
+      }
+      updateSyncHoverTooltip();
+    }
+
+    // Penarikan CSV Murni lewat URL Worker CORS Khusus (Tanpa Upload Manual)
+    function fetchSingleCSV(reportId) {
+      const baseUri = _resolveUri(_ENC_WORKER);
+      const targetUrl = `${baseUri}${encodeURIComponent(reportId)}&_t=${Date.now()}`;
+      return new Promise((resolve, reject) => {
+        Papa.parse(targetUrl, {
+          download: true,
+          header: true,
+          skipEmptyLines: true,
+          dynamicTyping: false,
+          complete: results => resolve(results.data || []),
+          error: err => reject(err)
+        });
+      });
+    }
+
+    async function initDashboard() {
+      // Mulai dari state belum ada data ter-load (0 baris, area di bawah header diarsir & disabled)
+      rawMasterData = [];
+      filteredData = [];
+      applyFilters();
+      setDashboardLoadedState(
+        false,
+        'Menarik Data Live CSV dari Pipeline EMAS3...',
+        'Mohon tunggu sejenak, sedang mengunduh dan memetakan rekaman esai dari Configurable Report ID 175.'
+      );
+
+      initAutoSyncTicker();
+      await startSync(false);
+    }
+
+    async function startSync(isSilent = false) {
+      if (isSyncing) return;
+      isSyncing = true;
+
+      const btn = document.getElementById('btnSyncNow');
+      const icon = document.getElementById('syncIcon');
+      const txt = document.getElementById('syncBtnText');
+      if (btn) btn.disabled = true;
+      if (icon) icon.classList.add('animate-spin');
+      if (txt) txt.textContent = 'Syncing...';
+
+      if (!isDataLoaded) {
+        setDashboardLoadedState(
+          false,
+          'Menarik Data Live CSV dari Pipeline EMAS3...',
+          'Sedang menghubungi endpoint laporan (175) dan memvalidasi struktur baris.'
+        );
+      }
+      if (!isSilent) setSyncBanner('Menarik data dari pipeline EMAS3...', 'amber');
+
+      try {
+        const rawIds = document.getElementById('reportIdInput')?.value || '175';
+        const idList = rawIds.split(',').map(s => s.trim()).filter(Boolean);
+        let combinedRows = [];
+
+        for (const repId of idList) {
+          const rows = await fetchSingleCSV(repId);
+          combinedRows = combinedRows.concat(rows);
+        }
+
+        const sanitized = [];
+        for (const r of combinedRows) {
+          if (!r || typeof r !== 'object') continue;
+          const hasParticipant = r.nama_peserta !== undefined && r.nama_peserta !== null && String(r.nama_peserta).trim() !== '';
+          if (!hasParticipant) continue;
+
+          const cleanRow = {};
+          REPORT_175_COLUMNS.forEach(col => {
+            if (col === 'kunci_jawaban') {
+              // Sesuai instruksi: kolom tetap ada tapi dikosongkan
+              cleanRow[col] = '';
+            } else {
+              cleanRow[col] = r[col] !== undefined && r[col] !== null ? String(r[col]) : '';
+            }
+          });
+
+          cleanRow._soal_text = htmlToCleanExcelText(cleanRow.soal_atau_instruksi_esai);
+          cleanRow._jawaban_text = htmlToCleanExcelText(cleanRow.jawaban_peserta_essay);
+          sanitized.push(cleanRow);
+        }
+
+        if (sanitized.length > 0) {
+          rawMasterData = sanitized;
+          const nowStr = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'medium' });
+          await localforage.setItem('alex2026_v3_report175Data', rawMasterData);
+          await localforage.setItem('alex2026_v3_report175Sync', nowStr);
+
+          const tsEl = document.getElementById('lastSyncTimestamp');
+          const visEl = document.getElementById('lastUpdateVisibleBadge');
+          const rowsEl = document.getElementById('totalRawRowsBadge');
+          if (tsEl) tsEl.textContent = nowStr;
+          if (visEl) visEl.textContent = `🕒 Update: ${nowStr}`;
+          if (rowsEl) rowsEl.textContent = rawMasterData.length.toLocaleString('id-ID');
+          setSyncBanner(`Pipeline (${idList.join(', ')}) aktif`, 'emerald');
+          setDashboardLoadedState(true);
+          populateDynamicBatchOptions();
+          applyFilters();
+        } else {
+          setSyncBanner('Pipeline mengembalikan 0 baris', 'rose');
+          if (!isDataLoaded) {
+            setDashboardLoadedState(
+              false,
+              'Data CSV Belum Tersedia (0 Baris)',
+              'Klik tombol "Sync Data" di bagian header atas untuk mencoba menarik ulang.'
+            );
+          }
+        }
+      } catch (err) {
+        console.error('Sync error:', err);
+        setSyncBanner('Gagal menarik CSV dari pipeline', 'rose');
+        if (!isDataLoaded) {
+          setDashboardLoadedState(
+            false,
+            'Koneksi Pipeline CSV Terkendala',
+            'Silakan klik tombol "Sync Data" di bilah atas untuk memuat ulang data.'
+          );
+        }
+      } finally {
+        isSyncing = false;
+        autoSyncRemaining = 60;
+        if (btn) btn.disabled = false;
+        if (icon) icon.classList.remove('animate-spin');
+        if (txt) txt.textContent = 'Sync Data';
+        updateSyncHoverTooltip();
+      }
+    }
+
+    function initAutoSyncTicker() {
+      if (autoSyncInterval) clearInterval(autoSyncInterval);
+      autoSyncInterval = setInterval(() => {
+        autoSyncRemaining--;
+        if (autoSyncRemaining <= 0) {
+          const activeEl = document.activeElement;
+          const isModalOpen = !document.getElementById('essayDetailModal')?.classList.contains('hidden');
+          if ((activeEl && activeEl.id === 'searchTable') || isModalOpen) {
+            autoSyncRemaining = 15;
+          } else {
+            autoSyncRemaining = 60;
+            startSync(true);
+          }
+        }
+        const badge = document.getElementById('autoSyncCountdown');
+        if (badge) badge.textContent = `${autoSyncRemaining}s`;
+      }, 1000);
+    }
+
+    async function clearBrowserData() {
+      try {
+        await localforage.removeItem('alex2026_v3_report175Data');
+        await localforage.removeItem('alex2026_v3_report175Sync');
+      } catch (e) {
+        console.warn('Clear storage warning:', e);
+      }
+      rawMasterData = [];
+      filteredData = [];
+      const tsEl = document.getElementById('lastSyncTimestamp');
+      const visEl = document.getElementById('lastUpdateVisibleBadge');
+      const rowsEl = document.getElementById('totalRawRowsBadge');
+      if (tsEl) tsEl.textContent = 'Reset';
+      if (visEl) visEl.textContent = '🕒 Update: Reset';
+      if (rowsEl) rowsEl.textContent = '0';
+      setSyncBanner('Cache IndexedDB Report 175 dibersihkan', 'amber');
+      applyFilters();
+      setDashboardLoadedState(
+        false,
+        'Cache & Memori Telah Direset',
+        'Klik tombol "Sync Data" pada header di atas untuk menarik kembali data CSV dari server.'
+      );
+    }
+
+    /*************************************************************************
+     * D. FILTERING, SORTING & RENDER DASHBOARD
+     *************************************************************************/
+    function populateDynamicBatchOptions() {
+      const sel = document.getElementById('filterBatch');
+      if (!sel) return;
+      const currentVal = sel.value;
+      const batches = Array.from(new Set(rawMasterData.map(r => r.batch).filter(Boolean))).sort();
+      if (batches.length === 0) return;
+
+      const options = ['<option value="ALL">Semua Batch</option>'];
+      batches.forEach(b => {
+        options.push(`<option value="${b}">${b}</option>`);
+      });
+      sel.innerHTML = options.join('');
+      if (batches.includes(currentVal)) {
+        sel.value = currentVal;
+      } else if (batches.includes('Batch 2')) {
+        sel.value = 'Batch 2';
+      } else {
+        sel.value = 'ALL';
+      }
+    }
+
+    function quickFilterStatus(statusVal) {
+      const el = document.getElementById('filterStatus');
+      if (!el) return;
+      el.value = el.value === statusVal ? 'ALL' : statusVal;
+      currentPage = 1;
+      applyFilters();
+    }
+
+    function quickFilterPilar(pilarVal) {
+      const el = document.getElementById('filterPilar');
+      const modEl = document.getElementById('filterModul');
+      if (!el) return;
+      el.value = el.value === pilarVal ? 'ALL' : pilarVal;
+      if (modEl && el.value !== 'ALL') {
+        modEl.value = 'ALL';
+      }
+      currentPage = 1;
+      applyFilters();
+    }
+
+    function quickFilterModul(modulCode) {
+      const el = document.getElementById('filterModul');
+      if (!el) return;
+      el.value = el.value === modulCode ? 'ALL' : modulCode;
+      currentPage = 1;
+      applyFilters();
+    }
+
+    function quickFilterModulAndStatus(event, modulCode, statusVal) {
+      if (event) event.stopPropagation();
+      const modEl = document.getElementById('filterModul');
+      const statEl = document.getElementById('filterStatus');
+      if (!modEl || !statEl) return;
+
+      if (modEl.value === modulCode && statEl.value === statusVal) {
+        statEl.value = 'ALL';
+      } else {
+        modEl.value = modulCode;
+        statEl.value = statusVal;
+      }
+      currentPage = 1;
+      applyFilters();
+    }
+
+    function togglePilarDrawer(event, pilarKey) {
+      if (event) event.stopPropagation();
+      pilarCollapsedState[pilarKey] = !pilarCollapsedState[pilarKey];
+      const safeId = pilarKey.replace(/\s+/g, '_');
+      const drawer = document.getElementById(`pilarDrawer_${safeId}`);
+      const mini = document.getElementById(`pilarMini_${safeId}`);
+      const chev = document.getElementById(`pilarChev_${safeId}`);
+      const lbl = document.getElementById(`pilarBtnLbl_${safeId}`);
+
+      const isCollapsed = pilarCollapsedState[pilarKey];
+      if (drawer) drawer.classList.toggle('drawer-open', !isCollapsed);
+      if (mini) mini.classList.toggle('hidden', !isCollapsed);
+      if (chev) chev.classList.toggle('chevron-open', !isCollapsed);
+      if (lbl) lbl.textContent = isCollapsed ? 'Buka Detail Modul' : 'Tutup Detail';
+    }
+
+    function resetFilters() {
+      const bEl = document.getElementById('filterBatch');
+      const pEl = document.getElementById('filterPilar');
+      const mEl = document.getElementById('filterModul');
+      const sEl = document.getElementById('filterStatus');
+      const qEl = document.getElementById('searchTable');
+      if (bEl) bEl.value = 'Batch 2';
+      if (pEl) pEl.value = 'ALL';
+      if (mEl) mEl.value = 'ALL';
+      if (sEl) sEl.value = 'ALL';
+      if (qEl) qEl.value = '';
+      currentPage = 1;
+      applyFilters();
+    }
+
+    function onSearchInput() {
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        currentPage = 1;
+        applyFilters();
+      }, 250);
+    }
+
+    function onPageSizeChange() {
+      const val = document.getElementById('pageSizeSelect')?.value || '50';
+      pageSize = val === 'ALL' ? 'ALL' : parseInt(val, 10) || 50;
+      currentPage = 1;
+      renderTable();
+    }
+
+    function goToPage(pageNum) {
+      const totalPages = getTotalPages();
+      currentPage = Math.max(1, Math.min(totalPages, pageNum));
+      renderTable();
+    }
+
+    function changePage(delta) {
+      goToPage(currentPage + delta);
+    }
+
+    function goToLastPage() {
+      goToPage(getTotalPages());
+    }
+
+    function getTotalPages() {
+      if (pageSize === 'ALL' || sortedData.length === 0) return 1;
+      return Math.max(1, Math.ceil(sortedData.length / pageSize));
+    }
+
+    function applyFilters() {
+      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const fPilar = document.getElementById('filterPilar')?.value || 'ALL';
+      const fModul = document.getElementById('filterModul')?.value || 'ALL';
+      const fStatus = document.getElementById('filterStatus')?.value || 'ALL';
+      const q = (document.getElementById('searchTable')?.value || '').trim().toLowerCase();
+
+      filteredData = rawMasterData.filter(r => {
+        if (fBatch !== 'ALL' && r.batch !== fBatch) return false;
+        if (fPilar !== 'ALL' && !r.pilar.includes(fPilar)) return false;
+        if (fModul !== 'ALL' && r.kode_modul !== fModul) return false;
+        if (fStatus !== 'ALL' && r.status_submisi !== fStatus) return false;
+
+        if (q) {
+          const hay = `${r.nama_peserta} ${r.username} ${r.nip} ${r.email} ${r.kode_modul} ${r.id_submisi} ${r._jawaban_text}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      const activeBadge = document.getElementById('activeModulWidgetBadge');
+      if (activeBadge) {
+        if (fModul === 'ALL' && fPilar === 'ALL') {
+          activeBadge.textContent = fStatus === 'ALL' ? 'Semua Pilar & Modul Aktif' : `Semua Modul • Status: ${fStatus}`;
+          activeBadge.className = 'px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-mono font-bold text-[11px]';
+        } else if (fModul === 'ALL' && fPilar !== 'ALL') {
+          activeBadge.textContent = `Filter Pilar: ${fPilar}${fStatus !== 'ALL' ? ' • ' + fStatus : ''}`;
+          activeBadge.className = 'px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-950 border border-indigo-300 font-mono font-extrabold text-[11px]';
+        } else {
+          const info = MODULE_INFO[fModul] || { name: fModul };
+          activeBadge.textContent = `Filter Aktif: ${fModul} (${info.name})${fStatus !== 'ALL' ? ' • ' + fStatus : ''}`;
+          activeBadge.className = 'px-2.5 py-1 rounded-lg bg-amber-100 text-amber-950 border border-amber-300 font-mono font-extrabold text-[11px]';
+        }
+      }
+
+      renderKPIsAndModuleGrid(fBatch, fPilar, fModul, fStatus);
+      renderTable();
+    }
+
+    function renderKPIsAndModuleGrid(fBatch, activePilar, activeModul, activeStatus) {
+      const total = filteredData.length;
+      const submitted = filteredData.filter(r => r.status_submisi === 'submitted').length;
+      const newCount = filteredData.filter(r => r.status_submisi === 'new').length;
+      const belum = filteredData.filter(r => r.status_submisi === 'belum_submit').length;
+      const uniqueUsers = new Set(filteredData.map(r => r.username)).size;
+
+      const pct = n => total ? ((n / total) * 100).toFixed(1) + '%' : '0.0%';
+
+      const setTxt = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+      };
+
+      setTxt('kpiTotalRows', total.toLocaleString('id-ID'));
+      setTxt('kpiUniqueUsers', `${uniqueUsers} peserta unik terfilter`);
+      setTxt('kpiSubmittedCount', submitted.toLocaleString('id-ID'));
+      setTxt('kpiSubmittedPct', pct(submitted));
+      setTxt('kpiNewCount', newCount.toLocaleString('id-ID'));
+      setTxt('kpiNewPct', pct(newCount));
+      setTxt('kpiBelumCount', belum.toLocaleString('id-ID'));
+      setTxt('kpiBelumPct', pct(belum));
+
+      const baseRows = rawMasterData.filter(r => fBatch === 'ALL' || r.batch === fBatch);
+      const gridEl = document.getElementById('moduleBreakdownGrid');
+      if (!gridEl) return;
+
+      const PILAR_GROUPS = [
+        {
+          key: 'Pilar I',
+          title: 'PILAR I — MANAJEMEN & OPERASIONAL',
+          subtitle: '4 Modul Direktorat (PK, SDMPT, PBJ, KA)',
+          codes: ['PK', 'SDMPT', 'PBJ', 'KA'],
+          theme: {
+            wrapperBg: 'bg-amber-50/35 border-amber-200/90',
+            activeWrapper: 'ring-4 ring-amber-500/20 border-2 border-amber-500 bg-amber-50/60',
+            headerBg: 'bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border-b border-amber-200/80',
+            badgeCls: 'bg-amber-500 text-slate-950',
+            pillCls: 'bg-amber-100 text-amber-900 border-amber-300'
+          }
+        },
+        {
+          key: 'Pilar II',
+          title: 'PILAR II — GOVERNANCE & KEPATUHAN',
+          subtitle: '4 Modul Direktorat (AI, PMA, HK, MRT)',
+          codes: ['AI', 'PMA', 'HK', 'MRT'],
+          theme: {
+            wrapperBg: 'bg-blue-50/35 border-blue-200/90',
+            activeWrapper: 'ring-4 ring-blue-500/20 border-2 border-blue-500 bg-blue-50/60',
+            headerBg: 'bg-gradient-to-r from-blue-600/15 via-blue-500/5 to-transparent border-b border-blue-200/80',
+            badgeCls: 'bg-blue-600 text-white',
+            pillCls: 'bg-blue-100 text-blue-900 border-blue-300'
+          }
+        }
+      ];
+
+      const renderModuleCard = (code, isPilar1) => {
+        const mRows = baseRows.filter(r => r.kode_modul === code);
+        const info = MODULE_INFO[code] || { name: code, pilar: '-' };
+        const mName = mRows[0]?.modul_direktorat || info.name;
+
+        const mTotal = mRows.length;
+        const mSub = mRows.filter(r => r.status_submisi === 'submitted').length;
+        const mNew = mRows.filter(r => r.status_submisi === 'new').length;
+        const mBelum = mRows.filter(r => r.status_submisi === 'belum_submit').length;
+
+        const mSubPct = mTotal ? ((mSub / mTotal) * 100).toFixed(1) : '0.0';
+        const mNewPct = mTotal ? ((mNew / mTotal) * 100).toFixed(1) : '0.0';
+
+        const subTimes = mRows.map(r => r.waktu_submit).filter(t => t && t !== '-' && t.trim() !== '').sort();
+        const latestSubmit = subTimes.length > 0 ? subTimes[subTimes.length - 1] : 'Belum ada submit';
+
+        const isSelected = activeModul === code;
+        const pilarBadgeCls = isPilar1
+          ? 'bg-amber-100 text-amber-900 border-amber-300'
+          : 'bg-blue-100 text-blue-900 border-blue-300';
+
+        return `
+          <div onclick="quickFilterModul('${code}')"
+            class="cursor-pointer p-3.5 rounded-xl border transition-all duration-150 flex flex-col justify-between ${isSelected ? 'border-2 border-amber-500 bg-amber-50/90 ring-4 ring-amber-500/15 shadow-md' : 'border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-sm'}">
+            <div>
+              <!-- Header Kartu Modul -->
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-1.5">
+                  <span class="px-2 py-0.5 rounded-md bg-slate-900 text-amber-400 font-mono font-extrabold text-xs">${code}</span>
+                  <span class="px-2 py-0.5 rounded border text-[10px] font-bold ${pilarBadgeCls}">${isPilar1 ? 'Pilar I' : 'Pilar II'}</span>
+                </div>
+                <span class="font-mono text-xs font-extrabold ${mSub > 0 ? 'text-emerald-700' : 'text-slate-400'}">${mSubPct}% Selesai</span>
+              </div>
+
+              <!-- Nama Lengkap Modul Direktorat -->
+              <h3 class="text-xs font-extrabold text-slate-900 mt-2 line-clamp-1" title="${escapeHtml(mName)}">${escapeHtml(mName)}</h3>
+
+              <!-- Progress Bar Bertumpuk -->
+              <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden flex my-2.5" title="Submitted: ${mSub} | New (Draft): ${mNew} | Belum Submit: ${mBelum}">
+                <div class="h-full bg-emerald-500 transition-all duration-300" style="width: ${mSubPct}%"></div>
+                <div class="h-full bg-amber-400 transition-all duration-300" style="width: ${mNewPct}%"></div>
+              </div>
+
+              <!-- 3 Kotak Metrik Interaktif per Modul -->
+              <div class="grid grid-cols-3 gap-1.5 text-center mt-1">
+                <button type="button" onclick="quickFilterModulAndStatus(event, '${code}', 'submitted')"
+                  class="p-1.5 rounded-lg border transition ${isSelected && activeStatus === 'submitted' ? 'bg-emerald-600 text-white border-emerald-700 font-extrabold' : 'bg-emerald-50/80 hover:bg-emerald-100 border-emerald-200 text-emerald-800'}">
+                  <div class="text-[9px] font-bold uppercase opacity-80">Submitted</div>
+                  <div class="font-mono text-xs font-extrabold mt-0.5">${mSub}</div>
+                </button>
+                <button type="button" onclick="quickFilterModulAndStatus(event, '${code}', 'new')"
+                  class="p-1.5 rounded-lg border transition ${isSelected && activeStatus === 'new' ? 'bg-amber-500 text-slate-950 border-amber-600 font-extrabold' : 'bg-amber-50/80 hover:bg-amber-100 border-amber-200 text-amber-800'}">
+                  <div class="text-[9px] font-bold uppercase opacity-80">New / Draft</div>
+                  <div class="font-mono text-xs font-extrabold mt-0.5">${mNew}</div>
+                </button>
+                <button type="button" onclick="quickFilterModulAndStatus(event, '${code}', 'belum_submit')"
+                  class="p-1.5 rounded-lg border transition ${isSelected && activeStatus === 'belum_submit' ? 'bg-slate-800 text-white border-slate-900 font-extrabold' : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'}">
+                  <div class="text-[9px] font-bold uppercase opacity-80">Belum</div>
+                  <div class="font-mono text-xs font-extrabold mt-0.5">${mBelum}</div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Footer Kartu Modul (Dilengkapi Tombol Download Excel per Modul) -->
+            <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-[10px] font-mono text-slate-500">
+              <div class="truncate">
+                <span>Pop: <strong class="text-slate-700">${mTotal}</strong></span>
+                <span class="mx-1">•</span>
+                <span title="Submit Terakhir: ${escapeHtml(latestSubmit)}">🕒 ${escapeHtml(latestSubmit)}</span>
+              </div>
+              <button type="button" onclick="exportSingleModuleToExcel(event, '${code}')"
+                title="Download Excel (.xlsx) khusus modul ${code}"
+                class="shrink-0 px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-sans font-bold text-[10px] shadow-sm transition flex items-center gap-1">
+                <span>📥</span><span>XLSX ${code}</span>
+              </button>
+            </div>
+          </div>
+        `;
+      };
+
+      const renderMiniModulePill = (code, isPilar1) => {
+        const mRows = baseRows.filter(r => r.kode_modul === code);
+        const info = MODULE_INFO[code] || { name: code, pilar: '-' };
+        const mName = mRows[0]?.modul_direktorat || info.name;
+        const mTotal = mRows.length;
+        const mSub = mRows.filter(r => r.status_submisi === 'submitted').length;
+        const mNew = mRows.filter(r => r.status_submisi === 'new').length;
+        const mBelum = mRows.filter(r => r.status_submisi === 'belum_submit').length;
+        const mSubPct = mTotal ? ((mSub / mTotal) * 100).toFixed(1) : '0.0';
+        const mNewPct = mTotal ? ((mNew / mTotal) * 100).toFixed(1) : '0.0';
+        const isSelected = activeModul === code;
+
+        return `
+          <div onclick="event.stopPropagation(); quickFilterModul('${code}')"
+            class="cursor-pointer px-3 py-2.5 rounded-xl border transition-all duration-150 flex flex-col justify-between ${isSelected ? 'border-2 border-amber-500 bg-amber-50/90 ring-2 ring-amber-500/20 shadow-sm' : 'border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-sm'}"
+            title="Klik untuk memfilter modul ${code} — ${escapeHtml(mName)}">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span class="px-1.5 py-0.5 rounded bg-slate-900 text-amber-400 font-mono font-extrabold text-[10px] shrink-0">${code}</span>
+                <span class="text-[11px] font-bold text-slate-800 truncate">${escapeHtml(mName)}</span>
+              </div>
+              <span class="font-mono text-[10px] font-extrabold ${mSub > 0 ? 'text-emerald-700' : 'text-slate-400'} shrink-0">${mSub}/${mTotal} (${mSubPct}%)</span>
+            </div>
+            <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex my-1.5 border border-slate-200/60">
+              <div class="h-full bg-emerald-500 transition-all duration-300" style="width: ${mSubPct}%"></div>
+              <div class="h-full bg-amber-400 transition-all duration-300" style="width: ${mNewPct}%"></div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] font-mono text-slate-500">
+              <span>🟢 ${mSub} • 🟡 ${mNew} • ⚪ ${mBelum}</span>
+              <button type="button" onclick="exportSingleModuleToExcel(event, '${code}')"
+                title="Unduh Excel modul ${code}"
+                class="px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white border border-emerald-200 font-sans font-bold text-[9px] transition">
+                📥 XLSX
+              </button>
+            </div>
+          </div>
+        `;
+      };
+
+      gridEl.innerHTML = PILAR_GROUPS.map(grp => {
+        const isPilar1 = grp.key === 'Pilar I';
+        const safeId = grp.key.replace(/\s+/g, '_');
+        const isCollapsed = pilarCollapsedState[grp.key] !== false;
+        const pRows = baseRows.filter(r => grp.codes.includes(r.kode_modul));
+        const pTotal = pRows.length;
+        const pSub = pRows.filter(r => r.status_submisi === 'submitted').length;
+        const pNew = pRows.filter(r => r.status_submisi === 'new').length;
+        const pBelum = pRows.filter(r => r.status_submisi === 'belum_submit').length;
+        const pSubPct = pTotal ? ((pSub / pTotal) * 100).toFixed(1) : '0.0';
+        const isPilarSelected = activePilar === grp.key;
+
+        return `
+          <div class="rounded-2xl border p-3.5 transition-all ${isPilarSelected ? grp.theme.activeWrapper : grp.theme.wrapperBg}">
+            <!-- Header Kelompok Pilar (Klik untuk Expand/Collapse Animated Drawer) -->
+            <div onclick="togglePilarDrawer(event, '${grp.key}')"
+              class="cursor-pointer rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3 ${grp.theme.headerBg} hover:opacity-95 transition select-none">
+              <div class="flex items-center gap-2.5">
+                <span class="px-2.5 py-1 rounded-lg font-mono font-extrabold text-xs shadow-sm ${grp.theme.badgeCls}">${grp.key.toUpperCase()}</span>
+                <div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <h3 class="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">${grp.title}</h3>
+                    <button type="button" onclick="event.stopPropagation(); quickFilterPilar('${grp.key}')"
+                      class="px-2 py-0.5 rounded-md border text-[10px] font-mono font-bold transition ${isPilarSelected ? 'bg-slate-900 text-amber-400 border-slate-900' : 'bg-white/90 hover:bg-white text-slate-700 border-slate-300 shadow-sm'}"
+                      title="Klik untuk memfilter tabel khusus ${grp.key}">
+                      ${isPilarSelected ? '✓ Filter Pilar Aktif' : '🔍 Filter Pilar'}
+                    </button>
+                  </div>
+                  <p class="text-[11px] text-slate-500">${grp.subtitle} • Klik bar ini untuk membuka/menutup kartu detail</p>
+                </div>
+              </div>
+
+              <!-- Ringkasan Statistik Pilar & Tombol Drawer -->
+              <div class="flex flex-wrap items-center gap-2 text-xs font-mono">
+                <span class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 font-bold">
+                  Slot: <strong>${pTotal.toLocaleString('id-ID')}</strong>
+                </span>
+                <span class="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-extrabold">
+                  🟢 Submitted: ${pSub.toLocaleString('id-ID')} (${pSubPct}%)
+                </span>
+                <span class="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 font-bold">
+                  🟡 New: ${pNew.toLocaleString('id-ID')}
+                </span>
+                <span class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 font-semibold">
+                  ⚪ Belum: ${pBelum.toLocaleString('id-ID')}
+                </span>
+                <button type="button" onclick="togglePilarDrawer(event, '${grp.key}')"
+                  class="px-3 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-sans font-bold text-xs shadow-sm transition flex items-center gap-1.5">
+                  <span id="pilarChev_${safeId}" class="drawer-chevron ${!isCollapsed ? 'chevron-open' : ''}">▼</span>
+                  <span id="pilarBtnLbl_${safeId}">${isCollapsed ? 'Buka Detail Modul' : 'Tutup Detail'}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Mini Widget Pratinjau 4 Modul (Tampil saat Pilar Collapsed, otomatis sembunyi saat Expanded) -->
+            <div id="pilarMini_${safeId}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mt-3 ${!isCollapsed ? 'hidden' : ''}">
+              ${grp.codes.map(code => renderMiniModulePill(code, isPilar1)).join('')}
+            </div>
+
+            <!-- Animated Drawer 4 Kartu Modul Lengkap -->
+            <div id="pilarDrawer_${safeId}" class="drawer-wrapper ${!isCollapsed ? 'drawer-open' : ''}">
+              <div class="drawer-inner">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3">
+                  ${grp.codes.map(code => renderModuleCard(code, isPilar1)).join('')}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleTableCollapse(forceOpen) {
+      if (typeof forceOpen === 'boolean') {
+        isTableCollapsed = !forceOpen;
+      } else {
+        isTableCollapsed = !isTableCollapsed;
+      }
+      const body = document.getElementById('tableCollapsibleBody');
+      const lbl = document.getElementById('lblCollapseTable');
+      const chev = document.getElementById('chevronTable');
+      const btn = document.getElementById('btnCollapseTable');
+      if (!body) return;
+
+      if (isTableCollapsed) {
+        body.classList.remove('drawer-open');
+        if (lbl) lbl.textContent = 'Buka Tabel';
+        if (chev) chev.classList.remove('chevron-open');
+        if (btn) btn.className = 'px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs shadow-sm transition flex items-center gap-1.5';
+      } else {
+        body.classList.add('drawer-open');
+        if (lbl) lbl.textContent = 'Tutup Tabel';
+        if (chev) chev.classList.add('chevron-open');
+        if (btn) btn.className = 'px-3.5 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs transition flex items-center gap-1.5';
+      }
+    }
+
+    function resetDefaultSort() {
+      sortState = { key: 'DEFAULT', dir: 'asc' };
+      currentPage = 1;
+      renderTable();
+    }
+
+    function compareDefaultHierarchy(a, b) {
+      // 1. Batch
+      const cBatch = String(a.batch || '').localeCompare(String(b.batch || ''), 'id', { numeric: true });
+      if (cBatch !== 0) return cBatch;
+
+      // 2. Pilar
+      const cPilar = String(a.pilar || '').localeCompare(String(b.pilar || ''), 'id', { numeric: true });
+      if (cPilar !== 0) return cPilar;
+
+      // 3. Urutan Modul (PK, SDMPT, PBJ, KA, AI, PMA, HK, MRT)
+      const idxA = MODULE_ORDER.indexOf(a.kode_modul);
+      const idxB = MODULE_ORDER.indexOf(b.kode_modul);
+      const rankA = idxA === -1 ? 999 : idxA;
+      const rankB = idxB === -1 ? 999 : idxB;
+      if (rankA !== rankB) return rankA - rankB;
+
+      // 4. Nama Lengkap Peserta (Fullname)
+      return String(a.nama_peserta || '').localeCompare(String(b.nama_peserta || ''), 'id', { sensitivity: 'base' });
+    }
+
+    function sortBy(key) {
+      if (sortState.key === key) {
+        sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortState.key = key;
+        sortState.dir = ['status_submisi', 'waktu_submit', 'nilai_di_emas3', '_jawaban_text'].includes(key) ? 'desc' : 'asc';
+      }
+      currentPage = 1;
+      renderTable();
+    }
+
+    function updateSortHeaderIndicators() {
+      document.querySelectorAll('[id^="sort_"]').forEach(el => {
+        el.textContent = ' ⇅';
+        el.className = 'text-slate-400 font-normal';
+      });
+      if (sortState.key === 'DEFAULT') {
+        ['batch', 'pilar', 'kode_modul', 'nama_peserta'].forEach((k, i) => {
+          const el = document.getElementById(`sort_${k}`);
+          if (el) {
+            el.textContent = ` ▲${i + 1}`;
+            el.className = 'text-amber-600 font-extrabold text-[10px]';
+          }
+        });
+        return;
+      }
+      const activeEl = document.getElementById(`sort_${sortState.key}`);
+      if (activeEl) {
+        activeEl.textContent = sortState.dir === 'asc' ? ' ▲' : ' ▼';
+        activeEl.className = 'text-amber-600 font-extrabold';
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function renderPaginationControls(totalRows, startIdx, endIdx) {
+      const totalPages = getTotalPages();
+      const summaryEl = document.getElementById('paginationSummaryText');
+      if (summaryEl) {
+        if (totalRows === 0) {
+          summaryEl.innerHTML = `Tidak ada baris data`;
+        } else {
+          summaryEl.innerHTML = `Halaman <strong class="font-mono text-slate-900">${currentPage}</strong> dari <strong class="font-mono text-slate-900">${totalPages}</strong> • Menampilkan baris <strong class="font-mono text-slate-900">${startIdx + 1}–${endIdx}</strong> dari total <strong class="font-mono text-slate-900">${totalRows.toLocaleString('id-ID')}</strong> terfilter`;
+        }
+      }
+
+      const btnFirst = document.getElementById('btnPageFirst');
+      const btnPrev = document.getElementById('btnPagePrev');
+      const btnNext = document.getElementById('btnPageNext');
+      const btnLast = document.getElementById('btnPageLast');
+
+      if (btnFirst) btnFirst.disabled = currentPage <= 1;
+      if (btnPrev) btnPrev.disabled = currentPage <= 1;
+      if (btnNext) btnNext.disabled = currentPage >= totalPages;
+      if (btnLast) btnLast.disabled = currentPage >= totalPages;
+
+      const numContainer = document.getElementById('paginationNumbersContainer');
+      if (!numContainer) return;
+
+      const pages = [];
+      const maxButtons = 5;
+      let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+      let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+      if (endPage - startPage + 1 < maxButtons) {
+        startPage = Math.max(1, endPage - maxButtons + 1);
+      }
+
+      for (let p = startPage; p <= endPage; p++) {
+        pages.push(p);
+      }
+
+      numContainer.innerHTML = pages.map(p => {
+        const isCurrent = p === currentPage;
+        return `<button type="button" onclick="goToPage(${p})"
+          class="w-8 h-8 rounded-lg font-mono text-xs font-extrabold transition flex items-center justify-center ${isCurrent ? 'bg-slate-900 text-amber-400 shadow-sm' : 'bg-white border border-slate-300 text-slate-700 hover:bg-amber-50 hover:border-amber-300'}">
+          ${p}
+        </button>`;
+      }).join('');
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('essayTableBody');
+      if (!tbody) return;
+
+      updateSortHeaderIndicators();
+
+      sortedData = [...filteredData];
+      const { key, dir } = sortState;
+      const mult = dir === 'asc' ? 1 : -1;
+
+      sortedData.sort((a, b) => {
+        if (key === 'DEFAULT') {
+          return compareDefaultHierarchy(a, b);
+        }
+
+        if (key === 'kode_modul') {
+          const idxA = MODULE_ORDER.indexOf(a.kode_modul);
+          const idxB = MODULE_ORDER.indexOf(b.kode_modul);
+          const rA = idxA === -1 ? 999 : idxA;
+          const rB = idxB === -1 ? 999 : idxB;
+          if (rA !== rB) return (rA - rB) * mult;
+          return compareDefaultHierarchy(a, b);
+        }
+
+        const va = a[key] ?? '';
+        const vb = b[key] ?? '';
+
+        if (key === 'id_submisi' || key === 'nilai_di_emas3') {
+          const na = parseFloat(va);
+          const nb = parseFloat(vb);
+          if (!isNaN(na) && !isNaN(nb) && na !== nb) return (na - nb) * mult;
+          if (!isNaN(na) && isNaN(nb)) return 1 * mult;
+          if (isNaN(na) && !isNaN(nb)) return -1 * mult;
+        }
+
+        const cmp = String(va).localeCompare(String(vb), 'id', { numeric: true }) * mult;
+        return cmp !== 0 ? cmp : compareDefaultHierarchy(a, b);
+      });
+
+      const totalFiltered = sortedData.length;
+      const quickBadge = document.getElementById('tableHeaderQuickCount');
+      if (quickBadge) {
+        quickBadge.textContent = `${totalFiltered.toLocaleString('id-ID')} Baris Terfilter`;
+      }
+
+      const totalPages = getTotalPages();
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const startIdx = pageSize === 'ALL' ? 0 : (currentPage - 1) * pageSize;
+      const endIdx = pageSize === 'ALL' ? totalFiltered : Math.min(totalFiltered, startIdx + pageSize);
+
+      document.getElementById('tableCountBadge').textContent =
+        totalFiltered > 0
+          ? `Menampilkan ${(startIdx + 1).toLocaleString('id-ID')} - ${endIdx.toLocaleString('id-ID')} dari ${totalFiltered.toLocaleString('id-ID')} baris (Total Master: ${rawMasterData.length.toLocaleString('id-ID')})`
+          : `Menampilkan 0 dari ${rawMasterData.length.toLocaleString('id-ID')} baris`;
+
+      renderPaginationControls(totalFiltered, startIdx, endIdx);
+
+      if (totalFiltered === 0) {
+        tbody.innerHTML = `<tr><td colspan="19" class="p-8 text-center text-slate-400 font-medium">Tidak ada data yang sesuai dengan filter aktif.</td></tr>`;
+        return;
+      }
+
+      const displaySlice = sortedData.slice(startIdx, endIdx);
+
+      tbody.innerHTML = displaySlice.map((r, idx) => {
+        const absoluteIdx = startIdx + idx;
+        let statusBadge = `<span class="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[10px] font-semibold">belum_submit</span>`;
+        if (r.status_submisi === 'submitted') {
+          statusBadge = `<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono text-[10px] font-extrabold">submitted</span>`;
+        } else if (r.status_submisi === 'new') {
+          statusBadge = `<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 font-mono text-[10px] font-bold">new</span>`;
+        }
+
+        const soalPreview = r._soal_text ? escapeHtml(r._soal_text.slice(0, 75)) + '...' : '-';
+        const hasJawaban = r._jawaban_text && r._jawaban_text.length > 0;
+        const jawabanPreview = hasJawaban
+          ? `<div class="line-clamp-2 text-[11px] text-slate-700">${escapeHtml(r._jawaban_text.slice(0, 120))}</div>`
+          : `<span class="text-slate-300 italic">Belum ada jawaban</span>`;
+
+        return `<tr class="hover:bg-amber-50/40 transition">
+          <td class="p-2 text-center font-mono text-slate-400">${absoluteIdx + 1}</td>
+          <td class="p-2 text-center bg-emerald-50/30">
+            <div class="inline-flex items-center gap-1">
+              <button type="button" onclick="exportSingleRowToExcel(${absoluteIdx})"
+                title="Unduh Excel baris ini (${escapeHtml(r.nama_peserta)} - Modul ${escapeHtml(r.kode_modul)})"
+                class="px-1.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] shadow-sm transition">
+                📥 Baris
+              </button>
+              <button type="button" onclick="exportParticipantAllModulesToExcel('${escapeHtml(r.username)}')"
+                title="Unduh Excel seluruh 8 modul milik ${escapeHtml(r.nama_peserta)}"
+                class="px-1.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-[10px] shadow-sm transition">
+                👤 8 Modul
+              </button>
+            </div>
+          </td>
+          <td class="p-2 font-mono text-[11px] text-slate-600">${escapeHtml(r.id_submisi)}</td>
+          <td class="p-2 text-center font-semibold">${escapeHtml(r.batch)}</td>
+          <td class="p-2 text-[11px] text-slate-600">${escapeHtml(r.pilar)}</td>
+          <td class="p-2 text-center"><span class="px-2 py-0.5 rounded bg-slate-100 font-mono font-bold text-slate-800">${escapeHtml(r.kode_modul)}</span></td>
+          <td class="p-2 text-[11px] font-medium text-slate-800">${escapeHtml(r.modul_direktorat)}</td>
+          <td class="p-2 text-[11px] text-slate-600">${escapeHtml(r.nama_assignment_esai)}</td>
+          <td class="p-2 font-mono text-[11px] text-slate-700">${escapeHtml(r.username)}</td>
+          <td class="p-2 font-mono text-[11px] text-slate-500">${escapeHtml(r.nip)}</td>
+          <td class="p-2 font-bold text-slate-900">${escapeHtml(r.nama_peserta)}</td>
+          <td class="p-2 font-mono text-[11px] text-slate-500">${escapeHtml(r.email)}</td>
+          <td class="p-2 text-[11px] text-slate-500">
+            <div class="line-clamp-2">${soalPreview}</div>
+          </td>
+          <td class="p-2">
+            <div class="flex items-start justify-between gap-2">
+              ${jawabanPreview}
+              <button type="button" onclick="openEssayModal(${absoluteIdx})"
+                class="shrink-0 px-2 py-1 rounded bg-amber-100 hover:bg-amber-400 text-amber-950 font-bold text-[10px] transition">
+                🔍 Tabel
+              </button>
+            </div>
+          </td>
+          <td class="p-2 text-center bg-amber-50/30 font-mono text-slate-300">""</td>
+          <td class="p-2 text-center">${statusBadge}</td>
+          <td class="p-2 text-center font-mono text-[11px] text-slate-600">${escapeHtml(r.waktu_submit || '-')}</td>
+          <td class="p-2 text-center font-mono font-bold">${escapeHtml(r.nilai_di_emas3 || '-')}</td>
+          <td class="p-2 text-center text-[11px] text-slate-500">${escapeHtml(r.target_kelulusan)}</td>
+        </tr>`;
+      }).join('');
+
+      window._currentDisplayedList = sortedData;
+    }
+
+    /*************************************************************************
+     * E. MODAL DETAIL ESAI & EKSPOR EXCEL (.XLSX) 17 KOLOM
+     *************************************************************************/
+    function setModalRenderMode(mode) {
+      modalRenderMode = mode === 'raw' ? 'raw' : 'formatted';
+      const btnFmt = document.getElementById('btnViewModeFormatted');
+      const btnRaw = document.getElementById('btnViewModeRaw');
+      if (btnFmt && btnRaw) {
+        if (modalRenderMode === 'formatted') {
+          btnFmt.className = 'px-2.5 py-1 rounded-md bg-amber-500 text-slate-950 transition';
+          btnRaw.className = 'px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition';
+        } else {
+          btnFmt.className = 'px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition';
+          btnRaw.className = 'px-2.5 py-1 rounded-md bg-amber-500 text-slate-950 transition';
+        }
+      }
+      renderActiveModalContent();
+    }
+
+    function renderActiveModalContent() {
+      const r = activeModalRow;
+      if (!r) return;
+
+      const soalContainer = document.getElementById('modalSoalHtml');
+      const jawabContainer = document.getElementById('modalJawabanHtml');
+      const fmtBadge = document.getElementById('modalFormatDetectedBadge');
+
+      const rawJawab = r.jawaban_peserta_essay || '';
+      const decodedJawab = decodeHtmlEntitiesIfNeeded(rawJawab);
+      const hasHtmlTag = /<\s*\/?\s*(table|tr|td|p|div|ul|ol|li|br|strong|span)\b/i.test(decodedJawab);
+
+      if (fmtBadge) {
+        if (!rawJawab.trim()) {
+          fmtBadge.textContent = 'Kosong';
+          fmtBadge.className = 'px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-slate-700 text-slate-300';
+        } else if (hasHtmlTag) {
+          fmtBadge.textContent = '✨ TinyMCE HTML Rendered';
+          fmtBadge.className = 'px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-sky-500/20 text-sky-300 border border-sky-500/30';
+        } else {
+          fmtBadge.textContent = '⚡ Smart Table Reconstructed';
+          fmtBadge.className = 'px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-amber-500/20 text-amber-300 border border-amber-500/30';
+        }
+      }
+
+      if (modalRenderMode === 'raw') {
+        if (soalContainer) {
+          soalContainer.innerHTML = `<pre class="p-3 rounded-lg bg-slate-900 text-slate-200 font-mono text-[11px] whitespace-pre-wrap overflow-x-auto">${escapeHtml(r.soal_atau_instruksi_esai || 'Kosong')}</pre>`;
+        }
+        if (jawabContainer) {
+          jawabContainer.innerHTML = rawJawab.trim()
+            ? `<pre class="p-3 rounded-lg bg-slate-900 text-emerald-300 font-mono text-[11px] whitespace-pre-wrap overflow-x-auto">${escapeHtml(rawJawab)}</pre>`
+            : '<div class="p-6 text-center text-slate-400 italic">Peserta ini belum mengumpulkan jawaban esai.</div>';
+        }
+      } else {
+        if (soalContainer) {
+          soalContainer.innerHTML = sanitizeMoodleHtmlForPreview(r.soal_atau_instruksi_esai, r.kode_modul, true);
+        }
+        if (jawabContainer) {
+          jawabContainer.innerHTML = rawJawab.trim()
+            ? sanitizeMoodleHtmlForPreview(rawJawab, r.kode_modul, false)
+            : '<div class="p-6 text-center text-slate-400 italic">Peserta ini belum mengumpulkan jawaban esai.</div>';
+        }
+      }
+    }
+
+    function openEssayModal(idxInList) {
+      const list = window._currentDisplayedList || sortedData;
+      const r = list[idxInList];
+      if (!r) return;
+      activeModalRow = r;
+
+      document.getElementById('modalModulBadge').textContent = `${r.kode_modul} — ${r.modul_direktorat}`;
+      document.getElementById('modalStatusBadge').textContent = r.status_submisi;
+      document.getElementById('modalWaktuBadge').textContent = r.waktu_submit ? `Submit: ${r.waktu_submit}` : 'Belum Submit';
+      document.getElementById('modalPesertaName').textContent = r.nama_peserta;
+      document.getElementById('modalPesertaMeta').textContent = `Username: ${r.username} | NIP: ${r.nip || '-'} | Email: ${r.email} | ID Submisi: ${r.id_submisi}`;
+      document.getElementById('modalAssignmentTitle').textContent = r.nama_assignment_esai;
+      document.getElementById('modalCharCount').textContent = `${(r._jawaban_text || '').length.toLocaleString('id-ID')} karakter bersih`;
+
+      renderActiveModalContent();
+      document.getElementById('essayDetailModal').classList.remove('hidden');
+    }
+
+    function closeEssayModal() {
+      document.getElementById('essayDetailModal').classList.add('hidden');
+      activeModalRow = null;
+    }
+
+    function copyActiveEssayAnswer() {
+      if (!activeModalRow) return;
+      const text = activeModalRow._jawaban_text || 'Belum ada jawaban';
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setSyncBanner('Teks jawaban peserta disalin!', 'emerald');
+    }
+
+    function formatRowsForSheet(sourceRows, stripHtml = true) {
+      return sourceRows.map(r => {
+        const obj = {};
+        REPORT_175_COLUMNS.forEach(col => {
+          if (col === 'kunci_jawaban') {
+            obj[col] = ''; // Selalu kosong sesuai spesifikasi
+          } else if (stripHtml && col === 'soal_atau_instruksi_esai') {
+            obj[col] = r._soal_text;
+          } else if (stripHtml && col === 'jawaban_peserta_essay') {
+            obj[col] = r._jawaban_text;
+          } else {
+            obj[col] = r[col] ?? '';
+          }
+        });
+        return obj;
+      });
+    }
+
+    function buildExportRows(stripHtml = true) {
+      const source = sortedData.length > 0 ? sortedData : (filteredData.length > 0 ? filteredData : rawMasterData);
+      return formatRowsForSheet(source, stripHtml);
+    }
+
+    // 1. Download Excel khusus Isi Tabel yang sedang terfilter & terurut
+    function exportFilteredTableToExcel() {
+      const source = sortedData.length > 0 ? sortedData : filteredData;
+      if (source.length === 0) {
+        setSyncBanner('Tidak ada baris di tabel untuk diekspor', 'rose');
+        return;
+      }
+      const rows = formatRowsForSheet(source, true);
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows, { header: REPORT_175_COLUMNS });
+      XLSX.utils.book_append_sheet(wb, ws, 'Isi_Tabel_Terfilter');
+
+      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const fModul = document.getElementById('filterModul')?.value || 'ALL';
+      const fStatus = document.getElementById('filterStatus')?.value || 'ALL';
+      const tag = `${fBatch}_${fModul}_${fStatus}`.replace(/\s+/g, '');
+      XLSX.writeFile(wb, `UI_ALEX_2026_Tabel_${tag}_${Date.now()}.xlsx`);
+    }
+
+    // 2. Download Excel per Modul langsung dari tombol pada Widget Modul
+    function exportSingleModuleToExcel(event, modulCode) {
+      if (event) event.stopPropagation();
+      const fBatch = document.getElementById('filterBatch')?.value || 'ALL';
+      const modRows = rawMasterData
+        .filter(r => (fBatch === 'ALL' || r.batch === fBatch) && r.kode_modul === modulCode)
+        .sort(compareDefaultHierarchy);
+
+      if (modRows.length === 0) {
+        setSyncBanner(`Belum ada data untuk modul ${modulCode}`, 'rose');
+        return;
+      }
+
+      const cleanSheetRows = formatRowsForSheet(modRows, true);
+      const wb = XLSX.utils.book_new();
+      const ws1 = XLSX.utils.json_to_sheet(cleanSheetRows, { header: REPORT_175_COLUMNS });
+      XLSX.utils.book_append_sheet(wb, ws1, `Modul_${modulCode}`);
+
+      const info = MODULE_INFO[modulCode] || { name: modulCode, pilar: '-' };
+      const total = modRows.length;
+      const sub = modRows.filter(r => r.status_submisi === 'submitted').length;
+      const newC = modRows.filter(r => r.status_submisi === 'new').length;
+      const belum = modRows.filter(r => r.status_submisi === 'belum_submit').length;
+
+      const ws2 = XLSX.utils.json_to_sheet([{
+        'Batch': fBatch === 'ALL' ? 'Semua Batch' : fBatch,
+        'Kode Modul': modulCode,
+        'Modul Direktorat': modRows[0]?.modul_direktorat || info.name,
+        'Pilar': modRows[0]?.pilar || info.pilar,
+        'Total Peserta': total,
+        'Submitted (Sudah Kumpul)': sub,
+        'New (Draft)': newC,
+        'Belum Submit': belum,
+        'Persentase Submit (%)': total ? Number(((sub / total) * 100).toFixed(1)) : 0
+      }]);
+      XLSX.utils.book_append_sheet(wb, ws2, `Rekap_${modulCode}`);
+
+      const batchTag = (fBatch === 'ALL' ? 'SemuaBatch' : fBatch).replace(/\s+/g, '');
+      XLSX.writeFile(wb, `UI_ALEX_2026_Modul_${modulCode}_${batchTag}_${Date.now()}.xlsx`);
+    }
+
+    // 3. Download Excel per Orang (1 Baris Submisi Spesifik atau Seluruh 8 Modul Milik Peserta Tersebut)
+    function exportSingleRowToExcel(idxInSorted) {
+      const list = window._currentDisplayedList || sortedData;
+      const r = list[idxInSorted];
+      if (!r) return;
+
+      const rows = formatRowsForSheet([r], true);
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows, { header: REPORT_175_COLUMNS });
+      XLSX.utils.book_append_sheet(wb, ws, `${r.kode_modul}_${r.username}`.slice(0, 31));
+
+      const safeName = String(r.nama_peserta || r.username || 'Peserta').replace(/[^a-zA-Z0-9_-]/g, '_');
+      XLSX.writeFile(wb, `Esai_${r.kode_modul}_${safeName}.xlsx`);
+    }
+
+    function exportParticipantAllModulesToExcel(username) {
+      if (!username) return;
+      const userRows = rawMasterData
+        .filter(r => r.username === username)
+        .sort(compareDefaultHierarchy);
+
+      if (userRows.length === 0) {
+        setSyncBanner('Data peserta tidak ditemukan', 'rose');
+        return;
+      }
+
+      const rows = formatRowsForSheet(userRows, true);
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows, { header: REPORT_175_COLUMNS });
+      XLSX.utils.book_append_sheet(wb, ws, `8Modul_${username}`.slice(0, 31));
+
+      const safeName = String(userRows[0]?.nama_peserta || username).replace(/[^a-zA-Z0-9_-]/g, '_');
+      XLSX.writeFile(wb, `Esai_Lengkap_8Modul_${safeName}.xlsx`);
+    }
+
+    function exportToExcel(stripHtml = true) {
+      const rows = buildExportRows(stripHtml);
+      if (rows.length === 0) {
+        setSyncBanner('Belum ada data untuk diekspor', 'rose');
+        return;
+      }
+
+      const wb = XLSX.utils.book_new();
+      const ws1 = XLSX.utils.json_to_sheet(rows, { header: REPORT_175_COLUMNS });
+      XLSX.utils.book_append_sheet(wb, ws1, 'Data_Submisi_ID175');
+
+      // Sheet 2: Rekapitulasi per Modul Direktorat
+      const source = filteredData.length > 0 ? filteredData : rawMasterData;
+      const rekapRows = MODULE_ORDER.map(code => {
+        const mRows = source.filter(r => r.kode_modul === code);
+        const info = MODULE_INFO[code] || { name: code, pilar: '-' };
+        const total = mRows.length;
+        const sub = mRows.filter(r => r.status_submisi === 'submitted').length;
+        const newC = mRows.filter(r => r.status_submisi === 'new').length;
+        const belum = mRows.filter(r => r.status_submisi === 'belum_submit').length;
+        return {
+          'Kode Modul': code,
+          'Modul Direktorat': mRows[0]?.modul_direktorat || info.name,
+          'Pilar': mRows[0]?.pilar || info.pilar,
+          'Total Peserta': total,
+          'Submitted (Sudah Kumpul)': sub,
+          'New (Draft)': newC,
+          'Belum Submit': belum,
+          'Persentase Submit (%)': total ? Number(((sub / total) * 100).toFixed(1)) : 0
+        };
+      });
+      const ws2 = XLSX.utils.json_to_sheet(rekapRows);
+      XLSX.utils.book_append_sheet(wb, ws2, 'Rekapitulasi_Modul');
+
+      const suffix = stripHtml ? 'BERSIH' : 'RAW_HTML';
+      XLSX.writeFile(wb, `UI_ALEX_2026_Report175_${suffix}_${Date.now()}.xlsx`);
+    }
+
+    function initTippyTooltips() {
+      try {
+        if (typeof tippy === 'function') {
+          document.querySelectorAll('[data-tippy-content]').forEach(el => {
+            if (!el._tippy) {
+              tippy(el, {
+                theme: 'light-border',
+                animation: 'shift-away',
+                delay: [80, 20]
+              });
+            }
+          });
+        }
+      } catch (e) {}
+    }
+
+    document.addEventListener('contextmenu', e => {
+      if (e.target.closest('input, textarea, .allow-context, .selectable')) return;
+      e.preventDefault();
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initTippyTooltips();
+      initDashboard();
+    });
+  </script>
+</body>
+</html>
