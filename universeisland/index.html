@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Gedung Rektorat UI Kampus Depok — NEXUS Omni-Scale 3D Simulator</title>
+  <meta name="description" content="Simulasi 3D Prosedural Kelas-A Gedung Pusat Administrasi / Rektorat Universitas Indonesia Depok, Pulau 360°, Danau Kenanga, Helipad VIP & Cuaca Rill Kota Depok." />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    :root {
+      --glass-bg: rgba(12, 16, 24, 0.84);
+      --glass-border: rgba(242, 194, 48, 0.30);
+      --ui-gold: #f2c230;
+      --ui-gold-soft: rgba(242, 194, 48, 0.16);
+      --ui-cyan: #56ccf2;
+      --text-main: #f4f6fa;
+      --text-muted: #98a3b5;
+      --ok-green: #38d996;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #070b12;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-main);
+      user-select: none;
+    }
+
+    #sim-canvas-wrap {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    /* ==========================================================================
+       INDUSTRY BEST-PRACTICE INTERACTIVE ARCHITECTURAL PRELOADER (< 16ms Paint)
+       Completely removed (display: none) after WebGL2 shader pre-warm completes!
+       ========================================================================== */
+    #nexus-preloader {
+      position: fixed;
+      inset: 0;
+      z-index: 120;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background:
+        radial-gradient(circle at 50% 34%, rgba(242, 194, 48, 0.10), transparent 54%),
+        radial-gradient(circle at 20% 80%, rgba(56, 217, 150, 0.07), transparent 46%),
+        linear-gradient(180deg, #070b13 0%, #0a101c 55%, #060910 100%);
+      transition: opacity 0.62s cubic-bezier(0.22, 1, 0.36, 1), transform 0.62s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    #nexus-preloader::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(242, 194, 48, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(242, 194, 48, 0.045) 1px, transparent 1px);
+      background-size: 36px 36px;
+      mask-image: radial-gradient(circle at 50% 48%, rgba(0, 0, 0, 0.95), transparent 78%);
+      -webkit-mask-image: radial-gradient(circle at 50% 48%, rgba(0, 0, 0, 0.95), transparent 78%);
+      pointer-events: none;
+    }
+
+    #nexus-preloader.is-finishing {
+      opacity: 0;
+      transform: scale(1.028);
+      pointer-events: none;
+    }
+
+    .loader-card {
+      position: relative;
+      width: 100%;
+      max-width: 470px;
+      border-radius: 20px;
+      padding: 18px 20px 16px;
+      background: rgba(11, 16, 26, 0.86);
+      border: 1px solid rgba(242, 194, 48, 0.28);
+      box-shadow:
+        0 24px 64px rgba(0, 0, 0, 0.68),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transform-style: preserve-3d;
+      transition: transform 0.16s ease-out;
+    }
+
+    .loader-top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .loader-loc-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(56, 217, 150, 0.11);
+      border: 1px solid rgba(56, 217, 150, 0.34);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--ok-green);
+    }
+
+    .loader-loc-pill .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ok-green);
+      box-shadow: 0 0 8px var(--ok-green);
+      animation: nexusPulse 1.6s ease-in-out infinite;
+    }
+
+    .loader-clock-pill {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ui-gold);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.03em;
+    }
+
+    .loader-blueprint-wrap {
+      position: relative;
+      height: 154px;
+      border-radius: 14px;
+      background:
+        radial-gradient(circle at 50% 56%, rgba(242, 194, 48, 0.11), rgba(8, 12, 20, 0.92) 74%);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .loader-svg {
+      width: 100%;
+      max-width: 330px;
+      height: 146px;
+    }
+
+    .bp-ring-spin {
+      transform-origin: 160px 92px;
+      animation: bpSpin 26s linear infinite;
+    }
+
+    .bp-draw {
+      stroke-dasharray: 420;
+      stroke-dashoffset: 420;
+      animation: bpStroke 2.6s cubic-bezier(0.35, 0, 0.25, 1) forwards;
+    }
+
+    .bp-draw-delay {
+      stroke-dasharray: 280;
+      stroke-dashoffset: 280;
+      animation: bpStroke 2.2s 0.35s cubic-bezier(0.35, 0, 0.25, 1) forwards;
+    }
+
+    .loader-weather-tag {
+      position: absolute;
+      left: 10px;
+      bottom: 8px;
+      padding: 3px 8px;
+      border-radius: 7px;
+      background: rgba(7, 11, 18, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      font-size: 10px;
+      color: #cbd5e4;
+    }
+
+    .loader-coords-tag {
+      position: absolute;
+      right: 10px;
+      bottom: 8px;
+      font-size: 9.5px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .loader-heading {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .loader-heading h1 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: 0.02em;
+    }
+
+    .loader-heading p {
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    .loader-progress-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .loader-stage-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11.5px;
+    }
+
+    #loader-stage-text {
+      color: #e4eaf4;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #loader-pct {
+      color: var(--ui-gold);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+
+    .loader-bar-track {
+      width: 100%;
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      position: relative;
+    }
+
+    #loader-bar-fill {
+      width: 4%;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #d4a11d 0%, #f5ce47 60%, #38d996 100%);
+      box-shadow: 0 0 14px rgba(242, 194, 48, 0.55);
+      transition: width 0.10s ease-out;
+      position: relative;
+    }
+
+    #loader-bar-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+      animation: loaderSheen 1.35s linear infinite;
+    }
+
+    .loader-milestones {
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      gap: 4px;
+    }
+
+    .loader-step-pip {
+      height: 3px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.10);
+      transition: background 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .loader-step-pip.done {
+      background: var(--ok-green);
+      box-shadow: 0 0 6px rgba(56, 217, 150, 0.5);
+    }
+
+    .loader-step-pip.active {
+      background: var(--ui-gold);
+      box-shadow: 0 0 7px rgba(242, 194, 48, 0.7);
+    }
+
+    .loader-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10.5px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .loader-tip-card {
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 11px;
+      padding: 9px 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .loader-tip-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .loader-tip-head strong {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--ui-gold);
+    }
+
+    .loader-tip-btn {
+      background: rgba(242, 194, 48, 0.10);
+      border: 1px solid rgba(242, 194, 48, 0.28);
+      color: var(--ui-gold);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .loader-tip-btn:hover {
+      background: rgba(242, 194, 48, 0.20);
+      border-color: var(--ui-gold);
+    }
+
+    #loader-tip-text {
+      font-size: 11px;
+      line-height: 1.42;
+      color: #d3dbe8;
+      min-height: 31px;
+      transition: opacity 0.2s ease;
+    }
+
+    @keyframes nexusPulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.25); opacity: 0.55; }
+    }
+
+    @keyframes bpSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes bpStroke {
+      to { stroke-dashoffset: 0; }
+    }
+
+    @keyframes loaderSheen {
+      from { transform: translateX(-100%); }
+      to { transform: translateX(100%); }
+    }
+
+    /* ==========================================================================
+       DEFAULT COLLAPSED SINGLE COMPACT PILL BUTTON (100% CLEAN STARTUP VIEWPORT)
+       ========================================================================== */
+    #sim-pill-toggle {
+      --pill-pct: 0%;
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 30;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      overflow: hidden;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+      transition: transform 0.18s ease, border-color 0.18s ease;
+    }
+
+    #sim-pill-toggle::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 2.5px;
+      width: var(--pill-pct);
+      background: linear-gradient(90deg, var(--ui-gold), var(--ok-green));
+      transition: width 0.2s linear;
+    }
+
+    #sim-pill-toggle:hover {
+      transform: translateY(-1px);
+      border-color: var(--ui-gold);
+    }
+
+    #sim-pill-toggle .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--ok-green);
+      box-shadow: 0 0 8px var(--ok-green);
+      flex-shrink: 0;
+    }
+
+    #sim-pill-toggle.is-transitioning {
+      border-color: rgba(242, 194, 48, 0.72);
+    }
+
+    #sim-pill-toggle.is-transitioning .dot {
+      background: var(--ui-gold);
+      box-shadow: 0 0 9px var(--ui-gold);
+      animation: nexusPulse 1.1s ease-in-out infinite;
+    }
+
+    #sim-pill-toggle.hidden {
+      display: none;
+    }
+
+    /* NON-OCCLUDING RESPONSIVE CONTROL PANEL */
+    #sim-drawer {
+      position: fixed;
+      z-index: 40;
+      background: var(--glass-bg);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 42px rgba(0, 0, 0, 0.58);
+      transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+    }
+
+    /* Desktop / Landscape: Slim Side-Drawer <= 280px */
+    @media (min-width: 768px) and (min-aspect-ratio: 1/1) {
+      #sim-drawer {
+        top: 12px;
+        right: 12px;
+        bottom: 12px;
+        width: 276px;
+        max-width: 280px;
+        border-radius: 16px;
+        border: 1px solid var(--glass-border);
+      }
+      #sim-drawer.collapsed {
+        transform: translateX(310px);
+        opacity: 0;
+        pointer-events: none;
+      }
+    }
+
+    /* Android Portrait / Mobile: Compact Bottom-Sheet <= 34vh */
+    @media (max-width: 767px), (max-aspect-ratio: 999/1000) {
+      #sim-drawer {
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        max-height: 34vh;
+        border-radius: 18px 18px 0 0;
+        border-top: 1px solid var(--glass-border);
+      }
+      #sim-drawer.collapsed {
+        transform: translateY(105%);
+        opacity: 0;
+        pointer-events: none;
+      }
+    }
+
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+    }
+
+    .drawer-title {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .drawer-title strong {
+      font-size: 12.5px;
+      color: var(--ui-gold);
+      letter-spacing: 0.03em;
+    }
+
+    .drawer-title span {
+      font-size: 10.5px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-link-btn, .close-btn {
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 5px 8px;
+      font-size: 11px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .nav-link-btn:hover, .close-btn:hover {
+      border-color: var(--ui-gold);
+      color: var(--ui-gold);
+    }
+
+    .tab-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      padding: 6px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 5px 4px;
+      border-radius: 7px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      background: var(--ui-gold-soft);
+      border-color: var(--glass-border);
+      color: var(--ui-gold);
+    }
+
+    .drawer-body {
+      padding: 10px 12px 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .tab-pane {
+      display: none;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .tab-pane.active {
+      display: flex;
+    }
+
+    .ctrl-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .ctrl-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .ctrl-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .btn-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+    }
+
+    .btn-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 5px;
+    }
+
+    /* ==========================================================================
+       TRANSITION-VISUALIZING BUTTONS & LIVE DEPOK TELEMETRY CONTROLS
+       ========================================================================== */
+    .ctrl-btn {
+      --trans-pct: 0%;
+      position: relative;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.055);
+      border: 1px solid rgba(255, 255, 255, 0.11);
+      color: var(--text-main);
+      padding: 6px 6px;
+      border-radius: 7px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+    }
+
+    .ctrl-btn:hover {
+      border-color: rgba(242, 194, 48, 0.55);
+    }
+
+    .ctrl-btn .btn-title {
+      position: relative;
+      z-index: 2;
+      line-height: 1.2;
+    }
+
+    .ctrl-btn .btn-sub {
+      position: relative;
+      z-index: 2;
+      font-size: 9px;
+      font-weight: 600;
+      line-height: 1.1;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      display: none;
+    }
+
+    .ctrl-btn.active {
+      background: var(--ui-gold-soft);
+      border-color: var(--ui-gold);
+      color: var(--ui-gold);
+      font-weight: 600;
+    }
+
+    /* Target button currently running a 20–45s smooth physical transition */
+    .ctrl-btn.is-transitioning {
+      border-color: var(--ui-gold);
+      color: #fff6d6;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.04);
+      box-shadow: 0 0 12px rgba(242, 194, 48, 0.22);
+    }
+
+    .ctrl-btn.is-transitioning::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      width: var(--trans-pct);
+      background: linear-gradient(90deg, rgba(242, 194, 48, 0.36), rgba(56, 217, 150, 0.30));
+      border-right: 1.5px solid rgba(242, 194, 48, 0.85);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .ctrl-btn.is-transitioning .btn-sub {
+      display: block;
+      color: var(--ui-gold);
+    }
+
+    /* Source button gradually departing while transitioning to new weather/time */
+    .ctrl-btn.is-departing {
+      border-style: dashed;
+      border-color: rgba(242, 194, 48, 0.42);
+      color: #cfd6e3;
+      background: rgba(242, 194, 48, 0.05);
+    }
+
+    .ctrl-btn.is-departing .btn-sub {
+      display: block;
+      color: #b7c2d4;
+    }
+
+    /* Live Kampus UI Depok Telemetry Card */
+    .live-depok-card {
+      background: linear-gradient(145deg, rgba(56, 217, 150, 0.08), rgba(242, 194, 48, 0.06));
+      border: 1px solid rgba(56, 217, 150, 0.28);
+      border-radius: 10px;
+      padding: 8px 9px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .live-depok-card.is-manual {
+      background: rgba(255, 255, 255, 0.035);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .live-depok-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--ok-green);
+      text-transform: uppercase;
+    }
+
+    .live-depok-card.is-manual .live-badge {
+      color: var(--ui-gold);
+    }
+
+    .live-badge .live-dot {
+      width: 6.5px;
+      height: 6.5px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 7px currentColor;
+    }
+
+    #ui-depok-clock {
+      font-size: 11px;
+      color: var(--text-main);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .live-metrics {
+      font-size: 10.5px;
+      color: #cfd7e6;
+      line-height: 1.35;
+    }
+
+    .live-sync-btn {
+      width: 100%;
+      padding: 6px 8px;
+    }
+
+    .live-sync-btn .btn-sub {
+      display: block;
+    }
+
+    .live-sync-btn.active {
+      background: rgba(56, 217, 150, 0.15);
+      border-color: rgba(56, 217, 150, 0.65);
+      color: var(--ok-green);
+    }
+
+    .live-sync-btn.active .btn-sub {
+      color: #a9efd0;
+    }
+
+    /* Transition Duration Slider (20s - 45s) */
+    .dur-pill {
+      font-size: 10.5px;
+      color: var(--ui-gold);
+      background: rgba(242, 194, 48, 0.14);
+      border: 1px solid rgba(242, 194, 48, 0.34);
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .nexus-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .nexus-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--ui-gold);
+      border: 2px solid #0b101a;
+      box-shadow: 0 0 8px rgba(242, 194, 48, 0.7);
+      cursor: pointer;
+    }
+
+    .nexus-slider::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--ui-gold);
+      border: 2px solid #0b101a;
+      box-shadow: 0 0 8px rgba(242, 194, 48, 0.7);
+      cursor: pointer;
+    }
+
+    .slider-ticks {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9.5px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .gate-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 9px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 11px;
+    }
+
+    .gate-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .badge-pass {
+      color: var(--ok-green);
+      font-weight: 700;
+      font-size: 10.5px;
+    }
+
+    .hint-text {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+  </style>
+</head>
+<body>
+  <div id="sim-canvas-wrap"></div>
+
+  <!-- Industry Best-Practice Interactive Architectural Preloader (Auto-Removed on Ready) -->
+  <div id="nexus-preloader" role="status" aria-live="polite">
+    <div class="loader-card" id="loader-card">
+      <div class="loader-top-bar">
+        <span class="loader-loc-pill">
+          <span class="pulse-dot"></span>
+          <span>KAMPUS UI · KOTA DEPOK</span>
+        </span>
+        <span class="loader-clock-pill" id="loader-wib-clock">--:--:-- WIB</span>
+      </div>
+
+      <div class="loader-blueprint-wrap">
+        <svg class="loader-svg" viewBox="0 0 320 154" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- Rotating 360° Island & Helipad Compass Azimuth Ring -->
+          <g class="bp-ring-spin">
+            <circle cx="160" cy="92" r="56" stroke="rgba(242,194,48,0.18)" stroke-width="1" stroke-dasharray="4 5" />
+            <circle cx="160" cy="92" r="46" stroke="rgba(56,217,150,0.16)" stroke-width="0.9" stroke-dasharray="14 8" />
+          </g>
+          <!-- Danau Kenanga & 360° Island Shoreline Horizon -->
+          <path class="bp-draw-delay" d="M36 128 C78 123, 112 126, 160 126 C208 126, 242 123, 284 128" stroke="rgba(86,204,242,0.55)" stroke-width="1.3" stroke-linecap="round" />
+          <path class="bp-draw-delay" d="M56 135 C98 131, 222 131, 264 135" stroke="rgba(86,204,242,0.28)" stroke-width="1" stroke-dasharray="5 5" stroke-linecap="round" />
+          <!-- West VIP Helipad Emblem -->
+          <circle class="bp-draw-delay" cx="76" cy="121" r="11" stroke="rgba(56,217,150,0.65)" stroke-width="1.2" />
+          <path class="bp-draw-delay" d="M73 117 V125 M79 117 V125 M73 121 H79" stroke="#38d996" stroke-width="1.3" stroke-linecap="round" />
+          <!-- Podium Wings & Brutalist Octagonal Tower of Gedung Rektorat UI -->
+          <path class="bp-draw" d="M98 125 V103 H134 V64 H186 V103 H222 V125 Z" stroke="#f2c230" stroke-width="1.5" stroke-linejoin="round" />
+          <path class="bp-draw-delay" d="M144 125 V64 M160 125 V64 M176 125 V64 M134 82 H186 M134 98 H186" stroke="rgba(242,194,48,0.42)" stroke-width="0.95" />
+          <!-- 3-Tiered Nusantara Tajug Pagoda Roof & Makara Spire (+50.0 m) -->
+          <path class="bp-draw" d="M124 64 L160 49 L196 64 Z" stroke="#f2c230" stroke-width="1.55" stroke-linejoin="round" />
+          <path class="bp-draw" d="M133 51 L160 37 L187 51 Z" stroke="#f2c230" stroke-width="1.5" stroke-linejoin="round" />
+          <path class="bp-draw" d="M143 39 L160 25 L177 39 Z" stroke="#f2c230" stroke-width="1.45" stroke-linejoin="round" />
+          <path class="bp-draw" d="M160 25 V13" stroke="#38d996" stroke-width="1.7" stroke-linecap="round" />
+          <circle cx="160" cy="12" r="2.3" fill="#38d996" />
+        </svg>
+        <span class="loader-weather-tag" id="loader-weather-badge">Menyambungkan Cuaca Depok...</span>
+        <span class="loader-coords-tag">6&deg;21'57" LS · 106&deg;49'43" BT</span>
+      </div>
+
+      <div class="loader-heading">
+        <h1>Kepulauan Universitas Indonesia (Pulau U &amp; I)</h1>
+        <p>Digital Twin Prosedural Kelas-A · Sinkron Waktu &amp; Cuaca Rill Kota Depok</p>
+      </div>
+
+      <div class="loader-progress-box">
+        <div class="loader-stage-row">
+          <span id="loader-stage-text">Menyiapkan Mesin Prosedural NEXUS v3.1...</span>
+          <span id="loader-pct">4%</span>
+        </div>
+        <div class="loader-bar-track">
+          <div id="loader-bar-fill"></div>
+        </div>
+        <div class="loader-milestones" id="loader-milestones">
+          <span class="loader-step-pip active"></span>
+          <span class="loader-step-pip"></span>
+          <span class="loader-step-pip"></span>
+          <span class="loader-step-pip"></span>
+          <span class="loader-step-pip"></span>
+          <span class="loader-step-pip"></span>
+          <span class="loader-step-pip"></span>
+          <span class="loader-step-pip"></span>
+          <span class="loader-step-pip"></span>
+        </div>
+        <div class="loader-meta-row">
+          <span id="loader-tri-count">0 / 5.143.384 segitiga</span>
+          <span>&le; 25 Draw Calls · AgX HDR</span>
+        </div>
+      </div>
+
+      <div class="loader-tip-card">
+        <div class="loader-tip-head">
+          <strong>Tahukah Anda?</strong>
+          <button id="loader-next-tip" class="loader-tip-btn" type="button">Fakta Berikutnya &#8635;</button>
+        </div>
+        <p id="loader-tip-text">Simulator ini otomatis menyelaraskan posisi matahari, bulan, dan cuaca fisik langsung dengan waktu WIB &amp; kondisi meteorologi Kampus UI Kota Depok.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Default Collapsed Single Pill Button -->
+  <button id="sim-pill-toggle" type="button" aria-label="Buka Kontrol Simulator Rektorat UI">
+    <span class="dot"></span>
+    <span id="sim-pill-label">LIVE Depok · Rektorat UI</span>
+  </button>
+
+  <!-- Non-Occluding Responsive Drawer -->
+  <aside id="sim-drawer" class="collapsed" aria-expanded="false">
+    <div class="drawer-header">
+      <div class="drawer-title">
+        <strong>KEPULAUAN UI DEPOK (U &amp; I)</strong>
+        <span>Hutan &amp; Sungai Pulau U · Niagara Mini Pulau I</span>
+      </div>
+      <div class="header-actions">
+        <a class="nav-link-btn" href="./studio.html" title="Buka Meja Inspeksi Studio Kelas-A">Studio &#8599;</a>
+        <button id="sim-drawer-close" class="close-btn" type="button" aria-label="Lipat Panel">&#10005;</button>
+      </div>
+    </div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="explore" type="button">Eksplorasi</button>
+      <button class="tab-btn" data-tab="atmos" type="button">Atmosfer</button>
+      <button class="tab-btn" data-tab="audit" type="button">4-Gate</button>
+    </div>
+
+    <div class="drawer-body">
+      <!-- TAB 1: EXPLORATION & CAMERA -->
+      <div class="tab-pane active" id="tab-explore">
+        <div class="ctrl-group">
+          <span class="ctrl-label">Sudut Kamera &amp; Kepulauan UI</span>
+          <div class="btn-grid-3">
+            <button class="ctrl-btn" data-preset="elevationFront" type="button"><span class="btn-title">Rotunda 0&deg;</span></button>
+            <button class="ctrl-btn active" data-preset="oblique45" type="button"><span class="btn-title">Oblique 45&deg;</span></button>
+            <button class="ctrl-btn" data-preset="nadir90" type="button"><span class="btn-title">Nadir 90&deg;</span></button>
+          </div>
+          <div class="btn-grid-3">
+            <button class="ctrl-btn" data-preset="archipelagoUI" type="button"><span class="btn-title">Kepulauan UI</span></button>
+            <button class="ctrl-btn" data-preset="island360" type="button"><span class="btn-title">Pulau U</span></button>
+            <button class="ctrl-btn" data-preset="pulauI" type="button"><span class="btn-title">Pulau I</span></button>
+          </div>
+          <div class="btn-grid-3">
+            <button class="ctrl-btn" data-preset="helipadVIP" type="button"><span class="btn-title">Helipad VIP</span></button>
+            <button class="ctrl-btn" data-preset="runwayPulauI" type="button"><span class="btn-title">Landasan I</span></button>
+            <button class="ctrl-btn" data-preset="volcanoCrater" type="button"><span class="btn-title">Gunung Gede</span></button>
+          </div>
+          <div class="btn-grid-3">
+            <button class="ctrl-btn" data-preset="hutanSungaiU" type="button"><span class="btn-title">Hutan &amp; Sungai U</span></button>
+            <button class="ctrl-btn" data-preset="niagaraPulauI" type="button"><span class="btn-title">Niagara Mini I</span></button>
+            <button class="ctrl-btn" data-preset="kucingUI" type="button"><span class="btn-title">Kucing UI</span></button>
+          </div>
+        </div>
+
+        <div class="ctrl-group">
+          <span class="ctrl-label">Mode Eksplorasi (6-DOF &amp; Sivitas)</span>
+          <div class="btn-grid-2">
+            <button class="ctrl-btn active" data-cammode="ORBIT" type="button"><span class="btn-title">Orbit Bebas</span></button>
+            <button class="ctrl-btn" data-cammode="DRONE_6DOF" type="button"><span class="btn-title">Drone 6-DOF</span></button>
+            <button class="ctrl-btn" data-cammode="WALK_SIVITAS" type="button"><span class="btn-title">Jalan Sivitas</span></button>
+            <button class="ctrl-btn" data-cammode="AUTO_CINEMATIC" type="button"><span class="btn-title">Sinematik</span></button>
+          </div>
+          <p class="hint-text">Gunakan WASD/Panah (dan Q/E pada Drone) + geser layar untuk menjelajah Plaza Rotunda, Helipad VIP, &amp; tepi Danau Kenanga.</p>
+        </div>
+      </div>
+
+      <!-- TAB 2: LIVE DEPOK TELEMETRY, 20-45s SMOOTH TRANSITION, & SHADER -->
+      <div class="tab-pane" id="tab-atmos">
+        <div class="live-depok-card" id="live-depok-card">
+          <div class="live-depok-top">
+            <span class="live-badge" id="ui-depok-badge">
+              <span class="live-dot"></span>
+              <span id="ui-depok-badge-text">LIVE KAMPUS UI DEPOK</span>
+            </span>
+            <strong id="ui-depok-clock">--:--:-- WIB</strong>
+          </div>
+          <div class="live-metrics" id="ui-depok-weather">Mengambil telemetri cuaca Kota Depok...</div>
+          <div class="live-metrics" id="ui-hvs-eye" style="color: var(--ui-cyan); font-variant-numeric: tabular-nums;">HDR Mata Manusia · Fotopik (Sel Kerucut) · Pupil 2.5 mm · Gain 1.04&times;</div>
+          <button class="ctrl-btn live-sync-btn active" id="btn-live-depok" type="button">
+            <span class="btn-title">&#9679; Sinkron Rill Kampus UI Depok</span>
+            <span class="btn-sub">Jam WIB &amp; Cuaca Langsung Aktif</span>
+          </button>
+        </div>
+
+        <div class="ctrl-group">
+          <div class="ctrl-label-row">
+            <span class="ctrl-label">Durasi Transisi Fisik</span>
+            <strong class="dur-pill" id="label-trans-dur">25 dtk</strong>
+          </div>
+          <input id="slider-trans-dur" class="nexus-slider" type="range" min="20" max="45" step="1" value="25" aria-label="Durasi Transisi Cuaca dan Waktu 20 sampai 45 detik" />
+          <div class="slider-ticks">
+            <span>20 dtk (Min)</span>
+            <span>Bertahap Alami</span>
+            <span>45 dtk (Maks)</span>
+          </div>
+        </div>
+
+        <div class="ctrl-group">
+          <span class="ctrl-label">Waktu &amp; Busur Surya/Bulan Depok</span>
+          <div class="btn-grid-3">
+            <button class="ctrl-btn active" data-tod="DAY" type="button">
+              <span class="btn-title">Siang</span>
+              <span class="btn-sub"></span>
+            </button>
+            <button class="ctrl-btn" data-tod="DUSK" type="button">
+              <span class="btn-title">Sore</span>
+              <span class="btn-sub"></span>
+            </button>
+            <button class="ctrl-btn" data-tod="NIGHT" type="button">
+              <span class="btn-title">Malam</span>
+              <span class="btn-sub"></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="ctrl-group">
+          <span class="ctrl-label">Cuaca Fisika GPU (Transisi 20–45 dtk)</span>
+          <div class="btn-grid-2">
+            <button class="ctrl-btn active" data-weather="CLEAR" type="button">
+              <span class="btn-title">Cerah</span>
+              <span class="btn-sub"></span>
+            </button>
+            <button class="ctrl-btn" data-weather="MIST" type="button">
+              <span class="btn-title">Gerimis</span>
+              <span class="btn-sub"></span>
+            </button>
+            <button class="ctrl-btn" data-weather="RAIN" type="button">
+              <span class="btn-title">Hujan Deras</span>
+              <span class="btn-sub"></span>
+            </button>
+            <button class="ctrl-btn" data-weather="STORM" type="button">
+              <span class="btn-title">Badai Petir</span>
+              <span class="btn-sub"></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="ctrl-group">
+          <span class="ctrl-label">Inspeksi SSoST &amp; Akustik Ruang</span>
+          <div class="btn-grid-3">
+            <button class="ctrl-btn active" data-inspect="0" type="button"><span class="btn-title">PBR</span></button>
+            <button class="ctrl-btn" data-inspect="1" type="button"><span class="btn-title">Zebra</span></button>
+            <button class="ctrl-btn" id="btn-audio" type="button"><span class="btn-title">Suara: OFF</span></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: LIVE 4-GATE VERIFICATION -->
+      <div class="tab-pane" id="tab-audit">
+        <div class="gate-card">
+          <div class="gate-row"><span>Frame Rate</span><strong id="sim-fps">-- FPS</strong></div>
+          <div class="gate-row"><span>Total Draw Calls (&le; 25)</span><strong id="sim-calls">--</strong></div>
+          <div class="gate-row"><span>Segitiga Dunia</span><strong id="sim-tris">--</strong></div>
+          <div class="gate-row"><span>HDR Mata Manusia</span><strong id="sim-hvs-eye">PHOTOPIC &middot; 2.5 mm</strong></div>
+          <div class="gate-row"><span>Presisi Spasial</span><strong>RTC Float64&rarr;32</strong></div>
+        </div>
+        <div class="gate-card">
+          <div class="gate-row"><span>Gate 1 · Amplop 108&times;124&times;50m</span><span id="sg1" class="badge-pass">PASS</span></div>
+          <div class="gate-row"><span>Gate 2 · Watertight Manifold</span><span id="sg2" class="badge-pass">PASS</span></div>
+          <div class="gate-row"><span>Gate 3 · 0.00m Subdomain Gap</span><span id="sg3" class="badge-pass">PASS</span></div>
+          <div class="gate-row"><span>Gate 4 · Single-Pass Batching</span><span id="sg4" class="badge-pass">PASS</span></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Zero-Latency Inline Preloader Interactivity (Runs Immediately Before Three.js CDN Finishes) -->
+  <script>
+    (function initPreloaderMicroInteractions() {
+      var tips = [
+        'Simulator ini otomatis menyelaraskan posisi matahari, bulan, dan cuaca fisik langsung dengan waktu WIB & kondisi meteorologi Kampus UI Kota Depok.',
+        'Setiap pergantian cuaca bertransisi alami 20–45 detik: awan mendung berkumpul lebih dulu, rintik hujan turun bertahap, lalu tanah basah & menggenang.',
+        'Menara Gedung Rektorat UI memadukan geometri beton segi-delapan modern dengan atap Tajug bertumpang tiga khas Nusantara setinggi 50 meter.',
+        'Saat hujan reda menuju cerah, petir dan curah hujan mereda perlahan terlebih dahulu, diikuti awan yang menipis dan genangan air yang menguap alami.',
+        'Seluruh 2,12 juta segitiga Kepulauan UI (Pulau U & Pulau I), Gunung Api, Landasan RWY 36/18, & 24 sivitas dimuat instan dalam <= 25 Draw Calls.'
+      ];
+      var tipIdx = 0;
+      var tipEl = document.getElementById('loader-tip-text');
+      var nextBtn = document.getElementById('loader-next-tip');
+      var clockEl = document.getElementById('loader-wib-clock');
+      var cardEl = document.getElementById('loader-card');
+      var preloaderEl = document.getElementById('nexus-preloader');
+
+      function updateWibClock() {
+        var wib = new Date(Date.now() + 7 * 3600 * 1000);
+        var hh = String(wib.getUTCHours()).padStart(2, '0');
+        var mm = String(wib.getUTCMinutes()).padStart(2, '0');
+        var ss = String(wib.getUTCSeconds()).padStart(2, '0');
+        if (clockEl) clockEl.textContent = hh + ':' + mm + ':' + ss + ' WIB';
+      }
+      updateWibClock();
+      var clockTimer = setInterval(function () {
+        if (!preloaderEl || preloaderEl.style.display === 'none') {
+          clearInterval(clockTimer);
+          return;
+        }
+        updateWibClock();
+      }, 1000);
+
+      function cycleTip() {
+        if (!tipEl) return;
+        tipIdx = (tipIdx + 1) % tips.length;
+        tipEl.style.opacity = '0.25';
+        setTimeout(function () {
+          tipEl.textContent = tips[tipIdx];
+          tipEl.style.opacity = '1';
+        }, 140);
+      }
+      if (nextBtn) nextBtn.addEventListener('click', cycleTip);
+      var tipTimer = setInterval(function () {
+        if (!preloaderEl || preloaderEl.style.display === 'none') {
+          clearInterval(tipTimer);
+          return;
+        }
+        cycleTip();
+      }, 4200);
+
+      if (preloaderEl && cardEl) {
+        preloaderEl.addEventListener('pointermove', function (e) {
+          var nx = (e.clientX / Math.max(1, window.innerWidth) - 0.5) * 2;
+          var ny = (e.clientY / Math.max(1, window.innerHeight) - 0.5) * 2;
+          cardEl.style.transform =
+            'perspective(900px) rotateX(' + (-ny * 2.6).toFixed(2) + 'deg) rotateY(' + (nx * 3.2).toFixed(2) + 'deg)';
+        });
+      }
+    })();
+  </script>
+
+  <script type="module">
+    function renderBootError(err) {
+      if (window.__showNexusBootError) {
+        window.__showNexusBootError(err);
+        return;
+      }
+      const msg = err && err.message ? err.message : String(err);
+      const stageEl = document.getElementById('loader-stage-text');
+      if (stageEl) {
+        stageEl.textContent = 'Diagnostik Boot: ' + msg;
+        stageEl.style.color = '#ff7b72';
+      }
+      const el = document.createElement('div');
+      el.style.cssText =
+        'position:fixed;left:16px;bottom:16px;max-width:440px;z-index:9999;padding:12px 15px;' +
+        'border-radius:12px;background:rgba(20,14,18,0.92);border:1px solid rgba(255,95,86,0.55);' +
+        'color:#f6f7fb;font:12px/1.45 system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,0.55);';
+      el.textContent = 'NEXUS 3D Boot Diagnostic: ' + msg;
+      document.body.appendChild(el);
+    }
+
+    try {
+      if (window.location.protocol === 'file:') {
+        await new Promise((resolve, reject) => {
+          const bridge = document.createElement('script');
+          bridge.src = './core/FileProtocolBridge.js';
+          bridge.onload = resolve;
+          bridge.onerror = () => reject(new Error('Gagal memuat ./core/FileProtocolBridge.js'));
+          document.head.appendChild(bridge);
+        });
+        await import(window.__NEXUS_BLOB_URLS__['main.js']);
+      } else {
+        await import('./main.js');
+      }
+    } catch (err) {
+      console.error('[NEXUS Simulator Boot Error]', err);
+      renderBootError(err);
+    }
+  </script>
+</body>
+</html>

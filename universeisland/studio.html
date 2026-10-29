@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>NEXUS Studio Kelas-A — Gedung Rektorat UI Kampus Depok</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    :root {
+      --glass-bg: rgba(14, 18, 26, 0.84);
+      --glass-border: rgba(242, 194, 48, 0.28);
+      --ui-gold: #f2c230;
+      --ui-gold-soft: rgba(242, 194, 48, 0.16);
+      --text-main: #f3f5f8;
+      --text-muted: #9aa4b5;
+      --ok-green: #38d996;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0b0f17;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-main);
+      user-select: none;
+    }
+
+    #studio-canvas-wrap {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    /* SINGLE COMPACT PILL BUTTON WHEN COLLAPSED (100% CLEAN VIEWPORT ON STARTUP) */
+    #pill-toggle {
+      --pill-pct: 0%;
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 30;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      overflow: hidden;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+      transition: transform 0.18s ease, border-color 0.18s ease;
+    }
+
+    #pill-toggle::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 2.5px;
+      width: var(--pill-pct);
+      background: linear-gradient(90deg, var(--ui-gold), var(--ok-green));
+      transition: width 0.2s linear;
+    }
+
+    #pill-toggle:hover {
+      transform: translateY(-1px);
+      border-color: var(--ui-gold);
+    }
+
+    #pill-toggle .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--ok-green);
+      box-shadow: 0 0 8px var(--ok-green);
+    }
+
+    #pill-toggle.is-transitioning .dot {
+      background: var(--ui-gold);
+      box-shadow: 0 0 9px var(--ui-gold);
+    }
+
+    #pill-toggle.hidden {
+      display: none;
+    }
+
+    /* INSPECTOR PANEL: DESKTOP SLIM SIDE-DRAWER (<= 280px) vs PORTRAIT BOTTOM-SHEET (<= 34vh) */
+    #inspector-drawer {
+      position: fixed;
+      z-index: 40;
+      background: var(--glass-bg);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+      transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+    }
+
+    @media (min-width: 768px) and (min-aspect-ratio: 1/1) {
+      #inspector-drawer {
+        top: 12px;
+        right: 12px;
+        bottom: 12px;
+        width: 274px;
+        max-width: 280px;
+        border-radius: 16px;
+        border: 1px solid var(--glass-border);
+      }
+      #inspector-drawer.collapsed {
+        transform: translateX(310px);
+        opacity: 0;
+        pointer-events: none;
+      }
+    }
+
+    @media (max-width: 767px), (max-aspect-ratio: 999/1000) {
+      #inspector-drawer {
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        max-height: 34vh;
+        border-radius: 18px 18px 0 0;
+        border-top: 1px solid var(--glass-border);
+      }
+      #inspector-drawer.collapsed {
+        transform: translateY(105%);
+        opacity: 0;
+        pointer-events: none;
+      }
+    }
+
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+    }
+
+    .drawer-title {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .drawer-title strong {
+      font-size: 12.5px;
+      color: var(--ui-gold);
+      letter-spacing: 0.03em;
+    }
+
+    .drawer-title span {
+      font-size: 10.5px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-link-btn, .close-btn {
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 5px 8px;
+      font-size: 11px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .nav-link-btn:hover, .close-btn:hover {
+      border-color: var(--ui-gold);
+      color: var(--ui-gold);
+    }
+
+    .tab-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      padding: 6px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 5px 4px;
+      border-radius: 7px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      background: var(--ui-gold-soft);
+      border-color: var(--glass-border);
+      color: var(--ui-gold);
+    }
+
+    .drawer-body {
+      padding: 10px 12px 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .tab-pane {
+      display: none;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .tab-pane.active {
+      display: flex;
+    }
+
+    .ctrl-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .ctrl-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .ctrl-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .btn-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+    }
+
+    .btn-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 5px;
+    }
+
+    .ctrl-btn {
+      --trans-pct: 0%;
+      position: relative;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.055);
+      border: 1px solid rgba(255, 255, 255, 0.11);
+      color: var(--text-main);
+      padding: 6px 6px;
+      border-radius: 7px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+    }
+
+    .ctrl-btn:hover {
+      border-color: rgba(242, 194, 48, 0.55);
+    }
+
+    .ctrl-btn .btn-title {
+      position: relative;
+      z-index: 2;
+      line-height: 1.2;
+    }
+
+    .ctrl-btn .btn-sub {
+      position: relative;
+      z-index: 2;
+      font-size: 9px;
+      font-weight: 600;
+      line-height: 1.1;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      display: none;
+    }
+
+    .ctrl-btn.active {
+      background: var(--ui-gold-soft);
+      border-color: var(--ui-gold);
+      color: var(--ui-gold);
+      font-weight: 600;
+    }
+
+    .ctrl-btn.is-transitioning {
+      border-color: var(--ui-gold);
+      color: #fff6d6;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.04);
+      box-shadow: 0 0 12px rgba(242, 194, 48, 0.22);
+    }
+
+    .ctrl-btn.is-transitioning::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      width: var(--trans-pct);
+      background: linear-gradient(90deg, rgba(242, 194, 48, 0.36), rgba(56, 217, 150, 0.30));
+      border-right: 1.5px solid rgba(242, 194, 48, 0.85);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .ctrl-btn.is-transitioning .btn-sub {
+      display: block;
+      color: var(--ui-gold);
+    }
+
+    .ctrl-btn.is-departing {
+      border-style: dashed;
+      border-color: rgba(242, 194, 48, 0.42);
+      color: #cfd6e3;
+      background: rgba(242, 194, 48, 0.05);
+    }
+
+    .ctrl-btn.is-departing .btn-sub {
+      display: block;
+      color: #b7c2d4;
+    }
+
+    .live-depok-card {
+      background: linear-gradient(145deg, rgba(56, 217, 150, 0.08), rgba(242, 194, 48, 0.06));
+      border: 1px solid rgba(56, 217, 150, 0.28);
+      border-radius: 10px;
+      padding: 8px 9px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .live-depok-card.is-manual {
+      background: rgba(255, 255, 255, 0.035);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .live-depok-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: 10px;
+    }
+
+    .live-badge {
+      color: var(--ok-green);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .live-depok-card.is-manual .live-badge {
+      color: var(--ui-gold);
+    }
+
+    .live-metrics {
+      font-size: 10.5px;
+      color: #cfd7e6;
+      line-height: 1.35;
+    }
+
+    .live-sync-btn {
+      width: 100%;
+    }
+
+    .live-sync-btn .btn-sub {
+      display: block;
+    }
+
+    .live-sync-btn.active {
+      background: rgba(56, 217, 150, 0.15);
+      border-color: rgba(56, 217, 150, 0.65);
+      color: var(--ok-green);
+    }
+
+    .dur-pill {
+      font-size: 10.5px;
+      color: var(--ui-gold);
+      background: rgba(242, 194, 48, 0.14);
+      border: 1px solid rgba(242, 194, 48, 0.34);
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .nexus-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .nexus-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--ui-gold);
+      border: 2px solid #0b101a;
+      box-shadow: 0 0 8px rgba(242, 194, 48, 0.7);
+      cursor: pointer;
+    }
+
+    .gate-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 9px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 11px;
+    }
+
+    .gate-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .badge-pass {
+      color: var(--ok-green);
+      font-weight: 700;
+      font-size: 10.5px;
+    }
+
+    .hint-text {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+  </style>
+</head>
+<body>
+  <div id="studio-canvas-wrap"></div>
+
+  <!-- Default Collapsed Single Pill Button -->
+  <button id="pill-toggle" type="button" aria-label="Buka Panel Inspeksi Studio Kelas-A">
+    <span class="dot"></span>
+    <span id="studio-pill-label">LIVE Depok · Studio Kelas-A</span>
+  </button>
+
+  <!-- Non-Occluding Responsive Drawer (Collapsed by Default) -->
+  <aside id="inspector-drawer" class="collapsed" aria-expanded="false">
+    <div class="drawer-header">
+      <div class="drawer-title">
+        <strong>STUDIO MEJA KERJA KELAS-A</strong>
+        <span>Rektorat UI Depok · SSoST v2.9</span>
+      </div>
+      <div class="header-actions">
+        <a class="nav-link-btn" href="./index.html" title="Buka Simulator Kampus UI">Simulator &#8599;</a>
+        <button id="drawer-close" class="close-btn" type="button" aria-label="Lipat Panel">&#10005;</button>
+      </div>
+    </div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="cam" type="button">Tri-Sudut</button>
+      <button class="tab-btn" data-tab="shader" type="button">Zebra &amp; Optik</button>
+      <button class="tab-btn" data-tab="gates" type="button">4-Gate Audit</button>
+    </div>
+
+    <div class="drawer-body">
+      <!-- TAB 1: CAMERA & 6-DOF -->
+      <div class="tab-pane active" id="tab-cam">
+        <div class="ctrl-group">
+          <span class="ctrl-label">Validasi Ortogonal Tri-Sudut (Hukum 16)</span>
+          <div class="btn-grid-3">
+            <button class="ctrl-btn" data-preset="elevationFront" type="button"><span class="btn-title">Elevasi 0&deg;</span></button>
+            <button class="ctrl-btn active" data-preset="oblique45" type="button"><span class="btn-title">Oblique 45&deg;</span></button>
+            <button class="ctrl-btn" data-preset="nadir90" type="button"><span class="btn-title">Nadir 90&deg;</span></button>
+          </div>
+        </div>
+
+        <div class="ctrl-group">
+          <span class="ctrl-label">Mode Navigasi Kamera (Hukum 15)</span>
+          <div class="btn-grid-3">
+            <button class="ctrl-btn active" data-cammode="ORBIT" type="button"><span class="btn-title">Orbit</span></button>
+            <button class="ctrl-btn" data-cammode="DRONE_6DOF" type="button"><span class="btn-title">Drone 6-DOF</span></button>
+            <button class="ctrl-btn" data-cammode="AUTO_CINEMATIC" type="button"><span class="btn-title">Sinematik</span></button>
+          </div>
+          <p class="hint-text">Drone 6-DOF: gunakan WASD / QE + geser layar, dilengkapi Soft Potential Collision Avoidance.</p>
+        </div>
+      </div>
+
+      <!-- TAB 2: LIVE DEPOK, 20-45s TRANSITION, ZEBRA, & CLAY -->
+      <div class="tab-pane" id="tab-shader">
+        <div class="live-depok-card" id="studio-depok-card">
+          <div class="live-depok-top">
+            <span class="live-badge" id="studio-depok-badge">LIVE KAMPUS UI DEPOK</span>
+            <strong id="studio-depok-clock">--:--:-- WIB</strong>
+          </div>
+          <div class="live-metrics" id="studio-depok-weather">Menyelaraskan cuaca Kota Depok...</div>
+          <button class="ctrl-btn live-sync-btn active" id="studio-btn-live-depok" type="button">
+            <span class="btn-title">&#9679; Sinkron Rill Kampus UI Depok</span>
+            <span class="btn-sub">Jam WIB &amp; Cuaca Langsung Aktif</span>
+          </button>
+        </div>
+
+        <div class="ctrl-group">
+          <div class="ctrl-label-row">
+            <span class="ctrl-label">Durasi Transisi (20–45 dtk)</span>
+            <strong class="dur-pill" id="studio-label-trans-dur">25 dtk</strong>
+          </div>
+          <input id="studio-slider-trans-dur" class="nexus-slider" type="range" min="20" max="45" step="1" value="25" />
+        </div>
+
+        <div class="ctrl-group">
+          <span class="ctrl-label">Inspeksi Permukaan SSoST (Gate 2)</span>
+          <div class="btn-grid-3">
+            <button class="ctrl-btn active" data-inspect="0" type="button"><span class="btn-title">PBR Murni</span></button>
+            <button class="ctrl-btn" data-inspect="1" type="button"><span class="btn-title">Zebra Lines</span></button>
+            <button class="ctrl-btn" data-inspect="2" type="button"><span class="btn-title">Studio Clay</span></button>
+          </div>
+        </div>
+
+        <div class="ctrl-group">
+          <span class="ctrl-label">Waktu &amp; True Emissive Mask (Gate 4)</span>
+          <div class="btn-grid-3">
+            <button class="ctrl-btn active" data-tod="DAY" type="button">
+              <span class="btn-title">Siang</span>
+              <span class="btn-sub"></span>
+            </button>
+            <button class="ctrl-btn" data-tod="DUSK" type="button">
+              <span class="btn-title">Sore</span>
+              <span class="btn-sub"></span>
+            </button>
+            <button class="ctrl-btn" data-tod="NIGHT" type="button">
+              <span class="btn-title">Malam</span>
+              <span class="btn-sub"></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="ctrl-group">
+          <span class="ctrl-label">Cuaca Fisika GPU (Transisi 20–45 dtk)</span>
+          <div class="btn-grid-2">
+            <button class="ctrl-btn active" data-weather="CLEAR" type="button">
+              <span class="btn-title">Cerah</span>
+              <span class="btn-sub"></span>
+            </button>
+            <button class="ctrl-btn" data-weather="MIST" type="button">
+              <span class="btn-title">Gerimis</span>
+              <span class="btn-sub"></span>
+            </button>
+            <button class="ctrl-btn" data-weather="RAIN" type="button">
+              <span class="btn-title">Hujan Deras</span>
+              <span class="btn-sub"></span>
+            </button>
+            <button class="ctrl-btn" data-weather="STORM" type="button">
+              <span class="btn-title">Badai Petir</span>
+              <span class="btn-sub"></span>
+            </button>
+          </div>
+          <button class="ctrl-btn" id="studio-btn-audio" type="button"><span class="btn-title">Suara Akustik: OFF</span></button>
+        </div>
+      </div>
+
+      <!-- TAB 3: LIVE 4-GATE TELEMETRY -->
+      <div class="tab-pane" id="tab-gates">
+        <div class="gate-card">
+          <div class="gate-row"><span>Performa Render</span><strong id="stat-fps">-- FPS</strong></div>
+          <div class="gate-row"><span>Draw Calls (Target &le; 25)</span><strong id="stat-calls">--</strong></div>
+          <div class="gate-row"><span>Segitiga Aktif</span><strong id="stat-tris">--</strong></div>
+          <div class="gate-row"><span>Amplop Terukur (m)</span><strong id="stat-dims">108.0&times;124.0&times;50.0</strong></div>
+        </div>
+        <div class="gate-card">
+          <div class="gate-row"><span>Gate 1 · Amplop &amp; 0 NaN</span><span id="g1-badge" class="badge-pass">PASS</span></div>
+          <div class="gate-row"><span>Gate 2 · Watertight &amp; Normal</span><span id="g2-badge" class="badge-pass">PASS</span></div>
+          <div class="gate-row"><span>Gate 3 · 0.00m Subdomain Gap</span><span id="g3-badge" class="badge-pass">PASS</span></div>
+          <div class="gate-row"><span>Gate 4 · Batching &amp; Emissive</span><span id="g4-badge" class="badge-pass">PASS</span></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <script type="module">
+    function renderBootError(err) {
+      if (window.__showNexusBootError) {
+        window.__showNexusBootError(err);
+        return;
+      }
+      const msg = err && err.message ? err.message : String(err);
+      const el = document.createElement('div');
+      el.style.cssText =
+        'position:fixed;left:16px;bottom:16px;max-width:440px;z-index:9999;padding:12px 15px;' +
+        'border-radius:12px;background:rgba(20,14,18,0.92);border:1px solid rgba(255,95,86,0.55);' +
+        'color:#f6f7fb;font:12px/1.45 system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,0.55);';
+      el.textContent = 'NEXUS Studio Boot Diagnostic: ' + msg;
+      document.body.appendChild(el);
+    }
+
+    try {
+      if (window.location.protocol === 'file:') {
+        await new Promise((resolve, reject) => {
+          const bridge = document.createElement('script');
+          bridge.src = './core/FileProtocolBridge.js';
+          bridge.onload = resolve;
+          bridge.onerror = () => reject(new Error('Gagal memuat ./core/FileProtocolBridge.js'));
+          document.head.appendChild(bridge);
+        });
+        await import(window.__NEXUS_BLOB_URLS__['studio-main.js']);
+      } else {
+        await import('./studio-main.js');
+      }
+    } catch (err) {
+      console.error('[NEXUS Studio Boot Error]', err);
+      renderBootError(err);
+    }
+  </script>
+</body>
+</html>
