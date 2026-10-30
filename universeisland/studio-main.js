@@ -125,6 +125,7 @@ async function bootstrapStudioWorkbench() {
     )
   ]);
 
+  weather.setReferenceAstronomyDate(new Date(), sharedUniforms);
   weather.setSolarHour(latestDepokClock.solarHour, sharedUniforms, { immediate: true });
   weather.setWeather(latestDepokWeather.weatherMode, {
     immediate: true,
@@ -256,12 +257,23 @@ async function bootstrapStudioWorkbench() {
 
   function updateDepokDOM() {
     if (liveClockEl) {
-      liveClockEl.textContent = `${latestDepokClock.formattedHMS} · ${latestDepokClock.periodLabelId}`;
+      if (isLiveDepok) {
+        liveClockEl.textContent = `${latestDepokClock.formattedHMS} · ${latestDepokClock.periodLabelId}`;
+      } else {
+        const simClock = DepokLiveWeatherService.formatSolarHourClock(weather.currentSolarHour);
+        liveClockEl.textContent = `Simulasi ${simClock.formattedHM} · ${simClock.periodLabelId}`;
+      }
     }
     if (liveWeatherEl && latestDepokWeather) {
-      liveWeatherEl.textContent =
-        `${latestDepokWeather.labelId.replace(' (Estimasi Lokal)', '')} · ` +
-        `${latestDepokWeather.temperatureC}°C · RH ${latestDepokWeather.humidityPct}%`;
+      if (isLiveDepok) {
+        liveWeatherEl.textContent =
+          `${latestDepokWeather.labelId.replace(' (Estimasi Lokal)', '')} · ` +
+          `${latestDepokWeather.temperatureC}°C · RH ${latestDepokWeather.humidityPct}%`;
+      } else {
+        const tsNow = weather.getTransitionState();
+        liveWeatherEl.textContent =
+          `Simulasi: ${WEATHER_LABELS[tsNow.weather.toMode]} · Rill ${latestDepokClock.formattedHM}`;
+      }
     }
   }
   updateDepokDOM();
@@ -294,6 +306,7 @@ async function bootstrapStudioWorkbench() {
       isLiveDepok = true;
       latestDepokClock = DepokLiveWeatherService.getDepokWIBClock();
       updateDepokDOM();
+      weather.setReferenceAstronomyDate(new Date(), sharedUniforms);
       weather.setSolarHour(latestDepokClock.solarHour, sharedUniforms);
       weather.setWeather(latestDepokWeather.weatherMode, {
         cloudCoverNorm: latestDepokWeather.cloudCoverNorm
@@ -381,6 +394,7 @@ async function bootstrapStudioWorkbench() {
         if (liveBadgeEl) liveBadgeEl.textContent = 'MODE MANUAL STUDIO';
         if (titleEl) titleEl.textContent = '↻ Kembali ke Waktu & Cuaca Rill Depok';
         if (subEl) subEl.textContent = `Transisi halus ${Math.round(ts.durationSec)} detik`;
+        updateDepokDOM();
       }
     }
 
@@ -491,6 +505,24 @@ async function bootstrapStudioWorkbench() {
       frameAcc = 0;
       timeAcc = 0;
     }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.__NEXUS_STUDIO__ = {
+      scene,
+      camera,
+      renderer,
+      weather,
+      camDirector,
+      rektoratAsset,
+      sharedUniforms,
+      presets,
+      syncStudioTransitionUI,
+      updateDepokDOM,
+      setLiveDepok(flag) {
+        isLiveDepok = !!flag;
+      }
+    };
   }
 
   requestAnimationFrame(animate);

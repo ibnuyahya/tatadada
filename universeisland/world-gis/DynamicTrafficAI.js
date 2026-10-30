@@ -53,6 +53,21 @@ import {
   CJ_HIND_HIP_R,
   CJ_HIND_PAW_R
 } from './FelineAnatomyBuilder.js';
+import {
+  CampusTransitAndMarineBuilder,
+  CART_JOINTS_PER_VEHICLE,
+  CART_J_CHASSIS,
+  CART_J_STEER_WHEEL,
+  CART_J_WHEEL_FL,
+  CART_J_WHEEL_FR,
+  CART_J_WHEEL_RL,
+  CART_J_WHEEL_RR,
+  CART_WHEEL_RADIUS,
+  CART_WHEELBASE,
+  CART_TRACK_HALF_W,
+  CART_BIND_PIVOTS,
+  CART_SEAT_SLOTS
+} from './CampusTransitAndMarineBuilder.js';
 
 /**
  * NEXUS Omni-Scale Procedural Engine v2.4
@@ -150,6 +165,10 @@ export class DynamicTrafficAI {
 
     this.npcs = [];
     this.cats = [];
+    this.golfCart = null;
+    this.marineVessels = [];
+    this._cartJointBase = 0;
+    this._marineJointBase = 0;
     this.mesh = null;
     this.elapsedTime = 0.0;
 
@@ -162,25 +181,288 @@ export class DynamicTrafficAI {
     this._livePos = null;
     this._liveNorm = null;
 
-    this._jointWorldMatrices = null; // Float32Array(N * 22 * 16)
-    this._skinMatrices = null;       // Float32Array(N * 22 * 16): M_world * M_bind^-1
-    this._skinNormalMatrices = null; // Float32Array(N * 22 * 9)
+    this._jointWorldMatrices = null; // Float32Array(TotalJoints * 16)
+    this._skinMatrices = null;       // Float32Array(TotalJoints * 16): M_world * M_bind^-1
+    this._skinNormalMatrices = null; // Float32Array(TotalJoints * 9)
 
     // Reusable scratch math objects (0 heap allocations per frame)
     this._tmpPos = new THREE.Vector3();
     this._tmpEuler = new THREE.Euler();
     this._tmpQuat = new THREE.Quaternion();
+    this._tmpQuatB = new THREE.Quaternion();
     this._tmpScale = new THREE.Vector3(1, 1, 1);
     this._tmpLocalMat = new THREE.Matrix4();
     this._tmpParentMat = new THREE.Matrix4();
     this._tmpWorldMat = new THREE.Matrix4();
+    this._tmpAxisSteer = new THREE.Vector3(0, Math.cos(0.66), Math.sin(0.66)).normalize();
+    this._tmpAxisX = new THREE.Vector3(1, 0, 0);
+    this._tmpAxisY = new THREE.Vector3(0, 1, 0);
+    this._tmpVecA = new THREE.Vector3();
+    this._tmpVecB = new THREE.Vector3();
+    this._tmpVecC = new THREE.Vector3();
+  }
+
+  /**
+   * Checks whether world coordinate (x, z) lies strictly on paved campus asphalt road corridors
+   * (Lapangan Rotunda Circular Boulevard, West Helipad Boulevard, or West Courtyard Parking Lane).
+   */
+  static isOnCampusPavedRoad(x, z) {
+    const rRot = Math.hypot(x - -2.5, z - 106.5);
+    if (rRot >= 23.7 && rRot <= 33.9) return true;
+    if (x >= -81.8 && x <= -33.0 && z >= 101.8 && z <= 111.2) return true;
+    if (x >= -68.5 && x <= -56.5 && z >= -34.2 && z <= 104.8) return true;
+    return false;
+  }
+
+  /**
+   * Exact cambered paved asphalt deck elevation for the patrolling 6-seater Electric Golf Cart.
+   */
+  _sampleAsphaltRoadY(x, z) {
+    const rRot = Math.hypot(x - -2.5, z - 106.5);
+    if (rRot >= 23.7 && rRot <= 33.9) {
+      const f = (rRot - 28.8) / 4.9;
+      return 0.035 + Math.max(0.0, 1.0 - f * f) * 0.016;
+    }
+    if (x >= -81.8 && x <= -33.0 && z >= 101.8 && z <= 111.2) {
+      const f = (z - 106.5) / 4.5;
+      return 0.032 + Math.max(0.0, 1.0 - f * f) * 0.016;
+    }
+    if (x >= -68.5 && x <= -56.5 && z >= -34.2 && z <= 104.8) {
+      const f = (x - -62.5) / 5.8;
+      return 0.030 + Math.max(0.0, 1.0 - f * f) * 0.016;
+    }
+    return this._samplePedestrianGroundY(x, z);
+  }
+
+  /**
+   * Returns a live telemetry & pose snapshot of the patrolling Electric Campus Golf Cart ("Mobil Golf Listrik UI").
+   */
+  getGolfCartPose() {
+    if (!this.golfCart) return null;
+    const c = this.golfCart;
+    let onboardCount = 0;
+    for (let s = 1; s < c.seatOccupant.length; s++) {
+      if (c.seatOccupant[s] >= 0) onboardCount++;
+    }
+    return {
+      worldX: c.worldX,
+      worldY: c.worldY,
+      worldZ: c.worldZ,
+      yaw: c.yaw,
+      pitch: c.pitch,
+      roll: c.roll,
+      speed: c.speed,
+      steerAngle: c.steerAngle,
+      wheelSpinRad: c.wheelSpinRad,
+      phase: c.phase,
+      targetStopIdx: c.targetStopIdx,
+      stopName: c.stops[c.targetStopIdx]?.name || 'Halte UI',
+      onboardPassengers: onboardCount,
+      driverIndex: c.seatOccupant[0]
+    };
+  }
+
+  /**
+   * Initializes:
+   * 1. The Super-Accurate 6-Seater Electric Campus Golf Cart ("Mobil Golf Listrik UI") on a closed
+   *    100% paved Left-Hand-Traffic asphalt patrol spline with 4 Shuttle Stops ("Halte Bikun/Golf UI").
+   * 2. 12 Distant Offshore Marine Vessels (8 Nusantara Outrigger Fishing Boats + 4 Small Coastal Ships),
+   *    all cruising far offshore (R = 540..1080 m, coast clearance > 200 m) across the 360-deg sea horizon.
+   */
+  _initGolfCartAndMarineFleet() {
+    const patrolControlPts = [
+      new THREE.Vector3(-2.5, 0.048, 76.3),    // Stop 0: Halte Gerbang Rektorat (North Rotunda, Eastbound)
+      new THREE.Vector3(12.53, 0.048, 80.30),
+      new THREE.Vector3(23.70, 0.048, 91.50),
+      new THREE.Vector3(27.70, 0.048, 106.50),
+      new THREE.Vector3(22.76, 0.048, 123.06), // Stop 1: Halte Rotunda Tenggara
+      new THREE.Vector3(11.20, 0.048, 133.41),
+      new THREE.Vector3(-2.50, 0.048, 136.70),
+      new THREE.Vector3(-17.75, 0.048, 132.57),
+      new THREE.Vector3(-28.68, 0.048, 121.55),
+      new THREE.Vector3(-34.20, 0.048, 111.80),
+      new THREE.Vector3(-38.50, 0.048, 108.40),
+      new THREE.Vector3(-54.00, 0.048, 108.40),
+      new THREE.Vector3(-71.50, 0.048, 108.40), // Stop 2: Halte Helipad VIP Barat
+      new THREE.Vector3(-78.00, 0.048, 108.20),
+      new THREE.Vector3(-79.80, 0.048, 106.50),
+      new THREE.Vector3(-78.00, 0.048, 104.60),
+      new THREE.Vector3(-69.50, 0.048, 104.60),
+      new THREE.Vector3(-65.40, 0.048, 103.20),
+      new THREE.Vector3(-64.80, 0.046, 95.00),
+      new THREE.Vector3(-64.80, 0.046, 56.00),
+      new THREE.Vector3(-64.80, 0.046, 14.00),
+      new THREE.Vector3(-64.80, 0.046, -24.00),
+      new THREE.Vector3(-64.60, 0.046, -28.50),
+      new THREE.Vector3(-62.50, 0.046, -31.00),
+      new THREE.Vector3(-60.40, 0.046, -28.50),
+      new THREE.Vector3(-60.20, 0.046, -4.00),
+      new THREE.Vector3(-60.20, 0.046, 24.00),  // Stop 3: Halte Koridor Barat Rektorat
+      new THREE.Vector3(-60.20, 0.046, 62.00),
+      new THREE.Vector3(-60.20, 0.046, 95.00),
+      new THREE.Vector3(-59.20, 0.048, 103.20),
+      new THREE.Vector3(-50.00, 0.048, 104.60),
+      new THREE.Vector3(-38.00, 0.048, 104.50),
+      new THREE.Vector3(-33.80, 0.048, 100.80),
+      new THREE.Vector3(-28.68, 0.048, 91.45),
+      new THREE.Vector3(-17.75, 0.048, 80.43)
+    ];
+
+    const spline = new THREE.CatmullRomCurve3(patrolControlPts, true, 'centripetal', 0.5);
+    spline.arcLengthDivisions = 1400;
+    const totalLength = spline.getLength();
+
+    const stopsRaw = [
+      {
+        id: 0,
+        name: 'Halte Gerbang Rektorat',
+        roadPt: [-2.5, 76.3],
+        waitSpots: [
+          [-2.5, 71.1],
+          [-0.4, 71.1],
+          [-4.6, 71.1]
+        ],
+        waitYaw: 0.0
+      },
+      {
+        id: 1,
+        name: 'Halte Rotunda Tenggara',
+        roadPt: [22.76, 123.06],
+        waitSpots: [
+          [28.0, 126.6],
+          [29.1, 124.9],
+          [26.8, 128.2]
+        ],
+        waitYaw: Math.atan2(22.76 - 28.0, 123.06 - 126.6)
+      },
+      {
+        id: 2,
+        name: 'Halte Helipad VIP Barat',
+        roadPt: [-71.5, 108.4],
+        waitSpots: [
+          [-71.5, 113.0],
+          [-69.4, 113.0],
+          [-73.6, 113.0]
+        ],
+        waitYaw: Math.PI
+      },
+      {
+        id: 3,
+        name: 'Halte Koridor Barat Rektorat',
+        roadPt: [-60.2, 24.0],
+        waitSpots: [
+          [-55.3, 24.0],
+          [-55.3, 21.9],
+          [-55.3, 26.1]
+        ],
+        waitYaw: -Math.PI * 0.5
+      }
+    ];
+
+    // Precompute exact arc-length u in [0, 1) for each of the 4 campus shuttle stops
+    const sampleN = 1400;
+    const pSample = new THREE.Vector3();
+    const stops = stopsRaw.map((st) => {
+      let bestU = 0.0;
+      let bestD2 = Infinity;
+      for (let k = 0; k < sampleN; k++) {
+        const u = k / sampleN;
+        spline.getPointAt(u, pSample);
+        const dx = pSample.x - st.roadPt[0];
+        const dz = pSample.z - st.roadPt[1];
+        const d2 = dx * dx + dz * dz;
+        if (d2 < bestD2) {
+          bestD2 = d2;
+          bestU = u;
+        }
+      }
+      return { ...st, u: bestU };
+    });
+
+    // Start 18.0 m upstream of Stop 0 on North-West Rotunda so users immediately see live patrol + stop exchange!
+    const initU = ((stops[0].u - 18.0 / totalLength) % 1.0 + 1.0) % 1.0;
+    spline.getPointAt(initU, pSample);
+    const pAhead = new THREE.Vector3();
+    spline.getPointAt((initU + 1.2 / totalLength) % 1.0, pAhead);
+    const initYaw = Math.atan2(pAhead.x - pSample.x, pAhead.z - pSample.z);
+
+    this.golfCart = {
+      spline,
+      totalLength,
+      stops,
+      u: initU,
+      targetStopIdx: 0,
+      phase: 'CRUISE', // 'CRUISE' | 'DWELL'
+      dwellTimer: 0.0,
+      dwellDuration: 6.2,
+      boardingTriggered: false,
+      speed: 2.65,
+      maxSpeed: 2.65, // ~9.5 km/h gentle campus patrol speed
+      worldX: pSample.x,
+      worldY: this._sampleAsphaltRoadY(pSample.x, pSample.z),
+      worldZ: pSample.z,
+      yaw: initYaw,
+      pitch: 0.0,
+      roll: 0.0,
+      steerAngle: 0.0,
+      wheelSpinRad: 0.0,
+      // Seat occupancy by NPC index (0 = Driver idx 24, 1..5 = Passenger seats)
+      seatOccupant: [24, 25, 26, 28, 27, -1]
+    };
+
+    // 12 Distant Offshore Marine Vessels (8 Nusantara Fishing Boats + 4 Small Coastal Ships)
+    // Centered around archipelago centroid (-160, +365) with semi-axes rx >= 740m, rz >= 840m
+    // -> 100% open ocean (> 360m clear of all turap coastlines, >= 555m from Campus Rotunda!)
+    const fleetSpecs = [
+      // 8 Perahu Nelayan Cadik (Nusantara Outrigger Fishing Boats — Far Offshore)
+      { type: 'FISHING_BOAT', variant: 0, rx: 740.0, rz: 840.0, angle0: 0.12, dir: 1.0, speed: 2.15, scale: 1.02 },
+      { type: 'FISHING_BOAT', variant: 1, rx: 785.0, rz: 885.0, angle0: 0.88, dir: -1.0, speed: 2.30, scale: 0.98 },
+      { type: 'FISHING_BOAT', variant: 2, rx: 755.0, rz: 865.0, angle0: 1.68, dir: 1.0, speed: 2.08, scale: 1.05 },
+      { type: 'FISHING_BOAT', variant: 3, rx: 820.0, rz: 920.0, angle0: 2.42, dir: -1.0, speed: 2.42, scale: 0.96 },
+      { type: 'FISHING_BOAT', variant: 0, rx: 775.0, rz: 880.0, angle0: 3.18, dir: 1.0, speed: 2.22, scale: 1.04 },
+      { type: 'FISHING_BOAT', variant: 1, rx: 835.0, rz: 935.0, angle0: 3.96, dir: -1.0, speed: 2.36, scale: 1.00 },
+      { type: 'FISHING_BOAT', variant: 2, rx: 765.0, rz: 855.0, angle0: 4.74, dir: 1.0, speed: 2.18, scale: 0.97 },
+      { type: 'FISHING_BOAT', variant: 3, rx: 810.0, rz: 905.0, angle0: 5.52, dir: -1.0, speed: 2.28, scale: 1.03 },
+      // 4 Kapal Kecil Pesisir (Distant Small Coastal Ships — Deep Horizon Lanes)
+      { type: 'SMALL_SHIP', variant: 0, rx: 960.0, rz: 1040.0, angle0: 0.48, dir: -1.0, speed: 3.35, scale: 1.04 },
+      { type: 'SMALL_SHIP', variant: 1, rx: 1010.0, rz: 1090.0, angle0: 2.05, dir: 1.0, speed: 3.55, scale: 1.00 },
+      { type: 'SMALL_SHIP', variant: 2, rx: 980.0, rz: 1060.0, angle0: 3.62, dir: -1.0, speed: 3.25, scale: 1.06 },
+      { type: 'SMALL_SHIP', variant: 3, rx: 1030.0, rz: 1110.0, angle0: 5.15, dir: 1.0, speed: 3.45, scale: 0.98 }
+    ];
+
+    const seaCenterX = -160.0;
+    const seaCenterZ = 365.0;
+    this.marineVessels = fleetSpecs.map((spec, idx) => {
+      const th = spec.angle0;
+      const wx = seaCenterX + Math.cos(th) * spec.rx;
+      const wz = seaCenterZ + Math.sin(th) * spec.rz;
+      const tx = -spec.dir * Math.sin(th) * spec.rx;
+      const tz = spec.dir * Math.cos(th) * spec.rz;
+      return {
+        index: idx,
+        ...spec,
+        seaCenterX,
+        seaCenterZ,
+        angle: th,
+        worldX: wx,
+        worldY: TerrainDEMLoader.WATER_LEVEL_Y,
+        worldZ: wz,
+        yaw: Math.atan2(tx, tz),
+        pitch: 0.0,
+        roll: 0.0,
+        phaseSeed: idx * 1.93
+      };
+    });
   }
 
   /**
    * Exact campus walkable surface elevation resolver (supports ◇◇◇ Courtyard, Flag Cloister,
-   * Selasar Agung podium, Rotunda curbs, SE Covered Walkway, and DEM terrain).
+   * Selasar Agung podium, Rotunda curbs, SE Covered Walkway, Pulau I West Apron, and DEM terrain).
    */
   _samplePedestrianGroundY(x, z) {
+    if (z >= 536.0 && x >= -284.6 && x <= -223.4 && z >= 659.5 && z <= 697.5) {
+      return TerrainDEMLoader.RUNWAY_DECK_Y; // Pulau I West Apron concrete deck
+    }
     if (x >= -19.5 && x <= 18.5 && z >= -19.5 && z <= 18.5) {
       return 0.37; // Rektorat Tower Colonnade plinth
     }
@@ -654,6 +936,354 @@ export class DynamicTrafficAI {
         propType: 'PHONE',
         hasUmbrella: true,
         hasLanyard: true
+      },
+
+      // === G. ELECTRIC CAMPUS GOLF CART DRIVER ("SUPIR MOBIL GOLF LISTRIK UI" — idx 24) ===
+      {
+        behavior: 'GOLF_CART_DRIVER',
+        seatId: 0,
+        archetype: 'UI_SHUTTLE_DRIVER',
+        hairStyle: 'HAIR_PARTED',
+        heightScale: 0.99,
+        buildScaleX: 1.02,
+        propType: 'NONE',
+        hasUmbrella: false,
+        hasLanyard: true
+      },
+
+      // === H. 8 ROTATING CAMPUS SHUTTLE PASSENGERS ("ORANG2 YG BERGANTIAN NAIK" — indices 25..32) ===
+      // 4 Start ONBOARD (alighting sequentially at Stops 0, 1, 2, 3) + 4 Start WAITING at Stops 0, 1, 2, 3!
+      {
+        behavior: 'GOLF_CART_SHUTTLE_RIDER',
+        shuttleState: 'ONBOARD',
+        seatId: 1,
+        destStop: 0,
+        waitStop: 0,
+        archetype: 'MAHASISWI_HIJAB_JAKUN',
+        hijabCol: HUMAN_PALETTE.HIJAB_SAGE,
+        heightScale: 0.94,
+        propType: 'PHONE',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'GOLF_CART_SHUTTLE_RIDER',
+        shuttleState: 'ONBOARD',
+        seatId: 2,
+        destStop: 1,
+        waitStop: 1,
+        archetype: 'POLO_CASUAL',
+        torsoCol: HUMAN_PALETTE.POLO_TERRACOTTA,
+        lowerCol: HUMAN_PALETTE.CHINO_KHAKI,
+        isFemale: false,
+        hairStyle: 'HAIR_WAVY',
+        heightScale: 1.00,
+        propType: 'BOOK',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'GOLF_CART_SHUTTLE_RIDER',
+        shuttleState: 'ONBOARD',
+        seatId: 4, // Rear-facing shuttle seat!
+        destStop: 2,
+        waitStop: 2,
+        archetype: 'POLO_CASUAL',
+        torsoCol: HUMAN_PALETTE.POLO_LAVENDER,
+        lowerCol: HUMAN_PALETTE.DENIM_BLUE,
+        isFemale: true,
+        hairStyle: 'HAIR_PONYTAIL',
+        heightScale: 0.95,
+        propType: 'PHONE',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'GOLF_CART_SHUTTLE_RIDER',
+        shuttleState: 'ONBOARD',
+        seatId: 3,
+        destStop: 3,
+        waitStop: 3,
+        archetype: 'DOSEN_BATIK_EMERALD',
+        hairStyle: 'HAIR_PARTED',
+        hasGlasses: true,
+        heightScale: 1.02,
+        propType: 'BOOK',
+        hasUmbrella: true
+      },
+      {
+        behavior: 'GOLF_CART_SHUTTLE_RIDER',
+        shuttleState: 'WAIT_AT_STOP',
+        seatId: -1,
+        destStop: -1,
+        waitStop: 0, // Waiting right at Halte Gerbang Rektorat (Stop 0)!
+        waitSlot: 0,
+        archetype: 'MAHASISWA_JAKUN',
+        hairStyle: 'HAIR_PARTED',
+        hasCap: true,
+        capColor: HUMAN_PALETTE.PLK_SECURITY_NAVY,
+        capBrimColor: HUMAN_PALETTE.JAKUN_YELLOW,
+        heightScale: 1.01,
+        propType: 'PHONE',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'GOLF_CART_SHUTTLE_RIDER',
+        shuttleState: 'WAIT_AT_STOP',
+        seatId: -1,
+        destStop: -1,
+        waitStop: 1, // Waiting at Halte Rotunda Tenggara (Stop 1)
+        waitSlot: 0,
+        archetype: 'POLO_CASUAL',
+        torsoCol: HUMAN_PALETTE.POLO_CREAM,
+        lowerCol: HUMAN_PALETTE.SKIRT_NAVY,
+        isFemale: true,
+        isLongSkirt: false,
+        hairStyle: 'HIJAB',
+        hijabCol: HUMAN_PALETTE.HIJAB_DUSTY_ROSE,
+        heightScale: 0.93,
+        propType: 'BOOK',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'GOLF_CART_SHUTTLE_RIDER',
+        shuttleState: 'WAIT_AT_STOP',
+        seatId: -1,
+        destStop: -1,
+        waitStop: 2, // Waiting at Halte Helipad VIP Barat (Stop 2)
+        waitSlot: 0,
+        archetype: 'DOSEN_BATIK_OCHRE',
+        hairStyle: 'HAIR_PARTED',
+        hasGlasses: true,
+        heightScale: 1.02,
+        propType: 'PHONE',
+        hasUmbrella: true
+      },
+      {
+        behavior: 'GOLF_CART_SHUTTLE_RIDER',
+        shuttleState: 'WAIT_AT_STOP',
+        seatId: -1,
+        destStop: -1,
+        waitStop: 3, // Waiting at Halte Koridor Barat Rektorat (Stop 3)
+        waitSlot: 0,
+        archetype: 'POLO_CASUAL',
+        torsoCol: HUMAN_PALETTE.POLO_EMERALD,
+        lowerCol: HUMAN_PALETTE.TROUSER_NAVY,
+        isFemale: true,
+        hairStyle: 'HAIR_PONYTAIL',
+        heightScale: 0.95,
+        propType: 'BOOK',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+
+      // === I. 4 CAMPUS ATHLETIC JOGGERS ("OLAHRAGA LARI KAMPUS UI" — indices 33..36) ===
+      {
+        behavior: 'JOGGER_LOOP',
+        jogTrack: 'LAKESIDE',
+        centerZ: -4.0,
+        spanZ: 68.0,
+        phase0: 0.12,
+        baseSpeed: 2.38,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_CORAL,
+        lowerCol: HUMAN_PALETTE.TROUSER_CHARCOAL,
+        isFemale: false,
+        hasCap: true,
+        capColor: HUMAN_PALETTE.SPORT_CORAL,
+        capBrimColor: HUMAN_PALETTE.SHOE_BLACK,
+        heightScale: 1.02,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+      {
+        behavior: 'JOGGER_LOOP',
+        jogTrack: 'LAKESIDE',
+        centerZ: -4.0,
+        spanZ: 68.0,
+        phase0: 0.58,
+        baseSpeed: 2.32,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_TEAL,
+        lowerCol: HUMAN_PALETTE.TROUSER_NAVY,
+        isFemale: true,
+        hairStyle: 'HAIR_PONYTAIL',
+        heightScale: 0.95,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+      {
+        behavior: 'JOGGER_LOOP',
+        jogTrack: 'ROTUNDA_OUTER',
+        radius: 37.0,
+        angle0: 0.95,
+        dir: -1.0,
+        baseSpeed: 2.44,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_COBALT,
+        lowerCol: HUMAN_PALETTE.TROUSER_CHARCOAL,
+        isFemale: false,
+        hairStyle: 'HAIR_WAVY',
+        heightScale: 1.01,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+      {
+        behavior: 'JOGGER_LOOP',
+        jogTrack: 'ROTUNDA_OUTER',
+        radius: 37.8,
+        angle0: 3.85,
+        dir: 1.0,
+        baseSpeed: 2.36,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_CITRUS,
+        lowerCol: HUMAN_PALETTE.TROUSER_NAVY,
+        isFemale: true,
+        hairStyle: 'HIJAB',
+        hijabCol: HUMAN_PALETTE.HIJAB_NAVY,
+        heightScale: 0.94,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+
+      // === J. 3 LAWN TAI-CHI & CALISTHENIC STRETCHING PRACTITIONERS (indices 37..39) ===
+      {
+        behavior: 'LAWN_ACTIVITY',
+        spotX: -27.5,
+        spotZ: 50.0,
+        faceYaw: Math.PI * 0.5,
+        phase0: 0.0,
+        archetype: 'POLO_CASUAL',
+        torsoCol: HUMAN_PALETTE.POLO_CREAM,
+        lowerCol: HUMAN_PALETTE.TROUSER_CHARCOAL,
+        isFemale: false,
+        hairStyle: 'HAIR_PARTED',
+        heightScale: 1.01,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+      {
+        behavior: 'LAWN_ACTIVITY',
+        spotX: -29.4,
+        spotZ: 48.2,
+        faceYaw: Math.PI * 0.5,
+        phase0: 0.25,
+        archetype: 'POLO_CASUAL',
+        torsoCol: HUMAN_PALETTE.POLO_EMERALD,
+        lowerCol: HUMAN_PALETTE.TROUSER_NAVY,
+        isFemale: true,
+        hairStyle: 'HAIR_PONYTAIL',
+        heightScale: 0.95,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+      {
+        behavior: 'LAWN_ACTIVITY',
+        spotX: -29.4,
+        spotZ: 51.8,
+        faceYaw: Math.PI * 0.5,
+        phase0: 0.5,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_TEAL,
+        lowerCol: HUMAN_PALETTE.TROUSER_NAVY,
+        isFemale: true,
+        hairStyle: 'HIJAB',
+        hijabCol: HUMAN_PALETTE.HIJAB_CREAM,
+        heightScale: 0.93,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+
+      // === K. 2 UI CAMPUS SECURITY OFFICERS ("PETUGAS PLK UI" — indices 40..41) ===
+      {
+        behavior: 'PLK_SECURITY_OFFICER',
+        waypoints: [
+          [-7.2, 70.6],
+          [2.2, 70.6]
+        ],
+        wpIdx: 0,
+        baseSpeed: 0.96,
+        watchYaw: 0.0, // Facing South toward Rotunda & Golf Cart Stop 0
+        archetype: 'PLK_SECURITY',
+        heightScale: 1.03,
+        buildScaleX: 1.05,
+        propType: 'NONE',
+        hasUmbrella: false,
+        hasLanyard: true
+      },
+      {
+        behavior: 'PLK_SECURITY_OFFICER',
+        waypoints: [
+          [-78.0, 114.2],
+          [-64.5, 114.2]
+        ],
+        wpIdx: 1,
+        baseSpeed: 0.98,
+        watchYaw: Math.PI, // Facing North toward West Boulevard & VIP Helipad Stop 2
+        archetype: 'PLK_SECURITY',
+        heightScale: 1.02,
+        buildScaleX: 1.04,
+        propType: 'NONE',
+        hasUmbrella: false,
+        hasLanyard: true
+      },
+
+      // === L. 3 PULAU I SCENIC APRON & WATERFALL RESEARCH EXPLORERS (indices 42..44) ===
+      {
+        behavior: 'PULAU_I_EXPLORER',
+        explorerMode: 'WALK_APRON',
+        waypoints: [
+          [-269.0, 662.2],
+          [-239.0, 662.2],
+          [-239.0, 668.5],
+          [-269.0, 668.5]
+        ],
+        wpIdx: 0,
+        baseSpeed: 1.12,
+        archetype: 'DOSEN_BATIK_EMERALD',
+        hairStyle: 'HAIR_PARTED',
+        hasGlasses: true,
+        heightScale: 1.02,
+        propType: 'BOOK',
+        hasUmbrella: true
+      },
+      {
+        behavior: 'PULAU_I_EXPLORER',
+        explorerMode: 'WALK_APRON',
+        waypoints: [
+          [-269.0, 662.2],
+          [-239.0, 662.2],
+          [-239.0, 668.5],
+          [-269.0, 668.5]
+        ],
+        wpIdx: 2,
+        baseSpeed: 1.16,
+        archetype: 'MAHASISWA_JAKUN',
+        hairStyle: 'HAIR_WAVY',
+        hasCap: true,
+        capColor: HUMAN_PALETTE.JAKUN_YELLOW,
+        capBrimColor: HUMAN_PALETTE.PLK_SECURITY_NAVY,
+        heightScale: 1.00,
+        propType: 'BACKPACK',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'PULAU_I_EXPLORER',
+        explorerMode: 'OBSERVE_NIAGARA',
+        spotX: -66.0,
+        spotZ: 634.0,
+        aimX: TerrainDEMLoader.NIAGARA_CX,
+        aimZ: TerrainDEMLoader.NIAGARA_CZ,
+        phase0: 0.36,
+        archetype: 'MAHASISWI_HIJAB_JAKUN',
+        hijabCol: HUMAN_PALETTE.HIJAB_SAGE,
+        heightScale: 0.94,
+        propType: 'PHONE',
+        hasUmbrella: true,
+        hasLanyard: true
       }
     ];
 
@@ -678,7 +1308,91 @@ export class DynamicTrafficAI {
       const soleColor = idx % 4 === 0 ? HUMAN_PALETTE.SHOE_GUM_SOLE : HUMAN_PALETTE.SHOE_WHITE_TRIM;
 
       let profile;
-      if (cfg.archetype === 'MAHASISWI_HIJAB_JAKUN') {
+      if (cfg.archetype === 'UI_SHUTTLE_DRIVER') {
+        profile = {
+          garmentStyle: 'FORMAL_SHIRT',
+          torsoMain: HUMAN_PALETTE.JAKUN_YELLOW,
+          innerShirtColor: HUMAN_PALETTE.PLK_SECURITY_NAVY,
+          lowerColor: HUMAN_PALETTE.PLK_SECURITY_NAVY,
+          skinColor,
+          isFemale: false,
+          isShortSleeve: true,
+          hairStyle: cfg.hairStyle || 'HAIR_PARTED',
+          hasCap: true,
+          capColor: HUMAN_PALETTE.JAKUN_YELLOW,
+          capBrimColor: HUMAN_PALETTE.PLK_SECURITY_NAVY,
+          isLongSkirt: false,
+          headwearColor: HUMAN_PALETTE.HAIR_JET,
+          hasGlasses: false,
+          hasLanyard: true,
+          hasUmbrella: false,
+          umbrellaColor,
+          propType: 'NONE',
+          bagColor,
+          bookColor,
+          shoeColor: HUMAN_PALETTE.SHOE_BLACK,
+          soleColor: HUMAN_PALETTE.SHOE_WHITE_TRIM,
+          buildScaleX: cfg.buildScaleX || 1.02
+        };
+      } else if (cfg.archetype === 'PLK_SECURITY') {
+        profile = {
+          garmentStyle: 'FORMAL_SHIRT',
+          torsoMain: HUMAN_PALETTE.PLK_SECURITY_SHIRT,
+          innerShirtColor: HUMAN_PALETTE.INNER_WHITE,
+          lowerColor: HUMAN_PALETTE.PLK_SECURITY_NAVY,
+          skinColor,
+          isFemale: false,
+          isShortSleeve: false,
+          hairStyle: 'HAIR_PARTED',
+          hasCap: true,
+          capColor: HUMAN_PALETTE.PLK_SECURITY_NAVY,
+          capBrimColor: HUMAN_PALETTE.SHOE_BLACK,
+          isLongSkirt: false,
+          headwearColor: HUMAN_PALETTE.HAIR_JET,
+          hasGlasses: false,
+          hasLanyard: true,
+          hasUmbrella: false,
+          umbrellaColor,
+          propType: 'NONE',
+          bagColor,
+          bookColor,
+          shoeColor: HUMAN_PALETTE.SHOE_BLACK,
+          soleColor: HUMAN_PALETTE.SHOE_BLACK,
+          buildScaleX: cfg.buildScaleX || 1.04
+        };
+      } else if (cfg.archetype === 'POLO_CASUAL' || cfg.archetype === 'SPORT_JOGGER') {
+        const isSport = cfg.archetype === 'SPORT_JOGGER';
+        const isHijab = cfg.hairStyle === 'HIJAB';
+        profile = {
+          garmentStyle: 'FORMAL_SHIRT',
+          torsoMain: cfg.torsoCol || HUMAN_PALETTE.POLO_EMERALD,
+          innerShirtColor: HUMAN_PALETTE.INNER_WHITE,
+          lowerColor: cfg.lowerCol || HUMAN_PALETTE.TROUSER_NAVY,
+          skinColor,
+          isFemale: Boolean(cfg.isFemale),
+          isShortSleeve: !isHijab,
+          hairStyle: cfg.hairStyle || (cfg.isFemale ? 'HAIR_PONYTAIL' : 'HAIR_WAVY'),
+          hasCap: Boolean(cfg.hasCap),
+          capColor: cfg.capColor || cfg.torsoCol || HUMAN_PALETTE.JAKUN_YELLOW,
+          capBrimColor: cfg.capBrimColor || HUMAN_PALETTE.PLK_SECURITY_NAVY,
+          isLongSkirt: Boolean(cfg.isLongSkirt),
+          headwearColor: isHijab
+            ? cfg.hijabCol || HUMAN_PALETTE.HIJAB_CREAM
+            : idx % 2 === 0
+              ? HUMAN_PALETTE.HAIR_JET
+              : HUMAN_PALETTE.HAIR_ESPRESSO,
+          hasGlasses: Boolean(cfg.hasGlasses),
+          hasLanyard: Boolean(cfg.hasLanyard),
+          hasUmbrella: cfg.hasUmbrella !== false && !isSport,
+          umbrellaColor,
+          propType: cfg.propType || 'NONE',
+          bagColor,
+          bookColor,
+          shoeColor: isSport ? HUMAN_PALETTE.SHOE_WHITE_TRIM : shoeColor,
+          soleColor: isSport ? (cfg.torsoCol || HUMAN_PALETTE.SPORT_CORAL) : soleColor,
+          buildScaleX: cfg.buildScaleX || (cfg.isFemale ? 0.95 : 1.01)
+        };
+      } else if (cfg.archetype === 'MAHASISWI_HIJAB_JAKUN') {
         const skirts = [
           HUMAN_PALETTE.SKIRT_NAVY,
           HUMAN_PALETTE.SKIRT_CHARCOAL,
@@ -733,7 +1447,11 @@ export class DynamicTrafficAI {
             ? HUMAN_PALETTE.BATIK_INDIGO
             : cfg.archetype === 'DOSEN_BATIK_MAROON'
               ? HUMAN_PALETTE.BATIK_MAROON
-              : HUMAN_PALETTE.BATIK_SOGAN;
+              : cfg.archetype === 'DOSEN_BATIK_EMERALD'
+                ? HUMAN_PALETTE.BATIK_EMERALD
+                : cfg.archetype === 'DOSEN_BATIK_OCHRE'
+                  ? HUMAN_PALETTE.BATIK_OCHRE
+                  : HUMAN_PALETTE.BATIK_SOGAN;
         profile = {
           garmentStyle: 'BATIK_LECTURER',
           torsoMain: batikCol,
@@ -793,6 +1511,9 @@ export class DynamicTrafficAI {
           skinColor,
           isFemale: false,
           hairStyle: cfg.hairStyle || 'HAIR_WAVY',
+          hasCap: Boolean(cfg.hasCap),
+          capColor: cfg.capColor || HUMAN_PALETTE.JAKUN_YELLOW,
+          capBrimColor: cfg.capBrimColor || HUMAN_PALETTE.PLK_SECURITY_NAVY,
           isLongSkirt: false,
           headwearColor: idx % 2 === 0 ? HUMAN_PALETTE.HAIR_JET : HUMAN_PALETTE.HAIR_ESPRESSO,
           hasGlasses: Boolean(cfg.hasGlasses),
@@ -812,16 +1533,42 @@ export class DynamicTrafficAI {
       let initX = 0.0;
       let initZ = 70.0;
       let initYaw = 0.0;
-      if (cfg.behavior === 'WAYPOINT_LOOP') {
+      let initInitialized = false;
+      if (
+        cfg.behavior === 'WAYPOINT_LOOP' ||
+        cfg.behavior === 'PLK_SECURITY_OFFICER' ||
+        (cfg.behavior === 'PULAU_I_EXPLORER' && cfg.explorerMode === 'WALK_APRON')
+      ) {
         const wp = cfg.waypoints[cfg.wpIdx % cfg.waypoints.length];
         const wpNext = cfg.waypoints[(cfg.wpIdx + 1) % cfg.waypoints.length];
         initX = wp[0];
         initZ = wp[1];
         initYaw = Math.atan2(wpNext[0] - initX, wpNext[1] - initZ);
+        initInitialized = true;
       } else if (cfg.behavior === 'BENCH_SEATED') {
         initX = cfg.seatSpec.x;
         initZ = cfg.seatSpec.z;
         initYaw = cfg.seatSpec.yaw;
+        initInitialized = true;
+      } else if (cfg.behavior === 'LAWN_ACTIVITY') {
+        initX = cfg.spotX;
+        initZ = cfg.spotZ;
+        initYaw = cfg.faceYaw || 0.0;
+        initInitialized = true;
+      } else if (cfg.behavior === 'PULAU_I_EXPLORER' && cfg.explorerMode === 'OBSERVE_NIAGARA') {
+        initX = cfg.spotX;
+        initZ = cfg.spotZ;
+        initYaw = Math.atan2(cfg.aimX - initX, cfg.aimZ - initZ);
+        initInitialized = true;
+      } else if (cfg.behavior === 'GOLF_CART_SHUTTLE_RIDER' && cfg.shuttleState === 'WAIT_AT_STOP') {
+        const st = this.golfCart?.stops?.[cfg.waitStop];
+        if (st) {
+          const sp = st.waitSpots[(cfg.waitSlot || 0) % st.waitSpots.length];
+          initX = sp[0];
+          initZ = sp[1];
+          initYaw = st.waitYaw;
+          initInitialized = true;
+        }
       }
 
       return {
@@ -843,7 +1590,23 @@ export class DynamicTrafficAI {
         playerGlanceBlend: 0.0,
         skirtSwingRx: 0.0,
         skirtSwingRz: 0.0,
-        initializedPos: cfg.behavior === 'WAYPOINT_LOOP' || cfg.behavior === 'BENCH_SEATED'
+        seatedBlend:
+          cfg.behavior === 'GOLF_CART_DRIVER' ||
+          (cfg.behavior === 'GOLF_CART_SHUTTLE_RIDER' && cfg.shuttleState === 'ONBOARD')
+            ? 1.0
+            : 0.0,
+        shuttleState: cfg.shuttleState || 'NONE',
+        shuttleTimer: 0.0,
+        shuttleStartX: initX,
+        shuttleStartZ: initZ,
+        shuttleTargetX: initX,
+        shuttleTargetZ: initZ,
+        justAlightedStop: -1,
+        boardingScheduled: false,
+        saluteBlend: 0.0,
+        boardCount: 0,
+        alightCount: 0,
+        initializedPos: initInitialized
       };
     });
   }
@@ -1105,11 +1868,13 @@ export class DynamicTrafficAI {
   }
 
   /**
-   * Builds the unified single-draw-call Dual-Bone LBS Mesh for all 24 Sivitas Akademika NPCs
-   * AND all 48 Multi-Island Proportional Articulated Cats (Strictly 1 Draw Call Total!).
+   * Builds the unified single-draw-call Dual-Bone LBS Mesh for all 45 Sivitas Akademika NPCs,
+   * all 48 Multi-Island Proportional Articulated Cats, 1 Super-Accurate 6-Joint Electric Golf Cart,
+   * AND 12 Distant Offshore Marine Vessels (8 Fishing Boats + 4 Small Ships) — Strictly 1 Draw Call Total!
    * @returns {THREE.Group}
    */
   build() {
+    this._initGolfCartAndMarineFleet();
     this._initNPCRoster();
     this._initFelineRoster();
 
@@ -1118,6 +1883,12 @@ export class DynamicTrafficAI {
     );
     const catBundles = this.cats.map((cat) =>
       FelineAnatomyBuilder.buildSkinnedCat(cat.phenotype)
+    );
+    const cartBundle = CampusTransitAndMarineBuilder.buildElectricGolfCart();
+    const marineBundles = this.marineVessels.map((v) =>
+      v.type === 'SMALL_SHIP'
+        ? CampusTransitAndMarineBuilder.buildDistantSmallShip(v.variant)
+        : CampusTransitAndMarineBuilder.buildDistantFishingBoat(v.variant)
     );
 
     let totalVerts = 0;
@@ -1129,6 +1900,12 @@ export class DynamicTrafficAI {
     for (let c = 0; c < catBundles.length; c++) {
       totalVerts += catBundles[c].pos.length / 3;
       totalIndices += catBundles[c].idx.length;
+    }
+    totalVerts += cartBundle.pos.length / 3;
+    totalIndices += cartBundle.idx.length;
+    for (let m = 0; m < marineBundles.length; m++) {
+      totalVerts += marineBundles[m].pos.length / 3;
+      totalIndices += marineBundles[m].idx.length;
     }
 
     this._restPos = new Float32Array(totalVerts * 3);
@@ -1147,11 +1924,8 @@ export class DynamicTrafficAI {
     let vCursor = 0;
     let iCursor = 0;
 
-    for (let n = 0; n < charBundles.length; n++) {
-      const b = charBundles[n];
+    const appendBundle = (b, jointBase) => {
       const vCount = b.pos.length / 3;
-      const jointBase = n * JOINTS_PER_NPC;
-
       this._restPos.set(b.pos, vCursor * 3);
       this._restNorm.set(b.norm, vCursor * 3);
       colors.set(b.col, vCursor * 3);
@@ -1168,34 +1942,26 @@ export class DynamicTrafficAI {
         indices[iCursor++] = vCursor + b.idx[k];
       }
       vCursor += vCount;
+    };
+
+    for (let n = 0; n < charBundles.length; n++) {
+      appendBundle(charBundles[n], n * JOINTS_PER_NPC);
     }
 
     const catGlobalJointStart = this.npcs.length * JOINTS_PER_NPC;
     for (let c = 0; c < catBundles.length; c++) {
-      const b = catBundles[c];
-      const vCount = b.pos.length / 3;
-      const jointBase = catGlobalJointStart + c * CAT_JOINTS_PER_CAT;
-
-      this._restPos.set(b.pos, vCursor * 3);
-      this._restNorm.set(b.norm, vCursor * 3);
-      colors.set(b.col, vCursor * 3);
-      uvs.set(b.uv, vCursor * 2);
-      humanMeta.set(b.meta, vCursor * 3);
-      this._vertW0.set(b.w0, vCursor);
-
-      for (let k = 0; k < vCount; k++) {
-        this._vertJ0[vCursor + k] = jointBase + b.j0[k];
-        this._vertJ1[vCursor + k] = jointBase + b.j1[k];
-      }
-
-      for (let k = 0; k < b.idx.length; k++) {
-        indices[iCursor++] = vCursor + b.idx[k];
-      }
-      vCursor += vCount;
+      appendBundle(catBundles[c], catGlobalJointStart + c * CAT_JOINTS_PER_CAT);
     }
 
-    const totalJoints =
-      this.npcs.length * JOINTS_PER_NPC + this.cats.length * CAT_JOINTS_PER_CAT;
+    this._cartJointBase = catGlobalJointStart + this.cats.length * CAT_JOINTS_PER_CAT;
+    appendBundle(cartBundle, this._cartJointBase);
+
+    this._marineJointBase = this._cartJointBase + CART_JOINTS_PER_VEHICLE;
+    for (let m = 0; m < marineBundles.length; m++) {
+      appendBundle(marineBundles[m], this._marineJointBase + m);
+    }
+
+    const totalJoints = this._marineJointBase + this.marineVessels.length;
     this._jointWorldMatrices = new Float32Array(totalJoints * 16);
     this._skinMatrices = new Float32Array(totalJoints * 16);
     this._skinNormalMatrices = new Float32Array(totalJoints * 9);
@@ -1226,6 +1992,7 @@ export class DynamicTrafficAI {
     this.group.userData.skipRainBake = true;
     this.group.userData.npcCount = this.npcs.length;
     this.group.userData.jointsPerNpc = JOINTS_PER_NPC;
+    this.group.userData.humanBehaviorCount = new Set(this.npcs.map((p) => p.behavior)).size;
     this.group.userData.catCount = this.cats.length;
     this.group.userData.jointsPerCat = CAT_JOINTS_PER_CAT;
     this.group.userData.catsOnPulauU = this.cats.filter((c) => c.worldZ < 536.0).length;
@@ -1234,6 +2001,14 @@ export class DynamicTrafficAI {
     this.group.userData.uniqueCatAgeBuildCount = new Set(
       this.cats.map((c) => c.phenotype.ageBuildClass)
     ).size;
+    this.group.userData.golfCartCount = 1;
+    this.group.userData.marineVesselCount = this.marineVessels.length;
+    this.group.userData.fishingBoatCount = this.marineVessels.filter(
+      (v) => v.type === 'FISHING_BOAT'
+    ).length;
+    this.group.userData.smallShipCount = this.marineVessels.filter(
+      (v) => v.type === 'SMALL_SHIP'
+    ).length;
 
     // Populate initial articulated poses immediately so t = 0 buffers are 100% valid & verified
     this.update(0.016, 0.0);
@@ -1304,11 +2079,351 @@ export class DynamicTrafficAI {
   }
 
   /**
+   * Transforms a local 3D point (lx, ly, lz) on the Electric Golf Cart chassis into live world space.
+   */
+  _cartLocalToWorld(lx, ly, lz, outVec) {
+    const cOff = (this._cartJointBase + CART_J_CHASSIS) * 16;
+    const m = this._jointWorldMatrices;
+    outVec.set(
+      m[cOff] * lx + m[cOff + 4] * ly + m[cOff + 8] * lz + m[cOff + 12],
+      m[cOff + 1] * lx + m[cOff + 5] * ly + m[cOff + 9] * lz + m[cOff + 13],
+      m[cOff + 2] * lx + m[cOff + 6] * ly + m[cOff + 10] * lz + m[cOff + 14]
+    );
+    return outVec;
+  }
+
+  /**
+   * Composes one of the Electric Golf Cart's 6 hierarchical joints and writes its bind-relative skin matrix.
+   */
+  _writeGolfCartJoint(jointId, parentJointId, lx, ly, lz, quat) {
+    this._tmpPos.set(lx, ly, lz);
+    this._tmpScale.set(1.0, 1.0, 1.0);
+    this._tmpLocalMat.compose(this._tmpPos, quat, this._tmpScale);
+
+    const globalJ = this._cartJointBase + jointId;
+    const outOffset = globalJ * 16;
+    const wMats = this._jointWorldMatrices;
+
+    if (parentJointId < 0) {
+      const e = this._tmpLocalMat.elements;
+      for (let i = 0; i < 16; i++) wMats[outOffset + i] = e[i];
+    } else {
+      const parentOffset = (this._cartJointBase + parentJointId) * 16;
+      for (let i = 0; i < 16; i++) {
+        this._tmpParentMat.elements[i] = wMats[parentOffset + i];
+      }
+      this._tmpWorldMat.multiplyMatrices(this._tmpParentMat, this._tmpLocalMat);
+      const e = this._tmpWorldMat.elements;
+      for (let i = 0; i < 16; i++) wMats[outOffset + i] = e[i];
+    }
+
+    const bp = CART_BIND_PIVOTS[jointId];
+    const bx = bp[0];
+    const by = bp[1];
+    const bz = bp[2];
+    const sMats = this._skinMatrices;
+    for (let i = 0; i < 12; i++) {
+      sMats[outOffset + i] = wMats[outOffset + i];
+    }
+    sMats[outOffset + 12] =
+      wMats[outOffset + 12] -
+      (wMats[outOffset] * bx + wMats[outOffset + 4] * by + wMats[outOffset + 8] * bz);
+    sMats[outOffset + 13] =
+      wMats[outOffset + 13] -
+      (wMats[outOffset + 1] * bx + wMats[outOffset + 5] * by + wMats[outOffset + 9] * bz);
+    sMats[outOffset + 14] =
+      wMats[outOffset + 14] -
+      (wMats[outOffset + 2] * bx + wMats[outOffset + 6] * by + wMats[outOffset + 10] * bz);
+    sMats[outOffset + 15] = 1.0;
+  }
+
+  /**
+   * Advances:
+   * 1. The 6-Joint Electric Campus Golf Cart ("Mobil Golf Listrik UI") along its closed paved asphalt
+   *    patrol spline, including smooth braking into 4 campus shuttle stops, passenger alighting &
+   *    boarding coordination ("orang-orang yang bergantian naik"), Ackermann front-wheel steering,
+   *    tilted steering-column wheel rotation, and zero-slip rolling tire spin.
+   * 2. All 12 Distant Offshore Marine Vessels (8 Nusantara Fishing Boats + 4 Small Coastal Ships)
+   *    cruising gently across the far 360-deg ocean horizon with realistic wave heave, pitch, & roll.
+   */
+  _advanceGolfCartAndMarineFleet(dt, t) {
+    const cart = this.golfCart;
+    if (cart) {
+      const stop = cart.stops[cart.targetStopIdx];
+      let duToStop = stop.u - cart.u;
+      if (duToStop < -0.5) duToStop += 1.0;
+      else if (duToStop < 0.0 && duToStop > -0.02) duToStop = 0.0;
+      else if (duToStop < 0.0) duToStop += 1.0;
+      const distToStop = duToStop * cart.totalLength;
+
+      if (cart.phase === 'CRUISE') {
+        // Smooth kinematic deceleration curve over final 7.5 m into the shuttle stop
+        let desiredSpeed = cart.maxSpeed;
+        if (distToStop < 8.0) {
+          desiredSpeed = Math.min(
+            cart.maxSpeed,
+            Math.max(0.28, Math.sqrt(2.0 * 0.88 * Math.max(0.0, distToStop)))
+          );
+        }
+        if (cart.speed < desiredSpeed) {
+          cart.speed = Math.min(desiredSpeed, cart.speed + 1.35 * dt);
+        } else {
+          cart.speed = Math.max(desiredSpeed, cart.speed - 1.65 * dt);
+        }
+
+        const ds = cart.speed * dt;
+        if (distToStop <= Math.max(0.09, ds * 1.15)) {
+          // Arrived smoothly at Stop S!
+          cart.u = stop.u;
+          cart.speed = 0.0;
+          cart.phase = 'DWELL';
+          cart.dwellTimer = 0.0;
+          cart.boardingTriggered = false;
+
+          // Trigger ALIGHTING for onboard shuttle passengers whose destination is this stop
+          const S = cart.targetStopIdx;
+          let usedWaitSlot = 1;
+          for (let i = 0; i < this.npcs.length; i++) {
+            const p = this.npcs[i];
+            if (
+              p.behavior === 'GOLF_CART_SHUTTLE_RIDER' &&
+              p.shuttleState === 'ONBOARD' &&
+              p.destStop === S
+            ) {
+              if (p.seatId >= 1 && p.seatId <= 5 && cart.seatOccupant[p.seatId] === p.index) {
+                cart.seatOccupant[p.seatId] = -1;
+              }
+              p.shuttleState = 'ALIGHTING';
+              p.shuttleTimer = 0.0;
+              p.waitStop = S;
+              p.waitSlot = usedWaitSlot % stop.waitSpots.length;
+              usedWaitSlot++;
+              const wsp = stop.waitSpots[p.waitSlot];
+              p.shuttleTargetX = wsp[0];
+              p.shuttleTargetZ = wsp[1];
+              p.justAlightedStop = S;
+              p.alightCount = (p.alightCount || 0) + 1;
+            }
+          }
+
+          // Reserve vacated/free seats for passengers currently WAITING at Stop S!
+          const seatPriority = [1, 2, 4, 3, 5];
+          for (let i = 0; i < this.npcs.length; i++) {
+            const p = this.npcs[i];
+            if (
+              p.behavior === 'GOLF_CART_SHUTTLE_RIDER' &&
+              p.shuttleState === 'WAIT_AT_STOP' &&
+              p.waitStop === S &&
+              p.justAlightedStop !== S
+            ) {
+              let freeSeat = -1;
+              for (let k = 0; k < seatPriority.length; k++) {
+                const sid = seatPriority[k];
+                if (cart.seatOccupant[sid] < 0) {
+                  freeSeat = sid;
+                  break;
+                }
+              }
+              if (freeSeat > 0) {
+                cart.seatOccupant[freeSeat] = p.index;
+                p.seatId = freeSeat;
+                p.destStop = (S + 2 + (p.index % 2)) % cart.stops.length;
+                p.boardingScheduled = true;
+              }
+            }
+          }
+        } else {
+          cart.u = (cart.u + ds / cart.totalLength) % 1.0;
+          cart.wheelSpinRad += ds / CART_WHEEL_RADIUS;
+        }
+      } else {
+        // 'DWELL' at current shuttle stop (6.2 s window for alighting + boarding exchange)
+        cart.speed = 0.0;
+        cart.dwellTimer += dt;
+        const S = cart.targetStopIdx;
+
+        // At 1.45 s into dwell (once alighting rider has stepped clear), start BOARDING!
+        if (!cart.boardingTriggered && cart.dwellTimer >= 1.45) {
+          cart.boardingTriggered = true;
+          for (let i = 0; i < this.npcs.length; i++) {
+            const p = this.npcs[i];
+            if (
+              p.behavior === 'GOLF_CART_SHUTTLE_RIDER' &&
+              p.shuttleState === 'WAIT_AT_STOP' &&
+              p.boardingScheduled
+            ) {
+              p.boardingScheduled = false;
+              p.shuttleState = 'BOARDING';
+              p.shuttleTimer = 0.0;
+              p.shuttleStartX = p.worldX;
+              p.shuttleStartZ = p.worldZ;
+            }
+          }
+        }
+
+        if (cart.dwellTimer >= cart.dwellDuration) {
+          // Ensure any boarding passenger finishes cleanly before smooth departure
+          for (let i = 0; i < this.npcs.length; i++) {
+            const p = this.npcs[i];
+            if (p.behavior === 'GOLF_CART_SHUTTLE_RIDER') {
+              if (p.shuttleState === 'BOARDING') {
+                p.shuttleState = 'ONBOARD';
+                p.seatedBlend = 1.0;
+                p.boardCount = (p.boardCount || 0) + 1;
+              }
+              if (p.justAlightedStop === S) {
+                p.justAlightedStop = -1;
+              }
+            }
+          }
+          cart.phase = 'CRUISE';
+          cart.targetStopIdx = (cart.targetStopIdx + 1) % cart.stops.length;
+        }
+      }
+
+      // Sample exact 3D spline position, tangent heading, & lookahead curvature for Ackermann steering
+      const duLook = 1.15 / cart.totalLength;
+      const uPrev = ((cart.u - duLook) % 1.0 + 1.0) % 1.0;
+      const uNext = (cart.u + duLook) % 1.0;
+      const uFar = (cart.u + duLook * 2.2) % 1.0;
+
+      cart.spline.getPointAt(cart.u, this._tmpVecA);
+      cart.spline.getPointAt(uPrev, this._tmpVecB);
+      cart.spline.getPointAt(uNext, this._tmpVecC);
+
+      const tx = this._tmpVecC.x - this._tmpVecB.x;
+      const tz = this._tmpVecC.z - this._tmpVecB.z;
+      const targetYaw = Math.atan2(tx, tz);
+
+      // Lookahead tangent for smooth road curvature kappa -> Ackermann steering angle!
+      const midX = this._tmpVecA.x;
+      const midZ = this._tmpVecA.z;
+      cart.spline.getPointAt(uFar, this._tmpVecB);
+      const yawAhead = Math.atan2(this._tmpVecB.x - midX, this._tmpVecB.z - midZ);
+      const kappa = wrapAngle(yawAhead - targetYaw) / 2.53;
+      const targetSteer = Math.max(-0.46, Math.min(0.46, Math.atan(CART_WHEELBASE * kappa)));
+
+      cart.worldX = midX;
+      cart.worldZ = midZ;
+      const roadY = this._sampleAsphaltRoadY(midX, midZ);
+      // Subtle cushioned EV suspension micro-heave & braking pitch dive
+      const suspHeave =
+        cart.speed > 0.05 ? Math.sin(cart.wheelSpinRad * 1.7) * 0.0028 * (cart.speed / cart.maxSpeed) : 0.0;
+      cart.worldY = roadY + suspHeave;
+      cart.yaw = dampAngle(cart.yaw, targetYaw, 14.0, dt);
+      cart.steerAngle = dampScalar(cart.steerAngle, targetSteer, 9.0, dt);
+
+      // Subtle centripetal body roll & terrain pitch alignment
+      const sinY = Math.sin(cart.yaw);
+      const cosY = Math.cos(cart.yaw);
+      const yF = this._sampleAsphaltRoadY(midX + sinY * 1.1, midZ + cosY * 1.1);
+      const yB = this._sampleAsphaltRoadY(midX - sinY * 1.1, midZ - cosY * 1.1);
+      const targetPitch = -Math.atan2(yF - yB, 2.2);
+      const targetRoll = -cart.steerAngle * (cart.speed / cart.maxSpeed) * 0.055;
+      cart.pitch = dampScalar(cart.pitch, targetPitch, 10.0, dt);
+      cart.roll = dampScalar(cart.roll, targetRoll, 8.0, dt);
+
+      // Write 6 Articulated Golf Cart Joint Matrices:
+      // 0: CART_J_CHASSIS
+      this._tmpEuler.set(cart.pitch, cart.yaw, cart.roll, 'YXZ');
+      this._tmpQuat.setFromEuler(this._tmpEuler);
+      this._writeGolfCartJoint(CART_J_CHASSIS, -1, cart.worldX, cart.worldY, cart.worldZ, this._tmpQuat);
+
+      // 1: CART_J_STEER_WHEEL (rotates purely around the 0.66-rad tilted steering column shaft!)
+      const bpSteer = CART_BIND_PIVOTS[CART_J_STEER_WHEEL];
+      this._tmpQuat.setFromAxisAngle(this._tmpAxisSteer, -cart.steerAngle * 3.4);
+      this._writeGolfCartJoint(
+        CART_J_STEER_WHEEL,
+        CART_J_CHASSIS,
+        bpSteer[0],
+        bpSteer[1],
+        bpSteer[2],
+        this._tmpQuat
+      );
+
+      // 2 & 3: Front Left & Front Right Ackermann Steered + Rolling Wheels
+      const tanS = Math.tan(cart.steerAngle);
+      const trackRatio = CART_TRACK_HALF_W / CART_WHEELBASE;
+      const steerFL = Math.atan2(tanS, 1.0 - trackRatio * tanS);
+      const steerFR = Math.atan2(tanS, 1.0 + trackRatio * tanS);
+
+      const bpFL = CART_BIND_PIVOTS[CART_J_WHEEL_FL];
+      this._tmpQuat.setFromAxisAngle(this._tmpAxisY, steerFL);
+      this._tmpQuatB.setFromAxisAngle(this._tmpAxisX, cart.wheelSpinRad);
+      this._tmpQuat.multiply(this._tmpQuatB);
+      this._writeGolfCartJoint(CART_J_WHEEL_FL, CART_J_CHASSIS, bpFL[0], bpFL[1], bpFL[2], this._tmpQuat);
+
+      const bpFR = CART_BIND_PIVOTS[CART_J_WHEEL_FR];
+      this._tmpQuat.setFromAxisAngle(this._tmpAxisY, steerFR);
+      this._tmpQuatB.setFromAxisAngle(this._tmpAxisX, cart.wheelSpinRad);
+      this._tmpQuat.multiply(this._tmpQuatB);
+      this._writeGolfCartJoint(CART_J_WHEEL_FR, CART_J_CHASSIS, bpFR[0], bpFR[1], bpFR[2], this._tmpQuat);
+
+      // 4 & 5: Rear Left & Rear Right Rolling Drive Wheels
+      this._tmpQuat.setFromAxisAngle(this._tmpAxisX, cart.wheelSpinRad);
+      const bpRL = CART_BIND_PIVOTS[CART_J_WHEEL_RL];
+      this._writeGolfCartJoint(CART_J_WHEEL_RL, CART_J_CHASSIS, bpRL[0], bpRL[1], bpRL[2], this._tmpQuat);
+
+      const bpRR = CART_BIND_PIVOTS[CART_J_WHEEL_RR];
+      this._writeGolfCartJoint(CART_J_WHEEL_RR, CART_J_CHASSIS, bpRR[0], bpRR[1], bpRR[2], this._tmpQuat);
+    }
+
+    // 2. Advance All 12 Distant Offshore Marine Vessels (8 Fishing Boats + 4 Small Coastal Ships)
+    const wMats = this._jointWorldMatrices;
+    const sMats = this._skinMatrices;
+    for (let m = 0; m < this.marineVessels.length; m++) {
+      const v = this.marineVessels[m];
+      const meanR = 0.5 * (v.rx + v.rz);
+      const omega = (v.dir * v.speed) / meanR;
+      v.angle = (v.angle + omega * dt) % (Math.PI * 2.0);
+
+      const cosA = Math.cos(v.angle);
+      const sinA = Math.sin(v.angle);
+      v.worldX = v.seaCenterX + cosA * v.rx;
+      v.worldZ = v.seaCenterZ + sinA * v.rz;
+
+      const tx = -v.dir * sinA * v.rx;
+      const tz = v.dir * cosA * v.rz;
+      v.yaw = Math.atan2(tx, tz);
+
+      // Realistic open-ocean swell heave, pitch, & roll (smaller fishing boats roll more than steel ships!)
+      const isShip = v.type === 'SMALL_SHIP';
+      const heaveAmp = isShip ? 0.08 : 0.13;
+      const rollAmp = isShip ? 0.032 : 0.075;
+      const pitchAmp = isShip ? 0.020 : 0.045;
+      const ph = v.phaseSeed;
+
+      v.worldY =
+        TerrainDEMLoader.WATER_LEVEL_Y +
+        Math.sin(t * 1.15 + ph) * heaveAmp +
+        Math.cos(t * 0.73 + ph * 1.4) * heaveAmp * 0.45;
+      v.roll = Math.sin(t * 1.05 + ph * 1.3) * rollAmp;
+      v.pitch = Math.cos(t * 1.28 + ph * 0.8) * pitchAmp;
+
+      this._tmpPos.set(v.worldX, v.worldY, v.worldZ);
+      this._tmpEuler.set(v.pitch, v.yaw, v.roll, 'YXZ');
+      this._tmpQuat.setFromEuler(this._tmpEuler);
+      this._tmpScale.set(v.scale, v.scale, v.scale);
+      this._tmpLocalMat.compose(this._tmpPos, this._tmpQuat, this._tmpScale);
+
+      const globalJ = this._marineJointBase + m;
+      const outOff = globalJ * 16;
+      const e = this._tmpLocalMat.elements;
+      for (let k = 0; k < 16; k++) {
+        wMats[outOff + k] = e[k];
+        sMats[outOff + k] = e[k]; // Bind pivot for marine vessels is [0, 0, 0]
+      }
+    }
+  }
+
+  /**
    * Step 1 of Frame Update: Advances autonomous navigation, social-pair synchronization,
-   * Helbing-Molnar personal-space collision avoidance, and live rain/shelter behavioral state!
+   * shuttle passenger boarding/alighting rotation, athletic joggers, Tai-Chi lawn activity,
+   * PLK security patrol, Pulau I explorers, Helbing-Molnar personal-space avoidance, & rain state!
    */
   _advanceCrowdNavigation(dt, t, cameraPos = null) {
     const rainInt = this.sharedUniforms?.uRainIntensity?.value ?? 0.0;
+    const cart = this.golfCart;
 
     for (let i = 0; i < this.npcs.length; i++) {
       const npc = this.npcs[i];
@@ -1316,19 +2431,266 @@ export class DynamicTrafficAI {
       const prevZ = npc.worldZ;
       const prevYaw = npc.yaw;
 
-      // Determine rain exposure vs architectural roof shelter!
-      const isSheltered = DynamicTrafficAI._isShelteredByRoof(npc.worldX, npc.worldZ);
+      const isRidingCart =
+        npc.behavior === 'GOLF_CART_DRIVER' ||
+        (npc.behavior === 'GOLF_CART_SHUTTLE_RIDER' && npc.seatedBlend > 0.35);
+
+      // Determine rain exposure vs architectural roof or Golf Cart canopy shelter!
+      const isSheltered =
+        isRidingCart ||
+        (npc.worldZ < 536.0 && DynamicTrafficAI._isShelteredByRoof(npc.worldX, npc.worldZ));
       const exposedRain = !isSheltered && rainInt > 0.10 ? Math.min(1.0, (rainInt - 0.08) * 1.45) : 0.0;
 
       const wantUmbrella = npc.profile.hasUmbrella ? exposedRain : 0.0;
-      const wantHurry = !npc.profile.hasUmbrella && npc.behavior !== 'BENCH_SEATED' ? exposedRain : 0.0;
+      const wantHurry =
+        !npc.profile.hasUmbrella &&
+        npc.behavior !== 'BENCH_SEATED' &&
+        npc.behavior !== 'GOLF_CART_DRIVER' &&
+        !isRidingCart
+          ? exposedRain
+          : 0.0;
 
       npc.umbrellaBlend = dampScalar(npc.umbrellaBlend, wantUmbrella, 2.6, dt);
       npc.rainHurryBlend = dampScalar(npc.rainHurryBlend, wantHurry, 2.8, dt);
 
       const speedMult = 1.0 + 0.44 * npc.rainHurryBlend;
 
-      if (npc.behavior === 'PAIR_ROTUNDA') {
+      if (npc.behavior === 'GOLF_CART_DRIVER' && cart) {
+        const slot = CART_SEAT_SLOTS[0];
+        this._cartLocalToWorld(slot.lx, slot.ly, slot.lz, this._tmpVecA);
+        npc.worldX = this._tmpVecA.x;
+        npc.worldY = this._tmpVecA.y;
+        npc.worldZ = this._tmpVecA.z;
+        npc.yaw = cart.yaw;
+        npc.seatedBlend = 1.0;
+        npc.liveSpeed = 0.0;
+        npc.turnRate = 0.0;
+        npc.initializedPos = true;
+        continue;
+      } else if (npc.behavior === 'GOLF_CART_SHUTTLE_RIDER' && cart) {
+        const slot = CART_SEAT_SLOTS[Math.max(1, Math.min(5, npc.seatId > 0 ? npc.seatId : 1))];
+        if (npc.shuttleState === 'ONBOARD') {
+          this._cartLocalToWorld(slot.lx, slot.ly, slot.lz, this._tmpVecA);
+          npc.worldX = this._tmpVecA.x;
+          npc.worldY = this._tmpVecA.y;
+          npc.worldZ = this._tmpVecA.z;
+          npc.yaw = wrapAngle(cart.yaw + slot.yawOffset);
+          npc.seatedBlend = 1.0;
+          npc.liveSpeed = 0.0;
+          npc.turnRate = 0.0;
+          npc.initializedPos = true;
+          continue;
+        } else if (npc.shuttleState === 'ALIGHTING') {
+          const dur = 2.45;
+          npc.shuttleTimer = Math.min(dur, npc.shuttleTimer + dt);
+          const p = npc.shuttleTimer / dur;
+
+          this._cartLocalToWorld(slot.lx, slot.ly, slot.lz, this._tmpVecA);
+          this._cartLocalToWorld(slot.sideExit * 0.94, 0.0, slot.lz, this._tmpVecB);
+          const groundStepY = this._samplePedestrianGroundY(this._tmpVecB.x, this._tmpVecB.z);
+
+          if (p < 0.28) {
+            // Stand up & step down onto asphalt beside seat row
+            const s = smooth01(0.0, 0.28, p);
+            npc.seatedBlend = 1.0 - s;
+            npc.worldX = this._tmpVecA.x + (this._tmpVecB.x - this._tmpVecA.x) * s;
+            npc.worldZ = this._tmpVecA.z + (this._tmpVecB.z - this._tmpVecA.z) * s;
+            npc.worldY = this._tmpVecA.y + (groundStepY - this._tmpVecA.y) * s;
+            const exitYaw = Math.atan2(this._tmpVecB.x - this._tmpVecA.x, this._tmpVecB.z - this._tmpVecA.z);
+            npc.yaw = dampAngle(npc.yaw, exitYaw, 10.0, dt);
+          } else {
+            npc.seatedBlend = 0.0;
+            const wProg = (p - 0.28) / 0.72;
+            let tx = npc.shuttleTargetX;
+            let tz = npc.shuttleTargetZ;
+            let sx = this._tmpVecB.x;
+            let sz = this._tmpVecB.z;
+            if (slot.sideExit < 0.0) {
+              // Walk neatly around the rear of the Golf Cart to reach the curbside waiting zone!
+              this._cartLocalToWorld(0.45, 0.0, -2.28, this._tmpVecC);
+              if (wProg < 0.45) {
+                const sub = wProg / 0.45;
+                npc.worldX = sx + (this._tmpVecC.x - sx) * sub;
+                npc.worldZ = sz + (this._tmpVecC.z - sz) * sub;
+                npc.yaw = dampAngle(npc.yaw, Math.atan2(this._tmpVecC.x - sx, this._tmpVecC.z - sz), 10.0, dt);
+              } else {
+                const sub = (wProg - 0.45) / 0.55;
+                npc.worldX = this._tmpVecC.x + (tx - this._tmpVecC.x) * sub;
+                npc.worldZ = this._tmpVecC.z + (tz - this._tmpVecC.z) * sub;
+                npc.yaw = dampAngle(npc.yaw, Math.atan2(tx - this._tmpVecC.x, tz - this._tmpVecC.z), 10.0, dt);
+              }
+            } else {
+              npc.worldX = sx + (tx - sx) * wProg;
+              npc.worldZ = sz + (tz - sz) * wProg;
+              npc.yaw = dampAngle(npc.yaw, Math.atan2(tx - sx, tz - sz), 10.0, dt);
+            }
+            npc.worldY = this._samplePedestrianGroundY(npc.worldX, npc.worldZ);
+          }
+
+          if (npc.shuttleTimer >= dur - 1e-4) {
+            npc.shuttleState = 'WAIT_AT_STOP';
+            npc.seatedBlend = 0.0;
+          }
+          npc.initializedPos = true;
+        } else if (npc.shuttleState === 'BOARDING') {
+          const dur = 2.75;
+          npc.shuttleTimer = Math.min(dur, npc.shuttleTimer + dt);
+          const p = npc.shuttleTimer / dur;
+
+          this._cartLocalToWorld(slot.lx, slot.ly, slot.lz, this._tmpVecA);
+          this._cartLocalToWorld(slot.sideExit * 0.94, 0.0, slot.lz, this._tmpVecB);
+          const groundStepY = this._samplePedestrianGroundY(this._tmpVecB.x, this._tmpVecB.z);
+
+          if (p < 0.72) {
+            npc.seatedBlend = 0.0;
+            const wProg = p / 0.72;
+            const sx = npc.shuttleStartX;
+            const sz = npc.shuttleStartZ;
+            if (slot.sideExit < 0.0) {
+              this._cartLocalToWorld(0.45, 0.0, -2.28, this._tmpVecC);
+              if (wProg < 0.52) {
+                const sub = wProg / 0.52;
+                npc.worldX = sx + (this._tmpVecC.x - sx) * sub;
+                npc.worldZ = sz + (this._tmpVecC.z - sz) * sub;
+                npc.yaw = dampAngle(npc.yaw, Math.atan2(this._tmpVecC.x - sx, this._tmpVecC.z - sz), 10.0, dt);
+              } else {
+                const sub = (wProg - 0.52) / 0.48;
+                npc.worldX = this._tmpVecC.x + (this._tmpVecB.x - this._tmpVecC.x) * sub;
+                npc.worldZ = this._tmpVecC.z + (this._tmpVecB.z - this._tmpVecC.z) * sub;
+                npc.yaw = dampAngle(
+                  npc.yaw,
+                  Math.atan2(this._tmpVecB.x - this._tmpVecC.x, this._tmpVecB.z - this._tmpVecC.z),
+                  10.0,
+                  dt
+                );
+              }
+            } else {
+              npc.worldX = sx + (this._tmpVecB.x - sx) * wProg;
+              npc.worldZ = sz + (this._tmpVecB.z - sz) * wProg;
+              npc.yaw = dampAngle(npc.yaw, Math.atan2(this._tmpVecB.x - sx, this._tmpVecB.z - sz), 10.0, dt);
+            }
+            npc.worldY = this._samplePedestrianGroundY(npc.worldX, npc.worldZ);
+          } else {
+            // Step onto floorboard & sit down smoothly on the seat cushion!
+            const s = smooth01(0.72, 1.0, p);
+            npc.seatedBlend = s;
+            npc.worldX = this._tmpVecB.x + (this._tmpVecA.x - this._tmpVecB.x) * s;
+            npc.worldZ = this._tmpVecB.z + (this._tmpVecA.z - this._tmpVecB.z) * s;
+            npc.worldY = groundStepY + (this._tmpVecA.y - groundStepY) * s;
+            const seatYaw = wrapAngle(cart.yaw + slot.yawOffset);
+            npc.yaw = dampAngle(npc.yaw, seatYaw, 12.0, dt);
+          }
+
+          if (npc.shuttleTimer >= dur - 1e-4) {
+            npc.shuttleState = 'ONBOARD';
+            npc.seatedBlend = 1.0;
+            npc.boardCount = (npc.boardCount || 0) + 1;
+          }
+          npc.initializedPos = true;
+        } else {
+          // 'WAIT_AT_STOP': Waiting relaxedly at the campus shuttle stop & watching the approaching Golf Cart
+          npc.seatedBlend = 0.0;
+          const st = cart.stops[npc.waitStop] || cart.stops[0];
+          const sp = st.waitSpots[(npc.waitSlot || 0) % st.waitSpots.length];
+          const swayX = Math.sin(t * 0.45 + i) * 0.16;
+          const swayZ = Math.cos(t * 0.38 + i) * 0.16;
+          npc.worldX = dampScalar(npc.worldX, sp[0] + swayX, 4.0, dt);
+          npc.worldZ = dampScalar(npc.worldZ, sp[1] + swayZ, 4.0, dt);
+          const dCart = Math.hypot(cart.worldX - npc.worldX, cart.worldZ - npc.worldZ);
+          const lookYaw =
+            dCart < 24.0
+              ? Math.atan2(cart.worldX - npc.worldX, cart.worldZ - npc.worldZ)
+              : st.waitYaw;
+          npc.yaw = dampAngle(npc.yaw, lookYaw, 4.5, dt);
+          npc.initializedPos = true;
+        }
+      } else if (npc.behavior === 'JOGGER_LOOP') {
+        const jogSpeed = npc.baseSpeed * (1.0 + 0.15 * npc.rainHurryBlend);
+        if (npc.jogTrack === 'ROTUNDA_OUTER') {
+          const omega = (npc.dir * jogSpeed) / npc.radius;
+          const theta = npc.angle0 + omega * t;
+          const tx = -2.5 + Math.cos(theta) * npc.radius;
+          const tz = 106.5 + Math.sin(theta) * npc.radius;
+          const targetYaw = Math.atan2(-npc.dir * Math.sin(theta), npc.dir * Math.cos(theta));
+          npc.worldX = tx;
+          npc.worldZ = tz;
+          npc.yaw = !npc.initializedPos ? targetYaw : dampAngle(npc.yaw, targetYaw, 10.0, dt);
+          npc.initializedPos = true;
+        } else {
+          // Scenic Danau Kenanga East Promenade Jogging Loop
+          const lapLen = npc.spanZ * 2.0;
+          const lapPeriod = lapLen / jogSpeed;
+          const u = (((t / lapPeriod + npc.phase0) % 1.0) + 1.0) % 1.0;
+          let tz;
+          let targetYaw;
+          let laneOff;
+          if (u < 0.5) {
+            const f = u / 0.5;
+            tz = npc.centerZ - npc.spanZ * 0.5 + f * npc.spanZ;
+            targetYaw = 0.0;
+            laneOff = -1.85;
+          } else {
+            const f = (u - 0.5) / 0.5;
+            tz = npc.centerZ + npc.spanZ * 0.5 - f * npc.spanZ;
+            targetYaw = Math.PI;
+            laneOff = -2.35;
+          }
+          const tx = TerrainDEMLoader.getShorelinePromenadeX(tz) + laneOff;
+          if (!npc.initializedPos) {
+            npc.worldX = tx;
+            npc.worldZ = tz;
+            npc.yaw = targetYaw;
+            npc.initializedPos = true;
+          } else {
+            npc.worldX = dampScalar(npc.worldX, tx, 12.0, dt);
+            npc.worldZ = tz;
+            npc.yaw = dampAngle(npc.yaw, targetYaw, 9.0, dt);
+          }
+        }
+      } else if (npc.behavior === 'LAWN_ACTIVITY') {
+        npc.worldX = npc.spotX;
+        npc.worldZ = npc.spotZ;
+        npc.yaw = npc.faceYaw || Math.PI * 0.5;
+        npc.initializedPos = true;
+      } else if (
+        npc.behavior === 'PLK_SECURITY_OFFICER' ||
+        (npc.behavior === 'PULAU_I_EXPLORER' && npc.explorerMode === 'WALK_APRON')
+      ) {
+        if (npc.pauseTimer > 0.0) {
+          npc.pauseTimer = Math.max(0.0, npc.pauseTimer - dt);
+          if (npc.behavior === 'PLK_SECURITY_OFFICER') {
+            const dCart = cart ? Math.hypot(cart.worldX - npc.worldX, cart.worldZ - npc.worldZ) : 999.0;
+            const watchYaw =
+              dCart < 16.0
+                ? Math.atan2(cart.worldX - npc.worldX, cart.worldZ - npc.worldZ)
+                : npc.watchYaw || 0.0;
+            npc.yaw = dampAngle(npc.yaw, watchYaw, 4.5, dt);
+            npc.saluteBlend = dampScalar(npc.saluteBlend, dCart < 12.5 ? 1.0 : 0.0, 4.5, dt);
+          }
+        } else {
+          npc.saluteBlend = dampScalar(npc.saluteBlend || 0.0, 0.0, 4.5, dt);
+          const wps = npc.waypoints;
+          const targetWp = wps[npc.wpCursor % wps.length];
+          const dx = targetWp[0] - npc.worldX;
+          const dz = targetWp[1] - npc.worldZ;
+          const dist = Math.hypot(dx, dz);
+          if (dist < 0.65) {
+            npc.wpCursor = (npc.wpCursor + 1) % wps.length;
+            npc.pauseTimer = npc.behavior === 'PLK_SECURITY_OFFICER' ? 4.2 : 2.2;
+          } else {
+            const desiredYaw = Math.atan2(dx / dist, dz / dist);
+            npc.yaw = dampAngle(npc.yaw, desiredYaw, 5.5, dt);
+            const stepSpeed = npc.baseSpeed * speedMult;
+            npc.worldX += Math.sin(npc.yaw) * stepSpeed * dt;
+            npc.worldZ += Math.cos(npc.yaw) * stepSpeed * dt;
+          }
+        }
+      } else if (npc.behavior === 'PULAU_I_EXPLORER' && npc.explorerMode === 'OBSERVE_NIAGARA') {
+        npc.worldX = npc.spotX;
+        npc.worldZ = npc.spotZ;
+        npc.yaw = Math.atan2(npc.aimX - npc.worldX, npc.aimZ - npc.worldZ);
+        npc.initializedPos = true;
+      } else if (npc.behavior === 'PAIR_ROTUNDA') {
         const speed = npc.baseSpeed * speedMult;
         const omega = (npc.dir * speed) / 23.7;
         const theta = npc.angle0 + omega * t;
@@ -1403,12 +2765,13 @@ export class DynamicTrafficAI {
             let dirX = dx / dist;
             let dirZ = dz / dist;
 
-            // Helbing-Molnar Social-Force Personal-Space Avoidance against other NPCs & Player Camera!
+            // Helbing-Molnar Social-Force Personal-Space Avoidance against other NPCs, Golf Cart, & Player Camera!
             let avoidX = 0.0;
             let avoidZ = 0.0;
             for (let j = 0; j < this.npcs.length; j++) {
               if (i === j) continue;
               const other = this.npcs[j];
+              if (other.seatedBlend > 0.3) continue;
               const ox = npc.worldX - other.worldX;
               const oz = npc.worldZ - other.worldZ;
               const dSq = ox * ox + oz * oz;
@@ -1417,6 +2780,17 @@ export class DynamicTrafficAI {
                 const push = ((1.5 - d) / 1.5) * 0.85;
                 avoidX += (ox / d) * push;
                 avoidZ += (oz / d) * push;
+              }
+            }
+            if (cart) {
+              const gx = npc.worldX - cart.worldX;
+              const gz = npc.worldZ - cart.worldZ;
+              const gSq = gx * gx + gz * gz;
+              if (gSq < 7.84 && gSq > 1e-4) {
+                const gd = Math.sqrt(gSq);
+                const push = ((2.8 - gd) / 2.8) * 1.25;
+                avoidX += (gx / gd) * push;
+                avoidZ += (gz / gd) * push;
               }
             }
             if (cameraPos && Number.isFinite(cameraPos.x) && cameraPos.y < 4.5) {
@@ -1495,22 +2869,25 @@ export class DynamicTrafficAI {
         npc.initializedPos = true;
       }
 
-      npc.worldY =
-        npc.behavior === 'BENCH_SEATED'
-          ? npc.seatSpec.seatY
-          : this._samplePedestrianGroundY(npc.worldX, npc.worldZ);
+      if (!(npc.behavior === 'GOLF_CART_SHUTTLE_RIDER' && npc.seatedBlend > 0.001)) {
+        npc.worldY =
+          npc.behavior === 'BENCH_SEATED'
+            ? npc.seatSpec.seatY
+            : this._samplePedestrianGroundY(npc.worldX, npc.worldZ);
+      }
 
       // Measure TRUE instantaneous world displacement -> ZERO FOOT SLIDING / MOONWALKING!
       const disp = dt > 1e-5 ? Math.hypot(npc.worldX - prevX, npc.worldZ - prevZ) : 0.0;
-      const instSpeed = dt > 1e-5 && disp < 3.0 ? disp / dt : 0.0;
+      const instSpeed = dt > 1e-5 && disp < 3.5 ? disp / dt : 0.0;
       npc.liveSpeed = dampScalar(npc.liveSpeed, instSpeed, 12.0, dt);
       npc.turnRate =
         dt > 1e-5 ? dampScalar(npc.turnRate, wrapAngle(npc.yaw - prevYaw) / dt, 8.0, dt) : 0.0;
 
-      // Exact Stride-Length Phase Integration (1 full L+R gait cycle = ~1.44m * hScale)
+      // Exact Stride-Length Phase Integration (1 full L+R gait cycle = ~1.44m walking, ~2.10m jogging)
       const hScale = npc.heightScale || 1.0;
-      const fullCycleMeters = 1.42 * hScale * (0.82 + 0.18 * Math.min(1.6, npc.liveSpeed / 1.2));
-      if (disp > 1e-5 && disp < 3.0) {
+      const strideBase = npc.behavior === 'JOGGER_LOOP' ? 2.05 : 1.42;
+      const fullCycleMeters = strideBase * hScale * (0.82 + 0.18 * Math.min(1.6, npc.liveSpeed / 1.2));
+      if (disp > 1e-5 && disp < 3.5) {
         npc.gaitCycleU = (npc.gaitCycleU + disp / fullCycleMeters) % 1.0;
       }
 
@@ -1533,11 +2910,9 @@ export class DynamicTrafficAI {
 
   /**
    * Step 2 of Frame Update: Solves full 22-joint human biomechanics for a single Sivitas Akademika NPC:
-   * - Clinical 60/40 Asymmetric Gait + Metatarsal Toe-Roll + Exact Lowest-Foot Ground Contact
-   * - Contrapposto Asymmetric Idle Weight-Shifting (no stiff symmetrical statues!)
-   * - Seated 90-deg Park Bench Posture (reading open book, scrolling phone, or chatting with bench friend)
-   * - Double-Pendulum Phase-Lagged Arm/Forearm/Wrist Swing + Vestibular Head Stabilization
-   * - Expressive Social Pair Conversation, Seminar Teaching Gestures, & Rain Umbrella Wind-Tilting!
+   * - Electric Golf Cart Right-Hand-Drive Steering Driver + Rotating Seated Shuttle Passengers
+   * - Clinical 60/40 Asymmetric Gait + Athletic Jogging Run + Tai-Chi Stretching + PLK Security Salute
+   * - Contrapposto Asymmetric Idle Weight-Shifting & Seated 90-deg Park Bench Posture
    */
   _solveNPCBiomechanics(npc, t, dt, cameraPos = null) {
     const idx = npc.index;
@@ -1546,9 +2921,171 @@ export class DynamicTrafficAI {
     const windX = windVec ? windVec.x : 0.65;
     const windZ = windVec ? windVec.z : 0.35;
 
-    // Breathing rhythm (accelerates slightly when walking briskly in rain!)
-    const breathFreq = 1.55 + 0.85 * Math.min(1.5, npc.liveSpeed) + 0.65 * npc.rainHurryBlend;
+    // Breathing rhythm (accelerates slightly when jogging or walking briskly in rain!)
+    const breathFreq = 1.55 + 0.85 * Math.min(2.2, npc.liveSpeed) + 0.65 * npc.rainHurryBlend;
     const breathe = Math.sin(t * breathFreq + idx * 1.13);
+
+    // =========================================================================
+    // CASE 0: ELECTRIC GOLF CART DRIVER & SEATED SHUTTLE PASSENGERS
+    // =========================================================================
+    if (npc.behavior === 'GOLF_CART_DRIVER' || npc.seatedBlend > 0.45) {
+      const cart = this.golfCart;
+      const isDriver = npc.behavior === 'GOLF_CART_DRIVER';
+      const sBlend = isDriver ? 1.0 : Math.min(1.0, (npc.seatedBlend - 0.45) / 0.55);
+      const pelvisY = npc.worldY + 0.056 * hScale;
+      const steer = cart ? cart.steerAngle : 0.0;
+      const cartRoll = cart ? cart.roll : 0.0;
+      const cartPitch = cart ? cart.pitch : 0.0;
+      const isDwell = cart && cart.phase === 'DWELL';
+
+      let spinePitch = 0.05;
+      let spineYaw = 0.0;
+      let headPitch = 0.02;
+      let headYaw = 0.0;
+      let shL;
+      let shR;
+
+      if (isDriver) {
+        // Right-Hand-Drive UI Shuttle Driver: hands gripping 9 & 3 o'clock on the rotating steering wheel!
+        const gripPush = Math.max(-0.62, Math.min(0.62, -steer * 2.2));
+        spinePitch = 0.08;
+        spineYaw = steer * 0.14;
+        // Driver scans corners while steering and checks left curbside mirror during passenger dwell!
+        headYaw = isDwell
+          ? 0.34 + 0.12 * Math.sin(t * 1.4)
+          : steer * 0.65 + 0.10 * Math.sin(t * 0.75);
+        headPitch = isDwell ? 0.06 : 0.02 + 0.02 * Math.sin(t * 1.5);
+
+        shL = {
+          rx: -0.70 + 0.24 * gripPush,
+          ry: -0.10 - 0.08 * gripPush,
+          rz: 0.06,
+          elRx: -0.74 - 0.08 * Math.abs(gripPush),
+          wrRx: -0.10
+        };
+        shR = {
+          rx: -0.70 - 0.24 * gripPush,
+          ry: 0.10 - 0.08 * gripPush,
+          rz: -0.06,
+          elRx: -0.74 - 0.08 * Math.abs(gripPush),
+          wrRx: -0.10
+        };
+      } else {
+        // Seated Campus Shuttle Passenger enjoying the breeze, admiring campus, or reading phone/book!
+        const lookWave = Math.sin(t * 0.62 + idx * 1.7);
+        const slot = CART_SEAT_SLOTS[Math.max(1, Math.min(5, npc.seatId > 0 ? npc.seatId : 1))];
+        const isRearFacing = Math.abs(slot.yawOffset) > 1.5;
+        spinePitch = 0.04 * sBlend;
+        spineYaw = 0.10 * lookWave;
+        if (npc.propType === 'PHONE') {
+          const lookUp = smooth01(0.45, 0.85, Math.abs(lookWave));
+          headPitch = 0.26 * (1.0 - lookUp) + 0.02 * lookUp;
+          headYaw = 0.28 * lookWave * lookUp;
+          shR = { rx: -0.52, ry: 0.18, rz: -0.12, elRx: -1.18, wrRx: -0.16 };
+          shL = { rx: -0.26, ry: -0.08, rz: 0.10, elRx: -0.86, wrRx: 0.02 };
+        } else {
+          headYaw = 0.32 * lookWave;
+          headPitch = 0.03 + 0.04 * Math.sin(t * 1.1 + idx);
+          shL = { rx: -0.34, ry: -0.12, rz: 0.11, elRx: -0.96, wrRx: -0.08 };
+          shR = {
+            rx: isRearFacing ? -0.40 : -0.32,
+            ry: 0.12,
+            rz: -0.11,
+            elRx: -0.92,
+            wrRx: -0.06
+          };
+        }
+      }
+
+      this._writeJointWorldMatrix(
+        idx,
+        J_PELVIS,
+        -1,
+        npc.worldX,
+        pelvisY,
+        npc.worldZ,
+        -0.05 * sBlend + cartPitch,
+        npc.yaw,
+        cartRoll * 0.85,
+        hScale,
+        hScale,
+        hScale
+      );
+      this._writeJointWorldMatrix(
+        idx,
+        J_WAIST,
+        J_PELVIS,
+        0.0,
+        0.105,
+        0.0,
+        spinePitch * 0.6,
+        spineYaw * 0.5,
+        -cartRoll * 0.35
+      );
+      this._writeJointWorldMatrix(
+        idx,
+        J_CHEST,
+        J_WAIST,
+        0.0,
+        0.145,
+        0.0,
+        spinePitch * 0.4 + 0.014 * breathe,
+        spineYaw * 0.5,
+        0.0
+      );
+      this._writeJointWorldMatrix(
+        idx,
+        J_NECK,
+        J_CHEST,
+        0.0,
+        0.295,
+        0.006,
+        headPitch * 0.35,
+        headYaw * 0.35,
+        0.0
+      );
+      this._writeJointWorldMatrix(
+        idx,
+        J_HEAD,
+        J_NECK,
+        0.0,
+        0.078,
+        0.002,
+        headPitch * 0.65,
+        headYaw * 0.65,
+        0.0
+      );
+
+      // Seated legs resting cleanly on the 0.31m Golf Cart floorboard (Driver right foot reaches EV pedal!)
+      const hipBend = -1.55 * sBlend;
+      const kneeL = 1.44 * sBlend + 0.06 * (1.0 - sBlend);
+      const kneeR = (isDriver ? 1.30 : 1.46) * sBlend + 0.06 * (1.0 - sBlend);
+      const ankleL = (-0.04 * sBlend);
+      const ankleR = (isDriver ? 0.16 : -0.05) * sBlend;
+
+      this._writeJointWorldMatrix(idx, J_HIP_L, J_PELVIS, 0.090, -0.030, 0.0, hipBend, 0.05, 0.0);
+      this._writeJointWorldMatrix(idx, J_KNEE_L, J_HIP_L, 0.0, -0.400, 0.0, kneeL, 0.0, 0.0);
+      this._writeJointWorldMatrix(idx, J_ANKLE_L, J_KNEE_L, 0.0, -0.395, 0.0, ankleL, 0.0, 0.0);
+      this._writeJointWorldMatrix(idx, J_TOE_L, J_ANKLE_L, 0.0, -0.043, 0.095, 0.0, 0.0, 0.0);
+
+      this._writeJointWorldMatrix(idx, J_HIP_R, J_PELVIS, -0.090, -0.030, 0.0, hipBend, -0.05, 0.0);
+      this._writeJointWorldMatrix(idx, J_KNEE_R, J_HIP_R, 0.0, -0.400, 0.0, kneeR, 0.0, 0.0);
+      this._writeJointWorldMatrix(idx, J_ANKLE_R, J_KNEE_R, 0.0, -0.395, 0.0, ankleR, 0.0, 0.0);
+      this._writeJointWorldMatrix(idx, J_TOE_R, J_ANKLE_R, 0.0, -0.043, 0.095, 0.0, 0.0, 0.0);
+
+      this._writeJointWorldMatrix(idx, J_SKIRT_HEM, J_PELVIS, 0.0, -0.44, 0.24 * sBlend, -0.32 * sBlend, 0.0, 0.0);
+
+      this._writeJointWorldMatrix(idx, J_SHOULDER_L, J_CHEST, 0.184, 0.246, -0.006, shL.rx, shL.ry, shL.rz);
+      this._writeJointWorldMatrix(idx, J_ELBOW_L, J_SHOULDER_L, 0.0, -0.258, 0.0, shL.elRx, 0.0, 0.0);
+      this._writeJointWorldMatrix(idx, J_WRIST_L, J_ELBOW_L, 0.0, -0.236, 0.0, shL.wrRx, 0.0, 0.0);
+
+      this._writeJointWorldMatrix(idx, J_SHOULDER_R, J_CHEST, -0.184, 0.246, -0.006, shR.rx, shR.ry, shR.rz);
+      this._writeJointWorldMatrix(idx, J_ELBOW_R, J_SHOULDER_R, 0.0, -0.258, 0.0, shR.elRx, 0.0, 0.0);
+      this._writeJointWorldMatrix(idx, J_WRIST_R, J_ELBOW_R, 0.0, -0.236, 0.0, shR.wrRx, 0.0, 0.0);
+
+      this._attachPropsAndUmbrella(npc, windX, windZ);
+      return;
+    }
 
     // =========================================================================
     // CASE 1: ANATOMICALLY SEATED PARK-BENCH POSTURE ('BENCH_SEATED')
@@ -1667,10 +3204,15 @@ export class DynamicTrafficAI {
     }
 
     // =========================================================================
-    // CASE 2: STANDING CONTRAPPOSTO & CLINICAL 60/40 WALKING / RAIN-HURRY GAIT
+    // CASE 2: STANDING CONTRAPPOSTO, CLINICAL 60/40 WALK, ATHLETIC JOG, & TAI-CHI
     // =========================================================================
+    const isJogger = npc.behavior === 'JOGGER_LOOP';
+    const isTaiChi = npc.behavior === 'LAWN_ACTIVITY';
     const walkBlend = smooth01(0.06, 0.45, npc.liveSpeed);
-    const strideScale = Math.min(1.38, 0.72 + 0.28 * (npc.liveSpeed / 1.15));
+    const jogBlend = isJogger ? smooth01(1.35, 2.05, npc.liveSpeed) : 0.0;
+    const strideScale = isJogger
+      ? Math.min(1.62, 1.18 + 0.22 * (npc.liveSpeed / 2.2))
+      : Math.min(1.38, 0.72 + 0.28 * (npc.liveSpeed / 1.15));
     const uL = npc.gaitCycleU;
     const uR = (npc.gaitCycleU + 0.5) % 1.0;
 
@@ -1679,28 +3221,46 @@ export class DynamicTrafficAI {
 
     // Contrapposto Asymmetric Idle Stance when standing (switches stance leg smoothly every ~10s!)
     const idleBlend = 1.0 - walkBlend;
-    const stanceSwitch = Math.tanh(2.4 * Math.sin(t * 0.31 + idx * 1.7)); // [-1, +1] smooth dwell!
+    const stanceSwitch = isTaiChi ? 0.0 : Math.tanh(2.4 * Math.sin(t * 0.31 + idx * 1.7));
     const idleHipShiftX = idleBlend * stanceSwitch * 0.024;
     const idlePelvisRoll = -idleBlend * stanceSwitch * 0.045;
     const idleFreeL = idleBlend * Math.max(0.0, -stanceSwitch);
     const idleFreeR = idleBlend * Math.max(0.0, stanceSwitch);
 
-    const hipRxL = walkBlend * gaitL.hipRx - idleFreeL * 0.11;
-    const kneeRxL = walkBlend * gaitL.kneeRx + idleBlend * 0.05 + idleFreeL * 0.22;
+    // Tai-Chi gentle rhythmic horse-stance knee bend
+    const taiChiPhase = t * 0.62 + (npc.phase0 || 0.0) * Math.PI * 2.0;
+    const taiChiSquat = isTaiChi ? 0.26 * (0.5 - 0.5 * Math.cos(taiChiPhase)) : 0.0;
+
+    const hipRxL =
+      walkBlend * gaitL.hipRx -
+      idleFreeL * 0.11 -
+      taiChiSquat * 0.52;
+    const kneeRxL =
+      walkBlend * (gaitL.kneeRx + jogBlend * 0.28) +
+      idleBlend * 0.05 +
+      idleFreeL * 0.22 +
+      taiChiSquat * 1.04;
     const footPitchL = walkBlend * gaitL.footPitch + idleFreeL * 0.14;
     const toeRxL = walkBlend * gaitL.toeRx - idleFreeL * 0.14;
 
-    const hipRxR = walkBlend * gaitR.hipRx - idleFreeR * 0.11;
-    const kneeRxR = walkBlend * gaitR.kneeRx + idleBlend * 0.05 + idleFreeR * 0.22;
+    const hipRxR =
+      walkBlend * gaitR.hipRx -
+      idleFreeR * 0.11 -
+      taiChiSquat * 0.52;
+    const kneeRxR =
+      walkBlend * (gaitR.kneeRx + jogBlend * 0.28) +
+      idleBlend * 0.05 +
+      idleFreeR * 0.22 +
+      taiChiSquat * 1.04;
     const footPitchR = walkBlend * gaitR.footPitch + idleFreeR * 0.14;
     const toeRxR = walkBlend * gaitR.toeRx - idleFreeR * 0.14;
 
-    // Forward-lean during walking + brisk rain-hurry lean + centripetal turn banking!
-    const pelvisPitch = walkBlend * (0.025 + 0.08 * npc.rainHurryBlend);
+    // Forward-lean during walking/jogging + brisk rain-hurry lean!
+    const pelvisPitch = walkBlend * (0.025 + 0.095 * jogBlend + 0.08 * npc.rainHurryBlend);
     const ankleRxL = footPitchL - (pelvisPitch + hipRxL + kneeRxL);
     const ankleRxR = footPitchR - (pelvisPitch + hipRxR + kneeRxR);
 
-    // === EXACT FORWARD-KINEMATIC LOWEST-FOOT GROUND LOCK (0.0mm Floating, 0.0mm Sinking!) ===
+    // === EXACT FORWARD-KINEMATIC LOWEST-FOOT GROUND LOCK (+ Jogger Aerial Flight Bounce!) ===
     const evalLowestFootY = (hipRx, kneeRx, footPitch, toeRx) => {
       const a1 = pelvisPitch + hipRx;
       const a2 = a1 + kneeRx;
@@ -1718,7 +3278,8 @@ export class DynamicTrafficAI {
       evalLowestFootY(hipRxL, kneeRxL, footPitchL, toeRxL),
       evalLowestFootY(hipRxR, kneeRxR, footPitchR, toeRxR)
     );
-    const pelvisY = npc.worldY - minFootLocalY * hScale;
+    const jogFlightBounce = jogBlend * 0.028 * Math.pow(Math.abs(Math.sin(uL * Math.PI * 2.0)), 1.4) * hScale;
+    const pelvisY = npc.worldY - minFootLocalY * hScale + jogFlightBounce;
 
     // 3D Pelvis Lateral Weight-Shift (Trendelenburg stance shift) & Transverse Rotation
     const gaitSin = Math.sin(uL * Math.PI * 2.0);
@@ -1822,8 +3383,11 @@ export class DynamicTrafficAI {
           customLeftArm = { rx: -0.42, ry: -0.14, rz: 0.09, elRx: -1.08, wrRx: -0.12 };
         }
       }
-    } else if (npc.behavior === 'PHOTO_LANDMARK') {
-      const photoCycle = ((t * 0.16 + npc.phase0) % 1.0 + 1.0) % 1.0;
+    } else if (
+      npc.behavior === 'PHOTO_LANDMARK' ||
+      (npc.behavior === 'PULAU_I_EXPLORER' && npc.explorerMode === 'OBSERVE_NIAGARA')
+    ) {
+      const photoCycle = ((t * 0.16 + (npc.phase0 || 0.0)) % 1.0 + 1.0) % 1.0;
       const raiseAmt =
         smooth01(0.04, 0.22, photoCycle) * (1.0 - 0.62 * smooth01(0.72, 0.88, photoCycle));
       targetHeadPitch = -0.21 * raiseAmt + 0.18 * (1.0 - raiseAmt);
@@ -1842,6 +3406,64 @@ export class DynamicTrafficAI {
           rz: -0.12 * raiseAmt,
           elRx: -0.92,
           wrRx: 0.0
+        };
+      }
+    } else if (isJogger) {
+      // Athletic Runner Arm Pump (elbows flexed ~90 deg, brisk opposite-phase shoulder drive!)
+      const runPhase = uL * Math.PI * 2.0;
+      const pumpL = Math.sin(runPhase);
+      const pumpR = -pumpL;
+      waistPitch += 0.055 * jogBlend;
+      targetHeadPitch = -0.06 * jogBlend;
+      targetHeadYaw = npc.turnRate * 0.18;
+      customLeftArm = {
+        rx: -0.28 - 0.58 * pumpL * jogBlend,
+        ry: -0.16,
+        rz: 0.09,
+        elRx: -1.48 + 0.16 * pumpL,
+        wrRx: -0.08
+      };
+      customRightArm = {
+        rx: -0.28 - 0.58 * pumpR * jogBlend,
+        ry: 0.16,
+        rz: -0.09,
+        elRx: -1.48 + 0.16 * pumpR,
+        wrRx: -0.08
+      };
+    } else if (isTaiChi) {
+      // Synchronized Fluid Tai-Chi / Morning Stretching Cycle (Opening Rise -> Cloud-Hands Lateral Sweep!)
+      const liftArc = 0.5 - 0.5 * Math.cos(taiChiPhase);
+      const cloudSweep = Math.sin(taiChiPhase * 0.5);
+      waistYaw = 0.26 * cloudSweep;
+      chestYaw = 0.22 * cloudSweep;
+      targetHeadYaw = 0.24 * cloudSweep;
+      targetHeadPitch = -0.08 * liftArc;
+      customLeftArm = {
+        rx: -0.35 - 1.15 * liftArc,
+        ry: -0.24 * cloudSweep,
+        rz: 0.18 + 0.36 * liftArc,
+        elRx: -0.58 - 0.34 * (1.0 - liftArc),
+        wrRx: -0.18 * Math.sin(taiChiPhase)
+      };
+      customRightArm = {
+        rx: -0.35 - 1.15 * liftArc,
+        ry: -0.24 * cloudSweep,
+        rz: -0.18 - 0.36 * liftArc,
+        elRx: -0.58 - 0.34 * (1.0 - liftArc),
+        wrRx: -0.18 * Math.cos(taiChiPhase)
+      };
+    } else if (npc.behavior === 'PLK_SECURITY_OFFICER') {
+      const sal = npc.saluteBlend || 0.0;
+      targetHeadYaw = 0.22 * Math.sin(t * 0.65 + idx) * (1.0 - sal);
+      targetHeadPitch = 0.08 * sal;
+      if (sal > 0.02) {
+        // Respectful Indonesian Security Greeting Nod / Brim Salute as Shuttle Golf Cart passes!
+        customRightArm = {
+          rx: -1.18 * sal,
+          ry: 0.22 * sal,
+          rz: -0.28 * sal,
+          elRx: -0.18 - 1.56 * sal,
+          wrRx: -0.12 * sal
         };
       }
     } else {
@@ -2576,11 +4198,12 @@ export class DynamicTrafficAI {
     const npcCount = this.npcs.length;
     const catCount = this.cats.length;
 
-    // 1. Advance Crowd & Feline Navigation, Social Avoidance, & Weather State
+    // 1. Advance Electric Golf Cart Patrol, Distant Marine Fleet, Crowd, & Feline AI
+    this._advanceGolfCartAndMarineFleet(safeDt, t);
     this._advanceCrowdNavigation(safeDt, t, cameraPos);
     this._advanceFelineAI(safeDt, t, cameraPos);
 
-    // 2. Solve Full 22-Joint Biomechanics for All 24 Humans + 18-Joint Biomechanics for All 48 Cats
+    // 2. Solve Full 22-Joint Biomechanics for All 45 Humans + 18-Joint Biomechanics for All 48 Cats
     for (let n = 0; n < npcCount; n++) {
       this._solveNPCBiomechanics(this.npcs[n], t, safeDt, cameraPos);
     }
@@ -2588,10 +4211,10 @@ export class DynamicTrafficAI {
       this._solveCatBiomechanics(this.cats[c], t, cameraPos);
     }
 
-    // 3. Pre-normalize 3x3 Normal Matrices for all (24 x 22 + 48 x 18 = 1,392) Live Skin Matrices
+    // 3. Pre-normalize 3x3 Normal Matrices for all (45x22 + 48x18 + 6 + 12 = 1,872) Live Skin Matrices
     const sMats = this._skinMatrices;
     const nMats = this._skinNormalMatrices;
-    const totalJoints = npcCount * JOINTS_PER_NPC + catCount * CAT_JOINTS_PER_CAT;
+    const totalJoints = this._marineJointBase + this.marineVessels.length;
 
     for (let j = 0; j < totalJoints; j++) {
       const mOff = j * 16;
@@ -2704,8 +4327,8 @@ export class DynamicTrafficAI {
     geo.attributes.position.needsUpdate = true;
     geo.attributes.normal.needsUpdate = true;
     if (!geo.boundingSphere) {
-      const center = new THREE.Vector3(0, 2, 35);
-      geo.boundingSphere = THREE.Sphere ? new THREE.Sphere(center, 150) : { center, radius: 150 };
+      const center = new THREE.Vector3(-140, 10, 350);
+      geo.boundingSphere = THREE.Sphere ? new THREE.Sphere(center, 1450) : { center, radius: 1450 };
     }
   }
 }

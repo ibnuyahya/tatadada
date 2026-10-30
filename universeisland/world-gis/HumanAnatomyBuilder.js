@@ -80,7 +80,19 @@ export const HUMAN_PALETTE = {
   BATIK_SOGAN: [0.43, 0.24, 0.14],
   BATIK_INDIGO: [0.16, 0.24, 0.38],
   BATIK_MAROON: [0.45, 0.15, 0.17],
+  BATIK_EMERALD: [0.14, 0.34, 0.26],
+  BATIK_OCHRE: [0.58, 0.38, 0.14],
   FORMAL_SHIRT: [0.72, 0.80, 0.88],
+  POLO_EMERALD: [0.13, 0.44, 0.29],
+  POLO_TERRACOTTA: [0.68, 0.31, 0.21],
+  POLO_CREAM: [0.84, 0.80, 0.70],
+  POLO_LAVENDER: [0.54, 0.48, 0.68],
+  SPORT_CORAL: [0.84, 0.28, 0.24],
+  SPORT_TEAL: [0.12, 0.56, 0.58],
+  SPORT_COBALT: [0.16, 0.38, 0.74],
+  SPORT_CITRUS: [0.86, 0.74, 0.12],
+  PLK_SECURITY_NAVY: [0.09, 0.14, 0.26],
+  PLK_SECURITY_SHIRT: [0.22, 0.36, 0.58],
   CHINO_KHAKI: [0.46, 0.39, 0.30],
   TROUSER_NAVY: [0.11, 0.15, 0.22],
   TROUSER_CHARCOAL: [0.13, 0.14, 0.16],
@@ -920,7 +932,7 @@ export class HumanAnatomyBuilder {
    *    AND TRUE 5-FINGER SCULPTED HANDS (Palm + Opposable Thumb + 4 Individual Fingers + Left Wristwatch)!
    */
   static _addSeamlessArmsAnd5FingerHands(builder, profile) {
-    const { garmentStyle, torsoMain, skinColor } = profile;
+    const { garmentStyle, torsoMain, skinColor, isShortSleeve = false } = profile;
     const isJakun = garmentStyle === 'JAKUN_OPEN';
     const isBatik = garmentStyle === 'BATIK_LECTURER';
     const sleeveMat = isJakun
@@ -930,6 +942,8 @@ export class HumanAnatomyBuilder {
         : HUMAN_MAT.HIJAB_SILK;
     const cuffShade = lerp3(torsoMain, [0.05, 0.05, 0.05], 0.18);
     const skinShade = lerp3(skinColor, [0.18, 0.08, 0.05], 0.12);
+    const lowCol = isShortSleeve ? skinColor : torsoMain;
+    const lowMat = isShortSleeve ? HUMAN_MAT.SKIN : sleeveMat;
 
     for (const side of [1, -1]) {
       const shX = side * 0.184;
@@ -945,45 +959,55 @@ export class HumanAnatomyBuilder {
         { cx: shX, y: 1.305, cz: shZ, rx: 0.051, rz: 0.052, color: torsoMain, mat: sleeveMat, ao: 1.0 },
         {
           cx: shX,
-          y: 1.215,
+          y: 1.245,
           cz: shZ,
-          rx: 0.047,
-          rz: 0.048,
+          rx: isShortSleeve ? 0.049 : 0.047,
+          rz: isShortSleeve ? 0.050 : 0.048,
           modFn: (th) => 1.0 + 0.022 * Math.sin(4.0 * th),
-          color: torsoMain,
+          color: isShortSleeve ? cuffShade : torsoMain,
           mat: sleeveMat,
-          ao: 0.98
+          ao: 0.96
+        },
+        {
+          cx: shX,
+          y: 1.232,
+          cz: shZ,
+          rx: isShortSleeve ? 0.041 : 0.046,
+          rz: isShortSleeve ? 0.042 : 0.047,
+          color: isShortSleeve ? skinShade : torsoMain,
+          mat: lowMat,
+          ao: isShortSleeve ? 0.88 : 0.98
         },
         // Elbow joint zone (y = 1.128m — seamless 50/50 LBS blend!)
         {
           cx: shX,
           y: 1.155,
           cz: shZ,
-          rx: 0.045,
-          rz: 0.046,
+          rx: isShortSleeve ? 0.039 : 0.045,
+          rz: isShortSleeve ? 0.040 : 0.046,
           modFn: (th) => 1.0 + 0.028 * Math.cos(3.0 * th),
-          color: torsoMain,
-          mat: sleeveMat,
+          color: lowCol,
+          mat: lowMat,
           ao: 0.94
         },
         {
           cx: shX,
           y: 1.128,
           cz: shZ - 0.002,
-          rx: 0.044,
-          rz: 0.046,
+          rx: isShortSleeve ? 0.038 : 0.044,
+          rz: isShortSleeve ? 0.039 : 0.046,
           modFn: (th) => 1.0 + 0.025 * Math.cos(5.0 * th),
-          color: torsoMain,
-          mat: sleeveMat,
+          color: lowCol,
+          mat: lowMat,
           ao: 0.92
         },
-        { cx: shX, y: 1.095, cz: shZ, rx: 0.045, rz: 0.046, color: torsoMain, mat: sleeveMat, ao: 0.96 },
-        { cx: shX, y: 1.020, cz: shZ + 0.001, rx: 0.042, rz: 0.043, color: torsoMain, mat: sleeveMat, ao: 1.0 },
-        // Rolled / buttoned 3D jacket or shirt sleeve cuff!
-        { cx: shX, y: 0.958, cz: shZ + 0.002, rx: 0.043, rz: 0.044, color: cuffShade, mat: sleeveMat, ao: 0.94 },
-        { cx: shX, y: 0.940, cz: shZ + 0.002, rx: 0.041, rz: 0.042, color: HUMAN_PALETTE.INNER_WHITE, mat: HUMAN_MAT.FABRIC_LOWER, ao: 0.90 },
+        { cx: shX, y: 1.095, cz: shZ, rx: isShortSleeve ? 0.038 : 0.045, rz: isShortSleeve ? 0.039 : 0.046, color: lowCol, mat: lowMat, ao: 0.96 },
+        { cx: shX, y: 1.020, cz: shZ + 0.001, rx: isShortSleeve ? 0.035 : 0.042, rz: isShortSleeve ? 0.036 : 0.043, color: lowCol, mat: lowMat, ao: 1.0 },
+        // Rolled / buttoned 3D jacket or shirt sleeve cuff (or bare distal forearm when short-sleeved)!
+        { cx: shX, y: 0.958, cz: shZ + 0.002, rx: isShortSleeve ? 0.031 : 0.043, rz: isShortSleeve ? 0.033 : 0.044, color: isShortSleeve ? skinColor : cuffShade, mat: lowMat, ao: 0.95 },
+        { cx: shX, y: 0.940, cz: shZ + 0.002, rx: isShortSleeve ? 0.029 : 0.041, rz: isShortSleeve ? 0.031 : 0.042, color: isShortSleeve ? skinColor : HUMAN_PALETTE.INNER_WHITE, mat: isShortSleeve ? HUMAN_MAT.SKIN : HUMAN_MAT.FABRIC_LOWER, ao: 0.92 },
         // Exposed anatomical wrist skin emerging cleanly from cuff
-        { cx: shX, y: 0.934, cz: shZ + 0.002, rx: 0.030, rz: 0.032, color: skinShade, mat: HUMAN_MAT.SKIN, ao: 0.84 },
+        { cx: shX, y: 0.934, cz: shZ + 0.002, rx: 0.030, rz: 0.032, color: isShortSleeve ? skinColor : skinShade, mat: HUMAN_MAT.SKIN, ao: isShortSleeve ? 0.95 : 0.84 },
         { cx: shX, y: 0.896, cz: shZ + 0.003, rx: 0.027, rz: 0.030, color: skinColor, mat: HUMAN_MAT.SKIN, ao: 0.96 }
       ];
 
@@ -1909,6 +1933,35 @@ export class HumanAnatomyBuilder {
           }
         );
       }
+
+      // Optional Sculpted Uniform / Shuttle Driver / Athletic Visor Cap (weighted cleanly to J_HEAD!)
+      if (profile.hasCap) {
+        const capCol = profile.capColor || HUMAN_PALETTE.JAKUN_YELLOW;
+        const brimCol = profile.capBrimColor || HUMAN_PALETTE.PLK_SECURITY_NAVY;
+        builder.addWatertightLoft(
+          [
+            { y: 1.682, cz: 0.002, rx: 0.088, rz: 0.100, color: brimCol },
+            { y: 1.718, cz: -0.001, rx: 0.084, rz: 0.095, color: capCol },
+            { y: 1.752, cz: -0.004, rx: 0.056, rz: 0.066, color: capCol, poleDome: 0.010 }
+          ],
+          20,
+          { defaultJoint: J_HEAD, defaultMat: HUMAN_MAT.JAKUN_TWILL }
+        );
+        // Curved Forward Sun Visor Bill (+Z = +0.06..+0.155m)
+        builder.addThickOpenGarmentShell(
+          [
+            { y: 1.680, cz: 0.012, rx: 0.084, rz: 0.105, thStart: -0.68, thEnd: 0.68, color: brimCol },
+            { y: 1.668, cz: 0.048, rx: 0.072, rz: 0.125, thStart: -0.58, thEnd: 0.58, color: brimCol }
+          ],
+          12,
+          {
+            thickness: 0.005,
+            outerMat: HUMAN_MAT.JAKUN_TWILL,
+            innerMat: HUMAN_MAT.SHOE_BAG,
+            defaultJoint: J_HEAD
+          }
+        );
+      }
     }
   }
 
@@ -1921,6 +1974,7 @@ export class HumanAnatomyBuilder {
    */
   static _addMainAcademicProp(builder, profile) {
     const { propType, bagColor = HUMAN_PALETTE.BAG_CHARCOAL, bookColor = HUMAN_PALETTE.BOOK_CRIMSON } = profile;
+    if (propType === 'NONE') return;
 
     if (propType === 'PHONE') {
       builder.addWatertightLoft(

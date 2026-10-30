@@ -28,7 +28,13 @@ export const HUMAN_MAT = {
   UMBRELLA_CANOPY: 0.96,
   CAT_FUR: 1.15,
   CAT_NOSE_EAR: 1.25,
-  CAT_EYE_TAPETUM: 1.35
+  CAT_EYE_TAPETUM: 1.35,
+  VEHICLE_GLOSS: 1.50,
+  VEHICLE_GLASS: 1.60,
+  VEHICLE_HEADLIGHT: 1.70,
+  VEHICLE_TAILLIGHT: 1.80,
+  RUBBER_TIRE: 1.90,
+  BOAT_LANTERN: 1.95
 };
 
 /**
@@ -52,7 +58,7 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
 
   const hvsFallback = HumanEyeHDROptics.createUniforms();
   mat.userData.omniShaderInjected = true;
-  mat.customProgramCacheKey = () => 'nexus-photoreal-human-feline-hvs-v36';
+  mat.customProgramCacheKey = () => 'nexus-photoreal-human-feline-transit-hvs-v37b';
 
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uIsNight = uniforms.uIsNight || { value: 0.0 };
@@ -68,6 +74,7 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
     shader.uniforms.uWetness = uniforms.uWetness || { value: 0.0 };
     shader.uniforms.uRainIntensity = uniforms.uRainIntensity || { value: 0.0 };
     shader.uniforms.uLightningFlash = uniforms.uLightningFlash || { value: 0.0 };
+    shader.uniforms.uStreetlampPower = uniforms.uStreetlampPower || { value: 0.0 };
     shader.uniforms.uCollisionMap =
       uniforms.uCollisionMap || { value: RainCollisionBake.createFallbackTexture() };
     shader.uniforms.uCollisionReady = uniforms.uCollisionReady || { value: 0.0 };
@@ -84,9 +91,9 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
     ]
       .join('\n')
       .replace(
-        '#include <begin_vertex>',
+        '#include <skinning_vertex>',
         [
-          '#include <begin_vertex>',
+          '#include <skinning_vertex>',
           'vHumanMeta = aHumanMeta;',
           'vHumanUV = uv;',
           'vHumanWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
@@ -111,6 +118,7 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
       'uniform float uWetness;',
       'uniform float uRainIntensity;',
       'uniform float uLightningFlash;',
+      'uniform float uStreetlampPower;',
       'uniform sampler2D uCollisionMap;',
       'uniform float uCollisionReady;',
       'uniform vec4 uHvsParams;',
@@ -131,6 +139,71 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
       '  float isCanopyAbove = step(0.98, cTex.a);',
       '  float shelter = smoothstep(0.65, 1.85, yTop - wp.y);',
       '  return mix(1.0, isCanopyAbove * 0.25, shelter);',
+      '}',
+      'float humanLampPhotocellPower(vec2 lampXZ, float globalSensor) {',
+      '  if (globalSensor <= 0.001) return 0.0;',
+      '  float tol = (humanHash(floor(lampXZ * 0.4 + 0.5)) - 0.5) * 0.14;',
+      '  return smoothstep(clamp(0.08 + tol, 0.005, 0.22), clamp(0.42 + tol, 0.25, 0.65), globalSensor);',
+      '}',
+      'float humanIslandHeadRadius(float th) {',
+      '  float eastCove = -46.0 * pow(0.5 + 0.5 * cos(th + 0.25), 4.4);',
+      '  float neHead = 23.5 * pow(0.5 + 0.5 * cos(th + 1.04), 8.5);',
+      '  float sLobe = 15.5 * pow(0.5 + 0.5 * cos(th - 1.12), 2.3);',
+      '  float swPen = 20.5 * pow(0.5 + 0.5 * cos(th - 2.44), 6.5);',
+      '  float meand = 2.15 * sin(3.0 * th + 0.40) + 1.20 * cos(5.0 * th - 0.70) + 0.55 * sin(8.0 * th + 1.10);',
+      '  return 121.0 + eastCove + neHead + sLobe + swPen + meand;',
+      '}',
+      'vec3 humanEvalNearestStreetlamp(vec2 xz) {',
+      '  vec2 bestP = vec2(9999.0);',
+      '  float bestD2 = 1e9;',
+      '  if (xz.y < 165.0 && xz.y > -72.0 && xz.x > -104.0 && xz.x < 105.0) {',
+      '    vec2 dRot = xz - vec2(-2.5, 106.5);',
+      '    float ang = atan(dRot.y, dRot.x) - 0.26179939;',
+      '    float idxA = floor(ang / 0.52359878 + 0.5);',
+      '    float snapA = idxA * 0.52359878 + 0.26179939;',
+      '    vec2 pA = vec2(-2.5, 106.5) + vec2(cos(snapA), sin(snapA)) * 34.9;',
+      '    bestP = pA; bestD2 = dot(xz - pA, xz - pA);',
+      '    if (xz.y > 35.0 && xz.y < 84.0 && abs(xz.x + 2.5) < 36.0) {',
+      '      bool upperRow = xz.y > 60.0;',
+      '      bool eastSide = xz.x > -2.5;',
+      '      vec2 pB = upperRow ? vec2(eastSide ? 6.5 : -11.5, 68.5) : vec2(eastSide ? 16.2 : -21.2, 51.5);',
+      '      float d2B = dot(xz - pB, xz - pB);',
+      '      if (d2B < bestD2) { bestD2 = d2B; bestP = pB; }',
+      '    }',
+      '    if (xz.x < -34.0 && xz.y > 85.0 && xz.y < 128.0) {',
+      '      float cx = xz.x < -77.6 ? -83.2 : (xz.x < -61.0 ? -72.0 : -50.0);',
+      '      float czOff = cx < -80.0 ? 6.9 : 5.7;',
+      '      float cz = 106.5 + (xz.y >= 106.5 ? czOff : -czOff);',
+      '      vec2 pC = vec2(cx, cz);',
+      '      float d2C = dot(xz - pC, xz - pC);',
+      '      if (d2C < bestD2) { bestD2 = d2C; bestP = pC; }',
+      '    }',
+      '    if (xz.x < -38.0 && xz.x > -74.0 && xz.y > -38.0 && xz.y < 104.0) {',
+      '      float kD = clamp(floor((xz.y + 22.0) / 22.0 + 0.5), 0.0, 5.0);',
+      '      vec2 pD = vec2(-55.4, -22.0 + kD * 22.0);',
+      '      float d2D = dot(xz - pD, xz - pD);',
+      '      if (d2D < bestD2) { bestD2 = d2D; bestP = pD; }',
+      '    }',
+      '    if (xz.x > 36.0 && xz.y > -68.0 && xz.y < 64.0) {',
+      '      float stepE = 100.0 / 7.0;',
+      '      float kE = clamp(floor((xz.y + 52.0) / stepE + 0.5), 0.0, 7.0);',
+      '      float lz = -52.0 + kE * stepE;',
+      '      float dz = lz - 34.0;',
+      '      float lx = 58.0;',
+      '      for (int it = 0; it < 2; it++) {',
+      '        float rH = humanIslandHeadRadius(atan(dz, lx + 18.0));',
+      '        lx = -18.0 + sqrt(max(4.0, rH * rH - dz * dz));',
+      '      }',
+      '      vec2 pE = vec2(lx - 0.55, lz);',
+      '      float d2E = dot(xz - pE, xz - pE);',
+      '      if (d2E < bestD2) { bestD2 = d2E; bestP = pE; }',
+      '    }',
+      '  } else if (xz.y > 642.0 && xz.y < 676.0 && xz.x > -294.0 && xz.x < -214.0) {',
+      '    float kF = clamp(floor((xz.x + 276.5) / 15.0 + 0.5), 0.0, 3.0);',
+      '    bestP = vec2(-276.5 + kF * 15.0, 658.4);',
+      '    bestD2 = dot(xz - bestP, xz - bestP);',
+      '  }',
+      '  return vec3(bestP, bestD2);',
       '}',
       shader.fragmentShader
     ]
@@ -312,6 +385,12 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
           'else if (abs(mClsR - 1.15) < 0.04) roughnessFactor = 0.78;',   // Velvety feline fur coat
           'else if (abs(mClsR - 1.25) < 0.04) roughnessFactor = 0.28;',   // Damp cat nose & inner ear
           'else if (abs(mClsR - 1.35) < 0.04) roughnessFactor = 0.024;',  // Wet feline eye cornea!
+          'else if (abs(mClsR - 1.50) < 0.04) roughnessFactor = 0.14;',   // Automotive EV Clearcoat Bodywork
+          'else if (abs(mClsR - 1.60) < 0.04) roughnessFactor = 0.045;',  // Polycarbonate Windshield & Bridge Glass
+          'else if (abs(mClsR - 1.70) < 0.04) roughnessFactor = 0.08;',   // LED Projector Lens / EV OLED Cluster
+          'else if (abs(mClsR - 1.80) < 0.04) roughnessFactor = 0.12;',   // Ruby Tail/Brake Light Lens
+          'else if (abs(mClsR - 1.90) < 0.03) roughnessFactor = 0.86;',   // Vulcanized Treaded Rubber Tire & Mat
+          'else if (abs(mClsR - 1.95) < 0.03) roughnessFactor = 0.16;',   // Marine Fisherman Lantern & COLREGs Lens
           'float hSkyExp = 1.0;',
           'if (uWetness > 0.005 && uZebraInspectMode < 0.5) {',
           '  hSkyExp = humanSkyExposure(vHumanWorldPos);',
@@ -328,6 +407,7 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
           'float mClsM = vHumanMeta.x;',
           'if (abs(mClsM - 0.25) < 0.03) metalnessFactor = 0.82;',
           'else if (abs(mClsM - 0.45) < 0.025) metalnessFactor = 0.42;',
+          'else if (abs(mClsM - 1.50) < 0.04) metalnessFactor = 0.18;',
           'else metalnessFactor = 0.03;'
         ].join('\n')
       )
@@ -399,6 +479,42 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
           '    float glint2 = pow(max(dot(Rf, normalize(vec3(-0.32, 0.75, 0.56))), 0.0), 82.0) * 0.52;',
           '    float tapetum = uIsNight * pow(NdotV, 4.2) * 0.36;',
           '    gl_FragColor.rgb += uSunColor * glint1 + vec3(0.92, 0.96, 1.0) * glint2 + vec3(0.58, 0.84, 0.42) * tapetum;',
+          '  } else if (abs(mClsP - 1.50) < 0.04 || abs(mClsP - 1.60) < 0.04) {',
+          '    // Automotive Clearcoat & Split Polycarbonate Windshield Fresnel Sky/Sun Reflection!',
+          '    vec3 Rv = reflect(-V, N);',
+          '    float isGlass = step(1.55, mClsP);',
+          '    float fresV = (0.04 + 0.92 * pow(1.0 - NdotV, 4.5)) * mix(0.34, 0.72, isGlass);',
+          '    vec3 skyR = mix(mix(vec3(0.46, 0.64, 0.84), vec3(0.88, 0.48, 0.24), uDuskFactor), vec3(0.02, 0.04, 0.08), uNightFactor);',
+          '    float sunSpecV = pow(max(dot(Rv, L), 0.0), mix(96.0, 220.0, isGlass)) * (1.0 - uNightFactor * 0.8) * mix(0.85, 2.1, isGlass);',
+          '    gl_FragColor.rgb = mix(gl_FragColor.rgb, skyR, fresV * 0.55) + uSunColor * sunSpecV;',
+          '  } else if (abs(mClsP - 1.70) < 0.04) {',
+          '    // Electric Golf Cart Photocell-Coupled LED Headlights & EV Dashboard Display (0.0 daytime emissive!)',
+          '    float lampOn = max(uStreetlampPower, uIsNight);',
+          '    if (lampOn > 0.002) {',
+          '      if (vHumanMeta.z > 0.5) {',
+          '        gl_FragColor.rgb += vec3(0.18, 0.78, 0.92) * (1.15 * lampOn);',
+          '      } else {',
+          '        gl_FragColor.rgb += vec3(5.4, 5.5, 5.8) * lampOn;',
+          '      }',
+          '    }',
+          '  } else if (abs(mClsP - 1.80) < 0.04) {',
+          '    // Electric Golf Cart Ruby LED Tail/Position Lights (0.0 in bright clear daytime!)',
+          '    float tailOn = max(uStreetlampPower, uIsNight);',
+          '    if (tailOn > 0.002) {',
+          '      gl_FragColor.rgb += vec3(4.2, 0.22, 0.14) * tailOn;',
+          '    }',
+          '  } else if (abs(mClsP - 1.95) < 0.03) {',
+          '    // Distant Nusantara Fishing Boat Lanterns (2500K) & Small Coastal Ship COLREGs Navigation Lights',
+          '    float navOn = max(uStreetlampPower, uIsNight);',
+          '    if (navOn > 0.002) {',
+          '      float lKind = vHumanMeta.z;',
+          '      float gentleBob = 0.88 + 0.12 * sin(uTime * 2.6 + vHumanWorldPos.x * 0.07 + vHumanWorldPos.z * 0.05);',
+          '      vec3 navHDR = vec3(6.2, 3.8, 1.35);', // 0: Warm 2500K Fisherman Lantern
+          '      if (abs(lKind - 1.0) < 0.3) navHDR = vec3(0.18, 4.8, 1.35);', // 1: Starboard Green
+          '      else if (abs(lKind - 2.0) < 0.3) navHDR = vec3(5.2, 0.32, 0.18);', // 2: Port Red
+          '      else if (abs(lKind - 3.0) < 0.3) navHDR = vec3(4.8, 4.3, 3.1);', // 3: Masthead / Bridge Window Warm-White
+          '      gl_FragColor.rgb += navHDR * navOn * gentleBob;',
+          '    }',
           '  }',
           '',
           '  // Wet-weather fabric darkening, rain-bead umbrella specular, & lightning reflection',
@@ -414,6 +530,25 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
           '  if (uLightningFlash > 0.01) {',
           '    float lRim = pow(1.0 - NdotV, 2.2) * max(0.15, N.y * 0.5 + 0.5);',
           '    gl_FragColor.rgb += vec3(0.55, 0.68, 0.96) * uLightningFlash * lRim * 0.42;',
+          '  }',
+          '  // O(1) 2900K Photocell Streetlamp Illumination on Pedestrians, Cats, & Patrolling Electric Golf Cart',
+          '  if (uStreetlampPower > 0.002 && vHumanWorldPos.y > -0.45 && vHumanWorldPos.y < 3.65 && abs(mClsP - 1.95) > 0.03) {',
+          '    vec3 nlH = humanEvalNearestStreetlamp(vHumanWorldPos.xz);',
+          '    if (nlH.z < 196.0) {',
+          '      float lpH = humanLampPhotocellPower(nlH.xy, uStreetlampPower);',
+          '      if (lpH > 0.002) {',
+          '        vec3 toL = vec3(nlH.x - vHumanWorldPos.x, 3.48 - vHumanWorldPos.y, nlH.y - vHumanWorldPos.z);',
+          '        float d3Sq = dot(toL, toL);',
+          '        vec3 lDirH = toL * inversesqrt(max(0.25, d3Sq));',
+          '        float attH = (11.5 / (5.5 + d3Sq)) * smoothstep(196.0, 14.0, nlH.z) * lpH;',
+          '        float ndlH = max(0.0, dot(N, lDirH) * 0.75 + 0.25);',
+          '        vec3 lampTintH = vec3(1.05, 0.70, 0.32);',
+          '        gl_FragColor.rgb += diffuseColor.rgb * lampTintH * (attH * ndlH * 1.15);',
+          '        vec3 hVecL = normalize(lDirH + V);',
+          '        float spExp = mix(20.0, 96.0, 1.0 - clamp(roughnessFactor, 0.04, 0.95));',
+          '        gl_FragColor.rgb += lampTintH * (attH * pow(max(0.0, dot(N, hVecL)), spExp) * 0.55);',
+          '      }',
+          '    }',
           '  }',
           '}',
           'if (uZebraInspectMode < 0.5) {',

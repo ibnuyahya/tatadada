@@ -108,6 +108,16 @@ export const GEDUNG_REKTORAT_UI_META = {
     kucingUI: {
       pos: { x: -8.6, y: 0.92, z: 26.6 },
       target: { x: -6.3, y: 0.34, z: 23.4 }
+    },
+    // Street-Level Campus View of the Patrolling 6-Seater Electric Campus Golf Cart ("Mobil Golf Listrik UI")
+    mobilGolfUI: {
+      pos: { x: -12.5, y: 3.15, z: 83.5 },
+      target: { x: -2.5, y: 1.08, z: 76.3 }
+    },
+    // Scenic Coastal & Horizon Vista Overlooking Distant Nusantara Fishing Boats, Small Ships, & Bortle 1–2 Sky Dome
+    perahuLautUI: {
+      pos: { x: 54.0, y: 24.0, z: 18.0 },
+      target: { x: 460.0, y: 4.0, z: 380.0 }
     }
   }
 };

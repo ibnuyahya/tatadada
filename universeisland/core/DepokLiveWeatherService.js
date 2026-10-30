@@ -46,7 +46,7 @@ export class DepokLiveWeatherService {
     } else if (solarHour >= 17.08 && solarHour < 18.42) {
       todRegime = 'DUSK';
       periodLabelId = 'Senja Sore';
-    } else if (solarHour < 11.0) {
+    } else if (solarHour < 10.0) {
       periodLabelId = 'Pagi';
     } else if (solarHour >= 15.0) {
       periodLabelId = 'Sore';
@@ -57,6 +57,49 @@ export class DepokLiveWeatherService {
       minute,
       second,
       solarHour,
+      formattedHM: `${hh}:${mm} WIB`,
+      formattedHMS: `${hh}:${mm}:${ss} WIB`,
+      todRegime,
+      periodLabelId
+    };
+  }
+
+  /**
+   * Formats any continuous 24h solarHour [0, 24) into WIB clock & Indonesian period label
+   * so Manual Simulation Mode displays the exact simulated solar clock during 20–45s sweeps!
+   */
+  static formatSolarHourClock(solarHour = 10.35) {
+    const hWrap = ((Number(solarHour) % 24.0) + 24.0) % 24.0;
+    const totalSec = Math.floor(hWrap * 3600.0) % 86400;
+    const hour = Math.floor(totalSec / 3600);
+    const minute = Math.floor((totalSec % 3600) / 60);
+    const second = totalSec % 60;
+    const hh = String(hour).padStart(2, '0');
+    const mm = String(minute).padStart(2, '0');
+    const ss = String(second).padStart(2, '0');
+
+    let todRegime = 'DAY';
+    let periodLabelId = 'Siang';
+    if (hWrap >= 18.42 || hWrap < 5.25) {
+      todRegime = 'NIGHT';
+      periodLabelId = hWrap < 5.25 ? 'Dini Hari' : 'Malam';
+    } else if (hWrap >= 5.25 && hWrap < 6.38) {
+      todRegime = 'DUSK';
+      periodLabelId = 'Fajar Pagi';
+    } else if (hWrap >= 17.08 && hWrap < 18.42) {
+      todRegime = 'DUSK';
+      periodLabelId = 'Senja Sore';
+    } else if (hWrap < 10.0) {
+      periodLabelId = 'Pagi';
+    } else if (hWrap >= 15.0) {
+      periodLabelId = 'Sore';
+    }
+
+    return {
+      hour,
+      minute,
+      second,
+      solarHour: hWrap,
       formattedHM: `${hh}:${mm} WIB`,
       formattedHMS: `${hh}:${mm}:${ss} WIB`,
       todRegime,
@@ -101,18 +144,22 @@ export class DepokLiveWeatherService {
 
     // Dry / Clear / Partly Cloudy / Overcast Dry (WMO 0, 1, 2, 3)
     let labelId = 'Cerah';
+    let maxDryCloud = 0.25;
     if (code === 3 || clouds >= 78) {
       labelId = 'Berawan';
+      maxDryCloud = 0.64;
     } else if (code === 2 || clouds >= 38) {
       labelId = 'Cerah Berawan';
+      maxDryCloud = 0.44;
     } else if (code === 1) {
       labelId = 'Cerah';
+      maxDryCloud = 0.25;
     }
 
     return {
       weatherMode: 'CLEAR',
       labelId,
-      cloudCoverNorm: Math.max(0.14, Math.min(0.86, clouds / 100.0))
+      cloudCoverNorm: Math.max(0.12, Math.min(maxDryCloud, (clouds / 100.0) * 0.78))
     };
   }
 

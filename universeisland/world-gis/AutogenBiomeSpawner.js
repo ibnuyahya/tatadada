@@ -699,26 +699,33 @@ export class AutogenBiomeSpawner {
   static _buildCampusGardenLampGeometry() {
     const radialSegs = 28;
     const stations = [
-      { y: -1.25, r: 0.15, flute: 0.0, col: [0.14, 0.15, 0.16] },
-      { y: 0.0, r: 0.18, flute: 0.0, col: [0.17, 0.18, 0.20] },
-      { y: 0.08, r: 0.19, flute: 0.0, col: [0.20, 0.21, 0.23] },
-      { y: 0.14, r: 0.16, flute: 0.012, col: [0.18, 0.19, 0.21] },
-      { y: 0.44, r: 0.145, flute: 0.012, col: [0.18, 0.19, 0.21] },
-      { y: 0.49, r: 0.165, flute: 0.0, col: [0.22, 0.23, 0.25] }, // Molded pedestal torus ring
-      { y: 0.54, r: 0.085, flute: 0.006, col: [0.16, 0.17, 0.19] },
-      { y: 1.85, r: 0.068, flute: 0.005, col: [0.16, 0.17, 0.19] },
-      { y: 1.90, r: 0.088, flute: 0.0, col: [0.22, 0.23, 0.25] }, // Mid-shaft decorative collar
-      { y: 1.95, r: 0.065, flute: 0.004, col: [0.16, 0.17, 0.19] },
-      { y: 3.18, r: 0.055, flute: 0.003, col: [0.16, 0.17, 0.19] },
-      { y: 3.24, r: 0.11, flute: 0.0, col: [0.20, 0.21, 0.23] },
-      { y: 3.29, r: 0.165, flute: 0.0, col: [0.21, 0.22, 0.24] }, // Lantern lower tray
-      { y: 3.33, r: 0.135, flute: 0.0, col: [0.98, 0.87, 0.58] }, // Warm amber-ivory lantern glass bottom
-      { y: 3.51, r: 0.148, flute: 0.0, col: [1.00, 0.90, 0.64] }, // Lantern glass waist
-      { y: 3.69, r: 0.162, flute: 0.0, col: [1.00, 0.92, 0.68] }, // Lantern glass top
-      { y: 3.72, r: 0.27, flute: 0.0, col: [0.15, 0.16, 0.18] },  // Lower Tajug rain-hood eave
-      { y: 3.81, r: 0.14, flute: 0.0, col: [0.17, 0.18, 0.20] },  // Upper Tajug tier neck
-      { y: 3.84, r: 0.18, flute: 0.0, col: [0.15, 0.16, 0.18] },  // Upper Tajug eave
-      { y: 3.96, r: 0.015, flute: 0.0, col: [0.24, 0.22, 0.18] }  // Tajug finial spire
+      { y: -1.25, r: 0.15, flute: 0.0, uvV: 0.00, col: [0.14, 0.15, 0.16] },
+      { y: 0.0, r: 0.18, flute: 0.0, uvV: 0.06, col: [0.17, 0.18, 0.20] },
+      { y: 0.08, r: 0.19, flute: 0.0, uvV: 0.10, col: [0.20, 0.21, 0.23] },
+      { y: 0.14, r: 0.16, flute: 0.012, uvV: 0.14, col: [0.18, 0.19, 0.21] },
+      { y: 0.44, r: 0.145, flute: 0.012, uvV: 0.22, col: [0.18, 0.19, 0.21] },
+      { y: 0.49, r: 0.165, flute: 0.0, uvV: 0.26, col: [0.22, 0.23, 0.25] }, // Molded pedestal torus ring
+      { y: 0.54, r: 0.085, flute: 0.006, uvV: 0.30, col: [0.16, 0.17, 0.19] },
+      { y: 1.85, r: 0.068, flute: 0.005, uvV: 0.44, col: [0.16, 0.17, 0.19] },
+      { y: 1.90, r: 0.088, flute: 0.0, uvV: 0.48, col: [0.22, 0.23, 0.25] }, // Mid-shaft decorative collar
+      { y: 1.95, r: 0.065, flute: 0.004, uvV: 0.52, col: [0.16, 0.17, 0.19] },
+      { y: 3.18, r: 0.055, flute: 0.003, uvV: 0.60, col: [0.16, 0.17, 0.19] },
+      { y: 3.24, r: 0.11, flute: 0.0, uvV: 0.63, col: [0.20, 0.21, 0.23] },
+      { y: 3.30, r: 0.165, flute: 0.0, uvV: 0.66, col: [0.21, 0.22, 0.24] }, // Lantern lower bronze tray
+      // Photocell-controlled Frosted Borosilicate Lantern Glass Chamber (uvV > 1.50; neutral glass by day, 2900K HDR by night!)
+      { y: 3.31, r: 0.134, flute: 0.0, uvV: 1.70, col: [0.75, 0.80, 0.85] },
+      { y: 3.51, r: 0.149, flute: 0.0, uvV: 2.00, col: [0.80, 0.85, 0.90] }, // LED / warm mantle waist core
+      { y: 3.70, r: 0.162, flute: 0.0, uvV: 1.70, col: [0.76, 0.81, 0.86] },
+      // 2-Tier Tajug Rain-Hood (uvV = 1.35 on lower eave underside for warm 2900K downward bounce!)
+      { y: 3.71, r: 0.27, flute: 0.0, uvV: 1.35, col: [0.20, 0.21, 0.23] },
+      { y: 3.73, r: 0.272, flute: 0.0, uvV: 0.82, col: [0.15, 0.16, 0.18] },
+      { y: 3.81, r: 0.14, flute: 0.0, uvV: 0.86, col: [0.17, 0.18, 0.20] },
+      { y: 3.84, r: 0.18, flute: 0.0, uvV: 0.90, col: [0.15, 0.16, 0.18] },
+      { y: 3.94, r: 0.036, flute: 0.0, uvV: 0.94, col: [0.22, 0.21, 0.18] }, // Photocell mounting collar
+      // Top NEMA Twist-Lock Ambient-Lux Photoelectric Light Sensor Cap ("Sensor Cahaya")
+      { y: 3.95, r: 0.034, flute: 0.0, uvV: 0.96, col: [0.10, 0.19, 0.32] },
+      { y: 4.00, r: 0.032, flute: 0.0, uvV: 0.98, col: [0.12, 0.22, 0.36] },
+      { y: 4.02, r: 0.008, flute: 0.0, uvV: 1.00, col: [0.18, 0.28, 0.42] }
     ];
 
     const positions = [];
@@ -740,7 +747,7 @@ export class AutogenBiomeSpawner {
         const idx = positions.length / 3;
         positions.push(c * r, st.y, s * r);
         normals.push(c, 0.08, s);
-        uvs.push(u, is / (stations.length - 1));
+        uvs.push(u, st.uvV);
         colors.push(st.col[0], st.col[1], st.col[2]);
         ring.push(idx);
       }
@@ -1149,22 +1156,26 @@ export class AutogenBiomeSpawner {
       canopyInstanced.instanceMatrix.needsUpdate = true;
     }
 
-    // Draw Call #3: 24 Fluted Nusantara Pedestrian Garden Post-Lamps with 4-Strut Lantern Cages
+    // Draw Call #3: 40 Photocell-Equipped Fluted Nusantara Campus Streetlamps (+0 Draw Calls!)
     const lampCoords = [];
+    // Group A (12): Lapangan Rotunda UI Ring (R = 34.9m around (-2.5, 106.5))
     for (let i = 0; i < 12; i++) {
       const th = (i / 12) * Math.PI * 2.0 + Math.PI / 12;
       lampCoords.push({ x: -2.5 + Math.cos(th) * 34.9, z: 106.5 + Math.sin(th) * 34.9 });
     }
+    // Group B (4): South Rektorat Approach Plaza
     lampCoords.push(
       { x: -11.5, z: 68.5 },
       { x: 6.5, z: 68.5 },
       { x: -21.2, z: 51.5 },
       { x: 16.2, z: 51.5 }
     );
-    for (const lz of [-52.0, -37.0, -22.0, -8.0, 6.0, 20.0, 34.0, 48.0]) {
+    // Group E (8): East Lakeside Promenade (uniformly spaced z = -52 .. +48)
+    for (let k = 0; k < 8; k++) {
+      const lz = -52.0 + k * (100.0 / 7.0);
       lampCoords.push({ x: TerrainDEMLoader.getShorelinePromenadeX(lz) - 0.55, z: lz });
     }
-    // 6 Nusantara Garden Post-Lamps lining the West Helipad Boulevard & Helipad Entry Plaza
+    // Group C (6): West Helipad Boulevard & Helipad Entry Plaza
     lampCoords.push(
       { x: -50.0, z: 100.8 },
       { x: -50.0, z: 112.2 },
@@ -1173,6 +1184,14 @@ export class AutogenBiomeSpawner {
       { x: -83.2, z: 99.6 },
       { x: -83.2, z: 113.4 }
     );
+    // Group D (6): West Courtyard / Electric Golf-Cart Shuttle Boulevard (x = -55.4, z = -22..88)
+    for (let k = 0; k < 6; k++) {
+      lampCoords.push({ x: -55.4, z: -22.0 + k * 22.0 });
+    }
+    // Group F (4): Pulau I West Aircraft Apron Perimeter (z = 658.4, x = -276.5..-231.5)
+    for (let k = 0; k < 4; k++) {
+      lampCoords.push({ x: -276.5 + k * 15.0, z: 658.4 });
+    }
 
     const lampMat = new THREE.MeshStandardMaterial({
       name: 'CampusGardenLampMat',

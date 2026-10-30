@@ -25,7 +25,7 @@ const TOD_LABELS = {
   NIGHT: 'Malam'
 };
 
-const TOTAL_EXPECTED_TRIS = 5143384;
+const TOTAL_EXPECTED_TRIS = 5476400;
 
 function yieldToBrowserFrame() {
   return new Promise((resolve) => {
@@ -223,7 +223,8 @@ async function bootstrapNexusSimulator() {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.07;
-  controls.maxPolarAngle = Math.PI * 0.492;
+  // Allow tilting upward into the night sky (Moon, Milky Way, Constellations); CameraDirector soft floor prevents underground clip!
+  controls.maxPolarAngle = Math.PI * 0.86;
   controls.minDistance = 0.55;
   controls.maxDistance = 1550;
   controls.target.set(presets.oblique45.target.x, presets.oblique45.target.y, presets.oblique45.target.z);
@@ -250,12 +251,12 @@ async function bootstrapNexusSimulator() {
   await preloader.advance(5, 70, 'Merakit Plaza Rotunda, Helipad VIP & Landasan Pacu Pulau I...', 1072000);
   const corridorGroup = SplineCorridorBuilder.buildRotundaAndPromenades(sharedUniforms);
 
-  // Stage 6: Build Dense Southern Highland Rainforest (Pulau U), Sparse Montane Forest (Pulau I) & 30 Lamps
-  await preloader.advance(6, 82, 'Menumbuhkan Hutan Lebat Selatan Pulau U & Hutan Lereng Gunung Pulau I...', 4853072);
+  // Stage 6: Build Dense Southern Highland Rainforest (Pulau U), Sparse Montane Forest (Pulau I) & 40 Photocell Streetlamps
+  await preloader.advance(6, 82, 'Menumbuhkan Hutan Lebat Pulau U, Lereng Gunung Pulau I, & 40 Lampu Sensor Cahaya...', 4853072);
   const biomeGroup = AutogenBiomeSpawner.buildCampusBiome(groundHeightFn, sharedUniforms);
 
-  // Stage 7: Build 24 22-Joint Sivitas Akademika NPCs + 48 18-Joint Archipelago Cats & Mount Full World Immediately
-  await preloader.advance(7, 92, 'Menghadirkan 24 Sivitas Akademika & 48 Kucing Kepulauan UI...', TOTAL_EXPECTED_TRIS);
+  // Stage 7: Build 45 22-Joint Sivitas Akademika NPCs + Patrolling Electric Golf Cart + 48 Cats + 12 Distant Marine Vessels
+  await preloader.advance(7, 92, 'Menghadirkan 45 Sivitas Akademika, Mobil Golf Listrik UI, 48 Kucing, & 12 Kapal/Perahu...', TOTAL_EXPECTED_TRIS);
   const sivitasAI = new DynamicTrafficAI(groundHeightFn, sharedUniforms);
   const sivitasGroup = sivitasAI.build();
 
@@ -265,11 +266,12 @@ async function bootstrapNexusSimulator() {
     audioSynth.triggerThunder(distanceMeters, intensity);
   };
 
-  // Stage 8: Apply Depok WIB Clock Immediately & Compile Specialized GPU Shaders Asynchronously (0ms Network Wait!)
+  // Stage 8: Apply Depok WIB Clock & Real-Time Ephemeris Immediately & Compile Specialized GPU Shaders Asynchronously
   await preloader.advance(8, 97, 'Kompilasi Paralel Shader GPU & Membuka Kepulauan UI...', TOTAL_EXPECTED_TRIS);
 
   let isLiveDepok = true;
   latestDepokClock = DepokLiveWeatherService.getDepokWIBClock();
+  weather.setReferenceAstronomyDate(new Date(), sharedUniforms);
   weather.setSolarHour(latestDepokClock.solarHour, sharedUniforms, { immediate: true });
   weather.setWeather(latestDepokWeather.weatherMode, {
     immediate: true,
@@ -417,7 +419,7 @@ async function bootstrapNexusSimulator() {
     });
   });
 
-  // Tri-Angle Camera Presets
+  // Tri-Angle & Live Patrol Camera Presets
   document.querySelectorAll('[data-preset]').forEach((btn) => {
     btn.addEventListener('click', () => {
       arrivalActive = false;
@@ -426,6 +428,27 @@ async function bootstrapNexusSimulator() {
       document.querySelectorAll('[data-cammode]').forEach((b) =>
         b.classList.toggle('active', b.dataset.cammode === 'ORBIT')
       );
+      if (btn.dataset.preset === 'mobilGolfUI') {
+        const cartPose = sivitasAI.getGolfCartPose();
+        if (cartPose) {
+          const sy = Math.sin(cartPose.yaw);
+          const cy = Math.cos(cartPose.yaw);
+          const liveCartPreset = {
+            pos: {
+              x: cartPose.worldX + sy * 5.8 + cy * 4.5,
+              y: cartPose.worldY + 2.45,
+              z: cartPose.worldZ + cy * 5.8 - sy * 4.5
+            },
+            target: {
+              x: cartPose.worldX,
+              y: cartPose.worldY + 1.08,
+              z: cartPose.worldZ
+            }
+          };
+          camDirector.applyOrthoPreset('mobilGolfUI', { ...presets, mobilGolfUI: liveCartPreset });
+          return;
+        }
+      }
       camDirector.applyOrthoPreset(btn.dataset.preset, presets);
     });
   });
@@ -446,6 +469,7 @@ async function bootstrapNexusSimulator() {
   const liveClockEl = document.getElementById('ui-depok-clock');
   const liveWeatherEl = document.getElementById('ui-depok-weather');
   const liveHvsEyeEl = document.getElementById('ui-hvs-eye');
+  const liveAstroEl = document.getElementById('ui-astro-moon');
   const liveBtnEl = document.getElementById('btn-live-depok');
   const sliderDurEl = document.getElementById('slider-trans-dur');
   const labelDurEl = document.getElementById('label-trans-dur');
@@ -454,14 +478,26 @@ async function bootstrapNexusSimulator() {
 
   function updateDepokTelemetryDOM() {
     if (liveClockEl) {
-      liveClockEl.textContent = `${latestDepokClock.formattedHMS} · ${latestDepokClock.periodLabelId}`;
+      if (isLiveDepok) {
+        liveClockEl.textContent = `${latestDepokClock.formattedHMS} · ${latestDepokClock.periodLabelId}`;
+      } else {
+        const simClock = DepokLiveWeatherService.formatSolarHourClock(weather.currentSolarHour);
+        liveClockEl.textContent = `Simulasi ${simClock.formattedHM} · ${simClock.periodLabelId}`;
+      }
     }
     if (liveWeatherEl && latestDepokWeather) {
-      const srcTag = latestDepokWeather.isLiveApi ? 'Open-Meteo Depok' : 'Klimatologi Depok';
-      liveWeatherEl.textContent =
-        `${latestDepokWeather.labelId.replace(' (Estimasi Lokal)', '')} · ` +
-        `${latestDepokWeather.temperatureC}°C · RH ${latestDepokWeather.humidityPct}% · ` +
-        `Angin ${latestDepokWeather.windSpeedKmh} km/j (${srcTag})`;
+      if (isLiveDepok) {
+        const srcTag = latestDepokWeather.isLiveApi ? 'Open-Meteo Depok' : 'Klimatologi Depok';
+        liveWeatherEl.textContent =
+          `${latestDepokWeather.labelId.replace(' (Estimasi Lokal)', '')} · ` +
+          `${latestDepokWeather.temperatureC}°C · RH ${latestDepokWeather.humidityPct}% · ` +
+          `Angin ${latestDepokWeather.windSpeedKmh} km/j (${srcTag})`;
+      } else {
+        const tsNow = weather.getTransitionState();
+        liveWeatherEl.textContent =
+          `Cuaca Simulasi: ${WEATHER_LABELS[tsNow.weather.toMode]} · ` +
+          `Rill Depok: ${latestDepokClock.formattedHM} (${latestDepokWeather.temperatureC}°C)`;
+      }
     }
   }
   updateDepokTelemetryDOM();
@@ -498,6 +534,7 @@ async function bootstrapNexusSimulator() {
       isLiveDepok = true;
       latestDepokClock = DepokLiveWeatherService.getDepokWIBClock();
       updateDepokTelemetryDOM();
+      weather.setReferenceAstronomyDate(new Date(), sharedUniforms);
       weather.setSolarHour(latestDepokClock.solarHour, sharedUniforms);
       weather.setWeather(latestDepokWeather.weatherMode, {
         cloudCoverNorm: latestDepokWeather.cloudCoverNorm
@@ -620,6 +657,7 @@ async function bootstrapNexusSimulator() {
         if (liveBadgeTextEl) liveBadgeTextEl.textContent = 'MODE SIMULASI MANUAL';
         if (titleEl) titleEl.textContent = '↻ Kembali ke Waktu & Cuaca Rill Depok';
         if (subEl) subEl.textContent = `Transisi halus ${Math.round(ts.durationSec)} detik`;
+        updateDepokTelemetryDOM();
       }
     }
 
@@ -650,6 +688,16 @@ async function bootstrapNexusSimulator() {
     if (liveHvsEyeEl) {
       liveHvsEyeEl.textContent =
         `HDR Mata Manusia · ${regimeId} · Pupil ${hvs.pupilDiameterMm.toFixed(1)} mm · Gain ${hvs.eyeGain.toFixed(2)}×`;
+    }
+    if (liveAstroEl) {
+      const astro = weather.getAstronomicalState();
+      const moonPct = Math.round(astro.moonIlluminatedFraction * 100);
+      const lampTxt =
+        astro.streetlampSensorLevel > 0.05
+          ? `ON ${Math.round(astro.streetlampSensorLevel * 100)}%`
+          : 'OFF';
+      liveAstroEl.textContent =
+        `Bulan: ${astro.moonPhaseLabelId} (${moonPct}%) · Bortle ${astro.bortleClass} · Sensor Lampu: ${lampTxt}`;
     }
     const elHvsAudit = document.getElementById('sim-hvs-eye');
     if (elHvsAudit) {
@@ -768,6 +816,28 @@ async function bootstrapNexusSimulator() {
       frameCount = 0;
       statTimer = 0.0;
     }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.__NEXUS_SIM__ = {
+      scene,
+      camera,
+      renderer,
+      weather,
+      camDirector,
+      sivitasAI,
+      rektoratAsset,
+      sharedUniforms,
+      presets,
+      syncTransitionButtonsUI,
+      updateDepokTelemetryDOM,
+      setLiveDepok(flag) {
+        isLiveDepok = !!flag;
+      },
+      stopArrival() {
+        arrivalActive = false;
+      }
+    };
   }
 
   requestAnimationFrame(renderLoop);

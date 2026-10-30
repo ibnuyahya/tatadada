@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { RainCollisionBake } from './RainCollisionBake.js';
 import { HumanEyeHDROptics } from './HumanEyeHDROptics.js';
+import {
+  computeBaseJD0WIB,
+  evaluateDepokAstronomy,
+  createRealStarCatalogGridTexture
+} from './AstronomicalSkyCatalog.js';
 
 /**
  * NEXUS Omni-Scale Procedural Engine v2.0 (v2.2 Super-Realistic Physical Weather Edition)
@@ -42,7 +47,11 @@ export class WeatherOpticsEngine {
 
     this.transitionDurationSec = WeatherOpticsEngine.DEFAULT_TRANSITION_SEC;
     this.currentSolarHour = 10.35; // Continuous 24h Kampus UI Depok WIB solar clock [0, 24)
+    this.continuousSolarHour = 10.35; // Unwrapped monotonic WIB hours since _baseJD0WIB (0.000° midnight jump!)
+    this._baseJD0WIB = computeBaseJD0WIB(new Date());
+    this._astroState = null;
     this.nightIlluminationLevel = 0.0; // Continuous [0, 1] architectural & aviation night glow
+    this.streetlampSensorLevel = 0.0; // Continuous [0, 1] ambient-lux photocell streetlamp power
 
     this.targetRainIntensity = 0.0;
     this.targetWetness = 0.0;
@@ -76,6 +85,7 @@ export class WeatherOpticsEngine {
       duration: WeatherOpticsEngine.DEFAULT_TRANSITION_SEC,
       progress: 1.0,
       startHour: 10.35,
+      startContinuousHour: 10.35,
       deltaHour: 0.0
     };
 
@@ -114,6 +124,11 @@ export class WeatherOpticsEngine {
       uSunDir: { value: new THREE.Vector3(0.52, 0.72, 0.45).normalize() },
       uTrueSunDir: { value: new THREE.Vector3(0.52, 0.72, 0.45).normalize() },
       uMoonDir: { value: new THREE.Vector3(-0.42, 0.62, -0.52).normalize() },
+      uMoonPhaseSunDir: { value: new THREE.Vector3(0.42, -0.56, 0.52).normalize() },
+      uMoonIllumFraction: { value: 0.85 },
+      uWorldToEqMat: { value: new THREE.Matrix3() },
+      uStarGridTex: { value: createRealStarCatalogGridTexture() },
+      uStreetlampPower: { value: 0.0 },
       uSunColor: { value: new THREE.Color(0xfff5e4) },
       uNightFactor: { value: 0.0 },
       uDuskFactor: { value: 0.0 },
@@ -512,15 +527,20 @@ export class WeatherOpticsEngine {
    * 2-Layer 6-Octave Rotated FBM Cumulonimbus Storm Clouds + Forked Plasma Lightning
    */
   _initAnalyticalSkyDome() {
-    const skyGeo = new THREE.SphereGeometry(3400, 48, 28);
+    const skyGeo = new THREE.SphereGeometry(3400, 56, 32);
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
+      extensions: { derivatives: true },
       uniforms: {
         uTime: this.uniforms.uTime,
         uSunDir: this.uniforms.uSunDir,
         uTrueSunDir: this.uniforms.uTrueSunDir,
         uMoonDir: this.uniforms.uMoonDir,
+        uMoonPhaseSunDir: this.uniforms.uMoonPhaseSunDir,
+        uMoonIllumFraction: this.uniforms.uMoonIllumFraction,
+        uWorldToEqMat: this.uniforms.uWorldToEqMat,
+        uStarGridTex: this.uniforms.uStarGridTex,
         uSunColor: this.uniforms.uSunColor,
         uNightFactor: this.uniforms.uNightFactor,
         uDuskFactor: this.uniforms.uDuskFactor,
@@ -548,6 +568,10 @@ export class WeatherOpticsEngine {
         uniform vec3 uSunDir;
         uniform vec3 uTrueSunDir;
         uniform vec3 uMoonDir;
+        uniform vec3 uMoonPhaseSunDir;
+        uniform float uMoonIllumFraction;
+        uniform mat3 uWorldToEqMat;
+        uniform sampler2D uStarGridTex;
         uniform vec3 uSunColor;
         uniform float uNightFactor;
         uniform float uDuskFactor;
@@ -567,6 +591,15 @@ export class WeatherOpticsEngine {
         // Hukum Emas 14: Strict domain rotation matrix preventing periodic axial striping
         const mat2 ROT_FBM = mat2(0.8, 0.6, -0.6, 0.8);
 
+        // Exact IAU J2000.0 Equatorial -> Galactic Rotation Matrix (Column-Major for GLSL):
+        // Row 0 -> Galactic Center (RA 17h45m37.2s, Dec -28.9362°)
+        // Row 2 -> North Galactic Pole (RA 12h51m26.3s, Dec +27.1283°)
+        const mat3 GAL_FROM_EQ = mat3(
+          -0.05487556,  0.49410943, -0.86766615,
+          -0.87343709, -0.44482963, -0.19807637,
+          -0.48383502,  0.74698224,  0.45598378
+        );
+
         float hash21(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
         }
@@ -580,6 +613,17 @@ export class WeatherOpticsEngine {
             mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), u.x),
             u.y
           );
+        }
+
+        float fbmGal4(vec2 p) {
+          float v = 0.0;
+          float a = 0.54;
+          for (int i = 0; i < 4; i++) {
+            v += a * noise2(p);
+            p = ROT_FBM * p * 2.11 + vec2(13.7, 27.3);
+            a *= 0.48;
+          }
+          return v;
         }
 
         // 6-Octave Domain-Rotated FBM for billowing tropical Cumulonimbus structure
@@ -605,40 +649,300 @@ export class WeatherOpticsEngine {
           return v;
         }
 
+        // Physical Planck B-V Color Index -> Stellar Photosphere RGB Chromaticity
+        vec3 evalPlanckStellarColor(float bv) {
+          vec3 hotOBA = vec3(0.68, 0.82, 1.00);   // Rigel, Acrux, Spica, Orion Belt (B-V < 0)
+          vec3 pureAF = vec3(0.96, 0.98, 1.00);   // Sirius, Vega, Altair, Fomalhaut (B-V ~ 0.0..0.3)
+          vec3 solarGK = vec3(1.00, 0.91, 0.72);  // Alpha Centauri, Capella, Pollux (B-V ~ 0.7..1.0)
+          vec3 rubyKM = vec3(1.00, 0.60, 0.32);   // Betelgeuse, Antares, Aldebaran, Gacrux (B-V > 1.4)
+          vec3 c = mix(hotOBA, pureAF, smoothstep(-0.28, 0.14, bv));
+          c = mix(c, solarGK, smoothstep(0.18, 0.88, bv));
+          c = mix(c, rubyKM, smoothstep(0.95, 1.75, bv));
+          return c;
+        }
+
+        // Procedural Tidally-Locked Nearside Selenographic Albedo & Micro-Crater Relief
+        // (Anorthosite Lunar Highlands vs Dark Basalt Maria Basins + Southern Tycho Ejecta Rays)
+        vec2 evalLunarMariaSurface(vec2 sDisk, float zMoon) {
+          // True 3D spherical selenographic coordinates centered on sub-Earth Sinus Medii (0°, 0°),
+          // naturally foreshortening Mare Crisium & Oceanus Procellarum toward the lunar limb!
+          float sLon = atan(sDisk.x, max(0.06, zMoon));
+          float sLat = asin(clamp(sDisk.y, -1.0, 1.0));
+          vec2 sUV = vec2(sLon, sLat);
+
+          float craterMicro = fbmGal4(sUV * 11.5 + vec2(3.1, 7.4));
+          float mareMacro = fbmGal4(sUV * 3.1 + vec2(11.2, 5.8));
+
+          // Canonical Earth-facing nearside Lunar Maria basins (rad):
+          // Mare Imbrium (-18°W, +33°N), Mare Serenitatis (+18°E, +28°N), Mare Tranquillitatis (+31°E, +9°N),
+          // Mare Crisium (+58°E, +17°N), Mare Fecunditatis (+51°E, -8°S), Oceanus Procellarum (-46°W, +10°N),
+          // Mare Nubium (-17°W, -20°S), Mare Humorum (-39°W, -24°S)
+          float mImbrium   = exp(-dot(sUV - vec2(-0.31,  0.56), sUV - vec2(-0.31,  0.56)) * 6.2);
+          float mSeren     = exp(-dot(sUV - vec2( 0.31,  0.48), sUV - vec2( 0.31,  0.48)) * 9.5);
+          float mTranquil  = exp(-dot(sUV - vec2( 0.54,  0.15), sUV - vec2( 0.54,  0.15)) * 7.8);
+          float mCrisium   = exp(-dot(sUV - vec2( 1.01,  0.30), sUV - vec2( 1.01,  0.30)) * 22.0);
+          float mFecund    = exp(-dot(sUV - vec2( 0.88, -0.14), sUV - vec2( 0.88, -0.14)) * 10.5);
+          float mProcell   = exp(-dot(sUV - vec2(-0.78,  0.16), sUV - vec2(-0.78,  0.16)) * 3.6);
+          float mNubium    = exp(-dot(sUV - vec2(-0.30, -0.35), sUV - vec2(-0.30, -0.35)) * 7.4);
+          float mHumorum   = exp(-dot(sUV - vec2(-0.68, -0.42), sUV - vec2(-0.68, -0.42)) * 13.0);
+
+          float mariaRaw = mImbrium * 1.05 + mSeren * 0.98 + mTranquil * 0.96 + mCrisium * 0.92
+                         + mFecund * 0.82 + mProcell * 0.90 + mNubium * 0.84 + mHumorum * 0.80;
+          float mariaMask = clamp(mariaRaw * (0.72 + 0.54 * mareMacro), 0.0, 1.0);
+
+          // Southern Highland Tycho crater (-11°W, -43°S) & Copernican bright ejecta rays
+          vec2 dTycho = sUV - vec2(-0.19, -0.75);
+          float rTycho = length(dTycho) + 1e-4;
+          float rayAng = atan(dTycho.y, dTycho.x);
+          float tychoRays = exp(-rTycho * 2.9) * (0.42 + 0.58 * pow(0.5 + 0.5 * sin(rayAng * 9.0 + mareMacro * 2.4), 3.0));
+
+          float highland = 0.98 + 0.16 * craterMicro + 0.24 * tychoRays;
+          float basaltMare = 0.14 + 0.07 * craterMicro;
+          float albedo = mix(highland, basaltMare, smoothstep(0.18, 0.62, mariaMask));
+          return vec2(albedo, craterMicro);
+        }
+
         void main() {
           vec3 dir = normalize(vWorldDir);
+          // Uniform-control-flow angular pixel footprint (radians/px) for subpixel-stable constellation stars
+          float skyPxRad = clamp(max(length(dFdx(dir)), length(dFdy(dir))), 0.00050, 0.00340);
           float h = clamp(dir.y, 0.0, 1.0);
-          float overcast = clamp(uCloudCover * 0.65 + uRainIntensity * 0.45, 0.0, 1.0);
+          float overcast = clamp(uCloudCover * 0.62 + uRainIntensity * 0.48, 0.0, 1.0);
 
-          vec3 dayZenith = vec3(0.13, 0.37, 0.74);
+          vec3 trueSunDir = normalize(uTrueSunDir);
+          vec3 moonDir = normalize(uMoonDir);
+          vec3 celestialDir = normalize(uSunDir);
+          float cosTheta = dot(dir, celestialDir);
+          float cosSun = dot(dir, trueSunDir);
+          float cosMoon = dot(dir, moonDir);
+
+          // 1. FULL-FEATURE RAYLEIGH + OZONE CHAPPUIS + BORTLE CLASS 1-2 ISLAND NIGHT ATMOSPHERE
+          //    Zero urban orange skyglow pollution! Only pure dark oceanic cosmos, subtle 557.7nm natural
+          //    airglow near the marine horizon, and physical lunar Rayleigh scatter when the Moon is risen.
+          vec3 dayZenith = vec3(0.12, 0.36, 0.74);
           vec3 dayHorizon = vec3(0.62, 0.78, 0.92);
 
-          vec3 duskZenith = vec3(0.14, 0.16, 0.36);
-          vec3 duskHorizon = vec3(0.88, 0.46, 0.22);
+          // Stratospheric Ozone Chappuis absorption deepens twilight zenith to royal cobalt-indigo
+          vec3 duskZenith = vec3(0.10, 0.15, 0.38);
+          vec3 duskHorizon = mix(vec3(0.52, 0.56, 0.68), vec3(0.94, 0.47, 0.20), smoothstep(-0.35, 0.85, cosSun));
 
-          vec3 nightZenith = vec3(0.014, 0.022, 0.052);
-          vec3 nightHorizon = vec3(0.042, 0.064, 0.120);
+          float lunarSkyScatter = clamp(moonDir.y, 0.0, 1.0) * uMoonIllumFraction * (1.0 - overcast * 0.75);
+          vec3 bortle1Zenith = vec3(0.0038, 0.0062, 0.0145) + vec3(0.007, 0.012, 0.026) * lunarSkyScatter;
+          // Subtle natural 557.7nm island airglow + marine horizon scatter (minimal light pollution!)
+          vec3 bortle1Horizon = vec3(0.0105, 0.0170, 0.0290) + vec3(0.016, 0.024, 0.045) * lunarSkyScatter;
 
-          vec3 zenith = mix(mix(dayZenith, duskZenith, uDuskFactor), nightZenith, uNightFactor);
-          vec3 horizon = mix(mix(dayHorizon, duskHorizon, uDuskFactor), nightHorizon, uNightFactor);
-          vec3 skyCol = mix(horizon, zenith, pow(h, 0.58));
+          vec3 zenith = mix(mix(dayZenith, duskZenith, uDuskFactor), bortle1Zenith, uNightFactor);
+          vec3 horizon = mix(mix(dayHorizon, duskHorizon, uDuskFactor), bortle1Horizon, uNightFactor);
+          vec3 skyCol = mix(horizon, zenith, pow(h, 0.56));
+
+          // Anti-Solar Belt of Venus ("Sabuk Venus") & Earth's Shadow Arch ("Bayangan Bumi") at Dawn/Dusk!
+          if (uDuskFactor > 0.01 && overcast < 0.88) {
+            vec2 dirXZ = normalize(dir.xz + vec2(1e-5, 0.0));
+            vec2 sunXZ = normalize(trueSunDir.xz + vec2(1e-5, 0.0));
+            float antiSun = clamp(dot(dirXZ, -sunXZ) * 0.5 + 0.5, 0.0, 1.0);
+            float shadowTop = clamp(0.03 + max(0.0, -trueSunDir.y) * 0.55, 0.02, 0.14);
+            float earthShadow = (1.0 - smoothstep(shadowTop * 0.45, shadowTop + 0.05, h)) * pow(antiSun, 1.4);
+            float beltOfVenus = exp(-pow((h - (shadowTop + 0.055)) / 0.068, 2.0)) * pow(antiSun, 1.25);
+            float clearTwilight = uDuskFactor * (1.0 - overcast * 0.85);
+            skyCol = mix(skyCol, vec3(0.11, 0.14, 0.25), earthShadow * clearTwilight * 0.62);
+            skyCol += vec3(0.42, 0.20, 0.26) * beltOfVenus * clearTwilight * 0.55;
+          }
 
           // Deep atmospheric Rayleigh/Mie storm overcast gradient
           vec3 stormHorizonDay = mix(vec3(0.35, 0.39, 0.44), vec3(0.18, 0.21, 0.26), uStormFactor);
           vec3 stormZenithDay = mix(vec3(0.20, 0.24, 0.29), vec3(0.09, 0.11, 0.15), uStormFactor);
           vec3 stormBase = mix(stormHorizonDay, stormZenithDay, pow(h, 0.55));
-          stormBase *= mix(1.0, 0.20, uNightFactor);
+          stormBase *= mix(1.0, 0.16, uNightFactor);
           skyCol = mix(skyCol, stormBase, clamp(uRainIntensity * 0.76 + uStormFactor * 0.35, 0.0, 0.94));
 
-          // Hukum Emas 14 (v3.6 Continuous Dual-Body Celestial Projection):
-          // Independent True Sun & Moon trajectories so the Sun sets smoothly below the western horizon
-          // without ever teleporting across the sky when moonlight takes over!
-          vec3 celestialDir = normalize(uSunDir);
-          float cosTheta = dot(dir, celestialDir);
-          float discVis = clamp(1.0 - overcast * 1.08, 0.0, 1.0);
+          // 2. BORTLE CLASS 1-2 GALACTIC MILKY WAY ("BIMASAKTI"), GREAT RIFT DUST LANES, LMC/SMC,
+          //    FAINT GALACTIC STARFIELD, & 208 NOTABLE REAL J2000 CONSTELLATION STARS (TRUE LINEAR-HDR!)
+          //    Accumulated directly in Scene-Referred Linear-HDR (hdrCosmos) so gamma^2.2 never crushes stars,
+          //    and occluded spatially ONLY where foreground clouds or the solid lunar sphere actually pass!
+          vec3 eqDir = normalize(uWorldToEqMat * dir);
+          vec3 galDir = GAL_FROM_EQ * eqDir;
+          float starClearVis = smoothstep(0.12, 0.84, uNightFactor)
+                             * clamp(1.0 - uRainIntensity * 1.12 - uStormFactor * 0.68, 0.0, 1.0);
+          vec3 hdrCosmos = vec3(0.0);
 
-          vec3 trueSunDir = normalize(uTrueSunDir);
-          float cosSun = dot(dir, trueSunDir);
+          // Zodiacal Light Cone ("Cahaya Zodiak" — interplanetary dust glow in low-pollution island post-dusk/pre-dawn)
+          if (uNightFactor > 0.30 && trueSunDir.y < -0.08 && trueSunDir.y > -0.54 && dir.y > 0.0) {
+            float zodAlong = max(0.0, dot(normalize(dir.xz + vec2(1e-5, 0.0)), normalize(trueSunDir.xz + vec2(1e-5, 0.0))));
+            float zodCone = pow(zodAlong, 5.2) * exp(-h * 2.6) * smoothstep(-0.54, -0.14, trueSunDir.y);
+            hdrCosmos += vec3(0.0085, 0.0095, 0.0125) * zodCone * uNightFactor * (1.0 - overcast) * (1.0 - lunarSkyScatter * 0.65);
+          }
+
+          if (starClearVis > 0.005 && dir.y > -0.01) {
+            // Bortle 1-2 low-pollution marine island clarity right down to ~3.8° above the sea horizon!
+            float horizonExtinction = smoothstep(-0.005, 0.068, dir.y);
+            float moonGlareWash = 1.0 - 0.24 * lunarSkyScatter - 0.52 * pow(max(cosMoon, 0.0), 18.0) * lunarSkyScatter;
+            float darkSkyVis = starClearVis * horizonExtinction * clamp(moonGlareWash, 0.30, 1.0);
+
+            // 2A. True J2000 Galactic Milky Way Band, Sagittarius-Scorpius Core Bulge, & Great Rift Dust Absorption
+            //     Evaluated directly from 3D unit vector galDir (ZERO atan +-pi branch-cut seam anywhere across 360°!)
+            float sinB = galDir.z;
+            float coreProximity = clamp(galDir.x * 0.5 + 0.5, 0.0, 1.0);
+            float bulgeWidth = mix(0.110, 0.225, pow(coreProximity, 3.0));
+            float mwWarp = (fbmGal4(galDir.xy * 2.4 + vec2(sinB * 3.8, -sinB * 3.4)) - 0.5) * 0.065;
+            float mwProfile = exp(-pow((sinB + mwWarp) / bulgeWidth, 2.0));
+
+            float starCloudTex = fbmGal4(galDir.xy * 5.2 + vec2(sinB * 10.2 + 2.1, -sinB * 9.6 - 1.3));
+            float fineCloudTex = fbmGal4(galDir.xy * 13.5 + vec2(-sinB * 21.0 - 4.7, sinB * 20.0 + 3.8));
+            float mwLuminance = mwProfile * (0.48 + 0.84 * starCloudTex + 0.38 * fineCloudTex);
+            mwLuminance *= mix(0.68, 1.62, pow(coreProximity, 2.0));
+
+            // Great Rift ("Celah Besar") & Southern Cross Coalsack ("Kantung Arang") Dark Molecular Dust Lanes!
+            float riftNoise = fbmGal4(galDir.xy * 6.8 + vec2(sinB * 17.5 + 9.4, -sinB * 16.4 + 2.2));
+            float riftBand = exp(-pow((sinB - 0.012 + (riftNoise - 0.5) * 0.055) / 0.044, 2.0));
+            float riftStrength = smoothstep(0.34, 0.72, riftNoise) * smoothstep(-0.35, 0.55, galDir.x);
+            // Coalsack Dark Nebula right beside Crux (Galactic l ~ -57° = -1.00 rad, b ~ -1.5° -> 3D chord distance)
+            float dCoalsack = length(galDir - vec3(0.54012, -0.84118, -0.02600));
+            float coalsack = exp(-(dCoalsack * dCoalsack) / 0.0068) * 0.84;
+            float dustTransmittance = clamp(1.0 - riftBand * riftStrength * 0.82 - coalsack, 0.11, 1.0);
+
+            vec3 mwOuterLin = vec3(0.0185, 0.0265, 0.0440);
+            vec3 mwCoreLin = vec3(0.0520, 0.0430, 0.0365);
+            vec3 mwColorLin = mix(mwOuterLin, mwCoreLin, pow(coreProximity, 2.0) * (0.55 + 0.45 * starCloudTex));
+            hdrCosmos += mwColorLin * mwLuminance * dustTransmittance * darkSkyVis;
+
+            // Southern Hemisphere Gems: Large & Small Magellanic Clouds (LMC & SMC) + M42 Orion Nebula!
+            vec3 lmcEq = vec3(0.0549, 0.3416, -0.9382); // RA 5.39h, Dec -69.76°
+            vec3 smcEq = vec3(0.2878, 0.0674, -0.9553); // RA 0.88h, Dec -72.80°
+            vec3 m42Eq = vec3(0.1066, 0.9898, -0.0940); // RA 5.59h, Dec -5.39° (Orion's Sword)
+            float dLMC = length(eqDir - lmcEq);
+            float dSMC = length(eqDir - smcEq);
+            float dM42 = length(eqDir - m42Eq);
+            if (dLMC < 0.16) {
+              float lmcTex = 0.52 + 0.48 * fbmGal4(eqDir.xy * 42.0);
+              hdrCosmos += vec3(0.015, 0.021, 0.035) * exp(-pow(dLMC / 0.054, 2.0)) * lmcTex * darkSkyVis;
+            }
+            if (dSMC < 0.10) {
+              hdrCosmos += vec3(0.012, 0.017, 0.029) * exp(-pow(dSMC / 0.030, 2.0)) * darkSkyVis;
+            }
+            if (dM42 < 0.038) {
+              float m42Glow = exp(-pow(dM42 / 0.0090, 2.0));
+              hdrCosmos += vec3(0.095, 0.052, 0.110) * m42Glow * darkSkyVis;
+            }
+
+            // 2B. Tier-A Faint Equatorial-Locked Galactic Pinpoint Background Stars (~4,900 Bortle 1-2 naked-eye stars)
+            //     3D Spherical-Shell 2x2x2 Voxel Lattice on eqDir: ZERO atan +-pi seam, ZERO pole pinching, ZERO clipping!
+            vec3 bP3 = eqDir * 104.0;
+            vec3 bBase = floor(bP3 - 0.5);
+            float galStarThresh = mix(0.85, 0.58, exp(-abs(sinB) * 6.5));
+            for (int oz = 0; oz < 2; oz++) {
+              for (int oy = 0; oy < 2; oy++) {
+                for (int ox = 0; ox < 2; ox++) {
+                  vec3 bCell = bBase + vec3(float(ox), float(oy), float(oz));
+                  float h0 = fract(sin(dot(bCell, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+                  if (h0 > galStarThresh) {
+                    float h1 = fract(sin(dot(bCell, vec3(269.5, 183.3, 246.1))) * 43758.5453);
+                    float h2 = fract(sin(dot(bCell, vec3(113.5, 271.9, 124.6))) * 43758.5453);
+                    float h3 = fract(sin(dot(bCell, vec3(419.2, 371.9, 168.3))) * 43758.5453);
+                    vec3 bStarPos = bCell + vec3(0.05 + 0.90 * h1, 0.05 + 0.90 * h2, 0.05 + 0.90 * h3);
+                    if (abs(length(bStarPos) - 104.0) < 0.165) {
+                      vec3 bStarDir = normalize(bStarPos);
+                      float dAng = length(eqDir - bStarDir);
+                      float rAng = max(skyPxRad * 1.05, mix(0.00085, 0.00145, h2));
+                      if (dAng < rAng) {
+                        float twkBg = 0.82 + 0.18 * sin(uTime * (1.8 + h3 * 2.5) + h0 * 50.0);
+                        float mBg = smoothstep(rAng, 0.0, dAng) * mix(0.022, 0.058, h3 * h3);
+                        vec3 cBg = evalPlanckStellarColor(mix(-0.15, 1.45, fract((h1 + h2) * 7.3)));
+                        hdrCosmos += cBg * mBg * twkBg * darkSkyVis;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            // 2C. Tier-B O(1) REAL J2000 CONSTELLATION STAR CATALOG (212 Navigational & Constellation Stars in 512x64 POT Grid!)
+            //     Orion, Crux/Pari, Alpha/Beta Centauri, Scorpius, Sagittarius, Sirius/Canis Major, Canopus,
+            //     Taurus + Pleiades, Gemini, Leo, Virgo, Lyra, Cygnus, Aquila, Cassiopeia, Pegasus, Ursa Major!
+            float eqRA = atan(eqDir.y, eqDir.x); // [-pi, pi]
+            float eqDec = asin(clamp(eqDir.z, -1.0, 1.0)); // [-pi/2, pi/2]
+            float raPos = mod(eqRA + 6.28318530718, 6.28318530718);
+            float cx = clamp(floor((raPos / 6.28318530718) * 128.0), 0.0, 127.0);
+            float cy = clamp(floor((eqDec / 3.14159265359 + 0.5) * 64.0), 0.0, 63.0);
+
+            for (int slot = 0; slot < 4; slot++) {
+              vec2 sTexUV = vec2((cx * 4.0 + float(slot) + 0.5) / 512.0, (cy + 0.5) / 64.0);
+              vec4 stData = texture2D(uStarGridTex, sTexUV);
+              if (stData.w > 0.0) {
+                vec3 stEq = normalize(stData.xyz);
+                float theta = length(eqDir - stEq); // Exact chord angle (rad)
+                if (theta < 0.0185) {
+                  float magCode = floor(stData.w);
+                  float vmag = magCode * 0.01 - 2.0;
+                  float bv = fract(stData.w) * 2.6 - 0.4;
+                  vec3 starRGB = evalPlanckStellarColor(bv);
+
+                  // Smooth C^2 radial zero-taper window eliminating any outer halo boundary ring!
+                  float radialWindow = pow(clamp(1.0 - theta / 0.0185, 0.0, 1.0), 3.0);
+
+                  // Calibrated Linear-HDR Pogson prominence so 1st..3rd magnitude constellation patterns stand out unmistakably!
+                  float rawFlux = pow(2.12, 2.85 - vmag);
+                  float coreFlux = (0.42 * rawFlux) / (1.0 + 0.085 * rawFlux);
+                  float haloFlux = (0.15 * rawFlux) / (1.0 + 0.28 * rawFlux);
+
+                  // Altitude-dependent Kolmogorov atmospheric scintillation (stronger near horizon, calm at zenith)
+                  float starSeed = fract(magCode * 0.173 + stEq.x * 13.7 + stEq.y * 29.1);
+                  float lowAltScint = mix(0.30, 0.06, smoothstep(0.05, 0.55, h));
+                  float twinkle = 1.0 + lowAltScint * sin(uTime * (3.6 + starSeed * 4.2) + starSeed * 62.8)
+                                      * cos(uTime * (2.1 + starSeed * 2.9) - starSeed * 19.4);
+
+                  // Crisp jewel-like anti-aliased Airy pinpoint core + tight colored B-V aureole (NEVER giant bubbles!)
+                  float magProm = clamp((3.9 - vmag) / 5.2, 0.0, 1.0);
+                  float coreRad = max(skyPxRad * mix(0.95, 1.65, magProm), mix(0.00105, 0.00220, magProm));
+                  float airyCore = exp(-pow(theta / coreRad, 2.0));
+                  float innerAureole = exp(-theta / max(coreRad * 2.25, 0.0026)) * 0.48;
+                  float tightCiliary = exp(-theta * 260.0) * 0.14 * smoothstep(2.6, -0.8, vmag);
+
+                  // Delicate 1-px 4-point human-eye crystalline-lens suture glint on 1st/2nd magnitude showpiece stars!
+                  float glintSpikes = 0.0;
+                  if (vmag < 1.95 && theta < 0.0155) {
+                    vec3 stWorld = normalize(stEq * uWorldToEqMat);
+                    vec3 stRight = normalize(cross(vec3(0.0, 1.0, 0.0), stWorld) + vec3(1e-5, 0.0, 0.0));
+                    vec3 stUp = cross(stWorld, stRight);
+                    vec2 dLocal = vec2(dot(dir - stWorld, stRight), dot(dir - stWorld, stUp));
+                    float spikeW = max(skyPxRad * 0.72, 0.00055);
+                    float spikeH = exp(-abs(dLocal.y) / spikeW) * exp(-abs(dLocal.x) * 240.0);
+                    float spikeV = exp(-abs(dLocal.x) / spikeW) * exp(-abs(dLocal.y) * 240.0);
+                    glintSpikes = (spikeH + spikeV) * 0.55 * smoothstep(1.95, -0.9, vmag);
+                  }
+
+                  vec3 coreCol = mix(starRGB, vec3(1.0), 0.38 * airyCore);
+                  vec3 sContrib = (coreCol * airyCore * coreFlux + starRGB * (innerAureole + tightCiliary + glintSpikes) * haloFlux)
+                                * radialWindow * twinkle * darkSkyVis;
+                  hdrCosmos += sContrib;
+                }
+              }
+            }
+
+            // 2D. Occasional Subtle Tropical Island Shooting Star / Meteor ("Bintang Jatuh" every ~13s in clear dark skies)
+            if (h > 0.16 && overcast < 0.42) {
+              float mCycle = floor(uTime / 13.0);
+              float mPhase = fract(uTime / 13.0);
+              if (mPhase < 0.055) {
+                float pNorm = mPhase / 0.055; // 0..1 over ~0.71s streak
+                float mAz = hash21(vec2(mCycle, 3.7)) * 6.2831853;
+                float mEl = 0.34 + 0.36 * hash21(vec2(mCycle, 9.1));
+                vec3 mStart = normalize(vec3(cos(mAz) * cos(mEl), sin(mEl), sin(mAz) * cos(mEl)));
+                vec3 mVel = normalize(vec3(-sin(mAz) * 0.72, -0.52, cos(mAz) * 0.45));
+                vec3 mHead = normalize(mStart + mVel * (pNorm * 0.22));
+                vec3 mTail = normalize(mStart + mVel * (max(0.0, pNorm - 0.34) * 0.22));
+                vec3 seg = mHead - mTail;
+                float segLen2 = max(1e-6, dot(seg, seg));
+                float tProj = clamp(dot(dir - mTail, seg) / segLen2, 0.0, 1.0);
+                float dSeg = length((mTail + seg * tProj) - dir);
+                float meteor = exp(-dSeg * 1250.0) * tProj * sin(pNorm * 3.14159265) * darkSkyVis;
+                hdrCosmos += vec3(0.75, 0.88, 1.0) * meteor * 0.85;
+              }
+            }
+          }
+
+          // 3. CONTINUOUS DUAL-BODY CELESTIAL PROJECTION: SOLAR PHOTOSPHERE & REAL-TIME SELENOGRAPHIC MOON!
+          //    Spatial clouds occlude both discs via cloudTrans; discVis only attenuates during heavy rain/storm sheets.
+          float discVis = clamp(1.0 - uRainIntensity * 0.90 - uStormFactor * 0.65, 0.0, 1.0);
           float sunAboveHor = smoothstep(-0.045, 0.045, trueSunDir.y);
           float sunVis = discVis * sunAboveHor;
           float sunDiscRadius = 0.024;
@@ -650,7 +954,7 @@ export class WeatherOpticsEngine {
             skyCol = mix(skyCol, sunBodyCol * (0.72 + 0.38 * zSphere), sunVis);
           }
 
-          // Henyey-Greenstein (g = 0.76) Physical Anisotropic Mie Solar Aureole (fades smoothly as sun sets)
+          // Henyey-Greenstein (g = 0.76) Physical Anisotropic Mie Solar Aureole
           float solarHaloVis = smoothstep(-0.14, 0.06, trueSunDir.y);
           float sunHalo = pow(max(cosSun, 0.0), 32.0) * (1.0 - overcast * 0.88) * solarHaloVis;
           float gMie = 0.76;
@@ -659,63 +963,98 @@ export class WeatherOpticsEngine {
           vec3 solarMieTint = mix(vec3(0.52, 0.42, 0.26), vec3(0.96, 0.48, 0.18), uDuskFactor);
           skyCol += (sunHalo + mieAureole) * solarMieTint;
 
-          // Independent Lunar Sphere Disc + Gentle Cool Lunar Halo
-          vec3 moonDir = normalize(uMoonDir);
-          float cosMoon = dot(dir, moonDir);
-          float moonVis = smoothstep(0.42, 0.86, uNightFactor) * smoothstep(-0.03, 0.05, moonDir.y) * discVis;
-          float moonDiscRadius = 0.020;
+          // Real-Time Selenographic Moon Disc (Evaluated in True Linear-HDR so Lunar Maria & Phase Terminator stay razor-sharp!)
+          float moonAboveHor = smoothstep(-0.020, 0.040, moonDir.y);
+          float moonDayGain = mix(0.32, 1.0, smoothstep(-0.05, 0.70, uNightFactor + uDuskFactor * 0.55));
+          float moonVis = moonDayGain * moonAboveHor * discVis;
+          float moonDiscRadius = 0.0215;
           float sinMoon = sqrt(max(0.0, 1.0 - cosMoon * cosMoon));
           float rNormMoon = sinMoon / moonDiscRadius;
-          if (cosMoon > 0.0 && rNormMoon < 1.0 && moonVis > 0.005) {
-            float zMoon = sqrt(max(0.0, 1.0 - rNormMoon * rNormMoon));
-            vec3 moonBodyCol = vec3(0.84, 0.90, 1.0);
-            skyCol = mix(skyCol, moonBodyCol * (0.72 + 0.38 * zMoon), moonVis);
-          }
-          float moonHalo = pow(max(cosMoon, 0.0), 28.0) * (1.0 - overcast * 0.86) * smoothstep(0.38, 0.86, uNightFactor) * smoothstep(-0.06, 0.06, moonDir.y);
-          float hgMoon = (1.0 - gMie * gMie) / (4.0 * 3.14159265 * pow(max(0.04, 1.0 + gMie * gMie - 2.0 * gMie * max(cosMoon, -0.5)), 1.5));
-          float moonAureole = clamp(hgMoon * 0.10, 0.0, 0.48) * (1.0 - overcast * 0.82) * smoothstep(0.38, 0.86, uNightFactor) * smoothstep(-0.06, 0.06, moonDir.y);
-          vec3 lunarMieTint = vec3(0.10, 0.15, 0.25);
-          skyCol += (moonHalo + moonAureole) * lunarMieTint;
+          vec3 hdrMoonBody = vec3(0.0);
+          float moonOccultMask = 0.0;
 
-          // Hukum Emas 14: Radial Euclidean SDF Starfield inside Spherical Grid Cells
-          float starVis = uNightFactor * clamp(1.0 - uCloudCover * 1.15 - uRainIntensity, 0.0, 1.0);
-          if (starVis > 0.02 && dir.y > 0.02) {
-            vec2 starUV = vec2(atan(dir.z, dir.x), asin(dir.y)) * 58.0;
-            vec2 cellId = floor(starUV);
-            vec2 cellUv = fract(starUV) - 0.5;
-            float rnd = hash21(cellId);
-            if (rnd > 0.82) {
-              vec2 offset = vec2(hash21(cellId + 7.3), hash21(cellId + 19.1)) - 0.5;
-              float dStar = length(cellUv - offset * 0.55);
-              float starRadius = mix(0.035, 0.085, fract(rnd * 31.7));
-              float twinkle = 0.75 + 0.25 * sin(uTime * 2.4 + rnd * 40.0);
-              float starMask = smoothstep(starRadius, 0.0, dStar) * starVis;
-              skyCol += vec3(0.88, 0.93, 1.0) * starMask * twinkle * smoothstep(0.02, 0.24, dir.y);
-            }
+          if (cosMoon > 0.0 && rNormMoon < 1.0 && moonAboveHor > 0.005) {
+            // Tidally-locked Earth-facing selenographic frame aligned with J2000 Celestial North!
+            // As the Moon rises in the East and sets in the West over Depok (-6.37° S), the familiar
+            // nearside Lunar Maria rotate naturally with Southern-Hemisphere parallactic angle.
+            vec3 celNorthWorld = normalize(vec3(0.0, 0.0, 1.0) * uWorldToEqMat);
+            vec3 moonNorthProj = celNorthWorld - moonDir * dot(celNorthWorld, moonDir);
+            vec3 mUpFallback = abs(moonDir.y) < 0.94 ? vec3(0.0, 1.0, 0.0) : vec3(0.0, 0.0, 1.0);
+            vec3 moonNorthUp = length(moonNorthProj) > 1e-4 ? normalize(moonNorthProj) : normalize(mUpFallback - moonDir * dot(mUpFallback, moonDir));
+            vec3 moonSelRight = normalize(cross(moonDir, moonNorthUp));
+
+            vec2 sDisk = vec2(dot(dir, moonSelRight), dot(dir, moonNorthUp)) / moonDiscRadius;
+            float zMoon = sqrt(max(0.0, 1.0 - dot(sDisk, sDisk)));
+
+            // Outward 3D Lunar Sphere Normal in Depok World Space (sub-Earth center is -moonDir!)
+            vec3 moonSurfWorldN = normalize(sDisk.x * moonSelRight + sDisk.y * moonNorthUp - zMoon * moonDir);
+            vec3 sunFromMoon = normalize(uMoonPhaseSunDir);
+
+            vec2 lunarSurf = evalLunarMariaSurface(sDisk, zMoon);
+            float mariaAlbedo = lunarSurf.x;
+            float craterRelief = (lunarSurf.y - 0.5) * 0.12;
+
+            // Exact 3D Real-Time Lunar Phase Terminator with Micro-Crater Relief & Lommel-Seeliger Regolith Reflectance!
+            float ndotl = dot(moonSurfWorldN, sunFromMoon);
+            float terminator = smoothstep(-0.032, 0.055, ndotl + craterRelief);
+            float mu0 = max(0.0, ndotl + craterRelief * 0.45);
+            float mu = max(0.08, zMoon);
+            float lommelSeeliger = (mu0 / (mu0 + mu + 0.06)) * 1.56;
+            float limbSoft = smoothstep(1.0, 0.960, rNormMoon);
+
+            // Solid lunar body occults background stars even across the dark unlit limb!
+            moonOccultMask = limbSoft * moonAboveHor;
+
+            // Calibrated Linear-HDR regolith (Dark Basalt Maria ~ 118/255 sRGB, Bright Highlands ~ 232/255 sRGB!)
+            vec3 sunlitRegolithLin = vec3(0.76, 0.73, 0.65) * mariaAlbedo * lommelSeeliger * terminator;
+            vec3 earthshineLin = vec3(0.0058, 0.0086, 0.0145) * (0.32 + 0.68 * mariaAlbedo)
+                               * (1.0 - terminator * 0.88) * (0.55 + 0.45 * zMoon) * uNightFactor;
+            hdrMoonBody = (sunlitRegolithLin + earthshineLin) * limbSoft * moonVis;
           }
 
-          // 2-Layer Parallax Volumetric Cumulonimbus & Tropical Clouds with Beer-Lambert Self-Shadowing
+          // Tight, crisp atmospheric lunar corona right around the Moon limb (ZERO wide blurry cotton-ball halo!)
+          float moonHaloStrength = uMoonIllumFraction * smoothstep(0.12, 0.82, uNightFactor) * moonAboveHor * discVis;
+          float moonTightCorona = (pow(max(cosMoon, 0.0), 540.0) * 0.13 + pow(max(cosMoon, 0.0), 68.0) * 0.018)
+                                * (1.0 - overcast * 0.85) * moonHaloStrength;
+
+          // 4. 3-LAYER FULL-FEATURE VOLUMETRIC CLOUDS (HIGH ICE CIRRUS + CUMULUS + CUMULONIMBUS)
+          //    Clouds physically occlude stars, Milky Way, and Moon behind them!
           float cloudDensityTotal = 0.0;
+          float cloudCoverMask = 0.0;
           if (dir.y > 0.01) {
             vec2 windAdv = uWindPhase * 0.011;
+            // Layer 0: High-Altitude Fibrous Tropical Ice Cirrus (8-11 km, glowing coral-gold deep into twilight!)
+            vec2 projCirrus = (dir.xz / (dir.y + 0.34)) * 0.78 + windAdv * 0.28;
+            float cirrusStreak = fbmGal4(vec2(projCirrus.x * 2.6 + projCirrus.y * 0.8, projCirrus.y * 0.65));
+            float cirrusFine = noise2(vec2(projCirrus.x * 11.0 + cirrusStreak * 2.4, projCirrus.y * 3.2));
+            float dCirrus = smoothstep(0.56, 0.86, cirrusStreak) * (0.55 + 0.45 * cirrusFine) * (1.0 - uStormFactor * 0.65);
+
             vec2 projHigh = (dir.xz / (dir.y + 0.26)) * 1.15 + windAdv * 0.55;
             vec2 projLow = (dir.xz / (dir.y + 0.16)) * 1.85 + windAdv * 1.35 + vec2(5.7, -3.4);
 
             float fHigh = fbmCloud6(projHigh);
             float fLow = fbmCloud6(projLow);
 
-            float thresh = mix(0.56, 0.20, clamp(uCloudCover, 0.0, 1.0));
+            // Tropical clear nights naturally dissipate daytime convective cumulus, opening wide starry island skies!
+            float dryNightClearBias = 0.085 * uNightFactor * (1.0 - clamp(uRainIntensity * 2.5 + uStormFactor, 0.0, 1.0));
+            float thresh = mix(0.58, 0.20, clamp(uCloudCover, 0.0, 1.0)) + dryNightClearBias;
             float dHigh = smoothstep(thresh, thresh + 0.36, fHigh);
             float dLow = smoothstep(thresh - 0.04, thresh + 0.30, fLow) * (0.45 + 0.55 * uCloudCover);
-            cloudDensityTotal = clamp(dHigh * 0.58 + dLow * 0.78, 0.0, 1.0);
+            cloudDensityTotal = clamp(dCirrus * 0.22 + dHigh * 0.58 + dLow * 0.78, 0.0, 1.0);
+
+            // High cirrus catches upper-stratosphere sunset light slightly longer than low cumulus
+            vec3 cirrusDay = mix(vec3(0.96, 0.98, 1.0), vec3(1.0, 0.54, 0.30), clamp(uDuskFactor * 1.25, 0.0, 1.0));
+            vec3 cirrusNight = vec3(0.026, 0.038, 0.066) * (0.30 + 0.70 * lunarSkyScatter);
+            float horizonFade = smoothstep(0.005, 0.16, dir.y);
+            skyCol = mix(skyCol, mix(cirrusDay, cirrusNight, uNightFactor), dCirrus * 0.28 * horizonFade * (1.0 - dLow));
 
             // Directional Beer-Lambert optical thickness toward sun/moon
-            vec2 sunStep = normalize(celestialDir.xz + vec2(1e-4)) * 0.14;
+            vec2 sunStep = normalize(celestialDir.xz + vec2(1e-4, 0.0)) * 0.14;
             float fShadow = fbmCloud6(projLow + sunStep);
             float selfLit = clamp(1.0 - max(0.0, fShadow - fLow) * 3.4 - dLow * (0.35 + 0.42 * uStormFactor), 0.08, 1.0);
             float forwardScatter = pow(max(cosTheta, 0.0), 8.0) * 0.35 * (1.0 - dLow * 0.7);
             // Silver-lining cloud-edge diffraction rim toward sun/moon!
-            float silverEdge = pow(max(cosTheta, 0.0), 14.0) * smoothstep(0.05, 0.38, cloudDensityTotal) * exp(-cloudDensityTotal * 2.1) * 0.75;
+            float silverEdge = pow(max(cosTheta, 0.0), 16.0) * smoothstep(0.05, 0.38, cloudDensityTotal) * exp(-cloudDensityTotal * 2.2) * 0.65;
 
             vec3 litCloudDay = mix(vec3(0.97, 0.98, 1.0), vec3(0.98, 0.58, 0.34), uDuskFactor);
             vec3 darkBaseDay = mix(vec3(0.46, 0.51, 0.58), vec3(0.11, 0.14, 0.19), clamp(uRainIntensity * 0.65 + uStormFactor * 0.55, 0.0, 1.0));
@@ -723,11 +1062,14 @@ export class WeatherOpticsEngine {
 
             vec3 scatterTint = mix(vec3(1.0, 0.94, 0.80), vec3(1.0, 0.62, 0.30), uDuskFactor);
             vec3 cloudColDay = mix(darkBaseDay, litCloudDay, selfLit) + scatterTint * (forwardScatter + silverEdge);
-            vec3 cloudColNight = mix(vec3(0.025, 0.034, 0.055), vec3(0.09, 0.12, 0.19), selfLit) + vec3(0.24, 0.32, 0.46) * silverEdge * 0.4;
+            float moonCloudLit = 0.20 + 0.80 * lunarSkyScatter;
+            vec3 cloudColNight = mix(vec3(0.010, 0.015, 0.027), vec3(0.068, 0.096, 0.155) * moonCloudLit, selfLit)
+                               + vec3(0.20, 0.28, 0.42) * silverEdge * 0.48 * moonCloudLit;
             vec3 cloudCol = mix(cloudColDay, cloudColNight, uNightFactor);
 
-            float horizonFade = smoothstep(0.005, 0.16, dir.y);
-            skyCol = mix(skyCol, cloudCol, cloudDensityTotal * horizonFade * (0.65 + 0.33 * uCloudCover));
+            float mainCloudDens = clamp(dHigh * 0.58 + dLow * 0.78, 0.0, 1.0);
+            cloudCoverMask = clamp(mainCloudDens * horizonFade * (0.68 + 0.30 * uCloudCover), 0.0, 0.985);
+            skyCol = mix(skyCol, cloudCol, cloudCoverMask);
 
             // Crepuscular Atmospheric Sunburst Shafts (Sky God-Rays streaming past broken clouds!)
             if (cosSun > 0.15 && solarHaloVis > 0.01 && uRainIntensity < 0.75) {
@@ -747,24 +1089,21 @@ export class WeatherOpticsEngine {
             float shaftStreaks = noise2(vec2(az * 34.0 + dir.y * 4.5, uTime * 2.2));
             float virgaMask = smoothstep(0.36, 0.82, shaftNoise) * (0.65 + 0.35 * shaftStreaks);
             virgaMask *= smoothstep(0.32, 0.08, dir.y) * smoothstep(-0.02, 0.04, dir.y);
-            vec3 virgaCol = mix(vec3(0.46, 0.52, 0.58), vec3(0.08, 0.11, 0.16), uNightFactor);
+            vec3 virgaCol = mix(vec3(0.46, 0.52, 0.58), vec3(0.06, 0.09, 0.14), uNightFactor);
             skyCol = mix(skyCol, virgaCol, virgaMask * min(1.0, uRainIntensity) * 0.42);
           }
 
           // Procedural Multi-Branch Forked Plasma Lightning + In-Cloud Volumetric Scattering
           if (uLightningFlash > 0.008 && dir.y > 0.0) {
             vec3 lDir = normalize(uLightningDir);
-            float angCos = dot(normalize(vec3(dir.x, 0.0, dir.z)), normalize(vec3(lDir.x, 0.0, lDir.z)));
+            float angCos = dot(normalize(vec3(dir.x, 0.0, dir.z) + vec3(1e-5, 0.0, 0.0)), normalize(vec3(lDir.x, 0.0, lDir.z) + vec3(1e-5, 0.0, 0.0)));
             float azDiff = acos(clamp(angCos, -1.0, 1.0));
-            // Sign of azimuthal offset around lightning bearing
             float crossSign = sign(dir.x * lDir.z - dir.z * lDir.x);
             float signedAz = azDiff * crossSign;
 
-            // 1. Volumetric in-cloud scattering glow illuminating storm clouds from inside
             float cloudScatter = exp(-azDiff * 2.6) * exp(-abs(dir.y - 0.34) * 3.2);
             skyCol += vec3(0.54, 0.68, 1.0) * cloudScatter * (0.45 + 0.75 * cloudDensityTotal) * uLightningFlash * 1.45;
 
-            // 2. Jagged Main Plasma Return-Stroke Channel (seed locked per discharge -> zero mid-flash jump!)
             float seedT = uLightningSeed;
             if (azDiff < 0.42 && dir.y < 0.56) {
               float jagMain = fbmBolt4(vec2(dir.y * 13.5, seedT * 7.13)) * 0.13
@@ -776,7 +1115,6 @@ export class WeatherOpticsEngine {
               float core = exp(-dMain * 340.0) * topMask;
               float corona = exp(-dMain * 38.0) * topMask * 0.55;
 
-              // Fork Branch A splitting off at y = 0.36
               float b1Y = clamp(0.36 - dir.y, 0.0, 0.32);
               float jagB1 = fbmBolt4(vec2(dir.y * 22.0 + 4.2, seedT * 5.3)) * 0.06;
               float dB1 = abs(signedAz - (mainX + b1Y * 0.52 + jagB1));
@@ -784,7 +1122,6 @@ export class WeatherOpticsEngine {
               core += exp(-dB1 * 420.0) * mB1 * 0.72;
               corona += exp(-dB1 * 48.0) * mB1 * 0.32;
 
-              // Fork Branch B splitting off opposite side at y = 0.25
               float b2Y = clamp(0.25 - dir.y, 0.0, 0.22);
               float jagB2 = fbmBolt4(vec2(dir.y * 26.0 - 8.1, seedT * 9.7)) * 0.05;
               float dB2 = abs(signedAz - (mainX - b2Y * 0.46 + jagB2));
@@ -797,26 +1134,27 @@ export class WeatherOpticsEngine {
           }
 
           // Convert base sky & cloud scattering into True Scene-Referred Linear-HDR Radiance,
-          // then boost physical HDR emitters (Sun/Moon photosphere, Mie aureole, silver-lining, & plasma lightning!)
-          vec3 hdrSky = nexusSRGBToLinear(max(skyCol, vec3(0.0))) * mix(1.16, 0.72, uNightFactor);
+          // then composite Linear-HDR Cosmos (Milky Way + 208 J2000 Constellations), Moon, & Sun occluded by clouds!
+          float cloudTrans = 1.0 - cloudCoverMask;
+          vec3 hdrSky = nexusSRGBToLinear(max(skyCol, vec3(0.0))) * mix(1.16, 0.76, uNightFactor);
+
+          // Linear-HDR Cosmos (occulted by solid Moon sphere and foreground clouds!)
+          hdrSky += hdrCosmos * (1.0 - moonOccultMask) * (cloudTrans * cloudTrans);
 
           if (cosSun > 0.0 && rNormSun < 1.0 && sunVis > 0.005) {
             float zSphS = sqrt(max(0.0, 1.0 - rNormSun * rNormSun));
             vec3 hdrSunBody = mix(vec3(3.4, 3.0, 2.3), vec3(3.1, 1.55, 0.68), uDuskFactor);
-            hdrSky += hdrSunBody * (0.45 + 0.95 * zSphS) * sunVis;
+            hdrSky += hdrSunBody * (0.45 + 0.95 * zSphS) * sunVis * cloudTrans;
           }
-          hdrSky += nexusSRGBToLinear(max(solarMieTint, vec3(0.0))) * (sunHalo * 1.45 + mieAureole * 0.85);
+          hdrSky += nexusSRGBToLinear(max(solarMieTint, vec3(0.0))) * (sunHalo * 1.45 + mieAureole * 0.85) * (0.25 + 0.75 * cloudTrans);
 
-          if (cosMoon > 0.0 && rNormMoon < 1.0 && moonVis > 0.005) {
-            float zSphM = sqrt(max(0.0, 1.0 - rNormMoon * rNormMoon));
-            vec3 hdrMoonBody = vec3(1.15, 1.30, 1.65);
-            hdrSky += hdrMoonBody * (0.45 + 0.95 * zSphM) * moonVis;
-          }
-          hdrSky += nexusSRGBToLinear(max(lunarMieTint, vec3(0.0))) * (moonHalo * 1.25 + moonAureole * 0.75);
+          // Linear-HDR Selenographic Moon & Tight Corona (occluded behind foreground clouds, crisp Maria in clear sky!)
+          hdrSky += hdrMoonBody * cloudTrans;
+          hdrSky += vec3(0.55, 0.68, 0.92) * moonTightCorona * (1.0 - moonOccultMask * 0.65) * (0.25 + 0.75 * cloudTrans);
 
           if (uLightningFlash > 0.008 && dir.y > 0.0) {
             vec3 lDirH = normalize(uLightningDir);
-            float angCosH = dot(normalize(vec3(dir.x, 0.0, dir.z)), normalize(vec3(lDirH.x, 0.0, lDirH.z)));
+            float angCosH = dot(normalize(vec3(dir.x, 0.0, dir.z) + vec3(1e-5, 0.0, 0.0)), normalize(vec3(lDirH.x, 0.0, lDirH.z) + vec3(1e-5, 0.0, 0.0)));
             float azDiffH = acos(clamp(angCosH, -1.0, 1.0));
             float boltBoost = exp(-azDiffH * 3.2) * exp(-abs(dir.y - 0.30) * 2.8);
             hdrSky += vec3(0.75, 0.95, 1.55) * boltBoost * uLightningFlash * 1.35;
@@ -988,13 +1326,16 @@ export class WeatherOpticsEngine {
         ${WeatherOpticsEngine._getArchipelagoSdfGLSL()}
 
         float decodeCollisionHeight(vec2 xz) {
+          float hOut = 0.0;
           vec2 cuv = (xz + uCollisionHalfExtent) / (uCollisionHalfExtent * 2.0);
           if (cuv.x < 0.001 || cuv.x > 0.999 || cuv.y < 0.001 || cuv.y > 0.999) {
             float dCoast = evalArchipelagoCoastRaw(xz);
-            return evalArchipelagoAnalyticalHeight(xz, dCoast);
+            hOut = evalArchipelagoAnalyticalHeight(xz, dCoast);
+          } else {
+            vec4 cTex = texture2D(uCollisionMap, cuv);
+            hOut = -6.0 + ((cTex.r * 255.0 * 256.0 + cTex.g * 255.0) / 65535.0) * 60.0;
           }
-          vec4 cTex = texture2D(uCollisionMap, cuv);
-          return -6.0 + ((cTex.r * 255.0 * 256.0 + cTex.g * 255.0) / 65535.0) * 60.0;
+          return hOut;
         }
 
         void main() {
@@ -3078,9 +3419,44 @@ export class WeatherOpticsEngine {
         remainingSec: this._timeTrans.active
           ? Math.max(0.0, this._timeTrans.duration - this._timeTrans.elapsed)
           : 0.0,
-        solarHour: this.currentSolarHour
+        solarHour: this.currentSolarHour,
+        continuousSolarHour: this.continuousSolarHour
       },
-      nightIlluminationLevel: this.nightIlluminationLevel
+      nightIlluminationLevel: this.nightIlluminationLevel,
+      streetlampSensorLevel: this.streetlampSensorLevel
+    };
+  }
+
+  /**
+   * Updates the reference calendar date for real-time Depok lunar ephemeris & sidereal sky.
+   */
+  setReferenceAstronomyDate(refDate = new Date(), sharedSurfaceUniforms = null) {
+    this._baseJD0WIB = computeBaseJD0WIB(refDate);
+    this._applyContinuousCelestialAndFog(sharedSurfaceUniforms);
+    return this.getAstronomicalState();
+  }
+
+  /**
+   * Returns live Jean Meeus lunar phase, LST, Bortle sky class, & photocell streetlamp telemetry.
+   */
+  getAstronomicalState() {
+    if (!this._astroState) {
+      this._astroState = evaluateDepokAstronomy(
+        this._baseJD0WIB,
+        this.continuousSolarHour,
+        this.uniforms.uWorldToEqMat.value,
+        this.uniforms.uMoonDir.value,
+        this.uniforms.uMoonPhaseSunDir.value
+      );
+    }
+    return {
+      ...this._astroState,
+      moonIlluminatedFraction: this._astroState.illuminatedFraction,
+      moonPhaseLabelId: this._astroState.phaseNameId,
+      illuminatedPercent: +(this._astroState.illuminatedFraction * 100.0).toFixed(1),
+      bortleClass: '1–2',
+      streetlampSensorLevel: +this.streetlampSensorLevel.toFixed(4),
+      continuousSolarHour: +this.continuousSolarHour.toFixed(4)
     };
   }
 
@@ -3107,7 +3483,7 @@ export class WeatherOpticsEngine {
   }
 
   static _todModeToSolarHour(mode) {
-    if (mode === 'NIGHT') return 21.5;
+    if (mode === 'NIGHT') return 22.25;
     if (mode === 'DUSK') return 17.85;
     return 10.35; // DAY
   }
@@ -3149,12 +3525,24 @@ export class WeatherOpticsEngine {
     const sz = 0.45;
     const sLen = Math.hypot(sx, sy, sz) || 1.0;
 
-    const moonPhase = ((h - 18.0) / 12.0) * Math.PI;
-    const mx = -0.42 * Math.cos(moonPhase * 0.65);
-    const my = 0.56 + 0.16 * Math.sin(Math.max(0.0, moonPhase));
-    const mz = -0.52;
+    // v3.7 Real-Time Jean Meeus Depok Lunar Ephemeris & Unwrapped Sidereal Sky Matrix (0.000° midnight jump!)
+    const astro = evaluateDepokAstronomy(
+      this._baseJD0WIB,
+      this.continuousSolarHour,
+      this.uniforms.uWorldToEqMat.value,
+      this.uniforms.uMoonDir.value,
+      this.uniforms.uMoonPhaseSunDir.value
+    );
+    this._astroState = astro;
+    this.uniforms.uMoonIllumFraction.value = astro.illuminatedFraction;
+
+    // Smooth shadow-map lunar director (tracks real Moon azimuth while keeping shadow frustum elevation >= 0.42)
+    const realM = this.uniforms.uMoonDir.value;
+    const moonAbove = WeatherOpticsEngine._smoothstep(-0.08, 0.28, realM.y);
+    const mx = realM.x * (0.45 + 0.55 * moonAbove);
+    const my = 0.54 + 0.30 * Math.max(0.0, realM.y);
+    const mz = realM.z * (0.45 + 0.55 * moonAbove) - 0.25 * (1.0 - moonAbove);
     const mLen = Math.hypot(mx, my, mz) || 1.0;
-    this.uniforms.uMoonDir.value.set(mx / mLen, my / mLen, mz / mLen).normalize();
 
     // v3.6 Zero-Intensity Twilight Shadow Handoff (driven smoothly by continuous sunElev):
     // Solar directional light glides gradually over late afternoon/sunset (sunElev: +0.34 -> -0.13)
@@ -3163,7 +3551,8 @@ export class WeatherOpticsEngine {
     // repositions from western sunset to moon -> ZERO shadow-map jump & ZERO sunset plunge!
     const solarFade = WeatherOpticsEngine._smoothstep(-0.13, 0.34, sunElev);
     const moonBlend = 1.0 - WeatherOpticsEngine._smoothstep(-0.21, -0.13, sunElev);
-    const lunarFade = 1.0 - WeatherOpticsEngine._smoothstep(-0.46, -0.21, sunElev);
+    const lunarPhaseGain = 0.38 + 0.62 * astro.illuminatedFraction * moonAbove;
+    const lunarFade = (1.0 - WeatherOpticsEngine._smoothstep(-0.46, -0.21, sunElev)) * lunarPhaseGain;
 
     const dirX = (sx / sLen) * (1.0 - moonBlend) + (mx / mLen) * moonBlend;
     const dirY = (sy / sLen) * (1.0 - moonBlend) + (my / mLen) * moonBlend;
@@ -3231,6 +3620,17 @@ export class WeatherOpticsEngine {
     // Continuous C1-Smooth Architectural & Helipad Night Illumination Level (strictly 0.0 at DAY, zero threshold jump!)
     this.nightIlluminationLevel = 1.0 - WeatherOpticsEngine._smoothstep(-0.26, 0.14, sunElev);
 
+    // Physical NEMA Ambient-Lux Streetlamp Photocell Sensor:
+    // - Strictly 0.0000 in clear/misty daytime (uStreetlampPower === 0.000 -> zero daytime emissive!)
+    // - Ignites smoothly during golden-hour dusk/dawn twilight AND during heavy dark storm clouds!
+    const daySunLux = WeatherOpticsEngine._smoothstep(-0.24, 0.24, sunElev);
+    const stormSkyDarkening =
+      WeatherOpticsEngine._smoothstep(0.68, 0.96, cloudNow) *
+      WeatherOpticsEngine._smoothstep(0.55, 1.15, rainNow + stormNow * 0.65);
+    const ambientLuxNorm = daySunLux * (1.0 - 0.94 * stormSkyDarkening);
+    this.streetlampSensorLevel = 1.0 - ambientLuxNorm;
+    this.uniforms.uStreetlampPower.value = this.streetlampSensorLevel;
+
     // Shadow-casting sunLight ALWAYS stays on its continuous celestial position (never freezes or teleports!)
     this.sunLight.position.copy(this._baseSunPos);
     this.sunLight.color.copy(this._baseSunColor);
@@ -3244,6 +3644,9 @@ export class WeatherOpticsEngine {
       this._lastSharedSurfaceUniforms = sharedSurfaceUniforms;
       if (sharedSurfaceUniforms.uIsNight) {
         sharedSurfaceUniforms.uIsNight.value = this.nightIlluminationLevel;
+      }
+      if (sharedSurfaceUniforms.uStreetlampPower) {
+        sharedSurfaceUniforms.uStreetlampPower.value = this.streetlampSensorLevel;
       }
       if (sharedSurfaceUniforms.uNightFactor) {
         sharedSurfaceUniforms.uNightFactor.value = nightF;
@@ -3317,7 +3720,20 @@ export class WeatherOpticsEngine {
     const prevTod = this.timeOfDay;
     this.timeOfDay = nextTod;
 
+    const startH = ((this.continuousSolarHour % 24.0) + 24.0) % 24.0;
+    let delta = ((normTarget - startH + 36.0) % 24.0) - 12.0;
+    // Natural forward dawn sunrise sweep when transitioning from NIGHT to DAY!
+    if (prevTod === 'NIGHT' && nextTod === 'DAY' && delta < 0.0) {
+      delta += 24.0;
+    }
+
     if (options.immediate === true) {
+      if (options.preserveAdaptation === true) {
+        this.continuousSolarHour += delta;
+      } else {
+        const dayIndex = Math.floor(this.continuousSolarHour / 24.0);
+        this.continuousSolarHour = dayIndex * 24.0 + normTarget;
+      }
       this.currentSolarHour = normTarget;
       this._timeTrans.active = false;
       this._timeTrans.fromTod = nextTod;
@@ -3340,14 +3756,8 @@ export class WeatherOpticsEngine {
       )
     );
 
-    const startH = ((this.currentSolarHour % 24.0) + 24.0) % 24.0;
-    let delta = ((normTarget - startH + 36.0) % 24.0) - 12.0;
-    // Natural forward dawn sunrise sweep when transitioning from NIGHT to DAY!
-    if (prevTod === 'NIGHT' && nextTod === 'DAY' && delta < 0.0) {
-      delta += 24.0;
-    }
-
     if (Math.abs(delta) < 0.015) {
+      this.continuousSolarHour += delta;
       this.currentSolarHour = normTarget;
       this._timeTrans.active = false;
       this._timeTrans.progress = 1.0;
@@ -3366,6 +3776,7 @@ export class WeatherOpticsEngine {
     this._timeTrans.duration = dur;
     this._timeTrans.progress = 0.0;
     this._timeTrans.startHour = startH;
+    this._timeTrans.startContinuousHour = this.continuousSolarHour;
     this._timeTrans.deltaHour = delta;
   }
 
@@ -3622,14 +4033,14 @@ export class WeatherOpticsEngine {
       }
     }
 
-    // 2. Continuous 20–45s Diurnal Solar/Lunar Arc Transition (Sun & Moon travel across Sky Dome!)
+    // 2. Continuous 20–45s Diurnal Solar/Lunar/Sidereal Arc Transition (Unwrapped -> 0.000° midnight jump!)
     if (this._timeTrans.active) {
       this._timeTrans.elapsed += transDt;
       const pT = Math.min(1.0, this._timeTrans.elapsed / Math.max(1.0, this._timeTrans.duration));
       this._timeTrans.progress = pT;
       const easeT = WeatherOpticsEngine._smootherstep(0.0, 1.0, pT);
-      this.currentSolarHour =
-        (((this._timeTrans.startHour + this._timeTrans.deltaHour * easeT) % 24.0) + 24.0) % 24.0;
+      this.continuousSolarHour = this._timeTrans.startContinuousHour + this._timeTrans.deltaHour * easeT;
+      this.currentSolarHour = ((this.continuousSolarHour % 24.0) + 24.0) % 24.0;
       if (pT >= 1.0) {
         this._timeTrans.active = false;
         this._timeTrans.fromTod = this.timeOfDay;
