@@ -1,13 +1,14 @@
 import * as THREE from 'three';
+import { PhysicsKernel } from './PhysicsKernel.js';
 
 /**
- * NEXUS Omni-Scale Procedural Engine v2.0
+ * NEXUS Omni-Scale Procedural Engine v2.0 (v4.0 — Hard 3D Solid-Body Non-Penetration Camera Solver)
  * ./core/CameraDirector.js
  *
  * Implements Hukum Emas 15 & Bagian 7 UI Ergonomics:
  * - Horizon-Locked Nadir 90° View (eps = 0.45m micro-azimuthal shift preventing 90° world roll)
  * - Non-Occluding Portrait & Desktop ViewOffset (applyNonOccludingViewportOffset)
- * - Soft Potential Cushion Collision Avoidance (resolveSoftSpatialCollision)
+ * - Strict 3D Solid-Body Non-Penetration Solver (resolveSoftSpatialCollision -> PhysicsKernel.resolveHardCameraCollision3D)
  * - Frame-rate-independent Exponential Damping 6-DOF Drone & Sivitas Pedestrian Camera Director
  */
 
@@ -86,113 +87,54 @@ export function resolveSoftSpatialCollision(
   pos,
   vel,
   colliders = [],
-  safetyRadius = 2.2,
+  safetyRadius = 0.68,
   minFloorY = 1.65,
-  dt = 0.016
+  dt = 0.016,
+  prevPos = null,
+  physicsContext = null,
+  isWalk = false
 ) {
-  let avoided = false;
-  const softBlend = Math.min(1.0, dt * 10.0);
+  void dt;
+  const ctx = physicsContext || null;
+  const staticColliders =
+    ctx && Array.isArray(ctx.staticColliders) && ctx.staticColliders.length > 0
+      ? ctx.staticColliders
+      : colliders;
+  const dynamicColliders =
+    ctx && typeof ctx.getDynamicColliders === 'function'
+      ? ctx.getDynamicColliders()
+      : ctx && Array.isArray(ctx.dynamicColliders)
+        ? ctx.dynamicColliders
+        : [];
 
-  if (pos.y < minFloorY) {
-    pos.y += (minFloorY - pos.y) * Math.max(0.35, softBlend);
-    if (vel && vel.y < 0) vel.y *= 0.2;
-    avoided = true;
+  const hit = PhysicsKernel.resolveHardCameraCollision3D(pos, prevPos, vel, {
+    staticColliders,
+    dynamicColliders,
+    radius: safetyRadius,
+    bottomOffset: isWalk ? 1.68 : safetyRadius,
+    topOffset: isWalk ? 0.24 : safetyRadius,
+    isWalk,
+    groundHeightFn: ctx?.groundHeightFn || null,
+    walkableHeightFn: ctx?.walkableHeightFn || null,
+    coastDistFn: ctx?.coastDistFn || null,
+    waterSurfaceFn: ctx?.waterSurfaceFn || null,
+    oceanWaterY: Number.isFinite(ctx?.oceanWaterY) ? ctx.oceanWaterY : -1.45,
+    underpassConfig: ctx?.underpassConfig || null,
+    bridgeSoffitFn: ctx?.bridgeSoffitFn || null,
+    bridgeDeckFn: ctx?.bridgeDeckFn || null,
+    bridgeCenterX: Number.isFinite(ctx?.bridgeCenterX) ? ctx.bridgeCenterX : -28.0,
+    bridgeHalfW: Number.isFinite(ctx?.bridgeHalfW) ? ctx.bridgeHalfW : 2.6,
+    ferryPierDeckFn: ctx?.ferryPierDeckFn || null
+  });
+
+  // Fallback floor clamp when no full world heightfield context was injected (e.g. standalone unit tests)
+  if (!ctx && Number.isFinite(minFloorY) && pos.y < minFloorY) {
+    pos.y = minFloorY;
+    if (vel && vel.y < 0.0) vel.y = 0.0;
+    return true;
   }
 
-  for (let i = 0; i < colliders.length; i++) {
-    const c = colliders[i];
-    if (pos.y + safetyRadius < c.minY || pos.y - safetyRadius > c.maxY) continue;
-
-    if (c.type === 'CYL') {
-      const dx = pos.x - c.x;
-      const dz = pos.z - c.z;
-      const distSq = dx * dx + dz * dz;
-      const minR = c.r + safetyRadius;
-      if (distSq < minR * minR) {
-        const dist = Math.sqrt(distSq) || 0.001;
-        const nx = dx / dist;
-        const nz = dz / dist;
-        pos.x += nx * (minR - dist) * softBlend;
-        pos.z += nz * (minR - dist) * softBlend;
-        if (vel) {
-          const vn = vel.x * nx + vel.z * nz;
-          if (vn < 0) {
-            vel.x -= vn * nx;
-            vel.z -= vn * nz;
-          }
-        }
-        avoided = true;
-      }
-    } else if (c.type === 'BOX') {
-      const minX = c.minX - safetyRadius;
-      const maxX = c.maxX + safetyRadius;
-      const minZ = c.minZ - safetyRadius;
-      const maxZ = c.maxZ + safetyRadius;
-      const maxY = c.maxY + safetyRadius;
-
-      if (pos.x > minX && pos.x < maxX && pos.z > minZ && pos.z < maxZ && pos.y < maxY) {
-        const dLeft = pos.x - minX;
-        const dRight = maxX - pos.x;
-        const dFront = pos.z - minZ;
-        const dBack = maxZ - pos.z;
-        const dTop = maxY - pos.y;
-        const minH = Math.min(dLeft, dRight, dFront, dBack);
-
-        if (dTop < minH && dTop < 6.0) {
-          pos.y += (maxY - pos.y) * softBlend;
-          if (vel && vel.y < 0) vel.y *= 0.25;
-        } else if (minH === dLeft) {
-          pos.x += (minX - pos.x) * softBlend;
-          if (vel && vel.x > 0) vel.x = 0;
-        } else if (minH === dRight) {
-          pos.x += (maxX - pos.x) * softBlend;
-          if (vel && vel.x < 0) vel.x = 0;
-        } else if (minH === dFront) {
-          pos.z += (minZ - pos.z) * softBlend;
-          if (vel && vel.z > 0) vel.z = 0;
-        } else {
-          pos.z += (maxZ - pos.z) * softBlend;
-          if (vel && vel.z < 0) vel.z = 0;
-        }
-        avoided = true;
-      }
-    } else if (c.type === 'ISLAND_PERIMETER' && typeof c.coastDistFn === 'function') {
-      if (typeof c.bridgeDeckFn === 'function' && c.bridgeDeckFn(pos.x, pos.z) !== null) {
-        const bx = Number.isFinite(c.bridgeCenterX) ? c.bridgeCenterX : -28.0;
-        const maxHalfW = Number.isFinite(c.bridgeWalkHalfW) ? c.bridgeWalkHalfW : 2.35;
-        const dxB = pos.x - bx;
-        if (Math.abs(dxB) > maxHalfW) {
-          const targetX = bx + Math.sign(dxB) * maxHalfW;
-          pos.x += (targetX - pos.x) * Math.max(0.45, softBlend);
-          if (vel && vel.x * dxB > 0) vel.x = 0;
-          avoided = true;
-        }
-        continue;
-      }
-      const dCoast = c.coastDistFn(pos.x, pos.z);
-      const maxInlandEdge = -(c.margin || 0.9);
-      if (dCoast > maxInlandEdge) {
-        const eps = 0.35;
-        const gx = c.coastDistFn(pos.x + eps, pos.z) - c.coastDistFn(pos.x - eps, pos.z);
-        const gz = c.coastDistFn(pos.x, pos.z + eps) - c.coastDistFn(pos.x, pos.z - eps);
-        const gLen = Math.hypot(gx, gz) || 1.0;
-        const nxIn = -gx / gLen;
-        const nzIn = -gz / gLen;
-        const pushIn = dCoast - maxInlandEdge;
-        pos.x += nxIn * pushIn * Math.max(0.45, softBlend);
-        pos.z += nzIn * pushIn * Math.max(0.45, softBlend);
-        if (vel) {
-          const vnOut = -(vel.x * nxIn + vel.z * nzIn);
-          if (vnOut > 0) {
-            vel.x += nxIn * vnOut;
-            vel.z += nzIn * vnOut;
-          }
-        }
-        avoided = true;
-      }
-    }
-  }
-  return avoided;
+  return hit;
 }
 
 /**
@@ -228,6 +170,33 @@ export class CameraDirector {
     this._forward = new THREE.Vector3();
     this._right = new THREE.Vector3();
     this._up = new THREE.Vector3(0, 1, 0);
+
+    // Hard 3D solid-world physics context & previous-frame position for continuous sweep anti-tunneling
+    this.physicsContext = null;
+    this._prevCamPos = new THREE.Vector3();
+    this._hasPrevCamPos = false;
+  }
+
+  /**
+   * Injects full solid-world physics context (staticColliders, getDynamicColliders, underpassConfig,
+   * groundHeightFn, walkableHeightFn, coastDistFn, waterSurfaceFn, bridgeDeckFn, bridgeSoffitFn, ferryPierDeckFn).
+   */
+  setWorldPhysicsContext(ctx) {
+    this.physicsContext = ctx || null;
+    if (ctx && Array.isArray(ctx.staticColliders)) {
+      this.colliders = ctx.staticColliders;
+    }
+    if (this.camera && this.camera.position) {
+      this._prevCamPos.copy(this.camera.position);
+      this._hasPrevCamPos = true;
+    }
+  }
+
+  syncPreviousCameraPosition() {
+    if (this.camera && this.camera.position) {
+      this._prevCamPos.copy(this.camera.position);
+      this._hasPrevCamPos = true;
+    }
   }
 
   get isTransitioning() {
@@ -307,6 +276,8 @@ export class CameraDirector {
         this.controls.update();
       }
       this.transitionActive = false;
+      this.syncPreviousCameraPosition();
+      this._updateAltitudeAdaptiveNearPlane();
       return;
     }
 
@@ -317,18 +288,23 @@ export class CameraDirector {
     );
 
     // Parabolic mid-flight zoom-out altitude arc: gracefully clears 50m Tajug, forest canopies, & Selat UI!
-    const maxEndpointY = Math.max(this.flightStartPos.y, this.goalPos.y);
-    const meanEndpointY = 0.5 * (this.flightStartPos.y + this.goalPos.y);
-    const desiredPeakY = Math.max(
-      maxEndpointY + Math.min(18.0, horizTargetDist * 0.10),
-      Math.min(
-        435.0,
-        Math.max(this.flightStartTarget.y, this.goalTarget.y) +
-          horizTargetDist * 0.42 +
-          posDist * 0.12
-      )
-    );
-    this.flightArcLiftY = Math.max(0.0, desiredPeakY - meanEndpointY);
+    // Suppress upward parabolic lift when flying between two subterranean underpass viewpoints (y < -2.2m).
+    if (this.flightStartPos.y < -2.2 && this.goalPos.y < -2.2) {
+      this.flightArcLiftY = 0.0;
+    } else {
+      const maxEndpointY = Math.max(this.flightStartPos.y, this.goalPos.y);
+      const meanEndpointY = 0.5 * (this.flightStartPos.y + this.goalPos.y);
+      const desiredPeakY = Math.max(
+        maxEndpointY + Math.min(18.0, horizTargetDist * 0.10),
+        Math.min(
+          435.0,
+          Math.max(this.flightStartTarget.y, this.goalTarget.y) +
+            horizTargetDist * 0.42 +
+            posDist * 0.12
+        )
+      );
+      this.flightArcLiftY = Math.max(0.0, desiredPeakY - meanEndpointY);
+    }
     this.flightElapsed = 0.0;
     this.transitionActive = true;
   }
@@ -367,6 +343,7 @@ export class CameraDirector {
       this.yaw = Math.atan2(-dir.x, -dir.z);
       this.pitch = Math.asin(Math.max(-0.95, Math.min(0.95, dir.y)));
       this.velocity.set(0, 0, 0);
+      this._droneManualEngaged = false;
     } else if (newMode === 'WALK_SIVITAS') {
       if (this.controls) this.controls.enabled = false;
       const walkPos = new THREE.Vector3(-2.5, 1.72, 74.5);
@@ -378,6 +355,7 @@ export class CameraDirector {
 
       if (options.immediate === true || this.camera.position.distanceTo(walkPos) < 3.5) {
         this.camera.position.copy(walkPos);
+        this.syncPreviousCameraPosition();
       } else {
         // Smooth Google Earth swoop down to Sivitas pedestrian eye-level instead of an instant teleport!
         this._beginGoogleEarthFlight(walkPos, walkLook, null);
@@ -401,6 +379,7 @@ export class CameraDirector {
       if (options.immediate === true) {
         this.transitionActive = false;
         setHorizonLockedNadirView(this.camera, this.controls, targetX, targetZ, heightY, topVecX, topVecZ);
+        this.syncPreviousCameraPosition();
         this._updateAltitudeAdaptiveNearPlane();
         return;
       }
@@ -432,6 +411,7 @@ export class CameraDirector {
         this.controls.update();
       }
       this.transitionActive = false;
+      this.syncPreviousCameraPosition();
       this._updateAltitudeAdaptiveNearPlane();
       return;
     }
@@ -495,23 +475,74 @@ export class CameraDirector {
   update(dt, floorHeightFn = null) {
     const clampedDt = Math.min(0.05, Math.max(0.001, dt));
     const dampAlpha = 1.0 - Math.exp(-7.5 * clampedDt); // Hukum Emas 15: frame-rate independent damping
+    if (!this._hasPrevCamPos) {
+      this._prevCamPos.copy(this.camera.position);
+      this._hasPrevCamPos = true;
+    }
+
+    const ctx = this.physicsContext;
+    if (ctx && floorHeightFn && !ctx.walkableHeightFn) {
+      ctx.walkableHeightFn = floorHeightFn;
+    }
 
     if (this.mode === 'ORBIT') {
       this.camera.up.set(0, 1, 0);
       if (this.transitionActive) {
         this._stepGoogleEarthFlight(clampedDt);
-      } else if (this.controls) {
-        this.controls.update();
+        resolveSoftSpatialCollision(
+          this.camera.position,
+          null,
+          this.colliders,
+          0.56,
+          0.56,
+          clampedDt,
+          null,
+          ctx,
+          false
+        );
+      } else {
+        if (this.controls) {
+          // Prevent OrbitControls pivot target from being dragged deep underground/underwater (outside Underpass trench)
+          if (this.controls.target && ctx) {
+            const tx = this.controls.target.x;
+            const tz = this.controls.target.z;
+            const uCfg = ctx.underpassConfig;
+            const targetInUnderpass =
+              uCfg &&
+              tz >= uCfg.zWestStart - 4.0 &&
+              tz <= uCfg.zEastEnd + 4.0 &&
+              Math.abs(tx - uCfg.ux) <= uCfg.boreHalfW + 3.0;
+            if (!targetInUnderpass) {
+              const tGround = ctx.groundHeightFn ? ctx.groundHeightFn(tx, tz) : 0.0;
+              const minTargetY = Math.max(
+                Number.isFinite(ctx.oceanWaterY) ? ctx.oceanWaterY : -1.45,
+                tGround - 0.1
+              );
+              if (this.controls.target.y < minTargetY) {
+                this.controls.target.y = minTargetY;
+              }
+            }
+          }
+          this.controls.update();
+        }
+        const rawOrbitGroundY = floorHeightFn
+          ? floorHeightFn(this.camera.position.x, this.camera.position.z)
+          : 0.0;
+        const orbitFloorY =
+          rawOrbitGroundY < -0.5 ? rawOrbitGroundY + 0.56 : Math.max(0.56, rawOrbitGroundY + 0.56);
+        resolveSoftSpatialCollision(
+          this.camera.position,
+          null,
+          this.colliders,
+          0.56,
+          orbitFloorY,
+          clampedDt,
+          this._prevCamPos,
+          ctx,
+          false
+        );
       }
-      const orbitFloorY = Math.max(
-        0.78,
-        (floorHeightFn ? floorHeightFn(this.camera.position.x, this.camera.position.z) : 0.0) + 0.78
-      );
-      if (!this.transitionActive) {
-        resolveSoftSpatialCollision(this.camera.position, null, this.colliders, 1.4, orbitFloorY, clampedDt);
-      } else if (this.camera.position.y < orbitFloorY) {
-        this.camera.position.y = orbitFloorY;
-      }
+      this._prevCamPos.copy(this.camera.position);
       this._updateAltitudeAdaptiveNearPlane();
       return;
     }
@@ -531,7 +562,18 @@ export class CameraDirector {
         this.controls.target.lerp(this.goalTarget.set(0, 18.5, 4.0), dampAlpha);
         this.controls.update();
       }
-      resolveSoftSpatialCollision(this.camera.position, null, this.colliders, 2.2, 2.5, clampedDt);
+      resolveSoftSpatialCollision(
+        this.camera.position,
+        null,
+        this.colliders,
+        1.15,
+        2.5,
+        clampedDt,
+        this._prevCamPos,
+        ctx,
+        false
+      );
+      this._prevCamPos.copy(this.camera.position);
       this._updateAltitudeAdaptiveNearPlane();
       return;
     }
@@ -551,6 +593,18 @@ export class CameraDirector {
         this.cancelTransition();
       } else {
         this._stepGoogleEarthFlight(clampedDt);
+        resolveSoftSpatialCollision(
+          this.camera.position,
+          null,
+          this.colliders,
+          0.68,
+          0.68,
+          clampedDt,
+          null,
+          ctx,
+          false
+        );
+        this._prevCamPos.copy(this.camera.position);
         this._updateAltitudeAdaptiveNearPlane();
         return;
       }
@@ -574,9 +628,15 @@ export class CameraDirector {
       if (this.keyState.has('KeyQ') || this.keyState.has('ShiftLeft')) moveU -= 1;
     }
 
-    // Auto gentle orbit cruise in DRONE_6DOF if user hasn't pressed keys yet
+    // Auto gentle orbit cruise in DRONE_6DOF only near Gedung Rektorat before manual drone keys are engaged
     const hasManualInput = moveF !== 0 || moveR !== 0 || moveU !== 0;
-    if (!isWalk && !hasManualInput && this.velocity.lengthSq() < 0.04) {
+    if (hasManualInput) {
+      this._droneManualEngaged = true;
+    }
+    const nearRektorat =
+      Math.hypot(this.camera.position.x, this.camera.position.z - 6.0) < 155.0 &&
+      this.camera.position.y > 2.0;
+    if (!isWalk && !hasManualInput && !this._droneManualEngaged && nearRektorat && this.velocity.lengthSq() < 0.04) {
       this.cinematicAngle += clampedDt * 0.15;
       const targetOrbitX = Math.sin(this.cinematicAngle) * 86.0;
       const targetOrbitZ = 6.0 + Math.cos(this.cinematicAngle) * 86.0;
@@ -608,15 +668,45 @@ export class CameraDirector {
     }
 
     const groundY = floorHeightFn ? floorHeightFn(this.camera.position.x, this.camera.position.z) : 0.0;
-    const minCamY = isWalk ? groundY + 1.68 : Math.max(1.8, groundY + 1.8);
+    const minCamY = isWalk
+      ? groundY + 1.68
+      : groundY < -0.5
+        ? groundY + 0.68
+        : Math.max(0.68, groundY + 0.68);
 
     if (isWalk) {
-      this.camera.position.y += (minCamY - this.camera.position.y) * (1.0 - Math.exp(-12.0 * clampedDt));
-      resolveSoftSpatialCollision(this.camera.position, this.velocity, this.colliders, 0.85, minCamY, clampedDt);
+      this.camera.position.y += (minCamY - this.camera.position.y) * (1.0 - Math.exp(-14.0 * clampedDt));
+      resolveSoftSpatialCollision(
+        this.camera.position,
+        this.velocity,
+        this.colliders,
+        0.36,
+        minCamY,
+        clampedDt,
+        this._prevCamPos,
+        ctx,
+        true
+      );
+      const postWalkY = (floorHeightFn ? floorHeightFn(this.camera.position.x, this.camera.position.z) : 0.0) + 1.68;
+      if (this.camera.position.y < postWalkY) {
+        this.camera.position.y = postWalkY;
+      }
     } else {
-      resolveSoftSpatialCollision(this.camera.position, this.velocity, this.colliders, 2.2, minCamY, clampedDt);
+      resolveSoftSpatialCollision(
+        this.camera.position,
+        this.velocity,
+        this.colliders,
+        0.68,
+        minCamY,
+        clampedDt,
+        this._prevCamPos,
+        ctx,
+        false
+      );
     }
 
+    this._prevCamPos.copy(this.camera.position);
+    this._updateAltitudeAdaptiveNearPlane();
     const euler = new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ');
     this.camera.quaternion.setFromEuler(euler);
   }

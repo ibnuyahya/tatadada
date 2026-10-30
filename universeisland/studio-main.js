@@ -23,6 +23,7 @@ async function bootstrapStudioWorkbench() {
   const [
     { DepokLiveWeatherService },
     { CameraDirector, applyNonOccludingViewportOffset },
+    { PhysicsKernel },
     { WeatherOpticsEngine },
     { AudioSynthesizer },
     {
@@ -31,14 +32,17 @@ async function bootstrapStudioWorkbench() {
       createHorizontalStonePaverTexture,
       injectOmniScaleSurfaceShader
     },
-    { GedungRektoratUIAsset }
+    { GedungRektoratUIAsset },
+    { SplineCorridorBuilder }
   ] = await Promise.all([
     import('./core/DepokLiveWeatherService.js'),
     import('./core/CameraDirector.js'),
+    import('./core/PhysicsKernel.js'),
     import('./core/WeatherOpticsEngine.js'),
     import('./core/AudioSynthesizer.js'),
     import('./core/ProceduralTextureFactory.js'),
-    import('./library/landmark/Gedung_Rektorat_UI/index.js')
+    import('./library/landmark/Gedung_Rektorat_UI/index.js'),
+    import('./world-gis/SplineCorridorBuilder.js')
   ]);
 
   const liveWeatherPromise = DepokLiveWeatherService.fetchLiveDepokWeather({ timeoutMs: 3600 });
@@ -103,11 +107,13 @@ async function bootstrapStudioWorkbench() {
   const rektoratAsset = GedungRektoratUIAsset.build({ sharedUniforms });
   scene.add(rektoratAsset);
 
+  const studioGroundFn = (x, z) => (Math.hypot(x, z - 10.0) <= 88.5 ? 0.0 : -5.5);
+
   // Bake 512x512 3D Roof/Eave/Plinth Collision Z-Buffer & Extract Exact 3D Eave Drip Anchors
   weather.bakeSceneCollisionField(
     [plinthMesh, rektoratAsset],
     {
-      groundHeightFn: (x, z) => (Math.hypot(x, z - 10.0) <= 88.5 ? 0.0 : -5.5)
+      groundHeightFn: studioGroundFn
     },
     sharedUniforms
   );
@@ -137,11 +143,43 @@ async function bootstrapStudioWorkbench() {
     renderer.compile(scene, camera);
   }
 
+  const REKTORAT_STUDIO_PREFIXES = [
+    'Rektorat_',
+    'WestAnnex_',
+    'EastAnnex_',
+    'SelasarAgung_',
+    'Cloister_',
+    'FrontGatehouse_',
+    'SE45Breezeway_',
+    'OctSkylitPendopo_',
+    'NorthPavilion_'
+  ];
+  const studioSolidColliders = [
+    ...SplineCorridorBuilder.buildWorldSolidColliders(null).staticColliders.filter(
+      (c) => c.id && REKTORAT_STUDIO_PREFIXES.some((prefix) => c.id.startsWith(prefix))
+    ),
+    PhysicsKernel.prepareSolidCollider({
+      id: 'StudioInspectionPlinth',
+      type: 'CYL',
+      x: 0.0,
+      z: 10.0,
+      r: 89.0,
+      minY: -0.62,
+      maxY: 0.0
+    })
+  ];
+
   const camDirector = new CameraDirector(
     camera,
     controls,
-    GedungRektoratUIAsset.meta.obstacleColliders
+    studioSolidColliders
   );
+  camDirector.setWorldPhysicsContext({
+    staticColliders: studioSolidColliders,
+    groundHeightFn: studioGroundFn,
+    walkableHeightFn: studioGroundFn,
+    oceanWaterY: -5.5
+  });
   camDirector.bindKeyboard(window);
 
   // Pointer drag look support when in DRONE_6DOF
@@ -473,7 +511,7 @@ async function bootstrapStudioWorkbench() {
       weather.uniforms.uWindVec.value.length()
     );
 
-    camDirector.update(dt, () => 0.0);
+    camDirector.update(dt, studioGroundFn);
     GedungRektoratUIAsset.updateKinematics(rektoratAsset, dt, {
       isNight: weather.nightIlluminationLevel > 0.35,
       nightLevel: weather.nightIlluminationLevel,
@@ -514,6 +552,7 @@ async function bootstrapStudioWorkbench() {
       renderer,
       weather,
       camDirector,
+      studioSolidColliders,
       rektoratAsset,
       sharedUniforms,
       presets,

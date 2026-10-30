@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { NexusBatchOptimizer } from '../core/BatchRenderer.js';
+import { PhysicsKernel } from '../core/PhysicsKernel.js';
 import {
   SURFACE_PROFILE,
   createZebraCurbTexture,
@@ -7,6 +8,7 @@ import {
   injectOmniScaleSurfaceShader
 } from '../core/ProceduralTextureFactory.js';
 import { TerrainDEMLoader } from './TerrainDEMLoader.js';
+import { AutogenBiomeSpawner } from './AutogenBiomeSpawner.js';
 
 /**
  * NEXUS Omni-Scale Procedural Engine v2.0 (v2.3 — 10x Ultra-High Level of Detail Edition)
@@ -2674,6 +2676,1872 @@ export class SplineCorridorBuilder {
     return { horizontalGeo, verticalGeo };
   }
 
+  /**
+   * Shared Dual-Material Geometry Accumulator (Material 1: Asphalt/Steel/Terracotta/Teak/Acrylic,
+   * Material 2: Precast/Zebra Concrete). Guarantees 100% outward unit normals & CCW front-face winding!
+   */
+  static _createDualBufferAccumulator() {
+    const hPos = [];
+    const hNorm = [];
+    const hUv = [];
+    const hCol = [];
+    const hIdx = [];
+
+    const vPos = [];
+    const vNorm = [];
+    const vUv = [];
+    const vCol = [];
+    const vIdx = [];
+
+    const whiteUV = [0.055, 0.5];
+
+    const appendPart = (tPos, tNorm, tUv, tCol, tIdx, geo, col, uvFixed = null) => {
+      if (!geo.attributes.normal) geo.computeVertexNormals();
+      const p = geo.attributes.position.array;
+      const n = geo.attributes.normal.array;
+      const uArr = geo.attributes.uv ? geo.attributes.uv.array : null;
+      const base = tPos.length / 3;
+      for (let i = 0; i < geo.attributes.position.count; i++) {
+        const px = p[i * 3];
+        const py = p[i * 3 + 1];
+        const pz = p[i * 3 + 2];
+        let nx = n[i * 3];
+        let ny = n[i * 3 + 1];
+        let nz = n[i * 3 + 2];
+        const nLen = Math.hypot(nx, ny, nz);
+        if (nLen > 1e-6) {
+          nx /= nLen;
+          ny /= nLen;
+          nz /= nLen;
+        } else {
+          nx = 0.0;
+          ny = 1.0;
+          nz = 0.0;
+        }
+        tPos.push(px, py, pz);
+        tNorm.push(nx, ny, nz);
+        if (uvFixed) {
+          tUv.push(uvFixed[0], uvFixed[1]);
+        } else if (uArr) {
+          tUv.push(uArr[i * 2], uArr[i * 2 + 1]);
+        } else {
+          tUv.push(px * 0.25, pz * 0.25);
+        }
+        tCol.push(col[0], col[1], col[2]);
+      }
+      if (geo.index) {
+        const idx = geo.index.array;
+        for (let i = 0; i < idx.length; i++) tIdx.push(base + idx[i]);
+      } else {
+        for (let i = 0; i < geo.attributes.position.count; i++) tIdx.push(base + i);
+      }
+    };
+
+    const pushOrientedQuad = (
+      tPos,
+      tNorm,
+      tUv,
+      tCol,
+      tIdx,
+      ax,
+      ay,
+      az,
+      bx,
+      by,
+      bz,
+      cx,
+      cy,
+      cz,
+      dx,
+      dy,
+      dz,
+      col,
+      aimNx = null,
+      aimNy = null,
+      aimNz = null,
+      uvA = null,
+      uvB = null,
+      uvC = null,
+      uvD = null
+    ) => {
+      const e1x = bx - ax;
+      const e1y = by - ay;
+      const e1z = bz - az;
+      const e2x = dx - ax;
+      const e2y = dy - ay;
+      const e2z = dz - az;
+      let nx = e1y * e2z - e1z * e2y;
+      let ny = e1z * e2x - e1x * e2z;
+      let nz = e1x * e2y - e1y * e2x;
+      let len = Math.hypot(nx, ny, nz);
+      if (len < 1e-8) return;
+      nx /= len;
+      ny /= len;
+      nz /= len;
+
+      let flip = false;
+      if (aimNx !== null) {
+        if (nx * aimNx + ny * aimNy + nz * aimNz < 0.0) {
+          flip = true;
+          nx = -nx;
+          ny = -ny;
+          nz = -nz;
+        }
+      }
+
+      const base = tPos.length / 3;
+      tPos.push(ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz);
+      for (let k = 0; k < 4; k++) {
+        tNorm.push(nx, ny, nz);
+        tCol.push(col[0], col[1], col[2]);
+      }
+      if (uvA && uvB && uvC && uvD) {
+        tUv.push(uvA[0], uvA[1], uvB[0], uvB[1], uvC[0], uvC[1], uvD[0], uvD[1]);
+      } else {
+        tUv.push(ax * 0.2, az * 0.2, bx * 0.2, bz * 0.2, cx * 0.2, cz * 0.2, dx * 0.2, dz * 0.2);
+      }
+
+      if (!flip) {
+        tIdx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      } else {
+        tIdx.push(base, base + 3, base + 2, base, base + 2, base + 1);
+      }
+    };
+
+    const pushTube = (isH, x0, y0, z0, x1, y1, z1, r0, r1, segs, col, capped = false, uvFixed = null) => {
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const dz = z1 - z0;
+      const len = Math.hypot(dx, dy, dz);
+      if (len < 1e-4) return;
+      const tx = dx / len;
+      const ty = dy / len;
+      const tz = dz / len;
+      let rx = 0.0;
+      let ry = 1.0;
+      let rz = 0.0;
+      if (Math.abs(ty) >= 0.92) {
+        rx = 1.0;
+        ry = 0.0;
+        rz = 0.0;
+      }
+      let ux = ry * tz - rz * ty;
+      let uy = rz * tx - rx * tz;
+      let uz = rx * ty - ry * tx;
+      const uLen = Math.hypot(ux, uy, uz) || 1.0;
+      ux /= uLen;
+      uy /= uLen;
+      uz /= uLen;
+      const vx = ty * uz - tz * uy;
+      const vy = tz * ux - tx * uz;
+      const vz = tx * uy - ty * ux;
+
+      const tPos = isH ? hPos : vPos;
+      const tNorm = isH ? hNorm : vNorm;
+      const tUv = isH ? hUv : vUv;
+      const tCol = isH ? hCol : vCol;
+      const tIdx = isH ? hIdx : vIdx;
+      const fixedUV = isH ? uvFixed : uvFixed || whiteUV;
+
+      const pushTVert = (px, py, pz, nx, ny, nz) => {
+        const idx = tPos.length / 3;
+        const nl = Math.hypot(nx, ny, nz) || 1.0;
+        tPos.push(px, py, pz);
+        tNorm.push(nx / nl, ny / nl, nz / nl);
+        if (fixedUV) tUv.push(fixedUV[0], fixedUV[1]);
+        else tUv.push(px * 0.2, pz * 0.2);
+        tCol.push(col[0], col[1], col[2]);
+        return idx;
+      };
+
+      const taperSlope = (r0 - r1) / len;
+      const ring0 = [];
+      const ring1 = [];
+      for (let k = 0; k <= segs; k++) {
+        const th = (k / segs) * Math.PI * 2.0;
+        const c = Math.cos(th);
+        const s = Math.sin(th);
+        const rnx = ux * c + vx * s;
+        const rny = uy * c + vy * s;
+        const rnz = uz * c + vz * s;
+        const nx = rnx + tx * taperSlope;
+        const ny = rny + ty * taperSlope;
+        const nz = rnz + tz * taperSlope;
+        ring0.push(pushTVert(x0 + rnx * r0, y0 + rny * r0, z0 + rnz * r0, nx, ny, nz));
+        ring1.push(pushTVert(x1 + rnx * r1, y1 + rny * r1, z1 + rnz * r1, nx, ny, nz));
+      }
+      for (let k = 0; k < segs; k++) {
+        const b0 = ring0[k];
+        const b1 = ring0[k + 1];
+        const t1 = ring1[k + 1];
+        const t0 = ring1[k];
+        // Outward CCW winding: (b1 - b0) x (t1 - b0) = dP x (len * t) = +len * r * dth * r_n!
+        tIdx.push(b0, b1, t1, b0, t1, t0);
+      }
+      if (capped) {
+        const c0 = pushTVert(x0, y0, z0, -tx, -ty, -tz);
+        const c1 = pushTVert(x1, y1, z1, tx, ty, tz);
+        for (let k = 0; k < segs; k++) {
+          const th0 = (k / segs) * Math.PI * 2.0;
+          const th1 = ((k + 1) / segs) * Math.PI * 2.0;
+          const p0a = pushTVert(
+            x0 + (ux * Math.cos(th0) + vx * Math.sin(th0)) * r0,
+            y0 + (uy * Math.cos(th0) + vy * Math.sin(th0)) * r0,
+            z0 + (uz * Math.cos(th0) + vz * Math.sin(th0)) * r0,
+            -tx,
+            -ty,
+            -tz
+          );
+          const p0b = pushTVert(
+            x0 + (ux * Math.cos(th1) + vx * Math.sin(th1)) * r0,
+            y0 + (uy * Math.cos(th1) + vy * Math.sin(th1)) * r0,
+            z0 + (uz * Math.cos(th1) + vz * Math.sin(th1)) * r0,
+            -tx,
+            -ty,
+            -tz
+          );
+          // At end 0 (outward normal -t): (p0a - c0) x (p0b - c0) = u x v * dth = +t * dth -> reverse to (c0, p0b, p0a)!
+          tIdx.push(c0, p0b, p0a);
+
+          const p1a = pushTVert(
+            x1 + (ux * Math.cos(th0) + vx * Math.sin(th0)) * r1,
+            y1 + (uy * Math.cos(th0) + vy * Math.sin(th0)) * r1,
+            z1 + (uz * Math.cos(th0) + vz * Math.sin(th0)) * r1,
+            tx,
+            ty,
+            tz
+          );
+          const p1b = pushTVert(
+            x1 + (ux * Math.cos(th1) + vx * Math.sin(th1)) * r1,
+            y1 + (uy * Math.cos(th1) + vy * Math.sin(th1)) * r1,
+            z1 + (uz * Math.cos(th1) + vz * Math.sin(th1)) * r1,
+            tx,
+            ty,
+            tz
+          );
+          tIdx.push(c1, p1a, p1b);
+        }
+      }
+    };
+
+    return {
+      whiteUV,
+      appendH: (geo, col, uvFixed = null) => appendPart(hPos, hNorm, hUv, hCol, hIdx, geo, col, uvFixed),
+      appendV: (geo, col, uvFixed = whiteUV) => appendPart(vPos, vNorm, vUv, vCol, vIdx, geo, col, uvFixed),
+      quadH: (ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz, col, nx = null, ny = null, nz = null) =>
+        pushOrientedQuad(hPos, hNorm, hUv, hCol, hIdx, ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz, col, nx, ny, nz),
+      quadV: (
+        ax,
+        ay,
+        az,
+        bx,
+        by,
+        bz,
+        cx,
+        cy,
+        cz,
+        dx,
+        dy,
+        dz,
+        col,
+        nx = null,
+        ny = null,
+        nz = null,
+        uvA = whiteUV,
+        uvB = whiteUV,
+        uvC = whiteUV,
+        uvD = whiteUV
+      ) =>
+        pushOrientedQuad(
+          vPos,
+          vNorm,
+          vUv,
+          vCol,
+          vIdx,
+          ax,
+          ay,
+          az,
+          bx,
+          by,
+          bz,
+          cx,
+          cy,
+          cz,
+          dx,
+          dy,
+          dz,
+          col,
+          nx,
+          ny,
+          nz,
+          uvA,
+          uvB,
+          uvC,
+          uvD
+        ),
+      tubeH: (x0, y0, z0, x1, y1, z1, r0, r1, segs, col, capped = false) =>
+        pushTube(true, x0, y0, z0, x1, y1, z1, r0, r1, segs, col, capped),
+      tubeV: (x0, y0, z0, x1, y1, z1, r0, r1, segs, col, capped = false) =>
+        pushTube(false, x0, y0, z0, x1, y1, z1, r0, r1, segs, col, capped, whiteUV),
+      finalize: () => {
+        const horizontalGeo = new THREE.BufferGeometry();
+        horizontalGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(hPos), 3));
+        horizontalGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(hNorm), 3));
+        horizontalGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(hUv), 2));
+        horizontalGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(hCol), 3));
+        horizontalGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(hIdx), 1));
+
+        const verticalGeo = new THREE.BufferGeometry();
+        verticalGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vPos), 3));
+        verticalGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(vNorm), 3));
+        verticalGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(vUv), 2));
+        verticalGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(vCol), 3));
+        verticalGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(vIdx), 1));
+
+        return { horizontalGeo, verticalGeo };
+      }
+    };
+  }
+
+  /**
+   * Builds the Integrated 3D Slope-Normal Island Road Network ("Jaringan Jalan Terpadu Pulau U & Transisi Pulau I"):
+   * - 4-strip cambered asphalt carriageways conforming smoothly to cut-and-fill hill grades
+   * - 3D inlaid UI Golden-Yellow dashed centerlines & continuous crisp white shoulder lines
+   * - 3D chamfered concrete & zebra safety curbs with -3.4m watertight sub-terrain skirts
+   * - Galvanized steel W-beam hillside safety guardrails on elevated mountain cuts/embankments
+   * - Flared asphalt T-junction aprons & Jembatan Teksas UI East FIB Pedestrian Drop-Off Connector
+   * Merged via NexusBatchOptimizer into the existing 2 corridor draw calls (+0 Draw Calls!).
+   */
+  static _buildPulauUAndPulauIRoadNetwork() {
+    const acc = SplineCorridorBuilder._createDualBufferAccumulator();
+    const { corridors } = TerrainDEMLoader.getRoadNetwork3DCorridors();
+
+    const asphaltCrown = [0.20, 0.21, 0.23];
+    const asphaltGutter = [0.16, 0.17, 0.19];
+    const uiYellowLine = [0.96, 0.77, 0.12];
+    const whiteEdgeLine = [0.94, 0.95, 0.97];
+    const concreteCurb = [0.92, 0.91, 0.87];
+    const concreteSkirt = [0.76, 0.74, 0.70];
+    const guardRailSteel = [0.66, 0.69, 0.73];
+    const guardPostSteel = [0.46, 0.49, 0.53];
+
+    // Helper: smooth [0..1] curb-height factor that drops curbs flush (0.0m) across T-junction throats,
+    // ferry terminal forecourts, campus core entrance, aircraft apron throat, & underpass ramp thresholds!
+    const evalCurbRiseFactor = (selfCorrIdx, qx, qz) => {
+      let factor = 1.0;
+      for (let c = 0; c < corridors.length; c++) {
+        if (c === selfCorrIdx) continue;
+        const oc = corridors[c];
+        if (qx < oc.minX || qx > oc.maxX || qz < oc.minZ || qz > oc.maxZ) continue;
+        const pts = oc.points;
+        let minD2 = Infinity;
+        for (let k = 0; k < pts.length - 1; k++) {
+          const a = pts[k];
+          const b = pts[k + 1];
+          const dx = b.x - a.x;
+          const dz = b.z - a.z;
+          const len2 = dx * dx + dz * dz || 1e-8;
+          const t = Math.max(0.0, Math.min(1.0, ((qx - a.x) * dx + (qz - a.z) * dz) / len2));
+          const px = a.x + dx * t;
+          const pz = a.z + dz * t;
+          const d2 = (qx - px) * (qx - px) + (qz - pz) * (qz - pz);
+          if (d2 < minD2) minD2 = d2;
+        }
+        const d = Math.sqrt(minD2);
+        const fOther = PhysicsKernel.smootherstep(oc.halfWidth + 0.35, oc.halfWidth + 1.85, d);
+        if (fOther < factor) factor = fOther;
+      }
+
+      // West Campus Courtyard entrance (-66.5, 75.0)
+      if (qx > -68.5 && qz > 67.0 && qz < 83.0) {
+        factor = Math.min(factor, PhysicsKernel.smootherstep(-66.8, -68.4, qx));
+      }
+      // Southern Underpass West & East Ramp throats (-356.0, 272.0 & 670.0)
+      if (Math.abs(qx - TerrainDEMLoader.UNDERPASS_X) < 5.2) {
+        if (qz > 269.8 && qz < 273.5) {
+          factor = Math.min(factor, PhysicsKernel.smootherstep(271.8, 270.0, qz));
+        } else if (qz > 668.5 && qz < 672.2) {
+          factor = Math.min(factor, PhysicsKernel.smootherstep(670.2, 672.0, qz));
+        }
+      }
+      // Dermaga Utara Pulau U & Pulau I Forecourt Plazas (flush pier-side pedestrian & shuttle turnaround access)
+      if (qz > 449.5 && qz < 460.0 && Math.abs(qx - TerrainDEMLoader.DERMAGA_U_X) < 11.5) {
+        factor = Math.min(factor, PhysicsKernel.smootherstep(9.0, 11.5, Math.abs(qx - TerrainDEMLoader.DERMAGA_U_X)));
+      }
+      if (qz > 612.0 && qz < 626.0 && Math.abs(qx - TerrainDEMLoader.DERMAGA_I_X) < 13.5) {
+        factor = Math.min(factor, PhysicsKernel.smootherstep(11.0, 13.5, Math.abs(qx - TerrainDEMLoader.DERMAGA_I_X)));
+      }
+      // Seamless flush merge across interior median of Dermaga Pulau I bus turnaround cul-de-sac
+      if (qz > 628.2 && qz < 633.8 && qx > -119.5 && qx < -85.0) {
+        const fx = Math.max(
+          PhysicsKernel.smootherstep(-87.0, -85.0, qx),
+          PhysicsKernel.smootherstep(-116.5, -119.5, qx)
+        );
+        const fz = Math.max(
+          PhysicsKernel.smootherstep(629.4, 628.2, qz),
+          PhysicsKernel.smootherstep(632.6, 633.8, qz)
+        );
+        factor = Math.min(factor, Math.max(fx, fz));
+      }
+      // Pulau I West Aircraft Apron connection (-254.0, 660.2)
+      if (qz > 658.2 && qz < 661.5 && Math.abs(qx + 254.0) < 5.5) {
+        factor = Math.min(factor, PhysicsKernel.smootherstep(659.8, 658.2, qz));
+      }
+      // Jembatan Teksas UI East FIB Plaza drop-off (-28.0, 353.5)
+      if (qz > 348.5 && qz < 354.2 && Math.abs(qx - TerrainDEMLoader.TEKSAS_BRIDGE_X) < 4.2) {
+        factor = Math.min(factor, PhysicsKernel.smootherstep(2.6, 4.2, Math.abs(qx - TerrainDEMLoader.TEKSAS_BRIDGE_X)));
+      }
+      return factor;
+    };
+
+    for (let cIdx = 0; cIdx < corridors.length; cIdx++) {
+      const corr = corridors[cIdx];
+      // Loft directly along the exact SSoST 3.0m-spaced 3D graded vertices (0.000m spline-vs-DEM discrepancy!)
+      const pts = corr.points;
+      const segs = pts.length - 1;
+      const hw = corr.halfWidth;
+      const cw = 0.46;
+      const curbRise = 0.13;
+
+      const frames = [];
+      let arc = 0.0;
+
+      for (let i = 0; i <= segs; i++) {
+        const pos = pts[i];
+        const pPrev = pts[Math.max(0, i - 1)];
+        const pNext = pts[Math.min(segs, i + 1)];
+
+        const tan = new THREE.Vector3().subVectors(pNext, pPrev);
+        if (tan.lengthSq() < 1e-8) tan.set(0, 0, 1);
+        else tan.normalize();
+
+        const side = new THREE.Vector3(tan.z, 0.0, -tan.x);
+        if (side.lengthSq() < 1e-8) side.set(1, 0, 0);
+        else side.normalize();
+
+        const up = new THREE.Vector3().crossVectors(tan, side).normalize();
+        if (up.y < 0.0) up.negate();
+
+        if (i > 0) arc += frames[i - 1].pos.distanceTo(pos);
+        const curbL = evalCurbRiseFactor(cIdx, pos.x - side.x * hw, pos.z - side.z * hw);
+        const curbR = evalCurbRiseFactor(cIdx, pos.x + side.x * hw, pos.z + side.z * hw);
+        frames.push({ pos, tan, side, up, arc, curbL, curbR });
+      }
+
+      const latOffsets = [-hw, -hw * 0.5, 0.0, hw * 0.5, hw];
+      const latLifts = [0.020, 0.035, 0.042, 0.035, 0.020];
+      const latCols = [asphaltGutter, asphaltCrown, asphaltCrown, asphaltCrown, asphaltGutter];
+
+      for (let i = 0; i < segs; i++) {
+        const f0 = frames[i];
+        const f1 = frames[i + 1];
+
+        // 1. 4-Strip Cambered 3D Slope-Normal Asphalt Carriageway
+        for (let s = 0; s < 4; s++) {
+          const oA = latOffsets[s];
+          const oB = latOffsets[s + 1];
+          const yA = latLifts[s];
+          const yB = latLifts[s + 1];
+          const col = 0.5 * (latCols[s][0] + latCols[s + 1][0]) > 0.185 ? asphaltCrown : asphaltGutter;
+
+          acc.quadH(
+            f0.pos.x + f0.side.x * oA,
+            f0.pos.y + yA,
+            f0.pos.z + f0.side.z * oA,
+            f1.pos.x + f1.side.x * oA,
+            f1.pos.y + yA,
+            f1.pos.z + f1.side.z * oA,
+            f1.pos.x + f1.side.x * oB,
+            f1.pos.y + yB,
+            f1.pos.z + f1.side.z * oB,
+            f0.pos.x + f0.side.x * oB,
+            f0.pos.y + yB,
+            f0.pos.z + f0.side.z * oB,
+            col,
+            f0.up.x,
+            f0.up.y,
+            f0.up.z
+          );
+        }
+
+        // 2. 3D Inlaid Highway Markings (+0.013m above asphalt crown/shoulders, zero Z-fighting!)
+        const midArc = 0.5 * (f0.arc + f1.arc);
+        if (midArc % 7.2 < 3.6 && i > 0 && i < segs - 1) {
+          const clW = 0.085;
+          acc.quadH(
+            f0.pos.x - f0.side.x * clW,
+            f0.pos.y + 0.056,
+            f0.pos.z - f0.side.z * clW,
+            f1.pos.x - f1.side.x * clW,
+            f1.pos.y + 0.056,
+            f1.pos.z - f1.side.z * clW,
+            f1.pos.x + f1.side.x * clW,
+            f1.pos.y + 0.056,
+            f1.pos.z + f1.side.z * clW,
+            f0.pos.x + f0.side.x * clW,
+            f0.pos.y + 0.056,
+            f0.pos.z + f0.side.z * clW,
+            uiYellowLine,
+            f0.up.x,
+            f0.up.y,
+            f0.up.z
+          );
+        }
+
+        for (const sgn of [-1.0, 1.0]) {
+          const cFac0 = sgn < 0.0 ? f0.curbL : f0.curbR;
+          const cFac1 = sgn < 0.0 ? f1.curbL : f1.curbR;
+          if (cFac0 > 0.35 && cFac1 > 0.35) {
+            const eIn = sgn * (hw - 0.36);
+            const eOut = sgn * (hw - 0.20);
+            acc.quadH(
+              f0.pos.x + f0.side.x * eIn,
+              f0.pos.y + 0.036,
+              f0.pos.z + f0.side.z * eIn,
+              f1.pos.x + f1.side.x * eIn,
+              f1.pos.y + 0.036,
+              f1.pos.z + f1.side.z * eIn,
+              f1.pos.x + f1.side.x * eOut,
+              f1.pos.y + 0.034,
+              f1.pos.z + f1.side.z * eOut,
+              f0.pos.x + f0.side.x * eOut,
+              f0.pos.y + 0.034,
+              f0.pos.z + f0.side.z * eOut,
+              whiteEdgeLine,
+              f0.up.x,
+              f0.up.y,
+              f0.up.z
+            );
+          }
+        }
+
+        // 3. Left & Right Chamfered Concrete Curbs (flush-dropped across intersections!) + -3.4m Watertight Skirts
+        const useZebra = Math.abs(f0.tan.x * f1.tan.z - f0.tan.z * f1.tan.x) > 0.028 || i < 3 || i > segs - 4;
+        const uv0 = useZebra ? [f0.arc * 0.14, 0.5] : acc.whiteUV;
+        const uv1 = useZebra ? [f1.arc * 0.14, 0.5] : acc.whiteUV;
+
+        for (const sgn of [-1.0, 1.0]) {
+          const cFac0 = sgn < 0.0 ? f0.curbL : f0.curbR;
+          const cFac1 = sgn < 0.0 ? f1.curbL : f1.curbR;
+          const rIn = sgn * hw;
+          const rTop = sgn * (hw + 0.08);
+          const rOut = sgn * (hw + cw);
+          const yG0 = f0.pos.y + 0.020;
+          const yG1 = f1.pos.y + 0.020;
+          const yT0 = yG0 + curbRise * cFac0;
+          const yT1 = yG1 + curbRise * cFac1;
+          const yOuterTop0 = yG0 + (curbRise - 0.015) * cFac0 - 0.025 * (1.0 - cFac0);
+          const yOuterTop1 = yG1 + (curbRise - 0.015) * cFac1 - 0.025 * (1.0 - cFac1);
+          const yS0 = f0.pos.y - 3.40;
+          const yS1 = f1.pos.y - 3.40;
+
+          if (cFac0 > 0.35 && cFac1 > 0.35) {
+            // Inner chamfered curb riser facing road centerline (-sgn * side)
+            acc.quadV(
+              f0.pos.x + f0.side.x * rIn,
+              yG0,
+              f0.pos.z + f0.side.z * rIn,
+              f1.pos.x + f1.side.x * rIn,
+              yG1,
+              f1.pos.z + f1.side.z * rIn,
+              f1.pos.x + f1.side.x * rTop,
+              yT1,
+              f1.pos.z + f1.side.z * rTop,
+              f0.pos.x + f0.side.x * rTop,
+              yT0,
+              f0.pos.z + f0.side.z * rTop,
+              concreteCurb,
+              -sgn * f0.side.x * 0.8 + f0.up.x * 0.6,
+              0.6,
+              -sgn * f0.side.z * 0.8 + f0.up.z * 0.6,
+              uv0,
+              uv1,
+              uv1,
+              uv0
+            );
+
+            // Curb top coping (+up)
+            acc.quadV(
+              f0.pos.x + f0.side.x * rTop,
+              yT0,
+              f0.pos.z + f0.side.z * rTop,
+              f1.pos.x + f1.side.x * rTop,
+              yT1,
+              f1.pos.z + f1.side.z * rTop,
+              f1.pos.x + f1.side.x * rOut,
+              yOuterTop1,
+              f1.pos.z + f1.side.z * rOut,
+              f0.pos.x + f0.side.x * rOut,
+              yOuterTop0,
+              f0.pos.z + f0.side.z * rOut,
+              concreteCurb,
+              f0.up.x,
+              f0.up.y,
+              f0.up.z,
+              uv0,
+              uv1,
+              uv1,
+              uv0
+            );
+          }
+
+          // Outer watertight concrete embankment skirt (+sgn * side)
+          acc.quadV(
+            f0.pos.x + f0.side.x * rOut,
+            yOuterTop0,
+            f0.pos.z + f0.side.z * rOut,
+            f1.pos.x + f1.side.x * rOut,
+            yOuterTop1,
+            f1.pos.z + f1.side.z * rOut,
+            f1.pos.x + f1.side.x * rOut,
+            yS1,
+            f1.pos.z + f1.side.z * rOut,
+            f0.pos.x + f0.side.x * rOut,
+            yS0,
+            f0.pos.z + f0.side.z * rOut,
+            concreteSkirt,
+            sgn * f0.side.x,
+            0.0,
+            sgn * f0.side.z
+          );
+
+          // 4. Hillside Galvanized Steel W-Beam Safety Guardrail wherever road traverses elevated hills (y > 4.2m)
+          if (f0.pos.y > 4.2 && f1.pos.y > 4.2 && cFac0 > 0.8 && cFac1 > 0.8 && i > 2 && i < segs - 3) {
+            const gOff = sgn * (hw + cw - 0.14);
+            const gx0 = f0.pos.x + f0.side.x * gOff;
+            const gz0 = f0.pos.z + f0.side.z * gOff;
+            const gx1 = f1.pos.x + f1.side.x * gOff;
+            const gz1 = f1.pos.z + f1.side.z * gOff;
+            acc.tubeH(gx0, yT0 + 0.56, gz0, gx1, yT1 + 0.56, gz1, 0.055, 0.055, 6, guardRailSteel);
+            if (i % 2 === 0) {
+              acc.tubeH(gx0, yT0 - 0.05, gz0, gx0, yT0 + 0.64, gz0, 0.045, 0.045, 6, guardPostSteel, true);
+            }
+          }
+        }
+      }
+    }
+
+    // 5. Flush Asphalt T-Junction Throat Fillets, Underpass Threshold Seals, & Jembatan Teksas East Drop-Off Link
+    const addJunctionPad = (cx, yTop, cz, sx, sz, yaw = 0.0, col = asphaltCrown) => {
+      const deck = new THREE.BoxGeometry(sx, 0.046, sz);
+      if (yaw !== 0.0) deck.rotateY(yaw);
+      deck.translate(cx, yTop - 0.021, cz);
+      acc.appendH(deck, col);
+
+      const sub = new THREE.BoxGeometry(Math.max(0.4, sx - 0.30), 2.4, Math.max(0.4, sz - 0.30));
+      if (yaw !== 0.0) sub.rotateY(yaw);
+      sub.translate(cx, yTop - 1.24, cz);
+      acc.appendV(sub, concreteSkirt);
+    };
+
+    // West Campus Courtyard Road <-> Pulau U West-South Arterial T-Junction (-65.6, 75.0)
+    addJunctionPad(-65.6, 0.038, 75.0, 4.4, 7.6);
+    // South Arterial <-> Right-Arm Boulevard T-Junction (-352.6, 263.5 — stays strictly inside outer -X curb!)
+    const rgSouthJunc = TerrainDEMLoader.evalRoadNetworkCorridorGrade(-356.0, 263.0);
+    addJunctionPad(-352.6, (rgSouthJunc ? rgSouthJunc.targetY : 0.92) + 0.039, 263.5, 6.8, 8.2, -0.18);
+    // Right-Arm Boulevard <-> Mid-Peninsula Saddle Connector T-Junction (-175.0, 439.8 — stays strictly inside +Z curb!)
+    const rgSaddle = TerrainDEMLoader.evalRoadNetworkCorridorGrade(-175.0, 443.0);
+    addJunctionPad(-175.0, (rgSaddle ? rgSaddle.targetY : 1.65) + 0.039, 439.8, 8.4, 6.4, 0.14);
+    // Pulau I West Transit Road <-> West Aircraft Apron Spur T-Junction (-254.0, 649.0 — stays strictly inside -Z curb!)
+    const rgApronJunc = TerrainDEMLoader.evalRoadNetworkCorridorGrade(-254.0, 646.0);
+    addJunctionPad(-254.0, (rgApronJunc ? rgApronJunc.targetY : 0.48) + 0.039, 649.0, 8.2, 6.0);
+    // Watertight Camber-to-Ramp Threshold Seals at West (z = 272.0m) & East (z = 670.0m) Subsea Underpass Ramps
+    addJunctionPad(
+      TerrainDEMLoader.UNDERPASS_X,
+      TerrainDEMLoader.UNDERPASS_WEST_RAMP_TOP_Y + 0.039,
+      TerrainDEMLoader.UNDERPASS_WEST_RAMP_START_Z,
+      7.42,
+      1.35
+    );
+    addJunctionPad(
+      TerrainDEMLoader.UNDERPASS_X,
+      TerrainDEMLoader.UNDERPASS_EAST_RAMP_TOP_Y + 0.039,
+      TerrainDEMLoader.UNDERPASS_EAST_RAMP_END_Z,
+      7.22,
+      1.35
+    );
+    // Jembatan Teksas UI East FIB Plaza Pedestrian Drop-Off Link (-28.0, z = 348.8..352.0, between the two x = +-4.2 benches!)
+    addJunctionPad(
+      TerrainDEMLoader.TEKSAS_BRIDGE_X,
+      TerrainDEMLoader.TEKSAS_EAST_PLAZA_Y + 0.038,
+      350.6,
+      5.2,
+      4.4,
+      0.0,
+      [0.46, 0.45, 0.42]
+    );
+
+    return acc.finalize();
+  }
+
+  /**
+   * Builds the Southern Undersea Underpass ("Underpass Bawah Laut Selatan antara Pulau U dan Pulau I")
+   * along x = -356.0m beneath southern Selat UI:
+   * - West Open-Cut Retained Ramp on SE Pulau U (z = 272 -> 326m, descending +0.92m -> -8.20m)
+   * - East Open-Cut Retained Ramp on SW Pulau I (z = 624 -> 670m, ascending -8.20m -> +0.56m)
+   * - 3.10m-wide Ground-Rim Sealing Parapet Collars & Buttressed Retaining Walls (zero grass overhang!)
+   * - West & East Nusantara-UI Golden-Yellow Portal Arches + Twin Tajug Subsea Ventilation Towers
+   * - 298.0m Enclosed Subsea Immersed-Tube Tunnel Bore (z = 326 -> 624m, floor y = -8.20m, clear height 4.15m):
+   *   7.20m dual-lane asphalt carriageway, 2 x 0.95m raised pedestrian walkways, 26 steel portal ribs,
+   *   16 panoramic subsea marine-acrylic observation windows (glowing with Selat UI ocean caustics!),
+   *   continuous 3800K LED ceiling luminaires, & 6 twin overhead jet-fan boosters
+   * - Submerged seabed concrete/rock-armour outer carapace (crown y = -3.72m, 2.27m clear navigable depth!)
+   *   + 4 floating marine tunnel marker buoys on Selat UI!
+   * Merged via NexusBatchOptimizer into the existing 2 corridor draw calls (+0 Draw Calls!).
+   */
+  static _buildUnderpassBawahLautUI() {
+    const acc = SplineCorridorBuilder._createDualBufferAccumulator();
+
+    const ux = TerrainDEMLoader.UNDERPASS_X; // -356.0
+    const zW0 = TerrainDEMLoader.UNDERPASS_WEST_RAMP_START_Z; // 272.0
+    const zWP = TerrainDEMLoader.UNDERPASS_WEST_PORTAL_Z; // 326.0
+    const zEP = TerrainDEMLoader.UNDERPASS_EAST_PORTAL_Z; // 624.0
+    const zE1 = TerrainDEMLoader.UNDERPASS_EAST_RAMP_END_Z; // 670.0
+    const floorY = TerrainDEMLoader.UNDERPASS_TUNNEL_FLOOR_Y; // -8.20
+    const clearH = TerrainDEMLoader.UNDERPASS_CLEAR_HEIGHT_M; // 4.15 (crown = -4.05)
+    const roadHW = TerrainDEMLoader.UNDERPASS_CARRIAGEWAY_HALF_W; // 3.60
+    const boreHW = TerrainDEMLoader.UNDERPASS_BORE_HALF_W; // 4.55
+
+    const asphaltTunnel = [0.17, 0.18, 0.20];
+    const uiYellow = [0.96, 0.77, 0.12];
+    const uiGoldPortal = [0.95, 0.71, 0.06];
+    const uiGoldDeep = [0.80, 0.56, 0.05];
+    const whiteLine = [0.95, 0.96, 0.98];
+    const concreteWall = [0.88, 0.87, 0.84];
+    const concreteVault = [0.82, 0.82, 0.80];
+    const concreteWalk = [0.76, 0.75, 0.72];
+    const steelRibCol = [0.22, 0.25, 0.29];
+    const subseaAcrylicCol = [0.08, 0.46, 0.72]; // Triggers E2C animated Selat UI underwater ocean caustics!
+    const ledLuminaireCol = [0.99, 0.95, 0.84]; // Triggers E2C 24/7 3800K LED ceiling luminaires!
+    const terracottaRoof = [0.68, 0.27, 0.16];
+    const handrailSteel = [0.72, 0.75, 0.79];
+    const seabedArmourRock = [0.20, 0.23, 0.24];
+    const seabedConcreteTube = [0.46, 0.49, 0.50];
+
+    const sampleSideRimNaturalY = (sx, pz) => {
+      // Sample right at the outer face of the 0.70m retaining parapet (+-4.90m..5.30m) where the axis-snapped DEM meets the wall flush!
+      const hInner = TerrainDEMLoader.sampleGroundHeight(ux + sx * 4.90, pz);
+      const hOuter = TerrainDEMLoader.sampleGroundHeight(ux + sx * 5.30, pz);
+      return Math.max(0.14, hInner, hOuter);
+    };
+
+    const evalParapetCrownY = (sx, pz, py, zTopEnd) => {
+      const wY = py + 0.18;
+      const rimY = sampleSideRimNaturalY(sx, pz);
+      const u = Math.max(0.0, Math.min(1.0, Math.abs(pz - zTopEnd) / 10.0));
+      const entT = u * u * u * (u * (u * 6.0 - 15.0) + 10.0);
+      const targetEntY = Math.max(wY + 0.36, rimY + 0.22);
+      const targetDeepY = Math.max(wY + 0.68, rimY + 0.32);
+      return targetEntY + (targetDeepY - targetEntY) * entT;
+    };
+
+    // =========================================================================
+    // 1. WEST (Pulau U) & EAST (Pulau I) OPEN-CUT RETAINED RAMPS
+    // =========================================================================
+    const buildOpenCutRamp = (zStart, zEnd, rampSegs) => {
+      const zTopEnd = zStart === zW0 ? zW0 : zE1;
+      const topOutSignZ = zStart === zW0 ? -1.0 : 1.0;
+      const yTopEnd = TerrainDEMLoader.sampleUnderpassDeckY(ux, zTopEnd);
+
+      // Solid concrete front entrance cheek-wall & walkway step end-caps at surface transition (z = 272m / z = 670m)
+      for (const sx of [-1.0, 1.0]) {
+        const xCurb = ux + sx * roadHW;
+        const xWall = ux + sx * boreHW;
+        const xParapetOut = ux + sx * 5.25;
+        const wYTop = yTopEnd + 0.18;
+        const rimYTop = sampleSideRimNaturalY(sx, zTopEnd);
+        const parYTop = evalParapetCrownY(sx, zTopEnd, yTopEnd, zTopEnd);
+        const footYTop = Math.min(yTopEnd - 1.4, rimYTop - 1.8);
+
+        acc.quadV(
+          xWall,
+          footYTop,
+          zTopEnd,
+          xParapetOut,
+          footYTop,
+          zTopEnd,
+          xParapetOut,
+          parYTop,
+          zTopEnd,
+          xWall,
+          parYTop,
+          zTopEnd,
+          concreteWall,
+          0,
+          0,
+          topOutSignZ
+        );
+        acc.quadV(
+          xCurb,
+          yTopEnd - 0.35,
+          zTopEnd,
+          xWall,
+          yTopEnd - 0.35,
+          zTopEnd,
+          xWall,
+          wYTop,
+          zTopEnd,
+          xCurb,
+          wYTop,
+          zTopEnd,
+          concreteWalk,
+          0,
+          0,
+          topOutSignZ
+        );
+      }
+
+      for (let i = 0; i < rampSegs; i++) {
+        const za = zStart + ((zEnd - zStart) * i) / rampSegs;
+        const zb = zStart + ((zEnd - zStart) * (i + 1)) / rampSegs;
+        const ya = TerrainDEMLoader.sampleUnderpassDeckY(ux, za);
+        const yb = TerrainDEMLoader.sampleUnderpassDeckY(ux, zb);
+
+        // A. Dual-lane 7.20m asphalt ramp roadway + sub-slab concrete bed
+        acc.quadH(
+          ux - roadHW,
+          ya,
+          za,
+          ux - roadHW,
+          yb,
+          zb,
+          ux + roadHW,
+          yb,
+          zb,
+          ux + roadHW,
+          ya,
+          za,
+          asphaltTunnel,
+          0,
+          1,
+          0
+        );
+
+        // Dashed UI-yellow centerline + continuous white lane-edge stripes
+        if (i % 2 === 0) {
+          acc.quadH(
+            ux - 0.09,
+            ya + 0.015,
+            za,
+            ux - 0.09,
+            yb + 0.015,
+            zb,
+            ux + 0.09,
+            yb + 0.015,
+            zb,
+            ux + 0.09,
+            ya + 0.015,
+            za,
+            uiYellow,
+            0,
+            1,
+            0
+          );
+        }
+        for (const sx of [-1.0, 1.0]) {
+          const e0 = sx * (roadHW - 0.28);
+          const e1 = sx * (roadHW - 0.12);
+          acc.quadH(
+            ux + e0,
+            ya + 0.014,
+            za,
+            ux + e0,
+            yb + 0.014,
+            zb,
+            ux + e1,
+            yb + 0.014,
+            zb,
+            ux + e1,
+            ya + 0.014,
+            za,
+            whiteLine,
+            0,
+            1,
+            0
+          );
+        }
+
+        // B. Raised 0.95m Pedestrian Walkways, Zebra Safety Curbs, Buttressed Retaining Walls & Per-Side Rim Sealing Collar
+        const uvZa = [za * 0.15, 0.5];
+        const uvZb = [zb * 0.15, 0.5];
+        for (const sx of [-1.0, 1.0]) {
+          const rimYa = sampleSideRimNaturalY(sx, za);
+          const rimYb = sampleSideRimNaturalY(sx, zb);
+          const xCurb = ux + sx * roadHW;
+          const xWall = ux + sx * boreHW; // +-4.55m
+          const xParapetOut = ux + sx * 5.25; // Sleek 0.70m concrete retaining parapet embedding +-4.88m DEM cutout
+
+          const wYa = ya + 0.18;
+          const wYb = yb + 0.18;
+          const parYa = evalParapetCrownY(sx, za, ya, zTopEnd);
+          const parYb = evalParapetCrownY(sx, zb, yb, zTopEnd);
+          const outerFootYa = Math.min(ya - 1.60, rimYa - 2.40);
+          const outerFootYb = Math.min(yb - 1.60, rimYb - 2.40);
+
+          // Zebra safety curb riser facing carriageway (-sx, 0, 0)
+          acc.quadV(
+            xCurb,
+            ya,
+            za,
+            xCurb,
+            yb,
+            zb,
+            xCurb,
+            wYb,
+            zb,
+            xCurb,
+            wYa,
+            za,
+            [0.96, 0.95, 0.92],
+            -sx,
+            0,
+            0,
+            uvZa,
+            uvZb,
+            uvZb,
+            uvZa
+          );
+
+          // Pedestrian walkway deck (+Y)
+          acc.quadV(xCurb, wYa, za, xCurb, wYb, zb, xWall, wYb, zb, xWall, wYa, za, concreteWalk, 0, 1, 0);
+
+          // Pedestrian stainless handrail along walkway edge
+          acc.tubeH(
+            xCurb + sx * 0.12,
+            wYa + 0.92,
+            za,
+            xCurb + sx * 0.12,
+            wYb + 0.92,
+            zb,
+            0.032,
+            0.032,
+            6,
+            handrailSteel
+          );
+          if (i % 3 === 0) {
+            acc.tubeH(
+              xCurb + sx * 0.12,
+              wYa,
+              za,
+              xCurb + sx * 0.12,
+              wYa + 0.92,
+              za,
+              0.026,
+              0.026,
+              6,
+              handrailSteel
+            );
+          }
+
+          // Vertical inner reinforced-concrete retaining wall rising from walkway up to parapet crown (-sx, 0, 0)
+          acc.quadV(
+            xWall,
+            ya - 0.80,
+            za,
+            xWall,
+            yb - 0.80,
+            zb,
+            xWall,
+            parYb,
+            zb,
+            xWall,
+            parYa,
+            za,
+            concreteWall,
+            -sx,
+            0,
+            0
+          );
+
+          // Parapet top coping (+Y) & deep outer vertical retaining face (+sx, 0, 0) seated cleanly in hillside
+          acc.quadV(
+            xWall,
+            parYa,
+            za,
+            xWall,
+            parYb,
+            zb,
+            xParapetOut,
+            parYb,
+            zb,
+            xParapetOut,
+            parYa,
+            za,
+            [0.94, 0.93, 0.90],
+            0,
+            1,
+            0
+          );
+          acc.quadV(
+            xParapetOut,
+            outerFootYa,
+            za,
+            xParapetOut,
+            outerFootYb,
+            zb,
+            xParapetOut,
+            parYb,
+            zb,
+            xParapetOut,
+            parYa,
+            za,
+            concreteWall,
+            sx,
+            0,
+            0
+          );
+          // Tubular steel top safety rail along ground-level parapet
+          acc.tubeH(
+            0.5 * (xWall + xParapetOut),
+            parYa + 0.34,
+            za,
+            0.5 * (xWall + xParapetOut),
+            parYb + 0.34,
+            zb,
+            0.036,
+            0.036,
+            6,
+            handrailSteel
+          );
+
+          // Sculpted vertical concrete pilaster buttress ribs every 3 ramp segments
+          if (i > 1 && i < rampSegs - 1 && i % 3 === 0) {
+            const pilH = parYa - wYa;
+            if (pilH > 0.8) {
+              const pil = new THREE.BoxGeometry(0.24, pilH, 0.44);
+              pil.translate(xWall - sx * 0.10, wYa + pilH * 0.5, za);
+              acc.appendV(pil, [0.92, 0.91, 0.88]);
+            }
+          }
+        }
+      }
+    };
+
+    buildOpenCutRamp(zW0, zWP, 20);
+    buildOpenCutRamp(zEP, zE1, 18);
+
+    // =========================================================================
+    // 2. WEST (z = 326m) & EAST (z = 624m) NUSANTARA-UI TUNNEL PORTALS & VENTILATION TOWERS
+    // =========================================================================
+    const buildPortalGatewayAndVentTowers = (zPortal, outSignZ) => {
+      // outSignZ = -1 for West Portal (faces -Z into West Ramp), +1 for East Portal (faces +Z into East Ramp)
+      const zCenter = zPortal - outSignZ * 3.55; // Spans 7.3m back behind the portal plane (completely sealing DEM cutout!)
+      const behindGroundY = Math.max(
+        0.55,
+        TerrainDEMLoader.sampleGroundHeight(ux, zPortal - outSignZ * 6.8)
+      );
+      const zTopRef = zPortal === zWP ? zW0 : zE1;
+      const rampEndParY = Math.max(
+        evalParapetCrownY(-1.0, zPortal, floorY, zTopRef),
+        evalParapetCrownY(1.0, zPortal, floorY, zTopRef)
+      );
+      const deckTopY = Math.max(behindGroundY + 0.42, rampEndParY);
+      const archCrownY = floorY + clearH; // -4.05m
+
+      // Upper portal headwall concrete lintel beam spanning above tunnel arch crown (y = -4.05m .. deckTopY)
+      const lintelH = deckTopY - archCrownY + 0.15;
+      const lintel = new THREE.BoxGeometry(15.1, lintelH, 7.3);
+      lintel.translate(ux, archCrownY + lintelH * 0.5 - 0.05, zCenter);
+      acc.appendV(lintel, concreteWall);
+
+      // Left & Right full-height portal abutment piers flanking the 9.10m tunnel mouth (y = -9.4m .. deckTopY)
+      const pierH = deckTopY - (floorY - 1.2);
+      for (const sx of [-1.0, 1.0]) {
+        const pier = new THREE.BoxGeometry(3.0, pierH, 7.3);
+        pier.translate(ux + sx * (boreHW + 1.50), floorY - 1.2 + pierH * 0.5, zCenter);
+        acc.appendV(pier, concreteWall);
+      }
+
+      // Monumental UI Golden-Yellow Sculpted Nusantara Portal Arch Collar & Tri-Tier Makara Crest
+      const zFace = zPortal + outSignZ * 0.22;
+      for (const sx of [-1.0, 1.0]) {
+        const jambH = clearH + 1.85;
+        const jamb = new THREE.BoxGeometry(0.76, jambH, 0.68);
+        jamb.translate(ux + sx * (boreHW + 0.34), floorY + jambH * 0.5, zFace);
+        acc.appendH(jamb, uiGoldPortal);
+      }
+      const fasciaBeam = new THREE.BoxGeometry(boreHW * 2.0 + 2.1, 1.25, 0.74);
+      fasciaBeam.translate(ux, archCrownY + 1.15, zFace);
+      acc.appendH(fasciaBeam, uiGoldPortal);
+
+      // Stepped Nusantara Tri-Tier Crown Crest + Warm Photocell Uplight Bar above Portal Mouth
+      for (let t = 0; t < 3; t++) {
+        const tier = new THREE.BoxGeometry(7.6 - t * 2.1, 0.38, 0.88 - t * 0.12);
+        tier.translate(ux, deckTopY + 0.22 + t * 0.38, zPortal - outSignZ * 0.65);
+        acc.appendH(tier, t % 2 === 0 ? uiGoldPortal : uiGoldDeep);
+      }
+      const portalLightBar = new THREE.BoxGeometry(8.4, 0.18, 0.26);
+      portalLightBar.translate(ux, archCrownY + 0.42, zFace + outSignZ * 0.24);
+      acc.appendH(portalLightBar, [0.98, 0.92, 0.76]);
+
+      // Twin Subsea Tunnel Ventilation & Control Towers ("Menara Ventilasi Bawah Laut UI") on Portal Terrace
+      for (const sx of [-1.0, 1.0]) {
+        const tx = ux + sx * 5.65;
+        const tz = zPortal - outSignZ * 2.55;
+        const towerH = 4.35;
+
+        const shaft = new THREE.BoxGeometry(2.55, towerH, 2.55);
+        shaft.translate(tx, deckTopY + towerH * 0.5, tz);
+        acc.appendV(shaft, [0.93, 0.92, 0.88]);
+
+        // Dark acoustic ventilation louver grilles on 4 faces
+        const louver = new THREE.BoxGeometry(2.64, 1.55, 1.82);
+        louver.translate(tx, deckTopY + towerH - 1.15, tz);
+        acc.appendH(louver, steelRibCol);
+        const louver2 = new THREE.BoxGeometry(1.82, 1.55, 2.64);
+        louver2.translate(tx, deckTopY + towerH - 1.15, tz);
+        acc.appendH(louver2, steelRibCol);
+
+        // UI Golden-Yellow cornice collar + Pyramidal Javanese Terracotta Tajug Roof & Bronze Finial
+        const cornice = new THREE.BoxGeometry(2.92, 0.22, 2.92);
+        cornice.translate(tx, deckTopY + towerH + 0.10, tz);
+        acc.appendH(cornice, uiGoldPortal);
+
+        const roof = new THREE.ConeGeometry(2.38, 1.55, 4, 1);
+        roof.rotateY(Math.PI * 0.25);
+        roof.translate(tx, deckTopY + towerH + 0.96, tz);
+        acc.appendH(roof, terracottaRoof);
+
+        const finial = new THREE.ConeGeometry(0.16, 0.62, 8, 1);
+        finial.translate(tx, deckTopY + towerH + 1.98, tz);
+        acc.appendH(finial, uiGoldPortal);
+      }
+    };
+
+    buildPortalGatewayAndVentTowers(zWP, -1.0);
+    buildPortalGatewayAndVentTowers(zEP, 1.0);
+
+    // =========================================================================
+    // 3. 298.0m ENCLOSED IMMERSED-TUBE SUBSEA TUNNEL BORE (z = 326 -> 624m, y = -8.20m)
+    // =========================================================================
+    const boreLen = zEP - zWP; // 298.0m
+    const boreSegs = 60; // ~4.97m per structural bay
+
+    // 7-point Arched Vault Cross-Section Profile (from South springline x = -4.55 -> Crown -> North springline x = +4.55)
+    const vaultNodes = [];
+    const vaultSteps = 8;
+    for (let k = 0; k <= vaultSteps; k++) {
+      const th = Math.PI * (1.0 - k / vaultSteps); // PI -> 0
+      const vx = ux - Math.cos(th) * boreHW; // ux - 4.55 -> ux + 4.55
+      const vy = floorY + 2.20 + Math.sin(th) * (clearH - 2.20); // -6.00 -> -4.05 -> -6.00
+      vaultNodes.push({ x: vx, y: vy, inNx: Math.cos(th), inNy: -Math.sin(th) });
+    }
+
+    for (let i = 0; i < boreSegs; i++) {
+      const za = zWP + (boreLen * i) / boreSegs;
+      const zb = zWP + (boreLen * (i + 1)) / boreSegs;
+      const zMid = 0.5 * (za + zb);
+
+      // 8 Panoramic Subsea Observation Window Bays under Selat UI (z in [366..584], every 3rd bay!)
+      const isSubseaWindowBay = zMid > 364.0 && zMid < 588.0 && i % 6 >= 2 && i % 6 <= 3;
+
+      // A. Dual-Lane 7.20m Subsea Asphalt Roadway + UI-Yellow Dashed Centerline + White Edge Stripes
+      acc.quadH(
+        ux - roadHW,
+        floorY,
+        za,
+        ux - roadHW,
+        floorY,
+        zb,
+        ux + roadHW,
+        floorY,
+        zb,
+        ux + roadHW,
+        floorY,
+        za,
+        asphaltTunnel,
+        0,
+        1,
+        0
+      );
+
+      if (i % 2 === 0) {
+        acc.quadH(
+          ux - 0.09,
+          floorY + 0.015,
+          za,
+          ux - 0.09,
+          floorY + 0.015,
+          zb,
+          ux + 0.09,
+          floorY + 0.015,
+          zb,
+          ux + 0.09,
+          floorY + 0.015,
+          za,
+          uiYellow,
+          0,
+          1,
+          0
+        );
+      }
+      for (const sx of [-1.0, 1.0]) {
+        const e0 = sx * (roadHW - 0.28);
+        const e1 = sx * (roadHW - 0.12);
+        acc.quadH(
+          ux + e0,
+          floorY + 0.014,
+          za,
+          ux + e0,
+          floorY + 0.014,
+          zb,
+          ux + e1,
+          floorY + 0.014,
+          zb,
+          ux + e1,
+          floorY + 0.014,
+          za,
+          whiteLine,
+          0,
+          1,
+          0
+        );
+      }
+
+      // B. Twin Raised 0.95m Walkways, Handrails, & Lower Tunnel Side Walls (with Subsea Acrylic Windows!)
+      const wY = floorY + 0.18;
+      const springY = floorY + 2.20; // -6.00m
+      const uvA = [za * 0.15, 0.5];
+      const uvB = [zb * 0.15, 0.5];
+
+      for (const sx of [-1.0, 1.0]) {
+        const xCurb = ux + sx * roadHW;
+        const xWall = ux + sx * boreHW;
+
+        // Zebra safety curb & raised pedestrian walkway
+        acc.quadV(
+          xCurb,
+          floorY,
+          za,
+          xCurb,
+          floorY,
+          zb,
+          xCurb,
+          wY,
+          zb,
+          xCurb,
+          wY,
+          za,
+          [0.96, 0.95, 0.92],
+          -sx,
+          0,
+          0,
+          uvA,
+          uvB,
+          uvB,
+          uvA
+        );
+        acc.quadV(xCurb, wY, za, xCurb, wY, zb, xWall, wY, zb, xWall, wY, za, concreteWalk, 0, 1, 0);
+
+        // Stainless pedestrian safety rail
+        acc.tubeH(xCurb + sx * 0.12, wY + 0.92, za, xCurb + sx * 0.12, wY + 0.92, zb, 0.030, 0.030, 6, handrailSteel);
+        if (i % 2 === 0) {
+          acc.tubeH(xCurb + sx * 0.12, wY, za, xCurb + sx * 0.12, wY + 0.92, za, 0.025, 0.025, 6, handrailSteel);
+        }
+
+        if (isSubseaWindowBay) {
+          // Lower concrete dado wall (wY .. wY + 0.55m)
+          acc.quadV(xWall, wY, za, xWall, wY, zb, xWall, wY + 0.55, zb, xWall, wY + 0.55, za, concreteWall, -sx, 0, 0);
+          // Panoramic Subsea Marine-Acrylic Observation Window (y = -7.47m .. -5.98m) glowing with Selat UI ocean caustics!
+          acc.quadH(
+            xWall - sx * 0.03,
+            wY + 0.55,
+            za + 0.22,
+            xWall - sx * 0.03,
+            wY + 0.55,
+            zb - 0.22,
+            xWall - sx * 0.03,
+            springY + 0.02,
+            zb - 0.22,
+            xWall - sx * 0.03,
+            springY + 0.02,
+            za + 0.22,
+            subseaAcrylicCol,
+            -sx,
+            0,
+            0
+          );
+          // Heavy bolted dark-steel subsea window mullions & sill/header frames
+          const sill = new THREE.BoxGeometry(0.18, 0.12, zb - za);
+          sill.translate(xWall - sx * 0.06, wY + 0.55, zMid);
+          acc.appendH(sill, steelRibCol);
+          const hdr = new THREE.BoxGeometry(0.18, 0.14, zb - za);
+          hdr.translate(xWall - sx * 0.06, springY, zMid);
+          acc.appendH(hdr, steelRibCol);
+        } else {
+          // Solid precast acoustic concrete tunnel wall panel (with UI-yellow longitudinal accent stripe!)
+          acc.quadV(xWall, wY, za, xWall, wY, zb, xWall, springY, zb, xWall, springY, za, concreteWall, -sx, 0, 0);
+          acc.quadH(
+            xWall - sx * 0.018,
+            wY + 1.05,
+            za,
+            xWall - sx * 0.018,
+            wY + 1.05,
+            zb,
+            xWall - sx * 0.018,
+            wY + 1.23,
+            zb,
+            xWall - sx * 0.018,
+            wY + 1.23,
+            za,
+            uiYellow,
+            -sx,
+            0,
+            0
+          );
+        }
+      }
+
+      // C. 8-Facet Arched Concrete Tunnel Ceiling Vault (inward-facing normals!)
+      for (let k = 0; k < vaultSteps; k++) {
+        const n0 = vaultNodes[k];
+        const n1 = vaultNodes[k + 1];
+        acc.quadV(
+          n0.x,
+          n0.y,
+          za,
+          n0.x,
+          n0.y,
+          zb,
+          n1.x,
+          n1.y,
+          zb,
+          n1.x,
+          n1.y,
+          za,
+          concreteVault,
+          0.5 * (n0.inNx + n1.inNx),
+          0.5 * (n0.inNy + n1.inNy),
+          0.0
+        );
+      }
+
+      // D. Continuous Twin 3800K LED Ceiling Luminaire Strips (x = ux +- 1.65m, y = -4.22m)
+      for (const sx of [-1.0, 1.0]) {
+        const lx = ux + sx * 1.65;
+        acc.quadH(
+          lx - 0.16,
+          floorY + clearH - 0.17,
+          za + 0.18,
+          lx - 0.16,
+          floorY + clearH - 0.17,
+          zb - 0.18,
+          lx + 0.16,
+          floorY + clearH - 0.17,
+          zb - 0.18,
+          lx + 0.16,
+          floorY + clearH - 0.17,
+          za + 0.18,
+          ledLuminaireCol,
+          0,
+          -1,
+          0
+        );
+      }
+
+      // E. Structural Dark-Steel Portal Arch Ribs every 2 bays + 6 Overhead Twin Jet-Fan Ventilation Boosters
+      if (i > 0 && i % 2 === 0) {
+        for (const sx of [-1.0, 1.0]) {
+          const post = new THREE.BoxGeometry(0.22, 2.05, 0.26);
+          post.translate(ux + sx * (boreHW - 0.09), wY + 1.025, za);
+          acc.appendH(post, steelRibCol);
+        }
+        for (let k = 0; k < vaultSteps; k++) {
+          const n0 = vaultNodes[k];
+          const n1 = vaultNodes[k + 1];
+          acc.tubeH(
+            n0.x - n0.inNx * 0.02,
+            n0.y + n0.inNy * 0.08,
+            za,
+            n1.x - n1.inNx * 0.02,
+            n1.y + n1.inNy * 0.08,
+            za,
+            0.12,
+            0.12,
+            6,
+            steelRibCol
+          );
+        }
+      }
+
+      if (i > 4 && i < boreSegs - 4 && i % 10 === 5) {
+        for (const sx of [-0.75, 0.75]) {
+          const fan = new THREE.CylinderGeometry(0.32, 0.32, 2.25, 10, 1);
+          fan.rotateX(Math.PI * 0.5);
+          fan.translate(ux + sx, floorY + clearH - 0.42, zMid);
+          acc.appendH(fan, steelRibCol);
+        }
+      }
+    }
+
+    // =========================================================================
+    // 4. SUBMERGED SEABED OUTER IMMERSED-TUBE SHELL (y = -3.72m) & 4 SURFACE MARKER BUOYS
+    //    Visible beneath clear Selat UI ocean water while leaving 2.27m navigable draft above!
+    // =========================================================================
+    const subZ0 = 357.0;
+    const subZ1 = 602.5;
+    const subLen = subZ1 - subZ0;
+    const subMidZ = 0.5 * (subZ0 + subZ1);
+    const outerCrownY = TerrainDEMLoader.UNDERPASS_OUTER_CROWN_Y; // -3.72m
+
+    // Dorsal concrete immersed-tube carapace & chamfered side haunches (+Y / +-X normals facing upward into ocean!)
+    acc.quadV(ux - 3.6, outerCrownY, subZ0, ux - 3.6, outerCrownY, subZ1, ux + 3.6, outerCrownY, subZ1, ux + 3.6, outerCrownY, subZ0, seabedConcreteTube, 0, 1, 0);
+    for (const sx of [-1.0, 1.0]) {
+      acc.quadV(
+        ux + sx * 3.6,
+        outerCrownY,
+        subZ0,
+        ux + sx * 3.6,
+        outerCrownY,
+        subZ1,
+        ux + sx * 6.2,
+        -5.45,
+        subZ1,
+        ux + sx * 6.2,
+        -5.45,
+        subZ0,
+        seabedConcreteTube,
+        sx * 0.55,
+        0.83,
+        0
+      );
+      acc.quadH(
+        ux + sx * 6.2,
+        -5.45,
+        subZ0,
+        ux + sx * 6.2,
+        -5.45,
+        subZ1,
+        ux + sx * 9.8,
+        -9.25,
+        subZ1,
+        ux + sx * 9.8,
+        -9.25,
+        subZ0,
+        seabedArmourRock,
+        sx * 0.72,
+        0.69,
+        0
+      );
+    }
+    // 14 Transverse Precast Ballast Collar Rings across the submerged tube
+    for (let r = 0; r < 14; r++) {
+      const rz = subZ0 + ((r + 0.5) / 14) * subLen;
+      const ring = new THREE.BoxGeometry(8.2, 0.26, 1.35);
+      ring.translate(ux, outerCrownY + 0.08, rz);
+      acc.appendH(ring, uiGoldDeep);
+    }
+    // 4 Floating Marine Subsea-Tunnel Corridor Marker Buoys on Selat UI surface (y = -1.45m)
+    const waterY = TerrainDEMLoader.WATER_LEVEL_Y;
+    for (const bz of [396.0, 562.0]) {
+      for (const sx of [-10.5, 10.5]) {
+        const bx = ux + sx;
+        const floatDrum = new THREE.CylinderGeometry(0.62, 0.74, 0.78, 12, 1);
+        floatDrum.translate(bx, waterY + 0.16, bz);
+        acc.appendH(floatDrum, [0.96, 0.52, 0.08]);
+
+        const mast = new THREE.CylinderGeometry(0.06, 0.09, 1.35, 8, 1);
+        mast.translate(bx, waterY + 1.12, bz);
+        acc.appendH(mast, uiGoldPortal);
+
+        const topMark = new THREE.SphereGeometry(0.18, 10, 8);
+        topMark.translate(bx, waterY + 1.88, bz);
+        acc.appendH(topMark, sx > 0 ? [0.08, 0.94, 0.42] : [0.96, 0.10, 0.08]);
+      }
+    }
+
+    return acc.finalize();
+  }
+
+  /**
+   * Builds the Twin Northern Ferry Crossing Terminals ("Dermaga Penyeberangan Utara antara Pulau U dan Pulau I")
+   * facing each other across northern Selat UI:
+   * - Dermaga Pulau U (x = -48.0m, protruding +Z eastward from z = 446.5m forecourt out to z = 491.5m T-head berth)
+   * - Dermaga Pulau I (x = -98.0m, protruding -Z westward from z = 624.5m forecourt out to z = 582.0m T-head berth)
+   * Complete with Granite Forecourts, Twin-Tier Javanese Terracotta Tajug Passenger Terminal Pavilions,
+   * 18-Pile Marine Concrete Trestle Piers, 28m T-Head Catamaran Berths, Lower Boarding Stages & Gangways,
+   * Vulcanized Rubber D-Fenders, UI-Yellow Twin-Horn Mooring Bollards, SOLAS Lifebuoys, & Red/Green Harbour Beacons!
+   * Merged via NexusBatchOptimizer into the existing 2 corridor draw calls (+0 Draw Calls!).
+   */
+  static _buildDermagaPenyeberanganUtaraUI() {
+    const acc = SplineCorridorBuilder._createDualBufferAccumulator();
+
+    const forecourtY = TerrainDEMLoader.DERMAGA_FORECOURT_Y; // 0.48
+    const pierDeckY = TerrainDEMLoader.DERMAGA_DECK_Y; // 0.72
+    const trestleHW = TerrainDEMLoader.DERMAGA_TRESTLE_HALF_W; // 4.20
+    const tHeadHW = TerrainDEMLoader.DERMAGA_THEAD_HALF_LEN_X; // 14.0
+    const tHeadDepth = TerrainDEMLoader.DERMAGA_THEAD_DEPTH_Z; // 7.60
+    const waterY = TerrainDEMLoader.WATER_LEVEL_Y; // -1.45
+
+    const graniteDeck = [0.50, 0.49, 0.46];
+    const pierConcrete = [0.87, 0.86, 0.82];
+    const pierDeckGrey = [0.36, 0.38, 0.40];
+    const teakBoardwalk = [0.48, 0.29, 0.15];
+    const terracottaRoof = [0.69, 0.27, 0.16];
+    const uiGold = [0.95, 0.72, 0.08];
+    const marinePileConcrete = [0.40, 0.42, 0.41];
+    const fenderBlack = [0.10, 0.11, 0.13];
+    const handrailSteel = [0.74, 0.77, 0.81];
+    const lifebuoyOrange = [0.96, 0.36, 0.08];
+
+    const buildSingleFerryTerminal = (cx, zForeInland, zShore, zHead, dirZ) => {
+      // dirZ = +1 for Dermaga Pulau U (+Z into Selat UI), -1 for Dermaga Pulau I (-Z into Selat UI)
+
+      // 1. Coastal Granite Forecourt Plaza & Drop-Off Apron (28m x 16.5m, watertight down to y = -2.4m)
+      const zForeEdge = zShore - dirZ * 2.5;
+      const foreLenZ = Math.abs(zForeEdge - zForeInland);
+      const foreMidZ = 0.5 * (zForeEdge + zForeInland);
+      const foreTopY = forecourtY + 0.035;
+
+      const forePlinth = new THREE.BoxGeometry(28.4, foreTopY + 2.45, foreLenZ + 0.4);
+      forePlinth.translate(cx, foreTopY - (foreTopY + 2.45) * 0.5 - 0.02, foreMidZ);
+      acc.appendV(forePlinth, pierConcrete);
+
+      const foreSlab = new THREE.BoxGeometry(27.8, 0.055, foreLenZ);
+      foreSlab.translate(cx, foreTopY - 0.02, foreMidZ);
+      acc.appendH(foreSlab, graniteDeck);
+
+      // Zebra safety drop-off curb along road side & 4 teak waiting benches
+      const dropCurb = new THREE.BoxGeometry(27.8, 0.12, 0.42);
+      const pArr = dropCurb.attributes.position.array;
+      const uArr = dropCurb.attributes.uv.array;
+      for (let vi = 0; vi < dropCurb.attributes.position.count; vi++) {
+        uArr[vi * 2] = (pArr[vi * 3] + 14.0) * 0.38;
+        uArr[vi * 2 + 1] = 0.5;
+      }
+      dropCurb.translate(cx, foreTopY + 0.04, zForeInland + dirZ * 0.25);
+      acc.appendV(dropCurb, [0.96, 0.95, 0.92], null);
+
+      for (const bxOff of [-8.8, -5.2, 5.2, 8.8]) {
+        const bz = foreMidZ + dirZ * 1.4;
+        for (const lx of [-0.65, 0.65]) {
+          const leg = new THREE.BoxGeometry(0.12, 0.44, 0.50);
+          leg.translate(cx + bxOff + lx, foreTopY + 0.22, bz);
+          acc.appendV(leg, pierConcrete);
+        }
+        const seat = new THREE.BoxGeometry(1.58, 0.055, 0.50);
+        seat.translate(cx + bxOff, foreTopY + 0.46, bz);
+        acc.appendH(seat, teakBoardwalk);
+        const back = new THREE.BoxGeometry(1.58, 0.32, 0.055);
+        back.translate(cx + bxOff, foreTopY + 0.66, bz - dirZ * 0.22);
+        acc.appendH(back, teakBoardwalk);
+      }
+
+      // 2. Nusantara Twin-Tier Terracotta Tajug Ferry Terminal Pavilion ("Terminal Penyeberangan UI", 12.6m x 8.4m)
+      const pavZ = foreMidZ + dirZ * 1.2;
+      const eaveY1 = foreTopY + 3.05;
+      const colCoords = [
+        [-5.4, -3.4],
+        [-1.8, -3.4],
+        [1.8, -3.4],
+        [5.4, -3.4],
+        [-5.4, 3.4],
+        [-1.8, 3.4],
+        [1.8, 3.4],
+        [5.4, 3.4]
+      ];
+      for (const [ox, oz] of colCoords) {
+        const plinth = new THREE.BoxGeometry(0.56, 0.42, 0.56);
+        plinth.translate(cx + ox, foreTopY + 0.21, pavZ + oz);
+        acc.appendV(plinth, [0.93, 0.92, 0.88]);
+
+        const col = new THREE.CylinderGeometry(0.18, 0.21, 2.55, 8, 1);
+        col.translate(cx + ox, foreTopY + 1.68, pavZ + oz);
+        acc.appendV(col, [0.95, 0.94, 0.90]);
+      }
+
+      // Ring beam, UI Golden-Yellow fascia portal sign, & warm 3000K photocell ceiling luminaire strip
+      const ringBeam = new THREE.BoxGeometry(11.6, 0.32, 7.5);
+      ringBeam.translate(cx, eaveY1 - 0.06, pavZ);
+      acc.appendV(ringBeam, [0.94, 0.93, 0.89]);
+
+      const goldSign = new THREE.BoxGeometry(6.8, 0.44, 7.82);
+      goldSign.translate(cx, eaveY1 + 0.04, pavZ);
+      acc.appendH(goldSign, uiGold);
+
+      const ceilLight = new THREE.BoxGeometry(8.6, 0.10, 0.42);
+      ceilLight.translate(cx, eaveY1 - 0.22, pavZ);
+      acc.appendH(ceilLight, [0.98, 0.92, 0.76]);
+
+      // Lower & Upper Javanese Terracotta Hip/Tajug Roof Tiers + UI Gold Finial Spire
+      const lowerRoof = new THREE.CylinderGeometry(3.4, 8.6, 1.35, 4, 1);
+      lowerRoof.rotateY(Math.PI * 0.25);
+      lowerRoof.scale(1.12, 1.0, 0.76);
+      lowerRoof.translate(cx, eaveY1 + 0.72, pavZ);
+      acc.appendH(lowerRoof, terracottaRoof);
+
+      const lanternNeck = new THREE.BoxGeometry(4.4, 0.45, 3.2);
+      lanternNeck.translate(cx, eaveY1 + 1.48, pavZ);
+      acc.appendH(lanternNeck, uiGold);
+
+      const upperRoof = new THREE.ConeGeometry(4.1, 1.38, 4, 1);
+      upperRoof.rotateY(Math.PI * 0.25);
+      upperRoof.scale(1.10, 1.0, 0.78);
+      upperRoof.translate(cx, eaveY1 + 2.28, pavZ);
+      acc.appendH(upperRoof, terracottaRoof);
+
+      const spire = new THREE.ConeGeometry(0.18, 0.85, 8, 1);
+      spire.translate(cx, eaveY1 + 3.32, pavZ);
+      acc.appendH(spire, uiGold);
+
+      // 3. Accessible Shore-to-Pier Bridge Ramp spanning cleanly OVER the intact 360° Stone Turap (foreTopY -> pierDeckY)
+      const zRamp0 = zShore - dirZ * 2.5;
+      const zRamp1 = zShore + dirZ * 2.0;
+      const rampSteps = 8;
+      for (let i = 0; i < rampSteps; i++) {
+        const t0 = i / rampSteps;
+        const t1 = (i + 1) / rampSteps;
+        const za = zRamp0 + (zRamp1 - zRamp0) * t0;
+        const zb = zRamp0 + (zRamp1 - zRamp0) * t1;
+        const ya = foreTopY + (pierDeckY - foreTopY) * t0;
+        const yb = foreTopY + (pierDeckY - foreTopY) * t1;
+        const zLo = Math.min(za, zb);
+        const zHi = Math.max(za, zb);
+        const yLo = za < zb ? ya : yb;
+        const yHi = za < zb ? yb : ya;
+
+        acc.quadH(cx - 5.4, yLo, zLo, cx - 5.4, yHi, zHi, cx + 5.4, yHi, zHi, cx + 5.4, yLo, zLo, pierDeckGrey, 0, 1, 0);
+        acc.quadH(
+          cx - 2.1,
+          yLo + 0.015,
+          zLo,
+          cx - 2.1,
+          yHi + 0.015,
+          zHi,
+          cx + 2.1,
+          yHi + 0.015,
+          zHi,
+          cx + 2.1,
+          yLo + 0.015,
+          zLo,
+          teakBoardwalk,
+          0,
+          1,
+          0
+        );
+      }
+      const abutment = new THREE.BoxGeometry(11.4, pierDeckY + 1.8, 4.6);
+      abutment.translate(cx, pierDeckY - (pierDeckY + 1.8) * 0.5 - 0.05, 0.5 * (zRamp0 + zRamp1));
+      acc.appendV(abutment, pierConcrete);
+
+      // 4. Pile-Supported Marine Concrete Trestle Pier (width 8.4m) + 28.0m x 7.6m T-Head Catamaran Berth (y = +0.72m)
+      const zTrestle0 = zRamp1;
+      const zTrestle1 = zHead - dirZ * tHeadDepth;
+      const trestleLen = Math.abs(zTrestle1 - zTrestle0);
+      const trestleMidZ = 0.5 * (zTrestle0 + zTrestle1);
+
+      const trestleSlab = new THREE.BoxGeometry(trestleHW * 2.0, 0.42, trestleLen + 0.2);
+      trestleSlab.translate(cx, pierDeckY - 0.21, trestleMidZ);
+      acc.appendV(trestleSlab, pierConcrete);
+
+      const trestleTop = new THREE.BoxGeometry(trestleHW * 2.0 - 0.24, 0.04, trestleLen);
+      trestleTop.translate(cx, pierDeckY - 0.01, trestleMidZ);
+      acc.appendH(trestleTop, pierDeckGrey);
+
+      const trestleTeak = new THREE.BoxGeometry(3.4, 0.05, trestleLen + 0.2);
+      trestleTeak.translate(cx, pierDeckY + 0.005, trestleMidZ);
+      acc.appendH(trestleTeak, teakBoardwalk);
+
+      // 28.0m x 7.6m T-Head Ferry Berth Deck
+      const tHeadMidZ = zHead - dirZ * (tHeadDepth * 0.5);
+      const tHeadSlab = new THREE.BoxGeometry(tHeadHW * 2.0, 0.48, tHeadDepth);
+      tHeadSlab.translate(cx, pierDeckY - 0.24, tHeadMidZ);
+      acc.appendV(tHeadSlab, pierConcrete);
+
+      const tHeadTop = new THREE.BoxGeometry(tHeadHW * 2.0 - 0.28, 0.045, tHeadDepth - 0.24);
+      tHeadTop.translate(cx, pierDeckY - 0.01, tHeadMidZ);
+      acc.appendH(tHeadTop, pierDeckGrey);
+
+      // UI Golden-Yellow Marine Safety Edge Band around T-Head Berth Perimeter
+      const safetyBand = new THREE.BoxGeometry(tHeadHW * 2.0 - 0.36, 0.055, 0.36);
+      safetyBand.translate(cx, pierDeckY + 0.005, zHead - dirZ * 0.32);
+      acc.appendH(safetyBand, uiGold);
+
+      // 5. 18 Driven Cylindrical Marine Concrete-Steel Piles (y = -6.50m .. pierDeckY - 0.35m) + Pile-Cap Crossbeams
+      const pileRowsTrestle = [0.22, 0.55, 0.88];
+      for (const f of pileRowsTrestle) {
+        const pz = zTrestle0 + (zTrestle1 - zTrestle0) * f;
+        const capBeam = new THREE.BoxGeometry(trestleHW * 2.0 + 0.35, 0.38, 0.62);
+        capBeam.translate(cx, pierDeckY - 0.56, pz);
+        acc.appendV(capBeam, pierConcrete);
+
+        for (const sx of [-3.3, 3.3]) {
+          const pileH = pierDeckY - 0.50 - -6.50;
+          const pile = new THREE.CylinderGeometry(0.32, 0.35, pileH, 10, 1);
+          pile.translate(cx + sx, -6.50 + pileH * 0.5, pz);
+          acc.appendH(pile, marinePileConcrete);
+        }
+      }
+
+      for (const fZ of [-0.28, 0.28]) {
+        const pz = tHeadMidZ + dirZ * (tHeadDepth * fZ);
+        const capBeam = new THREE.BoxGeometry(tHeadHW * 2.0 + 0.35, 0.42, 0.68);
+        capBeam.translate(cx, pierDeckY - 0.62, pz);
+        acc.appendV(capBeam, pierConcrete);
+
+        for (const sx of [-12.2, -7.4, -2.6, 2.6, 7.4, 12.2]) {
+          const pileH = pierDeckY - 0.55 - -6.60;
+          const pile = new THREE.CylinderGeometry(0.34, 0.37, pileH, 10, 1);
+          pile.translate(cx + sx, -6.60 + pileH * 0.5, pz);
+          acc.appendH(pile, marinePileConcrete);
+        }
+      }
+
+      // 6. Lower Passenger Boarding Landing Stage (y = -0.22m, matching Catamaran Ferry deck!) & Hinged Aluminum Gangway
+      const stageZ = zHead + dirZ * 1.45;
+      const stageY = -0.22;
+      const stageBox = new THREE.BoxGeometry(6.8, 0.34, 2.75);
+      stageBox.translate(cx, stageY - 0.17, stageZ);
+      acc.appendH(stageBox, pierDeckGrey);
+
+      const stageTeak = new THREE.BoxGeometry(6.2, 0.05, 2.35);
+      stageTeak.translate(cx, stageY + 0.01, stageZ);
+      acc.appendH(stageTeak, teakBoardwalk);
+
+      for (const sx of [-2.8, 2.8]) {
+        const sPile = new THREE.CylinderGeometry(0.24, 0.26, 6.2, 8, 1);
+        sPile.translate(cx + sx, -3.45, stageZ + dirZ * 0.6);
+        acc.appendH(sPile, marinePileConcrete);
+      }
+
+      // Sloped aluminum boarding gangway brow connecting T-Head Deck (+0.72m) down to Boarding Stage (-0.22m)
+      const gwZ0 = zHead - dirZ * 0.35;
+      const gwZ1 = stageZ - dirZ * 0.15;
+      acc.quadH(
+        cx - 1.35,
+        Math.min(pierDeckY, stageY) + (gwZ0 < gwZ1 ? pierDeckY - Math.min(pierDeckY, stageY) : stageY - Math.min(pierDeckY, stageY)),
+        Math.min(gwZ0, gwZ1),
+        cx - 1.35,
+        gwZ0 < gwZ1 ? stageY : pierDeckY,
+        Math.max(gwZ0, gwZ1),
+        cx + 1.35,
+        gwZ0 < gwZ1 ? stageY : pierDeckY,
+        Math.max(gwZ0, gwZ1),
+        cx + 1.35,
+        gwZ0 < gwZ1 ? pierDeckY : stageY,
+        Math.min(gwZ0, gwZ1),
+        handrailSteel,
+        0,
+        1,
+        0
+      );
+      for (const sx of [-1.35, 1.35]) {
+        acc.tubeH(cx + sx, pierDeckY + 0.88, gwZ0, cx + sx, stageY + 0.88, gwZ1, 0.032, 0.032, 6, uiGold);
+      }
+
+      // 7. Marine Perimeter Stainless Safety Railings (leaving central 3.4m gangway gate open!)
+      for (const sx of [-1.0, 1.0]) {
+        const rx = cx + sx * (trestleHW - 0.18);
+        acc.tubeH(rx, pierDeckY + 0.96, zRamp0, rx, pierDeckY + 0.96, zTrestle1, 0.035, 0.035, 6, handrailSteel);
+        acc.tubeH(rx, pierDeckY + 0.50, zRamp0, rx, pierDeckY + 0.50, zTrestle1, 0.025, 0.025, 6, handrailSteel);
+        for (let p = 0; p <= 5; p++) {
+          const pz = zRamp0 + ((zTrestle1 - zRamp0) * p) / 5;
+          acc.tubeH(rx, pierDeckY, pz, rx, pierDeckY + 0.96, pz, 0.030, 0.030, 6, handrailSteel);
+        }
+
+        // T-head outer wing railings (leaving |x - cx| < 1.8m open for boarding gangway!)
+        const zOuterRail = zHead - dirZ * 0.22;
+        acc.tubeH(
+          cx + sx * 1.85,
+          pierDeckY + 0.96,
+          zOuterRail,
+          cx + sx * (tHeadHW - 0.22),
+          pierDeckY + 0.96,
+          zOuterRail,
+          0.035,
+          0.035,
+          6,
+          handrailSteel
+        );
+        acc.tubeH(
+          cx + sx * (tHeadHW - 0.22),
+          pierDeckY + 0.96,
+          zTrestle1,
+          cx + sx * (tHeadHW - 0.22),
+          pierDeckY + 0.96,
+          zOuterRail,
+          0.035,
+          0.035,
+          6,
+          handrailSteel
+        );
+      }
+
+      // 8. Black Vulcanized-Rubber Marine D-Fenders, UI-Yellow Twin-Horn Mooring Bollards, SOLAS Lifebuoys, & Harbour Beacons
+      const zBerthFace = zHead + dirZ * 0.14;
+      for (const fx of [-11.8, -8.4, -5.0, 5.0, 8.4, 11.8]) {
+        const fender = new THREE.CylinderGeometry(0.26, 0.26, 1.55, 10, 1);
+        fender.translate(cx + fx, pierDeckY - 0.82, zBerthFace);
+        acc.appendH(fender, fenderBlack);
+
+        // UI Golden-Yellow Cast-Iron Twin-Horn Marine Mooring Bollard on T-head edge
+        const bBase = new THREE.BoxGeometry(0.54, 0.10, 0.36);
+        bBase.translate(cx + fx, pierDeckY + 0.05, zHead - dirZ * 0.55);
+        acc.appendH(bBase, fenderBlack);
+        for (const hx of [-0.14, 0.14]) {
+          const horn = new THREE.CylinderGeometry(0.085, 0.10, 0.36, 8, 1);
+          horn.translate(cx + fx + hx, pierDeckY + 0.26, zHead - dirZ * 0.55);
+          acc.appendH(horn, uiGold);
+        }
+      }
+
+      // 2 International-Orange SOLAS Lifebuoy Rings mounted on T-Head Safety Posts
+      for (const lx of [-4.2, 4.2]) {
+        const post = new THREE.CylinderGeometry(0.045, 0.05, 1.35, 8, 1);
+        post.translate(cx + lx, pierDeckY + 0.68, tHeadMidZ);
+        acc.appendV(post, [0.95, 0.94, 0.90]);
+
+        const ring = new THREE.TorusGeometry(0.32, 0.085, 8, 16);
+        ring.translate(cx + lx, pierDeckY + 1.05, tHeadMidZ + dirZ * 0.09);
+        acc.appendH(ring, lifebuoyOrange);
+      }
+
+      // Twin Driven Mooring Dolphin Pile Clusters & Night-Glowing Port-Red / Starboard-Green Harbour Entrance Beacons!
+      for (const sx of [-1.0, 1.0]) {
+        const dx = cx + sx * (tHeadHW + 2.35);
+        const dz = zHead + dirZ * 0.45;
+        const dolphH = 3.15 - -6.50;
+        const mainDolph = new THREE.CylinderGeometry(0.30, 0.36, dolphH, 10, 1);
+        mainDolph.translate(dx, -6.50 + dolphH * 0.5, dz);
+        acc.appendH(mainDolph, uiGold);
+
+        const cap = new THREE.CylinderGeometry(0.42, 0.38, 0.24, 10, 1);
+        cap.translate(dx, 3.18, dz);
+        acc.appendV(cap, [0.94, 0.93, 0.90]);
+
+        const beacon = new THREE.SphereGeometry(0.20, 12, 8);
+        beacon.translate(dx, 3.44, dz);
+        // Starboard Green on +X north side, Flashing Port Red on -X south side (y = 3.44m > 2.4m night maritime threshold!)
+        acc.appendH(beacon, sx > 0 ? [0.06, 0.94, 0.44] : [0.96, 0.09, 0.07]);
+
+        // Tire/rubber fender collar at waterline
+        const collar = new THREE.CylinderGeometry(0.46, 0.46, 0.65, 10, 1);
+        collar.translate(dx, waterY + 0.25, dz);
+        acc.appendH(collar, fenderBlack);
+      }
+    };
+
+    // Build Dermaga Penyeberangan Utara Pulau U (+Z eastward into Selat UI)
+    buildSingleFerryTerminal(
+      TerrainDEMLoader.DERMAGA_U_X,
+      446.5,
+      TerrainDEMLoader.DERMAGA_U_SHORE_Z,
+      TerrainDEMLoader.DERMAGA_U_HEAD_Z,
+      1.0
+    );
+
+    // Build Dermaga Penyeberangan Utara Pulau I (-Z westward into Selat UI)
+    buildSingleFerryTerminal(
+      TerrainDEMLoader.DERMAGA_I_X,
+      624.5,
+      TerrainDEMLoader.DERMAGA_I_SHORE_Z,
+      TerrainDEMLoader.DERMAGA_I_HEAD_Z,
+      -1.0
+    );
+
+    return acc.finalize();
+  }
+
   static _makeCirclePoints(cx, y, cz, radius, count = 48) {
     const pts = [];
     for (let i = 0; i < count; i++) {
@@ -2927,9 +4795,704 @@ export class SplineCorridorBuilder {
       SplineCorridorBuilder._buildJembatanTeksasUI()
     );
 
-    // Hukum Emas 12: Batch all decks/roofs/topiary/teak/helipad/runway/bridge into Draw Call #1 & all curbs/columns/bollards into Draw Call #2!
+    // 13. Integrated Pulau U & Pulau I Multi-Loop Asphalt Road Network (3D Terrain-Graded Cambered Carriageways,
+    //     UI-Yellow Center Dashed Lines, White Edge Lines, W-Beam Hillside Guardrails, & Junction Plazas!)
+    addPair(
+      'KepulauanUI_RoadNetwork',
+      SplineCorridorBuilder._buildPulauUAndPulauIRoadNetwork()
+    );
+
+    // 14. Southern Undersea Underpass Tunnel U <-> I (Open-Cut Retained Ramps, Twin Nusantara Portals & Tajug Ventilation
+    //     Towers, 298m Immersed-Tube Subsea Bore at y = -8.20m, 16 Panoramic Ocean-Caustic Windows, & 24/7 LED Luminaires!)
+    addPair(
+      'KepulauanUI_UnderpassBawahLaut',
+      SplineCorridorBuilder._buildUnderpassBawahLautUI()
+    );
+
+    // 15. Northern Ferry Crossing Terminals U <-> I ("Dermaga Penyeberangan Utara Pulau U & Pulau I": Twin-Tier Tajug
+    //     Passenger Pavilions, Pile-Supported Trestles & T-Head Berths, Boarding Stages, Fenders, Bollards & Beacons!)
+    addPair(
+      'KepulauanUI_DermagaPenyeberanganUtara',
+      SplineCorridorBuilder._buildDermagaPenyeberanganUtaraUI()
+    );
+
+    // Hukum Emas 12: Batch all decks/roofs/topiary/teak/helipad/runway/bridge/roads/underpass/piers into Draw Call #1 & all curbs/columns/bollards into Draw Call #2!
     NexusBatchOptimizer.optimizeHierarchy(corridorGroup);
     corridorGroup.updateMatrixWorld(true);
     return corridorGroup;
+  }
+
+  /**
+   * Single Source of Truth (SSoST) World Solid-Body Collider Registry (v4.0 Strict Non-Penetration Edition).
+   * Constructs pre-indexed, zero-GC 3D solid volumes (BOX, CYL, OBB, ISLAND_PERIMETER) for:
+   * - Gedung Rektorat UI (Main Pagoda Tower, Tajug Spire, 44 Colonnade Pillars, 8 Planters, Enclosed Annex Wings,
+   *   and true open-air columns + walls + overhead roofs for Selasar Agung, Flag Cloister, Gatehouse, Pendopo & North Pavilion!)
+   * - Lapangan Rotunda Botanical Centerpiece, 62 SE Covered Walkway Columns + 12 Roof Bays, 14 Park Benches & 24 Bollards
+   * - VIP Helipad Pavilion (4 Columns, 2 Benches, Limas Roof) + Helipad & Pulau I Airfield Windsock Masts
+   * - Jembatan Teksas UI Shore Abutments, Pilon Lingga (25m Sail), Pilon Yoni (15m Hip Arch) & 2 East Overlook Benches
+   * - Underpass Bawah Laut Selatan U–I Two-Regime Topological Config + Portal Headwalls, Wing Piers & 4 Tajug Vent Towers
+   * - Dermaga Penyeberangan Utara Pulau U & Pulau I (16 Pavilion Columns, 8 Benches, 2 Tajug Roofs, T-Head Marine Berths & Dolphins)
+   * - All ~198 Spawned Campus/Forest Tree Trunks & All 64 Fluted Nusantara Streetlamps!
+   */
+  static buildWorldSolidColliders(biomeGroup = null) {
+    const staticColliders = [];
+    const marineColliders = [];
+
+    const pushStatic = (col) => {
+      staticColliders.push(PhysicsKernel.prepareSolidCollider(col));
+    };
+    const pushMarine = (col) => {
+      marineColliders.push(PhysicsKernel.prepareSolidCollider(col));
+    };
+
+    // 0. Pedestrian Shoreline & Bridge Railing Containment Rule (active in WALK_SIVITAS mode)
+    staticColliders.push({
+      type: 'ISLAND_PERIMETER',
+      coastDistFn: TerrainDEMLoader.getIslandCoastDistance,
+      margin: 1.15,
+      bridgeDeckFn: TerrainDEMLoader.sampleTeksasBridgeDeckY,
+      bridgeCenterX: TerrainDEMLoader.TEKSAS_BRIDGE_X,
+      bridgeWalkHalfW: 2.25
+    });
+
+    // =========================================================================
+    // 1. GEDUNG REKTORAT UI — EXACT ARCHITECTURAL SOLID VOLUMES & OPEN COLONNADES
+    // =========================================================================
+    // 1A. Main Cruciform Pagoda Tower Lobby Core, 6-Tier Pagoda Upper Eaves, & Steep Tajug Spire
+    pushStatic({ id: 'Rektorat_TowerCore', type: 'BOX', minX: -14.6, maxX: 14.6, minY: 0.0, maxY: 33.2, minZ: -14.6, maxZ: 14.6 });
+    pushStatic({ id: 'Rektorat_TowerPagodaUpper', type: 'BOX', minX: -18.6, maxX: 18.6, minY: 5.55, maxY: 30.9, minZ: -18.6, maxZ: 18.6 });
+    pushStatic({ id: 'Rektorat_TajugSpire', type: 'CYL', x: 0.0, z: 0.0, r: 13.5, minY: 32.5, maxY: 50.2 });
+
+    // 44 Ground-Floor Sculpted Colonnade Pillars & 8 Recessed Base Planter Troughs around Main Tower
+    const quadrants = [
+      { id: 'NE', sx: 1, sz: -1 },
+      { id: 'NW', sx: -1, sz: -1 },
+      { id: 'SW', sx: -1, sz: 1 },
+      { id: 'SE', sx: 1, sz: 1 }
+    ];
+    const wingPillarCoords = [2.85, 5.33, 7.81, 10.29, 12.77, 15.25];
+    const wingOutCoord = 15.42;
+    for (const q of quadrants) {
+      for (let i = 0; i < wingPillarCoords.length; i++) {
+        const c = wingPillarCoords[i];
+        const pxZ = q.sx * c;
+        const pzZ = q.sz * wingOutCoord;
+        pushStatic({
+          id: `Rektorat_TowerColZ_${q.id}_${i}`,
+          type: 'BOX',
+          minX: pxZ - 0.36,
+          maxX: pxZ + 0.36,
+          minY: 0.0,
+          maxY: 5.68,
+          minZ: pzZ - 0.38,
+          maxZ: pzZ + 0.38
+        });
+        if (i < wingPillarCoords.length - 1) {
+          const pxX = q.sx * wingOutCoord;
+          const pzX = q.sz * c;
+          pushStatic({
+            id: `Rektorat_TowerColX_${q.id}_${i}`,
+            type: 'BOX',
+            minX: pxX - 0.38,
+            maxX: pxX + 0.38,
+            minY: 0.0,
+            maxY: 5.68,
+            minZ: pzX - 0.36,
+            maxZ: pzX + 0.36
+          });
+        }
+      }
+      const plZCx = q.sx * 9.05;
+      const plZCz = q.sz * 15.15;
+      pushStatic({
+        id: `Rektorat_PlanterZ_${q.id}`,
+        type: 'BOX',
+        minX: plZCx - 6.12,
+        maxX: plZCx + 6.12,
+        minY: 0.0,
+        maxY: 1.02,
+        minZ: plZCz - 0.45,
+        maxZ: plZCz + 0.45
+      });
+      const plXCx = q.sx * 15.15;
+      const plXCz = q.sz * 9.05;
+      pushStatic({
+        id: `Rektorat_PlanterX_${q.id}`,
+        type: 'BOX',
+        minX: plXCx - 0.45,
+        maxX: plXCx + 0.45,
+        minY: 0.0,
+        maxY: 1.02,
+        minZ: plXCz - 6.12,
+        maxZ: plXCz + 6.12
+      });
+    }
+
+    // 1B. Enclosed West & East Lakeside Courtyard Annex Buildings + Overhead Tower Bridges
+    pushStatic({ id: 'WestAnnex_NorthFlatBlock', type: 'BOX', minX: -43.5, maxX: -21.0, minY: 0.0, maxY: 6.35, minZ: -18.8, maxZ: -3.6 });
+    pushStatic({ id: 'WestAnnex_SouthFlatBlock', type: 'BOX', minX: -43.5, maxX: -21.0, minY: 0.0, maxY: 6.35, minZ: 2.6, maxZ: 16.2 });
+    pushStatic({ id: 'WestAnnex_PyramidalHallBody', type: 'BOX', minX: -52.8, maxX: -34.7, minY: 0.0, maxY: 5.85, minZ: -12.3, maxZ: 9.7 });
+    pushStatic({ id: 'WestAnnex_PyramidalHallRoof', type: 'BOX', minX: -54.0, maxX: -33.5, minY: 5.80, maxY: 12.30, minZ: -13.5, maxZ: 10.9 });
+    pushStatic({ id: 'WestAnnex_TowerBridgeRoof', type: 'BOX', minX: -21.6, maxX: -15.2, minY: 4.35, maxY: 6.15, minZ: -3.1, maxZ: 2.1 });
+
+    pushStatic({ id: 'EastAnnex_NorthFlatBlock', type: 'BOX', minX: 21.0, maxX: 43.5, minY: 0.0, maxY: 6.35, minZ: -21.8, maxZ: -6.6 });
+    pushStatic({ id: 'EastAnnex_SouthFlatBlock', type: 'BOX', minX: 21.0, maxX: 43.5, minY: 0.0, maxY: 6.35, minZ: -0.4, maxZ: 13.2 });
+    pushStatic({ id: 'EastAnnex_LakesideHallBody', type: 'BOX', minX: 34.7, maxX: 52.8, minY: 0.0, maxY: 5.85, minZ: -15.3, maxZ: 6.7 });
+    pushStatic({ id: 'EastAnnex_LakesideHallRoof', type: 'BOX', minX: 33.5, maxX: 54.0, minY: 5.80, maxY: 12.30, minZ: -16.5, maxZ: 7.9 });
+    pushStatic({ id: 'EastAnnex_TowerBridgeRoof', type: 'BOX', minX: 15.2, maxX: 21.6, minY: 4.35, maxY: 6.15, minZ: -6.1, maxZ: -0.9 });
+
+    // 1C. Selasar Agung (Open-Air Ceremonial Breezeway: 12 Columns + High Gable Roof)
+    for (const pz of [17.5, 21.5, 25.5, 29.5, 33.5, 37.5]) {
+      for (const sx of [-1, 1]) {
+        const px = -2.5 + sx * 3.35;
+        pushStatic({
+          id: `SelasarAgung_Col_${pz}_${sx}`,
+          type: 'BOX',
+          minX: px - 0.29,
+          maxX: px + 0.29,
+          minY: 0.0,
+          maxY: 4.90,
+          minZ: pz - 0.29,
+          maxZ: pz + 0.29
+        });
+      }
+    }
+    pushStatic({ id: 'SelasarAgung_Roof', type: 'BOX', minX: -6.7, maxX: 1.7, minY: 4.82, maxY: 9.40, minZ: 15.5, maxZ: 39.5 });
+
+    // 1D. 4-Sided Rectangular Flag Cloister (2 Front Perimeter Walls + 26 Columns + 4 Gallery Roofs)
+    pushStatic({ id: 'Cloister_FrontWallL', type: 'BOX', minX: -20.33, maxX: -8.67, minY: 0.0, maxY: 2.75, minZ: 62.31, maxZ: 62.89 });
+    pushStatic({ id: 'Cloister_FrontWallR', type: 'BOX', minX: 3.67, maxX: 15.33, minY: 0.0, maxY: 2.75, minZ: 62.31, maxZ: 62.89 });
+    for (const px of [-15.8, -11.4, -7.0, -2.5, 2.0, 6.4, 10.8]) {
+      for (const pz of [43.3, 59.1]) {
+        pushStatic({
+          id: `Cloister_NSCol_${px}_${pz}`,
+          type: 'BOX',
+          minX: px - 0.23,
+          maxX: px + 0.23,
+          minY: 0.0,
+          maxY: 3.60,
+          minZ: pz - 0.23,
+          maxZ: pz + 0.23
+        });
+      }
+    }
+    for (const pz of [46.8, 51.2, 55.6]) {
+      for (const px of [-20.0, -15.8, 10.8, 15.0]) {
+        pushStatic({
+          id: `Cloister_EWCol_${px}_${pz}`,
+          type: 'BOX',
+          minX: px - 0.23,
+          maxX: px + 0.23,
+          minY: 0.0,
+          maxY: 3.60,
+          minZ: pz - 0.23,
+          maxZ: pz + 0.23
+        });
+      }
+    }
+    pushStatic({ id: 'Cloister_NorthRoof', type: 'BOX', minX: -20.5, maxX: 15.5, minY: 3.52, maxY: 5.58, minZ: 39.0, maxZ: 43.8 });
+    pushStatic({ id: 'Cloister_SouthRoof', type: 'BOX', minX: -20.5, maxX: 15.5, minY: 3.52, maxY: 5.58, minZ: 58.7, maxZ: 63.5 });
+    pushStatic({ id: 'Cloister_WestRoof', type: 'BOX', minX: -20.5, maxX: -15.7, minY: 3.52, maxY: 5.58, minZ: 39.0, maxZ: 63.5 });
+    pushStatic({ id: 'Cloister_EastRoof', type: 'BOX', minX: 10.7, maxX: 15.5, minY: 3.52, maxY: 5.58, minZ: 39.0, maxZ: 63.5 });
+
+    // 1E. Front Rotunda Gatehouse Pavilion (9 Columns + Hipped Roof)
+    const gateCols = [
+      [-7.4, 60.8], [-2.5, 60.8], [2.4, 60.8],
+      [-7.4, 65.5],               [2.4, 65.5],
+      [-7.4, 70.2], [-4.4, 70.2], [-0.6, 70.2], [2.4, 70.2]
+    ];
+    for (let i = 0; i < gateCols.length; i++) {
+      const [gx, gz] = gateCols[i];
+      pushStatic({
+        id: `FrontGatehouse_Col_${i}`,
+        type: 'BOX',
+        minX: gx - 0.28,
+        maxX: gx + 0.28,
+        minY: 0.0,
+        maxY: 3.82,
+        minZ: gz - 0.28,
+        maxZ: gz + 0.28
+      });
+    }
+    pushStatic({ id: 'FrontGatehouse_Roof', type: 'BOX', minX: -9.0, maxX: 4.0, minY: 3.72, maxY: 7.50, minZ: 59.0, maxZ: 72.0 });
+
+    // 1F. 45° SE Diagonal Breezeway, Octagonal Skylit Pendopo, & North Standalone Pavilion
+    for (let s = 0; s < 4; s++) {
+      const dist = -6.5 + s * 4.3;
+      for (const side of [-1.75, 1.75]) {
+        const cos45 = Math.SQRT1_2;
+        const wx = 19.2 + side * cos45 + dist * cos45;
+        const wz = 19.2 - side * cos45 + dist * cos45;
+        pushStatic({ id: `SE45Breezeway_Col_${s}_${side}`, type: 'CYL', x: wx, z: wz, r: 0.27, minY: 0.0, maxY: 3.68 });
+      }
+    }
+    pushStatic({
+      id: 'SE45Breezeway_Roof',
+      type: 'OBB',
+      cx: 19.2,
+      cz: 19.2,
+      halfW: 2.35,
+      halfL: 8.75,
+      yaw: Math.PI * 0.25,
+      minY: 3.62,
+      maxY: 5.58
+    });
+
+    for (let k = 0; k < 8; k++) {
+      const ang = (k + 0.5) * (Math.PI * 0.25);
+      pushStatic({
+        id: `OctSkylitPendopo_Col_${k}`,
+        type: 'CYL',
+        x: 29.5 + 6.55 * Math.cos(ang),
+        z: 29.5 + 6.55 * Math.sin(ang),
+        r: 0.31,
+        minY: 0.0,
+        maxY: 3.86
+      });
+    }
+    pushStatic({ id: 'OctSkylitPendopo_Roof', type: 'CYL', x: 29.5, z: 29.5, r: 8.25, minY: 3.72, maxY: 8.20 });
+
+    for (const lx of [-6.8, 0.0, 6.8]) {
+      for (const lz of [-6.8, 0.0, 6.8]) {
+        if (lx === 0.0 && lz === 0.0) continue;
+        pushStatic({
+          id: `NorthPavilion_Col_${lx}_${lz}`,
+          type: 'BOX',
+          minX: 5.0 + lx - 0.25,
+          maxX: 5.0 + lx + 0.25,
+          minY: 0.0,
+          maxY: 3.75,
+          minZ: -43.5 + lz - 0.25,
+          maxZ: -43.5 + lz + 0.25
+        });
+      }
+    }
+    pushStatic({ id: 'NorthPavilion_Roof', type: 'BOX', minX: -3.5, maxX: 13.5, minY: 3.72, maxY: 8.60, minZ: -52.0, maxZ: -35.0 });
+
+    // =========================================================================
+    // 2. ROTUNDA PLANTER, SE COVERED WALKWAY, 14 PARK BENCHES, & 24 BOLLARDS
+    // =========================================================================
+    pushStatic({
+      id: 'RotundaBotanicalCenterpiece',
+      type: 'CYL',
+      x: SplineCorridorBuilder.ROTUNDA_CX,
+      z: SplineCorridorBuilder.ROTUNDA_CZ,
+      r: 5.54,
+      minY: -1.0,
+      maxY: 0.90
+    });
+
+    const seWalkwaySpline = SplineCorridorBuilder._createHighPrecisionSpline(
+      [
+        new THREE.Vector3(34.2, 0.04, 35.5),
+        new THREE.Vector3(37.4, 0.04, 58.0),
+        new THREE.Vector3(40.6, 0.04, 92.0),
+        new THREE.Vector3(43.8, 0.04, 128.0)
+      ],
+      false
+    );
+    const pTmp = new THREE.Vector3();
+    const tTmp = new THREE.Vector3();
+    const sTmp = new THREE.Vector3();
+    const pTmpB = new THREE.Vector3();
+    for (let i = 0; i <= 120; i += 4) {
+      SplineCorridorBuilder._sampleCurveFrame(seWalkwaySpline, i / 120, pTmp, tTmp, sTmp);
+      for (const sgn of [-1.55, 1.55]) {
+        pushStatic({
+          id: `SEWalkwayCol_${i}_${sgn > 0 ? 'R' : 'L'}`,
+          type: 'CYL',
+          x: pTmp.x + sTmp.x * sgn,
+          z: pTmp.z + sTmp.z * sgn,
+          r: 0.24,
+          minY: -0.3,
+          maxY: 3.45
+        });
+      }
+    }
+    for (let i = 0; i < 120; i += 10) {
+      SplineCorridorBuilder._sampleCurveFrame(seWalkwaySpline, i / 120, pTmp, tTmp, sTmp);
+      SplineCorridorBuilder._sampleCurveFrame(seWalkwaySpline, (i + 10) / 120, pTmpB, tTmp, sTmp);
+      const dx = pTmpB.x - pTmp.x;
+      const dz = pTmpB.z - pTmp.z;
+      const segLen = Math.hypot(dx, dz);
+      pushStatic({
+        id: `SEWalkwayRoof_${i}`,
+        type: 'OBB',
+        cx: 0.5 * (pTmp.x + pTmpB.x),
+        cz: 0.5 * (pTmp.z + pTmpB.z),
+        halfW: 2.18,
+        halfL: segLen * 0.5 + 0.15,
+        yaw: Math.atan2(dx, dz),
+        minY: 3.30,
+        maxY: 4.82
+      });
+    }
+
+    // 7 Lakeside Promenade Benches & 7 Rotunda Outer Apron Benches
+    const lakesideBenchZs = [-48.0, -35.0, -24.0, 17.5, 27.5, 37.5, 47.5];
+    for (let i = 0; i < lakesideBenchZs.length; i++) {
+      const lz = lakesideBenchZs[i];
+      const px = TerrainDEMLoader.getShorelinePromenadeX(lz) - 2.62;
+      pushStatic({
+        id: `LakesideBench_${lz}`,
+        type: 'OBB',
+        cx: px,
+        cz: lz,
+        halfW: 0.84,
+        halfL: 0.30,
+        yaw: Math.PI * 0.5,
+        minY: 0.0,
+        maxY: 0.88,
+        isBench: true
+      });
+    }
+    for (let i = 0; i < 7; i++) {
+      const th = 0.42 + (i / 6) * (Math.PI - 0.84);
+      const bx = -2.5 + Math.cos(th) * 35.4;
+      const bz = 106.5 + Math.sin(th) * 35.4;
+      const yawInward = Math.atan2(-2.5 - bx, 106.5 - bz);
+      pushStatic({
+        id: `RotundaBench_${i}`,
+        type: 'OBB',
+        cx: bx,
+        cz: bz,
+        halfW: 0.84,
+        halfL: 0.30,
+        yaw: yawInward,
+        minY: 0.0,
+        maxY: 0.88,
+        isBench: true
+      });
+    }
+
+    // 24 Stone Pedestrian Bollards
+    for (let i = 0; i < 16; i++) {
+      const th = (i / 16) * Math.PI * 2.0 + 0.12;
+      pushStatic({
+        id: `RotundaBollard_${i}`,
+        type: 'CYL',
+        x: -2.5 + Math.cos(th) * 34.65,
+        z: 106.5 + Math.sin(th) * 34.65,
+        r: 0.13,
+        minY: 0.0,
+        maxY: 0.84
+      });
+    }
+    for (const sx of [-10.2, -8.2, 3.2, 5.2]) {
+      pushStatic({ id: `GateBollard_${sx}`, type: 'CYL', x: sx, z: 71.85, r: 0.13, minY: 0.0, maxY: 0.84 });
+    }
+    for (const lz of [-18.0, -6.0, 6.0, 14.0]) {
+      pushStatic({
+        id: `LakeBollard_${lz}`,
+        type: 'CYL',
+        x: TerrainDEMLoader.getShorelinePromenadeX(lz) - 0.35,
+        z: lz,
+        r: 0.13,
+        minY: 0.0,
+        maxY: 0.84
+      });
+    }
+
+    // =========================================================================
+    // 3. VIP HELIPAD PAVILION, WINDSOCK MASTS, & JEMBATAN TEKSAS UI SOLIDS
+    // =========================================================================
+    for (const cxOff of [-2.05, 2.05]) {
+      for (const czOff of [-2.05, 2.05]) {
+        pushStatic({
+          id: `HelipadPavCol_${cxOff}_${czOff}`,
+          type: 'CYL',
+          x: -84.8 + cxOff,
+          z: 118.2 + czOff,
+          r: 0.24,
+          minY: 0.0,
+          maxY: 3.16
+        });
+      }
+    }
+    for (const bzOff of [-1.15, 1.15]) {
+      pushStatic({
+        id: `HelipadPavBench_${bzOff}`,
+        type: 'BOX',
+        minX: -84.72,
+        maxX: -84.18,
+        minY: 0.25,
+        maxY: 1.08,
+        minZ: 118.2 + bzOff - 0.77,
+        maxZ: 118.2 + bzOff + 0.77,
+        isBench: true
+      });
+    }
+    pushStatic({ id: 'HelipadPavRoof', type: 'BOX', minX: -87.9, maxX: -81.7, minY: 3.10, maxY: 5.55, minZ: 115.1, maxZ: 121.3 });
+    pushStatic({ id: 'HelipadWindsock', type: 'CYL', x: -87.2, z: 92.8, r: 0.56, minY: 0.0, maxY: 6.7 });
+    pushStatic({ id: 'PulauIWindsock', type: 'CYL', x: -214.0, z: 686.5, r: 0.58, minY: 0.0, maxY: 6.8 });
+
+    // Jembatan Teksas UI Shore Abutments, Pilon Lingga, Pilon Yoni, & East Overlook Benches
+    const bx = TerrainDEMLoader.TEKSAS_BRIDGE_X; // -28.0
+    const zW = TerrainDEMLoader.TEKSAS_WEST_PORTAL_Z; // 171.65
+    const zE = TerrainDEMLoader.TEKSAS_EAST_PORTAL_Z; // 319.65
+    pushStatic({ id: 'Teksas_WestAbutment', type: 'BOX', minX: bx - 3.4, maxX: bx + 3.4, minY: -3.5, maxY: 2.95, minZ: zW - 2.15, maxZ: zW + 1.45 });
+    pushStatic({ id: 'Teksas_EastAbutment', type: 'BOX', minX: bx - 3.4, maxX: bx + 3.4, minY: -3.5, maxY: 2.95, minZ: zE - 1.45, maxZ: zE + 2.15 });
+    for (const sx of [-1, 1]) {
+      pushStatic({ id: `Teksas_LinggaLegLo_${sx}`, type: 'CYL', x: bx + sx * 3.30, z: zW, r: 0.55, minY: -2.0, maxY: 4.5 });
+      pushStatic({ id: `Teksas_LinggaLegHi_${sx}`, type: 'CYL', x: bx + sx * 2.10, z: zW - 0.05, r: 0.45, minY: 4.5, maxY: 7.75 });
+      pushStatic({ id: `Teksas_YoniLegLo_${sx}`, type: 'CYL', x: bx + sx * 3.30, z: zE, r: 0.52, minY: -2.0, maxY: 5.5 });
+      pushStatic({ id: `Teksas_YoniHipHi_${sx}`, type: 'CYL', x: bx + sx * 4.10, z: zE + 0.45, r: 0.48, minY: 5.5, maxY: 12.8 });
+    }
+    pushStatic({ id: 'Teksas_LinggaSailMast', type: 'BOX', minX: bx - 0.72, maxX: bx + 1.05, minY: 7.75, maxY: 26.25, minZ: zW - 3.2, maxZ: zW + 2.4 });
+    pushStatic({ id: 'Teksas_YoniCrownArch', type: 'BOX', minX: bx - 3.0, maxX: bx + 3.0, minY: 12.8, maxY: 15.55, minZ: zE - 0.55, maxZ: zE + 1.15 });
+    for (const sx of [-4.2, 4.2]) {
+      pushStatic({
+        id: `Teksas_EastOverlookBench_${sx}`,
+        type: 'BOX',
+        minX: bx + sx - 0.82,
+        maxX: bx + sx + 0.82,
+        minY: 0.30,
+        maxY: 1.24,
+        minZ: 347.48,
+        maxZ: 348.08,
+        isBench: true
+      });
+    }
+
+    // =========================================================================
+    // 4. UNDERPASS BAWAH LAUT SELATAN U–I PORTALS, VENT TOWERS & TOPOLOGICAL CONFIG
+    // =========================================================================
+    const ux = TerrainDEMLoader.UNDERPASS_X; // -356.0
+    const zWP = TerrainDEMLoader.UNDERPASS_WEST_PORTAL_Z; // 326.0
+    const zEP = TerrainDEMLoader.UNDERPASS_EAST_PORTAL_Z; // 624.0
+    const boreHW = TerrainDEMLoader.UNDERPASS_BORE_HALF_W; // 4.55
+    const floorY = TerrainDEMLoader.UNDERPASS_TUNNEL_FLOOR_Y; // -8.20
+    const clearH = TerrainDEMLoader.UNDERPASS_CLEAR_HEIGHT_M; // 4.15 -> crown -4.05
+
+    for (const [tag, zPortal, outSignZ] of [
+      ['West', zWP, -1.0],
+      ['East', zEP, 1.0]
+    ]) {
+      const zCenter = zPortal - outSignZ * 3.55;
+      const behindGroundY = Math.max(0.55, TerrainDEMLoader.sampleGroundHeight(ux, zPortal - outSignZ * 6.8));
+      const deckTopY = behindGroundY + 0.75;
+      // Portal headwall concrete lintel above tunnel arch crown (-4.05m .. deckTopY + 1.4m)
+      pushStatic({
+        id: `Underpass_${tag}PortalLintel`,
+        type: 'BOX',
+        minX: ux - 7.55,
+        maxX: ux + 7.55,
+        minY: floorY + clearH,
+        maxY: deckTopY + 1.35,
+        minZ: zCenter - 3.65,
+        maxZ: zCenter + 3.65
+      });
+      // Left & Right full-height portal abutment wing piers
+      for (const sx of [-1.0, 1.0]) {
+        const px = ux + sx * (boreHW + 1.50);
+        pushStatic({
+          id: `Underpass_${tag}PortalPier_${sx}`,
+          type: 'BOX',
+          minX: px - 1.50,
+          maxX: px + 1.50,
+          minY: floorY - 1.2,
+          maxY: deckTopY + 0.4,
+          minZ: zCenter - 3.65,
+          maxZ: zCenter + 3.65
+        });
+        // Twin Tajug Subsea Ventilation Towers on Portal Terrace
+        const tx = ux + sx * 5.65;
+        const tz = zPortal - outSignZ * 2.55;
+        pushStatic({
+          id: `Underpass_${tag}VentTower_${sx}`,
+          type: 'BOX',
+          minX: tx - 1.75,
+          maxX: tx + 1.75,
+          minY: deckTopY - 0.5,
+          maxY: deckTopY + 6.95,
+          minZ: tz - 1.75,
+          maxZ: tz + 1.75
+        });
+      }
+    }
+
+    const underpassConfig = {
+      ux,
+      boreHalfW: boreHW,
+      roadHalfW: TerrainDEMLoader.UNDERPASS_CARRIAGEWAY_HALF_W,
+      zWestStart: TerrainDEMLoader.UNDERPASS_WEST_RAMP_START_Z,
+      zWestPortal: zWP,
+      zEastPortal: zEP,
+      zEastEnd: TerrainDEMLoader.UNDERPASS_EAST_RAMP_END_Z,
+      floorY,
+      clearH,
+      sampleRampY: TerrainDEMLoader.sampleUnderpassDeckY,
+      sampleGroundY: TerrainDEMLoader.sampleGroundHeight
+    };
+
+    // =========================================================================
+    // 5. DERMAGA PENYEBERANGAN UTARA PULAU U & PULAU I (PAVILIONS & MARINE BERTHS)
+    // =========================================================================
+    const addFerryTerminalColliders = (tag, cx, zForeInland, zShore, zHead, dirZ) => {
+      const zForeEdge = zShore - dirZ * 2.5;
+      const foreMidZ = 0.5 * (zForeEdge + zForeInland);
+      const foreTopY = TerrainDEMLoader.DERMAGA_FORECOURT_Y + 0.035;
+      const pierDeckY = TerrainDEMLoader.DERMAGA_DECK_Y;
+      const tHeadHW = TerrainDEMLoader.DERMAGA_THEAD_HALF_LEN_X; // 14.0
+      const tHeadDepth = TerrainDEMLoader.DERMAGA_THEAD_DEPTH_Z; // 7.6
+
+      // 4 Forecourt Waiting Benches
+      const bz = foreMidZ + dirZ * 1.4;
+      for (const bxOff of [-8.8, -5.2, 5.2, 8.8]) {
+        pushStatic({
+          id: `Dermaga_${tag}_Bench_${bxOff}`,
+          type: 'BOX',
+          minX: cx + bxOff - 0.80,
+          maxX: cx + bxOff + 0.80,
+          minY: foreTopY,
+          maxY: foreTopY + 0.86,
+          minZ: bz - 0.28,
+          maxZ: bz + 0.28,
+          isBench: true
+        });
+      }
+
+      // 8 Twin-Tier Tajug Terminal Pavilion Columns + Overhead Ring Beam & Roof
+      const pavZ = foreMidZ + dirZ * 1.2;
+      const eaveY1 = foreTopY + 3.05;
+      for (const ox of [-5.4, -1.8, 1.8, 5.4]) {
+        for (const oz of [-3.4, 3.4]) {
+          pushStatic({
+            id: `Dermaga_${tag}_PavCol_${ox}_${oz}`,
+            type: 'CYL',
+            x: cx + ox,
+            z: pavZ + oz,
+            r: 0.30,
+            minY: foreTopY - 0.2,
+            maxY: eaveY1
+          });
+        }
+      }
+      pushStatic({
+        id: `Dermaga_${tag}_PavRingBeam`,
+        type: 'BOX',
+        minX: cx - 5.8,
+        maxX: cx + 5.8,
+        minY: eaveY1 - 0.22,
+        maxY: eaveY1 + 0.28,
+        minZ: pavZ - 3.92,
+        maxZ: pavZ + 3.92
+      });
+      pushStatic({
+        id: `Dermaga_${tag}_PavRoof`,
+        type: 'BOX',
+        minX: cx - 6.82,
+        maxX: cx + 6.82,
+        minY: eaveY1 + 0.04,
+        maxY: eaveY1 + 3.75,
+        minZ: pavZ - 4.62,
+        maxZ: pavZ + 4.62
+      });
+
+      // Marine Pier Structure Colliders (T-Head Berth Deck, Lower Boarding Stage, & Off-Deck Mooring Dolphins)
+      const zTHead0 = Math.min(zHead, zHead - dirZ * tHeadDepth);
+      const zTHead1 = Math.max(zHead, zHead - dirZ * tHeadDepth);
+      const tHeadCol = {
+        id: `Dermaga_${tag}_THeadDeck`,
+        type: 'BOX',
+        minX: cx - tHeadHW,
+        maxX: cx + tHeadHW,
+        minY: -6.6,
+        maxY: pierDeckY + 0.05,
+        minZ: zTHead0 - 0.32,
+        maxZ: zTHead1 + 0.32
+      };
+      pushMarine(tHeadCol);
+      pushStatic({ ...tHeadCol, skipWalk: true });
+
+      const stageZ = zHead + dirZ * 1.45;
+      const stageCol = {
+        id: `Dermaga_${tag}_BoardingStage`,
+        type: 'BOX',
+        minX: cx - 3.42,
+        maxX: cx + 3.42,
+        minY: -6.5,
+        maxY: -0.18,
+        minZ: stageZ - 1.40,
+        maxZ: stageZ + 1.40
+      };
+      pushMarine(stageCol);
+      pushStatic({ ...stageCol, skipWalk: true });
+
+      for (const sx of [-1.0, 1.0]) {
+        const dolph = {
+          id: `Dermaga_${tag}_Dolphin_${sx}`,
+          type: 'CYL',
+          x: cx + sx * (tHeadHW + 2.35),
+          z: zHead + dirZ * 0.45,
+          r: 0.48,
+          minY: -6.5,
+          maxY: 3.65
+        };
+        pushStatic(dolph);
+        pushMarine({ ...dolph });
+      }
+    };
+
+    addFerryTerminalColliders(
+      'U',
+      TerrainDEMLoader.DERMAGA_U_X,
+      446.5,
+      TerrainDEMLoader.DERMAGA_U_SHORE_Z,
+      TerrainDEMLoader.DERMAGA_U_HEAD_Z,
+      1.0
+    );
+    addFerryTerminalColliders(
+      'I',
+      TerrainDEMLoader.DERMAGA_I_X,
+      624.5,
+      TerrainDEMLoader.DERMAGA_I_SHORE_Z,
+      TerrainDEMLoader.DERMAGA_I_HEAD_Z,
+      -1.0
+    );
+
+    // =========================================================================
+    // 6. ALL ~198 SPAWNED TREE TRUNKS & ALL 64 FLUTED CAMPUS STREETLAMPS
+    // =========================================================================
+    const spawnedTrees =
+      biomeGroup && biomeGroup.userData && Array.isArray(biomeGroup.userData.spawnedTrees)
+        ? biomeGroup.userData.spawnedTrees
+        : AutogenBiomeSpawner.DEFAULT_TREE_SPAWNS;
+    for (let i = 0; i < spawnedTrees.length; i++) {
+      const t = spawnedTrees[i];
+      const gy = TerrainDEMLoader.sampleGroundHeight(t.x, t.z);
+      const sx = t.scale || 1.0;
+      const trunkR = (t.species === 'PALEM_RAJA' ? 0.34 : 0.42) * sx;
+      pushStatic({
+        id: `TreeTrunk_${i}_${t.species}`,
+        type: 'CYL',
+        x: t.x,
+        z: t.z,
+        r: trunkR,
+        minY: gy - 1.0,
+        maxY: gy + 5.8 * sx
+      });
+    }
+
+    const lampCoords =
+      biomeGroup && biomeGroup.userData && Array.isArray(biomeGroup.userData.lampCoords)
+        ? biomeGroup.userData.lampCoords
+        : AutogenBiomeSpawner.getLampCoords();
+    for (let i = 0; i < lampCoords.length; i++) {
+      const lc = lampCoords[i];
+      const pierY = TerrainDEMLoader.sampleFerryPierDeckY(lc.x, lc.z);
+      const ly = pierY !== null ? pierY : Math.max(0.0, TerrainDEMLoader.sampleGroundHeight(lc.x, lc.z));
+      pushStatic({
+        id: `StreetLamp_${i}`,
+        type: 'CYL',
+        x: lc.x,
+        z: lc.z,
+        r: 0.19,
+        minY: ly - 0.3,
+        maxY: ly + 4.02
+      });
+    }
+
+    return { staticColliders, marineColliders, underpassConfig };
   }
 }

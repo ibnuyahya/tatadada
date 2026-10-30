@@ -52,6 +52,26 @@ export const CART_SEAT_SLOTS = [
   { id: 5, role: 'REAR_RIGHT', lx: -0.27, ly: 0.74, lz: -1.16, yawOffset: Math.PI, sideExit: -1.0 }
 ];
 
+// 5-Joint Articulated UI Inter-Island Electric Bus ("Bus Kuning Listrik Lintas Pulau UI" — 7.8m x 2.38m x 2.96m)
+export const BUS_JOINTS_PER_VEHICLE = 5;
+export const BUS_J_CHASSIS = 0;
+export const BUS_J_WHEEL_FL = 1;
+export const BUS_J_WHEEL_FR = 2;
+export const BUS_J_WHEEL_RL = 3;
+export const BUS_J_WHEEL_RR = 4;
+
+export const BUS_WHEEL_RADIUS = 0.42;
+export const BUS_WHEELBASE = 4.20;
+export const BUS_TRACK_HALF_W = 1.04;
+
+export const BUS_BIND_PIVOTS = [
+  [0.0, 0.0, 0.0],                               // 0: BUS_J_CHASSIS
+  [BUS_TRACK_HALF_W, BUS_WHEEL_RADIUS, 2.10],    // 1: BUS_J_WHEEL_FL (+X Left, +Z Front)
+  [-BUS_TRACK_HALF_W, BUS_WHEEL_RADIUS, 2.10],   // 2: BUS_J_WHEEL_FR (-X Right, +Z Front)
+  [BUS_TRACK_HALF_W, BUS_WHEEL_RADIUS, -2.10],   // 3: BUS_J_WHEEL_RL (+X Left, -Z Rear)
+  [-BUS_TRACK_HALF_W, BUS_WHEEL_RADIUS, -2.10]   // 4: BUS_J_WHEEL_RR (-X Right, -Z Rear)
+];
+
 class RigidJointBundleAccumulator {
   constructor() {
     this.pos = [];
@@ -908,6 +928,389 @@ export class CampusTransitAndMarineBuilder {
     const portRed = new THREE.SphereGeometry(0.085, 8, 6);
     portRed.translate(1.42, 3.24, 0.35);
     acc.addGeo(portRed, [0.90, 0.18, 0.14], HUMAN_MAT.BOAT_LANTERN, 0, 1.0, 2.0);
+
+    return acc.toBundle();
+  }
+
+  /**
+   * Builds the Iconic 7.8m UI Alma Mater Yellow Electric Inter-Island Campus Bus ("Bus Kuning Listrik Lintas Pulau UI"):
+   * - Overall Envelope: 7.80m Length x 2.38m Width x 2.96m Height (clears the 4.15m Underpass Bawah Laut bore by +1.19m!)
+   * - 5 Articulated Joints (`BUS_J_CHASSIS` + 4 Ackermann/Rolling Heavy-Duty Alloy Wheels `BUS_J_WHEEL_FL..RR`)
+   * - Authentic Bikun UI Yellow & Pearl-White Livery, Royal-Navy Lower Skirt, Golden UI Makara Crests,
+   *   Amber LED Route Matrix Display ("PULAU U - UNDERPASS - PULAU I"), Rooftop EV Battery HVAC Pod,
+   *   Panoramic Tinted Passenger Windows, Interior Seats, Twin Side Mirrors, & Photocell Headlights/Taillights!
+   */
+  static buildInterIslandElectricBus() {
+    const acc = new RigidJointBundleAccumulator();
+
+    const bikunYellow = [0.94, 0.70, 0.08];
+    const pearlWhite = [0.94, 0.95, 0.97];
+    const royalNavy = [0.09, 0.19, 0.38];
+    const chassisDark = [0.11, 0.12, 0.14];
+    const rubberTire = [0.085, 0.088, 0.095];
+    const alloySilver = [0.78, 0.81, 0.85];
+    const makaraGold = [0.91, 0.70, 0.15];
+    const glassTint = [0.22, 0.32, 0.42];
+    const seatBlue = [0.16, 0.32, 0.56];
+
+    // 1. Underfloor EV Chassis Frame, Axles, & Navy Rocker Skirt (y = 0.34m .. 0.62m)
+    const underChassis = new THREE.BoxGeometry(2.12, 0.24, 7.36);
+    underChassis.translate(0.0, 0.44, 0.0);
+    acc.addGeo(underChassis, chassisDark, HUMAN_MAT.METAL_ACCENT, BUS_J_CHASSIS, 0.74);
+
+    for (const wz of [2.10, -2.10]) {
+      const axle = new THREE.CylinderGeometry(0.055, 0.055, 1.96, 10, 1);
+      axle.rotateZ(Math.PI * 0.5);
+      axle.translate(0.0, BUS_WHEEL_RADIUS, wz);
+      acc.addGeo(axle, chassisDark, HUMAN_MAT.METAL_ACCENT, BUS_J_CHASSIS, 0.72);
+    }
+
+    const lowerSkirt = new THREE.BoxGeometry(2.36, 0.34, 7.62);
+    lowerSkirt.translate(0.0, 0.56, 0.0);
+    acc.addGeo(lowerSkirt, royalNavy, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 0.92);
+
+    // Front & Rear energy-absorbing bumpers
+    for (const sz of [-1.0, 1.0]) {
+      const bumper = new THREE.BoxGeometry(2.40, 0.24, 0.22);
+      bumper.translate(0.0, 0.48, sz * 3.82);
+      acc.addGeo(bumper, chassisDark, HUMAN_MAT.RUBBER_TIRE, BUS_J_CHASSIS, 0.90);
+    }
+
+    // 2. Main Iconic Bikun UI Alma Mater Yellow Lower Bodywork (y = 0.73m .. 1.56m) + Pearl-White Waistband
+    const lowerBody = new THREE.BoxGeometry(2.38, 0.84, 7.68);
+    lowerBody.translate(0.0, 1.14, 0.0);
+    acc.addGeo(lowerBody, bikunYellow, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 0.98);
+
+    const waistStripe = new THREE.BoxGeometry(2.40, 0.11, 7.70);
+    waistStripe.translate(0.0, 1.52, 0.0);
+    acc.addGeo(waistStripe, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 1.0);
+
+    // Flared Wheel Arch Fenders
+    for (const sx of [-1.0, 1.0]) {
+      for (const wz of [2.10, -2.10]) {
+        const arch = new THREE.TorusGeometry(0.47, 0.065, 8, 16, Math.PI);
+        arch.rotateY(Math.PI * 0.5);
+        arch.translate(sx * 1.17, 0.43, wz);
+        acc.addGeo(arch, chassisDark, HUMAN_MAT.RUBBER_TIRE, BUS_J_CHASSIS, 0.88);
+      }
+    }
+
+    // Golden UI Makara Emblem Shields on Front Nose & Both Flanks!
+    const noseCrest = new THREE.CylinderGeometry(0.14, 0.14, 0.03, 16, 1);
+    noseCrest.rotateX(Math.PI * 0.5);
+    noseCrest.translate(0.0, 1.18, 3.85);
+    acc.addGeo(noseCrest, makaraGold, HUMAN_MAT.CREST_GOLD, BUS_J_CHASSIS, 1.0, 0.0, [0.5, 0.5]);
+
+    for (const sx of [-1.0, 1.0]) {
+      const sideCrest = new THREE.CylinderGeometry(0.16, 0.16, 0.025, 16, 1);
+      sideCrest.rotateZ(Math.PI * 0.5);
+      sideCrest.translate(sx * 1.20, 1.16, 0.15);
+      acc.addGeo(sideCrest, makaraGold, HUMAN_MAT.CREST_GOLD, BUS_J_CHASSIS, 1.0, 0.0, [0.5, 0.5]);
+    }
+
+    // 3. Interior Cabin Floor, 6 Rows of Contoured Blue Transit Seats, & Curbside (+X) Dual-Leaf Passenger Door
+    const interiorCore = new THREE.BoxGeometry(2.14, 0.12, 7.10);
+    interiorCore.translate(0.0, 0.78, 0.0);
+    acc.addGeo(interiorCore, [0.22, 0.24, 0.27], HUMAN_MAT.RUBBER_TIRE, BUS_J_CHASSIS, 0.82);
+
+    for (let rz = -2.85; rz <= 1.65; rz += 0.90) {
+      for (const sx of [-0.68, 0.68]) {
+        const seat = new THREE.BoxGeometry(0.74, 0.54, 0.46);
+        seat.translate(sx, 1.14, rz);
+        acc.addGeo(seat, seatBlue, HUMAN_MAT.SHOE_BAG, BUS_J_CHASSIS, 0.90);
+      }
+    }
+
+    // Curbside (+X Left Side in Indonesian LHT) Full-Height Glazed Folding Passenger Doors
+    const curbDoorFrame = new THREE.BoxGeometry(0.05, 1.84, 1.16);
+    curbDoorFrame.translate(1.185, 1.56, 2.86);
+    acc.addGeo(curbDoorFrame, chassisDark, HUMAN_MAT.METAL_ACCENT, BUS_J_CHASSIS, 0.94);
+    for (const dz of [-0.26, 0.26]) {
+      const doorLeaf = new THREE.BoxGeometry(0.06, 1.72, 0.48);
+      doorLeaf.translate(1.192, 1.56, 2.86 + dz);
+      acc.addGeo(doorLeaf, glassTint, HUMAN_MAT.VEHICLE_GLASS, BUS_J_CHASSIS, 0.98);
+    }
+
+    // 4. Panoramic Glazed Window Greenhouse, Pillars, & Aerodynamic Bikun Yellow / Pearl-White Roof (y = 1.56m .. 2.96m)
+    // Front & Rear Bulkhead Headers + Corner Pillars
+    for (const sx of [-1.13, 1.13]) {
+      for (const pz of [-3.74, -2.25, -0.75, 0.75, 2.22, 3.70]) {
+        const pillar = new THREE.BoxGeometry(0.11, 1.06, 0.13);
+        pillar.translate(sx, 2.08, pz);
+        acc.addGeo(pillar, chassisDark, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 0.95);
+      }
+    }
+
+    // Side Panoramic Tinted Passenger Glass Windows
+    const sideGlassR = new THREE.BoxGeometry(0.04, 0.98, 7.26);
+    sideGlassR.translate(-1.175, 2.08, 0.0);
+    acc.addGeo(sideGlassR, glassTint, HUMAN_MAT.VEHICLE_GLASS, BUS_J_CHASSIS, 1.0);
+
+    const sideGlassL = new THREE.BoxGeometry(0.04, 0.98, 5.90);
+    sideGlassL.translate(1.175, 2.08, -0.72);
+    acc.addGeo(sideGlassL, glassTint, HUMAN_MAT.VEHICLE_GLASS, BUS_J_CHASSIS, 1.0);
+
+    // Swept Panoramic Front Windshield & Rear Window
+    const frontWindshield = new THREE.BoxGeometry(2.18, 1.02, 0.06);
+    frontWindshield.rotateX(-0.11);
+    frontWindshield.translate(0.0, 2.07, 3.78);
+    acc.addGeo(frontWindshield, glassTint, HUMAN_MAT.VEHICLE_GLASS, BUS_J_CHASSIS, 1.0);
+
+    const rearGlass = new THREE.BoxGeometry(2.12, 0.88, 0.06);
+    rearGlass.translate(0.0, 2.10, -3.81);
+    acc.addGeo(rearGlass, glassTint, HUMAN_MAT.VEHICLE_GLASS, BUS_J_CHASSIS, 0.98);
+
+    // Front Destination Header Box + Glowing Amber LED Route Display Matrix
+    const headerCant = new THREE.BoxGeometry(2.38, 0.28, 7.66);
+    headerCant.translate(0.0, 2.66, 0.0);
+    acc.addGeo(headerCant, bikunYellow, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 1.0);
+
+    const ledRouteSign = new THREE.BoxGeometry(1.56, 0.18, 0.04);
+    ledRouteSign.translate(0.0, 2.65, 3.83);
+    acc.addGeo(ledRouteSign, [0.96, 0.66, 0.12], HUMAN_MAT.VEHICLE_HEADLIGHT, BUS_J_CHASSIS, 1.0, 1.0);
+
+    // Crowned Pearl-White Roof + Aerodynamic EV Battery & HVAC Pod (strictly peaking at y = 2.96m!)
+    const roofDeck = new THREE.BoxGeometry(2.26, 0.10, 7.52);
+    roofDeck.translate(0.0, 2.83, 0.0);
+    acc.addGeo(roofDeck, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 1.0);
+
+    const evRoofPod = new THREE.BoxGeometry(1.62, 0.14, 3.85);
+    evRoofPod.translate(0.0, 2.91, -0.35);
+    acc.addGeo(evRoofPod, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 1.0);
+
+    // Twin Outrigger Bus Side-View Mirrors
+    for (const sx of [-1.0, 1.0]) {
+      const mArm = new THREE.CylinderGeometry(0.018, 0.018, 0.34, 8, 1);
+      mArm.rotateZ(Math.PI * 0.5);
+      mArm.translate(sx * 1.28, 2.18, 3.86);
+      acc.addGeo(mArm, chassisDark, HUMAN_MAT.METAL_ACCENT, BUS_J_CHASSIS, 0.95);
+
+      const mHousing = new THREE.BoxGeometry(0.10, 0.34, 0.15);
+      mHousing.translate(sx * 1.42, 2.06, 3.92);
+      acc.addGeo(mHousing, bikunYellow, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 0.98);
+    }
+
+    // 5. Photocell-Coupled LED Projector Headlights, Daytime Running Strips, & Ruby LED Taillights
+    for (const sx of [-0.84, 0.84]) {
+      const hlBezel = new THREE.BoxGeometry(0.42, 0.18, 0.05);
+      hlBezel.translate(sx, 0.86, 3.83);
+      acc.addGeo(hlBezel, chassisDark, HUMAN_MAT.METAL_ACCENT, BUS_J_CHASSIS, 0.92);
+
+      const hlLens = new THREE.BoxGeometry(0.36, 0.13, 0.04);
+      hlLens.translate(sx, 0.86, 3.855);
+      acc.addGeo(hlLens, [0.92, 0.95, 0.99], HUMAN_MAT.VEHICLE_HEADLIGHT, BUS_J_CHASSIS, 1.0, 0.0);
+
+      const tailCluster = new THREE.BoxGeometry(0.32, 0.36, 0.05);
+      tailCluster.translate(sx * 1.04, 1.02, -3.845);
+      acc.addGeo(tailCluster, [0.56, 0.07, 0.07], HUMAN_MAT.VEHICLE_TAILLIGHT, BUS_J_CHASSIS, 1.0, 0.0);
+    }
+
+    // 6. Four Articulated Heavy-Duty 6-Spoke Alloy Transit Wheels (`BUS_J_WHEEL_FL..RR`, radius = 0.42m)
+    const busWheels = [
+      { joint: BUS_J_WHEEL_FL, pivot: BUS_BIND_PIVOTS[BUS_J_WHEEL_FL], side: 1 },
+      { joint: BUS_J_WHEEL_FR, pivot: BUS_BIND_PIVOTS[BUS_J_WHEEL_FR], side: -1 },
+      { joint: BUS_J_WHEEL_RL, pivot: BUS_BIND_PIVOTS[BUS_J_WHEEL_RL], side: 1 },
+      { joint: BUS_J_WHEEL_RR, pivot: BUS_BIND_PIVOTS[BUS_J_WHEEL_RR], side: -1 }
+    ];
+    for (const ws of busWheels) {
+      const [wx, wy, wz] = ws.pivot;
+      const jId = ws.joint;
+      const tire = new THREE.CylinderGeometry(BUS_WHEEL_RADIUS - 0.01, BUS_WHEEL_RADIUS - 0.01, 0.28, 22, 1);
+      tire.rotateZ(Math.PI * 0.5);
+      tire.translate(wx, wy, wz);
+      acc.addGeo(tire, rubberTire, HUMAN_MAT.RUBBER_TIRE, jId, 0.92);
+
+      for (let tb = 0; tb < 12; tb++) {
+        const ang = (tb / 12) * Math.PI * 2.0;
+        const lug = new THREE.BoxGeometry(0.286, 0.028, 0.075);
+        lug.translate(0.0, BUS_WHEEL_RADIUS - 0.012, 0.0);
+        lug.rotateX(ang);
+        lug.translate(wx, wy, wz);
+        acc.addGeo(lug, [0.13, 0.135, 0.145], HUMAN_MAT.RUBBER_TIRE, jId, 0.88);
+      }
+
+      const rim = new THREE.CylinderGeometry(0.25, 0.25, 0.292, 18, 1);
+      rim.rotateZ(Math.PI * 0.5);
+      rim.translate(wx, wy, wz);
+      acc.addGeo(rim, alloySilver, HUMAN_MAT.METAL_ACCENT, jId, 0.95);
+
+      for (let sp = 0; sp < 6; sp++) {
+        const spAng = (sp / 6) * Math.PI * 2.0;
+        const spoke = new THREE.BoxGeometry(0.025, 0.22, 0.045);
+        spoke.translate(0.0, 0.11, 0.0);
+        spoke.rotateX(spAng);
+        spoke.translate(wx + ws.side * 0.142, wy, wz);
+        acc.addGeo(spoke, alloySilver, HUMAN_MAT.METAL_ACCENT, jId, 0.98);
+      }
+
+      const hub = new THREE.CylinderGeometry(0.075, 0.082, 0.05, 12, 1);
+      hub.rotateZ(Math.PI * 0.5);
+      hub.translate(wx + ws.side * 0.148, wy, wz);
+      acc.addGeo(hub, makaraGold, HUMAN_MAT.CREST_GOLD, jId, 1.0);
+    }
+
+    return acc.toBundle();
+  }
+
+  /**
+   * Builds the 16.4m x 6.2m UI Electric Passenger Catamaran Shuttle Ferry ("Kapal Feri Katamaran Listrik UI")
+   * operating across Northern Selat UI between Dermaga Penyeberangan Utara Pulau U & Dermaga Pulau I:
+   * - Twin wave-piercing aluminum catamaran demi-hulls (x = +-2.15m, waterline at y = 0.0m)
+   * - Main teak boarding deck at y = +1.23m above waterline (worldY = -0.22m matching both piers' landing stages!)
+   * - UI Alma Mater Yellow, Pearl-White, & Royal-Navy Nusantara Livery + Golden UI Makara Crests
+   * - Panoramic air-conditioned passenger saloon (warm dusk/night interior glow), raised wheelhouse bridge,
+   *   rooftop solar PV canopy, port & starboard boarding gates, SOLAS lifebuoys, radar mast & COLREGs lights!
+   */
+  static buildIslandShuttleFerry() {
+    const acc = new RigidJointBundleAccumulator();
+
+    const ferryWhite = [0.95, 0.96, 0.98];
+    const uiYellow = [0.94, 0.70, 0.08];
+    const royalNavy = [0.09, 0.20, 0.40];
+    const teakDeck = [0.54, 0.36, 0.20];
+    const stainless = [0.84, 0.87, 0.91];
+    const solarBlue = [0.10, 0.22, 0.44];
+    const cabinGlass = [0.16, 0.25, 0.34];
+    const lifebuoyOrange = [0.94, 0.32, 0.07];
+    const makaraGold = [0.91, 0.70, 0.15];
+
+    // 1. Twin Wave-Piercing Catamaran Demi-Hulls (+Z Bow, -Z Stern, x = +-2.15m, LOA = 16.4m, Waterline y = 0.0)
+    for (const sx of [-2.15, 2.15]) {
+      const hullLower = new THREE.BoxGeometry(1.42, 0.72, 12.2);
+      hullLower.translate(sx, 0.24, -0.5);
+      acc.addGeo(hullLower, royalNavy, HUMAN_MAT.VEHICLE_GLOSS, 0, 0.92);
+
+      const hullUpper = new THREE.BoxGeometry(1.52, 0.56, 12.4);
+      hullUpper.translate(sx, 0.84, -0.45);
+      acc.addGeo(hullUpper, ferryWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 0.96);
+
+      // Wave-piercing raked bow cones (+Z: z = +5.6m .. +8.2m)
+      const bow = new THREE.ConeGeometry(0.98, 3.10, 4, 1);
+      bow.rotateY(Math.PI * 0.25);
+      bow.rotateX(Math.PI * 0.5);
+      bow.scale(0.82, 0.58, 1.0);
+      bow.translate(sx, 0.62, 6.85);
+      acc.addGeo(bow, royalNavy, HUMAN_MAT.VEHICLE_GLOSS, 0, 0.96);
+
+      // Transom electric azimuth thruster pods (-Z)
+      const sternStep = new THREE.BoxGeometry(1.36, 0.38, 1.25);
+      sternStep.translate(sx, 0.42, -7.10);
+      acc.addGeo(sternStep, royalNavy, HUMAN_MAT.VEHICLE_GLOSS, 0, 0.92);
+    }
+
+    // 2. Cross-Deck Wet-Deck Bridging Box, Rubber Side Fenders, & Teak Passenger Boarding Promenade (y = 1.23m)
+    const wetBridge = new THREE.BoxGeometry(5.96, 0.34, 14.2);
+    wetBridge.translate(0.0, 1.04, -0.20);
+    acc.addGeo(wetBridge, ferryWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 0.95);
+
+    const yellowBelt = new THREE.BoxGeometry(6.14, 0.22, 14.35);
+    yellowBelt.translate(0.0, 1.14, -0.20);
+    acc.addGeo(yellowBelt, uiYellow, HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+
+    // Perimeter black rubber rubbing strake fender
+    const rubStrake = new THREE.BoxGeometry(6.24, 0.14, 14.45);
+    rubStrake.translate(0.0, 0.96, -0.20);
+    acc.addGeo(rubStrake, [0.10, 0.11, 0.12], HUMAN_MAT.RUBBER_TIRE, 0, 0.90);
+
+    const mainTeak = new THREE.BoxGeometry(5.86, 0.07, 14.05);
+    mainTeak.translate(0.0, 1.23, -0.20);
+    acc.addGeo(mainTeak, teakDeck, HUMAN_MAT.SHOE_BAG, 0, 0.97);
+
+    // Port & Starboard Stainless Perimeter Guardrails (leaving central 2.6m broadside boarding gate open at z = -0.2m!)
+    for (const sx of [-2.88, 2.88]) {
+      for (const seg of [
+        [-6.9, -1.6],
+        [1.2, 6.5]
+      ]) {
+        const len = seg[1] - seg[0];
+        const midZ = 0.5 * (seg[0] + seg[1]);
+        const topRail = new THREE.CylinderGeometry(0.026, 0.026, len, 8, 1);
+        topRail.rotateX(Math.PI * 0.5);
+        topRail.translate(sx, 2.12, midZ);
+        acc.addGeo(topRail, stainless, HUMAN_MAT.METAL_ACCENT, 0, 0.98);
+
+        for (let pz = seg[0]; pz <= seg[1] + 0.01; pz += 1.75) {
+          const post = new THREE.CylinderGeometry(0.022, 0.022, 0.88, 6, 1);
+          post.translate(sx, 1.68, pz);
+          acc.addGeo(post, stainless, HUMAN_MAT.METAL_ACCENT, 0, 0.96);
+        }
+      }
+
+      // Twin SOLAS Lifebuoys on Port & Starboard Cabin Coaming
+      const ring = new THREE.TorusGeometry(0.28, 0.075, 8, 14);
+      ring.rotateY(Math.PI * 0.5);
+      ring.translate(sx * 0.84, 1.92, -3.6);
+      acc.addGeo(ring, lifebuoyOrange, HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+    }
+
+    // 3. Panoramic Main Passenger Saloon Superstructure (y = 1.26m .. 2.84m) + UI Makara Badges
+    const saloonLower = new THREE.BoxGeometry(4.65, 0.72, 9.80);
+    saloonLower.translate(0.0, 1.62, -0.35);
+    acc.addGeo(saloonLower, ferryWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 0.98);
+
+    const saloonYellowBand = new THREE.BoxGeometry(4.70, 0.24, 9.84);
+    saloonYellowBand.translate(0.0, 1.84, -0.35);
+    acc.addGeo(saloonYellowBand, uiYellow, HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+
+    // Warm Dusk/Night Illuminated Panoramic Saloon Windows (`HUMAN_MAT.BOAT_LANTERN`, `metaZ = 3.0`)
+    const saloonGlass = new THREE.BoxGeometry(4.72, 0.72, 8.95);
+    saloonGlass.translate(0.0, 2.32, -0.35);
+    acc.addGeo(saloonGlass, cabinGlass, HUMAN_MAT.BOAT_LANTERN, 0, 1.0, 3.0);
+
+    const forwardSaloonGlass = new THREE.BoxGeometry(4.42, 0.82, 1.15);
+    forwardSaloonGlass.rotateX(0.46);
+    forwardSaloonGlass.translate(0.0, 2.26, 4.55);
+    acc.addGeo(forwardSaloonGlass, cabinGlass, HUMAN_MAT.BOAT_LANTERN, 0, 1.0, 3.0);
+
+    for (const sx of [-1.0, 1.0]) {
+      const crest = new THREE.CylinderGeometry(0.22, 0.22, 0.03, 16, 1);
+      crest.rotateZ(Math.PI * 0.5);
+      crest.translate(sx * 2.37, 1.64, -0.20);
+      acc.addGeo(crest, makaraGold, HUMAN_MAT.CREST_GOLD, 0, 1.0, 0.0, [0.5, 0.5]);
+    }
+
+    const upperDeckSlab = new THREE.BoxGeometry(4.92, 0.16, 10.60);
+    upperDeckSlab.translate(0.0, 2.82, -0.45);
+    acc.addGeo(upperDeckSlab, ferryWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+
+    // 4. Raised Captain's Bridge Wheelhouse (y = 2.90m .. 4.02m) + Aft Rooftop Solar PV Array Canopy
+    const bridgeCore = new THREE.BoxGeometry(3.35, 1.04, 3.45);
+    bridgeCore.translate(0.0, 3.42, 1.85);
+    acc.addGeo(bridgeCore, ferryWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+
+    const bridgeGlass = new THREE.BoxGeometry(3.42, 0.52, 2.95);
+    bridgeGlass.translate(0.0, 3.56, 1.98);
+    acc.addGeo(bridgeGlass, cabinGlass, HUMAN_MAT.BOAT_LANTERN, 0, 1.0, 3.0);
+
+    const bridgeRoof = new THREE.BoxGeometry(3.62, 0.14, 3.85);
+    bridgeRoof.translate(0.0, 4.00, 1.85);
+    acc.addGeo(bridgeRoof, uiYellow, HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+
+    // Rooftop Clean-Energy Solar PV Array over Aft Upper Deck
+    const solarPanel = new THREE.BoxGeometry(4.25, 0.08, 5.20);
+    solarPanel.translate(0.0, 2.95, -2.85);
+    acc.addGeo(solarPanel, solarBlue, HUMAN_MAT.VEHICLE_GLOSS, 0, 0.98);
+
+    // 5. Radar Mast, Marine Radome, & COLREGs Navigation Lights
+    const mast = new THREE.CylinderGeometry(0.06, 0.08, 1.35, 8, 1);
+    mast.translate(0.0, 4.72, 1.65);
+    acc.addGeo(mast, ferryWhite, HUMAN_MAT.METAL_ACCENT, 0, 1.0);
+
+    const radome = new THREE.CylinderGeometry(0.38, 0.40, 0.24, 14, 1);
+    radome.translate(0.0, 4.56, 1.95);
+    acc.addGeo(radome, ferryWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+
+    const mastheadLight = new THREE.SphereGeometry(0.11, 10, 8);
+    mastheadLight.translate(0.0, 5.45, 1.65);
+    acc.addGeo(mastheadLight, [0.98, 0.96, 0.88], HUMAN_MAT.BOAT_LANTERN, 0, 1.0, 3.0);
+
+    const stbdGreen = new THREE.SphereGeometry(0.10, 8, 6);
+    stbdGreen.translate(-1.82, 3.96, 2.45);
+    acc.addGeo(stbdGreen, [0.16, 0.90, 0.38], HUMAN_MAT.BOAT_LANTERN, 0, 1.0, 1.0);
+
+    const portRed = new THREE.SphereGeometry(0.10, 8, 6);
+    portRed.translate(1.82, 3.96, 2.45);
+    acc.addGeo(portRed, [0.92, 0.16, 0.14], HUMAN_MAT.BOAT_LANTERN, 0, 1.0, 2.0);
 
     return acc.toBundle();
   }

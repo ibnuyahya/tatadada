@@ -124,6 +124,26 @@ export const GEDUNG_REKTORAT_UI_META = {
     jembatanTeksasUI: {
       pos: { x: -188.0, y: 29.5, z: 232.0 },
       target: { x: -26.0, y: 9.2, z: 245.65 }
+    },
+    // Southern Subsea Underpass West Open-Cut Ramp, UI Golden Nusantara Portal Arch, Twin Tajug Ventilation Towers, & Bus Kuning UI!
+    underpassPortalSelatan: {
+      pos: { x: -357.2, y: 7.6, z: 256.0 },
+      target: { x: -355.6, y: -4.6, z: 338.0 }
+    },
+    // Inside the -8.20m Subsea Immersed-Tube Underpass Bore beneath Selat UI (3800K LED Luminaires & Panoramic Ocean-Caustic Windows!)
+    underpassBawahLautInterior: {
+      pos: { x: -353.35, y: -6.22, z: 434.0 },
+      target: { x: -355.85, y: -6.42, z: 504.0 }
+    },
+    // Northern Ferry Crossing Terminals ("Dermaga Penyeberangan Utara Pulau U & Pulau I") & Shuttling Electric Catamaran Ferry!
+    dermagaPenyeberanganUtara: {
+      pos: { x: -10.0, y: 23.5, z: 452.0 },
+      target: { x: -74.0, y: 1.4, z: 545.0 }
+    },
+    // Elevated Scenic Overlook of Pulau U Integrated Multi-Loop Hillside Road Network, Underpass Selatan, & Dermaga Utara!
+    jaringanJalanPulauU: {
+      pos: { x: -565.0, y: 470.0, z: 348.0 },
+      target: { x: -175.0, y: 0.0, z: 348.0 }
     }
   }
 };

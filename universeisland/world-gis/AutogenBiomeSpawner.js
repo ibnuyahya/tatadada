@@ -75,18 +75,92 @@ export class AutogenBiomeSpawner {
 
     // 12 Palem Raja (Curving Royal Palms lining Lapangan Rotunda UI outer perimeter & Lakeside)
     { species: 'PALEM_RAJA', x: -39.5, z: 93.0, scale: 1.08, yaw: 1.65 },
-    { species: 'PALEM_RAJA', x: -36.0, z: 123.0, scale: 1.10, yaw: 0.95 },
+    { species: 'PALEM_RAJA', x: -37.9, z: 123.8, scale: 1.10, yaw: 0.95 },
     { species: 'PALEM_RAJA', x: 31.5, z: 88.0, scale: 1.08, yaw: 4.55 },
-    { species: 'PALEM_RAJA', x: 34.5, z: 106.5, scale: 1.10, yaw: 4.82 },
-    { species: 'PALEM_RAJA', x: 31.0, z: 124.5, scale: 1.07, yaw: 5.25 },
+    { species: 'PALEM_RAJA', x: 36.75, z: 106.5, scale: 1.10, yaw: 4.82 },
+    { species: 'PALEM_RAJA', x: 32.6, z: 125.6, scale: 1.07, yaw: 5.25 },
     { species: 'PALEM_RAJA', x: 51.0, z: 18.5, scale: 1.08, yaw: 1.52 },
     { species: 'PALEM_RAJA', x: 54.5, z: 29.0, scale: 1.10, yaw: 1.62 },
     { species: 'PALEM_RAJA', x: 58.5, z: 40.5, scale: 1.09, yaw: 1.58 },
     { species: 'PALEM_RAJA', x: 49.5, z: -32.0, scale: 1.06, yaw: 1.48 },
     { species: 'PALEM_RAJA', x: 47.0, z: -46.0, scale: 1.08, yaw: 1.42 },
-    { species: 'PALEM_RAJA', x: -24.0, z: 75.5, scale: 1.06, yaw: 2.35 },
-    { species: 'PALEM_RAJA', x: 19.0, z: 75.5, scale: 1.06, yaw: 3.92 }
+    { species: 'PALEM_RAJA', x: -25.8, z: 73.6, scale: 1.06, yaw: 2.35 },
+    { species: 'PALEM_RAJA', x: 20.8, z: 73.6, scale: 1.06, yaw: 3.92 }
   ];
+
+  /**
+   * Single Source of Truth (SSoST) 64 Fluted Nusantara Campus Streetlamp Coordinates
+   * across Pulau U & Pulau I (shared by InstancedMesh placement & Solid-Body Physics Colliders).
+   */
+  static getLampCoords() {
+    const lampCoords = [];
+    // Group A (12): Lapangan Rotunda UI Ring (R = 34.9m around (-2.5, 106.5))
+    for (let i = 0; i < 12; i++) {
+      const th = (i / 12) * Math.PI * 2.0 + Math.PI / 12;
+      lampCoords.push({ x: -2.5 + Math.cos(th) * 34.9, z: 106.5 + Math.sin(th) * 34.9 });
+    }
+    // Group B (4): South Rektorat Approach Plaza
+    lampCoords.push(
+      { x: -11.5, z: 68.5 },
+      { x: 6.5, z: 68.5 },
+      { x: -21.2, z: 51.5 },
+      { x: 16.2, z: 51.5 }
+    );
+    // Group E (8): East Lakeside Promenade (uniformly spaced z = -52 .. +48)
+    for (let k = 0; k < 8; k++) {
+      const lz = -52.0 + k * (100.0 / 7.0);
+      lampCoords.push({ x: TerrainDEMLoader.getShorelinePromenadeX(lz) - 0.55, z: lz });
+    }
+    // Group C (6): West Helipad Boulevard & Helipad Entry Plaza
+    lampCoords.push(
+      { x: -50.0, z: 100.8 },
+      { x: -50.0, z: 112.2 },
+      { x: -72.0, z: 100.8 },
+      { x: -72.0, z: 112.2 },
+      { x: -83.2, z: 99.6 },
+      { x: -83.2, z: 113.4 }
+    );
+    // Group D (6): West Courtyard / Electric Golf-Cart Shuttle Boulevard (x = -55.4, z = -22..88)
+    for (let k = 0; k < 6; k++) {
+      lampCoords.push({ x: -55.4, z: -22.0 + k * 22.0 });
+    }
+    // Group F (4): Pulau I West Aircraft Apron Perimeter (z = 658.4, x = -276.5..-231.5)
+    for (let k = 0; k < 4; k++) {
+      lampCoords.push({ x: -276.5 + k * 15.0, z: 658.4 });
+    }
+    // Group G (4): Jembatan Teksas UI West Pilon Lingga Forecourt & East Pilon Yoni FIB Overlook Plaza
+    lampCoords.push(
+      { x: TerrainDEMLoader.TEKSAS_BRIDGE_X + 5.8, z: 148.5 },
+      { x: TerrainDEMLoader.TEKSAS_BRIDGE_X - 5.8, z: 148.5 },
+      { x: TerrainDEMLoader.TEKSAS_BRIDGE_X + 5.8, z: 343.5 },
+      { x: TerrainDEMLoader.TEKSAS_BRIDGE_X - 5.8, z: 343.5 }
+    );
+    // Group H1 (6): Pulau U West-Arm Arterial Boulevard (-Z coastal shoulder, 4.9m outside road centerline)
+    for (let k = 0; k < 6; k++) {
+      lampCoords.push({ x: -96.0 - k * 46.0, z: 71.3 + 2.36 * k + 0.24 * k * k });
+    }
+    // Group H2 (4): Pulau U Southern Arterial Boulevard (+X inner foothill shoulder, >= 5.0m outside road centerline)
+    for (let k = 0; k < 4; k++) {
+      lampCoords.push({ x: -355.2 - 9.6 * k + 3.0 * k * k, z: 128.0 + k * 40.0 });
+    }
+    // Group H3 (4): Underpass Bawah Laut Selatan U-I West & East Portal Gateways
+    lampCoords.push(
+      { x: -348.1, z: 324.5 },
+      { x: -363.9, z: 324.5 },
+      { x: -348.1, z: 625.5 },
+      { x: -363.9, z: 625.5 }
+    );
+    // Group H4 (6): Dermaga Penyeberangan Utara Pulau U & Pulau I + Right-Arm Saddle Shoulder & North Headland Overlook
+    lampCoords.push(
+      { x: -41.2, z: 462.5 },
+      { x: -54.8, z: 462.5 },
+      { x: -91.2, z: 611.0 },
+      { x: -104.8, z: 611.0 },
+      { x: -164.5, z: 438.2 },
+      { x: 37.2, z: 396.0 }
+    );
+    return lampCoords;
+  }
 
   static isAllowedTreeSpawn(x, z, groundHeightFn = TerrainDEMLoader.sampleGroundHeight) {
     if (x > -55.8 && x < 55.2 && z > -37.2 && z < 41.2) return false;
@@ -111,6 +185,11 @@ export class AutogenBiomeSpawner {
 
     // Jembatan Teksas UI West Connector, Forecourt, Span, & East FIB Overlook Plaza sightline corridor
     if (Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) < 13.5 && z > 129.0 && z < 354.0) {
+      return false;
+    }
+
+    // Integrated Pulau U / Pulau I Road Network, Underpass Open-Cut Ramps/Portals, & Northern Ferry Terminals
+    if (TerrainDEMLoader.isTransitInfrastructureExclusion(x, z, 5.2)) {
       return false;
     }
 
@@ -244,7 +323,7 @@ export class AutogenBiomeSpawner {
     // --- A3. DENSE SOUTHERN HIGHLAND TROPICAL RAINFOREST (Pulau U Southern Hills) ---
     // Low-discrepancy R2 quasi-random lattice over x in [-382, -146], z in [-38, +318] where gy >= 2.2m
     let pulauUExtraCount = extraTrees.length;
-    for (let i = 0; i < 520 && pulauUExtraCount < 128; i++) {
+    for (let i = 0; i < 680 && pulauUExtraCount < 128; i++) {
       const u = fract(0.5 + i * 0.7548776662466927);
       const v = fract(0.5 + i * 0.5698402909980532);
       const tx = -382.0 + u * 236.0;
@@ -285,7 +364,7 @@ export class AutogenBiomeSpawner {
         });
       }
     }
-    for (let i = 0; i < 120 && forestShrubs.length < 48; i++) {
+    for (let i = 0; i < 160 && forestShrubs.length < 48; i++) {
       const u = fract(0.25 + i * 0.7548776662466927);
       const v = fract(0.75 + i * 0.5698402909980532);
       const sx = -362.0 + u * 212.0;
@@ -293,6 +372,7 @@ export class AutogenBiomeSpawner {
       if (
         groundHeightFn(sx, sz) >= 2.6 &&
         !TerrainDEMLoader.isFreshwaterExclusion(sx, sz, 1.25) &&
+        !TerrainDEMLoader.isTransitInfrastructureExclusion(sx, sz, 3.8) &&
         TerrainDEMLoader.getIslandCoastDistance(sx, sz) < -4.5
       ) {
         forestShrubs.push({
@@ -1161,49 +1241,8 @@ export class AutogenBiomeSpawner {
       canopyInstanced.instanceMatrix.needsUpdate = true;
     }
 
-    // Draw Call #3: 40 Photocell-Equipped Fluted Nusantara Campus Streetlamps (+0 Draw Calls!)
-    const lampCoords = [];
-    // Group A (12): Lapangan Rotunda UI Ring (R = 34.9m around (-2.5, 106.5))
-    for (let i = 0; i < 12; i++) {
-      const th = (i / 12) * Math.PI * 2.0 + Math.PI / 12;
-      lampCoords.push({ x: -2.5 + Math.cos(th) * 34.9, z: 106.5 + Math.sin(th) * 34.9 });
-    }
-    // Group B (4): South Rektorat Approach Plaza
-    lampCoords.push(
-      { x: -11.5, z: 68.5 },
-      { x: 6.5, z: 68.5 },
-      { x: -21.2, z: 51.5 },
-      { x: 16.2, z: 51.5 }
-    );
-    // Group E (8): East Lakeside Promenade (uniformly spaced z = -52 .. +48)
-    for (let k = 0; k < 8; k++) {
-      const lz = -52.0 + k * (100.0 / 7.0);
-      lampCoords.push({ x: TerrainDEMLoader.getShorelinePromenadeX(lz) - 0.55, z: lz });
-    }
-    // Group C (6): West Helipad Boulevard & Helipad Entry Plaza
-    lampCoords.push(
-      { x: -50.0, z: 100.8 },
-      { x: -50.0, z: 112.2 },
-      { x: -72.0, z: 100.8 },
-      { x: -72.0, z: 112.2 },
-      { x: -83.2, z: 99.6 },
-      { x: -83.2, z: 113.4 }
-    );
-    // Group D (6): West Courtyard / Electric Golf-Cart Shuttle Boulevard (x = -55.4, z = -22..88)
-    for (let k = 0; k < 6; k++) {
-      lampCoords.push({ x: -55.4, z: -22.0 + k * 22.0 });
-    }
-    // Group F (4): Pulau I West Aircraft Apron Perimeter (z = 658.4, x = -276.5..-231.5)
-    for (let k = 0; k < 4; k++) {
-      lampCoords.push({ x: -276.5 + k * 15.0, z: 658.4 });
-    }
-    // Group G (4): Jembatan Teksas UI West Pilon Lingga Forecourt & East Pilon Yoni FIB Overlook Plaza
-    lampCoords.push(
-      { x: TerrainDEMLoader.TEKSAS_BRIDGE_X + 5.8, z: 148.5 },
-      { x: TerrainDEMLoader.TEKSAS_BRIDGE_X - 5.8, z: 148.5 },
-      { x: TerrainDEMLoader.TEKSAS_BRIDGE_X + 5.8, z: 343.5 },
-      { x: TerrainDEMLoader.TEKSAS_BRIDGE_X - 5.8, z: 343.5 }
-    );
+    // Draw Call #3: 64 Photocell-Equipped Fluted Nusantara Campus Streetlamps (+0 Draw Calls!)
+    const lampCoords = AutogenBiomeSpawner.getLampCoords();
 
     const lampMat = new THREE.MeshStandardMaterial({
       name: 'CampusGardenLampMat',
@@ -1231,7 +1270,8 @@ export class AutogenBiomeSpawner {
     const unitScale = new THREE.Vector3(1.0, 1.0, 1.0);
     for (let i = 0; i < lampCoords.length; i++) {
       const lc = lampCoords[i];
-      const ly = Math.max(0.0, groundHeightFn(lc.x, lc.z));
+      const pierY = TerrainDEMLoader.sampleFerryPierDeckY(lc.x, lc.z);
+      const ly = pierY !== null ? pierY : Math.max(0.0, groundHeightFn(lc.x, lc.z));
       pos.set(lc.x, ly, lc.z);
       mat.compose(pos, unitQuat, unitScale);
       lampInstanced.setMatrixAt(i, mat);
@@ -1249,6 +1289,7 @@ export class AutogenBiomeSpawner {
     ).length;
     biomeGroup.userData.pulauIForestCount = validTrees.filter((t) => t.z >= 536.0).length;
     biomeGroup.userData.spawnedTrees = validTrees;
+    biomeGroup.userData.lampCoords = lampCoords;
     biomeGroup.updateMatrixWorld(true);
     return biomeGroup;
   }

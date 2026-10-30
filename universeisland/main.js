@@ -25,11 +25,21 @@ const TOD_LABELS = {
   NIGHT: 'Malam'
 };
 
-const TOTAL_EXPECTED_TRIS = 5541566;
+const TOTAL_EXPECTED_TRIS = 5656758;
 
 function yieldToBrowserFrame() {
   return new Promise((resolve) => {
-    requestAnimationFrame(() => setTimeout(resolve, 0));
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    const fallbackTimer = setTimeout(finish, 34);
+    requestAnimationFrame(() => {
+      clearTimeout(fallbackTimer);
+      setTimeout(finish, 0);
+    });
   });
 }
 
@@ -247,17 +257,19 @@ async function bootstrapNexusSimulator() {
     sharedUniforms
   );
 
-  // Stage 5: Build Plaza Rotunda Makara UI, Jembatan Teksas UI, VIP Helipad (Pulau U), & Landasan Pacu RWY 36/18 (Pulau I)
-  await preloader.advance(5, 70, 'Merakit Plaza Rotunda, Jembatan Teksas UI, Helipad VIP & Landasan Pacu Pulau I...', 1118000);
+  // Stage 5: Build Plaza Rotunda, Jembatan Teksas UI, Jaringan Jalan Pulau U, Underpass Bawah Laut, & Dermaga Utara U–I
+  await preloader.advance(5, 70, 'Merakit Jaringan Jalan Pulau U, Underpass Bawah Laut & Dermaga Penyeberangan Utara...', 1118000);
   const corridorGroup = SplineCorridorBuilder.buildRotundaAndPromenades(sharedUniforms);
 
-  // Stage 6: Build Dense Southern Highland Rainforest (Pulau U), Sparse Montane Forest (Pulau I) & 44 Photocell Streetlamps
-  await preloader.advance(6, 82, 'Menumbuhkan Hutan Lebat Pulau U, Lereng Gunung Pulau I, & 44 Lampu Sensor Cahaya...', 4899000);
+  // Stage 6: Build Dense Southern Highland Rainforest (Pulau U), Sparse Montane Forest (Pulau I) & 64 Photocell Streetlamps
+  await preloader.advance(6, 82, 'Menumbuhkan Hutan Lebat Pulau U, Lereng Gunung Pulau I, & 64 Lampu Sensor Cahaya...', 4899000);
   const biomeGroup = AutogenBiomeSpawner.buildCampusBiome(groundHeightFn, sharedUniforms);
+  const solidWorld = SplineCorridorBuilder.buildWorldSolidColliders(biomeGroup);
 
-  // Stage 7: Build 48 22-Joint Sivitas Akademika NPCs + Patrolling Electric Golf Cart + 48 Cats + Mini Yacht + 12 Marine Vessels
-  await preloader.advance(7, 92, 'Menghadirkan 48 Sivitas Akademika, Mobil Golf UI, Mini Yacht Teluk U, & 48 Kucing...', TOTAL_EXPECTED_TRIS);
+  // Stage 7: Build 52 22-Joint Sivitas Akademika NPCs + Bus Kuning Lintas Pulau + Kapal Feri Utara + Mobil Golf + Mini Yacht + 48 Cats
+  await preloader.advance(7, 92, 'Menghadirkan 52 Sivitas Akademika, Bus Kuning Underpass, Feri Utara, & 48 Kucing...', TOTAL_EXPECTED_TRIS);
   const sivitasAI = new DynamicTrafficAI(groundHeightFn, sharedUniforms);
+  sivitasAI.setSolidWorld(solidWorld);
   const sivitasGroup = sivitasAI.build();
 
   worldRoot.add(terrainGroup, corridorGroup, biomeGroup, rektoratAsset, sivitasGroup);
@@ -281,24 +293,26 @@ async function bootstrapNexusSimulator() {
   GedungRektoratUIAsset.setNightIllumination(rektoratAsset, weather.nightIlluminationLevel);
   sivitasAI.update(0.016, 0.016, camera.position);
 
-  // Combine obstacle colliders: keep tower, annex wings, & pavilions solid while cushioning the 360° island shoreline
-  const walkAndDroneColliders = [
-    ...GedungRektoratUIAsset.meta.obstacleColliders.slice(1),
-    {
-      type: 'ISLAND_PERIMETER',
-      cx: TerrainDEMLoader.ISLAND_CX,
-      cz: TerrainDEMLoader.ISLAND_CZ,
-      coastDistFn: TerrainDEMLoader.getIslandCoastDistance,
-      bridgeDeckFn: TerrainDEMLoader.sampleTeksasBridgeDeckY,
-      bridgeCenterX: TerrainDEMLoader.TEKSAS_BRIDGE_X,
-      bridgeWalkHalfW: 2.35,
-      margin: 0.95,
-      minY: -10.0,
-      maxY: 12.5
-    }
-  ];
+  // Full 3D Solid-Body Non-Penetration World Colliders (Buildings, Columns, Roofs, Trees, Lamps, Benches, Piers, Bridges, Underpass)
+  const walkAndDroneColliders = solidWorld.staticColliders;
 
   const sampleWalkableElevation = (x, z) => {
+    const underpassY = TerrainDEMLoader.sampleUnderpassDeckY(x, z);
+    if (underpassY !== null) {
+      const isEnclosedBore =
+        z >= TerrainDEMLoader.UNDERPASS_WEST_PORTAL_Z &&
+        z <= TerrainDEMLoader.UNDERPASS_EAST_PORTAL_Z;
+      if (!isEnclosedBore || camera.position.y < -2.2) {
+        const onSidewalk =
+          Math.abs(x - TerrainDEMLoader.UNDERPASS_X) >=
+          TerrainDEMLoader.UNDERPASS_CARRIAGEWAY_HALF_W - 0.05;
+        return underpassY + (onSidewalk ? 0.19 : 0.02);
+      }
+    }
+    const ferryPierY = TerrainDEMLoader.sampleFerryPierDeckY(x, z);
+    if (ferryPierY !== null) {
+      return ferryPierY + 0.02;
+    }
     const teksasDeckY = TerrainDEMLoader.sampleTeksasBridgeDeckY(x, z);
     if (teksasDeckY !== null) {
       return teksasDeckY + 0.02;
@@ -335,6 +349,21 @@ async function bootstrapNexusSimulator() {
   };
 
   const camDirector = new CameraDirector(camera, controls, walkAndDroneColliders);
+  camDirector.setWorldPhysicsContext({
+    staticColliders: solidWorld.staticColliders,
+    getDynamicColliders: () => sivitasAI.getDynamicSolidColliders(),
+    underpassConfig: solidWorld.underpassConfig,
+    groundHeightFn,
+    walkableHeightFn: sampleWalkableElevation,
+    coastDistFn: TerrainDEMLoader.getIslandCoastDistance,
+    waterSurfaceFn: TerrainDEMLoader.sampleWaterSurfaceY,
+    oceanWaterY: TerrainDEMLoader.WATER_LEVEL_Y,
+    bridgeDeckFn: TerrainDEMLoader.sampleTeksasBridgeDeckY,
+    bridgeSoffitFn: TerrainDEMLoader.sampleTeksasBridgeSoffitY,
+    bridgeCenterX: TerrainDEMLoader.TEKSAS_BRIDGE_X,
+    bridgeHalfW: 2.6,
+    ferryPierDeckFn: TerrainDEMLoader.sampleFerryPierDeckY
+  });
   camDirector.bindKeyboard(window);
 
   // Subtle 1.05s arrival ease-out on curtain lift (cancelled immediately on user interaction)
@@ -344,6 +373,7 @@ async function bootstrapNexusSimulator() {
   let arrivalActive = true;
   camera.position.y = arrivalStartY;
   controls.update();
+  camDirector.syncPreviousCameraPosition();
 
   // Non-blocking Parallel GPU Shader Pre-Compilation (KHR_parallel_shader_compile) + 1 Warm-Up Render Frame
   if (typeof renderer.compileAsync === 'function') {
@@ -455,6 +485,10 @@ async function bootstrapNexusSimulator() {
           camDirector.applyOrthoPreset('mobilGolfUI', { ...presets, mobilGolfUI: liveCartPreset });
           return;
         }
+      }
+      if (btn.dataset.preset === 'underpassBawahLautInterior' && camera.position.y > -2.0) {
+        camDirector.applyOrthoPreset(btn.dataset.preset, presets, { immediate: true });
+        return;
       }
       camDirector.applyOrthoPreset(btn.dataset.preset, presets);
     });
@@ -788,13 +822,13 @@ async function bootstrapNexusSimulator() {
       weather.uniforms.uWindVec.value.length()
     );
 
+    sivitasAI.update(dt, elapsed, camera.position);
     camDirector.update(dt, sampleWalkableElevation);
     GedungRektoratUIAsset.updateKinematics(rektoratAsset, dt, {
       isNight: weather.nightIlluminationLevel > 0.35,
       nightLevel: weather.nightIlluminationLevel,
       windMultiplier: weather.getWindGustMultiplier()
     });
-    sivitasAI.update(dt, elapsed, camera.position);
 
     renderer.render(scene, camera);
 
@@ -833,6 +867,7 @@ async function bootstrapNexusSimulator() {
       weather,
       camDirector,
       sivitasAI,
+      solidWorld,
       rektoratAsset,
       sharedUniforms,
       presets,

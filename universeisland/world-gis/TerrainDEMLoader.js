@@ -57,7 +57,7 @@ export class TerrainDEMLoader {
   static VOLCANO_PEAK_RIM_Y = 58.5;
   static VOLCANO_CRATER_FLOOR_Y = 44.5;
   static VOLCANO_RIM_R = 19.5;
-  static VOLCANO_BASE_R = 98.0;
+  static VOLCANO_BASE_R = 108.0;
 
   // Pulau "I" Mini-Niagara Horseshoe Waterfall SSoST ("Air Terjun Niagara Mini" on West-SW Volcano Flank)
   static NIAGARA_CX = -44.0;
@@ -95,6 +95,223 @@ export class TerrainDEMLoader {
   static TEKSAS_WEST_RAMP_START_Z = 149.65;
   static TEKSAS_EAST_RAMP_END_Z = 341.65;
   static TEKSAS_EAST_PLAZA_Y = 0.34;
+
+  // Southern Undersea Underpass ("Underpass Bawah Laut Selatan U–I") SSoST Parameters:
+  // Connects SE Pulau U (West Ramp z = 272->326m) beneath Selat UI Seabed (z = 326->624m, floor y = -8.20m)
+  // to SW Pulau I (East Ramp z = 624->670m), leaving both 360° coastal stone turaps & navigable Selat UI 100% intact!
+  static UNDERPASS_X = -356.0;
+  static UNDERPASS_WEST_RAMP_START_Z = 272.0;
+  static UNDERPASS_WEST_PORTAL_Z = 326.0;
+  static UNDERPASS_EAST_PORTAL_Z = 624.0;
+  static UNDERPASS_EAST_RAMP_END_Z = 670.0;
+  static UNDERPASS_TUNNEL_FLOOR_Y = -8.20;
+  static UNDERPASS_CLEAR_HEIGHT_M = 4.15; // Interior vault crown = -4.05m
+  static UNDERPASS_OUTER_CROWN_Y = -3.72; // Submerged dorsal tube crown (2.27m clear ocean depth below WATER_LEVEL_Y = -1.45m!)
+  static UNDERPASS_CARRIAGEWAY_HALF_W = 3.60; // 7.20m dual-lane asphalt carriageway
+  static UNDERPASS_BORE_HALF_W = 4.55; // + 2 x 0.95m raised pedestrian walkways = 9.10m clear bore
+  static UNDERPASS_WEST_RAMP_TOP_Y = 0.88;
+  static UNDERPASS_EAST_RAMP_TOP_Y = 0.52;
+
+  // Northern Ferry Crossing Terminals ("Dermaga Penyeberangan Utara U–I") SSoST Parameters:
+  // Twin Nusantara-Tajug marine passenger piers protruding across northern Selat UI for the UI Electric Catamaran Ferry!
+  static DERMAGA_U_X = -48.0;
+  static DERMAGA_U_FORECOURT_Z = 450.0;
+  static DERMAGA_U_SHORE_Z = 465.5;
+  static DERMAGA_U_HEAD_Z = 491.5;
+  static DERMAGA_I_X = -98.0;
+  static DERMAGA_I_FORECOURT_Z = 621.0;
+  static DERMAGA_I_SHORE_Z = 608.0;
+  static DERMAGA_I_HEAD_Z = 582.0;
+  static DERMAGA_FORECOURT_Y = 0.48;
+  static DERMAGA_DECK_Y = 0.72;
+  static DERMAGA_TRESTLE_HALF_W = 4.20;
+  static DERMAGA_THEAD_HALF_LEN_X = 14.0;
+  static DERMAGA_THEAD_DEPTH_Z = 7.60;
+
+  // Integrated Pulau U Road Network ("Jaringan Jalan Terpadu Pulau U") + Pulau I West Transit Connector SSoST Waypoints
+  // Aligned organically along coastal foothill contours & natural saddles (zero ruler-straight mountain cuts!)
+  static PULAU_U_WEST_SOUTH_ARTERIAL = [
+    [-66.5, 75.0],
+    [-96.0, 76.2],
+    [-142.0, 78.8],
+    [-188.0, 81.8],
+    [-234.0, 85.2],
+    [-280.0, 89.2],
+    [-326.0, 94.0],
+    [-356.0, 115.0],
+    [-365.5, 152.0],
+    [-369.0, 198.0],
+    [-365.5, 238.0],
+    [-358.5, 257.0],
+    [-356.0, 263.5],
+    [-356.0, 272.0]
+  ];
+
+  static PULAU_U_RIGHT_ARM_BOULEVARD = [
+    [-356.0, 263.0],
+    [-340.0, 267.0],
+    [-322.0, 284.0],
+    [-310.0, 316.0],
+    [-298.0, 350.0],
+    [-282.0, 380.0],
+    [-254.0, 405.0],
+    [-212.0, 427.0],
+    [-175.0, 443.0],
+    [-115.0, 448.5],
+    [-48.0, 450.0],
+    [-8.0, 443.0],
+    [20.0, 425.0],
+    [32.0, 396.0],
+    [23.0, 368.0],
+    [2.0, 355.0],
+    [-28.0, 353.5]
+  ];
+
+  static PULAU_U_EAST_LAGOON_SADDLE_ROAD = [
+    [-28.0, 353.5],
+    [-64.0, 347.0],
+    [-108.0, 345.0],
+    [-148.0, 350.0],
+    [-168.0, 365.0],
+    [-175.0, 392.0],
+    [-175.0, 420.0],
+    [-175.0, 443.0]
+  ];
+
+  static PULAU_I_WEST_TRANSIT_ROAD = [
+    [-356.0, 670.0],
+    [-354.5, 678.5],
+    [-343.0, 681.5],
+    [-325.0, 671.0],
+    [-306.0, 654.0],
+    [-286.0, 646.0],
+    [-254.0, 646.0],
+    [-214.0, 646.0],
+    [-174.0, 641.0],
+    [-136.0, 632.6],
+    [-115.0, 628.2],
+    [-98.0, 627.6],
+    [-87.0, 627.8]
+  ];
+
+  static PULAU_I_DERMAGA_LOOP = [
+    [-87.0, 627.8],
+    [-83.5, 631.2],
+    [-87.0, 634.2],
+    [-98.0, 634.5],
+    [-109.5, 632.6],
+    [-118.0, 629.0]
+  ];
+
+  static PULAU_I_APRON_SPUR = [
+    [-254.0, 646.0],
+    [-254.0, 660.2]
+  ];
+
+  /**
+   * Evaluates exact drivable/walkable elevation Y inside Underpass Bawah Laut Selatan U–I (ramps + subsea tunnel),
+   * or null if (x, z) lies outside the underpass carriageway/walkway bore.
+   */
+  static sampleUnderpassDeckY(x, z) {
+    const dx = Math.abs(x - TerrainDEMLoader.UNDERPASS_X);
+    if (dx > TerrainDEMLoader.UNDERPASS_BORE_HALF_W) return null;
+    if (
+      z < TerrainDEMLoader.UNDERPASS_WEST_RAMP_START_Z ||
+      z > TerrainDEMLoader.UNDERPASS_EAST_RAMP_END_Z
+    ) {
+      return null;
+    }
+
+    const sidewalkLift = dx > TerrainDEMLoader.UNDERPASS_CARRIAGEWAY_HALF_W ? 0.18 : 0.0;
+    const floorY = TerrainDEMLoader.UNDERPASS_TUNNEL_FLOOR_Y;
+
+    if (z < TerrainDEMLoader.UNDERPASS_WEST_PORTAL_Z) {
+      const t =
+        (z - TerrainDEMLoader.UNDERPASS_WEST_RAMP_START_Z) /
+        (TerrainDEMLoader.UNDERPASS_WEST_PORTAL_Z - TerrainDEMLoader.UNDERPASS_WEST_RAMP_START_Z);
+      const s = PhysicsKernel.smootherstep(0.0, 1.0, t);
+      const topY = TerrainDEMLoader.UNDERPASS_WEST_RAMP_TOP_Y + 0.035;
+      return topY + (floorY - topY) * s + sidewalkLift;
+    }
+
+    if (z <= TerrainDEMLoader.UNDERPASS_EAST_PORTAL_Z) {
+      return floorY + sidewalkLift;
+    }
+
+    const t =
+      (z - TerrainDEMLoader.UNDERPASS_EAST_PORTAL_Z) /
+      (TerrainDEMLoader.UNDERPASS_EAST_RAMP_END_Z - TerrainDEMLoader.UNDERPASS_EAST_PORTAL_Z);
+    const s = PhysicsKernel.smootherstep(0.0, 1.0, t);
+    const topY = TerrainDEMLoader.UNDERPASS_EAST_RAMP_TOP_Y + 0.035;
+    return floorY + (topY - floorY) * s + sidewalkLift;
+  }
+
+  /**
+   * True when 3D point (x, y, z) lies inside the enclosed subterranean/subsea tunnel bore (sheltered from sky & rain!).
+   */
+  static isInsideEnclosedUnderpass(x, y, z) {
+    return (
+      z >= TerrainDEMLoader.UNDERPASS_WEST_PORTAL_Z - 0.2 &&
+      z <= TerrainDEMLoader.UNDERPASS_EAST_PORTAL_Z + 0.2 &&
+      Math.abs(x - TerrainDEMLoader.UNDERPASS_X) <= TerrainDEMLoader.UNDERPASS_BORE_HALF_W + 0.35 &&
+      y < -3.50 &&
+      y > TerrainDEMLoader.UNDERPASS_TUNNEL_FLOOR_Y - 1.2
+    );
+  }
+
+  /**
+   * Evaluates exact walkable deck elevation Y on Dermaga Penyeberangan Utara (Pulau U & Pulau I terminals + piers),
+   * or null if (x, z) is outside both ferry pier footprints.
+   */
+  static sampleFerryPierDeckY(x, z) {
+    // 1. Dermaga Pulau U (x = -48.0, protruding +Z eastward from z = 446.5 to z = 491.5)
+    const dxU = Math.abs(x - TerrainDEMLoader.DERMAGA_U_X);
+    if (dxU <= TerrainDEMLoader.DERMAGA_THEAD_HALF_LEN_X + 0.5 && z >= 446.5 && z <= TerrainDEMLoader.DERMAGA_U_HEAD_Z) {
+      if (z <= 463.0 && dxU <= 14.2) {
+        return TerrainDEMLoader.DERMAGA_FORECOURT_Y + 0.035;
+      }
+      if (z > 463.0 && z <= 467.5 && dxU <= 6.2) {
+        const s = PhysicsKernel.smootherstep(463.0, 467.5, z);
+        return (
+          TerrainDEMLoader.DERMAGA_FORECOURT_Y +
+          0.035 +
+          (TerrainDEMLoader.DERMAGA_DECK_Y - (TerrainDEMLoader.DERMAGA_FORECOURT_Y + 0.035)) * s
+        );
+      }
+      const tHeadStartU = TerrainDEMLoader.DERMAGA_U_HEAD_Z - TerrainDEMLoader.DERMAGA_THEAD_DEPTH_Z;
+      if (z > 467.5 && z <= tHeadStartU && dxU <= TerrainDEMLoader.DERMAGA_TRESTLE_HALF_W) {
+        return TerrainDEMLoader.DERMAGA_DECK_Y;
+      }
+      if (z > tHeadStartU && z <= TerrainDEMLoader.DERMAGA_U_HEAD_Z && dxU <= TerrainDEMLoader.DERMAGA_THEAD_HALF_LEN_X) {
+        return TerrainDEMLoader.DERMAGA_DECK_Y;
+      }
+    }
+
+    // 2. Dermaga Pulau I (x = -98.0, protruding -Z westward from z = 624.5 to z = 582.0)
+    const dxI = Math.abs(x - TerrainDEMLoader.DERMAGA_I_X);
+    if (dxI <= TerrainDEMLoader.DERMAGA_THEAD_HALF_LEN_X + 0.5 && z >= TerrainDEMLoader.DERMAGA_I_HEAD_Z && z <= 624.5) {
+      if (z >= 610.5 && dxI <= 14.2) {
+        return TerrainDEMLoader.DERMAGA_FORECOURT_Y + 0.035;
+      }
+      if (z >= 606.0 && z < 610.5 && dxI <= 6.2) {
+        const s = PhysicsKernel.smootherstep(610.5, 606.0, z);
+        return (
+          TerrainDEMLoader.DERMAGA_FORECOURT_Y +
+          0.035 +
+          (TerrainDEMLoader.DERMAGA_DECK_Y - (TerrainDEMLoader.DERMAGA_FORECOURT_Y + 0.035)) * s
+        );
+      }
+      const tHeadEndI = TerrainDEMLoader.DERMAGA_I_HEAD_Z + TerrainDEMLoader.DERMAGA_THEAD_DEPTH_Z;
+      if (z >= tHeadEndI && z < 606.0 && dxI <= TerrainDEMLoader.DERMAGA_TRESTLE_HALF_W) {
+        return TerrainDEMLoader.DERMAGA_DECK_Y;
+      }
+      if (z >= TerrainDEMLoader.DERMAGA_I_HEAD_Z && z < tHeadEndI && dxI <= TerrainDEMLoader.DERMAGA_THEAD_HALF_LEN_X) {
+        return TerrainDEMLoader.DERMAGA_DECK_Y;
+      }
+    }
+
+    return null;
+  }
 
   /**
    * Evaluates exact walkable deck/ramp elevation Y on Jembatan Teksas UI at (x, z), or null if outside bridge footprint.
@@ -395,66 +612,129 @@ export class TerrainDEMLoader {
   }
 
   /**
+   * C^1 Geotechnical Trapezoidal-Slope Ramp E(t) in [0, 1] for t in [a, b]:
+   * Quadratic toe/crest transitions (20% each) + constant-angle-of-repose core (peak slope 1.25 vs 1.875 of smootherstep!).
+   */
+  static _geotechRamp01(a, b, val) {
+    const u = Math.max(0.0, Math.min(1.0, (val - a) / (b - a || 1e-6)));
+    if (u < 0.20) return 3.125 * u * u;
+    if (u > 0.80) {
+      const d = 1.0 - u;
+      return 1.0 - 3.125 * d * d;
+    }
+    return 1.25 * u - 0.125;
+  }
+
+  static _getPulauURiverStations() {
+    if (TerrainDEMLoader._cachedPulauURiverStations) {
+      return TerrainDEMLoader._cachedPulauURiverStations;
+    }
+    const xStart = TerrainDEMLoader.RIVER_U_X_START;
+    const xEnd = TerrainDEMLoader.RIVER_U_X_END;
+    const count = 84;
+    const stations = new Array(count);
+    for (let k = 0; k < count; k++) {
+      const sc = xStart + (k / (count - 1)) * (xEnd - xStart);
+      const zc = TerrainDEMLoader.evalPulauURiverCenterZ(sc);
+      const mc = TerrainDEMLoader.evalPulauURiverSlopeZ(sc);
+      const invT = 1.0 / Math.hypot(1.0, mc);
+      const baseHw = TerrainDEMLoader.evalPulauURiverHalfWidth(sc);
+      const scSin1 = 0.24 * Math.sin(sc * 0.43 + 0.65) + 0.15 * Math.cos(sc * 0.94 - 0.45);
+      const scCos0 = 0.09 * Math.cos(sc * 0.76);
+      stations[k] = { sc, zc, mc, invT, baseHw, scSin1, scCos0 };
+    }
+    TerrainDEMLoader._cachedPulauURiverStations = stations;
+    return stations;
+  }
+
+  /**
    * Evaluates Pulau "U" Unified Natural Fluvial Hydrology Field (Mata Air + Meandering River + Danau Kecil Rektorat).
-   * Features curvature-driven asymmetric Beta-thalweg scour pools, shelving inner meander gravel point-bars,
-   * steeper outer eroded cut-banks, and organic bank micro-scalloping.
-   * Returns null outside influence band (w >= 3.65 or x >= -68.0m Campus Core boundary).
+   * Uses C^inf global log-sum-exp projection across 84 fixed river centerline stations + smooth tanh side-blending
+   * so concave meander pockets and upstream/downstream normal lines never form gradient discontinuities!
    */
   static evalPulauUHydrology(x, z) {
-    if (x < -328.0 || x >= -68.0 || z < -96.0 || z > 116.0) return null;
+    if (x < -356.0 || x >= -68.0 || z < -120.0 || z > 142.0) return null;
+
+    // Uniform 5.2m physical outer-bank scale unit across Spring, River, & Small Lake so w = 5.85 is always ~25m outside shore!
+    const bankUnitM = 5.2;
 
     // 1. Artesian Forest Spring ("Mata Air Hutan Selatan") at (-286.0, +48.0)
     const dxS = x - TerrainDEMLoader.SPRING_U_CX;
     const dzS = z - TerrainDEMLoader.SPRING_U_CZ;
+    const distS = Math.hypot(dxS, dzS);
     const thS = Math.atan2(dzS, dxS);
-    const rSpring = TerrainDEMLoader.evalPulauUSpringRadiusAtAngle(thS);
-    const wSpring = Math.hypot(dxS, dzS) / rSpring;
+    const rSpringShore = TerrainDEMLoader.evalPulauUSpringRadiusAtAngle(thS);
+    const wSpring =
+      distS <= rSpringShore
+        ? distS / Math.max(1.0, rSpringShore)
+        : 1.0 + (distS - rSpringShore) / bankUnitM;
 
-    // 2. Meandering Northbound River (true 2D perpendicular projection onto closest curve station s)
-    let s = Math.max(
-      TerrainDEMLoader.RIVER_U_X_START,
-      Math.min(TerrainDEMLoader.RIVER_U_X_END, x)
-    );
-    for (let k = 0; k < 2; k++) {
-      const zs = TerrainDEMLoader.evalPulauURiverCenterZ(s);
-      const m = TerrainDEMLoader.evalPulauURiverSlopeZ(s);
-      const ds = (x - s + (z - zs) * m) / (1.0 + m * m);
-      s = Math.max(
-        TerrainDEMLoader.RIVER_U_X_START,
-        Math.min(TerrainDEMLoader.RIVER_U_X_END, s + ds * 0.88)
-      );
+    // 2. Meandering Northbound River (84 fixed global stations + C^inf log-sum-exp non-expansive SDF)
+    const stations = TerrainDEMLoader._getPulauURiverStations();
+    const nSt = stations.length;
+    const wcs = TerrainDEMLoader._riverWcScratch || (TerrainDEMLoader._riverWcScratch = new Float64Array(nSt));
+    const crossArr = TerrainDEMLoader._riverCrScratch || (TerrainDEMLoader._riverCrScratch = new Float64Array(nSt));
+    const hwArr = TerrainDEMLoader._riverHwScratch || (TerrainDEMLoader._riverHwScratch = new Float64Array(nSt));
+
+    let wMin = 1e6;
+    for (let k = 0; k < nSt; k++) {
+      const st = stations[k];
+      const dx = x - st.sc;
+      const dz = z - st.zc;
+      const latD = dx * (-st.mc * st.invT) + dz * st.invT;
+      const sideBlend = Math.tanh(latD * 0.42);
+      const hwShore = Math.max(3.40, st.baseHw + sideBlend * st.scSin1 + st.scCos0);
+      const distC = Math.hypot(dx, dz);
+      const wc =
+        distC <= hwShore
+          ? distC / hwShore
+          : 1.0 + (distC - hwShore) / bankUnitM;
+      wcs[k] = wc;
+      crossArr[k] = latD / hwShore;
+      hwArr[k] = hwShore;
+      if (wc < wMin) wMin = wc;
     }
-    const zsFinal = TerrainDEMLoader.evalPulauURiverCenterZ(s);
-    const mFinal = TerrainDEMLoader.evalPulauURiverSlopeZ(s);
-    const invT = 1.0 / Math.hypot(1.0, mFinal);
-    const cxVec = -mFinal * invT;
-    const czVec = invT;
-    const latDist = (x - s) * cxVec + (z - zsFinal) * czVec;
-    const sideSign = latDist >= 0.0 ? 1.0 : -1.0;
 
-    // Asymmetric left/right organic shoreline micro-scalloping (breaks up ruler-straight bank lines!)
-    const bankScallop =
-      0.25 * Math.sin(s * 0.43 + sideSign * 1.75) +
-      0.16 * Math.cos(s * 0.94 - sideSign * 0.85) +
-      0.09 * Math.sin(s * 1.88 + z * 0.62);
-    const halfW = TerrainDEMLoader.evalPulauURiverHalfWidth(s);
-    const effHalfW = Math.max(3.40, halfW + bankScallop);
-    const signedCross = latDist / effHalfW;
-    const wRiver = Math.hypot(x - s, z - zsFinal) / effHalfW;
+    const betaLse = 11.5;
+    let sumLse = 0.0;
+    let sumW = 0.0;
+    let sumS = 0.0;
+    let sumSignedCross = 0.0;
+    let sumHalfW = 0.0;
+    for (let k = 0; k < nSt; k++) {
+      const dw = wcs[k] - wMin;
+      if (dw > 3.2) continue;
+      sumLse += Math.exp(-betaLse * dw);
+      const wt = Math.exp(-6.5 * dw);
+      sumW += wt;
+      sumS += wt * stations[k].sc;
+      sumSignedCross += wt * crossArr[k];
+      sumHalfW += wt * hwArr[k];
+    }
+
+    const wRiver = Math.max(0.0, wMin - Math.log(sumLse || 1.0) / betaLse + 0.032);
+    const invSumW = 1.0 / (sumW || 1e-12);
+    const s = sumS * invSumW;
+    const effHalfW = sumHalfW * invSumW;
+    const signedCross = sumSignedCross * invSumW;
 
     // 3. Scenic Small Lake beside Gedung Rektorat UI ("Danau Kecil Rektorat") at (-82.5, -22.0)
     const dxL = x - TerrainDEMLoader.LAKE_U_CX;
     const dzL = z - TerrainDEMLoader.LAKE_U_CZ;
     const thL = Math.atan2(dzL, dxL);
     const modL = TerrainDEMLoader.evalPulauULakeRadiusMod(thL);
-    const wLake = Math.hypot(
-      dxL / (TerrainDEMLoader.LAKE_U_RX * modL),
-      dzL / (TerrainDEMLoader.LAKE_U_RZ * modL)
-    );
+    const rxL = TerrainDEMLoader.LAKE_U_RX * modL;
+    const rzL = TerrainDEMLoader.LAKE_U_RZ * modL;
+    const wLakeRaw = Math.hypot(dxL / rxL, dzL / rzL);
+    const avgRL = 0.5 * (TerrainDEMLoader.LAKE_U_RX + TerrainDEMLoader.LAKE_U_RZ);
+    const wLake =
+      wLakeRaw <= 1.0
+        ? wLakeRaw
+        : 1.0 + ((wLakeRaw - 1.0) * avgRL) / bankUnitM;
 
     const wSR = TerrainDEMLoader._smin(wSpring, wRiver, 0.28);
-    const w = TerrainDEMLoader._smin(wSR, wLake, 0.30);
-    if (w >= 3.65) return null;
+    const w = Math.max(0.0, TerrainDEMLoader._smin(wSR, wLake, 0.30));
+    if (w >= 6.80) return null;
 
     const waterY = TerrainDEMLoader.evalPulauURiverWaterY(s);
     const springWeight = 1.0 - PhysicsKernel.smootherstep(0.75, 1.75, wSpring);
@@ -467,9 +747,9 @@ export class TerrainDEMLoader {
     const clampedCross = Math.max(-1.35, Math.min(1.35, signedCross));
     const bendSide = bendBias * clampedCross; // > 0 on outer cut-bank, < 0 on inner gravel/sand point-bar
 
-    // Asymmetric Beta-distribution channel bathymetry B(u): zero depth right at unified shoreline contour w = 1.03!
-    const effSignedCross =
-      w < wRiver && wRiver > 1e-4 ? (signedCross / wRiver) * w : signedCross;
+    // Asymmetric Beta-distribution channel bathymetry B(u): exact zero depth right at unified shoreline contour w = 1.03!
+    const signSmooth = signedCross / Math.hypot(signedCross, 0.08);
+    const effSignedCross = signSmooth * Math.min(1.03, w);
     const u01 = Math.max(0.0, Math.min(1.0, 0.5 + 0.5 * (effSignedCross / 1.03)));
     const pL = 1.12 + 0.60 * bendBias;
     const pR = 1.12 - 0.60 * bendBias;
@@ -478,10 +758,11 @@ export class TerrainDEMLoader {
     const riverBetaProfile =
       w < 1.03 ? (Math.pow(u01, pL) * Math.pow(1.0 - u01, pR)) / peakNorm : 0.0;
 
-    const wBasinNorm = Math.min(1.0, w / 1.03);
+    const wBasinNorm = Math.max(0.0, Math.min(1.0, w / 1.03));
     const basinProfile = Math.pow(Math.max(0.0, 1.0 - wBasinNorm * wBasinNorm), 0.68);
+    const shoreZeroEnv = Math.pow(Math.max(0.0, 1.0 - Math.pow(wBasinNorm, 2.6)), 0.78);
     const channelProfile =
-      riverBetaProfile * riverDominance + basinProfile * (1.0 - riverDominance);
+      (riverBetaProfile * riverDominance + basinProfile * (1.0 - riverDominance)) * shoreZeroEnv;
 
     const maxDepth =
       1.28 +
@@ -575,43 +856,10 @@ export class TerrainDEMLoader {
   }
 
   /**
-   * Evaluates continuous ground / plaza / helipad headland / green park meadow / seabed elevation y(x, z)
-   * across the entire Kepulauan UI (Pulau U & Pulau I).
+   * Evaluates the baseline natural island elevation y_nat(x, z) prior to highway cut-and-fill grading,
+   * ferry terminal forecourt leveling, and open-cut underpass ramp excavation.
    */
-  static sampleGroundHeight(x, z) {
-    const dU = TerrainDEMLoader.getIslandUCoastDistance(x, z);
-    const dI = TerrainDEMLoader.getIslandICoastDistance(x, z);
-    const dCoast = Math.min(dU, dI);
-
-    // 1. Coastal Embankment & Submerged Seabed / Lagoon / Strait Basin
-    if (dCoast > 0.0) {
-      if (dCoast <= 3.6) {
-        const tUpper = PhysicsKernel.smootherstep(0.0, 3.6, dCoast);
-        return TerrainDEMLoader.WATER_LEVEL_Y * tUpper;
-      }
-      const tLower = PhysicsKernel.smootherstep(3.6, 12.0, dCoast);
-      const bedMacro =
-        0.14 *
-        Math.sin(x * 0.05) *
-        Math.cos(z * 0.05) *
-        PhysicsKernel.smootherstep(12.0, 26.0, dCoast);
-      const bedMicro =
-        0.045 *
-        Math.sin(x * 0.24 + z * 0.19) *
-        Math.cos(z * 0.31 - x * 0.14) *
-        PhysicsKernel.smootherstep(6.0, 16.0, dCoast);
-      return (
-        TerrainDEMLoader.WATER_LEVEL_Y +
-        (TerrainDEMLoader.LAKE_BED_Y - TerrainDEMLoader.WATER_LEVEL_Y) * tLower +
-        bedMacro +
-        bedMicro
-      );
-    }
-
-    // Coastal promenade leveling collar: smoothly brings all inland terrain to 0.0m datum
-    // within 10.5m of the 360° stone turap coping wall (ready for future bridge abutments!)
-    const coastCollar = PhysicsKernel.smootherstep(-1.2, -10.5, dCoast);
-
+  static _sampleNaturalIslandHeight(x, z, dU, dI, dCoast, coastCollar) {
     // 2. Pulau "I": Active Stratovolcano ("Gunung Api") + Mini-Niagara Waterfall + Flat ICAO Runway Plateau
     if (dI < dU) {
       // 2A. Engineered flat airfield embankment (y = 0.44m under y = 0.58m runway/apron deck)
@@ -641,8 +889,12 @@ export class TerrainDEMLoader {
         2.15 * Math.cos(2.0 * thV - 0.35) +
         1.05 * Math.sin(3.0 * thV + 1.15);
 
-      // Smoothly clear southern toe before North Runway Blast Pad (x = -128m)
-      const southApronFade = PhysicsKernel.smootherstep(-126.0, -100.0, x);
+      // Smoothly clear southern toe before North Runway Blast Pad (x = -128m) & match elliptical eastern/southern island envelope
+      const southApronFade = PhysicsKernel.smootherstep(-129.0, -118.0, x);
+      const volcanoCoastTaper = PhysicsKernel.smootherstep(-1.5, -16.0, dI);
+      const eastFlankSin = Math.max(0.0, Math.sin(thV));
+      const southFlankCos = Math.max(0.0, -Math.cos(thV));
+      const rBaseAz = 104.0 - 20.5 * eastFlankSin * eastFlankSin - 11.5 * southFlankCos * southFlankCos;
 
       let hVolcano = 0.0;
       if (rV < rRim) {
@@ -660,21 +912,24 @@ export class TerrainDEMLoader {
             (rimHeight - TerrainDEMLoader.VOLCANO_CRATER_FLOOR_Y) * Math.pow(wallT, 1.38) +
             craterWallCrag) *
           southApronFade *
-          coastCollar;
-      } else if (rV < TerrainDEMLoader.VOLCANO_BASE_R) {
-        const s = (rV - rRim) / (TerrainDEMLoader.VOLCANO_BASE_R - rRim);
-        // Broader, lush West-Javanese Gunung Gede shoulder profile + subtle Suryakencana SE sub-alpine bench
-        const coneProfile = Math.pow(Math.max(0.0, 1.0 - s), 1.54);
+          volcanoCoastTaper;
+      } else if (rV < rBaseAz) {
+        const s = (rV - rRim) / (rBaseAz - rRim);
+        // Natural concave-toe West-Javanese Gunung Gede stratovolcano profile (zero slope at base s = 1, < 29 deg outer apron!)
+        const coneProfile = Math.pow(Math.max(0.0, 1.0 - s), 1.92) * (1.0 + 0.92 * s);
         const suryakencanaAz = Math.max(0.0, Math.cos(thV - 0.72));
         const suryakencanaBench =
-          3.4 *
+          3.2 *
           Math.pow(suryakencanaAz, 3.2) *
           Math.exp(-Math.pow((s - 0.34) / 0.14, 2.0));
-        const gullyEnv = Math.sin(Math.min(1.0, s / 0.90) * Math.PI) * PhysicsKernel.smootherstep(0.0, 0.08, s);
+        const gullyEnv =
+          Math.sin(Math.min(1.0, s / 0.86) * Math.PI) *
+          PhysicsKernel.smootherstep(0.0, 0.08, s) *
+          (1.0 - 0.62 * PhysicsKernel.smootherstep(0.28, 0.64, s));
         const montaneRidges =
-          2.65 * Math.cos(8.0 * thV + 0.55 * Math.sin(2.0 * thV) + s * 1.35) +
-          1.25 * Math.sin(15.0 * thV - s * 2.1);
-        const forestCanopyUndul = 0.58 * Math.sin(x * 0.12 + z * 0.10) * Math.cos(z * 0.14 - x * 0.11);
+          1.95 * Math.cos(8.0 * thV + 0.55 * Math.sin(2.0 * thV) + s * 1.35) +
+          0.82 * Math.sin(15.0 * thV - s * 2.1);
+        const forestCanopyUndul = 0.42 * Math.sin(x * 0.12 + z * 0.10) * Math.cos(z * 0.14 - x * 0.11);
         hVolcano =
           Math.max(
             0.0,
@@ -684,7 +939,7 @@ export class TerrainDEMLoader {
           ) *
           southApronFade *
           (1.0 - airfieldPlatMask * 0.96) *
-          coastCollar;
+          volcanoCoastTaper;
       }
 
       // Gentle coastal meadow & West Selat UI bridge-landing terrace outside runway & volcano cone
@@ -705,20 +960,22 @@ export class TerrainDEMLoader {
       );
 
       // 2C. Mini-Niagara Horseshoe Waterfall Escarpment ("Air Terjun Niagara Mini") on West-SW Volcano Flank
-      if (x > -104.0 && x < 16.0 && z > 606.0 && z < 688.0) {
+      if (x > -125.0 && x < 28.0 && z > 604.0 && z < 706.0) {
         const dxW = x - TerrainDEMLoader.NIAGARA_CX;
         const dzW = z - TerrainDEMLoader.NIAGARA_CZ;
         const rW = Math.hypot(dxW, dzW) + 1e-5;
         const alpha = Math.atan2(dxW, dzW);
         const absAlpha = Math.abs(alpha);
 
-        // North & South upper basalt canyon rim walls (guarantees upper river y = 18.80m is 100% rock-contained)
+        // North & South upper basalt canyon rim walls (guarantees upper river y = 18.80m is 100% rock-contained,
+        // while outer grassy volcano shoulders taper gently across 39m via C^1 geotechnical ramp!)
         const upperRimGuard =
           PhysicsKernel.smootherstep(1.04, 1.20, absAlpha) *
-          (1.0 - PhysicsKernel.smootherstep(1.30, 1.62, absAlpha)) *
+          (1.0 - TerrainDEMLoader._geotechRamp01(1.26, 1.98, absAlpha)) *
           PhysicsKernel.smootherstep(13.8, 15.8, rW) *
-          (1.0 - PhysicsKernel.smootherstep(27.0, 32.5, rW)) *
-          coastCollar;
+          (1.0 - TerrainDEMLoader._geotechRamp01(29.8, 68.0, rW)) *
+          TerrainDEMLoader._geotechRamp01(-124.0, -85.0, x) *
+          TerrainDEMLoader._geotechRamp01(-2.0, -24.0, dI);
         if (upperRimGuard > 0.001) {
           yI = yI * (1.0 - upperRimGuard) + Math.max(yI, 20.75 * coastCollar) * upperRimGuard;
         }
@@ -754,9 +1011,9 @@ export class TerrainDEMLoader {
         // Lower amphitheater side-berms (guarantees plunge pool y = 1.80m is enclosed >= +3.8m on North & South!)
         const poolRimGuard =
           PhysicsKernel.smootherstep(1.18, 1.38, absAlpha) *
-          (1.0 - PhysicsKernel.smootherstep(2.48, 2.86, absAlpha)) *
+          (1.0 - PhysicsKernel.smootherstep(2.48, 2.95, absAlpha)) *
           PhysicsKernel.smootherstep(13.2, 15.4, rW) *
-          (1.0 - PhysicsKernel.smootherstep(18.5, 24.5, rW)) *
+          (1.0 - PhysicsKernel.smootherstep(18.5, 30.5, rW)) *
           coastCollar;
         if (poolRimGuard > 0.001) {
           yI = yI * (1.0 - poolRimGuard) + Math.max(yI, 4.15 * coastCollar) * poolRimGuard;
@@ -824,14 +1081,18 @@ export class TerrainDEMLoader {
 
     const distRotunda = Math.hypot(x + 2.5, z - 106.5);
     const rotundaClearance = PhysicsKernel.smootherstep(37.0, 50.0, distRotunda);
-    const helipadClearance =
-      PhysicsKernel.smootherstep(24.0, 34.0, distHeli) *
-      (x < -66.0 && z < 160.0
+    // Bound VIP Helipad boulevard clearance strictly north of x = -146m so it NEVER carves an artificial trench into the southern highland forest!
+    const heliCorridorSouthRelease = PhysicsKernel.smootherstep(-112.0, -146.0, x);
+    const heliCorridorFactor =
+      x < -66.0 && z < 160.0
         ? Math.min(
             1.0,
-            PhysicsKernel.smootherstep(96.0, 84.0, z) + PhysicsKernel.smootherstep(118.0, 130.0, z)
+            heliCorridorSouthRelease +
+              (1.0 - heliCorridorSouthRelease) *
+                (PhysicsKernel.smootherstep(96.0, 84.0, z) + PhysicsKernel.smootherstep(118.0, 130.0, z))
           )
-        : 1.0);
+        : 1.0;
+    const helipadClearance = PhysicsKernel.smootherstep(24.0, 34.0, distHeli) * heliCorridorFactor;
 
     const harmonicA = Math.sin(x * 0.041 + 0.35) * Math.cos(z * 0.034 - 0.25);
     const harmonicB = Math.cos((x - z) * 0.027 + 0.8);
@@ -863,6 +1124,9 @@ export class TerrainDEMLoader {
       // Natural coastal bridge-landing saddle on Pulau U's eastern shore facing Selat UI & Pulau I
       const distBridgeSaddleU = Math.hypot((x + 215.0) * 0.82, z - 454.0);
       const bridgeSaddleU = 0.22 + 0.78 * PhysicsKernel.smootherstep(20.0, 58.0, distBridgeSaddleU);
+      // Natural Southern Underpass coastal valley pass around (-356, 286) so hills descend organically toward the portal
+      const distSouthPassU = Math.hypot((x + 356.0) * 1.15, (z - 288.0) * 0.92);
+      const southPassU = 0.30 + 0.70 * PhysicsKernel.smootherstep(14.0, 48.0, distSouthPassU);
 
       const gBell = (cx, cz, rx, rz, amp) => {
         const ux = (x - cx) / rx;
@@ -872,25 +1136,26 @@ export class TerrainDEMLoader {
       };
 
       const hillsChain =
-        gBell(-222.0, 26.0, 56.0, 46.0, 12.6) +   // SW Left-Arm Hill
-        gBell(-302.0, 52.0, 52.0, 48.0, 11.8) +   // Southern Highland Forest Spring Amphitheater Ridge
-        gBell(-322.0, 122.0, 58.0, 54.0, 15.2) +  // SW U-Bend Hill
-        gBell(-336.0, 236.0, 54.0, 64.0, 17.8) +  // Grand South Teluk U Overlook Peak (~19m)
-        gBell(-268.0, 386.0, 54.0, 46.0, 14.4) +  // SE Right-Arm Hill
-        gBell(-68.0, 392.0, 74.0, 46.0, 16.4) +   // NE Right-Arm Peninsula Hill overlooking Teluk U & Selat UI
-        gBell(18.0, 392.0, 44.0, 42.0, 10.6);     // North Right-Arm Headland Knoll
+        gBell(-248.0, 18.0, 56.0, 44.0, 13.4) +   // SW Left-Arm Hill (probe (-248, 24) > 11.5m!)
+        gBell(-304.0, 52.0, 56.0, 50.0, 9.2) +    // Southern Highland Forest Spring Amphitheater Ridge (~13.2m around +11.2m Mata Air)
+        gBell(-320.0, 128.0, 58.0, 56.0, 12.6) +  // SW U-Bend Hill
+        gBell(-333.0, 234.0, 50.0, 48.0, 22.8) +  // Grand South Teluk U Overlook Peak (~21m; probe (-336, 236) > 15.0m!)
+        gBell(-266.0, 384.0, 62.0, 52.0, 16.4) +  // SE Right-Arm Hill (scenic hilltop boulevard crest >= 8.8m!)
+        gBell(-72.0, 393.0, 70.0, 43.0, 13.8) +   // NE Right-Arm Peninsula Hill (~17m; probe (-68, 392) > 14.0m!)
+        gBell(14.0, 392.0, 44.0, 40.0, 8.6);      // North Right-Arm Headland Knoll
 
       const rollingRidgeUndulation =
-        3.5 +
-        2.3 * Math.sin(x * 0.026 + 0.4) * Math.cos(z * 0.024 - 0.3) +
-        1.4 * Math.cos((x + z) * 0.037 + 0.9) +
-        0.65 * Math.sin(x * 0.085 - z * 0.075);
+        2.8 +
+        1.8 * Math.sin(x * 0.026 + 0.4) * Math.cos(z * 0.024 - 0.3) +
+        1.1 * Math.cos((x + z) * 0.037 + 0.9) +
+        0.48 * Math.sin(x * 0.085 - z * 0.075);
 
       uHillsY =
         Math.max(0.0, rollingRidgeUndulation + hillsChain) *
         hillRegionMask *
         inlandHillEnv *
         bridgeSaddleU *
+        southPassU *
         rotundaClearance *
         Math.min(1.0, helipadClearance) *
         coastCollar;
@@ -901,22 +1166,23 @@ export class TerrainDEMLoader {
     // 4B2. Jembatan Teksas UI Eastern FIB Landing Terrace (Right Arm of Pulau U: x ~ -28, z in 319..345)
     //      Smoothly grades a flat +0.34m coastal plaza for Pilon Yoni, stairs, accessible ramps & benches
     //      via a broad elliptical amphitheater meadow transition while leaving Right-Arm hill peaks (z ~ 392m) 100.0% untouched!
-    if (z > 314.0 && z < 384.0 && Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) < 37.0) {
-      const dxPad = Math.max(0.0, Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) - 8.2) / 28.0;
+    if (z > 314.0 && z < 386.0 && Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) < 52.0) {
+      const dxPad = Math.max(0.0, Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) - 8.2) / 42.5;
       const dzPad =
         z < 332.0
           ? Math.max(0.0, 319.0 - z) / 4.8
-          : Math.max(0.0, z - 345.0) / 38.0;
+          : Math.max(0.0, z - 345.0) / 40.2;
       const rPad = Math.hypot(dxPad, dzPad);
       if (rPad < 1.0) {
-        const teksasEastPadMask = 1.0 - PhysicsKernel.smootherstep(0.0, 1.0, rPad);
+        const teksasEastPadMask = 1.0 - TerrainDEMLoader._geotechRamp01(0.0, 1.0, rPad);
         const targetPadY = TerrainDEMLoader.TEKSAS_EAST_PLAZA_Y * coastCollar;
         uRawY = uRawY * (1.0 - teksasEastPadMask) + targetPadY * teksasEastPadMask;
       }
     }
 
     // 4C. Pulau "U" Natural Fluvial Valley, Shelving Point-Bar Beaches, & Eroded Cut-Banks
-    //     (Eliminates flat artificial drainage-canal sidewalks; shoreline meets waterY continuously at w = 1.03!)
+    //     (Station-only valley reach wReach(stationX) prevents chain-rule gradient spikes while expanding
+    //      smoothly across the middle river gorge so hillsides never exceed natural repose!)
     const hydro = TerrainDEMLoader.evalPulauUHydrology(x, z);
     if (hydro) {
       if (hydro.w <= 1.03) {
@@ -924,28 +1190,650 @@ export class TerrainDEMLoader {
       }
       const campusCoreTaper = PhysicsKernel.smootherstep(-68.0, -70.8, x);
       const shoreY = hydro.waterY * coastCollar;
-      const uBank = Math.max(0.0, Math.min(1.0, (hydro.w - 1.03) / (3.65 - 1.03)));
-      // Inner bend (bendSide < 0): gentle shelving gravel/sand point-bar; Outer bend (bendSide > 0): steeper mossy cut-bank
-      const s0 = Math.max(0.36, Math.min(1.62, 0.92 + 0.62 * hydro.bendSide));
-      const vCurve =
-        s0 * uBank * (1.0 - uBank) * (1.0 - uBank) +
-        uBank * uBank * (3.0 - 2.0 * uBank);
-
       const hillSpan = Math.max(0.0, uRawY - shoreY);
-      const valleyMicro =
-        Math.min(0.42, hillSpan * 0.08) *
-        (0.65 * Math.sin(x * 0.29 + z * 0.33) * Math.cos(z * 0.24 - x * 0.21) +
-          0.35 * Math.sin(x * 0.71 - z * 0.64)) *
-        Math.sin(Math.PI * uBank);
+      const wReach = 5.85;
+      if (hydro.w < wReach) {
+        const uBank = Math.max(0.0, Math.min(1.0, (hydro.w - 1.03) / (wReach - 1.03)));
+        // Inner bend (bendSide < 0): gentle shelving gravel/sand point-bar; Outer bend (bendSide > 0): steeper mossy cut-bank
+        const s0 = Math.max(0.38, Math.min(1.38, 0.88 + 0.58 * hydro.bendSide));
+        const vCurve =
+          s0 * uBank * (1.0 - uBank) * (1.0 - uBank) +
+          uBank * uBank * (3.0 - 2.0 * uBank);
 
-      const targetRimY = (hydro.waterY + 0.22 + 0.34 * campusCoreTaper) * coastCollar;
-      const neededLift = Math.max(0.0, targetRimY - (shoreY + (uRawY - shoreY) * 0.42));
-      const bermArch = neededLift * Math.sin(Math.PI * Math.pow(uBank, 0.62));
+        const valleyMicro =
+          Math.min(0.32, hillSpan * 0.05) *
+          (0.65 * Math.sin(x * 0.29 + z * 0.33) * Math.cos(z * 0.24 - x * 0.21) +
+            0.35 * Math.sin(x * 0.71 - z * 0.64)) *
+          Math.sin(Math.PI * uBank);
 
-      return shoreY + (uRawY - shoreY) * vCurve + bermArch + valleyMicro;
+        const targetRimY = (hydro.waterY + 0.22 + 0.34 * campusCoreTaper) * coastCollar;
+        const neededLift = Math.max(0.0, targetRimY - (shoreY + (uRawY - shoreY) * 0.24));
+        const uLevee = Math.max(0.0, Math.min(1.0, (hydro.w - 1.03) / 1.85));
+        const archSin = Math.sin(Math.PI * Math.pow(uLevee, 0.72));
+        const bermArch = neededLift * archSin * archSin;
+
+        return shoreY + (uRawY - shoreY) * vCurve + bermArch + valleyMicro;
+      }
     }
 
     return uRawY;
+  }
+
+  /**
+   * Builds & caches the SSoST 3D Highway Corridors + fast AABB-indexed grade segments for Pulau U & Pulau I.
+   * Enforces Bina Marga / AASHTO max longitudinal highway grade clamping (<= 8.0%) + 36-pass pinned parabolic
+   * vertical-curve smoothing, shared identically between DEM Cut-and-Fill Grading and 3D Roadway Lofting!
+   */
+  static getRoadNetwork3DCorridors() {
+    if (TerrainDEMLoader._cachedRoadNetwork3D) {
+      return TerrainDEMLoader._cachedRoadNetwork3D;
+    }
+
+    const sampleNat = (px, pz) => {
+      const dU = TerrainDEMLoader.getIslandUCoastDistance(px, pz);
+      const dI = TerrainDEMLoader.getIslandICoastDistance(px, pz);
+      const dC = Math.min(dU, dI);
+      if (dC > 0.0) return 0.25;
+      const cc = PhysicsKernel.smootherstep(-1.2, -10.5, dC);
+      return TerrainDEMLoader._sampleNaturalIslandHeight(px, pz, dU, dI, dC, cc);
+    };
+
+    const buildSmoothed3DPolyline = (waypoints2D, stepMeters, pinRules = [], maxGrade = 0.078) => {
+      const pts2 = waypoints2D.map(([px, pz]) => new THREE.Vector3(px, 0.0, pz));
+      const curve2D = new THREE.CatmullRomCurve3(pts2, false, 'centripetal', 0.5);
+      curve2D.arcLengthDivisions = 800;
+      const totalLen = curve2D.getLength();
+      const n = Math.max(8, Math.round(totalLen / stepMeters));
+
+      const xs = new Float64Array(n + 1);
+      const zs = new Float64Array(n + 1);
+      const ys = new Float64Array(n + 1);
+      const arcs = new Float64Array(n + 1);
+      const hardPin = new Uint8Array(n + 1);
+      const pinTargetY = new Float64Array(n + 1);
+      const pTmp = new THREE.Vector3();
+
+      for (let i = 0; i <= n; i++) {
+        curve2D.getPointAt(i / n, pTmp);
+        xs[i] = pTmp.x;
+        zs[i] = pTmp.z;
+        if (i > 0) {
+          arcs[i] = arcs[i - 1] + Math.hypot(xs[i] - xs[i - 1], zs[i] - zs[i - 1]);
+        }
+        // Gentle cut-into-hill factor (0.85x hill crests + minimum +0.34m coastal flood clearance)
+        const rawY = sampleNat(pTmp.x, pTmp.z);
+        ys[i] = Math.max(0.34, rawY * 0.85);
+      }
+
+      // 1. Apply hard flat junction/portal throat pins & soft transition influence weights
+      for (const pin of pinRules) {
+        const flatM = pin.flatM !== undefined ? pin.flatM : 5.5;
+        const radiusM = Math.max(flatM + 6.0, pin.radiusM || 28.0);
+        if (pin.type === 'point') {
+          let bestIdx = 0;
+          let bestD = Infinity;
+          for (let i = 0; i <= n; i++) {
+            const d = Math.hypot(xs[i] - pin.x, zs[i] - pin.z);
+            if (d < bestD) {
+              bestD = d;
+              bestIdx = i;
+            }
+          }
+          hardPin[bestIdx] = 1;
+          pinTargetY[bestIdx] = pin.y;
+          ys[bestIdx] = pin.y;
+        }
+        for (let i = 0; i <= n; i++) {
+          let d = Infinity;
+          if (pin.type === 'start') {
+            d = arcs[i];
+          } else if (pin.type === 'end') {
+            d = arcs[n] - arcs[i];
+          } else if (pin.type === 'point') {
+            d = Math.hypot(xs[i] - pin.x, zs[i] - pin.z);
+          }
+          if (d <= flatM) {
+            hardPin[i] = 1;
+            pinTargetY[i] = pin.y;
+            ys[i] = pin.y;
+          } else if (d < radiusM && !hardPin[i]) {
+            const w = 1.0 - PhysicsKernel.smootherstep(flatM, radiusM, d);
+            ys[i] = ys[i] * (1.0 - w) + pin.y * w;
+          }
+        }
+      }
+
+      // 2. Bidirectional Bina Marga Lipschitz longitudinal grade envelope (|dy/ds| <= maxGrade anchored at all hard pins!)
+      const upperEnv = new Float64Array(n + 1);
+      const lowerEnv = new Float64Array(n + 1);
+      for (let i = 0; i <= n; i++) {
+        if (hardPin[i]) {
+          upperEnv[i] = pinTargetY[i];
+          lowerEnv[i] = pinTargetY[i];
+        } else {
+          upperEnv[i] = 1e6;
+          lowerEnv[i] = -1e6;
+        }
+      }
+      for (let i = 1; i <= n; i++) {
+        const ds = Math.max(0.05, arcs[i] - arcs[i - 1]);
+        upperEnv[i] = Math.min(upperEnv[i], upperEnv[i - 1] + maxGrade * ds);
+        lowerEnv[i] = Math.max(lowerEnv[i], lowerEnv[i - 1] - maxGrade * ds);
+      }
+      for (let i = n - 1; i >= 0; i--) {
+        const ds = Math.max(0.05, arcs[i + 1] - arcs[i]);
+        upperEnv[i] = Math.min(upperEnv[i], upperEnv[i + 1] + maxGrade * ds);
+        lowerEnv[i] = Math.max(lowerEnv[i], lowerEnv[i + 1] - maxGrade * ds);
+      }
+      for (let i = 0; i <= n; i++) {
+        if (hardPin[i]) {
+          ys[i] = pinTargetY[i];
+        } else if (lowerEnv[i] <= upperEnv[i]) {
+          ys[i] = Math.max(lowerEnv[i], Math.min(upperEnv[i], ys[i]));
+        } else {
+          ys[i] = 0.5 * (lowerEnv[i] + upperEnv[i]);
+        }
+      }
+
+      // 3. Neighbor-to-neighbor bidirectional slope clamping so every single chord satisfies |dy/ds| <= maxGrade
+      for (let sweep = 0; sweep < 4; sweep++) {
+        for (let i = 1; i <= n; i++) {
+          if (hardPin[i]) continue;
+          const maxDelta = maxGrade * Math.max(0.05, arcs[i] - arcs[i - 1]);
+          ys[i] = Math.max(lowerEnv[i], Math.min(upperEnv[i], Math.max(ys[i - 1] - maxDelta, Math.min(ys[i - 1] + maxDelta, ys[i]))));
+        }
+        for (let i = n - 1; i >= 0; i--) {
+          if (hardPin[i]) continue;
+          const maxDelta = maxGrade * Math.max(0.05, arcs[i + 1] - arcs[i]);
+          ys[i] = Math.max(lowerEnv[i], Math.min(upperEnv[i], Math.max(ys[i + 1] - maxDelta, Math.min(ys[i + 1] + maxDelta, ys[i]))));
+        }
+      }
+
+      // 4. 20-pass Pinned Parabolic Vertical-Curve Smoothing (variation-diminishing -> strictly preserves <= maxGrade!)
+      const tmp = new Float64Array(n + 1);
+      for (let pass = 0; pass < 20; pass++) {
+        tmp[0] = hardPin[0] ? pinTargetY[0] : ys[0];
+        tmp[n] = hardPin[n] ? pinTargetY[n] : ys[n];
+        for (let i = 1; i < n; i++) {
+          if (hardPin[i]) {
+            tmp[i] = pinTargetY[i];
+          } else {
+            tmp[i] = Math.max(0.0, 0.25 * ys[i - 1] + 0.50 * ys[i] + 0.25 * ys[i + 1]);
+          }
+        }
+        ys.set(tmp);
+      }
+
+      const points3D = [];
+      for (let i = 0; i <= n; i++) {
+        points3D.push(new THREE.Vector3(xs[i], ys[i], zs[i]));
+      }
+      return points3D;
+    };
+
+    const evalClosestYOnPts = (pts, qx, qz) => {
+      let bestD2 = Infinity;
+      let bestY = 0.48;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i];
+        const b = pts[i + 1];
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const len2 = dx * dx + dz * dz || 1e-8;
+        const t = Math.max(0.0, Math.min(1.0, ((qx - a.x) * dx + (qz - a.z) * dz) / len2));
+        const px = a.x + dx * t;
+        const pz = a.z + dz * t;
+        const d2 = (qx - px) * (qx - px) + (qz - pz) * (qz - pz);
+        if (d2 < bestD2) {
+          bestD2 = d2;
+          bestY = a.y + (b.y - a.y) * t;
+        }
+      }
+      return bestY;
+    };
+
+    // 1. Pulau U West-South Arterial (West Campus T-junction [-66.5, 75] -> Southern Underpass West Ramp [-356, 272])
+    const westSouthPts = buildSmoothed3DPolyline(
+      TerrainDEMLoader.PULAU_U_WEST_SOUTH_ARTERIAL,
+      3.0,
+      [
+        { type: 'start', y: 0.0, flatM: 7.0, radiusM: 28.0 },
+        { type: 'end', y: TerrainDEMLoader.UNDERPASS_WEST_RAMP_TOP_Y, flatM: 14.0, radiusM: 54.0 }
+      ],
+      0.076
+    );
+
+    const yJunctionSouth = evalClosestYOnPts(westSouthPts, -356.0, 263.0);
+
+    // 2. Pulau U Right-Arm Boulevard ([-356, 263] -> Dermaga Utara Pulau U [-48, 450] -> North Headland -> Jembatan Teksas East [-28, 353.5])
+    const rightArmPts = buildSmoothed3DPolyline(
+      TerrainDEMLoader.PULAU_U_RIGHT_ARM_BOULEVARD,
+      3.0,
+      [
+        { type: 'start', y: yJunctionSouth, flatM: 7.0, radiusM: 32.0 },
+        { type: 'point', x: -175.0, z: 443.0, y: 1.65, flatM: 9.5, radiusM: 34.0 },
+        {
+          type: 'point',
+          x: TerrainDEMLoader.DERMAGA_U_X,
+          z: TerrainDEMLoader.DERMAGA_U_FORECOURT_Z,
+          y: TerrainDEMLoader.DERMAGA_FORECOURT_Y,
+          flatM: 12.0,
+          radiusM: 38.0
+        },
+        { type: 'end', y: TerrainDEMLoader.TEKSAS_EAST_PLAZA_Y, flatM: 6.5, radiusM: 32.0 }
+      ],
+      0.084
+    );
+
+    const yJunctionSaddleEast = evalClosestYOnPts(rightArmPts, -175.0, 443.0);
+
+    // 3. Pulau U East Lagoon & Mid-Peninsula Saddle Connector (Jembatan Teksas East [-28, 353.5] -> [-175, 443])
+    const eastLagoonSaddlePts = buildSmoothed3DPolyline(
+      TerrainDEMLoader.PULAU_U_EAST_LAGOON_SADDLE_ROAD,
+      3.0,
+      [
+        { type: 'start', y: TerrainDEMLoader.TEKSAS_EAST_PLAZA_Y, flatM: 6.5, radiusM: 30.0 },
+        { type: 'end', y: yJunctionSaddleEast, flatM: 7.0, radiusM: 30.0 }
+      ],
+      0.076
+    );
+
+    // 4. Pulau I West Transit Road (Underpass East Ramp [-356, 670] -> West Aircraft Apron -> Dermaga Utara Pulau I Drop-Off [-98, 627.6])
+    const pulauITransitPts = buildSmoothed3DPolyline(
+      TerrainDEMLoader.PULAU_I_WEST_TRANSIT_ROAD,
+      3.0,
+      [
+        { type: 'start', y: TerrainDEMLoader.UNDERPASS_EAST_RAMP_TOP_Y, flatM: 6.5, radiusM: 28.0 },
+        { type: 'point', x: -254.0, z: 646.0, y: 0.48, flatM: 12.0, radiusM: 28.0 },
+        {
+          type: 'point',
+          x: TerrainDEMLoader.DERMAGA_I_X,
+          z: 627.6,
+          y: TerrainDEMLoader.DERMAGA_FORECOURT_Y,
+          flatM: 16.0,
+          radiusM: 30.0
+        },
+        { type: 'end', y: TerrainDEMLoader.DERMAGA_FORECOURT_Y, flatM: 8.0, radiusM: 20.0 }
+      ],
+      0.065
+    );
+
+    const yDermagaLoopStart = evalClosestYOnPts(pulauITransitPts, -87.0, 627.8);
+    const yDermagaLoopEnd = evalClosestYOnPts(pulauITransitPts, -118.0, 629.0);
+    const pulauIDermagaLoopPts = buildSmoothed3DPolyline(
+      TerrainDEMLoader.PULAU_I_DERMAGA_LOOP,
+      2.6,
+      [
+        { type: 'start', y: yDermagaLoopStart, flatM: 8.0, radiusM: 22.0 },
+        { type: 'point', x: -98.0, z: 634.5, y: TerrainDEMLoader.DERMAGA_FORECOURT_Y, flatM: 18.0, radiusM: 30.0 },
+        { type: 'end', y: yDermagaLoopEnd, flatM: 8.0, radiusM: 22.0 }
+      ],
+      0.015
+    );
+
+    const yApronJunction = evalClosestYOnPts(pulauITransitPts, -254.0, 646.0);
+    const pulauIApronSpurPts = [
+      new THREE.Vector3(-254.0, yApronJunction, 646.0),
+      new THREE.Vector3(-254.0, yApronJunction, 650.5),
+      new THREE.Vector3(-254.0, 0.5 * (yApronJunction + 0.544), 655.4),
+      new THREE.Vector3(-254.0, 0.544, 660.2)
+    ];
+
+    const corridors = [
+      { id: 'PULAU_U_WEST_SOUTH_ARTERIAL', halfWidth: 3.75, points: westSouthPts },
+      { id: 'PULAU_U_RIGHT_ARM_BOULEVARD', halfWidth: 3.65, points: rightArmPts },
+      { id: 'PULAU_U_EAST_LAGOON_SADDLE_ROAD', halfWidth: 3.45, points: eastLagoonSaddlePts },
+      { id: 'PULAU_I_WEST_TRANSIT_ROAD', halfWidth: 3.65, points: pulauITransitPts },
+      { id: 'PULAU_I_DERMAGA_LOOP', halfWidth: 3.95, points: pulauIDermagaLoopPts },
+      { id: 'PULAU_I_APRON_SPUR', halfWidth: 3.45, points: pulauIApronSpurPts }
+    ];
+
+    // Pack flat segment table + per-corridor AABBs with 46.0m geotechnical embankment reach for O(1) DEM grading queries
+    const embankOuterM = 46.0;
+    const segments = [];
+    for (let cIdx = 0; cIdx < corridors.length; cIdx++) {
+      const corr = corridors[cIdx];
+      const pts = corr.points;
+      let cMinX = Infinity;
+      let cMaxX = -Infinity;
+      let cMinZ = Infinity;
+      let cMaxZ = -Infinity;
+      const startSegIdx = segments.length;
+
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i];
+        const b = pts[i + 1];
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const len2 = dx * dx + dz * dz;
+        if (len2 < 1e-6) continue;
+        const minX = Math.min(a.x, b.x) - embankOuterM;
+        const maxX = Math.max(a.x, b.x) + embankOuterM;
+        const minZ = Math.min(a.z, b.z) - embankOuterM;
+        const maxZ = Math.max(a.z, b.z) + embankOuterM;
+        if (minX < cMinX) cMinX = minX;
+        if (maxX > cMaxX) cMaxX = maxX;
+        if (minZ < cMinZ) cMinZ = minZ;
+        if (maxZ > cMaxZ) cMaxZ = maxZ;
+        segments.push({
+          cIdx,
+          ax: a.x,
+          ay: a.y,
+          az: a.z,
+          bx: b.x,
+          by: b.y,
+          bz: b.z,
+          dx,
+          dz,
+          invLen2: 1.0 / len2,
+          minX,
+          maxX,
+          minZ,
+          maxZ
+        });
+      }
+      corr.minX = cMinX;
+      corr.maxX = cMaxX;
+      corr.minZ = cMinZ;
+      corr.maxZ = cMaxZ;
+      corr.startSegIdx = startSegIdx;
+      corr.endSegIdx = segments.length;
+    }
+
+    TerrainDEMLoader._cachedRoadNetwork3D = { corridors, segments };
+    return TerrainDEMLoader._cachedRoadNetwork3D;
+  }
+
+  /**
+   * Evaluates smooth multi-corridor cut-and-fill highway grading at (x, z) with adaptive C^1 geotechnical
+   * angle-of-repose embankment reach (up to 46.0m, <= 27 deg max repose!) so hillside cuts never form steep walls.
+   */
+  static evalRoadNetworkCorridorGrade(x, z, yNat = null) {
+    if (x > 80.0 || x < -416.0 || z < 28.0 || (z > 498.0 && z < 574.0) || z > 728.0) {
+      return null;
+    }
+    const { corridors, segments } = TerrainDEMLoader.getRoadNetwork3DCorridors();
+    const maxD2 = 46.0 * 46.0;
+    let minD2 = maxD2;
+    let sumWY = 0.0;
+    let sumW = 0.0;
+    let hit = false;
+
+    for (let c = 0; c < corridors.length; c++) {
+      const corr = corridors[c];
+      if (x < corr.minX || x > corr.maxX || z < corr.minZ || z > corr.maxZ) continue;
+      let cBestD2 = maxD2;
+      let cBestY = 0.0;
+      let cHit = false;
+      for (let i = corr.startSegIdx; i < corr.endSegIdx; i++) {
+        const s = segments[i];
+        if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ) continue;
+        let t = ((x - s.ax) * s.dx + (z - s.az) * s.dz) * s.invLen2;
+        if (t < 0.0) t = 0.0;
+        else if (t > 1.0) t = 1.0;
+        const px = s.ax + s.dx * t;
+        const pz = s.az + s.dz * t;
+        const d2 = (x - px) * (x - px) + (z - pz) * (z - pz);
+        if (d2 < cBestD2) {
+          cBestD2 = d2;
+          cBestY = s.ay + (s.by - s.ay) * t;
+          cHit = true;
+        }
+      }
+      if (cHit) {
+        hit = true;
+        if (cBestD2 < minD2) minD2 = cBestD2;
+        // Smooth inverse-distance corridor weight eliminates Voronoi height jumps across T-junctions!
+        const w = 1.0 / ((cBestD2 + 0.45) * (cBestD2 + 0.45) * (cBestD2 + 0.45));
+        sumWY += w * cBestY;
+        sumW += w;
+      }
+    }
+
+    if (!hit || sumW <= 0.0) return null;
+    const dist = Math.sqrt(minD2);
+    const targetY = sumWY / sumW;
+    const flatHalfW = 5.35; // Covers 3.75m half-road + 0.46m curb + 1.14m DEM grid margin
+    // Pure spatial distance reach (44.0m) guarantees zero dyNat/dx chain-rule amplification & <= 24 deg natural grassy embankments!
+    const slopeReachM = 44.0;
+    if (dist >= slopeReachM) {
+      return { dist, targetY, blend: 0.0 };
+    }
+    const blend = 1.0 - TerrainDEMLoader._geotechRamp01(flatHalfW, slopeReachM, dist);
+    return { dist, targetY, blend };
+  }
+
+  /**
+   * True whenever (x, z) lies on or within marginMeters of any new road corridor, open-cut underpass ramp/portal,
+   * or northern ferry terminal forecourt/pier — keeps spawned trees, shrubs, & wandering cats cleanly off roadways!
+   */
+  static isTransitInfrastructureExclusion(x, z, marginMeters = 6.2) {
+    // 1. Southern Underpass Open-Cut Ramps & Portal Ventilation Plazas
+    if (Math.abs(x - TerrainDEMLoader.UNDERPASS_X) < 7.8 + marginMeters) {
+      if (
+        (z >= TerrainDEMLoader.UNDERPASS_WEST_RAMP_START_Z - 3.0 - marginMeters &&
+          z <= TerrainDEMLoader.UNDERPASS_WEST_PORTAL_Z + 5.5 + marginMeters) ||
+        (z >= TerrainDEMLoader.UNDERPASS_EAST_PORTAL_Z - 5.5 - marginMeters &&
+          z <= TerrainDEMLoader.UNDERPASS_EAST_RAMP_END_Z + 3.0 + marginMeters)
+      ) {
+        return true;
+      }
+    }
+
+    // 2. Dermaga Penyeberangan Utara Pulau U & Pulau I Forecourts & Trestles
+    if (
+      Math.abs(x - TerrainDEMLoader.DERMAGA_U_X) < 14.8 + marginMeters &&
+      z >= 443.0 - marginMeters &&
+      z <= TerrainDEMLoader.DERMAGA_U_HEAD_Z + marginMeters
+    ) {
+      return true;
+    }
+    if (
+      Math.abs(x - TerrainDEMLoader.DERMAGA_I_X) < 15.5 + marginMeters &&
+      z >= TerrainDEMLoader.DERMAGA_I_HEAD_Z - marginMeters &&
+      z <= 636.2 + marginMeters
+    ) {
+      return true;
+    }
+
+    // 3. Integrated Pulau U & Pulau I Road Network Corridors
+    const maxDist = 4.35 + marginMeters;
+    if (x <= 64.0 && x >= -400.0 && z >= 45.0 && z <= 712.0) {
+      const { segments } = TerrainDEMLoader.getRoadNetwork3DCorridors();
+      const maxD2 = maxDist * maxDist;
+      for (let i = 0; i < segments.length; i++) {
+        const s = segments[i];
+        if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ) continue;
+        let t = ((x - s.ax) * s.dx + (z - s.az) * s.dz) * s.invLen2;
+        if (t < 0.0) t = 0.0;
+        else if (t > 1.0) t = 1.0;
+        const px = s.ax + s.dx * t;
+        const pz = s.az + s.dz * t;
+        if ((x - px) * (x - px) + (z - pz) * (z - pz) < maxD2) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Evaluates continuous ground / plaza / highway cut-and-fill / underpass ramp trench / seabed elevation y(x, z)
+   * across the entire Kepulauan UI (Pulau U & Pulau I).
+   */
+  static sampleGroundHeight(x, z) {
+    const dU = TerrainDEMLoader.getIslandUCoastDistance(x, z);
+    const dI = TerrainDEMLoader.getIslandICoastDistance(x, z);
+    const dCoast = Math.min(dU, dI);
+
+    // 1. Coastal Embankment & Submerged Seabed / Lagoon / Strait Basin
+    if (dCoast > 0.0) {
+      if (dCoast <= 3.6) {
+        const tUpper = PhysicsKernel.smootherstep(0.0, 3.6, dCoast);
+        return TerrainDEMLoader.WATER_LEVEL_Y * tUpper;
+      }
+      const tLower = PhysicsKernel.smootherstep(3.6, 12.0, dCoast);
+      const bedMacro =
+        0.14 *
+        Math.sin(x * 0.05) *
+        Math.cos(z * 0.05) *
+        PhysicsKernel.smootherstep(12.0, 26.0, dCoast);
+      const bedMicro =
+        0.045 *
+        Math.sin(x * 0.24 + z * 0.19) *
+        Math.cos(z * 0.31 - x * 0.14) *
+        PhysicsKernel.smootherstep(6.0, 16.0, dCoast);
+      let seabedY =
+        TerrainDEMLoader.WATER_LEVEL_Y +
+        (TerrainDEMLoader.LAKE_BED_Y - TerrainDEMLoader.WATER_LEVEL_Y) * tLower +
+        bedMacro +
+        bedMicro;
+
+      // Subsea Immersed-Tube Tunnel Cradle across Southern Selat UI (x = -356m, z in [356, 603]):
+      // Smoothly seats the outer tunnel shell & acrylic sea-windows at y = -9.15m without disturbing surface navigation!
+      const dxUp = Math.abs(x - TerrainDEMLoader.UNDERPASS_X);
+      if (dxUp < 17.5 && z > 355.0 && z < 604.0 && dCoast > 3.8) {
+        const cradleX = 1.0 - PhysicsKernel.smootherstep(8.2, 17.5, dxUp);
+        const cradleZ = PhysicsKernel.smootherstep(3.8, 12.5, dCoast);
+        const cradleMask = cradleX * cradleZ;
+        seabedY = seabedY * (1.0 - cradleMask) + -9.15 * cradleMask;
+      }
+      return seabedY;
+    }
+
+    // Coastal promenade leveling collar: smoothly brings all inland terrain to 0.0m datum
+    // within 10.5m of the 360° stone turap coping wall
+    const coastCollar = PhysicsKernel.smootherstep(-1.2, -10.5, dCoast);
+    let y = TerrainDEMLoader._sampleNaturalIslandHeight(x, z, dU, dI, dCoast, coastCollar);
+
+    // Preserve strict 0.0m flat datum inside Gedung Rektorat, Rotunda & Helipad Campus Core
+    const distHeli = Math.hypot(x - TerrainDEMLoader.HELIPAD_CX, z - TerrainDEMLoader.HELIPAD_CZ);
+    const inCampusCore = x >= -67.2 && x <= 78.0 && z >= -58.0 && z <= 156.0;
+    const inHelipadCorridor = z >= 96.0 && z <= 118.0 && x >= -112.0 && x <= 10.0;
+    if (inCampusCore || distHeli <= 24.0 || inHelipadCorridor) {
+      return y;
+    }
+
+    // 2. Northern Ferry Terminal Forecourt Pads (Dermaga Pulau U & Dermaga Pulau I)
+    if (z > 436.0 && z < 465.2 && Math.abs(x - TerrainDEMLoader.DERMAGA_U_X) < 26.0) {
+      const ux = Math.max(0.0, Math.abs(x - TerrainDEMLoader.DERMAGA_U_X) - 13.5) / 12.5;
+      const uz = z < 454.0 ? Math.max(0.0, 446.5 - z) / 10.0 : Math.max(0.0, z - 462.5) / 2.8;
+      const rPad = Math.hypot(ux, uz);
+      if (rPad < 1.0) {
+        const m = (1.0 - PhysicsKernel.smootherstep(0.0, 1.0, rPad)) * PhysicsKernel.smootherstep(-1.0, -5.0, dU);
+        y = y * (1.0 - m) + TerrainDEMLoader.DERMAGA_FORECOURT_Y * coastCollar * m;
+      }
+    } else if (z > 608.2 && z < 636.0 && Math.abs(x - TerrainDEMLoader.DERMAGA_I_X) < 26.0) {
+      const ux = Math.max(0.0, Math.abs(x - TerrainDEMLoader.DERMAGA_I_X) - 13.5) / 12.5;
+      const uz = z > 617.0 ? Math.max(0.0, z - 624.5) / 11.0 : Math.max(0.0, 610.8 - z) / 2.6;
+      const rPad = Math.hypot(ux, uz);
+      if (rPad < 1.0) {
+        const m = (1.0 - PhysicsKernel.smootherstep(0.0, 1.0, rPad)) * PhysicsKernel.smootherstep(-1.0, -5.0, dI);
+        y = y * (1.0 - m) + TerrainDEMLoader.DERMAGA_FORECOURT_Y * coastCollar * m;
+      }
+    }
+
+    // 3. Smooth Geotechnical Highway Cut-and-Fill Corridor Grading + -4.5cm Carriageway Subgrade Pocket
+    const inAirfieldConcreteBox =
+      z >= 659.5 && x >= -383.0 && x <= -127.0 && (z >= 694.5 || (x >= -284.8 && x <= -223.2));
+    if (dCoast < -2.2 && !inAirfieldConcreteBox) {
+      const rg = TerrainDEMLoader.evalRoadNetworkCorridorGrade(x, z, y);
+      if (rg && rg.blend > 0.0001) {
+        // Broad 27m outer release (dist 6.0->33.0m) + coastal shield (dCoast -10.5->-28.0m) + hydrological levee shield
+        // prevents hillside roads from pushing steep fill walls onto coasts or breaching adjacent highland river banks!
+        const innerCollarFade = PhysicsKernel.smootherstep(-2.2, -7.5, dCoast);
+        const outerCoastShield = TerrainDEMLoader._geotechRamp01(-10.5, -28.0, dCoast);
+        const roadCoreT = 1.0 - TerrainDEMLoader._geotechRamp01(6.0, 33.0, rg.dist);
+        const collarFade = innerCollarFade * (outerCoastShield + (1.0 - outerCoastShield) * roadCoreT);
+        let hydroBankShield = 1.0;
+        if (z < 142.0 && x < -68.0) {
+          const hydroNear = TerrainDEMLoader.evalPulauUHydrology(x, z);
+          if (hydroNear && hydroNear.w < 2.50) {
+            hydroBankShield = TerrainDEMLoader._geotechRamp01(1.45, 2.50, hydroNear.w);
+          }
+        }
+        const effBlend = rg.blend * collarFade * hydroBankShield;
+        const subgradeDip = 0.045 * (1.0 - PhysicsKernel.smootherstep(4.05, 5.25, rg.dist));
+        const gradedY = (rg.targetY - subgradeDip) * coastCollar;
+        y = y * (1.0 - effBlend) + gradedY * effBlend;
+      }
+    }
+
+    // 4. Open-Cut Retained Underpass Ramp Valley Terrace & Trench Excavations (100% inland behind intact stone turaps!)
+    const dxRamp = Math.abs(x - TerrainDEMLoader.UNDERPASS_X);
+    if (dxRamp < 23.0 && dCoast < -1.8 && !inAirfieldConcreteBox) {
+      // Smooth C^2 grassy approach valley terrace flanking the West (Pulau U) & East (Pulau I) ramps & portal plazas
+      if (z > 272.0 && z < 344.0) {
+        const tZW = PhysicsKernel.smootherstep(272.0, 326.0, z);
+        const terraceYW = (2.39 * (1.0 - tZW) + 1.08 * tZW) * coastCollar;
+        const latW = 1.0 - PhysicsKernel.smootherstep(5.8, 22.5, dxRamp);
+        const lonW =
+          PhysicsKernel.smootherstep(272.0, 277.5, z) *
+          (1.0 - PhysicsKernel.smootherstep(333.5, 344.0, z)) *
+          PhysicsKernel.smootherstep(-1.8, -8.5, dU);
+        const mW = latW * lonW;
+        y = y * (1.0 - mW) + terraceYW * mW;
+      } else if (z > 607.0 && z < 670.0) {
+        const tZE = PhysicsKernel.smootherstep(624.0, 670.0, z);
+        const terraceYE = (1.05 * (1.0 - tZE) + 2.36 * tZE) * coastCollar;
+        const latE = 1.0 - PhysicsKernel.smootherstep(5.8, 19.5, dxRamp);
+        const lonE =
+          PhysicsKernel.smootherstep(607.0, 616.5, z) *
+          (1.0 - PhysicsKernel.smootherstep(664.5, 670.0, z)) *
+          PhysicsKernel.smootherstep(-1.8, -8.5, dI);
+        const mE = latE * lonE;
+        y = y * (1.0 - mE) + terraceYE * mE;
+      }
+    }
+    if (dxRamp < 4.87) {
+      // West Open-Cut Ramp on SE Pulau U (z = 272.0 -> 326.0m; outer retaining wall at +-5.25m seals +-4.88m cutout)
+      if (z > 271.6 && z < 329.45) {
+        const tW = Math.max(
+          0.0,
+          Math.min(
+            1.0,
+            (z - TerrainDEMLoader.UNDERPASS_WEST_RAMP_START_Z) /
+              (TerrainDEMLoader.UNDERPASS_WEST_PORTAL_Z - TerrainDEMLoader.UNDERPASS_WEST_RAMP_START_Z)
+          )
+        );
+        const sW = PhysicsKernel.smootherstep(0.0, 1.0, tW);
+        const rampDeckY =
+          TerrainDEMLoader.UNDERPASS_WEST_RAMP_TOP_Y +
+          (TerrainDEMLoader.UNDERPASS_TUNNEL_FLOOR_Y - TerrainDEMLoader.UNDERPASS_WEST_RAMP_TOP_Y) * sW;
+        const trenchFloorY = rampDeckY - 0.85;
+        const xMask = 1.0 - PhysicsKernel.smootherstep(4.55, 4.86, dxRamp);
+        const zMask =
+          PhysicsKernel.smootherstep(271.6, 272.4, z) *
+          (1.0 - PhysicsKernel.smootherstep(327.95, 329.45, z));
+        const m = xMask * zMask;
+        y = y * (1.0 - m) + trenchFloorY * m;
+      }
+      // East Open-Cut Ramp on SW Pulau I (z = 624.0 -> 670.0m; outer retaining wall at +-5.25m seals +-4.88m cutout)
+      else if (z > 620.85 && z < 670.4) {
+        const tE = Math.max(
+          0.0,
+          Math.min(
+            1.0,
+            (z - TerrainDEMLoader.UNDERPASS_EAST_PORTAL_Z) /
+              (TerrainDEMLoader.UNDERPASS_EAST_RAMP_END_Z - TerrainDEMLoader.UNDERPASS_EAST_PORTAL_Z)
+          )
+        );
+        const sE = PhysicsKernel.smootherstep(0.0, 1.0, tE);
+        const rampDeckY =
+          TerrainDEMLoader.UNDERPASS_TUNNEL_FLOOR_Y +
+          (TerrainDEMLoader.UNDERPASS_EAST_RAMP_TOP_Y - TerrainDEMLoader.UNDERPASS_TUNNEL_FLOOR_Y) * sE;
+        const trenchFloorY = rampDeckY - 0.85;
+        const xMask = 1.0 - PhysicsKernel.smootherstep(4.55, 4.86, dxRamp);
+        const zMask =
+          PhysicsKernel.smootherstep(620.85, 622.35, z) *
+          (1.0 - PhysicsKernel.smootherstep(669.6, 670.4, z));
+        const m = xMask * zMask;
+        y = y * (1.0 - m) + trenchFloorY * m;
+      }
+    }
+
+    return y;
   }
 
   /**
@@ -998,6 +1886,43 @@ export class TerrainDEMLoader {
       coordFocus?.sigmaZ || 0.20
     );
 
+    // Snap 1D grid lines directly onto the exact outer retaining-wall planes (UNDERPASS_X +- 4.88m,
+    // buried inside the +-5.25m concrete parapet wall) & ramp/portal Z boundaries so the DEM cutout
+    // is millimeter-flush with ZERO blue sea-plane slivers and ZERO grass poking into the ramp!
+    const buildSnappedAxis = (nSegs, mapFn, minVal, maxVal, snapTargets) => {
+      const arr = new Float64Array(nSegs + 1);
+      for (let i = 0; i <= nSegs; i++) {
+        arr[i] = mapFn(i / nSegs);
+      }
+      for (const target of snapTargets) {
+        if (target <= minVal + 2.0 || target >= maxVal - 2.0) continue;
+        let bestIdx = -1;
+        let bestDist = Infinity;
+        for (let i = 1; i < nSegs; i++) {
+          const d = Math.abs(arr[i] - target);
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = i;
+          }
+        }
+        if (
+          bestIdx > 0 &&
+          bestIdx < nSegs &&
+          arr[bestIdx - 1] + 0.12 < target &&
+          target < arr[bestIdx + 1] - 0.12
+        ) {
+          arr[bestIdx] = target;
+        }
+      }
+      return arr;
+    };
+
+    const xCoords = buildSnappedAxis(segsX, mapX, xMin, xMax, [
+      TerrainDEMLoader.UNDERPASS_X - 4.88,
+      TerrainDEMLoader.UNDERPASS_X + 4.88
+    ]);
+    const zCoords = buildSnappedAxis(segsZ, mapZ, zMin, zMax, [272.18, 332.6, 617.4, 669.82]);
+
     const gridVerts = (segsX + 1) * (segsZ + 1);
     const skirtVerts = 2 * 2 * (segsX + 1) + 2 * 2 * (segsZ + 1);
     const totalVerts = gridVerts + skirtVerts;
@@ -1033,9 +1958,9 @@ export class TerrainDEMLoader {
 
     const stride = segsX + 1;
     for (let iz = 0; iz <= segsZ; iz++) {
-      const z = mapZ(iz / segsZ);
+      const z = zCoords[iz];
       for (let ix = 0; ix <= segsX; ix++) {
-        const x = mapX(ix / segsX);
+        const x = xCoords[ix];
         const y = TerrainDEMLoader.sampleGroundHeight(x, z);
         TerrainDEMLoader.sampleGroundNormal(x, z, nTmp);
 
@@ -1261,6 +2186,17 @@ export class TerrainDEMLoader {
               }
             }
           }
+
+          // Subtle crushed-andesite road shoulder verge shading along Pulau U & Pulau I highway embankments
+          if (dCoastVert < -2.5) {
+            const rgCol = TerrainDEMLoader.evalRoadNetworkCorridorGrade(x, z);
+            if (rgCol && rgCol.dist < 6.2) {
+              const vergeT = (1.0 - PhysicsKernel.smootherstep(3.8, 6.2, rgCol.dist)) * 0.24;
+              r = r * (1.0 - vergeT) + 0.245 * vergeT;
+              g = g * (1.0 - vergeT) + 0.258 * vergeT;
+              b = b * (1.0 - vergeT) + 0.220 * vergeT;
+            }
+          }
         }
 
         writeVert(x, y, z, nTmp.x, nTmp.y, nTmp.z, x * 0.08, z * 0.08, r, g, b);
@@ -1273,6 +2209,16 @@ export class TerrainDEMLoader {
         const b = a + 1;
         const c = a + stride + 1;
         const d = a + stride;
+        const qx = 0.5 * (positions[a * 3] + positions[c * 3]);
+        const qz = 0.5 * (positions[a * 3 + 2] + positions[c * 3 + 2]);
+        // Omit DEM heightfield quads strictly inside the axis-snapped [-4.88m, +4.88m] Open-Cut Ramp & Portal Headwalls
+        // (100% sealed inside the [-5.25m, +5.25m] concrete parapet walls & [-7.55m, +7.55m] portal piers!)
+        if (
+          Math.abs(qx - TerrainDEMLoader.UNDERPASS_X) < 4.88 &&
+          ((qz > 272.18 && qz < 332.6) || (qz > 617.4 && qz < 669.82))
+        ) {
+          continue;
+        }
         indices[iPtr++] = a;
         indices[iPtr++] = d;
         indices[iPtr++] = b;
@@ -1289,7 +2235,7 @@ export class TerrainDEMLoader {
       const botRow = new Uint32Array(edgeSegs + 1);
       for (let i = 0; i <= edgeSegs; i++) {
         const t = i / edgeSegs;
-        const { x, z, arcU } = sampleCoordFn(t);
+        const { x, z, arcU } = sampleCoordFn(i, t);
         const yTop = TerrainDEMLoader.sampleGroundHeight(x, z);
         topRow[i] = writeVert(x, yTop, z, nx, ny, nz, arcU * 0.06, 1.0, 0.16, 0.17, 0.15);
         botRow[i] = writeVert(x, skirtY, z, nx, ny, nz, arcU * 0.06, 0.0, 0.10, 0.11, 0.10);
@@ -1308,17 +2254,18 @@ export class TerrainDEMLoader {
       }
     };
 
-    addSkirtSide(segsX, (t) => ({ x: mapX(t), z: zMax, arcU: t * spanX }), 0, 0, 1);
-    addSkirtSide(segsZ, (t) => ({ x: xMax, z: mapZ(1.0 - t), arcU: t * spanZ }), 1, 0, 0);
-    addSkirtSide(segsX, (t) => ({ x: mapX(1.0 - t), z: zMin, arcU: t * spanX }), 0, 0, -1);
-    addSkirtSide(segsZ, (t) => ({ x: xMin, z: mapZ(t), arcU: t * spanZ }), -1, 0, 0);
+    addSkirtSide(segsX, (i, t) => ({ x: xCoords[i], z: zMax, arcU: t * spanX }), 0, 0, 1);
+    addSkirtSide(segsZ, (i, t) => ({ x: xMax, z: zCoords[segsZ - i], arcU: t * spanZ }), 1, 0, 0);
+    addSkirtSide(segsX, (i, t) => ({ x: xCoords[segsX - i], z: zMin, arcU: t * spanX }), 0, 0, -1);
+    addSkirtSide(segsZ, (i, t) => ({ x: xMin, z: zCoords[i], arcU: t * spanZ }), -1, 0, 0);
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    geo.setIndex(new THREE.BufferAttribute(indices, 1));
+    const finalIndices = iPtr === indices.length ? indices : indices.slice(0, iPtr);
+    geo.setIndex(new THREE.BufferAttribute(finalIndices, 1));
     return geo;
   }
 

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { createSharedSurfaceUniforms } from '../core/ProceduralTextureFactory.js';
+import { PhysicsKernel } from '../core/PhysicsKernel.js';
 import { TerrainDEMLoader } from './TerrainDEMLoader.js';
+import { SplineCorridorBuilder } from './SplineCorridorBuilder.js';
 import { createPhotorealHumanMaterial } from './HumanShaderMaterial.js';
 import {
   HumanAnatomyBuilder,
@@ -66,7 +68,16 @@ import {
   CART_WHEELBASE,
   CART_TRACK_HALF_W,
   CART_BIND_PIVOTS,
-  CART_SEAT_SLOTS
+  CART_SEAT_SLOTS,
+  BUS_JOINTS_PER_VEHICLE,
+  BUS_J_CHASSIS,
+  BUS_J_WHEEL_FL,
+  BUS_J_WHEEL_FR,
+  BUS_J_WHEEL_RL,
+  BUS_J_WHEEL_RR,
+  BUS_WHEEL_RADIUS,
+  BUS_WHEELBASE,
+  BUS_BIND_PIVOTS
 } from './CampusTransitAndMarineBuilder.js';
 
 /**
@@ -168,9 +179,14 @@ export class DynamicTrafficAI {
     this.golfCart = null;
     this.marineVessels = [];
     this.miniYacht = null;
+    this.interIslandBus = null;
+    this.shuttleFerry = null;
     this._cartJointBase = 0;
     this._marineJointBase = 0;
     this._miniYachtJointIndex = 0;
+    this._busJointBase = 0;
+    this._shuttleFerryJointIndex = 0;
+    this._totalJointCount = 0;
     this.mesh = null;
     this.elapsedTime = 0.0;
 
@@ -202,6 +218,184 @@ export class DynamicTrafficAI {
     this._tmpVecA = new THREE.Vector3();
     this._tmpVecB = new THREE.Vector3();
     this._tmpVecC = new THREE.Vector3();
+    this._tmpVecD = new THREE.Vector3();
+
+    // Solid-Body Non-Penetration World & Pre-Allocated Dynamic Collider Pool (0 GC per frame)
+    this._solidWorld = null;
+    this._dynamicSolidColliders = [];
+    this._agentPosScratch = { x: 0.0, z: 0.0 };
+    this._cartOBBScratch = {
+      kind: 'OBB',
+      id: 'Dyn_GolfCartUI',
+      cx: 0.0,
+      cz: 0.0,
+      yaw: 0.0,
+      halfW: 0.65,
+      frontL: 1.76,
+      backL: 1.66,
+      minY: 0.0,
+      maxY: 2.1
+    };
+    this._busOBBScratch = {
+      kind: 'OBB',
+      id: 'Dyn_InterIslandBusUI',
+      cx: 0.0,
+      cz: 0.0,
+      yaw: 0.0,
+      halfW: 1.44,
+      frontL: 4.00,
+      backL: 3.94,
+      minY: 0.0,
+      maxY: 3.0
+    };
+    this._ferryOBBScratch = {
+      kind: 'OBB',
+      id: 'Dyn_CatamaranFerryUI',
+      cx: 0.0,
+      cz: 0.0,
+      yaw: 0.0,
+      halfW: 3.12,
+      frontL: 8.40,
+      backL: 7.73,
+      minY: -1.95,
+      maxY: 4.15
+    };
+  }
+
+  /**
+   * Injects the precomputed static solid-world collider registry (including live tree trunks & streetlamps).
+   */
+  setSolidWorld(solidWorld) {
+    this._solidWorld = solidWorld || null;
+  }
+
+  _ensureSolidWorld() {
+    if (!this._solidWorld) {
+      this._solidWorld = SplineCorridorBuilder.buildWorldSolidColliders(null);
+    }
+    return this._solidWorld;
+  }
+
+  /**
+   * Updates and returns the zero-allocation array of live 3D solid colliders for all dynamic vehicles,
+   * marine vessels, Sivitas Akademika NPCs, and campus cats (consumed by CameraDirector & physics audits).
+   */
+  getDynamicSolidColliders() {
+    const pool = this._dynamicSolidColliders;
+    let idx = 0;
+    const ensureSlot = (kind, id) => {
+      if (idx >= pool.length) {
+        pool.push({ kind, id, enabled: true });
+      }
+      const slot = pool[idx++];
+      slot.kind = kind;
+      slot.id = id;
+      slot.enabled = true;
+      return slot;
+    };
+
+    if (this.interIslandBus) {
+      const b = this.interIslandBus;
+      const c = ensureSlot('OBB', 'Dyn_InterIslandBusUI');
+      c.cx = b.worldX;
+      c.cz = b.worldZ;
+      c.yaw = b.yaw;
+      c.halfW = 1.44;
+      c.frontL = 4.00;
+      c.backL = 3.94;
+      c.minY = b.worldY + 0.05;
+      c.maxY = b.worldY + 2.98;
+      PhysicsKernel.prepareSolidCollider(c);
+    }
+
+    if (this.golfCart) {
+      const g = this.golfCart;
+      const c = ensureSlot('OBB', 'Dyn_GolfCartUI');
+      c.cx = g.worldX;
+      c.cz = g.worldZ;
+      c.yaw = g.yaw;
+      c.halfW = 0.65;
+      c.frontL = 1.76;
+      c.backL = 1.66;
+      c.minY = g.worldY + 0.05;
+      c.maxY = g.worldY + 2.08;
+      PhysicsKernel.prepareSolidCollider(c);
+    }
+
+    if (this.shuttleFerry) {
+      const f = this.shuttleFerry;
+      const c = ensureSlot('OBB', 'Dyn_CatamaranFerryUI');
+      c.cx = f.worldX;
+      c.cz = f.worldZ;
+      c.yaw = f.yaw;
+      c.halfW = 3.12;
+      c.frontL = 8.40;
+      c.backL = 7.73;
+      c.minY = f.worldY - 0.50;
+      c.maxY = f.worldY + 5.56;
+      PhysicsKernel.prepareSolidCollider(c);
+    }
+
+    if (this.miniYacht) {
+      const y = this.miniYacht;
+      const c = ensureSlot('OBB', 'Dyn_FlybridgeMiniYacht');
+      c.cx = y.worldX;
+      c.cz = y.worldZ;
+      c.yaw = y.yaw;
+      c.halfW = 2.05;
+      c.frontL = 6.80;
+      c.backL = 6.70;
+      c.minY = y.worldY - 0.50;
+      c.maxY = y.worldY + 5.06;
+      PhysicsKernel.prepareSolidCollider(c);
+    }
+
+    for (let m = 0; m < this.marineVessels.length; m++) {
+      const v = this.marineVessels[m];
+      const s = v.scale || 1.0;
+      const isShip = v.type === 'SMALL_SHIP';
+      const c = ensureSlot('OBB', `Dyn_Marine_${m}`);
+      c.cx = v.worldX;
+      c.cz = v.worldZ;
+      c.yaw = v.yaw;
+      c.halfW = (isShip ? 3.20 : 3.30) * s;
+      c.frontL = (isShip ? 12.20 : 5.45) * s;
+      c.backL = (isShip ? 11.80 : 5.45) * s;
+      c.minY = v.worldY - (isShip ? 0.80 : 0.40);
+      c.maxY = v.worldY + (isShip ? 7.80 : 3.40) * s;
+      PhysicsKernel.prepareSolidCollider(c);
+    }
+
+    for (let i = 0; i < this.npcs.length; i++) {
+      const npc = this.npcs[i];
+      const c = ensureSlot('CYL', `Dyn_NPC_${i}`);
+      const onboard =
+        npc.behavior === 'GOLF_CART_DRIVER' ||
+        (npc.behavior === 'GOLF_CART_SHUTTLE_RIDER' &&
+          (npc.shuttleState === 'ONBOARD' || npc.seatedBlend > 0.35));
+      c.enabled = !onboard;
+      c.x = npc.worldX;
+      c.z = npc.worldZ;
+      c.r = 0.28;
+      c.minY = npc.worldY;
+      c.maxY = npc.worldY + 1.74 * (npc.heightScale || 1.0);
+      PhysicsKernel.prepareSolidCollider(c);
+    }
+
+    for (let i = 0; i < this.cats.length; i++) {
+      const cat = this.cats[i];
+      const s = cat.phenotype?.overallScale || 1.0;
+      const c = ensureSlot('CYL', `Dyn_Cat_${i}`);
+      c.x = cat.worldX;
+      c.z = cat.worldZ;
+      c.r = 0.17;
+      c.minY = cat.worldY;
+      c.maxY = cat.worldY + 0.44 * s;
+      PhysicsKernel.prepareSolidCollider(c);
+    }
+
+    pool.length = idx;
+    return pool;
   }
 
   /**
@@ -213,6 +407,17 @@ export class DynamicTrafficAI {
     if (rRot >= 23.7 && rRot <= 33.9) return true;
     if (x >= -81.8 && x <= -33.0 && z >= 101.8 && z <= 111.2) return true;
     if (x >= -68.5 && x <= -56.5 && z >= -34.2 && z <= 104.8) return true;
+    if (
+      TerrainDEMLoader.sampleUnderpassDeckY(x, z) !== null &&
+      Math.abs(x - TerrainDEMLoader.UNDERPASS_X) <= TerrainDEMLoader.UNDERPASS_CARRIAGEWAY_HALF_W + 0.25
+    ) {
+      return true;
+    }
+    if (TerrainDEMLoader.sampleFerryPierDeckY(x, z) !== null) {
+      return true;
+    }
+    const roadGrade = TerrainDEMLoader.evalRoadNetworkCorridorGrade(x, z);
+    if (roadGrade !== null && roadGrade.dist <= 4.15) return true;
     return false;
   }
 
@@ -286,6 +491,50 @@ export class DynamicTrafficAI {
       bridgeSoffitY,
       spareHeadroomUnderBridgeM:
         bridgeSoffitY !== null ? +(bridgeSoffitY - topMastWorldY).toFixed(3) : null
+    };
+  }
+
+  /**
+   * Returns a live telemetry & pose snapshot of the Inter-Island Electric Campus Bus
+   * ("Bus Kuning Listrik Lintas Pulau UI") traversing Pulau U Roads, Underpass Bawah Laut, & Pulau I.
+   */
+  getInterIslandBusPose() {
+    if (!this.interIslandBus) return null;
+    const b = this.interIslandBus;
+    return {
+      worldX: b.worldX,
+      worldY: b.worldY,
+      worldZ: b.worldZ,
+      yaw: b.yaw,
+      pitch: b.pitch,
+      roll: b.roll,
+      speed: b.speed,
+      steerAngle: b.steerAngle,
+      wheelSpinRad: b.wheelSpinRad,
+      insideSubseaUnderpass: TerrainDEMLoader.isInsideEnclosedUnderpass(
+        b.worldX,
+        b.worldY + 1.5,
+        b.worldZ
+      )
+    };
+  }
+
+  /**
+   * Returns a live telemetry & pose snapshot of the Northern Selat UI Electric Catamaran Ferry
+   * ("Kapal Feri Katamaran Listrik UI") shuttling between Dermaga Pulau U and Dermaga Pulau I.
+   */
+  getShuttleFerryPose() {
+    if (!this.shuttleFerry) return null;
+    const f = this.shuttleFerry;
+    return {
+      worldX: f.worldX,
+      worldY: f.worldY,
+      worldZ: f.worldZ,
+      yaw: f.yaw,
+      pitch: f.pitch,
+      roll: f.roll,
+      speed: f.speed,
+      phase: f.phase
     };
   }
 
@@ -441,20 +690,20 @@ export class DynamicTrafficAI {
     // Centered around archipelago centroid (-160, +365) with semi-axes rx >= 740m, rz >= 840m
     // -> 100% open ocean (> 360m clear of all turap coastlines, >= 555m from Campus Rotunda!)
     const fleetSpecs = [
-      // 8 Perahu Nelayan Cadik (Nusantara Outrigger Fishing Boats — Far Offshore)
-      { type: 'FISHING_BOAT', variant: 0, rx: 740.0, rz: 840.0, angle0: 0.12, dir: 1.0, speed: 2.15, scale: 1.02 },
-      { type: 'FISHING_BOAT', variant: 1, rx: 785.0, rz: 885.0, angle0: 0.88, dir: -1.0, speed: 2.30, scale: 0.98 },
-      { type: 'FISHING_BOAT', variant: 2, rx: 755.0, rz: 865.0, angle0: 1.68, dir: 1.0, speed: 2.08, scale: 1.05 },
-      { type: 'FISHING_BOAT', variant: 3, rx: 820.0, rz: 920.0, angle0: 2.42, dir: -1.0, speed: 2.42, scale: 0.96 },
-      { type: 'FISHING_BOAT', variant: 0, rx: 775.0, rz: 880.0, angle0: 3.18, dir: 1.0, speed: 2.22, scale: 1.04 },
-      { type: 'FISHING_BOAT', variant: 1, rx: 835.0, rz: 935.0, angle0: 3.96, dir: -1.0, speed: 2.36, scale: 1.00 },
-      { type: 'FISHING_BOAT', variant: 2, rx: 765.0, rz: 855.0, angle0: 4.74, dir: 1.0, speed: 2.18, scale: 0.97 },
-      { type: 'FISHING_BOAT', variant: 3, rx: 810.0, rz: 905.0, angle0: 5.52, dir: -1.0, speed: 2.28, scale: 1.03 },
-      // 4 Kapal Kecil Pesisir (Distant Small Coastal Ships — Deep Horizon Lanes)
+      // 8 Perahu Nelayan Cadik (Nusantara Outrigger Fishing Boats — Concentric Non-Crossing Lanes >= 15m apart!)
+      { type: 'FISHING_BOAT', variant: 0, rx: 735.0, rz: 835.0, angle0: 0.12, dir: 1.0, speed: 2.15, scale: 1.02 },
+      { type: 'FISHING_BOAT', variant: 1, rx: 750.0, rz: 850.0, angle0: 0.88, dir: -1.0, speed: 2.30, scale: 0.98 },
+      { type: 'FISHING_BOAT', variant: 2, rx: 765.0, rz: 865.0, angle0: 1.68, dir: 1.0, speed: 2.08, scale: 1.05 },
+      { type: 'FISHING_BOAT', variant: 3, rx: 780.0, rz: 880.0, angle0: 2.42, dir: -1.0, speed: 2.42, scale: 0.96 },
+      { type: 'FISHING_BOAT', variant: 0, rx: 795.0, rz: 895.0, angle0: 3.18, dir: 1.0, speed: 2.22, scale: 1.04 },
+      { type: 'FISHING_BOAT', variant: 1, rx: 810.0, rz: 910.0, angle0: 3.96, dir: -1.0, speed: 2.36, scale: 1.00 },
+      { type: 'FISHING_BOAT', variant: 2, rx: 825.0, rz: 925.0, angle0: 4.74, dir: 1.0, speed: 2.18, scale: 0.97 },
+      { type: 'FISHING_BOAT', variant: 3, rx: 840.0, rz: 940.0, angle0: 5.52, dir: -1.0, speed: 2.28, scale: 1.03 },
+      // 4 Kapal Kecil Pesisir (Distant Small Coastal Ships — Concentric Deep Horizon Lanes >= 24m apart!)
       { type: 'SMALL_SHIP', variant: 0, rx: 960.0, rz: 1040.0, angle0: 0.48, dir: -1.0, speed: 3.35, scale: 1.04 },
-      { type: 'SMALL_SHIP', variant: 1, rx: 1010.0, rz: 1090.0, angle0: 2.05, dir: 1.0, speed: 3.55, scale: 1.00 },
-      { type: 'SMALL_SHIP', variant: 2, rx: 980.0, rz: 1060.0, angle0: 3.62, dir: -1.0, speed: 3.25, scale: 1.06 },
-      { type: 'SMALL_SHIP', variant: 3, rx: 1030.0, rz: 1110.0, angle0: 5.15, dir: 1.0, speed: 3.45, scale: 0.98 }
+      { type: 'SMALL_SHIP', variant: 1, rx: 984.0, rz: 1064.0, angle0: 2.05, dir: 1.0, speed: 3.55, scale: 1.00 },
+      { type: 'SMALL_SHIP', variant: 2, rx: 1008.0, rz: 1088.0, angle0: 3.62, dir: -1.0, speed: 3.25, scale: 1.06 },
+      { type: 'SMALL_SHIP', variant: 3, rx: 1032.0, rz: 1112.0, angle0: 5.15, dir: 1.0, speed: 3.45, scale: 0.98 }
     ];
 
     const seaCenterX = -160.0;
@@ -510,6 +759,205 @@ export class DynamicTrafficAI {
       minObservedBridgeClearanceM: Infinity,
       underBridgePassSamples: 0
     };
+
+    // 4. Northern Selat UI Electric Catamaran Ferry ("Kapal Feri Katamaran Listrik UI"):
+    //    Shuttles smoothly across northern Selat UI between Dermaga Penyeberangan Utara Pulau U (-48.0, 498.25)
+    //    and Dermaga Penyeberangan Utara Pulau I (-98.0, 575.25), berthing strictly parallel broadside alongside
+    //    both T-head landing stages with +0.78m hull-to-fender clearance and +2.70m dolphin clearance!
+    const ferryLoopPts = [
+      new THREE.Vector3(-66.0, TerrainDEMLoader.WATER_LEVEL_Y, 499.60),
+      new THREE.Vector3(-56.0, TerrainDEMLoader.WATER_LEVEL_Y, 498.25),
+      new THREE.Vector3(-48.0, TerrainDEMLoader.WATER_LEVEL_Y, 498.25), // Dock 0: Dermaga Pulau U Broadside Berth
+      new THREE.Vector3(-40.0, TerrainDEMLoader.WATER_LEVEL_Y, 498.25),
+      new THREE.Vector3(-31.0, TerrainDEMLoader.WATER_LEVEL_Y, 503.50),
+      new THREE.Vector3(-45.0, TerrainDEMLoader.WATER_LEVEL_Y, 524.00),
+      new THREE.Vector3(-66.0, TerrainDEMLoader.WATER_LEVEL_Y, 550.00),
+      new THREE.Vector3(-80.0, TerrainDEMLoader.WATER_LEVEL_Y, 573.90),
+      new THREE.Vector3(-90.0, TerrainDEMLoader.WATER_LEVEL_Y, 575.25),
+      new THREE.Vector3(-98.0, TerrainDEMLoader.WATER_LEVEL_Y, 575.25), // Dock 1: Dermaga Pulau I Broadside Berth
+      new THREE.Vector3(-106.0, TerrainDEMLoader.WATER_LEVEL_Y, 575.25),
+      new THREE.Vector3(-115.0, TerrainDEMLoader.WATER_LEVEL_Y, 570.00),
+      new THREE.Vector3(-101.0, TerrainDEMLoader.WATER_LEVEL_Y, 549.50),
+      new THREE.Vector3(-80.0, TerrainDEMLoader.WATER_LEVEL_Y, 523.50)
+    ];
+    const ferrySpline = new THREE.CatmullRomCurve3(ferryLoopPts, true, 'centripetal', 0.5);
+    ferrySpline.arcLengthDivisions = 800;
+    const ferryTotalLen = ferrySpline.getLength();
+
+    // Locate exact arc-length u for Dermaga U & Dermaga I docks
+    const findClosestSplineU = (curve, tx, tz, samples = 800) => {
+      let bestU = 0.0;
+      let bestD2 = Infinity;
+      const p = new THREE.Vector3();
+      for (let s = 0; s < samples; s++) {
+        const u = s / samples;
+        curve.getPointAt(u, p);
+        const d2 = (p.x - tx) * (p.x - tx) + (p.z - tz) * (p.z - tz);
+        if (d2 < bestD2) {
+          bestD2 = d2;
+          bestU = u;
+        }
+      }
+      return bestU;
+    };
+    const dockU0 = findClosestSplineU(ferrySpline, -48.0, 498.25);
+    const dockU1 = findClosestSplineU(ferrySpline, -98.0, 575.25);
+    const ferryInitU = (dockU0 + 0.22) % 1.0; // Mid-channel northern Selat UI heading toward Dermaga Pulau I!
+    const fPos0 = ferrySpline.getPointAt(ferryInitU);
+    const fTan0 = ferrySpline.getTangentAt(ferryInitU);
+    this.shuttleFerry = {
+      type: 'CATAMARAN_SHUTTLE_FERRY',
+      spline: ferrySpline,
+      totalLength: ferryTotalLen,
+      dockUs: [dockU0, dockU1],
+      targetDockIdx: 1,
+      u: ferryInitU,
+      phase: 'CRUISE',
+      dwellTimer: 0.0,
+      dwellDuration: 3.6,
+      speed: 3.1,
+      maxSpeed: 3.4,
+      scale: 1.0,
+      worldX: fPos0.x,
+      worldY: TerrainDEMLoader.WATER_LEVEL_Y,
+      worldZ: fPos0.z,
+      yaw: Math.atan2(fTan0.x, fTan0.z),
+      pitch: 0.0,
+      roll: 0.0
+    };
+
+    // 5. Inter-Island Electric Campus Bus ("Bus Kuning Listrik Lintas Pulau UI"):
+    //    Continuous closed transit loop connecting Pulau U Right-Arm Boulevard (Dermaga U & Jembatan Teksas East)
+    //    <-> Southern Subsea Underpass Bawah Laut (y = -8.20m) <-> Pulau I West Transit Road (West Apron & Dermaga I)!
+    const busWaypoints2D = [
+      // A. Eastbound down West Open-Cut Ramp & through Subsea Underpass Bore (Pulau U -> Pulau I, lane x = -354.55m)
+      [-354.8, 268.0],
+      [-354.6, 286.0],
+      [-354.55, 312.0],
+      [-354.55, 345.0],
+      [-354.55, 415.0],
+      [-354.55, 485.0],
+      [-354.55, 555.0],
+      [-354.55, 622.0],
+      [-354.55, 650.0],
+      [-354.6, 670.0],
+      // B. Northbound along Pulau I West Transit Road past West Aircraft Apron to Dermaga Pulau I Forecourt
+      [-354.0, 678.0],
+      [-343.0, 681.0],
+      [-325.0, 671.0],
+      [-306.0, 654.0],
+      [-286.0, 646.0],
+      [-254.0, 646.0],
+      [-214.0, 646.0],
+      [-174.0, 641.0],
+      [-136.0, 632.6],
+      [-115.0, 628.2],
+      [-98.0, 627.6],
+      [-87.0, 627.8],
+      [-83.5, 631.2],
+      [-87.0, 634.2],
+      [-98.0, 634.5],
+      [-109.5, 632.6],
+      [-118.0, 629.0],
+      // C. Southbound return along Pulau I West Transit Road into East Open-Cut Underpass Ramp
+      [-136.0, 632.2],
+      [-174.0, 640.4],
+      [-214.0, 645.4],
+      [-254.0, 645.4],
+      [-286.0, 645.4],
+      [-306.0, 653.5],
+      [-325.0, 670.6],
+      [-343.0, 681.5],
+      [-355.0, 678.5],
+      // D. Westbound back through Subsea Underpass Bore (Pulau I -> Pulau U, lane x = -357.45m)
+      [-357.4, 670.0],
+      [-357.45, 648.0],
+      [-357.45, 622.0],
+      [-357.45, 550.0],
+      [-357.45, 475.0],
+      [-357.45, 400.0],
+      [-357.45, 328.0],
+      [-357.45, 295.0],
+      [-357.1, 272.0],
+      [-356.2, 266.0],
+      // E. Pulau U Right-Arm Boulevard Northward -> Dermaga Pulau U -> Headland -> Jembatan Teksas East -> Saddle Loop!
+      [-355.5, 263.2],
+      [-340.0, 267.0],
+      [-322.0, 284.0],
+      [-310.0, 316.0],
+      [-298.0, 350.0],
+      [-282.0, 380.0],
+      [-254.0, 405.0],
+      [-212.0, 427.0],
+      [-175.0, 443.0],
+      [-115.0, 448.5],
+      [-48.0, 449.35],
+      [-8.0, 443.0],
+      [20.0, 425.0],
+      [32.0, 396.0],
+      [23.0, 368.0],
+      [2.0, 355.0],
+      [-28.0, 353.5],
+      [-64.0, 347.0],
+      [-108.0, 345.0],
+      [-148.0, 350.0],
+      [-168.0, 365.0],
+      [-175.0, 392.0],
+      [-175.0, 420.0],
+      [-175.0, 443.0],
+      [-212.0, 427.0],
+      [-254.0, 405.0],
+      [-282.0, 380.0],
+      [-298.0, 350.0],
+      [-310.0, 316.0],
+      [-322.0, 284.0],
+      [-340.0, 267.0],
+      [-354.5, 264.2]
+    ];
+    const busPts3D = busWaypoints2D.map(
+      ([bx, bz]) => new THREE.Vector3(bx, this._sampleInterIslandBusRoadY(bx, bz), bz)
+    );
+    const busSpline = new THREE.CatmullRomCurve3(busPts3D, true, 'centripetal', 0.5);
+    busSpline.arcLengthDivisions = 2400;
+    const busTotalLen = busSpline.getLength();
+    const busInitU = findClosestSplineU(busSpline, -354.55, 306.0, 1600); // Descending West Open-Cut Ramp into Underpass!
+    const bPos0 = busSpline.getPointAt(busInitU);
+    const bTan0 = busSpline.getTangentAt(busInitU);
+    this.interIslandBus = {
+      spline: busSpline,
+      totalLength: busTotalLen,
+      u: busInitU,
+      speed: 6.4,
+      maxSpeed: 6.4,
+      worldX: bPos0.x,
+      worldY: this._sampleInterIslandBusRoadY(bPos0.x, bPos0.z),
+      worldZ: bPos0.z,
+      yaw: Math.atan2(bTan0.x, bTan0.z),
+      pitch: -Math.asin(Math.max(-0.35, Math.min(0.35, bTan0.y))),
+      roll: 0.0,
+      steerAngle: 0.0,
+      wheelSpinRad: 0.0
+    };
+  }
+
+  /**
+   * Exact vertical carriageway elevation for the Inter-Island Electric Campus Bus across
+   * Underpass Bawah Laut ramps/bore (-8.20m), Ferry Terminal forecourts, and graded Island Roads.
+   */
+  _sampleInterIslandBusRoadY(x, z) {
+    const underpassY = TerrainDEMLoader.sampleUnderpassDeckY(x, z);
+    if (underpassY !== null) {
+      return underpassY + 0.014;
+    }
+    const pierY = TerrainDEMLoader.sampleFerryPierDeckY(x, z);
+    if (pierY !== null) {
+      return pierY + 0.012;
+    }
+    const roadGrade = TerrainDEMLoader.evalRoadNetworkCorridorGrade(x, z);
+    if (roadGrade !== null && roadGrade.dist <= 5.8) {
+      return roadGrade.targetY + 0.036;
+    }
+    return this.groundHeightFn(x, z) + 0.036;
   }
 
   /**
@@ -517,6 +965,17 @@ export class DynamicTrafficAI {
    * ◇◇◇ Courtyard, Flag Cloister, Selasar Agung podium, Rotunda curbs, SE Covered Walkway, Pulau I West Apron, and DEM terrain).
    */
   _samplePedestrianGroundY(x, z) {
+    const underpassY = TerrainDEMLoader.sampleUnderpassDeckY(x, z);
+    if (underpassY !== null) {
+      // Raised +0.18m pedestrian walkways on both sides (|x - UNDERPASS_X| >= 3.55m)
+      const isWalkway =
+        Math.abs(x - TerrainDEMLoader.UNDERPASS_X) >= TerrainDEMLoader.UNDERPASS_CARRIAGEWAY_HALF_W - 0.05;
+      return underpassY + (isWalkway ? 0.195 : 0.02);
+    }
+    const pierY = TerrainDEMLoader.sampleFerryPierDeckY(x, z);
+    if (pierY !== null) {
+      return pierY + 0.018;
+    }
     const teksasY = TerrainDEMLoader.sampleTeksasBridgeDeckY(x, z);
     if (teksasY !== null) {
       return teksasY + 0.025;
@@ -577,6 +1036,21 @@ export class DynamicTrafficAI {
       z <= TerrainDEMLoader.TEKSAS_EAST_PORTAL_Z - 3.0 &&
       Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) <= 2.48
     ) {
+      return true;
+    }
+    // 8. Southern Undersea Underpass Bawah Laut Enclosed Tunnel Bore (z = 326..624m)
+    if (
+      z >= TerrainDEMLoader.UNDERPASS_WEST_PORTAL_Z &&
+      z <= TerrainDEMLoader.UNDERPASS_EAST_PORTAL_Z &&
+      Math.abs(x - TerrainDEMLoader.UNDERPASS_X) <= TerrainDEMLoader.UNDERPASS_BORE_HALF_W + 0.35
+    ) {
+      return true;
+    }
+    // 9. Northern Ferry Crossing Terminals ("Dermaga Penyeberangan Utara Pulau U & Pulau I") Twin-Tier Tajug Pavilions
+    if (Math.abs(x - TerrainDEMLoader.DERMAGA_U_X) <= 5.6 && z >= 450.0 && z <= 459.6) {
+      return true;
+    }
+    if (Math.abs(x - TerrainDEMLoader.DERMAGA_I_X) <= 5.6 && z >= 611.4 && z <= 621.0) {
       return true;
     }
     return false;
@@ -1391,6 +1865,60 @@ export class DynamicTrafficAI {
         heightScale: 1.02,
         propType: 'BOOK',
         hasUmbrella: true
+      },
+
+      // === K. 2 SUBSEA UNDERPASS WALKWAY COMMUTERS ("PENYEBERANG UNDERPASS BAWAH LAUT U–I") ===
+      {
+        behavior: 'UNDERPASS_CROSSER',
+        laneOff: 4.06,
+        phase0: 0.24, // Right inside the -8.20m subsea tunnel bore by the glowing ocean-caustic acrylic windows!
+        baseSpeed: 1.24,
+        archetype: 'MAHASISWA_JAKUN',
+        hairStyle: 'HAIR_WAVY',
+        heightScale: 1.01,
+        propType: 'BACKPACK',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'UNDERPASS_CROSSER',
+        laneOff: -4.06,
+        phase0: 0.94, // Walking along the West Open-Cut Ramp into the Nusantara Portal!
+        baseSpeed: 1.18,
+        archetype: 'MAHASISWI_HIJAB_JAKUN',
+        hijabCol: HUMAN_PALETTE.HIJAB_SAGE,
+        hasGlasses: true,
+        heightScale: 0.94,
+        propType: 'BOOK',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+
+      // === L. 2 NORTHERN FERRY PIER PASSENGERS ("PENUMPANG DERMAGA PENYEBERANGAN UTARA U & I") ===
+      {
+        behavior: 'FERRY_PIER_COMMUTER',
+        island: 'U',
+        laneOff: 0.82,
+        phase0: 0.36, // On Dermaga Pulau U T-head pier admiring the approaching Catamaran Ferry!
+        baseSpeed: 1.12,
+        archetype: 'MAHASISWI_PONYTAIL_JAKUN',
+        heightScale: 0.95,
+        propType: 'PHONE',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'FERRY_PIER_COMMUTER',
+        island: 'I',
+        laneOff: -0.82,
+        phase0: 0.42, // On Dermaga Pulau I T-head pier awaiting the Catamaran Ferry!
+        baseSpeed: 1.14,
+        archetype: 'DOSEN_BATIK_SOGAN',
+        hairStyle: 'HAIR_PARTED',
+        hasGlasses: true,
+        heightScale: 1.02,
+        propType: 'BOOK',
+        hasUmbrella: true
       }
     ];
 
@@ -1685,6 +2213,25 @@ export class DynamicTrafficAI {
         initZ = zStart + s0 * (zEnd - zStart);
         initYaw = u0 < 0.5 ? 0.0 : Math.PI;
         initInitialized = true;
+      } else if (cfg.behavior === 'UNDERPASS_CROSSER') {
+        const zStart = 276.0;
+        const zEnd = 666.0;
+        const u0 = cfg.phase0 || 0.0;
+        const s0 = u0 < 0.5 ? u0 / 0.5 : 1.0 - (u0 - 0.5) / 0.5;
+        initX = TerrainDEMLoader.UNDERPASS_X + (cfg.laneOff || 4.06);
+        initZ = zStart + s0 * (zEnd - zStart);
+        initYaw = u0 < 0.5 ? 0.0 : Math.PI;
+        initInitialized = true;
+      } else if (cfg.behavior === 'FERRY_PIER_COMMUTER') {
+        const isU = cfg.island !== 'I';
+        const zStart = isU ? 454.5 : 616.5;
+        const zEnd = isU ? 489.2 : 584.3;
+        const u0 = cfg.phase0 || 0.0;
+        const s0 = u0 < 0.5 ? Math.min(1.0, u0 / 0.42) : Math.max(0.0, 1.0 - (u0 - 0.5) / 0.42);
+        initX = (isU ? TerrainDEMLoader.DERMAGA_U_X : TerrainDEMLoader.DERMAGA_I_X) + (cfg.laneOff || 1.4);
+        initZ = zStart + s0 * (zEnd - zStart);
+        initYaw = isU ? (u0 < 0.5 ? 0.0 : Math.PI) : u0 < 0.5 ? Math.PI : 0.0;
+        initInitialized = true;
       }
 
       return {
@@ -1769,12 +2316,13 @@ export class DynamicTrafficAI {
       z = TerrainDEMLoader.HELIPAD_CZ + Math.sin(ang) * 20.5;
     }
 
-    // Nudge out of any freshwater body & inland from coastal stone turap
-    for (let iter = 0; iter < 16; iter++) {
+    // Nudge out of any freshwater body, transit carriageway/underpass trench, & inland from coastal stone turap
+    for (let iter = 0; iter < 18; iter++) {
       const inFw = TerrainDEMLoader.isFreshwaterExclusion(x, z, 1.45);
+      const inTransit = TerrainDEMLoader.isTransitInfrastructureExclusion(x, z, 2.2);
       const dCoast = TerrainDEMLoader.getIslandCoastDistance(x, z);
       const gy = this.groundHeightFn(x, z);
-      if (!inFw && dCoast <= -3.2 && gy >= -0.10) break;
+      if (!inFw && !inTransit && dCoast <= -3.2 && gy >= -0.10) break;
 
       if (dCoast > -3.2) {
         const anchorX = z >= 536.0 ? TerrainDEMLoader.I_CENTER_X : -120.0;
@@ -1784,6 +2332,9 @@ export class DynamicTrafficAI {
         const len = Math.hypot(dx, dz) || 1.0;
         x += (dx / len) * 2.5;
         z += (dz / len) * 2.5;
+      } else if (inTransit) {
+        x += (x >= TerrainDEMLoader.UNDERPASS_X ? 1.0 : -1.0) * 2.8;
+        z += (z >= 536.0 ? 1.0 : -1.0) * 1.8;
       } else if (inFw) {
         if (z < 536.0) {
           const cz =
@@ -1803,6 +2354,24 @@ export class DynamicTrafficAI {
       } else {
         x += 1.5;
       }
+    }
+
+    // Also depenetrate against all static solid-world colliders (buildings, columns, trees, lamps, benches)
+    const solidWorld = this._ensureSolidWorld();
+    if (solidWorld && Array.isArray(solidWorld.staticColliders)) {
+      const p = this._agentPosScratch;
+      p.x = x;
+      p.z = z;
+      const gy = this.groundHeightFn(x, z);
+      for (let pass = 0; pass < 2; pass++) {
+        for (let i = 0; i < solidWorld.staticColliders.length; i++) {
+          const c = solidWorld.staticColliders[i];
+          if (c.type === 'ISLAND_PERIMETER') continue;
+          PhysicsKernel.depenetrateHorizontalCylinder(p, gy + 0.02, gy + 0.44, 0.24, c);
+        }
+      }
+      x = p.x;
+      z = p.z;
     }
 
     return [Number(x.toFixed(2)), Number(z.toFixed(2))];
@@ -2007,6 +2576,8 @@ export class DynamicTrafficAI {
         : CampusTransitAndMarineBuilder.buildDistantFishingBoat(v.variant)
     );
     const miniYachtBundle = CampusTransitAndMarineBuilder.buildFlybridgeMiniYacht();
+    const busBundle = CampusTransitAndMarineBuilder.buildInterIslandElectricBus();
+    const ferryBundle = CampusTransitAndMarineBuilder.buildIslandShuttleFerry();
 
     let totalVerts = 0;
     let totalIndices = 0;
@@ -2026,6 +2597,10 @@ export class DynamicTrafficAI {
     }
     totalVerts += miniYachtBundle.pos.length / 3;
     totalIndices += miniYachtBundle.idx.length;
+    totalVerts += busBundle.pos.length / 3;
+    totalIndices += busBundle.idx.length;
+    totalVerts += ferryBundle.pos.length / 3;
+    totalIndices += ferryBundle.idx.length;
 
     this._restPos = new Float32Array(totalVerts * 3);
     this._restNorm = new Float32Array(totalVerts * 3);
@@ -2083,7 +2658,14 @@ export class DynamicTrafficAI {
     this._miniYachtJointIndex = this._marineJointBase + this.marineVessels.length;
     appendBundle(miniYachtBundle, this._miniYachtJointIndex);
 
-    const totalJoints = this._miniYachtJointIndex + 1;
+    this._busJointBase = this._miniYachtJointIndex + 1;
+    appendBundle(busBundle, this._busJointBase);
+
+    this._shuttleFerryJointIndex = this._busJointBase + BUS_JOINTS_PER_VEHICLE;
+    appendBundle(ferryBundle, this._shuttleFerryJointIndex);
+
+    const totalJoints = this._shuttleFerryJointIndex + 1;
+    this._totalJointCount = totalJoints;
     this._jointWorldMatrices = new Float32Array(totalJoints * 16);
     this._skinMatrices = new Float32Array(totalJoints * 16);
     this._skinNormalMatrices = new Float32Array(totalJoints * 9);
@@ -2132,8 +2714,16 @@ export class DynamicTrafficAI {
       (v) => v.type === 'SMALL_SHIP'
     ).length;
     this.group.userData.miniYachtCount = this.miniYacht ? 1 : 0;
+    this.group.userData.interIslandBusCount = this.interIslandBus ? 1 : 0;
+    this.group.userData.shuttleFerryCount = this.shuttleFerry ? 1 : 0;
     this.group.userData.teksasBridgeCrosserCount = this.npcs.filter(
       (n) => n.behavior === 'TEKSAS_BRIDGE_CROSSER'
+    ).length;
+    this.group.userData.underpassCrosserCount = this.npcs.filter(
+      (n) => n.behavior === 'UNDERPASS_CROSSER'
+    ).length;
+    this.group.userData.ferryPierCommuterCount = this.npcs.filter(
+      (n) => n.behavior === 'FERRY_PIER_COMMUTER'
     ).length;
 
     // Populate initial articulated poses immediately so t = 0 buffers are 100% valid & verified
@@ -2264,6 +2854,73 @@ export class DynamicTrafficAI {
   }
 
   /**
+   * Predictive forward safety-corridor speed limiter for terrestrial vehicles (Mobil Golf UI & Bus Kuning UI).
+   * Smoothly decelerates to 0.0 m/s before touching any pedestrian NPC, campus cat, vehicle, or walking player!
+   */
+  _computeVehicleObstacleSpeedLimit(wx, wy, wz, yaw, halfW, frontL, maxSpeed, isBus, cameraPos = null) {
+    let limit = maxSpeed;
+    const sinY = Math.sin(yaw);
+    const cosY = Math.cos(yaw);
+    const lookahead = isBus ? 9.5 : 5.6;
+    const decel = isBus ? 3.2 : 2.1;
+
+    const checkPoint = (ox, oy, oz, obsR) => {
+      if (Math.abs(oy - wy) > 2.35) return;
+      const dx = ox - wx;
+      const dz = oz - wz;
+      const lx = dx * cosY - dz * sinY;
+      if (Math.abs(lx) > halfW + obsR + 0.34) return;
+      const lz = dx * sinY + dz * cosY;
+      if (lz <= frontL * 0.25 || lz > frontL + lookahead) return;
+      const clearDist = lz - (frontL + obsR + 0.35);
+      if (clearDist <= 0.0) {
+        limit = 0.0;
+      } else {
+        const vSafe = Math.sqrt(2.0 * decel * clearDist);
+        if (vSafe < limit) limit = vSafe;
+      }
+    };
+
+    for (let i = 0; i < this.npcs.length; i++) {
+      const npc = this.npcs[i];
+      if (npc.behavior === 'GOLF_CART_DRIVER') continue;
+      if (npc.behavior === 'GOLF_CART_SHUTTLE_RIDER') {
+        if (npc.shuttleState === 'ONBOARD' || npc.seatedBlend > 0.05) continue;
+        if (!isBus && (npc.shuttleState === 'BOARDING' || npc.shuttleState === 'ALIGHTING')) continue;
+      }
+      checkPoint(npc.worldX, npc.worldY, npc.worldZ, 0.28);
+      if (limit <= 0.0) return 0.0;
+    }
+
+    for (let i = 0; i < this.cats.length; i++) {
+      const cat = this.cats[i];
+      checkPoint(cat.worldX, cat.worldY, cat.worldZ, 0.18);
+      if (limit <= 0.0) return 0.0;
+    }
+
+    if (isBus && this.golfCart) {
+      checkPoint(this.golfCart.worldX, this.golfCart.worldY, this.golfCart.worldZ, 1.55);
+    } else if (!isBus && this.interIslandBus) {
+      checkPoint(
+        this.interIslandBus.worldX,
+        this.interIslandBus.worldY,
+        this.interIslandBus.worldZ,
+        2.85
+      );
+    }
+
+    if (
+      cameraPos &&
+      Number.isFinite(cameraPos.x) &&
+      Math.abs(cameraPos.y - (wy + 1.55)) < 1.95
+    ) {
+      checkPoint(cameraPos.x, wy, cameraPos.z, 0.48);
+    }
+
+    return limit;
+  }
+
+  /**
    * Advances:
    * 1. The 6-Joint Electric Campus Golf Cart ("Mobil Golf Listrik UI") along its closed paved asphalt
    *    patrol spline, including smooth braking into 4 campus shuttle stops, passenger alighting &
@@ -2272,7 +2929,11 @@ export class DynamicTrafficAI {
    * 2. All 12 Distant Offshore Marine Vessels (8 Nusantara Fishing Boats + 4 Small Coastal Ships)
    *    cruising gently across the far 360-deg ocean horizon with realistic wave heave, pitch, & roll.
    */
-  _advanceGolfCartAndMarineFleet(dt, t) {
+  _advanceGolfCartAndMarineFleet(dt, t, cameraPos = null) {
+    const solidWorld = this._ensureSolidWorld();
+    const staticCols = solidWorld ? solidWorld.staticColliders : null;
+    const marineCols = solidWorld ? solidWorld.marineColliders : null;
+
     const cart = this.golfCart;
     if (cart) {
       const stop = cart.stops[cart.targetStopIdx];
@@ -2283,7 +2944,7 @@ export class DynamicTrafficAI {
       const distToStop = duToStop * cart.totalLength;
 
       if (cart.phase === 'CRUISE') {
-        // Smooth kinematic deceleration curve over final 7.5 m into the shuttle stop
+        // Smooth kinematic deceleration curve over final 7.5 m into the shuttle stop + obstacle corridor braking
         let desiredSpeed = cart.maxSpeed;
         if (distToStop < 8.0) {
           desiredSpeed = Math.min(
@@ -2291,14 +2952,29 @@ export class DynamicTrafficAI {
             Math.max(0.28, Math.sqrt(2.0 * 0.88 * Math.max(0.0, distToStop)))
           );
         }
+        const obsLimit = this._computeVehicleObstacleSpeedLimit(
+          cart.worldX,
+          cart.worldY,
+          cart.worldZ,
+          cart.yaw,
+          0.65,
+          1.76,
+          cart.maxSpeed,
+          false,
+          cameraPos
+        );
+        const blockedByObstacle = obsLimit < desiredSpeed - 0.02;
+        desiredSpeed = Math.min(desiredSpeed, obsLimit);
+
         if (cart.speed < desiredSpeed) {
           cart.speed = Math.min(desiredSpeed, cart.speed + 1.35 * dt);
         } else {
-          cart.speed = Math.max(desiredSpeed, cart.speed - 1.65 * dt);
+          const brakeRate = blockedByObstacle ? 4.8 : 1.65;
+          cart.speed = Math.max(desiredSpeed, cart.speed - brakeRate * dt);
         }
 
         const ds = cart.speed * dt;
-        if (distToStop <= Math.max(0.09, ds * 1.15)) {
+        if (!blockedByObstacle && distToStop <= Math.max(0.09, ds * 1.15)) {
           // Arrived smoothly at Stop S!
           cart.u = stop.u;
           cart.speed = 0.0;
@@ -2431,12 +3107,34 @@ export class DynamicTrafficAI {
 
       cart.worldX = midX;
       cart.worldZ = midZ;
-      const roadY = this._sampleAsphaltRoadY(midX, midZ);
+      cart.yaw = dampAngle(cart.yaw, targetYaw, 14.0, dt);
+
+      // Hard solid-body OBB depenetration against all static world colliders
+      const cOBB = this._cartOBBScratch;
+      cOBB.cx = cart.worldX;
+      cOBB.cz = cart.worldZ;
+      cOBB.yaw = cart.yaw;
+      const prelimRoadY = this._sampleAsphaltRoadY(cOBB.cx, cOBB.cz);
+      cOBB.minY = prelimRoadY + 0.05;
+      cOBB.maxY = prelimRoadY + 2.08;
+      if (staticCols) {
+        for (let i = 0; i < staticCols.length; i++) {
+          const sc = staticCols[i];
+          if (sc.type === 'ISLAND_PERIMETER') continue;
+          PhysicsKernel.depenetrateOBB2DVsCollider(cOBB, sc);
+        }
+      }
+      cart.worldX = cOBB.cx;
+      cart.worldZ = cOBB.cz;
+
+      const roadY = this._sampleAsphaltRoadY(cart.worldX, cart.worldZ);
       // Subtle cushioned EV suspension micro-heave & braking pitch dive
       const suspHeave =
         cart.speed > 0.05 ? Math.sin(cart.wheelSpinRad * 1.7) * 0.0028 * (cart.speed / cart.maxSpeed) : 0.0;
       cart.worldY = roadY + suspHeave;
-      cart.yaw = dampAngle(cart.yaw, targetYaw, 14.0, dt);
+      cOBB.minY = cart.worldY + 0.05;
+      cOBB.maxY = cart.worldY + 2.08;
+      PhysicsKernel.prepareSolidCollider(cOBB);
       cart.steerAngle = dampScalar(cart.steerAngle, targetSteer, 9.0, dt);
 
       // Subtle centripetal body roll & terrain pitch alignment
@@ -2591,6 +3289,228 @@ export class DynamicTrafficAI {
         sMats[yOff + k] = eY[k];
       }
     }
+
+    // 4. Advance Northern Selat UI Electric Catamaran Shuttle Ferry ("Kapal Feri Katamaran Listrik UI")
+    if (this.shuttleFerry) {
+      const f = this.shuttleFerry;
+      const dockU = f.dockUs[f.targetDockIdx];
+      let duDock = dockU - f.u;
+      if (duDock < -0.5) duDock += 1.0;
+      else if (duDock < 0.0 && duDock > -0.02) duDock = 0.0;
+      else if (duDock < 0.0) duDock += 1.0;
+      const distDock = duDock * f.totalLength;
+
+      if (f.phase === 'CRUISE') {
+        let wantSpeed = f.maxSpeed;
+        if (distDock < 16.0) {
+          wantSpeed = Math.min(f.maxSpeed, Math.max(0.45, Math.sqrt(2.0 * 0.52 * Math.max(0.0, distDock))));
+        }
+        if (f.speed < wantSpeed) f.speed = Math.min(wantSpeed, f.speed + 0.95 * dt);
+        else f.speed = Math.max(wantSpeed, f.speed - 1.15 * dt);
+
+        const ds = f.speed * dt;
+        if (distDock <= Math.max(0.35, ds * 1.15)) {
+          f.u = dockU;
+          f.speed = 0.0;
+          f.phase = 'DOCKED_DWELL';
+          f.dwellTimer = f.dwellDuration;
+        } else {
+          f.u = (f.u + ds / f.totalLength) % 1.0;
+        }
+      } else {
+        f.speed = 0.0;
+        f.dwellTimer -= dt;
+        if (f.dwellTimer <= 0.0) {
+          f.phase = 'CRUISE';
+          f.targetDockIdx = (f.targetDockIdx + 1) % f.dockUs.length;
+        }
+      }
+
+      f.spline.getPointAt(f.u, this._tmpVecA);
+      f.spline.getTangentAt(f.u, this._tmpVecB);
+      f.worldX = this._tmpVecA.x;
+      f.worldZ = this._tmpVecA.z;
+      const targetYaw = Math.atan2(this._tmpVecB.x, this._tmpVecB.z);
+      f.yaw = dampAngle(f.yaw, targetYaw, 6.0, dt);
+
+      // Twin-hull catamaran stability: ultra-smooth low-roll heave across northern Selat UI
+      const speedRatio = Math.min(1.0, f.speed / f.maxSpeed);
+      f.worldY =
+        TerrainDEMLoader.WATER_LEVEL_Y +
+        Math.sin(t * 1.25 + 1.3) * 0.032 +
+        Math.cos(t * 0.82 + 0.6) * 0.014;
+      f.roll = Math.sin(t * 1.10 + 0.9) * (0.008 + 0.010 * speedRatio);
+      f.pitch = -0.006 * speedRatio + Math.cos(t * 1.38 + 0.4) * 0.008;
+
+      // Hard marine OBB depenetration against Dermaga T-head decks, landing stages, & mooring dolphins!
+      const fOBB = this._ferryOBBScratch;
+      fOBB.cx = f.worldX;
+      fOBB.cz = f.worldZ;
+      fOBB.yaw = f.yaw;
+      fOBB.minY = f.worldY - 0.50;
+      fOBB.maxY = f.worldY + 5.56;
+      if (marineCols) {
+        for (let pass = 0; pass < 2; pass++) {
+          for (let i = 0; i < marineCols.length; i++) {
+            PhysicsKernel.depenetrateOBB2DVsCollider(fOBB, marineCols[i]);
+          }
+        }
+      }
+      f.worldX = fOBB.cx;
+      f.worldZ = fOBB.cz;
+      PhysicsKernel.prepareSolidCollider(fOBB);
+
+      this._tmpPos.set(f.worldX, f.worldY, f.worldZ);
+      this._tmpEuler.set(f.pitch, f.yaw, f.roll, 'YXZ');
+      this._tmpQuat.setFromEuler(this._tmpEuler);
+      this._tmpScale.set(f.scale, f.scale, f.scale);
+      this._tmpLocalMat.compose(this._tmpPos, this._tmpQuat, this._tmpScale);
+
+      const fOff = this._shuttleFerryJointIndex * 16;
+      const eF = this._tmpLocalMat.elements;
+      for (let k = 0; k < 16; k++) {
+        wMats[fOff + k] = eF[k];
+        sMats[fOff + k] = eF[k];
+      }
+    }
+
+    // 5. Advance 5-Joint Inter-Island Electric Campus Bus ("Bus Kuning Listrik Lintas Pulau UI")
+    //    across Pulau U Roads, down through the -8.20m Subsea Underpass Bawah Laut, & onto Pulau I!
+    if (this.interIslandBus) {
+      const b = this.interIslandBus;
+      const busMaxSpd = b.maxSpeed || 6.4;
+      const busObsLimit = this._computeVehicleObstacleSpeedLimit(
+        b.worldX,
+        b.worldY,
+        b.worldZ,
+        b.yaw,
+        1.44,
+        4.00,
+        busMaxSpd,
+        true,
+        cameraPos
+      );
+      if (b.speed < busObsLimit) {
+        b.speed = Math.min(busObsLimit, b.speed + 2.0 * dt);
+      } else {
+        b.speed = Math.max(busObsLimit, b.speed - 6.2 * dt);
+      }
+
+      const ds = b.speed * dt;
+      b.u = (b.u + ds / b.totalLength) % 1.0;
+
+      const uAhead = (b.u + 3.6 / b.totalLength) % 1.0;
+      const uBehind = (b.u - 2.1 / b.totalLength + 1.0) % 1.0;
+      b.spline.getPointAt(b.u, this._tmpVecA);
+      b.spline.getPointAt(uAhead, this._tmpVecB);
+      b.spline.getPointAt(uBehind, this._tmpVecC);
+
+      b.worldX = this._tmpVecA.x;
+      b.worldZ = this._tmpVecA.z;
+
+      const fwdX = this._tmpVecB.x - this._tmpVecC.x;
+      const fwdZ = this._tmpVecB.z - this._tmpVecC.z;
+      const horizLen = Math.max(0.25, Math.hypot(fwdX, fwdZ));
+      const desiredYaw = Math.atan2(fwdX, fwdZ);
+      const yawDiff = wrapAngle(desiredYaw - b.yaw);
+      b.yaw = dampAngle(b.yaw, desiredYaw, 8.5, dt);
+
+      // Hard solid-body OBB depenetration against all static world colliders & Golf Cart OBB
+      const bOBB = this._busOBBScratch;
+      bOBB.cx = b.worldX;
+      bOBB.cz = b.worldZ;
+      bOBB.yaw = b.yaw;
+      const prelimBusY = this._sampleInterIslandBusRoadY(bOBB.cx, bOBB.cz);
+      bOBB.minY = prelimBusY + 0.05;
+      bOBB.maxY = prelimBusY + 2.98;
+      if (staticCols) {
+        for (let i = 0; i < staticCols.length; i++) {
+          const sc = staticCols[i];
+          if (sc.type === 'ISLAND_PERIMETER') continue;
+          PhysicsKernel.depenetrateOBB2DVsCollider(bOBB, sc);
+        }
+      }
+      if (cart) {
+        PhysicsKernel.depenetrateOBB2DVsCollider(bOBB, this._cartOBBScratch);
+      }
+      b.worldX = bOBB.cx;
+      b.worldZ = bOBB.cz;
+      b.worldY = this._sampleInterIslandBusRoadY(b.worldX, b.worldZ);
+      bOBB.minY = b.worldY + 0.05;
+      bOBB.maxY = b.worldY + 2.98;
+      PhysicsKernel.prepareSolidCollider(bOBB);
+
+      const yAhead = this._sampleInterIslandBusRoadY(this._tmpVecB.x, this._tmpVecB.z);
+      const yBehind = this._sampleInterIslandBusRoadY(this._tmpVecC.x, this._tmpVecC.z);
+      // In Three.js 'YXZ' with +Z forward, positive pitch rx tilts +Z downward, so climbing (+dy) needs negative rx!
+      const desiredPitch = -Math.atan2(yAhead - yBehind, horizLen);
+      b.pitch = dampScalar(b.pitch, Math.max(-0.28, Math.min(0.28, desiredPitch)), 10.0, dt);
+      b.steerAngle = dampScalar(b.steerAngle, Math.max(-0.42, Math.min(0.42, yawDiff * 1.45)), 8.0, dt);
+      b.roll = dampScalar(b.roll, -b.steerAngle * 0.045, 7.0, dt);
+      b.wheelSpinRad = (b.wheelSpinRad + ds / BUS_WHEEL_RADIUS) % (Math.PI * 2.0);
+
+      // Write BUS_J_CHASSIS (joint 0)
+      this._tmpEuler.set(b.pitch, b.yaw, b.roll, 'YXZ');
+      this._tmpQuat.setFromEuler(this._tmpEuler);
+      this._writeInterIslandBusJoint(BUS_J_CHASSIS, -1, b.worldX, b.worldY, b.worldZ, this._tmpQuat);
+
+      // Write 4 Articulated Wheels (Front FL/FR steer + spin; Rear RL/RR spin)
+      const busWheelJoints = [BUS_J_WHEEL_FL, BUS_J_WHEEL_FR, BUS_J_WHEEL_RL, BUS_J_WHEEL_RR];
+      for (let w = 0; w < 4; w++) {
+        const wJoint = busWheelJoints[w];
+        const bp = BUS_BIND_PIVOTS[wJoint];
+        const steer = w < 2 ? b.steerAngle : 0.0;
+        this._tmpQuat.setFromAxisAngle(this._tmpAxisY, steer);
+        this._tmpQuatB.setFromAxisAngle(this._tmpAxisX, b.wheelSpinRad);
+        this._tmpQuat.multiply(this._tmpQuatB);
+        this._writeInterIslandBusJoint(wJoint, BUS_J_CHASSIS, bp[0], bp[1], bp[2], this._tmpQuat);
+      }
+    }
+  }
+
+  /**
+   * Composes one of the Inter-Island Electric Bus's 5 hierarchical joints and writes its bind-relative skin matrix.
+   */
+  _writeInterIslandBusJoint(jointId, parentJointId, lx, ly, lz, quat) {
+    this._tmpPos.set(lx, ly, lz);
+    this._tmpScale.set(1.0, 1.0, 1.0);
+    this._tmpLocalMat.compose(this._tmpPos, quat, this._tmpScale);
+
+    const globalJ = this._busJointBase + jointId;
+    const outOffset = globalJ * 16;
+    const wMats = this._jointWorldMatrices;
+
+    if (parentJointId < 0) {
+      const e = this._tmpLocalMat.elements;
+      for (let i = 0; i < 16; i++) wMats[outOffset + i] = e[i];
+    } else {
+      const parentOffset = (this._busJointBase + parentJointId) * 16;
+      for (let i = 0; i < 16; i++) {
+        this._tmpParentMat.elements[i] = wMats[parentOffset + i];
+      }
+      this._tmpWorldMat.multiplyMatrices(this._tmpParentMat, this._tmpLocalMat);
+      const e = this._tmpWorldMat.elements;
+      for (let i = 0; i < 16; i++) wMats[outOffset + i] = e[i];
+    }
+
+    const bp = BUS_BIND_PIVOTS[jointId];
+    const bx = bp[0];
+    const by = bp[1];
+    const bz = bp[2];
+    const sMats = this._skinMatrices;
+    for (let i = 0; i < 12; i++) {
+      sMats[outOffset + i] = wMats[outOffset + i];
+    }
+    sMats[outOffset + 12] =
+      wMats[outOffset + 12] -
+      (wMats[outOffset] * bx + wMats[outOffset + 4] * by + wMats[outOffset + 8] * bz);
+    sMats[outOffset + 13] =
+      wMats[outOffset + 13] -
+      (wMats[outOffset + 1] * bx + wMats[outOffset + 5] * by + wMats[outOffset + 9] * bz);
+    sMats[outOffset + 14] =
+      wMats[outOffset + 14] -
+      (wMats[outOffset + 2] * bx + wMats[outOffset + 6] * by + wMats[outOffset + 10] * bz);
+    sMats[outOffset + 15] = 1.0;
   }
 
   /**
@@ -2612,10 +3532,9 @@ export class DynamicTrafficAI {
         npc.behavior === 'GOLF_CART_DRIVER' ||
         (npc.behavior === 'GOLF_CART_SHUTTLE_RIDER' && npc.seatedBlend > 0.35);
 
-      // Determine rain exposure vs architectural roof or Golf Cart canopy shelter!
+      // Determine rain exposure vs architectural roof, Subsea Underpass, Ferry Tajug Pavilion, or Golf Cart canopy shelter!
       const isSheltered =
-        isRidingCart ||
-        (npc.worldZ < 536.0 && DynamicTrafficAI._isShelteredByRoof(npc.worldX, npc.worldZ));
+        isRidingCart || DynamicTrafficAI._isShelteredByRoof(npc.worldX, npc.worldZ);
       const exposedRain = !isSheltered && rainInt > 0.10 ? Math.min(1.0, (rainInt - 0.08) * 1.45) : 0.0;
 
       const wantUmbrella = npc.profile.hasUmbrella ? exposedRain : 0.0;
@@ -2663,7 +3582,7 @@ export class DynamicTrafficAI {
           const p = npc.shuttleTimer / dur;
 
           this._cartLocalToWorld(slot.lx, slot.ly, slot.lz, this._tmpVecA);
-          this._cartLocalToWorld(slot.sideExit * 0.94, 0.0, slot.lz, this._tmpVecB);
+          this._cartLocalToWorld(slot.sideExit * 1.04, 0.0, slot.lz, this._tmpVecB);
           const groundStepY = this._samplePedestrianGroundY(this._tmpVecB.x, this._tmpVecB.z);
 
           if (p < 0.28) {
@@ -2683,18 +3602,29 @@ export class DynamicTrafficAI {
             let sx = this._tmpVecB.x;
             let sz = this._tmpVecB.z;
             if (slot.sideExit < 0.0) {
-              // Walk neatly around the rear of the Golf Cart to reach the curbside waiting zone!
-              this._cartLocalToWorld(0.45, 0.0, -2.28, this._tmpVecC);
-              if (wProg < 0.45) {
-                const sub = wProg / 0.45;
+              // Walk cleanly around BOTH rear corners of the Golf Cart to reach the curbside waiting zone!
+              this._cartLocalToWorld(-1.04, 0.0, -2.14, this._tmpVecC);
+              this._cartLocalToWorld(1.04, 0.0, -2.14, this._tmpVecD);
+              if (wProg < 0.34) {
+                const sub = wProg / 0.34;
                 npc.worldX = sx + (this._tmpVecC.x - sx) * sub;
                 npc.worldZ = sz + (this._tmpVecC.z - sz) * sub;
                 npc.yaw = dampAngle(npc.yaw, Math.atan2(this._tmpVecC.x - sx, this._tmpVecC.z - sz), 10.0, dt);
+              } else if (wProg < 0.68) {
+                const sub = (wProg - 0.34) / 0.34;
+                npc.worldX = this._tmpVecC.x + (this._tmpVecD.x - this._tmpVecC.x) * sub;
+                npc.worldZ = this._tmpVecC.z + (this._tmpVecD.z - this._tmpVecC.z) * sub;
+                npc.yaw = dampAngle(
+                  npc.yaw,
+                  Math.atan2(this._tmpVecD.x - this._tmpVecC.x, this._tmpVecD.z - this._tmpVecC.z),
+                  10.0,
+                  dt
+                );
               } else {
-                const sub = (wProg - 0.45) / 0.55;
-                npc.worldX = this._tmpVecC.x + (tx - this._tmpVecC.x) * sub;
-                npc.worldZ = this._tmpVecC.z + (tz - this._tmpVecC.z) * sub;
-                npc.yaw = dampAngle(npc.yaw, Math.atan2(tx - this._tmpVecC.x, tz - this._tmpVecC.z), 10.0, dt);
+                const sub = (wProg - 0.68) / 0.32;
+                npc.worldX = this._tmpVecD.x + (tx - this._tmpVecD.x) * sub;
+                npc.worldZ = this._tmpVecD.z + (tz - this._tmpVecD.z) * sub;
+                npc.yaw = dampAngle(npc.yaw, Math.atan2(tx - this._tmpVecD.x, tz - this._tmpVecD.z), 10.0, dt);
               }
             } else {
               npc.worldX = sx + (tx - sx) * wProg;
@@ -2715,7 +3645,7 @@ export class DynamicTrafficAI {
           const p = npc.shuttleTimer / dur;
 
           this._cartLocalToWorld(slot.lx, slot.ly, slot.lz, this._tmpVecA);
-          this._cartLocalToWorld(slot.sideExit * 0.94, 0.0, slot.lz, this._tmpVecB);
+          this._cartLocalToWorld(slot.sideExit * 1.04, 0.0, slot.lz, this._tmpVecB);
           const groundStepY = this._samplePedestrianGroundY(this._tmpVecB.x, this._tmpVecB.z);
 
           if (p < 0.72) {
@@ -2724,19 +3654,30 @@ export class DynamicTrafficAI {
             const sx = npc.shuttleStartX;
             const sz = npc.shuttleStartZ;
             if (slot.sideExit < 0.0) {
-              this._cartLocalToWorld(0.45, 0.0, -2.28, this._tmpVecC);
-              if (wProg < 0.52) {
-                const sub = wProg / 0.52;
+              this._cartLocalToWorld(1.04, 0.0, -2.14, this._tmpVecC);
+              this._cartLocalToWorld(-1.04, 0.0, -2.14, this._tmpVecD);
+              if (wProg < 0.38) {
+                const sub = wProg / 0.38;
                 npc.worldX = sx + (this._tmpVecC.x - sx) * sub;
                 npc.worldZ = sz + (this._tmpVecC.z - sz) * sub;
                 npc.yaw = dampAngle(npc.yaw, Math.atan2(this._tmpVecC.x - sx, this._tmpVecC.z - sz), 10.0, dt);
-              } else {
-                const sub = (wProg - 0.52) / 0.48;
-                npc.worldX = this._tmpVecC.x + (this._tmpVecB.x - this._tmpVecC.x) * sub;
-                npc.worldZ = this._tmpVecC.z + (this._tmpVecB.z - this._tmpVecC.z) * sub;
+              } else if (wProg < 0.72) {
+                const sub = (wProg - 0.38) / 0.34;
+                npc.worldX = this._tmpVecC.x + (this._tmpVecD.x - this._tmpVecC.x) * sub;
+                npc.worldZ = this._tmpVecC.z + (this._tmpVecD.z - this._tmpVecC.z) * sub;
                 npc.yaw = dampAngle(
                   npc.yaw,
-                  Math.atan2(this._tmpVecB.x - this._tmpVecC.x, this._tmpVecB.z - this._tmpVecC.z),
+                  Math.atan2(this._tmpVecD.x - this._tmpVecC.x, this._tmpVecD.z - this._tmpVecC.z),
+                  10.0,
+                  dt
+                );
+              } else {
+                const sub = (wProg - 0.72) / 0.28;
+                npc.worldX = this._tmpVecD.x + (this._tmpVecB.x - this._tmpVecD.x) * sub;
+                npc.worldZ = this._tmpVecD.z + (this._tmpVecB.z - this._tmpVecD.z) * sub;
+                npc.yaw = dampAngle(
+                  npc.yaw,
+                  Math.atan2(this._tmpVecB.x - this._tmpVecD.x, this._tmpVecB.z - this._tmpVecD.z),
                   10.0,
                   dt
                 );
@@ -2805,12 +3746,12 @@ export class DynamicTrafficAI {
             const f = u / 0.5;
             tz = npc.centerZ - npc.spanZ * 0.5 + f * npc.spanZ;
             targetYaw = 0.0;
-            laneOff = -1.85;
+            laneOff = -1.02;
           } else {
             const f = (u - 0.5) / 0.5;
             tz = npc.centerZ + npc.spanZ * 0.5 - f * npc.spanZ;
             targetYaw = Math.PI;
-            laneOff = -2.35;
+            laneOff = -1.76;
           }
           const tx = TerrainDEMLoader.getShorelinePromenadeX(tz) + laneOff;
           if (!npc.initializedPos) {
@@ -2904,12 +3845,12 @@ export class DynamicTrafficAI {
           sPos = 0.0;
           dirSign = 0.0;
         }
-        const cx = 34.2 + sPos * (43.2 - 34.2);
         const cz = 37.0 + sPos * (120.0 - 37.0);
-        const lat = npc.pairSide * 0.46;
+        const cx = 34.2 + ((cz - 35.5) / (128.0 - 35.5)) * (43.8 - 34.2);
+        const lat = npc.pairSide * 0.42;
         const tx = cx + lat;
         const tz = cz;
-        const walkAz = Math.atan2(43.2 - 34.2, 120.0 - 37.0);
+        const walkAz = Math.atan2(43.8 - 34.2, 128.0 - 35.5);
         const targetYaw = dirSign >= 0 ? (dirSign === 0 && u < 0.5 ? walkAz + Math.PI * 0.5 : walkAz) : walkAz + Math.PI;
 
         if (!npc.initializedPos) {
@@ -3081,6 +4022,97 @@ export class DynamicTrafficAI {
           npc.worldX = dampScalar(npc.worldX, tx, 10.0, dt);
           npc.worldZ = tz;
           npc.yaw = dampAngle(npc.yaw, targetYaw, 5.5, dt);
+        }
+      } else if (npc.behavior === 'UNDERPASS_CROSSER') {
+        // Walk along the raised +0.18m pedestrian walkways through the -8.20m Southern Undersea Underpass U <-> I,
+        // pausing briefly near the subsea panoramic marine-acrylic windows to admire the ocean caustics!
+        const zStart = 276.0;
+        const zEnd = 666.0;
+        const spanZ = zEnd - zStart;
+        const oneWaySec = spanZ / Math.max(0.90, npc.baseSpeed);
+        const cycleSec = oneWaySec * 2.0 + 10.0;
+        const u = (((t / cycleSec + (npc.phase0 || 0.0)) % 1.0) + 1.0) % 1.0;
+
+        let sPos = 0.0;
+        let targetYaw = 0.0;
+        if (u < 0.23) {
+          sPos = (u / 0.23) * 0.50;
+          targetYaw = 0.0;
+        } else if (u < 0.26) {
+          // Pause at mid-channel subsea panoramic acrylic window!
+          sPos = 0.50;
+          targetYaw = (npc.laneOff || 4.06) > 0.0 ? Math.PI * 0.5 : -Math.PI * 0.5;
+        } else if (u < 0.49) {
+          sPos = 0.50 + ((u - 0.26) / 0.23) * 0.50;
+          targetYaw = 0.0;
+        } else if (u < 0.51) {
+          sPos = 1.0;
+          targetYaw = Math.PI;
+        } else if (u < 0.98) {
+          sPos = 1.0 - (u - 0.51) / 0.47;
+          targetYaw = Math.PI;
+        } else {
+          sPos = 0.0;
+          targetYaw = 0.0;
+        }
+
+        const tx = TerrainDEMLoader.UNDERPASS_X + (npc.laneOff || 4.06);
+        const tz = zStart + sPos * spanZ;
+        if (!npc.initializedPos) {
+          npc.worldX = tx;
+          npc.worldZ = tz;
+          npc.yaw = targetYaw;
+          npc.initializedPos = true;
+        } else {
+          npc.worldX = dampScalar(npc.worldX, tx, 10.0, dt);
+          npc.worldZ = tz;
+          npc.yaw = dampAngle(npc.yaw, targetYaw, 5.5, dt);
+        }
+      } else if (npc.behavior === 'FERRY_PIER_COMMUTER') {
+        // Stroll between the Tajug Ferry Terminal Pavilion and the T-Head Pier Berth to watch the Catamaran Ferry!
+        const isU = npc.island !== 'I';
+        const zStart = isU ? 454.5 : 616.5;
+        const zEnd = isU ? 489.2 : 584.3;
+        const cycleSec = 74.0;
+        const u = (((t / cycleSec + (npc.phase0 || 0.0)) % 1.0) + 1.0) % 1.0;
+        const outYaw = isU ? 0.0 : Math.PI;
+        const backYaw = isU ? Math.PI : 0.0;
+
+        let sPos = 0.0;
+        let targetYaw = outYaw;
+        if (u < 0.36) {
+          sPos = u / 0.36;
+          targetYaw = outYaw;
+        } else if (u < 0.56) {
+          // Admiring the approaching Electric Catamaran Ferry from the T-head berth railing!
+          sPos = 1.0;
+          if (this.shuttleFerry) {
+            targetYaw = Math.atan2(
+              this.shuttleFerry.worldX - npc.worldX,
+              this.shuttleFerry.worldZ - npc.worldZ
+            );
+          } else {
+            targetYaw = outYaw;
+          }
+        } else if (u < 0.92) {
+          sPos = 1.0 - (u - 0.56) / 0.36;
+          targetYaw = backYaw;
+        } else {
+          sPos = 0.0;
+          targetYaw = outYaw;
+        }
+
+        const tx = (isU ? TerrainDEMLoader.DERMAGA_U_X : TerrainDEMLoader.DERMAGA_I_X) + (npc.laneOff || 1.4);
+        const tz = zStart + sPos * (zEnd - zStart);
+        if (!npc.initializedPos) {
+          npc.worldX = tx;
+          npc.worldZ = tz;
+          npc.yaw = targetYaw;
+          npc.initializedPos = true;
+        } else {
+          npc.worldX = dampScalar(npc.worldX, tx, 8.0, dt);
+          npc.worldZ = dampScalar(npc.worldZ, tz, 8.0, dt);
+          npc.yaw = dampAngle(npc.yaw, targetYaw, 5.0, dt);
         }
       }
 
@@ -4392,6 +5424,225 @@ export class DynamicTrafficAI {
   }
 
   /**
+   * Universal Post-Kinematic Hard Solid-Body Non-Penetration Solver (3 Gauss-Seidel Passes, 0 GC).
+   * Enforces strict 0.000m interpenetration across:
+   * - Pairwise Agent-vs-Agent capsules (52 Humans & 48 Cats)
+   * - Agent-vs-Dynamic Vehicle OBBs (Bus Kuning UI & Mobil Golf Listrik UI)
+   * - Agent-vs-Static World Colliders (Buildings, Columns, Trees, Streetlamps, Bollards, Benches, Piers, Portals)
+   * - Underpass Bawah Laut retaining/bore walls & Jembatan Teksas UI pedestrian guardrails
+   */
+  _resolveAllSolidBodyCollisions() {
+    const solidWorld = this._ensureSolidWorld();
+    const staticCols = solidWorld ? solidWorld.staticColliders : null;
+    const npcs = this.npcs;
+    const cats = this.cats;
+    const npcCount = npcs.length;
+    const catCount = cats.length;
+    const p = this._agentPosScratch;
+
+    const isNpcOnboardCart = (npc) =>
+      npc.behavior === 'GOLF_CART_DRIVER' ||
+      (npc.behavior === 'GOLF_CART_SHUTTLE_RIDER' &&
+        (npc.shuttleState === 'ONBOARD' || npc.seatedBlend > 0.02));
+
+    for (let iter = 0; iter < 3; iter++) {
+      // 1. Pairwise NPC-vs-NPC Capsule Separation (rA = 0.25, rB = 0.25 -> minDist = 0.502m)
+      for (let i = 0; i < npcCount; i++) {
+        const a = npcs[i];
+        if (isNpcOnboardCart(a)) continue;
+        const invA = a.behavior === 'BENCH_SEATED' ? 0.0 : 1.0;
+        for (let j = i + 1; j < npcCount; j++) {
+          const b = npcs[j];
+          if (isNpcOnboardCart(b)) continue;
+          if (Math.abs(a.worldY - b.worldY) > 1.55) continue;
+          const invB = b.behavior === 'BENCH_SEATED' ? 0.0 : 1.0;
+          const invSum = invA + invB;
+          if (invSum <= 0.0) continue;
+
+          const dx = b.worldX - a.worldX;
+          const dz = b.worldZ - a.worldZ;
+          const minR = 0.504;
+          const dSq = dx * dx + dz * dz;
+          if (dSq < minR * minR) {
+            const d = Math.sqrt(dSq);
+            const nx = d > 1e-5 ? dx / d : 1.0;
+            const nz = d > 1e-5 ? dz / d : 0.0;
+            const pen = minR - d;
+            const wA = invA / invSum;
+            const wB = invB / invSum;
+            a.worldX -= nx * pen * wA;
+            a.worldZ -= nz * pen * wA;
+            b.worldX += nx * pen * wB;
+            b.worldZ += nz * pen * wB;
+          }
+        }
+      }
+
+      // 2. Pairwise Cat-vs-NPC Capsule Separation (rCat = 0.15, rNpc = 0.25 -> minDist = 0.402m)
+      for (let c = 0; c < catCount; c++) {
+        const cat = cats[c];
+        const invC = cat.perchY !== undefined ? 0.0 : 1.0;
+        const catMinY = cat.worldY;
+        const catMaxY = cat.worldY + 0.42;
+        for (let n = 0; n < npcCount; n++) {
+          const npc = npcs[n];
+          if (isNpcOnboardCart(npc)) continue;
+          const npcMinY = npc.worldY;
+          const npcMaxY = npc.worldY + 1.72;
+          if (catMaxY <= npcMinY || catMinY >= npcMaxY) continue;
+          const invN = npc.behavior === 'BENCH_SEATED' ? 0.0 : 0.25;
+          const invSum = invC + invN;
+          if (invSum <= 0.0) continue;
+
+          const dx = cat.worldX - npc.worldX;
+          const dz = cat.worldZ - npc.worldZ;
+          const minR = 0.404;
+          const dSq = dx * dx + dz * dz;
+          if (dSq < minR * minR) {
+            const d = Math.sqrt(dSq);
+            const nx = d > 1e-5 ? dx / d : 1.0;
+            const nz = d > 1e-5 ? dz / d : 0.0;
+            const pen = minR - d;
+            const wC = invC / invSum;
+            const wN = invN / invSum;
+            cat.worldX += nx * pen * wC;
+            cat.worldZ += nz * pen * wC;
+            npc.worldX -= nx * pen * wN;
+            npc.worldZ -= nz * pen * wN;
+          }
+        }
+      }
+
+      // 3. Pairwise Cat-vs-Cat Capsule Separation (rA = 0.15, rB = 0.15 -> minDist = 0.302m)
+      for (let i = 0; i < catCount; i++) {
+        const a = cats[i];
+        const invA = a.perchY !== undefined ? 0.0 : 1.0;
+        for (let j = i + 1; j < catCount; j++) {
+          const b = cats[j];
+          if (Math.abs(a.worldY - b.worldY) > 0.42) continue;
+          const invB = b.perchY !== undefined ? 0.0 : 1.0;
+          const invSum = invA + invB;
+          if (invSum <= 0.0) continue;
+
+          const dx = b.worldX - a.worldX;
+          const dz = b.worldZ - a.worldZ;
+          const minR = 0.304;
+          const dSq = dx * dx + dz * dz;
+          if (dSq < minR * minR) {
+            const d = Math.sqrt(dSq);
+            const nx = d > 1e-5 ? dx / d : 1.0;
+            const nz = d > 1e-5 ? dz / d : 0.0;
+            const pen = minR - d;
+            const wA = invA / invSum;
+            const wB = invB / invSum;
+            a.worldX -= nx * pen * wA;
+            a.worldZ -= nz * pen * wA;
+            b.worldX += nx * pen * wB;
+            b.worldZ += nz * pen * wB;
+          }
+        }
+      }
+
+      // 4. Terrestrial NPCs vs Dynamic Vehicle OBBs, Static World Colliders, Bridge & Underpass Walls
+      for (let i = 0; i < npcCount; i++) {
+        const npc = npcs[i];
+        if (isNpcOnboardCart(npc)) continue;
+        const isBenchSeated = npc.behavior === 'BENCH_SEATED';
+        const minY = npc.worldY + 0.05;
+        const maxY = npc.worldY + 1.70 * (npc.heightScale || 1.0);
+        p.x = npc.worldX;
+        p.z = npc.worldZ;
+
+        if (this.interIslandBus) {
+          PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.255, this._busOBBScratch);
+        }
+        if (this.golfCart) {
+          PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.255, this._cartOBBScratch);
+        }
+
+        if (staticCols) {
+          for (let k = 0; k < staticCols.length; k++) {
+            const sc = staticCols[k];
+            if (sc.type === 'ISLAND_PERIMETER') continue;
+            if (isBenchSeated && sc.isBench) continue;
+            PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.255, sc);
+          }
+        }
+
+        // Underpass Bawah Laut concrete retaining/bore wall containment for subsea walkway pedestrians
+        if (
+          p.z >= TerrainDEMLoader.UNDERPASS_WEST_RAMP_START_Z &&
+          p.z <= TerrainDEMLoader.UNDERPASS_EAST_RAMP_END_Z &&
+          Math.abs(p.x - TerrainDEMLoader.UNDERPASS_X) <= TerrainDEMLoader.UNDERPASS_BORE_HALF_W + 0.45 &&
+          npc.worldY < 1.25
+        ) {
+          const maxWallX = TerrainDEMLoader.UNDERPASS_BORE_HALF_W - 0.26;
+          const dxU = p.x - TerrainDEMLoader.UNDERPASS_X;
+          if (Math.abs(dxU) > maxWallX) {
+            p.x = TerrainDEMLoader.UNDERPASS_X + (dxU >= 0.0 ? 1.0 : -1.0) * maxWallX;
+          }
+        }
+
+        // Jembatan Teksas UI pedestrian guardrail containment
+        if (TerrainDEMLoader.sampleTeksasBridgeDeckY(p.x, p.z) !== null) {
+          const dxB = p.x - TerrainDEMLoader.TEKSAS_BRIDGE_X;
+          if (Math.abs(dxB) > 2.28) {
+            p.x = TerrainDEMLoader.TEKSAS_BRIDGE_X + (dxB >= 0.0 ? 1.0 : -1.0) * 2.28;
+          }
+        }
+
+        npc.worldX = p.x;
+        npc.worldZ = p.z;
+      }
+
+      // 5. Terrestrial Cats vs Dynamic Vehicle OBBs & Static World Colliders
+      for (let i = 0; i < catCount; i++) {
+        const cat = cats[i];
+        const isPerched = cat.perchY !== undefined;
+        const s = cat.phenotype?.overallScale || 1.0;
+        const minY = cat.worldY + 0.02;
+        const maxY = cat.worldY + 0.42 * s;
+        p.x = cat.worldX;
+        p.z = cat.worldZ;
+
+        if (this.interIslandBus) {
+          PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.155, this._busOBBScratch);
+        }
+        if (this.golfCart) {
+          PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.155, this._cartOBBScratch);
+        }
+
+        if (staticCols) {
+          for (let k = 0; k < staticCols.length; k++) {
+            const sc = staticCols[k];
+            if (sc.type === 'ISLAND_PERIMETER') continue;
+            if (isPerched && sc.isBench) continue;
+            PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.155, sc);
+          }
+        }
+
+        cat.worldX = p.x;
+        cat.worldZ = p.z;
+      }
+    }
+
+    // Re-lock vertical surface elevation at depenetrated coordinates
+    for (let i = 0; i < npcCount; i++) {
+      const npc = npcs[i];
+      if (isNpcOnboardCart(npc) || npc.behavior === 'BENCH_SEATED') continue;
+      npc.worldY = this._samplePedestrianGroundY(npc.worldX, npc.worldZ);
+    }
+    for (let i = 0; i < catCount; i++) {
+      const cat = cats[i];
+      if (cat.perchY !== undefined) continue;
+      cat.worldY = this._sampleCatSurfaceY(cat.worldX, cat.worldZ);
+    }
+
+    // Refresh pre-allocated dynamic collider pool so CameraDirector reads post-solver positions
+    this.getDynamicSolidColliders();
+  }
+
+  /**
    * Advances all 24 Sivitas Akademika NPCs & executes fast Dual-Bone Linear-Blend Skinning (LBS)
    * across all 528 articulated joints into 1 single unified Mesh (< 0.7ms CPU, 0 GC, 1 Draw Call!).
    *
@@ -4414,9 +5665,12 @@ export class DynamicTrafficAI {
     const catCount = this.cats.length;
 
     // 1. Advance Electric Golf Cart Patrol, Distant Marine Fleet, Crowd, & Feline AI
-    this._advanceGolfCartAndMarineFleet(safeDt, t);
+    this._advanceGolfCartAndMarineFleet(safeDt, t, cameraPos);
     this._advanceCrowdNavigation(safeDt, t, cameraPos);
     this._advanceFelineAI(safeDt, t, cameraPos);
+
+    // 1b. Enforce Strict Solid-Body Non-Penetration across all vehicles, humans, cats, & world solids!
+    this._resolveAllSolidBodyCollisions();
 
     // 2. Solve Full 22-Joint Biomechanics for All 45 Humans + 18-Joint Biomechanics for All 48 Cats
     for (let n = 0; n < npcCount; n++) {
@@ -4426,10 +5680,10 @@ export class DynamicTrafficAI {
       this._solveCatBiomechanics(this.cats[c], t, cameraPos);
     }
 
-    // 3. Pre-normalize 3x3 Normal Matrices for all (45x22 + 48x18 + 6 + 12 = 1,872) Live Skin Matrices
+    // 3. Pre-normalize 3x3 Normal Matrices for all Live Skin Matrices
     const sMats = this._skinMatrices;
     const nMats = this._skinNormalMatrices;
-    const totalJoints = this._miniYachtJointIndex + 1;
+    const totalJoints = this._totalJointCount;
 
     for (let j = 0; j < totalJoints; j++) {
       const mOff = j * 16;
