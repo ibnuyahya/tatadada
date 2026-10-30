@@ -25,7 +25,7 @@ const TOD_LABELS = {
   NIGHT: 'Malam'
 };
 
-const TOTAL_EXPECTED_TRIS = 5656758;
+const TOTAL_EXPECTED_TRIS = 5662244;
 
 function yieldToBrowserFrame() {
   return new Promise((resolve) => {
@@ -168,6 +168,7 @@ async function bootstrapNexusSimulator() {
     { WeatherOpticsEngine },
     { AudioSynthesizer },
     { createSharedSurfaceUniforms },
+    { VideotronYouTubeEngine },
     { FloatingOriginManager },
     { TerrainDEMLoader },
     { SplineCorridorBuilder },
@@ -179,6 +180,7 @@ async function bootstrapNexusSimulator() {
     import('./core/WeatherOpticsEngine.js'),
     import('./core/AudioSynthesizer.js'),
     import('./core/ProceduralTextureFactory.js'),
+    import('./core/VideotronYouTubeEngine.js'),
     import('./world-gis/FloatingOriginManager.js'),
     import('./world-gis/TerrainDEMLoader.js'),
     import('./world-gis/SplineCorridorBuilder.js'),
@@ -192,8 +194,11 @@ async function bootstrapNexusSimulator() {
   const container = document.getElementById('sim-canvas-wrap');
   const renderer = new THREE.WebGLRenderer({
     antialias: true,
+    alpha: true,
+    premultipliedAlpha: true,
     powerPreference: 'high-performance'
   });
+  renderer.setClearColor(0x070b12, 1.0);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   // Unified in-shader HumanEyeHDROptics (Naka-Rushton + Hunt + Stevens + Purkinje) handles 100% of tone-mapping
@@ -202,6 +207,15 @@ async function bootstrapNexusSimulator() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   container.appendChild(renderer.domElement);
+
+  let syncVideotronUIHook = null;
+  const videotron = new VideotronYouTubeEngine({
+    initialInput: VideotronYouTubeEngine.DEFAULT_EMBED_HTML,
+    onStateChange: (state, errMsg) => {
+      if (syncVideotronUIHook) syncVideotronUIHook(state, errMsg);
+    }
+  });
+  videotron.mount(container);
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0xa8c6df, 0.0);
@@ -384,6 +398,7 @@ async function bootstrapNexusSimulator() {
   } else if (typeof renderer.compile === 'function') {
     renderer.compile(scene, camera);
   }
+  videotron.update(camera, window.innerWidth, window.innerHeight, sharedUniforms);
   renderer.render(scene, camera);
   await preloader.advance(8, 100, 'Selamat Datang di Kepulauan Universitas Indonesia (Pulau U & I), Depok.', TOTAL_EXPECTED_TRIS);
   preloader.dismiss();
@@ -500,9 +515,150 @@ async function bootstrapNexusSimulator() {
       arrivalActive = false;
       document.querySelectorAll('[data-cammode]').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
+      if (
+        (btn.dataset.cammode === 'DRONE_6DOF' || btn.dataset.cammode === 'WALK_SIVITAS') &&
+        videotron.interactiveScreenClick
+      ) {
+        videotron.setInteractiveScreenClick(false, renderer.domElement);
+      }
       camDirector.setMode(btn.dataset.cammode);
     });
   });
+
+  // --- OUTDOOR CAMPUS LED VIDEOTRON YOUTUBE / PLAYLIST / 2-LAYER SHORTS CONTROLS ---
+  const vtBadgeEl = document.getElementById('vt-detected-badge');
+  const vtTitleEl = document.getElementById('vt-active-title');
+  const vtFocusCamBtn = document.getElementById('btn-vt-focus-cam');
+  const vtUrlInput = document.getElementById('vt-url-input');
+  const vtApplyBtn = document.getElementById('btn-vt-apply');
+  const vtDefaultBtn = document.getElementById('btn-vt-default');
+  const vtStatusMsgEl = document.getElementById('vt-status-msg');
+  const vtModeBtns = Array.from(document.querySelectorAll('[data-vtmode]'));
+  const vtPlayPauseBtn = document.getElementById('btn-vt-playpause');
+  const vtMuteBtn = document.getElementById('btn-vt-mute');
+  const vtVolSlider = document.getElementById('slider-vt-vol');
+  const vtVolLabel = document.getElementById('label-vt-vol');
+  const vtPrevBtn = document.getElementById('btn-vt-prev');
+  const vtNextBtn = document.getElementById('btn-vt-next');
+  const vtInteractBtn = document.getElementById('btn-vt-interact');
+
+  function syncVideotronUI(state, errMsg = null) {
+    if (!state) return;
+    if (vtBadgeEl) {
+      vtBadgeEl.textContent = (state.badgeLabelId || 'SINGLE 16:9').toUpperCase();
+    }
+    if (vtTitleEl) {
+      vtTitleEl.textContent = state.title || 'Videotron Kampus UI';
+    }
+    vtModeBtns.forEach((b) => {
+      b.classList.toggle('active', b.dataset.vtmode === state.formatMode);
+    });
+    if (vtPlayPauseBtn) {
+      const span = vtPlayPauseBtn.querySelector('.btn-title') || vtPlayPauseBtn;
+      span.textContent = state.isPlaying ? 'Jeda Video' : 'Putar Video';
+      vtPlayPauseBtn.classList.toggle('active', !state.isPlaying);
+    }
+    if (vtMuteBtn) {
+      const span = vtMuteBtn.querySelector('.btn-title') || vtMuteBtn;
+      span.textContent = state.isMuted ? 'Suara YT: MUTE' : 'Suara YT: ON';
+      vtMuteBtn.classList.toggle('active', !state.isMuted);
+    }
+    if (vtVolLabel) {
+      vtVolLabel.textContent = state.isMuted ? 'MUTE' : `${state.volume}%`;
+    }
+    if (vtVolSlider && document.activeElement !== vtVolSlider) {
+      vtVolSlider.value = String(state.volume);
+    }
+    if (vtInteractBtn) {
+      const span = vtInteractBtn.querySelector('.btn-title') || vtInteractBtn;
+      span.textContent = state.interactiveScreenClick ? 'Klik 3D: ON' : 'Klik 3D: OFF';
+      vtInteractBtn.classList.toggle('active', state.interactiveScreenClick);
+    }
+    if (vtStatusMsgEl) {
+      if (errMsg) {
+        vtStatusMsgEl.classList.add('is-error');
+        vtStatusMsgEl.textContent = errMsg;
+      } else {
+        vtStatusMsgEl.classList.remove('is-error');
+        if (state.activeLayout === 'SHORT_2LAYER_BLUR') {
+          vtStatusMsgEl.textContent = 'Short terdeteksi: mode 2-lapis (belakang full-width blur) aktif.';
+        } else if (state.isPlaylist) {
+          vtStatusMsgEl.textContent = 'Playlist YouTube aktif pada layar Videotron 3D.';
+        } else {
+          vtStatusMsgEl.textContent = 'Video YouTube 16:9 aktif pada layar Videotron 3D.';
+        }
+      }
+    }
+  }
+
+  syncVideotronUIHook = syncVideotronUI;
+  syncVideotronUI(videotron.getState());
+
+  if (vtFocusCamBtn) {
+    vtFocusCamBtn.addEventListener('click', () => {
+      arrivalActive = false;
+      document.querySelectorAll('[data-preset]').forEach((b) =>
+        b.classList.toggle('active', b.dataset.preset === 'videotronUI')
+      );
+      document.querySelectorAll('[data-cammode]').forEach((b) =>
+        b.classList.toggle('active', b.dataset.cammode === 'ORBIT')
+      );
+      camDirector.applyOrthoPreset('videotronUI', presets);
+    });
+  }
+
+  async function applyVideotronInput() {
+    if (!vtUrlInput) return;
+    const res = await videotron.loadSource(vtUrlInput.value);
+    if (res.ok && res.state && res.state.normalizedUrl && !/<iframe\b/i.test(vtUrlInput.value)) {
+      vtUrlInput.value = res.state.normalizedUrl;
+    }
+  }
+
+  if (vtApplyBtn) {
+    vtApplyBtn.addEventListener('click', applyVideotronInput);
+  }
+  if (vtUrlInput) {
+    vtUrlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        applyVideotronInput();
+      }
+    });
+  }
+  if (vtDefaultBtn) {
+    vtDefaultBtn.addEventListener('click', async () => {
+      if (vtUrlInput) vtUrlInput.value = VideotronYouTubeEngine.DEFAULT_EMBED_URL;
+      await videotron.resetToDefault();
+    });
+  }
+  vtModeBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      videotron.setFormatMode(btn.dataset.vtmode);
+    });
+  });
+  if (vtPlayPauseBtn) {
+    vtPlayPauseBtn.addEventListener('click', () => videotron.togglePlayPause());
+  }
+  if (vtMuteBtn) {
+    vtMuteBtn.addEventListener('click', () => videotron.toggleMute());
+  }
+  if (vtVolSlider) {
+    vtVolSlider.addEventListener('input', () => {
+      videotron.setVolume(Number(vtVolSlider.value));
+    });
+  }
+  if (vtPrevBtn) {
+    vtPrevBtn.addEventListener('click', () => videotron.previousTrack());
+  }
+  if (vtNextBtn) {
+    vtNextBtn.addEventListener('click', () => videotron.nextTrack());
+  }
+  if (vtInteractBtn) {
+    vtInteractBtn.addEventListener('click', () => {
+      videotron.setInteractiveScreenClick(!videotron.interactiveScreenClick, renderer.domElement);
+    });
+  }
 
   // --- LIVE KAMPUS UI DEPOK TELEMETRY & 20–45s SMOOTH TRANSITION CONTROLS ---
   const liveCardEl = document.getElementById('live-depok-card');
@@ -830,6 +986,7 @@ async function bootstrapNexusSimulator() {
       windMultiplier: weather.getWindGustMultiplier()
     });
 
+    videotron.update(camera, window.innerWidth, window.innerHeight, sharedUniforms);
     renderer.render(scene, camera);
 
     // Smooth ~12 Hz UI button progress bar & countdown refresh
@@ -865,6 +1022,7 @@ async function bootstrapNexusSimulator() {
       camera,
       renderer,
       weather,
+      videotron,
       camDirector,
       sivitasAI,
       solidWorld,

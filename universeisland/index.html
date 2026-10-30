@@ -49,11 +49,145 @@
       height: 100%;
     }
 
+    #sim-canvas-wrap > canvas {
+      position: relative;
+      z-index: 2;
+    }
+
     canvas {
       display: block;
       width: 100%;
       height: 100%;
       touch-action: none;
+    }
+
+    /* ==========================================================================
+       OUTDOOR CAMPUS LED VIDEOTRON — CSS3D LIVE YOUTUBE & 2-LAYER SHORTS STAGE
+       ========================================================================== */
+    #videotron-css3d-root {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .vt-css3d-view {
+      position: absolute;
+      left: 0;
+      top: 0;
+      perspective-origin: 50% 50%;
+      transform-style: preserve-3d;
+      pointer-events: none;
+      will-change: transform, perspective;
+    }
+
+    .vt-css3d-camera,
+    .vt-css3d-object {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform-origin: 0 0;
+      transform-style: preserve-3d;
+      pointer-events: none;
+      will-change: transform;
+    }
+
+    .vt-screen-surface {
+      width: 1280px;
+      height: 720px;
+      position: relative;
+      overflow: hidden;
+      background: #05080f;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    /* Layer 1: Full-Width Blurred Background Layer (Automatic for Vertical / YouTube Shorts!) */
+    .vt-back-blur-layer {
+      display: none;
+      position: absolute;
+      inset: -36px;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 1;
+      background: #0b1220;
+      filter: blur(24px) saturate(1.45) brightness(0.88);
+    }
+
+    .vt-back-blur-layer.active {
+      display: block;
+    }
+
+    .vt-back-thumb {
+      position: absolute;
+      inset: 0;
+      background-size: 100% 100%;
+      background-position: center;
+      background-repeat: no-repeat;
+      pointer-events: none;
+    }
+
+    .vt-back-iframe-wrap {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 405px;
+      height: 720px;
+      /* Stretches 9:16 live Short video across the full 16:9 width while keeping top-to-bottom vertical color alignment! */
+      transform: translate(-50%, -50%) scale(3.42, 1.16);
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .vt-back-vignette {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(5, 9, 16, 0.16) 0%, transparent 18%, transparent 82%, rgba(5, 9, 16, 0.16) 100%);
+      pointer-events: none;
+    }
+
+    /* Layer 2: Foreground Sharp Video Layer (1280x720 16:9 or Centered 405x720 9:16 Short) */
+    .vt-front-layer {
+      position: absolute;
+      inset: 0;
+      width: 1280px;
+      height: 720px;
+      z-index: 2;
+      overflow: hidden;
+      background: #05080f;
+    }
+
+    .vt-front-layer.is-short {
+      left: 50%;
+      top: 0;
+      right: auto;
+      bottom: auto;
+      width: 405px;
+      height: 720px;
+      transform: translateX(-50%);
+      box-shadow:
+        0 0 52px rgba(0, 0, 0, 0.85),
+        0 0 0 1.5px rgba(255, 255, 255, 0.18);
+    }
+
+    .vt-yt-iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+      pointer-events: none;
+    }
+
+    #videotron-css3d-root.is-interactive .vt-yt-iframe-front {
+      pointer-events: auto;
+    }
+
+    .vt-yt-iframe-back {
+      pointer-events: none !important;
     }
 
     /* ==========================================================================
@@ -550,9 +684,9 @@
 
     .tab-bar {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 4px;
-      padding: 6px 12px;
+      padding: 6px 10px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.07);
       flex-shrink: 0;
     }
@@ -561,9 +695,9 @@
       background: transparent;
       border: 1px solid transparent;
       color: var(--text-muted);
-      padding: 5px 4px;
+      padding: 5px 3px;
       border-radius: 7px;
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 600;
       cursor: pointer;
     }
@@ -872,6 +1006,51 @@
       color: var(--text-muted);
       line-height: 1.35;
     }
+
+    /* Videotron Settings Drawer Card & Link Input */
+    .vt-status-card {
+      background: linear-gradient(145deg, rgba(242, 194, 48, 0.10), rgba(86, 204, 242, 0.07));
+      border: 1px solid rgba(242, 194, 48, 0.30);
+      border-radius: 10px;
+      padding: 8px 9px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .vt-url-input {
+      width: 100%;
+      resize: vertical;
+      min-height: 46px;
+      max-height: 92px;
+      background: rgba(5, 9, 16, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      color: var(--text-main);
+      padding: 6px 8px;
+      font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+      font-size: 10.5px;
+      line-height: 1.35;
+      outline: none;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    .vt-url-input:focus {
+      border-color: var(--ui-gold);
+      box-shadow: 0 0 0 2px rgba(242, 194, 48, 0.18);
+    }
+
+    .vt-msg-line {
+      font-size: 10px;
+      line-height: 1.3;
+      color: var(--ok-green);
+      min-height: 13px;
+    }
+
+    .vt-msg-line.is-error {
+      color: #ff7b72;
+    }
   </style>
 </head>
 <body>
@@ -940,7 +1119,7 @@
           <span class="loader-step-pip"></span>
         </div>
         <div class="loader-meta-row">
-          <span id="loader-tri-count">0 / 5.656.758 segitiga</span>
+          <span id="loader-tri-count">0 / 5.662.244 segitiga</span>
           <span>&le; 25 Draw Calls · AgX HDR</span>
         </div>
       </div>
@@ -966,7 +1145,7 @@
     <div class="drawer-header">
       <div class="drawer-title">
         <strong>KEPULAUAN UI DEPOK (U &amp; I)</strong>
-        <span>Underpass Laut &middot; Dermaga Utara &middot; Jalan Pulau U</span>
+        <span>Videotron YouTube &middot; Underpass &middot; Dermaga</span>
       </div>
       <div class="header-actions">
         <a class="nav-link-btn" href="./studio.html" title="Buka Meja Inspeksi Studio Kelas-A">Studio &#8599;</a>
@@ -975,7 +1154,8 @@
     </div>
 
     <div class="tab-bar">
-      <button class="tab-btn active" data-tab="explore" type="button">Eksplorasi</button>
+      <button class="tab-btn active" data-tab="explore" type="button">Eksplor</button>
+      <button class="tab-btn" data-tab="videotron" type="button">Videotron</button>
       <button class="tab-btn" data-tab="atmos" type="button">Atmosfer</button>
       <button class="tab-btn" data-tab="audit" type="button">4-Gate</button>
     </div>
@@ -1015,6 +1195,7 @@
             <button class="ctrl-btn" data-preset="underpassBawahLautInterior" type="button"><span class="btn-title">Dalam Underpass</span></button>
             <button class="ctrl-btn" data-preset="dermagaPenyeberanganUtara" type="button"><span class="btn-title">Dermaga Utara</span></button>
             <button class="ctrl-btn" data-preset="jaringanJalanPulauU" type="button"><span class="btn-title">Jalan Pulau U</span></button>
+            <button class="ctrl-btn" data-preset="videotronUI" type="button" style="grid-column: span 2;"><span class="btn-title">&#9654; Videotron Kampus UI (YouTube)</span></button>
           </div>
         </div>
 
@@ -1027,6 +1208,67 @@
             <button class="ctrl-btn" data-cammode="AUTO_CINEMATIC" type="button"><span class="btn-title">Sinematik</span></button>
           </div>
           <p class="hint-text">Gunakan WASD/Panah (dan Q/E pada Drone) + geser layar untuk menjelajah Plaza Rotunda, Helipad VIP, &amp; tepi Danau Kenanga.</p>
+        </div>
+      </div>
+
+      <!-- TAB 2: VIDEOTRON KAMPUS UI (YOUTUBE SINGLE / PLAYLIST / SHORT 2-LAYER BLUR) -->
+      <div class="tab-pane" id="tab-videotron">
+        <div class="vt-status-card">
+          <div class="live-depok-top">
+            <span class="live-badge" style="color: var(--ui-gold);">
+              <span class="live-dot"></span>
+              <span id="vt-detected-badge">SINGLE 16:9</span>
+            </span>
+            <span class="dur-pill">SMD P8 &middot; 12.8&times;7.2m</span>
+          </div>
+          <div class="live-metrics" id="vt-active-title">YouTube &middot; N5vSW33FwQQ</div>
+          <button class="ctrl-btn live-sync-btn" id="btn-vt-focus-cam" type="button">
+            <span class="btn-title">&#9673; Fokus Kamera ke Videotron UI</span>
+          </button>
+        </div>
+
+        <div class="ctrl-group">
+          <span class="ctrl-label">Link YouTube Single / Playlist / Short</span>
+          <textarea
+            id="vt-url-input"
+            class="vt-url-input"
+            rows="2"
+            spellcheck="false"
+            aria-label="Masukkan link YouTube single, playlist, Shorts, atau embed iframe"
+            placeholder="Tempel link YouTube single, playlist (list=...), Shorts, atau kode &lt;iframe&gt;..."
+          >https://www.youtube.com/embed/N5vSW33FwQQ?rel=0</textarea>
+          <div class="btn-grid-2">
+            <button class="ctrl-btn active" id="btn-vt-apply" type="button"><span class="btn-title">&#9654; Putar Link / Playlist</span></button>
+            <button class="ctrl-btn" id="btn-vt-default" type="button"><span class="btn-title">Default UI</span></button>
+          </div>
+          <div class="vt-msg-line" id="vt-status-msg">Siap memutar link YouTube single, playlist, maupun Shorts.</div>
+        </div>
+
+        <div class="ctrl-group">
+          <span class="ctrl-label">Format Layar &amp; Short 2-Lapis Blur</span>
+          <div class="btn-grid-3">
+            <button class="ctrl-btn active" data-vtmode="AUTO" type="button"><span class="btn-title">Otomatis</span></button>
+            <button class="ctrl-btn" data-vtmode="WIDE_16_9" type="button"><span class="btn-title">16:9 Penuh</span></button>
+            <button class="ctrl-btn" data-vtmode="SHORT_2LAYER_BLUR" type="button"><span class="btn-title">Short 2-Lapis</span></button>
+          </div>
+          <p class="hint-text">Link yang berisi video vertikal/Short otomatis ditampilkan 2 lapis: belakang full-width blur &amp; depan tajam 9:16.</p>
+        </div>
+
+        <div class="ctrl-group">
+          <div class="ctrl-label-row">
+            <span class="ctrl-label">Pemutar, Audio &amp; Playlist</span>
+            <strong class="dur-pill" id="label-vt-vol">75%</strong>
+          </div>
+          <div class="btn-grid-2">
+            <button class="ctrl-btn" id="btn-vt-playpause" type="button"><span class="btn-title">Jeda Video</span></button>
+            <button class="ctrl-btn" id="btn-vt-mute" type="button"><span class="btn-title">Suara YT: MUTE</span></button>
+          </div>
+          <input id="slider-vt-vol" class="nexus-slider" type="range" min="0" max="100" step="1" value="75" aria-label="Volume Audio Videotron YouTube" />
+          <div class="btn-grid-3">
+            <button class="ctrl-btn" id="btn-vt-prev" type="button"><span class="btn-title">&#9664; Prev</span></button>
+            <button class="ctrl-btn" id="btn-vt-next" type="button"><span class="btn-title">Next &#9654;</span></button>
+            <button class="ctrl-btn" id="btn-vt-interact" type="button"><span class="btn-title">Klik 3D: OFF</span></button>
+          </div>
         </div>
       </div>
 

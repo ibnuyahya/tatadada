@@ -76,7 +76,7 @@ export class AutogenBiomeSpawner {
     // 12 Palem Raja (Curving Royal Palms lining Lapangan Rotunda UI outer perimeter & Lakeside)
     { species: 'PALEM_RAJA', x: -39.5, z: 93.0, scale: 1.08, yaw: 1.65 },
     { species: 'PALEM_RAJA', x: -37.9, z: 123.8, scale: 1.10, yaw: 0.95 },
-    { species: 'PALEM_RAJA', x: 31.5, z: 88.0, scale: 1.08, yaw: 4.55 },
+    { species: 'PALEM_RAJA', x: 33.2, z: 90.2, scale: 1.08, yaw: 4.55 },
     { species: 'PALEM_RAJA', x: 36.75, z: 106.5, scale: 1.10, yaw: 4.82 },
     { species: 'PALEM_RAJA', x: 32.6, z: 125.6, scale: 1.07, yaw: 5.25 },
     { species: 'PALEM_RAJA', x: 51.0, z: 18.5, scale: 1.08, yaw: 1.52 },
@@ -85,7 +85,7 @@ export class AutogenBiomeSpawner {
     { species: 'PALEM_RAJA', x: 49.5, z: -32.0, scale: 1.06, yaw: 1.48 },
     { species: 'PALEM_RAJA', x: 47.0, z: -46.0, scale: 1.08, yaw: 1.42 },
     { species: 'PALEM_RAJA', x: -25.8, z: 73.6, scale: 1.06, yaw: 2.35 },
-    { species: 'PALEM_RAJA', x: 20.8, z: 73.6, scale: 1.06, yaw: 3.92 }
+    { species: 'PALEM_RAJA', x: 18.2, z: 72.5, scale: 1.06, yaw: 3.92 }
   ];
 
   /**
@@ -167,6 +167,8 @@ export class AutogenBiomeSpawner {
     if (x > -21.8 && x < 16.8 && z >= 38.0 && z <= 73.5) return false;
     if (x > -6.0 && x < 51.0 && z > -54.5 && z <= -34.0) return false;
     if (Math.hypot(x - 29.5, z - 29.5) < 10.6) return false;
+    // Outdoor Campus Monopole LED Videotron Plinth & Sightline Clearance Zone (28.4, 78.2)
+    if (Math.hypot(x - 28.4, z - 78.2) < 9.5) return false;
     if (z >= 33.0 && z <= 130.0) {
       const walkwayX = 34.2 + ((z - 35.5) / 92.5) * 9.6;
       if (Math.abs(x - walkwayX) < 4.6) return false;

@@ -144,6 +144,11 @@ export const GEDUNG_REKTORAT_UI_META = {
     jaringanJalanPulauU: {
       pos: { x: -565.0, y: 470.0, z: 348.0 },
       target: { x: -175.0, y: 0.0, z: 348.0 }
+    },
+    // Hero Front-Oblique Campus View of Outdoor Monopole Widescreen LED Videotron UI (12.80m x 7.20m YouTube / Shorts Display)
+    videotronUI: {
+      pos: { x: 4.8, y: 8.6, z: 99.5 },
+      target: { x: 27.6, y: 8.9, z: 78.0 }
     }
   }
 };

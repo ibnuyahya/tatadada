@@ -28,6 +28,18 @@ export class SplineCorridorBuilder {
   static SKIRT_BOTTOM_Y = -2.5;
   static ROTUNDA_CX = -2.5;
   static ROTUNDA_CZ = 106.5;
+  static VIDEOTRON_SPEC = Object.freeze({
+    cx: 28.4,
+    cz: 78.2,
+    yaw: -0.82928487, // Exact tangent to Lapangan Rotunda UI circle (-2.5, 106.5): atan2(-30.9, 28.3) = -47.51 deg
+    screenCenterY: 9.48,
+    screenW: 12.80,
+    screenH: 7.20,
+    screenFwdOffset: 0.302,
+    cabinetHalfW: 6.84,
+    cabinetMinY: 5.36,
+    cabinetMaxY: 13.86
+  });
 
   static _createHighPrecisionSpline(points, closed = false) {
     const curve = new THREE.CatmullRomCurve3(points, closed);
@@ -4552,6 +4564,273 @@ export class SplineCorridorBuilder {
   }
 
   /**
+   * Builds the High-Detail Outdoor Campus Monopole Widescreen LED Videotron ("Videotron Kampus UI")
+   * on the South-East Rotunda Lawn (28.4, 78.2, yaw = -0.26 rad facing Lapangan Rotunda UI):
+   * - Sculpted 16-sided Precast Concrete Pedestal + UI Gold Collar + Bolted Steel Flange + 12 Anchor Bolts + 8 Gusset Ribs
+   * - Tapered Structural Steel Monopole Shaft + Rear IP65 Novastar/Power Control Box + Rear OSHA Caged Service Ladder
+   * - Cantilever Space-Frame Steel K-Truss + 2-Tier Galvanized Rear Maintenance Catwalks with Safety Handrails
+   * - 13.68m x 8.10m Die-Cast Outdoor LED Cabinet Housing, 32 Rear Service Doors with Cooling Louvers, UI Precast Side Pilasters,
+   *   8-Pod Bottom Line-Array Speaker Bar, Angled Tropical Anti-Glare Rain/Sun Visor Hood, UI Makara Crown Header,
+   *   Twin Night Obstruction Red Beacons, & Active 12.80m x 7.20m (16:9) SMD P8 Front LED Screen Surface (+0 Draw Calls!).
+   */
+  static _buildKampusUIVideotron() {
+    const acc = SplineCorridorBuilder._createDualBufferAccumulator();
+    const spec = SplineCorridorBuilder.VIDEOTRON_SPEC;
+    const { cx, cz, yaw } = spec;
+    const cY = Math.cos(yaw);
+    const sY = Math.sin(yaw);
+    const gy = Math.max(0.0, TerrainDEMLoader.sampleGroundHeight(cx, cz));
+
+    // Local frame -> World coordinates: +lx = screen right, +ly = world Y, +lz = screen outward normal (+fwd)
+    const toW = (lx, ly, lz) => [cx + lx * cY + lz * sY, ly, cz - lx * sY + lz * cY];
+    const placeGeo = (geo, lx, ly, lz, rx = 0, ry = 0, rz = 0) => {
+      if (rx !== 0) geo.rotateX(rx);
+      if (ry !== 0) geo.rotateY(ry);
+      if (rz !== 0) geo.rotateZ(rz);
+      geo.rotateY(yaw);
+      const [wx, wy, wz] = toW(lx, ly, lz);
+      geo.translate(wx, wy, wz);
+      return geo;
+    };
+    const tubeLocalH = (x0, y0, z0, x1, y1, z1, r0, r1, segs, col, capped = false) => {
+      const a = toW(x0, y0, z0);
+      const b = toW(x1, y1, z1);
+      acc.tubeH(a[0], a[1], a[2], b[0], b[1], b[2], r0, r1, segs, col, capped);
+    };
+
+    const precastCream = [0.94, 0.92, 0.88];
+    const uiGold = [0.90, 0.70, 0.16];
+    const darkSteel = [0.15, 0.17, 0.20];
+    const charcoalCabinet = [0.10, 0.12, 0.15];
+    const matteBlackBezel = [0.055, 0.062, 0.075];
+    const galvSteel = [0.58, 0.61, 0.65];
+    const ctrlBoxSlate = [0.27, 0.30, 0.34];
+    const speakerGrille = [0.075, 0.082, 0.096];
+    const ledDoorGrey = [0.18, 0.20, 0.24];
+    const beaconRed = [0.96, 0.08, 0.06];
+    const statusGreen = [0.08, 0.92, 0.38];
+
+    // 1. 16-Sided Precast Concrete Foundation Plinth, Sub-Terrain Skirt, & UI Gold Collar
+    const plinthTopY = gy + 0.74;
+    const plinthH = plinthTopY - SplineCorridorBuilder.SKIRT_BOTTOM_Y;
+    acc.appendV(
+      placeGeo(new THREE.CylinderGeometry(1.26, 1.34, plinthH, 16, 1), 0, SplineCorridorBuilder.SKIRT_BOTTOM_Y + plinthH * 0.5, 0),
+      precastCream
+    );
+    acc.appendV(
+      placeGeo(new THREE.CylinderGeometry(1.10, 1.26, 0.14, 16, 1), 0, plinthTopY + 0.07, 0),
+      precastCream
+    );
+    acc.appendH(
+      placeGeo(new THREE.CylinderGeometry(1.285, 1.285, 0.10, 16, 1), 0, gy + 0.54, 0),
+      uiGold
+    );
+
+    // 2. Heavy Bolted Steel Baseplate Flange, 12 Hex Anchor Bolts, 8 Radial Gusset Ribs, & Tapered Monopole Shaft
+    const flangeY = plinthTopY + 0.18;
+    acc.appendH(
+      placeGeo(new THREE.CylinderGeometry(1.02, 1.04, 0.08, 24, 1), 0, flangeY, 0),
+      darkSteel
+    );
+    for (let i = 0; i < 12; i++) {
+      const ang = (i / 12) * Math.PI * 2.0;
+      const bx = Math.cos(ang) * 0.89;
+      const bz = Math.sin(ang) * 0.89;
+      acc.appendH(
+        placeGeo(new THREE.CylinderGeometry(0.038, 0.038, 0.075, 6, 1), bx, flangeY + 0.065, bz),
+        galvSteel
+      );
+    }
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2.0;
+      const gx = Math.cos(ang) * 0.74;
+      const gz = Math.sin(ang) * 0.74;
+      const gusset = new THREE.BoxGeometry(0.042, 0.70, 0.42);
+      gusset.rotateY(-ang + Math.PI * 0.5);
+      acc.appendH(placeGeo(gusset, gx, flangeY + 0.37, gz), darkSteel);
+    }
+
+    const poleBotY = flangeY + 0.02;
+    const poleTopY = 5.44;
+    const poleH = poleTopY - poleBotY;
+    acc.appendH(
+      placeGeo(new THREE.CylinderGeometry(0.52, 0.57, poleH, 24, 1), 0, poleBotY + poleH * 0.5, 0),
+      darkSteel
+    );
+    // Mid-height welded splice flange ring & top structural saddle headplate
+    acc.appendH(
+      placeGeo(new THREE.CylinderGeometry(0.60, 0.60, 0.09, 24, 1), 0, 3.22, 0),
+      galvSteel
+    );
+    acc.appendH(
+      placeGeo(new THREE.BoxGeometry(1.62, 0.18, 1.18), 0, 5.42, -0.08),
+      darkSteel
+    );
+    // Armored power & fiber-optic conduit riser pipe along rear monopole face
+    tubeLocalH(-0.32, poleBotY, -0.55, -0.32, 5.38, -0.52, 0.062, 0.062, 8, galvSteel, true);
+
+    // 3. Rear IP65 Weatherproof Novastar / Power Distribution Cabinet & OSHA Caged Maintenance Ladder
+    acc.appendH(
+      placeGeo(new THREE.BoxGeometry(0.74, 0.94, 0.38), -0.26, 1.92, -0.73),
+      ctrlBoxSlate
+    );
+    acc.appendH(
+      placeGeo(new THREE.BoxGeometry(0.80, 0.05, 0.44), -0.26, 2.41, -0.74, -0.10, 0, 0),
+      darkSteel
+    );
+    for (let lv = 0; lv < 4; lv++) {
+      acc.appendH(
+        placeGeo(new THREE.BoxGeometry(0.52, 0.025, 0.02), -0.26, 1.66 + lv * 0.08, -0.925),
+        matteBlackBezel
+      );
+    }
+    // Live Night-Glowing Emerald Status Indicator LED on Novastar Controller Door
+    acc.appendH(
+      placeGeo(new THREE.SphereGeometry(0.026, 8, 6), -0.04, 2.22, -0.925),
+      statusGreen
+    );
+
+    // Rear Vertical Service Ladder (lx = +0.34, lz = -0.66) + Safety Cage Hoops (y = 2.25..5.30m)
+    const ladX0 = 0.16;
+    const ladX1 = 0.52;
+    const ladZ = -0.64;
+    tubeLocalH(ladX0, flangeY + 0.04, ladZ, ladX0, 5.40, ladZ, 0.024, 0.024, 6, galvSteel, true);
+    tubeLocalH(ladX1, flangeY + 0.04, ladZ, ladX1, 5.40, ladZ, 0.024, 0.024, 6, galvSteel, true);
+    for (let ry = flangeY + 0.28; ry <= 5.28; ry += 0.31) {
+      tubeLocalH(ladX0, ry, ladZ, ladX1, ry, ladZ, 0.016, 0.016, 6, galvSteel, false);
+    }
+    for (const standY of [1.55, 2.85, 4.15, 5.20]) {
+      tubeLocalH(ladX0, standY, -0.50, ladX0, standY, ladZ, 0.020, 0.020, 6, darkSteel, false);
+      tubeLocalH(ladX1, standY, -0.50, ladX1, standY, ladZ, 0.020, 0.020, 6, darkSteel, false);
+    }
+    const cageHoopYs = [2.30, 3.05, 3.80, 4.55, 5.26];
+    for (const hy of cageHoopYs) {
+      const hoop = new THREE.TorusGeometry(0.35, 0.017, 6, 12, Math.PI * 1.32);
+      hoop.rotateX(Math.PI * 0.5);
+      hoop.rotateY(-Math.PI * 0.16);
+      acc.appendH(placeGeo(hoop, 0.34, hy, -0.82), galvSteel);
+    }
+    for (const ang of [-2.25, -1.57, -0.88]) {
+      const sx = 0.34 + Math.cos(ang) * 0.35;
+      const sz = -0.82 + Math.sin(ang) * 0.35;
+      tubeLocalH(sx, 2.30, sz, sx, 5.26, sz, 0.014, 0.014, 6, galvSteel, false);
+    }
+
+    // 4. Cantilever Space-Frame Steel K-Truss & 2-Tier Rear Maintenance Catwalks with Handrails
+    acc.appendH(placeGeo(new THREE.BoxGeometry(13.28, 0.34, 0.32), 0, 5.54, -0.38), darkSteel);
+    acc.appendH(placeGeo(new THREE.BoxGeometry(13.20, 0.20, 0.24), 0, 9.36, -0.36), darkSteel);
+    acc.appendH(placeGeo(new THREE.BoxGeometry(13.28, 0.28, 0.28), 0, 12.94, -0.38), darkSteel);
+
+    const trussColsX = [-6.20, -3.72, -1.24, 1.24, 3.72, 6.20];
+    for (const tx of trussColsX) {
+      acc.appendH(placeGeo(new THREE.BoxGeometry(0.18, 7.56, 0.22), tx, 9.24, -0.36), darkSteel);
+    }
+    // Primary Cantilever Diagonal Support Struts from Monopole Collar out to Spreader Girder
+    for (const sgn of [-1, 1]) {
+      tubeLocalH(sgn * 0.42, 3.75, -0.14, sgn * 3.72, 5.46, -0.38, 0.095, 0.088, 10, darkSteel, true);
+      tubeLocalH(sgn * 0.46, 4.35, -0.16, sgn * 6.20, 5.46, -0.38, 0.082, 0.076, 10, darkSteel, true);
+    }
+    // Rear Space-Frame K-Brace Diagonal Struts across Truss Bays
+    for (let b = 0; b < trussColsX.length - 1; b++) {
+      const xA = trussColsX[b];
+      const xB = trussColsX[b + 1];
+      const xMid = 0.5 * (xA + xB);
+      tubeLocalH(xA, 5.62, -0.38, xMid, 9.34, -0.38, 0.048, 0.048, 6, darkSteel, false);
+      tubeLocalH(xB, 5.62, -0.38, xMid, 9.34, -0.38, 0.048, 0.048, 6, darkSteel, false);
+      tubeLocalH(xA, 12.88, -0.38, xMid, 9.38, -0.38, 0.048, 0.048, 6, darkSteel, false);
+      tubeLocalH(xB, 12.88, -0.38, xMid, 9.38, -0.38, 0.048, 0.048, 6, darkSteel, false);
+    }
+
+    // 2-Tier Rear Galvanized Service Catwalks (y = 5.42m & y = 9.38m) + 0.98m Safety Handrails
+    for (const cwY of [5.42, 9.38]) {
+      acc.appendH(placeGeo(new THREE.BoxGeometry(13.06, 0.055, 0.52), 0, cwY, -0.70), galvSteel);
+      acc.appendH(placeGeo(new THREE.BoxGeometry(13.06, 0.11, 0.03), 0, cwY + 0.06, -0.95), darkSteel);
+      tubeLocalH(-6.52, cwY + 0.98, -0.95, 6.52, cwY + 0.98, -0.95, 0.022, 0.022, 6, galvSteel, true);
+      tubeLocalH(-6.52, cwY + 0.50, -0.95, 6.52, cwY + 0.50, -0.95, 0.018, 0.018, 6, galvSteel, true);
+      for (let px = -6.50; px <= 6.51; px += 2.166) {
+        tubeLocalH(px, cwY, -0.95, px, cwY + 0.98, -0.95, 0.022, 0.022, 6, galvSteel, true);
+      }
+      for (const endSgn of [-1, 1]) {
+        const ex = endSgn * 6.51;
+        tubeLocalH(ex, cwY + 0.98, -0.44, ex, cwY + 0.98, -0.95, 0.020, 0.020, 6, galvSteel, false);
+        tubeLocalH(ex, cwY + 0.50, -0.44, ex, cwY + 0.50, -0.95, 0.018, 0.018, 6, galvSteel, false);
+      }
+    }
+
+    // 5. Modular Outdoor Die-Cast LED Cabinet Housing, 32 Rear Service Doors, UI Side Pilasters & Bezel
+    // Backing enclosure behind active LED plane (zLocal = -0.24 .. +0.26m)
+    acc.appendH(placeGeo(new THREE.BoxGeometry(13.36, 7.96, 0.50), 0, 9.38, 0.01), charcoalCabinet);
+
+    // 4 Front Recessed Matte-Black Anti-Reflective Bezel Frame Bars around exact 12.80m x 7.20m (y = 5.88..13.08m) LED Matrix
+    acc.appendH(placeGeo(new THREE.BoxGeometry(13.36, 0.28, 0.11), 0, 13.22, 0.305), matteBlackBezel);
+    acc.appendH(placeGeo(new THREE.BoxGeometry(13.36, 0.10, 0.11), 0, 5.83, 0.305), matteBlackBezel);
+    for (const sgn of [-1, 1]) {
+      acc.appendH(placeGeo(new THREE.BoxGeometry(0.28, 7.20, 0.11), sgn * 6.54, 9.48, 0.305), matteBlackBezel);
+      // Architectural UI Precast Concrete Side Cheek Pilasters + Vertical UI Gold Pinstripe Accent
+      acc.appendV(placeGeo(new THREE.BoxGeometry(0.18, 8.04, 0.58), sgn * 6.76, 9.38, 0.04), precastCream);
+      acc.appendH(placeGeo(new THREE.BoxGeometry(0.045, 7.88, 0.04), sgn * 6.76, 9.38, 0.345), uiGold);
+    }
+
+    // 8 x 4 = 32 Individual Rear Die-Cast LED Service Cabinet Doors with Cooling Louvers & Latches (zLocal = -0.255m)
+    for (let r = 0; r < 4; r++) {
+      const cyDoor = 6.38 + r * 1.84;
+      for (let c = 0; c < 8; c++) {
+        const cxDoor = -5.60 + c * 1.60;
+        acc.appendH(placeGeo(new THREE.BoxGeometry(1.48, 1.70, 0.036), cxDoor, cyDoor, -0.255), ledDoorGrey);
+        acc.appendH(placeGeo(new THREE.BoxGeometry(1.16, 0.12, 0.018), cxDoor, cyDoor + 0.52, -0.28), matteBlackBezel);
+        acc.appendH(placeGeo(new THREE.BoxGeometry(1.16, 0.12, 0.018), cxDoor, cyDoor - 0.52, -0.28), matteBlackBezel);
+        acc.appendH(placeGeo(new THREE.BoxGeometry(0.06, 0.22, 0.025), cxDoor + 0.58, cyDoor, -0.282), galvSteel);
+      }
+    }
+
+    // 6. Bottom Integrated 8-Pod Outdoor Line-Array Speaker Bar (y = 5.38..5.80m, zLocal = +0.33m)
+    acc.appendH(placeGeo(new THREE.BoxGeometry(13.36, 0.42, 0.16), 0, 5.59, 0.31), charcoalCabinet);
+    for (let sp = 0; sp < 8; sp++) {
+      const sxPod = -5.46 + sp * 1.56;
+      acc.appendH(
+        placeGeo(new THREE.BoxGeometry(1.38, 0.30, 0.05), sxPod, 5.60, 0.40, 0.08, 0, 0),
+        speakerGrille
+      );
+    }
+    acc.appendH(placeGeo(new THREE.BoxGeometry(3.20, 0.055, 0.03), 0, 5.40, 0.395), uiGold);
+
+    // 7. Top Tropical Anti-Glare Rain & Sun Visor Hood (projecting +0.48m forward at y = 13.12..13.36m)
+    acc.appendH(
+      placeGeo(new THREE.BoxGeometry(13.74, 0.075, 0.52), 0, 13.25, 0.52, 0.22, 0, 0),
+      charcoalCabinet
+    );
+    acc.appendH(placeGeo(new THREE.BoxGeometry(13.74, 0.045, 0.04), 0, 13.18, 0.77), uiGold);
+    for (const sgn of [-1, 1]) {
+      // Side sun-blinder wings flanking the LED display
+      acc.appendH(placeGeo(new THREE.BoxGeometry(0.055, 7.42, 0.26), sgn * 6.66, 9.52, 0.46), charcoalCabinet);
+    }
+
+    // 8. Top UI Nusantara Header Crown & Sculpted 3D Golden Makara Diamond Crest + Twin Red Night Beacons
+    acc.appendH(placeGeo(new THREE.BoxGeometry(8.60, 0.48, 0.26), 0, 13.60, 0.22), charcoalCabinet);
+    acc.appendH(placeGeo(new THREE.BoxGeometry(8.76, 0.06, 0.30), 0, 13.86, 0.23), uiGold);
+    const diamondCrest = new THREE.BoxGeometry(0.32, 0.32, 0.07);
+    diamondCrest.rotateZ(Math.PI * 0.25);
+    acc.appendH(placeGeo(diamondCrest, 0, 13.61, 0.37), uiGold);
+    for (const sgn of [-1, 1]) {
+      acc.appendH(placeGeo(new THREE.BoxGeometry(2.85, 0.075, 0.04), sgn * 2.15, 13.61, 0.365), uiGold);
+      // Twin Red Night Aviation / Obstruction Beacons (y = 13.94m > 5.2m night pulsing threshold!)
+      tubeLocalH(sgn * 6.56, 13.40, 0.08, sgn * 6.56, 13.84, 0.08, 0.032, 0.028, 8, galvSteel, true);
+      acc.appendH(placeGeo(new THREE.SphereGeometry(0.11, 10, 8), sgn * 6.56, 13.93, 0.08), beaconRed);
+    }
+
+    // 9. Active 12.80m x 7.20m (16:9) Front SMD P8 LED Screen Quad (Tagged with UV Sentinel v = -1050.0!)
+    const screenPlane = placeGeo(
+      new THREE.PlaneGeometry(spec.screenW, spec.screenH, 1, 1),
+      0,
+      spec.screenCenterY,
+      spec.screenFwdOffset
+    );
+    acc.appendH(screenPlane, [0.06, 0.07, 0.09], [0.5, -1050.0]);
+
+    return acc.finalize();
+  }
+
+  /**
    * Builds the complete Mavic-calibrated Lapangan Rotunda UI, Zebra Curbs, Botanical Centerpiece,
    * Campus Park Benches & Bollards, West Parking, East Lakeside Promenade, & Long SE Covered Walkway
    * in STRICTLY 2 DRAW CALLS!
@@ -4816,7 +5095,14 @@ export class SplineCorridorBuilder {
       SplineCorridorBuilder._buildDermagaPenyeberanganUtaraUI()
     );
 
-    // Hukum Emas 12: Batch all decks/roofs/topiary/teak/helipad/runway/bridge/roads/underpass/piers into Draw Call #1 & all curbs/columns/bollards into Draw Call #2!
+    // 16. Outdoor Campus Monopole Widescreen LED Videotron ("Videotron Kampus UI" — 12.80m x 7.20m SMD P8 Display,
+    //     Octagonal Precast Plinth, Monopole + Rear Novastar Box + Caged Ladder, Space-Frame K-Truss & 2-Tier Catwalks!)
+    addPair(
+      'KampusUI_MonopoleVideotron',
+      SplineCorridorBuilder._buildKampusUIVideotron()
+    );
+
+    // Hukum Emas 12: Batch all decks/roofs/topiary/teak/helipad/runway/bridge/roads/underpass/piers/videotron into Draw Call #1 & all curbs/columns/bollards into Draw Call #2!
     NexusBatchOptimizer.optimizeHierarchy(corridorGroup);
     corridorGroup.updateMatrixWorld(true);
     return corridorGroup;
@@ -5081,6 +5367,44 @@ export class SplineCorridorBuilder {
       minY: -1.0,
       maxY: 0.90
     });
+
+    // Outdoor Campus Monopole Widescreen LED Videotron Solid-Body Colliders (Pedestal, Monopole/ControlBox, & Upper Cabinet/Catwalk)
+    {
+      const vt = SplineCorridorBuilder.VIDEOTRON_SPEC;
+      const vtFwdX = Math.sin(vt.yaw);
+      const vtFwdZ = Math.cos(vt.yaw);
+      pushStatic({
+        id: 'Videotron_Pedestal',
+        type: 'CYL',
+        x: vt.cx,
+        z: vt.cz,
+        r: 1.36,
+        minY: -1.0,
+        maxY: 1.02
+      });
+      pushStatic({
+        id: 'Videotron_MonopoleAndControlBox',
+        type: 'OBB',
+        cx: vt.cx - vtFwdX * 0.22,
+        cz: vt.cz - vtFwdZ * 0.22,
+        halfW: 0.78,
+        halfL: 0.90,
+        yaw: vt.yaw,
+        minY: 0.92,
+        maxY: 5.38
+      });
+      pushStatic({
+        id: 'Videotron_CabinetAndCatwalk',
+        type: 'OBB',
+        cx: vt.cx - vtFwdX * 0.10,
+        cz: vt.cz - vtFwdZ * 0.10,
+        halfW: 6.90,
+        halfL: 0.92,
+        yaw: vt.yaw,
+        minY: 5.34,
+        maxY: 14.02
+      });
+    }
 
     const seWalkwaySpline = SplineCorridorBuilder._createHighPrecisionSpline(
       [

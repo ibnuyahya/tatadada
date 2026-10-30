@@ -205,7 +205,16 @@ export class CameraDirector {
 
   bindKeyboard(targetWindow = typeof window !== 'undefined' ? window : null) {
     if (!targetWindow) return;
+    const isEditableTarget = (el) => {
+      if (!el || typeof el !== 'object') return false;
+      const tag = typeof el.tagName === 'string' ? el.tagName.toUpperCase() : '';
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || Boolean(el.isContentEditable);
+    };
     targetWindow.addEventListener('keydown', (e) => {
+      if (isEditableTarget(e && e.target)) {
+        this.keyState.clear();
+        return;
+      }
       this.keyState.add(e.code);
     });
     targetWindow.addEventListener('keyup', (e) => {
