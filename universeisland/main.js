@@ -25,7 +25,7 @@ const TOD_LABELS = {
   NIGHT: 'Malam'
 };
 
-const TOTAL_EXPECTED_TRIS = 5476400;
+const TOTAL_EXPECTED_TRIS = 5541566;
 
 function yieldToBrowserFrame() {
   return new Promise((resolve) => {
@@ -247,16 +247,16 @@ async function bootstrapNexusSimulator() {
     sharedUniforms
   );
 
-  // Stage 5: Build Plaza Rotunda Makara UI, VIP Helipad (Pulau U), & Landasan Pacu RWY 36/18 (Pulau I)
-  await preloader.advance(5, 70, 'Merakit Plaza Rotunda, Helipad VIP & Landasan Pacu Pulau I...', 1072000);
+  // Stage 5: Build Plaza Rotunda Makara UI, Jembatan Teksas UI, VIP Helipad (Pulau U), & Landasan Pacu RWY 36/18 (Pulau I)
+  await preloader.advance(5, 70, 'Merakit Plaza Rotunda, Jembatan Teksas UI, Helipad VIP & Landasan Pacu Pulau I...', 1118000);
   const corridorGroup = SplineCorridorBuilder.buildRotundaAndPromenades(sharedUniforms);
 
-  // Stage 6: Build Dense Southern Highland Rainforest (Pulau U), Sparse Montane Forest (Pulau I) & 40 Photocell Streetlamps
-  await preloader.advance(6, 82, 'Menumbuhkan Hutan Lebat Pulau U, Lereng Gunung Pulau I, & 40 Lampu Sensor Cahaya...', 4853072);
+  // Stage 6: Build Dense Southern Highland Rainforest (Pulau U), Sparse Montane Forest (Pulau I) & 44 Photocell Streetlamps
+  await preloader.advance(6, 82, 'Menumbuhkan Hutan Lebat Pulau U, Lereng Gunung Pulau I, & 44 Lampu Sensor Cahaya...', 4899000);
   const biomeGroup = AutogenBiomeSpawner.buildCampusBiome(groundHeightFn, sharedUniforms);
 
-  // Stage 7: Build 45 22-Joint Sivitas Akademika NPCs + Patrolling Electric Golf Cart + 48 Cats + 12 Distant Marine Vessels
-  await preloader.advance(7, 92, 'Menghadirkan 45 Sivitas Akademika, Mobil Golf Listrik UI, 48 Kucing, & 12 Kapal/Perahu...', TOTAL_EXPECTED_TRIS);
+  // Stage 7: Build 48 22-Joint Sivitas Akademika NPCs + Patrolling Electric Golf Cart + 48 Cats + Mini Yacht + 12 Marine Vessels
+  await preloader.advance(7, 92, 'Menghadirkan 48 Sivitas Akademika, Mobil Golf UI, Mini Yacht Teluk U, & 48 Kucing...', TOTAL_EXPECTED_TRIS);
   const sivitasAI = new DynamicTrafficAI(groundHeightFn, sharedUniforms);
   const sivitasGroup = sivitasAI.build();
 
@@ -289,13 +289,20 @@ async function bootstrapNexusSimulator() {
       cx: TerrainDEMLoader.ISLAND_CX,
       cz: TerrainDEMLoader.ISLAND_CZ,
       coastDistFn: TerrainDEMLoader.getIslandCoastDistance,
+      bridgeDeckFn: TerrainDEMLoader.sampleTeksasBridgeDeckY,
+      bridgeCenterX: TerrainDEMLoader.TEKSAS_BRIDGE_X,
+      bridgeWalkHalfW: 2.35,
       margin: 0.95,
       minY: -10.0,
-      maxY: 2.35
+      maxY: 12.5
     }
   ];
 
   const sampleWalkableElevation = (x, z) => {
+    const teksasDeckY = TerrainDEMLoader.sampleTeksasBridgeDeckY(x, z);
+    if (teksasDeckY !== null) {
+      return teksasDeckY + 0.02;
+    }
     if (x >= -36.0 && x <= 36.0 && z >= -35.0 && z <= 39.0) {
       return 0.13;
     }

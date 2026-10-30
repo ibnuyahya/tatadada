@@ -118,6 +118,12 @@ export const GEDUNG_REKTORAT_UI_META = {
     perahuLautUI: {
       pos: { x: 54.0, y: 24.0, z: 18.0 },
       target: { x: 460.0, y: 4.0, z: 380.0 }
+    },
+    // Hero Architectural & Maritime Clearance Vista of Jembatan Teksas UI (Pilon Lingga 25m, 7-Segment BTKC Arch,
+    // 30 Blue Wave Sunroofs, Pilon Yoni 15m, & 44-ft Flybridge Mini Yacht cruising underneath across Teluk U!)
+    jembatanTeksasUI: {
+      pos: { x: -188.0, y: 29.5, z: 232.0 },
+      target: { x: -26.0, y: 9.2, z: 245.65 }
     }
   }
 };

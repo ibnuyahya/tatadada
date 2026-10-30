@@ -109,6 +109,11 @@ export class AutogenBiomeSpawner {
       return false;
     }
 
+    // Jembatan Teksas UI West Connector, Forecourt, Span, & East FIB Overlook Plaza sightline corridor
+    if (Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) < 13.5 && z > 129.0 && z < 354.0) {
+      return false;
+    }
+
     // True 360-degree closed island shoreline safety margin (keeps all trunks >= 3.5m inside stone turap!)
     if (TerrainDEMLoader.getIslandCoastDistance(x, z) > -3.5) return false;
 
@@ -1192,6 +1197,13 @@ export class AutogenBiomeSpawner {
     for (let k = 0; k < 4; k++) {
       lampCoords.push({ x: -276.5 + k * 15.0, z: 658.4 });
     }
+    // Group G (4): Jembatan Teksas UI West Pilon Lingga Forecourt & East Pilon Yoni FIB Overlook Plaza
+    lampCoords.push(
+      { x: TerrainDEMLoader.TEKSAS_BRIDGE_X + 5.8, z: 148.5 },
+      { x: TerrainDEMLoader.TEKSAS_BRIDGE_X - 5.8, z: 148.5 },
+      { x: TerrainDEMLoader.TEKSAS_BRIDGE_X + 5.8, z: 343.5 },
+      { x: TerrainDEMLoader.TEKSAS_BRIDGE_X - 5.8, z: 343.5 }
+    );
 
     const lampMat = new THREE.MeshStandardMaterial({
       name: 'CampusGardenLampMat',

@@ -157,6 +157,18 @@ export function resolveSoftSpatialCollision(
         avoided = true;
       }
     } else if (c.type === 'ISLAND_PERIMETER' && typeof c.coastDistFn === 'function') {
+      if (typeof c.bridgeDeckFn === 'function' && c.bridgeDeckFn(pos.x, pos.z) !== null) {
+        const bx = Number.isFinite(c.bridgeCenterX) ? c.bridgeCenterX : -28.0;
+        const maxHalfW = Number.isFinite(c.bridgeWalkHalfW) ? c.bridgeWalkHalfW : 2.35;
+        const dxB = pos.x - bx;
+        if (Math.abs(dxB) > maxHalfW) {
+          const targetX = bx + Math.sign(dxB) * maxHalfW;
+          pos.x += (targetX - pos.x) * Math.max(0.45, softBlend);
+          if (vel && vel.x * dxB > 0) vel.x = 0;
+          avoided = true;
+        }
+        continue;
+      }
       const dCoast = c.coastDistFn(pos.x, pos.z);
       const maxInlandEdge = -(c.margin || 0.9);
       if (dCoast > maxInlandEdge) {

@@ -726,4 +726,189 @@ export class CampusTransitAndMarineBuilder {
 
     return acc.toBundle();
   }
+
+  /**
+   * Builds a Sleek 44-ft (13.4m) Pearl-White & Royal-Navy Flybridge Mini Yacht ("Mini Yacht Teluk U"):
+   * - Exact air draft = 5.05m above waterline (world top = +3.60m at WATER_LEVEL_Y = -1.45m),
+   *   cruising smoothly underneath Jembatan Teksas UI's +7.80m soffit (9.25m air-draft clearance -> +4.20m spare headroom!).
+   * - Deep-V planing hull, teak swim platform & aft lounge, foredeck sunpads, stainless bow pulpit rails,
+   *   panoramic saloon windows (warm dusk/night cabin glow), upper flybridge helm, swept radar arch + radome, & COLREGs lights.
+   */
+  static buildFlybridgeMiniYacht() {
+    const acc = new RigidJointBundleAccumulator();
+
+    const yachtWhite = [0.95, 0.96, 0.98];
+    const royalNavy = [0.09, 0.20, 0.40];
+    const goldStripe = [0.90, 0.68, 0.14];
+    const teakDeck = [0.54, 0.36, 0.20];
+    const cushionCream = [0.89, 0.85, 0.76];
+    const stainless = [0.84, 0.87, 0.91];
+    const tintedGlass = [0.16, 0.24, 0.32];
+
+    // 1. Deep-V Planing Hull (+Z Bow, -Z Stern, Waterline y = 0.0m, LOA = 13.4m, Beam = 4.05m)
+    const lowerChine = new THREE.BoxGeometry(3.55, 0.52, 8.8);
+    lowerChine.translate(0.0, 0.22, -0.8);
+    acc.addGeo(lowerChine, royalNavy, HUMAN_MAT.VEHICLE_GLOSS, 0, 0.92);
+
+    const goldBoot = new THREE.BoxGeometry(3.72, 0.08, 9.0);
+    goldBoot.translate(0.0, 0.50, -0.75);
+    acc.addGeo(goldBoot, goldStripe, HUMAN_MAT.CREST_GOLD, 0, 0.98);
+
+    const upperFreeboard = new THREE.BoxGeometry(3.96, 0.96, 8.9);
+    upperFreeboard.translate(0.0, 1.00, -0.75);
+    acc.addGeo(upperFreeboard, yachtWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 0.98);
+
+    // Hull dark-tinted hullside porthole window strips
+    const hullWindowStrip = new THREE.BoxGeometry(4.02, 0.22, 4.6);
+    hullWindowStrip.translate(0.0, 0.98, 0.35);
+    acc.addGeo(hullWindowStrip, tintedGlass, HUMAN_MAT.BOAT_LANTERN, 0, 0.98, 3.0);
+
+    // Raked Flared Clipper Bow (+Z: z = +3.7m .. +6.7m)
+    const bowLower = new THREE.ConeGeometry(2.52, 3.6, 4, 1);
+    bowLower.rotateY(Math.PI * 0.25);
+    bowLower.rotateX(Math.PI * 0.5);
+    bowLower.scale(1.0, 0.42, 1.0);
+    bowLower.translate(0.0, 0.72, 4.95);
+    acc.addGeo(bowLower, royalNavy, HUMAN_MAT.VEHICLE_GLOSS, 0, 0.95);
+
+    const bowUpper = new THREE.ConeGeometry(2.80, 3.85, 4, 1);
+    bowUpper.rotateY(Math.PI * 0.25);
+    bowUpper.rotateX(Math.PI * 0.5);
+    bowUpper.scale(1.0, 0.46, 1.0);
+    bowUpper.translate(0.0, 1.18, 5.15);
+    acc.addGeo(bowUpper, yachtWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+
+    // 2. Teak Aft Swim Platform, Transom Steps, Aft Cockpit Sofa, & Foredeck Sunpads
+    const swimPlatform = new THREE.BoxGeometry(3.68, 0.16, 1.48);
+    swimPlatform.translate(0.0, 0.24, -5.88);
+    acc.addGeo(swimPlatform, teakDeck, HUMAN_MAT.SHOE_BAG, 0, 0.95);
+
+    const swimTrim = new THREE.BoxGeometry(3.76, 0.12, 1.54);
+    swimTrim.translate(0.0, 0.18, -5.90);
+    acc.addGeo(swimTrim, yachtWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 0.95);
+
+    const mainTeakDeck = new THREE.BoxGeometry(3.78, 0.08, 9.2);
+    mainTeakDeck.translate(0.0, 1.50, -0.55);
+    acc.addGeo(mainTeakDeck, teakDeck, HUMAN_MAT.SHOE_BAG, 0, 0.96);
+
+    const foreTeakDeck = new THREE.ConeGeometry(2.62, 3.55, 4, 1);
+    foreTeakDeck.rotateY(Math.PI * 0.25);
+    foreTeakDeck.rotateX(Math.PI * 0.5);
+    foreTeakDeck.scale(1.0, 0.05, 1.0);
+    foreTeakDeck.translate(0.0, 1.52, 5.05);
+    acc.addGeo(foreTeakDeck, teakDeck, HUMAN_MAT.SHOE_BAG, 0, 0.98);
+
+    // Twin Foredeck Luxury Sunpad Mattresses & Aft Cockpit U-Lounge
+    for (const sx of [-0.52, 0.52]) {
+      const sunpad = new THREE.BoxGeometry(0.86, 0.14, 2.05);
+      sunpad.rotateX(0.05);
+      sunpad.translate(sx, 1.60, 3.65);
+      acc.addGeo(sunpad, cushionCream, HUMAN_MAT.SHOE_BAG, 0, 0.98);
+    }
+    const aftBench = new THREE.BoxGeometry(2.85, 0.42, 0.68);
+    aftBench.translate(0.0, 1.72, -4.65);
+    acc.addGeo(aftBench, cushionCream, HUMAN_MAT.SHOE_BAG, 0, 0.96);
+
+    const aftTable = new THREE.BoxGeometry(1.45, 0.06, 0.68);
+    aftTable.translate(0.0, 1.98, -3.95);
+    acc.addGeo(aftTable, teakDeck, HUMAN_MAT.SHOE_BAG, 0, 0.96);
+
+    // Stainless Steel Bow Pulpit Safety Guardrails
+    for (const sx of [-1, 1]) {
+      for (let pz = 1.6; pz <= 5.6; pz += 1.0) {
+        const taper = Math.max(0.22, 1.0 - Math.max(0.0, pz - 3.4) * 0.34);
+        const stanchion = new THREE.CylinderGeometry(0.018, 0.018, 0.58, 6, 1);
+        stanchion.translate(sx * 1.78 * taper, 1.80, pz);
+        acc.addGeo(stanchion, stainless, HUMAN_MAT.METAL_ACCENT, 0, 0.98);
+      }
+      const bowRail = new THREE.CylinderGeometry(0.020, 0.020, 4.4, 8, 1);
+      bowRail.rotateX(Math.PI * 0.5);
+      bowRail.rotateY(-sx * 0.25);
+      bowRail.translate(sx * 1.24, 2.08, 3.65);
+      acc.addGeo(bowRail, stainless, HUMAN_MAT.METAL_ACCENT, 0, 1.0);
+    }
+
+    // 3. Panoramic Main Saloon Cabin Superstructure (y = 1.52m .. 2.78m)
+    const saloonCore = new THREE.BoxGeometry(3.05, 1.22, 5.25);
+    saloonCore.translate(0.0, 2.13, -0.85);
+    acc.addGeo(saloonCore, yachtWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 0.98);
+
+    // Raked Forward Saloon Windshield & Wrap-Around Saloon Windows (warm interior glow metaZ = 3.0 at dusk/night!)
+    const windshield = new THREE.BoxGeometry(2.88, 0.88, 1.35);
+    windshield.rotateX(0.56);
+    windshield.translate(0.0, 2.14, 1.95);
+    acc.addGeo(windshield, tintedGlass, HUMAN_MAT.BOAT_LANTERN, 0, 1.0, 3.0);
+
+    const sideSaloonGlass = new THREE.BoxGeometry(3.12, 0.62, 4.35);
+    sideSaloonGlass.translate(0.0, 2.24, -0.68);
+    acc.addGeo(sideSaloonGlass, tintedGlass, HUMAN_MAT.BOAT_LANTERN, 0, 1.0, 3.0);
+
+    // Overhanging Aft Cockpit Hardtop & Flybridge Sole Deck (y = 2.78m)
+    const flySole = new THREE.BoxGeometry(3.22, 0.16, 6.15);
+    flySole.translate(0.0, 2.80, -1.35);
+    acc.addGeo(flySole, yachtWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+
+    for (const sx of [-1.42, 1.42]) {
+      const aftPillar = new THREE.CylinderGeometry(0.055, 0.065, 1.28, 8, 1);
+      aftPillar.rotateX(-0.14);
+      aftPillar.translate(sx, 2.14, -4.18);
+      acc.addGeo(aftPillar, stainless, HUMAN_MAT.METAL_ACCENT, 0, 0.96);
+    }
+
+    // 4. Open Upper Flybridge Helm Console, Coaming Bulwark, Captain Seats, & Venturi Windscreen (y = 2.88m .. 3.72m)
+    const flyCoaming = new THREE.BoxGeometry(2.76, 0.52, 3.95);
+    flyCoaming.translate(0.0, 3.12, -1.05);
+    acc.addGeo(flyCoaming, yachtWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+
+    const flyWindscreen = new THREE.BoxGeometry(2.58, 0.34, 0.55);
+    flyWindscreen.rotateX(0.52);
+    flyWindscreen.translate(0.0, 3.48, 0.92);
+    acc.addGeo(flyWindscreen, [0.36, 0.56, 0.72], HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+
+    for (const sx of [-0.55, 0.55]) {
+      const helmSeat = new THREE.BoxGeometry(0.54, 0.56, 0.52);
+      helmSeat.translate(sx, 3.36, -0.05);
+      acc.addGeo(helmSeat, cushionCream, HUMAN_MAT.SHOE_BAG, 0, 0.98);
+    }
+    const flyLounge = new THREE.BoxGeometry(2.25, 0.34, 1.25);
+    flyLounge.translate(0.0, 3.18, -2.05);
+    acc.addGeo(flyLounge, cushionCream, HUMAN_MAT.SHOE_BAG, 0, 0.98);
+
+    // 5. Swept Aerodynamic FRP Radar Arch, Cylindrical Marine Radome, & COLREGs Navigation Lights
+    //    (Strict Air Draft = 5.05m above waterline -> +4.20m clear headroom under Jembatan Teksas UI!)
+    for (const sx of [-1.26, 1.26]) {
+      const archWing = new THREE.BoxGeometry(0.18, 1.28, 0.58);
+      archWing.rotateX(-0.26);
+      archWing.rotateZ(sx > 0 ? 0.12 : -0.12);
+      archWing.translate(sx, 3.82, -1.75);
+      acc.addGeo(archWing, yachtWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+    }
+    const radarCrossbar = new THREE.BoxGeometry(2.52, 0.16, 0.62);
+    radarCrossbar.translate(0.0, 4.44, -1.92);
+    acc.addGeo(radarCrossbar, yachtWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+
+    const radome = new THREE.CylinderGeometry(0.44, 0.46, 0.28, 16, 1);
+    radome.translate(0.0, 4.68, -1.88);
+    acc.addGeo(radome, yachtWhite, HUMAN_MAT.VEHICLE_GLOSS, 0, 1.0);
+
+    const lightMast = new THREE.CylinderGeometry(0.03, 0.04, 0.24, 8, 1);
+    lightMast.translate(0.0, 4.90, -1.88);
+    acc.addGeo(lightMast, stainless, HUMAN_MAT.METAL_ACCENT, 0, 1.0);
+
+    // Top All-Round White Anchor/Masthead Light strictly peaking at y = 5.05m!
+    const mastheadLight = new THREE.SphereGeometry(0.09, 10, 8);
+    mastheadLight.translate(0.0, 4.96, -1.88);
+    acc.addGeo(mastheadLight, [0.98, 0.96, 0.88], HUMAN_MAT.BOAT_LANTERN, 0, 1.0, 3.0);
+
+    // Starboard (-X) Green & Port (+X) Red COLREGs Sidelights
+    const stbdGreen = new THREE.SphereGeometry(0.085, 8, 6);
+    stbdGreen.translate(-1.42, 3.24, 0.35);
+    acc.addGeo(stbdGreen, [0.18, 0.88, 0.36], HUMAN_MAT.BOAT_LANTERN, 0, 1.0, 1.0);
+
+    const portRed = new THREE.SphereGeometry(0.085, 8, 6);
+    portRed.translate(1.42, 3.24, 0.35);
+    acc.addGeo(portRed, [0.90, 0.18, 0.14], HUMAN_MAT.BOAT_LANTERN, 0, 1.0, 2.0);
+
+    return acc.toBundle();
+  }
 }

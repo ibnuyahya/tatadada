@@ -167,8 +167,10 @@ export class DynamicTrafficAI {
     this.cats = [];
     this.golfCart = null;
     this.marineVessels = [];
+    this.miniYacht = null;
     this._cartJointBase = 0;
     this._marineJointBase = 0;
+    this._miniYachtJointIndex = 0;
     this.mesh = null;
     this.elapsedTime = 0.0;
 
@@ -259,6 +261,31 @@ export class DynamicTrafficAI {
       stopName: c.stops[c.targetStopIdx]?.name || 'Halte UI',
       onboardPassengers: onboardCount,
       driverIndex: c.seatOccupant[0]
+    };
+  }
+
+  /**
+   * Returns a live telemetry & air-draft clearance snapshot of the 44-ft Flybridge Mini Yacht cruising Teluk U
+   * directly underneath Jembatan Teksas UI.
+   */
+  getMiniYachtPose() {
+    if (!this.miniYacht) return null;
+    const y = this.miniYacht;
+    const bridgeSoffitY = TerrainDEMLoader.sampleTeksasBridgeSoffitY(y.worldZ);
+    const topMastWorldY = y.worldY + y.airDraftM;
+    return {
+      worldX: y.worldX,
+      worldY: y.worldY,
+      worldZ: y.worldZ,
+      yaw: y.yaw,
+      pitch: y.pitch,
+      roll: y.roll,
+      speed: y.speed,
+      airDraftM: y.airDraftM,
+      topMastWorldY,
+      bridgeSoffitY,
+      spareHeadroomUnderBridgeM:
+        bridgeSoffitY !== null ? +(bridgeSoffitY - topMastWorldY).toFixed(3) : null
     };
   }
 
@@ -453,13 +480,47 @@ export class DynamicTrafficAI {
         phaseSeed: idx * 1.93
       };
     });
+
+    // 3. Sleek 44-ft (13.4m) Flybridge Mini Yacht cruising a deep-water scenic loop inside Teluk U
+    //    and gliding directly underneath Jembatan Teksas UI (x = -28.0m, air draft 5.05m < 9.25m bridge clearance!)
+    const yachtCx = -58.0;
+    const yachtCz = TerrainDEMLoader.TEKSAS_SPAN_CENTER_Z; // 245.65m
+    const yachtRx = 106.0;
+    const yachtRz = 22.0;
+    const yachtAngle0 = -1.31; // Positioned right near x = -28m gliding Northward under Jembatan Teksas UI!
+    const yachtTx0 = -Math.sin(yachtAngle0) * yachtRx;
+    const yachtTz0 = Math.cos(yachtAngle0) * yachtRz;
+    this.miniYacht = {
+      type: 'FLYBRIDGE_MINI_YACHT',
+      cx: yachtCx,
+      cz: yachtCz,
+      rx: yachtRx,
+      rz: yachtRz,
+      angle: yachtAngle0,
+      dir: 1.0,
+      speed: 1.95,
+      scale: 1.0,
+      airDraftM: 5.05,
+      worldX: yachtCx + Math.cos(yachtAngle0) * yachtRx,
+      worldY: TerrainDEMLoader.WATER_LEVEL_Y,
+      worldZ: yachtCz + Math.sin(yachtAngle0) * yachtRz,
+      yaw: Math.atan2(yachtTx0, yachtTz0),
+      pitch: 0.0,
+      roll: 0.0,
+      minObservedBridgeClearanceM: Infinity,
+      underBridgePassSamples: 0
+    };
   }
 
   /**
-   * Exact campus walkable surface elevation resolver (supports ◇◇◇ Courtyard, Flag Cloister,
-   * Selasar Agung podium, Rotunda curbs, SE Covered Walkway, Pulau I West Apron, and DEM terrain).
+   * Exact campus walkable surface elevation resolver (supports Jembatan Teksas UI parabolic arch & ramps,
+   * ◇◇◇ Courtyard, Flag Cloister, Selasar Agung podium, Rotunda curbs, SE Covered Walkway, Pulau I West Apron, and DEM terrain).
    */
   _samplePedestrianGroundY(x, z) {
+    const teksasY = TerrainDEMLoader.sampleTeksasBridgeDeckY(x, z);
+    if (teksasY !== null) {
+      return teksasY + 0.025;
+    }
     if (z >= 536.0 && x >= -284.6 && x <= -223.4 && z >= 659.5 && z <= 697.5) {
       return TerrainDEMLoader.RUNWAY_DECK_Y; // Pulau I West Apron concrete deck
     }
@@ -509,6 +570,14 @@ export class DynamicTrafficAI {
       const tW = (z - 35.5) / (128.0 - 35.5);
       const wx = 34.2 + tW * (43.8 - 34.2);
       if (Math.abs(x - wx) <= 2.15) return true;
+    }
+    // 7. Jembatan Teksas UI 30 Blue Wave-Ripple Sunroof Canopy Corridor
+    if (
+      z >= TerrainDEMLoader.TEKSAS_WEST_PORTAL_Z + 3.0 &&
+      z <= TerrainDEMLoader.TEKSAS_EAST_PORTAL_Z - 3.0 &&
+      Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) <= 2.48
+    ) {
+      return true;
     }
     return false;
   }
@@ -1284,6 +1353,44 @@ export class DynamicTrafficAI {
         propType: 'PHONE',
         hasUmbrella: true,
         hasLanyard: true
+      },
+
+      // === M. 3 JEMBATAN TEKSAS UI ("TEKNIK - SASTRA") BRIDGE CROSSERS (indices 45..47) ===
+      {
+        behavior: 'TEKSAS_BRIDGE_CROSSER',
+        laneOff: -0.55,
+        phase0: 0.21,
+        baseSpeed: 1.18,
+        archetype: 'MAHASISWA_JAKUN',
+        hairStyle: 'HAIR_PARTED',
+        heightScale: 1.01,
+        propType: 'BACKPACK',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'TEKSAS_BRIDGE_CROSSER',
+        laneOff: 0.46,
+        phase0: 0.24,
+        baseSpeed: 1.16,
+        archetype: 'MAHASISWI_HIJAB_JAKUN',
+        hijabCol: HUMAN_PALETTE.HIJAB_CREAM,
+        heightScale: 0.94,
+        propType: 'BOOK',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'TEKSAS_BRIDGE_CROSSER',
+        laneOff: -1.90,
+        phase0: 0.73,
+        baseSpeed: 1.20,
+        archetype: 'DOSEN_BATIK_INDIGO',
+        hairStyle: 'HAIR_PARTED',
+        hasGlasses: true,
+        heightScale: 1.02,
+        propType: 'BOOK',
+        hasUmbrella: true
       }
     ];
 
@@ -1569,6 +1676,15 @@ export class DynamicTrafficAI {
           initYaw = st.waitYaw;
           initInitialized = true;
         }
+      } else if (cfg.behavior === 'TEKSAS_BRIDGE_CROSSER') {
+        const zStart = 148.0;
+        const zEnd = 344.0;
+        const u0 = cfg.phase0 || 0.0;
+        const s0 = u0 < 0.5 ? u0 / 0.5 : 1.0 - (u0 - 0.5) / 0.5;
+        initX = TerrainDEMLoader.TEKSAS_BRIDGE_X + (cfg.laneOff || 0.0);
+        initZ = zStart + s0 * (zEnd - zStart);
+        initYaw = u0 < 0.5 ? 0.0 : Math.PI;
+        initInitialized = true;
       }
 
       return {
@@ -1890,6 +2006,7 @@ export class DynamicTrafficAI {
         ? CampusTransitAndMarineBuilder.buildDistantSmallShip(v.variant)
         : CampusTransitAndMarineBuilder.buildDistantFishingBoat(v.variant)
     );
+    const miniYachtBundle = CampusTransitAndMarineBuilder.buildFlybridgeMiniYacht();
 
     let totalVerts = 0;
     let totalIndices = 0;
@@ -1907,6 +2024,8 @@ export class DynamicTrafficAI {
       totalVerts += marineBundles[m].pos.length / 3;
       totalIndices += marineBundles[m].idx.length;
     }
+    totalVerts += miniYachtBundle.pos.length / 3;
+    totalIndices += miniYachtBundle.idx.length;
 
     this._restPos = new Float32Array(totalVerts * 3);
     this._restNorm = new Float32Array(totalVerts * 3);
@@ -1961,7 +2080,10 @@ export class DynamicTrafficAI {
       appendBundle(marineBundles[m], this._marineJointBase + m);
     }
 
-    const totalJoints = this._marineJointBase + this.marineVessels.length;
+    this._miniYachtJointIndex = this._marineJointBase + this.marineVessels.length;
+    appendBundle(miniYachtBundle, this._miniYachtJointIndex);
+
+    const totalJoints = this._miniYachtJointIndex + 1;
     this._jointWorldMatrices = new Float32Array(totalJoints * 16);
     this._skinMatrices = new Float32Array(totalJoints * 16);
     this._skinNormalMatrices = new Float32Array(totalJoints * 9);
@@ -2008,6 +2130,10 @@ export class DynamicTrafficAI {
     ).length;
     this.group.userData.smallShipCount = this.marineVessels.filter(
       (v) => v.type === 'SMALL_SHIP'
+    ).length;
+    this.group.userData.miniYachtCount = this.miniYacht ? 1 : 0;
+    this.group.userData.teksasBridgeCrosserCount = this.npcs.filter(
+      (n) => n.behavior === 'TEKSAS_BRIDGE_CROSSER'
     ).length;
 
     // Populate initial articulated poses immediately so t = 0 buffers are 100% valid & verified
@@ -2412,6 +2538,57 @@ export class DynamicTrafficAI {
       for (let k = 0; k < 16; k++) {
         wMats[outOff + k] = e[k];
         sMats[outOff + k] = e[k]; // Bind pivot for marine vessels is [0, 0, 0]
+      }
+    }
+
+    // 3. Advance 44-ft Flybridge Mini Yacht cruising Teluk U directly underneath Jembatan Teksas UI
+    if (this.miniYacht) {
+      const y = this.miniYacht;
+      const cosA = Math.cos(y.angle);
+      const sinA = Math.sin(y.angle);
+      const instTangentMag = Math.max(10.0, Math.hypot(-sinA * y.rx, cosA * y.rz));
+      const dTheta = (y.dir * y.speed * dt) / instTangentMag;
+      y.angle = (y.angle + dTheta) % (Math.PI * 2.0);
+
+      const c1 = Math.cos(y.angle);
+      const s1 = Math.sin(y.angle);
+      y.worldX = y.cx + c1 * y.rx;
+      y.worldZ = y.cz + s1 * y.rz;
+
+      const tx = -y.dir * s1 * y.rx;
+      const tz = y.dir * c1 * y.rz;
+      y.yaw = Math.atan2(tx, tz);
+
+      // Gentle sheltered Teluk U lagoon swell heave, roll, & bow trim pitch
+      y.worldY =
+        TerrainDEMLoader.WATER_LEVEL_Y +
+        Math.sin(t * 1.32 + 0.7) * 0.042 +
+        Math.cos(t * 0.86 + 1.9) * 0.018;
+      y.roll = Math.sin(t * 1.18 + 0.4) * 0.022;
+      y.pitch = -0.012 + Math.cos(t * 1.44 + 1.1) * 0.012;
+
+      if (Math.abs(y.worldX - TerrainDEMLoader.TEKSAS_BRIDGE_X) <= 8.5) {
+        const soffitY = TerrainDEMLoader.sampleTeksasBridgeSoffitY(y.worldZ);
+        if (soffitY !== null) {
+          const spare = soffitY - (y.worldY + y.airDraftM);
+          if (spare < y.minObservedBridgeClearanceM) {
+            y.minObservedBridgeClearanceM = spare;
+          }
+          y.underBridgePassSamples++;
+        }
+      }
+
+      this._tmpPos.set(y.worldX, y.worldY, y.worldZ);
+      this._tmpEuler.set(y.pitch, y.yaw, y.roll, 'YXZ');
+      this._tmpQuat.setFromEuler(this._tmpEuler);
+      this._tmpScale.set(y.scale, y.scale, y.scale);
+      this._tmpLocalMat.compose(this._tmpPos, this._tmpQuat, this._tmpScale);
+
+      const yOff = this._miniYachtJointIndex * 16;
+      const eY = this._tmpLocalMat.elements;
+      for (let k = 0; k < 16; k++) {
+        wMats[yOff + k] = eY[k];
+        sMats[yOff + k] = eY[k];
       }
     }
   }
@@ -2867,6 +3044,44 @@ export class DynamicTrafficAI {
         npc.worldZ = npc.seatSpec.z;
         npc.yaw = npc.seatSpec.yaw;
         npc.initializedPos = true;
+      } else if (npc.behavior === 'TEKSAS_BRIDGE_CROSSER') {
+        // Walk across Jembatan Teksas UI between FT/Rotunda Forecourt (z = 148m) & FIB Overlook Plaza (z = 344m),
+        // pausing briefly at mid-span or plaza ends to admire Teluk U & the passing Flybridge Mini Yacht!
+        const zStart = 148.0;
+        const zEnd = 344.0;
+        const spanZ = zEnd - zStart; // 196.0m one-way
+        const oneWaySec = spanZ / Math.max(0.85, npc.baseSpeed);
+        const cycleSec = oneWaySec * 2.0 + 8.0;
+        const u = (((t / cycleSec + (npc.phase0 || 0.0)) % 1.0) + 1.0) % 1.0;
+
+        let sPos = 0.0;
+        let targetYaw = 0.0;
+        if (u < 0.46) {
+          sPos = u / 0.46;
+          targetYaw = 0.0; // Heading +Z East toward FIB / Pilon Yoni
+        } else if (u < 0.50) {
+          sPos = 1.0;
+          targetYaw = Math.PI * 0.5; // Admiring Teluk U from East FIB Overlook Plaza
+        } else if (u < 0.96) {
+          sPos = 1.0 - (u - 0.50) / 0.46;
+          targetYaw = Math.PI; // Heading -Z West toward FT / Pilon Lingga / Rotunda
+        } else {
+          sPos = 0.0;
+          targetYaw = 0.0;
+        }
+
+        const tx = TerrainDEMLoader.TEKSAS_BRIDGE_X + (npc.laneOff || 0.0);
+        const tz = zStart + sPos * spanZ;
+        if (!npc.initializedPos) {
+          npc.worldX = tx;
+          npc.worldZ = tz;
+          npc.yaw = targetYaw;
+          npc.initializedPos = true;
+        } else {
+          npc.worldX = dampScalar(npc.worldX, tx, 10.0, dt);
+          npc.worldZ = tz;
+          npc.yaw = dampAngle(npc.yaw, targetYaw, 5.5, dt);
+        }
       }
 
       if (!(npc.behavior === 'GOLF_CART_SHUTTLE_RIDER' && npc.seatedBlend > 0.001)) {
@@ -4214,7 +4429,7 @@ export class DynamicTrafficAI {
     // 3. Pre-normalize 3x3 Normal Matrices for all (45x22 + 48x18 + 6 + 12 = 1,872) Live Skin Matrices
     const sMats = this._skinMatrices;
     const nMats = this._skinNormalMatrices;
-    const totalJoints = this._marineJointBase + this.marineVessels.length;
+    const totalJoints = this._miniYachtJointIndex + 1;
 
     for (let j = 0; j < totalJoints; j++) {
       const mOff = j * 16;

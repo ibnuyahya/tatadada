@@ -80,6 +80,91 @@ export class TerrainDEMLoader {
   static HELIPAD_DECK_Y = 0.48;
   static HELIPAD_OUTER_R = 16.3;
 
+  // Jembatan Teksas UI ("Teknik - Sastra" Krakatau Steel BTKC Arch Bridge across Teluk U) SSoST Parameters:
+  // Connects Left Arm (FT / Rotunda East Shore, Pilon Lingga 25m) <-> Right Arm (FIB / Sastra Shore, Pilon Yoni 15m)
+  // with >= 9.25m clear mid-span air-draft headroom above WATER_LEVEL_Y (-1.45m) for Flybridge Mini Yachts!
+  static TEKSAS_BRIDGE_X = -28.0;
+  static TEKSAS_WEST_PORTAL_Z = 171.65;
+  static TEKSAS_EAST_PORTAL_Z = 319.65;
+  static TEKSAS_SPAN_CENTER_Z = 245.65;
+  static TEKSAS_HALF_SPAN_Z = 74.0;
+  static TEKSAS_DECK_HALF_W = 2.60;
+  static TEKSAS_PORTAL_DECK_Y = 4.15;
+  static TEKSAS_ARCH_RISE_Y = 4.95; // Mid-span deck peak = +9.10m (+10.55m above water)
+  static TEKSAS_GIRDER_DEPTH_M = 1.30; // Mid-span lowest soffit = +7.80m (+9.25m net clearance above water!)
+  static TEKSAS_WEST_RAMP_START_Z = 149.65;
+  static TEKSAS_EAST_RAMP_END_Z = 341.65;
+  static TEKSAS_EAST_PLAZA_Y = 0.34;
+
+  /**
+   * Evaluates exact walkable deck/ramp elevation Y on Jembatan Teksas UI at (x, z), or null if outside bridge footprint.
+   */
+  static sampleTeksasBridgeDeckY(x, z) {
+    const dx = Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X);
+    if (dx > TerrainDEMLoader.TEKSAS_DECK_HALF_W + 0.25) return null;
+
+    // 1. Main 7-Box-Segment Parabolic Clear-Span Arch across Teluk U (z in [171.65, 319.65])
+    if (
+      z >= TerrainDEMLoader.TEKSAS_WEST_PORTAL_Z &&
+      z <= TerrainDEMLoader.TEKSAS_EAST_PORTAL_Z
+    ) {
+      if (dx > TerrainDEMLoader.TEKSAS_DECK_HALF_W + 0.05) return null;
+      const u =
+        (z - TerrainDEMLoader.TEKSAS_SPAN_CENTER_Z) / TerrainDEMLoader.TEKSAS_HALF_SPAN_Z;
+      return (
+        TerrainDEMLoader.TEKSAS_PORTAL_DECK_Y +
+        TerrainDEMLoader.TEKSAS_ARCH_RISE_Y * Math.max(0.0, 1.0 - u * u)
+      );
+    }
+
+    // 2. West Approach Ramp & Ceremonial Staircase (FT / Rotunda Side: z in [149.65, 171.65))
+    if (
+      z >= TerrainDEMLoader.TEKSAS_WEST_RAMP_START_Z &&
+      z < TerrainDEMLoader.TEKSAS_WEST_PORTAL_Z
+    ) {
+      const t =
+        (z - TerrainDEMLoader.TEKSAS_WEST_RAMP_START_Z) /
+        (TerrainDEMLoader.TEKSAS_WEST_PORTAL_Z - TerrainDEMLoader.TEKSAS_WEST_RAMP_START_Z);
+      const s = PhysicsKernel.smootherstep(0.0, 1.0, t);
+      return 0.04 + s * (TerrainDEMLoader.TEKSAS_PORTAL_DECK_Y - 0.04);
+    }
+
+    // 3. East Approach Ramp & Ceremonial Staircase (FIB / Right-Arm Side: z in (319.65, 341.65])
+    if (
+      z > TerrainDEMLoader.TEKSAS_EAST_PORTAL_Z &&
+      z <= TerrainDEMLoader.TEKSAS_EAST_RAMP_END_Z
+    ) {
+      const t =
+        (TerrainDEMLoader.TEKSAS_EAST_RAMP_END_Z - z) /
+        (TerrainDEMLoader.TEKSAS_EAST_RAMP_END_Z - TerrainDEMLoader.TEKSAS_EAST_PORTAL_Z);
+      const s = PhysicsKernel.smootherstep(0.0, 1.0, t);
+      return (
+        TerrainDEMLoader.TEKSAS_EAST_PLAZA_Y +
+        s * (TerrainDEMLoader.TEKSAS_PORTAL_DECK_Y - TerrainDEMLoader.TEKSAS_EAST_PLAZA_Y)
+      );
+    }
+
+    return null;
+  }
+
+  /**
+   * Evaluates lowest under-bridge steel box-girder soffit elevation Y(z) across Teluk U (for Mini-Yacht air-draft verification).
+   */
+  static sampleTeksasBridgeSoffitY(z) {
+    if (
+      z < TerrainDEMLoader.TEKSAS_WEST_PORTAL_Z ||
+      z > TerrainDEMLoader.TEKSAS_EAST_PORTAL_Z
+    ) {
+      return null;
+    }
+    const u =
+      (z - TerrainDEMLoader.TEKSAS_SPAN_CENTER_Z) / TerrainDEMLoader.TEKSAS_HALF_SPAN_Z;
+    const deckY =
+      TerrainDEMLoader.TEKSAS_PORTAL_DECK_Y +
+      TerrainDEMLoader.TEKSAS_ARCH_RISE_Y * Math.max(0.0, 1.0 - u * u);
+    return deckY - TerrainDEMLoader.TEKSAS_GIRDER_DEPTH_M;
+  }
+
   // Pulau "U" Freshwater Hydrology SSoST:
   // Southern Highland Forest Spring ("Mata Air") -> Meandering Northbound River -> Small Lake near Rektorat
   static SPRING_U_CX = -286.0;
@@ -812,6 +897,23 @@ export class TerrainDEMLoader {
     }
 
     let uRawY = baseParkMoundY + uHillsY;
+
+    // 4B2. Jembatan Teksas UI Eastern FIB Landing Terrace (Right Arm of Pulau U: x ~ -28, z in 319..345)
+    //      Smoothly grades a flat +0.34m coastal plaza for Pilon Yoni, stairs, accessible ramps & benches
+    //      via a broad elliptical amphitheater meadow transition while leaving Right-Arm hill peaks (z ~ 392m) 100.0% untouched!
+    if (z > 314.0 && z < 384.0 && Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) < 37.0) {
+      const dxPad = Math.max(0.0, Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) - 8.2) / 28.0;
+      const dzPad =
+        z < 332.0
+          ? Math.max(0.0, 319.0 - z) / 4.8
+          : Math.max(0.0, z - 345.0) / 38.0;
+      const rPad = Math.hypot(dxPad, dzPad);
+      if (rPad < 1.0) {
+        const teksasEastPadMask = 1.0 - PhysicsKernel.smootherstep(0.0, 1.0, rPad);
+        const targetPadY = TerrainDEMLoader.TEKSAS_EAST_PLAZA_Y * coastCollar;
+        uRawY = uRawY * (1.0 - teksasEastPadMask) + targetPadY * teksasEastPadMask;
+      }
+    }
 
     // 4C. Pulau "U" Natural Fluvial Valley, Shelving Point-Bar Beaches, & Eroded Cut-Banks
     //     (Eliminates flat artificial drainage-canal sidewalks; shoreline meets waterY continuously at w = 1.03!)

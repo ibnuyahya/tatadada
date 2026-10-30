@@ -1686,6 +1686,994 @@ export class SplineCorridorBuilder {
     return { horizontalGeo, verticalGeo };
   }
 
+  /**
+   * Builds the High-Accuracy Architectural Digital Twin of "Jembatan Teksas UI" (Teknik–Sastra, Krakatau Steel BTKC 2007)
+   * spanning across Teluk U between the Left Arm (FT / Rotunda Shore) and Right Arm (FIB / Sastra Shore) of Pulau U:
+   * - 148.0m clear-span parabolic steel arch (0 piers in Teluk U water) assembled from 7 bolted BTKC box-girder segments
+   *   with 9.25m clear mid-span air-draft headroom above water (WATER_LEVEL_Y = -1.45m -> lowest soffit +7.80m) for Mini Yachts!
+   * - Krakatau Steel crimson-red edge fascia girders, twin parabolic overhead through-arch truss chords, vertical hangers,
+   *   diagonal Warren web struts, overhead portal sway braces, and 5.20m pedestrian/bicycle deck with UI-yellow handrails.
+   * - Asymmetric Twin UI Golden-Yellow Pylons:
+   *   1. West Portal (z = 171.65m): Pilon Lingga (25.0m tall -> y = +25.25m) shaped like a soaring curved ship's sail (layar kapal)
+   *      with sail batten ribs, 3 wind-relief oculi rings, masthead red night beacon, & 10 tensioned steel fan stay cables.
+   *   2. East Portal (z = 319.65m): Pilon Yoni (15.0m tall -> y = +15.34m) shaped like a sculpted 3D curvilinear curved hip
+   *      (melengkung menyerupai pinggul — slender waist, flared rounded hips, united rounded crown) & 8 fan stay cables.
+   * - 30 Translucent-Look Cerulean-Blue Wave-Ripple Sunroof Canopy Units (30 unit atap sunroof riak gelombang biru)
+   *   sheltering pedestrians from rain via RainCollisionBake + recessed 3000K photocell LED walkway lighting.
+   * - Inclusive Approaches on Both Shores: Central 22-step ceremonial staircases (tangga) + twin flanking accessible
+   *   bicycle/wheelchair ramps (rampa), concrete shore abutments, West Forecourt Plaza, & East FIB Overlook Plaza + teak benches.
+   *
+   * Batched directly into KampusUIRotundaAndPromenades -> +0 Extra Draw Calls!
+   */
+  static _buildJembatanTeksasUI() {
+    const hPos = [];
+    const hNorm = [];
+    const hUv = [];
+    const hCol = [];
+    const hIdx = [];
+
+    const vPos = [];
+    const vNorm = [];
+    const vUv = [];
+    const vCol = [];
+    const vIdx = [];
+
+    const whiteUV = [0.055, 0.5];
+
+    const appendPart = (targetPos, targetNorm, targetUv, targetCol, targetIdx, geo, col, uvFixed = null) => {
+      if (!geo.attributes.normal) geo.computeVertexNormals();
+      const p = geo.attributes.position.array;
+      const n = geo.attributes.normal.array;
+      const uArr = geo.attributes.uv ? geo.attributes.uv.array : null;
+      const base = targetPos.length / 3;
+      const count = geo.attributes.position.count;
+      for (let i = 0; i < count; i++) {
+        const px = p[i * 3];
+        const py = p[i * 3 + 1];
+        const pz = p[i * 3 + 2];
+        targetPos.push(px, py, pz);
+        targetNorm.push(n[i * 3], n[i * 3 + 1], n[i * 3 + 2]);
+        if (uvFixed) {
+          targetUv.push(uvFixed[0], uvFixed[1]);
+        } else if (uArr) {
+          targetUv.push(uArr[i * 2], uArr[i * 2 + 1]);
+        } else {
+          targetUv.push(px * 0.25, pz * 0.25);
+        }
+        targetCol.push(col[0], col[1], col[2]);
+      }
+      if (geo.index) {
+        const idx = geo.index.array;
+        for (let i = 0; i < idx.length; i++) {
+          targetIdx.push(base + idx[i]);
+        }
+      } else {
+        for (let i = 0; i < count; i++) {
+          targetIdx.push(base + i);
+        }
+      }
+      geo.dispose();
+    };
+
+    const pushVert = (tPos, tNorm, tUv, tCol, x, y, z, nx, ny, nz, col, uvFixed = null) => {
+      const idx = tPos.length / 3;
+      tPos.push(x, y, z);
+      tNorm.push(nx, ny, nz);
+      if (uvFixed) {
+        tUv.push(uvFixed[0], uvFixed[1]);
+      } else {
+        tUv.push(x * 0.22, z * 0.22);
+      }
+      tCol.push(col[0], col[1], col[2]);
+      return idx;
+    };
+
+    // Zero-allocation CCW outward analytical tube builder for steel struts, arch chords, cables, & curved pylon ribs
+    const pushTubeH = (x0, y0, z0, x1, y1, z1, r0, r1, segs, col, capEnds = false) => {
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const dz = z1 - z0;
+      const len = Math.hypot(dx, dy, dz);
+      if (len < 1e-4) return;
+      const tx = dx / len;
+      const ty = dy / len;
+      const tz = dz / len;
+      let rx = 0.0;
+      let ry = 1.0;
+      let rz = 0.0;
+      if (Math.abs(ty) >= 0.92) {
+        rx = 1.0;
+        ry = 0.0;
+        rz = 0.0;
+      }
+      let ux = ry * tz - rz * ty;
+      let uy = rz * tx - rx * tz;
+      let uz = rx * ty - ry * tx;
+      const uLen = Math.hypot(ux, uy, uz) || 1.0;
+      ux /= uLen;
+      uy /= uLen;
+      uz /= uLen;
+      const vx = ty * uz - tz * uy;
+      const vy = tz * ux - tx * uz;
+      const vz = tx * uy - ty * ux;
+
+      const ring0 = [];
+      const ring1 = [];
+      for (let k = 0; k <= segs; k++) {
+        const th = (k / segs) * Math.PI * 2.0;
+        const c = Math.cos(th);
+        const s = Math.sin(th);
+        const nx = ux * c + vx * s;
+        const ny = uy * c + vy * s;
+        const nz = uz * c + vz * s;
+        ring0.push(pushVert(hPos, hNorm, hUv, hCol, x0 + nx * r0, y0 + ny * r0, z0 + nz * r0, nx, ny, nz, col));
+        ring1.push(pushVert(hPos, hNorm, hUv, hCol, x1 + nx * r1, y1 + ny * r1, z1 + nz * r1, nx, ny, nz, col));
+      }
+      for (let k = 0; k < segs; k++) {
+        const b0 = ring0[k];
+        const b1 = ring0[k + 1];
+        const t1 = ring1[k + 1];
+        const t0 = ring1[k];
+        hIdx.push(b0, b1, t1, b0, t1, t0);
+      }
+      if (capEnds) {
+        const c0 = pushVert(hPos, hNorm, hUv, hCol, x0, y0, z0, -tx, -ty, -tz, col);
+        const c1 = pushVert(hPos, hNorm, hUv, hCol, x1, y1, z1, tx, ty, tz, col);
+        for (let k = 0; k < segs; k++) {
+          const th0 = (k / segs) * Math.PI * 2.0;
+          const th1 = ((k + 1) / segs) * Math.PI * 2.0;
+          const p0a = pushVert(
+            hPos,
+            hNorm,
+            hUv,
+            hCol,
+            x0 + (ux * Math.cos(th0) + vx * Math.sin(th0)) * r0,
+            y0 + (uy * Math.cos(th0) + vy * Math.sin(th0)) * r0,
+            z0 + (uz * Math.cos(th0) + vz * Math.sin(th0)) * r0,
+            -tx,
+            -ty,
+            -tz,
+            col
+          );
+          const p0b = pushVert(
+            hPos,
+            hNorm,
+            hUv,
+            hCol,
+            x0 + (ux * Math.cos(th1) + vx * Math.sin(th1)) * r0,
+            y0 + (uy * Math.cos(th1) + vy * Math.sin(th1)) * r0,
+            z0 + (uz * Math.cos(th1) + vz * Math.sin(th1)) * r0,
+            -tx,
+            -ty,
+            -tz,
+            col
+          );
+          hIdx.push(c0, p0b, p0a);
+
+          const p1a = pushVert(
+            hPos,
+            hNorm,
+            hUv,
+            hCol,
+            x1 + (ux * Math.cos(th0) + vx * Math.sin(th0)) * r1,
+            y1 + (uy * Math.cos(th0) + vy * Math.sin(th0)) * r1,
+            z1 + (uz * Math.cos(th0) + vz * Math.sin(th0)) * r1,
+            tx,
+            ty,
+            tz,
+            col
+          );
+          const p1b = pushVert(
+            hPos,
+            hNorm,
+            hUv,
+            hCol,
+            x1 + (ux * Math.cos(th1) + vx * Math.sin(th1)) * r1,
+            y1 + (uy * Math.cos(th1) + vy * Math.sin(th1)) * r1,
+            z1 + (uz * Math.cos(th1) + vz * Math.sin(th1)) * r1,
+            tx,
+            ty,
+            tz,
+            col
+          );
+          hIdx.push(c1, p1a, p1b);
+        }
+      }
+    };
+
+    // Double-sided / thickened quad helper with exact analytic face normal
+    const pushQuadH = (ax, ay, az, bx0, by0, bz0, cx, cy, cz, dx0, dy0, dz0, col) => {
+      const ux = bx0 - ax;
+      const uy = by0 - ay;
+      const uz = bz0 - az;
+      const vx = dx0 - ax;
+      const vy = dy0 - ay;
+      const vz = dz0 - az;
+      let nx = uy * vz - uz * vy;
+      let ny = uz * vx - ux * vz;
+      let nz = ux * vy - uy * vx;
+      const nl = Math.hypot(nx, ny, nz) || 1.0;
+      nx /= nl;
+      ny /= nl;
+      nz /= nl;
+      const i0 = pushVert(hPos, hNorm, hUv, hCol, ax, ay, az, nx, ny, nz, col);
+      const i1 = pushVert(hPos, hNorm, hUv, hCol, bx0, by0, bz0, nx, ny, nz, col);
+      const i2 = pushVert(hPos, hNorm, hUv, hCol, cx, cy, cz, nx, ny, nz, col);
+      const i3 = pushVert(hPos, hNorm, hUv, hCol, dx0, dy0, dz0, nx, ny, nz, col);
+      hIdx.push(i0, i1, i2, i0, i2, i3);
+    };
+
+    const bx = TerrainDEMLoader.TEKSAS_BRIDGE_X; // -28.0
+    const zW = TerrainDEMLoader.TEKSAS_WEST_PORTAL_Z; // 171.65
+    const zE = TerrainDEMLoader.TEKSAS_EAST_PORTAL_Z; // 319.65
+    const zC = TerrainDEMLoader.TEKSAS_SPAN_CENTER_Z; // 245.65
+    const halfSpan = TerrainDEMLoader.TEKSAS_HALF_SPAN_Z; // 74.0
+    const spanLen = zE - zW; // 148.0
+    const deckHalfW = TerrainDEMLoader.TEKSAS_DECK_HALF_W; // 2.60
+    const portalDeckY = TerrainDEMLoader.TEKSAS_PORTAL_DECK_Y; // 4.15
+    const archRiseY = TerrainDEMLoader.TEKSAS_ARCH_RISE_Y; // 4.95
+    const girderDepth = TerrainDEMLoader.TEKSAS_GIRDER_DEPTH_M; // 1.30
+    const zRampW0 = TerrainDEMLoader.TEKSAS_WEST_RAMP_START_Z; // 149.65
+    const zRampE1 = TerrainDEMLoader.TEKSAS_EAST_RAMP_END_Z; // 341.65
+    const eastPlazaY = TerrainDEMLoader.TEKSAS_EAST_PLAZA_Y; // 0.34
+
+    // Authentic Jembatan Teksas UI Palette (PT Krakatau Steel BTKC + UI Identity)
+    const krakatauRed = [0.68, 0.11, 0.09];
+    const krakatauRedDark = [0.54, 0.08, 0.07];
+    const btkcCharcoal = [0.15, 0.16, 0.18];
+    const btkcFlangeSteel = [0.25, 0.27, 0.30];
+    const uiGoldenYellow = [0.92, 0.68, 0.07];
+    const uiYellowDeep = [0.80, 0.56, 0.05];
+    const stayCableSteel = [0.62, 0.65, 0.70];
+    const deckPaverGrey = [0.35, 0.36, 0.39];
+    const bikeLaneBrick = [0.47, 0.32, 0.25];
+    const sunroofBlue = [0.10, 0.46, 0.88];
+    const sunroofBlueUnderside = [0.15, 0.52, 0.92];
+    const warmLedStrip = [0.96, 0.90, 0.74];
+    const concreteWarm = [0.91, 0.89, 0.85];
+    const concreteStep = [0.86, 0.84, 0.80];
+
+    const evalArchDeckY = (z) => {
+      const u = (z - zC) / halfSpan;
+      return portalDeckY + archRiseY * Math.max(0.0, 1.0 - u * u);
+    };
+    const evalArchSlope = (z) => {
+      const u = (z - zC) / halfSpan;
+      return (-2.0 * archRiseY * u) / halfSpan;
+    };
+    const evalArchChordY = (z) => {
+      const u = (z - zC) / halfSpan;
+      return evalArchDeckY(z) + 1.18 + 2.58 * Math.max(0.0, 1.0 - u * u);
+    };
+
+    // =========================================================================
+    // 1. REINFORCED-CONCRETE SHORE ABUTMENTS, PYLON PEDESTALS, & FORECOURT PLAZAS
+    // =========================================================================
+    // West Shore Abutment Pier (z = 171.65, firmly inland of Left-Arm stone turap at z ~ 173.76)
+    const westAbutH = portalDeckY - girderDepth + 3.45;
+    const westAbut = new THREE.BoxGeometry(6.8, westAbutH, 3.6);
+    westAbut.translate(bx, portalDeckY - girderDepth - westAbutH * 0.5 + 0.06, zW - 0.35);
+    appendPart(vPos, vNorm, vUv, vCol, vIdx, westAbut, concreteWarm, whiteUV);
+
+    // East Shore Abutment Pier (z = 319.65, firmly inland of Right-Arm stone turap at z ~ 317.73)
+    const eastAbutH = portalDeckY - girderDepth + 3.45;
+    const eastAbut = new THREE.BoxGeometry(6.8, eastAbutH, 3.6);
+    eastAbut.translate(bx, portalDeckY - girderDepth - eastAbutH * 0.5 + 0.06, zE + 0.35);
+    appendPart(vPos, vNorm, vUv, vCol, vIdx, eastAbut, concreteWarm, whiteUV);
+
+    // Pilon Lingga & Pilon Yoni Flared Concrete Anchor Pedestals (straddling walkway at x = bx +/- 3.45m)
+    for (const sx of [-1, 1]) {
+      const pedW = new THREE.CylinderGeometry(0.95, 1.25, 3.85, 12, 1);
+      pedW.translate(bx + sx * 3.45, 0.35 - 3.85 * 0.5, zW);
+      appendPart(vPos, vNorm, vUv, vCol, vIdx, pedW, concreteWarm, whiteUV);
+
+      const capW = new THREE.CylinderGeometry(1.02, 1.02, 0.18, 12, 1);
+      capW.translate(bx + sx * 3.45, 0.35, zW);
+      appendPart(hPos, hNorm, hUv, hCol, hIdx, capW, btkcFlangeSteel);
+
+      const pedE = new THREE.CylinderGeometry(0.88, 1.18, 3.95, 12, 1);
+      pedE.translate(bx + sx * 3.45, 0.44 - 3.95 * 0.5, zE);
+      appendPart(vPos, vNorm, vUv, vCol, vIdx, pedE, concreteWarm, whiteUV);
+
+      const capE = new THREE.CylinderGeometry(0.95, 0.95, 0.18, 12, 1);
+      capE.translate(bx + sx * 3.45, 0.44, zE);
+      appendPart(hPos, hNorm, hUv, hCol, hIdx, capE, btkcFlangeSteel);
+    }
+
+    // West Forecourt Entry Plaza (FT / Rotunda Side: x in [-34.6, -21.4], z in [144.2, 150.4])
+    const westPlazaBase = new THREE.BoxGeometry(13.2, 2.54, 6.4);
+    westPlazaBase.translate(bx, 0.04 - 1.27, 147.3);
+    appendPart(vPos, vNorm, vUv, vCol, vIdx, westPlazaBase, concreteWarm, whiteUV);
+
+    const westPlazaTop = new THREE.BoxGeometry(12.6, 0.05, 5.9);
+    westPlazaTop.translate(bx, 0.045, 147.3);
+    appendPart(hPos, hNorm, hUv, hCol, hIdx, westPlazaTop, [0.44, 0.43, 0.41]);
+
+    // East FIB Scenic Overlook Plaza (Right Arm Side: x in [-35.2, -20.8], z in [341.0, 349.8], y = +0.36m)
+    const eastPlazaBase = new THREE.BoxGeometry(14.4, 2.76, 8.8);
+    eastPlazaBase.translate(bx, eastPlazaY + 0.02 - 1.38, 345.4);
+    appendPart(vPos, vNorm, vUv, vCol, vIdx, eastPlazaBase, concreteWarm, whiteUV);
+
+    const eastPlazaTop = new THREE.BoxGeometry(13.7, 0.055, 8.2);
+    eastPlazaTop.translate(bx, eastPlazaY + 0.03, 345.4);
+    appendPart(hPos, hNorm, hUv, hCol, hIdx, eastPlazaTop, [0.46, 0.45, 0.42]);
+
+    // 2 Sculpted Teak-and-Concrete Overlook Park Benches on East FIB Plaza facing Teluk U & Jembatan Teksas UI
+    for (const sx of [-4.2, 4.2]) {
+      for (const lz of [-0.65, 0.65]) {
+        const leg = new THREE.BoxGeometry(0.12, 0.44, 0.50);
+        leg.translate(bx + sx + lz, eastPlazaY + 0.25, 347.8);
+        appendPart(vPos, vNorm, vUv, vCol, vIdx, leg, concreteWarm, whiteUV);
+      }
+      const seat = new THREE.BoxGeometry(1.62, 0.06, 0.52);
+      seat.translate(bx + sx, eastPlazaY + 0.49, 347.76);
+      appendPart(hPos, hNorm, hUv, hCol, hIdx, seat, [0.49, 0.29, 0.15]);
+
+      const back = new THREE.BoxGeometry(1.62, 0.34, 0.06);
+      back.translate(bx + sx, eastPlazaY + 0.70, 348.0);
+      appendPart(hPos, hNorm, hUv, hCol, hIdx, back, [0.52, 0.31, 0.16]);
+    }
+
+    // =========================================================================
+    // 2. INCLUSIVE DUAL-MODE SHORE APPROACHES (CENTRAL STAIRCASE + TWIN ACCESSIBLE RAMPS)
+    // =========================================================================
+    const smoother01 = (t) => {
+      const c = Math.max(0.0, Math.min(1.0, t));
+      return c * c * c * (c * (c * 6.0 - 15.0) + 10.0);
+    };
+
+    const buildInclusiveShoreApproach = (zOuter, zPortal, yOuter) => {
+      const steps = 22;
+      const isWest = zOuter < zPortal;
+      // Supporting concrete spine wall & twin ramp cheek walls (watertight down to y = -2.6m)
+      for (let i = 0; i < steps; i++) {
+        const t0 = i / steps;
+        const t1 = (i + 1) / steps;
+        const tm = 0.5 * (t0 + t1);
+        const za = zOuter + (zPortal - zOuter) * t0;
+        const zb = zOuter + (zPortal - zOuter) * t1;
+        const zm = 0.5 * (za + zb);
+        const dzSeg = Math.abs(zb - za);
+
+        const yStepTop = yOuter + smoother01(t1) * (portalDeckY - yOuter);
+        const subH = yStepTop + 2.6;
+
+        // Full-width stepped concrete substructure + stair tread
+        const subBox = new THREE.BoxGeometry(5.52, subH, dzSeg + 0.04);
+        subBox.translate(bx, yStepTop - subH * 0.5 - 0.03, zm);
+        appendPart(vPos, vNorm, vUv, vCol, vIdx, subBox, concreteWarm, whiteUV);
+
+        // Central ceremonial staircase tread (x in [bx - 1.18, bx + 1.18])
+        const tread = new THREE.BoxGeometry(2.36, 0.06, dzSeg + 0.03);
+        tread.translate(bx, yStepTop, zm);
+        appendPart(hPos, hNorm, hUv, hCol, hIdx, tread, i % 2 === 0 ? deckPaverGrey : [0.41, 0.42, 0.45]);
+
+        // Smooth C1 flanking accessible wheelchair/bicycle ramp decks (North & South flanks: width 1.38m each)
+        const yR0 = yOuter + smoother01(t0) * (portalDeckY - yOuter);
+        const yR1 = yOuter + smoother01(t1) * (portalDeckY - yOuter);
+        const dyRamp = isWest ? yR1 - yR0 : yR0 - yR1;
+        const dzSigned = Math.abs(zb - za);
+        const hyp = Math.hypot(dzSigned, dyRamp);
+        const pitchX = -Math.atan2(dyRamp, dzSigned);
+
+        for (const sx of [-1, 1]) {
+          const rampSlab = new THREE.BoxGeometry(1.38, 0.07, hyp + 0.03);
+          rampSlab.rotateX(pitchX);
+          rampSlab.translate(bx + sx * 1.94, 0.5 * (yR0 + yR1), zm);
+          appendPart(hPos, hNorm, hUv, hCol, hIdx, rampSlab, sx > 0 ? bikeLaneBrick : deckPaverGrey);
+        }
+
+        // Approach handrails & posts every 2 steps
+        if (i % 2 === 0 || i === steps - 1) {
+          const yPostBase = yOuter + smoother01(tm) * (portalDeckY - yOuter);
+          for (const rxOff of [-2.66, -1.22, 1.22, 2.66]) {
+            pushTubeH(
+              bx + rxOff,
+              yPostBase - 0.05,
+              zm,
+              bx + rxOff,
+              yPostBase + 1.06,
+              zm,
+              0.032,
+              0.032,
+              8,
+              krakatauRed
+            );
+          }
+        }
+      }
+
+      // Continuous smooth tubular UI-Yellow top handrails & mid-rails along approach stairs & ramps
+      const railSegs = 11;
+      for (let r = 0; r < railSegs; r++) {
+        const t0 = r / railSegs;
+        const t1 = (r + 1) / railSegs;
+        const za = zOuter + (zPortal - zOuter) * t0;
+        const zb = zOuter + (zPortal - zOuter) * t1;
+        const ya = yOuter + smoother01(t0) * (portalDeckY - yOuter);
+        const yb = yOuter + smoother01(t1) * (portalDeckY - yOuter);
+        for (const rxOff of [-2.66, -1.22, 1.22, 2.66]) {
+          pushTubeH(bx + rxOff, ya + 1.06, za, bx + rxOff, yb + 1.06, zb, 0.038, 0.038, 8, uiGoldenYellow);
+          pushTubeH(bx + rxOff, ya + 0.56, za, bx + rxOff, yb + 0.56, zb, 0.024, 0.024, 6, stayCableSteel);
+        }
+      }
+    };
+
+    buildInclusiveShoreApproach(zRampW0, zW, 0.04);
+    buildInclusiveShoreApproach(zRampE1, zE, eastPlazaY);
+
+    // =========================================================================
+    // 3. 7-BOX-SEGMENT PARABOLIC BTKC STEEL BOX GIRDER, WALKWAY DECK, & SPLICE JOINTS
+    //    (84 longitudinal stations = 12 per each of the 7 Krakatau Steel box segments!)
+    // =========================================================================
+    const archSegs = 84;
+    const topGirderHalfW = 2.08;
+    const botGirderHalfW = 1.46;
+
+    // Lofted Parabolic Trapezoidal BTKC Weathering-Steel Box Girder (soffit strictly at y_deck - 1.30m!)
+    for (let i = 0; i < archSegs; i++) {
+      const z0 = zW + (i / archSegs) * spanLen;
+      const z1 = zW + ((i + 1) / archSegs) * spanLen;
+      const yD0 = evalArchDeckY(z0);
+      const yD1 = evalArchDeckY(z1);
+      const yTop0 = yD0 - 0.07;
+      const yTop1 = yD1 - 0.07;
+      const yBot0 = yD0 - girderDepth;
+      const yBot1 = yD1 - girderDepth;
+
+      // Bottom soffit plate (facing -Y downward toward Mini Yacht!)
+      pushQuadH(
+        bx - botGirderHalfW,
+        yBot0,
+        z0,
+        bx - botGirderHalfW,
+        yBot1,
+        z1,
+        bx + botGirderHalfW,
+        yBot1,
+        z1,
+        bx + botGirderHalfW,
+        yBot0,
+        z0,
+        btkcCharcoal
+      );
+      // North (+X) inclined box-girder web
+      pushQuadH(
+        bx + botGirderHalfW,
+        yBot0,
+        z0,
+        bx + botGirderHalfW,
+        yBot1,
+        z1,
+        bx + topGirderHalfW,
+        yTop1,
+        z1,
+        bx + topGirderHalfW,
+        yTop0,
+        z0,
+        btkcCharcoal
+      );
+      // South (-X) inclined box-girder web
+      pushQuadH(
+        bx - topGirderHalfW,
+        yTop0,
+        z0,
+        bx - topGirderHalfW,
+        yTop1,
+        z1,
+        bx - botGirderHalfW,
+        yBot1,
+        z1,
+        bx - botGirderHalfW,
+        yBot0,
+        z0,
+        btkcCharcoal
+      );
+      // Under-deck cantilever soffit wings (connecting top of box girder out to crimson fascia girders)
+      pushQuadH(
+        bx + topGirderHalfW,
+        yTop0,
+        z0,
+        bx + topGirderHalfW,
+        yTop1,
+        z1,
+        bx + deckHalfW + 0.10,
+        yTop1,
+        z1,
+        bx + deckHalfW + 0.10,
+        yTop0,
+        z0,
+        btkcFlangeSteel
+      );
+      pushQuadH(
+        bx - deckHalfW - 0.10,
+        yTop0,
+        z0,
+        bx - deckHalfW - 0.10,
+        yTop1,
+        z1,
+        bx - topGirderHalfW,
+        yTop1,
+        z1,
+        bx - topGirderHalfW,
+        yTop0,
+        z0,
+        btkcFlangeSteel
+      );
+
+      // Parabolic Cambered Pedestrian & Bicycle Deck Surface (5.20m clear width: Pedestrian lane + Bicycle lane + Tactile strips)
+      const strips = [
+        { xA: -deckHalfW, xB: -2.36, col: uiYellowDeep },
+        { xA: -2.36, xB: 0.72, col: deckPaverGrey },
+        { xA: 0.72, xB: 0.84, col: [0.88, 0.88, 0.90] },
+        { xA: 0.84, xB: 2.36, col: bikeLaneBrick },
+        { xA: 2.36, xB: deckHalfW, col: uiYellowDeep }
+      ];
+      for (let s = 0; s < strips.length; s++) {
+        const st = strips[s];
+        const cA = 0.015 * (1.0 - Math.pow(st.xA / deckHalfW, 2.0));
+        const cB = 0.015 * (1.0 - Math.pow(st.xB / deckHalfW, 2.0));
+        pushQuadH(
+          bx + st.xA,
+          yD0 + cA,
+          z0,
+          bx + st.xB,
+          yD0 + cB,
+          z0,
+          bx + st.xB,
+          yD1 + cB,
+          z1,
+          bx + st.xA,
+          yD1 + cA,
+          z1,
+          st.col
+        );
+      }
+
+      // Twin Krakatau Steel Crimson-Red Outer Edge Fascia I-Girders (x = bx +/- 2.68m)
+      const fIn = deckHalfW + 0.02;
+      const fOut = deckHalfW + 0.16;
+      const fTop0 = yD0 + 0.16;
+      const fTop1 = yD1 + 0.16;
+      const fBot0 = yD0 - 0.36;
+      const fBot1 = yD1 - 0.36;
+      for (const sx of [-1, 1]) {
+        const xOuter = bx + sx * fOut;
+        const xInner = bx + sx * fIn;
+        if (sx > 0) {
+          pushQuadH(xOuter, fBot0, z0, xOuter, fBot1, z1, xOuter, fTop1, z1, xOuter, fTop0, z0, krakatauRed);
+          pushQuadH(xInner, fTop0, z0, xOuter, fTop0, z0, xOuter, fTop1, z1, xInner, fTop1, z1, krakatauRed);
+          pushQuadH(xInner, fBot0, z0, xInner, fTop0, z0, xInner, fTop1, z1, xInner, fBot1, z1, krakatauRedDark);
+          pushQuadH(xOuter, fBot0, z0, xInner, fBot0, z0, xInner, fBot1, z1, xOuter, fBot1, z1, krakatauRedDark);
+        } else {
+          pushQuadH(xOuter, fTop0, z0, xOuter, fTop1, z1, xOuter, fBot1, z1, xOuter, fBot0, z0, krakatauRed);
+          pushQuadH(xOuter, fTop0, z0, xInner, fTop0, z0, xInner, fTop1, z1, xOuter, fTop1, z1, krakatauRed);
+          pushQuadH(xInner, fTop0, z0, xInner, fBot0, z0, xInner, fBot1, z1, xInner, fTop1, z1, krakatauRedDark);
+          pushQuadH(xInner, fBot0, z0, xOuter, fBot0, z0, xOuter, fBot1, z1, xInner, fBot1, z1, krakatauRedDark);
+        }
+      }
+    }
+
+    // 6 Prominent Bolted BTKC Segment-Splice Flange Collars (dividing the 148m arch into 7 authentic Krakatau Steel box segments!)
+    for (let segJoint = 1; segJoint <= 6; segJoint++) {
+      const zJ = zW + (segJoint / 7) * spanLen;
+      const yDJ = evalArchDeckY(zJ);
+      const slopeJ = evalArchSlope(zJ);
+      const pitchJ = -Math.atan2(slopeJ, 1.0);
+
+      const collar = new THREE.BoxGeometry(4.42, girderDepth + 0.14, 0.34);
+      collar.rotateX(pitchJ);
+      collar.translate(bx, yDJ - girderDepth * 0.5 - 0.02, zJ);
+      appendPart(hPos, hNorm, hUv, hCol, hIdx, collar, btkcFlangeSteel);
+
+      const redGusset = new THREE.BoxGeometry(5.56, 0.56, 0.24);
+      redGusset.rotateX(pitchJ);
+      redGusset.translate(bx, yDJ - 0.18, zJ);
+      appendPart(hPos, hNorm, hUv, hCol, hIdx, redGusset, krakatauRed);
+    }
+
+    // 28 Transverse Under-Deck Cantilever Outrigger Brackets
+    for (let b = 0; b <= 28; b++) {
+      const zB = zW + (b / 28) * spanLen;
+      const yDB = evalArchDeckY(zB);
+      for (const sx of [-1, 1]) {
+        pushTubeH(
+          bx + sx * (botGirderHalfW + 0.15),
+          yDB - 0.72,
+          zB,
+          bx + sx * (deckHalfW + 0.08),
+          yDB - 0.22,
+          zB,
+          0.075,
+          0.065,
+          6,
+          btkcFlangeSteel
+        );
+      }
+    }
+
+    // =========================================================================
+    // 4. KRAKATAU STEEL CRIMSON-RED PARABOLIC THROUGH-ARCH TRUSS, WARREN WEB STRUTS,
+    //    OVERHEAD SWAY BRACES, & PEDESTRIAN SAFETY BALUSTRADES
+    // =========================================================================
+    const trussBays = 28;
+    const xTruss = deckHalfW + 0.12; // 2.72m
+    const xRail = deckHalfW - 0.06; // 2.54m
+
+    for (let k = 0; k < trussBays; k++) {
+      const z0 = zW + (k / trussBays) * spanLen;
+      const z1 = zW + ((k + 1) / trussBays) * spanLen;
+      const zm = 0.5 * (z0 + z1);
+      const yD0 = evalArchDeckY(z0);
+      const yD1 = evalArchDeckY(z1);
+      const yDm = evalArchDeckY(zm);
+      const yC0 = evalArchChordY(z0);
+      const yC1 = evalArchChordY(z1);
+
+      for (const sx of [-1, 1]) {
+        const xt = bx + sx * xTruss;
+        const xr = bx + sx * xRail;
+
+        // Upper Parabolic Crimson-Red Arch Truss Chord
+        pushTubeH(xt, yC0, z0, xt, yC1, z1, 0.145, 0.145, 10, krakatauRed);
+
+        // Vertical Steel Truss Hanger Post at z0
+        pushTubeH(xt, yD0 + 0.08, z0, xt, yC0, z0, 0.085, 0.085, 8, krakatauRed);
+
+        // Alternating Warren Diagonal Web Strut
+        if (k % 2 === 0) {
+          pushTubeH(xt, yD0 + 0.12, z0, xt, yC1 - 0.04, z1, 0.068, 0.068, 8, krakatauRedDark);
+        } else {
+          pushTubeH(xt, yC0 - 0.04, z0, xt, yD1 + 0.12, z1, 0.068, 0.068, 8, krakatauRedDark);
+        }
+
+        // Pedestrian & Cyclist Safety Balustrade: UI Golden-Yellow Ergonomic Top Handrail + 2 Mid Tension Bars + Mid Post
+        pushTubeH(xr, yD0 + 1.10, z0, xr, yD1 + 1.10, z1, 0.042, 0.042, 8, uiGoldenYellow);
+        pushTubeH(xr, yD0 + 0.72, z0, xr, yD1 + 0.72, z1, 0.022, 0.022, 6, stayCableSteel);
+        pushTubeH(xr, yD0 + 0.36, z0, xr, yD1 + 0.36, z1, 0.022, 0.022, 6, stayCableSteel);
+        pushTubeH(xr, yDm, zm, xr, yDm + 1.10, zm, 0.030, 0.030, 6, krakatauRed);
+
+        // Recessed Warm-White 3000K Photocell LED Handrail Under-Glow Strip (off during clear day, glows at dusk/night/storm!)
+        pushTubeH(xr - sx * 0.04, yD0 + 1.05, z0 + 0.25, xr - sx * 0.04, yD1 + 1.05, z1 - 0.25, 0.018, 0.018, 6, warmLedStrip);
+      }
+
+      // Overhead Transverse Portal Sway Braces across central high-arch bays (headroom >= 3.1m above deck!)
+      if (k >= 6 && k <= 22 && k % 4 === 2) {
+        pushTubeH(bx - xTruss, yC0, z0, bx + xTruss, yC0, z0, 0.095, 0.095, 8, krakatauRed);
+        pushTubeH(bx - xTruss, yC0 - 0.32, z0, bx - 1.25, yC0, z0, 0.055, 0.055, 6, krakatauRedDark);
+        pushTubeH(bx + xTruss, yC0 - 0.32, z0, bx + 1.25, yC0, z0, 0.055, 0.055, 6, krakatauRedDark);
+      }
+    }
+    // Final East vertical truss posts at zE
+    for (const sx of [-1, 1]) {
+      const xt = bx + sx * xTruss;
+      pushTubeH(xt, evalArchDeckY(zE) + 0.08, zE, xt, evalArchChordY(zE), zE, 0.085, 0.085, 8, krakatauRed);
+    }
+
+    // =========================================================================
+    // 5. 30 TRANSLUCENT-LOOK CERULEAN-BLUE WAVE-RIPPLE SUNROOF CANOPY UNITS
+    //    ("30 unit atap menyerupai sunroof yang melengkung seperti riak gelombang berwarna biru")
+    // =========================================================================
+    const canopyCount = 30;
+    const zCanopyStart = zW + 3.4;
+    const zCanopySpan = spanLen - 6.8; // 141.2m -> 4.707m pitch per module
+    const moduleLenZ = 4.18;
+    const moduleHalfW = 2.48;
+    const shellThick = 0.052;
+    const gridU = 6;
+    const gridV = 6;
+
+    for (let m = 0; m < canopyCount; m++) {
+      const zm = zCanopyStart + ((m + 0.5) / canopyCount) * zCanopySpan;
+      const z0 = zm - moduleLenZ * 0.5;
+      const phaseOffset = (m % 2) * 0.55;
+
+      // Supporting dark-steel arched purlin ribs & central photocell LED luminaire under each wave module
+      const yBaseMid = evalArchDeckY(zm) + 3.04;
+      const yChordMid = Math.max(evalArchChordY(zm) - 0.15, evalArchDeckY(zm) + 2.55);
+      for (const sx of [-1, 1]) {
+        pushTubeH(
+          bx + sx * xTruss,
+          yChordMid,
+          zm,
+          bx + sx * (moduleHalfW - 0.08),
+          yBaseMid,
+          zm,
+          0.045,
+          0.040,
+          6,
+          btkcFlangeSteel
+        );
+      }
+      pushTubeH(bx - moduleHalfW + 0.1, yBaseMid, zm, bx, yBaseMid + 0.34, zm, 0.036, 0.036, 6, btkcFlangeSteel);
+      pushTubeH(bx + moduleHalfW - 0.1, yBaseMid, zm, bx, yBaseMid + 0.34, zm, 0.036, 0.036, 6, btkcFlangeSteel);
+      if (m % 2 === 0) {
+        pushTubeH(bx, yBaseMid + 0.27, zm - 0.75, bx, yBaseMid + 0.27, zm + 0.75, 0.028, 0.028, 6, warmLedStrip);
+      }
+
+      // Evaluate double-curved sinusoidal water-ripple wave elevation y(u, v) for sunroof shell #m
+      const evalWaveY = (u01, v01) => {
+        const zCur = z0 + v01 * moduleLenZ;
+        const xRel = (u01 * 2.0 - 1.0) * moduleHalfW;
+        const archCrown = 0.34 * (1.0 - Math.pow(xRel / moduleHalfW, 2.0));
+        const rippleWave =
+          0.16 * Math.sin(v01 * Math.PI * 2.0 + phaseOffset) +
+          0.055 * Math.cos(u01 * Math.PI * 3.0);
+        return evalArchDeckY(zCur) + 3.02 + archCrown + rippleWave;
+      };
+
+      for (let iu = 0; iu < gridU; iu++) {
+        const u0 = iu / gridU;
+        const u1 = (iu + 1) / gridU;
+        const xA = bx + (u0 * 2.0 - 1.0) * moduleHalfW;
+        const xB = bx + (u1 * 2.0 - 1.0) * moduleHalfW;
+        for (let iv = 0; iv < gridV; iv++) {
+          const v0 = iv / gridV;
+          const v1 = (iv + 1) / gridV;
+          const zA = z0 + v0 * moduleLenZ;
+          const zB = z0 + v1 * moduleLenZ;
+
+          const y00 = evalWaveY(u0, v0);
+          const y10 = evalWaveY(u1, v0);
+          const y11 = evalWaveY(u1, v1);
+          const y01 = evalWaveY(u0, v1);
+
+          // Top sky-facing cerulean-blue polycarbonate wave surface (+Y normal)
+          pushQuadH(xA, y00, zA, xA, y01, zB, xB, y11, zB, xB, y10, zA, sunroofBlue);
+          // Underside pedestrian-facing translucent blue wave soffit (-Y normal)
+          pushQuadH(
+            xA,
+            y00 - shellThick,
+            zA,
+            xB,
+            y10 - shellThick,
+            zA,
+            xB,
+            y11 - shellThick,
+            zB,
+            xA,
+            y01 - shellThick,
+            zB,
+            sunroofBlueUnderside
+          );
+        }
+      }
+    }
+
+    // =========================================================================
+    // 6. WEST PORTAL — "PILON LINGGA" (25.0m UI GOLDEN-YELLOW CURVED SHIP'S SAIL / LAYAR KAPAL)
+    //    Portal base y = +0.35m -> Masthead apex y = +25.35m (25.0m tall!)
+    // =========================================================================
+    const linggaMergeY = 8.15;
+    const linggaTopY = 25.35;
+
+    // 6A. Sculpted Twin Straddling A-Frame Portal Legs converging above the walkway into the Sail Mast
+    const legSteps = 12;
+    for (const sx of [-1, 1]) {
+      for (let i = 0; i < legSteps; i++) {
+        const s0 = i / legSteps;
+        const s1 = (i + 1) / legSteps;
+        const ease0 = smoother01(s0);
+        const ease1 = smoother01(s1);
+        const x0 = bx + sx * 3.45 * (1.0 - ease0);
+        const x1 = bx + sx * 3.45 * (1.0 - ease1);
+        const y0 = 0.35 + s0 * (linggaMergeY - 0.35);
+        const y1 = 0.35 + s1 * (linggaMergeY - 0.35);
+        const zL0 = zW - 0.10 * s0;
+        const zL1 = zW - 0.10 * s1;
+        const r0 = 0.48 - 0.12 * s0;
+        const r1 = 0.48 - 0.12 * s1;
+        pushTubeH(x0, y0, zL0, x1, y1, zL1, r0, r1, 10, uiGoldenYellow, i === legSteps - 1);
+      }
+    }
+    // Portal cross-tie beam under deck & upper arch collar at zW
+    pushTubeH(bx - 3.15, portalDeckY - 0.55, zW, bx + 3.15, portalDeckY - 0.55, zW, 0.28, 0.28, 8, uiYellowDeep);
+    pushTubeH(bx - 1.35, 6.95, zW - 0.08, bx + 1.35, 6.95, zW - 0.08, 0.20, 0.20, 8, uiYellowDeep);
+
+    // 6B. Towering 3D Curved Ship's Sail Mast & Billowing Golden-Yellow Steel Sail Fin (y = 7.75m .. 25.35m)
+    const sailSegs = 22;
+    const evalLinggaMast = (s) => {
+      const y = 7.75 + s * (linggaTopY - 7.75);
+      // Graceful forward nautical curve toward Teluk U (+Z) peaking mid-mast then sweeping to apex
+      const zLead = zW + 2.25 * Math.sin(s * 1.32);
+      const chord = 3.95 * Math.sin(Math.PI * Math.pow(Math.max(0.001, s), 0.68)) * (1.0 - 0.28 * s) + 0.28 * (1.0 - s);
+      const zTrail = zLead - chord;
+      const camberX = 0.34 * Math.sin(Math.PI * s);
+      const halfThick = 0.26 * (1.0 - 0.62 * s) + 0.06;
+      return { y, zLead, zTrail, chord, camberX, halfThick };
+    };
+
+    for (let i = 0; i < sailSegs; i++) {
+      const s0 = i / sailSegs;
+      const s1 = (i + 1) / sailSegs;
+      const m0 = evalLinggaMast(s0);
+      const m1 = evalLinggaMast(s1);
+
+      // Leading curved tubular steel sail mast (+Z edge facing Teluk U)
+      pushTubeH(
+        bx,
+        m0.y,
+        m0.zLead,
+        bx,
+        m1.y,
+        m1.zLead,
+        0.36 * (1.0 - 0.58 * s0),
+        0.36 * (1.0 - 0.58 * s1),
+        12,
+        uiGoldenYellow,
+        i === sailSegs - 1
+      );
+      // Trailing curved leech edge tube (-Z edge facing Rotunda/FT)
+      pushTubeH(
+        bx,
+        m0.y,
+        m0.zTrail,
+        bx,
+        m1.y,
+        m1.zTrail,
+        0.15 * (1.0 - 0.45 * s0),
+        0.15 * (1.0 - 0.45 * s1),
+        10,
+        uiYellowDeep,
+        i === sailSegs - 1
+      );
+
+      // Sculpted 3D Cambered Billowing Steel Sail Web (4 chord strips across Z on both +X & -X faces!)
+      const chordSteps = 4;
+      for (let c = 0; c < chordSteps; c++) {
+        const uA = c / chordSteps;
+        const uB = (c + 1) / chordSteps;
+        const profileA0 = Math.sin(Math.PI * uA);
+        const profileB0 = Math.sin(Math.PI * uB);
+
+        const zA0 = m0.zLead + (m0.zTrail - m0.zLead) * uA;
+        const zB0 = m0.zLead + (m0.zTrail - m0.zLead) * uB;
+        const zA1 = m1.zLead + (m1.zTrail - m1.zLead) * uA;
+        const zB1 = m1.zLead + (m1.zTrail - m1.zLead) * uB;
+
+        const xPosA0 = bx + m0.camberX * profileA0 + m0.halfThick * (0.35 + 0.65 * profileA0);
+        const xPosB0 = bx + m0.camberX * profileB0 + m0.halfThick * (0.35 + 0.65 * profileB0);
+        const xPosA1 = bx + m1.camberX * profileA0 + m1.halfThick * (0.35 + 0.65 * profileA0);
+        const xPosB1 = bx + m1.camberX * profileB0 + m1.halfThick * (0.35 + 0.65 * profileB0);
+
+        const xNegA0 = bx + m0.camberX * profileA0 - m0.halfThick * (0.35 + 0.65 * profileA0);
+        const xNegB0 = bx + m0.camberX * profileB0 - m0.halfThick * (0.35 + 0.65 * profileB0);
+        const xNegA1 = bx + m1.camberX * profileA0 - m1.halfThick * (0.35 + 0.65 * profileA0);
+        const xNegB1 = bx + m1.camberX * profileB0 - m1.halfThick * (0.35 + 0.65 * profileB0);
+
+        // North (+X) billowing sail face
+        pushQuadH(xPosA0, m0.y, zA0, xPosB0, m0.y, zB0, xPosB1, m1.y, zB1, xPosA1, m1.y, zA1, uiGoldenYellow);
+        // South (-X) billowing sail face
+        pushQuadH(xNegA0, m0.y, zA0, xNegA1, m1.y, zA1, xNegB1, m1.y, zB1, xNegB0, m0.y, zB0, uiGoldenYellow);
+      }
+
+      // Horizontal Nautical Sail Batten Ribs every 3 stations
+      if (i > 1 && i < sailSegs - 1 && i % 3 === 0) {
+        for (const sx of [-1, 1]) {
+          const xRib = bx + m0.camberX * 0.6 + sx * (m0.halfThick + 0.045);
+          pushTubeH(xRib, m0.y, m0.zLead - 0.1, xRib, m0.y, m0.zTrail + 0.1, 0.055, 0.045, 6, uiYellowDeep);
+        }
+      }
+    }
+
+    // 3 Sculpted Circular Wind-Relief Sail Oculi Rings + Flashing Red Aviation/Marine Masthead Beacon (y = 25.52m)
+    for (const sOculus of [0.30, 0.50, 0.68]) {
+      const mO = evalLinggaMast(sOculus);
+      const rOc = 0.46 * (1.0 - 0.35 * sOculus);
+      const oculus = new THREE.TorusGeometry(rOc, 0.085, 8, 18);
+      oculus.rotateY(Math.PI * 0.5);
+      oculus.scale(1.8, 1.0, 1.0);
+      oculus.translate(bx + mO.camberX * 0.85, mO.y, 0.5 * (mO.zLead + mO.zTrail));
+      appendPart(hPos, hNorm, hUv, hCol, hIdx, oculus, btkcFlangeSteel);
+    }
+
+    const topMast = evalLinggaMast(1.0);
+    const linggaSpire = new THREE.ConeGeometry(0.16, 0.85, 10, 1);
+    linggaSpire.translate(bx, topMast.y + 0.40, topMast.zLead);
+    appendPart(hPos, hNorm, hUv, hCol, hIdx, linggaSpire, uiGoldenYellow);
+
+    const linggaBeacon = new THREE.SphereGeometry(0.17, 12, 8);
+    linggaBeacon.translate(bx, topMast.y + 0.90, topMast.zLead);
+    appendPart(hPos, hNorm, hUv, hCol, hIdx, linggaBeacon, [0.96, 0.08, 0.06]);
+
+    // 10 Tensioned Steel Fan Stay Cables from Pilon Lingga (6 forestays to Teluk U arch + 4 backstays to West anchorages)
+    const linggaStayHeights = [0.46, 0.64, 0.82];
+    for (let c = 0; c < linggaStayHeights.length; c++) {
+      const mS = evalLinggaMast(linggaStayHeights[c]);
+      const zFore = zW + 13.5 + c * 14.5; // 185.15, 199.65, 214.15
+      const yFore = evalArchDeckY(zFore) + 0.18;
+      for (const sx of [-1, 1]) {
+        pushTubeH(bx, mS.y, mS.zLead - 0.12, bx + sx * xTruss, yFore, zFore, 0.036, 0.036, 6, stayCableSteel);
+      }
+      if (c >= 1) {
+        const zBack = 152.0 + (c - 1) * 5.2;
+        const yBack = TerrainDEMLoader.sampleTeksasBridgeDeckY(bx, zBack) || 0.25;
+        for (const sx of [-1, 1]) {
+          pushTubeH(bx, mS.y, mS.zTrail + 0.12, bx + sx * 2.75, yBack + 0.15, zBack, 0.038, 0.038, 6, stayCableSteel);
+        }
+      }
+    }
+
+    // =========================================================================
+    // 7. EAST PORTAL — "PILON YONI" (15.0m UI GOLDEN-YELLOW CURVILINEAR CURVED HIP ARCH)
+    //    ("melengkung menyerupai pinggul": slender waist -> flared rounded hip curves -> united crown at y = +15.38m)
+    // =========================================================================
+    const yoniBaseY = 0.44;
+    const yoniCrownY = 15.38; // ~15.0m above East pedestal!
+    const yoniSegs = 28;
+
+    // Smooth analytic half-arch curve (s in [0, 1] from pedestal base -> waist -> flared hip -> top crown apex)
+    const evalYoniHalfCurve = (s, sx) => {
+      const y = yoniBaseY + (yoniCrownY - yoniBaseY) * Math.sin(s * Math.PI * 0.5);
+      // Base = 3.45m -> inward slender waist (~2.96m at s = 0.24, keeping 5.2m deck 100% clear!) ->
+      // wide rounded hip flare (~4.62m at s = 0.58, y ~ 12.2m) -> smooth rounded crown apex (0.0m at s = 1.0)!
+      const waistDip = -0.82 * Math.exp(-Math.pow((s - 0.23) / 0.12, 2.0));
+      const hipFlare = 1.92 * Math.exp(-Math.pow((s - 0.57) / 0.21, 2.0));
+      const baseTaper = 3.45 * Math.cos(s * Math.PI * 0.5);
+      const halfX = Math.max(0.0, (baseTaper + waistDip + hipFlare) * (1.0 - Math.pow(s, 6.0)));
+      // Subtle graceful longitudinal hip lean (+0.65m curvature in Z)
+      const zLean = zE + 0.68 * Math.sin(s * Math.PI);
+      const radius = 0.42 - 0.10 * s + 0.06 * Math.sin(s * Math.PI);
+      return { x: bx + sx * halfX, y, z: zLean, radius };
+    };
+
+    for (const sx of [-1, 1]) {
+      for (let i = 0; i < yoniSegs; i++) {
+        const s0 = i / yoniSegs;
+        const s1 = (i + 1) / yoniSegs;
+        const p0 = evalYoniHalfCurve(s0, sx);
+        const p1 = evalYoniHalfCurve(s1, sx);
+
+        // Twin coupled curvilinear steel hip-arch ribs (West-facing & East-facing flanges tied into a sculpted box-arch!)
+        pushTubeH(p0.x, p0.y, p0.z - 0.34, p1.x, p1.y, p1.z - 0.34, p0.radius * 0.72, p1.radius * 0.72, 10, uiGoldenYellow, true);
+        pushTubeH(p0.x, p0.y, p0.z + 0.34, p1.x, p1.y, p1.z + 0.34, p0.radius * 0.72, p1.radius * 0.72, 10, uiGoldenYellow, true);
+
+        // Connecting golden-yellow web struts between the twin curvilinear ribs
+        if (i % 2 === 0) {
+          pushTubeH(p0.x, p0.y, p0.z - 0.34, p0.x, p0.y, p0.z + 0.34, 0.16, 0.16, 8, uiYellowDeep);
+        }
+      }
+    }
+
+    // Portal under-deck cross-beam & upper crown medallion ring on Pilon Yoni
+    pushTubeH(bx - 3.15, portalDeckY - 0.55, zE, bx + 3.15, portalDeckY - 0.55, zE, 0.26, 0.26, 8, uiYellowDeep);
+    const yoniCrownRing = new THREE.TorusGeometry(0.62, 0.13, 10, 20);
+    yoniCrownRing.rotateY(Math.PI * 0.5);
+    yoniCrownRing.translate(bx, yoniCrownY - 1.15, zE + 0.18);
+    appendPart(hPos, hNorm, hUv, hCol, hIdx, yoniCrownRing, uiYellowDeep);
+
+    // 8 Tensioned Steel Fan Stay Cables from Pilon Yoni's Upper Hip Crown (4 forestays to Teluk U arch + 4 backstays)
+    for (let c = 0; c < 2; c++) {
+      const sAttach = 0.68 + c * 0.15;
+      for (const sx of [-1, 1]) {
+        const pA = evalYoniHalfCurve(sAttach, sx);
+        const zFore = zE - (13.0 + c * 15.0); // 306.65, 291.65
+        const yFore = evalArchDeckY(zFore) + 0.18;
+        pushTubeH(pA.x, pA.y, pA.z - 0.30, bx + sx * xTruss, yFore, zFore, 0.036, 0.036, 6, stayCableSteel);
+
+        const zBack = 334.0 + c * 5.2;
+        const yBack = TerrainDEMLoader.sampleTeksasBridgeDeckY(bx, zBack) || eastPlazaY;
+        pushTubeH(pA.x, pA.y, pA.z + 0.30, bx + sx * 2.75, yBack + 0.15, zBack, 0.036, 0.036, 6, stayCableSteel);
+      }
+    }
+
+    const horizontalGeo = new THREE.BufferGeometry();
+    horizontalGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(hPos), 3));
+    horizontalGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(hNorm), 3));
+    horizontalGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(hUv), 2));
+    horizontalGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(hCol), 3));
+    horizontalGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(hIdx), 1));
+
+    const verticalGeo = new THREE.BufferGeometry();
+    verticalGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vPos), 3));
+    verticalGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(vNorm), 3));
+    verticalGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(vUv), 2));
+    verticalGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(vCol), 3));
+    verticalGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(vIdx), 1));
+
+    return { horizontalGeo, verticalGeo };
+  }
+
   static _makeCirclePoints(cx, y, cz, radius, count = 48) {
     const pts = [];
     for (let i = 0; i < count; i++) {
@@ -1911,7 +2899,35 @@ export class SplineCorridorBuilder {
       SplineCorridorBuilder._buildPulauIAirstripRunway()
     );
 
-    // Hukum Emas 12: Batch all decks/roofs/topiary/teak/helipad/runway into Draw Call #1 & all curbs/columns/bollards into Draw Call #2!
+    // 11. Lapangan Rotunda UI <-> Jembatan Teksas UI West Forecourt Promenade Connector
+    const teksasConnectorSpline = SplineCorridorBuilder._createHighPrecisionSpline(
+      [
+        new THREE.Vector3(-17.8, 0.034, 130.8),
+        new THREE.Vector3(-24.2, 0.036, 139.5),
+        new THREE.Vector3(TerrainDEMLoader.TEKSAS_BRIDGE_X, 0.038, 146.8)
+      ],
+      false
+    );
+    addPair(
+      'RotundaEastTeksasConnector',
+      SplineCorridorBuilder._loftSeparatedCorridor(teksasConnectorSpline, {
+        segments: 36,
+        halfWidth: 2.35,
+        curbWidth: 0.34,
+        curbRise: 0.11,
+        deckColor: [0.46, 0.45, 0.42],
+        zebraCurbs: false
+      })
+    );
+
+    // 12. High-Accuracy Architectural Digital Twin of "Jembatan Teksas UI" (7-Segment BTKC Arch, Pilon Lingga 25m,
+    //     Pilon Yoni 15m, 30 Blue Wave Sunroof Canopies, Inclusive Ramps+Stairs, & 9.25m Mini-Yacht Clearance!)
+    addPair(
+      'PulauU_JembatanTeksasUI',
+      SplineCorridorBuilder._buildJembatanTeksasUI()
+    );
+
+    // Hukum Emas 12: Batch all decks/roofs/topiary/teak/helipad/runway/bridge into Draw Call #1 & all curbs/columns/bollards into Draw Call #2!
     NexusBatchOptimizer.optimizeHierarchy(corridorGroup);
     corridorGroup.updateMatrixWorld(true);
     return corridorGroup;
