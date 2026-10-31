@@ -241,78 +241,98 @@
         .modal-backdrop.active {
             display: flex;
         }
+
+        @keyframes pasirIdleBounce {
+            0%, 100% { transform: translate(-50%, -50%) translateY(0px) scale(1, 1); }
+            50% { transform: translate(-50%, -50%) translateY(-6px) scale(0.96, 1.05); }
+        }
+        .pasir-mascot-idle {
+            animation: pasirIdleBounce 1.1s ease-in-out infinite;
+        }
+        @keyframes postUnlockFlash {
+            0% { transform: scale(0.92); box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.9); }
+            50% { transform: scale(1.06); box-shadow: 0 0 28px 8px rgba(251, 191, 36, 0.75); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+        }
+        .post-unlock-burst {
+            animation: postUnlockFlash 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
     </style>
 </head>
 <body class="app-shell">
 
     <!-- TATADADA COMPACT HEADER + GAME HUD -->
-    <header class="w-full max-w-[430px] pt-1.5 px-2.5 z-30 shrink-0 flex flex-col gap-1">
+    <header class="w-full max-w-[395px] pt-1.5 px-3 z-30 shrink-0 flex flex-col gap-1">
         <!-- Row 1: Brand Identity, Author, Help, Lang, Theme, Save/Delete Progress -->
-        <div class="w-full h-9 bg-header border border-theme rounded-xl px-2.5 flex items-center justify-between shadow-md">
-            <div class="flex items-center gap-1.5 min-w-0">
-                <span class="font-black text-xs sm:text-sm bg-gradient-to-r from-amber-300 via-pink-400 to-cyan-300 bg-clip-text text-transparent tracking-tight">kalipasir</span>
-                <span class="text-[9px] italic text-dim font-semibold">v9.1</span>
-                <a href="https://danial.my.id" target="_blank" rel="noopener" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 transition truncate">by AhmadDanial</a>
+        <div class="w-full h-8 bg-header border border-theme rounded-xl px-2 flex items-center justify-between gap-1 shadow-md">
+            <div class="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+                <span class="font-black text-xs bg-gradient-to-r from-amber-300 via-pink-400 to-cyan-300 bg-clip-text text-transparent tracking-tight shrink-0">kalipasir</span>
+                <span class="text-[8px] italic text-dim font-semibold shrink-0">v9.1</span>
+                <a href="https://danial.my.id" target="_blank" rel="noopener" class="lowercase font-bold tracking-[0.18em] text-[8px] text-dim hover:text-blue-500 transition truncate">by AhmadDanial</a>
                 <!-- Help (?) Tooltip -->
-                <div class="relative group">
+                <div class="relative group shrink-0">
                     <button id="btnHelpTooltip" class="w-4 h-4 rounded-full bg-white/10 border border-white/15 text-[9px] font-bold text-dim hover:text-white flex items-center justify-center">?</button>
-                    <div class="hidden group-hover:block absolute left-0 top-5 w-60 p-2.5 rounded-xl bg-[#191224] border border-purple-400/30 text-[10px] text-purple-100 shadow-2xl z-50 leading-relaxed pointer-events-none">
+                    <div class="hidden group-hover:block absolute left-0 top-5 w-60 p-2.5 rounded-xl bg-[#191224] border border-purple-400/30 text-[10px] text-purple-100 shadow-2xl z-50 leading-relaxed pointer-events-none whitespace-normal">
                         <p id="helpTooltipText" class="font-semibold text-amber-300 mb-0.5">Cara Main / How to Play:</p>
                         <p id="helpTooltipBody">Geser wadah dari bawah ke baris teratas untuk menyedot pasir warna yang sesuai di bibir dasar tangki. Progres tersimpan otomatis.</p>
                     </div>
                 </div>
             </div>
 
-            <div class="flex items-center gap-1">
-                <button id="btnClearProgress" class="px-1.5 py-0.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 text-rose-300 border border-rose-400/30 text-[10px] font-bold flex items-center gap-0.5" title="Hapus Progres Tersimpan / Remove Saved Progress">
-                    <span>🗑️</span>
-                    <span id="lblClearBtn" class="hidden sm:inline">Hapus Data</span>
+            <div class="flex items-center gap-1 shrink-0">
+                <button id="btnOpenPathMap" class="h-6 px-1.5 rounded-lg bg-indigo-500/25 hover:bg-indigo-500/40 text-indigo-200 border border-indigo-400/35 text-[9px] font-extrabold flex items-center gap-1 whitespace-nowrap shrink-0" title="Peta Jalur Level & Kode Pemulihan / Level Path Map">
+                    <span>🗺️</span>
+                    <span id="lblMapBtn">Peta</span>
                 </button>
-                <button id="btnShareLink" class="w-6 h-6 rounded-lg bg-white/10 text-white border border-white/15 text-[10px] flex items-center justify-center" title="Bagikan Tautan / Share Link">
+                <button id="btnClearProgress" class="h-6 px-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 text-rose-300 border border-rose-400/30 text-[9px] font-bold flex items-center gap-1 whitespace-nowrap shrink-0" title="Hapus Progres Tersimpan / Remove Saved Progress">
+                    <span>🗑️</span>
+                    <span id="lblClearBtn">Reset</span>
+                </button>
+                <button id="btnShareLink" class="w-6 h-6 rounded-lg bg-white/10 text-white border border-white/15 text-[10px] flex items-center justify-center shrink-0" title="Salin Tautan Pemulihan Progres / Copy Recovery Link">
                     🔗
                 </button>
-                <button id="btnLang" class="px-1.5 h-6 rounded-lg bg-white/10 text-amber-300 border border-white/15 text-[9px] font-extrabold tracking-wider" title="Ganti Bahasa / Language">
+                <button id="btnLang" class="px-1.5 h-6 rounded-lg bg-white/10 text-amber-300 border border-white/15 text-[9px] font-extrabold tracking-wider whitespace-nowrap shrink-0" title="Ganti Bahasa / Language">
                     ID
                 </button>
-                <button id="btnTheme" class="w-6 h-6 rounded-lg bg-white/10 text-white border border-white/15 text-[10px] flex items-center justify-center" title="Tema Gelap/Terang">
+                <button id="btnTheme" class="w-6 h-6 rounded-lg bg-white/10 text-white border border-white/15 text-[10px] flex items-center justify-center shrink-0" title="Tema Gelap/Terang">
                     🌙
                 </button>
             </div>
         </div>
 
-        <!-- Row 2: Tactical Game Controls Bar -->
-        <div class="w-full bg-[#1b1426]/90 border border-white/15 rounded-xl px-2 py-1 flex items-center justify-between shadow-lg">
-            <div class="flex items-center gap-1">
-                <button id="btnLevel" class="px-2 py-1 rounded-lg bg-gradient-to-b from-indigo-500 to-indigo-700 text-white border border-indigo-300/50 text-[11px] font-extrabold shadow-sm flex items-center gap-1 max-w-[165px] sm:max-w-[195px]" title="Ketuk untuk Level Berikutnya">
-                    <span>🗿</span>
+        <!-- Row 2: Tactical Game Controls Bar (Strictly Contained & Non-Overflowing) -->
+        <div class="w-full h-8 bg-[#1b1426]/95 border border-white/15 rounded-xl px-1.5 flex items-center justify-between gap-1 shadow-lg overflow-hidden">
+            <div class="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+                <button id="btnLevel" class="h-6 px-2 rounded-lg bg-gradient-to-b from-indigo-500 to-indigo-700 text-white border border-indigo-300/50 text-[10px] font-extrabold shadow-sm flex items-center gap-1 min-w-0 flex-1 max-w-[148px] whitespace-nowrap overflow-hidden" title="Ketuk untuk Buka Peta Jalur Level">
+                    <span class="shrink-0">🗿</span>
                     <span class="truncate">Lv.1: Patung Sigma</span>
-                    <span class="text-[9px] opacity-80 shrink-0">▼</span>
+                    <span class="text-[8px] opacity-80 shrink-0 ml-auto">🗺️</span>
                 </button>
-                <button id="btnShuffleArt" class="px-1.5 py-1 rounded-lg bg-purple-500/25 hover:bg-purple-500/40 text-purple-200 border border-purple-400/40 text-[10px] font-extrabold flex items-center gap-0.5 shrink-0" title="Gacha Meme / Emoji Baru secara Acak!">
+                <button id="btnShuffleArt" class="h-6 px-1.5 rounded-lg bg-purple-500/25 hover:bg-purple-500/40 text-purple-200 border border-purple-400/40 text-[9px] font-extrabold flex items-center gap-0.5 whitespace-nowrap shrink-0" title="Gacha Meme / Emoji Baru secara Acak!">
                     <span>🎲</span>
-                    <span class="hidden sm:inline text-[9px]">Gacha</span>
+                    <span>Gacha</span>
                 </button>
-                <button id="btnAnalysis" class="px-1.5 py-1 rounded-lg bg-amber-400/15 text-amber-300 border border-amber-400/40 text-[10px] font-bold flex items-center gap-1 shrink-0" title="Analisis & Kurva Level">
+                <button id="btnAnalysis" class="h-6 px-1.5 rounded-lg bg-amber-400/15 text-amber-300 border border-amber-400/40 text-[9px] font-bold flex items-center gap-0.5 whitespace-nowrap shrink-0" title="Analisis & Kurva Level">
                     <span>🔍</span>
                     <span id="lblInfoBtn">Info</span>
                 </button>
             </div>
 
-            <div class="flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded-full border border-white/10">
-                <span id="savePulseDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span id="sandRemainingBadge" class="text-[10px] font-extrabold text-amber-300 tracking-wide">100%</span>
-                <span class="text-white/25 text-[9px]">|</span>
-                <span id="fpsBadge" class="text-[9px] font-extrabold text-cyan-300 tracking-tight">120 FPS</span>
+            <div class="flex items-center gap-1 bg-black/45 px-1.5 h-6 rounded-full border border-white/10 whitespace-nowrap shrink-0">
+                <span id="savePulseDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+                <span id="sandRemainingBadge" class="text-[9px] font-extrabold text-amber-300">100%</span>
+                <span class="text-white/25 text-[8px]">|</span>
+                <span id="fpsBadge" class="text-[8px] font-extrabold text-cyan-300">120Hz</span>
             </div>
 
-            <div class="flex items-center gap-1">
-                <button id="btnSound" class="w-6 h-6 rounded-lg bg-white/10 text-white border border-white/15 text-[11px] flex items-center justify-center" title="Suara">
+            <div class="flex items-center gap-1 shrink-0">
+                <button id="btnSound" class="w-6 h-6 rounded-lg bg-white/10 text-white border border-white/15 text-[10px] flex items-center justify-center shrink-0" title="Suara">
                     🔊
                 </button>
-                <button id="btnFullscreen" class="w-6 h-6 rounded-lg bg-white/10 text-white border border-white/15 text-[11px] flex items-center justify-center" title="Layar Penuh">
+                <button id="btnFullscreen" class="w-6 h-6 rounded-lg bg-white/10 text-white border border-white/15 text-[10px] flex items-center justify-center shrink-0" title="Layar Penuh">
                     ⛶
                 </button>
-                <button id="btnReset" class="px-2 py-0.5 rounded-lg bg-gradient-to-b from-rose-500 to-rose-700 text-white border border-rose-300/50 text-[11px] font-extrabold shadow-sm" title="Ulang Level Saat Ini">
+                <button id="btnReset" class="w-6 h-6 rounded-lg bg-gradient-to-b from-rose-500 to-rose-700 text-white border border-rose-300/50 text-[11px] font-extrabold shadow-sm flex items-center justify-center shrink-0" title="Ulang Level Saat Ini">
                     ↻
                 </button>
             </div>
@@ -497,13 +517,116 @@
         <div class="bg-gradient-to-b from-[#35274d] to-[#1e162c] border-2 border-purple-400/50 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl">
             <div class="text-5xl mb-2">🎉</div>
             <h2 class="text-2xl font-extrabold text-white mb-1">Pasir Terkumpul 100%!</h2>
-            <p class="text-purple-200 text-sm mb-5">Semua butiran pasir berhasil disedot secara presisi ke dalam wadah warna yang sesuai!</p>
-            <div class="flex gap-3 justify-center">
-                <button id="btnReplayWin" class="flex-1 py-3 rounded-2xl bg-purple-800 text-white font-bold text-sm border border-purple-400/30">
-                    Main Lagi
+            <p class="text-purple-200 text-sm mb-4">Si Pasir siap melompat naik ke pos level berikutnya di Peta Jalur!</p>
+            <div class="flex gap-2.5 justify-center">
+                <button id="btnReplayWin" class="px-3.5 py-3 rounded-2xl bg-purple-800 text-white font-bold text-xs border border-purple-400/30">
+                    Ulang
                 </button>
-                <button id="btnNextWin" class="flex-1 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-extrabold text-sm shadow-lg">
-                    Level Berikutnya ➔
+                <button id="btnNextWin" class="flex-1 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-extrabold text-xs shadow-lg">
+                    🗺️ Lihat Jalur Naik Level ➔
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ONBOARDING & ANIMATED GAMEPLAY PREVIEW + EMAIL REGISTRATION MODAL -->
+    <div id="onboardingModal" class="modal-backdrop">
+        <div class="bg-gradient-to-b from-[#2a1f3d] via-[#1d152b] to-[#140e1e] border-2 border-amber-400/45 rounded-3xl max-w-sm w-full p-4 text-center shadow-2xl flex flex-col gap-3">
+            <div class="flex items-center justify-between px-1">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-lg">✨</span>
+                    <span class="font-black text-sm bg-gradient-to-r from-amber-300 via-pink-400 to-cyan-300 bg-clip-text text-transparent">kalipasir</span>
+                </div>
+                <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-[9px] font-extrabold text-emerald-300">Bersama Si Pasir 🏜️</span>
+            </div>
+
+            <!-- Animated Live Gameplay Demo Preview Canvas -->
+            <div class="relative w-full rounded-2xl overflow-hidden border-2 border-indigo-400/35 bg-[#120d1a] shadow-inner">
+                <canvas id="onboardingDemoCanvas" width="320" height="156" class="w-full h-auto block"></canvas>
+                <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/65 border border-white/15 text-[9px] font-bold text-amber-300">
+                    🎬 Simulasi Gameplay & Si Pasir
+                </div>
+            </div>
+
+            <div class="text-left space-y-1 px-1">
+                <h2 class="text-base font-extrabold text-white">Kenalan dengan <span class="text-amber-300">Si Pasir</span>!</h2>
+                <p class="text-[11px] text-purple-200/90 leading-relaxed">
+                    Masukkan email Anda untuk membuat <strong>Kode Hash 8-Digit (A-Z, 0-9)</strong> di URL. Tidak perlu verifikasi <em>inbox</em>—progres petualangan Si Pasir aman saat pindah HP!
+                </p>
+            </div>
+
+            <form id="onboardingForm" novalidate class="flex flex-col gap-2">
+                <div class="relative">
+                    <input id="emailInput" type="text" inputmode="email" autocomplete="email" spellcheck="false" placeholder="nama@email.com (contoh: budi@gmail.com)"
+                           class="selectable w-full px-3.5 py-2.5 rounded-xl bg-[#110c19] border border-purple-400/40 text-white placeholder-purple-300/40 text-xs font-semibold focus:outline-none focus:border-amber-400" />
+                    <span id="emailValidBadge" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-xs">✅</span>
+                </div>
+                <p id="emailErrorMsg" class="hidden text-[10px] text-rose-400 font-bold text-left px-1">
+                    ⚠️ Masukkan format email yang benar (contoh: danial@gmail.com).
+                </p>
+                <button type="submit" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-pink-500 text-slate-950 font-black text-xs shadow-lg tracking-wide">
+                    🚀 Mulai Petualangan Si Pasir ➔
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- LEVEL SAGA PATH MAP & URL RECOVERY PASSPORT MODAL -->
+    <div id="pathMapModal" class="modal-backdrop">
+        <div class="bg-gradient-to-b from-[#281e3a] to-[#161021] border-2 border-indigo-400/45 rounded-3xl max-w-md w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
+            <!-- Header -->
+            <div class="p-3.5 bg-[#181124] border-b border-white/10 flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-lg">🗺️</span>
+                    <div class="truncate">
+                        <h2 class="text-white font-extrabold text-xs sm:text-sm leading-tight">Jalur Pendakian Si Pasir</h2>
+                        <p id="playerIdentityBadge" class="text-[10px] text-amber-300 font-semibold truncate">Pemain: belum terdaftar</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button id="btnChangeEmail" class="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[9px] font-bold text-purple-200 border border-white/15">
+                        ✉️ Akun
+                    </button>
+                    <button id="btnClosePathMap" class="w-7 h-7 rounded-full bg-white/10 text-white font-bold text-xs flex items-center justify-center">✕</button>
+                </div>
+            </div>
+
+            <!-- Compact Encrypted URL Token Bar (Backup & Restore) -->
+            <div class="px-3.5 py-2 bg-indigo-950/70 border-b border-indigo-400/25 flex items-center justify-between gap-2 shrink-0">
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[9px] uppercase tracking-wider font-extrabold text-cyan-300">🔐 KODE HASH:</span>
+                        <code id="cipherTokenPreview" class="selectable text-[11px] font-mono font-black tracking-widest text-amber-300 bg-black/50 px-2 py-0.5 rounded border border-amber-400/30">--------</code>
+                    </div>
+                    <p id="restoreHintSubtext" class="text-[9px] text-purple-200/80 truncate mt-0.5">
+                        8 karakter huruf besar & angka (otomatis di URL untuk restore progres).
+                    </p>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                    <button id="btnRestoreFromUrl" class="hidden px-2 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-black text-[10px] shadow">
+                        ⏪ Pulihkan Lv.<span id="btnRestoreLvlNum">1</span>
+                    </button>
+                    <button id="btnCopyRecoveryUrl" class="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-extrabold text-[10px] shadow flex items-center gap-1">
+                        <span>🔗</span>
+                        <span>Salin URL</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Bottom-to-Top Winding Saga Level Path Scroll Container -->
+            <div id="sagaPathScrollWrap" class="p-4 overflow-y-auto flex-1 relative">
+                <div id="sagaPathContainer" class="relative w-full">
+                    <!-- Populated dynamically from TOP (higher levels) down to BOTTOM (Lv.1) with SVG path & Si Pasir character -->
+                </div>
+            </div>
+
+            <!-- Footer CTA -->
+            <div class="p-3 bg-[#181124] border-t border-white/10 flex items-center justify-between gap-2 shrink-0">
+                <div id="mapFooterHint" class="text-[10px] text-purple-200 font-semibold truncate">
+                    ⬆️ Jalur dari bawah ke atas • Ketuk pos untuk bermain
+                </div>
+                <button id="btnPlayCurrentLevel" class="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 font-black text-xs shadow-lg shrink-0">
+                    ▶ Main Lv.<span id="btnPlayCurrentLvlNum">1</span>
                 </button>
             </div>
         </div>
@@ -734,6 +857,7 @@
 
         let sandColor = new Uint8Array(SAND_W * SAND_H);
         let sandShade = new Uint8Array(SAND_W * SAND_H);
+        let sandKinetic = new Uint8Array(SAND_W * SAND_H);
         let surfaceY = new Int16Array(SAND_W);
         let totalInitialSand = 0;
         let currentSandCount = 0;
@@ -741,24 +865,58 @@
         let simStepCounter = 0;
         let stalledSuctionSteps = 0;
         let flyingParticles = [];
+        let bounceSparks = [];
 
         function setSandPixel(x, y, colorId) {
             const idx = y * SAND_W + x;
             sandColor[idx] = colorId;
             sandShade[idx] = hashGrainShade(x, y);
+            sandKinetic[idx] = 0;
         }
 
-        // Remove grain at (x, sy) and shift the column above it straight down by 1px:
-        // Guarantees 0 internal air pockets and 0 cross-column barcode glitching inside stripes
-        function extractGrainAndShiftColumn(x, sy) {
+        // Cohesive Hourglass Funnel Extraction:
+        // Propagates the drained grain vacancy upward from (x, sy) to the surface.
+        // Allows diagonal funneling ONLY when the diagonal neighbor is the exact same color (or at the top surface),
+        // creating a realistic hourglass vortex depression while keeping multi-color boundaries 100% crisp!
+        function extractGrainAndShiftColumn(startX, sy) {
+            let cx = startX;
             for (let y = sy; y > 0; y--) {
-                const dst = y * SAND_W + x;
-                const src = (y - 1) * SAND_W + x;
+                const dst = y * SAND_W + cx;
+                const upIdx = (y - 1) * SAND_W + cx;
+                const upColor = sandColor[upIdx];
+
+                if (upColor === 0) {
+                    sandColor[dst] = 0;
+                    sandShade[dst] = 0;
+                    sandKinetic[dst] = 0;
+                    break;
+                }
+
+                // Check if grain can funnel diagonally from a taller neighbor of the SAME color
+                let nextX = cx;
+                if (((y + simStepCounter) & 3) === 0) {
+                    const dir = ((y + cx + simStepCounter) & 1) === 0 ? -1 : 1;
+                    const diagX = cx + dir;
+                    if (diagX >= 0 && diagX < SAND_W && surfaceY[diagX] < surfaceY[cx]) {
+                        const diagIdx = (y - 1) * SAND_W + diagX;
+                        if (sandColor[diagIdx] === upColor) {
+                            nextX = diagX;
+                        }
+                    }
+                }
+
+                const src = (y - 1) * SAND_W + nextX;
                 sandColor[dst] = sandColor[src];
                 sandShade[dst] = sandShade[src];
+                sandKinetic[dst] = 3;
+                cx = nextX;
+
+                if (y === 1) {
+                    sandColor[src] = 0;
+                    sandShade[src] = 0;
+                    sandKinetic[src] = 0;
+                }
             }
-            sandColor[x] = 0;
-            sandShade[x] = 0;
         }
 
         // Exact integer partition helper: guarantees 0 leftover or unallocated sand grains
@@ -1330,7 +1488,7 @@
 
                 const baseColor = activeNow[0] || 1;
                 const secondColor = activeNow[1] || baseColor;
-                const bandHeight = spec.maxColors <= 2 ? 26 : 20;
+                const bandHeight = spec.maxColors <= 2 ? 28 : 24;
 
                 for (let y = SAND_H - bandHeight; y < SAND_H; y++) {
                     for (let x = 0; x < SAND_W; x++) {
@@ -1338,13 +1496,11 @@
                     }
                 }
 
-                // On Lv.1 (2 colors), also make the middle band clean so the 2nd color sits neatly above the base
-                if (spec.maxColors <= 2 && activeNow.length >= 2) {
-                    for (let y = SAND_H - bandHeight - 16; y < SAND_H - bandHeight; y++) {
+                // Also make the middle band clean so the 2nd color sits neatly above the base without thin 3px locked lines
+                if (activeNow.length >= 2) {
+                    for (let y = SAND_H - bandHeight - 18; y < SAND_H - bandHeight; y++) {
                         for (let x = 0; x < SAND_W; x++) {
-                            if (sandColor[y * SAND_W + x] !== secondColor) {
-                                setSandPixel(x, y, secondColor);
-                            }
+                            setSandPixel(x, y, secondColor);
                         }
                     }
                 }
@@ -1808,7 +1964,7 @@
         }
 
         // Procedural 7x4 Board Layout Generator:
-        // Adapts to easy starter levels (1-2 ice blocks, spacious 2-tray board) up to full 8-block boards
+        // Uses h = 1 sleek trays in rows y = 1..2 so any tray can ALWAYS slide past any other tray horizontally (h1 + h2 = 2 <= 3 free rows)!
         function generateProceduralBoardLayout(spec, totalTraysWanted, rng) {
             const unlockedCount = Math.min(3, Math.max(2, spec.unlockedCount || 3));
             const lockedCount = Math.max(1, Math.min(5, totalTraysWanted - unlockedCount));
@@ -1839,12 +1995,14 @@
                 }
             }
 
-            // Generate spacious non-overlapping unlocked trays in rows y = 1..2 (row 0 stays 100% empty at start)
+            // Generate spacious non-overlapping unlocked trays in rows y = 1..2 (row 0 stays 100% empty at start).
+            // CRITICAL SLIDING LAW: All unlocked trays have h = 1 (or at most one h = 2 paired with h = 1),
+            // guaranteeing hA + hB <= 3 so trays can ALWAYS swap left and right across the board!
             if (unlockedCount === 2) {
                 const twoTrayPatterns = [
-                    [{ x: 0, y: 1, w: 3, h: 2 }, { x: 4, y: 1, w: 3, h: 2 }],
-                    [{ x: 0, y: 2, w: 3, h: 1 }, { x: 4, y: 1, w: 3, h: 2 }],
-                    [{ x: 0, y: 1, w: 3, h: 2 }, { x: 4, y: 2, w: 3, h: 1 }],
+                    [{ x: 0, y: 2, w: 2, h: 1 }, { x: 5, y: 2, w: 2, h: 1 }],
+                    [{ x: 0, y: 1, w: 2, h: 1 }, { x: 4, y: 2, w: 3, h: 1 }],
+                    [{ x: 0, y: 2, w: 3, h: 1 }, { x: 5, y: 1, w: 2, h: 1 }],
                     [{ x: 1, y: 2, w: 2, h: 1 }, { x: 4, y: 2, w: 2, h: 1 }]
                 ];
                 const chosen2 = twoTrayPatterns[Math.floor(rng() * twoTrayPatterns.length)].map(s => ({
@@ -1855,13 +2013,11 @@
             }
 
             const unlockedPatterns = [
-                [{ x: 0, y: 1, w: 3, h: 2 }, { x: 3, y: 2, w: 2, h: 1 }, { x: 5, y: 2, w: 2, h: 1 }],
-                [{ x: 0, y: 2, w: 2, h: 1 }, { x: 2, y: 1, w: 3, h: 2 }, { x: 5, y: 2, w: 2, h: 1 }],
-                [{ x: 0, y: 2, w: 2, h: 1 }, { x: 2, y: 2, w: 2, h: 1 }, { x: 4, y: 1, w: 3, h: 2 }],
-                [{ x: 0, y: 1, w: 2, h: 2 }, { x: 2, y: 2, w: 3, h: 1 }, { x: 5, y: 1, w: 2, h: 2 }],
-                [{ x: 0, y: 2, w: 3, h: 1 }, { x: 3, y: 1, w: 2, h: 2 }, { x: 5, y: 2, w: 2, h: 1 }],
-                [{ x: 0, y: 1, w: 2, h: 1 }, { x: 2, y: 2, w: 3, h: 1 }, { x: 5, y: 1, w: 2, h: 2 }],
-                [{ x: 1, y: 1, w: 2, h: 2 }, { x: 3, y: 2, w: 2, h: 1 }, { x: 5, y: 1, w: 2, h: 1 }]
+                [{ x: 0, y: 2, w: 2, h: 1 }, { x: 2, y: 1, w: 3, h: 1 }, { x: 5, y: 2, w: 2, h: 1 }],
+                [{ x: 0, y: 1, w: 2, h: 1 }, { x: 2, y: 2, w: 2, h: 1 }, { x: 5, y: 1, w: 2, h: 1 }],
+                [{ x: 0, y: 2, w: 2, h: 1 }, { x: 3, y: 2, w: 2, h: 1 }, { x: 5, y: 1, w: 2, h: 1 }],
+                [{ x: 0, y: 1, w: 3, h: 1 }, { x: 3, y: 2, w: 2, h: 1 }, { x: 5, y: 2, w: 2, h: 1 }],
+                [{ x: 0, y: 2, w: 2, h: 1 }, { x: 2, y: 2, w: 2, h: 1 }, { x: 4, y: 1, w: 3, h: 1 }]
             ];
             const chosenUnlocked = unlockedPatterns[Math.floor(rng() * unlockedPatterns.length)].map(s => ({
                 ...s,
@@ -1871,22 +2027,70 @@
             return [...chosenUnlocked, ...lockedSlots];
         }
 
+        // Ensures the lower 45% of the sand tank ONLY contains colors that have an unlocked tray (ice === 0) at level start,
+        // so trays already on the board can drain the entire lower tank and break the ice without EVER spawning new trays!
+        function ensureBottomLipMatchesUnlockedColors(unlockedColorList) {
+            if (!unlockedColorList || unlockedColorList.length === 0) return;
+            const unlockedSet = new Set(unlockedColorList);
+            const primaryUnlocked = unlockedColorList[0];
+            const secondaryUnlocked = unlockedColorList[1] || primaryUnlocked;
+            const cutoffY = Math.floor(SAND_H * 0.55);
+
+            for (let y = cutoffY; y < SAND_H; y++) {
+                for (let x = 0; x < SAND_W; x++) {
+                    const idx = y * SAND_W + x;
+                    const c = sandColor[idx];
+                    if (c !== 0 && !unlockedSet.has(c)) {
+                        setSandPixel(x, y, (c & 1) ? primaryUnlocked : secondaryUnlocked);
+                    }
+                }
+            }
+        }
+
         // Solvable Stratified Block & Ice Compiler:
         // Analyzes actual sand distribution from bottom to top and assigns unlocked vs ice-locked trays
         // so the bottom-most colors can ALWAYS be drained first to unlock the upper colors!
         function compileSolvableBlocksForCurrentTank(levelNum, rng) {
             const spec = getConsistentLevelSpec(levelNum);
-            const colorCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
             const bottomExposure = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+            const prelimCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 
             for (let y = 0; y < SAND_H; y++) {
-                // Weight bottom rows heavily so colors touching the bottom lip rank highest
-                const rowWeight = (y >= SAND_H - 25) ? 6 : (y >= SAND_H - 55 ? 2 : 0.2);
+                const rowWeight = (y >= SAND_H - 25) ? 8 : (y >= SAND_H - 55 ? 2 : 0.2);
+                for (let x = 0; x < SAND_W; x++) {
+                    const c = sandColor[y * SAND_W + x];
+                    if (c > 0) {
+                        prelimCounts[c]++;
+                        bottomExposure[c] += rowWeight;
+                    }
+                }
+            }
+
+            const prelimActiveColors = Object.keys(prelimCounts)
+                .map(Number)
+                .filter(c => prelimCounts[c] > 0)
+                .sort((a, b) => bottomExposure[b] - bottomExposure[a]);
+
+            const totalTraysWanted = Math.max(prelimActiveColors.length, spec.targetTrays);
+            const chosenLayout = generateProceduralBoardLayout(spec, totalTraysWanted, rng);
+
+            const unlockedSlots = chosenLayout.filter(s => s.unlocked);
+            const lockedSlots = chosenLayout.filter(s => !s.unlocked);
+
+            // Guarantee that the bottom 16 rows of the tank only contain colors present in the initial unlocked wave!
+            const initialUnlockedColors = prelimActiveColors.slice(0, unlockedSlots.length);
+            ensureBottomLipMatchesUnlockedColors(initialUnlockedColors);
+
+            // Recount exact sand grains per color after bottom-lip sanitization
+            const colorCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+            const lowerHalfCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+            const cutoffY = Math.floor(SAND_H * 0.55);
+            for (let y = 0; y < SAND_H; y++) {
                 for (let x = 0; x < SAND_W; x++) {
                     const c = sandColor[y * SAND_W + x];
                     if (c > 0) {
                         colorCounts[c]++;
-                        bottomExposure[c] += rowWeight;
+                        if (y >= cutoffY) lowerHalfCounts[c]++;
                     }
                 }
             }
@@ -1896,18 +2100,12 @@
                 .filter(c => colorCounts[c] > 0)
                 .sort((a, b) => bottomExposure[b] - bottomExposure[a]);
 
-            const totalTraysWanted = Math.max(activeColors.length, spec.targetTrays);
-            const chosenLayout = generateProceduralBoardLayout(spec, totalTraysWanted, rng);
-
-            const unlockedSlots = chosenLayout.filter(s => s.unlocked);
-            const lockedSlots = chosenLayout.filter(s => !s.unlocked);
-
             // Step 1: Decide how many trays each active color gets (total = chosenLayout.length)
             const traysPerColor = {};
             activeColors.forEach(c => { traysPerColor[c] = 1; });
             let extraTrays = chosenLayout.length - activeColors.length;
 
-            // Distribute extra trays to the colors with the most sand grains
+            // Distribute extra trays to the colors with the most sand grains (prioritizing the base color if it spans multiple strata)
             while (extraTrays > 0) {
                 let bestColor = activeColors[0];
                 let bestAvgPerTray = -1;
@@ -1923,17 +2121,25 @@
             }
 
             // Step 2: Create logical tray definitions ordered from bottom-exposed wave to upper wave
-            const wave1Trays = []; // First tray of the top 3 bottom-exposed colors -> goes to unlocked slots!
-            const wave2Trays = []; // Remaining trays -> goes to ice-locked slots in bottom-exposure order!
+            const wave1Trays = [];
+            const wave2Trays = [];
 
             activeColors.forEach((c, cIdx) => {
                 const count = traysPerColor[c];
-                // Front-load slightly smaller capacity (e.g. 42%) on the first tray so it completes quickly to break ice!
-                const weights = [];
-                for (let i = 0; i < count; i++) {
-                    weights.push(i === 0 && count > 1 ? 42 : 58);
+                let caps;
+                if (count > 1 && lowerHalfCounts[c] > 400 && lowerHalfCounts[c] < colorCounts[c] * 0.85) {
+                    // Size the first tray to match the lower stratum so it finishes 100% cleanly before upper strata are needed!
+                    const firstCap = Math.max(250, Math.min(colorCounts[c] - (count - 1) * 200, Math.round(lowerHalfCounts[c] * 0.9)));
+                    const remTotal = colorCounts[c] - firstCap;
+                    const remWeights = new Array(count - 1).fill(1);
+                    caps = [firstCap, ...splitExactCapacity(remTotal, remWeights)];
+                } else {
+                    const weights = [];
+                    for (let i = 0; i < count; i++) {
+                        weights.push(i === 0 && count > 1 ? 40 : 60);
+                    }
+                    caps = splitExactCapacity(colorCounts[c], weights);
                 }
-                const caps = splitExactCapacity(colorCounts[c], weights);
 
                 for (let i = 0; i < count; i++) {
                     const trayObj = { color: c, capacity: caps[i], waveOrder: cIdx + i * 2.5 };
@@ -1945,12 +2151,10 @@
                 }
             });
 
-            // If fewer than 3 colors exist, promote from wave2 to fill unlockedSlots
             while (wave1Trays.length < unlockedSlots.length && wave2Trays.length > 0) {
                 wave1Trays.push(wave2Trays.shift());
             }
 
-            // Sort wave2Trays so colors needed earliest get the lowest ice numbers (1, 1, 2, 3...)
             wave2Trays.sort((a, b) => a.waveOrder - b.waveOrder);
 
             const compiledBlocks = [];
@@ -1972,7 +2176,6 @@
 
             lockedSlots.forEach((slot, idx) => {
                 const t = wave2Trays[idx];
-                // Assign progressive ice counter (1, 1, 2, 3...) capped by level's maxIceDepth
                 const iceVal = Math.min(spec.maxIceDepth, idx < 2 ? 1 : idx);
                 compiledBlocks.push({
                     id: `ice_${idx + 1}`,
@@ -2072,36 +2275,251 @@
         // TATADADA Universal State & Virtual Tracker Engine + LocalStorage Autosave
         // ============================================================================
         const STORAGE_KEY = 'tatadada_kalipasir_save_v9';
+        const PROFILE_STORAGE_KEY = 'tatadada_kalipasir_profile_v9';
         const AppState = { view: 'lv1', filter: 'id', modal: '' };
         let lastTrackedUrl = '';
         let currentLang = 'id';
         let isSaveDirty = false;
         let lastAutoSaveTime = 0;
 
+        // Player Profile & Saga Progression State
+        let playerEmail = '';
+        let maxUnlockedLevel = 1; // Highest level unlocked (levels < maxUnlockedLevel are 100% completed!)
+        let urlBackupSnapshot = null; // Stores decoded ?k= token in case user accidentally hits Clear Progress
+        let pendingLevelUpAnim = null; // { fromLv, toLv } when advancing a level
+
+        // ============================================================================
+        // KP-HASH v2: 8-CHAR UPPERCASE ALPHANUMERIC ENGINE (?k=8X9F2K7M)
+        // Strictly [0-9A-Z] (Base36 Uppercase, 8 chars = 41.3 bits capacity).
+        // Packs (emailSeed16 [16b] + maxLv [9b] + curLv [9b] = 34b) encrypted via
+        // 4-round Feistel network + 6-bit keyed MAC = 40 bits -> 8 Base36 chars!
+        // ============================================================================
+        const B36_UPPER = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+        // Strict, practical email validator (rejects missing @, double dots, invalid TLD, spaces)
+        function isValidEmailAddress(emailStr) {
+            if (!emailStr || typeof emailStr !== 'string') return false;
+            const clean = emailStr.trim();
+            if (clean.length < 5 || clean.length > 80 || clean.includes(' ')) return false;
+            const parts = clean.split('@');
+            if (parts.length !== 2) return false;
+            const [local, domain] = parts;
+            if (!local || !domain || local.startsWith('.') || local.endsWith('.') || local.includes('..')) return false;
+            if (domain.startsWith('.') || domain.endsWith('.') || domain.includes('..') || !domain.includes('.')) return false;
+            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,12}$/;
+            return emailRegex.test(clean);
+        }
+
+        function computeEmailSeed16(emailStr) {
+            const clean = (emailStr || 'guest@kalipasir.id').trim().toLowerCase();
+            let h = 0x811C9DC5;
+            for (let i = 0; i < clean.length; i++) {
+                h ^= clean.charCodeAt(i);
+                h = Math.imul(h, 0x01000193) >>> 0;
+            }
+            const s16 = ((h >>> 16) ^ (h & 0xFFFF)) & 0xFFFF;
+            return s16 === 0 ? 0x5A3C : s16;
+        }
+
+        function seed16ToPlayerSeed(s16) {
+            return ((s16 * 13 + 104729) % 899999) + 100000;
+        }
+
+        function feistelRoundF(right17, roundIdx) {
+            let x = ((right17 ^ (roundIdx * 0x15B39)) & 0x1FFFF) >>> 0;
+            x = Math.imul(x ^ (x >>> 7), 0x27D4EB2D) >>> 0;
+            return (x ^ (x >>> 11)) & 0x1FFFF;
+        }
+
+        function feistelEncrypt34(plain34Big) {
+            let L = Number((plain34Big >> 17n) & 0x1FFFFn);
+            let R = Number(plain34Big & 0x1FFFFn);
+            for (let r = 0; r < 4; r++) {
+                const nextL = R;
+                const nextR = (L ^ feistelRoundF(R, r)) & 0x1FFFF;
+                L = nextL;
+                R = nextR;
+            }
+            return (BigInt(L) << 17n) | BigInt(R);
+        }
+
+        function feistelDecrypt34(cipher34Big) {
+            let L = Number((cipher34Big >> 17n) & 0x1FFFFn);
+            let R = Number(cipher34Big & 0x1FFFFn);
+            for (let r = 3; r >= 0; r--) {
+                const prevR = L;
+                const prevL = (R ^ feistelRoundF(L, r)) & 0x1FFFF;
+                L = prevL;
+                R = prevR;
+            }
+            return (BigInt(L) << 17n) | BigInt(R);
+        }
+
+        function computeMac6(plain34Big) {
+            let v = Number(plain34Big & 0xFFFFFFFFn) >>> 0;
+            let hi = Number((plain34Big >> 32n) & 0x3n);
+            let h = (0x9E3779B9 ^ v ^ (hi * 0x45D9F3B)) >>> 0;
+            h = Math.imul(h ^ (h >>> 15), 0x85EBCA6B) >>> 0;
+            h = Math.imul(h ^ (h >>> 13), 0xC2B2AE35) >>> 0;
+            const mac = ((h >>> 26) ^ (h & 0x3F)) & 0x3F;
+            return mac === 0 ? 0x2B : mac; // Keep non-zero so top bits are always populated
+        }
+
+        function encodeProgressCipherToken() {
+            if (!playerEmail) return '';
+            const s16 = computeEmailSeed16(playerEmail);
+            const maxLv = Math.max(1, Math.min(511, maxUnlockedLevel));
+            const curLv = Math.max(1, Math.min(511, currentLevelIdx + 1));
+
+            // 34-bit payload: [s16 (16b) | maxLv (9b) | curLv (9b)]
+            const plain34 = (BigInt(s16) << 18n) | (BigInt(maxLv) << 9n) | BigInt(curLv);
+            const mac6 = computeMac6(plain34);
+            const cipher34 = feistelEncrypt34(plain34);
+
+            // 40-bit token: [mac6 (6b) | cipher34 (34b)] -> always 8 Base36 uppercase chars!
+            let packed40 = (BigInt(mac6) << 34n) | cipher34;
+            let out = '';
+            for (let i = 0; i < 8; i++) {
+                const rem = Number(packed40 % 36n);
+                out = B36_UPPER[rem] + out;
+                packed40 /= 36n;
+            }
+            return out;
+        }
+
+        function decodeProgressCipherToken(tokenStr) {
+            try {
+                if (!tokenStr || typeof tokenStr !== 'string') return null;
+                const clean = tokenStr.trim().toUpperCase();
+                if (!/^[0-9A-Z]{8}$/.test(clean)) return null;
+
+                let packed40 = 0n;
+                for (let i = 0; i < 8; i++) {
+                    const idx = B36_UPPER.indexOf(clean[i]);
+                    if (idx < 0) return null;
+                    packed40 = packed40 * 36n + BigInt(idx);
+                }
+
+                const mac6 = Number((packed40 >> 34n) & 0x3Fn);
+                const cipher34 = packed40 & 0x3FFFFFFFFn;
+                const plain34 = feistelDecrypt34(cipher34);
+                const expectedMac6 = computeMac6(plain34);
+
+                if (mac6 !== expectedMac6) return null;
+
+                const s16 = Number((plain34 >> 18n) & 0xFFFFn);
+                const maxLv = Number((plain34 >> 9n) & 0x1FFn);
+                const curLv = Number(plain34 & 0x1FFn);
+
+                if (s16 <= 0 || maxLv < 1 || curLv < 1 || curLv > maxLv) return null;
+
+                const restoredSeed = seed16ToPlayerSeed(s16);
+                const matchingEmail = (playerEmail && computeEmailSeed16(playerEmail) === s16)
+                    ? playerEmail
+                    : `pasir.${s16.toString(16).toUpperCase()}@kalipasir.id`;
+
+                return {
+                    email: matchingEmail,
+                    seed: restoredSeed,
+                    maxUnlockedLevel: maxLv,
+                    currentLevel: curLv,
+                    code: clean
+                };
+            } catch (_) {
+                return null;
+            }
+        }
+
+        // SVG Renderer for "Si Pasir" (The Cute Golden Crystalline Sand Spirit Mascot)
+        function getSiPasirMascotSVG(size = 44) {
+            return `
+                <svg width="${size}" height="${size}" viewBox="0 0 64 64" class="overflow-visible drop-shadow-[0_4px_8px_rgba(0,0,0,0.65)]">
+                    <defs>
+                        <radialGradient id="pasirBodyGrad" cx="38%" cy="30%" r="68%">
+                            <stop offset="0%" stop-color="#fef08a"/>
+                            <stop offset="45%" stop-color="#facc15"/>
+                            <stop offset="85%" stop-color="#ca8a04"/>
+                            <stop offset="100%" stop-color="#854d0e"/>
+                        </radialGradient>
+                    </defs>
+                    <!-- Floating Sand Grains Orbiting Si Pasir -->
+                    <circle cx="10" cy="22" r="2.6" fill="#fde047" />
+                    <circle cx="55" cy="24" r="2.2" fill="#f87171" />
+                    <circle cx="12" cy="46" r="2" fill="#60a5fa" />
+                    <circle cx="53" cy="44" r="2.5" fill="#fde047" />
+                    <!-- Cute Little Crystal Crown on Top -->
+                    <polygon points="22,17 26,6 32,14 38,5 42,17" fill="#38bdf8" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round"/>
+                    <!-- Chubby Sand Mound Body -->
+                    <path d="M12,48 C10,32 18,16 32,16 C46,16 54,32 52,48 C51,55 44,58 32,58 C20,58 13,55 12,48 Z"
+                          fill="url(#pasirBodyGrad)" stroke="#fef9c3" stroke-width="2"/>
+                    <!-- Granular Sparkle Speckles on Body -->
+                    <circle cx="22" cy="26" r="1.3" fill="#ffffff" opacity="0.9"/>
+                    <circle cx="42" cy="30" r="1.2" fill="#ffffff" opacity="0.8"/>
+                    <circle cx="26" cy="49" r="1.4" fill="#fef08a"/>
+                    <circle cx="39" cy="51" r="1.1" fill="#ffffff" opacity="0.85"/>
+                    <!-- Big Kawaii Eyes -->
+                    <ellipse cx="24" cy="35" rx="4.2" ry="4.8" fill="#1e1b4b"/>
+                    <ellipse cx="40" cy="35" rx="4.2" ry="4.8" fill="#1e1b4b"/>
+                    <circle cx="22.5" cy="33.2" r="1.7" fill="#ffffff"/>
+                    <circle cx="38.5" cy="33.2" r="1.7" fill="#ffffff"/>
+                    <!-- Rosy Coral Cheeks -->
+                    <ellipse cx="17.5" cy="39" rx="3.6" ry="2.2" fill="#fb7185" opacity="0.85"/>
+                    <ellipse cx="46.5" cy="39" rx="3.6" ry="2.2" fill="#fb7185" opacity="0.85"/>
+                    <!-- Happy Cat-like Smile -->
+                    <path d="M28,39 Q32,43.5 36,39" fill="none" stroke="#451a03" stroke-width="2.4" stroke-linecap="round"/>
+                </svg>
+            `;
+        }
+
+        function savePlayerProfile() {
+            try {
+                localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify({
+                    email: playerEmail,
+                    seed: playerSeed,
+                    maxUnlockedLevel: maxUnlockedLevel
+                }));
+            } catch (_) {}
+        }
+
+        function loadPlayerProfile() {
+            try {
+                const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
+                if (!raw) return false;
+                const p = JSON.parse(raw);
+                if (p && typeof p.email === 'string' && p.email.includes('@')) {
+                    playerEmail = p.email;
+                    if (typeof p.seed === 'number' && p.seed > 0) playerSeed = p.seed;
+                    maxUnlockedLevel = Math.max(1, p.maxUnlockedLevel || 1);
+                    return true;
+                }
+            } catch (_) {}
+            return false;
+        }
+
         const I18N = {
             id: {
                 defaultStatus: '👆 Semua wadah mulai di bawah! Geser wadah ke baris teratas untuk menyedot pasir.',
-                restoredStatus: '💾 Progres tersimpan berhasil dipulihkan dari memori browser!',
-                clearedStatus: '🗑️ Progres berhasil dihapus! Memulai ulang dari Level 1.',
-                copiedLink: '🔗 Tautan kalipasir berhasil disalin ke papan klip!',
+                restoredStatus: '💾 Progres tersimpan berhasil dipulihkan!',
+                clearedStatus: '🗑️ Progres lokal direset ke Level 1! Gunakan tombol Pulihkan di Peta Level jika ingin kembali.',
+                copiedLink: '🔗 URL Pemulihan Progres berhasil disalin! Simpan untuk pindah perangkat.',
                 autosaveReady: 'Autosave Aktif',
                 autosaveSaved: 'Tersimpan Otomatis',
-                clearBtn: 'Hapus Data',
+                clearBtn: 'Reset',
                 infoBtn: 'Info',
                 helpTitle: 'Cara Main:',
-                helpBody: 'Geser wadah dari bawah ke baris teratas untuk menyedot pasir warna yang sesuai di bibir dasar tangki. Progres tersimpan otomatis.'
+                helpBody: 'Geser wadah dari bawah ke baris teratas untuk menyedot pasir warna yang sesuai di bibir dasar tangki. Progres & kode URL tersimpan otomatis.'
             },
             en: {
                 defaultStatus: '👆 All trays start at the bottom! Slide a tray to the top row to collect sand.',
-                restoredStatus: '💾 Saved progress restored from browser memory!',
-                clearedStatus: '🗑️ Saved progress removed! Reset to Level 1.',
-                copiedLink: '🔗 Shareable link copied to clipboard!',
+                restoredStatus: '💾 Saved progress restored!',
+                clearedStatus: '🗑️ Local progress reset to Level 1! Use Restore in Level Map to recover.',
+                copiedLink: '🔗 Encrypted Recovery URL copied! Use it to restore progress on any device.',
                 autosaveReady: 'Autosave Active',
                 autosaveSaved: 'Progress Saved',
-                clearBtn: 'Clear Data',
+                clearBtn: 'Reset',
                 infoBtn: 'Info',
                 helpTitle: 'How to Play:',
-                helpBody: 'Slide color trays from the bottom to the top row to drain matching sand grains touching the bottom lip. Progress autosaves locally.'
+                helpBody: 'Slide color trays from the bottom to the top row to drain matching sand grains touching the bottom lip. Progress & URL token autosave.'
             }
         };
 
@@ -2112,6 +2530,13 @@
             if (AppState.view !== 'home') { params.set('v', AppState.view); titleParts.push(AppState.view.toUpperCase()); }
             if (AppState.filter && AppState.filter !== 'id') { params.set('f', AppState.filter); titleParts.push(AppState.filter.toUpperCase()); }
             if (AppState.modal) { params.set('m', AppState.modal); titleParts.push(`Detail ${AppState.modal}`); }
+
+            const cipherToken = encodeProgressCipherToken();
+            if (cipherToken) {
+                params.set('k', cipherToken);
+                const previewEl = document.getElementById('cipherTokenPreview');
+                if (previewEl) previewEl.textContent = cipherToken;
+            }
             if (actionName) { params.set('action', actionName); titleParts.push(`[${actionName}]`); }
 
             const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
@@ -2182,9 +2607,11 @@
                 });
 
                 const payload = {
-                    version: 11,
+                    version: 12,
                     timestamp: Date.now(),
                     levelIdx: currentLevelIdx,
+                    maxUnlockedLevel: maxUnlockedLevel,
+                    playerEmail: playerEmail,
                     artVariantOffset: currentArtVariantOffset,
                     metaIcon: currentGeneratedMeta.icon,
                     metaName: currentGeneratedMeta.name,
@@ -2198,6 +2625,7 @@
                 };
 
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+                savePlayerProfile();
                 updateFooterSaveIndicator(true);
             } catch (_) {}
         }
@@ -2209,8 +2637,17 @@
                 const data = JSON.parse(raw);
                 if (!data || typeof data.levelIdx !== 'number') return false;
 
-                // If migrating from an older save, keep levelIdx & reload cleanly with v11 progressive starter curve
-                if (data.version !== 11) {
+                if (typeof data.maxUnlockedLevel === 'number') {
+                    maxUnlockedLevel = Math.max(maxUnlockedLevel, data.maxUnlockedLevel, data.levelIdx + 1);
+                } else {
+                    maxUnlockedLevel = Math.max(maxUnlockedLevel, data.levelIdx + 1);
+                }
+                if (data.playerEmail && !playerEmail) {
+                    playerEmail = data.playerEmail;
+                }
+
+                // If migrating from an older save, keep levelIdx & reload cleanly with v12 fixed-tray mechanics
+                if (data.version !== 12) {
                     currentLevelIdx = Math.max(0, data.levelIdx);
                     currentArtVariantOffset = data.artVariantOffset || 0;
                     loadLevel(currentLevelIdx, true);
@@ -2226,14 +2663,13 @@
                     name: data.metaName || `Lv.${currentLevelNumber}`,
                     tier: getConsistentLevelSpec(currentLevelNumber).tier
                 };
-                document.getElementById('btnLevel').innerHTML = `<span>${currentGeneratedMeta.icon}</span><span class="truncate">${currentGeneratedMeta.name}</span><span class="text-[9px] opacity-80 shrink-0">▼</span>`;
+                document.getElementById('btnLevel').innerHTML = `<span class="shrink-0">${currentGeneratedMeta.icon}</span><span class="truncate">${currentGeneratedMeta.name}</span><span class="text-[8px] opacity-80 shrink-0 ml-auto">🗺️</span>`;
                 document.getElementById('winModal').classList.remove('active');
                 levelWon = false;
                 flyingParticles = [];
                 stalledSuctionSteps = 0;
 
                 sandColor = base64ToUint8(data.sandColorB64, SAND_W * SAND_H);
-                // Re-hash grain shades with the new 8-shade crystalline LUT so existing saves immediately get the new sparkle
                 for (let y = 0; y < SAND_H; y++) {
                     for (let x = 0; x < SAND_W; x++) {
                         const idx = y * SAND_W + x;
@@ -2271,7 +2707,6 @@
                     }
                 }
 
-                // Reconcile block capacities with actual remaining sand in tank so no save is ever stuck
                 reconcileSavedCapacities();
 
                 renderBlocksDOM();
@@ -2297,6 +2732,14 @@
             }
             currentSandCount = totalCount;
 
+            blocks.forEach(b => {
+                if (b.h > 1) {
+                    b.h = 1;
+                    if (b.w > 2) b.w = 2;
+                    b.vy = b.y;
+                }
+            });
+
             for (let cid = 1; cid <= 5; cid++) {
                 const colorBlocks = blocks.filter(b => b.color === cid);
                 if (colorBlocks.length === 0) continue;
@@ -2317,12 +2760,24 @@
         }
 
         function clearSavedProgress() {
+            // Preserve a backup snapshot in URL memory so accidental Clear Progress can be undone with 1 tap!
+            if (maxUnlockedLevel > 1 || currentLevelIdx > 0) {
+                urlBackupSnapshot = {
+                    email: playerEmail,
+                    seed: playerSeed,
+                    maxUnlockedLevel: maxUnlockedLevel,
+                    currentLevel: currentLevelIdx + 1
+                };
+            }
             try {
                 localStorage.removeItem(STORAGE_KEY);
             } catch (_) {}
+            maxUnlockedLevel = 1;
             currentArtVariantOffset = 0;
+            savePlayerProfile();
             loadLevel(0, true);
             document.getElementById('statusText').textContent = I18N[currentLang].clearedStatus;
+            renderSagaPathMap();
             syncAndTrack('clear_progress', false);
         }
 
@@ -2336,7 +2791,7 @@
             }
             if (statsEl) {
                 const pct = totalInitialSand > 0 ? Math.ceil((currentSandCount / totalInitialSand) * 100) : 0;
-                statsEl.textContent = `Lv.${currentLevelIdx + 1} (${currentGeneratedMeta.tier || 'Meme'}) • Pasir ${pct}%`;
+                statsEl.textContent = `Lv.${currentLevelIdx + 1}/${maxUnlockedLevel} • Pasir ${pct}%`;
             }
             if (dotEl && savedNow) {
                 dotEl.classList.remove('bg-emerald-400');
@@ -2376,7 +2831,7 @@
                 if (badge) badge.textContent = `${pct}%`;
                 const statsEl = document.getElementById('footerStatsText');
                 if (statsEl) {
-                    statsEl.textContent = `Lv.${currentLevelIdx + 1} (${currentGeneratedMeta.tier || 'Meme'}) • Pasir ${pct}%`;
+                    statsEl.textContent = `Lv.${currentLevelIdx + 1}/${maxUnlockedLevel} • Pasir ${pct}%`;
                 }
             }
         }
@@ -2384,14 +2839,19 @@
         function loadLevel(idx, skipRestore = false) {
             currentLevelIdx = Math.max(0, idx);
             currentLevelNumber = currentLevelIdx + 1;
+            if (currentLevelNumber > maxUnlockedLevel) {
+                maxUnlockedLevel = currentLevelNumber;
+            }
             const lvl = generateProceduralLevel(currentLevelNumber, currentArtVariantOffset);
             currentGeneratedMeta = { icon: lvl.icon, name: lvl.name, tier: lvl.tier };
 
-            document.getElementById('btnLevel').innerHTML = `<span>${lvl.icon}</span><span class="truncate">${lvl.name}</span><span class="text-[9px] opacity-80 shrink-0">▼</span>`;
+            document.getElementById('btnLevel').innerHTML = `<span class="shrink-0">${lvl.icon}</span><span class="truncate">${lvl.name}</span><span class="text-[8px] opacity-80 shrink-0 ml-auto">🗺️</span>`;
             document.getElementById('winModal').classList.remove('active');
             levelWon = false;
             flyingParticles = [];
+            bounceSparks = [];
             stalledSuctionSteps = 0;
+            sandKinetic.fill(0);
 
             totalInitialSand = 0;
             for (let i = 0; i < sandColor.length; i++) {
@@ -2413,84 +2873,102 @@
             AppState.view = `lv${currentLevelIdx + 1}`;
             if (skipRestore) {
                 saveProgressToMemory(true);
+                syncAndTrack(null, false);
             }
         }
 
-        // Pure 2-Stage Cohesive Sand Physics:
-        // Stage 1: Compact any vertical air gap straight down within each column (zero horizontal mixing).
-        // Stage 2: Top-Surface Slope Avalanche ONLY on the uppermost exposed grain of each column.
+        // Realistic 2-Stage Cohesive Sand Physics:
+        // Stage 1: Compact vertical air gaps within each column & decay kinetic shimmer.
+        // Stage 2: Multi-layer Cascading Surface Avalanche (natural angle of repose + rolling surface grains).
         function updateSandPhysicsStep() {
             simStepCounter++;
             const parity = simStepCounter & 1;
 
-            // Stage 1: Pure Vertical Column Settling
+            // Stage 1: Pure Vertical Column Settling + Surface Height Tracking
             for (let x = 0; x < SAND_W; x++) {
                 let writeY = SAND_H - 1;
                 for (let y = SAND_H - 1; y >= 0; y--) {
                     const idx = y * SAND_W + x;
                     const c = sandColor[idx];
                     if (c !== 0) {
+                        const kin = sandKinetic[idx] > 0 ? sandKinetic[idx] - 1 : 0;
                         if (y !== writeY) {
                             const dst = writeY * SAND_W + x;
                             sandColor[dst] = c;
                             sandShade[dst] = sandShade[idx];
+                            sandKinetic[dst] = 4;
                             sandColor[idx] = 0;
                             sandShade[idx] = 0;
+                            sandKinetic[idx] = 0;
+                        } else {
+                            sandKinetic[idx] = kin;
                         }
                         writeY--;
+                    } else {
+                        sandKinetic[idx] = 0;
                     }
                 }
                 surfaceY[x] = writeY + 1;
             }
 
-            // Stage 2: Top-Surface Slope Avalanche (Only top-most exposed grain slides when height diff >= 2)
-            for (let pass = 0; pass < 2; pass++) {
-                const leftToRight = ((parity + pass) & 1) === 0;
-                for (let step = 0; step < SAND_W; step++) {
-                    const x = leftToRight ? step : (SAND_W - 1 - step);
+            // Stage 2: Multi-Pass Cascading Top-Surface Landslides (3 passes for fluid, natural dunes)
+            for (let pass = 0; pass < 3; pass++) {
+                const leftToRight = ((pass + parity) & 1) === 0;
+                for (let i = 0; i < SAND_W; i++) {
+                    const x = leftToRight ? i : (SAND_W - 1 - i);
                     const topY = surfaceY[x];
                     if (topY >= SAND_H) continue;
 
-                    const leftTop = x > 0 ? surfaceY[x - 1] : -999;
-                    const rightTop = x < SAND_W - 1 ? surfaceY[x + 1] : -999;
+                    const dir1 = ((x + simStepCounter + pass) & 1) === 0 ? -1 : 1;
+                    const dir2 = -dir1;
 
-                    const dropL = leftTop - topY;
-                    const dropR = rightTop - topY;
-
-                    let targetX = -1;
-                    if (dropL >= 2 && dropR >= 2) {
-                        targetX = (dropL > dropR) ? (x - 1) : (dropR > dropL ? (x + 1) : (leftToRight ? x - 1 : x + 1));
-                    } else if (dropL >= 2) {
-                        targetX = x - 1;
-                    } else if (dropR >= 2) {
-                        targetX = x + 1;
-                    }
-
-                    if (targetX !== -1) {
-                        const targetY = surfaceY[targetX] - 1;
-                        if (targetY >= 0 && targetY < SAND_H) {
+                    // Check immediate neighbor (angle of repose = 1..2px) and 2px neighbor for smooth dune curves
+                    const nx1 = x + dir1;
+                    if (nx1 >= 0 && nx1 < SAND_W) {
+                        const diff1 = surfaceY[nx1] - topY;
+                        if (diff1 >= 2 || (diff1 === 1 && sandKinetic[topY * SAND_W + x] > 0 && ((x + simStepCounter) & 3) === 0)) {
+                            const dstY = surfaceY[nx1] - 1;
                             const srcIdx = topY * SAND_W + x;
-                            const dstIdx = targetY * SAND_W + targetX;
+                            const dstIdx = dstY * SAND_W + nx1;
                             sandColor[dstIdx] = sandColor[srcIdx];
                             sandShade[dstIdx] = sandShade[srcIdx];
+                            sandKinetic[dstIdx] = 5;
                             sandColor[srcIdx] = 0;
                             sandShade[srcIdx] = 0;
-                            surfaceY[x] = topY + 1;
-                            surfaceY[targetX] = targetY;
+                            sandKinetic[srcIdx] = 0;
+                            surfaceY[x]++;
+                            surfaceY[nx1]--;
+                            continue;
+                        }
+                    }
+
+                    const nx2 = x + dir2;
+                    if (nx2 >= 0 && nx2 < SAND_W) {
+                        const diff2 = surfaceY[nx2] - topY;
+                        if (diff2 >= 2 || (diff2 === 1 && sandKinetic[topY * SAND_W + x] > 0 && ((x + simStepCounter) & 3) === 0)) {
+                            const dstY = surfaceY[nx2] - 1;
+                            const srcIdx = topY * SAND_W + x;
+                            const dstIdx = dstY * SAND_W + nx2;
+                            sandColor[dstIdx] = sandColor[srcIdx];
+                            sandShade[dstIdx] = sandShade[srcIdx];
+                            sandKinetic[dstIdx] = 5;
+                            sandColor[srcIdx] = 0;
+                            sandShade[srcIdx] = 0;
+                            sandKinetic[srcIdx] = 0;
+                            surfaceY[x]++;
+                            surfaceY[nx2]--;
                         }
                     }
                 }
             }
         }
 
-        // Strictly Physical Reachability & Quota Balancer (ZERO Sand Movement / ZERO Percolation!):
-        // Never swaps or moves any sand grain in the tank!
-        // 1. If a tray has drained all currently exposed bottom-lip grains of its color and has a sibling tray of the same color,
-        //    it transfers its remaining quota to the sibling tray so the first tray can complete 100% cleanly.
-        // 2. If the entire bottom lip (y === SAND_H - 1) is blocked by a color whose tray is still frozen in ice (and 0 grains of any
-        //    unlocked tray's color touch y === SAND_H - 1), it thaws the ice block of the bottom-lip color so the player can drain it physically.
+        // Strictly Physical Reachability & Existing-Sibling Quota Balancer (ZERO New Trays Spawned / ZERO Sand Movement!):
+        // Never spawns new blocks and never swaps sand grains in the tank!
+        // 1. If a color already has 2 trays on the board (e.g., 1 unlocked tray + 1 tray in ice) and the first tray has drained
+        //    all bottom-exposed grains of its color, it hands off the upper-layer quota to its existing sibling tray on the board.
+        // 2. If zero grains on the bottom lip match ANY unlocked tray, thaw the existing ice block of the bottom-lip color.
         function checkPhysicalReachabilityWithoutMovingSand() {
-            // Count which colors physically touch the exact bottom lip (y === SAND_H - 1) right now
             const bottomRowCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
             const bottomRowOffset = (SAND_H - 1) * SAND_W;
             for (let x = 0; x < SAND_W; x++) {
@@ -2498,28 +2976,28 @@
                 if (c > 0) bottomRowCounts[c]++;
             }
 
-            // 1. Sibling Quota Transfer: if an unlocked tray has collected >= 35% of its capacity, is currently stalled,
-            //    and there are 0 grains of its color anywhere along the bottom lip (y === SAND_H - 1),
-            //    transfer its remaining uncollected capacity to another tray of the same color so this tray finishes 100% cleanly.
-            for (let i = 0; i < blocks.length; i++) {
+            // 1. Quota Handoff ONLY to an existing sibling tray of the same color already on the board
+            for (let i = blocks.length - 1; i >= 0; i--) {
                 const b = blocks[i];
                 if (b.ice > 0) continue;
 
                 const remNeed = b.capacity - b.allocated;
                 const fillRatio = b.collected / Math.max(1, b.capacity);
 
-                if (remNeed > 0 && !b.SuckingNow && bottomRowCounts[b.color] === 0 && fillRatio >= 0.35) {
+                if (remNeed > 0 && !b.SuckingNow && b.collected === b.allocated && bottomRowCounts[b.color] === 0 && fillRatio >= 0.30 && stalledSuctionSteps > 20) {
                     const sibling = blocks.find(other => other !== b && other.color === b.color);
                     if (sibling) {
                         sibling.capacity += remNeed;
                         b.capacity = b.allocated;
-                        isSaveDirty = true;
+                        onTrayCompleted(b, i);
+                        renderBlocksDOM();
+                        saveProgressToMemory(true);
                         return;
                     }
                 }
             }
 
-            // 2. Smart Ice Thaw if and only if ZERO grains on the bottom lip (y === SAND_H - 1) match ANY unlocked tray
+            // 2. Smart Ice Thaw if ZERO grains on the bottom lip (y === SAND_H - 1) match ANY unlocked tray
             let anyUnlockedColorOnBottomLip = false;
             for (let i = 0; i < blocks.length; i++) {
                 const b = blocks[i];
@@ -2529,8 +3007,7 @@
                 }
             }
 
-            if (!anyUnlockedColorOnBottomLip && stalledSuctionSteps > 30) {
-                // Find the frozen tray whose color dominates the bottom lip and thaw it so the player can drain the bottom layer physically!
+            if (!anyUnlockedColorOnBottomLip && stalledSuctionSteps > 25) {
                 let bestFrozenBlock = null;
                 let bestScore = -1;
                 for (let i = 0; i < blocks.length; i++) {
@@ -2642,12 +3119,22 @@
                 currentSandCount = 0;
                 updateSandBadge();
                 levelWon = true;
+                const finishedLv = currentLevelIdx + 1;
+                const nextLv = finishedLv + 1;
+                if (nextLv > maxUnlockedLevel) {
+                    maxUnlockedLevel = nextLv;
+                }
+                currentLevelIdx = nextLv - 1;
+                currentArtVariantOffset = 0;
+                saveProgressToMemory(true);
                 sfx.playTrayFull();
-                AppState.modal = 'win';
+                AppState.modal = 'map';
                 syncAndTrack('level_complete', true);
+                document.getElementById('statusText').textContent = `🎉 Level ${finishedLv} Lulus! Si Pasir naik ke Level ${nextLv}!`;
                 setTimeout(() => {
-                    document.getElementById('winModal').classList.add('active');
-                }, 350);
+                    loadLevel(nextLv - 1, true);
+                    openSagaPathMapWithClimb(finishedLv, nextLv);
+                }, 420);
             }
         }
 
@@ -2675,25 +3162,143 @@
         }
 
         function spawnPrecisionParticle(sandX, startX, endX, shadeIdx, block) {
-            const normInTray = Math.max(0.04, Math.min(0.96, (sandX + 0.5 - startX) / Math.max(1, endX - startX)));
+            const normInTray = Math.max(0.05, Math.min(0.95, (sandX + 0.5 - startX) / Math.max(1, endX - startX)));
             const cInfo = COLORS[block.color];
+            const jitter = ((sandX * 17 + simStepCounter) & 7) - 3.5;
 
             flyingParticles.push({
                 block: block,
                 normX: normInTray,
+                lateralDrift: jitter * 0.0012,
                 y: 0,
-                vy: 2.6 + (sandX % 3) * 0.35,
-                gravity: 0.55,
-                color: cInfo.shades[shadeIdx % cInfo.shades.length]
+                vy: 1.85 + (sandX % 4) * 0.28,
+                gravity: 0.42,
+                shadeIdx: shadeIdx,
+                color: cInfo.shades[shadeIdx % cInfo.shades.length],
+                rimColor: cInfo.rimHex
             });
+        }
+
+        // Deposit a landed sand grain directly onto the tray's internal 2D mound heightmap
+        function depositGrainIntoTrayMound(b, normX) {
+            if (!b.pileHeights || !b.pileW) return;
+            const col = Math.max(0, Math.min(b.pileW - 1, Math.floor(normX * b.pileW)));
+            const unitVol = (b.pileW * b.pileH) / Math.max(1, b.capacity);
+            b.pileHeights[col] = Math.min(b.pileH, b.pileHeights[col] + unitVol);
+            b.pileDirty = true;
+        }
+
+        // Relax the sand mound inside a collector tray according to the natural angle of repose (conical dunes!)
+        function relaxTraySandMound(b) {
+            if (!b.pileHeights || !b.pileW) return;
+            const pw = b.pileW;
+            const ph = b.pileH;
+            const heights = b.pileHeights;
+
+            // Ensure total volume matches b.collected (handles restored saves or rapid streams accurately)
+            const targetTotalArea = (b.collected / Math.max(1, b.capacity)) * (pw * ph);
+            let currentArea = 0;
+            for (let x = 0; x < pw; x++) currentArea += heights[x];
+
+            const diffArea = targetTotalArea - currentArea;
+            if (Math.abs(diffArea) > 0.25) {
+                const center = (pw - 1) * 0.5;
+                let weightSum = 0;
+                for (let x = 0; x < pw; x++) {
+                    const normDist = Math.abs(x - center) / Math.max(1, center);
+                    weightSum += Math.max(0.25, 1.15 - normDist * 0.75);
+                }
+                for (let x = 0; x < pw; x++) {
+                    const normDist = Math.abs(x - center) / Math.max(1, center);
+                    const w = Math.max(0.25, 1.15 - normDist * 0.75) / weightSum;
+                    heights[x] = Math.max(0, Math.min(ph, heights[x] + diffArea * w));
+                }
+                b.pileDirty = true;
+            }
+
+            // Angle-of-repose avalanche relaxation across the tray width
+            const maxSlope = 0.52;
+            for (let pass = 0; pass < 3; pass++) {
+                const l2r = ((pass + simStepCounter) & 1) === 0;
+                for (let i = 0; i < pw - 1; i++) {
+                    const x = l2r ? i : (pw - 2 - i);
+                    const delta = heights[x] - heights[x + 1];
+                    if (Math.abs(delta) > maxSlope) {
+                        const transfer = (Math.abs(delta) - maxSlope) * 0.38;
+                        if (delta > 0) {
+                            heights[x] -= transfer;
+                            heights[x + 1] += transfer;
+                        } else {
+                            heights[x] += transfer;
+                            heights[x + 1] -= transfer;
+                        }
+                        b.pileDirty = true;
+                    }
+                }
+            }
+
+            // Clamp heights within [0, ph]
+            for (let x = 0; x < pw; x++) {
+                if (heights[x] < 0) heights[x] = 0;
+                else if (heights[x] > ph) heights[x] = ph;
+            }
+        }
+
+        // Render the 2D Crystalline Sand Mound inside each collector tray
+        function renderTraySandMoundCanvas(b) {
+            if (!b.dom || !b.dom.pilePixels32 || !b.pileDirty) return;
+            b.pileDirty = false;
+
+            const pw = b.pileW;
+            const ph = b.pileH;
+            const buf32 = b.dom.pilePixels32;
+            const heights = b.pileHeights;
+            const shades32 = COLOR_ABGR[b.color];
+            const rim32 = COLOR_RIM_ABGR[b.color];
+            const sparkle32 = COLOR_SPARKLE_ABGR[b.color];
+            const sparkleTick = (simStepCounter >> 3);
+
+            buf32.fill(0);
+
+            for (let x = 0; x < pw; x++) {
+                const colH = Math.min(ph, Math.ceil(heights[x]));
+                if (colH <= 0) continue;
+
+                const topY = ph - colH;
+                const leftH = x > 0 ? heights[x - 1] : heights[x];
+                const rightH = x < pw - 1 ? heights[x + 1] : heights[x];
+                const slopeGrad = rightH - leftH;
+
+                for (let y = topY; y < ph; y++) {
+                    const pIdx = y * pw + x;
+                    if (y === topY) {
+                        // Sunlit dune crest rim
+                        buf32[pIdx] = rim32;
+                    } else if (y === topY + 1 && slopeGrad > 0.15) {
+                        // Sun-facing left slope highlight
+                        buf32[pIdx] = shades32[6];
+                    } else {
+                        let sh = hashGrainShade(x, y);
+                        if (sh === 7 && (((pIdx * 13 + sparkleTick) & 15) === 0)) {
+                            buf32[pIdx] = sparkle32;
+                        } else {
+                            if (slopeGrad < -0.25 && sh > 0 && sh < 5) sh = 0; // Subtle shadow on right slope
+                            buf32[pIdx] = shades32[sh];
+                        }
+                    }
+                }
+            }
+
+            b.dom.pileCtx.putImageData(b.dom.pileImgData, 0, 0);
         }
 
         function updateAndRenderFlyingParticles() {
             fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
             const cellW = fxCanvas.width / GRID_COLS;
             const cellH = (fxCanvas.height - 10) / GRID_ROWS;
-            const innerInsetPx = 10;
+            const innerInsetPx = 8;
 
+            // 1. Update & Render Ballistic Falling Sand Grains
             for (let i = flyingParticles.length - 1; i >= 0; i--) {
                 const p = flyingParticles[i];
                 const b = p.block;
@@ -2703,26 +3308,68 @@
                     continue;
                 }
 
-                p.vy += p.gravity;
+                p.vy = Math.min(7.2, p.vy + p.gravity);
                 p.y += p.vy;
+                p.normX = Math.max(0.04, Math.min(0.96, p.normX + p.lateralDrift));
 
                 const trayLeftPx = b.vx * cellW + innerInsetPx;
                 const trayRightPx = (b.vx + b.w) * cellW - innerInsetPx;
                 const drawX = trayLeftPx + p.normX * Math.max(4, trayRightPx - trayLeftPx);
 
-                const fillRatio = Math.min(1, b.collected / b.capacity);
+                // Compute exact landing Y based on the local mound height at p.normX!
+                let localFillRatio = Math.min(1, b.collected / Math.max(1, b.capacity));
+                if (b.pileHeights && b.pileW) {
+                    const col = Math.max(0, Math.min(b.pileW - 1, Math.floor(p.normX * b.pileW)));
+                    localFillRatio = Math.min(1, b.pileHeights[col] / b.pileH);
+                }
                 const trayTopY = 10 + b.vy * cellH;
-                const targetSurfaceY = trayTopY + cellH * b.h * (0.86 - fillRatio * 0.68);
+                const targetSurfaceY = trayTopY + cellH * b.h * (0.86 - localFillRatio * 0.68);
 
                 if (p.y >= targetSurfaceY) {
                     b.collected = Math.min(b.capacity, b.collected + 1);
                     b.SuckingNow = true;
+                    depositGrainIntoTrayMound(b, p.normX);
+
+                    // Spawn realistic saltation micro-bounce grain on the mound crest!
+                    if (bounceSparks.length < 48 && ((i + simStepCounter) & 1) === 0) {
+                        bounceSparks.push({
+                            x: drawX,
+                            y: targetSurfaceY,
+                            vx: (((i * 7 + simStepCounter) % 9) - 4) * 0.28,
+                            vy: -1.15 - ((i + simStepCounter) % 3) * 0.45,
+                            gravity: 0.26,
+                            life: 10,
+                            color: p.rimColor || p.color
+                        });
+                    }
+
                     flyingParticles.splice(i, 1);
                     continue;
                 }
 
+                // Draw velocity-stretched grain tail + glowing crystalline bead head
+                const streakH = Math.min(6.5, Math.max(2.5, p.vy * 0.85));
+                const gx = Math.round(drawX - 1.2);
+                const gy = Math.round(p.y);
                 fxCtx.fillStyle = p.color;
-                fxCtx.fillRect(Math.round(drawX - 1.2), Math.round(p.y), 2.5, Math.min(5, Math.ceil(p.vy * 0.65)));
+                fxCtx.fillRect(gx, gy - Math.ceil(streakH * 0.6), 2.5, Math.ceil(streakH));
+                fxCtx.fillStyle = p.rimColor;
+                fxCtx.fillRect(gx, gy, 2.2, 2.2);
+            }
+
+            // 2. Update & Render Saltation Impact Bounce Sparks on Mound Crests
+            for (let i = bounceSparks.length - 1; i >= 0; i--) {
+                const sp = bounceSparks[i];
+                sp.x += sp.vx;
+                sp.vy += sp.gravity;
+                sp.y += sp.vy;
+                sp.life--;
+                if (sp.life <= 0) {
+                    bounceSparks.splice(i, 1);
+                    continue;
+                }
+                fxCtx.fillStyle = sp.color;
+                fxCtx.fillRect(Math.round(sp.x), Math.round(sp.y), 2, 2);
             }
         }
 
@@ -2735,6 +3382,20 @@
                 if (typeof b.vy !== 'number') b.vy = b.y;
                 if (typeof b.visualPct !== 'number') b.visualPct = (b.collected / b.capacity) * 100;
 
+                if (b.ice === 0) {
+                    b.pileW = b.w * 28;
+                    b.pileH = 24;
+                    if (!b.pileHeights || b.pileHeights.length !== b.pileW) {
+                        b.pileHeights = new Float32Array(b.pileW);
+                        const initH = (b.collected / Math.max(1, b.capacity)) * b.pileH;
+                        for (let x = 0; x < b.pileW; x++) {
+                            const arch = Math.sin((x / Math.max(1, b.pileW - 1)) * Math.PI) * 0.12;
+                            b.pileHeights[x] = Math.min(b.pileH, initH * (0.94 + arch));
+                        }
+                    }
+                    b.pileDirty = true;
+                }
+
                 const el = document.createElement('div');
                 el.id = `block_${b.id}`;
                 el.className = 'gpu-block';
@@ -2744,9 +3405,24 @@
                 const tyPct = (b.vy / b.h) * 100;
                 el.style.transform = `translate3d(${txPct.toFixed(2)}%, ${tyPct.toFixed(2)}%, 0)`;
 
+                const pileCanvas = el.querySelector('.tray-pile-canvas');
+                let pileCtx = null;
+                let pileImgData = null;
+                let pilePixels32 = null;
+                if (pileCanvas && b.pileW && b.pileH) {
+                    pileCanvas.width = b.pileW;
+                    pileCanvas.height = b.pileH;
+                    pileCtx = pileCanvas.getContext('2d');
+                    pileImgData = pileCtx.createImageData(b.pileW, b.pileH);
+                    pilePixels32 = new Uint32Array(pileImgData.data.buffer);
+                }
+
                 b.dom = {
                     el,
-                    fillEl: el.querySelector('.tray-fill'),
+                    pileCanvas,
+                    pileCtx,
+                    pileImgData,
+                    pilePixels32,
                     badgeEl: el.querySelector('.pct-badge'),
                     outerEl: el.querySelector('.tray-outer'),
                     lastTxPct: txPct,
@@ -2754,6 +3430,11 @@
                     lastIntPct: -1,
                     lastSucking: false
                 };
+
+                if (b.ice === 0) {
+                    relaxTraySandMound(b);
+                    renderTraySandMoundCanvas(b);
+                }
 
                 el.addEventListener('pointerdown', (e) => onBlockPointerDown(e, b));
                 layer.appendChild(el);
@@ -2786,7 +3467,6 @@
                     </div>
                 `;
             } else {
-                const noiseUrl = TRAY_NOISE_URLS[b.color];
                 el.innerHTML = `
                     <div class="tray-outer w-full h-full rounded-[8px] relative flex flex-col p-[5px] select-none"
                          style="--frame-bottom: ${cInfo.frameBottom};
@@ -2801,12 +3481,7 @@
                                     border-left: 3px solid ${cInfo.frameBevelInner};
                                     border-right: 3px solid ${cInfo.frameBevelInner};
                                     box-shadow: inset 0 4px 10px rgba(0,0,0,0.65);">
-                            <div class="tray-fill crisp-canvas absolute bottom-0 left-0 right-0"
-                                 style="height: ${pct}%;
-                                        background-image: url('${noiseUrl}');
-                                        background-size: 64px 64px;
-                                        box-shadow: inset 0 2px 4px rgba(255,255,255,0.75), 0 -1px 3px rgba(0,0,0,0.35);">
-                            </div>
+                            <canvas class="tray-pile-canvas crisp-canvas absolute inset-0 w-full h-full block"></canvas>
                         </div>
                         <div class="absolute bottom-[3px] left-[4px] px-1.5 pt-[2px] pb-[1px] rounded-tr-[6px] rounded-bl-[4px] flex items-center justify-center z-10"
                              style="background: ${cInfo.frameMain};
@@ -2843,12 +3518,12 @@
                     b.visualPct += (targetPct - b.visualPct) * 0.35;
                     const intPct = Math.min(100, Math.floor(targetPct));
 
-                    if (dom.fillEl && (b.SuckingNow || Math.abs(targetPct - b.visualPct) > 0.05)) {
-                        dom.fillEl.style.height = `${b.visualPct.toFixed(1)}%`;
-                        if (b.SuckingNow) {
-                            dom.fillEl.style.backgroundPosition = `0px -${(simStepCounter * 0.6) % 48}px`;
-                        }
+                    relaxTraySandMound(b);
+                    if (b.pileDirty || (b.SuckingNow && (simStepCounter & 3) === 0)) {
+                        b.pileDirty = true;
+                        renderTraySandMoundCanvas(b);
                     }
+
                     if (dom.badgeEl && dom.lastIntPct !== intPct) {
                         dom.lastIntPct = intPct;
                         dom.badgeEl.textContent = `${intPct}%`;
@@ -2927,6 +3602,7 @@
                 const dirX = desiredX > draggingBlock.x ? 1 : -1;
                 if (canBlockMoveTo(draggingBlock, draggingBlock.x + dirX, draggingBlock.y)) {
                     draggingBlock.x += dirX;
+                    isSaveDirty = true;
                 } else {
                     break;
                 }
@@ -2936,41 +3612,65 @@
                 const dirY = desiredY > draggingBlock.y ? 1 : -1;
                 if (canBlockMoveTo(draggingBlock, draggingBlock.x, draggingBlock.y + dirY)) {
                     draggingBlock.y += dirY;
+                    isSaveDirty = true;
                 } else {
                     break;
                 }
             }
         });
 
-        window.addEventListener('pointerup', () => {
-            if (draggingBlock) {
-                if (draggingBlock.dom && draggingBlock.dom.el) {
-                    draggingBlock.dom.el.style.zIndex = '';
-                }
-                draggingBlock = null;
-                saveProgressToMemory(true);
+        function finishBlockDrag() {
+            if (!draggingBlock) return;
+            if (draggingBlock.dom && draggingBlock.dom.el) {
+                draggingBlock.dom.el.style.zIndex = '10';
             }
-        });
+            draggingBlock = null;
+            saveProgressToMemory(true);
+        }
 
-        // Zero-Overhead Crystalline Sand Renderer:
-        // Single pass over Uint32Array with automatic Top-Slope Sunlight Rim & Dynamic Quartz Glint
+        window.addEventListener('pointerup', finishBlockDrag);
+        window.addEventListener('pointercancel', finishBlockDrag);
+
+        // Zero-Overhead Crystalline Sand Renderer with 3D Slope-Normal Lighting & Kinetic Glint:
+        // Single pass over Uint32Array with Top-Slope Sunlight Rim, Slope Gradient Shading, and Quartz Sparkle
         function renderSandTank() {
             sandPixels32.fill(0);
             const sparklePhase = (simStepCounter >> 3);
-            const totalPixels = SAND_W * SAND_H;
 
-            for (let i = 0; i < totalPixels; i++) {
-                const c = sandColor[i];
-                if (c !== 0) {
-                    const shade = sandShade[i];
-                    // Top surface rim highlight: if the pixel right above is empty air, render sunlit crest shade
-                    if (i >= SAND_W && sandColor[i - SAND_W] === 0) {
+            for (let x = 0; x < SAND_W; x++) {
+                const sY = surfaceY[x];
+                if (sY >= SAND_H) continue;
+
+                const leftSY = x > 0 ? surfaceY[x - 1] : sY;
+                const rightSY = x < SAND_W - 1 ? surfaceY[x + 1] : sY;
+                const slopeGrad = rightSY - leftSY; // Positive = facing top-left light source
+
+                for (let y = sY; y < SAND_H; y++) {
+                    const i = y * SAND_W + x;
+                    const c = sandColor[i];
+                    if (c === 0) continue;
+
+                    const shades = COLOR_ABGR[c];
+                    let shade = sandShade[i];
+                    const depthFromSurface = y - sY;
+
+                    if (depthFromSurface === 0) {
+                        // Top-most surface grain: sunlit crystalline rim
                         sandPixels32[i] = COLOR_RIM_ABGR[c];
+                    } else if (depthFromSurface <= 3 && slopeGrad >= 2) {
+                        // Sun-drenched left-facing dune slope
+                        sandPixels32[i] = shades[6];
+                    } else if (sandKinetic[i] > 1 && (((i + simStepCounter) & 7) === 0)) {
+                        // Kinetic shimmer on grains actively sliding down the funnel or slope
+                        sandPixels32[i] = COLOR_SPARKLE_ABGR[c];
                     } else if (shade === 7 && (((i * 19 + sparklePhase) & 15) === 0)) {
-                        // Subtle twinkling quartz crystal glint (zero float math, pure bitwise)
+                        // Subtle twinkling quartz crystal glint
                         sandPixels32[i] = COLOR_SPARKLE_ABGR[c];
                     } else {
-                        sandPixels32[i] = COLOR_ABGR[c][shade];
+                        if (depthFromSurface <= 4 && slopeGrad <= -2 && shade > 0 && shade < 5) {
+                            shade = 0; // Cool ambient shadow on right-facing dune slope
+                        }
+                        sandPixels32[i] = shades[shade];
                     }
                 }
             }
@@ -3016,7 +3716,7 @@
             if (now - fpsLastStamp >= 500) {
                 const measuredFps = Math.round((fpsFrameCount * 1000) / (now - fpsLastStamp));
                 const badgeEl = document.getElementById('fpsBadge');
-                if (badgeEl) badgeEl.textContent = measuredFps >= 100 ? `${measuredFps} FPS` : '120Hz Sim';
+                if (badgeEl) badgeEl.textContent = measuredFps >= 100 ? `${measuredFps}FPS` : '120Hz';
                 fpsFrameCount = 0;
                 fpsLastStamp = now;
             }
@@ -3082,10 +3782,11 @@
         });
         document.getElementById('btnLevel').addEventListener('click', () => {
             sfx.init();
-            requestGameFullscreen();
-            currentArtVariantOffset = 0;
-            loadLevel(currentLevelIdx + 1, true);
-            syncAndTrack(null, true);
+            openSagaPathMap();
+        });
+        document.getElementById('btnOpenPathMap').addEventListener('click', () => {
+            sfx.init();
+            openSagaPathMap();
         });
         document.getElementById('btnShuffleArt').addEventListener('click', () => {
             sfx.init();
@@ -3107,15 +3808,511 @@
             syncAndTrack(null, true);
         });
         document.getElementById('btnNextWin').addEventListener('click', () => {
-            AppState.modal = '';
-            currentArtVariantOffset = 0;
-            loadLevel(currentLevelIdx + 1, true);
-            syncAndTrack(null, true);
+            document.getElementById('winModal').classList.remove('active');
+            const fromLv = Math.max(1, currentLevelIdx);
+            const toLv = currentLevelIdx + 1;
+            openSagaPathMapWithClimb(fromLv, toLv);
         });
         document.getElementById('btnSound').addEventListener('click', (e) => {
             sfx.init();
             sfx.enabled = !sfx.enabled;
             e.currentTarget.textContent = sfx.enabled ? '🔊' : '🔇';
+        });
+
+        // ============================================================================
+        // LIVE ANIMATED GAMEPLAY PREVIEW ENGINE (For Onboarding Modal)
+        // ============================================================================
+        const onboardingModal = document.getElementById('onboardingModal');
+        const pathMapModal = document.getElementById('pathMapModal');
+        const demoCanvas = document.getElementById('onboardingDemoCanvas');
+        const demoCtx = demoCanvas ? demoCanvas.getContext('2d') : null;
+        let demoAnimFrame = 0;
+
+        function renderOnboardingGameplayDemo() {
+            if (!demoCtx || !onboardingModal.classList.contains('active')) return;
+            demoAnimFrame++;
+            const w = demoCanvas.width;
+            const h = demoCanvas.height;
+            demoCtx.clearRect(0, 0, w, h);
+
+            // Cycle 0..240 frames: Tray slides from bottom-right -> top-center -> sucks gold/red sand -> hits 100% -> breaks ice!
+            const phase = (demoAnimFrame % 240) / 240;
+
+            // 1. Mini Sand Tank (Top half: y = 8..74)
+            demoCtx.fillStyle = '#334361';
+            demoCtx.fillRect(36, 8, 248, 66);
+            demoCtx.strokeStyle = '#93c5fd';
+            demoCtx.lineWidth = 2.5;
+            demoCtx.strokeRect(36, 8, 248, 66);
+
+            // Sand drain valley progress (0..1 during phase 0.25..0.85)
+            const drainProgress = Math.max(0, Math.min(1, (phase - 0.22) / 0.58));
+            for (let sx = 0; sx < 244; sx += 4) {
+                const distCenter = Math.abs(sx - 122);
+                const valleyDip = Math.max(0, (1 - distCenter / 75) * drainProgress * 46);
+                const topSurface = 14 + Math.floor(valleyDip);
+                for (let sy = topSurface; sy < 72; sy += 4) {
+                    if (sy > 52) demoCtx.fillStyle = ((sx + sy) & 4) ? '#facc15' : '#eab308'; // Gold bottom stratum
+                    else if (sy > 32) demoCtx.fillStyle = ((sx + sy) & 4) ? '#ef4444' : '#dc2626'; // Red mid stratum
+                    else demoCtx.fillStyle = ((sx + sy) & 4) ? '#3b82f6' : '#2563eb'; // Blue top stratum
+                    demoCtx.fillRect(38 + sx, sy, 3.5, 3.5);
+                }
+            }
+
+            // 2. Mini Sliding Board (Bottom half: y = 78..148)
+            demoCtx.fillStyle = '#171120';
+            demoCtx.fillRect(36, 76, 248, 72);
+
+            // Compute animated tray position
+            let trayX = 188, trayY = 104;
+            if (phase < 0.22) {
+                const t = phase / 0.22;
+                const smooth = t * t * (3 - 2 * t);
+                trayX = 188 - smooth * 64;
+                trayY = 104 - smooth * 24;
+            } else {
+                trayX = 124;
+                trayY = 80;
+            }
+
+            // Falling Sand Stream when tray is at top row
+            // Draw Active Yellow Collector Tray with Conical Sand Mound Peak
+            const fillPct = Math.min(100, Math.floor(drainProgress * 100));
+            if (phase < 0.88) {
+                demoCtx.fillStyle = '#eab308';
+                demoCtx.fillRect(trayX, trayY, 72, 22);
+                demoCtx.fillStyle = '#3b1806';
+                demoCtx.fillRect(trayX + 4, trayY + 4, 64, 14);
+                // Conical dune mound inside the demo tray
+                for (let mx = 0; mx < 64; mx += 2) {
+                    const distFromCenter = Math.abs(mx - 32) / 32;
+                    const coneFactor = Math.max(0.25, 1.25 - distFromCenter * 0.75);
+                    const colH = Math.min(14, Math.floor((fillPct / 100) * 14 * coneFactor));
+                    if (colH > 0) {
+                        demoCtx.fillStyle = '#facc15';
+                        demoCtx.fillRect(trayX + 4 + mx, trayY + 18 - colH, 2, colH);
+                        demoCtx.fillStyle = '#fef9c3';
+                        demoCtx.fillRect(trayX + 4 + mx, trayY + 18 - colH, 2, 1.5);
+                    }
+                }
+                demoCtx.fillStyle = '#ffffff';
+                demoCtx.font = 'bold 9px Inter, sans-serif';
+                demoCtx.fillText(`${fillPct}%`, trayX + 7, trayY + 16);
+            }
+
+            // Draw Secondary Red Tray on Left
+            demoCtx.fillStyle = '#ef4444';
+            demoCtx.fillRect(44, 102, 64, 20);
+            demoCtx.fillStyle = '#3b0a0a';
+            demoCtx.fillRect(48, 106, 56, 12);
+            demoCtx.fillStyle = '#ffffff';
+            demoCtx.font = 'bold 8px Inter, sans-serif';
+            demoCtx.fillText('0%', 50, 116);
+
+            // Draw Bottom Ice Block (Thaws from ❄️ 1 to Unlocked Blue Tray at phase >= 0.85!)
+            const iceBroken = phase >= 0.85;
+            demoCtx.fillStyle = iceBroken ? '#2563eb' : '#38bdf8';
+            demoCtx.fillRect(114, 126, 92, 19);
+            demoCtx.fillStyle = '#ffffff';
+            demoCtx.font = 'bold 10px Inter, sans-serif';
+            demoCtx.fillText(iceBroken ? '✨ ES PECAH! (0%)' : '❄️ ES KUNCI: 1', 124, 139);
+
+            // 3. Draw Cute "Si Pasir" Mascot cheering on the right side!
+            const bounceY = Math.sin(demoAnimFrame * 0.14) * 4;
+            const mx = 298, my = 114 + bounceY;
+            demoCtx.fillStyle = '#facc15';
+            demoCtx.beginPath();
+            demoCtx.arc(mx, my, 14, 0, Math.PI * 2);
+            demoCtx.fill();
+            demoCtx.strokeStyle = '#fef08a';
+            demoCtx.lineWidth = 2;
+            demoCtx.stroke();
+            // Eyes
+            demoCtx.fillStyle = '#1e1b4b';
+            demoCtx.beginPath();
+            demoCtx.arc(mx - 4.5, my - 2, 2.2, 0, Math.PI * 2);
+            demoCtx.arc(mx + 4.5, my - 2, 2.2, 0, Math.PI * 2);
+            demoCtx.fill();
+            // Cheeks
+            demoCtx.fillStyle = '#fb7185';
+            demoCtx.fillRect(mx - 9, my + 1, 3.5, 2);
+            demoCtx.fillRect(mx + 5.5, my + 1, 3.5, 2);
+        }
+
+        // ============================================================================
+        // BOTTOM-TO-TOP SAGA PATH MAP & "SI PASIR" CLIMBING ANIMATION ENGINE
+        // ============================================================================
+        function getQuickLevelMetaPreview(levelNum) {
+            const totalThemes = MEME_EMOJI_POOL.length + CUTE_ART_GALLERY.length;
+            const themeIdx = pickUnpredictableThemeIndex(levelNum, 0, totalThemes);
+            const spec = getConsistentLevelSpec(levelNum);
+            if (themeIdx < MEME_EMOJI_POOL.length) {
+                const m = MEME_EMOJI_POOL[themeIdx];
+                return {
+                    icon: m.isCombo ? m.left : m.emoji,
+                    title: currentLang === 'en' ? m.nameEn : m.nameId,
+                    tier: spec.tier
+                };
+            } else {
+                const a = CUTE_ART_GALLERY[themeIdx - MEME_EMOJI_POOL.length];
+                return {
+                    icon: a.icon,
+                    title: currentLang === 'en' ? a.nameEn : a.nameId,
+                    tier: spec.tier
+                };
+            }
+        }
+
+        // Renders the Winding Saga Path from BOTTOM (Lv.1) to TOP (Lv.Max)
+        // with an SVG road connecting every post and "Si Pasir" standing on the active post
+        function renderSagaPathMap(animFromLv = null, animToLv = null) {
+            const container = document.getElementById('sagaPathContainer');
+            const scrollWrap = document.getElementById('sagaPathScrollWrap');
+            if (!container || !scrollWrap) return;
+
+            const badgeEl = document.getElementById('playerIdentityBadge');
+            if (badgeEl) {
+                badgeEl.textContent = playerEmail
+                    ? `✉️ ${playerEmail} • Lulus ${Math.max(0, maxUnlockedLevel - 1)} Level`
+                    : 'Pemain Tamu';
+            }
+
+            const token = encodeProgressCipherToken();
+            const tokenEl = document.getElementById('cipherTokenPreview');
+            if (tokenEl) tokenEl.textContent = token || '--------';
+
+            const playNumEl = document.getElementById('btnPlayCurrentLvlNum');
+            if (playNumEl) playNumEl.textContent = String(currentLevelIdx + 1);
+
+            const restoreBtn = document.getElementById('btnRestoreFromUrl');
+            if (restoreBtn) {
+                if (urlBackupSnapshot && urlBackupSnapshot.maxUnlockedLevel > maxUnlockedLevel) {
+                    restoreBtn.classList.remove('hidden');
+                    document.getElementById('btnRestoreLvlNum').textContent = String(urlBackupSnapshot.maxUnlockedLevel);
+                } else {
+                    restoreBtn.classList.add('hidden');
+                }
+            }
+
+            const totalNodesToShow = Math.max(10, maxUnlockedLevel + 4);
+            const rowStepPx = 86;
+            const topPadPx = 46;
+            const bottomPadPx = 46;
+            const totalHeightPx = topPadPx + bottomPadPx + (totalNodesToShow - 1) * rowStepPx;
+
+            container.style.height = `${totalHeightPx}px`;
+
+            // Compute exact (xPct, yPx) coordinates for each level post (Lv.1 at BOTTOM, Lv.N at TOP!)
+            const postCoords = {};
+            for (let lv = 1; lv <= totalNodesToShow; lv++) {
+                const rowFromTop = totalNodesToShow - lv; // Lv.1 has largest Y (at bottom)
+                const yPx = topPadPx + rowFromTop * rowStepPx;
+                // Winding S-curve across left (24%), center (50%), right (76%)
+                const waveIdx = (lv - 1) % 4;
+                const xPct = waveIdx === 0 ? 26 : (waveIdx === 1 ? 68 : (waveIdx === 2 ? 74 : 32));
+                postCoords[lv] = { xPct, yPx };
+            }
+
+            // Build SVG Winding Trail Path from Lv.1 (bottom) up to totalNodesToShow (top)
+            let completedSvgPath = '';
+            let lockedSvgPath = '';
+            for (let lv = 1; lv < totalNodesToShow; lv++) {
+                const p1 = postCoords[lv];
+                const p2 = postCoords[lv + 1];
+                const midY = (p1.yPx + p2.yPx) / 2;
+                const seg = `M ${p1.xPct * 3.4} ${p1.yPx} C ${p1.xPct * 3.4} ${midY}, ${p2.xPct * 3.4} ${midY}, ${p2.xPct * 3.4} ${p2.yPx} `;
+                if (lv < maxUnlockedLevel) {
+                    completedSvgPath += seg;
+                } else {
+                    lockedSvgPath += seg;
+                }
+            }
+
+            let html = `
+                <svg viewBox="0 0 340 ${totalHeightPx}" preserveAspectRatio="none" class="absolute inset-0 w-full h-full pointer-events-none z-0">
+                    <!-- Outer Road Track -->
+                    <path d="${completedSvgPath} ${lockedSvgPath}" fill="none" stroke="rgba(15, 23, 42, 0.75)" stroke-width="14" stroke-linecap="round"/>
+                    <!-- Locked Dotted Trail (Upper Levels) -->
+                    <path d="${lockedSvgPath}" fill="none" stroke="rgba(148, 163, 184, 0.35)" stroke-width="5" stroke-dasharray="8 8" stroke-linecap="round"/>
+                    <!-- Completed Golden Glowing Trail (Lower Levels) -->
+                    <path d="${completedSvgPath}" fill="none" stroke="#fbbf24" stroke-width="6" stroke-linecap="round"/>
+                </svg>
+            `;
+
+            // Render each level post along the bottom-to-top winding road
+            for (let lv = totalNodesToShow; lv >= 1; lv--) {
+                const meta = getQuickLevelMetaPreview(lv);
+                const coord = postCoords[lv];
+                const isCompleted = lv < maxUnlockedLevel;
+                const isTargetPost = (lv === maxUnlockedLevel);
+                const isUnlocked = lv <= maxUnlockedLevel;
+
+                // While climbing animation starts, keep `animToLv` visually waiting for Si Pasir to land!
+                const isWaitingClimbArrival = (animFromLv && animToLv && lv === animToLv);
+
+                let postRingClass = 'bg-[#1e162b] border-slate-600/60 text-slate-400';
+                let badgePill = `<span class="px-1.5 py-0.5 rounded-full bg-slate-800/90 text-slate-400 text-[8px] font-bold">🔒 Terkunci</span>`;
+
+                if (isCompleted) {
+                    postRingClass = 'bg-gradient-to-b from-emerald-500 to-teal-700 border-emerald-200 text-white shadow-[0_5px_0_#065f46,0_8px_16px_rgba(0,0,0,0.6)] cursor-pointer hover:scale-105';
+                    badgePill = `<span class="px-1.5 py-0.5 rounded-full bg-emerald-950/95 border border-emerald-400/50 text-emerald-300 text-[8px] font-extrabold">✅ LULUS ⭐⭐⭐</span>`;
+                } else if (isUnlocked && !isWaitingClimbArrival) {
+                    postRingClass = 'bg-gradient-to-b from-amber-400 via-orange-500 to-rose-600 border-yellow-100 text-slate-950 shadow-[0_5px_0_#9a3412,0_0_22px_rgba(251,191,36,0.65)] cursor-pointer hover:scale-105';
+                    badgePill = `<span class="px-2 py-0.5 rounded-full bg-amber-300 text-slate-950 text-[8px] font-black">▶ POS AKTIF</span>`;
+                }
+
+                const labelSideClass = coord.xPct <= 50 ? 'left-[62px] text-left items-start' : 'right-[62px] text-right items-end';
+
+                html += `
+                    <div id="saga_post_${lv}" data-lv="${lv}" data-unlocked="${isUnlocked ? '1' : '0'}"
+                         style="left: ${coord.xPct}%; top: ${coord.yPx}px; transform: translate(-50%, -50%);"
+                         class="saga-level-node absolute z-10 flex items-center group">
+                        <!-- Circular 3D Level Post Pedestal -->
+                        <div id="saga_pedestal_${lv}" class="w-14 h-14 rounded-2xl border-2 ${postRingClass} flex flex-col items-center justify-center relative transition-transform">
+                            <span class="text-lg leading-none">${isUnlocked && !isWaitingClimbArrival ? meta.icon : '🔒'}</span>
+                            <span class="text-[9px] font-black tracking-tight mt-0.5">LV.${lv}</span>
+                        </div>
+
+                        <!-- Floating Info Signpost beside the Pedestal -->
+                        <div class="absolute ${labelSideClass} w-36 pointer-events-none flex flex-col gap-0.5 bg-[#140e1f]/90 border border-white/15 px-2.5 py-1.5 rounded-xl shadow-lg">
+                            <div class="flex items-center gap-1">
+                                ${badgePill}
+                                <span class="text-[8px] text-purple-300 font-semibold">${meta.tier}</span>
+                            </div>
+                            <p class="text-[10px] font-extrabold text-white truncate w-full">${isUnlocked ? meta.title : 'Pos Berikutnya'}</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Place "Si Pasir" Mascot Walker at starting post (animFromLv if animating level-up, else current active level)
+            const initialPasirLv = (animFromLv && postCoords[animFromLv])
+                ? animFromLv
+                : Math.min(totalNodesToShow, Math.max(1, currentLevelIdx + 1));
+            const startCoord = postCoords[initialPasirLv];
+
+            html += `
+                <div id="siPasirWalker"
+                     style="left: ${startCoord.xPct}%; top: ${startCoord.yPx - 28}px; transform: translate(-50%, -50%);"
+                     class="absolute z-30 pointer-events-none pasir-mascot-idle flex flex-col items-center">
+                    <div class="px-2 py-0.5 mb-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[8px] shadow-md whitespace-nowrap border border-white">
+                        ✨ Si Pasir
+                    </div>
+                    ${getSiPasirMascotSVG(46)}
+                </div>
+                <div id="pasirSparkleLayer" class="absolute inset-0 pointer-events-none z-20"></div>
+            `;
+
+            container.innerHTML = html;
+
+            // Attach click handlers to unlocked posts
+            container.querySelectorAll('.saga-level-node').forEach(node => {
+                node.addEventListener('click', () => {
+                    const lv = parseInt(node.getAttribute('data-lv'), 10);
+                    const unlocked = node.getAttribute('data-unlocked') === '1';
+                    if (!unlocked) return;
+                    sfx.init();
+                    pathMapModal.classList.remove('active');
+                    AppState.modal = '';
+                    currentArtVariantOffset = 0;
+                    loadLevel(lv - 1, true);
+                    requestGameFullscreen();
+                    syncAndTrack('select_level_map', true);
+                });
+            });
+
+            // Auto-scroll so the active level post is centered in the viewport
+            requestAnimationFrame(() => {
+                const focusCoord = postCoords[initialPasirLv];
+                if (focusCoord) {
+                    scrollWrap.scrollTop = Math.max(0, focusCoord.yPx - scrollWrap.clientHeight * 0.62);
+                }
+                if (animFromLv && animToLv && postCoords[animFromLv] && postCoords[animToLv]) {
+                    animateSiPasirClimb(postCoords[animFromLv], postCoords[animToLv], animFromLv, animToLv, scrollWrap);
+                }
+            });
+        }
+
+        // Smooth 60fps Bezier Hopping Animation of "Si Pasir" climbing from Completed Post -> Next Post
+        function animateSiPasirClimb(pStart, pEnd, fromLv, toLv, scrollWrap) {
+            const walkerEl = document.getElementById('siPasirWalker');
+            const sparkleLayer = document.getElementById('pasirSparkleLayer');
+            const hintEl = document.getElementById('mapFooterHint');
+            if (!walkerEl) return;
+
+            if (hintEl) {
+                hintEl.textContent = `🎉 Pos Lv.${fromLv} Lulus! Si Pasir mendaki ke Pos Lv.${toLv}...`;
+            }
+
+            const durationMs = 1350;
+            const startTime = performance.now();
+
+            function stepClimb(now) {
+                const elapsed = now - startTime;
+                const t = Math.max(0, Math.min(1, elapsed / durationMs));
+                const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+                // Interpolate along S-curve + cheerful 4-hop arc
+                const curXPct = pStart.xPct + (pEnd.xPct - pStart.xPct) * ease;
+                const baseYPx = (pStart.yPx - 28) + ((pEnd.yPx - 28) - (pStart.yPx - 28)) * ease;
+                const hopArcPx = Math.abs(Math.sin(t * Math.PI * 4)) * 18;
+                const curYPx = baseYPx - hopArcPx;
+
+                walkerEl.style.left = `${curXPct}%`;
+                walkerEl.style.top = `${curYPx}px`;
+
+                // Camera smoothly follows Si Pasir upward
+                if (scrollWrap) {
+                    scrollWrap.scrollTop = Math.max(0, curYPx - scrollWrap.clientHeight * 0.52);
+                }
+
+                // Spawn golden sand trail sparkles behind Si Pasir
+                if (sparkleLayer && (Math.floor(elapsed / 45) % 2 === 0)) {
+                    const dot = document.createElement('div');
+                    dot.className = 'w-2 h-2 rounded-full bg-amber-300 absolute pointer-events-none transition-opacity duration-500';
+                    dot.style.left = `${curXPct + (Math.random() * 4 - 2)}%`;
+                    dot.style.top = `${curYPx + 14}px`;
+                    sparkleLayer.appendChild(dot);
+                    setTimeout(() => { dot.style.opacity = '0'; }, 80);
+                    setTimeout(() => { dot.remove(); }, 520);
+                }
+
+                if (t < 1) {
+                    requestAnimationFrame(stepClimb);
+                } else {
+                    // Arrival! Unlock & highlight the new post
+                    sfx.playIceBreak();
+                    const pedestalEl = document.getElementById(`saga_pedestal_${toLv}`);
+                    const meta = getQuickLevelMetaPreview(toLv);
+                    if (pedestalEl) {
+                        pedestalEl.className = 'w-14 h-14 rounded-2xl border-2 bg-gradient-to-b from-amber-400 via-orange-500 to-rose-600 border-yellow-100 text-slate-950 shadow-[0_5px_0_#9a3412,0_0_22px_rgba(251,191,36,0.65)] flex flex-col items-center justify-center relative post-unlock-burst cursor-pointer';
+                        pedestalEl.innerHTML = `<span class="text-lg leading-none">${meta.icon}</span><span class="text-[9px] font-black tracking-tight mt-0.5">LV.${toLv}</span>`;
+                    }
+                    if (hintEl) {
+                        hintEl.textContent = `✨ Pos Lv.${toLv} (${meta.title}) Terbuka! Ketuk Main Lv.${toLv} untuk mulai!`;
+                    }
+                }
+            }
+
+            setTimeout(() => {
+                requestAnimationFrame(stepClimb);
+            }, 260);
+        }
+
+        function openSagaPathMap() {
+            renderSagaPathMap(null, null);
+            AppState.modal = 'map';
+            pathMapModal.classList.add('active');
+            syncAndTrack(null, true);
+        }
+
+        function openSagaPathMapWithClimb(fromLv, toLv) {
+            renderSagaPathMap(fromLv, toLv);
+            AppState.modal = 'map';
+            pathMapModal.classList.add('active');
+            syncAndTrack(null, true);
+        }
+
+        document.getElementById('btnClosePathMap').addEventListener('click', () => {
+            pathMapModal.classList.remove('active');
+            AppState.modal = '';
+            syncAndTrack(null, true);
+        });
+        document.getElementById('btnPlayCurrentLevel').addEventListener('click', () => {
+            sfx.init();
+            pathMapModal.classList.remove('active');
+            AppState.modal = '';
+            requestGameFullscreen();
+            syncAndTrack(null, true);
+        });
+        document.getElementById('btnChangeEmail').addEventListener('click', () => {
+            pathMapModal.classList.remove('active');
+            const emailInput = document.getElementById('emailInput');
+            if (emailInput && playerEmail) emailInput.value = playerEmail;
+            onboardingModal.classList.add('active');
+            AppState.modal = 'onboarding';
+        });
+        document.getElementById('btnRestoreFromUrl').addEventListener('click', () => {
+            if (!urlBackupSnapshot) return;
+            sfx.init();
+            playerEmail = urlBackupSnapshot.email || playerEmail;
+            playerSeed = urlBackupSnapshot.seed || playerSeed;
+            maxUnlockedLevel = Math.max(maxUnlockedLevel, urlBackupSnapshot.maxUnlockedLevel);
+            savePlayerProfile();
+            loadLevel(urlBackupSnapshot.currentLevel - 1, true);
+            renderSagaPathMap();
+            document.getElementById('statusText').textContent = `⏪ Progres Level ${maxUnlockedLevel} berhasil dipulihkan dari Kode URL!`;
+            syncAndTrack('restore_from_url', true);
+        });
+
+        function copyEncryptedRecoveryUrl() {
+            syncAndTrack('export_data', false);
+            const cleanUrl = new URL(window.location.href);
+            cleanUrl.searchParams.delete('action');
+            const token = encodeProgressCipherToken();
+            if (token) cleanUrl.searchParams.set('k', token);
+            const tempInput = document.createElement('textarea');
+            tempInput.value = cleanUrl.toString();
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            try { document.execCommand('copy'); } catch (_) {}
+            document.body.removeChild(tempInput);
+            document.getElementById('statusText').textContent = I18N[currentLang].copiedLink;
+            const hintEl = document.getElementById('restoreHintSubtext');
+            if (hintEl) hintEl.textContent = '✅ URL Pemulihan tersalin ke papan klip!';
+        }
+
+        document.getElementById('btnCopyRecoveryUrl').addEventListener('click', copyEncryptedRecoveryUrl);
+
+        // Live Email Input Validation + Onboarding Form Handler
+        const emailInputEl = document.getElementById('emailInput');
+        const emailErrorEl = document.getElementById('emailErrorMsg');
+        const emailValidBadgeEl = document.getElementById('emailValidBadge');
+
+        if (emailInputEl) {
+            emailInputEl.addEventListener('input', () => {
+                const val = emailInputEl.value.trim();
+                if (!val) {
+                    emailErrorEl.classList.add('hidden');
+                    emailValidBadgeEl.classList.add('hidden');
+                    return;
+                }
+                if (isValidEmailAddress(val)) {
+                    emailErrorEl.classList.add('hidden');
+                    emailValidBadgeEl.classList.remove('hidden');
+                } else {
+                    emailValidBadgeEl.classList.add('hidden');
+                }
+            });
+        }
+
+        document.getElementById('onboardingForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            sfx.init();
+            const emailVal = (emailInputEl.value || '').trim().toLowerCase();
+            if (!isValidEmailAddress(emailVal)) {
+                emailErrorEl.classList.remove('hidden');
+                emailValidBadgeEl.classList.add('hidden');
+                emailInputEl.focus();
+                return;
+            }
+            emailErrorEl.classList.add('hidden');
+            emailValidBadgeEl.classList.remove('hidden');
+            playerEmail = emailVal;
+
+            // Derive deterministic personal seed from 16-bit email hash so the 8-char uppercase URL code can always reconstruct it!
+            const s16 = computeEmailSeed16(emailVal);
+            if (maxUnlockedLevel <= 1 && currentLevelIdx === 0) {
+                playerSeed = seed16ToPlayerSeed(s16);
+                try { localStorage.setItem(SEED_STORAGE_KEY, String(playerSeed)); } catch (_) {}
+                loadLevel(0, true);
+            }
+
+            savePlayerProfile();
+            saveProgressToMemory(true);
+            onboardingModal.classList.remove('active');
+            openSagaPathMap();
+            syncAndTrack('register_email', true);
         });
 
         // Remove Progress Modal Listeners
@@ -3172,18 +4369,7 @@
             syncAndTrack('filter_changed', false);
         });
 
-        document.getElementById('btnShareLink').addEventListener('click', () => {
-            syncAndTrack('export_data', false);
-            const cleanUrl = new URL(window.location.href);
-            cleanUrl.searchParams.delete('action');
-            const tempInput = document.createElement('textarea');
-            tempInput.value = cleanUrl.toString();
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            try { document.execCommand('copy'); } catch (_) {}
-            document.body.removeChild(tempInput);
-            document.getElementById('statusText').textContent = I18N[currentLang].copiedLink;
-        });
+        document.getElementById('btnShareLink').addEventListener('click', copyEncryptedRecoveryUrl);
 
         const analysisModal = document.getElementById('analysisModal');
         document.getElementById('btnAnalysis').addEventListener('click', () => {
@@ -3214,6 +4400,7 @@
             const urlView = params.get('v');
             const urlFilter = params.get('f');
             const urlModal = params.get('m') || '';
+            const cipherParam = params.get('k');
 
             if (urlFilter === 'en' || urlFilter === 'id') {
                 currentLang = urlFilter;
@@ -3221,25 +4408,57 @@
                 applyLanguageUI();
             }
 
+            loadPlayerProfile();
+
+            // 1. Decode encrypted ?k=kp1_... token if present in URL (Cross-device restore & accidental clear recovery)
+            if (cipherParam) {
+                const decoded = decodeProgressCipherToken(cipherParam);
+                if (decoded) {
+                    urlBackupSnapshot = decoded;
+                    if (!playerEmail) playerEmail = decoded.email;
+                    playerSeed = decoded.seed;
+                    try { localStorage.setItem(SEED_STORAGE_KEY, String(playerSeed)); } catch (_) {}
+                    if (decoded.maxUnlockedLevel > maxUnlockedLevel) {
+                        maxUnlockedLevel = decoded.maxUnlockedLevel;
+                    }
+                    savePlayerProfile();
+                }
+            }
+
             const restored = loadProgressFromMemory();
             if (!restored) {
                 let targetLvl = 0;
-                if (urlView && urlView.startsWith('lv')) {
+                if (urlBackupSnapshot && urlBackupSnapshot.currentLevel >= 1) {
+                    targetLvl = urlBackupSnapshot.currentLevel - 1;
+                } else if (urlView && urlView.startsWith('lv')) {
                     const parsed = parseInt(urlView.replace('lv', ''), 10) - 1;
                     if (!isNaN(parsed) && parsed >= 0) targetLvl = parsed;
                 }
                 loadLevel(targetLvl, true);
             }
 
-            AppState.modal = urlModal;
-            analysisModal.classList.toggle('active', urlModal === 'info');
-            termsModal.classList.toggle('active', urlModal === 'terms');
-            confirmClearModal.classList.toggle('active', urlModal === 'clear_progress');
+            // 2. Show Onboarding Gameplay Demo + Email Registration if player hasn't registered yet,
+            //    otherwise show the Level Saga Path Map on initial entry!
+            if (!playerEmail) {
+                onboardingModal.classList.add('active');
+                AppState.modal = 'onboarding';
+            } else if (!hasUserInteracted && (!urlModal || urlModal === 'map')) {
+                openSagaPathMap();
+            } else {
+                AppState.modal = urlModal;
+                analysisModal.classList.toggle('active', urlModal === 'info');
+                termsModal.classList.toggle('active', urlModal === 'terms');
+                confirmClearModal.classList.toggle('active', urlModal === 'clear_progress');
+                pathMapModal.classList.toggle('active', urlModal === 'map');
+            }
 
             syncAndTrack('app_load', false);
         }
 
         window.addEventListener('popstate', hydrateStateFromURL);
+
+        // Hook Onboarding Demo Animation into the 120Hz loop
+        setInterval(renderOnboardingGameplayDemo, 1000 / 60);
 
         // Boot Game Immediately
         initPlayerSeed();
