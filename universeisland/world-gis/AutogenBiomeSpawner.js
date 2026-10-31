@@ -190,6 +190,21 @@ export class AutogenBiomeSpawner {
       return false;
     }
 
+    // Teluk U EPDM Jogging Track Oval + Sudut Calisthenics (-62.0, 136.5), Campus Kiosks, & Muster Pads
+    if (Math.hypot((x + 62.0) / 19.5, (z - 136.5) / 10.5) < 1.0) return false;
+    if (
+      Math.hypot(x + 39.5, z - 134.5) < 6.0 ||
+      Math.hypot(x + 16.5, z - 345.0) < 6.0 ||
+      Math.hypot(x + 213.0, z - 326.0) < 6.0 ||
+      Math.hypot(x + 116.5, z - 619.5) < 6.0 ||
+      Math.hypot(x + 31.0, z - 76.5) < 4.5 ||
+      Math.hypot(x + 296.5, z - 326.5) < 4.5 ||
+      Math.hypot(x + 68.0, z - 444.0) < 4.5 ||
+      Math.hypot(x + 222.5, z - 665.5) < 4.5
+    ) {
+      return false;
+    }
+
     // Integrated Pulau U / Pulau I Road Network, Underpass Open-Cut Ramps/Portals, & Northern Ferry Terminals
     if (TerrainDEMLoader.isTransitInfrastructureExclusion(x, z, 5.2)) {
       return false;

@@ -75,9 +75,22 @@ import {
   BUS_J_WHEEL_FR,
   BUS_J_WHEEL_RL,
   BUS_J_WHEEL_RR,
+  BUS_J_STEER_WHEEL,
   BUS_WHEEL_RADIUS,
   BUS_WHEELBASE,
-  BUS_BIND_PIVOTS
+  BUS_BIND_PIVOTS,
+  EVTOL_JOINTS_PER_VEHICLE,
+  EVTOL_J_FUSELAGE,
+  EVTOL_BIND_PIVOTS,
+  CESSNA_JOINTS_PER_AIRCRAFT,
+  CESSNA_J_AIRFRAME,
+  CESSNA_J_PROP,
+  CESSNA_BIND_PIVOTS,
+  LEARJET_JOINTS_PER_AIRCRAFT,
+  LEARJET_J_AIRFRAME,
+  LEARJET_J_FAN_L,
+  LEARJET_J_FAN_R,
+  LEARJET_BIND_PIVOTS
 } from './CampusTransitAndMarineBuilder.js';
 
 /**
@@ -181,14 +194,23 @@ export class DynamicTrafficAI {
     this.miniYacht = null;
     this.interIslandBus = null;
     this.shuttleFerry = null;
+    this.heliTaxi = null;
+    this.cessnaAircraft = null;
+    this.learjetAircraft = null;
     this._cartJointBase = 0;
     this._marineJointBase = 0;
     this._miniYachtJointIndex = 0;
     this._busJointBase = 0;
     this._shuttleFerryJointIndex = 0;
+    this._heliTaxiJointBase = 0;
+    this._cessnaJointBase = 0;
+    this._learjetJointBase = 0;
     this._totalJointCount = 0;
     this.mesh = null;
     this.elapsedTime = 0.0;
+
+    // Precomputed 128-segment constant-speed arc-length LUT for Teluk U EPDM Jogging Oval (rx=15.5, rz=6.8)
+    this._telukOvalLUT = DynamicTrafficAI._buildEllipseArcLUT(15.5, 6.8, 128);
 
     // Flat typed buffers for zero-GC single-draw-call 22-joint Dual-Bone Linear-Blend Skinning (LBS)
     this._restPos = null;
@@ -213,8 +235,10 @@ export class DynamicTrafficAI {
     this._tmpParentMat = new THREE.Matrix4();
     this._tmpWorldMat = new THREE.Matrix4();
     this._tmpAxisSteer = new THREE.Vector3(0, Math.cos(0.66), Math.sin(0.66)).normalize();
+    this._tmpAxisBusSteer = new THREE.Vector3(0, Math.cos(0.44), Math.sin(0.44)).normalize();
     this._tmpAxisX = new THREE.Vector3(1, 0, 0);
     this._tmpAxisY = new THREE.Vector3(0, 1, 0);
+    this._tmpAxisZ = new THREE.Vector3(0, 0, 1);
     this._tmpVecA = new THREE.Vector3();
     this._tmpVecB = new THREE.Vector3();
     this._tmpVecC = new THREE.Vector3();
@@ -260,6 +284,76 @@ export class DynamicTrafficAI {
       minY: -1.95,
       maxY: 4.15
     };
+    this._heliOBBScratch = {
+      kind: 'OBB',
+      id: 'Dyn_HeliTaxiEVTOL',
+      cx: 0.0,
+      cz: 0.0,
+      yaw: 0.0,
+      halfW: 2.65,
+      frontL: 2.65,
+      backL: 2.85,
+      minY: 0.0,
+      maxY: 2.60
+    };
+    this._cessnaOBBScratch = {
+      kind: 'OBB',
+      id: 'Dyn_Cessna172_PKUIA',
+      cx: 0.0,
+      cz: 0.0,
+      yaw: 0.0,
+      halfW: 5.52,
+      frontL: 2.86,
+      backL: 5.75,
+      minY: 0.0,
+      maxY: 2.75
+    };
+    this._learjetOBBScratch = {
+      kind: 'OBB',
+      id: 'Dyn_CitationLearjet_PKUIB',
+      cx: 0.0,
+      cz: 0.0,
+      yaw: 0.0,
+      halfW: 6.95,
+      frontL: 6.98,
+      backL: 7.15,
+      minY: 0.0,
+      maxY: 4.30
+    };
+  }
+
+  static _buildEllipseArcLUT(rx, rz, steps = 128) {
+    const angles = new Float32Array(steps + 1);
+    const cumArc = new Float32Array(steps + 1);
+    let total = 0.0;
+    let prevX = rx;
+    let prevZ = 0.0;
+    for (let i = 1; i <= steps; i++) {
+      const th = (i / steps) * Math.PI * 2.0;
+      const x = Math.cos(th) * rx;
+      const z = Math.sin(th) * rz;
+      total += Math.hypot(x - prevX, z - prevZ);
+      angles[i] = th;
+      cumArc[i] = total;
+      prevX = x;
+      prevZ = z;
+    }
+    return { angles, cumArc, perimeter: total, steps };
+  }
+
+  static _sampleEllipseThetaAtU(lut, uNorm) {
+    const u = ((uNorm % 1.0) + 1.0) % 1.0;
+    const target = u * lut.perimeter;
+    let lo = 0;
+    let hi = lut.steps;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (lut.cumArc[mid] <= target) lo = mid;
+      else hi = mid;
+    }
+    const span = Math.max(1e-6, lut.cumArc[hi] - lut.cumArc[lo]);
+    const f = (target - lut.cumArc[lo]) / span;
+    return lut.angles[lo] + (lut.angles[hi] - lut.angles[lo]) * f;
   }
 
   /**
@@ -363,6 +457,48 @@ export class DynamicTrafficAI {
       c.backL = (isShip ? 11.80 : 5.45) * s;
       c.minY = v.worldY - (isShip ? 0.80 : 0.40);
       c.maxY = v.worldY + (isShip ? 7.80 : 3.40) * s;
+      PhysicsKernel.prepareSolidCollider(c);
+    }
+
+    if (this.heliTaxi) {
+      const h = this.heliTaxi;
+      const c = ensureSlot('OBB', 'Dyn_HeliTaxiEVTOL');
+      c.cx = h.worldX;
+      c.cz = h.worldZ;
+      c.yaw = h.yaw;
+      c.halfW = 2.65;
+      c.frontL = 2.65;
+      c.backL = 2.85;
+      c.minY = h.worldY + 0.04;
+      c.maxY = h.worldY + 2.58;
+      PhysicsKernel.prepareSolidCollider(c);
+    }
+
+    if (this.cessnaAircraft) {
+      const a = this.cessnaAircraft;
+      const c = ensureSlot('OBB', 'Dyn_Cessna172_PKUIA');
+      c.cx = a.worldX;
+      c.cz = a.worldZ;
+      c.yaw = a.yaw;
+      c.halfW = 5.52;
+      c.frontL = 2.86;
+      c.backL = 5.75;
+      c.minY = a.worldY + 0.04;
+      c.maxY = a.worldY + 2.75;
+      PhysicsKernel.prepareSolidCollider(c);
+    }
+
+    if (this.learjetAircraft) {
+      const a = this.learjetAircraft;
+      const c = ensureSlot('OBB', 'Dyn_CitationLearjet_PKUIB');
+      c.cx = a.worldX;
+      c.cz = a.worldZ;
+      c.yaw = a.yaw;
+      c.halfW = 6.95;
+      c.frontL = 6.98;
+      c.backL = 7.15;
+      c.minY = a.worldY + 0.04;
+      c.maxY = a.worldY + 4.30;
       PhysicsKernel.prepareSolidCollider(c);
     }
 
@@ -536,6 +672,378 @@ export class DynamicTrafficAI {
       speed: f.speed,
       phase: f.phase
     };
+  }
+
+  /**
+   * Returns a live telemetry & pose snapshot of the 2-Passenger Electric Helicopter Taxi
+   * ("Taxi Helicopter Listrik eVTOL 2-Penumpang") shuttling between Helipad VIP Pulau U and Bandara Pulau I.
+   */
+  getHeliTaxiPose() {
+    if (!this.heliTaxi) return null;
+    const h = this.heliTaxi;
+    return {
+      worldX: h.worldX,
+      worldY: h.worldY,
+      worldZ: h.worldZ,
+      yaw: h.yaw,
+      pitch: h.pitch,
+      roll: h.roll,
+      speed: h.speed,
+      phase: h.phase,
+      rotorOmega: h.rotorOmega
+    };
+  }
+
+  /**
+   * Returns live 3x-Daily ("3x Sehari": 07:30, 12:45, 17:15 WIB) Aviation Shuttle Schedule & Fleet Telemetry
+   * for Cessna 172 Skyhawk ("PK-UIA"), Citation Learjet ("PK-UIB"), and 2-Seat eVTOL Heli Taxi ("PK-UIE").
+   */
+  getAviationFleetStatus() {
+    const slots = [
+      'Slot 1/3 — 07:30 WIB (Shuttle Pagi)',
+      'Slot 2/3 — 12:45 WIB (Shuttle Siang)',
+      'Slot 3/3 — 17:15 WIB (Shuttle Sore)'
+    ];
+    const dayCycle = ((this.elapsedTime + 16.0) % 540.0 + 540.0) % 540.0;
+    const slotIdx = Math.min(2, Math.floor(dayCycle / 180.0));
+    const mapAc = (a) =>
+      a
+        ? {
+            registration: a.registration,
+            modelName: a.modelName,
+            worldX: a.worldX,
+            worldY: a.worldY,
+            worldZ: a.worldZ,
+            yaw: a.yaw,
+            pitch: a.pitch,
+            roll: a.roll,
+            speed: a.speed,
+            phase: a.phase,
+            activeSortie: a.phase !== 'APRON_PARKED'
+          }
+        : null;
+    return {
+      dailyFrequency: 3,
+      schedule3xDaily: slots,
+      activeSlotIndex: slotIdx,
+      activeSlotLabel: slots[slotIdx],
+      cessna: mapAc(this.cessnaAircraft),
+      learjet: mapAc(this.learjetAircraft),
+      heliTaxi: this.getHeliTaxiPose()
+    };
+  }
+
+  /**
+   * Evaluates an exact, zero-self-occlusion First-Person (`FPS`) camera anchor for any of the 6 Living Campus
+   * FPS perspectives:
+   * - `'FPS_JOGGER'`      : Orang Joging (Rotunda, Jogging Oval Teluk U, Danau Kenanga, & Kompleks DPPD)
+   * - `'FPS_BUS_DRIVER'`  : Supir Bis Kuning Listrik Lintas Pulau UI (RHD cockpit + Underpass Bawah Laut)
+   * - `'FPS_GOLF_DRIVER'` : Supir Mobil Golf Listrik UI (RHD shuttle driver + 4 Halte Kampus)
+   * - `'FPS_CHAT_NPC'`    : Orang Ngobrol (Lingkar Diskusi Rotunda, Pelataran Rektorat, DPPD, & Kios)
+   * - `'FPS_CAT'`         : Kucing Keliling (Sudut pandang rendah kucing kampus yang sedang patroli)
+   * - `'FPS_PILOT'`       : Pilot Pesawat Shuttle 3x Sehari (Kapten Cessna 172 PK-UIA & Citation Learjet PK-UIB)
+   */
+  getFPSAnchor(mode, subjectOffset = 0) {
+    const wMats = this._jointWorldMatrices;
+    if (!wMats) return null;
+
+    const extractMatrixFrame = (jointGlobalIdx, lx, ly, lz) => {
+      const o = jointGlobalIdx * 16;
+      const wx = wMats[o] * lx + wMats[o + 4] * ly + wMats[o + 8] * lz + wMats[o + 12];
+      const wy = wMats[o + 1] * lx + wMats[o + 5] * ly + wMats[o + 9] * lz + wMats[o + 13];
+      const wz = wMats[o + 2] * lx + wMats[o + 6] * ly + wMats[o + 10] * lz + wMats[o + 14];
+
+      // In character/vehicle rigs (+Z forward, +Y up, +X left), camera right is -Column0!
+      let rx = -wMats[o];
+      let ry = -wMats[o + 1];
+      let rz = -wMats[o + 2];
+      const rLen = Math.hypot(rx, ry, rz) || 1.0;
+      rx /= rLen;
+      ry /= rLen;
+      rz /= rLen;
+
+      let ux = wMats[o + 4];
+      let uy = wMats[o + 5];
+      let uz = wMats[o + 6];
+      const uLen = Math.hypot(ux, uy, uz) || 1.0;
+      ux /= uLen;
+      uy /= uLen;
+      uz /= uLen;
+
+      let fx = wMats[o + 8];
+      let fy = wMats[o + 9];
+      let fz = wMats[o + 10];
+      const fLen = Math.hypot(fx, fy, fz) || 1.0;
+      fx /= fLen;
+      fy /= fLen;
+      fz /= fLen;
+
+      return {
+        eyePos: new THREE.Vector3(wx, wy, wz),
+        right: new THREE.Vector3(rx, ry, rz),
+        up: new THREE.Vector3(ux, uy, uz),
+        forward: new THREE.Vector3(fx, fy, fz)
+      };
+    };
+
+    const applyErgonomicGlancePitch = (fr, pitchDownRad) => {
+      if (Math.abs(pitchDownRad) <= 1e-5) return fr;
+      const cP = Math.cos(pitchDownRad);
+      const sP = Math.sin(pitchDownRad);
+      const fx = fr.forward.x * cP + fr.up.x * sP;
+      const fy = fr.forward.y * cP + fr.up.y * sP;
+      const fz = fr.forward.z * cP + fr.up.z * sP;
+      const ux = fr.up.x * cP - fr.forward.x * sP;
+      const uy = fr.up.y * cP - fr.forward.y * sP;
+      const uz = fr.up.z * cP - fr.forward.z * sP;
+      fr.forward.set(fx, fy, fz).normalize();
+      fr.up.set(ux, uy, uz).normalize();
+      return fr;
+    };
+
+    const safeIdx = Math.max(0, Math.floor(Number(subjectOffset) || 0));
+
+    if (mode === 'FPS_BUS_DRIVER' && this.interIslandBus) {
+      const b = this.interIslandBus;
+      const fr = extractMatrixFrame(this._busJointBase + BUS_J_CHASSIS, -0.68, 1.83, 3.08);
+      const steerLook = b.steerAngle * 0.28;
+      if (Math.abs(steerLook) > 1e-4) {
+        const cS = Math.cos(steerLook);
+        const sS = Math.sin(steerLook);
+        const nfx = fr.forward.x * cS - fr.right.x * sS;
+        const nfy = fr.forward.y * cS - fr.right.y * sS;
+        const nfz = fr.forward.z * cS - fr.right.z * sS;
+        fr.forward.set(nfx, nfy, nfz).normalize();
+        fr.right.set(
+          fr.forward.y * fr.up.z - fr.forward.z * fr.up.y,
+          fr.forward.z * fr.up.x - fr.forward.x * fr.up.z,
+          fr.forward.x * fr.up.y - fr.forward.y * fr.up.x
+        ).normalize();
+      }
+      applyErgonomicGlancePitch(fr, -0.105);
+      const inTunnel = TerrainDEMLoader.isInsideEnclosedUnderpass(b.worldX, b.worldY + 1.5, b.worldZ);
+      return {
+        mode,
+        ...fr,
+        yaw: b.yaw,
+        pitch: b.pitch,
+        roll: b.roll,
+        isVehicleCockpit: true,
+        subjectIndex: 0,
+        subjectCount: 1,
+        label: 'FPS: Supir Bis Kuning Listrik UI',
+        subLabel: inTunnel ? 'Melintasi Underpass Bawah Laut U–I (-8.2m)' : 'Rute Lintas Pulau U ↔ Pulau I'
+      };
+    }
+
+    if (mode === 'FPS_GOLF_DRIVER' && this.golfCart) {
+      const c = this.golfCart;
+      const drvNpc = this.npcs.find((n) => n.behavior === 'GOLF_CART_DRIVER') || this.npcs[24];
+      const fr = drvNpc
+        ? extractMatrixFrame(drvNpc.index * JOINTS_PER_NPC + J_HEAD, 0.0, 0.088, 0.165)
+        : extractMatrixFrame(this._cartJointBase + CART_J_CHASSIS, -0.34, 1.48, 0.72);
+      const stopName = c.stops[c.targetStopIdx]?.name || 'Halte Kampus UI';
+      return {
+        mode,
+        ...fr,
+        yaw: c.yaw,
+        pitch: c.pitch,
+        roll: c.roll,
+        isVehicleCockpit: true,
+        subjectIndex: 0,
+        subjectCount: 1,
+        label: 'FPS: Supir Mobil Golf Listrik UI',
+        subLabel: c.phase === 'DWELL' ? `Berhenti di ${stopName}` : `Menuju ${stopName}`
+      };
+    }
+
+    if (mode === 'FPS_PILOT' && (this.cessnaAircraft || this.learjetAircraft)) {
+      const av = this.getAviationFleetStatus();
+      // Subject 0: Auto-follow whichever aircraft is actively flying/taxiing; Subject 1: Cessna 172; Subject 2: Citation Learjet
+      const slotSel = safeIdx % 3;
+      let useLearjet = false;
+      if (slotSel === 0) {
+        useLearjet =
+          Boolean(this.learjetAircraft) &&
+          this.learjetAircraft.phase !== 'APRON_PARKED' &&
+          (!this.cessnaAircraft || this.cessnaAircraft.phase === 'APRON_PARKED');
+      } else if (slotSel === 2) {
+        useLearjet = Boolean(this.learjetAircraft);
+      }
+      const ac = useLearjet ? this.learjetAircraft : this.cessnaAircraft;
+      const fr = useLearjet
+        ? extractMatrixFrame(this._learjetJointBase + LEARJET_J_AIRFRAME, 0.32, 1.77, 3.72)
+        : extractMatrixFrame(this._cessnaJointBase + CESSNA_J_AIRFRAME, 0.27, 1.54, 0.25);
+      applyErgonomicGlancePitch(fr, -0.145);
+      const modePrefix = slotSel === 0 ? 'Auto Aktif' : `Kokpit ${slotSel}/2`;
+      return {
+        mode,
+        ...fr,
+        yaw: ac.yaw,
+        pitch: ac.pitch,
+        roll: ac.roll,
+        isVehicleCockpit: true,
+        subjectIndex: slotSel,
+        subjectCount: 3,
+        label: `FPS: Pilot ${ac.modelName} (${ac.registration})`,
+        subLabel: `${modePrefix} • ${av.activeSlotLabel} • Fase: ${ac.phaseLabel || ac.phase}`
+      };
+    }
+
+    if (mode === 'FPS_JOGGER') {
+      const joggers = this.npcs.filter((n) => n.behavior === 'JOGGER_LOOP');
+      if (joggers.length === 0) return null;
+      // Order Rotunda & Teluk U Oval joggers first for immediate iconic campus scenery
+      joggers.sort((a, b) => {
+        const rank = (tr) =>
+          tr === 'ROTUNDA_OUTER' || tr === 'ROTUNDA_INNER'
+            ? 0
+            : tr === 'TELUK_U_OVAL'
+              ? 1
+              : tr === 'DPPD_RING'
+                ? 2
+                : 3;
+        return rank(a.jogTrack) - rank(b.jogTrack);
+      });
+      const sel = safeIdx % joggers.length;
+      const npc = joggers[sel];
+      const headFr = extractMatrixFrame(npc.index * JOINTS_PER_NPC + J_HEAD, 0.0, 0.088, 0.155);
+      // Keep horizon level while preserving authentic running stride bounce & smooth track heading
+      const pitchBob = -0.025 + Math.sin(npc.gaitCycleU * Math.PI * 4.0) * 0.012;
+      const cP = Math.cos(pitchBob);
+      const sP = Math.sin(pitchBob);
+      const fx = Math.sin(npc.yaw) * cP;
+      const fy = sP;
+      const fz = Math.cos(npc.yaw) * cP;
+      const forward = new THREE.Vector3(fx, fy, fz).normalize();
+      const up = new THREE.Vector3(0, 1, 0);
+      const right = new THREE.Vector3(
+        forward.y * up.z - forward.z * up.y,
+        forward.z * up.x - forward.x * up.z,
+        forward.x * up.y - forward.y * up.x
+      ).normalize();
+      const trackName =
+        npc.jogTrack === 'ROTUNDA_OUTER' || npc.jogTrack === 'ROTUNDA_INNER'
+          ? 'Lapangan Rotunda UI'
+          : npc.jogTrack === 'TELUK_U_OVAL'
+            ? 'Jogging Track & Calisthenics Teluk U'
+            : npc.jogTrack === 'DPPD_RING'
+              ? 'Lingkar Kompleks DPPD–STP'
+              : 'Promenade Danau Kenanga';
+      return {
+        mode,
+        eyePos: headFr.eyePos,
+        forward,
+        up,
+        right,
+        yaw: npc.yaw,
+        pitch: pitchBob,
+        roll: 0.0,
+        isVehicleCockpit: false,
+        subjectIndex: sel,
+        subjectCount: joggers.length,
+        label: `FPS: Orang Joging (${sel + 1}/${joggers.length})`,
+        subLabel: trackName
+      };
+    }
+
+    if (mode === 'FPS_CHAT_NPC') {
+      const chatters = this.npcs.filter(
+        (n) =>
+          n.behavior === 'SEMINAR_CIRCLE' ||
+          n.behavior === 'PAIR_ROTUNDA' ||
+          n.behavior === 'PAIR_SE_WALKWAY' ||
+          (n.behavior === 'BENCH_SEATED' &&
+            typeof n.seatActivity === 'string' &&
+            n.seatActivity.startsWith('BENCH_CHAT'))
+      );
+      if (chatters.length === 0) return null;
+      // Prioritize scenic conversing circles (Rotunda Fountain Trio, Rektorat Seminar, DPPD Trio) first
+      chatters.sort((a, b) => {
+        const rA = a.behavior === 'SEMINAR_CIRCLE' ? (a.chatGroupOrder ?? 1) : 4;
+        const rB = b.behavior === 'SEMINAR_CIRCLE' ? (b.chatGroupOrder ?? 1) : 4;
+        return rA - rB;
+      });
+      const sel = safeIdx % chatters.length;
+      const npc = chatters[sel];
+      const fr = extractMatrixFrame(npc.index * JOINTS_PER_NPC + J_HEAD, 0.0, 0.088, 0.155);
+      // Level roll so conversational head-turns & speaker nods feel completely natural
+      const up = new THREE.Vector3(0, 1, 0);
+      const right = new THREE.Vector3(
+        fr.forward.y * up.z - fr.forward.z * up.y,
+        fr.forward.z * up.x - fr.forward.x * up.z,
+        fr.forward.x * up.y - fr.forward.y * up.x
+      ).normalize();
+      const realUp = new THREE.Vector3(
+        right.y * fr.forward.z - right.z * fr.forward.y,
+        right.z * fr.forward.x - right.x * fr.forward.z,
+        right.x * fr.forward.y - right.y * fr.forward.x
+      ).normalize();
+      return {
+        mode,
+        eyePos: fr.eyePos,
+        forward: fr.forward,
+        up: realUp,
+        right,
+        yaw: Math.atan2(fr.forward.x, fr.forward.z),
+        pitch: Math.asin(Math.max(-0.85, Math.min(0.85, fr.forward.y))),
+        roll: 0.0,
+        isVehicleCockpit: false,
+        subjectIndex: sel,
+        subjectCount: chatters.length,
+        label: `FPS: Orang Ngobrol (${sel + 1}/${chatters.length})`,
+        subLabel: npc.chatLocationLabel || 'Diskusi Sivitas Akademika UI'
+      };
+    }
+
+    if (mode === 'FPS_CAT') {
+      const prowlers = this.cats.filter((c) => c.behavior === 'PROWL_LOOP');
+      const pool = prowlers.length > 0 ? prowlers : this.cats;
+      if (pool.length === 0) return null;
+      const sel = safeIdx % pool.length;
+      const cat = pool[sel];
+      const catJointBase = this.npcs.length * JOINTS_PER_NPC + cat.index * CAT_JOINTS_PER_CAT;
+      const headFr = extractMatrixFrame(catJointBase + CJ_HEAD, 0.0, 0.042, 0.105);
+      // Blend cat's curious head gaze with smooth prowl heading & terrain slope pitch
+      const fx = 0.65 * Math.sin(cat.yaw) + 0.35 * headFr.forward.x;
+      const fy = Math.max(-0.25, Math.min(0.32, -cat.slopePitch + 0.06 + 0.25 * headFr.forward.y));
+      const fz = 0.65 * Math.cos(cat.yaw) + 0.35 * headFr.forward.z;
+      const forward = new THREE.Vector3(fx, fy, fz).normalize();
+      const up = new THREE.Vector3(0, 1, 0);
+      const right = new THREE.Vector3(
+        forward.y * up.z - forward.z * up.y,
+        forward.z * up.x - forward.x * up.z,
+        forward.x * up.y - forward.y * up.x
+      ).normalize();
+      const realUp = new THREE.Vector3(
+        right.y * forward.z - right.z * forward.y,
+        right.z * forward.x - right.x * forward.z,
+        right.x * forward.y - right.y * forward.x
+      ).normalize();
+      const zoneName =
+        cat.zone === 'CAMPUS'
+          ? 'Area Rektorat & Rotunda UI'
+          : cat.zone === 'ISLAND_I'
+            ? 'Pulau I & Air Terjun'
+            : 'Taman & Tepian Sungai Pulau U';
+      return {
+        mode,
+        eyePos: headFr.eyePos,
+        forward,
+        up: realUp,
+        right,
+        yaw: Math.atan2(forward.x, forward.z),
+        pitch: Math.asin(Math.max(-0.8, Math.min(0.8, forward.y))),
+        roll: 0.0,
+        isVehicleCockpit: false,
+        subjectIndex: sel,
+        subjectCount: pool.length,
+        label: `FPS: Kucing Keliling (${sel + 1}/${pool.length})`,
+        subLabel: zoneName
+      };
+    }
+
+    return null;
   }
 
   /**
@@ -938,6 +1446,178 @@ export class DynamicTrafficAI {
       steerAngle: 0.0,
       wheelSpinRad: 0.0
     };
+
+    // 6. 2-Passenger Electric Helicopter Taxi ("Taxi Helicopter Listrik eVTOL 2-Penumpang — PK-UIE"):
+    //    Shuttles smoothly between Helipad VIP Pulau U (-104.0, 0.50, 106.5) and Bandara Pulau I Pad (-278.5, 0.59, 675.0)
+    const heliOutSpline = new THREE.CatmullRomCurve3(
+      [
+        new THREE.Vector3(-104.0, 31.0, 106.5),
+        new THREE.Vector3(-136.0, 33.5, 235.0),
+        new THREE.Vector3(-186.0, 35.0, 392.0),
+        new THREE.Vector3(-238.0, 33.5, 545.0),
+        new THREE.Vector3(-278.5, 31.0, 675.0)
+      ],
+      false,
+      'centripetal',
+      0.5
+    );
+    const heliBackSpline = new THREE.CatmullRomCurve3(
+      [
+        new THREE.Vector3(-278.5, 31.0, 675.0),
+        new THREE.Vector3(-248.0, 34.0, 545.0),
+        new THREE.Vector3(-202.0, 35.5, 392.0),
+        new THREE.Vector3(-148.0, 34.0, 235.0),
+        new THREE.Vector3(-104.0, 31.0, 106.5)
+      ],
+      false,
+      'centripetal',
+      0.5
+    );
+    const heliYawToI = Math.atan2(-278.5 - -104.0, 675.0 - 106.5);
+    const heliYawToU = Math.atan2(-104.0 - -278.5, 106.5 - 675.0);
+    this.heliTaxi = {
+      registration: 'PK-UIE',
+      padUX: -104.0,
+      padUY: 0.50,
+      padUZ: 106.5,
+      padIX: -278.5,
+      padIY: 0.59,
+      padIZ: 675.0,
+      yawToI: heliYawToI,
+      yawToU: heliYawToU,
+      outSpline: heliOutSpline,
+      backSpline: heliBackSpline,
+      outLength: heliOutSpline.getLength(),
+      backLength: heliBackSpline.getLength(),
+      cycleSec: 96.0,
+      phase: 'DWELL_PULAU_U',
+      worldX: -104.0,
+      worldY: 0.50,
+      worldZ: 106.5,
+      yaw: heliYawToI,
+      pitch: 0.0,
+      roll: 0.0,
+      speed: 0.0,
+      rotorOmega: 20.0,
+      rotorSpinRad: 0.0
+    };
+
+    // 7. Shuttling Fixed-Wing Campus Fleet ("3x Sehari": 07:30, 12:45, 17:15 WIB — Cessna 172 & Citation Learjet):
+    //    Departing RWY 27 (-X out over open Southern Ocean, completely clear of Gunung Api Pulau I at x=-32!)
+    //    -> Wide Scenic Banked Circuit over Pulau U, Kompleks DPPD–STP, Gedung Rektorat UI, & Northern Selat UI
+    //    -> Straight-in ILS Final Approach on RWY 09 (+X along z = 708.0) -> Flare, Rollout & West Apron Taxi-In!
+    const buildArchipelagoFlightSpline = (cruiseY) => {
+      const curve = new THREE.CatmullRomCurve3(
+        [
+          new THREE.Vector3(-430.0, 26.0, 708.0),
+          new THREE.Vector3(-565.0, cruiseY * 0.76, 650.0),
+          new THREE.Vector3(-525.0, cruiseY, 385.0),
+          new THREE.Vector3(-295.0, cruiseY, 135.0),
+          new THREE.Vector3(-48.0, cruiseY, 64.0),
+          new THREE.Vector3(96.0, cruiseY, 226.0),
+          new THREE.Vector3(46.0, cruiseY * 0.94, 515.0),
+          new THREE.Vector3(-192.0, cruiseY * 0.82, 836.0),
+          new THREE.Vector3(-488.0, cruiseY * 0.54, 830.0),
+          new THREE.Vector3(-638.0, 34.0, 725.0),
+          new THREE.Vector3(-565.0, 25.0, 708.0)
+        ],
+        false,
+        'centripetal',
+        0.5
+      );
+      curve.arcLengthDivisions = 1200;
+      return curve;
+    };
+
+    const buildTaxiOutSpline = (standX, standZ) =>
+      new THREE.CatmullRomCurve3(
+        [
+          new THREE.Vector3(standX, 0.58, standZ),
+          new THREE.Vector3(standX, 0.58, 696.0),
+          new THREE.Vector3(standX + 7.5, 0.58, 707.2),
+          new THREE.Vector3(-198.0, 0.58, 708.0),
+          new THREE.Vector3(-156.0, 0.58, 708.2),
+          new THREE.Vector3(-148.0, 0.58, 712.8),
+          new THREE.Vector3(-151.0, 0.58, 708.4),
+          new THREE.Vector3(-154.0, 0.58, 708.0)
+        ],
+        false,
+        'centripetal',
+        0.5
+      );
+
+    const buildTaxiInSpline = (turnoffX, standX, standZ) =>
+      new THREE.CatmullRomCurve3(
+        [
+          new THREE.Vector3(turnoffX, 0.58, 708.0),
+          new THREE.Vector3(turnoffX + 10.5, 0.58, 705.2),
+          new THREE.Vector3(standX - 3.5, 0.58, 694.5),
+          new THREE.Vector3(standX - 3.8, 0.58, standZ - 5.2),
+          new THREE.Vector3(standX - 0.6, 0.58, standZ - 2.4),
+          new THREE.Vector3(standX, 0.58, standZ)
+        ],
+        false,
+        'centripetal',
+        0.5
+      );
+
+    const cessnaFlight = buildArchipelagoFlightSpline(76.0);
+    this.cessnaAircraft = {
+      registration: 'PK-UIA',
+      modelName: 'Cessna 172 Skyhawk',
+      standX: -240.5,
+      standY: 0.58,
+      standZ: 684.0,
+      liftoffX: -252.0,
+      turnoffX: -256.0,
+      cruiseY: 76.0,
+      cruiseSpeed: 42.0,
+      maxBankRad: 0.36,
+      taxiOutSpline: buildTaxiOutSpline(-240.5, 684.0),
+      flightSpline: cessnaFlight,
+      flightLength: cessnaFlight.getLength(),
+      taxiInSpline: buildTaxiInSpline(-256.0, -240.5, 684.0),
+      phase: 'APRON_PARKED',
+      phaseLabel: 'Parkir Apron Barat',
+      worldX: -240.5,
+      worldY: 0.58,
+      worldZ: 684.0,
+      yaw: 0.0,
+      pitch: 0.0,
+      roll: 0.0,
+      speed: 0.0,
+      propOmega: 16.0,
+      propSpinRad: 0.0
+    };
+
+    const learjetFlight = buildArchipelagoFlightSpline(92.0);
+    this.learjetAircraft = {
+      registration: 'PK-UIB',
+      modelName: 'Citation Learjet',
+      standX: -261.5,
+      standY: 0.58,
+      standZ: 684.5,
+      liftoffX: -274.0,
+      turnoffX: -276.0,
+      cruiseY: 92.0,
+      cruiseSpeed: 56.0,
+      maxBankRad: 0.42,
+      taxiOutSpline: buildTaxiOutSpline(-261.5, 684.5),
+      flightSpline: learjetFlight,
+      flightLength: learjetFlight.getLength(),
+      taxiInSpline: buildTaxiInSpline(-276.0, -261.5, 684.5),
+      phase: 'APRON_PARKED',
+      phaseLabel: 'Parkir Apron Barat',
+      worldX: -261.5,
+      worldY: 0.58,
+      worldZ: 684.5,
+      yaw: 0.0,
+      pitch: 0.0,
+      roll: 0.0,
+      speed: 0.0,
+      propOmega: 22.0,
+      propSpinRad: 0.0
+    };
   }
 
   /**
@@ -982,6 +1662,14 @@ export class DynamicTrafficAI {
     }
     if (z >= 536.0 && x >= -284.6 && x <= -223.4 && z >= 659.5 && z <= 697.5) {
       return TerrainDEMLoader.RUNWAY_DECK_Y; // Pulau I West Apron concrete deck
+    }
+    const rDPPD = Math.hypot(x - TerrainDEMLoader.DPPD_CX, z - TerrainDEMLoader.DPPD_CZ);
+    if (rDPPD <= 38.0) {
+      const rLocal = rDPPD / TerrainDEMLoader.DPPD_SCALE;
+      if (rLocal >= 53.2 && rLocal <= 64.8) {
+        return TerrainDEMLoader.DPPD_PLATEAU_Y + 0.10 * TerrainDEMLoader.DPPD_SCALE;
+      }
+      return TerrainDEMLoader.DPPD_PLATEAU_Y + 0.21 * TerrainDEMLoader.DPPD_SCALE;
     }
     if (x >= -19.5 && x <= 18.5 && z >= -19.5 && z <= 18.5) {
       return 0.37; // Rektorat Tower Colonnade plinth
@@ -1388,8 +2076,11 @@ export class DynamicTrafficAI {
         behavior: 'SEMINAR_CIRCLE',
         clusterX: -19.5,
         clusterZ: 25.5,
+        rCluster: 1.24,
         memberIdx: 0,
         memberCount: 4,
+        chatGroupOrder: 1,
+        chatLocationLabel: 'Pelataran Gedung Rektorat UI',
         archetype: 'DOSEN_BATIK_MAROON',
         hairStyle: 'HAIR_PARTED',
         hasGlasses: true,
@@ -1402,8 +2093,11 @@ export class DynamicTrafficAI {
         behavior: 'SEMINAR_CIRCLE',
         clusterX: -19.5,
         clusterZ: 25.5,
+        rCluster: 1.24,
         memberIdx: 1,
         memberCount: 4,
+        chatGroupOrder: 1,
+        chatLocationLabel: 'Pelataran Gedung Rektorat UI',
         archetype: 'MAHASISWA_JAKUN',
         hairStyle: 'HAIR_WAVY',
         heightScale: 1.0,
@@ -1415,8 +2109,11 @@ export class DynamicTrafficAI {
         behavior: 'SEMINAR_CIRCLE',
         clusterX: -19.5,
         clusterZ: 25.5,
+        rCluster: 1.24,
         memberIdx: 2,
         memberCount: 4,
+        chatGroupOrder: 1,
+        chatLocationLabel: 'Pelataran Gedung Rektorat UI',
         archetype: 'MAHASISWI_HIJAB_JAKUN',
         hijabCol: HUMAN_PALETTE.HIJAB_CREAM,
         heightScale: 0.92,
@@ -1428,8 +2125,11 @@ export class DynamicTrafficAI {
         behavior: 'SEMINAR_CIRCLE',
         clusterX: -19.5,
         clusterZ: 25.5,
+        rCluster: 1.24,
         memberIdx: 3,
         memberCount: 4,
+        chatGroupOrder: 1,
+        chatLocationLabel: 'Pelataran Gedung Rektorat UI',
         archetype: 'MAHASISWI_PONYTAIL_JAKUN',
         hasGlasses: true,
         heightScale: 0.95,
@@ -1778,10 +2478,10 @@ export class DynamicTrafficAI {
         behavior: 'PULAU_I_EXPLORER',
         explorerMode: 'WALK_APRON',
         waypoints: [
-          [-269.0, 662.2],
-          [-239.0, 662.2],
-          [-239.0, 668.5],
-          [-269.0, 668.5]
+          [-269.0, 661.8],
+          [-239.2, 661.8],
+          [-239.2, 665.6],
+          [-269.0, 665.6]
         ],
         wpIdx: 0,
         baseSpeed: 1.12,
@@ -1796,10 +2496,10 @@ export class DynamicTrafficAI {
         behavior: 'PULAU_I_EXPLORER',
         explorerMode: 'WALK_APRON',
         waypoints: [
-          [-269.0, 662.2],
-          [-239.0, 662.2],
-          [-239.0, 668.5],
-          [-269.0, 668.5]
+          [-269.0, 661.8],
+          [-239.2, 661.8],
+          [-239.2, 665.6],
+          [-269.0, 665.6]
         ],
         wpIdx: 2,
         baseSpeed: 1.16,
@@ -1919,6 +2619,293 @@ export class DynamicTrafficAI {
         heightScale: 1.02,
         propType: 'BOOK',
         hasUmbrella: true
+      },
+
+      // === N. 6 NEW MULTI-ZONE CAMPUS JOGGERS (Rotunda Outer/Inner, EPDM Jogging Oval, & DPPD Ring — indices 52..57) ===
+      {
+        behavior: 'JOGGER_LOOP',
+        jogTrack: 'ROTUNDA_OUTER',
+        radius: 37.8,
+        angle0: 2.15,
+        dir: 1.0,
+        baseSpeed: 2.38,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_CORAL,
+        lowerCol: HUMAN_PALETTE.TROUSER_CHARCOAL,
+        isFemale: false,
+        hairStyle: 'HAIR_WAVY',
+        heightScale: 1.01,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+      {
+        behavior: 'JOGGER_LOOP',
+        jogTrack: 'ROTUNDA_INNER',
+        radius: 21.8,
+        angle0: 5.10,
+        dir: -1.0,
+        baseSpeed: 2.34,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_TEAL,
+        lowerCol: HUMAN_PALETTE.TROUSER_NAVY,
+        isFemale: true,
+        hairStyle: 'HAIR_PONYTAIL',
+        heightScale: 0.95,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+      {
+        behavior: 'JOGGER_LOOP',
+        jogTrack: 'TELUK_U_OVAL',
+        rx: 15.10,
+        rz: 6.40,
+        phase0: 0.08,
+        dir: 1.0,
+        baseSpeed: 2.42,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_CITRUS,
+        lowerCol: HUMAN_PALETTE.TROUSER_CHARCOAL,
+        isFemale: false,
+        hairStyle: 'HAIR_PARTED',
+        heightScale: 1.02,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+      {
+        behavior: 'JOGGER_LOOP',
+        jogTrack: 'TELUK_U_OVAL',
+        rx: 15.10,
+        rz: 6.40,
+        phase0: 0.56,
+        dir: 1.0,
+        baseSpeed: 2.38,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_CORAL,
+        lowerCol: HUMAN_PALETTE.TROUSER_NAVY,
+        isFemale: true,
+        hairStyle: 'HIJAB',
+        hijabCol: HUMAN_PALETTE.HIJAB_SAGE,
+        heightScale: 0.94,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+      {
+        behavior: 'JOGGER_LOOP',
+        jogTrack: 'TELUK_U_OVAL',
+        rx: 15.95,
+        rz: 7.25,
+        phase0: 0.31,
+        dir: -1.0,
+        baseSpeed: 2.32,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_TEAL,
+        lowerCol: HUMAN_PALETTE.TROUSER_CHARCOAL,
+        isFemale: false,
+        hairStyle: 'HAIR_WAVY',
+        heightScale: 0.99,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+      {
+        behavior: 'JOGGER_LOOP',
+        jogTrack: 'DPPD_RING',
+        radius: 36.6,
+        angle0: 1.15,
+        dir: 1.0,
+        baseSpeed: 2.36,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_CITRUS,
+        lowerCol: HUMAN_PALETTE.TROUSER_NAVY,
+        isFemale: true,
+        hairStyle: 'HAIR_PONYTAIL',
+        heightScale: 0.95,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+
+      // === O. 3 SUDUT CALISTHENICS & STREET WORKOUT ATHLETES (EPDM Fitness Park — indices 58..60) ===
+      {
+        behavior: 'CALISTHENICS_CORNER',
+        spotX: -63.8,
+        spotZ: 136.8,
+        faceYaw: -Math.PI * 0.5,
+        exercise: 'SQUAT_REACH',
+        phase0: 0.0,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_CITRUS,
+        lowerCol: HUMAN_PALETTE.TROUSER_CHARCOAL,
+        isFemale: false,
+        hairStyle: 'HAIR_PARTED',
+        heightScale: 1.03,
+        buildScaleX: 1.05,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+      {
+        behavior: 'CALISTHENICS_CORNER',
+        spotX: -59.2,
+        spotZ: 136.2,
+        faceYaw: Math.PI,
+        exercise: 'JUMPING_JACK_WARMUP',
+        phase0: 0.33,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_CORAL,
+        lowerCol: HUMAN_PALETTE.TROUSER_NAVY,
+        isFemale: true,
+        hairStyle: 'HAIR_PONYTAIL',
+        heightScale: 0.95,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+      {
+        behavior: 'CALISTHENICS_CORNER',
+        spotX: -66.8,
+        spotZ: 134.55,
+        faceYaw: 0.0,
+        exercise: 'CORE_TWIST_STRETCH',
+        phase0: 0.67,
+        archetype: 'SPORT_JOGGER',
+        torsoCol: HUMAN_PALETTE.SPORT_TEAL,
+        lowerCol: HUMAN_PALETTE.TROUSER_CHARCOAL,
+        isFemale: false,
+        hairStyle: 'HAIR_WAVY',
+        heightScale: 1.01,
+        buildScaleX: 1.03,
+        propType: 'NONE',
+        hasUmbrella: false
+      },
+
+      // === P. 8 CONVERSING CAMPUS GROUPS ACROSS 3 SCENIC PLAZAS ("ORANG NGOBROL" — indices 61..68) ===
+      // Group 0: Taman Air Mancur Dancing Rotunda UI (3 Civitas conversing by the Dancing Fountain & Videotron)
+      {
+        behavior: 'SEMINAR_CIRCLE',
+        clusterX: -11.2,
+        clusterZ: 102.5,
+        rCluster: 1.15,
+        memberIdx: 0,
+        memberCount: 3,
+        chatGroupOrder: 0,
+        chatLocationLabel: 'Taman Air Mancur Rotunda UI',
+        archetype: 'MAHASISWA_JAKUN',
+        hairStyle: 'HAIR_WAVY',
+        heightScale: 1.01,
+        propType: 'BOOK',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'SEMINAR_CIRCLE',
+        clusterX: -11.2,
+        clusterZ: 102.5,
+        rCluster: 1.15,
+        memberIdx: 1,
+        memberCount: 3,
+        chatGroupOrder: 0,
+        chatLocationLabel: 'Taman Air Mancur Rotunda UI',
+        archetype: 'MAHASISWI_HIJAB_JAKUN',
+        hijabCol: HUMAN_PALETTE.HIJAB_MAROON,
+        hasGlasses: true,
+        heightScale: 0.94,
+        propType: 'OPEN_BOOK',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'SEMINAR_CIRCLE',
+        clusterX: -11.2,
+        clusterZ: 102.5,
+        rCluster: 1.15,
+        memberIdx: 2,
+        memberCount: 3,
+        chatGroupOrder: 0,
+        chatLocationLabel: 'Taman Air Mancur Rotunda UI',
+        archetype: 'DOSEN_BATIK_INDIGO',
+        hairStyle: 'HAIR_PARTED',
+        hasGlasses: true,
+        heightScale: 1.02,
+        propType: 'BOOK',
+        hasUmbrella: true
+      },
+      // Group 2: Forecourt Kompleks DPPD, ILRC & STP-UI (3 Researchers/Staff conversing by Kios Kompleks DPPD)
+      {
+        behavior: 'SEMINAR_CIRCLE',
+        clusterX: -208.5,
+        clusterZ: 321.5,
+        rCluster: 1.10,
+        memberIdx: 0,
+        memberCount: 3,
+        chatGroupOrder: 2,
+        chatLocationLabel: 'Forecourt Kompleks DPPD & STP-UI',
+        archetype: 'DOSEN_BATIK_EMERALD',
+        hairStyle: 'HAIR_PARTED',
+        hasGlasses: true,
+        heightScale: 1.03,
+        propType: 'OPEN_BOOK',
+        hasUmbrella: true
+      },
+      {
+        behavior: 'SEMINAR_CIRCLE',
+        clusterX: -208.5,
+        clusterZ: 321.5,
+        rCluster: 1.10,
+        memberIdx: 1,
+        memberCount: 3,
+        chatGroupOrder: 2,
+        chatLocationLabel: 'Forecourt Kompleks DPPD & STP-UI',
+        archetype: 'MAHASISWA_JAKUN',
+        hairStyle: 'HAIR_PARTED',
+        heightScale: 1.00,
+        propType: 'BACKPACK',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'SEMINAR_CIRCLE',
+        clusterX: -208.5,
+        clusterZ: 321.5,
+        rCluster: 1.10,
+        memberIdx: 2,
+        memberCount: 3,
+        chatGroupOrder: 2,
+        chatLocationLabel: 'Forecourt Kompleks DPPD & STP-UI',
+        archetype: 'MAHASISWI_PONYTAIL_JAKUN',
+        heightScale: 0.95,
+        propType: 'BOOK',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      // Group 3: Kios Taman Rotunda & Jogging Track (2 Students chatting over break)
+      {
+        behavior: 'SEMINAR_CIRCLE',
+        clusterX: -35.8,
+        clusterZ: 138.2,
+        rCluster: 0.85,
+        memberIdx: 0,
+        memberCount: 2,
+        chatGroupOrder: 3,
+        chatLocationLabel: 'Kios Taman Rotunda & Calisthenics',
+        archetype: 'MAHASISWI_HIJAB_JAKUN',
+        hijabCol: HUMAN_PALETTE.HIJAB_CREAM,
+        heightScale: 0.94,
+        propType: 'BOOK',
+        hasUmbrella: true,
+        hasLanyard: true
+      },
+      {
+        behavior: 'SEMINAR_CIRCLE',
+        clusterX: -35.8,
+        clusterZ: 138.2,
+        rCluster: 0.85,
+        memberIdx: 1,
+        memberCount: 2,
+        chatGroupOrder: 3,
+        chatLocationLabel: 'Kios Taman Rotunda & Calisthenics',
+        archetype: 'MAHASISWA_JAKUN',
+        hairStyle: 'HAIR_WAVY',
+        heightScale: 1.01,
+        propType: 'BACKPACK',
+        hasUmbrella: true,
+        hasLanyard: true
       }
     ];
 
@@ -2185,10 +3172,17 @@ export class DynamicTrafficAI {
         initZ = cfg.seatSpec.z;
         initYaw = cfg.seatSpec.yaw;
         initInitialized = true;
-      } else if (cfg.behavior === 'LAWN_ACTIVITY') {
+      } else if (cfg.behavior === 'LAWN_ACTIVITY' || cfg.behavior === 'CALISTHENICS_CORNER') {
         initX = cfg.spotX;
         initZ = cfg.spotZ;
         initYaw = cfg.faceYaw || 0.0;
+        initInitialized = true;
+      } else if (cfg.behavior === 'SEMINAR_CIRCLE') {
+        const rC = cfg.rCluster || 1.24;
+        const az = (cfg.memberIdx / cfg.memberCount) * Math.PI * 2.0 + 0.38;
+        initX = cfg.clusterX + Math.cos(az) * rC;
+        initZ = cfg.clusterZ + Math.sin(az) * rC;
+        initYaw = Math.atan2(cfg.clusterX - initX, cfg.clusterZ - initZ);
         initInitialized = true;
       } else if (cfg.behavior === 'PULAU_I_EXPLORER' && cfg.explorerMode === 'OBSERVE_NIAGARA') {
         initX = cfg.spotX;
@@ -2578,6 +3572,9 @@ export class DynamicTrafficAI {
     const miniYachtBundle = CampusTransitAndMarineBuilder.buildFlybridgeMiniYacht();
     const busBundle = CampusTransitAndMarineBuilder.buildInterIslandElectricBus();
     const ferryBundle = CampusTransitAndMarineBuilder.buildIslandShuttleFerry();
+    const evtolBundle = CampusTransitAndMarineBuilder.buildElectricHeliTaxiEVTOL();
+    const cessnaBundle = CampusTransitAndMarineBuilder.buildCessna172Aircraft();
+    const learjetBundle = CampusTransitAndMarineBuilder.buildCitationLearjetAircraft();
 
     let totalVerts = 0;
     let totalIndices = 0;
@@ -2601,6 +3598,12 @@ export class DynamicTrafficAI {
     totalIndices += busBundle.idx.length;
     totalVerts += ferryBundle.pos.length / 3;
     totalIndices += ferryBundle.idx.length;
+    totalVerts += evtolBundle.pos.length / 3;
+    totalIndices += evtolBundle.idx.length;
+    totalVerts += cessnaBundle.pos.length / 3;
+    totalIndices += cessnaBundle.idx.length;
+    totalVerts += learjetBundle.pos.length / 3;
+    totalIndices += learjetBundle.idx.length;
 
     this._restPos = new Float32Array(totalVerts * 3);
     this._restNorm = new Float32Array(totalVerts * 3);
@@ -2664,7 +3667,16 @@ export class DynamicTrafficAI {
     this._shuttleFerryJointIndex = this._busJointBase + BUS_JOINTS_PER_VEHICLE;
     appendBundle(ferryBundle, this._shuttleFerryJointIndex);
 
-    const totalJoints = this._shuttleFerryJointIndex + 1;
+    this._heliTaxiJointBase = this._shuttleFerryJointIndex + 1;
+    appendBundle(evtolBundle, this._heliTaxiJointBase);
+
+    this._cessnaJointBase = this._heliTaxiJointBase + EVTOL_JOINTS_PER_VEHICLE;
+    appendBundle(cessnaBundle, this._cessnaJointBase);
+
+    this._learjetJointBase = this._cessnaJointBase + CESSNA_JOINTS_PER_AIRCRAFT;
+    appendBundle(learjetBundle, this._learjetJointBase);
+
+    const totalJoints = this._learjetJointBase + LEARJET_JOINTS_PER_AIRCRAFT;
     this._totalJointCount = totalJoints;
     this._jointWorldMatrices = new Float32Array(totalJoints * 16);
     this._skinMatrices = new Float32Array(totalJoints * 16);
@@ -2716,6 +3728,15 @@ export class DynamicTrafficAI {
     this.group.userData.miniYachtCount = this.miniYacht ? 1 : 0;
     this.group.userData.interIslandBusCount = this.interIslandBus ? 1 : 0;
     this.group.userData.shuttleFerryCount = this.shuttleFerry ? 1 : 0;
+    this.group.userData.heliTaxiCount = this.heliTaxi ? 1 : 0;
+    this.group.userData.cessnaCount = this.cessnaAircraft ? 1 : 0;
+    this.group.userData.learjetCount = this.learjetAircraft ? 1 : 0;
+    this.group.userData.joggerCount = this.npcs.filter(
+      (n) => n.behavior === 'JOGGER_LOOP'
+    ).length;
+    this.group.userData.calisthenicsCount = this.npcs.filter(
+      (n) => n.behavior === 'CALISTHENICS_CORNER'
+    ).length;
     this.group.userData.teksasBridgeCrosserCount = this.npcs.filter(
       (n) => n.behavior === 'TEKSAS_BRIDGE_CROSSER'
     ).length;
@@ -3465,7 +4486,492 @@ export class DynamicTrafficAI {
         this._tmpQuat.multiply(this._tmpQuatB);
         this._writeInterIslandBusJoint(wJoint, BUS_J_CHASSIS, bp[0], bp[1], bp[2], this._tmpQuat);
       }
+
+      // Write BUS_J_STEER_WHEEL (joint 5 — Right-Hand-Drive Bikun driver steering wheel!)
+      const bpBusSteer = BUS_BIND_PIVOTS[BUS_J_STEER_WHEEL];
+      this._tmpQuat.setFromAxisAngle(this._tmpAxisBusSteer, -b.steerAngle * 3.6);
+      this._writeInterIslandBusJoint(
+        BUS_J_STEER_WHEEL,
+        BUS_J_CHASSIS,
+        bpBusSteer[0],
+        bpBusSteer[1],
+        bpBusSteer[2],
+        this._tmpQuat
+      );
     }
+
+    // 6. Advance 2-Seat Electric Helicopter Taxi (eVTOL) & 3x-Daily Shuttling Fixed-Wing Aircraft Fleet
+    this._advanceAviationFleet(dt, t);
+  }
+
+  /**
+   * Composes a hierarchical joint for any multi-joint vehicle/aircraft rig (eVTOL, Cessna 172, Citation Learjet)
+   * and writes its bind-relative skin matrix into `_jointWorldMatrices` and `_skinMatrices`.
+   */
+  _writeGenericRigJoint(jointBase, bindPivots, jointId, parentJointId, lx, ly, lz, quat) {
+    this._tmpPos.set(lx, ly, lz);
+    this._tmpScale.set(1.0, 1.0, 1.0);
+    this._tmpLocalMat.compose(this._tmpPos, quat, this._tmpScale);
+
+    const globalJ = jointBase + jointId;
+    const outOffset = globalJ * 16;
+    const wMats = this._jointWorldMatrices;
+
+    if (parentJointId < 0) {
+      const e = this._tmpLocalMat.elements;
+      for (let i = 0; i < 16; i++) wMats[outOffset + i] = e[i];
+    } else {
+      const parentOffset = (jointBase + parentJointId) * 16;
+      for (let i = 0; i < 16; i++) {
+        this._tmpParentMat.elements[i] = wMats[parentOffset + i];
+      }
+      this._tmpWorldMat.multiplyMatrices(this._tmpParentMat, this._tmpLocalMat);
+      const e = this._tmpWorldMat.elements;
+      for (let i = 0; i < 16; i++) wMats[outOffset + i] = e[i];
+    }
+
+    const bp = bindPivots[jointId];
+    const bx = bp[0];
+    const by = bp[1];
+    const bz = bp[2];
+    const sMats = this._skinMatrices;
+    for (let i = 0; i < 12; i++) {
+      sMats[outOffset + i] = wMats[outOffset + i];
+    }
+    sMats[outOffset + 12] =
+      wMats[outOffset + 12] -
+      (wMats[outOffset] * bx + wMats[outOffset + 4] * by + wMats[outOffset + 8] * bz);
+    sMats[outOffset + 13] =
+      wMats[outOffset + 13] -
+      (wMats[outOffset + 1] * bx + wMats[outOffset + 5] * by + wMats[outOffset + 9] * bz);
+    sMats[outOffset + 14] =
+      wMats[outOffset + 14] -
+      (wMats[outOffset + 2] * bx + wMats[outOffset + 6] * by + wMats[outOffset + 10] * bz);
+    sMats[outOffset + 15] = 1.0;
+  }
+
+  /**
+   * Advances:
+   *  A) 2-Passenger Electric Helicopter Taxi (`PK-UIE` Hexa-Rotor eVTOL) shuttling between
+   *     Helipad VIP Pulau U (-104.0, 0.50, 106.5) and Heliport Bandara Pulau I (-278.5, 0.59, 675.0)
+   *  B) Shuttling Fixed-Wing Campus Fleet (`PK-UIA` Cessna 172 Skyhawk & `PK-UIB` Citation Learjet)
+   *     operating on a staggered natural 3x-Daily Shuttle Wave (`07:30`, `12:45`, `17:15 WIB`):
+   *     Engine Start -> Taxi Out -> RWY 27 Lineup -> Takeoff Roll & Rotation -> Banked Archipelago Circuit ->
+   *     RWY 09 Final Approach & Flare -> Landing Rollout -> Taxi In -> Apron Stand!
+   */
+  _advanceAviationFleet(dt, t) {
+    // -------------------------------------------------------------------------
+    // A. 2-PASSENGER ELECTRIC HELICOPTER TAXI (PK-UIE eVTOL — 96.0s VTOL Loop)
+    // -------------------------------------------------------------------------
+    if (this.heliTaxi) {
+      const h = this.heliTaxi;
+      const cyc = ((t + 4.0) % h.cycleSec + h.cycleSec) % h.cycleSec;
+      const prevX = h.worldX;
+      const prevZ = h.worldZ;
+      let targetYaw = h.yaw;
+      let targetPitch = 0.0;
+      let targetRoll = 0.0;
+      let wantOmega = 54.0;
+
+      if (cyc < 12.0) {
+        // DWELL_PULAU_U: Boarding/alighting on VIP Helipad Pulau U ("H")
+        h.phase = 'DWELL_PULAU_U';
+        h.worldX = h.padUX;
+        h.worldY = h.padUY;
+        h.worldZ = h.padUZ;
+        targetYaw = h.yawToI;
+        // Spool up rotors smoothly in final 3.5s before vertical liftoff
+        wantOmega = 16.0 + 42.0 * smooth01(8.5, 12.0, cyc);
+      } else if (cyc < 20.0) {
+        // TAKEOFF_PULAU_U: Vertical cushioned VTOL climb from +0.50m to +31.0m
+        h.phase = 'TAKEOFF_PULAU_U';
+        const f = (cyc - 12.0) / 8.0;
+        const s = smooth01(0.0, 1.0, f);
+        h.worldX = h.padUX;
+        h.worldY = h.padUY + (31.0 - h.padUY) * s;
+        h.worldZ = h.padUZ;
+        targetYaw = h.yawToI;
+        targetPitch = 0.07 * smooth01(0.68, 1.0, f); // Gentle nose-down transition into forward flight
+        targetRoll = Math.sin(t * 2.1) * 0.012;
+        wantOmega = 62.0;
+      } else if (cyc < 42.0) {
+        // CRUISE_TO_PULAU_I: Forward flight across Teluk U & Selat UI toward Pulau I
+        h.phase = 'CRUISE_TO_PULAU_I';
+        const f = (cyc - 20.0) / 22.0;
+        const u = smooth01(0.0, 1.0, f);
+        h.outSpline.getPointAt(u, this._tmpVecA);
+        h.outSpline.getTangentAt(Math.min(0.998, Math.max(0.002, u)), this._tmpVecB);
+        h.worldX = this._tmpVecA.x;
+        h.worldY = this._tmpVecA.y + Math.sin(t * 1.9) * 0.08;
+        h.worldZ = this._tmpVecA.z;
+        targetYaw = Math.atan2(this._tmpVecB.x, this._tmpVecB.z);
+        // Helicopter forward acceleration nose-down (+0.105 rad), transitioning to braking flare (-0.095 rad)
+        const accelTilt = 0.105 * smooth01(0.0, 0.18, f) * (1.0 - smooth01(0.74, 0.90, f));
+        const flareTilt = -0.095 * smooth01(0.78, 0.96, f) * (1.0 - smooth01(0.96, 1.0, f));
+        targetPitch = accelTilt + flareTilt;
+        const yawErr = wrapAngle(targetYaw - h.yaw);
+        targetRoll = Math.max(-0.22, Math.min(0.22, -yawErr * 0.85));
+        wantOmega = 60.0;
+      } else if (cyc < 50.0) {
+        // LANDING_PULAU_I: Vertical stabilized VTOL descent onto Bandara Pulau I Heliport Pad
+        h.phase = 'LANDING_PULAU_I';
+        const f = (cyc - 42.0) / 8.0;
+        const s = smooth01(0.0, 1.0, f);
+        h.worldX = h.padIX;
+        h.worldY = 31.0 + (h.padIY - 31.0) * s;
+        h.worldZ = h.padIZ;
+        targetYaw = h.yawToU;
+        targetPitch = -0.04 * (1.0 - s);
+        targetRoll = Math.sin(t * 2.0) * 0.010 * (1.0 - s);
+        wantOmega = 58.0;
+      } else if (cyc < 62.0) {
+        // DWELL_PULAU_I: Passenger transfer on Bandara Pulau I West Apron Heliport
+        h.phase = 'DWELL_PULAU_I';
+        h.worldX = h.padIX;
+        h.worldY = h.padIY;
+        h.worldZ = h.padIZ;
+        targetYaw = h.yawToU;
+        wantOmega = 16.0 + 42.0 * smooth01(58.5, 62.0, cyc);
+      } else if (cyc < 70.0) {
+        // TAKEOFF_PULAU_I: Vertical VTOL climb from Bandara Pulau I (+0.59m -> +31.0m)
+        h.phase = 'TAKEOFF_PULAU_I';
+        const f = (cyc - 62.0) / 8.0;
+        const s = smooth01(0.0, 1.0, f);
+        h.worldX = h.padIX;
+        h.worldY = h.padIY + (31.0 - h.padIY) * s;
+        h.worldZ = h.padIZ;
+        targetYaw = h.yawToU;
+        targetPitch = 0.07 * smooth01(0.68, 1.0, f);
+        targetRoll = Math.sin(t * 2.1 + 1.0) * 0.012;
+        wantOmega = 62.0;
+      } else if (cyc < 90.0) {
+        // CRUISE_TO_PULAU_U: Return flight across Selat UI & Teluk U toward Helipad VIP Pulau U
+        h.phase = 'CRUISE_TO_PULAU_U';
+        const f = (cyc - 70.0) / 20.0;
+        const u = smooth01(0.0, 1.0, f);
+        h.backSpline.getPointAt(u, this._tmpVecA);
+        h.backSpline.getTangentAt(Math.min(0.998, Math.max(0.002, u)), this._tmpVecB);
+        h.worldX = this._tmpVecA.x;
+        h.worldY = this._tmpVecA.y + Math.sin(t * 1.9 + 0.8) * 0.08;
+        h.worldZ = this._tmpVecA.z;
+        targetYaw = Math.atan2(this._tmpVecB.x, this._tmpVecB.z);
+        const accelTilt = 0.105 * smooth01(0.0, 0.18, f) * (1.0 - smooth01(0.74, 0.90, f));
+        const flareTilt = -0.095 * smooth01(0.78, 0.96, f) * (1.0 - smooth01(0.96, 1.0, f));
+        targetPitch = accelTilt + flareTilt;
+        const yawErr = wrapAngle(targetYaw - h.yaw);
+        targetRoll = Math.max(-0.22, Math.min(0.22, -yawErr * 0.85));
+        wantOmega = 60.0;
+      } else {
+        // LANDING_PULAU_U: Vertical cushioned VTOL touchdown onto Helipad VIP Pulau U
+        h.phase = 'LANDING_PULAU_U';
+        const f = (cyc - 90.0) / 6.0;
+        const s = smooth01(0.0, 1.0, f);
+        h.worldX = h.padUX;
+        h.worldY = 31.0 + (h.padUY - 31.0) * s;
+        h.worldZ = h.padUZ;
+        targetYaw = h.yawToI;
+        targetPitch = -0.04 * (1.0 - s);
+        targetRoll = Math.sin(t * 2.0) * 0.010 * (1.0 - s);
+        wantOmega = 58.0;
+      }
+
+      h.yaw = dampAngle(h.yaw, targetYaw, 4.2, dt);
+      h.pitch = dampScalar(h.pitch, targetPitch, 6.0, dt);
+      h.roll = dampScalar(h.roll, targetRoll, 6.0, dt);
+      h.rotorOmega = dampScalar(h.rotorOmega, wantOmega, 4.0, dt);
+      h.rotorSpinRad = (h.rotorSpinRad + h.rotorOmega * dt) % (Math.PI * 2.0);
+      const hDisp = Math.hypot(h.worldX - prevX, h.worldZ - prevZ);
+      h.speed = dt > 1e-5 && hDisp < 12.0 ? dampScalar(h.speed, hDisp / dt, 8.0, dt) : 0.0;
+
+      const hOBB = this._heliOBBScratch;
+      hOBB.cx = h.worldX;
+      hOBB.cz = h.worldZ;
+      hOBB.yaw = h.yaw;
+      hOBB.minY = h.worldY;
+      hOBB.maxY = h.worldY + 2.55;
+      PhysicsKernel.prepareSolidCollider(hOBB);
+
+      this._tmpEuler.set(h.pitch, h.yaw, h.roll, 'YXZ');
+      this._tmpQuat.setFromEuler(this._tmpEuler);
+      this._writeGenericRigJoint(
+        this._heliTaxiJointBase,
+        EVTOL_BIND_PIVOTS,
+        EVTOL_J_FUSELAGE,
+        -1,
+        h.worldX,
+        h.worldY,
+        h.worldZ,
+        this._tmpQuat
+      );
+
+      for (let r = 1; r < EVTOL_JOINTS_PER_VEHICLE; r++) {
+        const bp = EVTOL_BIND_PIVOTS[r];
+        const spinDir = r % 2 === 1 ? 1.0 : -1.0; // Counter-rotating hexacopter torque balance!
+        this._tmpQuat.setFromAxisAngle(this._tmpAxisY, spinDir * h.rotorSpinRad);
+        this._writeGenericRigJoint(
+          this._heliTaxiJointBase,
+          EVTOL_BIND_PIVOTS,
+          r,
+          EVTOL_J_FUSELAGE,
+          bp[0],
+          bp[1],
+          bp[2],
+          this._tmpQuat
+        );
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // B. 3x-DAILY SHUTTLING FIXED-WING AIRCRAFT (CESSNA 172 & CITATION LEARJET)
+    //    Staggered 180.0s Wave Clock:
+    //    - [0..88s)   : Cessna 172 Skyhawk (PK-UIA) active sortie; Learjet parked on West Apron
+    //    - [88..90s)  : ATC Runway Clearance Handover Interval
+    //    - [90..178s) : Citation Learjet (PK-UIB) active sortie; Cessna parked on West Apron
+    // -------------------------------------------------------------------------
+    const waveSec = ((t + 16.0) % 180.0 + 180.0) % 180.0;
+    const advanceFixedWing = (ac, isJet, activeStartSec, activeDurSec, jointBase, bindPivots, obbScratch) => {
+      if (!ac) return;
+      const localSec = waveSec - activeStartSec;
+      const isActive = localSec >= 0.0 && localSec < activeDurSec;
+      const prevYaw = ac.yaw;
+      let targetX = ac.standX;
+      let targetY = ac.standY;
+      let targetZ = ac.standZ;
+      let targetYaw = 0.0;
+      let targetPitch = 0.0;
+      let targetRoll = 0.0;
+      let wantPropOmega = isJet ? 8.0 : 0.0;
+      let instantPose = false;
+
+      if (!isActive) {
+        ac.phase = 'APRON_PARKED';
+        ac.phaseLabel = 'Parkir Apron Barat';
+        ac.speed = 0.0;
+        instantPose = !ac._poseInit;
+      } else {
+        const u = localSec / activeDurSec;
+        if (u < 0.06) {
+          // 1. ENGINE_START: Beacon & engine spool-up on West Apron stand
+          ac.phase = 'ENGINE_START';
+          ac.phaseLabel = 'Start Mesin di Apron';
+          const f = u / 0.06;
+          wantPropOmega = isJet ? 12.0 + 46.0 * smooth01(0.0, 1.0, f) : 14.0 + 44.0 * smooth01(0.0, 1.0, f);
+          ac.speed = 0.0;
+        } else if (u < 0.18) {
+          // 2. TAXI_OUT: Smooth nosewheel taxi from Apron Stand to RWY 27 Threshold (-154.0, 708.0)
+          ac.phase = 'TAXI_OUT';
+          ac.phaseLabel = 'Taxi Menuju RWY 27';
+          const f = smooth01(0.0, 1.0, (u - 0.06) / 0.12);
+          ac.taxiOutSpline.getPointAt(f, this._tmpVecA);
+          ac.taxiOutSpline.getTangentAt(Math.min(0.998, Math.max(0.002, f)), this._tmpVecB);
+          targetX = this._tmpVecA.x;
+          targetY = ac.standY;
+          targetZ = this._tmpVecA.z;
+          targetYaw = Math.atan2(this._tmpVecB.x, this._tmpVecB.z);
+          wantPropOmega = 42.0;
+          ac.speed = 7.5;
+        } else if (u < 0.21) {
+          // 3. LINEUP_RWY27: Holding aligned on RWY 27 centerline awaiting ATC takeoff clearance
+          ac.phase = 'LINEUP_RWY27';
+          ac.phaseLabel = 'Line-Up & Cleared RWY 27';
+          targetX = -154.0;
+          targetY = ac.standY;
+          targetZ = TerrainDEMLoader.RUNWAY_CZ;
+          targetYaw = -Math.PI * 0.5;
+          wantPropOmega = 64.0;
+          ac.speed = 0.5;
+        } else if (u < 0.31) {
+          // 4. TAKEOFF_CLIMB: Full-thrust acceleration along RWY 27 (-X), V_R rotation, & climb-out over open sea!
+          ac.phase = 'TAKEOFF_CLIMB';
+          ac.phaseLabel = 'Takeoff Roll & Climb RWY 27';
+          const f = (u - 0.21) / 0.10;
+          const rollFrac = f * f;
+          targetX = -154.0 + (-430.0 - -154.0) * rollFrac;
+          targetZ = TerrainDEMLoader.RUNWAY_CZ;
+          targetYaw = -Math.PI * 0.5;
+          const climbFrac = Math.max(0.0, (f - 0.46) / 0.54);
+          targetY = ac.standY + (26.0 - ac.standY) * Math.pow(climbFrac, 1.85);
+          // Nose-UP rotation in Three.js 'YXZ' (+Z forward) is NEGATIVE pitch!
+          targetPitch = -(isJet ? 0.185 : 0.155) * smooth01(0.40, 0.70, f);
+          wantPropOmega = 78.0;
+          ac.speed = ac.cruiseSpeed * Math.min(1.0, 0.2 + f * 0.9);
+        } else if (u < 0.75) {
+          // 5. CRUISE_CIRCUIT: Wide scenic banked archipelago circuit over Pulau U, DPPD, Rektorat, & Selat UI
+          ac.phase = 'CRUISE_CIRCUIT';
+          ac.phaseLabel = 'Jelajah Kepulauan UI';
+          const f = (u - 0.31) / 0.44;
+          const uPrev = Math.max(0.0, f - 0.008);
+          const uNext = Math.min(1.0, f + 0.008);
+          ac.flightSpline.getPointAt(f, this._tmpVecA);
+          ac.flightSpline.getPointAt(uPrev, this._tmpVecB);
+          ac.flightSpline.getPointAt(uNext, this._tmpVecC);
+
+          targetX = this._tmpVecA.x;
+          targetY = this._tmpVecA.y;
+          targetZ = this._tmpVecA.z;
+
+          const tx = this._tmpVecC.x - this._tmpVecB.x;
+          const ty = this._tmpVecC.y - this._tmpVecB.y;
+          const tz = this._tmpVecC.z - this._tmpVecB.z;
+          const hDist = Math.max(0.1, Math.hypot(tx, tz));
+          targetYaw = Math.atan2(tx, tz);
+          targetPitch = -Math.atan2(ty, hDist);
+
+          // Coordinated aerodynamic turn bank angle: roll = -atan((omega * V) / g)
+          const uFar = Math.min(1.0, f + 0.024);
+          ac.flightSpline.getPointAt(uFar, this._tmpVecD);
+          const yawFar = Math.atan2(this._tmpVecD.x - targetX, this._tmpVecD.z - targetZ);
+          const dS = Math.max(4.0, 0.024 * ac.flightLength);
+          const kappa = wrapAngle(yawFar - targetYaw) / dS;
+          const coordBank = -Math.atan((kappa * ac.cruiseSpeed * ac.cruiseSpeed) / 9.81) * 0.55;
+          targetRoll = Math.max(-ac.maxBankRad, Math.min(ac.maxBankRad, coordBank));
+          wantPropOmega = 72.0;
+          ac.speed = ac.cruiseSpeed;
+          void prevYaw;
+        } else if (u < 0.85) {
+          // 6. FINAL_APPROACH: Stabilized 3-deg ILS glideslope onto RWY 09 (+X along z = 708.0) + Landing Flare!
+          ac.phase = 'FINAL_APPROACH';
+          ac.phaseLabel = 'Final Approach & Flare RWY 09';
+          const f = (u - 0.75) / 0.10;
+          targetX = -565.0 + (-344.0 - -565.0) * f;
+          targetZ = TerrainDEMLoader.RUNWAY_CZ;
+          targetYaw = Math.PI * 0.5;
+          // Smooth exponential flare leveling off onto RWY 09 deck (+0.58m)
+          const descCurve = Math.pow(1.0 - f, 1.32);
+          targetY = ac.standY + (25.0 - ac.standY) * descCurve;
+          const flare = smooth01(0.70, 0.98, f);
+          targetPitch = 0.045 * (1.0 - flare) + -0.088 * flare;
+          targetRoll = Math.sin(t * 2.4) * 0.015 * (1.0 - flare);
+          wantPropOmega = 50.0 - 14.0 * flare;
+          ac.speed = ac.cruiseSpeed * (0.78 - 0.22 * f);
+        } else if (u < 0.92) {
+          // 7. LANDING_ROLLOUT: Main-gear touchdown, nosewheel lowering, & smooth aerodynamic braking on RWY 09
+          ac.phase = 'LANDING_ROLLOUT';
+          ac.phaseLabel = 'Touchdown & Rollout RWY 09';
+          const f = (u - 0.85) / 0.07;
+          const decel = 1.0 - (1.0 - f) * (1.0 - f);
+          targetX = -344.0 + (ac.turnoffX - -344.0) * decel;
+          targetY = ac.standY;
+          targetZ = TerrainDEMLoader.RUNWAY_CZ;
+          targetYaw = Math.PI * 0.5;
+          targetPitch = -0.088 * (1.0 - smooth01(0.0, 0.38, f));
+          wantPropOmega = 38.0;
+          ac.speed = ac.cruiseSpeed * 0.52 * (1.0 - 0.82 * f);
+        } else {
+          // 8. TAXI_IN: Exiting runway onto West Apron & parking cleanly on stand facing +Z
+          ac.phase = 'TAXI_IN';
+          ac.phaseLabel = 'Taxi Masuk Apron Barat';
+          const f = smooth01(0.0, 1.0, (u - 0.92) / 0.08);
+          ac.taxiInSpline.getPointAt(f, this._tmpVecA);
+          ac.taxiInSpline.getTangentAt(Math.min(0.998, Math.max(0.002, f)), this._tmpVecB);
+          targetX = this._tmpVecA.x;
+          targetY = ac.standY;
+          targetZ = this._tmpVecA.z;
+          targetYaw = f > 0.95 ? 0.0 : Math.atan2(this._tmpVecB.x, this._tmpVecB.z);
+          wantPropOmega = 32.0 * (1.0 - 0.65 * smooth01(0.82, 1.0, f));
+          ac.speed = 6.2 * (1.0 - smooth01(0.85, 1.0, f));
+        }
+      }
+
+      if (!ac._poseInit || instantPose) {
+        ac.worldX = targetX;
+        ac.worldY = targetY;
+        ac.worldZ = targetZ;
+        ac.yaw = targetYaw;
+        ac.pitch = targetPitch;
+        ac.roll = targetRoll;
+        ac._poseInit = true;
+      } else {
+        ac.worldX = targetX;
+        ac.worldY = targetY;
+        ac.worldZ = targetZ;
+        ac.yaw = dampAngle(ac.yaw, targetYaw, 6.5, dt);
+        ac.pitch = dampScalar(ac.pitch, targetPitch, 5.5, dt);
+        ac.roll = dampScalar(ac.roll, targetRoll, 4.8, dt);
+      }
+
+      ac.propOmega = dampScalar(ac.propOmega, wantPropOmega, 3.8, dt);
+      ac.propSpinRad = (ac.propSpinRad + ac.propOmega * dt) % (Math.PI * 2.0);
+
+      obbScratch.cx = ac.worldX;
+      obbScratch.cz = ac.worldZ;
+      obbScratch.yaw = ac.yaw;
+      obbScratch.minY = ac.worldY;
+      obbScratch.maxY = ac.worldY + (isJet ? 4.35 : 2.85);
+      PhysicsKernel.prepareSolidCollider(obbScratch);
+
+      this._tmpEuler.set(ac.pitch, ac.yaw, ac.roll, 'YXZ');
+      this._tmpQuat.setFromEuler(this._tmpEuler);
+      this._writeGenericRigJoint(
+        jointBase,
+        bindPivots,
+        0,
+        -1,
+        ac.worldX,
+        ac.worldY,
+        ac.worldZ,
+        this._tmpQuat
+      );
+
+      if (isJet) {
+        const bpL = bindPivots[LEARJET_J_FAN_L];
+        const bpR = bindPivots[LEARJET_J_FAN_R];
+        this._tmpQuat.setFromAxisAngle(this._tmpAxisZ, ac.propSpinRad);
+        this._writeGenericRigJoint(
+          jointBase,
+          bindPivots,
+          LEARJET_J_FAN_L,
+          LEARJET_J_AIRFRAME,
+          bpL[0],
+          bpL[1],
+          bpL[2],
+          this._tmpQuat
+        );
+        this._tmpQuat.setFromAxisAngle(this._tmpAxisZ, -ac.propSpinRad);
+        this._writeGenericRigJoint(
+          jointBase,
+          bindPivots,
+          LEARJET_J_FAN_R,
+          LEARJET_J_AIRFRAME,
+          bpR[0],
+          bpR[1],
+          bpR[2],
+          this._tmpQuat
+        );
+      } else {
+        const bpP = bindPivots[CESSNA_J_PROP];
+        this._tmpQuat.setFromAxisAngle(this._tmpAxisZ, ac.propSpinRad);
+        this._writeGenericRigJoint(
+          jointBase,
+          bindPivots,
+          CESSNA_J_PROP,
+          CESSNA_J_AIRFRAME,
+          bpP[0],
+          bpP[1],
+          bpP[2],
+          this._tmpQuat
+        );
+      }
+    };
+
+    advanceFixedWing(
+      this.cessnaAircraft,
+      false,
+      0.0,
+      88.0,
+      this._cessnaJointBase,
+      CESSNA_BIND_PIVOTS,
+      this._cessnaOBBScratch
+    );
+    advanceFixedWing(
+      this.learjetAircraft,
+      true,
+      90.0,
+      88.0,
+      this._learjetJointBase,
+      LEARJET_BIND_PIVOTS,
+      this._learjetOBBScratch
+    );
   }
 
   /**
@@ -3724,11 +5230,38 @@ export class DynamicTrafficAI {
         }
       } else if (npc.behavior === 'JOGGER_LOOP') {
         const jogSpeed = npc.baseSpeed * (1.0 + 0.15 * npc.rainHurryBlend);
-        if (npc.jogTrack === 'ROTUNDA_OUTER') {
+        if (npc.jogTrack === 'ROTUNDA_OUTER' || npc.jogTrack === 'ROTUNDA_INNER') {
           const omega = (npc.dir * jogSpeed) / npc.radius;
           const theta = npc.angle0 + omega * t;
           const tx = -2.5 + Math.cos(theta) * npc.radius;
           const tz = 106.5 + Math.sin(theta) * npc.radius;
+          const targetYaw = Math.atan2(-npc.dir * Math.sin(theta), npc.dir * Math.cos(theta));
+          npc.worldX = tx;
+          npc.worldZ = tz;
+          npc.yaw = !npc.initializedPos ? targetYaw : dampAngle(npc.yaw, targetYaw, 10.0, dt);
+          npc.initializedPos = true;
+        } else if (npc.jogTrack === 'TELUK_U_OVAL') {
+          // Dedicated 2-Lane EPDM Rubberized Jogging Track Oval at (-62.0, 136.5) around Sudut Calisthenics!
+          const lut = this._telukOvalLUT;
+          const rx = npc.rx || 15.10;
+          const rz = npc.rz || 6.40;
+          const perimScale = Math.hypot(rx, rz) / Math.hypot(15.5, 6.8);
+          const lapPeriod = (lut.perimeter * perimScale) / jogSpeed;
+          const uRaw = (npc.phase0 || 0.0) + (npc.dir * t) / lapPeriod;
+          const theta = DynamicTrafficAI._sampleEllipseThetaAtU(lut, uRaw);
+          const tx = -62.0 + Math.cos(theta) * rx;
+          const tz = 136.5 + Math.sin(theta) * rz;
+          const targetYaw = Math.atan2(-npc.dir * Math.sin(theta) * rx, npc.dir * Math.cos(theta) * rz);
+          npc.worldX = tx;
+          npc.worldZ = tz;
+          npc.yaw = !npc.initializedPos ? targetYaw : dampAngle(npc.yaw, targetYaw, 11.0, dt);
+          npc.initializedPos = true;
+        } else if (npc.jogTrack === 'DPPD_RING') {
+          // Kompleks DPPD–ILRC–STP Outer Ring Promenade Jogging Loop (+4.85m Terrace)
+          const omega = (npc.dir * jogSpeed) / npc.radius;
+          const theta = npc.angle0 + omega * t;
+          const tx = TerrainDEMLoader.DPPD_CX + Math.cos(theta) * npc.radius;
+          const tz = TerrainDEMLoader.DPPD_CZ + Math.sin(theta) * npc.radius;
           const targetYaw = Math.atan2(-npc.dir * Math.sin(theta), npc.dir * Math.cos(theta));
           npc.worldX = tx;
           npc.worldZ = tz;
@@ -3765,10 +5298,10 @@ export class DynamicTrafficAI {
             npc.yaw = dampAngle(npc.yaw, targetYaw, 9.0, dt);
           }
         }
-      } else if (npc.behavior === 'LAWN_ACTIVITY') {
+      } else if (npc.behavior === 'LAWN_ACTIVITY' || npc.behavior === 'CALISTHENICS_CORNER') {
         npc.worldX = npc.spotX;
         npc.worldZ = npc.spotZ;
-        npc.yaw = npc.faceYaw || Math.PI * 0.5;
+        npc.yaw = npc.faceYaw ?? Math.PI * 0.5;
         npc.initializedPos = true;
       } else if (
         npc.behavior === 'PLK_SECURITY_OFFICER' ||
@@ -3969,7 +5502,7 @@ export class DynamicTrafficAI {
           npc.yaw = dampAngle(npc.yaw, targetYaw, 4.8, dt);
         }
       } else if (npc.behavior === 'SEMINAR_CIRCLE') {
-        const rCluster = 1.24;
+        const rCluster = npc.rCluster || 1.24;
         const az = (npc.memberIdx / npc.memberCount) * Math.PI * 2.0 + 0.38;
         npc.worldX = npc.clusterX + Math.cos(az) * rCluster;
         npc.worldZ = npc.clusterZ + Math.sin(az) * rCluster;
@@ -4455,6 +5988,7 @@ export class DynamicTrafficAI {
     // =========================================================================
     const isJogger = npc.behavior === 'JOGGER_LOOP';
     const isTaiChi = npc.behavior === 'LAWN_ACTIVITY';
+    const isCalisthenics = npc.behavior === 'CALISTHENICS_CORNER';
     const walkBlend = smooth01(0.06, 0.45, npc.liveSpeed);
     const jogBlend = isJogger ? smooth01(1.35, 2.05, npc.liveSpeed) : 0.0;
     const strideScale = isJogger
@@ -4468,15 +6002,24 @@ export class DynamicTrafficAI {
 
     // Contrapposto Asymmetric Idle Stance when standing (switches stance leg smoothly every ~10s!)
     const idleBlend = 1.0 - walkBlend;
-    const stanceSwitch = isTaiChi ? 0.0 : Math.tanh(2.4 * Math.sin(t * 0.31 + idx * 1.7));
+    const stanceSwitch = isTaiChi || isCalisthenics ? 0.0 : Math.tanh(2.4 * Math.sin(t * 0.31 + idx * 1.7));
     const idleHipShiftX = idleBlend * stanceSwitch * 0.024;
     const idlePelvisRoll = -idleBlend * stanceSwitch * 0.045;
     const idleFreeL = idleBlend * Math.max(0.0, -stanceSwitch);
     const idleFreeR = idleBlend * Math.max(0.0, stanceSwitch);
 
-    // Tai-Chi gentle rhythmic horse-stance knee bend
+    // Tai-Chi gentle rhythmic horse-stance knee bend + Sudut Calisthenics athletic squat depth!
     const taiChiPhase = t * 0.62 + (npc.phase0 || 0.0) * Math.PI * 2.0;
-    const taiChiSquat = isTaiChi ? 0.26 * (0.5 - 0.5 * Math.cos(taiChiPhase)) : 0.0;
+    const calisPhase = t * 1.95 + (npc.phase0 || 0.0) * Math.PI * 2.0;
+    const calisSquat =
+      isCalisthenics && npc.exercise === 'SQUAT_REACH'
+        ? 0.56 * Math.pow(0.5 - 0.5 * Math.cos(calisPhase), 1.2)
+        : isCalisthenics && npc.exercise === 'JUMPING_JACK_WARMUP'
+          ? 0.14 * (0.5 - 0.5 * Math.cos(calisPhase * 1.6))
+          : isCalisthenics
+            ? 0.18 * (0.5 - 0.5 * Math.cos(calisPhase * 0.8))
+            : 0.0;
+    const taiChiSquat = (isTaiChi ? 0.26 * (0.5 - 0.5 * Math.cos(taiChiPhase)) : 0.0) + calisSquat;
 
     const hipRxL =
       walkBlend * gaitL.hipRx -
@@ -4620,9 +6163,10 @@ export class DynamicTrafficAI {
         };
       } else {
         // Attentive listener looking toward current speaker & nodding!
+        const rCluster = npc.rCluster || 1.24;
         const speakerAz = (activeSpeaker / npc.memberCount) * Math.PI * 2.0 + 0.38;
-        const sx = npc.clusterX + Math.cos(speakerAz) * 1.24;
-        const sz = npc.clusterZ + Math.sin(speakerAz) * 1.24;
+        const sx = npc.clusterX + Math.cos(speakerAz) * rCluster;
+        const sz = npc.clusterZ + Math.sin(speakerAz) * rCluster;
         const yawToSpeaker = wrapAngle(Math.atan2(sx - npc.worldX, sz - npc.worldZ) - npc.yaw);
         targetHeadYaw = Math.max(-0.55, Math.min(0.55, yawToSpeaker * 0.75));
         targetHeadPitch = 0.08 * Math.max(0.0, Math.sin(t * 3.9 + npc.memberIdx * 1.8));
@@ -4699,6 +6243,65 @@ export class DynamicTrafficAI {
         elRx: -0.58 - 0.34 * (1.0 - liftArc),
         wrRx: -0.18 * Math.cos(taiChiPhase)
       };
+    } else if (isCalisthenics) {
+      // Sudut Calisthenics Street-Workout Biomechanics (Deep Squat Reach, Jumping-Jack Warmup, & Core Twist!)
+      if (npc.exercise === 'SQUAT_REACH') {
+        const sq = 0.5 - 0.5 * Math.cos(calisPhase);
+        waistPitch = 0.28 * sq;
+        chestPitch = 0.14 * sq;
+        targetHeadPitch = -0.16 * sq;
+        customLeftArm = {
+          rx: -0.18 - 1.38 * sq,
+          ry: -0.06,
+          rz: 0.08,
+          elRx: -0.22 - 0.14 * sq,
+          wrRx: -0.08
+        };
+        customRightArm = {
+          rx: -0.18 - 1.38 * sq,
+          ry: 0.06,
+          rz: -0.08,
+          elRx: -0.22 - 0.14 * sq,
+          wrRx: -0.08
+        };
+      } else if (npc.exercise === 'JUMPING_JACK_WARMUP') {
+        const jj = 0.5 - 0.5 * Math.cos(calisPhase * 1.6);
+        targetHeadPitch = -0.08 * jj;
+        customLeftArm = {
+          rx: -0.12 - 0.35 * jj,
+          ry: 0.0,
+          rz: 0.12 + 2.35 * jj,
+          elRx: -0.22 - 0.20 * jj,
+          wrRx: 0.0
+        };
+        customRightArm = {
+          rx: -0.12 - 0.35 * jj,
+          ry: 0.0,
+          rz: -0.12 - 2.35 * jj,
+          elRx: -0.22 - 0.20 * jj,
+          wrRx: 0.0
+        };
+      } else {
+        // CORE_TWIST_STRETCH: Dynamic Russian torso rotation & oblique reach
+        const tw = Math.sin(calisPhase * 1.15);
+        waistYaw = 0.42 * tw;
+        chestYaw = 0.36 * tw;
+        targetHeadYaw = 0.28 * tw;
+        customLeftArm = {
+          rx: -0.78 - 0.18 * tw,
+          ry: -0.22,
+          rz: 0.14,
+          elRx: -1.32,
+          wrRx: -0.06
+        };
+        customRightArm = {
+          rx: -0.78 + 0.18 * tw,
+          ry: 0.22,
+          rz: -0.14,
+          elRx: -1.32,
+          wrRx: -0.06
+        };
+      }
     } else if (npc.behavior === 'PLK_SECURITY_OFFICER') {
       const sal = npc.saluteBlend || 0.0;
       targetHeadYaw = 0.22 * Math.sin(t * 0.65 + idx) * (1.0 - sal);
@@ -5559,6 +7162,15 @@ export class DynamicTrafficAI {
         if (this.golfCart) {
           PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.255, this._cartOBBScratch);
         }
+        if (this.heliTaxi && this.heliTaxi.worldY < 3.2) {
+          PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.255, this._heliOBBScratch);
+        }
+        if (this.cessnaAircraft && this.cessnaAircraft.worldY < 3.5) {
+          PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.255, this._cessnaOBBScratch);
+        }
+        if (this.learjetAircraft && this.learjetAircraft.worldY < 3.5) {
+          PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.255, this._learjetOBBScratch);
+        }
 
         if (staticCols) {
           for (let k = 0; k < staticCols.length; k++) {
@@ -5610,6 +7222,15 @@ export class DynamicTrafficAI {
         }
         if (this.golfCart) {
           PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.155, this._cartOBBScratch);
+        }
+        if (this.heliTaxi && this.heliTaxi.worldY < 3.2) {
+          PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.155, this._heliOBBScratch);
+        }
+        if (this.cessnaAircraft && this.cessnaAircraft.worldY < 3.5) {
+          PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.155, this._cessnaOBBScratch);
+        }
+        if (this.learjetAircraft && this.learjetAircraft.worldY < 3.5) {
+          PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.155, this._learjetOBBScratch);
         }
 
         if (staticCols) {

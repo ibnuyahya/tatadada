@@ -52,13 +52,14 @@ export const CART_SEAT_SLOTS = [
   { id: 5, role: 'REAR_RIGHT', lx: -0.27, ly: 0.74, lz: -1.16, yawOffset: Math.PI, sideExit: -1.0 }
 ];
 
-// 5-Joint Articulated UI Inter-Island Electric Bus ("Bus Kuning Listrik Lintas Pulau UI" — 7.8m x 2.38m x 2.96m)
-export const BUS_JOINTS_PER_VEHICLE = 5;
+// 6-Joint Articulated UI Inter-Island Electric Bus ("Bus Kuning Listrik Lintas Pulau UI" — 7.8m x 2.38m x 2.96m)
+export const BUS_JOINTS_PER_VEHICLE = 6;
 export const BUS_J_CHASSIS = 0;
 export const BUS_J_WHEEL_FL = 1;
 export const BUS_J_WHEEL_FR = 2;
 export const BUS_J_WHEEL_RL = 3;
 export const BUS_J_WHEEL_RR = 4;
+export const BUS_J_STEER_WHEEL = 5;
 
 export const BUS_WHEEL_RADIUS = 0.42;
 export const BUS_WHEELBASE = 4.20;
@@ -69,7 +70,43 @@ export const BUS_BIND_PIVOTS = [
   [BUS_TRACK_HALF_W, BUS_WHEEL_RADIUS, 2.10],    // 1: BUS_J_WHEEL_FL (+X Left, +Z Front)
   [-BUS_TRACK_HALF_W, BUS_WHEEL_RADIUS, 2.10],   // 2: BUS_J_WHEEL_FR (-X Right, +Z Front)
   [BUS_TRACK_HALF_W, BUS_WHEEL_RADIUS, -2.10],   // 3: BUS_J_WHEEL_RL (+X Left, -Z Rear)
-  [-BUS_TRACK_HALF_W, BUS_WHEEL_RADIUS, -2.10]   // 4: BUS_J_WHEEL_RR (-X Right, -Z Rear)
+  [-BUS_TRACK_HALF_W, BUS_WHEEL_RADIUS, -2.10],  // 4: BUS_J_WHEEL_RR (-X Right, -Z Rear)
+  [-0.68, 1.48, 3.36]                            // 5: BUS_J_STEER_WHEEL (RHD Driver Steering Hub)
+];
+
+// 7-Joint Modern 2-Passenger Electric Helicopter Taxi ("Taxi Helicopter Listrik UI" — 2-Seat Multi-Rotor eVTOL)
+export const EVTOL_JOINTS_PER_VEHICLE = 7;
+export const EVTOL_J_FUSELAGE = 0;
+export const EVTOL_ROTOR_RING_R = 2.02;
+export const EVTOL_ROTOR_HUB_Y = 2.34;
+export const EVTOL_BIND_PIVOTS = [
+  [0.0, 0.0, 0.0],
+  [Math.cos(0.0) * EVTOL_ROTOR_RING_R, EVTOL_ROTOR_HUB_Y, Math.sin(0.0) * EVTOL_ROTOR_RING_R],
+  [Math.cos(Math.PI / 3) * EVTOL_ROTOR_RING_R, EVTOL_ROTOR_HUB_Y, Math.sin(Math.PI / 3) * EVTOL_ROTOR_RING_R],
+  [Math.cos((2 * Math.PI) / 3) * EVTOL_ROTOR_RING_R, EVTOL_ROTOR_HUB_Y, Math.sin((2 * Math.PI) / 3) * EVTOL_ROTOR_RING_R],
+  [Math.cos(Math.PI) * EVTOL_ROTOR_RING_R, EVTOL_ROTOR_HUB_Y, Math.sin(Math.PI) * EVTOL_ROTOR_RING_R],
+  [Math.cos((4 * Math.PI) / 3) * EVTOL_ROTOR_RING_R, EVTOL_ROTOR_HUB_Y, Math.sin((4 * Math.PI) / 3) * EVTOL_ROTOR_RING_R],
+  [Math.cos((5 * Math.PI) / 3) * EVTOL_ROTOR_RING_R, EVTOL_ROTOR_HUB_Y, Math.sin((5 * Math.PI) / 3) * EVTOL_ROTOR_RING_R]
+];
+
+// 2-Joint Cessna 172 Skyhawk Campus Shuttle Aircraft ("PK-UIA")
+export const CESSNA_JOINTS_PER_AIRCRAFT = 2;
+export const CESSNA_J_AIRFRAME = 0;
+export const CESSNA_J_PROP = 1;
+export const CESSNA_BIND_PIVOTS = [
+  [0.0, 0.0, 0.0],       // 0: Airframe (+Z Nose, +Y Up, +X Left Wing)
+  [0.0, 1.18, 2.58]      // 1: Spinning Propeller & Spinner Hub
+];
+
+// 3-Joint Citation Learjet Executive Campus Shuttle Jet ("PK-UIB")
+export const LEARJET_JOINTS_PER_AIRCRAFT = 3;
+export const LEARJET_J_AIRFRAME = 0;
+export const LEARJET_J_FAN_L = 1;
+export const LEARJET_J_FAN_R = 2;
+export const LEARJET_BIND_PIVOTS = [
+  [0.0, 0.0, 0.0],        // 0: Airframe (+Z Radome Nose, +Y Up, +X Left Wing)
+  [1.46, 1.94, -2.48],    // 1: Port Turbofan Spinning Intake Cone
+  [-1.46, 1.94, -2.48]    // 2: Starboard Turbofan Spinning Intake Cone
 ];
 
 class RigidJointBundleAccumulator {
@@ -327,6 +364,60 @@ export class CampusTransitAndMarineBuilder {
     oledScreen.rotateX(-0.38);
     oledScreen.translate(-0.27, 0.95, 0.88);
     acc.addGeo(oledScreen, [0.12, 0.38, 0.46], HUMAN_MAT.VEHICLE_HEADLIGHT, CART_J_CHASSIS, 1.0, 1.0);
+
+    // Center Dashboard Console: Recessed Twin Cupholders + UI Tumbler + F/N/R Drive Rocker & Key Switch
+    const cupConsole = new THREE.BoxGeometry(0.26, 0.06, 0.17);
+    cupConsole.translate(0.01, 0.93, 0.87);
+    acc.addGeo(cupConsole, [0.18, 0.19, 0.22], HUMAN_MAT.METAL_ACCENT, CART_J_CHASSIS, 0.92);
+
+    for (const cxOff of [-0.055, 0.065]) {
+      const cupRim = new THREE.TorusGeometry(0.038, 0.006, 6, 14);
+      cupRim.rotateX(Math.PI * 0.5);
+      cupRim.translate(0.01 + cxOff, 0.962, 0.87);
+      acc.addGeo(cupRim, chromeSteel, HUMAN_MAT.METAL_ACCENT, CART_J_CHASSIS, 0.95);
+    }
+    const tumbler = new THREE.CylinderGeometry(0.032, 0.027, 0.125, 10, 1);
+    tumbler.translate(0.075, 0.995, 0.87);
+    acc.addGeo(tumbler, uiYellow, HUMAN_MAT.VEHICLE_GLOSS, CART_J_CHASSIS, 0.98);
+
+    const fnrSwitch = new THREE.BoxGeometry(0.032, 0.038, 0.022);
+    fnrSwitch.translate(-0.145, 0.94, 0.84);
+    acc.addGeo(fnrSwitch, [0.86, 0.20, 0.16], HUMAN_MAT.VEHICLE_GLOSS, CART_J_CHASSIS, 0.96);
+
+    // Turn-Signal & Headlight Stalk on Steering Column
+    const signalStalk = new THREE.CylinderGeometry(0.007, 0.008, 0.13, 6, 1);
+    signalStalk.rotateZ(Math.PI * 0.5 - 0.18);
+    signalStalk.translate(-0.34, 0.985, 0.78);
+    acc.addGeo(signalStalk, chassisBlack, HUMAN_MAT.METAL_ACCENT, CART_J_CHASSIS, 0.92);
+
+    // Front & Rear Campus EV License Plates
+    for (const [pz, ry] of [[1.762, 0.0], [-1.762, Math.PI]]) {
+      const plate = new THREE.BoxGeometry(0.28, 0.085, 0.012);
+      plate.rotateY(ry);
+      plate.translate(0.0, 0.30, pz);
+      acc.addGeo(plate, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, CART_J_CHASSIS, 0.96);
+      const evBlueStrip = new THREE.BoxGeometry(0.282, 0.020, 0.014);
+      evBlueStrip.rotateY(ry);
+      evBlueStrip.translate(0.0, 0.268, pz);
+      acc.addGeo(evBlueStrip, [0.10, 0.38, 0.82], HUMAN_MAT.VEHICLE_GLOSS, CART_J_CHASSIS, 0.98);
+    }
+
+    // Windshield Pantograph Wiper Arm & Blade + Overhead Passenger Grab Handles
+    const wiperArm = new THREE.BoxGeometry(0.014, 0.36, 0.012);
+    wiperArm.rotateZ(-0.26);
+    wiperArm.rotateX(-0.20);
+    wiperArm.translate(-0.18, 1.56, 0.942);
+    acc.addGeo(wiperArm, chassisBlack, HUMAN_MAT.METAL_ACCENT, CART_J_CHASSIS, 0.94);
+
+    for (const sx of [-0.46, 0.46]) {
+      for (const gz of [0.35, -0.48]) {
+        const roofHandle = new THREE.TorusGeometry(0.055, 0.009, 6, 12, Math.PI);
+        roofHandle.rotateY(Math.PI * 0.5);
+        roofHandle.rotateX(Math.PI);
+        roofHandle.translate(sx, 1.83, gz);
+        acc.addGeo(roofHandle, chassisBlack, HUMAN_MAT.RUBBER_TIRE, CART_J_CHASSIS, 0.92);
+      }
+    }
 
     // Front Left Co-Rider Grab Bar on Dashboard
     const passGrab = new THREE.CylinderGeometry(0.015, 0.015, 0.30, 10, 1);
@@ -976,14 +1067,32 @@ export class CampusTransitAndMarineBuilder {
       acc.addGeo(bumper, chassisDark, HUMAN_MAT.RUBBER_TIRE, BUS_J_CHASSIS, 0.90);
     }
 
-    // 2. Main Iconic Bikun UI Alma Mater Yellow Lower Bodywork (y = 0.73m .. 1.56m) + Pearl-White Waistband
-    const lowerBody = new THREE.BoxGeometry(2.38, 0.84, 7.68);
-    lowerBody.translate(0.0, 1.14, 0.0);
-    acc.addGeo(lowerBody, bikunYellow, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 0.98);
+    // 2. Main Iconic Bikun UI Alma Mater Yellow Hollow Perimeter Bodywork (y = 0.72m .. 1.56m) + Pearl-White Waistband
+    //    (Hollow interior walls keep the driver cockpit floor, steering wheel, digital cluster, CCTV monitor, & seats 100% open in FPS_BUS_DRIVER!)
+    for (const sx of [-1.0, 1.0]) {
+      const sideWall = new THREE.BoxGeometry(0.11, 0.84, 7.68);
+      sideWall.translate(sx * 1.135, 1.14, 0.0);
+      acc.addGeo(sideWall, bikunYellow, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 0.98);
 
-    const waistStripe = new THREE.BoxGeometry(2.40, 0.11, 7.70);
-    waistStripe.translate(0.0, 1.52, 0.0);
-    acc.addGeo(waistStripe, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 1.0);
+      const sideWaist = new THREE.BoxGeometry(0.12, 0.11, 7.70);
+      sideWaist.translate(sx * 1.14, 1.52, 0.0);
+      acc.addGeo(sideWaist, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 1.0);
+    }
+    const rearWall = new THREE.BoxGeometry(2.38, 0.84, 0.14);
+    rearWall.translate(0.0, 1.14, -3.77);
+    acc.addGeo(rearWall, bikunYellow, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 0.98);
+
+    const rearWaist = new THREE.BoxGeometry(2.40, 0.11, 0.15);
+    rearWaist.translate(0.0, 1.52, -3.775);
+    acc.addGeo(rearWaist, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 1.0);
+
+    const frontNoseApron = new THREE.BoxGeometry(2.38, 0.76, 0.16);
+    frontNoseApron.translate(0.0, 1.10, 3.76);
+    acc.addGeo(frontNoseApron, bikunYellow, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 0.98);
+
+    const frontNoseWaist = new THREE.BoxGeometry(2.40, 0.10, 0.17);
+    frontNoseWaist.translate(0.0, 1.46, 3.765);
+    acc.addGeo(frontNoseWaist, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 1.0);
 
     // Flared Wheel Arch Fenders
     for (const sx of [-1.0, 1.0]) {
@@ -1018,7 +1127,157 @@ export class CampusTransitAndMarineBuilder {
         const seat = new THREE.BoxGeometry(0.74, 0.54, 0.46);
         seat.translate(sx, 1.14, rz);
         acc.addGeo(seat, seatBlue, HUMAN_MAT.SHOE_BAG, BUS_J_CHASSIS, 0.90);
+
+        const headrest = new THREE.BoxGeometry(0.56, 0.22, 0.10);
+        headrest.translate(sx, 1.49, rz - 0.16);
+        acc.addGeo(headrest, [0.12, 0.24, 0.44], HUMAN_MAT.SHOE_BAG, BUS_J_CHASSIS, 0.92);
       }
+    }
+
+    // Interior UI-Yellow Vertical Passenger Grab Stanchions & Overhead Handrails
+    for (const sz of [-2.40, -0.60, 1.20]) {
+      for (const sx of [-0.30, 0.30]) {
+        const stanchion = new THREE.CylinderGeometry(0.018, 0.018, 1.92, 8, 1);
+        stanchion.translate(sx, 1.80, sz);
+        acc.addGeo(stanchion, bikunYellow, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 0.95);
+      }
+    }
+    for (const sx of [-0.36, 0.36]) {
+      const overheadRail = new THREE.CylinderGeometry(0.016, 0.016, 5.40, 8, 1);
+      overheadRail.rotateX(Math.PI * 0.5);
+      overheadRail.translate(sx, 2.58, -0.35);
+      acc.addGeo(overheadRail, bikunYellow, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 0.96);
+    }
+
+    // =========================================================================
+    // 3B. SUPER-DETAILED RIGHT-HAND-DRIVE (RHD, -X) BUS KUNING DRIVER COCKPIT
+    // =========================================================================
+    // Contoured Air-Suspension RHD Driver Seat (-0.68, 1.18, 2.96) & Safety Partition Screen
+    const drvPedestal = new THREE.CylinderGeometry(0.14, 0.17, 0.32, 10, 1);
+    drvPedestal.translate(-0.68, 0.98, 2.96);
+    acc.addGeo(drvPedestal, chassisDark, HUMAN_MAT.METAL_ACCENT, BUS_J_CHASSIS, 0.86);
+
+    const drvCushion = new THREE.BoxGeometry(0.54, 0.12, 0.50);
+    drvCushion.translate(-0.68, 1.18, 2.98);
+    acc.addGeo(drvCushion, [0.15, 0.18, 0.24], HUMAN_MAT.SHOE_BAG, BUS_J_CHASSIS, 0.94);
+
+    const drvBack = new THREE.BoxGeometry(0.50, 0.62, 0.11);
+    drvBack.rotateX(-0.10);
+    drvBack.translate(-0.68, 1.54, 2.75);
+    acc.addGeo(drvBack, [0.15, 0.18, 0.24], HUMAN_MAT.SHOE_BAG, BUS_J_CHASSIS, 0.95);
+
+    const drvPartition = new THREE.BoxGeometry(0.86, 1.05, 0.04);
+    drvPartition.translate(-0.66, 1.42, 2.62);
+    acc.addGeo(drvPartition, chassisDark, HUMAN_MAT.METAL_ACCENT, BUS_J_CHASSIS, 0.90);
+
+    const drvPartGlass = new THREE.BoxGeometry(0.80, 0.72, 0.025);
+    drvPartGlass.translate(-0.66, 2.24, 2.62);
+    acc.addGeo(drvPartGlass, glassTint, HUMAN_MAT.VEHICLE_GLASS, BUS_J_CHASSIS, 0.98);
+
+    // Sculpted Uniformed Bikun Driver Torso, Shoulders, Arms, & Head (positioned at z = 2.92m so FPS camera at z = 3.16m is 100% unobstructed!)
+    const drvTorso = new THREE.CylinderGeometry(0.17, 0.15, 0.48, 10, 1);
+    drvTorso.scale(1.15, 1.0, 0.78);
+    drvTorso.translate(-0.68, 1.46, 2.93);
+    acc.addGeo(drvTorso, bikunYellow, HUMAN_MAT.SHOE_BAG, BUS_J_CHASSIS, 0.96);
+
+    const drvHead = new THREE.SphereGeometry(0.105, 12, 10);
+    drvHead.scale(0.92, 1.08, 0.98);
+    drvHead.translate(-0.68, 1.83, 2.92);
+    acc.addGeo(drvHead, [0.76, 0.56, 0.42], HUMAN_MAT.SHOE_BAG, BUS_J_CHASSIS, 0.98);
+
+    const drvCap = new THREE.CylinderGeometry(0.106, 0.110, 0.065, 12, 1);
+    drvCap.translate(-0.68, 1.90, 2.92);
+    acc.addGeo(drvCap, royalNavy, HUMAN_MAT.SHOE_BAG, BUS_J_CHASSIS, 0.98);
+
+    for (const armS of [-1, 1]) {
+      const drvArm = new THREE.CylinderGeometry(0.044, 0.038, 0.42, 8, 1);
+      drvArm.rotateX(1.22);
+      drvArm.rotateY(-armS * 0.22);
+      drvArm.translate(-0.68 + armS * 0.21, 1.50, 3.14);
+      acc.addGeo(drvArm, bikunYellow, HUMAN_MAT.SHOE_BAG, BUS_J_CHASSIS, 0.95);
+    }
+
+    // Wrap-Around Ergonomic Transit Dashboard, Digital Cluster, CCTV/GPS Screen, & TapCash Card Validator
+    const busDashMain = new THREE.BoxGeometry(2.16, 0.48, 0.42);
+    busDashMain.translate(0.0, 1.18, 3.58);
+    acc.addGeo(busDashMain, [0.14, 0.15, 0.18], HUMAN_MAT.RUBBER_TIRE, BUS_J_CHASSIS, 0.90);
+
+    const busDashHood = new THREE.BoxGeometry(0.62, 0.16, 0.28);
+    busDashHood.translate(-0.68, 1.45, 3.58);
+    acc.addGeo(busDashHood, chassisDark, HUMAN_MAT.RUBBER_TIRE, BUS_J_CHASSIS, 0.94);
+
+    // Glowing Digital Instrument Cluster & Center GPS/CCTV Monitor (metaZ = 1.0)
+    const busClusterScreen = new THREE.BoxGeometry(0.38, 0.12, 0.02);
+    busClusterScreen.rotateX(-0.28);
+    busClusterScreen.translate(-0.68, 1.44, 3.47);
+    acc.addGeo(busClusterScreen, [0.10, 0.42, 0.56], HUMAN_MAT.VEHICLE_HEADLIGHT, BUS_J_CHASSIS, 1.0, 1.0);
+
+    const busCctvMonitor = new THREE.BoxGeometry(0.24, 0.15, 0.025);
+    busCctvMonitor.rotateY(0.28);
+    busCctvMonitor.rotateX(-0.18);
+    busCctvMonitor.translate(-0.22, 1.50, 3.48);
+    acc.addGeo(busCctvMonitor, [0.14, 0.52, 0.44], HUMAN_MAT.VEHICLE_HEADLIGHT, BUS_J_CHASSIS, 1.0, 1.0);
+
+    // Curbside Front Boarding TapCash / UI SmartCard Fare Validator Terminal
+    const tapPole = new THREE.CylinderGeometry(0.022, 0.022, 1.18, 8, 1);
+    tapPole.translate(0.76, 1.32, 3.16);
+    acc.addGeo(tapPole, bikunYellow, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 0.95);
+
+    const tapBox = new THREE.BoxGeometry(0.14, 0.21, 0.08);
+    tapBox.rotateX(-0.35);
+    tapBox.translate(0.76, 1.54, 3.16);
+    acc.addGeo(tapBox, [0.12, 0.65, 0.85], HUMAN_MAT.VEHICLE_HEADLIGHT, BUS_J_CHASSIS, 1.0, 1.0);
+
+    // Angled Bus Steering Column + ARTICULATED JOINT #5: 4-Spoke Transit Steering Wheel (`BUS_J_STEER_WHEEL` at [-0.68, 1.48, 3.36])
+    const busSteerTilt = 0.44;
+    const busCol = new THREE.CylinderGeometry(0.036, 0.044, 0.52, 10, 1);
+    busCol.rotateX(busSteerTilt);
+    busCol.translate(-0.68, 1.25, 3.47);
+    acc.addGeo(busCol, chassisDark, HUMAN_MAT.METAL_ACCENT, BUS_J_CHASSIS, 0.90);
+
+    const busWheelRim = new THREE.TorusGeometry(0.225, 0.022, 10, 24);
+    busWheelRim.rotateX(Math.PI * 0.5 - busSteerTilt);
+    busWheelRim.translate(-0.68, 1.48, 3.36);
+    acc.addGeo(busWheelRim, rubberTire, HUMAN_MAT.RUBBER_TIRE, BUS_J_STEER_WHEEL, 0.97);
+
+    const busWheelHub = new THREE.CylinderGeometry(0.062, 0.068, 0.052, 14, 1);
+    busWheelHub.rotateX(busSteerTilt);
+    busWheelHub.translate(-0.68, 1.48, 3.36);
+    acc.addGeo(busWheelHub, chassisDark, HUMAN_MAT.METAL_ACCENT, BUS_J_STEER_WHEEL, 0.98);
+
+    const busHubCrest = new THREE.CylinderGeometry(0.036, 0.036, 0.056, 12, 1);
+    busHubCrest.rotateX(busSteerTilt);
+    busHubCrest.translate(-0.68, 1.483, 3.358);
+    acc.addGeo(busHubCrest, makaraGold, HUMAN_MAT.CREST_GOLD, BUS_J_STEER_WHEEL, 1.0, 0.0, [0.5, 0.5]);
+
+    for (let sp = 0; sp < 4; sp++) {
+      const spAng = (sp / 4) * Math.PI * 2.0 + Math.PI * 0.25;
+      const spoke = new THREE.BoxGeometry(0.20, 0.018, 0.028);
+      spoke.translate(0.10, 0.0, 0.0);
+      spoke.rotateZ(spAng);
+      spoke.rotateX(Math.PI * 0.5 - busSteerTilt);
+      spoke.translate(-0.68, 1.48, 3.36);
+      acc.addGeo(spoke, alloySilver, HUMAN_MAT.METAL_ACCENT, BUS_J_STEER_WHEEL, 0.95);
+    }
+
+    // Twin Pantograph Front Windshield Wipers (parked low & horizontal along lower windshield sill for unobstructed FPS view!), Emergency Roof Hatches, & EV Bus License Plates
+    for (const wxOff of [-0.48, 0.48]) {
+      const wiper = new THREE.BoxGeometry(0.022, 0.58, 0.018);
+      wiper.rotateZ(Math.PI * 0.5 - 0.08);
+      wiper.rotateX(-0.11);
+      wiper.translate(wxOff, 1.51, 3.84);
+      acc.addGeo(wiper, chassisDark, HUMAN_MAT.METAL_ACCENT, BUS_J_CHASSIS, 0.94);
+    }
+    for (const hz of [-2.65, 2.25]) {
+      const hatch = new THREE.BoxGeometry(0.68, 0.045, 0.68);
+      hatch.translate(0.0, 2.89, hz);
+      acc.addGeo(hatch, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 0.98);
+    }
+    for (const [pz, ry] of [[3.935, 0.0], [-3.935, Math.PI]]) {
+      const plate = new THREE.BoxGeometry(0.42, 0.12, 0.014);
+      plate.rotateY(ry);
+      plate.translate(0.0, 0.49, pz);
+      acc.addGeo(plate, bikunYellow, HUMAN_MAT.VEHICLE_GLOSS, BUS_J_CHASSIS, 0.96);
     }
 
     // Curbside (+X Left Side in Indonesian LHT) Full-Height Glazed Folding Passenger Doors
@@ -1311,6 +1570,806 @@ export class CampusTransitAndMarineBuilder {
     const portRed = new THREE.SphereGeometry(0.10, 8, 6);
     portRed.translate(1.82, 3.96, 2.45);
     acc.addGeo(portRed, [0.92, 0.16, 0.14], HUMAN_MAT.BOAT_LANTERN, 0, 1.0, 2.0);
+
+    return acc.toBundle();
+  }
+
+  /**
+   * Builds a Modern 2-Passenger Electric Helicopter Taxi ("Taxi Helicopter Listrik UI" — 2-Seat Multi-Rotor eVTOL):
+   * - 7 Articulated Joints: 0 = Carbon-Pearl Aerodynamic Cabin/Skids/Halo, 1..6 = 6 Counter-Rotating 3-Blade Electric Rotors
+   * - Panoramic Wrap-Around Tinted Canopy, 2 Contoured Bucket Seats (Strictly 2 Penumpang!), 2 Seated Occupants,
+   *   Central Touchscreen Flight Avionics Display, Sidestick, Composite Landing Skids, Swept Twin-Boom V-Tail,
+   *   UI Alma Mater Gold & Carbon Livery + Makara Medallions, and Aviation Navigation/Landing Lights!
+   */
+  static buildElectricHeliTaxiEVTOL() {
+    const acc = new RigidJointBundleAccumulator();
+
+    const pearlWhite = [0.95, 0.96, 0.98];
+    const uiGold = [0.94, 0.71, 0.10];
+    const royalNavy = [0.09, 0.20, 0.40];
+    const carbonDark = [0.11, 0.12, 0.14];
+    const titanium = [0.68, 0.72, 0.77];
+    const canopyGlass = [0.18, 0.28, 0.38];
+    const seatCream = [0.87, 0.83, 0.75];
+    const makaraGold = [0.92, 0.72, 0.16];
+
+    // 1. Tubular Titanium-Carbon Landing Skids (bottom strictly at y = 0.0m!) & Boarding Step Bars
+    for (const sx of [-0.88, 0.88]) {
+      const skid = new THREE.CylinderGeometry(0.036, 0.036, 2.86, 10, 1);
+      skid.rotateX(Math.PI * 0.5);
+      skid.translate(sx, 0.036, 0.06);
+      acc.addGeo(skid, carbonDark, HUMAN_MAT.METAL_ACCENT, EVTOL_J_FUSELAGE, 0.90);
+
+      const skiTip = new THREE.CylinderGeometry(0.024, 0.036, 0.34, 8, 1);
+      skiTip.rotateX(Math.PI * 0.5 - 0.48);
+      skiTip.translate(sx, 0.11, 1.62);
+      acc.addGeo(skiTip, uiGold, HUMAN_MAT.VEHICLE_GLOSS, EVTOL_J_FUSELAGE, 0.96);
+
+      // Front & Rear curved composite cross-arch shock struts
+      for (const sz of [-0.66, 0.74]) {
+        const strut = new THREE.CylinderGeometry(0.028, 0.032, 0.52, 8, 1);
+        strut.rotateZ(-Math.sign(sx) * 0.52);
+        strut.translate(sx * 0.82, 0.24, sz);
+        acc.addGeo(strut, carbonDark, HUMAN_MAT.METAL_ACCENT, EVTOL_J_FUSELAGE, 0.90);
+      }
+
+      const stepBar = new THREE.BoxGeometry(0.14, 0.025, 0.68);
+      stepBar.translate(sx * 0.90, 0.23, 0.18);
+      acc.addGeo(stepBar, titanium, HUMAN_MAT.METAL_ACCENT, EVTOL_J_FUSELAGE, 0.94);
+    }
+
+    // 2. Sculpted Aerodynamic Teardrop 2-Seat Cabin Pod (+Z Nose Forward, y = 0.38m .. 1.72m)
+    const bellyTub = new THREE.BoxGeometry(1.48, 0.36, 2.48);
+    bellyTub.translate(0.0, 0.54, 0.18);
+    acc.addGeo(bellyTub, carbonDark, HUMAN_MAT.VEHICLE_GLOSS, EVTOL_J_FUSELAGE, 0.92);
+
+    const lowerBody = new THREE.CylinderGeometry(0.76, 0.82, 2.52, 16, 1);
+    lowerBody.rotateX(Math.PI * 0.5);
+    lowerBody.scale(1.04, 0.62, 1.0);
+    lowerBody.translate(0.0, 0.84, 0.20);
+    acc.addGeo(lowerBody, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, EVTOL_J_FUSELAGE, 0.98);
+
+    const noseCone = new THREE.SphereGeometry(0.78, 16, 12);
+    noseCone.scale(0.96, 0.62, 1.15);
+    noseCone.translate(0.0, 0.80, 1.38);
+    acc.addGeo(noseCone, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, EVTOL_J_FUSELAGE, 1.0);
+
+    // UI Alma Mater Gold & Royal Navy Speed Cheatlines + Golden UI Makara Door/Nose Crests
+    const goldBelt = new THREE.BoxGeometry(1.66, 0.10, 2.35);
+    goldBelt.translate(0.0, 0.86, 0.22);
+    acc.addGeo(goldBelt, uiGold, HUMAN_MAT.VEHICLE_GLOSS, EVTOL_J_FUSELAGE, 1.0);
+
+    const navyTrim = new THREE.BoxGeometry(1.64, 0.05, 2.25);
+    navyTrim.translate(0.0, 0.78, 0.20);
+    acc.addGeo(navyTrim, royalNavy, HUMAN_MAT.VEHICLE_GLOSS, EVTOL_J_FUSELAGE, 0.98);
+
+    const noseSpotlight = new THREE.BoxGeometry(0.32, 0.08, 0.05);
+    noseSpotlight.translate(0.0, 0.66, 2.24);
+    acc.addGeo(noseSpotlight, [0.92, 0.96, 1.00], HUMAN_MAT.VEHICLE_HEADLIGHT, EVTOL_J_FUSELAGE, 1.0, 0.0);
+
+    for (const sx of [-1.0, 1.0]) {
+      const doorCrest = new THREE.CylinderGeometry(0.11, 0.11, 0.022, 14, 1);
+      doorCrest.rotateZ(Math.PI * 0.5);
+      doorCrest.translate(sx * 0.835, 0.86, 0.25);
+      acc.addGeo(doorCrest, makaraGold, HUMAN_MAT.CREST_GOLD, EVTOL_J_FUSELAGE, 1.0, 0.0, [0.5, 0.5]);
+    }
+
+    // 3. Super-Detailed 2-Passenger Cockpit Interior (2 Bucket Seats, Flight Glass Display, & 2 Occupants!)
+    const cabinFloor = new THREE.BoxGeometry(1.36, 0.06, 1.95);
+    cabinFloor.translate(0.0, 0.56, 0.28);
+    acc.addGeo(cabinFloor, [0.18, 0.19, 0.22], HUMAN_MAT.RUBBER_TIRE, EVTOL_J_FUSELAGE, 0.88);
+
+    // Central Flight Avionics Glass Touchscreen Console & Sidestick
+    const centerPedestal = new THREE.BoxGeometry(0.24, 0.34, 0.55);
+    centerPedestal.translate(0.0, 0.76, 0.76);
+    acc.addGeo(centerPedestal, carbonDark, HUMAN_MAT.METAL_ACCENT, EVTOL_J_FUSELAGE, 0.92);
+
+    const flightScreen = new THREE.BoxGeometry(0.38, 0.21, 0.025);
+    flightScreen.rotateX(-0.36);
+    flightScreen.translate(0.0, 1.02, 0.94);
+    acc.addGeo(flightScreen, [0.10, 0.56, 0.74], HUMAN_MAT.VEHICLE_HEADLIGHT, EVTOL_J_FUSELAGE, 1.0, 1.0);
+
+    for (const [seatIdx, sx] of [[0, 0.37], [1, -0.37]]) {
+      const seatBase = new THREE.BoxGeometry(0.46, 0.10, 0.46);
+      seatBase.translate(sx, 0.66, 0.12);
+      acc.addGeo(seatBase, seatCream, HUMAN_MAT.SHOE_BAG, EVTOL_J_FUSELAGE, 0.95);
+
+      const seatBack = new THREE.BoxGeometry(0.44, 0.58, 0.09);
+      seatBack.rotateX(-0.14);
+      seatBack.translate(sx, 0.98, -0.10);
+      acc.addGeo(seatBack, seatCream, HUMAN_MAT.SHOE_BAG, EVTOL_J_FUSELAGE, 0.96);
+
+      // Seated Pilot (+0.37) & Campus Passenger (-0.37) inside the 2-Seat eVTOL!
+      const occJacket = seatIdx === 0 ? royalNavy : uiGold;
+      const occTorso = new THREE.CylinderGeometry(0.14, 0.13, 0.44, 10, 1);
+      occTorso.scale(1.12, 1.0, 0.78);
+      occTorso.translate(sx, 0.94, 0.06);
+      acc.addGeo(occTorso, occJacket, HUMAN_MAT.SHOE_BAG, EVTOL_J_FUSELAGE, 0.96);
+
+      const occHead = new THREE.SphereGeometry(0.096, 10, 8);
+      occHead.translate(sx, 1.28, 0.04);
+      acc.addGeo(occHead, [0.76, 0.56, 0.42], HUMAN_MAT.SHOE_BAG, EVTOL_J_FUSELAGE, 0.98);
+    }
+
+    // Panoramic Bubble Canopy Glass & Sleek Carbon Gullwing Frames
+    const canopyDome = new THREE.SphereGeometry(0.76, 18, 12);
+    canopyDome.scale(0.98, 0.76, 1.55);
+    canopyDome.translate(0.0, 1.18, 0.36);
+    acc.addGeo(canopyDome, canopyGlass, HUMAN_MAT.VEHICLE_GLASS, EVTOL_J_FUSELAGE, 1.0);
+
+    const roofSpine = new THREE.BoxGeometry(0.36, 0.14, 1.65);
+    roofSpine.translate(0.0, 1.72, -0.12);
+    acc.addGeo(roofSpine, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, EVTOL_J_FUSELAGE, 1.0);
+
+    // 4. Twin Swept Carbon Tail Booms, Canted V-Tail Stabilizers, & Aviation Strobes
+    for (const sx of [-0.54, 0.54]) {
+      const boom = new THREE.CylinderGeometry(0.048, 0.072, 1.85, 8, 1);
+      boom.rotateX(Math.PI * 0.5 + 0.08);
+      boom.translate(sx, 1.06, -1.78);
+      acc.addGeo(boom, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, EVTOL_J_FUSELAGE, 0.98);
+
+      const vFin = new THREE.BoxGeometry(0.06, 0.82, 0.46);
+      vFin.rotateX(-0.24);
+      vFin.rotateZ(-Math.sign(sx) * 0.26);
+      vFin.translate(sx * 1.18, 1.46, -2.56);
+      acc.addGeo(vFin, uiGold, HUMAN_MAT.VEHICLE_GLOSS, EVTOL_J_FUSELAGE, 1.0);
+    }
+    const hTail = new THREE.BoxGeometry(1.36, 0.055, 0.36);
+    hTail.translate(0.0, 1.14, -2.58);
+    acc.addGeo(hTail, carbonDark, HUMAN_MAT.VEHICLE_GLOSS, EVTOL_J_FUSELAGE, 0.96);
+
+    const tailBeacon = new THREE.SphereGeometry(0.055, 8, 6);
+    tailBeacon.translate(0.0, 1.22, -2.74);
+    acc.addGeo(tailBeacon, [0.98, 0.96, 0.90], HUMAN_MAT.BOAT_LANTERN, EVTOL_J_FUSELAGE, 1.0, 3.0);
+
+    // 5. Overhead Multi-Rotor Structural Carbon Halo Ring, Twin Pylon Struts, & 6 Motor Nacelles
+    for (const sx of [-0.28, 0.28]) {
+      for (const sz of [-0.46, 0.16]) {
+        const mast = new THREE.CylinderGeometry(0.036, 0.044, 0.58, 8, 1);
+        mast.rotateZ(-sx * 0.35);
+        mast.translate(sx * 1.2, 1.98, sz);
+        acc.addGeo(mast, carbonDark, HUMAN_MAT.METAL_ACCENT, EVTOL_J_FUSELAGE, 0.95);
+      }
+    }
+
+    const haloRing = new THREE.TorusGeometry(EVTOL_ROTOR_RING_R, 0.042, 8, 36);
+    haloRing.rotateX(Math.PI * 0.5);
+    haloRing.translate(0.0, 2.24, 0.0);
+    acc.addGeo(haloRing, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, EVTOL_J_FUSELAGE, 1.0);
+
+    // Port (+X) Red & Starboard (-X) Green Halo Aviation Navigation Lights
+    const portNav = new THREE.SphereGeometry(0.06, 8, 6);
+    portNav.translate(EVTOL_ROTOR_RING_R + 0.03, 2.24, 0.0);
+    acc.addGeo(portNav, [0.95, 0.16, 0.14], HUMAN_MAT.BOAT_LANTERN, EVTOL_J_FUSELAGE, 1.0, 2.0);
+
+    const stbdNav = new THREE.SphereGeometry(0.06, 8, 6);
+    stbdNav.translate(-(EVTOL_ROTOR_RING_R + 0.03), 2.24, 0.0);
+    acc.addGeo(stbdNav, [0.16, 0.92, 0.36], HUMAN_MAT.BOAT_LANTERN, EVTOL_J_FUSELAGE, 1.0, 1.0);
+
+    // 6 Radial Support Arms, Brushless Electric Motor Pods, & 6 ARTICULATED 3-BLADE CARBON ROTORS (JOINTS 1..6)
+    for (let rIdx = 0; rIdx < 6; rIdx++) {
+      const jointId = rIdx + 1;
+      const [hx, hy, hz] = EVTOL_BIND_PIVOTS[jointId];
+      const ang = (rIdx / 6) * Math.PI * 2.0;
+
+      const arm = new THREE.CylinderGeometry(0.028, 0.034, EVTOL_ROTOR_RING_R, 8, 1);
+      arm.rotateZ(Math.PI * 0.5);
+      arm.rotateY(-ang);
+      arm.translate(hx * 0.5, 2.24, hz * 0.5);
+      acc.addGeo(arm, carbonDark, HUMAN_MAT.METAL_ACCENT, EVTOL_J_FUSELAGE, 0.96);
+
+      const motorPod = new THREE.CylinderGeometry(0.095, 0.085, 0.16, 12, 1);
+      motorPod.translate(hx, 2.25, hz);
+      acc.addGeo(motorPod, uiGold, HUMAN_MAT.VEHICLE_GLOSS, EVTOL_J_FUSELAGE, 1.0);
+
+      // Articulated Spinning Rotor Spinner + 3 Whisper-Tip Carbon Rotor Blades (`jointId = 1..6`)
+      const spinner = new THREE.ConeGeometry(0.072, 0.09, 10, 1);
+      spinner.translate(hx, hy + 0.03, hz);
+      acc.addGeo(spinner, titanium, HUMAN_MAT.METAL_ACCENT, jointId, 1.0);
+
+      for (let b = 0; b < 3; b++) {
+        const bAng = (b / 3) * Math.PI * 2.0;
+        const blade = new THREE.BoxGeometry(0.84, 0.012, 0.082);
+        blade.translate(0.44, 0.0, 0.0);
+        blade.rotateY(bAng);
+        blade.translate(hx, hy, hz);
+        acc.addGeo(blade, carbonDark, HUMAN_MAT.METAL_ACCENT, jointId, 0.98);
+
+        const bladeTip = new THREE.BoxGeometry(0.11, 0.014, 0.078);
+        bladeTip.translate(0.82, 0.0, 0.0);
+        bladeTip.rotateY(bAng);
+        bladeTip.translate(hx, hy, hz);
+        acc.addGeo(bladeTip, uiGold, HUMAN_MAT.VEHICLE_GLOSS, jointId, 1.0);
+      }
+    }
+
+    return acc.toBundle();
+  }
+
+  /**
+   * Builds a Super-Detailed High-Wing Strut-Braced Cessna 172 Skyhawk Campus Shuttle Aircraft ("PK-UIA"):
+   * - 2 Articulated Joints: 0 = Airframe/Cockpit/Gear, 1 = Spinning 2-Blade McCauley Propeller ([0, 1.18, 2.58])
+   * - Aviation Pearl-White Livery with UI Alma Mater Gold & Royal Navy Cheatlines + Makara Tailfin Crest
+   * - Cambered 11.0m High Wing with N-Struts, Flap/Aileron Ribs, Tricycle Spring-Steel Gear + Wheel Spats
+   * - Full 2-Seat Flight Cockpit for FPS Pilot View: Glareshield, Garmin G1000 Dual Glass Avionics (PFD/MFD),
+   *   Throttle Quadrant, Twin Control Yokes, Seated Co-Pilot (-X) & Captain (+X, unobstructed eye at [+0.27, 1.50, +0.36])!
+   */
+  static buildCessna172Aircraft() {
+    const acc = new RigidJointBundleAccumulator();
+
+    const aviationWhite = [0.95, 0.96, 0.98];
+    const uiGold = [0.93, 0.70, 0.10];
+    const royalNavy = [0.09, 0.20, 0.42];
+    const darkMetal = [0.12, 0.13, 0.16];
+    const rubberTire = [0.085, 0.088, 0.095];
+    const chrome = [0.84, 0.87, 0.91];
+    const glassTint = [0.20, 0.31, 0.42];
+    const seatTan = [0.76, 0.68, 0.56];
+    const makaraGold = [0.92, 0.72, 0.16];
+
+    // 1. Tricycle Landing Gear + Aerodynamic Wheel Fairings ("Wheel Pants", bottom strictly at y = 0.0m!)
+    // Nose Gear (z = +1.84m)
+    const noseStrut = new THREE.CylinderGeometry(0.032, 0.028, 0.56, 8, 1);
+    noseStrut.rotateX(-0.14);
+    noseStrut.translate(0.0, 0.44, 1.80);
+    acc.addGeo(noseStrut, chrome, HUMAN_MAT.METAL_ACCENT, CESSNA_J_AIRFRAME, 0.94);
+
+    const noseTire = new THREE.CylinderGeometry(0.18, 0.18, 0.11, 16, 1);
+    noseTire.rotateZ(Math.PI * 0.5);
+    noseTire.translate(0.0, 0.18, 1.84);
+    acc.addGeo(noseTire, rubberTire, HUMAN_MAT.RUBBER_TIRE, CESSNA_J_AIRFRAME, 0.90);
+
+    const nosePant = new THREE.SphereGeometry(0.18, 12, 10);
+    nosePant.scale(0.55, 0.72, 1.85);
+    nosePant.translate(0.0, 0.23, 1.82);
+    acc.addGeo(nosePant, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 0.98);
+
+    // Main Spring-Steel Landing Gear Legs & Wheel Pants (x = +-1.28m, z = -0.16m)
+    for (const sx of [-1.0, 1.0]) {
+      const gearLeg = new THREE.BoxGeometry(0.86, 0.055, 0.12);
+      gearLeg.rotateZ(-sx * 0.46);
+      gearLeg.translate(sx * 0.86, 0.48, -0.16);
+      acc.addGeo(gearLeg, aviationWhite, HUMAN_MAT.METAL_ACCENT, CESSNA_J_AIRFRAME, 0.94);
+
+      const mainTire = new THREE.CylinderGeometry(0.20, 0.20, 0.13, 16, 1);
+      mainTire.rotateZ(Math.PI * 0.5);
+      mainTire.translate(sx * 1.28, 0.20, -0.16);
+      acc.addGeo(mainTire, rubberTire, HUMAN_MAT.RUBBER_TIRE, CESSNA_J_AIRFRAME, 0.90);
+
+      const mainPant = new THREE.SphereGeometry(0.20, 12, 10);
+      mainPant.scale(0.56, 0.74, 1.92);
+      mainPant.translate(sx * 1.28, 0.25, -0.18);
+      acc.addGeo(mainPant, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 0.98);
+
+      const pantStripe = new THREE.BoxGeometry(0.24, 0.04, 0.54);
+      pantStripe.translate(sx * 1.28, 0.26, -0.18);
+      acc.addGeo(pantStripe, uiGold, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 1.0);
+    }
+
+    // 2. Sculpted Sloped Engine Cowling (flush below 1.41m glareshield for authentic panoramic FPS pilot sightline!), Cabin Fuselage, Tapered Tailcone, & Empennage (+Z Nose, -Z Tail)
+    const cowling = new THREE.CylinderGeometry(0.46, 0.56, 1.26, 16, 1);
+    cowling.rotateX(Math.PI * 0.5);
+    cowling.scale(1.06, 0.62, 1.0);
+    cowling.translate(0.0, 1.04, 1.88);
+    acc.addGeo(cowling, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 1.0);
+
+    // Twin Lycoming Engine Cooling Intakes & Stainless Exhaust Pipes
+    for (const sx of [-0.22, 0.22]) {
+      const intake = new THREE.BoxGeometry(0.16, 0.11, 0.08);
+      intake.translate(sx, 1.08, 2.49);
+      acc.addGeo(intake, darkMetal, HUMAN_MAT.RUBBER_TIRE, CESSNA_J_AIRFRAME, 0.82);
+
+      const exhaust = new THREE.CylinderGeometry(0.026, 0.026, 0.26, 8, 1);
+      exhaust.rotateX(0.42);
+      exhaust.translate(sx * 0.8, 0.66, 1.72);
+      acc.addGeo(exhaust, chrome, HUMAN_MAT.METAL_ACCENT, CESSNA_J_AIRFRAME, 0.90);
+    }
+
+    // Hollow Lower Cabin Belly Floor, Side Fuselage Walls, & Side Cheatlines (100% open interior for Garmin G1000 & Yoke in FPS_PILOT!)
+    const cabinFloor = new THREE.BoxGeometry(1.18, 0.14, 2.38);
+    cabinFloor.translate(0.0, 0.73, 0.12);
+    acc.addGeo(cabinFloor, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 0.96);
+
+    const cabinAftBulkhead = new THREE.BoxGeometry(1.16, 0.72, 0.12);
+    cabinAftBulkhead.translate(0.0, 1.02, -1.01);
+    acc.addGeo(cabinAftBulkhead, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 0.96);
+
+    for (const sx of [-1.0, 1.0]) {
+      const cabinSideWall = new THREE.BoxGeometry(0.07, 0.72, 2.38);
+      cabinSideWall.translate(sx * 0.555, 1.02, 0.12);
+      acc.addGeo(cabinSideWall, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 0.98);
+
+      const goldCheatSide = new THREE.BoxGeometry(0.04, 0.09, 5.45);
+      goldCheatSide.rotateX(0.035);
+      goldCheatSide.translate(sx * 0.588, 1.18, -0.82);
+      acc.addGeo(goldCheatSide, uiGold, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 1.0);
+
+      const navyCheatSide = new THREE.BoxGeometry(0.038, 0.055, 5.35);
+      navyCheatSide.rotateX(0.035);
+      navyCheatSide.translate(sx * 0.586, 1.09, -0.85);
+      acc.addGeo(navyCheatSide, royalNavy, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 0.98);
+    }
+
+    // Tapered Aft Tailcone (z = -1.05m .. -4.20m)
+    const tailCone = new THREE.CylinderGeometry(0.54, 0.18, 3.25, 14, 1);
+    tailCone.rotateX(-Math.PI * 0.5 + 0.04);
+    tailCone.scale(1.04, 1.08, 1.0);
+    tailCone.translate(0.0, 1.24, -2.62);
+    acc.addGeo(tailCone, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 0.98);
+
+    // Swept Dorsal Fin, Vertical Stabilizer, Rudder, Golden UI Makara Crest, & Horizontal Tailplane
+    const dorsalFillet = new THREE.BoxGeometry(0.08, 0.34, 1.35);
+    dorsalFillet.rotateX(-0.24);
+    dorsalFillet.translate(0.0, 1.56, -2.95);
+    acc.addGeo(dorsalFillet, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 0.98);
+
+    const vStab = new THREE.BoxGeometry(0.10, 1.36, 0.96);
+    vStab.rotateX(-0.34);
+    vStab.translate(0.0, 2.02, -3.86);
+    acc.addGeo(vStab, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 1.0);
+
+    const tailBand = new THREE.BoxGeometry(0.11, 0.24, 0.88);
+    tailBand.rotateX(-0.34);
+    tailBand.translate(0.0, 2.34, -3.96);
+    acc.addGeo(tailBand, uiGold, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 1.0);
+
+    for (const sx of [-1.0, 1.0]) {
+      const tailCrest = new THREE.CylinderGeometry(0.14, 0.14, 0.02, 14, 1);
+      tailCrest.rotateZ(Math.PI * 0.5);
+      tailCrest.translate(sx * 0.058, 2.02, -3.84);
+      acc.addGeo(tailCrest, makaraGold, HUMAN_MAT.CREST_GOLD, CESSNA_J_AIRFRAME, 1.0, 0.0, [0.5, 0.5]);
+    }
+
+    const tailBeacon = new THREE.SphereGeometry(0.055, 8, 6);
+    tailBeacon.translate(0.0, 2.74, -4.12);
+    acc.addGeo(tailBeacon, [0.96, 0.14, 0.12], HUMAN_MAT.BOAT_LANTERN, CESSNA_J_AIRFRAME, 1.0, 2.0);
+
+    const hStab = new THREE.BoxGeometry(3.44, 0.075, 0.78);
+    hStab.translate(0.0, 1.32, -3.92);
+    acc.addGeo(hStab, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 1.0);
+
+    // 3. Super-Detailed 2-Seat Garmin G1000 Flight Cockpit (Captain on Left +X = +0.27m, Co-Pilot on Right -X = -0.27m!)
+    const glareshield = new THREE.BoxGeometry(1.12, 0.05, 0.28);
+    glareshield.translate(0.0, 1.36, 1.06);
+    acc.addGeo(glareshield, darkMetal, HUMAN_MAT.RUBBER_TIRE, CESSNA_J_AIRFRAME, 0.94);
+
+    const instrumentPanel = new THREE.BoxGeometry(1.10, 0.34, 0.08);
+    instrumentPanel.translate(0.0, 1.22, 0.92);
+    acc.addGeo(instrumentPanel, [0.16, 0.18, 0.21], HUMAN_MAT.METAL_ACCENT, CESSNA_J_AIRFRAME, 0.94);
+
+    // Garmin G1000 Dual PFD (+0.27m) & MFD (-0.02m) Glowing Flight Displays + Throttle Quadrant
+    const g1000Pfd = new THREE.BoxGeometry(0.28, 0.19, 0.02);
+    g1000Pfd.translate(0.27, 1.25, 0.875);
+    acc.addGeo(g1000Pfd, [0.12, 0.56, 0.86], HUMAN_MAT.VEHICLE_HEADLIGHT, CESSNA_J_AIRFRAME, 1.0, 1.0);
+
+    const g1000Mfd = new THREE.BoxGeometry(0.28, 0.19, 0.02);
+    g1000Mfd.translate(-0.04, 1.25, 0.875);
+    acc.addGeo(g1000Mfd, [0.12, 0.64, 0.52], HUMAN_MAT.VEHICLE_HEADLIGHT, CESSNA_J_AIRFRAME, 1.0, 1.0);
+
+    const throttleKnob = new THREE.CylinderGeometry(0.018, 0.018, 0.12, 8, 1);
+    throttleKnob.rotateX(Math.PI * 0.5);
+    throttleKnob.translate(0.0, 1.08, 0.84);
+    acc.addGeo(throttleKnob, darkMetal, HUMAN_MAT.RUBBER_TIRE, CESSNA_J_AIRFRAME, 0.92);
+
+    // Twin Sculpted Ram's-Horn Control Yokes & Contoured Leather Pilot/Co-Pilot Seats
+    for (const [pIdx, sx] of [[0, 0.27], [1, -0.27]]) {
+      const yokeShaft = new THREE.CylinderGeometry(0.015, 0.015, 0.18, 8, 1);
+      yokeShaft.rotateX(Math.PI * 0.5);
+      yokeShaft.translate(sx, 1.18, 0.80);
+      acc.addGeo(yokeShaft, chrome, HUMAN_MAT.METAL_ACCENT, CESSNA_J_AIRFRAME, 0.95);
+
+      const yokeBar = new THREE.BoxGeometry(0.22, 0.028, 0.026);
+      yokeBar.translate(sx, 1.18, 0.71);
+      acc.addGeo(yokeBar, darkMetal, HUMAN_MAT.RUBBER_TIRE, CESSNA_J_AIRFRAME, 0.96);
+
+      for (const hx of [-0.095, 0.095]) {
+        const horn = new THREE.BoxGeometry(0.028, 0.095, 0.028);
+        horn.translate(sx + hx, 1.21, 0.71);
+        acc.addGeo(horn, darkMetal, HUMAN_MAT.RUBBER_TIRE, CESSNA_J_AIRFRAME, 0.96);
+      }
+
+      const seatCush = new THREE.BoxGeometry(0.44, 0.10, 0.44);
+      seatCush.translate(sx, 0.84, 0.18);
+      acc.addGeo(seatCush, seatTan, HUMAN_MAT.SHOE_BAG, CESSNA_J_AIRFRAME, 0.94);
+
+      const seatBack = new THREE.BoxGeometry(0.42, 0.56, 0.09);
+      seatBack.rotateX(-0.12);
+      seatBack.translate(sx, 1.16, -0.02);
+      acc.addGeo(seatBack, seatTan, HUMAN_MAT.SHOE_BAG, CESSNA_J_AIRFRAME, 0.95);
+
+      // Seated Captain (+0.27, head at z = +0.12 so FPS eye at z = +0.36 is 100% clear!) & Co-Pilot (-0.27)
+      const pilotShirt = pIdx === 0 ? aviationWhite : uiGold;
+      const pTorso = new THREE.CylinderGeometry(0.14, 0.13, 0.44, 10, 1);
+      pTorso.scale(1.12, 1.0, 0.76);
+      pTorso.translate(sx, 1.14, 0.13);
+      acc.addGeo(pTorso, pilotShirt, HUMAN_MAT.SHOE_BAG, CESSNA_J_AIRFRAME, 0.96);
+
+      const pHead = new THREE.SphereGeometry(0.095, 10, 8);
+      pHead.translate(sx, 1.48, 0.12);
+      acc.addGeo(pHead, [0.76, 0.56, 0.42], HUMAN_MAT.SHOE_BAG, CESSNA_J_AIRFRAME, 0.98);
+    }
+
+    // Slim Cockpit A-Pillars, Side Windows, & Swept Panoramic Windscreen
+    for (const sx of [-0.56, 0.56]) {
+      const aPillar = new THREE.CylinderGeometry(0.022, 0.024, 0.68, 8, 1);
+      aPillar.rotateX(0.58);
+      aPillar.translate(sx, 1.66, 0.96);
+      acc.addGeo(aPillar, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 0.98);
+
+      const bPillar = new THREE.BoxGeometry(0.05, 0.62, 0.08);
+      bPillar.translate(sx, 1.66, -0.18);
+      acc.addGeo(bPillar, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 0.98);
+
+      const sideWin = new THREE.BoxGeometry(0.025, 0.54, 1.85);
+      sideWin.translate(sx * 1.01, 1.65, 0.02);
+      acc.addGeo(sideWin, glassTint, HUMAN_MAT.VEHICLE_GLASS, CESSNA_J_AIRFRAME, 1.0);
+    }
+    const windscreen = new THREE.BoxGeometry(1.10, 0.66, 0.03);
+    windscreen.rotateX(0.60);
+    windscreen.translate(0.0, 1.66, 0.98);
+    acc.addGeo(windscreen, glassTint, HUMAN_MAT.VEHICLE_GLASS, CESSNA_J_AIRFRAME, 1.0);
+
+    // 4. High Cambered 11.0m Wing, Twin Diagonal Struts, Nav/Strobe Lights, & LED Landing Light
+    const wingCenter = new THREE.BoxGeometry(1.24, 0.13, 1.54);
+    wingCenter.translate(0.0, 1.98, 0.08);
+    acc.addGeo(wingCenter, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 1.0);
+
+    for (const sx of [-1.0, 1.0]) {
+      const wingPanel = new THREE.BoxGeometry(4.92, 0.12, 1.48);
+      wingPanel.rotateZ(sx * 0.028); // Authentic 1.6-deg high-wing dihedral
+      wingPanel.translate(sx * 3.04, 2.05, 0.08);
+      acc.addGeo(wingPanel, aviationWhite, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 1.0);
+
+      const wingTipStripe = new THREE.BoxGeometry(0.45, 0.125, 1.49);
+      wingTipStripe.translate(sx * 5.26, 2.11, 0.08);
+      acc.addGeo(wingTipStripe, uiGold, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_AIRFRAME, 1.0);
+
+      // Diagonal Wing Lift Strut from lower fuselage sill to mid-wing
+      const strut = new THREE.CylinderGeometry(0.032, 0.032, 2.52, 8, 1);
+      strut.rotateZ(-sx * 1.12);
+      strut.translate(sx * 1.68, 1.42, 0.24);
+      acc.addGeo(strut, aviationWhite, HUMAN_MAT.METAL_ACCENT, CESSNA_J_AIRFRAME, 0.96);
+
+      // Port (+X) Red & Starboard (-X) Green Wingtip Navigation Lights
+      const navLight = new THREE.SphereGeometry(0.055, 8, 6);
+      navLight.translate(sx * 5.52, 2.12, 0.42);
+      acc.addGeo(
+        navLight,
+        sx > 0 ? [0.95, 0.16, 0.14] : [0.16, 0.92, 0.36],
+        HUMAN_MAT.BOAT_LANTERN,
+        CESSNA_J_AIRFRAME,
+        1.0,
+        sx > 0 ? 2.0 : 1.0
+      );
+    }
+
+    const wingLandingLight = new THREE.BoxGeometry(0.28, 0.07, 0.04);
+    wingLandingLight.translate(2.35, 2.03, 0.83);
+    acc.addGeo(wingLandingLight, [0.95, 0.98, 1.00], HUMAN_MAT.VEHICLE_HEADLIGHT, CESSNA_J_AIRFRAME, 1.0, 0.0);
+
+    // 5. ARTICULATED JOINT #1: Conical Propeller Spinner & 2-Blade Airfoil Propeller (`CESSNA_J_PROP` at [0, 1.18, 2.58])
+    const [px, py, pz] = CESSNA_BIND_PIVOTS[CESSNA_J_PROP];
+    const propSpinner = new THREE.ConeGeometry(0.16, 0.28, 14, 1);
+    propSpinner.rotateX(Math.PI * 0.5);
+    propSpinner.translate(px, py, pz + 0.06);
+    acc.addGeo(propSpinner, chrome, HUMAN_MAT.METAL_ACCENT, CESSNA_J_PROP, 1.0);
+
+    for (const sBlade of [-1.0, 1.0]) {
+      const blade = new THREE.BoxGeometry(0.11, 0.92, 0.022);
+      blade.rotateY(0.22 * sBlade);
+      blade.translate(px, py + sBlade * 0.48, pz);
+      acc.addGeo(blade, darkMetal, HUMAN_MAT.METAL_ACCENT, CESSNA_J_PROP, 0.98);
+
+      const bladeTip = new THREE.BoxGeometry(0.105, 0.11, 0.024);
+      bladeTip.rotateY(0.22 * sBlade);
+      bladeTip.translate(px, py + sBlade * 0.89, pz);
+      acc.addGeo(bladeTip, uiGold, HUMAN_MAT.VEHICLE_GLOSS, CESSNA_J_PROP, 1.0);
+    }
+
+    return acc.toBundle();
+  }
+
+  /**
+   * Builds a Super-Detailed Swept-Wing T-Tail Citation Learjet Executive Shuttle Jet ("PK-UIB"):
+   * - 3 Articulated Joints: 0 = Airframe/Cockpit/Gear, 1 & 2 = Twin Rear Turbofan Spinning Intake Fan Cones
+   * - 14.6m Pressurized Executive Fuselage in Pearl-White, Titanium Belly, & UI Gold/Navy Executive Cheatlines
+   * - Low Swept Supercritical Wing (13.8m span) with Iconic Upturned Canted Winglets, Swept T-Tail,
+   *   Trailing-Link Landing Gear, 10 Illuminated Oval Executive Cabin Windows, & Golden UI Makara Tail Crest
+   * - Full 2-Pilot Jet Flight Deck for FPS Pilot View: Glareshield, 3-Screen Pro Line Glass Avionics Suite,
+   *   Center Thrust Pedestal, Dual Jet Control Yokes, First Officer (-X) & Captain (+X, eye at [+0.32, 1.78, +3.86])!
+   */
+  static buildCitationLearjetAircraft() {
+    const acc = new RigidJointBundleAccumulator();
+
+    const pearlWhite = [0.96, 0.97, 0.99];
+    const titaniumBelly = [0.72, 0.75, 0.80];
+    const uiGold = [0.93, 0.70, 0.10];
+    const royalNavy = [0.08, 0.19, 0.40];
+    const darkCarbon = [0.12, 0.13, 0.16];
+    const rubberTire = [0.085, 0.088, 0.095];
+    const chrome = [0.85, 0.88, 0.92];
+    const glassTint = [0.18, 0.28, 0.38];
+    const leatherCream = [0.85, 0.81, 0.73];
+    const makaraGold = [0.92, 0.72, 0.16];
+
+    // 1. Twin-Wheel Nose Gear & Trailing-Link Main Landing Gear (bottom strictly at y = 0.0m!)
+    const noseOleo = new THREE.CylinderGeometry(0.045, 0.040, 0.68, 10, 1);
+    noseOleo.translate(0.0, 0.48, 4.42);
+    acc.addGeo(noseOleo, chrome, HUMAN_MAT.METAL_ACCENT, LEARJET_J_AIRFRAME, 0.95);
+
+    for (const wx of [-0.11, 0.11]) {
+      const nTire = new THREE.CylinderGeometry(0.18, 0.18, 0.085, 16, 1);
+      nTire.rotateZ(Math.PI * 0.5);
+      nTire.translate(wx, 0.18, 4.42);
+      acc.addGeo(nTire, rubberTire, HUMAN_MAT.RUBBER_TIRE, LEARJET_J_AIRFRAME, 0.90);
+    }
+
+    const taxiLight = new THREE.BoxGeometry(0.18, 0.08, 0.05);
+    taxiLight.translate(0.0, 0.56, 4.48);
+    acc.addGeo(taxiLight, [0.95, 0.98, 1.00], HUMAN_MAT.VEHICLE_HEADLIGHT, LEARJET_J_AIRFRAME, 1.0, 0.0);
+
+    for (const sx of [-1.82, 1.82]) {
+      const mainStrut = new THREE.CylinderGeometry(0.055, 0.048, 0.72, 10, 1);
+      mainStrut.translate(sx, 0.54, -0.78);
+      acc.addGeo(mainStrut, chrome, HUMAN_MAT.METAL_ACCENT, LEARJET_J_AIRFRAME, 0.94);
+
+      for (const wxOff of [-0.13, 0.13]) {
+        const mTire = new THREE.CylinderGeometry(0.24, 0.24, 0.11, 16, 1);
+        mTire.rotateZ(Math.PI * 0.5);
+        mTire.translate(sx + wxOff, 0.24, -0.78);
+        acc.addGeo(mTire, rubberTire, HUMAN_MAT.RUBBER_TIRE, LEARJET_J_AIRFRAME, 0.90);
+      }
+    }
+
+    // 2. Sleek Pressurized Cylindrical Executive Fuselage, Radome Nose, & Tailcone (+Z Nose, -Z Tail)
+    const fuselageMain = new THREE.CylinderGeometry(0.88, 0.88, 7.60, 20, 1);
+    fuselageMain.rotateX(Math.PI * 0.5);
+    fuselageMain.translate(0.0, 1.42, -0.10);
+    acc.addGeo(fuselageMain, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 1.0);
+
+    const bellyFairing = new THREE.BoxGeometry(1.78, 0.34, 5.20);
+    bellyFairing.translate(0.0, 0.78, -0.35);
+    acc.addGeo(bellyFairing, titaniumBelly, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 0.95);
+
+    // Hollow Flight-Deck Cheek Walls (z = 3.55..4.42m) + Forward Nose Section Ahead of Instrument Panel (z = 4.38..5.42m)
+    for (const sx of [-1.0, 1.0]) {
+      const cheekWall = new THREE.BoxGeometry(0.10, 0.62, 0.96);
+      cheekWall.rotateY(-sx * 0.14);
+      cheekWall.translate(sx * 0.74, 1.30, 4.02);
+      acc.addGeo(cheekWall, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 0.99);
+    }
+    const forwardLower = new THREE.CylinderGeometry(0.60, 0.78, 1.08, 18, 1);
+    forwardLower.rotateX(Math.PI * 0.5);
+    forwardLower.scale(1.0, 0.52, 1.0);
+    forwardLower.translate(0.0, 1.14, 4.90);
+    acc.addGeo(forwardLower, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 1.0);
+
+    const radome = new THREE.ConeGeometry(0.60, 1.65, 18, 1);
+    radome.rotateX(Math.PI * 0.5 + 0.08);
+    radome.scale(1.0, 0.70, 1.0);
+    radome.translate(0.0, 1.08, 6.10);
+    acc.addGeo(radome, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 1.0);
+
+    const radomeTip = new THREE.ConeGeometry(0.22, 0.52, 14, 1);
+    radomeTip.rotateX(Math.PI * 0.5 + 0.08);
+    radomeTip.translate(0.0, 1.08, 6.72);
+    acc.addGeo(radomeTip, darkCarbon, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 0.98);
+
+    // Executive UI Gold & Royal Navy Side Fuselage Cheatlines (hollow side-mounted so flight-deck interior stays 100% open!) + 5 Oval Cabin Windows per Side
+    for (const sx of [-1.0, 1.0]) {
+      const jetGoldSide = new THREE.BoxGeometry(0.045, 0.09, 7.65);
+      jetGoldSide.translate(sx * 0.875, 1.38, -0.25);
+      acc.addGeo(jetGoldSide, uiGold, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 1.0);
+
+      const jetNavySide = new THREE.BoxGeometry(0.042, 0.06, 7.55);
+      jetNavySide.translate(sx * 0.873, 1.29, -0.28);
+      acc.addGeo(jetNavySide, royalNavy, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 0.98);
+    }
+
+    for (const sx of [-1.0, 1.0]) {
+      for (let w = 0; w < 5; w++) {
+        const wz = 2.15 - w * 0.92;
+        const ovalWin = new THREE.CylinderGeometry(0.15, 0.15, 0.04, 12, 1);
+        ovalWin.rotateZ(Math.PI * 0.5);
+        ovalWin.scale(1.0, 1.22, 0.85);
+        ovalWin.translate(sx * 0.875, 1.64, wz);
+        acc.addGeo(ovalWin, glassTint, HUMAN_MAT.BOAT_LANTERN, LEARJET_J_AIRFRAME, 1.0, 3.0);
+      }
+    }
+
+    // Tapered Rear Tailcone & Iconic Swept T-Tail Empennage
+    const rearCone = new THREE.CylinderGeometry(0.86, 0.24, 3.15, 16, 1);
+    rearCone.rotateX(-Math.PI * 0.5 + 0.08);
+    rearCone.translate(0.0, 1.54, -5.35);
+    acc.addGeo(rearCone, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 0.98);
+
+    const tTailFin = new THREE.BoxGeometry(0.14, 2.48, 1.55);
+    tTailFin.rotateX(-0.42);
+    tTailFin.translate(0.0, 2.92, -6.05);
+    acc.addGeo(tTailFin, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 1.0);
+
+    const tTailGold = new THREE.BoxGeometry(0.15, 0.34, 1.38);
+    tTailGold.rotateX(-0.42);
+    tTailGold.translate(0.0, 3.68, -6.36);
+    acc.addGeo(tTailGold, uiGold, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 1.0);
+
+    for (const sx of [-1.0, 1.0]) {
+      const tailCrest = new THREE.CylinderGeometry(0.20, 0.20, 0.025, 14, 1);
+      tailCrest.rotateZ(Math.PI * 0.5);
+      tailCrest.translate(sx * 0.08, 2.98, -6.02);
+      acc.addGeo(tailCrest, makaraGold, HUMAN_MAT.CREST_GOLD, LEARJET_J_AIRFRAME, 1.0, 0.0, [0.5, 0.5]);
+    }
+
+    const tTailBullet = new THREE.CylinderGeometry(0.11, 0.11, 1.65, 10, 1);
+    tTailBullet.rotateX(Math.PI * 0.5);
+    tTailBullet.translate(0.0, 4.12, -6.58);
+    acc.addGeo(tTailBullet, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 1.0);
+
+    for (const sx of [-1.0, 1.0]) {
+      const hTail = new THREE.BoxGeometry(2.38, 0.08, 0.86);
+      hTail.rotateY(-sx * 0.24);
+      hTail.translate(sx * 1.18, 4.12, -6.72);
+      acc.addGeo(hTail, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 1.0);
+    }
+
+    const topStrobe = new THREE.SphereGeometry(0.065, 8, 6);
+    topStrobe.translate(0.0, 4.26, -6.58);
+    acc.addGeo(topStrobe, [0.96, 0.14, 0.12], HUMAN_MAT.BOAT_LANTERN, LEARJET_J_AIRFRAME, 1.0, 2.0);
+
+    // 3. Super-Detailed 2-Pilot Jet Flight Deck (Captain +X = +0.32m, First Officer -X = -0.32m!)
+    const cockpitFloor = new THREE.BoxGeometry(1.42, 0.08, 1.55);
+    cockpitFloor.translate(0.0, 1.02, 4.02);
+    acc.addGeo(cockpitFloor, darkCarbon, HUMAN_MAT.RUBBER_TIRE, LEARJET_J_AIRFRAME, 0.90);
+
+    const jetGlareshield = new THREE.BoxGeometry(1.36, 0.08, 0.44);
+    jetGlareshield.translate(0.0, 1.61, 4.52);
+    acc.addGeo(jetGlareshield, darkCarbon, HUMAN_MAT.RUBBER_TIRE, LEARJET_J_AIRFRAME, 0.95);
+
+    const jetPanel = new THREE.BoxGeometry(1.34, 0.36, 0.08);
+    jetPanel.translate(0.0, 1.44, 4.38);
+    acc.addGeo(jetPanel, [0.16, 0.18, 0.22], HUMAN_MAT.METAL_ACCENT, LEARJET_J_AIRFRAME, 0.95);
+
+    // 3-Screen Pro Line Glass Avionics Suite (Captain PFD, Center EICAS/MFD, FO PFD)
+    for (const [scrX, scrCol] of [
+      [0.34, [0.10, 0.56, 0.88]],
+      [0.0, [0.12, 0.68, 0.54]],
+      [-0.34, [0.10, 0.56, 0.88]]
+    ]) {
+      const mfd = new THREE.BoxGeometry(0.28, 0.20, 0.02);
+      mfd.translate(scrX, 1.47, 4.335);
+      acc.addGeo(mfd, scrCol, HUMAN_MAT.VEHICLE_HEADLIGHT, LEARJET_J_AIRFRAME, 1.0, 1.0);
+    }
+
+    const thrustPedestal = new THREE.BoxGeometry(0.22, 0.32, 0.58);
+    thrustPedestal.translate(0.0, 1.18, 4.08);
+    acc.addGeo(thrustPedestal, darkCarbon, HUMAN_MAT.METAL_ACCENT, LEARJET_J_AIRFRAME, 0.92);
+
+    for (const [pIdx, sx] of [[0, 0.32], [1, -0.32]]) {
+      const yCol = new THREE.CylinderGeometry(0.020, 0.024, 0.42, 8, 1);
+      yCol.rotateX(-0.14);
+      yCol.translate(sx, 1.24, 4.18);
+      acc.addGeo(yCol, darkCarbon, HUMAN_MAT.METAL_ACCENT, LEARJET_J_AIRFRAME, 0.94);
+
+      const yBar = new THREE.BoxGeometry(0.24, 0.032, 0.030);
+      yBar.translate(sx, 1.44, 4.14);
+      acc.addGeo(yBar, darkCarbon, HUMAN_MAT.RUBBER_TIRE, LEARJET_J_AIRFRAME, 0.96);
+
+      for (const hx of [-0.105, 0.105]) {
+        const yHorn = new THREE.BoxGeometry(0.030, 0.105, 0.030);
+        yHorn.translate(sx + hx, 1.48, 4.14);
+        acc.addGeo(yHorn, darkCarbon, HUMAN_MAT.RUBBER_TIRE, LEARJET_J_AIRFRAME, 0.96);
+      }
+
+      const jSeat = new THREE.BoxGeometry(0.46, 0.11, 0.46);
+      jSeat.translate(sx, 1.14, 3.64);
+      acc.addGeo(jSeat, leatherCream, HUMAN_MAT.SHOE_BAG, LEARJET_J_AIRFRAME, 0.95);
+
+      const jBack = new THREE.BoxGeometry(0.44, 0.62, 0.10);
+      jBack.rotateX(-0.12);
+      jBack.translate(sx, 1.48, 3.42);
+      acc.addGeo(jBack, leatherCream, HUMAN_MAT.SHOE_BAG, LEARJET_J_AIRFRAME, 0.96);
+
+      // Seated Jet Captain (+0.32, head at z = +3.58 so FPS eye at z = +3.86 is 100% clear!) & First Officer (-0.32)
+      const pTorso = new THREE.CylinderGeometry(0.145, 0.135, 0.46, 10, 1);
+      pTorso.scale(1.12, 1.0, 0.76);
+      pTorso.translate(sx, 1.44, 3.60);
+      acc.addGeo(pTorso, pIdx === 0 ? pearlWhite : royalNavy, HUMAN_MAT.SHOE_BAG, LEARJET_J_AIRFRAME, 0.96);
+
+      const pHead = new THREE.SphereGeometry(0.098, 10, 8);
+      pHead.translate(sx, 1.77, 3.58);
+      acc.addGeo(pHead, [0.76, 0.56, 0.42], HUMAN_MAT.SHOE_BAG, LEARJET_J_AIRFRAME, 0.98);
+    }
+
+    // Swept Multi-Pane Executive Jet Cockpit Windscreen & Center Post
+    const centerPost = new THREE.CylinderGeometry(0.022, 0.022, 0.88, 8, 1);
+    centerPost.rotateX(0.84);
+    centerPost.translate(0.0, 1.88, 4.62);
+    acc.addGeo(centerPost, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 0.98);
+
+    const jetWindscreen = new THREE.BoxGeometry(1.32, 0.86, 0.035);
+    jetWindscreen.rotateX(0.84);
+    jetWindscreen.translate(0.0, 1.86, 4.60);
+    acc.addGeo(jetWindscreen, glassTint, HUMAN_MAT.VEHICLE_GLASS, LEARJET_J_AIRFRAME, 1.0);
+
+    const cockpitRoof = new THREE.CylinderGeometry(0.68, 0.84, 1.15, 14, 1);
+    cockpitRoof.rotateX(Math.PI * 0.5);
+    cockpitRoof.scale(1.0, 0.35, 1.0);
+    cockpitRoof.translate(0.0, 2.08, 3.82);
+    acc.addGeo(cockpitRoof, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 1.0);
+
+    // 4. Low Swept Supercritical Wing (13.8m Span) & Iconic Upturned Canted Winglets
+    for (const sx of [-1.0, 1.0]) {
+      const wing = new THREE.BoxGeometry(6.15, 0.14, 1.85);
+      wing.rotateY(-sx * 0.24); // 14-deg aft wing sweep
+      wing.rotateZ(sx * 0.045); // Dihedral
+      wing.translate(sx * 3.75, 0.92, -0.78);
+      acc.addGeo(wing, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 1.0);
+
+      // Iconic Canted Learjet Winglet + UI Gold Winglet Tip
+      const winglet = new THREE.BoxGeometry(0.08, 1.12, 0.62);
+      winglet.rotateX(-0.34);
+      winglet.rotateZ(-sx * 0.18);
+      winglet.translate(sx * 6.82, 1.54, -1.58);
+      acc.addGeo(winglet, uiGold, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 1.0);
+
+      const navStrobe = new THREE.SphereGeometry(0.06, 8, 6);
+      navStrobe.translate(sx * 6.92, 2.08, -1.72);
+      acc.addGeo(
+        navStrobe,
+        sx > 0 ? [0.95, 0.16, 0.14] : [0.16, 0.92, 0.36],
+        HUMAN_MAT.BOAT_LANTERN,
+        LEARJET_J_AIRFRAME,
+        1.0,
+        sx > 0 ? 2.0 : 1.0
+      );
+    }
+
+    // 5. Twin Rear-Fuselage High-Bypass Turbofan Nacelles & ARTICULATED SPINNING INTAKE FANS (JOINTS 1 & 2)
+    const turbofanSpecs = [
+      { sx: 1.0, joint: LEARJET_J_FAN_L, pivot: LEARJET_BIND_PIVOTS[LEARJET_J_FAN_L] },
+      { sx: -1.0, joint: LEARJET_J_FAN_R, pivot: LEARJET_BIND_PIVOTS[LEARJET_J_FAN_R] }
+    ];
+    for (const tf of turbofanSpecs) {
+      const [fx, fy, fz] = tf.pivot;
+      const pylon = new THREE.BoxGeometry(0.56, 0.12, 1.25);
+      pylon.rotateZ(tf.sx * 0.25);
+      pylon.translate(tf.sx * 1.04, 1.80, -3.35);
+      acc.addGeo(pylon, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 0.96);
+
+      const nacelle = new THREE.CylinderGeometry(0.46, 0.42, 2.18, 18, 1);
+      nacelle.rotateX(Math.PI * 0.5);
+      nacelle.translate(fx, fy, -3.45);
+      acc.addGeo(nacelle, pearlWhite, HUMAN_MAT.VEHICLE_GLOSS, LEARJET_J_AIRFRAME, 1.0);
+
+      const intakeLip = new THREE.TorusGeometry(0.43, 0.045, 8, 18);
+      intakeLip.translate(fx, fy, fz + 0.09);
+      acc.addGeo(intakeLip, chrome, HUMAN_MAT.METAL_ACCENT, LEARJET_J_AIRFRAME, 1.0);
+
+      const exhaustCone = new THREE.CylinderGeometry(0.36, 0.26, 0.45, 14, 1);
+      exhaustCone.rotateX(-Math.PI * 0.5);
+      exhaustCone.translate(fx, fy, -4.68);
+      acc.addGeo(exhaustCone, titaniumBelly, HUMAN_MAT.METAL_ACCENT, LEARJET_J_AIRFRAME, 0.92);
+
+      // Articulated Spinning Turbofan Hub Cone + 10 Titanium Fan Blades (`joint = 1 or 2`)
+      const fanDisc = new THREE.CylinderGeometry(0.39, 0.39, 0.04, 16, 1);
+      fanDisc.rotateX(Math.PI * 0.5);
+      fanDisc.translate(fx, fy, fz - 0.04);
+      acc.addGeo(fanDisc, darkCarbon, HUMAN_MAT.METAL_ACCENT, tf.joint, 0.88);
+
+      const fanCone = new THREE.ConeGeometry(0.11, 0.22, 12, 1);
+      fanCone.rotateX(Math.PI * 0.5);
+      fanCone.translate(fx, fy, fz + 0.05);
+      acc.addGeo(fanCone, chrome, HUMAN_MAT.METAL_ACCENT, tf.joint, 1.0);
+
+      for (let b = 0; b < 10; b++) {
+        const bAng = (b / 10) * Math.PI * 2.0;
+        const fBlade = new THREE.BoxGeometry(0.055, 0.36, 0.016);
+        fBlade.translate(0.0, 0.19, 0.0);
+        fBlade.rotateZ(bAng);
+        fBlade.translate(fx, fy, fz - 0.01);
+        acc.addGeo(fBlade, titaniumBelly, HUMAN_MAT.METAL_ACCENT, tf.joint, 0.96);
+      }
+    }
 
     return acc.toBundle();
   }

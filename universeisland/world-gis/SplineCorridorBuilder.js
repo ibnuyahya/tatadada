@@ -9,6 +9,7 @@ import {
 } from '../core/ProceduralTextureFactory.js';
 import { TerrainDEMLoader } from './TerrainDEMLoader.js';
 import { AutogenBiomeSpawner } from './AutogenBiomeSpawner.js';
+import { DPPDComplexBuilder } from './DPPDComplexBuilder.js';
 
 /**
  * NEXUS Omni-Scale Procedural Engine v2.0 (v2.3 — 10x Ultra-High Level of Detail Edition)
@@ -40,6 +41,38 @@ export class SplineCorridorBuilder {
     cabinetMinY: 5.36,
     cabinetMaxY: 13.86
   });
+
+  static FOUNTAIN_SPEC = Object.freeze({
+    cx: -2.5,
+    cz: 106.5,
+    waterY: 0.46,
+    poolInnerR: 4.34,
+    outerPlanterR: 5.54,
+    innerNozzleR: 1.35,
+    outerNozzleR: 2.85
+  });
+
+  static CALISTHENICS_SPEC = Object.freeze({
+    cx: -62.0,
+    cz: 136.5,
+    ovalRx: 15.5,
+    ovalRz: 6.8,
+    rotundaTrackR: 37.15
+  });
+
+  static MUSTER_POINTS = Object.freeze([
+    { id: 'RotundaRektorat', x: -31.0, z: 76.5, yaw: 0.45 },
+    { id: 'KompleksDPPD_STP', x: -296.5, z: 326.5, yaw: 1.42 },
+    { id: 'DermagaUtaraU', x: -68.0, z: 444.0, yaw: 1.57 },
+    { id: 'BandaraPulauI', x: -222.5, z: 665.5, yaw: -1.57 }
+  ]);
+
+  static KIOSK_SPECS = Object.freeze([
+    { id: 'KiosTamanRotunda', x: -39.5, z: 134.5, yaw: 0.52 },
+    { id: 'KiosPlazaTeksas', x: -16.5, z: 345.0, yaw: -1.45 },
+    { id: 'KiosKompleksDPPD', x: -213.0, z: 326.0, yaw: -1.35 },
+    { id: 'KiosDermagaPulauI', x: -116.5, z: 619.5, yaw: 0.95 }
+  ]);
 
   static _createHighPrecisionSpline(points, closed = false) {
     const curve = new THREE.CatmullRomCurve3(points, closed);
@@ -92,8 +125,25 @@ export class SplineCorridorBuilder {
       deckColor = [0.22, 0.23, 0.25],
       curbTint = [0.96, 0.95, 0.93],
       zebraCurbs = false,
-      zebraFreq = 0.125
+      zebraFreq = 0.125,
+      curbCutZones = []
     } = options;
+
+    const evalCurbCutFactor = (qx, qz) => {
+      let fac = 1.0;
+      for (let zIdx = 0; zIdx < curbCutZones.length; zIdx++) {
+        const cz = curbCutZones[zIdx];
+        const d = Math.hypot(qx - cz.x, qz - cz.z);
+        const fade = cz.fade !== undefined ? cz.fade : 1.4;
+        if (d <= cz.r) return 0.0;
+        if (d < cz.r + fade) {
+          const t = (d - cz.r) / fade;
+          const s = t * t * (3.0 - 2.0 * t);
+          if (s < fac) fac = s;
+        }
+      }
+      return fac;
+    };
 
     const dPos = [];
     const dNorm = [];
@@ -228,17 +278,19 @@ export class SplineCorridorBuilder {
       for (let i = 0; i <= segments; i++) {
         const { pos, side, arc } = frames[i];
         const uC = curbU(arc);
+        const midLat = sideSign * (halfWidth + curbWidth * 0.5);
+        const cFac = evalCurbCutFactor(pos.x + side.x * midLat, pos.z + side.z * midLat);
         const r = [];
         for (let k = 0; k < offsets.length; k++) {
           const o = offsets[k];
           r.push(
             pushC(
               pos.x + side.x * o.lat,
-              pos.y + o.dy,
+              pos.y + 0.002 + o.dy * cFac,
               pos.z + side.z * o.lat,
-              side.x * o.nSide,
-              o.ny,
-              side.z * o.nSide,
+              side.x * o.nSide * cFac,
+              1.0 - (1.0 - o.ny) * cFac,
+              side.z * o.nSide * cFac,
               uC,
               o.v
             )
@@ -266,11 +318,14 @@ export class SplineCorridorBuilder {
       const topRow = [];
       const botRow = [];
       const col = isSkirt ? [0.42, 0.41, 0.39] : curbTint;
+      const sideSign = lateralOffset < 0 ? -1.0 : 1.0;
       for (let i = 0; i <= segments; i++) {
         const { pos, side, arc } = frames[i];
         const px = pos.x + side.x * lateralOffset;
         const pz = pos.z + side.z * lateralOffset;
-        const yTop = pos.y + yTopRel;
+        const midLat = sideSign * (halfWidth + curbWidth * 0.5);
+        const cFac = evalCurbCutFactor(pos.x + side.x * midLat, pos.z + side.z * midLat);
+        const yTop = pos.y + 0.002 + yTopRel * cFac;
         const yBot = useAbsBottom ? bottomVal : pos.y + bottomVal;
 
         const nx = side.x * normalSign;
@@ -301,28 +356,39 @@ export class SplineCorridorBuilder {
     addVerticalRibbon(outerSpan, riserTop, true, skirtBottomY, 1.0, true);
 
     if (!curve.closed) {
-      const addEndCap = (frame, isEnd) => {
-        const { pos, tan, side } = frame;
-        const nx = isEnd ? tan.x : -tan.x;
-        const nz = isEnd ? tan.z : -tan.z;
-        const yTop = pos.y + curbRise;
-        const yBot = skirtBottomY;
-
-        const xL = pos.x - side.x * outerSpan;
-        const zL = pos.z - side.z * outerSpan;
-        const xR = pos.x + side.x * outerSpan;
-        const zR = pos.z + side.z * outerSpan;
-
-        const iTL = pushC(xL, yTop, zL, nx, 0.0, nz, 0.055, 0.2);
-        const iTR = pushC(xR, yTop, zR, nx, 0.0, nz, 0.055, 0.2);
+      const addCapQuad = (pos, side, nx, nz, latA, latB, yTopVal, yBot, isEnd) => {
+        const xL = pos.x + side.x * latA;
+        const zL = pos.z + side.z * latA;
+        const xR = pos.x + side.x * latB;
+        const zR = pos.z + side.z * latB;
+        const iTL = pushC(xL, yTopVal, zL, nx, 0.0, nz, 0.055, 0.2);
+        const iTR = pushC(xR, yTopVal, zR, nx, 0.0, nz, 0.055, 0.2);
         const iBR = pushC(xR, yBot, zR, nx, 0.0, nz, 0.055, 0.9);
         const iBL = pushC(xL, yBot, zL, nx, 0.0, nz, 0.055, 0.9);
-
         if (isEnd) {
           cIdx.push(iTL, iBL, iBR, iTL, iBR, iTR);
         } else {
           cIdx.push(iTL, iTR, iBR, iTL, iBR, iBL);
         }
+      };
+
+      const addEndCap = (frame, isEnd) => {
+        const { pos, tan, side } = frame;
+        const nx = isEnd ? tan.x : -tan.x;
+        const nz = isEnd ? tan.z : -tan.z;
+        const yBot = skirtBottomY;
+        const cFacL = evalCurbCutFactor(
+          pos.x - side.x * (halfWidth + curbWidth * 0.5),
+          pos.z - side.z * (halfWidth + curbWidth * 0.5)
+        );
+        const cFacR = evalCurbCutFactor(
+          pos.x + side.x * (halfWidth + curbWidth * 0.5),
+          pos.z + side.z * (halfWidth + curbWidth * 0.5)
+        );
+        // Never cap above asphalt across the central carriageway (-halfWidth .. +halfWidth)!
+        addCapQuad(pos, side, nx, nz, -outerSpan, -halfWidth, pos.y + 0.002 + curbRise * cFacL, yBot, isEnd);
+        addCapQuad(pos, side, nx, nz, -halfWidth, halfWidth, pos.y + 0.002, yBot, isEnd);
+        addCapQuad(pos, side, nx, nz, halfWidth, outerSpan, pos.y + 0.002 + curbRise * cFacR, yBot, isEnd);
       };
 
       addEndCap(frames[0], false);
@@ -460,64 +526,126 @@ export class SplineCorridorBuilder {
       }
     };
 
-    // 3. Outer Manicured Green Topiary Torus Ring (R = 4.22m)
-    addBotanicalTorus(4.22, 0.78, 0.44, 0.30, 96, 26, (sun, th) => {
+    // 3. Outer Tropical Flowering Ixora & Manicured Topiary Garland Framing the Fountain Basin (R = 4.86m)
+    addBotanicalTorus(4.86, 0.42, 0.29, 0.26, 96, 20, (sun, th, ph) => {
+      const blossom = Math.max(0.0, Math.sin(18.0 * th) * Math.sin(3.0 * ph)) * Math.max(0.0, sun - 0.32);
       const v = 0.02 * Math.sin(12.0 * th);
-      return [0.09 + 0.09 * sun + v, 0.25 + 0.22 * sun + v, 0.08 + 0.07 * sun];
-    });
-
-    // 4. Middle Tropical Flowering Ixora / Bougainvillea Shrub Garland (R = 2.86m)
-    addBotanicalTorus(2.86, 0.48, 0.34, 0.28, 84, 20, (sun, th, ph) => {
-      const blossom = Math.max(0.0, Math.sin(16.0 * th) * Math.sin(3.0 * ph)) * Math.max(0.0, sun - 0.35);
       return [
-        0.11 + 0.11 * sun + 0.55 * blossom,
-        0.24 + 0.19 * sun + 0.08 * blossom,
-        0.09 + 0.06 * sun + 0.05 * blossom
+        0.09 + 0.10 * sun + 0.56 * blossom + v,
+        0.25 + 0.21 * sun + 0.08 * blossom + v,
+        0.08 + 0.06 * sun + 0.05 * blossom
       ];
     });
 
-    // 5. Sculpted Multi-Ring Central Botanical Dome Mound (r = 2.05m, apex y = 0.78m)
-    const domeU = 72;
-    const domeV = 18;
-    const domeRows = [];
-    for (let iv = 0; iv <= domeV; iv++) {
-      const tv = iv / domeV;
-      const phi = tv * Math.PI * 0.5;
-      const sPhi = Math.sin(phi);
-      const cPhi = Math.cos(phi);
-      const row = [];
-      for (let iu = 0; iu <= domeU; iu++) {
-        const th = (iu / domeU) * Math.PI * 2.0;
-        const lobe = 1.0 + 0.055 * Math.sin(11.0 * th + 3.0 * phi) * sPhi;
-        const r = 2.02 * sPhi * lobe;
-        const py = 0.14 + 0.64 * cPhi * lobe;
-        const nx = Math.cos(th) * sPhi;
-        const ny = Math.max(0.2, cPhi);
-        const nz = Math.sin(th) * sPhi;
-        const invL = 1.0 / Math.hypot(nx, ny, nz);
-        const sun = 0.45 + 0.55 * cPhi;
-        row.push(
-          pushD(
-            centerX + Math.cos(th) * r,
-            py,
-            centerZ + Math.sin(th) * r,
-            nx * invL,
-            ny * invL,
-            nz * invL,
-            [0.10 + 0.11 * sun, 0.27 + 0.23 * sun, 0.08 + 0.07 * sun]
-          )
+    // 4. Architectural Tiered Dark-Andesite & Granite Dancing Fountain Reflecting Basin (R <= 4.62m, water y = 0.46m)
+    const basinProfile = [
+      { r: 4.62, y: 0.14, nr: 1, ny: 0, col: [0.36, 0.37, 0.40] },
+      { r: 4.62, y: 0.52, nr: 1, ny: 0, col: [0.42, 0.43, 0.46] },
+      { r: 4.56, y: 0.57, nr: 0.35, ny: 0.93, col: [0.76, 0.75, 0.72] },
+      { r: 4.36, y: 0.57, nr: -0.35, ny: 0.93, col: [0.76, 0.75, 0.72] },
+      { r: 4.34, y: 0.52, nr: -1, ny: 0, col: [0.22, 0.24, 0.27] },
+      { r: 4.34, y: 0.19, nr: -1, ny: 0, col: [0.14, 0.16, 0.19] }
+    ];
+    for (let s = 0; s < basinProfile.length - 1; s++) {
+      const p0 = basinProfile[s];
+      const p1 = basinProfile[s + 1];
+      const rA = [];
+      const rB = [];
+      for (let i = 0; i <= segs; i++) {
+        const th = (i / segs) * Math.PI * 2.0;
+        const c = Math.cos(th);
+        const sn = Math.sin(th);
+        rA.push(pushC(centerX + c * p0.r, p0.y, centerZ + sn * p0.r, c * p0.nr, p0.ny, sn * p0.nr, 0.055, 0.35, p0.col));
+        rB.push(pushC(centerX + c * p1.r, p1.y, centerZ + sn * p1.r, c * p1.nr, p1.ny, sn * p1.nr, 0.055, 0.65, p1.col));
+      }
+      for (let i = 0; i < segs; i++) {
+        cIdx.push(rA[i], rB[i], rB[i + 1], rA[i], rB[i + 1], rA[i + 1]);
+      }
+    }
+
+    // Helper: Solid circular disk / cylinder cap + side in dPos (with optional UV sentinel for submerged RGBW LEDs!)
+    const pushDWithUV = (x, y, z, nx, ny, nz, col, u, v) => {
+      const idx = dPos.length / 3;
+      dPos.push(x, y, z);
+      dNorm.push(nx, ny, nz);
+      dUv.push(u, v);
+      dCol.push(col[0], col[1], col[2]);
+      return idx;
+    };
+    const addCylinderD = (cx0, cz0, rTop, rBot, y0, y1, rSegs, col, topUV = null) => {
+      const ringB = [];
+      const ringT = [];
+      for (let i = 0; i <= rSegs; i++) {
+        const th = (i / rSegs) * Math.PI * 2.0;
+        const c = Math.cos(th);
+        const sn = Math.sin(th);
+        ringB.push(pushD(cx0 + c * rBot, y0, cz0 + sn * rBot, c, 0, sn, col));
+        ringT.push(pushD(cx0 + c * rTop, y1, cz0 + sn * rTop, c, 0, sn, col));
+      }
+      for (let i = 0; i < rSegs; i++) {
+        dIdx.push(ringB[i], ringT[i + 1], ringT[i], ringB[i], ringB[i + 1], ringT[i + 1]);
+      }
+      const uT = topUV ? topUV[0] : cx0 * 0.25;
+      const vT = topUV ? topUV[1] : cz0 * 0.25;
+      const cTop = pushDWithUV(cx0, y1, cz0, 0, 1, 0, col, uT, vT);
+      const capRing = [];
+      for (let i = 0; i <= rSegs; i++) {
+        const th = (i / rSegs) * Math.PI * 2.0;
+        const px = cx0 + Math.cos(th) * rTop;
+        const pz = cz0 + Math.sin(th) * rTop;
+        capRing.push(
+          pushDWithUV(px, y1, pz, 0, 1, 0, col, topUV ? topUV[0] : px * 0.25, topUV ? topUV[1] : pz * 0.25)
         );
       }
-      domeRows.push(row);
-    }
-    for (let iv = 0; iv < domeV; iv++) {
-      for (let iu = 0; iu < domeU; iu++) {
-        const a = domeRows[iv][iu];
-        const b = domeRows[iv][iu + 1];
-        const c = domeRows[iv + 1][iu + 1];
-        const d = domeRows[iv + 1][iu];
-        dIdx.push(a, d, b, b, d, c);
+      for (let i = 0; i < rSegs; i++) {
+        dIdx.push(cTop, capRing[i + 1], capRing[i]);
       }
+    };
+
+    // Dark basalt mosaic basin floor (y = 0.20m) & calm reflecting pool water surface (y = 0.46m, R = 4.33m)
+    addCylinderD(centerX, centerZ, 4.33, 4.33, 0.19, 0.21, 64, [0.10, 0.13, 0.17]);
+    addCylinderD(centerX, centerZ, 4.335, 4.335, 0.44, 0.46, 72, [0.05, 0.15, 0.23]);
+
+    // Central 2-Tier Sculpted Andesite & Brass Fountain Manifold Pedestal
+    addCylinderD(centerX, centerZ, 1.56, 1.66, 0.21, 0.44, 36, [0.18, 0.20, 0.23]);
+    addCylinderD(centerX, centerZ, 0.56, 0.64, 0.44, 0.51, 24, [0.24, 0.26, 0.30]);
+    addCylinderD(centerX, centerZ, 0.22, 0.26, 0.51, 0.55, 16, [0.78, 0.61, 0.18]);
+    // Central Brass Spire Nozzle
+    addCylinderD(centerX, centerZ, 0.055, 0.075, 0.55, 0.63, 12, [0.85, 0.68, 0.22]);
+
+    // Stainless Submerged Distribution Ring Pipes (R = 1.35m & R = 2.85m)
+    for (const rRing of [1.35, 2.85]) {
+      const pipeSegs = rRing < 2.0 ? 24 : 40;
+      for (let i = 0; i < pipeSegs; i++) {
+        const th0 = (i / pipeSegs) * Math.PI * 2.0;
+        const th1 = ((i + 1) / pipeSegs) * Math.PI * 2.0;
+        const mx = centerX + Math.cos(0.5 * (th0 + th1)) * rRing;
+        const mz = centerZ + Math.sin(0.5 * (th0 + th1)) * rRing;
+        addCylinderD(mx, mz, 0.035, 0.035, 0.36, 0.41, 6, [0.42, 0.45, 0.49]);
+      }
+    }
+
+    // 8 Inner Crown Brass Gimbal Nozzles + 8 Submerged RGBW Show LED Pods (UV sentinel v = -920.0!)
+    const fSpec = SplineCorridorBuilder.FOUNTAIN_SPEC;
+    for (let k = 0; k < 8; k++) {
+      const th = (k / 8) * Math.PI * 2.0;
+      const nx = centerX + Math.cos(th) * fSpec.innerNozzleR;
+      const nz = centerZ + Math.sin(th) * fSpec.innerNozzleR;
+      addCylinderD(nx, nz, 0.042, 0.058, 0.43, 0.52, 8, [0.84, 0.67, 0.20]);
+      const lx = centerX + Math.cos(th + 0.20) * (fSpec.innerNozzleR + 0.16);
+      const lz = centerZ + Math.sin(th + 0.20) * (fSpec.innerNozzleR + 0.16);
+      addCylinderD(lx, lz, 0.085, 0.095, 0.41, 0.458, 10, [0.16, 0.18, 0.22], [0.5, -920.0]);
+    }
+
+    // 16 Outer Dancing Ring Brass Gimbal Nozzles + 16 Submerged RGBW Show LED Pods (UV sentinel v = -920.0!)
+    for (let k = 0; k < 16; k++) {
+      const th = (k / 16) * Math.PI * 2.0;
+      const nx = centerX + Math.cos(th) * fSpec.outerNozzleR;
+      const nz = centerZ + Math.sin(th) * fSpec.outerNozzleR;
+      addCylinderD(nx, nz, 0.038, 0.054, 0.39, 0.495, 8, [0.84, 0.67, 0.20]);
+      const lx = centerX + Math.cos(th + 0.12) * (fSpec.outerNozzleR + 0.18);
+      const lz = centerZ + Math.sin(th + 0.12) * (fSpec.outerNozzleR + 0.18);
+      addCylinderD(lx, lz, 0.088, 0.098, 0.39, 0.458, 10, [0.16, 0.18, 0.22], [0.5, -920.0]);
     }
 
     const horizontalGeo = new THREE.BufferGeometry();
@@ -1975,22 +2103,22 @@ export class SplineCorridorBuilder {
     eastAbut.translate(bx, portalDeckY - girderDepth - eastAbutH * 0.5 + 0.06, zE + 0.35);
     appendPart(vPos, vNorm, vUv, vCol, vIdx, eastAbut, concreteWarm, whiteUV);
 
-    // Pilon Lingga & Pilon Yoni Flared Concrete Anchor Pedestals (straddling walkway at x = bx +/- 3.45m)
+    // Pilon Lingga & Pilon Yoni Flared Concrete Anchor Pedestals (straddling walkway wide clear at x = bx +/- 3.85m)
     for (const sx of [-1, 1]) {
       const pedW = new THREE.CylinderGeometry(0.95, 1.25, 3.85, 12, 1);
-      pedW.translate(bx + sx * 3.45, 0.35 - 3.85 * 0.5, zW);
+      pedW.translate(bx + sx * 3.85, 0.35 - 3.85 * 0.5, zW);
       appendPart(vPos, vNorm, vUv, vCol, vIdx, pedW, concreteWarm, whiteUV);
 
       const capW = new THREE.CylinderGeometry(1.02, 1.02, 0.18, 12, 1);
-      capW.translate(bx + sx * 3.45, 0.35, zW);
+      capW.translate(bx + sx * 3.85, 0.35, zW);
       appendPart(hPos, hNorm, hUv, hCol, hIdx, capW, btkcFlangeSteel);
 
       const pedE = new THREE.CylinderGeometry(0.88, 1.18, 3.95, 12, 1);
-      pedE.translate(bx + sx * 3.45, 0.44 - 3.95 * 0.5, zE);
+      pedE.translate(bx + sx * 3.85, 0.44 - 3.95 * 0.5, zE);
       appendPart(vPos, vNorm, vUv, vCol, vIdx, pedE, concreteWarm, whiteUV);
 
       const capE = new THREE.CylinderGeometry(0.95, 0.95, 0.18, 12, 1);
-      capE.translate(bx + sx * 3.45, 0.44, zE);
+      capE.translate(bx + sx * 3.85, 0.44, zE);
       appendPart(hPos, hNorm, hUv, hCol, hIdx, capE, btkcFlangeSteel);
     }
 
@@ -2036,8 +2164,10 @@ export class SplineCorridorBuilder {
       return c * c * c * (c * (c * 6.0 - 15.0) + 10.0);
     };
 
+    const evalApproachFrac = TerrainDEMLoader.evalTeksasApproachFrac;
+
     const buildInclusiveShoreApproach = (zOuter, zPortal, yOuter) => {
-      const steps = 22;
+      const steps = 24;
       const isWest = zOuter < zPortal;
       // Supporting concrete spine wall & twin ramp cheek walls (watertight down to y = -2.6m)
       for (let i = 0; i < steps; i++) {
@@ -2049,7 +2179,7 @@ export class SplineCorridorBuilder {
         const zm = 0.5 * (za + zb);
         const dzSeg = Math.abs(zb - za);
 
-        const yStepTop = yOuter + smoother01(t1) * (portalDeckY - yOuter);
+        const yStepTop = yOuter + evalApproachFrac(tm) * (portalDeckY - yOuter);
         const subH = yStepTop + 2.6;
 
         // Full-width stepped concrete substructure + stair tread
@@ -2057,14 +2187,14 @@ export class SplineCorridorBuilder {
         subBox.translate(bx, yStepTop - subH * 0.5 - 0.03, zm);
         appendPart(vPos, vNorm, vUv, vCol, vIdx, subBox, concreteWarm, whiteUV);
 
-        // Central ceremonial staircase tread (x in [bx - 1.18, bx + 1.18])
+        // Central ceremonial staircase tread (x in [bx - 1.18, bx + 1.18], uniform rise matching walkable grade!)
         const tread = new THREE.BoxGeometry(2.36, 0.06, dzSeg + 0.03);
         tread.translate(bx, yStepTop, zm);
         appendPart(hPos, hNorm, hUv, hCol, hIdx, tread, i % 2 === 0 ? deckPaverGrey : [0.41, 0.42, 0.45]);
 
-        // Smooth C1 flanking accessible wheelchair/bicycle ramp decks (North & South flanks: width 1.38m each)
-        const yR0 = yOuter + smoother01(t0) * (portalDeckY - yOuter);
-        const yR1 = yOuter + smoother01(t1) * (portalDeckY - yOuter);
+        // Smooth linear-grade flanking accessible wheelchair/bicycle ramp decks (0.000m match with sampleTeksasBridgeDeckY!)
+        const yR0 = yOuter + evalApproachFrac(t0) * (portalDeckY - yOuter);
+        const yR1 = yOuter + evalApproachFrac(t1) * (portalDeckY - yOuter);
         const dyRamp = isWest ? yR1 - yR0 : yR0 - yR1;
         const dzSigned = Math.abs(zb - za);
         const hyp = Math.hypot(dzSigned, dyRamp);
@@ -2073,13 +2203,13 @@ export class SplineCorridorBuilder {
         for (const sx of [-1, 1]) {
           const rampSlab = new THREE.BoxGeometry(1.38, 0.07, hyp + 0.03);
           rampSlab.rotateX(pitchX);
-          rampSlab.translate(bx + sx * 1.94, 0.5 * (yR0 + yR1), zm);
+          rampSlab.translate(bx + sx * 1.94, 0.5 * (yR0 + yR1) - 0.032, zm);
           appendPart(hPos, hNorm, hUv, hCol, hIdx, rampSlab, sx > 0 ? bikeLaneBrick : deckPaverGrey);
         }
 
         // Approach handrails & posts every 2 steps
         if (i % 2 === 0 || i === steps - 1) {
-          const yPostBase = yOuter + smoother01(tm) * (portalDeckY - yOuter);
+          const yPostBase = yOuter + evalApproachFrac(tm) * (portalDeckY - yOuter);
           for (const rxOff of [-2.66, -1.22, 1.22, 2.66]) {
             pushTubeH(
               bx + rxOff,
@@ -2098,14 +2228,14 @@ export class SplineCorridorBuilder {
       }
 
       // Continuous smooth tubular UI-Yellow top handrails & mid-rails along approach stairs & ramps
-      const railSegs = 11;
+      const railSegs = 12;
       for (let r = 0; r < railSegs; r++) {
         const t0 = r / railSegs;
         const t1 = (r + 1) / railSegs;
         const za = zOuter + (zPortal - zOuter) * t0;
         const zb = zOuter + (zPortal - zOuter) * t1;
-        const ya = yOuter + smoother01(t0) * (portalDeckY - yOuter);
-        const yb = yOuter + smoother01(t1) * (portalDeckY - yOuter);
+        const ya = yOuter + evalApproachFrac(t0) * (portalDeckY - yOuter);
+        const yb = yOuter + evalApproachFrac(t1) * (portalDeckY - yOuter);
         for (const rxOff of [-2.66, -1.22, 1.22, 2.66]) {
           pushTubeH(bx + rxOff, ya + 1.06, za, bx + rxOff, yb + 1.06, zb, 0.038, 0.038, 8, uiGoldenYellow);
           pushTubeH(bx + rxOff, ya + 0.56, za, bx + rxOff, yb + 0.56, zb, 0.024, 0.024, 6, stayCableSteel);
@@ -2183,39 +2313,39 @@ export class SplineCorridorBuilder {
         z0,
         btkcCharcoal
       );
-      // Under-deck cantilever soffit wings (connecting top of box girder out to crimson fascia girders)
+      // Under-deck cantilever soffit wings (facing -Y downward, connecting top of box girder out to crimson fascia girders)
       pushQuadH(
         bx + topGirderHalfW,
         yTop0,
         z0,
-        bx + topGirderHalfW,
-        yTop1,
-        z1,
-        bx + deckHalfW + 0.10,
-        yTop1,
-        z1,
         bx + deckHalfW + 0.10,
         yTop0,
         z0,
+        bx + deckHalfW + 0.10,
+        yTop1,
+        z1,
+        bx + topGirderHalfW,
+        yTop1,
+        z1,
         btkcFlangeSteel
       );
       pushQuadH(
         bx - deckHalfW - 0.10,
         yTop0,
         z0,
-        bx - deckHalfW - 0.10,
-        yTop1,
-        z1,
-        bx - topGirderHalfW,
-        yTop1,
-        z1,
         bx - topGirderHalfW,
         yTop0,
         z0,
+        bx - topGirderHalfW,
+        yTop1,
+        z1,
+        bx - deckHalfW - 0.10,
+        yTop1,
+        z1,
         btkcFlangeSteel
       );
 
-      // Parabolic Cambered Pedestrian & Bicycle Deck Surface (5.20m clear width: Pedestrian lane + Bicycle lane + Tactile strips)
+      // Parabolic Cambered Pedestrian & Bicycle Deck Surface (5.20m clear width, +Y upward normals!)
       const strips = [
         { xA: -deckHalfW, xB: -2.36, col: uiYellowDeep },
         { xA: -2.36, xB: 0.72, col: deckPaverGrey },
@@ -2231,15 +2361,15 @@ export class SplineCorridorBuilder {
           bx + st.xA,
           yD0 + cA,
           z0,
-          bx + st.xB,
-          yD0 + cB,
-          z0,
-          bx + st.xB,
-          yD1 + cB,
-          z1,
           bx + st.xA,
           yD1 + cA,
           z1,
+          bx + st.xB,
+          yD1 + cB,
+          z1,
+          bx + st.xB,
+          yD0 + cB,
+          z0,
           st.col
         );
       }
@@ -2268,22 +2398,30 @@ export class SplineCorridorBuilder {
       }
     }
 
-    // 6 Prominent Bolted BTKC Segment-Splice Flange Collars (dividing the 148m arch into 7 authentic Krakatau Steel box segments!)
+    // 6 Prominent Bolted BTKC Segment-Splice Flange Collars (strictly below deck yDJ - 0.10m so 5.20m walkway stays 100% smooth!)
     for (let segJoint = 1; segJoint <= 6; segJoint++) {
       const zJ = zW + (segJoint / 7) * spanLen;
       const yDJ = evalArchDeckY(zJ);
       const slopeJ = evalArchSlope(zJ);
       const pitchJ = -Math.atan2(slopeJ, 1.0);
 
-      const collar = new THREE.BoxGeometry(4.42, girderDepth + 0.14, 0.34);
+      const collarH = girderDepth - 0.10;
+      const collar = new THREE.BoxGeometry(4.36, collarH, 0.34);
       collar.rotateX(pitchJ);
-      collar.translate(bx, yDJ - girderDepth * 0.5 - 0.02, zJ);
+      collar.translate(bx, yDJ - 0.12 - collarH * 0.5, zJ);
       appendPart(hPos, hNorm, hUv, hCol, hIdx, collar, btkcFlangeSteel);
 
-      const redGusset = new THREE.BoxGeometry(5.56, 0.56, 0.24);
-      redGusset.rotateX(pitchJ);
-      redGusset.translate(bx, yDJ - 0.18, zJ);
-      appendPart(hPos, hNorm, hUv, hCol, hIdx, redGusset, krakatauRed);
+      const underCrossBeam = new THREE.BoxGeometry(5.36, 0.32, 0.24);
+      underCrossBeam.rotateX(pitchJ);
+      underCrossBeam.translate(bx, yDJ - 0.27, zJ);
+      appendPart(hPos, hNorm, hUv, hCol, hIdx, underCrossBeam, krakatauRedDark);
+
+      for (const sx of [-1, 1]) {
+        const edgeGusset = new THREE.BoxGeometry(0.18, 0.54, 0.26);
+        edgeGusset.rotateX(pitchJ);
+        edgeGusset.translate(bx + sx * (deckHalfW + 0.09), yDJ - 0.10, zJ);
+        appendPart(hPos, hNorm, hUv, hCol, hIdx, edgeGusset, krakatauRed);
+      }
     }
 
     // 28 Transverse Under-Deck Cantilever Outrigger Brackets
@@ -2456,38 +2594,39 @@ export class SplineCorridorBuilder {
 
     // =========================================================================
     // 6. WEST PORTAL — "PILON LINGGA" (25.0m UI GOLDEN-YELLOW CURVED SHIP'S SAIL / LAYAR KAPAL)
-    //    Portal base y = +0.35m -> Masthead apex y = +25.35m (25.0m tall!)
+    //    Wide-bowed portal arch (5.50m clear entrance headroom!) -> Masthead apex y = +25.35m
     // =========================================================================
-    const linggaMergeY = 8.15;
+    const linggaMergeY = 11.15;
     const linggaTopY = 25.35;
 
-    // 6A. Sculpted Twin Straddling A-Frame Portal Legs converging above the walkway into the Sail Mast
-    const legSteps = 12;
+    // 6A. Sculpted Wide-Bowed Twin Straddling Portal Legs framing the entire 5.20m walkway & blue canopy entrance!
+    const legSteps = 14;
+    const evalLinggaLegHalfX = (s) => 3.85 * Math.cos(Math.pow(s, 1.85) * Math.PI * 0.5);
     for (const sx of [-1, 1]) {
       for (let i = 0; i < legSteps; i++) {
         const s0 = i / legSteps;
         const s1 = (i + 1) / legSteps;
-        const ease0 = smoother01(s0);
-        const ease1 = smoother01(s1);
-        const x0 = bx + sx * 3.45 * (1.0 - ease0);
-        const x1 = bx + sx * 3.45 * (1.0 - ease1);
+        const x0 = bx + sx * evalLinggaLegHalfX(s0);
+        const x1 = bx + sx * evalLinggaLegHalfX(s1);
         const y0 = 0.35 + s0 * (linggaMergeY - 0.35);
         const y1 = 0.35 + s1 * (linggaMergeY - 0.35);
-        const zL0 = zW - 0.10 * s0;
-        const zL1 = zW - 0.10 * s1;
-        const r0 = 0.48 - 0.12 * s0;
-        const r1 = 0.48 - 0.12 * s1;
+        const zL0 = zW - 0.12 * s0;
+        const zL1 = zW - 0.12 * s1;
+        const r0 = 0.46 - 0.11 * s0;
+        const r1 = 0.46 - 0.11 * s1;
         pushTubeH(x0, y0, zL0, x1, y1, zL1, r0, r1, 10, uiGoldenYellow, i === legSteps - 1);
       }
     }
-    // Portal cross-tie beam under deck & upper arch collar at zW
-    pushTubeH(bx - 3.15, portalDeckY - 0.55, zW, bx + 3.15, portalDeckY - 0.55, zW, 0.28, 0.28, 8, uiYellowDeep);
-    pushTubeH(bx - 1.35, 6.95, zW - 0.08, bx + 1.35, 6.95, zW - 0.08, 0.20, 0.20, 8, uiYellowDeep);
+    // Portal cross-tie beam under deck & high overhead arch collar at y = 9.65m (5.50m clear headroom above deck!)
+    pushTubeH(bx - 3.55, portalDeckY - 0.55, zW, bx + 3.55, portalDeckY - 0.55, zW, 0.28, 0.28, 8, uiYellowDeep);
+    const sCollar = (9.65 - 0.35) / (linggaMergeY - 0.35);
+    const collarHalfX = evalLinggaLegHalfX(sCollar) + 0.35;
+    pushTubeH(bx - collarHalfX, 9.65, zW - 0.10, bx + collarHalfX, 9.65, zW - 0.10, 0.20, 0.20, 8, uiYellowDeep);
 
-    // 6B. Towering 3D Curved Ship's Sail Mast & Billowing Golden-Yellow Steel Sail Fin (y = 7.75m .. 25.35m)
+    // 6B. Towering 3D Curved Ship's Sail Mast & Billowing Golden-Yellow Steel Sail Fin (y = 10.65m .. 25.35m)
     const sailSegs = 22;
     const evalLinggaMast = (s) => {
-      const y = 7.75 + s * (linggaTopY - 7.75);
+      const y = 10.65 + s * (linggaTopY - 10.65);
       // Graceful forward nautical curve toward Teluk U (+Z) peaking mid-mast then sweeping to apex
       const zLead = zW + 2.25 * Math.sin(s * 1.32);
       const chord = 3.95 * Math.sin(Math.PI * Math.pow(Math.max(0.001, s), 0.68)) * (1.0 - 0.28 * s) + 0.28 * (1.0 - s);
@@ -2619,13 +2758,13 @@ export class SplineCorridorBuilder {
     // Smooth analytic half-arch curve (s in [0, 1] from pedestal base -> waist -> flared hip -> top crown apex)
     const evalYoniHalfCurve = (s, sx) => {
       const y = yoniBaseY + (yoniCrownY - yoniBaseY) * Math.sin(s * Math.PI * 0.5);
-      // Base = 3.45m -> inward slender waist (~2.96m at s = 0.24, keeping 5.2m deck 100% clear!) ->
-      // wide rounded hip flare (~4.62m at s = 0.58, y ~ 12.2m) -> smooth rounded crown apex (0.0m at s = 1.0)!
-      const waistDip = -0.82 * Math.exp(-Math.pow((s - 0.23) / 0.12, 2.0));
-      const hipFlare = 1.92 * Math.exp(-Math.pow((s - 0.57) / 0.21, 2.0));
-      const baseTaper = 3.45 * Math.cos(s * Math.PI * 0.5);
+      // Base = 3.85m -> clear waist (~3.35m at s = 0.24, keeping 5.2m deck & railings 100% unobstructed!) ->
+      // wide rounded hip flare (~4.82m at s = 0.58, y ~ 12.2m) -> smooth rounded crown apex (0.0m at s = 1.0)!
+      const waistDip = -0.35 * Math.exp(-Math.pow((s - 0.23) / 0.12, 2.0));
+      const hipFlare = 1.88 * Math.exp(-Math.pow((s - 0.57) / 0.21, 2.0));
+      const baseTaper = 3.85 * Math.cos(s * Math.PI * 0.5);
       const halfX = Math.max(0.0, (baseTaper + waistDip + hipFlare) * (1.0 - Math.pow(s, 6.0)));
-      // Subtle graceful longitudinal hip lean (+0.65m curvature in Z)
+      // Subtle graceful longitudinal hip lean (+0.68m curvature in Z)
       const zLean = zE + 0.68 * Math.sin(s * Math.PI);
       const radius = 0.42 - 0.10 * s + 0.06 * Math.sin(s * Math.PI);
       return { x: bx + sx * halfX, y, z: zLean, radius };
@@ -3103,6 +3242,14 @@ export class SplineCorridorBuilder {
       if (qz > 348.5 && qz < 354.2 && Math.abs(qx - TerrainDEMLoader.TEKSAS_BRIDGE_X) < 4.2) {
         factor = Math.min(factor, PhysicsKernel.smootherstep(2.6, 4.2, Math.abs(qx - TerrainDEMLoader.TEKSAS_BRIDGE_X)));
       }
+      // Kompleks DPPD–STP–ILRC 360° Ring Road South & East Spur Throats
+      const rDppd = Math.hypot(qx - TerrainDEMLoader.DPPD_CX, qz - TerrainDEMLoader.DPPD_CZ);
+      if (rDppd < TerrainDEMLoader.DPPD_RING_OUTER_R + 2.4) {
+        factor = Math.min(
+          factor,
+          PhysicsKernel.smootherstep(TerrainDEMLoader.DPPD_RING_OUTER_R + 0.3, TerrainDEMLoader.DPPD_RING_OUTER_R + 2.4, rDppd)
+        );
+      }
       return factor;
     };
 
@@ -3382,6 +3529,14 @@ export class SplineCorridorBuilder {
       0.0,
       [0.46, 0.45, 0.42]
     );
+    // Kompleks DPPD–STP–ILRC South & East Spur T-Junctions + Ring-Road Mouth Transition Pads
+    const rgDppdSouth = TerrainDEMLoader.evalRoadNetworkCorridorGrade(-302.5, 338.8);
+    addJunctionPad(-301.2, (rgDppdSouth ? rgDppdSouth.targetY : 4.85) + 0.039, 338.5, 6.6, 7.6, -0.19);
+    addJunctionPad(-291.0, TerrainDEMLoader.DPPD_PLATEAU_Y + 0.044, 336.6, 5.4, 7.2, -0.21);
+
+    const rgDppdEast = TerrainDEMLoader.evalRoadNetworkCorridorGrade(-156.0, 355.0);
+    addJunctionPad(-157.8, (rgDppdEast ? rgDppdEast.targetY : 1.72) + 0.039, 354.5, 6.8, 7.6, 0.25);
+    addJunctionPad(-219.4, TerrainDEMLoader.DPPD_PLATEAU_Y + 0.044, 338.1, 5.4, 7.2, 0.26);
 
     return acc.finalize();
   }
@@ -4831,6 +4986,866 @@ export class SplineCorridorBuilder {
   }
 
   /**
+   * Builds Full Multi-Lane Campus Road Markings ("Marka Lajur Jalan Kampus UI") & Flush Junction Aprons:
+   * - Flush asphalt intersection flare pads eliminating any visual seam at Rotunda/West Boulevard/West Parking/Teksas throats
+   * - Lapangan Rotunda UI 2-Lane Concentric Markings (dashed white lane divider at R = 28.80m, inner/outer white edge lines,
+   *   8 clockwise directional circulatory lane arrows, & 3 radial pedestrian zebra crosswalks)
+   * - RotundaWestCampusBoulevard 2-lane UI-Yellow dashed centerline, edge lines, directional arrows, & zebra crosswalk
+   * - WestCourtyardParkingLane UI-Yellow dashed centerline, stop bar, & angled white parking bay markings
+   * Batched into corridorGroup for +0 extra Draw Calls!
+   */
+  static _buildCampusRoadLaneMarkings() {
+    const acc = SplineCorridorBuilder._createDualBufferAccumulator();
+    const rCx = SplineCorridorBuilder.ROTUNDA_CX;
+    const rCz = SplineCorridorBuilder.ROTUNDA_CZ;
+
+    const asphaltApron = [0.20, 0.21, 0.23];
+    const paverApron = [0.46, 0.45, 0.42];
+    const whiteLine = [0.95, 0.96, 0.98];
+    const uiYellowLine = [0.96, 0.77, 0.12];
+    const skirtCol = [0.42, 0.41, 0.39];
+
+    const addFlatPad = (cx, yTop, cz, sx, sz, yaw = 0.0, col = asphaltApron) => {
+      const top = new THREE.BoxGeometry(sx, 0.024, sz);
+      if (yaw !== 0.0) top.rotateY(yaw);
+      top.translate(cx, yTop - 0.012, cz);
+      acc.appendH(top, col);
+
+      const sub = new THREE.BoxGeometry(Math.max(0.3, sx - 0.2), 1.8, Math.max(0.3, sz - 0.2));
+      if (yaw !== 0.0) sub.rotateY(yaw);
+      sub.translate(cx, yTop - 0.92, cz);
+      acc.appendV(sub, skirtCol);
+    };
+
+    // 1. Flush Asphalt / Stone Junction Flare Pads at Campus Core Intersections
+    addFlatPad(-36.2, 0.044, rCz, 3.6, 9.2, 0.0, asphaltApron);
+    addFlatPad(-62.5, 0.042, 101.6, 11.6, 3.2, 0.0, asphaltApron);
+    addFlatPad(-20.4, 0.044, 135.0, 4.9, 3.2, -0.57, paverApron);
+
+    // 2. Lapangan Rotunda UI 2-Lane Concentric Dashed Divider (R = 28.80m) & Inner/Outer White Edge Stripes
+    const dashCount = 48;
+    for (let i = 0; i < dashCount; i++) {
+      const th0 = (i / dashCount) * Math.PI * 2.0;
+      const th1 = ((i + 0.52) / dashCount) * Math.PI * 2.0;
+      const subSteps = 3;
+      for (let s = 0; s < subSteps; s++) {
+        const a0 = th0 + ((th1 - th0) * s) / subSteps;
+        const a1 = th0 + ((th1 - th0) * (s + 1)) / subSteps;
+        const rIn = 28.71;
+        const rOut = 28.89;
+        acc.quadH(
+          rCx + Math.cos(a0) * rIn,
+          0.056,
+          rCz + Math.sin(a0) * rIn,
+          rCx + Math.cos(a1) * rIn,
+          0.056,
+          rCz + Math.sin(a1) * rIn,
+          rCx + Math.cos(a1) * rOut,
+          0.056,
+          rCz + Math.sin(a1) * rOut,
+          rCx + Math.cos(a0) * rOut,
+          0.056,
+          rCz + Math.sin(a0) * rOut,
+          whiteLine,
+          0,
+          1,
+          0
+        );
+      }
+    }
+
+    const edgeSegs = 160;
+    for (let i = 0; i < edgeSegs; i++) {
+      const a0 = (i / edgeSegs) * Math.PI * 2.0;
+      const a1 = ((i + 1) / edgeSegs) * Math.PI * 2.0;
+      const aMid = 0.5 * (a0 + a1);
+      const pxOut = rCx + Math.cos(aMid) * 33.4;
+      const pzOut = rCz + Math.sin(aMid) * 33.4;
+
+      // Continuous inner edge line (R = 24.16 .. 24.30m)
+      acc.quadH(
+        rCx + Math.cos(a0) * 24.16,
+        0.044,
+        rCz + Math.sin(a0) * 24.16,
+        rCx + Math.cos(a1) * 24.16,
+        0.044,
+        rCz + Math.sin(a1) * 24.16,
+        rCx + Math.cos(a1) * 24.30,
+        0.044,
+        rCz + Math.sin(a1) * 24.30,
+        rCx + Math.cos(a0) * 24.30,
+        0.044,
+        rCz + Math.sin(a0) * 24.30,
+        whiteLine,
+        0,
+        1,
+        0
+      );
+
+      // Outer edge line (R = 33.28 .. 33.42m), interrupted cleanly across West Boulevard & Teksas mouths
+      const inWestMouth = Math.hypot(pxOut - -36.2, pzOut - rCz) < 5.2;
+      const inTeksasMouth = Math.hypot(pxOut - -20.4, pzOut - 135.0) < 3.0;
+      if (!inWestMouth && !inTeksasMouth) {
+        acc.quadH(
+          rCx + Math.cos(a0) * 33.28,
+          0.044,
+          rCz + Math.sin(a0) * 33.28,
+          rCx + Math.cos(a1) * 33.28,
+          0.044,
+          rCz + Math.sin(a1) * 33.28,
+          rCx + Math.cos(a1) * 33.42,
+          0.044,
+          rCz + Math.sin(a1) * 33.42,
+          rCx + Math.cos(a0) * 33.42,
+          0.044,
+          rCz + Math.sin(a0) * 33.42,
+          whiteLine,
+          0,
+          1,
+          0
+        );
+      }
+    }
+
+    // Helper: Directional Lane Arrow at (ax, ay, az) pointing along heading yawRad
+    const addLaneArrow = (ax, ay, az, yawRad) => {
+      const shaft = new THREE.BoxGeometry(0.24, 0.014, 1.85);
+      shaft.rotateY(yawRad);
+      shaft.translate(ax - Math.sin(yawRad) * 0.45, ay, az - Math.cos(yawRad) * 0.45);
+      acc.appendH(shaft, whiteLine);
+
+      const head = new THREE.ConeGeometry(0.46, 0.95, 3, 1);
+      head.rotateX(Math.PI * 0.5);
+      head.scale(1.0, 0.04, 1.0);
+      head.rotateY(yawRad);
+      head.translate(ax + Math.sin(yawRad) * 0.72, ay, az + Math.cos(yawRad) * 0.72);
+      acc.appendH(head, whiteLine);
+    };
+
+    // 8 Clockwise Circulatory Arrows on Lapangan Rotunda UI (Inner Lane R = 26.35m & Outer Lane R = 31.25m)
+    for (let q = 0; q < 4; q++) {
+      const th = q * Math.PI * 0.5 + 0.38;
+      // Clockwise tangent direction in XZ: (-sin(th), +cos(th)) -> yaw = atan2(-sin(th), cos(th)) = -th
+      const cwYaw = Math.atan2(-Math.sin(th), Math.cos(th));
+      for (const rLane of [26.35, 31.25]) {
+        addLaneArrow(rCx + Math.cos(th) * rLane, 0.056, rCz + Math.sin(th) * rLane, cwYaw);
+      }
+    }
+
+    // 3 Radial Zebra Pedestrian Crosswalks on Lapangan Rotunda UI (North Rektorat Gate, East SE Walkway, South Teksas)
+    for (const thCross of [-Math.PI * 0.5, 0.16, 2.02]) {
+      const cT = Math.cos(thCross);
+      const sT = Math.sin(thCross);
+      const yawCross = Math.atan2(-sT, cT);
+      for (let st = 0; st < 8; st++) {
+        const rStripe = 24.75 + st * 1.15;
+        const bar = new THREE.BoxGeometry(0.54, 0.015, 2.85);
+        bar.rotateY(yawCross);
+        bar.translate(rCx + cT * rStripe, 0.056, rCz + sT * rStripe);
+        acc.appendH(bar, whiteLine);
+      }
+    }
+
+    // 3. RotundaWestCampusBoulevard (x = -37.5 .. -81.0, z = 106.5): 2-Lane UI-Yellow Dashed Centerline, Edge Lines, Crosswalk & Arrows
+    for (let x = -39.5; x >= -79.5; x -= 5.2) {
+      const dash = new THREE.BoxGeometry(2.7, 0.014, 0.18);
+      dash.translate(x - 1.35, 0.054, rCz);
+      acc.appendH(dash, uiYellowLine);
+    }
+    for (const sz of [-1, 1]) {
+      const zEdge = rCz + sz * 4.18;
+      for (let x = -37.2; x >= -80.4; x -= 2.2) {
+        const xm = x - 1.1;
+        if (sz < 0 && xm < -56.2 && xm > -68.8) continue; // Open across WestCourtyardParkingLane mouth!
+        const eSeg = new THREE.BoxGeometry(2.22, 0.012, 0.15);
+        eSeg.translate(xm, 0.044, zEdge);
+        acc.appendH(eSeg, whiteLine);
+      }
+    }
+    // Pedestrian Zebra Crosswalk & Stop Bars at West Boulevard / Rotunda Throat (x = -38.4)
+    for (let s = -3; s <= 3; s++) {
+      const stripe = new THREE.BoxGeometry(2.6, 0.015, 0.54);
+      stripe.translate(-38.4, 0.055, rCz + s * 1.12);
+      acc.appendH(stripe, whiteLine);
+    }
+    addLaneArrow(-48.5, 0.054, rCz - 2.15, -Math.PI * 0.5);
+    addLaneArrow(-48.5, 0.054, rCz + 2.15, Math.PI * 0.5);
+    addLaneArrow(-74.0, 0.054, rCz - 2.15, -Math.PI * 0.5);
+    addLaneArrow(-74.0, 0.054, rCz + 2.15, Math.PI * 0.5);
+
+    // 4. WestCourtyardParkingLane (x = -62.5, z = -33.0 .. 100.5): Dashed Centerline, Stop Bar, Crosswalk, & Parking Bay Stalls
+    for (let z = 96.5; z >= -30.0; z -= 5.6) {
+      const dash = new THREE.BoxGeometry(0.18, 0.014, 2.8);
+      dash.translate(-62.5, 0.052, z - 1.4);
+      acc.appendH(dash, uiYellowLine);
+    }
+    for (let s = -4; s <= 4; s++) {
+      const stripe = new THREE.BoxGeometry(0.54, 0.015, 2.5);
+      stripe.translate(-62.5 + s * 1.15, 0.053, 99.8);
+      acc.appendH(stripe, whiteLine);
+    }
+    const stopBar = new THREE.BoxGeometry(5.2, 0.015, 0.36);
+    stopBar.translate(-59.8, 0.053, 97.6);
+    acc.appendH(stopBar, whiteLine);
+
+    // White perpendicular parking bay stall dividers along East side of WestCourtyardParkingLane (x = -59.2 .. -56.9)
+    for (let zSlot = -28.0; zSlot <= 64.0; zSlot += 3.2) {
+      const stall = new THREE.BoxGeometry(2.35, 0.012, 0.13);
+      stall.translate(-58.0, 0.044, zSlot);
+      acc.appendH(stall, whiteLine);
+    }
+
+    return acc.finalize();
+  }
+
+  /**
+   * Builds the Dedicated EPDM Campus Jogging Tracks & Outdoor Street-Workout / Calisthenics Park ("Sudut Calisthenics UI"):
+   * 1. Lintasan Joging EPDM Taman Rotunda (332° terracotta-red & royal-blue 2-lane cushioned running track at R = 37.15m)
+   * 2. Lintasan Joging EPDM Taman Teluk U (100% closed 2-lane oval running track wrapping around (-62.0, 136.5))
+   * 3. Sudut Calisthenics UI inside the Teluk U oval infield (-62.0, 136.5): multi-bay pull-up & monkey-bar rig,
+   *    Swedish stall ladder, parallel dip bars, push-up bars, 2 inclined sit-up benches, 3 plyo boxes, & illuminated guide board.
+   * Batched into corridorGroup for +0 extra Draw Calls!
+   */
+  static _buildCampusJoggingTrackAndCalisthenics() {
+    const acc = SplineCorridorBuilder._createDualBufferAccumulator();
+    const rCx = SplineCorridorBuilder.ROTUNDA_CX;
+    const rCz = SplineCorridorBuilder.ROTUNDA_CZ;
+    const spec = SplineCorridorBuilder.CALISTHENICS_SPEC;
+
+    const epdmRed = [0.71, 0.23, 0.16];
+    const epdmBlue = [0.12, 0.35, 0.72];
+    const epdmCharcoal = [0.16, 0.18, 0.21];
+    const whiteLine = [0.95, 0.96, 0.98];
+    const uiGold = [0.93, 0.70, 0.09];
+    const anthraciteSteel = [0.14, 0.16, 0.19];
+    const stainlessBar = [0.76, 0.79, 0.83];
+    const teakWood = [0.54, 0.33, 0.18];
+    const concreteBase = [0.86, 0.85, 0.82];
+    const warmLed = [0.99, 0.94, 0.78];
+
+    // Helper: Lofted 2-Lane Cushioned EPDM Running Track along an array of 2D centerline points
+    const buildEPDMTrack = (pts2D, closed, halfW = 1.05) => {
+      const count = pts2D.length;
+      const segs = closed ? count : count - 1;
+      const borderW = 0.14;
+      const frames = [];
+      let arc = 0.0;
+
+      for (let i = 0; i <= segs; i++) {
+        const idx = i % count;
+        const p = pts2D[idx];
+        const pPrev = pts2D[closed ? (idx - 1 + count) % count : Math.max(0, idx - 1)];
+        const pNext = pts2D[closed ? (idx + 1) % count : Math.min(count - 1, idx + 1)];
+        let tx = pNext[0] - pPrev[0];
+        let tz = pNext[1] - pPrev[1];
+        const tl = Math.hypot(tx, tz) || 1.0;
+        tx /= tl;
+        tz /= tl;
+        const sx = tz;
+        const sz = -tx;
+        const gy = Math.max(0.0, TerrainDEMLoader.sampleGroundHeight(p[0], p[1]));
+        if (i > 0) {
+          const prev = frames[i - 1];
+          arc += Math.hypot(p[0] - prev.x, p[1] - prev.z);
+        }
+        frames.push({ x: p[0], y: gy + 0.026, z: p[1], sx, sz, arc });
+      }
+
+      for (let i = 0; i < segs; i++) {
+        const f0 = frames[i];
+        const f1 = frames[i + 1];
+
+        // Skip raised EPDM across paved RotundaEastTeksasConnector walkway crossing (-22.6, 137.8) so walkway stays flush
+        const xm = 0.5 * (f0.x + f1.x);
+        const zm = 0.5 * (f0.z + f1.z);
+        const onTeksasPromenade = Math.hypot(xm - -22.5, zm - 137.5) < 2.65;
+        const yLift = onTeksasPromenade ? 0.022 : 0.0;
+
+        // Main terracotta-red EPDM running deck
+        acc.quadH(
+          f0.x - f0.sx * halfW,
+          f0.y + yLift,
+          f0.z - f0.sz * halfW,
+          f1.x - f1.sx * halfW,
+          f1.y + yLift,
+          f1.z - f1.sz * halfW,
+          f1.x + f1.sx * halfW,
+          f1.y + yLift,
+          f1.z + f1.sz * halfW,
+          f0.x + f0.sx * halfW,
+          f0.y + yLift,
+          f0.z + f0.sz * halfW,
+          epdmRed,
+          0,
+          1,
+          0
+        );
+
+        // Royal-blue EPDM outer & inner edge trim borders + concrete sub-skirt
+        for (const sgn of [-1, 1]) {
+          const rA = sgn * halfW;
+          const rB = sgn * (halfW + borderW);
+          acc.quadH(
+            f0.x + f0.sx * rA,
+            f0.y + yLift - 0.002,
+            f0.z + f0.sz * rA,
+            f1.x + f1.sx * rA,
+            f1.y + yLift - 0.002,
+            f1.z + f1.sz * rA,
+            f1.x + f1.sx * rB,
+            f1.y + yLift - 0.004,
+            f1.z + f1.sz * rB,
+            f0.x + f0.sx * rB,
+            f0.y + yLift - 0.004,
+            f0.z + f0.sz * rB,
+            epdmBlue,
+            0,
+            1,
+            0
+          );
+          acc.quadV(
+            f0.x + f0.sx * rB,
+            f0.y + yLift - 0.004,
+            f0.z + f0.sz * rB,
+            f1.x + f1.sx * rB,
+            f1.y + yLift - 0.004,
+            f1.z + f1.sz * rB,
+            f1.x + f1.sx * rB,
+            f1.y - 0.35,
+            f1.z + f1.sz * rB,
+            f0.x + f0.sx * rB,
+            f0.y - 0.35,
+            f0.z + f0.sz * rB,
+            concreteBase,
+            sgn * f0.sx,
+            0,
+            sgn * f0.sz
+          );
+        }
+
+        // Crisp white 2-lane center divider stripe + 25m distance tick bars
+        acc.quadH(
+          f0.x - f0.sx * 0.035,
+          f0.y + yLift + 0.004,
+          f0.z - f0.sz * 0.035,
+          f1.x - f1.sx * 0.035,
+          f1.y + yLift + 0.004,
+          f1.z - f1.sz * 0.035,
+          f1.x + f1.sx * 0.035,
+          f1.y + yLift + 0.004,
+          f1.z + f1.sz * 0.035,
+          f0.x + f0.sx * 0.035,
+          f0.y + yLift + 0.004,
+          f0.z + f0.sz * 0.035,
+          whiteLine,
+          0,
+          1,
+          0
+        );
+
+        if (Math.floor(f0.arc / 25.0) !== Math.floor(f1.arc / 25.0)) {
+          acc.quadH(
+            f0.x - f0.sx * (halfW - 0.12),
+            f0.y + yLift + 0.005,
+            f0.z - f0.sz * (halfW - 0.12),
+            f1.x - f1.sx * (halfW - 0.12),
+            f1.y + yLift + 0.005,
+            f1.z - f1.sz * (halfW - 0.12),
+            f1.x + f1.sx * (halfW - 0.12),
+            f1.y + yLift + 0.005,
+            f1.z + f1.sz * (halfW - 0.12),
+            f0.x + f0.sx * (halfW - 0.12),
+            f0.y + yLift + 0.005,
+            f0.z + f0.sz * (halfW - 0.12),
+            whiteLine,
+            0,
+            1,
+            0
+          );
+        }
+      }
+
+      if (!closed && frames.length >= 2) {
+        for (const fEnd of [frames[0], frames[frames.length - 1]]) {
+          const cap = new THREE.CylinderGeometry(halfW + borderW, halfW + borderW, 0.36, 18, 1);
+          cap.translate(fEnd.x, fEnd.y - 0.18, fEnd.z);
+          acc.appendH(cap, epdmBlue);
+          const pad = new THREE.CylinderGeometry(halfW, halfW, 0.02, 18, 1);
+          pad.translate(fEnd.x, fEnd.y - 0.006, fEnd.z);
+          acc.appendH(pad, epdmRed);
+        }
+      }
+    };
+
+    // 1. Lintasan Joging EPDM Taman Rotunda UI (R = 37.15m, -75° .. +255° framing Lapangan Rotunda UI!)
+    const rotundaTrackPts = [];
+    const rotTrackSegs = 132;
+    const thStart = (-75.0 * Math.PI) / 180.0;
+    const thEnd = (255.0 * Math.PI) / 180.0;
+    for (let i = 0; i <= rotTrackSegs; i++) {
+      const th = thStart + ((thEnd - thStart) * i) / rotTrackSegs;
+      rotundaTrackPts.push([
+        rCx + Math.cos(th) * spec.rotundaTrackR,
+        rCz + Math.sin(th) * spec.rotundaTrackR
+      ]);
+    }
+    buildEPDMTrack(rotundaTrackPts, false, 1.02);
+
+    // 2. Lintasan Joging EPDM Taman Teluk U (100% Closed 2-Lane Athletic Oval wrapping Sudut Calisthenics!)
+    const ovalPts = [];
+    const ovalSegs = 72;
+    for (let i = 0; i < ovalSegs; i++) {
+      const th = (i / ovalSegs) * Math.PI * 2.0;
+      ovalPts.push([
+        spec.cx + Math.cos(th) * spec.ovalRx,
+        spec.cz + Math.sin(th) * spec.ovalRz
+      ]);
+    }
+    buildEPDMTrack(ovalPts, true, 1.08);
+
+    // 3. Sudut Calisthenics UI (Outdoor Street-Workout & Fitness Court inside the Teluk U Oval Infield!)
+    const cx = spec.cx;
+    const cz = spec.cz;
+    const gy = Math.max(0.0, TerrainDEMLoader.sampleGroundHeight(cx, cz));
+    const padY = gy + 0.036;
+
+    // Shock-absorbing Charcoal & Royal-Blue EPDM Fitness Court Pad (15.6m x 6.4m) + UI-Gold Border
+    const courtSub = new THREE.BoxGeometry(16.0, 0.48, 6.8);
+    courtSub.translate(cx, padY - 0.24, cz);
+    acc.appendV(courtSub, concreteBase);
+
+    const courtBorder = new THREE.BoxGeometry(15.8, 0.03, 6.6);
+    courtBorder.translate(cx, padY - 0.01, cz);
+    acc.appendH(courtBorder, uiGold);
+
+    const courtMain = new THREE.BoxGeometry(15.3, 0.034, 6.1);
+    courtMain.translate(cx, padY, cz);
+    acc.appendH(courtMain, epdmCharcoal);
+
+    for (const zoneX of [-4.4, 0.8, 5.2]) {
+      const zoneMat = new THREE.BoxGeometry(3.8, 0.038, 4.6);
+      zoneMat.translate(cx + zoneX, padY + 0.003, cz);
+      acc.appendH(zoneMat, epdmBlue);
+    }
+
+    // 3A. Main Multi-Bay Pull-Up, Monkey-Bar & Swedish Stall-Ladder Rig (centered at cx - 4.4, cz)
+    const rigX = cx - 4.4;
+    const postCoords = [
+      [-1.75, -1.10, 2.48],
+      [0.0, -1.10, 2.48],
+      [1.75, -1.10, 2.48],
+      [-1.75, 1.10, 2.48],
+      [0.0, 1.10, 2.48],
+      [1.75, 1.10, 2.48],
+      [-2.75, -1.10, 2.15],
+      [-2.75, 0.0, 2.35]
+    ];
+    for (const [ox, oz, h] of postCoords) {
+      const flange = new THREE.CylinderGeometry(0.11, 0.12, 0.05, 8, 1);
+      flange.translate(rigX + ox, padY + 0.04, cz + oz);
+      acc.appendH(flange, anthraciteSteel);
+      acc.tubeH(rigX + ox, padY + 0.04, cz + oz, rigX + ox, padY + h, cz + oz, 0.054, 0.054, 8, uiGold, true);
+    }
+    // Longitudinal & transverse overhead pull-up bars + 11-rung horizontal monkey-bar ladder
+    for (const oz of [-1.10, 1.10]) {
+      acc.tubeH(rigX - 1.75, padY + 2.34, cz + oz, rigX + 1.75, padY + 2.34, cz + oz, 0.032, 0.032, 8, anthraciteSteel, false);
+    }
+    for (const ox of [-1.75, 0.0, 1.75]) {
+      acc.tubeH(rigX + ox, padY + 2.24, cz - 1.10, rigX + ox, padY + 2.24, cz + 1.10, 0.028, 0.028, 8, stainlessBar, false);
+    }
+    for (let r = 0; r <= 10; r++) {
+      const rx = rigX - 1.55 + r * 0.31;
+      acc.tubeH(rx, padY + 2.34, cz - 1.10, rx, padY + 2.34, cz + 1.10, 0.022, 0.022, 6, stainlessBar, false);
+    }
+    // Side Freestyle Pull-Up Bar & Vertical Swedish Stall Ladder (8 rungs)
+    acc.tubeH(rigX - 2.75, padY + 2.04, cz - 1.10, rigX - 1.75, padY + 2.04, cz - 1.10, 0.028, 0.028, 8, stainlessBar, false);
+    for (let sr = 0; sr < 8; sr++) {
+      const ry = padY + 0.38 + sr * 0.25;
+      acc.tubeH(rigX - 2.75, ry, cz - 1.10, rigX - 2.75, ry, cz, 0.020, 0.020, 6, stainlessBar, false);
+    }
+    // Human-flag vertical grip pole & low/mid push-up bars
+    acc.tubeH(rigX + 1.75, padY + 0.32, cz + 1.10, rigX + 1.75, padY + 1.45, cz + 1.85, 0.024, 0.024, 6, stainlessBar, true);
+    for (const [px0, pz0, px1, pz1, ph] of [
+      [rigX - 0.8, cz + 1.85, rigX + 0.6, cz + 1.85, 0.32],
+      [rigX + 0.6, cz + 1.85, rigX + 1.75, cz + 1.85, 0.52]
+    ]) {
+      acc.tubeH(px0, padY + 0.02, pz0, px0, padY + ph + 0.04, pz0, 0.036, 0.036, 6, uiGold, true);
+      acc.tubeH(px1, padY + 0.02, pz1, px1, padY + ph + 0.04, pz1, 0.036, 0.036, 6, uiGold, true);
+      acc.tubeH(px0, padY + ph, pz0, px1, padY + ph, pz1, 0.024, 0.024, 6, stainlessBar, false);
+    }
+
+    // 3B. Parallel Dip Bars & Twin Inclined Sit-Up / Core Benches (centered at cx + 0.8, cz)
+    const dipX = cx + 0.1;
+    for (const dz of [-0.34, 0.34]) {
+      for (const dx of [-0.95, 0.95]) {
+        acc.tubeH(dipX + dx, padY + 0.02, cz - 1.15 + dz, dipX + dx, padY + 1.22, cz - 1.15 + dz, 0.038, 0.038, 8, uiGold, true);
+      }
+      acc.tubeH(dipX - 1.08, padY + 1.22, cz - 1.15 + dz, dipX + 1.08, padY + 1.22, cz - 1.15 + dz, 0.028, 0.028, 8, stainlessBar, true);
+    }
+
+    for (const bxOff of [-0.55, 0.85]) {
+      const abX = cx + 0.6 + bxOff;
+      const abZ = cz + 1.15;
+      const board = new THREE.BoxGeometry(0.52, 0.06, 1.68);
+      board.rotateX(0.24);
+      board.translate(abX, padY + 0.42, abZ);
+      acc.appendH(board, teakWood);
+      acc.tubeH(abX, padY + 0.02, abZ - 0.68, abX, padY + 0.62, abZ - 0.68, 0.036, 0.036, 6, anthraciteSteel, true);
+      acc.tubeH(abX, padY + 0.02, abZ + 0.68, abX, padY + 0.24, abZ + 0.68, 0.036, 0.036, 6, anthraciteSteel, true);
+      acc.tubeH(abX - 0.30, padY + 0.66, abZ - 0.72, abX + 0.30, padY + 0.66, abZ - 0.72, 0.032, 0.032, 6, epdmCharcoal, true);
+    }
+
+    // 3C. 3 Stepped Plyometric Jump Boxes & Illuminated UI Calisthenics Workout Guide Board (cx + 5.2, cz)
+    const plyoSpecs = [
+      { ox: 4.3, oz: -0.9, h: 0.40, col: epdmBlue },
+      { ox: 5.3, oz: -0.2, h: 0.56, col: uiGold },
+      { ox: 4.5, oz: 0.9, h: 0.72, col: epdmRed }
+    ];
+    for (const pl of plyoSpecs) {
+      const box = new THREE.BoxGeometry(0.76, pl.h, 0.76);
+      box.translate(cx + pl.ox, padY + pl.h * 0.5 + 0.015, cz + pl.oz);
+      acc.appendH(box, anthraciteSteel);
+      const pad = new THREE.BoxGeometry(0.72, 0.035, 0.72);
+      pad.translate(cx + pl.ox, padY + pl.h + 0.02, cz + pl.oz);
+      acc.appendH(pad, pl.col);
+    }
+
+    const signX = cx + 6.55;
+    const signZ = cz - 1.75;
+    for (const sz of [-0.52, 0.52]) {
+      acc.tubeH(signX, padY + 0.02, signZ + sz, signX, padY + 2.05, signZ + sz, 0.038, 0.038, 6, anthraciteSteel, true);
+    }
+    const boardFrame = new THREE.BoxGeometry(0.10, 1.05, 1.22);
+    boardFrame.translate(signX, padY + 1.45, signZ);
+    acc.appendH(boardFrame, anthraciteSteel);
+    const boardHeader = new THREE.BoxGeometry(0.12, 0.20, 1.18);
+    boardHeader.translate(signX, padY + 1.86, signZ);
+    acc.appendH(boardHeader, uiGold);
+    const boardLight = new THREE.BoxGeometry(0.14, 0.05, 1.08);
+    boardLight.translate(signX, padY + 2.01, signZ);
+    acc.appendH(boardLight, warmLed, [0.5, -890.0]);
+
+    return acc.finalize();
+  }
+
+  /**
+   * Builds the Compact Air Traffic Control Tower ("ATC Kecil Bandara Pulau I") at (-233.5, 665.5, y = 0.58m):
+   * - Paved operational plinth with UI-Gold & Zebra apron curb
+   * - Octagonal Precast-Concrete & UI-Gold ribbed shaft (y = 0.58 .. 8.35m) + exterior steel stair & 360° catwalk balcony
+   * - Cantilevered 360° outward-tilted anti-glare glass ATC Control Cab (y = 8.40 .. 11.35m, night-lit v = -720.0)
+   *   with interior radar/radio controller consoles & warm cab ceiling ring (v = -890.0)
+   * - Overhanging roof deck with primary rotating-look radar bar, anemometer, VHF/ADS-B antennas, & red beacon (y = 13.45m)
+   * Batched into corridorGroup for +0 extra Draw Calls!
+   */
+  static _buildPulauICompactATCTower() {
+    const acc = SplineCorridorBuilder._createDualBufferAccumulator();
+    const cx = TerrainDEMLoader.ATC_I_CX;
+    const cz = TerrainDEMLoader.ATC_I_CZ;
+    const baseY = Math.max(TerrainDEMLoader.ATC_I_BASE_Y, TerrainDEMLoader.sampleGroundHeight(cx, cz) + 0.04);
+
+    const precastCream = [0.92, 0.90, 0.86];
+    const uiGold = [0.93, 0.70, 0.09];
+    const darkSteel = [0.15, 0.17, 0.21];
+    const galvSteel = [0.64, 0.67, 0.72];
+    const cabGlass = [0.09, 0.18, 0.28];
+    const warmCeiling = [0.99, 0.93, 0.76];
+    const radarWhite = [0.95, 0.96, 0.98];
+    const beaconRed = [0.96, 0.08, 0.06];
+
+    // 1. Operational Concrete Plinth & Sub-Terrain Skirt
+    const plinthH = baseY + 0.22 - SplineCorridorBuilder.SKIRT_BOTTOM_Y;
+    const plinth = new THREE.CylinderGeometry(3.85, 4.10, plinthH, 16, 1);
+    plinth.translate(cx, SplineCorridorBuilder.SKIRT_BOTTOM_Y + plinthH * 0.5, cz);
+    acc.appendV(plinth, precastCream);
+
+    const collar = new THREE.CylinderGeometry(3.92, 3.92, 0.10, 16, 1);
+    collar.translate(cx, baseY + 0.18, cz);
+    acc.appendH(collar, uiGold);
+
+    // 2. Octagonal Tower Shaft (y = baseY + 0.22 .. baseY + 7.80m) + 4 Vertical UI-Gold Accent Ribs + Slit Windows
+    const shaftBotY = baseY + 0.22;
+    const shaftTopY = baseY + 7.80;
+    const shaftH = shaftTopY - shaftBotY;
+    const shaft = new THREE.CylinderGeometry(1.88, 2.16, shaftH, 8, 1);
+    shaft.translate(cx, shaftBotY + shaftH * 0.5, cz);
+    acc.appendV(shaft, precastCream);
+
+    for (let k = 0; k < 4; k++) {
+      const ang = k * Math.PI * 0.5 + Math.PI * 0.25;
+      const rx = cx + Math.cos(ang) * 2.02;
+      const rz = cz + Math.sin(ang) * 2.02;
+      const rib = new THREE.BoxGeometry(0.24, shaftH, 0.24);
+      rib.rotateY(-ang);
+      rib.translate(rx, shaftBotY + shaftH * 0.5, rz);
+      acc.appendH(rib, uiGold);
+    }
+
+    // Ground-floor steel entry door & 2-level shaft equipment room windows (night-lit v = -720.0!)
+    const door = new THREE.BoxGeometry(1.05, 2.15, 0.22);
+    door.translate(cx, shaftBotY + 1.08, cz - 2.08);
+    acc.appendH(door, darkSteel);
+    const doorCanopy = new THREE.BoxGeometry(1.48, 0.10, 0.72);
+    doorCanopy.translate(cx, shaftBotY + 2.24, cz - 2.32);
+    acc.appendH(doorCanopy, uiGold);
+    const doorLight = new THREE.BoxGeometry(0.68, 0.05, 0.18);
+    doorLight.translate(cx, shaftBotY + 2.17, cz - 2.28);
+    acc.appendH(doorLight, warmCeiling, [0.5, -890.0]);
+
+    for (const wy of [shaftBotY + 3.4, shaftBotY + 5.7]) {
+      for (const sgn of [-1, 1]) {
+        const slitZ = new THREE.BoxGeometry(0.72, 1.35, 0.16);
+        slitZ.translate(cx, wy, cz + sgn * 2.02);
+        acc.appendH(slitZ, cabGlass, [0.5, -720.0]);
+
+        const slitX = new THREE.BoxGeometry(0.16, 1.35, 0.72);
+        slitX.translate(cx + sgn * 2.02, wy, cz);
+        acc.appendH(slitX, cabGlass, [0.5, -720.0]);
+      }
+    }
+
+    // 3. Cantilevered 360° Catwalk Observation Deck (y = shaftTopY) & Safety Handrails
+    const catwalk = new THREE.CylinderGeometry(3.22, 2.35, 0.34, 8, 1);
+    catwalk.translate(cx, shaftTopY + 0.17, cz);
+    acc.appendV(catwalk, precastCream);
+
+    const catwalkTrim = new THREE.CylinderGeometry(3.26, 3.26, 0.12, 8, 1);
+    catwalkTrim.translate(cx, shaftTopY + 0.30, cz);
+    acc.appendH(catwalkTrim, darkSteel);
+
+    const deckY = shaftTopY + 0.34;
+    for (let k = 0; k < 8; k++) {
+      const a0 = (k / 8) * Math.PI * 2.0 + Math.PI / 8;
+      const a1 = ((k + 1) / 8) * Math.PI * 2.0 + Math.PI / 8;
+      const rRail = 3.12;
+      const x0 = cx + Math.cos(a0) * rRail;
+      const z0 = cz + Math.sin(a0) * rRail;
+      const x1 = cx + Math.cos(a1) * rRail;
+      const z1 = cz + Math.sin(a1) * rRail;
+      acc.tubeH(x0, deckY, z0, x0, deckY + 1.02, z0, 0.028, 0.028, 6, galvSteel, true);
+      acc.tubeH(x0, deckY + 1.02, z0, x1, deckY + 1.02, z1, 0.030, 0.030, 6, galvSteel, false);
+      acc.tubeH(x0, deckY + 0.52, z0, x1, deckY + 0.52, z1, 0.022, 0.022, 6, galvSteel, false);
+    }
+
+    // 4. 360° Outward-Tilted Anti-Glare Octagonal ATC Control Cab (y = deckY .. deckY + 2.75m)
+    const cabBotY = deckY;
+    const cabTopY = deckY + 2.75;
+    const cabWall = new THREE.CylinderGeometry(2.58, 2.42, 0.82, 8, 1);
+    cabWall.translate(cx, cabBotY + 0.41, cz);
+    acc.appendH(cabWall, darkSteel);
+
+    // Outward-tilted panoramic ATC glazing (rBot = 2.52m -> rTop = 3.02m, UV sentinel v = -720.0!)
+    const cabGlazing = new THREE.CylinderGeometry(3.00, 2.52, 1.92, 8, 1);
+    cabGlazing.translate(cx, cabBotY + 0.80 + 0.96, cz);
+    acc.appendH(cabGlazing, cabGlass, [0.5, -720.0]);
+
+    // 8 Inclined Steel Corner Mullions around the ATC Control Cab
+    for (let k = 0; k < 8; k++) {
+      const ang = (k / 8) * Math.PI * 2.0 + Math.PI / 8;
+      acc.tubeH(
+        cx + Math.cos(ang) * 2.54,
+        cabBotY + 0.78,
+        cz + Math.sin(ang) * 2.54,
+        cx + Math.cos(ang) * 3.04,
+        cabTopY,
+        cz + Math.sin(ang) * 3.04,
+        0.055,
+        0.055,
+        6,
+        darkSteel,
+        false
+      );
+    }
+
+    // Interior ATC Controller Console Ring & Warm Ceiling Halo (v = -890.0!)
+    const consoleRing = new THREE.CylinderGeometry(2.15, 2.05, 0.92, 8, 1);
+    consoleRing.translate(cx, cabBotY + 0.46, cz);
+    acc.appendH(consoleRing, [0.22, 0.25, 0.30]);
+
+    const cabCeilingGlow = new THREE.CylinderGeometry(2.65, 2.65, 0.08, 8, 1);
+    cabCeilingGlow.translate(cx, cabTopY - 0.06, cz);
+    acc.appendH(cabCeilingGlow, warmCeiling, [0.5, -890.0]);
+
+    // 5. Overhanging Insulated Cab Roof, UI-Gold Fascia Band, Primary Radar Bar, Anemometer, VHF Antennas & Red Beacon
+    const roofVisor = new THREE.CylinderGeometry(3.35, 3.55, 0.28, 8, 1);
+    roofVisor.translate(cx, cabTopY + 0.14, cz);
+    acc.appendH(roofVisor, darkSteel);
+
+    const roofGoldBand = new THREE.CylinderGeometry(3.57, 3.57, 0.10, 8, 1);
+    roofGoldBand.translate(cx, cabTopY + 0.16, cz);
+    acc.appendH(roofGoldBand, uiGold);
+
+    const roofCap = new THREE.ConeGeometry(3.38, 0.48, 8, 1);
+    roofCap.translate(cx, cabTopY + 0.52, cz);
+    acc.appendV(roofCap, precastCream);
+
+    const roofApexY = cabTopY + 0.76;
+    const ped = new THREE.CylinderGeometry(0.28, 0.34, 0.55, 10, 1);
+    ped.translate(cx, roofApexY + 0.24, cz);
+    acc.appendH(ped, darkSteel);
+
+    const radarScanner = new THREE.BoxGeometry(2.35, 0.24, 0.34);
+    radarScanner.rotateY(0.42);
+    radarScanner.translate(cx, roofApexY + 0.62, cz);
+    acc.appendH(radarScanner, radarWhite);
+
+    // Central Mast + Flashing Red Aviation Obstruction Beacon (y > 5.2m night pulsing!) + 3 VHF/ADS-B Whip Antennas
+    acc.tubeH(cx, roofApexY + 0.50, cz, cx, roofApexY + 1.95, cz, 0.045, 0.032, 8, galvSteel, true);
+    const beacon = new THREE.SphereGeometry(0.16, 10, 8);
+    beacon.translate(cx, roofApexY + 2.08, cz);
+    acc.appendH(beacon, beaconRed);
+
+    for (let a = 0; a < 3; a++) {
+      const ang = (a / 3) * Math.PI * 2.0 + 0.3;
+      const ax = cx + Math.cos(ang) * 2.15;
+      const az = cz + Math.sin(ang) * 2.15;
+      acc.tubeH(ax, cabTopY + 0.28, az, ax, cabTopY + 2.05, az, 0.026, 0.014, 6, galvSteel, true);
+    }
+
+    return acc.finalize();
+  }
+
+  /**
+   * Builds the 4 K3 Emergency Assembly Points ("Titik Kumpul Keadaan Darurat") & 4 Modern UI Campus Coffee/Snack Kiosks ("Titik Kios"):
+   * - 4 Titik Kumpul: 3.2m x 3.2m safety-green pad with white border, 4 inward white chevron arrows, & 2.45m double-sided K3 signpost
+   * - 4 Titik Kios: Nusantara timber-slat & UI-Yellow modern campus kiosks with warm LED soffits (v = -890.0), night-lit glazing (v = -720.0),
+   *   teak service counter, espresso machine, pastry display, menu board, & 2 shaded outdoor café umbrella tables per kiosk!
+   * Batched into corridorGroup for +0 extra Draw Calls!
+   */
+  static _buildEmergencyMusterAndCampusKiosks() {
+    const acc = SplineCorridorBuilder._createDualBufferAccumulator();
+
+    const safetyGreen = [0.06, 0.55, 0.24];
+    const crispWhite = [0.96, 0.97, 0.98];
+    const galvSteel = [0.66, 0.69, 0.74];
+    const darkSteel = [0.14, 0.16, 0.19];
+    const uiGold = [0.93, 0.70, 0.09];
+    const teakWood = [0.56, 0.34, 0.17];
+    const teakDark = [0.38, 0.22, 0.11];
+    const granitePlinth = [0.76, 0.75, 0.72];
+    const kioskGlass = [0.10, 0.19, 0.29];
+    const warmLuminaire = [0.99, 0.93, 0.75];
+    const umbrellaCream = [0.95, 0.92, 0.84];
+
+    // 1. 4 Titik Kumpul Keadaan Darurat (Emergency Assembly Points)
+    for (const mp of SplineCorridorBuilder.MUSTER_POINTS) {
+      const gy = Math.max(0.0, TerrainDEMLoader.sampleGroundHeight(mp.x, mp.z));
+      const py = gy + 0.032;
+      const cY = Math.cos(mp.yaw);
+      const sY = Math.sin(mp.yaw);
+      const toW = (lx, ly, lz) => [mp.x + lx * cY + lz * sY, ly, mp.z - lx * sY + lz * cY];
+      const place = (geo, lx, ly, lz, rx = 0, ry = 0, rz = 0) => {
+        if (rx !== 0) geo.rotateX(rx);
+        if (ry !== 0) geo.rotateY(ry);
+        if (rz !== 0) geo.rotateZ(rz);
+        geo.rotateY(mp.yaw);
+        const [wx, wy, wz] = toW(lx, ly, lz);
+        geo.translate(wx, wy, wz);
+        return geo;
+      };
+
+      acc.appendV(place(new THREE.BoxGeometry(3.4, 0.46, 3.4), 0, py - 0.24, 0), granitePlinth);
+      acc.appendH(place(new THREE.BoxGeometry(3.24, 0.024, 3.24), 0, py - 0.004, 0), crispWhite);
+      acc.appendH(place(new THREE.BoxGeometry(2.88, 0.028, 2.88), 0, py, 0), safetyGreen);
+
+      // Central white muster square + 4 inward diagonal K3 assembly arrows on pad
+      acc.appendH(place(new THREE.BoxGeometry(0.76, 0.032, 0.76), 0, py + 0.003, 0), crispWhite);
+      for (let k = 0; k < 4; k++) {
+        const ang = k * Math.PI * 0.5 + Math.PI * 0.25;
+        const dist = 0.94;
+        const lx = Math.sin(ang) * dist;
+        const lz = Math.cos(ang) * dist;
+        acc.appendH(place(new THREE.BoxGeometry(0.18, 0.032, 0.62), lx, py + 0.003, lz, 0, ang, 0), crispWhite);
+        const head = new THREE.ConeGeometry(0.26, 0.34, 3, 1);
+        head.rotateX(-Math.PI * 0.5);
+        head.scale(1.0, 0.08, 1.0);
+        acc.appendH(place(head, lx * 0.62, py + 0.016, lz * 0.62, 0, ang, 0), crispWhite);
+      }
+
+      // 2.45m Galvanized K3 Signpost + Double-Sided Green/White "TITIK KUMPUL" Signboard + Solar Night Lamp
+      const [pxPost, , pzPost] = toW(0, 0, -1.32);
+      acc.tubeH(pxPost, py, pzPost, pxPost, py + 2.45, pzPost, 0.045, 0.045, 8, galvSteel, true);
+      acc.appendH(place(new THREE.BoxGeometry(0.88, 0.88, 0.07), 0, py + 2.02, -1.32), crispWhite);
+      acc.appendH(place(new THREE.BoxGeometry(0.78, 0.78, 0.085), 0, py + 2.02, -1.32), safetyGreen);
+      for (const sx of [-0.22, 0.22]) {
+        for (const sy of [-0.22, 0.22]) {
+          acc.appendH(place(new THREE.BoxGeometry(0.16, 0.06, 0.095), sx, py + 2.02 + sy, -1.32, 0, 0, sx * sy > 0 ? -0.78 : 0.78), crispWhite);
+        }
+      }
+      acc.appendH(place(new THREE.BoxGeometry(0.32, 0.06, 0.16), 0, py + 2.50, -1.32), warmLuminaire, [0.5, -890.0]);
+    }
+
+    // 2. 4 Modern UI Campus Coffee & Snack Kiosks ("Titik Kios Kampus UI") + Shaded Outdoor Café Tables
+    for (const ks of SplineCorridorBuilder.KIOSK_SPECS) {
+      const gy = Math.max(0.0, TerrainDEMLoader.sampleGroundHeight(ks.x, ks.z));
+      const deckY = gy + 0.12;
+      const cY = Math.cos(ks.yaw);
+      const sY = Math.sin(ks.yaw);
+      const toW = (lx, ly, lz) => [ks.x + lx * cY + lz * sY, ly, ks.z - lx * sY + lz * cY];
+      const place = (geo, lx, ly, lz, rx = 0, ry = 0, rz = 0) => {
+        if (rx !== 0) geo.rotateX(rx);
+        if (ry !== 0) geo.rotateY(ry);
+        if (rz !== 0) geo.rotateZ(rz);
+        geo.rotateY(ks.yaw);
+        const [wx, wy, wz] = toW(lx, ly, lz);
+        geo.translate(wx, wy, wz);
+        return geo;
+      };
+
+      // Granite Terrace Plinth (5.8m x 4.2m, watertight sub-skirt)
+      acc.appendV(place(new THREE.BoxGeometry(5.8, 0.92, 4.2), 0, deckY - 0.46, 0.25), granitePlinth);
+      acc.appendH(place(new THREE.BoxGeometry(5.6, 0.04, 4.0), 0, deckY, 0.25), [0.46, 0.45, 0.43]);
+
+      // Kiosk Cabin Core (3.6m wide x 2.3m deep x 2.65m tall, centered at lz = -0.45)
+      acc.appendH(place(new THREE.BoxGeometry(3.52, 2.52, 2.18), 0, deckY + 1.28, -0.45), darkSteel);
+      // Warm Teak Vertical Timber-Slat Cladding on Rear & Lower Front Counter Apron
+      for (let sl = -7; sl <= 7; sl++) {
+        acc.appendH(place(new THREE.BoxGeometry(0.12, 2.42, 0.06), sl * 0.22, deckY + 1.24, -1.56), teakWood);
+        acc.appendH(place(new THREE.BoxGeometry(0.12, 0.96, 0.06), sl * 0.22, deckY + 0.50, 0.66), teakWood);
+      }
+      for (let sl = -4; sl <= 4; sl++) {
+        for (const sgn of [-1, 1]) {
+          acc.appendH(place(new THREE.BoxGeometry(0.06, 2.42, 0.12), sgn * 1.78, deckY + 1.24, -0.45 + sl * 0.22), teakWood);
+        }
+      }
+
+      // Open Front Serving Window + Night-Lit Interior Glazing (v = -720.0), Teak Bar Counter, Espresso Machine & Pastry Case
+      acc.appendH(place(new THREE.BoxGeometry(3.18, 1.32, 0.14), 0, deckY + 1.72, 0.58), kioskGlass, [0.5, -720.0]);
+      acc.appendH(place(new THREE.BoxGeometry(3.48, 0.10, 0.56), 0, deckY + 1.02, 0.78), teakDark);
+      // Espresso Machine + Grinder + Acrylic Pastry Showcase
+      acc.appendH(place(new THREE.BoxGeometry(0.68, 0.46, 0.42), -0.88, deckY + 1.30, 0.72), galvSteel);
+      acc.appendH(place(new THREE.BoxGeometry(0.84, 0.44, 0.38), 0.78, deckY + 1.29, 0.74), kioskGlass, [0.5, -720.0]);
+      // Illuminated Overhead Menu Board (v = -890.0)
+      acc.appendH(place(new THREE.BoxGeometry(1.95, 0.34, 0.08), 0, deckY + 2.22, 0.64), warmLuminaire, [0.5, -890.0]);
+
+      // Overhanging Pitched Tropical Canopy Roof + UI-Golden-Yellow Header Fascia + Warm Photocell Downlight Strip (v = -890.0)
+      acc.appendH(place(new THREE.BoxGeometry(4.24, 0.16, 3.45), 0, deckY + 2.68, -0.10, 0.07, 0, 0), darkSteel);
+      acc.appendH(place(new THREE.BoxGeometry(4.28, 0.26, 0.12), 0, deckY + 2.74, 1.62), uiGold);
+      acc.appendH(place(new THREE.BoxGeometry(3.35, 0.05, 0.24), 0, deckY + 2.57, 1.18), warmLuminaire, [0.5, -890.0]);
+
+      // 2 Shaded Outdoor Café Umbrella Tables & Stools flanking the Kiosk Forecourt (lx = -2.15 & +2.15, lz = +1.15)
+      for (const txOff of [-2.15, 2.15]) {
+        const [wxT, , wzT] = toW(txOff, 0, 1.12);
+        acc.tubeH(wxT, deckY + 0.02, wzT, wxT, deckY + 2.28, wzT, 0.035, 0.032, 8, darkSteel, true);
+        acc.appendH(place(new THREE.CylinderGeometry(0.56, 0.56, 0.05, 14, 1), txOff, deckY + 0.76, 1.12), teakWood);
+        const parasol = new THREE.ConeGeometry(1.18, 0.44, 8, 1);
+        acc.appendH(
+          place(parasol, txOff, deckY + 2.38, 1.12),
+          txOff < 0 ? uiGold : umbrellaCream
+        );
+        for (const stAng of [0.4, 2.4, 4.4]) {
+          const sxS = txOff + Math.cos(stAng) * 0.74;
+          const szS = 1.12 + Math.sin(stAng) * 0.74;
+          const [wxS, , wzS] = toW(sxS, 0, szS);
+          acc.tubeH(wxS, deckY + 0.02, wzS, wxS, deckY + 0.45, wzS, 0.028, 0.034, 6, darkSteel, false);
+          acc.appendH(place(new THREE.CylinderGeometry(0.18, 0.18, 0.05, 10, 1), sxS, deckY + 0.47, szS), teakDark);
+        }
+      }
+    }
+
+    return acc.finalize();
+  }
+
+  /**
    * Builds the complete Mavic-calibrated Lapangan Rotunda UI, Zebra Curbs, Botanical Centerpiece,
    * Campus Park Benches & Bollards, West Parking, East Lakeside Promenade, & Long SE Covered Walkway
    * in STRICTLY 2 DRAW CALLS!
@@ -4892,7 +5907,7 @@ export class SplineCorridorBuilder {
     const rCx = SplineCorridorBuilder.ROTUNDA_CX;
     const rCz = SplineCorridorBuilder.ROTUNDA_CZ;
 
-    // 1. Lapangan Rotunda UI Circular Asphalt Boulevard (288 segments!)
+    // 1. Lapangan Rotunda UI Circular Asphalt Boulevard (288 segments, with smooth curb-cuts across junction throats!)
     const rotundaSpline = SplineCorridorBuilder._createHighPrecisionSpline(
       SplineCorridorBuilder._makeCirclePoints(rCx, 0.035, rCz, 28.8, 64),
       true
@@ -4906,20 +5921,25 @@ export class SplineCorridorBuilder {
         curbRise: 0.15,
         deckColor: [0.21, 0.22, 0.24],
         zebraCurbs: true,
-        zebraFreq: 0.135
+        zebraFreq: 0.135,
+        curbCutZones: [
+          { x: rCx - 33.95, z: rCz, r: 5.05, fade: 1.5 },
+          { x: -20.6, z: 135.2, r: 2.75, fade: 1.2 },
+          { x: rCx, z: rCz - 33.95, r: 2.4, fade: 1.0 }
+        ]
       })
     );
 
-    // 2. Multi-Tier Botanical Topiary Shrub Rings & Flowering Garland at Center of Lapangan Rotunda UI
+    // 2. Architectural Dancing Fountain Reflecting Basin & Flowering Topiary Garland at Center of Lapangan Rotunda UI
     addPair(
       'LapanganRotundaUI_BotanicalCenter',
       SplineCorridorBuilder._buildRotundaBotanicalCenterpiece(rCx, rCz)
     );
 
-    // 3. West Campus Helipad Boulevard Branching from Lapangan Rotunda UI directly into the VIP Helipad Ramp!
+    // 3. West Campus Helipad Boulevard Branching Flush from Lapangan Rotunda UI Outer Edge into VIP Helipad Ramp!
     const westRoadSpline = SplineCorridorBuilder._createHighPrecisionSpline(
       [
-        new THREE.Vector3(rCx - 33.2, 0.032, rCz),
+        new THREE.Vector3(rCx - 33.95, 0.032, rCz),
         new THREE.Vector3(-54.0, 0.032, rCz),
         new THREE.Vector3(-68.5, 0.032, rCz),
         new THREE.Vector3(-81.6, 0.032, rCz)
@@ -4935,14 +5955,19 @@ export class SplineCorridorBuilder {
         curbRise: 0.14,
         deckColor: [0.21, 0.22, 0.24],
         zebraCurbs: true,
-        zebraFreq: 0.13
+        zebraFreq: 0.13,
+        curbCutZones: [
+          { x: rCx - 33.95, z: rCz, r: 1.8, fade: 1.2 },
+          { x: -62.5, z: 101.6, r: 6.25, fade: 1.5 },
+          { x: -81.6, z: rCz, r: 2.2, fade: 1.2 }
+        ]
       })
     );
 
-    // 4. West Courtyard Parking Lot & Access Lane (x = -62.5m)
+    // 4. West Courtyard Parking Lot & Access Lane (x = -62.5m, trimmed flush to West Boulevard south curb!)
     const westParkingSpline = SplineCorridorBuilder._createHighPrecisionSpline(
       [
-        new THREE.Vector3(-62.5, 0.03, 102.0),
+        new THREE.Vector3(-62.5, 0.03, 101.45),
         new THREE.Vector3(-62.5, 0.03, 56.0),
         new THREE.Vector3(-62.5, 0.03, 10.0),
         new THREE.Vector3(-62.5, 0.03, -34.0)
@@ -4957,7 +5982,11 @@ export class SplineCorridorBuilder {
         curbWidth: 0.42,
         curbRise: 0.12,
         deckColor: [0.24, 0.25, 0.27],
-        zebraCurbs: false
+        zebraCurbs: false,
+        curbCutZones: [
+          { x: -62.5, z: 101.45, r: 1.8, fade: 1.2 },
+          { x: -68.0, z: 75.0, r: 4.5, fade: 1.5 }
+        ]
       })
     );
 
@@ -5046,11 +6075,11 @@ export class SplineCorridorBuilder {
       SplineCorridorBuilder._buildPulauIAirstripRunway()
     );
 
-    // 11. Lapangan Rotunda UI <-> Jembatan Teksas UI West Forecourt Promenade Connector
+    // 11. Lapangan Rotunda UI <-> Jembatan Teksas UI West Forecourt Promenade Connector (trimmed flush to Rotunda outer curb!)
     const teksasConnectorSpline = SplineCorridorBuilder._createHighPrecisionSpline(
       [
-        new THREE.Vector3(-17.8, 0.034, 130.8),
-        new THREE.Vector3(-24.2, 0.036, 139.5),
+        new THREE.Vector3(-20.65, 0.035, 135.30),
+        new THREE.Vector3(-24.6, 0.036, 140.8),
         new THREE.Vector3(TerrainDEMLoader.TEKSAS_BRIDGE_X, 0.038, 146.8)
       ],
       false
@@ -5063,7 +6092,11 @@ export class SplineCorridorBuilder {
         curbWidth: 0.34,
         curbRise: 0.11,
         deckColor: [0.46, 0.45, 0.42],
-        zebraCurbs: false
+        zebraCurbs: false,
+        curbCutZones: [
+          { x: -20.65, z: 135.30, r: 1.8, fade: 1.1 },
+          { x: TerrainDEMLoader.TEKSAS_BRIDGE_X, z: 146.8, r: 2.2, fade: 1.1 }
+        ]
       })
     );
 
@@ -5102,7 +6135,38 @@ export class SplineCorridorBuilder {
       SplineCorridorBuilder._buildKampusUIVideotron()
     );
 
-    // Hukum Emas 12: Batch all decks/roofs/topiary/teak/helipad/runway/bridge/roads/underpass/piers/videotron into Draw Call #1 & all curbs/columns/bollards into Draw Call #2!
+    // 17. Full Multi-Lane Campus Road Markings (2-Lane Rotunda Dividers, Crosswalks, Arrows, & Flush Junction Aprons)
+    addPair(
+      'KampusUI_RoadLaneMarkings',
+      SplineCorridorBuilder._buildCampusRoadLaneMarkings()
+    );
+
+    // 18. Kompleks Kantor DPPD, Perpustakaan Lama (ITTC), Science Techno Park (STP-UI 8-Lantai), & ILRC/DRPM on Pulau U
+    //     (Facing Gedung Rektorat UI across Teluk U — +0 extra Draw Calls!)
+    addPair(
+      'PulauU_DPPD_ILRC_STP_Complex',
+      DPPDComplexBuilder.buildForCorridor()
+    );
+
+    // 19. Dedicated EPDM Campus Jogging Tracks (Rotunda & Teluk U Oval) + Sudut Calisthenics Street-Workout Park
+    addPair(
+      'KampusUI_JoggingTrackAndCalisthenics',
+      SplineCorridorBuilder._buildCampusJoggingTrackAndCalisthenics()
+    );
+
+    // 20. Compact Air Traffic Control Tower ("ATC Kecil Bandara Pulau I") overlooking RWY 36/18 & West Apron
+    addPair(
+      'PulauI_CompactATCTower',
+      SplineCorridorBuilder._buildPulauICompactATCTower()
+    );
+
+    // 21. 4 K3 Emergency Assembly Points ("Titik Kumpul Keadaan Darurat") & 4 Modern UI Campus Coffee/Snack Kiosks ("Titik Kios")
+    addPair(
+      'KampusUI_MusterAndKiosks',
+      SplineCorridorBuilder._buildEmergencyMusterAndCampusKiosks()
+    );
+
+    // Hukum Emas 12: Batch all decks/roofs/topiary/teak/helipad/runway/bridge/roads/underpass/piers/videotron/DPPD/ATC/kiosks into Draw Call #1 & all curbs/columns/bollards into Draw Call #2!
     NexusBatchOptimizer.optimizeHierarchy(corridorGroup);
     corridorGroup.updateMatrixWorld(true);
     return corridorGroup;
@@ -5557,12 +6621,12 @@ export class SplineCorridorBuilder {
     pushStatic({ id: 'Teksas_WestAbutment', type: 'BOX', minX: bx - 3.4, maxX: bx + 3.4, minY: -3.5, maxY: 2.95, minZ: zW - 2.15, maxZ: zW + 1.45 });
     pushStatic({ id: 'Teksas_EastAbutment', type: 'BOX', minX: bx - 3.4, maxX: bx + 3.4, minY: -3.5, maxY: 2.95, minZ: zE - 1.45, maxZ: zE + 2.15 });
     for (const sx of [-1, 1]) {
-      pushStatic({ id: `Teksas_LinggaLegLo_${sx}`, type: 'CYL', x: bx + sx * 3.30, z: zW, r: 0.55, minY: -2.0, maxY: 4.5 });
-      pushStatic({ id: `Teksas_LinggaLegHi_${sx}`, type: 'CYL', x: bx + sx * 2.10, z: zW - 0.05, r: 0.45, minY: 4.5, maxY: 7.75 });
-      pushStatic({ id: `Teksas_YoniLegLo_${sx}`, type: 'CYL', x: bx + sx * 3.30, z: zE, r: 0.52, minY: -2.0, maxY: 5.5 });
-      pushStatic({ id: `Teksas_YoniHipHi_${sx}`, type: 'CYL', x: bx + sx * 4.10, z: zE + 0.45, r: 0.48, minY: 5.5, maxY: 12.8 });
+      pushStatic({ id: `Teksas_LinggaLegLo_${sx}`, type: 'CYL', x: bx + sx * 3.82, z: zW, r: 0.55, minY: -2.0, maxY: 5.8 });
+      pushStatic({ id: `Teksas_LinggaLegHi_${sx}`, type: 'CYL', x: bx + sx * 3.12, z: zW - 0.06, r: 0.44, minY: 5.8, maxY: 9.2 });
+      pushStatic({ id: `Teksas_YoniLegLo_${sx}`, type: 'CYL', x: bx + sx * 3.82, z: zE, r: 0.52, minY: -2.0, maxY: 6.2 });
+      pushStatic({ id: `Teksas_YoniHipHi_${sx}`, type: 'CYL', x: bx + sx * 4.35, z: zE + 0.45, r: 0.48, minY: 6.2, maxY: 12.8 });
     }
-    pushStatic({ id: 'Teksas_LinggaSailMast', type: 'BOX', minX: bx - 0.72, maxX: bx + 1.05, minY: 7.75, maxY: 26.25, minZ: zW - 3.2, maxZ: zW + 2.4 });
+    pushStatic({ id: 'Teksas_LinggaSailMast', type: 'BOX', minX: bx - 0.72, maxX: bx + 1.05, minY: 10.65, maxY: 26.25, minZ: zW - 3.2, maxZ: zW + 2.4 });
     pushStatic({ id: 'Teksas_YoniCrownArch', type: 'BOX', minX: bx - 3.0, maxX: bx + 3.0, minY: 12.8, maxY: 15.55, minZ: zE - 0.55, maxZ: zE + 1.15 });
     for (const sx of [-4.2, 4.2]) {
       pushStatic({
@@ -5815,6 +6879,111 @@ export class SplineCorridorBuilder {
         minY: ly - 0.3,
         maxY: ly + 4.02
       });
+    }
+
+    // =========================================================================
+    // 7. KOMPLEKS DPPD–ILRC–STP, SUDUT CALISTHENICS, ATC KECIL, TITIK KUMPUL & KIOSKS
+    // =========================================================================
+    for (const col of DPPDComplexBuilder.getSolidColliders()) {
+      pushStatic(col);
+    }
+
+    {
+      const cs = SplineCorridorBuilder.CALISTHENICS_SPEC;
+      const cgy = Math.max(0.0, TerrainDEMLoader.sampleGroundHeight(cs.cx, cs.cz));
+      pushStatic({
+        id: 'Calisthenics_MainRig',
+        type: 'BOX',
+        minX: cs.cx - 7.3,
+        maxX: cs.cx - 2.5,
+        minY: cgy,
+        maxY: cgy + 2.55,
+        minZ: cs.cz - 1.25,
+        maxZ: cs.cz + 1.95
+      });
+      pushStatic({
+        id: 'Calisthenics_DipBars',
+        type: 'BOX',
+        minX: cs.cx - 1.05,
+        maxX: cs.cx + 1.25,
+        minY: cgy,
+        maxY: cgy + 1.32,
+        minZ: cs.cz - 1.60,
+        maxZ: cs.cz - 0.70
+      });
+      pushStatic({
+        id: 'Calisthenics_AbBenches',
+        type: 'BOX',
+        minX: cs.cx - 0.30,
+        maxX: cs.cx + 1.80,
+        minY: cgy,
+        maxY: cgy + 0.85,
+        minZ: cs.cz + 0.25,
+        maxZ: cs.cz + 2.05
+      });
+      pushStatic({
+        id: 'Calisthenics_PlyoAndSign',
+        type: 'BOX',
+        minX: cs.cx + 3.85,
+        maxX: cs.cx + 6.75,
+        minY: cgy,
+        maxY: cgy + 2.15,
+        minZ: cs.cz - 2.35,
+        maxZ: cs.cz + 1.35
+      });
+    }
+
+    pushStatic({
+      id: 'PulauI_CompactATCTower',
+      type: 'CYL',
+      x: TerrainDEMLoader.ATC_I_CX,
+      z: TerrainDEMLoader.ATC_I_CZ,
+      r: 2.95,
+      minY: -1.0,
+      maxY: 14.2
+    });
+
+    for (const mp of SplineCorridorBuilder.MUSTER_POINTS) {
+      const mgy = Math.max(0.0, TerrainDEMLoader.sampleGroundHeight(mp.x, mp.z));
+      const cY = Math.cos(mp.yaw);
+      const sY = Math.sin(mp.yaw);
+      pushStatic({
+        id: `MusterSign_${mp.id}`,
+        type: 'CYL',
+        x: mp.x - 1.32 * sY,
+        z: mp.z - 1.32 * cY,
+        r: 0.28,
+        minY: mgy,
+        maxY: mgy + 2.65
+      });
+    }
+
+    for (const ks of SplineCorridorBuilder.KIOSK_SPECS) {
+      const kgy = Math.max(0.0, TerrainDEMLoader.sampleGroundHeight(ks.x, ks.z));
+      const cY = Math.cos(ks.yaw);
+      const sY = Math.sin(ks.yaw);
+      pushStatic({
+        id: `CampusKiosk_${ks.id}`,
+        type: 'OBB',
+        cx: ks.x - 0.35 * sY,
+        cz: ks.z - 0.35 * cY,
+        halfW: 1.92,
+        halfL: 1.42,
+        yaw: ks.yaw,
+        minY: kgy,
+        maxY: kgy + 3.05
+      });
+      for (const txOff of [-2.15, 2.15]) {
+        pushStatic({
+          id: `CampusKioskTable_${ks.id}_${txOff > 0 ? 'R' : 'L'}`,
+          type: 'CYL',
+          x: ks.x + txOff * cY + 1.12 * sY,
+          z: ks.z - txOff * sY + 1.12 * cY,
+          r: 0.92,
+          minY: kgy,
+          maxY: kgy + 2.55
+        });
+      }
     }
 
     return { staticColliders, marineColliders, underpassConfig };

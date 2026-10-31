@@ -128,6 +128,22 @@ export class TerrainDEMLoader {
   static DERMAGA_THEAD_HALF_LEN_X = 14.0;
   static DERMAGA_THEAD_DEPTH_Z = 7.60;
 
+  // Kompleks Kantor DPPD, Perpustakaan Lama (ITTC), STP-UI, & ILRC/DRPM on Pulau U (Facing Gedung Rektorat UI across Teluk U)
+  static DPPD_CX = -255.0;
+  static DPPD_CZ = 329.0;
+  static DPPD_SCALE = 0.58;
+  static DPPD_PLATEAU_Y = 4.85;
+  static DPPD_RING_INNER_R = 58.78 * 0.58; // 34.092m
+  static DPPD_RING_CENTER_R = 61.69 * 0.58; // 35.780m
+  static DPPD_RING_OUTER_R = 65.12 * 0.58; // 37.770m
+  // Aligns Gedung DPPD's front central gable (local azimuth -pi/4) straight toward Gedung Rektorat UI (0, 0)
+  static DPPD_Y_ROT = Math.atan2(0.0 - -255.0, 0.0 - 329.0) + Math.PI * 0.25;
+
+  // Compact Air Traffic Control Tower ("ATC Kecil Bandara Pulau I") on Pulau I West Apron Margin
+  static ATC_I_CX = -233.5;
+  static ATC_I_CZ = 665.5;
+  static ATC_I_BASE_Y = 0.58;
+
   // Integrated Pulau U Road Network ("Jaringan Jalan Terpadu Pulau U") + Pulau I West Transit Connector SSoST Waypoints
   // Aligned organically along coastal foothill contours & natural saddles (zero ruler-straight mountain cuts!)
   static PULAU_U_WEST_SOUTH_ARTERIAL = [
@@ -207,6 +223,32 @@ export class TerrainDEMLoader {
     [-254.0, 646.0],
     [-254.0, 660.2]
   ];
+
+  // Campus Spur Connectors linking Kompleks DPPD-ILRC-STP Circular Ring Road into Pulau U's Boulevard Network
+  static PULAU_U_DPPD_SOUTH_SPUR = [
+    [-302.5, 338.8],
+    [-297.2, 337.8],
+    [-292.1, 336.8]
+  ];
+
+  static PULAU_U_DPPD_EAST_SPUR = [
+    [-156.0, 355.0],
+    [-176.0, 349.5],
+    [-198.0, 343.8],
+    [-218.3, 338.4]
+  ];
+
+  /**
+   * Uniform-grade approach ramp/stair normalized elevation fraction in [0, 1] with 1.55m bottom & top landings
+   * (shared identically between Jembatan Teksas 3D geometry and walkable terrain kinematics!).
+   */
+  static evalTeksasApproachFrac(t) {
+    const c = Math.max(0.0, Math.min(1.0, t));
+    const pad = 0.07; // 1.54m flat threshold landing at bottom & top of 22.0m approach
+    if (c <= pad) return 0.0;
+    if (c >= 1.0 - pad) return 1.0;
+    return (c - pad) / (1.0 - 2.0 * pad);
+  }
 
   /**
    * Evaluates exact drivable/walkable elevation Y inside Underpass Bawah Laut Selatan U–I (ramps + subsea tunnel),
@@ -342,7 +384,7 @@ export class TerrainDEMLoader {
       const t =
         (z - TerrainDEMLoader.TEKSAS_WEST_RAMP_START_Z) /
         (TerrainDEMLoader.TEKSAS_WEST_PORTAL_Z - TerrainDEMLoader.TEKSAS_WEST_RAMP_START_Z);
-      const s = PhysicsKernel.smootherstep(0.0, 1.0, t);
+      const s = TerrainDEMLoader.evalTeksasApproachFrac(t);
       return 0.04 + s * (TerrainDEMLoader.TEKSAS_PORTAL_DECK_Y - 0.04);
     }
 
@@ -354,7 +396,7 @@ export class TerrainDEMLoader {
       const t =
         (TerrainDEMLoader.TEKSAS_EAST_RAMP_END_Z - z) /
         (TerrainDEMLoader.TEKSAS_EAST_RAMP_END_Z - TerrainDEMLoader.TEKSAS_EAST_PORTAL_Z);
-      const s = PhysicsKernel.smootherstep(0.0, 1.0, t);
+      const s = TerrainDEMLoader.evalTeksasApproachFrac(t);
       return (
         TerrainDEMLoader.TEKSAS_EAST_PLAZA_Y +
         s * (TerrainDEMLoader.TEKSAS_PORTAL_DECK_Y - TerrainDEMLoader.TEKSAS_EAST_PLAZA_Y)
@@ -1180,6 +1222,18 @@ export class TerrainDEMLoader {
       }
     }
 
+    // 4B3. Kompleks Kantor DPPD, Perpustakaan Lama, STP-UI, & ILRC Campus Terrace on Pulau U (-255, 329)
+    //      Smoothly grades a flat +4.85m academic & science-park terrace facing Gedung Rektorat UI across Teluk U
+    //      while preserving SE Right-Arm Hill peak (-228, 384 > 12.0m) & gentle <= 24 deg coastal grass slopes!
+    const rDppd = Math.hypot(x - TerrainDEMLoader.DPPD_CX, z - TerrainDEMLoader.DPPD_CZ);
+    if (rDppd < 61.1) {
+      const dppdFlatMask =
+        (1.0 - TerrainDEMLoader._geotechRamp01(38.2, 61.1, rDppd)) *
+        TerrainDEMLoader._geotechRamp01(-1.4, -15.5, dU);
+      const targetDppdY = TerrainDEMLoader.DPPD_PLATEAU_Y * coastCollar;
+      uRawY = uRawY * (1.0 - dppdFlatMask) + targetDppdY * dppdFlatMask;
+    }
+
     // 4C. Pulau "U" Natural Fluvial Valley, Shelving Point-Bar Beaches, & Eroded Cut-Banks
     //     (Station-only valley reach wReach(stationX) prevents chain-rule gradient spikes while expanding
     //      smoothly across the middle river gorge so hillsides never exceed natural repose!)
@@ -1411,6 +1465,7 @@ export class TerrainDEMLoader {
       3.0,
       [
         { type: 'start', y: yJunctionSouth, flatM: 7.0, radiusM: 32.0 },
+        { type: 'point', x: -302.5, z: 338.8, y: TerrainDEMLoader.DPPD_PLATEAU_Y + 0.045, flatM: 13.5, radiusM: 28.0 },
         { type: 'point', x: -175.0, z: 443.0, y: 1.65, flatM: 9.5, radiusM: 34.0 },
         {
           type: 'point',
@@ -1433,6 +1488,7 @@ export class TerrainDEMLoader {
       3.0,
       [
         { type: 'start', y: TerrainDEMLoader.TEKSAS_EAST_PLAZA_Y, flatM: 6.5, radiusM: 30.0 },
+        { type: 'point', x: -156.0, z: 355.0, y: 3.65, flatM: 13.5, radiusM: 26.0 },
         { type: 'end', y: yJunctionSaddleEast, flatM: 7.0, radiusM: 30.0 }
       ],
       0.076
@@ -1479,10 +1535,34 @@ export class TerrainDEMLoader {
       new THREE.Vector3(-254.0, 0.544, 660.2)
     ];
 
+    const yDppdSouthJunc = evalClosestYOnPts(rightArmPts, -302.5, 338.8);
+    const pulauUDppdSouthSpurPts = buildSmoothed3DPolyline(
+      TerrainDEMLoader.PULAU_U_DPPD_SOUTH_SPUR,
+      2.2,
+      [
+        { type: 'start', y: yDppdSouthJunc, flatM: 3.5, radiusM: 6.0 },
+        { type: 'end', y: TerrainDEMLoader.DPPD_PLATEAU_Y + 0.045, flatM: 3.5, radiusM: 6.0 }
+      ],
+      0.055
+    );
+
+    const yDppdEastJunc = evalClosestYOnPts(eastLagoonSaddlePts, -156.0, 355.0);
+    const pulauUDppdEastSpurPts = buildSmoothed3DPolyline(
+      TerrainDEMLoader.PULAU_U_DPPD_EAST_SPUR,
+      2.8,
+      [
+        { type: 'start', y: yDppdEastJunc, flatM: 6.5, radiusM: 18.0 },
+        { type: 'end', y: TerrainDEMLoader.DPPD_PLATEAU_Y + 0.045, flatM: 8.0, radiusM: 20.0 }
+      ],
+      0.055
+    );
+
     const corridors = [
       { id: 'PULAU_U_WEST_SOUTH_ARTERIAL', halfWidth: 3.75, points: westSouthPts },
       { id: 'PULAU_U_RIGHT_ARM_BOULEVARD', halfWidth: 3.65, points: rightArmPts },
       { id: 'PULAU_U_EAST_LAGOON_SADDLE_ROAD', halfWidth: 3.45, points: eastLagoonSaddlePts },
+      { id: 'PULAU_U_DPPD_SOUTH_SPUR', halfWidth: 3.35, points: pulauUDppdSouthSpurPts },
+      { id: 'PULAU_U_DPPD_EAST_SPUR', halfWidth: 3.35, points: pulauUDppdEastSpurPts },
       { id: 'PULAU_I_WEST_TRANSIT_ROAD', halfWidth: 3.65, points: pulauITransitPts },
       { id: 'PULAU_I_DERMAGA_LOOP', halfWidth: 3.95, points: pulauIDermagaLoopPts },
       { id: 'PULAU_I_APRON_SPUR', halfWidth: 3.45, points: pulauIApronSpurPts }
@@ -1636,6 +1716,20 @@ export class TerrainDEMLoader {
       return true;
     }
 
+    // 2B. Kompleks DPPD, Perpustakaan Lama, STP-UI, & ILRC Campus Footprint + ATC Kecil Bandara Pulau I
+    if (
+      Math.hypot(x - TerrainDEMLoader.DPPD_CX, z - TerrainDEMLoader.DPPD_CZ) <
+      TerrainDEMLoader.DPPD_RING_OUTER_R + 1.5 + marginMeters
+    ) {
+      return true;
+    }
+    if (
+      Math.hypot(x - TerrainDEMLoader.ATC_I_CX, z - TerrainDEMLoader.ATC_I_CZ) <
+      7.5 + marginMeters
+    ) {
+      return true;
+    }
+
     // 3. Integrated Pulau U & Pulau I Road Network Corridors
     const maxDist = 4.35 + marginMeters;
     if (x <= 64.0 && x >= -400.0 && z >= 45.0 && z <= 712.0) {
@@ -1737,7 +1831,9 @@ export class TerrainDEMLoader {
     // 3. Smooth Geotechnical Highway Cut-and-Fill Corridor Grading + -4.5cm Carriageway Subgrade Pocket
     const inAirfieldConcreteBox =
       z >= 659.5 && x >= -383.0 && x <= -127.0 && (z >= 694.5 || (x >= -284.8 && x <= -223.2));
-    if (dCoast < -2.2 && !inAirfieldConcreteBox) {
+    const rFromDppd = Math.hypot(x - TerrainDEMLoader.DPPD_CX, z - TerrainDEMLoader.DPPD_CZ);
+    const dppdBaseShield = TerrainDEMLoader._geotechRamp01(34.0, 48.0, rFromDppd);
+    if (dCoast < -2.2 && !inAirfieldConcreteBox && rFromDppd > 33.8) {
       const rg = TerrainDEMLoader.evalRoadNetworkCorridorGrade(x, z, y);
       if (rg && rg.blend > 0.0001) {
         // Broad 27m outer release (dist 6.0->33.0m) + coastal shield (dCoast -10.5->-28.0m) + hydrological levee shield
@@ -1746,6 +1842,8 @@ export class TerrainDEMLoader {
         const outerCoastShield = TerrainDEMLoader._geotechRamp01(-10.5, -28.0, dCoast);
         const roadCoreT = 1.0 - TerrainDEMLoader._geotechRamp01(6.0, 33.0, rg.dist);
         const collarFade = innerCollarFade * (outerCoastShield + (1.0 - outerCoastShield) * roadCoreT);
+        const roadCarriagewayKeep = 1.0 - TerrainDEMLoader._geotechRamp01(4.6, 12.5, rg.dist);
+        const dppdPlateauShield = dppdBaseShield + (1.0 - dppdBaseShield) * roadCarriagewayKeep;
         let hydroBankShield = 1.0;
         if (z < 142.0 && x < -68.0) {
           const hydroNear = TerrainDEMLoader.evalPulauUHydrology(x, z);
@@ -1753,7 +1851,7 @@ export class TerrainDEMLoader {
             hydroBankShield = TerrainDEMLoader._geotechRamp01(1.45, 2.50, hydroNear.w);
           }
         }
-        const effBlend = rg.blend * collarFade * hydroBankShield;
+        const effBlend = rg.blend * collarFade * hydroBankShield * dppdPlateauShield;
         const subgradeDip = 0.045 * (1.0 - PhysicsKernel.smootherstep(4.05, 5.25, rg.dist));
         const gradedY = (rg.targetY - subgradeDip) * coastCollar;
         y = y * (1.0 - effBlend) + gradedY * effBlend;

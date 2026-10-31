@@ -41,17 +41,21 @@ export class MaterialShaderBank {
       sharedUniforms
     };
 
-    // 1. Sub-terrain & foundation concrete (Hukum Emas 13: envMapIntensity <= 0.14 on matte)
-    const foundationConcrete = injectOmniScaleSurfaceShader(
+    // 1 & 3. Unified Weathered Tropical Flat Concrete Roof Deck Slab & Vertex-Tinted Sub-Terrain Foundation / Planter Soil
+    //        (Shares SURFACE_PROFILE.WEATHERED_FLAT_ROOF via vertexColors -> saves 1 WebGL Draw Call with 0 visual loss!)
+    const flatRoofSlab = injectOmniScaleSurfaceShader(
       new THREE.MeshStandardMaterial({
-        name: 'FoundationConcrete',
-        color: 0x5d5a53,
-        roughness: 0.92,
+        name: 'WeatheredFlatRoofAndFoundationSlab',
+        color: 0xb2b6b8,
+        vertexColors: true,
+        map: flatRoofTex,
+        roughness: 0.91,
         metalness: 0.02,
-        envMapIntensity: 0.08
+        envMapIntensity: 0.09
       }),
-      { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.WEATHERED_FLAT_ROOF, bumpScale: 0.65 }
+      { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.WEATHERED_FLAT_ROOF, bumpScale: 0.72 }
     );
+    const foundationConcrete = flatRoofSlab;
 
     // 2. Crisp Off-White / Warm Cream Architectural Precast Concrete (Mavic Photo #1 & #2)
     const precastConcrete = injectOmniScaleSurfaceShader(
@@ -64,19 +68,6 @@ export class MaterialShaderBank {
         envMapIntensity: 0.12
       }),
       { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.PRECAST_CONCRETE, bumpScale: 0.72 }
-    );
-
-    // 3. Weathered Tropical Flat Concrete Roof Deck Slab (East & West Annex Wings — Mavic Nadir #3/#5)
-    const flatRoofSlab = injectOmniScaleSurfaceShader(
-      new THREE.MeshStandardMaterial({
-        name: 'WeatheredFlatRoofSlab',
-        color: 0xb2b6b8,
-        map: flatRoofTex,
-        roughness: 0.91,
-        metalness: 0.02,
-        envMapIntensity: 0.09
-      }),
-      { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.WEATHERED_FLAT_ROOF, bumpScale: 0.72 }
     );
 
     // 4. Warm Terracotta Trim / Ridge & Brick Accent

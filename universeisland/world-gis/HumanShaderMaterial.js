@@ -58,9 +58,11 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
 
   const hvsFallback = HumanEyeHDROptics.createUniforms();
   mat.userData.omniShaderInjected = true;
-  mat.customProgramCacheKey = () => 'nexus-photoreal-human-feline-transit-hvs-v37b';
+  mat.customProgramCacheKey = () => 'nexus-photoreal-human-feline-transit-hvs-v50';
 
   mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uCockpitGlassCutRadius =
+      uniforms.uCockpitGlassCutRadius || { value: 0.0 };
     shader.uniforms.uIsNight = uniforms.uIsNight || { value: 0.0 };
     shader.uniforms.uNightFactor = uniforms.uNightFactor || { value: 0.0 };
     shader.uniforms.uDuskFactor = uniforms.uDuskFactor || { value: 0.0 };
@@ -121,6 +123,7 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
       'uniform float uStreetlampPower;',
       'uniform sampler2D uCollisionMap;',
       'uniform float uCollisionReady;',
+      'uniform float uCockpitGlassCutRadius;',
       'uniform vec4 uHvsParams;',
       'uniform vec4 uHvsGlare;',
       HumanEyeHDROptics.getGLSLKernel(),
@@ -214,6 +217,7 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
         [
           '#include <color_fragment>',
           'float mCls = vHumanMeta.x;',
+          'if (uCockpitGlassCutRadius > 0.1 && abs(mCls - 1.60) < 0.04 && length(vHumanWorldPos - cameraPosition) < uCockpitGlassCutRadius) { discard; }',
           'float cavAO = clamp(vHumanMeta.y, 0.25, 1.15);',
           'if (uZebraInspectMode < 0.5 && uShaderQuality > 0.5) {',
           '  if (abs(mCls - 0.60) < 0.03) {',

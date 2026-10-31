@@ -25,7 +25,18 @@ const TOD_LABELS = {
   NIGHT: 'Malam'
 };
 
-const TOTAL_EXPECTED_TRIS = 5662244;
+if (typeof window !== 'undefined') {
+  const preventContextMenu = (e) => {
+    e.preventDefault();
+    return false;
+  };
+  window.addEventListener('contextmenu', preventContextMenu, { capture: true });
+  if (typeof document !== 'undefined') {
+    document.addEventListener('contextmenu', preventContextMenu, { capture: true });
+  }
+}
+
+const TOTAL_EXPECTED_TRIS = 5862108;
 
 function yieldToBrowserFrame() {
   return new Promise((resolve) => {
@@ -161,14 +172,15 @@ async function bootstrapNexusSimulator() {
     }
   );
 
-  // Stage 1: Dynamic Parallel Import of NEXUS v3.1 Procedural Modules
-  await preloader.advance(1, 20, 'Memuat Modul Mesin Prosedural NEXUS v3.1 & Shader Ultra...', 0);
+  // Stage 1: Dynamic Parallel Import of NEXUS v5.0 Procedural Modules
+  await preloader.advance(1, 20, 'Memuat Modul Mesin Prosedural NEXUS v5.0 & Shader Ultra...', 0);
   const [
     { CameraDirector, applyNonOccludingViewportOffset },
     { WeatherOpticsEngine },
     { AudioSynthesizer },
     { createSharedSurfaceUniforms },
     { VideotronYouTubeEngine },
+    { RotundaDancingFountain },
     { FloatingOriginManager },
     { TerrainDEMLoader },
     { SplineCorridorBuilder },
@@ -181,6 +193,7 @@ async function bootstrapNexusSimulator() {
     import('./core/AudioSynthesizer.js'),
     import('./core/ProceduralTextureFactory.js'),
     import('./core/VideotronYouTubeEngine.js'),
+    import('./core/RotundaDancingFountain.js'),
     import('./world-gis/FloatingOriginManager.js'),
     import('./world-gis/TerrainDEMLoader.js'),
     import('./world-gis/SplineCorridorBuilder.js'),
@@ -271,22 +284,23 @@ async function bootstrapNexusSimulator() {
     sharedUniforms
   );
 
-  // Stage 5: Build Plaza Rotunda, Jembatan Teksas UI, Jaringan Jalan Pulau U, Underpass Bawah Laut, & Dermaga Utara U–I
-  await preloader.advance(5, 70, 'Merakit Jaringan Jalan Pulau U, Underpass Bawah Laut & Dermaga Penyeberangan Utara...', 1118000);
+  // Stage 5: Build Plaza Rotunda, Kompleks DPPD–ILRC–STP, Air Mancur Dancing, Jogging/Calisthenics, Jembatan Teksas UI, Underpass, & Dermaga
+  await preloader.advance(5, 70, 'Merakit Kompleks DPPD–STP, Air Mancur Dancing, Jogging Track & Jaringan Jalan Pulau U...', 1205000);
   const corridorGroup = SplineCorridorBuilder.buildRotundaAndPromenades(sharedUniforms);
+  const rotundaFountain = new RotundaDancingFountain();
 
   // Stage 6: Build Dense Southern Highland Rainforest (Pulau U), Sparse Montane Forest (Pulau I) & 64 Photocell Streetlamps
-  await preloader.advance(6, 82, 'Menumbuhkan Hutan Lebat Pulau U, Lereng Gunung Pulau I, & 64 Lampu Sensor Cahaya...', 4899000);
+  await preloader.advance(6, 82, 'Menumbuhkan Hutan Lebat Pulau U, Lereng Gunung Pulau I, & 64 Lampu Sensor Cahaya...', 5020000);
   const biomeGroup = AutogenBiomeSpawner.buildCampusBiome(groundHeightFn, sharedUniforms);
   const solidWorld = SplineCorridorBuilder.buildWorldSolidColliders(biomeGroup);
 
-  // Stage 7: Build 52 22-Joint Sivitas Akademika NPCs + Bus Kuning Lintas Pulau + Kapal Feri Utara + Mobil Golf + Mini Yacht + 48 Cats
-  await preloader.advance(7, 92, 'Menghadirkan 52 Sivitas Akademika, Bus Kuning Underpass, Feri Utara, & 48 Kucing...', TOTAL_EXPECTED_TRIS);
+  // Stage 7: Build 69 22-Joint Sivitas Akademika NPCs + Taxi Heli Listrik eVTOL + Cessna & Learjet 3x Sehari + Bus Kuning + Feri + 48 Cats
+  await preloader.advance(7, 92, 'Menghadirkan 69 Sivitas Akademika, Taxi Heli Listrik, Pesawat 3x Sehari, & 48 Kucing...', TOTAL_EXPECTED_TRIS);
   const sivitasAI = new DynamicTrafficAI(groundHeightFn, sharedUniforms);
   sivitasAI.setSolidWorld(solidWorld);
   const sivitasGroup = sivitasAI.build();
 
-  worldRoot.add(terrainGroup, corridorGroup, biomeGroup, rektoratAsset, sivitasGroup);
+  worldRoot.add(terrainGroup, corridorGroup, rotundaFountain.mesh, biomeGroup, rektoratAsset, sivitasGroup);
 
   weather.onThunder = (distanceMeters, intensity) => {
     audioSynth.triggerThunder(distanceMeters, intensity);
@@ -304,10 +318,13 @@ async function bootstrapNexusSimulator() {
     cloudCoverNorm: latestDepokWeather.cloudCoverNorm
   });
   weather.update(0.016, camera, sharedUniforms);
+  const initSunElevDeg =
+    (Math.asin(Math.max(-1.0, Math.min(1.0, Number(weather.uniforms.uTrueSunDir.value.y) || 0.0))) * 180.0) / Math.PI;
+  rotundaFountain.update(0.016, initSunElevDeg, sharedUniforms, weather.uniforms.uSunDir.value);
   GedungRektoratUIAsset.setNightIllumination(rektoratAsset, weather.nightIlluminationLevel);
   sivitasAI.update(0.016, 0.016, camera.position);
 
-  // Full 3D Solid-Body Non-Penetration World Colliders (Buildings, Columns, Roofs, Trees, Lamps, Benches, Piers, Bridges, Underpass)
+  // Full 3D Solid-Body Non-Penetration World Colliders (Buildings, Columns, Roofs, Trees, Lamps, Benches, Piers, Bridges, Underpass, DPPD, ATC)
   const walkAndDroneColliders = solidWorld.staticColliders;
 
   const sampleWalkableElevation = (x, z) => {
@@ -330,6 +347,14 @@ async function bootstrapNexusSimulator() {
     const teksasDeckY = TerrainDEMLoader.sampleTeksasBridgeDeckY(x, z);
     if (teksasDeckY !== null) {
       return teksasDeckY + 0.02;
+    }
+    const rDPPD = Math.hypot(x - TerrainDEMLoader.DPPD_CX, z - TerrainDEMLoader.DPPD_CZ);
+    if (rDPPD <= 38.0) {
+      const rLocal = rDPPD / TerrainDEMLoader.DPPD_SCALE;
+      if (rLocal >= 53.2 && rLocal <= 64.8) {
+        return TerrainDEMLoader.DPPD_PLATEAU_Y + 0.10 * TerrainDEMLoader.DPPD_SCALE;
+      }
+      return TerrainDEMLoader.DPPD_PLATEAU_Y + 0.21 * TerrainDEMLoader.DPPD_SCALE;
     }
     if (x >= -36.0 && x <= 36.0 && z >= -35.0 && z <= 39.0) {
       return 0.13;
@@ -363,6 +388,8 @@ async function bootstrapNexusSimulator() {
   };
 
   const camDirector = new CameraDirector(camera, controls, walkAndDroneColliders);
+  camDirector.setSharedUniforms(sharedUniforms);
+  camDirector.setFPSAnchorProvider((mode, subjectOffset) => sivitasAI.getFPSAnchor(mode, subjectOffset));
   camDirector.setWorldPhysicsContext({
     staticColliders: solidWorld.staticColliders,
     getDynamicColliders: () => sivitasAI.getDynamicSolidColliders(),
@@ -471,6 +498,44 @@ async function bootstrapNexusSimulator() {
     });
   });
 
+  // Live FPS Telemetry Status Card & Subject Cycle Controls
+  const fpsLiveCardEl = document.getElementById('fps-live-card');
+  const fpsLiveTitleEl = document.getElementById('fps-live-title');
+  const fpsLiveSubEl = document.getElementById('fps-live-sub');
+  const fpsPrevBtn = document.getElementById('btn-fps-prev-subject');
+  const fpsNextBtn = document.getElementById('btn-fps-next-subject');
+  const fpsResetBtn = document.getElementById('btn-fps-reset-look');
+
+  function syncFPSStatusDOM() {
+    if (!fpsLiveCardEl) return;
+    const active = camDirector.isFPSMode();
+    fpsLiveCardEl.style.display = active ? 'flex' : 'none';
+    if (!active) return;
+    const st = camDirector.lastFPSStatus || sivitasAI.getFPSAnchor(camDirector.mode, camDirector.fpsSubjectOffset);
+    if (st) {
+      if (fpsLiveTitleEl) fpsLiveTitleEl.textContent = st.label || camDirector.mode;
+      if (fpsLiveSubEl) fpsLiveSubEl.textContent = st.subLabel || 'Geser layar untuk menoleh';
+    }
+  }
+
+  if (fpsPrevBtn) {
+    fpsPrevBtn.addEventListener('click', () => {
+      camDirector.cycleFPSSubject(-1);
+      syncFPSStatusDOM();
+    });
+  }
+  if (fpsNextBtn) {
+    fpsNextBtn.addEventListener('click', () => {
+      camDirector.cycleFPSSubject(1);
+      syncFPSStatusDOM();
+    });
+  }
+  if (fpsResetBtn) {
+    fpsResetBtn.addEventListener('click', () => {
+      camDirector.resetFPSHeadLook();
+    });
+  }
+
   // Tri-Angle & Live Patrol Camera Presets
   document.querySelectorAll('[data-preset]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -498,30 +563,67 @@ async function bootstrapNexusSimulator() {
             }
           };
           camDirector.applyOrthoPreset('mobilGolfUI', { ...presets, mobilGolfUI: liveCartPreset });
+          syncFPSStatusDOM();
+          return;
+        }
+      }
+      if (btn.dataset.preset === 'taxiHeliListrik') {
+        const heliPose = sivitasAI.getHeliTaxiPose();
+        if (heliPose) {
+          const sy = Math.sin(heliPose.yaw);
+          const cy = Math.cos(heliPose.yaw);
+          const liveHeliPreset = {
+            pos: {
+              x: heliPose.worldX + sy * 10.5 - cy * 8.2,
+              y: heliPose.worldY + 4.2,
+              z: heliPose.worldZ + cy * 10.5 + sy * 8.2
+            },
+            target: {
+              x: heliPose.worldX,
+              y: heliPose.worldY + 1.45,
+              z: heliPose.worldZ
+            }
+          };
+          camDirector.applyOrthoPreset('taxiHeliListrik', { ...presets, taxiHeliListrik: liveHeliPreset });
+          syncFPSStatusDOM();
           return;
         }
       }
       if (btn.dataset.preset === 'underpassBawahLautInterior' && camera.position.y > -2.0) {
         camDirector.applyOrthoPreset(btn.dataset.preset, presets, { immediate: true });
+        syncFPSStatusDOM();
         return;
       }
       camDirector.applyOrthoPreset(btn.dataset.preset, presets);
+      syncFPSStatusDOM();
     });
   });
 
-  // Exploration Camera Modes
+  // Exploration & 6 Living FPS Camera Modes
   document.querySelectorAll('[data-cammode]').forEach((btn) => {
     btn.addEventListener('click', () => {
       arrivalActive = false;
       document.querySelectorAll('[data-cammode]').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
+      if (btn.dataset.cammode !== 'ORBIT') {
+        document.querySelectorAll('[data-preset]').forEach((b) => b.classList.remove('active'));
+      }
       if (
-        (btn.dataset.cammode === 'DRONE_6DOF' || btn.dataset.cammode === 'WALK_SIVITAS') &&
+        (btn.dataset.cammode === 'DRONE_6DOF' ||
+          btn.dataset.cammode === 'WALK_SIVITAS' ||
+          camDirector.isFPSMode(btn.dataset.cammode)) &&
         videotron.interactiveScreenClick
       ) {
         videotron.setInteractiveScreenClick(false, renderer.domElement);
       }
-      camDirector.setMode(btn.dataset.cammode);
+      if (camDirector.mode === btn.dataset.cammode && camDirector.isFPSMode(btn.dataset.cammode)) {
+        // Clicking an already-active FPS button cycles smoothly to the next subject!
+        camDirector.cycleFPSSubject(1);
+      } else {
+        camDirector.setMode(btn.dataset.cammode);
+      }
+      syncFPSStatusDOM();
+      requestAnimationFrame(syncViewport);
     });
   });
 
@@ -580,12 +682,16 @@ async function bootstrapNexusSimulator() {
         vtStatusMsgEl.textContent = errMsg;
       } else {
         vtStatusMsgEl.classList.remove('is-error');
+        const fileNote =
+          window.location.protocol === 'file:'
+            ? ' (Tips: jalankan via HTTP/HTTPS/localhost agar YouTube tidak terkena blokir Referer file://).'
+            : '';
         if (state.activeLayout === 'SHORT_2LAYER_BLUR') {
-          vtStatusMsgEl.textContent = 'Short terdeteksi: mode 2-lapis (belakang full-width blur) aktif.';
+          vtStatusMsgEl.textContent = 'Short terdeteksi: mode 2-lapis (belakang full-width blur) aktif.' + fileNote;
         } else if (state.isPlaylist) {
-          vtStatusMsgEl.textContent = 'Playlist YouTube aktif pada layar Videotron 3D.';
+          vtStatusMsgEl.textContent = 'Playlist YouTube aktif pada layar Videotron 3D.' + fileNote;
         } else {
-          vtStatusMsgEl.textContent = 'Video YouTube 16:9 aktif pada layar Videotron 3D.';
+          vtStatusMsgEl.textContent = 'Video YouTube 16:9 aktif pada layar Videotron 3D.' + fileNote;
         }
       }
     }
@@ -969,6 +1075,10 @@ async function bootstrapNexusSimulator() {
 
     sharedUniforms.uTime.value = elapsed;
     weather.update(dt, camera, sharedUniforms);
+    const liveSunElevDeg =
+      (Math.asin(Math.max(-1.0, Math.min(1.0, Number(weather.uniforms.uTrueSunDir.value.y) || 0.0))) * 180.0) /
+      Math.PI;
+    rotundaFountain.update(elapsed, liveSunElevDeg, sharedUniforms, weather.uniforms.uSunDir.value);
 
     // Continuous C^1 Architectural Window, Garden Lamp, & Helipad Night Illumination + Live Audio Coupling
     GedungRektoratUIAsset.setNightIllumination(rektoratAsset, weather.nightIlluminationLevel);
@@ -994,6 +1104,7 @@ async function bootstrapNexusSimulator() {
     if (uiTransAccum >= 0.085) {
       uiTransAccum = 0.0;
       syncTransitionButtonsUI();
+      syncFPSStatusDOM();
     }
 
     frameCount++;
@@ -1023,6 +1134,7 @@ async function bootstrapNexusSimulator() {
       renderer,
       weather,
       videotron,
+      rotundaFountain,
       camDirector,
       sivitasAI,
       solidWorld,
@@ -1030,9 +1142,15 @@ async function bootstrapNexusSimulator() {
       sharedUniforms,
       presets,
       syncTransitionButtonsUI,
+      syncFPSStatusDOM,
       updateDepokTelemetryDOM,
       setLiveDepok(flag) {
         isLiveDepok = !!flag;
+      },
+      setSimClock(sec) {
+        const t = Number(sec) || 0.0;
+        elapsed = t;
+        sharedUniforms.uTime.value = t;
       },
       stopArrival() {
         arrivalActive = false;

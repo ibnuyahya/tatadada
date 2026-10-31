@@ -1525,6 +1525,13 @@ export class SecondarySubdomains {
     const soil = new THREE.PlaneGeometry(Math.max(0.2, wX - 0.22), Math.max(0.2, wZ - 0.22));
     SecondarySubdomains._rotatePlaneToXZ(soil);
     soil.translate(cx, 0.93, cz);
+    const soilCols = new Float32Array(soil.attributes.position.count * 3);
+    for (let ci = 0; ci < soilCols.length; ci += 3) {
+      soilCols[ci] = 0.42;
+      soilCols[ci + 1] = 0.36;
+      soilCols[ci + 2] = 0.30;
+    }
+    soil.setAttribute('color', new THREE.BufferAttribute(soilCols, 3));
     addMesh(soil, materials.foundationConcrete, `${name}_SoilBed`, false, true);
   }
 

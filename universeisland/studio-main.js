@@ -19,6 +19,17 @@ const TOD_LABELS = {
   NIGHT: 'Malam'
 };
 
+if (typeof window !== 'undefined') {
+  const preventContextMenu = (e) => {
+    e.preventDefault();
+    return false;
+  };
+  window.addEventListener('contextmenu', preventContextMenu, { capture: true });
+  if (typeof document !== 'undefined') {
+    document.addEventListener('contextmenu', preventContextMenu, { capture: true });
+  }
+}
+
 async function bootstrapStudioWorkbench() {
   const [
     { DepokLiveWeatherService },

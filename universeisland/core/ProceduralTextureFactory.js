@@ -59,6 +59,8 @@ export function createSharedSurfaceUniforms() {
     uCollisionReady: { value: 0.0 },
     uVideotronPortalAlpha: { value: 0.0 },
     uVideotronShortMode: { value: 0.0 },
+    uFountainNightGlow: { value: new THREE.Vector4(0.0, 0.0, 0.0, 0.0) },
+    uCockpitGlassCutRadius: { value: 0.0 },
     uHvsParams: hvsUniforms.uHvsParams,
     uHvsGlare: hvsUniforms.uHvsGlare
   };
@@ -90,7 +92,7 @@ export function injectOmniScaleSurfaceShader(
   const profId = Math.max(0, Math.min(11, Math.round(Number(surfaceProfile) || 0)));
   const hvsFallback = HumanEyeHDROptics.createUniforms();
   material.customProgramCacheKey = () =>
-    `nexus-omni-v41b-vt-p${profId}-${enableWindSway ? 'sway' : 'static'}`;
+    `nexus-omni-v50-p${profId}-${enableWindSway ? 'sway' : 'static'}`;
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uYSegStart = { value: ySegmentStart };
@@ -120,6 +122,8 @@ export function injectOmniScaleSurfaceShader(
     shader.uniforms.uCollisionReady = sharedUniforms.uCollisionReady || { value: 0.0 };
     shader.uniforms.uVideotronPortalAlpha = sharedUniforms.uVideotronPortalAlpha || { value: 0.0 };
     shader.uniforms.uVideotronShortMode = sharedUniforms.uVideotronShortMode || { value: 0.0 };
+    shader.uniforms.uFountainNightGlow =
+      sharedUniforms.uFountainNightGlow || { value: new THREE.Vector4(0.0, 0.0, 0.0, 0.0) };
     shader.uniforms.uHvsParams = sharedUniforms.uHvsParams || hvsFallback.uHvsParams;
     shader.uniforms.uHvsGlare = sharedUniforms.uHvsGlare || hvsFallback.uHvsGlare;
 
@@ -203,6 +207,7 @@ export function injectOmniScaleSurfaceShader(
       'uniform float uCollisionReady;',
       'uniform float uVideotronPortalAlpha;',
       'uniform float uVideotronShortMode;',
+      'uniform vec4 uFountainNightGlow;',
       'uniform vec4 uHvsParams;',
       'uniform vec4 uHvsGlare;',
       HumanEyeHDROptics.getGLSLKernel(),
@@ -1071,6 +1076,28 @@ export function injectOmniScaleSurfaceShader(
           '  }',
           '#endif',
           '',
+          '#if OMNI_PROFILE == 8 || OMNI_PROFILE == 9 || OMNI_PROFILE == 10',
+          '  // E2E. ROTUNDA DANCING FOUNTAIN (-2.5, 106.5) SYNCHRONIZED NIGHT RGBW WATER-SHOW BASIN & BOULEVARD SPILL',
+          '  if (uFountainNightGlow.w > 0.01 && vOmniUV.y > -500.0 && abs(vOmniWorldPos.x + 2.5) < 26.0 && abs(vOmniWorldPos.z - 106.5) < 26.0 && vOmniWorldPos.y > -0.4 && vOmniWorldPos.y < 7.5) {',
+          '    vec3 ftnSrc = vec3(-2.5, 1.45, 106.5);',
+          '    vec3 toFtn = ftnSrc - vOmniWorldPos;',
+          '    float dFtnSq = dot(toFtn, toFtn);',
+          '    if (dFtnSq < 576.0) {',
+          '      vec3 lFtn = toFtn * inversesqrt(max(0.35, dFtnSq));',
+          '      float rHoriz = length(vOmniWorldPos.xz - vec2(-2.5, 106.5));',
+          '      float ftnFade = smoothstep(24.0, 2.2, rHoriz);',
+          '      float ftnAtten = (14.5 / (3.2 + dFtnSq)) * ftnFade * uFountainNightGlow.w;',
+          '      float nDotFtn = max(0.18, dot(wNorm, lFtn));',
+          '      float caustRip = 0.82 + 0.18 * sin(rHoriz * 3.6 - uTime * 3.4 + atan(vOmniWorldPos.z - 106.5, vOmniWorldPos.x + 2.5) * 4.0);',
+          '      vec3 ftnCol = uFountainNightGlow.rgb * caustRip;',
+          '      gl_FragColor.rgb += diffuseColor.rgb * ftnCol * (ftnAtten * nDotFtn * 1.45);',
+          '      vec3 hFtn = normalize(lFtn + viewDirW);',
+          '      float ftnSpec = pow(max(0.0, dot(wNorm, hFtn)), 44.0) * (0.22 + 0.55 * uWetness);',
+          '      gl_FragColor.rgb += ftnCol * (ftnAtten * ftnSpec * 0.90);',
+          '    }',
+          '  }',
+          '#endif',
+          '',
           '#if OMNI_PROFILE == 1 || OMNI_PROFILE == 10',
           '  // E2C. UNDERPASS BAWAH LAUT SELATAN U-I: 24/7 3800K TUNNEL CEILING LUMINAIRES & SUBSEA OCEAN-CAUSTIC ACRYLIC WINDOWS',
           '  if (omniSubseaBore) {',
@@ -1100,6 +1127,37 @@ export function injectOmniScaleSurfaceShader(
           '#endif',
           '',
           '#if OMNI_PROFILE == 10',
+          '  // E2F. ARCHITECTURAL WINDOW GLAZING (DPPD, PERPUSTAKAAN LAMA, STP-UI, ILRC, ATC KECIL, & CAMPUS KIOSKS)',
+          '  if (vOmniUV.y < -600.0 && vOmniUV.y > -850.0) {',
+          '    float fresArch = 0.10 + 0.88 * pow(1.0 - NdotV, 4.0);',
+          '    vec3 reflArch = reflect(-viewDirW, wNorm);',
+          '    vec3 dayHorizA = mix(vec3(0.54, 0.70, 0.86), vec3(0.92, 0.48, 0.24), uDuskFactor);',
+          '    vec3 dayZenA = mix(vec3(0.16, 0.38, 0.72), vec3(0.18, 0.20, 0.42), uDuskFactor);',
+          '    vec3 skyReflA = mix(vec3(0.14, 0.20, 0.18), mix(dayHorizA, dayZenA, clamp(reflArch.y, 0.0, 1.0)), smoothstep(-0.10, 0.25, reflArch.y));',
+          '    float cldA = smoothstep(0.42, 0.82, omniFbm2(reflArch.xz / max(0.18, abs(reflArch.y) + 0.15) * 1.35));',
+          '    skyReflA = mix(skyReflA, mix(vec3(0.88, 0.91, 0.96), vec3(0.95, 0.62, 0.40), uDuskFactor), cldA * step(0.02, reflArch.y) * (1.0 - uRainIntensity * 0.7));',
+          '    vec3 extReflA = mix(skyReflA, vec3(0.025, 0.042, 0.082), uIsNight);',
+          '    float sunGlintA = pow(max(dot(reflArch, sunL), 0.0), 160.0) * sunVisUltra * 2.0;',
+          '    extReflA += uSunColor * sunGlintA;',
+          '    vec2 roomCell = floor(vec2(dot(vOmniWorldPos.xz, vec2(0.42, 0.37)), vOmniWorldPos.y * 0.36));',
+          '    float occHash = omniHash(roomCell);',
+          '    float nightPwrA = clamp(max(uIsNight, uStreetlampPower * 0.85), 0.0, 1.0);',
+          '    float roomOn = step(0.20, occHash) * nightPwrA;',
+          '    float ceilGrad = 0.62 + 0.38 * fract(vOmniWorldPos.y * 0.36);',
+          '    vec3 warmOffice = mix(vec3(1.55, 1.16, 0.64), vec3(1.25, 1.32, 1.42), step(0.82, occHash)) * ceilGrad;',
+          '    vec3 dayInterior = diffuseColor.rgb * (0.28 + 0.24 * sunVisUltra);',
+          '    vec3 intColA = mix(dayInterior, warmOffice, roomOn);',
+          '    gl_FragColor.rgb = mix(intColA, extReflA, fresArch * mix(0.76, 0.26, roomOn));',
+          '  } else if (vOmniUV.y <= -860.0 && vOmniUV.y > -980.0) {',
+          '    // Submerged Fountain RGBW LED Pods (-920) & Photocell Warm Kiosk/ATC Luminaires (-890)',
+          '    if (vOmniUV.y < -905.0) {',
+          '      if (uFountainNightGlow.w > 0.01) {',
+          '        gl_FragColor.rgb += uFountainNightGlow.rgb * (3.2 * uFountainNightGlow.w);',
+          '      }',
+          '    } else if (uStreetlampPower > 0.005) {',
+          '      gl_FragColor.rgb += vec3(2.45, 1.95, 1.18) * uStreetlampPower;',
+          '    }',
+          '  }',
           '  // E2. JEMBATAN TEKSAS UI TRANSLUCENT WAVE SUNROOF OPTICS, PHOTOCELL ARCH/PORTAL/PIER LIGHTING, & MARITIME/ICAO BEACONS',
           '  if (vOmniWorldPos.z > 170.0 && vOmniWorldPos.z < 321.0 && abs(vOmniWorldPos.x + 28.0) < 4.5 && diffuseColor.b > diffuseColor.r * 1.8 && diffuseColor.b > 0.45) {',
           '    float sunTrans = (0.20 + 0.34 * max(0.0, sunL.y)) * sunVisUltra;',

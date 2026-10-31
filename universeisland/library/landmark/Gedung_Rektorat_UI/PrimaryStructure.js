@@ -66,6 +66,13 @@ export class PrimaryStructure {
           null,
           { uvMode: 'facadeNormalized', uvScaleU: 6.0, uvScaleV: 2.0, yMinNorm: -18.0, totalHeightNorm: 18.0 }
         );
+        const fCols = new Float32Array(geo.attributes.position.count * 3);
+        for (let ci = 0; ci < fCols.length; ci += 3) {
+          fCols[ci] = 0.52;
+          fCols[ci + 1] = 0.49;
+          fCols[ci + 2] = 0.45;
+        }
+        geo.setAttribute('color', new THREE.BufferAttribute(fCols, 3));
         addMesh(geo, materials.foundationConcrete, `Primary_${zone}`, false, true);
         continue;
       }
@@ -792,6 +799,13 @@ export class PrimaryStructure {
     const skirtH = topY + skirtDepth;
     const skirtBox = new THREE.BoxGeometry(w, skirtH, d);
     skirtBox.translate(cx, topY - skirtH * 0.5 - 0.005, cz);
+    const sCols = new Float32Array(skirtBox.attributes.position.count * 3);
+    for (let ci = 0; ci < sCols.length; ci += 3) {
+      sCols[ci] = 0.52;
+      sCols[ci + 1] = 0.49;
+      sCols[ci + 2] = 0.45;
+    }
+    skirtBox.setAttribute('color', new THREE.BufferAttribute(sCols, 3));
     addMesh(skirtBox, materials.foundationConcrete, `${name}_Skirt`, false, true);
   }
 

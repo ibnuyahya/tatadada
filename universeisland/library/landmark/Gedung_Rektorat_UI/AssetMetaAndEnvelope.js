@@ -149,6 +149,31 @@ export const GEDUNG_REKTORAT_UI_META = {
     videotronUI: {
       pos: { x: 4.8, y: 8.6, z: 99.5 },
       target: { x: 27.6, y: 8.9, z: 78.0 }
+    },
+    // Hero Front-Oblique Architectural View of Kompleks Kantor DPPD, ITTC, STP-UI (8-Story Tower), & ILRC on Pulau U facing Rektorat
+    kompleksDPPD: {
+      pos: { x: -206.0, y: 24.5, z: 276.0 },
+      target: { x: -255.0, y: 12.0, z: 329.0 }
+    },
+    // Centerpiece View of Compact Physics-Accurate Dancing Fountain at Lapangan Rotunda UI with Gedung Rektorat UI Backdrop
+    airMancurRotunda: {
+      pos: { x: -2.5, y: 5.8, z: 121.5 },
+      target: { x: -2.5, y: 2.3, z: 106.5 }
+    },
+    // Dedicated EPDM Jogging Track Oval, Sudut Calisthenics Street-Workout Park, Joggers, & Kios Taman Rotunda
+    joggingCalisthenics: {
+      pos: { x: -39.0, y: 11.5, z: 156.0 },
+      target: { x: -62.0, y: 1.8, z: 136.5 }
+    },
+    // Modern 2-Passenger Electric Helicopter Taxi (eVTOL PK-UIE) Shuttling at VIP Helipad
+    taxiHeliListrik: {
+      pos: { x: -119.5, y: 7.4, z: 119.5 },
+      target: { x: -104.0, y: 1.9, z: 106.5 }
+    },
+    // Pulau I Compact ATC Tower (ATC Kecil), Shuttling Cessna 172 & Citation Learjet Apron, Kios Bandara, & Titik Kumpul
+    bandaraATCPulauI: {
+      pos: { x: -214.0, y: 16.5, z: 644.0 },
+      target: { x: -250.0, y: 4.5, z: 680.0 }
     }
   }
 };

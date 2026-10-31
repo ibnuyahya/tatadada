@@ -138,21 +138,47 @@ export function resolveSoftSpatialCollision(
 }
 
 /**
- * Multi-Mode Camera Director (Google Earth Fluid Parabolic Flights, Orbit, 6-DOF Drone, & Pedestrian Walk)
+ * Multi-Mode Camera Director (Google Earth Fluid Parabolic Flights, Free Orbit WASD, 6-DOF Drone, Pedestrian Walk, & 6 Living FPS Views)
  */
 export class CameraDirector {
+  static FPS_MODES = new Set([
+    'FPS_JOGGER',
+    'FPS_BUS_DRIVER',
+    'FPS_GOLF_DRIVER',
+    'FPS_CHAT_NPC',
+    'FPS_CAT',
+    'FPS_PILOT'
+  ]);
+
   constructor(camera, controls, colliders = []) {
     this.camera = camera;
     this.controls = controls;
     this.colliders = colliders;
-    this.mode = 'ORBIT'; // 'ORBIT' | 'DRONE_6DOF' | 'WALK_SIVITAS' | 'AUTO_CINEMATIC'
+    this.mode = 'ORBIT'; // 'ORBIT' | 'DRONE_6DOF' | 'WALK_SIVITAS' | 'AUTO_CINEMATIC' | 'FPS_*'
     this._baseNear = Math.max(0.12, Number(camera?.near) || 0.18);
 
     this.velocity = new THREE.Vector3();
+    this._orbitPanVel = new THREE.Vector3();
     this.yaw = 0.0;
     this.pitch = -0.15;
     this.roll = 0.0;
     this.cinematicAngle = 0.55;
+
+    // 6 Natural Living Campus First-Person (FPS) State
+    this.fpsAnchorProvider = null;
+    this.sharedUniforms = null;
+    this.fpsSubjectOffset = 0;
+    this.fpsYawOffset = 0.0;
+    this.fpsPitchOffset = 0.0;
+    this.lastFPSStatus = null;
+    this._fpsSmoothPos = new THREE.Vector3();
+    this._fpsSmoothFwd = new THREE.Vector3(0, 0, -1);
+    this._fpsSmoothUp = new THREE.Vector3(0, 1, 0);
+    this._fpsPoseInitialized = false;
+    this._fpsTmpF1 = new THREE.Vector3();
+    this._fpsTmpR1 = new THREE.Vector3();
+    this._fpsTmpF2 = new THREE.Vector3();
+    this._fpsTmpU2 = new THREE.Vector3();
 
     // Google Earth C^2 Parabolic Flight State
     this.transitionActive = false;
@@ -175,6 +201,31 @@ export class CameraDirector {
     this.physicsContext = null;
     this._prevCamPos = new THREE.Vector3();
     this._hasPrevCamPos = false;
+  }
+
+  isFPSMode(mode = this.mode) {
+    return CameraDirector.FPS_MODES.has(mode);
+  }
+
+  setFPSAnchorProvider(fn) {
+    this.fpsAnchorProvider = typeof fn === 'function' ? fn : null;
+  }
+
+  setSharedUniforms(uniforms) {
+    this.sharedUniforms = uniforms || null;
+  }
+
+  cycleFPSSubject(delta = 1) {
+    const step = Number.isFinite(delta) ? Math.trunc(delta) : 1;
+    this.fpsSubjectOffset = Math.max(0, (this.fpsSubjectOffset + step + 240) % 240);
+    this.fpsYawOffset = 0.0;
+    this.fpsPitchOffset = 0.0;
+    this._fpsPoseInitialized = false;
+  }
+
+  resetFPSHeadLook() {
+    this.fpsYawOffset = 0.0;
+    this.fpsPitchOffset = 0.0;
   }
 
   /**
@@ -214,6 +265,15 @@ export class CameraDirector {
       if (isEditableTarget(e && e.target)) {
         this.keyState.clear();
         return;
+      }
+      if (this.isFPSMode()) {
+        if (e.code === 'BracketRight') {
+          this.cycleFPSSubject(1);
+        } else if (e.code === 'BracketLeft') {
+          this.cycleFPSSubject(-1);
+        } else if (e.code === 'KeyR') {
+          this.resetFPSHeadLook();
+        }
       }
       this.keyState.add(e.code);
     });
@@ -331,17 +391,60 @@ export class CameraDirector {
 
   setMode(newMode, options = {}) {
     const prevMode = this.mode;
+    const wasFPS = this.isFPSMode(prevMode);
+    const nextIsFPS = this.isFPSMode(newMode);
+
+    // Capture current world view direction BEFORE resetting camera.up so leaving FPS/Drone/Walk preserves look aim
+    if ((wasFPS || prevMode === 'DRONE_6DOF' || prevMode === 'WALK_SIVITAS') && !nextIsFPS) {
+      this.camera.getWorldDirection(this._flightLookTmp);
+    }
+
+    if (wasFPS && !nextIsFPS) {
+      if (this.sharedUniforms && this.sharedUniforms.uCockpitGlassCutRadius) {
+        this.sharedUniforms.uCockpitGlassCutRadius.value = 0.0;
+      }
+      this.lastFPSStatus = null;
+      this._fpsPoseInitialized = false;
+    } else if (prevMode !== newMode) {
+      this.lastFPSStatus = null;
+    }
+
     this.mode = newMode;
     this.transitionActive = false;
     this._flightNadirSpec = null;
     this.camera.up.set(0, 1, 0);
+    this._orbitPanVel.set(0, 0, 0);
+
+    if (nextIsFPS) {
+      if (this.controls) this.controls.enabled = false;
+      this.velocity.set(0, 0, 0);
+      this.fpsYawOffset = 0.0;
+      this.fpsPitchOffset = 0.0;
+      if (options.subjectOffset !== undefined) {
+        this.fpsSubjectOffset = Math.max(0, Math.floor(Number(options.subjectOffset) || 0));
+      } else if (prevMode !== newMode) {
+        this.fpsSubjectOffset = 0;
+      }
+      this._fpsPoseInitialized = false;
+      if (this.camera && typeof this.camera.updateProjectionMatrix === 'function') {
+        this.camera.near = 0.08;
+        this.camera.updateProjectionMatrix();
+      }
+      return;
+    }
 
     if (newMode === 'ORBIT' || newMode === 'AUTO_CINEMATIC') {
       this.roll = 0;
       if (this.controls) {
-        if (prevMode === 'DRONE_6DOF' || prevMode === 'WALK_SIVITAS') {
-          this.camera.getWorldDirection(this._flightLookTmp);
-          this.controls.target.copy(this.camera.position).addScaledVector(this._flightLookTmp, 36.0);
+        if (wasFPS || prevMode === 'DRONE_6DOF' || prevMode === 'WALK_SIVITAS') {
+          if (wasFPS && this.physicsContext && this.physicsContext.walkableHeightFn) {
+            const minStandY =
+              this.physicsContext.walkableHeightFn(this.camera.position.x, this.camera.position.z) + 1.65;
+            if (this.camera.position.y < minStandY && this.camera.position.y > -2.0) {
+              this.camera.position.y = minStandY;
+            }
+          }
+          this.controls.target.copy(this.camera.position).addScaledVector(this._flightLookTmp, 28.0);
         }
         this.controls.enabled = true;
       }
@@ -432,6 +535,11 @@ export class CameraDirector {
     if (this.transitionActive && (Math.abs(dx) > 1.5 || Math.abs(dy) > 1.5)) {
       this.cancelTransition();
     }
+    if (this.isFPSMode()) {
+      this.fpsYawOffset = Math.max(-2.05, Math.min(2.05, this.fpsYawOffset - dx * sensitivity));
+      this.fpsPitchOffset = Math.max(-1.12, Math.min(1.12, this.fpsPitchOffset - dy * sensitivity));
+      return;
+    }
     if (this.mode !== 'DRONE_6DOF' && this.mode !== 'WALK_SIVITAS') return;
     this.yaw -= dx * sensitivity;
     this.pitch = Math.max(-1.35, Math.min(1.35, this.pitch - dy * sensitivity));
@@ -494,8 +602,104 @@ export class CameraDirector {
       ctx.walkableHeightFn = floorHeightFn;
     }
 
+    // -------------------------------------------------------------------------
+    // 6 NATURAL LIVING CAMPUS FIRST-PERSON (FPS) PERSPECTIVES
+    // ('FPS_JOGGER' | 'FPS_BUS_DRIVER' | 'FPS_GOLF_DRIVER' | 'FPS_CHAT_NPC' | 'FPS_CAT' | 'FPS_PILOT')
+    // -------------------------------------------------------------------------
+    if (this.isFPSMode()) {
+      const anchor = this.fpsAnchorProvider
+        ? this.fpsAnchorProvider(this.mode, this.fpsSubjectOffset)
+        : null;
+      if (anchor && anchor.eyePos && anchor.forward && anchor.up && anchor.right) {
+        if (this.sharedUniforms && this.sharedUniforms.uCockpitGlassCutRadius) {
+          this.sharedUniforms.uCockpitGlassCutRadius.value = anchor.isVehicleCockpit ? 2.45 : 0.0;
+        }
+        if (this.camera && Math.abs(this.camera.near - 0.08) > 0.005) {
+          this.camera.near = 0.08;
+          if (typeof this.camera.updateProjectionMatrix === 'function') {
+            this.camera.updateProjectionMatrix();
+          }
+        }
+
+        // Apply interactive head-look yaw (around anchor.up) & pitch (around rotated right)
+        const cY = Math.cos(this.fpsYawOffset);
+        const sY = Math.sin(this.fpsYawOffset);
+        const F = anchor.forward;
+        const R = anchor.right;
+        const U = anchor.up;
+
+        this._fpsTmpF1.set(F.x * cY - R.x * sY, F.y * cY - R.y * sY, F.z * cY - R.z * sY).normalize();
+        this._fpsTmpR1.set(R.x * cY + F.x * sY, R.y * cY + F.y * sY, R.z * cY + F.z * sY).normalize();
+
+        const cP = Math.cos(this.fpsPitchOffset);
+        const sP = Math.sin(this.fpsPitchOffset);
+        this._fpsTmpF2
+          .set(
+            this._fpsTmpF1.x * cP + U.x * sP,
+            this._fpsTmpF1.y * cP + U.y * sP,
+            this._fpsTmpF1.z * cP + U.z * sP
+          )
+          .normalize();
+        this._fpsTmpU2
+          .set(
+            U.x * cP - this._fpsTmpF1.x * sP,
+            U.y * cP - this._fpsTmpF1.y * sP,
+            U.z * cP - this._fpsTmpF1.z * sP
+          )
+          .normalize();
+
+        if (!this._fpsPoseInitialized || anchor.eyePos.distanceTo(this._fpsSmoothPos) > 12.0) {
+          this._fpsSmoothPos.copy(anchor.eyePos);
+          this._fpsSmoothFwd.copy(this._fpsTmpF2);
+          this._fpsSmoothUp.copy(this._fpsTmpU2);
+          this._fpsPoseInitialized = true;
+        } else if (anchor.isVehicleCockpit) {
+          // Lock cockpit seat position 1:1 so high-speed Learjet/Cessna/Bus never lags behind cockpit dashboard
+          this._fpsSmoothPos.copy(anchor.eyePos);
+          const aRot = 1.0 - Math.exp(-22.0 * clampedDt);
+          this._fpsSmoothFwd.lerp(this._fpsTmpF2, aRot).normalize();
+          this._fpsSmoothUp.lerp(this._fpsTmpU2, aRot).normalize();
+        } else {
+          // Organic physiological head stabilization for Joggers, Conversing Sivitas, & Prowling Cats
+          const aPos = 1.0 - Math.exp(-24.0 * clampedDt);
+          const aRot = 1.0 - Math.exp(-15.0 * clampedDt);
+          this._fpsSmoothPos.lerp(anchor.eyePos, aPos);
+          this._fpsSmoothFwd.lerp(this._fpsTmpF2, aRot).normalize();
+          this._fpsSmoothUp.lerp(this._fpsTmpU2, aRot).normalize();
+        }
+
+        this.camera.position.copy(this._fpsSmoothPos);
+        this.camera.up.copy(this._fpsSmoothUp);
+        this.camera.lookAt(
+          this._fpsSmoothPos.x + this._fpsSmoothFwd.x * 10.0,
+          this._fpsSmoothPos.y + this._fpsSmoothFwd.y * 10.0,
+          this._fpsSmoothPos.z + this._fpsSmoothFwd.z * 10.0
+        );
+        this.lastFPSStatus = anchor;
+      }
+      this._prevCamPos.copy(this.camera.position);
+      return;
+    }
+
     if (this.mode === 'ORBIT') {
       this.camera.up.set(0, 1, 0);
+
+      // Free Orbit WASD / Arrow / Q-E Movement (cancels active parabolic flight immediately on user key press!)
+      let orbF = 0;
+      let orbR = 0;
+      let orbU = 0;
+      if (this.keyState.has('KeyW') || this.keyState.has('ArrowUp')) orbF += 1;
+      if (this.keyState.has('KeyS') || this.keyState.has('ArrowDown')) orbF -= 1;
+      if (this.keyState.has('KeyD') || this.keyState.has('ArrowRight')) orbR += 1;
+      if (this.keyState.has('KeyA') || this.keyState.has('ArrowLeft')) orbR -= 1;
+      if (this.keyState.has('KeyE')) orbU += 1;
+      if (this.keyState.has('KeyQ')) orbU -= 1;
+
+      const hasOrbitKeys = orbF !== 0 || orbR !== 0 || orbU !== 0;
+      if (hasOrbitKeys && this.transitionActive) {
+        this.cancelTransition();
+      }
+
       if (this.transitionActive) {
         this._stepGoogleEarthFlight(clampedDt);
         resolveSoftSpatialCollision(
@@ -510,6 +714,71 @@ export class CameraDirector {
           false
         );
       } else {
+        // Integrate smooth damped Free-Orbit WASD pan velocity scaled to current orbit distance
+        let fx = 0.0;
+        let fz = -1.0;
+        if (this.controls && this.controls.target) {
+          fx = this.controls.target.x - this.camera.position.x;
+          fz = this.controls.target.z - this.camera.position.z;
+        }
+        let fHoriz = Math.hypot(fx, fz);
+        if (fHoriz < 0.75) {
+          this.camera.getWorldDirection(this._flightLookTmp);
+          fx = this._flightLookTmp.x;
+          fz = this._flightLookTmp.z;
+          fHoriz = Math.hypot(fx, fz);
+          if (fHoriz < 1e-4) {
+            fx = 0.0;
+            fz = -1.0;
+            fHoriz = 1.0;
+          }
+        }
+        fx /= fHoriz;
+        fz /= fHoriz;
+        const rx = -fz;
+        const rz = fx;
+
+        const pivotDist =
+          this.controls && this.controls.target
+            ? this.camera.position.distanceTo(this.controls.target)
+            : 36.0;
+        const shiftBoost =
+          this.keyState.has('ShiftLeft') || this.keyState.has('ShiftRight') ? 2.15 : 1.0;
+        const maxOrbitSpeed = Math.min(145.0, Math.max(14.0, pivotDist * 0.58)) * shiftBoost;
+        const orbitAccel = maxOrbitSpeed * 5.4;
+
+        const inLen = Math.hypot(orbF, orbR);
+        const nF = inLen > 1.0 ? orbF / inLen : orbF;
+        const nR = inLen > 1.0 ? orbR / inLen : orbR;
+
+        this._orbitPanVel.x += (fx * nF + rx * nR) * orbitAccel * clampedDt;
+        this._orbitPanVel.z += (fz * nF + rz * nR) * orbitAccel * clampedDt;
+        this._orbitPanVel.y += orbU * orbitAccel * 0.65 * clampedDt;
+
+        const orbitDrag = Math.exp(-6.2 * clampedDt);
+        this._orbitPanVel.multiplyScalar(orbitDrag);
+        if (this._orbitPanVel.length() > maxOrbitSpeed) {
+          this._orbitPanVel.setLength(maxOrbitSpeed);
+        }
+        if (!hasOrbitKeys && this._orbitPanVel.lengthSq() < 1e-4) {
+          this._orbitPanVel.set(0, 0, 0);
+        }
+
+        const wasOrbitPanning = this._orbitPanVel.lengthSq() > 0.0;
+        if (wasOrbitPanning) {
+          const dx = this._orbitPanVel.x * clampedDt;
+          const dy = this._orbitPanVel.y * clampedDt;
+          const dz = this._orbitPanVel.z * clampedDt;
+          this.camera.position.x += dx;
+          this.camera.position.y += dy;
+          this.camera.position.z += dz;
+          if (this.controls && this.controls.target) {
+            this.controls.target.x += dx;
+            this.controls.target.y += dy;
+            this.controls.target.z += dz;
+          }
+        }
+
         if (this.controls) {
           // Prevent OrbitControls pivot target from being dragged deep underground/underwater (outside Underpass trench)
           if (this.controls.target && ctx) {
@@ -539,9 +808,11 @@ export class CameraDirector {
           : 0.0;
         const orbitFloorY =
           rawOrbitGroundY < -0.5 ? rawOrbitGroundY + 0.56 : Math.max(0.56, rawOrbitGroundY + 0.56);
+        const preColX = this.camera.position.x;
+        const preColZ = this.camera.position.z;
         resolveSoftSpatialCollision(
           this.camera.position,
-          null,
+          this._orbitPanVel,
           this.colliders,
           0.56,
           orbitFloorY,
@@ -550,6 +821,10 @@ export class CameraDirector {
           ctx,
           false
         );
+        if (wasOrbitPanning && this.controls && this.controls.target) {
+          this.controls.target.x += this.camera.position.x - preColX;
+          this.controls.target.z += this.camera.position.z - preColZ;
+        }
       }
       this._prevCamPos.copy(this.camera.position);
       this._updateAltitudeAdaptiveNearPlane();
