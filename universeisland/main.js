@@ -36,7 +36,7 @@ if (typeof window !== 'undefined') {
   }
 }
 
-const TOTAL_EXPECTED_TRIS = 5862108;
+const TOTAL_EXPECTED_TRIS = 6138024;
 
 function yieldToBrowserFrame() {
   return new Promise((resolve) => {
@@ -349,12 +349,12 @@ async function bootstrapNexusSimulator() {
       return teksasDeckY + 0.02;
     }
     const rDPPD = Math.hypot(x - TerrainDEMLoader.DPPD_CX, z - TerrainDEMLoader.DPPD_CZ);
-    if (rDPPD <= 38.0) {
+    if (rDPPD <= 39.55) {
       const rLocal = rDPPD / TerrainDEMLoader.DPPD_SCALE;
-      if (rLocal >= 53.2 && rLocal <= 64.8) {
-        return TerrainDEMLoader.DPPD_PLATEAU_Y + 0.10 * TerrainDEMLoader.DPPD_SCALE;
+      if (rLocal >= 53.1 && rLocal <= 65.1) {
+        return TerrainDEMLoader.DPPD_PLATEAU_Y + 0.08 * TerrainDEMLoader.DPPD_SCALE;
       }
-      return TerrainDEMLoader.DPPD_PLATEAU_Y + 0.21 * TerrainDEMLoader.DPPD_SCALE;
+      return TerrainDEMLoader.DPPD_PLATEAU_Y + 0.24 * TerrainDEMLoader.DPPD_SCALE;
     }
     if (x >= -36.0 && x <= 36.0 && z >= -35.0 && z <= 39.0) {
       return 0.13;

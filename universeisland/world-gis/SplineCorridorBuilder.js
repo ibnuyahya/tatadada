@@ -3242,12 +3242,16 @@ export class SplineCorridorBuilder {
       if (qz > 348.5 && qz < 354.2 && Math.abs(qx - TerrainDEMLoader.TEKSAS_BRIDGE_X) < 4.2) {
         factor = Math.min(factor, PhysicsKernel.smootherstep(2.6, 4.2, Math.abs(qx - TerrainDEMLoader.TEKSAS_BRIDGE_X)));
       }
-      // Kompleks DPPD–STP–ILRC 360° Ring Road South & East Spur Throats
+      // Kompleks DPPD–STP–ILRC 360° Ring Road & Outer Sidewalk Promenade South & East Spur Throats
       const rDppd = Math.hypot(qx - TerrainDEMLoader.DPPD_CX, qz - TerrainDEMLoader.DPPD_CZ);
-      if (rDppd < TerrainDEMLoader.DPPD_RING_OUTER_R + 2.4) {
+      if (rDppd < TerrainDEMLoader.DPPD_RING_OUTER_R + 4.0) {
         factor = Math.min(
           factor,
-          PhysicsKernel.smootherstep(TerrainDEMLoader.DPPD_RING_OUTER_R + 0.3, TerrainDEMLoader.DPPD_RING_OUTER_R + 2.4, rDppd)
+          PhysicsKernel.smootherstep(
+            TerrainDEMLoader.DPPD_RING_OUTER_R + 1.85,
+            TerrainDEMLoader.DPPD_RING_OUTER_R + 4.0,
+            rDppd
+          )
         );
       }
       return factor;

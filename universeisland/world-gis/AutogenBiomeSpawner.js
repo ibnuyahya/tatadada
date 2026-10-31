@@ -360,6 +360,30 @@ export class AutogenBiomeSpawner {
       }
     }
 
+    // --- A3b. KOMPLEKS DPPD – ILRC – STP-UI GREEN CAMPUS PERIMETER TREE BELT (Pulau U Right-Arm Terrace) ---
+    // Frames the 2/6/8-story campus cluster with authentic UI shade trees while keeping the Teluk U -> Rektorat vista open!
+    const dppdCx = TerrainDEMLoader.DPPD_CX;
+    const dppdCz = TerrainDEMLoader.DPPD_CZ;
+    const toRekTh = Math.atan2(0.0 - dppdCz, 0.0 - dppdCx);
+    for (let ring = 0; ring < 2; ring++) {
+      const count = ring === 0 ? 18 : 22;
+      const baseR = ring === 0 ? 46.8 : 57.5;
+      for (let k = 0; k < count; k++) {
+        const th = -Math.PI + ((k + 0.5) / count) * Math.PI * 2.0;
+        // Leave clear 62-degree waterfront Belvedere vista straight toward Gedung Rektorat UI across Teluk U
+        const dAng = Math.abs(Math.atan2(Math.sin(th - toRekTh), Math.cos(th - toRekTh)));
+        if (dAng < 0.54) continue;
+        const r = baseR + (hash01(1900 + ring * 29 + k) - 0.5) * 3.4;
+        const tx = dppdCx + Math.cos(th) * r;
+        const tz = dppdCz + Math.sin(th) * r;
+        const hSp = hash01(1950 + ring * 31 + k);
+        const species = hSp < 0.48 ? 'TREMBESI' : hSp < 0.84 ? 'MAHONI' : 'PALEM_RAJA';
+        const scale = (species === 'PALEM_RAJA' ? 1.05 : 1.08) + hash01(2010 + ring * 37 + k) * 0.18;
+        const yaw = hash01(2070 + ring * 41 + k) * Math.PI * 2.0;
+        tryAddTree(species, tx, tz, scale, yaw, 9.6);
+      }
+    }
+
     // --- A4. TROPICAL FOREST-FLOOR & MATA AIR UNDERSTORY SHRUBS/FERNS (0 Extra Draw Calls!) ---
     for (let k = 0; k < 18; k++) {
       const u = (k + 0.5) / 18;

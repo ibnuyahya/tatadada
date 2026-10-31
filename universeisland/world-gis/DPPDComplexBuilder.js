@@ -2,22 +2,32 @@ import * as THREE from 'three';
 import { TerrainDEMLoader } from './TerrainDEMLoader.js';
 
 /**
- * NEXUS Omni-Scale Procedural Engine v5.0 — Kepulauan UI Edition
+ * NEXUS Omni-Scale Procedural Engine v5.1 — Kepulauan UI Edition
  * ./world-gis/DPPDComplexBuilder.js
  *
- * High-Detail Procedural Digital Twin of Kompleks Kantor DPPD (eks-KSDP),
- * Gedung ITTC / Perpustakaan Lama UI, Gedung Science Techno Park (STP-UI 8 Lantai),
- * & Gedung Laboratorium ILRC / DRPM (4 Lantai + Menara Bata Terakota) on Pulau U.
+ * Class-A Reference-Calibrated Procedural Digital Twin of Kompleks Inovasi & Pendidikan UI on Pulau U:
+ * 1. Gedung DPPD UI (2 Lantai — Front Nusantara Heritage Terracotta-Roofed Pavilion facing Gedung Rektorat UI)
+ * 2. Gedung ILRC UI (6 Lantai — Integrated Laboratory and Research Center with 6-Story Curved Concrete Sunshades
+ *    & Symmetrical Terracotta-Brick Twin-Pier Glazed Atrium Entrance Portal)
+ * 3. Gedung STP-UI (8 Lantai — Science Techno Park Universitas Indonesia with L1 Exhibition Lobby, L2-L3 Copper-ACP
+ *    Diagrid Podium, L4-L7 White Spandrel & Staggered Dark-Frame Floors, L8 Glazed Crown Frieze + 3D Signage,
+ *    Wrapping Copper-Terracotta Frame, & Rooftop Solar PV Array)
+ * 4. Plaza Taman Inovasi Tengah (Open Landscaped Central Courtyard, Covered Link Pergolas, Benches, & Lamps)
+ * 5. Seamless Pulau U Integration (100% Identical Linear-RGB Cambered Asphalt, UI-Yellow Dashed Centerline,
+ *    White Shoulder Lines, Flared Spur Bell-Mouth Aprons, 360° Outer Sidewalk Promenade, & Halte Bikun DPPD-STP)
  *
- * Extracted & Perfected from Studio Kelas-A Ground-Truth SSoST:
- * - Scaled (0.58x) and oriented on Pulau U's +4.85m graded terrace (-255.0, +329.0)
- *   so Gedung DPPD's front heritage gable faces Gedung Rektorat UI (0, 0) across Teluk U.
- * - Full night-lit architectural office glazing (UV sentinel v = -720.0) & warm photocell
- *   portico/streetlamp luminaires (UV sentinel v = -890.0).
- * - Batched directly into SplineCorridorBuilder's { horizontalGeo, verticalGeo } pair
- *   for +0 extra WebGL Draw Calls, with exact world-space solid-body colliders.
+ * Batched directly into SplineCorridorBuilder's { horizontalGeo, verticalGeo } pair (+0 extra Draw Calls!).
  */
 export class DPPDComplexBuilder {
+  // Polar layout constants in root local space (note: entranceGroup has rotation.y = -pi/4 -> th_root = 135° - alpha)
+  // Wide 40° open landscaped avenue separates STP-UI (-44°) and Gedung ILRC (-4°) so both stand cleanly apart!
+  static DPPD_ALPHA_MIN_DEG = -44.0;
+  static DPPD_ALPHA_MAX_DEG = 44.0;
+  static STP_START_DEG = -134.0;
+  static STP_END_DEG = -44.0;
+  static ILRC_START_DEG = -4.0;
+  static ILRC_END_DEG = 74.0;
+
   static _sliceSubdomain(evaluateFn, uMin, uMax, vMin, vMax, uSegs = 24, vSegs = 12) {
     const vertCount = (uSegs + 1) * (vSegs + 1);
     const positions = new Float32Array(vertCount * 3);
@@ -88,9 +98,104 @@ export class DPPDComplexBuilder {
     return geo;
   }
 
+  /**
+   * Evaluates a watertight curved cylindrical-sector slab/wall band in polar coordinates (rIn..rOut, yBot..yTop, th0..th1).
+   */
+  static _addCurvedBand(parent, mat, th0, th1, rIn, rOut, yBot, yTop, segs = 32, opts = {}) {
+    const { top = true, bottom = yBot > 0.25, outer = true, inner = true, caps = true } = opts;
+
+    if (outer) {
+      parent.add(
+        new THREE.Mesh(
+          DPPDComplexBuilder._sliceSubdomain(
+            (u, v, p, n) => {
+              const th = th0 + u * (th1 - th0);
+              p.set(rOut * Math.cos(th), yBot + v * (yTop - yBot), rOut * Math.sin(th));
+              n.set(Math.cos(th), 0, Math.sin(th));
+            },
+            0, 1, 0, 1, segs, 1
+          ),
+          mat
+        )
+      );
+    }
+    if (inner) {
+      parent.add(
+        new THREE.Mesh(
+          DPPDComplexBuilder._sliceSubdomain(
+            (u, v, p, n) => {
+              const th = th0 + u * (th1 - th0);
+              p.set(rIn * Math.cos(th), yBot + v * (yTop - yBot), rIn * Math.sin(th));
+              n.set(-Math.cos(th), 0, -Math.sin(th));
+            },
+            0, 1, 0, 1, segs, 1
+          ),
+          mat
+        )
+      );
+    }
+    if (top) {
+      parent.add(
+        new THREE.Mesh(
+          DPPDComplexBuilder._sliceSubdomain(
+            (u, v, p, n) => {
+              const th = th0 + u * (th1 - th0);
+              const r = rIn + v * (rOut - rIn);
+              p.set(r * Math.cos(th), yTop, r * Math.sin(th));
+              n.set(0, 1, 0);
+            },
+            0, 1, 0, 1, segs, 1
+          ),
+          mat
+        )
+      );
+    }
+    if (bottom) {
+      parent.add(
+        new THREE.Mesh(
+          DPPDComplexBuilder._sliceSubdomain(
+            (u, v, p, n) => {
+              const th = th0 + u * (th1 - th0);
+              const r = rIn + v * (rOut - rIn);
+              p.set(r * Math.cos(th), yBot, r * Math.sin(th));
+              n.set(0, -1, 0);
+            },
+            0, 1, 0, 1, segs, 1
+          ),
+          mat
+        )
+      );
+    }
+    if (caps) {
+      for (const [thCap, sgn] of [
+        [th0, -1],
+        [th1, 1]
+      ]) {
+        const nx = -Math.sin(thCap) * sgn;
+        const nz = Math.cos(thCap) * sgn;
+        parent.add(
+          new THREE.Mesh(
+            DPPDComplexBuilder._sliceSubdomain(
+              (u, v, p, n) => {
+                const r = rIn + u * (rOut - rIn);
+                p.set(r * Math.cos(thCap), yBot + v * (yTop - yBot), r * Math.sin(thCap));
+                n.set(nx, 0, nz);
+              },
+              0, 1, 0, 1, 2, 1
+            ),
+            mat
+          )
+        );
+      }
+    }
+  }
+
+  /**
+   * SSoST 2-Story Gedung DPPD Nusantara Hipped Curved Wing Roof Surface (eave y = 11.75 -> ridge y = 16.55).
+   */
   static evaluateWingRoofLocalSurface(u, v, targetPos, targetNorm) {
-    const alphaMin = (-52.0 * Math.PI) / 180.0;
-    const alphaMax = (46.0 * Math.PI) / 180.0;
+    const alphaMin = (DPPDComplexBuilder.DPPD_ALPHA_MIN_DEG * Math.PI) / 180.0;
+    const alphaMax = (DPPDComplexBuilder.DPPD_ALPHA_MAX_DEG * Math.PI) / 180.0;
     const alphaSpan = alphaMax - alphaMin;
 
     const sectorCount = 6.0;
@@ -99,9 +204,9 @@ export class DPPDComplexBuilder {
     const a0 = alphaMin + (sIdx / sectorCount) * alphaSpan;
     const a1 = alphaMin + ((sIdx + 1) / sectorCount) * alphaSpan;
 
-    const rInner = 26.2;
-    const rRidge = 35.8;
-    const rOuter = 45.9;
+    const rInner = 27.2;
+    const rRidge = 36.6;
+    const rOuter = 46.0;
     const r = rInner + v * (rOuter - rInner);
 
     const x0 = r * Math.sin(a0);
@@ -112,40 +217,22 @@ export class DPPDComplexBuilder {
     const z = z0 + (z1 - z0) * sFrac;
 
     const distFromRidge = Math.abs(r - rRidge) / ((rOuter - rInner) * 0.5);
-    const endHipTaper = Math.min(1.0, Math.min(u, 1.0 - u) * 6.8);
-    const eaveY = 6.25;
-    const ridgeH = 5.35 * endHipTaper;
+    const endHipTaper = Math.min(1.0, Math.min(u, 1.0 - u) * 6.4);
+    const eaveY = 11.75;
+    const ridgeH = 4.80 * endHipTaper;
     const y = eaveY + Math.max(0.0, (1.0 - distFromRidge) * ridgeH);
 
     targetPos.set(x, y, z);
     const alphaMid = (a0 + a1) * 0.5;
-    const radialSign = r >= rRidge ? 0.38 : -0.38;
-    targetNorm.set(Math.sin(alphaMid) * radialSign, 0.92, Math.cos(alphaMid) * radialSign).normalize();
-  }
-
-  static evaluateBermLocalSurface(alphaStartDeg, alphaEndDeg, u, v, targetPos, targetNorm) {
-    const a0 = (alphaStartDeg * Math.PI) / 180.0;
-    const a1 = (alphaEndDeg * Math.PI) / 180.0;
-    const alpha = a0 + u * (a1 - a0);
-
-    const rTop = 44.15;
-    const rBot = 50.85;
-    const r = rTop + v * (rBot - rTop);
-
-    const smoothV = v * v * (3.0 - 2.0 * v);
-    const y = 3.68 + (0.32 - 3.68) * smoothV;
-
-    targetPos.set(r * Math.sin(alpha), y, r * Math.cos(alpha));
-    targetNorm.set(Math.sin(alpha) * 0.48, 0.88, Math.cos(alpha) * 0.48).normalize();
+    const radialSign = r >= rRidge ? 0.36 : -0.36;
+    targetNorm.set(Math.sin(alphaMid) * radialSign, 0.93, Math.cos(alphaMid) * radialSign).normalize();
   }
 
   /**
-   * Builds a watertight extruded 3D prism along +Z (z in [0, depth]) from a 2D convex/concave polygon
-   * (compatible with both real Three.js WebGL2 and headless verification shims).
+   * Builds a watertight extruded 3D prism along +Z (z in [0, depth]) from a 2D polygon.
    */
   static _buildPolygonPrismGeo(pts2D, depth) {
     const n = pts2D.length;
-    // Signed area to ensure CCW winding on +Z front face
     let area2 = 0.0;
     for (let i = 0; i < n; i++) {
       const p0 = pts2D[i];
@@ -160,7 +247,6 @@ export class DPPDComplexBuilder {
     const idx = [];
     let vCount = 0;
 
-    // Front face (z = depth, normal +Z) & Back face (z = 0, normal -Z) via fan from centroid
     let cx = 0.0;
     let cy = 0.0;
     for (let i = 0; i < n; i++) {
@@ -170,7 +256,6 @@ export class DPPDComplexBuilder {
     cx /= n;
     cy /= n;
 
-    // Front (+Z)
     const fCenter = vCount++;
     pos.push(cx, cy, depth);
     norm.push(0, 0, 1);
@@ -185,7 +270,6 @@ export class DPPDComplexBuilder {
       idx.push(fCenter, fCenter + 1 + i, fCenter + 1 + ((i + 1) % n));
     }
 
-    // Back (-Z)
     const bCenter = vCount++;
     pos.push(cx, cy, 0.0);
     norm.push(0, 0, -1);
@@ -200,7 +284,6 @@ export class DPPDComplexBuilder {
       idx.push(bCenter, bCenter + 1 + ((i + 1) % n), bCenter + 1 + i);
     }
 
-    // Side quads around perimeter
     for (let i = 0; i < n; i++) {
       const p0 = ordered[i];
       const p1 = ordered[(i + 1) % n];
@@ -233,9 +316,6 @@ export class DPPDComplexBuilder {
     return geo;
   }
 
-  /**
-   * Orients a Z-aligned mesh (length along local Z) to span from pA to pB with optional Y lift.
-   */
   static _orientBeamAlongZ(mesh, pA, pB, liftY = 0.0) {
     mesh.position.set(
       (pA.x + pB.x) * 0.5,
@@ -260,42 +340,236 @@ export class DPPDComplexBuilder {
       m.userData.uvSentinel = uvSentinel;
       return m;
     };
+    // Direct linear-RGB material matching SplineCorridorBuilder & TerrainDEMLoader 100.0%!
+    const mkLin = (rgb, kind = 'H', uvSentinel = null) => {
+      const m = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      m.userData.batchKind = kind;
+      m.userData.rgb = rgb;
+      m.userData.uvSentinel = uvSentinel;
+      return m;
+    };
 
     return {
-      terracottaRoof: mk(0x8c3322),
+      // Exact Pulau U Road & Landscape Linear RGBs ("warna aspal sama" & seamless grass!)
+      asphaltCrown: mkLin([0.20, 0.21, 0.23]),
+      asphaltGutter: mkLin([0.16, 0.17, 0.19]),
+      uiYellowLine: mkLin([0.96, 0.77, 0.12]),
+      whiteEdgeLine: mkLin([0.94, 0.95, 0.97]),
+      concreteCurb: mkLin([0.92, 0.91, 0.87]),
+      campusGrass: mkLin([0.138, 0.338, 0.074]),
+      sidewalkPaver: mkLin([0.48, 0.47, 0.44]),
+      courtyardGranite: mkLin([0.56, 0.55, 0.52]),
+      curbStriped: mkLin([0.95, 0.96, 0.98], 'Z'),
+
+      // Architectural & Vehicle Palette
+      terracottaRoof: mk(0x8e3322),
       terracottaRidge: mk(0x692215),
-      creamWall: mk(0xefe9d8),
+      terracottaFloor: mk(0xa84835),
+      creamWall: mk(0xf0ead9),
+      warmStonePanel: mk(0xe4dfd3),
+      facadeWhite: mk(0xf3f5f8),
+      ilrcConcrete: mk(0xdedbd4),
+      ilrcBrickPortal: mk(0x9a3d2c),
       concreteTrim: mk(0x8b867e),
+      granitePlinth: mk(0x63666c),
       darkWoodFascia: mk(0x3b2318),
-      grassBerm: mk(0x4f7836),
-      LushShrub: mk(0x356221),
-      stoneRetaining: mk(0x54585d),
-      terracottaFloor: mk(0xa64432),
-      windowGlass: mk(0x132030, 'H', [0.5, -720.0]),
+      teakBench: mk(0x8b5a2b),
+      LushShrub: mk(0x2f5e1e),
+      canopyLeaf: mk(0x376e24),
+      treeBark: mk(0x5a4332),
+      mulchSoil: mk(0x614734),
+      windowGlass: mk(0x122030, 'H', [0.5, -720.0]),
+      darkFriezeGlass: mk(0x0f1a28),
       warmLuminaire: mk(0xfff1c4, 'H', [0.5, -890.0]),
-      whiteMullion: mk(0xf4f6f9),
+      whiteMullion: mk(0xf5f7fa),
+      darkAnodized: mk(0x232832),
+      darkIron: mk(0x1f232b),
+      copperACP: mk(0xc4794e),
+      copperDark: mk(0x9b5833),
+      brassSign: mk(0xe2b93b),
+      uiYellowFascia: mk(0xf2be1a),
+      solarPanel: mk(0x142654),
+      galvSteel: mk(0x9aa3ad),
       disabilityBlue: mk(0x2563eb),
-      brassSign: mk(0xd8b137),
-      asphaltRoad: mk(0x2d3138),
-      curbStriped: mk(0xf5f7fa, 'Z'),
-      roadYellowLine: mk(0xf5b81d),
-      ilrcConcrete: mk(0xd6d3cd),
-      ilrcBrickWing: mk(0x8e5241),
-      solarPanel: mk(0x162756),
-      yellowMetal: mk(0xd99b07),
-      concreteDriveway: mk(0xd8d4cc),
-      pavingBlock: mk(0x5c5752),
-      safetyOrange: mk(0xea580c),
-      salmonGable: mk(0xd07c68),
-      mulchSoil: mk(0x6e503b),
+      hydrantRed: mk(0xdc2626),
       carWhite: mk(0xf1f5f9),
       carSilver: mk(0xcbd5e1),
       carDarkGrey: mk(0x333842),
-      carNavy: mk(0x1e3a5f),
-      hydrantRed: mk(0xdc2626),
-      purpleSign: mk(0x453263),
-      copperACP: mk(0xc68b59)
+      carNavy: mk(0x1e3a5f)
     };
+  }
+
+  /**
+   * Procedural 5x7 Block-Matrix 3D Extruded Architectural Signage Generator
+   * (Supports both flat planar headers and curved cylindrical facade friezes!).
+   */
+  static _GLYPHS_5X7 = {
+    A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+    B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
+    C: ['01111', '10000', '10000', '10000', '10000', '10000', '01111'],
+    D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+    E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+    F: ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
+    G: ['01111', '10000', '10000', '10111', '10001', '10001', '01111'],
+    H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
+    I: ['01110', '00100', '00100', '00100', '00100', '00100', '01110'],
+    K: ['10001', '10010', '10100', '11000', '10100', '10010', '10001'],
+    L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+    M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
+    N: ['10001', '11001', '10101', '10011', '10001', '10001', '10001'],
+    O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+    P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+    R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+    S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+    T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+    U: ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
+    V: ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
+    '-': ['00000', '00000', '00000', '01110', '00000', '00000', '00000']
+  };
+
+  static _addCurved3DText(parent, text, radius, thStart, yBase, charHeight, depth, mat, dirSign = -1.0) {
+    const pxH = charHeight / 7.0;
+    const pxW = pxH * 0.86;
+    const dThPx = (pxW / radius) * dirSign;
+    const boxGeo = new THREE.BoxGeometry(depth, pxH * 1.06, pxW * 1.06);
+    let cursorTh = thStart;
+
+    for (let ci = 0; ci < text.length; ci++) {
+      const ch = text[ci];
+      if (ch === ' ') {
+        cursorTh += dThPx * 3.6;
+        continue;
+      }
+      const rows = DPPDComplexBuilder._GLYPHS_5X7[ch];
+      if (!rows) {
+        cursorTh += dThPx * 4.0;
+        continue;
+      }
+      for (let r = 0; r < 7; r++) {
+        const rowStr = rows[r];
+        let c = 0;
+        while (c < 5) {
+          if (rowStr[c] !== '1') {
+            c++;
+            continue;
+          }
+          let cEnd = c;
+          while (cEnd + 1 < 5 && rowStr[cEnd + 1] === '1') cEnd++;
+          const runLen = cEnd - c + 1;
+          const midCol = (c + cEnd) * 0.5;
+          const th = cursorTh + midCol * dThPx;
+          const py = yBase + (6 - r + 0.5) * pxH;
+          const m = new THREE.Mesh(
+            runLen === 1 ? boxGeo : new THREE.BoxGeometry(depth, pxH * 1.06, pxW * runLen * 1.04),
+            mat
+          );
+          m.position.set(radius * Math.cos(th), py, radius * Math.sin(th));
+          m.rotation.y = -th;
+          parent.add(m);
+          c = cEnd + 1;
+        }
+      }
+      cursorTh += dThPx * 6.3;
+    }
+  }
+
+  static _addPlanar3DText(parent, text, cx, yBase, zFront, charHeight, depth, mat) {
+    const pxH = charHeight / 7.0;
+    const pxW = pxH * 0.84;
+    let totalCols = 0;
+    for (let i = 0; i < text.length; i++) {
+      totalCols += text[i] === ' ' ? 3.5 : 6.2;
+    }
+    let curX = cx - (totalCols - 1.2) * pxW * 0.5;
+    for (let ci = 0; ci < text.length; ci++) {
+      const ch = text[ci];
+      if (ch === ' ') {
+        curX += pxW * 3.5;
+        continue;
+      }
+      const rows = DPPDComplexBuilder._GLYPHS_5X7[ch];
+      if (!rows) {
+        curX += pxW * 4.0;
+        continue;
+      }
+      for (let r = 0; r < 7; r++) {
+        const rowStr = rows[r];
+        let c = 0;
+        while (c < 5) {
+          if (rowStr[c] !== '1') {
+            c++;
+            continue;
+          }
+          let cEnd = c;
+          while (cEnd + 1 < 5 && rowStr[cEnd + 1] === '1') cEnd++;
+          const runLen = cEnd - c + 1;
+          const midCol = (c + cEnd) * 0.5;
+          const m = new THREE.Mesh(
+            new THREE.BoxGeometry(pxW * runLen * 1.04, pxH * 1.06, depth),
+            mat
+          );
+          m.position.set(curX + midCol * pxW, yBase + (6 - r + 0.5) * pxH, zFront);
+          parent.add(m);
+          c = cEnd + 1;
+        }
+      }
+      curX += pxW * 6.2;
+    }
+  }
+
+  /**
+   * Builds a sculpted 3D Golden UI Makara Emblem (backplate disc + golden rim + Makara flame crown & open book).
+   */
+  static _buildUIMakaraEmblem(mats, radius = 1.15) {
+    const g = new THREE.Group();
+    const back = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius, radius, 0.14, 24),
+      mats.darkAnodized
+    );
+    back.rotation.x = Math.PI * 0.5;
+    g.add(back);
+
+    const goldRing = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.90, radius * 0.90, 0.18, 24),
+      mats.brassSign
+    );
+    goldRing.rotation.x = Math.PI * 0.5;
+    g.add(goldRing);
+
+    const innerPlate = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.72, radius * 0.72, 0.20, 20),
+      mats.darkAnodized
+    );
+    innerPlate.rotation.x = Math.PI * 0.5;
+    g.add(innerPlate);
+
+    // Stylized Makara Kala-Tree rays & open book relief in brass-gold
+    const trunk = new THREE.Mesh(
+      new THREE.BoxGeometry(radius * 0.22, radius * 0.92, 0.25),
+      mats.brassSign
+    );
+    trunk.position.y = radius * 0.08;
+    g.add(trunk);
+
+    for (const sgn of [-1, 1]) {
+      for (let b = 0; b < 3; b++) {
+        const branch = new THREE.Mesh(
+          new THREE.BoxGeometry(radius * (0.48 - b * 0.08), radius * 0.11, 0.24),
+          mats.brassSign
+        );
+        branch.position.set(sgn * radius * (0.26 - b * 0.03), radius * (-0.08 + b * 0.24), 0);
+        branch.rotation.z = sgn * (0.28 + b * 0.12);
+        g.add(branch);
+      }
+      const bookPage = new THREE.Mesh(
+        new THREE.BoxGeometry(radius * 0.36, radius * 0.20, 0.25),
+        mats.whiteMullion
+      );
+      bookPage.position.set(sgn * radius * 0.20, -radius * 0.40, 0);
+      bookPage.rotation.z = -sgn * 0.14;
+      g.add(bookPage);
+    }
+    return g;
   }
 
   static _buildParkedCar(mats, bodyMat, x, y, z, rotY) {
@@ -303,20 +577,18 @@ export class DPPDComplexBuilder {
     g.position.set(x, y, z);
     g.rotation.y = rotY;
 
-    // Lower sculpted body & bumpers
     const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(1.82, 0.56, 4.35), bodyMat);
     lowerBody.position.set(0, 0.50, 0);
     g.add(lowerBody);
 
-    const frontBumper = new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.28, 0.24), mats.asphaltRoad);
+    const frontBumper = new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.28, 0.24), mats.darkIron);
     frontBumper.position.set(0, 0.34, 2.15);
     g.add(frontBumper);
 
-    const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.30, 0.24), mats.asphaltRoad);
+    const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.30, 0.24), mats.darkIron);
     rearBumper.position.set(0, 0.35, -2.15);
     g.add(rearBumper);
 
-    // Greenhouse cabin + night-reflective glass
     const cabinRoof = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.10, 2.05), bodyMat);
     cabinRoof.position.set(0, 1.32, -0.18);
     g.add(cabinRoof);
@@ -325,9 +597,8 @@ export class DPPDComplexBuilder {
     cabinGlass.position.set(0, 1.02, -0.16);
     g.add(cabinGlass);
 
-    // Pillars & side mirrors
     for (const sx of [-0.77, 0.77]) {
-      const bPillar = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.54, 0.14), mats.asphaltRoad);
+      const bPillar = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.54, 0.14), mats.darkIron);
       bPillar.position.set(sx, 1.02, -0.12);
       g.add(bPillar);
 
@@ -336,8 +607,7 @@ export class DPPDComplexBuilder {
       g.add(mirror);
     }
 
-    // Headlamps, grille, & taillamps
-    const grille = new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.22, 0.08), mats.asphaltRoad);
+    const grille = new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.22, 0.08), mats.darkIron);
     grille.position.set(0, 0.56, 2.16);
     g.add(grille);
 
@@ -351,14 +621,13 @@ export class DPPDComplexBuilder {
       g.add(tailLamp);
     }
 
-    // 4 tires + alloy rims
     const tireGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.22, 14);
     tireGeo.rotateZ(Math.PI * 0.5);
     const rimGeo = new THREE.CylinderGeometry(0.19, 0.19, 0.23, 10);
     rimGeo.rotateZ(Math.PI * 0.5);
     for (const sx of [-0.84, 0.84]) {
       for (const sz of [-1.32, 1.34]) {
-        const tire = new THREE.Mesh(tireGeo, mats.asphaltRoad);
+        const tire = new THREE.Mesh(tireGeo, mats.darkIron);
         tire.position.set(sx, 0.32, sz);
         g.add(tire);
 
@@ -370,40 +639,59 @@ export class DPPDComplexBuilder {
     return g;
   }
 
-  static _buildParkedMotorbike(mats, bodyMat, x, y, z, rotY) {
+  static _buildCourtyardTree(mats, x, y, z, scale = 1.0) {
     const g = new THREE.Group();
     g.position.set(x, y, z);
-    g.rotation.y = rotY;
+    g.scale.set(scale, scale, scale);
 
-    const wheelGeo = new THREE.CylinderGeometry(0.26, 0.26, 0.10, 12);
-    wheelGeo.rotateZ(Math.PI * 0.5);
-    for (const sz of [-0.62, 0.62]) {
-      const w = new THREE.Mesh(wheelGeo, mats.asphaltRoad);
-      w.position.set(0, 0.26, sz);
-      g.add(w);
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.40, 3.6, 10), mats.treeBark);
+    trunk.position.y = 1.8;
+    g.add(trunk);
+
+    const crownSpecs = [
+      [0.0, 4.3, 0.0, 2.35, 1.55],
+      [-1.15, 3.85, 0.65, 1.65, 1.25],
+      [1.15, 3.90, -0.55, 1.65, 1.25],
+      [0.25, 4.95, 0.35, 1.55, 1.15]
+    ];
+    for (const [cx, cy, cz, rx, ry] of crownSpecs) {
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(rx, 12, 9), mats.canopyLeaf);
+      puff.scale.set(1.0, ry / rx, 1.0);
+      puff.position.set(cx, cy, cz);
+      g.add(puff);
     }
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.42, 1.15), bodyMat);
-    body.position.set(0, 0.56, -0.05);
-    g.add(body);
+    return g;
+  }
 
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.12, 0.68), mats.asphaltRoad);
-    seat.position.set(0, 0.80, -0.22);
-    g.add(seat);
+  static _buildRoyalPalm(mats, x, y, z, h = 10.5) {
+    const g = new THREE.Group();
+    g.position.set(x, y, z);
 
-    const fairing = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.55, 0.28), bodyMat);
-    fairing.position.set(0, 0.78, 0.48);
-    fairing.rotation.x = -0.24;
-    g.add(fairing);
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.38, h - 1.4, 10), mats.concreteTrim);
+    trunk.position.y = (h - 1.4) * 0.5;
+    g.add(trunk);
 
-    const handleBar = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.05, 0.05), mats.concreteTrim);
-    handleBar.position.set(0, 1.04, 0.42);
-    g.add(handleBar);
+    const crownShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.25, 1.5, 10), mats.LushShrub);
+    crownShaft.position.y = h - 0.75;
+    g.add(crownShaft);
+
+    for (let f = 0; f < 9; f++) {
+      const ang = (f / 9) * Math.PI * 2.0;
+      const frondHolder = new THREE.Group();
+      frondHolder.position.y = h - 0.1;
+      frondHolder.rotation.y = ang;
+      const frond = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.08, 3.2), mats.canopyLeaf);
+      frond.position.set(0, -0.32, 1.55);
+      frond.rotation.x = 0.34;
+      frondHolder.add(frond);
+      g.add(frondHolder);
+    }
     return g;
   }
 
   /**
-   * Builds and bakes the entire DPPD-ITTC-STP-ILRC architectural complex into
-   * { horizontalGeo, verticalGeo } ready for SplineCorridorBuilder.buildRotundaAndPromenades().
+   * Builds and bakes the entire Kompleks DPPD (2 Lantai) – ILRC (6 Lantai) – STP-UI (8 Lantai)
+   * into { horizontalGeo, verticalGeo } for SplineCorridorBuilder (+0 extra Draw Calls!).
    */
   static buildForCorridor() {
     const mats = DPPDComplexBuilder._createPalette();
@@ -428,89 +716,162 @@ export class DPPDComplexBuilder {
     entranceGroup.rotation.y = -0.25 * Math.PI;
     dppdGroup.add(entranceGroup);
 
-    // 1. Watertight Campus Terrace Plinth, Courtyard Pad, & 360° Ring Road (r <= 65.15 unscaled = 37.79m world)
+    // =========================================================================
+    // 1. SEAMLESS PULAU U PLATEAU LAWN, 4-STRIP CAMBERED RING ROAD (IDENTICAL ASPHALT COLOR!),
+    //    FLARED SPUR BELL-MOUTH APRONS, & 360° OUTER CAMPUS SIDEWALK PROMENADE
+    // =========================================================================
     const campusLawnPad = new THREE.Mesh(
-      new THREE.CylinderGeometry(53.05, 53.25, 0.90, 72),
-      mats.grassBerm
+      new THREE.CylinderGeometry(52.90, 53.10, 0.80, 96),
+      mats.campusGrass
     );
-    campusLawnPad.position.y = -0.43;
+    campusLawnPad.position.y = -0.39;
     dppdGroup.add(campusLawnPad);
 
-    const outerFoundationSkirt = new THREE.Mesh(
-      new THREE.CylinderGeometry(65.12, 66.20, 3.60, 72),
-      mats.stoneRetaining
+    // Grass-colored sloped embankment skirt blending smoothly into Pulau U's +4.85m DEM plateau (ZERO grey tin-can wall!)
+    const outerGrassSkirt = new THREE.Mesh(
+      new THREE.CylinderGeometry(68.05, 71.80, 2.80, 96, 1, true),
+      mats.campusGrass
     );
-    outerFoundationSkirt.position.y = -1.78;
-    dppdGroup.add(outerFoundationSkirt);
+    outerGrassSkirt.position.y = -1.36;
+    dppdGroup.add(outerGrassSkirt);
 
-    const courtyardPad = new THREE.Mesh(
-      new THREE.CylinderGeometry(31.0, 31.0, 0.14, 48),
-      mats.pavingBlock
-    );
-    courtyardPad.position.y = 0.01;
-    dppdGroup.add(courtyardPad);
-
-    const ringRoadGeo = DPPDComplexBuilder._sliceSubdomain(
-      (u, v, p, n) => {
-        const th = u * Math.PI * 2.0;
-        const r = 53.2 + v * (64.8 - 53.2);
-        p.set(r * Math.cos(th), 0.08, r * Math.sin(th));
-        n.set(0, 1, 0);
-      },
-      0.0, 1.0, 0.0, 1.0, 80, 2
-    );
-    dppdGroup.add(new THREE.Mesh(ringRoadGeo, mats.asphaltRoad));
-
-    // Smooth curb-cut factor [0..1] dropping outer ring-road curb flush across South & East Pulau U Spur Mouths!
-    const evalOuterMouthCurbFactor = (rLocal, th) => {
+    // Smooth curb-cut factor [0..1] dropping outer ring-road curb & outer sidewalk curb flush across South & East Pulau U Spur Mouths!
+    const evalSpurMouthFactor = (rLocal, th, halfMouthM = 4.9, fadeM = 2.6) => {
       const wp = DPPDComplexBuilder.localToWorld(rLocal * Math.cos(th), 0.0, rLocal * Math.sin(th), 0.0);
-      const dSouth = Math.hypot(wp.x - -291.7, wp.z - 336.7);
-      const dEast = Math.hypot(wp.x - -218.5, wp.z - 338.3);
+      const dSouth = Math.hypot(wp.x - -292.1, wp.z - 336.8);
+      const dEast = Math.hypot(wp.x - -218.3, wp.z - 338.4);
       const dMin = Math.min(dSouth, dEast);
-      const t = Math.max(0.0, Math.min(1.0, (dMin - 4.4) / 2.2));
+      const t = Math.max(0.0, Math.min(1.0, (dMin - halfMouthM) / fadeM));
       return t * t * (3.0 - 2.0 * t);
     };
 
-    // Inner & Outer Striped Zebra Curbs (with top & vertical faces, UV u scaled for zebra striping!)
-    const buildRingZebraCurb = (rIn, rOut, yTop, cutSpurMouths = false) => {
-      const segs = 128;
-      const circum = Math.PI * (rIn + rOut) * TerrainDEMLoader.DPPD_SCALE;
-      const zebraRepeats = Math.max(12, Math.round(circum * 0.26));
-      const evalYTop = (th) => {
-        if (!cutSpurMouths) return yTop;
-        const cf = evalOuterMouthCurbFactor(0.5 * (rIn + rOut), th);
-        return 0.082 + (yTop - 0.082) * cf;
-      };
+    // Inner driveway curb-cut factor for East Visitor Parking entrance (-156°) & STP/ILRC drop-off throats
+    const evalInnerMouthFactor = (th) => {
+      const deg = ((th * 180.0) / Math.PI + 540.0) % 360.0 - 180.0;
+      const dPark = Math.abs((((deg - -156.0) + 540.0) % 360.0) - 180.0);
+      const t = Math.max(0.0, Math.min(1.0, (dPark - 7.5) / 3.5));
+      return t * t * (3.0 - 2.0 * t);
+    };
 
-      const topGeo = DPPDComplexBuilder._sliceSubdomain(
+    // 4-Strip Cambered Circular Ring Road (r = 53.20 .. 64.80) using EXACT Pulau U asphaltCrown & asphaltGutter!
+    const ringStrips = [
+      { rA: 53.20, rB: 55.10, yA: 0.065, yB: 0.082, mat: mats.asphaltGutter },
+      { rA: 55.10, rB: 59.00, yA: 0.082, yB: 0.092, mat: mats.asphaltCrown },
+      { rA: 59.00, rB: 62.90, yA: 0.092, yB: 0.082, mat: mats.asphaltCrown },
+      { rA: 62.90, rB: 64.80, yA: 0.082, yB: 0.065, mat: mats.asphaltGutter }
+    ];
+    for (const st of ringStrips) {
+      const stripGeo = DPPDComplexBuilder._sliceSubdomain(
         (u, v, p, n) => {
           const th = u * Math.PI * 2.0;
-          const r = rIn + v * (rOut - rIn);
-          p.set(r * Math.cos(th), evalYTop(th), r * Math.sin(th));
+          const r = st.rA + v * (st.rB - st.rA);
+          const y = st.yA + v * (st.yB - st.yA);
+          p.set(r * Math.cos(th), y, r * Math.sin(th));
           n.set(0, 1, 0);
         },
-        0.0, 1.0, 0.0, 1.0, segs, 1
+        0, 1, 0, 1, 128, 1
       );
-      const innerFaceGeo = DPPDComplexBuilder._sliceSubdomain(
-        (u, v, p, n) => {
-          const th = u * Math.PI * 2.0;
-          const yt = evalYTop(th);
-          p.set(rIn * Math.cos(th), 0.08 * (1.0 - v) + v * yt, rIn * Math.sin(th));
-          n.set(-Math.cos(th), 0, -Math.sin(th));
-        },
-        0.0, 1.0, 0.0, 1.0, segs, 1
-      );
-      const outerFaceGeo = DPPDComplexBuilder._sliceSubdomain(
-        (u, v, p, n) => {
-          const th = u * Math.PI * 2.0;
-          const yt = evalYTop(th);
-          p.set(rOut * Math.cos(th), -0.35 + v * (yt + 0.35), rOut * Math.sin(th));
-          n.set(Math.cos(th), 0, Math.sin(th));
-        },
-        0.0, 1.0, 0.0, 1.0, segs, 1
-      );
+      dppdGroup.add(new THREE.Mesh(stripGeo, st.mat));
+    }
 
-      for (const g of [topGeo, innerFaceGeo, outerFaceGeo]) {
+    // Flared Asphalt Bell-Mouth Junction Aprons at South Spur (-4.6°) & East Spur (-158.3°)
+    // Seamlessly bridges r = 64.6 .. 69.8 across the outer sidewalk throat at exact Pulau U asphalt elevation!
+    for (const spurDeg of [-4.6, -158.3]) {
+      const thC = (spurDeg * Math.PI) / 180.0;
+      const halfSpan = (11.5 * Math.PI) / 180.0;
+      const apronGeo = DPPDComplexBuilder._sliceSubdomain(
+        (u, v, p, n) => {
+          const flare = 1.0 + 0.38 * (1.0 - v);
+          const th = thC + (u - 0.5) * 2.0 * halfSpan * flare;
+          const r = 64.55 + v * (69.60 - 64.55);
+          const edgeDrop = Math.abs(u - 0.5) > 0.36 ? -0.010 : 0.0;
+          p.set(r * Math.cos(th), 0.072 + edgeDrop, r * Math.sin(th));
+          n.set(0, 1, 0);
+        },
+        0, 1, 0, 1, 20, 4
+      );
+      dppdGroup.add(new THREE.Mesh(apronGeo, mats.asphaltCrown));
+
+      // White Stop Bar & Spur Crosswalk across each spur throat so outer sidewalk promenade continues safely!
+      for (let cw = -3; cw <= 3; cw++) {
+        const thS = thC + cw * 0.024;
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.032, 0.56), mats.whiteEdgeLine);
+        stripe.position.set(66.6 * Math.cos(thS), 0.082, 66.6 * Math.sin(thS));
+        stripe.rotation.y = -thS;
+        dppdGroup.add(stripe);
+      }
+    }
+
+    // 360° Paved Outer Campus Sidewalk & Jogging Promenade (r = 65.16 .. 68.10, dropped flush across spur throats!)
+    const outerSidewalkGeo = DPPDComplexBuilder._sliceSubdomain(
+      (u, v, p, n) => {
+        const th = u * Math.PI * 2.0;
+        const r = 65.16 + v * (68.10 - 65.16);
+        const cf = evalSpurMouthFactor(r, th, 5.2, 2.4);
+        const y = 0.055 + 0.135 * cf;
+        p.set(r * Math.cos(th), y, r * Math.sin(th));
+        n.set(0, 1, 0);
+      },
+      0, 1, 0, 1, 144, 1
+    );
+    dppdGroup.add(new THREE.Mesh(outerSidewalkGeo, mats.sidewalkPaver));
+
+    // Outer Sidewalk Concrete Rim Curb (r = 68.05 .. 68.38)
+    const outerRimGeo = DPPDComplexBuilder._sliceSubdomain(
+      (u, v, p, n) => {
+        const th = u * Math.PI * 2.0;
+        const r = 68.05 + v * 0.34;
+        const cf = evalSpurMouthFactor(r, th, 5.4, 2.4);
+        p.set(r * Math.cos(th), 0.052 + 0.155 * cf, r * Math.sin(th));
+        n.set(0, 1, 0);
+      },
+      0, 1, 0, 1, 144, 1
+    );
+    dppdGroup.add(new THREE.Mesh(outerRimGeo, mats.concreteCurb));
+
+    // Inner & Outer Striped Zebra Curbs around Ring Road
+    const buildRingZebraCurb = (rIn, rOut, yTop, mode) => {
+      const segs = 144;
+      const circum = Math.PI * (rIn + rOut) * TerrainDEMLoader.DPPD_SCALE;
+      const zebraRepeats = Math.max(16, Math.round(circum * 0.26));
+      const evalYTop = (th) => {
+        let cf = 1.0;
+        if (mode === 'OUTER') cf = evalSpurMouthFactor(0.5 * (rIn + rOut), th, 5.1, 2.3);
+        else if (mode === 'INNER') cf = evalInnerMouthFactor(th);
+        return 0.068 + (yTop - 0.068) * cf;
+      };
+
+      const geos = [
+        DPPDComplexBuilder._sliceSubdomain(
+          (u, v, p, n) => {
+            const th = u * Math.PI * 2.0;
+            const r = rIn + v * (rOut - rIn);
+            p.set(r * Math.cos(th), evalYTop(th), r * Math.sin(th));
+            n.set(0, 1, 0);
+          },
+          0, 1, 0, 1, segs, 1
+        ),
+        DPPDComplexBuilder._sliceSubdomain(
+          (u, v, p, n) => {
+            const th = u * Math.PI * 2.0;
+            const yt = evalYTop(th);
+            p.set(rIn * Math.cos(th), 0.06 + v * (yt - 0.06), rIn * Math.sin(th));
+            n.set(-Math.cos(th), 0, -Math.sin(th));
+          },
+          0, 1, 0, 1, segs, 1
+        ),
+        DPPDComplexBuilder._sliceSubdomain(
+          (u, v, p, n) => {
+            const th = u * Math.PI * 2.0;
+            const yt = evalYTop(th);
+            p.set(rOut * Math.cos(th), -0.25 + v * (yt + 0.25), rOut * Math.sin(th));
+            n.set(Math.cos(th), 0, Math.sin(th));
+          },
+          0, 1, 0, 1, segs, 1
+        )
+      ];
+
+      for (const g of geos) {
         const uv = g.attributes.uv;
         for (let i = 0; i < uv.count; i++) {
           uv.array[i * uv.itemSize] = uv.getX(i) * zebraRepeats;
@@ -521,1468 +882,1485 @@ export class DPPDComplexBuilder {
       }
     };
 
-    buildRingZebraCurb(52.86, 53.24, 0.21, false);
-    buildRingZebraCurb(64.78, 65.16, 0.21, true);
+    buildRingZebraCurb(52.84, 53.22, 0.22, 'INNER');
+    buildRingZebraCurb(64.78, 65.16, 0.22, 'OUTER');
 
-    const yellowLineInnerGeo = DPPDComplexBuilder._sliceSubdomain(
-      (u, v, p, n) => {
-        const th = u * Math.PI * 2.0;
-        const r = 53.45 + v * 0.18;
-        p.set(r * Math.cos(th), 0.098, r * Math.sin(th));
-        n.set(0, 1, 0);
-      },
-      0.0, 1.0, 0.0, 1.0, 96, 1
-    );
-    dppdGroup.add(new THREE.Mesh(yellowLineInnerGeo, mats.roadYellowLine));
+    // Continuous White Edge Shoulder Lines + UI Golden-Yellow Dashed Centerline (100% matching Pulau U road standard!)
+    for (const [rLine, mode] of [
+      [53.52, 'INNER'],
+      [64.30, 'OUTER']
+    ]) {
+      const edgeLineGeo = DPPDComplexBuilder._sliceSubdomain(
+        (u, v, p, n) => {
+          const th = u * Math.PI * 2.0;
+          const cf =
+            mode === 'OUTER'
+              ? evalSpurMouthFactor(rLine, th, 5.0, 1.8)
+              : evalInnerMouthFactor(th);
+          const r = rLine + v * 0.18;
+          p.set(r * Math.cos(th), cf > 0.45 ? 0.088 : 0.030, r * Math.sin(th));
+          n.set(0, 1, 0);
+        },
+        0, 1, 0, 1, 144, 1
+      );
+      dppdGroup.add(new THREE.Mesh(edgeLineGeo, mats.whiteEdgeLine));
+    }
 
-    const yellowLineOuterGeo = DPPDComplexBuilder._sliceSubdomain(
-      (u, v, p, n) => {
-        const th = u * Math.PI * 2.0;
-        const r = 64.38 + v * 0.18;
-        p.set(r * Math.cos(th), 0.098, r * Math.sin(th));
-        n.set(0, 1, 0);
-      },
-      0.0, 1.0, 0.0, 1.0, 96, 1
-    );
-    dppdGroup.add(new THREE.Mesh(yellowLineOuterGeo, mats.roadYellowLine));
-
-    for (let d = 0; d < 48; d++) {
-      const th = (d / 48) * Math.PI * 2.0;
-      const dash = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.04, 2.4), mats.whiteMullion);
-      dash.position.set(59.0 * Math.cos(th), 0.098, 59.0 * Math.sin(th));
+    const crossAnglesDeg = [135.0, 35.0, -89.0, -156.0];
+    for (let d = 0; d < 56; d++) {
+      const deg = (d / 56) * 360.0 - 180.0;
+      const nearCross = crossAnglesDeg.some(
+        (cd) => Math.abs((((deg - cd) + 540.0) % 360.0) - 180.0) < 4.8
+      );
+      if (nearCross) continue;
+      const th = (deg * Math.PI) / 180.0;
+      const dash = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.032, 2.35), mats.uiYellowLine);
+      dash.position.set(59.0 * Math.cos(th), 0.104, 59.0 * Math.sin(th));
       dash.rotation.y = -th;
       dppdGroup.add(dash);
     }
 
-    // Zebra Crosswalks across the DPPD Ring Road in front of Gedung DPPD & STP-UI North Portico
-    for (const crossDeg of [45.0, -79.5, 19.5]) {
+    // 4 Crisp Zebra Crosswalks directly in front of Gedung DPPD (+135°), Gedung ILRC (+35°), Gedung STP-UI (-89°), & East Plaza (-156°)
+    for (const crossDeg of crossAnglesDeg) {
       const thC = (crossDeg * Math.PI) / 180.0;
       for (let st = -4; st <= 4; st++) {
         const rSt = 59.0 + st * 1.12;
-        const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.042, 3.2), mats.whiteMullion);
-        stripe.position.set(rSt * Math.cos(thC), 0.099, rSt * Math.sin(thC));
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.034, 3.30), mats.whiteEdgeLine);
+        stripe.position.set(rSt * Math.cos(thC), 0.105, rSt * Math.sin(thC));
         stripe.rotation.y = -thC;
         dppdGroup.add(stripe);
       }
     }
 
-    // 2. TAHAP 3: SSoST BUSUR SAYAP GEDUNG DPPD + GARIS BUMBUNGAN JURING & PENANGKAL PETIR
-    const wingRoofGeo = DPPDComplexBuilder._sliceSubdomain(
-      (u, v, p, n) => DPPDComplexBuilder.evaluateWingRoofLocalSurface(u, v, p, n),
-      0.0, 1.0, 0.0, 1.0, 60, 20
-    );
-    entranceGroup.add(new THREE.Mesh(wingRoofGeo, mats.terracottaRoof));
+    // =========================================================================
+    // 2. GEDUNG DPPD UI — STRICTLY 2 STORIES (2 LANTAI: L1 VERANDAH ARCADE + L2 RIBBON WINDOWS)
+    //    Front Heritage Nusantara Pavilion facing Gedung Rektorat UI (0, 0) across Teluk U!
+    // =========================================================================
+    const alphaMin = (DPPDComplexBuilder.DPPD_ALPHA_MIN_DEG * Math.PI) / 180.0;
+    const alphaMax = (DPPDComplexBuilder.DPPD_ALPHA_MAX_DEG * Math.PI) / 180.0;
+    // Note: in entranceGroup, x = r * sin(alpha), z = r * cos(alpha) -> polar angle in entranceGroup XZ is thE = pi/2 - alpha
+    const dppdTh0 = Math.PI * 0.5 - alphaMax;
+    const dppdTh1 = Math.PI * 0.5 - alphaMin;
 
-    const alphaMin = (-52.0 * Math.PI) / 180.0;
-    const alphaMax = (46.0 * Math.PI) / 180.0;
-    const sectorCount = 6;
-    const pStart = new THREE.Vector3();
-    const pEnd = new THREE.Vector3();
-    const nDummy = new THREE.Vector3();
+    // 2A. Raised Granite & Terracotta Verandah Plinth (y = -0.35 .. 0.65)
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.granitePlinth, dppdTh0, dppdTh1, 28.4, 44.8, -0.35, 0.55, 44);
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.terracottaFloor, dppdTh0, dppdTh1, 28.5, 44.7, 0.55, 0.68, 44);
 
-    // Main curved roof spine ridge cap along v = 0.49
-    for (let s = 0; s < sectorCount; s++) {
-      const u0 = s / sectorCount;
-      const u1 = (s + 1) / sectorCount;
-      DPPDComplexBuilder.evaluateWingRoofLocalSurface(u0, 0.49, pStart, nDummy);
-      DPPDComplexBuilder.evaluateWingRoofLocalSurface(u1, 0.49, pEnd, nDummy);
-      const spineLen = pStart.distanceTo(pEnd);
-      const spineCap = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.24, spineLen + 0.12), mats.terracottaRidge);
-      DPPDComplexBuilder._orientBeamAlongZ(spineCap, pStart, pEnd, 0.08);
-      entranceGroup.add(spineCap);
-    }
-
-    for (let s = 0; s <= sectorCount; s++) {
-      const uSeam = s / sectorCount;
-      DPPDComplexBuilder.evaluateWingRoofLocalSurface(uSeam, 0.49, pStart, nDummy);
-      DPPDComplexBuilder.evaluateWingRoofLocalSurface(uSeam, 1.0, pEnd, nDummy);
-      const ridgeLen = pStart.distanceTo(pEnd);
-      const hipRidge = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.18, ridgeLen), mats.darkWoodFascia);
-      DPPDComplexBuilder._orientBeamAlongZ(hipRidge, pStart, pEnd, 0.06);
-      entranceGroup.add(hipRidge);
-
-      if (s > 0 && s < sectorCount) {
-        const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 1.45, 6), mats.whiteMullion);
-        rod.position.set(pStart.x, pStart.y + 0.72, pStart.z);
-        entranceGroup.add(rod);
+    // Low Manicured Front Stone Planter Beds & Shrubs (y = 0.0 .. 0.92 — NEVER buries Lantai 1!)
+    for (const [degA, degB] of [
+      [-43.5, -13.5],
+      [13.5, 43.5]
+    ]) {
+      const tA = Math.PI * 0.5 - (degB * Math.PI) / 180.0;
+      const tB = Math.PI * 0.5 - (degA * Math.PI) / 180.0;
+      DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.granitePlinth, tA, tB, 44.75, 46.55, 0.0, 0.72, 20);
+      DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.mulchSoil, tA, tB, 44.95, 46.35, 0.70, 0.78, 20);
+      for (let sh = 0; sh < 9; sh++) {
+        const thS = tA + ((sh + 0.5) / 9) * (tB - tA);
+        const bush = new THREE.Mesh(new THREE.SphereGeometry(0.72, 10, 8), mats.LushShrub);
+        bush.scale.set(1.25, 0.72, 1.0);
+        bush.position.set(45.65 * Math.cos(thS), 1.02, 45.65 * Math.sin(thS));
+        entranceGroup.add(bush);
       }
     }
 
-    for (let s = 0; s < sectorCount; s++) {
-      const u0 = s / sectorCount;
-      const u1 = (s + 1) / sectorCount;
-      DPPDComplexBuilder.evaluateWingRoofLocalSurface(u0, 1.0, pStart, nDummy);
-      DPPDComplexBuilder.evaluateWingRoofLocalSurface(u1, 1.0, pEnd, nDummy);
-      const eaveLen = pStart.distanceTo(pEnd);
-      const eaveBoard = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.28, eaveLen + 0.15), mats.darkWoodFascia);
-      DPPDComplexBuilder._orientBeamAlongZ(eaveBoard, pStart, pEnd, 0.0);
-      entranceGroup.add(eaveBoard);
-    }
+    // 2B. LANTAI 1 (y = 0.68 .. 6.25) & LANTAI 2 (y = 6.25 .. 11.75) Curved Masonry & Glazed Walls
+    // Recessed L1 wall (r = 29.0 .. 43.0) creating a shaded 1.7m Nusantara front verandah colonnade at r = 44.3!
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.creamWall, dppdTh0, dppdTh1, 29.0, 43.0, 0.68, 1.85, 44);
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.windowGlass, dppdTh0, dppdTh1, 29.15, 42.85, 1.85, 5.35, 44);
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.creamWall, dppdTh0, dppdTh1, 29.0, 43.2, 5.35, 6.10, 44);
 
-    const evalPolarCylinderBand = (rVal, yMin, yMax, aStart = alphaMin, aEnd = alphaMax) =>
-      DPPDComplexBuilder._sliceSubdomain(
-        (u, v, p, n) => {
-          const a = aStart + u * (aEnd - aStart);
-          p.set(rVal * Math.sin(a), yMin + v * (yMax - yMin), rVal * Math.cos(a));
-          n.set(Math.sin(a), 0, Math.cos(a));
-        },
-        0.0, 1.0, 0.0, 1.0, 48, 4
-      );
+    // Projecting L1/L2 Inter-Story White Spandrel Slab & Tropical Sunshade Drip Cornice (y = 6.10 .. 6.65)
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.whiteMullion, dppdTh0, dppdTh1, 28.55, 44.85, 6.10, 6.65, 48);
 
-    entranceGroup.add(
-      new THREE.Mesh(
-        DPPDComplexBuilder._sliceSubdomain(
-          (u, v, p, n) => {
-            const a = alphaMin + u * (alphaMax - alphaMin);
-            p.set(27.5 * Math.sin(a), v * 6.25, 27.5 * Math.cos(a));
-            n.set(-Math.sin(a), 0, -Math.cos(a));
-          },
-          0.0, 1.0, 0.0, 1.0, 48, 4
-        ),
-        mats.creamWall
-      )
-    );
-    entranceGroup.add(new THREE.Mesh(evalPolarCylinderBand(43.35, 0.0, 4.10), mats.creamWall));
+    // LANTAI 2 Wall, Mullioned Ribbon Windows, & Top Eave Ring Beam (y = 6.65 .. 11.75)
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.creamWall, dppdTh0, dppdTh1, 28.85, 43.95, 6.65, 7.65, 44);
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.windowGlass, dppdTh0, dppdTh1, 29.05, 43.75, 7.65, 10.85, 44);
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.whiteMullion, dppdTh0, dppdTh1, 28.55, 44.65, 10.85, 11.75, 48);
 
-    const wingSoffitGeo = DPPDComplexBuilder._sliceSubdomain(
-      (u, v, p, n) => {
-        const a = alphaMin + u * (alphaMax - alphaMin);
-        const r = 26.2 + v * (45.9 - 26.2);
-        p.set(r * Math.sin(a), 6.24, r * Math.cos(a));
-        n.set(0, -1, 0);
-      },
-      0.0, 1.0, 0.0, 1.0, 48, 4
-    );
-    entranceGroup.add(new THREE.Mesh(wingSoffitGeo, mats.creamWall));
-    entranceGroup.add(new THREE.Mesh(evalPolarCylinderBand(43.45, 4.05, 6.25), mats.windowGlass));
+    // 2C. Rhythmic L1 Colonnade Pillars, L1 & L2 Window Mullions, & Architectural AC Louver Grilles (Outer + Inner!)
+    const dppdBays = 22;
+    for (let i = 0; i <= dppdBays; i++) {
+      const alpha = alphaMin + (i / dppdBays) * (alphaMax - alphaMin);
+      const deg = (alpha * 180.0) / Math.PI;
+      const inCenterGable = Math.abs(deg) < 10.8;
+      const sA = Math.sin(alpha);
+      const cA = Math.cos(alpha);
 
-    const sillTopGeo = DPPDComplexBuilder._sliceSubdomain(
-      (u, v, p, n) => {
-        const a = alphaMin + u * (alphaMax - alphaMin);
-        const r = 43.3 + v * 1.15;
-        p.set(r * Math.sin(a), 4.06, r * Math.cos(a));
-        n.set(0, 1, 0);
-      },
-      0.0, 1.0, 0.0, 1.0, 48, 2
-    );
-    entranceGroup.add(new THREE.Mesh(sillTopGeo, mats.creamWall));
-    entranceGroup.add(new THREE.Mesh(evalPolarCylinderBand(44.42, 3.62, 4.06), mats.creamWall));
+      if (!inCenterGable) {
+        // Outer L1 Nusantara Verandah Square Column + Stone Base & Capital
+        const col = new THREE.Mesh(new THREE.BoxGeometry(0.62, 5.45, 0.62), mats.whiteMullion);
+        col.position.set(44.25 * sA, 3.38, 44.25 * cA);
+        col.rotation.y = alpha;
+        entranceGroup.add(col);
 
-    const mullionGeo = new THREE.BoxGeometry(0.24, 2.22, 0.32);
-    const acBoxGeo = new THREE.BoxGeometry(0.78, 0.54, 0.36);
-    const acFanGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.38, 10);
-    acFanGeo.rotateX(Math.PI * 0.5);
+        const colBase = new THREE.Mesh(new THREE.BoxGeometry(0.80, 0.55, 0.80), mats.granitePlinth);
+        colBase.position.set(44.25 * sA, 0.95, 44.25 * cA);
+        colBase.rotation.y = alpha;
+        entranceGroup.add(colBase);
 
-    const wingCols = 36;
-    for (let i = 0; i <= wingCols; i++) {
-      const a = alphaMin + (i / wingCols) * (alphaMax - alphaMin);
-      if (Math.abs(a) < (11.8 * Math.PI) / 180.0) continue;
-      const mCol = new THREE.Mesh(mullionGeo, mats.whiteMullion);
-      mCol.position.set(44.18 * Math.sin(a), 5.16, 44.18 * Math.cos(a));
-      mCol.rotation.y = a;
-      entranceGroup.add(mCol);
+        // Outer L1 & L2 Masonry Pier + White Window Mullions
+        const pierL1 = new THREE.Mesh(new THREE.BoxGeometry(0.54, 4.65, 0.42), mats.creamWall);
+        pierL1.position.set(42.92 * sA, 3.55, 42.92 * cA);
+        pierL1.rotation.y = alpha;
+        entranceGroup.add(pierL1);
 
-      if (i < wingCols && i % 2 === 1) {
-        const aMid = a + (0.5 / wingCols) * (alphaMax - alphaMin);
-        const acUnit = new THREE.Mesh(acBoxGeo, mats.whiteMullion);
-        acUnit.position.set(44.05 * Math.sin(aMid), 4.35, 44.05 * Math.cos(aMid));
-        acUnit.rotation.y = aMid;
-        entranceGroup.add(acUnit);
+        const pierL2 = new THREE.Mesh(new THREE.BoxGeometry(0.56, 4.25, 0.46), mats.creamWall);
+        pierL2.position.set(43.85 * sA, 8.78, 43.85 * cA);
+        pierL2.rotation.y = alpha;
+        entranceGroup.add(pierL2);
+      }
 
-        const acFan = new THREE.Mesh(acFanGeo, mats.asphaltRoad);
-        acFan.position.set(44.06 * Math.sin(aMid), 4.35, 44.06 * Math.cos(aMid));
-        acFan.rotation.y = aMid;
-        entranceGroup.add(acFan);
+      // Inner Courtyard L1 & L2 Pilasters (facing Plaza Taman Inovasi Tengah!)
+      const inPier = new THREE.Mesh(new THREE.BoxGeometry(0.54, 10.45, 0.46), mats.creamWall);
+      inPier.position.set(28.92 * sA, 5.90, 28.92 * cA);
+      inPier.rotation.y = alpha;
+      entranceGroup.add(inPier);
+
+      // Sub-mullions & neat L2 AC louver grilles inside each bay
+      if (i < dppdBays) {
+        const aMid = alpha + (0.5 / dppdBays) * (alphaMax - alphaMin);
+        const degMid = (aMid * 180.0) / Math.PI;
+        const sm = Math.sin(aMid);
+        const cm = Math.cos(aMid);
+
+        if (Math.abs(degMid) >= 10.8) {
+          for (const sub of [-0.18, 0.18]) {
+            const aSub = aMid + sub * ((alphaMax - alphaMin) / dppdBays);
+            const m1 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 3.50, 0.22), mats.whiteMullion);
+            m1.position.set(42.90 * Math.sin(aSub), 3.60, 42.90 * Math.cos(aSub));
+            m1.rotation.y = aSub;
+            entranceGroup.add(m1);
+
+            const m2 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 3.20, 0.24), mats.whiteMullion);
+            m2.position.set(43.82 * Math.sin(aSub), 9.25, 43.82 * Math.cos(aSub));
+            m2.rotation.y = aSub;
+            entranceGroup.add(m2);
+          }
+
+          // Neat architectural louvered AC box tucked beneath L2 sill on alternating bays
+          if (i % 2 === 0) {
+            const acBox = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.72, 0.48), mats.whiteMullion);
+            acBox.position.set(44.12 * sm, 7.12, 44.12 * cm);
+            acBox.rotation.y = aMid;
+            entranceGroup.add(acBox);
+
+            const acGrille = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.52, 12), mats.darkAnodized);
+            acGrille.rotation.x = Math.PI * 0.5;
+            acGrille.position.set(44.14 * sm, 7.12, 44.14 * cm);
+            acGrille.rotation.y = aMid;
+            entranceGroup.add(acGrille);
+          }
+        }
+
+        // Inner courtyard window mullions
+        const mIn1 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 3.50, 0.22), mats.whiteMullion);
+        mIn1.position.set(29.08 * sm, 3.60, 29.08 * cm);
+        mIn1.rotation.y = aMid;
+        entranceGroup.add(mIn1);
+
+        const mIn2 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 3.20, 0.22), mats.whiteMullion);
+        mIn2.position.set(29.08 * sm, 9.25, 29.08 * cm);
+        mIn2.rotation.y = aMid;
+        entranceGroup.add(mIn2);
       }
     }
 
-    // 3. TAHAP 4: FASAD DEPAN GEDUNG DPPD (MENGHADAP REKTORAT UI!)
-    const gHalfW = 10.6;
-    const gBaseY = 6.22;
-    const gPeakY = 15.45;
-    const zGableBack = 35.8;
-    const zGableWall = 44.5;
-    const zGableFront = 45.85;
-
-    const tympanumGeo = DPPDComplexBuilder._buildPolygonPrismGeo(
-      [
-        [-gHalfW + 0.35, gBaseY],
-        [gHalfW - 0.35, gBaseY],
-        [0.0, gPeakY - 0.32]
-      ],
-      8.6
-    );
-    const tympanumMesh = new THREE.Mesh(tympanumGeo, mats.creamWall);
-    tympanumMesh.position.set(0, 0, zGableWall - 8.6);
-    entranceGroup.add(tympanumMesh);
-
-    // Golden UI Makara Emblem on DPPD Central Gable Tympanum facing Rektorat UI!
-    const dppdMakaraBack = new THREE.Mesh(new THREE.CylinderGeometry(1.12, 1.12, 0.14, 18), mats.darkWoodFascia);
-    dppdMakaraBack.rotation.x = Math.PI * 0.5;
-    dppdMakaraBack.position.set(0, 9.85, zGableWall + 0.08);
-    entranceGroup.add(dppdMakaraBack);
-
-    const dppdMakaraGold = new THREE.Mesh(new THREE.CylinderGeometry(0.92, 0.92, 0.18, 16), mats.brassSign);
-    dppdMakaraGold.rotation.x = Math.PI * 0.5;
-    dppdMakaraGold.position.set(0, 9.85, zGableWall + 0.12);
-    entranceGroup.add(dppdMakaraGold);
-
-    const roofSlopeLen = Math.hypot(gHalfW + 0.45, gPeakY - gBaseY);
-    const roofSlopeAngle = Math.atan2(gPeakY - gBaseY, gHalfW);
-    const gableDepth = zGableFront - zGableBack;
-    const gableMidZ = (zGableFront + zGableBack) * 0.5;
-    const midSlopeX = gHalfW * 0.5;
-    const midSlopeY = (gBaseY + gPeakY) * 0.5;
-
-    const leftGableRoof = new THREE.Mesh(new THREE.BoxGeometry(roofSlopeLen, 0.28, gableDepth), mats.terracottaRoof);
-    leftGableRoof.position.set(-midSlopeX, midSlopeY + 0.12, gableMidZ);
-    leftGableRoof.rotation.z = roofSlopeAngle;
-    entranceGroup.add(leftGableRoof);
-
-    const rightGableRoof = new THREE.Mesh(new THREE.BoxGeometry(roofSlopeLen, 0.28, gableDepth), mats.terracottaRoof);
-    rightGableRoof.position.set(midSlopeX, midSlopeY + 0.12, gableMidZ);
-    rightGableRoof.rotation.z = -roofSlopeAngle;
-    entranceGroup.add(rightGableRoof);
-
-    const gableRidgeCap = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.32, gableDepth + 0.18), mats.terracottaRidge);
-    gableRidgeCap.position.set(0, gPeakY + 0.14, gableMidZ);
-    entranceGroup.add(gableRidgeCap);
-
-    const fasciaGeo = new THREE.BoxGeometry(roofSlopeLen + 0.2, 0.36, 0.22);
-    const leftFascia = new THREE.Mesh(fasciaGeo, mats.darkWoodFascia);
-    leftFascia.position.set(-midSlopeX, midSlopeY - 0.04, zGableFront);
-    leftFascia.rotation.z = roofSlopeAngle;
-    entranceGroup.add(leftFascia);
-
-    const rightFascia = new THREE.Mesh(fasciaGeo, mats.darkWoodFascia);
-    rightFascia.position.set(midSlopeX, midSlopeY - 0.04, zGableFront);
-    rightFascia.rotation.z = -roofSlopeAngle;
-    entranceGroup.add(rightFascia);
-
-    const peakLightningRod = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 1.6, 8), mats.whiteMullion);
-    peakLightningRod.position.set(0, gPeakY + 0.75, zGableFront - 0.4);
-    entranceGroup.add(peakLightningRod);
-
-    const apexLamp = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 8), mats.warmLuminaire);
-    apexLamp.position.set(0, gPeakY - 0.85, zGableWall + 0.42);
-    entranceGroup.add(apexLamp);
-
-    const centerWinGlass = new THREE.Mesh(new THREE.BoxGeometry(19.0, 2.12, 0.35), mats.windowGlass);
-    centerWinGlass.position.set(0, 5.18, 44.32);
-    entranceGroup.add(centerWinGlass);
-
-    const centerWinSill = new THREE.Mesh(new THREE.BoxGeometry(20.6, 0.38, 0.85), mats.creamWall);
-    centerWinSill.position.set(0, 4.02, 44.45);
-    entranceGroup.add(centerWinSill);
-
-    for (let w = 0; w <= 10; w++) {
-      const xPos = -9.5 + w * (19.0 / 10);
-      const mBar = new THREE.Mesh(new THREE.BoxGeometry(0.22, 2.18, 0.48), mats.whiteMullion);
-      mBar.position.set(xPos, 5.18, 44.38);
-      entranceGroup.add(mBar);
-    }
-
-    const miniDish = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.12, 0.14, 12), mats.whiteMullion);
-    miniDish.position.set(-6.15, 4.48, 44.62);
-    miniDish.rotation.x = Math.PI * 0.42;
-    miniDish.rotation.z = -0.25;
-    entranceGroup.add(miniDish);
-
-    const gableRightAC = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.56, 0.38), mats.whiteMullion);
-    gableRightAC.position.set(7.25, 4.38, 44.52);
-    entranceGroup.add(gableRightAC);
-
-    // Front Grass Berms, Terraces, & Wing End Gables
-    const leftBermGeo = DPPDComplexBuilder._sliceSubdomain(
-      (u, v, p, n) => DPPDComplexBuilder.evaluateBermLocalSurface(-50.0, -7.8, u, v, p, n),
-      0.0, 1.0, 0.0, 1.0, 32, 10
-    );
-    entranceGroup.add(new THREE.Mesh(leftBermGeo, mats.grassBerm));
-
-    entranceGroup.add(
-      new THREE.Mesh(
-        evalPolarCylinderBand(48.85, 0.45, 1.18, (-46.0 * Math.PI) / 180.0, (-12.5 * Math.PI) / 180.0),
-        mats.stoneRetaining
-      )
-    );
-
-    const leftShrub = new THREE.Mesh(new THREE.SphereGeometry(0.62, 8, 6), mats.LushShrub);
-    leftShrub.position.set(-10.2, 0.85, 48.2);
-    entranceGroup.add(leftShrub);
-
-    entranceGroup.add(
-      new THREE.Mesh(
-        evalPolarCylinderBand(44.12, 4.05, 6.22, (-51.5 * Math.PI) / 180.0, (-41.5 * Math.PI) / 180.0),
-        mats.creamWall
-      )
-    );
-
-    for (let aw = 0; aw < 3; aw++) {
-      const aWin = ((-49.2 + aw * 2.8) * Math.PI) / 180.0;
-      const awningPane = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.68, 0.28), mats.windowGlass);
-      awningPane.position.set(44.28 * Math.sin(aWin), 5.65, 44.28 * Math.cos(aWin));
-      awningPane.rotation.y = aWin;
-      awningPane.rotation.x = -0.22;
-      entranceGroup.add(awningPane);
-    }
-
-    for (let sb = 0; sb < 9; sb++) {
-      const aBlk = ((-48.0 + sb * 4.5) * Math.PI) / 180.0;
-      const sillBlock = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.46, 0.65), mats.creamWall);
-      sillBlock.position.set(44.55 * Math.sin(aBlk), 3.82, 44.55 * Math.cos(aBlk));
-      sillBlock.rotation.y = aBlk;
-      entranceGroup.add(sillBlock);
-    }
-
-    const farLeftWallGroup = new THREE.Group();
-    farLeftWallGroup.rotation.y = (-51.2 * Math.PI) / 180.0;
-    const farLeftExtrude = DPPDComplexBuilder._buildPolygonPrismGeo(
-      [
-        [44.0, 0.0],
-        [51.2, 0.0],
-        [51.2, 0.72],
-        [44.0, 3.85]
-      ],
-      0.46
-    );
-    farLeftExtrude.rotateY(-Math.PI * 0.5);
-    farLeftWallGroup.add(new THREE.Mesh(farLeftExtrude, mats.stoneRetaining));
-
-    const nwEndWallExtrude = DPPDComplexBuilder._buildPolygonPrismGeo(
-      [
-        [27.5, 0.0],
-        [44.2, 0.0],
-        [44.2, 6.25],
-        [35.8, 10.65],
-        [27.5, 6.25]
-      ],
-      0.42
-    );
-    nwEndWallExtrude.rotateY(-Math.PI * 0.5);
-    const nwEndWallMesh = new THREE.Mesh(nwEndWallExtrude, mats.ilrcBrickWing);
-    nwEndWallMesh.position.x = -0.35;
-    farLeftWallGroup.add(nwEndWallMesh);
-
-    const nwBeamHoriz = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.34, 16.8), mats.whiteMullion);
-    nwBeamHoriz.position.set(-0.38, 6.18, 35.85);
-    farLeftWallGroup.add(nwBeamHoriz);
-
-    const nwBeamLow = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.28, 16.8), mats.whiteMullion);
-    nwBeamLow.position.set(-0.38, 3.65, 35.85);
-    farLeftWallGroup.add(nwBeamLow);
-
-    const nwYellowPillar = new THREE.Mesh(new THREE.BoxGeometry(0.65, 3.65, 0.85), mats.brassSign);
-    nwYellowPillar.position.set(-0.42, 1.82, 41.2);
-    farLeftWallGroup.add(nwYellowPillar);
-
-    const nwSideDoorRecess = new THREE.Mesh(new THREE.BoxGeometry(0.65, 3.55, 2.85), mats.creamWall);
-    nwSideDoorRecess.position.set(-0.32, 1.78, 42.85);
-    farLeftWallGroup.add(nwSideDoorRecess);
-
-    const nwSideDoubleDoor = new THREE.Mesh(new THREE.BoxGeometry(0.72, 2.35, 1.55), mats.darkWoodFascia);
-    nwSideDoubleDoor.position.set(-0.35, 1.22, 42.85);
-    farLeftWallGroup.add(nwSideDoubleDoor);
-
-    const sideDoorWalkway = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.18, 7.5), mats.concreteDriveway);
-    sideDoorWalkway.position.set(-1.15, 0.12, 45.8);
-    farLeftWallGroup.add(sideDoorWalkway);
-
-    for (let hg = 0; hg < 9; hg++) {
-      const hBush = new THREE.Mesh(new THREE.SphereGeometry(0.68, 8, 6), mats.LushShrub);
-      hBush.scale.set(0.95, 1.15, 1.25);
-      hBush.position.set(-2.15, 0.58, 38.5 + hg * 1.45);
-      farLeftWallGroup.add(hBush);
-    }
-    entranceGroup.add(farLeftWallGroup);
-
-    const blackMonolithSign = new THREE.Mesh(new THREE.BoxGeometry(0.95, 2.35, 0.28), mats.asphaltRoad);
-    blackMonolithSign.position.set(-36.5, 1.25, 51.8);
-    blackMonolithSign.rotation.y = -0.45;
-    entranceGroup.add(blackMonolithSign);
-
-    const quoteMonolith = new THREE.Mesh(new THREE.BoxGeometry(1.35, 2.45, 0.32), mats.asphaltRoad);
-    quoteMonolith.position.set(-39.6, 1.35, 48.2);
-    quoteMonolith.rotation.y = 0.65;
-    entranceGroup.add(quoteMonolith);
-
-    const quoteGoldAccent = new THREE.Mesh(new THREE.BoxGeometry(1.38, 0.28, 0.34), mats.brassSign);
-    quoteGoldAccent.position.set(-39.6, 0.35, 48.2);
-    quoteGoldAccent.rotation.y = 0.65;
-    entranceGroup.add(quoteGoldAccent);
-
-    // Garden Lamps with Warm Photocell Bulbs
-    for (const deg of [-17.5, -28.5, -39.5, 21.5, 33.8, 41.2]) {
-      const aLamp = (deg * Math.PI) / 180.0;
-      const rLamp = 50.15;
-      const lx = rLamp * Math.sin(aLamp);
-      const lz = rLamp * Math.cos(aLamp);
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 2.35, 8), mats.asphaltRoad);
-      post.position.set(lx, 1.32, lz);
-      entranceGroup.add(post);
-
-      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), mats.warmLuminaire);
-      bulb.position.set(lx, 2.42, lz);
-      entranceGroup.add(bulb);
-
-      const cap = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.14, 8), mats.asphaltRoad);
-      cap.position.set(lx, 2.54, lz);
-      entranceGroup.add(cap);
-    }
-
-    for (const brDeg of [-13.5, -26.0, -38.5]) {
-      const aBr = (brDeg * Math.PI) / 180.0;
-      for (let s = -1; s <= 1; s += 2) {
-        const slab = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.09, 1.15), mats.concreteDriveway);
-        const aOff = aBr + s * 0.0045;
-        slab.position.set(51.3 * Math.sin(aOff), 0.26, 51.3 * Math.cos(aOff));
-        slab.rotation.y = aBr;
-        entranceGroup.add(slab);
-      }
-    }
-
-    const signAngle = (-11.2 * Math.PI) / 180.0;
-    const signPost = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 2.55, 8), mats.concreteTrim);
-    signPost.position.set(52.35 * Math.sin(signAngle), 1.35, 52.35 * Math.cos(signAngle));
-    entranceGroup.add(signPost);
-
-    const blueSignDisk = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.05, 16), mats.disabilityBlue);
-    blueSignDisk.rotation.z = Math.PI * 0.5;
-    blueSignDisk.position.set(52.35 * Math.sin(signAngle), 2.35, 52.35 * Math.cos(signAngle));
-    blueSignDisk.rotation.y = signAngle;
-    entranceGroup.add(blueSignDisk);
-
-    const stpArrowSign = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.65, 0.14), mats.disabilityBlue);
-    stpArrowSign.position.set(51.5 * Math.sin((-54.5 * Math.PI) / 180.0), 0.95, 51.5 * Math.cos((-54.5 * Math.PI) / 180.0));
-    stpArrowSign.rotation.y = -0.85;
-    entranceGroup.add(stpArrowSign);
-
-    const stpArrowStripe = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.16, 0.16), mats.whiteMullion);
-    stpArrowStripe.position.copy(stpArrowSign.position);
-    stpArrowStripe.rotation.y = -0.85;
-    entranceGroup.add(stpArrowStripe);
-
-    const uiGateBoard = new THREE.Mesh(new THREE.BoxGeometry(0.98, 1.25, 0.12), mats.solarPanel);
-    uiGateBoard.position.set(51.2 * Math.sin((-55.2 * Math.PI) / 180.0), 2.15, 51.2 * Math.cos((-55.2 * Math.PI) / 180.0));
-    uiGateBoard.rotation.y = -0.85;
-    entranceGroup.add(uiGateBoard);
-
-    const uiGateBoardFrame = new THREE.Mesh(new THREE.BoxGeometry(1.06, 1.32, 0.10), mats.whiteMullion);
-    uiGateBoardFrame.position.copy(uiGateBoard.position);
-    uiGateBoardFrame.rotation.y = -0.85;
-    entranceGroup.add(uiGateBoardFrame);
-
-    const islandMonolithPos = new THREE.Vector3(
-      52.2 * Math.sin((-59.0 * Math.PI) / 180.0),
-      1.35,
-      52.2 * Math.cos((-59.0 * Math.PI) / 180.0)
-    );
-    const islandMonolith = new THREE.Mesh(new THREE.BoxGeometry(0.72, 1.75, 0.24), mats.asphaltRoad);
-    islandMonolith.position.copy(islandMonolithPos);
-    islandMonolith.rotation.y = -0.78;
-    entranceGroup.add(islandMonolith);
-
-    const islandMonolithBase = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.38, 0.44), mats.concreteDriveway);
-    islandMonolithBase.position.set(islandMonolithPos.x, 0.22, islandMonolithPos.z);
-    islandMonolithBase.rotation.y = -0.78;
-    entranceGroup.add(islandMonolithBase);
-
-    const yellowCircleBadge = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.26, 14), mats.roadYellowLine);
-    yellowCircleBadge.rotation.x = Math.PI * 0.5;
-    yellowCircleBadge.position.set(islandMonolithPos.x, 1.22, islandMonolithPos.z);
-    yellowCircleBadge.rotation.y = -0.78;
-    entranceGroup.add(yellowCircleBadge);
-
-    const umbulPole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 4.2, 8), mats.whiteMullion);
-    umbulPole.position.set(-38.6, 2.1, 44.0);
-    entranceGroup.add(umbulPole);
-
-    for (let uSeg = 0; uSeg < 6; uSeg++) {
-      const uCloth = new THREE.Mesh(
-        new THREE.BoxGeometry(0.42, 0.52, 0.08),
-        uSeg % 2 === 0 ? mats.terracottaRoof : mats.whiteMullion
-      );
-      uCloth.position.set(-38.45, 1.15 + uSeg * 0.50, 44.0);
-      uCloth.rotation.z = 0.08;
-      entranceGroup.add(uCloth);
-    }
-
-    // Ring Road Streetlamps (PJU) tucked cleanly inside r <= 64.85 with warm night LED heads!
-    const addRingPJU = (parent, rPju, angRad) => {
-      const px = rPju * Math.cos(angRad);
-      const pz = rPju * Math.sin(angRad);
-      const pjuPole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 9.0, 8), mats.concreteTrim);
-      pjuPole.position.set(px, 4.5, pz);
-      parent.add(pjuPole);
-
-      const armR = rPju - 1.05;
-      const pjuArm = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.09, 0.09), mats.concreteTrim);
-      pjuArm.position.set(armR * Math.cos(angRad), 8.85, armR * Math.sin(angRad));
-      pjuArm.rotation.y = -angRad;
-      pjuArm.rotation.z = 0.18;
-      parent.add(pjuArm);
-
-      const headR = rPju - 2.05;
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.10, 0.28), mats.asphaltRoad);
-      head.position.set(headR * Math.cos(angRad), 9.04, headR * Math.sin(angRad));
-      head.rotation.y = -angRad;
-      parent.add(head);
-
-      const lens = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.05, 0.22), mats.warmLuminaire);
-      lens.position.set(headR * Math.cos(angRad), 8.98, headR * Math.sin(angRad));
-      lens.rotation.y = -angRad;
-      parent.add(lens);
-    };
-
-    for (let pj = 0; pj < 10; pj++) {
-      addRingPJU(dppdGroup, 64.75, (pj / 10) * Math.PI * 2.0 + 0.18);
-    }
-
-    // Right Berm & Retaining Wall
-    const rightBermGeo = DPPDComplexBuilder._sliceSubdomain(
-      (u, v, p, n) => DPPDComplexBuilder.evaluateBermLocalSurface(7.8, 46.0, u, v, p, n),
-      0.0, 1.0, 0.0, 1.0, 32, 10
-    );
-    entranceGroup.add(new THREE.Mesh(rightBermGeo, mats.grassBerm));
-
-    entranceGroup.add(
-      new THREE.Mesh(
-        evalPolarCylinderBand(48.85, 0.45, 1.12, (14.0 * Math.PI) / 180.0, (43.5 * Math.PI) / 180.0),
-        mats.stoneRetaining
-      )
-    );
-
-    entranceGroup.add(
-      new THREE.Mesh(
-        evalPolarCylinderBand(44.12, 4.05, 6.22, (38.5 * Math.PI) / 180.0, (46.0 * Math.PI) / 180.0),
-        mats.creamWall
-      )
-    );
-
-    for (let sw = 0; sw < 3; sw++) {
-      const aSw = ((39.8 + sw * 2.4) * Math.PI) / 180.0;
-      const highWin = new THREE.Mesh(new THREE.BoxGeometry(1.38, 0.65, 0.28), mats.windowGlass);
-      highWin.position.set(44.28 * Math.sin(aSw), 5.62, 44.28 * Math.cos(aSw));
-      highWin.rotation.y = aSw;
-      entranceGroup.add(highWin);
-    }
-
-    const createSlopedWingWall = (xPos) => {
-      const extrude = DPPDComplexBuilder._buildPolygonPrismGeo(
-        [
-          [44.0, 0.0],
-          [50.8, 0.0],
-          [50.8, 0.65],
-          [44.0, 3.85]
-        ],
-        0.48
-      );
-      extrude.rotateY(-Math.PI * 0.5);
-      const mesh = new THREE.Mesh(extrude, mats.stoneRetaining);
-      mesh.position.set(xPos, 0.0, 0.0);
-      entranceGroup.add(mesh);
-    };
-    createSlopedWingWall(-6.45);
-    createSlopedWingWall(6.93);
-
-    // Front Porch Canopy, Warm Downlight, Lobby Door, Disability Ramps, & Flagpole with Merah-Putih Flag
-    const canopyRoof = new THREE.Mesh(new THREE.BoxGeometry(13.2, 0.42, 3.4), mats.terracottaRoof);
-    canopyRoof.position.set(0, 3.42, 45.6);
-    canopyRoof.rotation.x = 0.08;
-    entranceGroup.add(canopyRoof);
-
-    const canopyFascia = new THREE.Mesh(new THREE.BoxGeometry(13.35, 0.20, 3.52), mats.darkWoodFascia);
-    canopyFascia.position.set(0, 3.24, 45.6);
-    entranceGroup.add(canopyFascia);
-
-    const canopyLightStrip = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.05, 0.42), mats.warmLuminaire);
-    canopyLightStrip.position.set(0, 3.12, 45.4);
-    entranceGroup.add(canopyLightStrip);
-
-    const groundWall = new THREE.Mesh(new THREE.BoxGeometry(13.2, 3.5, 0.5), mats.creamWall);
-    groundWall.position.set(0, 1.75, 44.0);
-    entranceGroup.add(groundWall);
-
-    const lobbyDoor = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.55, 0.62), mats.windowGlass);
-    lobbyDoor.position.set(0.0, 1.42, 44.05);
-    entranceGroup.add(lobbyDoor);
-
-    const narrowSlotL = new THREE.Mesh(new THREE.BoxGeometry(0.36, 1.65, 0.58), mats.windowGlass);
-    narrowSlotL.position.set(-4.1, 1.95, 44.05);
-    entranceGroup.add(narrowSlotL);
-
-    const narrowSlotR = new THREE.Mesh(new THREE.BoxGeometry(0.36, 1.65, 0.58), mats.windowGlass);
-    narrowSlotR.position.set(4.5, 1.95, 44.05);
-    entranceGroup.add(narrowSlotR);
-
-    const wallSign = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.42, 0.12), mats.brassSign);
-    wallSign.position.set(2.55, 2.32, 44.28);
-    entranceGroup.add(wallSign);
-
-    for (const colX of [-1.85, 1.85]) {
-      const porchCol = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 3.1, 10), mats.whiteMullion);
-      porchCol.position.set(colX, 1.72, 45.8);
-      entranceGroup.add(porchCol);
-    }
-
-    const plazaFloor = new THREE.Mesh(new THREE.BoxGeometry(13.0, 0.36, 3.8), mats.terracottaFloor);
-    plazaFloor.position.set(0, 0.22, 45.9);
-    entranceGroup.add(plazaFloor);
-
-    for (let s = 0; s < 5; s++) {
-      const stepL = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.10, 0.68 + s * 0.45), mats.terracottaFloor);
-      stepL.position.set(-4.2, 0.36 - s * 0.06, 48.0 + s * 0.36);
-      entranceGroup.add(stepL);
-
-      const stepR = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.10, 0.68 + s * 0.45), mats.terracottaFloor);
-      stepR.position.set(4.7, 0.36 - s * 0.06, 48.0 + s * 0.36);
-      entranceGroup.add(stepR);
-    }
-
-    const greyRibbedRamp = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.16, 3.35), mats.stoneRetaining);
-    greyRibbedRamp.position.set(-1.5, 0.21, 48.65);
-    greyRibbedRamp.rotation.x = 0.085;
-    entranceGroup.add(greyRibbedRamp);
-
-    for (const rx of [-2.15, -0.85, 2.65]) {
-      const rampCurb = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.48, 3.38), mats.terracottaRoof);
-      rampCurb.position.set(rx, 0.34, 48.65);
-      entranceGroup.add(rampCurb);
-    }
-
-    const centerRedRamp = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.16, 3.35), mats.terracottaFloor);
-    centerRedRamp.position.set(0.9, 0.21, 48.65);
-    centerRedRamp.rotation.x = 0.085;
-    entranceGroup.add(centerRedRamp);
-
-    const pavingForecourt = new THREE.Mesh(new THREE.BoxGeometry(6.2, 0.08, 2.2), mats.pavingBlock);
-    pavingForecourt.position.set(1.2, 0.06, 50.5);
-    entranceGroup.add(pavingForecourt);
-
-    const concreteDriveway = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.12, 2.45), mats.concreteDriveway);
-    concreteDriveway.position.set(1.15, 0.085, 52.25);
-    entranceGroup.add(concreteDriveway);
-
-    // Ceremonial Flagpole + Merah-Putih Indonesian Flag
-    const flagDrumBase = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.50, 0.28, 16), mats.concreteDriveway);
-    flagDrumBase.position.set(-1.55, 0.18, 51.25);
-    entranceGroup.add(flagDrumBase);
-
-    const mainFlagpole = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.09, 11.4, 12), mats.whiteMullion);
-    mainFlagpole.position.set(-1.55, 5.85, 51.25);
-    entranceGroup.add(mainFlagpole);
-
-    const flagFinial = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), mats.brassSign);
-    flagFinial.position.set(-1.55, 11.60, 51.25);
-    entranceGroup.add(flagFinial);
-
-    const flagRed = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.62, 0.05), mats.hydrantRed);
-    flagRed.position.set(-0.58, 11.12, 51.28);
-    flagRed.rotation.y = 0.12;
-    entranceGroup.add(flagRed);
-
-    const flagWhite = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.62, 0.05), mats.whiteMullion);
-    flagWhite.position.set(-0.58, 10.50, 51.28);
-    flagWhite.rotation.y = 0.12;
-    entranceGroup.add(flagWhite);
-
-    const blueParking = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.08, 3.1), mats.disabilityBlue);
-    blueParking.position.set(-4.15, 0.075, 50.35);
-    entranceGroup.add(blueParking);
-
-    const whiteBorder = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.06, 3.3), mats.whiteMullion);
-    whiteBorder.position.set(-4.15, 0.06, 50.35);
-    entranceGroup.add(whiteBorder);
-
-    const totemSilverBody = new THREE.Mesh(new THREE.BoxGeometry(0.96, 1.82, 0.18), mats.concreteDriveway);
-    totemSilverBody.position.set(-4.85, 1.06, 51.15);
-    totemSilverBody.rotation.y = 0.08;
-    entranceGroup.add(totemSilverBody);
-
-    const totemGoldTop = new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.24, 0.22), mats.brassSign);
-    totemGoldTop.position.set(-4.88, 1.92, 51.15);
-    totemGoldTop.rotation.y = 0.08;
-    entranceGroup.add(totemGoldTop);
-
-    const infoFrame = new THREE.Mesh(new THREE.BoxGeometry(1.42, 1.06, 0.14), mats.whiteMullion);
-    infoFrame.position.set(5.65, 1.48, 50.65);
-    infoFrame.rotation.y = -0.18;
-    entranceGroup.add(infoFrame);
-
-    const infoMapFace = new THREE.Mesh(new THREE.BoxGeometry(1.26, 0.88, 0.16), mats.brassSign);
-    infoMapFace.position.set(5.65, 1.48, 50.65);
-    infoMapFace.rotation.y = -0.18;
-    entranceGroup.add(infoMapFace);
-
-    const infoPost = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.95, 10), mats.whiteMullion);
-    infoPost.position.set(5.65, 0.52, 50.65);
-    entranceGroup.add(infoPost);
-
-    const ditchWallInner = new THREE.Mesh(evalPolarCylinderBand(50.85, 0.0, 0.36, alphaMin, alphaMax), mats.stoneRetaining);
-    const ditchWallOuter = new THREE.Mesh(evalPolarCylinderBand(51.65, 0.0, 0.36, alphaMin, alphaMax), mats.stoneRetaining);
-    entranceGroup.add(ditchWallInner, ditchWallOuter);
-
-    // 3 Royal Palms in front of Gedung DPPD Right Wing
-    const palmAnglesDeg = [19.2, 31.5, 38.8];
-    const palmHeights = [14.5, 16.2, 13.8];
-    palmAnglesDeg.forEach((deg, idx) => {
-      const aPalm = (deg * Math.PI) / 180.0;
-      const rPalm = idx === 0 ? 49.8 : 50.2;
-      const hPalm = palmHeights[idx];
-      const px = rPalm * Math.sin(aPalm);
-      const pz = rPalm * Math.cos(aPalm);
-
-      const palmTrunk = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.32, hPalm, 10), mats.concreteTrim);
-      palmTrunk.position.set(px, hPalm * 0.5, pz);
-      entranceGroup.add(palmTrunk);
-
-      for (let f = 0; f < 8; f++) {
-        const frond = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.08, 3.05), mats.LushShrub);
-        const fa = (f / 8) * Math.PI * 2.0;
-        frond.position.set(px + Math.sin(fa) * 1.42, hPalm - 0.25, pz + Math.cos(fa) * 1.42);
-        frond.rotation.y = fa;
-        frond.rotation.x = 0.38;
-        entranceGroup.add(frond);
-      }
-    });
-
-    // NW & SE Terracotta Wing End Gables
-    const sideGableGeo = DPPDComplexBuilder._buildPolygonPrismGeo(
-      [
-        [26.5, 6.22],
-        [45.5, 6.22],
-        [35.8, 11.45]
-      ],
-      0.48
-    );
-    sideGableGeo.rotateY(-Math.PI * 0.5);
-
-    const nwGableGroup = new THREE.Group();
-    nwGableGroup.rotation.y = (-52.0 * Math.PI) / 180.0;
-    entranceGroup.add(nwGableGroup);
-
-    const sideWallMain = new THREE.Mesh(new THREE.BoxGeometry(0.45, 6.25, 17.0), mats.salmonGable);
-    sideWallMain.position.set(0, 3.12, 36.0);
-    nwGableGroup.add(sideWallMain);
-
-    const sideGableMesh = new THREE.Mesh(sideGableGeo, mats.salmonGable);
-    sideGableMesh.position.set(0.24, 0, 0);
-    nwGableGroup.add(sideGableMesh);
-
-    const whiteBeamMid = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.36, 17.4), mats.whiteMullion);
-    whiteBeamMid.position.set(0, 3.65, 36.0);
-    nwGableGroup.add(whiteBeamMid);
-
-    const whiteBeamTop = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.38, 18.8), mats.whiteMullion);
-    whiteBeamTop.position.set(0, 6.20, 36.0);
-    nwGableGroup.add(whiteBeamTop);
-
-    for (const zPil of [28.2, 35.8, 43.5]) {
-      const yellowPilaster = new THREE.Mesh(new THREE.BoxGeometry(0.62, 3.65, 0.55), mats.brassSign);
-      yellowPilaster.position.set(0, 1.82, zPil);
-      nwGableGroup.add(yellowPilaster);
-    }
-
-    const sideEntryDoor = new THREE.Mesh(new THREE.BoxGeometry(0.65, 2.35, 1.85), mats.windowGlass);
-    sideEntryDoor.position.set(-0.15, 1.25, 42.2);
-    nwGableGroup.add(sideEntryDoor);
-
-    const sideWalkway = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.18, 9.5), mats.concreteDriveway);
-    sideWalkway.position.set(-1.3, 0.09, 44.8);
-    nwGableGroup.add(sideWalkway);
-
-    const seGableGroup = new THREE.Group();
-    seGableGroup.rotation.y = (46.0 * Math.PI) / 180.0;
-    entranceGroup.add(seGableGroup);
-
-    const seSideWallMain = new THREE.Mesh(new THREE.BoxGeometry(0.45, 6.25, 17.0), mats.salmonGable);
-    seSideWallMain.position.set(0, 3.12, 36.0);
-    seGableGroup.add(seSideWallMain);
-
-    const seSideGableMesh = new THREE.Mesh(sideGableGeo, mats.salmonGable);
-    seSideGableMesh.position.set(0.24, 0, 0);
-    seGableGroup.add(seSideGableMesh);
-
-    const seWhiteBeamMid = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.36, 17.4), mats.whiteMullion);
-    seWhiteBeamMid.position.set(0, 3.65, 36.0);
-    seGableGroup.add(seWhiteBeamMid);
-
-    const seWhiteBeamTop = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.38, 18.8), mats.whiteMullion);
-    seWhiteBeamTop.position.set(0, 6.20, 36.0);
-    seGableGroup.add(seWhiteBeamTop);
-
-    const seBermEndExtrude = DPPDComplexBuilder._buildPolygonPrismGeo(
-      [
-        [44.0, 0.0],
-        [50.85, 0.0],
-        [50.85, 0.68],
-        [44.0, 3.75]
-      ],
-      0.46
-    );
-    seBermEndExtrude.rotateY(-Math.PI * 0.5);
-    const seBermEndMesh = new THREE.Mesh(seBermEndExtrude, mats.stoneRetaining);
-    seBermEndMesh.position.set(0.22, 0, 0);
-    seGableGroup.add(seBermEndMesh);
-
-    // 4. TAHAP 5: WEST DRIVEWAY, PARKING LOTS, PARKED CAMPUS SUVS/SEDANS, & HYDRANT NETWORK
-    const westDriveway = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.09, 30.0), mats.asphaltRoad);
-    westDriveway.position.set(-34.5, 0.085, -3.5);
-    westDriveway.rotation.y = Math.PI * 0.5;
-    contextGroup.add(westDriveway);
-
-    const stpParkingLot = new THREE.Mesh(new THREE.BoxGeometry(18.0, 0.08, 22.0), mats.pavingBlock);
-    stpParkingLot.position.set(-36.0, 0.075, -16.5);
-    contextGroup.add(stpParkingLot);
-
-    const westParkingAsphalt = new THREE.Mesh(new THREE.BoxGeometry(24.0, 0.09, 26.0), mats.asphaltRoad);
-    westParkingAsphalt.position.set(-32.0, 0.08, -20.5);
-    contextGroup.add(westParkingAsphalt);
-
-    // White parking stall lines + realistic parked campus vehicles
-    for (let st = 0; st < 6; st++) {
-      const zSlot = -28.0 + st * 3.1;
-      const line = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.03, 0.14), mats.whiteMullion);
-      line.position.set(-31.5, 0.13, zSlot);
-      contextGroup.add(line);
-    }
-    contextGroup.add(DPPDComplexBuilder._buildParkedCar(mats, mats.carWhite, -31.6, 0.12, -26.4, Math.PI * 0.5));
-    contextGroup.add(DPPDComplexBuilder._buildParkedCar(mats, mats.carDarkGrey, -31.5, 0.12, -20.2, Math.PI * 0.5));
-    contextGroup.add(DPPDComplexBuilder._buildParkedCar(mats, mats.carSilver, -31.6, 0.12, -14.0, Math.PI * 0.5));
-    contextGroup.add(DPPDComplexBuilder._buildParkedCar(mats, mats.carNavy, -38.8, 0.12, -18.5, -Math.PI * 0.5));
-
-    for (let mb = 0; mb < 4; mb++) {
-      const mMat = mb % 2 === 0 ? mats.hydrantRed : mats.carNavy;
-      contextGroup.add(DPPDComplexBuilder._buildParkedMotorbike(mats, mMat, 43.2 + mb * 0.95, 0.10, 29.0 + mb * 0.65, -0.58));
-    }
-
-    const mulchIsland1 = new THREE.Mesh(new THREE.CylinderGeometry(6.8, 7.0, 0.22, 24), mats.mulchSoil);
-    mulchIsland1.scale.set(1.0, 1.0, 0.82);
-    mulchIsland1.position.set(-45.2, 0.12, -11.5);
-    contextGroup.add(mulchIsland1);
-
-    const masukSignBlue = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.85, 1.15), mats.disabilityBlue);
-    masukSignBlue.position.set(-47.8, 0.85, -6.5);
-    masukSignBlue.rotation.y = 0.25;
-    contextGroup.add(masukSignBlue);
-
-    const uiPurpleBoard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.35, 1.15), mats.purpleSign);
-    uiPurpleBoard.position.set(-47.2, 1.85, -6.4);
-    uiPurpleBoard.rotation.y = 0.25;
-    contextGroup.add(uiPurpleBoard);
-
-    for (const zLeg of [-6.85, -6.05]) {
-      const signLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 2.45, 8), mats.stoneRetaining);
-      signLeg.position.set(-47.5, 1.22, zLeg);
-      contextGroup.add(signLeg);
-    }
-
-    const islandTrees = [
-      { x: -48.5, z: -13.2, h: 8.5, r: 2.6 },
-      { x: -44.2, z: -9.5, h: 7.2, r: 2.8 },
-      { x: -47.2, z: -16.8, h: 7.8, r: 2.2 },
-      { x: -45.5, z: -21.5, h: 8.2, r: 2.4 },
-      { x: -43.5, z: -26.5, h: 8.8, r: 2.5 },
-      { x: -41.2, z: -31.0, h: 9.2, r: 2.6 }
-    ];
-    islandTrees.forEach((tr) => {
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, tr.h, 8), mats.mulchSoil);
-      trunk.position.set(tr.x, tr.h * 0.5, tr.z);
-      contextGroup.add(trunk);
-
-      const tier1 = new THREE.Mesh(new THREE.CylinderGeometry(tr.r * 0.9, tr.r * 1.15, 0.85, 9), mats.LushShrub);
-      tier1.position.set(tr.x, tr.h * 0.68, tr.z);
-      contextGroup.add(tier1);
-
-      const tier2 = new THREE.Mesh(new THREE.CylinderGeometry(tr.r * 0.55, tr.r * 0.85, 0.85, 9), mats.grassBerm);
-      tier2.position.set(tr.x, tr.h * 0.92, tr.z);
-      contextGroup.add(tier2);
-    });
-
-    const stpDriveway = new THREE.Mesh(new THREE.BoxGeometry(20.0, 0.095, 7.2), mats.asphaltRoad);
-    stpDriveway.position.set(-34.5, 0.082, -36.5);
-    stpDriveway.rotation.y = -0.32;
-    contextGroup.add(stpDriveway);
-
-    // Fire Hydrant Ring Pipe along North Ditch
-    const pipeSegs = 22;
-    const pipeThStart = (-132.0 * Math.PI) / 180.0;
-    const pipeThEnd = (-62.0 * Math.PI) / 180.0;
-    const rPipe = 51.35;
-    for (let ps = 0; ps < pipeSegs; ps++) {
-      const t0 = pipeThStart + (ps / pipeSegs) * (pipeThEnd - pipeThStart);
-      const t1 = pipeThStart + ((ps + 1) / pipeSegs) * (pipeThEnd - pipeThStart);
-      const x0 = rPipe * Math.cos(t0);
-      const z0 = rPipe * Math.sin(t0);
-      const x1 = rPipe * Math.cos(t1);
-      const z1 = rPipe * Math.sin(t1);
-      const segLen = Math.hypot(x1 - x0, z1 - z0);
-
-      const pipeGeo = new THREE.CylinderGeometry(0.065, 0.065, segLen + 0.05, 8);
-      pipeGeo.rotateX(Math.PI * 0.5);
-      const pipeMesh = new THREE.Mesh(pipeGeo, mats.hydrantRed);
-      pStart.set(x0, 0.42, z0);
-      pEnd.set(x1, 0.42, z1);
-      DPPDComplexBuilder._orientBeamAlongZ(pipeMesh, pStart, pEnd, 0.0);
-      contextGroup.add(pipeMesh);
-    }
-
-    // 5. GEDUNG INTI TENGAH: ITTC / PERPUSTAKAAN LAMA UI (4-STORY COURTYARD BUILDING)
-    const libGroup = new THREE.Group();
-    contextGroup.add(libGroup);
-
-    const libWings = [
-      { x: 0, z: -12.0, w: 34.0, d: 10.0 },
-      { x: 0, z: 12.0, w: 34.0, d: 10.0 },
-      { x: -12.0, z: 0, w: 10.0, d: 14.0 },
-      { x: 12.0, z: 0, w: 10.0, d: 14.0 }
-    ];
-    libWings.forEach((lw) => {
-      const wMesh = new THREE.Mesh(new THREE.BoxGeometry(lw.w, 13.5, lw.d), mats.creamWall);
-      wMesh.position.set(lw.x, 6.75, lw.z);
-      libGroup.add(wMesh);
-
-      const gMesh = new THREE.Mesh(new THREE.BoxGeometry(lw.w + 0.18, 9.8, lw.d + 0.18), mats.windowGlass);
-      gMesh.position.set(lw.x, 8.2, lw.z);
-      libGroup.add(gMesh);
-    });
-
-    for (let floor = 1; floor <= 4; floor++) {
-      for (const sx of [-1, 1]) {
-        const spandrelX = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.52, 34.4), mats.whiteMullion);
-        spandrelX.position.set(sx * 17.05, floor * 3.25, 0);
-        libGroup.add(spandrelX);
-
-        const spandrelZ = new THREE.Mesh(new THREE.BoxGeometry(34.4, 0.52, 0.55), mats.whiteMullion);
-        spandrelZ.position.set(0, floor * 3.25, sx * 17.05);
-        libGroup.add(spandrelZ);
-      }
-    }
-    for (let col = -5; col <= 5; col++) {
-      for (const sx of [-1, 1]) {
-        const vPillarX = new THREE.Mesh(new THREE.BoxGeometry(0.58, 13.6, 0.42), mats.whiteMullion);
-        vPillarX.position.set(sx * 17.08, 6.8, col * 3.1);
-        libGroup.add(vPillarX);
-
-        const vPillarZ = new THREE.Mesh(new THREE.BoxGeometry(0.42, 13.6, 0.58), mats.whiteMullion);
-        vPillarZ.position.set(col * 3.1, 6.8, sx * 17.08);
-        libGroup.add(vPillarZ);
-      }
-    }
-
-    const libRoofSlope = DPPDComplexBuilder._sliceSubdomain(
-      (u, v, p, n) => {
-        const th = u * Math.PI * 2.0;
-        const c = Math.cos(th);
-        const s = Math.sin(th);
-        const maxAbs = Math.max(Math.abs(c), Math.abs(s));
-        const rSquare = (6.0 + v * 12.2) / maxAbs;
-        const y = 13.5 + Math.sin(v * Math.PI) * 4.4;
-        p.set(rSquare * c, y, rSquare * s);
-        n.set(c * 0.25, 0.96, s * 0.25).normalize();
-      },
-      0.0, 1.0, 0.0, 1.0, 32, 6
-    );
-    libGroup.add(new THREE.Mesh(libRoofSlope, mats.terracottaRoof));
-
-    // 6. GEDUNG SCIENCE TECHNO PARK (STP-UI 8-LANTAI) & GEDUNG LABORATORIUM ILRC / DRPM (4-LANTAI + MENARA BATA)
-    const ilrcStart = (-129.0 * Math.PI) / 180.0;
-    const stpArcSpan = (91.0 * Math.PI) / 180.0;
-    const ilrcArcSpan = (179.0 * Math.PI) / 180.0;
-    const ilrcHeight = 25.4;
-
-    const evalILRCHull = (rVal, yMin, yMax, uSegs = 44, vSegs = 6, spanRad = stpArcSpan, startRad = ilrcStart, inward = false) =>
-      DPPDComplexBuilder._sliceSubdomain(
-        (u, v, p, n) => {
-          const th = startRad + u * spanRad;
-          p.set(rVal * Math.cos(th), yMin + v * (yMax - yMin), rVal * Math.sin(th));
-          const sgn = inward ? -1.0 : 1.0;
-          n.set(sgn * Math.cos(th), 0, sgn * Math.sin(th));
-        },
-        0.0, 1.0, 0.0, 1.0, uSegs, vSegs
-      );
-
-    // STP-UI 8-Story Outer & Inner Courtyard Hulls + Roof Deck Slab + Night-Lit Glazing
-    contextGroup.add(new THREE.Mesh(evalILRCHull(43.2, 0.0, ilrcHeight, 44, 6, stpArcSpan, ilrcStart, false), mats.ilrcConcrete));
-    contextGroup.add(new THREE.Mesh(evalILRCHull(30.8, 0.0, ilrcHeight, 44, 6, stpArcSpan, ilrcStart, true), mats.ilrcConcrete));
-    contextGroup.add(new THREE.Mesh(evalILRCHull(43.32, 4.2, 23.6, 44, 4, stpArcSpan, ilrcStart, false), mats.windowGlass));
-    contextGroup.add(new THREE.Mesh(evalILRCHull(30.68, 4.2, 23.2, 36, 4, stpArcSpan, ilrcStart, true), mats.windowGlass));
-
-    const stpRoofSlabGeo = DPPDComplexBuilder._sliceSubdomain(
-      (u, v, p, n) => {
-        const th = ilrcStart + u * stpArcSpan;
-        const r = 30.8 + v * (43.2 - 30.8);
-        p.set(r * Math.cos(th), ilrcHeight, r * Math.sin(th));
-        n.set(0, 1, 0);
-      },
-      0.0, 1.0, 0.0, 1.0, 44, 2
-    );
-    contextGroup.add(new THREE.Mesh(stpRoofSlabGeo, mats.ilrcConcrete));
-
-    // ILRC / DRPM 4-Story East Laboratory Wing (-31.5° .. +50°)
-    const eastIlrcStart = (-31.5 * Math.PI) / 180.0;
-    const eastIlrcSpan = (81.5 * Math.PI) / 180.0;
-    const eastIlrcH = 15.2;
-    contextGroup.add(new THREE.Mesh(evalILRCHull(42.6, 4.0, eastIlrcH, 36, 4, eastIlrcSpan, eastIlrcStart, false), mats.ilrcConcrete));
-    contextGroup.add(new THREE.Mesh(evalILRCHull(39.8, 0.0, 4.0, 36, 2, eastIlrcSpan, eastIlrcStart, false), mats.whiteMullion));
-    contextGroup.add(new THREE.Mesh(evalILRCHull(30.8, 0.0, eastIlrcH, 36, 4, eastIlrcSpan, eastIlrcStart, true), mats.ilrcConcrete));
-    contextGroup.add(new THREE.Mesh(evalILRCHull(42.72, 4.2, eastIlrcH - 0.5, 36, 4, eastIlrcSpan, eastIlrcStart, false), mats.windowGlass));
-
-    const eastIlrcRoofSlab = DPPDComplexBuilder._sliceSubdomain(
-      (u, v, p, n) => {
-        const th = eastIlrcStart + u * eastIlrcSpan;
-        const r = 30.8 + v * (42.6 - 30.8);
-        p.set(r * Math.cos(th), eastIlrcH, r * Math.sin(th));
-        n.set(0, 1, 0);
-      },
-      0.0, 1.0, 0.0, 1.0, 36, 2
-    );
-    contextGroup.add(new THREE.Mesh(eastIlrcRoofSlab, mats.ilrcConcrete));
-
-    const eastIlrcNorthEndWall = new THREE.Mesh(new THREE.BoxGeometry(11.8, eastIlrcH - 4.0, 0.65), mats.stoneRetaining);
-    eastIlrcNorthEndWall.position.set(36.7 * Math.cos(eastIlrcStart), 9.6, 36.7 * Math.sin(eastIlrcStart));
-    eastIlrcNorthEndWall.rotation.y = -eastIlrcStart;
-    contextGroup.add(eastIlrcNorthEndWall);
-
-    const eastIlrcCornerPillar = new THREE.Mesh(new THREE.BoxGeometry(0.95, 4.2, 0.95), mats.whiteMullion);
-    eastIlrcCornerPillar.position.set(42.1 * Math.cos(eastIlrcStart), 2.1, 42.1 * Math.sin(eastIlrcStart));
-    eastIlrcCornerPillar.rotation.y = -eastIlrcStart;
-    contextGroup.add(eastIlrcCornerPillar);
-
-    const gapBridgeTh = (-34.8 * Math.PI) / 180.0;
-    const gapConnectorWall = new THREE.Mesh(new THREE.BoxGeometry(2.4, 11.5, 4.8), mats.whiteMullion);
-    gapConnectorWall.position.set(35.5 * Math.cos(gapBridgeTh), 6.2, 35.5 * Math.sin(gapBridgeTh));
-    gapConnectorWall.rotation.y = -gapBridgeTh;
-    contextGroup.add(gapConnectorWall);
-
-    for (const yLedgeE of [4.2, 7.8, 11.4, 15.2]) {
-      const eLedgeGeo = DPPDComplexBuilder._sliceSubdomain(
-        (u, v, p, n) => {
-          const th = eastIlrcStart + u * eastIlrcSpan;
-          const r = 42.5 + v * 1.35;
-          p.set(r * Math.cos(th), yLedgeE, r * Math.sin(th));
-          n.set(0, 1, 0);
-        },
-        0.0, 1.0, 0.0, 1.0, 32, 2
-      );
-      contextGroup.add(new THREE.Mesh(eLedgeGeo, mats.whiteMullion));
-    }
-
-    for (let elv = 0; elv < 28; elv++) {
-      const thLv = eastIlrcStart + (0.04 + elv * 0.032) * eastIlrcSpan;
-      const lvBar = new THREE.Mesh(new THREE.BoxGeometry(0.16, 10.6, 0.22), mats.concreteTrim);
-      lvBar.position.set(43.45 * Math.cos(thLv), 9.6, 43.45 * Math.sin(thLv));
-      lvBar.rotation.y = -thLv;
-      contextGroup.add(lvBar);
-    }
-
-    // STP-UI Main North Drop-Off Portico, 3D "STP-UI" Letters, Warm Soffit Lighting, & Directory Totem
-    const northPorticoTh = (-79.5 * Math.PI) / 180.0;
-    const porticoGroup = new THREE.Group();
-    porticoGroup.position.set(45.2 * Math.cos(northPorticoTh), 0.0, 45.2 * Math.sin(northPorticoTh));
-    porticoGroup.rotation.y = -northPorticoTh;
-    contextGroup.add(porticoGroup);
-
-    const northPorticoCanopy = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.72, 12.6), mats.ilrcConcrete);
-    northPorticoCanopy.position.set(0.7, 4.18, 0.0);
-    porticoGroup.add(northPorticoCanopy);
-
-    const woodCeiling = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.12, 11.4), mats.copperACP);
-    woodCeiling.position.set(0.5, 3.80, 0.0);
-    porticoGroup.add(woodCeiling);
-
-    for (const zDown of [-3.6, 0.0, 3.6]) {
-      const porticoLight = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.45), mats.warmLuminaire);
-      porticoLight.position.set(0.8, 3.72, zDown);
-      porticoGroup.add(porticoLight);
-    }
-
-    for (let ch = 0; ch < 24; ch++) {
-      const chZ = -5.1 + ch * 0.44;
-      if (ch === 7 || ch === 14 || ch === 17) continue;
-      const letterMesh = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.28, 0.28), mats.asphaltRoad);
-      letterMesh.position.set(4.02, 4.18, chZ);
-      porticoGroup.add(letterMesh);
-    }
-
-    const vColLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 4.15, 12), mats.ilrcConcrete);
-    vColLeft.position.set(2.8, 2.05, -4.4);
-    vColLeft.rotation.x = -0.22;
-    porticoGroup.add(vColLeft);
-
-    for (const zCyl of [-2.8, 4.4]) {
-      const mainCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 4.10, 14), mats.ilrcConcrete);
-      mainCyl.position.set(2.6, 2.05, zCyl);
-      porticoGroup.add(mainCyl);
-    }
-
-    const blueLobbyBanner = new THREE.Mesh(new THREE.BoxGeometry(0.45, 3.65, 1.65), mats.disabilityBlue);
-    blueLobbyBanner.position.set(-1.35, 1.85, -3.8);
-    porticoGroup.add(blueLobbyBanner);
-
-    const porticoLobbyGlass = new THREE.Mesh(new THREE.BoxGeometry(0.85, 3.85, 10.6), mats.windowGlass);
-    porticoLobbyGlass.position.set(-1.6, 1.95, 0.0);
-    porticoGroup.add(porticoLobbyGlass);
-
-    for (const zPiloti of [-8.8, -14.2, -19.6]) {
-      const pilotiCol = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 4.15, 14), mats.ilrcConcrete);
-      pilotiCol.position.set(-0.65, 2.08, zPiloti);
-      porticoGroup.add(pilotiCol);
-    }
-    for (let bp = 0; bp < 5; bp++) {
-      const bFin = new THREE.Mesh(new THREE.BoxGeometry(0.32, 3.4, 0.55), mats.disabilityBlue);
-      bFin.position.set(-1.35, 1.75, -6.5 - bp * 1.45);
-      porticoGroup.add(bFin);
-    }
-
-    const wedgePlanter = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.92, 9.2), mats.whiteMullion);
-    wedgePlanter.position.set(5.4, 0.44, -2.4);
-    wedgePlanter.rotation.z = -0.18;
-    porticoGroup.add(wedgePlanter);
-
-    const wedgeFoliage = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.62, 8.4), mats.LushShrub);
-    wedgeFoliage.position.set(5.45, 0.85, -2.4);
-    wedgeFoliage.rotation.z = -0.18;
-    porticoGroup.add(wedgeFoliage);
-
-    const stpUiOffsetsZ = [-5.4, -3.9, -2.4, -1.1, 0.2, 1.6];
-    stpUiOffsetsZ.forEach((zOff, idx) => {
-      const isDash = idx === 3;
-      const letter3D = new THREE.Mesh(
-        new THREE.BoxGeometry(isDash ? 0.38 : 1.25, 0.24, isDash ? 0.75 : 0.92),
-        mats.copperACP
-      );
-      letter3D.position.set(5.55, 1.18, zOff);
-      letter3D.rotation.z = -0.18;
-      porticoGroup.add(letter3D);
-    });
-
-    const whiteTiledApron = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.16, 18.5), mats.concreteDriveway);
-    whiteTiledApron.position.set(7.45, 0.12, -2.2);
-    porticoGroup.add(whiteTiledApron);
-
-    const stpTotemSign = new THREE.Mesh(new THREE.BoxGeometry(1.08, 2.65, 0.28), mats.asphaltRoad);
-    stpTotemSign.position.set(6.4, 1.75, -9.2);
-    stpTotemSign.rotation.y = -0.25;
-    porticoGroup.add(stpTotemSign);
-
-    const stpTotemYellowBand = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.42, 0.32), mats.roadYellowLine);
-    stpTotemYellowBand.position.set(6.4, 0.72, -9.2);
-    stpTotemYellowBand.rotation.y = -0.25;
-    porticoGroup.add(stpTotemYellowBand);
-
-    // STP-UI L2 & L3 Copper-Bronze ACP Geometric Facade + L4..L8 5 Curved Concrete Sunshade Ledges
-    for (const yFrame of [4.2, 7.6, 11.0]) {
-      const frameLedgeGeo = DPPDComplexBuilder._sliceSubdomain(
-        (u, v, p, n) => {
-          const th = ilrcStart + u * stpArcSpan;
-          const r = 43.2 + v * 1.15;
-          p.set(r * Math.cos(th), yFrame, r * Math.sin(th));
-          n.set(0, 1, 0);
-        },
-        0.0, 1.0, 0.0, 1.0, 36, 2
-      );
-      contextGroup.add(new THREE.Mesh(frameLedgeGeo, mats.concreteTrim));
-    }
-
-    const copperBays = 22;
-    for (let cb = 1; cb < copperBays; cb++) {
-      const thBay = ilrcStart + (cb / copperBays) * (0.94 * stpArcSpan);
-      const rScreen = 44.25;
-      const bx = rScreen * Math.cos(thBay);
-      const bz = rScreen * Math.sin(thBay);
-      const tiltSign = cb % 2 === 0 ? 1.0 : -1.0;
-
-      const panelL2 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 3.38, 1.35), mats.copperACP);
-      panelL2.position.set(bx, 5.90, bz);
-      panelL2.rotation.y = -thBay;
-      panelL2.rotation.x = tiltSign * 0.14;
-      contextGroup.add(panelL2);
-
-      const panelL3 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 3.38, 1.35), mats.copperACP);
-      panelL3.position.set(bx, 9.30, bz);
-      panelL3.rotation.y = -thBay;
-      panelL3.rotation.x = -tiltSign * 0.14;
-      contextGroup.add(panelL3);
-    }
-
-    for (let fl = 0; fl < 5; fl++) {
-      const yFl = 11.0 + fl * 2.85;
-      const sunLedgeGeo = DPPDComplexBuilder._sliceSubdomain(
-        (u, v, p, n) => {
-          const th = ilrcStart + u * stpArcSpan;
-          const r = 43.1 + v * 1.35;
-          p.set(r * Math.cos(th), yFl, r * Math.sin(th));
-          n.set(0, 1, 0);
-        },
-        0.0, 1.0, 0.0, 1.0, 44, 2
-      );
-      contextGroup.add(new THREE.Mesh(sunLedgeGeo, mats.ilrcConcrete));
-      contextGroup.add(new THREE.Mesh(evalILRCHull(44.45, yFl - 0.22, yFl + 0.12, 44, 2, stpArcSpan), mats.whiteMullion));
-    }
-
-    for (let wb = 0; wb < 26; wb++) {
-      const thW = ilrcStart + (0.04 + wb * 0.034) * stpArcSpan;
-      const mFl4 = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.65, 0.14), mats.whiteMullion);
-      mFl4.position.set(43.38 * Math.cos(thW), 12.42, 43.38 * Math.sin(thW));
-      mFl4.rotation.y = -thW;
-      contextGroup.add(mFl4);
-
-      for (let fl = 1; fl <= 4; fl++) {
-        const yWin = 11.0 + fl * 2.85 + 1.35;
-        if ((wb + fl) % 3 !== 0) {
-          const wallPier = new THREE.Mesh(new THREE.BoxGeometry(0.22, 2.55, 1.85), mats.ilrcConcrete);
-          wallPier.position.set(43.36 * Math.cos(thW), yWin, 43.36 * Math.sin(thW));
-          wallPier.rotation.y = -thW;
-          contextGroup.add(wallPier);
-        } else {
-          const winFrame = new THREE.Mesh(new THREE.BoxGeometry(0.26, 1.75, 0.92), mats.whiteMullion);
-          winFrame.position.set(43.38 * Math.cos(thW), yWin, 43.38 * Math.sin(thW));
-          winFrame.rotation.y = -thW;
-          contextGroup.add(winFrame);
-
-          const winPane = new THREE.Mesh(new THREE.BoxGeometry(0.30, 1.55, 0.72), mats.windowGlass);
-          winPane.position.set(43.40 * Math.cos(thW), yWin, 43.40 * Math.sin(thW));
-          winPane.rotation.y = -thW;
-          contextGroup.add(winPane);
+    // Clean Single Watertight 2-Story End-Wall Fenestration at alphaMin (-44°) & alphaMax (+44°)
+    for (const endAlpha of [alphaMin, alphaMax]) {
+      const endGroup = new THREE.Group();
+      endGroup.rotation.y = endAlpha;
+      entranceGroup.add(endGroup);
+      const sgn = endAlpha > 0 ? 1 : -1;
+      for (const rW of [33.0, 39.2]) {
+        for (const yW of [3.55, 9.20]) {
+          const frame = new THREE.Mesh(new THREE.BoxGeometry(0.24, 3.10, 3.80), mats.whiteMullion);
+          frame.position.set(sgn * 0.08, yW, rW);
+          endGroup.add(frame);
+          const pane = new THREE.Mesh(new THREE.BoxGeometry(0.28, 2.75, 3.45), mats.windowGlass);
+          pane.position.set(sgn * 0.10, yW, rW);
+          endGroup.add(pane);
         }
       }
     }
 
-    // STP-UI NE Copper Fin Wall, Golden UI Makara Emblem, 2-Line 3D "SCIENCE TECHNO PARK / UNIVERSITAS INDONESIA" & Solar Array
-    const neWingEndTh = (-38.0 * Math.PI) / 180.0;
-    const neFinWall = new THREE.Mesh(new THREE.BoxGeometry(2.8, 25.6, 1.35), mats.copperACP);
-    neFinWall.position.set(44.1 * Math.cos(neWingEndTh), 12.8, 44.1 * Math.sin(neWingEndTh));
-    neFinWall.rotation.y = -neWingEndTh;
-    contextGroup.add(neFinWall);
-
-    const seStairWall = new THREE.Mesh(new THREE.BoxGeometry(12.2, 24.8, 0.85), mats.whiteMullion);
-    seStairWall.position.set(37.0 * Math.cos(neWingEndTh + 0.018), 12.4, 37.0 * Math.sin(neWingEndTh + 0.018));
-    seStairWall.rotation.y = -neWingEndTh;
-    contextGroup.add(seStairWall);
-
-    const makaraTh = (-40.8 * Math.PI) / 180.0;
-    const makaraGroup = new THREE.Group();
-    makaraGroup.position.set(44.58 * Math.cos(makaraTh), 23.15, 44.58 * Math.sin(makaraTh));
-    makaraGroup.rotation.y = -makaraTh;
-    const makaraBacking = new THREE.Mesh(new THREE.CylinderGeometry(1.18, 1.18, 0.16, 18), mats.asphaltRoad);
-    makaraBacking.rotation.z = Math.PI * 0.5;
-    makaraGroup.add(makaraBacking);
-    const makaraGoldCrest = new THREE.Mesh(new THREE.CylinderGeometry(0.96, 0.96, 0.22, 16), mats.brassSign);
-    makaraGoldCrest.rotation.z = Math.PI * 0.5;
-    makaraGroup.add(makaraGoldCrest);
-    contextGroup.add(makaraGroup);
-
-    for (let chTop = 0; chTop < 19; chTop++) {
-      if (chTop === 7 || chTop === 14) continue;
-      const thCh = (-43.2 - chTop * 0.88) * (Math.PI / 180.0);
-      const topLetter = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.68, 0.46), mats.whiteMullion);
-      topLetter.position.set(44.58 * Math.cos(thCh), 23.62, 44.58 * Math.sin(thCh));
-      topLetter.rotation.y = -thCh;
-      contextGroup.add(topLetter);
-    }
-    for (let chBot = 0; chBot < 21; chBot++) {
-      if (chBot === 11) continue;
-      const thCh = (-43.0 - chBot * 0.82) * (Math.PI / 180.0);
-      const botLetter = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.62, 0.42), mats.whiteMullion);
-      botLetter.position.set(44.58 * Math.cos(thCh), 22.65, 44.58 * Math.sin(thCh));
-      botLetter.rotation.y = -thCh;
-      contextGroup.add(botLetter);
+    // Rear Courtyard Portal Canopy on Gedung DPPD (alpha = 0°, r = 26.2 .. 29.0) facing Plaza Taman Inovasi Tengah
+    const rearCanopy = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.42, 3.2), mats.whiteMullion);
+    rearCanopy.position.set(0, 5.85, 27.4);
+    entranceGroup.add(rearCanopy);
+    for (const sx of [-3.1, 3.1]) {
+      const rCol = new THREE.Mesh(new THREE.BoxGeometry(0.48, 5.20, 0.48), mats.whiteMullion);
+      rCol.position.set(sx, 3.25, 26.2);
+      entranceGroup.add(rCol);
     }
 
-    const roofCrownGeo = DPPDComplexBuilder._sliceSubdomain(
-      (u, v, p, n) => {
-        const th = ilrcStart + u * stpArcSpan;
-        const r = 42.6 + v * 2.45;
-        p.set(r * Math.cos(th), ilrcHeight + 0.15, r * Math.sin(th));
-        n.set(0, 1, 0);
-      },
-      0.0, 1.0, 0.0, 1.0, 44, 2
+    // 2D. Proportional 2-Story Nusantara Terracotta Hipped Roof, Fascia, & Ridge Tiles (Bubungan)
+    const wingRoofGeo = DPPDComplexBuilder._sliceSubdomain(
+      (u, v, p, n) => DPPDComplexBuilder.evaluateWingRoofLocalSurface(u, v, p, n),
+      0, 1, 0, 1, 60, 18
     );
-    contextGroup.add(new THREE.Mesh(roofCrownGeo, mats.copperACP));
-    contextGroup.add(new THREE.Mesh(evalILRCHull(45.02, ilrcHeight - 0.55, ilrcHeight + 0.35, 44, 2, stpArcSpan, ilrcStart), mats.copperACP));
+    entranceGroup.add(new THREE.Mesh(wingRoofGeo, mats.terracottaRoof));
 
-    for (let sp = 0; sp < 14; sp++) {
-      const th = ilrcStart + (0.10 + sp * 0.055) * stpArcSpan;
-      const panel = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.24, 6.4), mats.solarPanel);
-      panel.position.set(37.2 * Math.cos(th), ilrcHeight + 0.35, 37.2 * Math.sin(th));
-      panel.rotation.y = -th + Math.PI * 0.5;
-      panel.rotation.z = 0.16;
-      contextGroup.add(panel);
-    }
-
-    // NW Glass Stair Tower & Louver Fins
-    const nwStairGlass = new THREE.Mesh(new THREE.BoxGeometry(4.4, 24.8, 13.6), mats.windowGlass);
-    nwStairGlass.position.set(37.2 * Math.cos(ilrcStart), 12.5, 37.2 * Math.sin(ilrcStart));
-    nwStairGlass.rotation.y = -ilrcStart;
-    contextGroup.add(nwStairGlass);
-
-    const louverTowerGroup = new THREE.Group();
-    louverTowerGroup.position.set(37.2 * Math.cos(ilrcStart), 0.0, 37.2 * Math.sin(ilrcStart));
-    louverTowerGroup.rotation.y = -ilrcStart;
-    for (let lv = -6; lv <= 6; lv++) {
-      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.18, 25.2, 0.45), mats.whiteMullion);
-      fin.position.set(-2.35, 12.6, lv * 1.02);
-      louverTowerGroup.add(fin);
-    }
-    contextGroup.add(louverTowerGroup);
-
-    // East Grove Trees, Breezeway Canopy, Cantilevered L4 Glass Box, & SE 25.2m Terracotta Brick Tower
-    const eastGroveCoords = [
-      { x: 48.2, z: -15.8, h: 8.2, r: 3.4, redFlush: true },
-      { x: 49.0, z: -11.5, h: 8.6, r: 3.6, redFlush: true },
-      { x: 49.5, z: -7.2, h: 8.0, r: 3.3, redFlush: true },
-      { x: 49.2, z: -2.8, h: 7.8, r: 3.2, redFlush: false },
-      { x: 48.8, z: 1.8, h: 8.2, r: 3.5, redFlush: true },
-      { x: 48.2, z: 6.4, h: 8.4, r: 3.6, redFlush: false },
-      { x: 47.2, z: 11.2, h: 8.0, r: 3.4, redFlush: false },
-      { x: 45.8, z: 15.8, h: 7.8, r: 3.2, redFlush: false }
-    ];
-    eastGroveCoords.forEach((eg) => {
-      const gTrunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, eg.h * 0.55, 8), mats.darkWoodFascia);
-      gTrunk.position.set(eg.x, eg.h * 0.27, eg.z);
-      contextGroup.add(gTrunk);
-
-      const gCrown = new THREE.Mesh(new THREE.SphereGeometry(eg.r, 8, 6), mats.LushShrub);
-      gCrown.position.set(eg.x, eg.h * 0.68, eg.z);
-      contextGroup.add(gCrown);
-
-      if (eg.redFlush) {
-        const flushCrown = new THREE.Mesh(new THREE.SphereGeometry(eg.r * 0.62, 8, 6), mats.terracottaFloor);
-        flushCrown.position.set(eg.x + 1.35, eg.h * 0.90, eg.z - 0.45);
-        flushCrown.scale.set(1.15, 0.65, 1.10);
-        contextGroup.add(flushCrown);
-      }
+    // Soffit & dark-teak eave fascia along outer (r = 46.0) & inner (r = 27.2) eaves
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.darkWoodFascia, dppdTh0, dppdTh1, 45.72, 46.04, 11.42, 11.82, 48);
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.darkWoodFascia, dppdTh0, dppdTh1, 27.16, 27.48, 11.42, 11.82, 48);
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.whiteMullion, dppdTh0, dppdTh1, 27.35, 45.85, 11.38, 11.45, 48, {
+      top: false,
+      bottom: true,
+      outer: false,
+      inner: false,
+      caps: false
     });
 
-    const seBreezewayTh = (19.5 * Math.PI) / 180.0;
-    const seBreezewayCanopy = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.36, 5.8), mats.whiteMullion);
-    seBreezewayCanopy.position.set(41.8 * Math.cos(seBreezewayTh), 3.65, 41.8 * Math.sin(seBreezewayTh));
-    seBreezewayCanopy.rotation.y = -seBreezewayTh;
-    contextGroup.add(seBreezewayCanopy);
+    const pStart = new THREE.Vector3();
+    const pEnd = new THREE.Vector3();
+    const dummyN = new THREE.Vector3();
+    for (let s = 0; s < 6; s++) {
+      const u0 = s === 0 ? 0.14 : s / 6;
+      const u1 = s === 5 ? 0.86 : (s + 1) / 6;
+      DPPDComplexBuilder.evaluateWingRoofLocalSurface(u0, 0.5, pStart, dummyN);
+      DPPDComplexBuilder.evaluateWingRoofLocalSurface(u1, 0.5, pEnd, dummyN);
+      const ridgeLen = pStart.distanceTo(pEnd);
+      const ridgeMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.46, 0.34, ridgeLen + 0.25),
+        mats.terracottaRidge
+      );
+      DPPDComplexBuilder._orientBeamAlongZ(ridgeMesh, pStart, pEnd, 0.12);
+      entranceGroup.add(ridgeMesh);
 
-    for (const degCol of [15.5, 23.5, 29.5]) {
-      const thCol = (degCol * Math.PI) / 180.0;
-      const sePiloti = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 4.2, 12), mats.whiteMullion);
-      sePiloti.position.set(41.5 * Math.cos(thCol), 2.1, 41.5 * Math.sin(thCol));
-      contextGroup.add(sePiloti);
+      if (s === 1 || s === 4) {
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 1.8, 6), mats.galvSteel);
+        rod.position.set(pStart.x, pStart.y + 0.95, pStart.z);
+        entranceGroup.add(rod);
+      }
     }
-
-    const cantTh = (22.5 * Math.PI) / 180.0;
-    const cantGroup = new THREE.Group();
-    cantGroup.position.set(43.8 * Math.cos(cantTh), 11.4, 43.8 * Math.sin(cantTh));
-    cantGroup.rotation.y = -cantTh;
-    const cantSlab = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.38, 2.8), mats.whiteMullion);
-    cantSlab.position.set(0.6, 0.0, 0.0);
-    cantGroup.add(cantSlab);
-    const cantGlassBox = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.8, 2.4), mats.windowGlass);
-    cantGlassBox.position.set(0.5, 2.05, 0.0);
-    cantGroup.add(cantGlassBox);
-    const cantTopCap = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.28, 2.7), mats.whiteMullion);
-    cantTopCap.position.set(0.55, 4.05, 0.0);
-    cantGroup.add(cantTopCap);
-    contextGroup.add(cantGroup);
-
-    // DRPM South-East Driveway, Open Iron Gates, Bamboo-Staked Mulch Mound, & SE 25.2m Terracotta Brick Tower
-    const n16Driveway = new THREE.Mesh(new THREE.BoxGeometry(14.5, 0.10, 6.2), mats.asphaltRoad);
-    n16Driveway.position.set(39.2, 0.088, 31.2);
-    n16Driveway.rotation.y = -0.62;
-    contextGroup.add(n16Driveway);
-
-    const bambooMoundGeo = DPPDComplexBuilder._sliceSubdomain(
-      (u, v, p, n) => {
-        const th = (48.5 * Math.PI) / 180.0 + u * ((47.5 * Math.PI) / 180.0);
-        const r = 45.8 + v * (52.0 - 45.8);
-        const taperEnd = Math.min(1.0, (1.0 - u) * 4.5);
-        const y = Math.sin(v * Math.PI) * 2.15 * taperEnd + 0.15;
-        p.set(r * Math.cos(th), y, r * Math.sin(th));
-        n.set(Math.cos(th) * 0.35, 0.93, Math.sin(th) * 0.35).normalize();
-      },
-      0.0, 1.0, 0.0, 1.0, 36, 6
-    );
-    contextGroup.add(new THREE.Mesh(bambooMoundGeo, mats.mulchSoil));
-
-    for (let bm = 0; bm < 56; bm++) {
-      const thBm = (49.0 + bm * 0.82) * (Math.PI / 180.0);
-      const stakeH = bm > 44 ? 0.65 * (1.0 - (bm - 44) / 14.0) : 0.65;
-      const stake = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, stakeH, 6), mats.copperACP);
-      stake.position.set(51.85 * Math.cos(thBm), 0.12 + stakeH * 0.5, 51.85 * Math.sin(thBm));
-      contextGroup.add(stake);
-    }
-
-    for (const [txM, tzM, rM] of [
-      [24.5, 44.2, 3.6],
-      [18.5, 47.5, 3.7],
-      [12.8, 49.8, 3.4],
-      [7.2, 50.8, 3.5],
-      [1.8, 51.0, 3.3]
+    for (const [uCorner, vCorner] of [
+      [0.002, 0.0],
+      [0.002, 1.0],
+      [0.998, 0.0],
+      [0.998, 1.0]
     ]) {
-      const mTreeTrunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.34, 4.8, 8), mats.darkWoodFascia);
-      mTreeTrunk.position.set(txM, 2.6, tzM);
-      contextGroup.add(mTreeTrunk);
-      const mTreeCrown = new THREE.Mesh(new THREE.SphereGeometry(rM, 8, 6), mats.LushShrub);
-      mTreeCrown.position.set(txM, 6.2, tzM);
-      contextGroup.add(mTreeCrown);
+      const uTip = uCorner < 0.5 ? 0.14 : 0.86;
+      DPPDComplexBuilder.evaluateWingRoofLocalSurface(uCorner, vCorner, pStart, dummyN);
+      DPPDComplexBuilder.evaluateWingRoofLocalSurface(uTip, 0.5, pEnd, dummyN);
+      const hipBeam = new THREE.Mesh(
+        new THREE.BoxGeometry(0.40, 0.30, pStart.distanceTo(pEnd) + 0.2),
+        mats.terracottaRidge
+      );
+      DPPDComplexBuilder._orientBeamAlongZ(hipBeam, pStart, pEnd, 0.10);
+      entranceGroup.add(hipBeam);
     }
 
-    const swWingGroup = new THREE.Group();
-    swWingGroup.position.set(14.2, 0.0, 41.8);
-    swWingGroup.rotation.y = -0.32;
-    contextGroup.add(swWingGroup);
+    // 2E. Central 2-Story Front Nusantara Gable Pavilion, UI Makara Pediment, 1-Story Portico, Stairs, Ramp & Flagpole!
+    const gHalfW = 8.4;
+    const gZBack = 35.8;
+    const gZFront = 45.4;
+    const gEaveY = 11.75;
+    const gPeakY = 18.05;
 
-    for (const xPil of [-3.6, 0.0, 3.6]) {
-      const swPiloti = new THREE.Mesh(new THREE.BoxGeometry(0.68, 3.8, 0.68), mats.whiteMullion);
-      swPiloti.position.set(xPil, 1.9, 0.0);
-      swWingGroup.add(swPiloti);
-    }
-    const swGroundWall = new THREE.Mesh(new THREE.BoxGeometry(8.6, 3.6, 0.45), mats.creamWall);
-    swGroundWall.position.set(0.0, 1.8, -0.8);
-    swWingGroup.add(swGroundWall);
-    const swCantileverFloor = new THREE.Mesh(new THREE.BoxGeometry(9.4, 0.42, 2.6), mats.whiteMullion);
-    swCantileverFloor.position.set(0.0, 3.85, 0.2);
-    swWingGroup.add(swCantileverFloor);
-    const swCornerGlass = new THREE.Mesh(new THREE.BoxGeometry(9.2, 2.85, 2.4), mats.windowGlass);
-    swCornerGlass.position.set(0.0, 5.48, 0.2);
-    swWingGroup.add(swCornerGlass);
-    const swUpperLouverBlock = new THREE.Mesh(new THREE.BoxGeometry(9.4, 8.8, 2.5), mats.ilrcConcrete);
-    swUpperLouverBlock.position.set(0.0, 11.3, 0.2);
-    swWingGroup.add(swUpperLouverBlock);
+    // 2-Story Front Central Projection Block (L1 Grand Entrance Doors + L2 Conference Ribbon Windows)
+    const centerBlock = new THREE.Mesh(
+      new THREE.BoxGeometry(gHalfW * 2.0, 11.05, gZFront - gZBack),
+      mats.creamWall
+    );
+    centerBlock.position.set(0, 6.20, (gZBack + gZFront) * 0.5);
+    entranceGroup.add(centerBlock);
 
-    const ilrcEnd = ilrcStart + ilrcArcSpan;
-    const endTowerSE = new THREE.Mesh(new THREE.BoxGeometry(8.5, 25.2, 16.5), mats.ilrcBrickWing);
-    endTowerSE.position.set(38.2 * Math.cos(ilrcEnd), 12.6, 38.2 * Math.sin(ilrcEnd));
-    endTowerSE.rotation.y = -ilrcEnd;
-    contextGroup.add(endTowerSE);
+    const centerSpandrel = new THREE.Mesh(
+      new THREE.BoxGeometry(gHalfW * 2.0 + 0.8, 0.56, gZFront - gZBack + 0.9),
+      mats.whiteMullion
+    );
+    centerSpandrel.position.set(0, 6.38, (gZBack + gZFront) * 0.5 + 0.15);
+    entranceGroup.add(centerSpandrel);
 
-    const seTowerCrown = new THREE.Mesh(new THREE.BoxGeometry(9.2, 3.4, 18.2), mats.ilrcBrickWing);
-    seTowerCrown.position.set(39.2 * Math.cos(ilrcEnd), 23.6, 39.2 * Math.sin(ilrcEnd));
-    seTowerCrown.rotation.y = -ilrcEnd;
-    seTowerCrown.rotation.x = 0.18;
-    contextGroup.add(seTowerCrown);
+    const centerTopBeam = new THREE.Mesh(
+      new THREE.BoxGeometry(gHalfW * 2.0 + 0.8, 0.78, gZFront - gZBack + 0.9),
+      mats.whiteMullion
+    );
+    centerTopBeam.position.set(0, 11.36, (gZBack + gZFront) * 0.5 + 0.15);
+    entranceGroup.add(centerTopBeam);
 
-    for (const yHood of [11.5, 15.2, 18.9]) {
-      const hoodBox = new THREE.Mesh(new THREE.BoxGeometry(1.65, 1.55, 0.95), mats.stoneRetaining);
-      hoodBox.position.set(38.2 * Math.cos(ilrcEnd) - 2.2, yHood, 38.2 * Math.sin(ilrcEnd) + 5.8);
-      hoodBox.rotation.y = -ilrcEnd;
-      contextGroup.add(hoodBox);
+    // Front L1 Grand Glazed Entrance Lobby & L2 5-Bay Conference Windows
+    const l1LobbyGlass = new THREE.Mesh(new THREE.BoxGeometry(11.6, 4.55, 0.30), mats.windowGlass);
+    l1LobbyGlass.position.set(0, 3.15, gZFront + 0.04);
+    entranceGroup.add(l1LobbyGlass);
 
-      const hoodPane = new THREE.Mesh(new THREE.BoxGeometry(1.35, 1.22, 1.02), mats.windowGlass);
-      hoodPane.position.copy(hoodBox.position);
-      hoodPane.rotation.y = -ilrcEnd;
-      contextGroup.add(hoodPane);
+    const l2RibbonGlass = new THREE.Mesh(new THREE.BoxGeometry(13.6, 3.25, 0.30), mats.windowGlass);
+    l2RibbonGlass.position.set(0, 9.22, gZFront + 0.04);
+    entranceGroup.add(l2RibbonGlass);
 
-      const hoodCanopy = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.16, 1.25), mats.whiteMullion);
-      hoodCanopy.position.set(38.2 * Math.cos(ilrcEnd) - 2.3, yHood + 0.85, 38.2 * Math.sin(ilrcEnd) + 6.0);
-      hoodCanopy.rotation.y = -ilrcEnd;
-      hoodCanopy.rotation.x = 0.28;
-      contextGroup.add(hoodCanopy);
-
-      const balcFrame = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.8, 0.65), mats.whiteMullion);
-      balcFrame.position.set(42.2 * Math.cos(ilrcEnd - 0.04), yHood, 42.2 * Math.sin(ilrcEnd - 0.04));
-      balcFrame.rotation.y = -ilrcEnd;
-      contextGroup.add(balcFrame);
+    for (let m = -3; m <= 3; m++) {
+      const mx = m * 2.24;
+      const mul2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 3.40, 0.38), mats.whiteMullion);
+      mul2.position.set(mx, 9.22, gZFront + 0.08);
+      entranceGroup.add(mul2);
+      if (Math.abs(m) <= 2) {
+        const mul1 = new THREE.Mesh(new THREE.BoxGeometry(0.24, 4.65, 0.38), mats.whiteMullion);
+        mul1.position.set(m * 2.85, 3.15, gZFront + 0.08);
+        entranceGroup.add(mul1);
+      }
     }
 
-    // 7. BAKE ENTIRE HIERARCHY INTO { horizontalGeo, verticalGeo } FOR +0 EXTRA DRAW CALLS!
+    // Proportional Triangular Gable Pediment + Overhanging Sloped Terracotta Roof Planes + Timber Bargeboards
+    const gableWallGeo = DPPDComplexBuilder._buildPolygonPrismGeo(
+      [
+        [-gHalfW, gEaveY],
+        [gHalfW, gEaveY],
+        [0.0, gPeakY - 0.35]
+      ],
+      gZFront - gZBack
+    );
+    const gableWall = new THREE.Mesh(gableWallGeo, mats.creamWall);
+    gableWall.position.z = gZBack;
+    entranceGroup.add(gableWall);
+
+    // Recessed Pediment Accent Frame + Golden UI Makara Emblem + 3D "GEDUNG DPPD UI" Signage!
+    const pedimentInsetGeo = DPPDComplexBuilder._buildPolygonPrismGeo(
+      [
+        [-gHalfW + 1.45, gEaveY + 0.45],
+        [gHalfW - 1.45, gEaveY + 0.45],
+        [0.0, gPeakY - 1.25]
+      ],
+      0.22
+    );
+    const pedimentInset = new THREE.Mesh(pedimentInsetGeo, mats.warmStonePanel);
+    pedimentInset.position.z = gZFront - 0.04;
+    entranceGroup.add(pedimentInset);
+
+    const dppdMakara = DPPDComplexBuilder._buildUIMakaraEmblem(mats, 1.32);
+    dppdMakara.position.set(0, 14.95, gZFront + 0.22);
+    entranceGroup.add(dppdMakara);
+
+    const dppdSignPlate = new THREE.Mesh(new THREE.BoxGeometry(11.4, 1.15, 0.20), mats.darkAnodized);
+    dppdSignPlate.position.set(0, 12.65, gZFront + 0.18);
+    entranceGroup.add(dppdSignPlate);
+    DPPDComplexBuilder._addPlanar3DText(
+      entranceGroup,
+      'GEDUNG DPPD UI',
+      0.0,
+      12.32,
+      gZFront + 0.32,
+      0.66,
+      0.16,
+      mats.brassSign
+    );
+
+    const roofOverZ = 1.45;
+    const roofOverX = 1.15;
+    const slopeLen = Math.hypot(gHalfW + roofOverX, gPeakY - gEaveY + 0.45);
+    const slopeAngle = Math.atan2(gPeakY - gEaveY, gHalfW);
+    for (const sgn of [-1, 1]) {
+      const roofSlope = new THREE.Mesh(
+        new THREE.BoxGeometry(slopeLen, 0.32, gZFront - gZBack + roofOverZ * 2.0),
+        mats.terracottaRoof
+      );
+      roofSlope.position.set(
+        sgn * (gHalfW + roofOverX) * 0.48,
+        (gEaveY + gPeakY) * 0.5 - 0.05,
+        (gZBack + gZFront) * 0.5 + 0.35
+      );
+      roofSlope.rotation.z = -sgn * slopeAngle;
+      entranceGroup.add(roofSlope);
+
+      const barge = new THREE.Mesh(new THREE.BoxGeometry(slopeLen + 0.1, 0.44, 0.24), mats.darkWoodFascia);
+      barge.position.set(
+        sgn * (gHalfW + roofOverX) * 0.48,
+        (gEaveY + gPeakY) * 0.5 - 0.12,
+        gZFront + roofOverZ + 0.25
+      );
+      barge.rotation.z = -sgn * slopeAngle;
+      entranceGroup.add(barge);
+    }
+    const mainGableRidge = new THREE.Mesh(
+      new THREE.BoxGeometry(0.52, 0.40, gZFront - gZBack + roofOverZ * 2.0 + 0.3),
+      mats.terracottaRidge
+    );
+    mainGableRidge.position.set(0, gPeakY + 0.14, (gZBack + gZFront) * 0.5 + 0.35);
+    entranceGroup.add(mainGableRidge);
+
+    // 1-Story Front Drop-Off Portico Canopy, 4 Sculpted Columns, Ceremonial Terracotta Steps, Accessible Ramp, & Flagpole
+    const porchPodium = new THREE.Mesh(new THREE.BoxGeometry(12.8, 0.68, 4.6), mats.terracottaFloor);
+    porchPodium.position.set(0, 0.34, 47.6);
+    entranceGroup.add(porchPodium);
+
+    for (let st = 0; st < 3; st++) {
+      const step = new THREE.Mesh(
+        new THREE.BoxGeometry(8.8 + st * 0.5, 0.22, 0.55),
+        st % 2 === 0 ? mats.terracottaFloor : mats.concreteCurb
+      );
+      step.position.set(0, 0.56 - st * 0.21, 50.15 + st * 0.48);
+      entranceGroup.add(step);
+    }
+
+    // Inclusive Blue-Tile Disability Ramp on West (+X in entranceGroup) flank of portico
+    const ramp = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.22, 3.6), mats.disabilityBlue);
+    ramp.position.set(5.45, 0.34, 50.3);
+    ramp.rotation.x = 0.16;
+    entranceGroup.add(ramp);
+    for (const rx of [4.62, 6.28]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.85, 3.5), mats.galvSteel);
+      rail.position.set(rx, 0.86, 50.3);
+      entranceGroup.add(rail);
+    }
+
+    for (const px of [-5.2, -1.85, 1.85, 5.2]) {
+      const pCol = new THREE.Mesh(new THREE.BoxGeometry(0.58, 5.05, 0.58), mats.whiteMullion);
+      pCol.position.set(px, 3.18, 49.45);
+      entranceGroup.add(pCol);
+      const pBase = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.58, 0.76), mats.granitePlinth);
+      pBase.position.set(px, 0.96, 49.45);
+      entranceGroup.add(pBase);
+    }
+
+    const porchSlab = new THREE.Mesh(new THREE.BoxGeometry(13.6, 0.46, 5.2), mats.whiteMullion);
+    porchSlab.position.set(0, 5.82, 47.85);
+    entranceGroup.add(porchSlab);
+
+    // Symmetrical Nusantara Gabled Portico Roof (aligned 100% flush with main central gable axis!)
+    const pHalfW = 6.55;
+    const pZBack = 45.30;
+    const pZFront = 50.45;
+    const pEaveY = 6.05;
+    const pPeakY = 8.28;
+    const porchPediment = new THREE.Mesh(
+      DPPDComplexBuilder._buildPolygonPrismGeo(
+        [
+          [-pHalfW, pEaveY],
+          [pHalfW, pEaveY],
+          [0.0, pPeakY - 0.18]
+        ],
+        pZFront - pZBack
+      ),
+      mats.creamWall
+    );
+    porchPediment.position.z = pZBack;
+    entranceGroup.add(porchPediment);
+
+    const porchInset = new THREE.Mesh(
+      DPPDComplexBuilder._buildPolygonPrismGeo(
+        [
+          [-pHalfW + 1.15, pEaveY + 0.28],
+          [pHalfW - 1.15, pEaveY + 0.28],
+          [0.0, pPeakY - 0.68]
+        ],
+        0.16
+      ),
+      mats.warmStonePanel
+    );
+    porchInset.position.z = pZFront - 0.04;
+    entranceGroup.add(porchInset);
+
+    const pSlopeLen = Math.hypot(pHalfW + 0.65, pPeakY - pEaveY + 0.22);
+    const pSlopeAng = Math.atan2(pPeakY - pEaveY, pHalfW);
+    for (const sgn of [-1, 1]) {
+      const pSlope = new THREE.Mesh(
+        new THREE.BoxGeometry(pSlopeLen, 0.24, pZFront - pZBack + 1.10),
+        mats.terracottaRoof
+      );
+      pSlope.position.set(
+        sgn * (pHalfW + 0.65) * 0.48,
+        (pEaveY + pPeakY) * 0.5 - 0.04,
+        (pZBack + pZFront) * 0.5 + 0.18
+      );
+      pSlope.rotation.z = -sgn * pSlopeAng;
+      entranceGroup.add(pSlope);
+
+      const pBarge = new THREE.Mesh(
+        new THREE.BoxGeometry(pSlopeLen + 0.08, 0.30, 0.18),
+        mats.darkWoodFascia
+      );
+      pBarge.position.set(
+        sgn * (pHalfW + 0.65) * 0.48,
+        (pEaveY + pPeakY) * 0.5 - 0.08,
+        pZFront + 0.72
+      );
+      pBarge.rotation.z = -sgn * pSlopeAng;
+      entranceGroup.add(pBarge);
+    }
+    const porchRidge = new THREE.Mesh(
+      new THREE.BoxGeometry(0.40, 0.30, pZFront - pZBack + 1.25),
+      mats.terracottaRidge
+    );
+    porchRidge.position.set(0, pPeakY + 0.10, (pZBack + pZFront) * 0.5 + 0.18);
+    entranceGroup.add(porchRidge);
+
+    // Photocell warm portico downlights (v = -890.0)
+    for (const lx of [-3.5, 0.0, 3.5]) {
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.08, 0.65), mats.warmLuminaire);
+      lamp.position.set(lx, 5.56, 48.2);
+      entranceGroup.add(lamp);
+    }
+
+    // Ceremonial Merah-Putih Flagpole & Pair of Framing Royal Palms (clear of portico, windows, & crosswalk!)
+    const flagPedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.82, 0.72, 16), mats.granitePlinth);
+    flagPedestal.position.set(-9.85, 0.36, 49.6);
+    entranceGroup.add(flagPedestal);
+    const flagPole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.13, 11.2, 10), mats.whiteMullion);
+    flagPole.position.set(-9.85, 6.15, 49.6);
+    entranceGroup.add(flagPole);
+    const flagRed = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.62, 0.06), mats.hydrantRed);
+    flagRed.position.set(-8.78, 11.25, 49.6);
+    entranceGroup.add(flagRed);
+    const flagWhite = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.62, 0.06), mats.whiteMullion);
+    flagWhite.position.set(-8.78, 10.63, 49.6);
+    entranceGroup.add(flagWhite);
+
+    entranceGroup.add(DPPDComplexBuilder._buildRoyalPalm(mats, -13.6, 0.0, 48.0, 11.4));
+    entranceGroup.add(DPPDComplexBuilder._buildRoyalPalm(mats, 13.6, 0.0, 48.0, 11.4));
+
+    // =========================================================================
+    // 3. GEDUNG ILRC UI — STRICTLY 6 STORIES WITH 100% UNIFORM FLAT ROOFLINE (RATA TINGGINYA!)
+    //    Modeled directly after real Gedung ILRC UI Depok photos:
+    //    - 100.0% continuous, razor-level horizontal top white crown fascia & parapet (y = 36.25 from end to end — ZERO stepped wings or rooftop boxes!)
+    //    - 6 continuous curved precast-white horizontal spandrel & sunshade bands (outer wings + inner courtyard!)
+    //    - Central 6-story symmetrical terracotta-brick twin-pier glazed atrium entrance portal terminating cleanly underneath the flat top crown fascia!
+    // =========================================================================
+    const ilrcTh0 = (DPPDComplexBuilder.ILRC_START_DEG * Math.PI) / 180.0;
+    const ilrcTh1 = (DPPDComplexBuilder.ILRC_END_DEG * Math.PI) / 180.0;
+    const ilrcCenterTh = 0.5 * (ilrcTh0 + ilrcTh1); // +35°
+    const ilrcRIn = 31.4;
+    const ilrcROut = 43.4;
+    const ilrcMidR = 37.4;
+    const ilrcFloorTops = [6.65, 12.15, 17.65, 23.15, 28.65, 34.15]; // Exact 6 stories!
+
+    const pierHalfAng = 0.032;
+    const portalHalfAng = 0.112;
+    const rPierTh0 = ilrcCenterTh - portalHalfAng - pierHalfAng;
+    const rPierTh1 = ilrcCenterTh - portalHalfAng + pierHalfAng;
+    const lPierTh0 = ilrcCenterTh + portalHalfAng - pierHalfAng;
+    const lPierTh1 = ilrcCenterTh + portalHalfAng + pierHalfAng;
+
+    // Plinth, Ground Approach Apron, & L1 Glazed Research Commons Core
+    DPPDComplexBuilder._addCurvedBand(contextGroup, mats.granitePlinth, ilrcTh0, ilrcTh1, ilrcRIn - 0.3, ilrcROut + 0.3, -0.35, 0.48, 48);
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.courtyardGranite,
+      ilrcCenterTh - 0.17,
+      ilrcCenterTh + 0.17,
+      ilrcROut,
+      52.8,
+      0.02,
+      0.16,
+      16
+    );
+    DPPDComplexBuilder._addCurvedBand(contextGroup, mats.windowGlass, ilrcTh0, ilrcTh1, ilrcRIn + 0.45, ilrcROut - 0.55, 0.48, 5.80, 48);
+
+    // Build all 6 clearly countable floor slabs, spandrel bands, & projecting sunshade ledges (L1..L6)!
+    // Outer sunshades terminate cleanly against the twin terracotta portal piers while inner courtyard bands run full-arc!
+    for (let fl = 0; fl < 6; fl++) {
+      const yTop = ilrcFloorTops[fl];
+      const yBot = fl === 0 ? 0.48 : ilrcFloorTops[fl - 1];
+
+      if (fl >= 1) {
+        // Upper floors L2..L6: lower concrete sill wall (inner full-arc + outer right/left wings flanking central glass atrium)
+        DPPDComplexBuilder._addCurvedBand(contextGroup, mats.ilrcConcrete, ilrcTh0, ilrcTh1, ilrcRIn, ilrcMidR, yBot, yBot + 1.35, 48);
+        DPPDComplexBuilder._addCurvedBand(contextGroup, mats.ilrcConcrete, ilrcTh0, rPierTh0, ilrcMidR, ilrcROut, yBot, yBot + 1.35, 22);
+        DPPDComplexBuilder._addCurvedBand(contextGroup, mats.ilrcConcrete, lPierTh1, ilrcTh1, ilrcMidR, ilrcROut, yBot, yBot + 1.35, 22);
+
+        // Continuous dark-glazed laboratory ribbon windows across all bays
+        DPPDComplexBuilder._addCurvedBand(
+          contextGroup,
+          mats.windowGlass,
+          ilrcTh0,
+          ilrcTh1,
+          ilrcRIn + 0.22,
+          ilrcROut - 0.22,
+          yBot + 1.35,
+          yTop - 0.85,
+          48
+        );
+      }
+
+      // Inner courtyard projecting sunshade ledge (continuous full arc)
+      DPPDComplexBuilder._addCurvedBand(
+        contextGroup,
+        mats.facadeWhite,
+        ilrcTh0,
+        ilrcTh1,
+        ilrcRIn - 0.52,
+        ilrcMidR,
+        yTop - 0.85,
+        yTop,
+        48
+      );
+      // Outer right & left wing projecting curved sunshade ledges (flanking the twin terracotta piers cleanly, matching real photo!)
+      DPPDComplexBuilder._addCurvedBand(
+        contextGroup,
+        mats.facadeWhite,
+        ilrcTh0,
+        rPierTh0,
+        ilrcMidR,
+        ilrcROut + 0.58,
+        yTop - 0.85,
+        yTop,
+        24
+      );
+      DPPDComplexBuilder._addCurvedBand(
+        contextGroup,
+        mats.facadeWhite,
+        lPierTh1,
+        ilrcTh1,
+        ilrcMidR,
+        ilrcROut + 0.58,
+        yTop - 0.85,
+        yTop,
+        24
+      );
+
+      // Subtle recessed dark-anodized horizontal curtain-wall transom inside central glass atrium (L1..L5)
+      if (fl < 5) {
+        DPPDComplexBuilder._addCurvedBand(
+          contextGroup,
+          mats.darkAnodized,
+          rPierTh1,
+          lPierTh0,
+          ilrcROut - 0.52,
+          ilrcROut + 0.10,
+          yTop - 0.36,
+          yTop - 0.06,
+          10
+        );
+      }
+    }
+
+    // 100.0% FLAT, CONTINUOUS, UNBROKEN FULL-ARC TOP ROOF CROWN FASCIA & COPING (y = 34.15 .. 36.25 across ENTIRE ilrcTh0..ilrcTh1!)
+    // Zero rooftop penthouse hump, zero raised central signboard box, zero stepped wing — 0.00m height variation from end to end!
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.facadeWhite,
+      ilrcTh0,
+      ilrcTh1,
+      ilrcRIn - 0.56,
+      ilrcROut + 0.86,
+      34.15,
+      36.05,
+      56
+    );
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.whiteMullion,
+      ilrcTh0,
+      ilrcTh1,
+      ilrcRIn - 0.64,
+      ilrcROut + 0.94,
+      36.05,
+      36.25,
+      56
+    );
+    // Flat recessed concrete roof membrane deck tucked cleanly inside the continuous 36.25 perimeter parapet coping
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.ilrcConcrete,
+      ilrcTh0 + 0.006,
+      ilrcTh1 - 0.006,
+      ilrcRIn + 0.15,
+      ilrcROut - 0.15,
+      35.45,
+      35.88,
+      48
+    );
+
+    // Rhythmic L1 Structural Piloti Columns + L1..L6 Vertical Aluminum Sun-Breaker Louvers & Mullions (Outer + Inner!)
+    const ilrcBays = 24;
+    for (let i = 0; i <= ilrcBays; i++) {
+      const th = ilrcTh0 + (i / ilrcBays) * (ilrcTh1 - ilrcTh0);
+      const inPortal = th > rPierTh0 - 0.008 && th < lPierTh1 + 0.008;
+      const cT = Math.cos(th);
+      const sT = Math.sin(th);
+
+      if (!inPortal) {
+        // Outer L1 piloti round column + L2..L6 vertical sun-breaker fin (terminating cleanly at y = 34.15 under flat crown!)
+        const piloti = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.40, 5.45, 12), mats.facadeWhite);
+        piloti.position.set((ilrcROut - 0.15) * cT, 3.15, (ilrcROut - 0.15) * sT);
+        contextGroup.add(piloti);
+
+        const vFin = new THREE.Mesh(new THREE.BoxGeometry(0.55, 27.5, 0.18), mats.facadeWhite);
+        vFin.position.set((ilrcROut + 0.18) * cT, 20.40, (ilrcROut + 0.18) * sT);
+        vFin.rotation.y = -th;
+        contextGroup.add(vFin);
+      }
+
+      // Inner courtyard L1 piloti + L2..L6 vertical mullion fin (zero blank inner wall!)
+      const inPiloti = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.36, 5.45, 10), mats.facadeWhite);
+      inPiloti.position.set((ilrcRIn + 0.15) * cT, 3.15, (ilrcRIn + 0.15) * sT);
+      contextGroup.add(inPiloti);
+
+      const inFin = new THREE.Mesh(new THREE.BoxGeometry(0.45, 27.5, 0.16), mats.facadeWhite);
+      inFin.position.set((ilrcRIn - 0.14) * cT, 20.40, (ilrcRIn - 0.14) * sT);
+      inFin.rotation.y = -th;
+      contextGroup.add(inFin);
+
+      if (i < ilrcBays) {
+        const thMid = th + (0.5 / ilrcBays) * (ilrcTh1 - ilrcTh0);
+        const midInPortal = thMid > rPierTh0 - 0.008 && thMid < lPierTh1 + 0.008;
+        if (!midInPortal) {
+          const mOut = new THREE.Mesh(new THREE.BoxGeometry(0.24, 33.0, 0.12), mats.darkAnodized);
+          mOut.position.set((ilrcROut - 0.18) * Math.cos(thMid), 17.3, (ilrcROut - 0.18) * Math.sin(thMid));
+          mOut.rotation.y = -thMid;
+          contextGroup.add(mOut);
+        }
+
+        const mIn = new THREE.Mesh(new THREE.BoxGeometry(0.24, 33.0, 0.12), mats.darkAnodized);
+        mIn.position.set((ilrcRIn + 0.18) * Math.cos(thMid), 17.3, (ilrcRIn + 0.18) * Math.sin(thMid));
+        mIn.rotation.y = -thMid;
+        contextGroup.add(mIn);
+      }
+    }
+
+    // Both ILRC End Walls (ilrcTh0 & ilrcTh1): Clean Precast-White Stair-Core Frame & 6-Story Glazed Stairwell Slot
+    // Terminates flush at y = 34.15 right beneath the continuous 34.15..36.25 flat roof crown (zero corner height step!)
+    for (const [thEnd, sgn] of [
+      [ilrcTh0, -1],
+      [ilrcTh1, 1]
+    ]) {
+      const endGrp = new THREE.Group();
+      endGrp.rotation.y = -thEnd;
+      contextGroup.add(endGrp);
+
+      const stairTrim = new THREE.Mesh(new THREE.BoxGeometry(8.4, 34.15, 0.36), mats.facadeWhite);
+      stairTrim.position.set(37.4, 17.075, sgn * 0.16);
+      endGrp.add(stairTrim);
+
+      const stairGlass = new THREE.Mesh(new THREE.BoxGeometry(3.0, 31.2, 0.44), mats.windowGlass);
+      stairGlass.position.set(37.4, 17.6, sgn * 0.20);
+      endGrp.add(stairGlass);
+
+      for (let fl = 0; fl < 6; fl++) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.32, 0.50), mats.facadeWhite);
+        bar.position.set(37.4, ilrcFloorTops[fl] - 0.42, sgn * 0.22);
+        endGrp.add(bar);
+      }
+    }
+
+    // ICONIC ILRC 6-STORY SYMMETRICAL TERRACOTTA-BRICK TWIN-PIER MONUMENTAL ATRIUM PORTAL (at +35°, matching real photo!)
+    // Both piers rise from y = 0.0 to y = 34.15 — terminating cleanly UNDERNEATH the continuous flat white top crown fascia!
+    for (const [pThA, pThB] of [
+      [rPierTh0, rPierTh1],
+      [lPierTh0, lPierTh1]
+    ]) {
+      DPPDComplexBuilder._addCurvedBand(
+        contextGroup,
+        mats.ilrcBrickPortal,
+        pThA,
+        pThB,
+        ilrcRIn + 2.8,
+        ilrcROut + 0.82,
+        0.0,
+        34.15,
+        6
+      );
+    }
+    // Recessed 6-story central glass atrium curtain wall + vertical mullions between the twin terracotta piers
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.windowGlass,
+      rPierTh1,
+      lPierTh0,
+      ilrcROut - 0.58,
+      ilrcROut + 0.06,
+      0.48,
+      34.15,
+      12
+    );
+    for (const frac of [-0.5, 0.0, 0.5]) {
+      const thM = ilrcCenterTh + frac * (lPierTh0 - rPierTh1);
+      const aMul = new THREE.Mesh(new THREE.BoxGeometry(0.18, 27.9, 0.18), mats.darkAnodized);
+      aMul.position.set((ilrcROut + 0.08) * Math.cos(thM), 20.15, (ilrcROut + 0.08) * Math.sin(thM));
+      aMul.rotation.y = -thM;
+      contextGroup.add(aMul);
+    }
+
+    // Projecting ILRC Ground-Floor Drop-Off Canopy + Photocell Downlights!
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.ilrcBrickPortal,
+      ilrcCenterTh - 0.14,
+      ilrcCenterTh + 0.14,
+      ilrcROut + 0.2,
+      ilrcROut + 4.6,
+      5.55,
+      6.20,
+      12
+    );
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.facadeWhite,
+      ilrcCenterTh - 0.144,
+      ilrcCenterTh + 0.144,
+      ilrcROut + 4.35,
+      ilrcROut + 4.68,
+      6.12,
+      6.32,
+      12
+    );
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.warmLuminaire,
+      ilrcCenterTh - 0.11,
+      ilrcCenterTh + 0.11,
+      ilrcROut + 1.2,
+      ilrcROut + 3.8,
+      5.48,
+      5.54,
+      8
+    );
+    for (const sgn of [-1, 1]) {
+      const thP = ilrcCenterTh + sgn * 0.11;
+      const cCol = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.34, 5.55, 12), mats.ilrcBrickPortal);
+      cCol.position.set((ilrcROut + 4.1) * Math.cos(thP), 2.78, (ilrcROut + 4.1) * Math.sin(thP));
+      contextGroup.add(cCol);
+    }
+
+    // UI Makara + Left-to-Right 3D "GEDUNG ILRC UI" Signage mounted directly on the continuous flat y = 34.15..36.05 crown fascia!
+    const ilrcMakaraTh = ilrcCenterTh + 0.138;
+    const ilrcMakara = DPPDComplexBuilder._buildUIMakaraEmblem(mats, 0.88);
+    ilrcMakara.position.set(
+      (ilrcROut + 0.94) * Math.cos(ilrcMakaraTh),
+      35.12,
+      (ilrcROut + 0.94) * Math.sin(ilrcMakaraTh)
+    );
+    ilrcMakara.rotation.y = Math.PI * 0.5 - ilrcMakaraTh;
+    contextGroup.add(ilrcMakara);
+
+    DPPDComplexBuilder._addCurved3DText(
+      contextGroup,
+      'GEDUNG ILRC UI',
+      ilrcROut + 0.94,
+      ilrcCenterTh + 0.092,
+      34.68,
+      0.92,
+      0.20,
+      mats.darkAnodized,
+      -1.0
+    );
+
+    // =========================================================================
+    // 4. GEDUNG STP-UI — STRICTLY 8 STORIES (8 LANTAI: L1 LOBBY + L2-L3 COPPER DIAGRID + L4-L7 WHITE/BOX + L8 CROWN)
+    //    Modeled directly after real Gedung Science Techno Park UI Depok photos:
+    //    - Wrapping Copper-Terracotta ACP Vertical End Frames & Overhanging Top Roof Cornice
+    //    - L2-L3 Angled Copper-ACP V-Diagrid Screen over 2-Story Mullioned Glazing
+    //    - L4-L7 4 Crisp Curved White Spandrel Floors with Staggered Dark Box-Window Accent Frames
+    //    - L8 Dark-Glazed Penthouse Frieze bearing Golden UI Makara + High-Contrast 3D "SCIENCE TECHNO PARK / UNIVERSITAS INDONESIA"
+    //    - Full 8-Story Inner Courtyard & End-Wall Spandrels/Mullions (ZERO black void wall!)
+    // =========================================================================
+    const stpTh0 = (DPPDComplexBuilder.STP_START_DEG * Math.PI) / 180.0;
+    const stpTh1 = (DPPDComplexBuilder.STP_END_DEG * Math.PI) / 180.0;
+    const stpCenterTh = 0.5 * (stpTh0 + stpTh1); // -84°
+    const stpRIn = 31.2;
+    const stpROut = 43.8;
+    const stpWingPad = 0.036; // Angular width of left & right copper-ACP framing pilasters
+    const stpInnerTh0 = stpTh0 + stpWingPad;
+    const stpInnerTh1 = stpTh1 - stpWingPad;
+    // Exact 8 countable floor ceiling heights:
+    const stpFloorTops = [6.85, 12.45, 18.05, 23.45, 28.85, 34.25, 39.65, 45.25];
+
+    // Plinth & L1 Recessed Dark-Glazed Exhibition Lobby
+    DPPDComplexBuilder._addCurvedBand(contextGroup, mats.granitePlinth, stpTh0, stpTh1, stpRIn - 0.3, stpROut + 0.3, -0.35, 0.48, 52);
+    DPPDComplexBuilder._addCurvedBand(contextGroup, mats.windowGlass, stpInnerTh0, stpInnerTh1, stpRIn + 0.4, stpROut - 0.55, 0.48, 6.10, 48);
+    DPPDComplexBuilder._addCurvedBand(contextGroup, mats.copperACP, stpInnerTh0, stpInnerTh1, stpRIn - 0.35, stpROut + 0.48, 6.10, 6.85, 48);
+
+    // L2 & L3 Glazed Podium + Intermediate L2 Floor Slab + Top L3 Copper Podium Belt
+    for (const fl of [1, 2]) {
+      const yBot = stpFloorTops[fl - 1];
+      const yTop = stpFloorTops[fl];
+      DPPDComplexBuilder._addCurvedBand(contextGroup, mats.windowGlass, stpInnerTh0, stpInnerTh1, stpRIn + 0.25, stpROut - 0.25, yBot, yTop - 0.72, 48);
+      DPPDComplexBuilder._addCurvedBand(
+        contextGroup,
+        fl === 2 ? mats.copperACP : mats.warmStonePanel,
+        stpInnerTh0,
+        stpInnerTh1,
+        stpRIn - 0.42,
+        stpROut + (fl === 2 ? 0.62 : 0.20),
+        yTop - 0.72,
+        yTop,
+        48
+      );
+    }
+
+    // Signature L2-L3 Angled Copper-Terracotta ACP V-Diagrid Structural Ribs (matching real STP-UI facade!)
+    const diagBays = 16;
+    for (let b = 0; b < diagBays; b++) {
+      const tA = stpInnerTh0 + (b / diagBays) * (stpInnerTh1 - stpInnerTh0);
+      const tB = stpInnerTh0 + ((b + 1) / diagBays) * (stpInnerTh1 - stpInnerTh0);
+      const rRib = stpROut + 0.36;
+      const thBot = b % 2 === 0 ? tA : tB;
+      const thTop = b % 2 === 0 ? tB : tA;
+      pStart.set(rRib * Math.cos(thBot), 6.80, rRib * Math.sin(thBot));
+      pEnd.set(rRib * Math.cos(thTop), 17.45, rRib * Math.sin(thTop));
+      const rib = new THREE.Mesh(
+        new THREE.BoxGeometry(0.62, 0.56, pStart.distanceTo(pEnd) + 0.15),
+        mats.copperACP
+      );
+      DPPDComplexBuilder._orientBeamAlongZ(rib, pStart, pEnd, 0.0);
+      contextGroup.add(rib);
+    }
+
+    // L4, L5, L6, L7 (4 Crisp White-Stone Curved Stories with Staggered Dark Box-Window Accent Frames & Sunshade Fins!)
+    for (let fl = 3; fl <= 6; fl++) {
+      const yBot = stpFloorTops[fl - 1];
+      const yTop = stpFloorTops[fl];
+
+      // Lower white curved spandrel wall
+      DPPDComplexBuilder._addCurvedBand(
+        contextGroup,
+        fl % 2 === 1 ? mats.facadeWhite : mats.warmStonePanel,
+        stpInnerTh0,
+        stpInnerTh1,
+        stpRIn,
+        stpROut,
+        yBot,
+        yBot + 1.55,
+        52
+      );
+      // Recessed dark-tinted ribbon glazing (outer & inner courtyard!)
+      DPPDComplexBuilder._addCurvedBand(
+        contextGroup,
+        mats.windowGlass,
+        stpInnerTh0,
+        stpInnerTh1,
+        stpRIn + 0.22,
+        stpROut - 0.22,
+        yBot + 1.55,
+        yTop - 0.68,
+        52
+      );
+      // Continuous curved sunshade fin cleanly bounded inside [stpInnerTh0, stpInnerTh1] (ZERO floating ribs past end walls!)
+      DPPDComplexBuilder._addCurvedBand(
+        contextGroup,
+        mats.facadeWhite,
+        stpInnerTh0,
+        stpInnerTh1,
+        stpRIn - 0.48,
+        stpROut + 0.54,
+        yTop - 0.68,
+        yTop,
+        52
+      );
+
+      // Signature Staggered Dark-Charcoal Projected Box-Window Frames on Outer Facade (seen in real STP-UI photos!)
+      const boxSlots = 14;
+      for (let s = 0; s < boxSlots; s++) {
+        if ((s + fl) % 2 !== 0) continue;
+        const thBox = stpInnerTh0 + ((s + 0.5) / boxSlots) * (stpInnerTh1 - stpInnerTh0);
+        const boxFrame = new THREE.Mesh(new THREE.BoxGeometry(0.55, 3.35, 2.35), mats.darkAnodized);
+        boxFrame.position.set(
+          (stpROut + 0.14) * Math.cos(thBox),
+          yBot + 2.85,
+          (stpROut + 0.14) * Math.sin(thBox)
+        );
+        boxFrame.rotation.y = -thBox;
+        contextGroup.add(boxFrame);
+
+        const boxPane = new THREE.Mesh(new THREE.BoxGeometry(0.62, 2.75, 1.75), mats.windowGlass);
+        boxPane.position.set(
+          (stpROut + 0.16) * Math.cos(thBox),
+          yBot + 2.85,
+          (stpROut + 0.16) * Math.sin(thBox)
+        );
+        boxPane.rotation.y = -thBox;
+        contextGroup.add(boxPane);
+      }
+    }
+
+    // L8 (Top 8th-Floor Dark-Glazed Crown Frieze: y = 39.65 .. 45.25)
+    // Outer side uses darkFriezeGlass backing under signage + night-lit window slots so white 3D letters pop in bright daylight!
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.windowGlass,
+      stpInnerTh0,
+      stpInnerTh1,
+      stpRIn + 0.22,
+      stpROut - 0.35,
+      39.65,
+      45.25,
+      52
+    );
+    // Dedicated dark architectural glass signage frieze on the left/upper L8 arc (matching real STP-UI Photo 1 & 3!)
+    const signArc0 = stpInnerTh1 - 0.66;
+    const signArc1 = stpInnerTh1 - 0.02;
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.darkFriezeGlass,
+      signArc0,
+      signArc1,
+      stpROut - 0.32,
+      stpROut - 0.04,
+      39.85,
+      45.15,
+      28
+    );
+
+    // Wrapping Copper-Terracotta ACP Left & Right Vertical Framing Wings (y = 0 .. 47.10) + Overhanging Top Roof Cornice!
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.copperACP,
+      stpTh0,
+      stpInnerTh0,
+      stpRIn - 0.38,
+      stpROut + 0.88,
+      0.0,
+      47.10,
+      6
+    );
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.copperACP,
+      stpInnerTh1,
+      stpTh1,
+      stpRIn - 0.38,
+      stpROut + 0.88,
+      0.0,
+      47.10,
+      6
+    );
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.copperACP,
+      stpTh0,
+      stpTh1,
+      stpRIn - 0.45,
+      stpROut + 0.96,
+      45.25,
+      47.10,
+      56
+    );
+
+    // Roof Deck, Safety Parapet, Mechanical Chiller Penthouse, & 16 Angled Rooftop Solar PV Panels on Galvanized Rails!
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.ilrcConcrete,
+      stpInnerTh0,
+      stpInnerTh1,
+      stpRIn + 0.1,
+      stpROut - 0.1,
+      44.95,
+      45.55,
+      48
+    );
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.warmStonePanel,
+      stpInnerTh0 + 0.05,
+      stpCenterTh - 0.36,
+      34.0,
+      40.5,
+      45.55,
+      48.35,
+      14
+    );
+
+    const pvCount = 16;
+    for (let p = 0; p < pvCount; p++) {
+      const thPv = stpCenterTh - 0.28 + (p / pvCount) * (stpInnerTh1 - 0.08 - (stpCenterTh - 0.28));
+      const pvRack = new THREE.Group();
+      pvRack.position.set(37.8 * Math.cos(thPv), 46.25, 37.8 * Math.sin(thPv));
+      pvRack.rotation.y = -thPv;
+
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.16, 2.15), mats.galvSteel);
+      frame.rotation.z = -0.24;
+      pvRack.add(frame);
+
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.12, 2.02), mats.solarPanel);
+      panel.position.y = 0.09;
+      panel.rotation.z = -0.24;
+      pvRack.add(panel);
+
+      for (const rx of [-2.5, 2.5]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.05, 0.16), mats.galvSteel);
+        leg.position.set(rx, -0.35, 0);
+        pvRack.add(leg);
+      }
+      contextGroup.add(pvRack);
+    }
+
+    // Vertical Window Mullions & Inner Courtyard Pilasters across all 8 Stories of STP-UI (Outer + Inner + Both End Walls!)
+    const stpMullions = 28;
+    for (let i = 0; i <= stpMullions; i++) {
+      const th = stpInnerTh0 + (i / stpMullions) * (stpInnerTh1 - stpInnerTh0);
+      const cT = Math.cos(th);
+      const sT = Math.sin(th);
+
+      // L1 Piloti Columns (Outer & Inner Courtyard)
+      if (i % 2 === 0) {
+        const outCol = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.44, 6.10, 12), mats.warmStonePanel);
+        outCol.position.set((stpROut - 0.15) * cT, 3.25, (stpROut - 0.15) * sT);
+        contextGroup.add(outCol);
+
+        const inCol = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.40, 6.10, 10), mats.warmStonePanel);
+        inCol.position.set((stpRIn + 0.15) * cT, 3.25, (stpRIn + 0.15) * sT);
+        contextGroup.add(inCol);
+      }
+
+      // Full-height 8-story inner courtyard vertical architectural mullions & fins (eliminates black inner wall!)
+      const inMul = new THREE.Mesh(
+        new THREE.BoxGeometry(i % 2 === 0 ? 0.44 : 0.20, 44.6, 0.18),
+        i % 2 === 0 ? mats.facadeWhite : mats.darkAnodized
+      );
+      inMul.position.set((stpRIn + 0.08) * cT, 22.85, (stpRIn + 0.08) * sT);
+      inMul.rotation.y = -th;
+      contextGroup.add(inMul);
+
+      // Outer vertical window mullions
+      const outMul = new THREE.Mesh(new THREE.BoxGeometry(0.22, 44.6, 0.14), mats.darkAnodized);
+      outMul.position.set((stpROut - 0.16) * cT, 22.85, (stpROut - 0.16) * sT);
+      outMul.rotation.y = -th;
+      contextGroup.add(outMul);
+    }
+
+    // Both STP-UI End Walls (stpTh0 & stpTh1): Articulated 8-Story Glazed Stair/Elevator Core & Floor Transoms!
+    for (const [thEnd, sgn] of [
+      [stpTh0, -1],
+      [stpTh1, 1]
+    ]) {
+      const endGrp = new THREE.Group();
+      endGrp.rotation.y = -thEnd;
+      contextGroup.add(endGrp);
+
+      const coreWall = new THREE.Mesh(new THREE.BoxGeometry(8.6, 45.4, 0.36), mats.facadeWhite);
+      coreWall.position.set(37.5, 22.9, sgn * 0.14);
+      endGrp.add(coreWall);
+
+      const coreGlass = new THREE.Mesh(new THREE.BoxGeometry(3.8, 42.4, 0.44), mats.windowGlass);
+      coreGlass.position.set(37.5, 23.2, sgn * 0.18);
+      endGrp.add(coreGlass);
+
+      for (let fl = 0; fl < 8; fl++) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(8.8, 0.42, 0.50), mats.copperACP);
+        bar.position.set(37.5, stpFloorTops[fl] - 0.32, sgn * 0.22);
+        endGrp.add(bar);
+      }
+    }
+
+    // Golden UI Makara Emblem + High-Contrast Left-to-Right 2-Line 3D Signage "SCIENCE TECHNO PARK" / "UNIVERSITAS INDONESIA" on L8 Dark Frieze!
+    const stpMakaraTh = signArc1 - 0.055;
+    const stpMakara = DPPDComplexBuilder._buildUIMakaraEmblem(mats, 1.50);
+    stpMakara.position.set(
+      (stpROut + 0.16) * Math.cos(stpMakaraTh),
+      42.55,
+      (stpROut + 0.16) * Math.sin(stpMakaraTh)
+    );
+    stpMakara.rotation.y = Math.PI * 0.5 - stpMakaraTh;
+    contextGroup.add(stpMakara);
+
+    DPPDComplexBuilder._addCurved3DText(
+      contextGroup,
+      'SCIENCE TECHNO PARK',
+      stpROut + 0.14,
+      signArc1 - 0.125,
+      42.85,
+      1.28,
+      0.26,
+      mats.whiteMullion,
+      -1.0
+    );
+    DPPDComplexBuilder._addCurved3DText(
+      contextGroup,
+      'UNIVERSITAS INDONESIA',
+      stpROut + 0.14,
+      signArc1 - 0.125,
+      40.88,
+      0.98,
+      0.22,
+      mats.brassSign,
+      -1.0
+    );
+
+    // STP-UI Grand L1 Drop-Off Canopy Portico at stpCenterTh (-84°) + Photocell Downlights + "STP-UI" 3D Canopy Letters!
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.copperACP,
+      stpCenterTh - 0.14,
+      stpCenterTh + 0.14,
+      stpROut + 0.2,
+      stpROut + 5.4,
+      5.85,
+      6.60,
+      14
+    );
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.warmLuminaire,
+      stpCenterTh - 0.11,
+      stpCenterTh + 0.11,
+      stpROut + 1.4,
+      stpROut + 4.5,
+      5.78,
+      5.84,
+      10
+    );
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.courtyardGranite,
+      stpCenterTh - 0.18,
+      stpCenterTh + 0.18,
+      stpROut,
+      52.8,
+      0.02,
+      0.16,
+      16
+    );
+    for (const sgn of [-1, 1]) {
+      const thP = stpCenterTh + sgn * 0.115;
+      const pCol = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 5.85, 12), mats.darkAnodized);
+      pCol.position.set((stpROut + 4.7) * Math.cos(thP), 2.95, (stpROut + 4.7) * Math.sin(thP));
+      contextGroup.add(pCol);
+    }
+    DPPDComplexBuilder._addCurved3DText(
+      contextGroup,
+      'STP-UI',
+      stpROut + 5.52,
+      stpCenterTh + 0.042,
+      6.72,
+      0.92,
+      0.20,
+      mats.whiteMullion,
+      -1.0
+    );
+
+    // =========================================================================
+    // 5. PLAZA TAMAN INOVASI TENGAH (OPEN LANDSCAPED CENTRAL COURTYARD REPLACING 4-STORY BOX!)
+    //    Concentric Granite/Terracotta Plaza, UI Makara Monument, Covered Link Pergolas, Trees, Benches & Bollards
+    // =========================================================================
+    const courtyardOuterPad = new THREE.Mesh(
+      new THREE.CylinderGeometry(31.2, 31.2, 0.16, 64),
+      mats.courtyardGranite
+    );
+    courtyardOuterPad.position.y = 0.02;
+    dppdGroup.add(courtyardOuterPad);
+
+    const courtyardBrickRing = new THREE.Mesh(
+      new THREE.CylinderGeometry(19.5, 19.5, 0.18, 56),
+      mats.terracottaFloor
+    );
+    courtyardBrickRing.position.y = 0.03;
+    dppdGroup.add(courtyardBrickRing);
+
+    const courtyardInnerGranite = new THREE.Mesh(
+      new THREE.CylinderGeometry(16.8, 16.8, 0.20, 56),
+      mats.courtyardGranite
+    );
+    courtyardInnerGranite.position.y = 0.04;
+    dppdGroup.add(courtyardInnerGranite);
+
+    // Central Tiered Botanical Planter & Sculptural UI Makara Innovation Obelisk (r = 0 .. 4.8)
+    const centerPlanterRim = new THREE.Mesh(new THREE.CylinderGeometry(4.8, 5.1, 0.72, 32), mats.granitePlinth);
+    centerPlanterRim.position.y = 0.38;
+    dppdGroup.add(centerPlanterRim);
+    const centerPlanterGrass = new THREE.Mesh(new THREE.CylinderGeometry(4.4, 4.4, 0.76, 32), mats.campusGrass);
+    centerPlanterGrass.position.y = 0.40;
+    dppdGroup.add(centerPlanterGrass);
+
+    const obeliskBase = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.85, 1.15, 8), mats.granitePlinth);
+    obeliskBase.position.y = 1.15;
+    dppdGroup.add(obeliskBase);
+    const obeliskShaft = new THREE.Mesh(new THREE.BoxGeometry(1.35, 3.85, 1.35), mats.copperACP);
+    obeliskShaft.position.y = 3.45;
+    obeliskShaft.rotation.y = Math.PI * 0.25;
+    dppdGroup.add(obeliskShaft);
+    const obeliskCrown = DPPDComplexBuilder._buildUIMakaraEmblem(mats, 1.05);
+    obeliskCrown.position.set(0, 5.95, 0);
+    obeliskCrown.rotation.y = Math.PI * 0.75; // Faces Gedung DPPD & Rektorat axis
+    dppdGroup.add(obeliskCrown);
+
+    // 3 Radial Granite Promenade Spokes linking Center Plaza to DPPD (+135°), ILRC (+35°), & STP-UI (-89°)
+    for (const spokeDeg of [135.0, 35.0, -89.0]) {
+      const thS = (spokeDeg * Math.PI) / 180.0;
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(23.0, 0.06, 4.2), mats.whiteMullion);
+      spoke.position.set(16.8 * Math.cos(thS), 0.13, 16.8 * Math.sin(thS));
+      spoke.rotation.y = -thS;
+      dppdGroup.add(spoke);
+    }
+
+    // Open Landscaped Granite Courtyard Gateway Promenades between DPPD, ILRC, & STP-UI
+    // (Zero 1-story side roofs abutting ILRC so Gedung ILRC's 6-story flat-top silhouette stays 100% pure on both flanks!)
+    for (const [degA, degB, rOutProm] of [
+      [74.5, 90.5, 44.2],
+      [-36.0, -12.0, 52.8],
+      [-151.5, -134.5, 35.2]
+    ]) {
+      const t0 = (Math.min(degA, degB) * Math.PI) / 180.0;
+      const t1 = (Math.max(degA, degB) * Math.PI) / 180.0;
+      DPPDComplexBuilder._addCurvedBand(contextGroup, mats.courtyardGranite, t0, t1, 30.6, rOutProm, 0.02, 0.15, 16);
+    }
+
+    // 4 Landscaped Courtyard Planter Islands with Shade Trees, Teak Benches, & Warm Photocell Bollards
+    const courtyardTreeAnglesDeg = [82.0, -24.0, -138.0, 172.0];
+    for (const cDeg of courtyardTreeAnglesDeg) {
+      const th = (cDeg * Math.PI) / 180.0;
+      const rIsle = 12.2;
+      const px = rIsle * Math.cos(th);
+      const pz = rIsle * Math.sin(th);
+
+      const planter = new THREE.Mesh(new THREE.CylinderGeometry(2.65, 2.85, 0.52, 20), mats.granitePlinth);
+      planter.position.set(px, 0.34, pz);
+      contextGroup.add(planter);
+
+      const turf = new THREE.Mesh(new THREE.CylinderGeometry(2.35, 2.35, 0.56, 20), mats.campusGrass);
+      turf.position.set(px, 0.36, pz);
+      contextGroup.add(turf);
+
+      contextGroup.add(DPPDComplexBuilder._buildCourtyardTree(mats, px, 0.55, pz, 1.05));
+
+      // Teak-and-concrete courtyard bench facing center monument
+      const bench = new THREE.Group();
+      bench.position.set((rIsle - 3.35) * Math.cos(th), 0.14, (rIsle - 3.35) * Math.sin(th));
+      bench.rotation.y = -th + Math.PI * 0.5;
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 0.62), mats.teakBench);
+      seat.position.y = 0.46;
+      const back = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.46, 0.10), mats.teakBench);
+      back.position.set(0, 0.74, -0.26);
+      bench.add(seat, back);
+      for (const lx of [-0.85, 0.85]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.44, 0.56), mats.concreteCurb);
+        leg.position.set(lx, 0.22, 0);
+        bench.add(leg);
+      }
+      contextGroup.add(bench);
+    }
+
+    // 8 Photocell Warm Courtyard Garden Bollard Lamps (v = -890.0)
+    for (let b = 0; b < 8; b++) {
+      const th = (b / 8) * Math.PI * 2.0 + 0.2;
+      const bx = 22.8 * Math.cos(th);
+      const bz = 22.8 * Math.sin(th);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 1.05, 10), mats.darkIron);
+      post.position.set(bx, 0.62, bz);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.24, 10), mats.warmLuminaire);
+      cap.position.set(bx, 1.24, bz);
+      contextGroup.add(post, cap);
+    }
+
+    // =========================================================================
+    // 6. EAST VISITOR PARKING BAY (MATCHING ASPHALT!), HALTE BIKUN DPPD-STP,
+    //    BELVEDERE OVERLOOK FACING REKTORAT, & RING-ROAD PHOTOCELL STREETLAMPS
+    // =========================================================================
+    // East Visitor Parking Bay (th = -170° .. -140°, r = 35.5 .. 52.8) — same Pulau U asphalt color!
+    const parkTh0 = (-170.0 * Math.PI) / 180.0;
+    const parkTh1 = (-140.0 * Math.PI) / 180.0;
+    DPPDComplexBuilder._addCurvedBand(contextGroup, mats.asphaltCrown, parkTh0, parkTh1, 35.8, 52.85, 0.02, 0.085, 18);
+    for (let st = 0; st <= 5; st++) {
+      const thLine = parkTh0 + 0.05 + (st / 5) * (parkTh1 - parkTh0 - 0.10);
+      const stallLine = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.03, 0.18), mats.whiteEdgeLine);
+      stallLine.position.set(42.2 * Math.cos(thLine), 0.095, 42.2 * Math.sin(thLine));
+      stallLine.rotation.y = -thLine;
+      contextGroup.add(stallLine);
+    }
+
+    const carMats = [mats.carWhite, mats.carSilver, mats.carNavy, mats.carDarkGrey];
+    for (let c = 0; c < 4; c++) {
+      const thCar = parkTh0 + 0.09 + ((c + 0.5) / 5) * (parkTh1 - parkTh0 - 0.10);
+      const cx = 42.2 * Math.cos(thCar);
+      const cz = 42.2 * Math.sin(thCar);
+      contextGroup.add(
+        DPPDComplexBuilder._buildParkedCar(mats, carMats[c], cx, 0.09, cz, -thCar + Math.PI * 0.5)
+      );
+    }
+
+    // Campus Entrance Security Post & Monolith Sign cleanly INSIDE inner lawn at th = -136° (ZERO obstruction on ring road!)
+    {
+      const thSign = (-175.0 * Math.PI) / 180.0;
+      const sx = 49.2 * Math.cos(thSign);
+      const sz = 49.2 * Math.sin(thSign);
+      const totem = new THREE.Group();
+      totem.position.set(sx, 0.0, sz);
+      totem.rotation.y = -thSign;
+      const base = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.55, 4.4), mats.granitePlinth);
+      base.position.y = 0.28;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.75, 2.65, 3.8), mats.darkAnodized);
+      body.position.y = 1.85;
+      const goldCap = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.28, 3.95), mats.uiYellowFascia);
+      goldCap.position.y = 3.28;
+      totem.add(base, body, goldCap);
+      contextGroup.add(totem);
+    }
+
+    // Halte Bus Kuning (Bikun) "HALTE DPPD - ILRC - STP" in Dedicated Outer Shelter Lay-By at th = -112° (r = 70.2)
+    // Leaves the 360° Outer Sidewalk Promenade (r = 65.16..68.10) 100% clear for pedestrians & joggers!
+    {
+      const thHalte = (-112.0 * Math.PI) / 180.0;
+      const halte = new THREE.Group();
+      halte.position.set(70.20 * Math.cos(thHalte), 0.18, 70.20 * Math.sin(thHalte));
+      halte.rotation.y = -thHalte - Math.PI * 0.5; // Faces inward across sidewalk toward ring road!
+
+      const pad = new THREE.Mesh(new THREE.BoxGeometry(7.6, 1.10, 4.2), mats.granitePlinth);
+      pad.position.set(0, -0.46, 0.25);
+      halte.add(pad);
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(7.4, 0.08, 4.0), mats.courtyardGranite);
+      deck.position.set(0, 0.10, 0.25);
+      halte.add(deck);
+
+      for (const px of [-3.1, 0.0, 3.1]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 3.35, 10), mats.darkIron);
+        post.position.set(px, 1.72, -0.95);
+        halte.add(post);
+      }
+      const backGlass = new THREE.Mesh(new THREE.BoxGeometry(6.1, 2.35, 0.10), mats.windowGlass);
+      backGlass.position.set(0, 1.55, -0.95);
+      halte.add(backGlass);
+
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.22, 3.1), mats.darkAnodized);
+      roof.position.set(0, 3.45, -0.15);
+      roof.rotation.x = 0.06;
+      halte.add(roof);
+
+      const yellowFascia = new THREE.Mesh(new THREE.BoxGeometry(7.68, 0.42, 0.16), mats.uiYellowFascia);
+      yellowFascia.position.set(0, 3.55, 1.38);
+      halte.add(yellowFascia);
+
+      const lightStrip = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.06, 0.28), mats.warmLuminaire);
+      lightStrip.position.set(0, 3.32, 0.25);
+      halte.add(lightStrip);
+
+      const benchSeat = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.12, 0.58), mats.teakBench);
+      benchSeat.position.set(0, 0.62, -0.45);
+      halte.add(benchSeat);
+      for (const lx of [-1.8, 0.0, 1.8]) {
+        const bLeg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.54, 0.50), mats.darkIron);
+        bLeg.position.set(lx, 0.32, -0.45);
+        halte.add(bLeg);
+      }
+      contextGroup.add(halte);
+    }
+
+    // Scenic North-East Belvedere Overlook Terrace & Balustrade facing Gedung Rektorat UI across Teluk U (th = +135°)!
+    {
+      const belTh0 = (123.0 * Math.PI) / 180.0;
+      const belTh1 = (147.0 * Math.PI) / 180.0;
+      DPPDComplexBuilder._addCurvedBand(contextGroup, mats.courtyardGranite, belTh0, belTh1, 65.15, 68.35, 0.12, 0.24, 18);
+      DPPDComplexBuilder._addCurvedBand(contextGroup, mats.whiteMullion, belTh0, belTh1, 68.02, 68.34, 1.15, 1.32, 18);
+      for (let p = 0; p <= 10; p++) {
+        const tp = belTh0 + (p / 10) * (belTh1 - belTh0);
+        const bal = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.98, 0.32), mats.granitePlinth);
+        bal.position.set(68.18 * Math.cos(tp), 0.70, 68.18 * Math.sin(tp));
+        bal.rotation.y = -tp;
+        contextGroup.add(bal);
+      }
+    }
+
+    // 10 Ring-Road Campus Streetlamps along Inner Lawn Shoulder (r = 51.6, photocell warm luminaires v = -890.0)
+    for (let k = 0; k < 10; k++) {
+      const deg = -168.0 + k * 36.0;
+      if (Math.abs(deg - 135.0) < 12.0 || Math.abs(deg - -156.0) < 12.0) continue;
+      const th = (deg * Math.PI) / 180.0;
+      const lamp = new THREE.Group();
+      lamp.position.set(51.6 * Math.cos(th), 0.0, 51.6 * Math.sin(th));
+      lamp.rotation.y = -th;
+
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.17, 7.6, 8), mats.darkIron);
+      pole.position.y = 3.8;
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.12, 0.12), mats.darkIron);
+      arm.position.set(0.82, 7.55, 0);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.16, 0.34), mats.darkIron);
+      head.position.set(1.58, 7.52, 0);
+      const bulb = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.08, 0.26), mats.warmLuminaire);
+      bulb.position.set(1.58, 7.42, 0);
+      lamp.add(pole, arm, head, bulb);
+      contextGroup.add(lamp);
+    }
+
+    // =========================================================================
+    // 7. BAKE ENTIRE HIERARCHY INTO { horizontalGeo, verticalGeo } (+0 EXTRA DRAW CALLS!)
+    // =========================================================================
     root.updateMatrixWorld(true);
 
     const hPos = [];
@@ -2096,124 +2474,143 @@ export class DPPDComplexBuilder {
   }
 
   /**
-   * Returns exact world-space solid-body colliders for Kompleks DPPD, Perpustakaan Lama (ITTC),
-   * STP-UI 8-Lantai, ILRC/DRPM 4-Lantai, Menara Bata Terakota, & Parked Campus Vehicles.
+   * Returns exact world-space solid-body colliders for Kompleks DPPD (2 Lantai),
+   * Gedung ILRC (6 Lantai), Gedung STP-UI (8 Lantai), Plaza Taman Inovasi Tengah,
+   * Halte Bikun DPPD-STP, & Parked Campus Vehicles.
    */
   static getSolidColliders() {
     const cols = [];
     const s = TerrainDEMLoader.DPPD_SCALE;
     const baseY = TerrainDEMLoader.DPPD_PLATEAU_Y;
-    const rotRoot = TerrainDEMLoader.DPPD_Y_ROT;
     const rotEntrance = -0.25 * Math.PI;
 
-    // 1. Central ITTC / Perpustakaan Lama UI 4-Story Courtyard Building (Centered at local 0, 0)
+    // 1. Plaza Taman Inovasi Tengah — Central Makara Obelisk & Planter Ring (open walkable plaza around it!)
     cols.push({
-      id: 'DPPD_ITTC_PerpustakaanLama',
-      type: 'OBB',
-      cx: TerrainDEMLoader.DPPD_CX,
-      cz: TerrainDEMLoader.DPPD_CZ,
-      halfW: 17.4 * s,
-      halfL: 17.4 * s,
-      yaw: rotRoot,
+      id: 'DPPD_Courtyard_CentralMonument',
+      type: 'CYL',
+      x: TerrainDEMLoader.DPPD_CX,
+      z: TerrainDEMLoader.DPPD_CZ,
+      r: 5.0 * s,
       minY: baseY,
-      maxY: baseY + 17.8 * s
+      maxY: baseY + 6.5 * s
     });
 
-    // 2. Gedung DPPD Curved Heritage Wing (7 overlapping cylindrical/OBB arc sectors + Front Porch & Gable)
-    const alphaMin = (-52.0 * Math.PI) / 180.0;
-    const alphaMax = (46.0 * Math.PI) / 180.0;
-    for (let k = 0; k < 7; k++) {
-      const a = alphaMin + ((k + 0.5) / 7) * (alphaMax - alphaMin);
-      const rMid = 36.2;
-      const wp = DPPDComplexBuilder.localToWorld(rMid * Math.sin(a), 0, rMid * Math.cos(a), rotEntrance);
+    const courtyardTreeAnglesDeg = [82.0, -24.0, -138.0, 172.0];
+    courtyardTreeAnglesDeg.forEach((cDeg, idx) => {
+      const th = (cDeg * Math.PI) / 180.0;
+      const wp = DPPDComplexBuilder.localToWorld(12.2 * Math.cos(th), 0, 12.2 * Math.sin(th), 0.0);
       cols.push({
-        id: `DPPD_HeritageWingSector_${k}`,
+        id: `DPPD_Courtyard_PlanterTree_${idx}`,
         type: 'CYL',
         x: wp.x,
         z: wp.z,
-        r: 9.2 * s,
+        r: 2.85 * s,
         minY: baseY,
-        maxY: baseY + 11.6 * s
+        maxY: baseY + 6.2 * s
+      });
+    });
+
+    // 2. Gedung DPPD UI — 2-Story Curved Heritage Nusantara Wing + Front Gable & Portico
+    const alphaMin = (DPPDComplexBuilder.DPPD_ALPHA_MIN_DEG * Math.PI) / 180.0;
+    const alphaMax = (DPPDComplexBuilder.DPPD_ALPHA_MAX_DEG * Math.PI) / 180.0;
+    for (let k = 0; k < 8; k++) {
+      const a = alphaMin + ((k + 0.5) / 8) * (alphaMax - alphaMin);
+      const wp = DPPDComplexBuilder.localToWorld(36.6 * Math.sin(a), 0, 36.6 * Math.cos(a), rotEntrance);
+      cols.push({
+        id: `DPPD_2Story_HeritageWing_${k}`,
+        type: 'CYL',
+        x: wp.x,
+        z: wp.z,
+        r: 8.6 * s,
+        minY: baseY,
+        maxY: baseY + 16.6 * s
       });
     }
-    const porchW = DPPDComplexBuilder.localToWorld(0, 0, 44.5, rotEntrance);
+    const porchW = DPPDComplexBuilder.localToWorld(0, 0, 44.2, rotEntrance);
     cols.push({
-      id: 'DPPD_FrontCentralGableAndPorch',
+      id: 'DPPD_2Story_FrontCentralGableAndPorch',
       type: 'CYL',
       x: porchW.x,
       z: porchW.z,
-      r: 7.4 * s,
+      r: 6.8 * s,
       minY: baseY,
-      maxY: baseY + 15.6 * s
+      maxY: baseY + 18.2 * s
     });
 
-    // 3. STP-UI 8-Story Curved Tower (-129° .. -38°) + North Drop-Off Portico
-    const stpStart = (-129.0 * Math.PI) / 180.0;
-    const stpSpan = (91.0 * Math.PI) / 180.0;
-    for (let k = 0; k < 8; k++) {
-      const th = stpStart + ((k + 0.5) / 8) * stpSpan;
-      const wp = DPPDComplexBuilder.localToWorld(37.4 * Math.cos(th), 0, 37.4 * Math.sin(th), 0.0);
+    // 3. Gedung STP-UI — 8-Story Curved Innovation Tower (-132° .. -36°) + Drop-Off Portico
+    const stpTh0 = (DPPDComplexBuilder.STP_START_DEG * Math.PI) / 180.0;
+    const stpTh1 = (DPPDComplexBuilder.STP_END_DEG * Math.PI) / 180.0;
+    for (let k = 0; k < 9; k++) {
+      const th = stpTh0 + ((k + 0.5) / 9) * (stpTh1 - stpTh0);
+      const wp = DPPDComplexBuilder.localToWorld(37.5 * Math.cos(th), 0, 37.5 * Math.sin(th), 0.0);
       cols.push({
-        id: `DPPD_STPUI_TowerSector_${k}`,
+        id: `DPPD_STPUI_8Story_Sector_${k}`,
         type: 'CYL',
         x: wp.x,
         z: wp.z,
-        r: 7.2 * s,
+        r: 7.0 * s,
         minY: baseY,
-        maxY: baseY + 25.6 * s
+        maxY: baseY + 47.2 * s
       });
     }
-    const porticoTh = (-79.5 * Math.PI) / 180.0;
-    const porticoW = DPPDComplexBuilder.localToWorld(46.8 * Math.cos(porticoTh), 0, 46.8 * Math.sin(porticoTh), 0.0);
+    const stpCenterTh = 0.5 * (stpTh0 + stpTh1);
+    const porticoW = DPPDComplexBuilder.localToWorld(
+      46.8 * Math.cos(stpCenterTh),
+      0,
+      46.8 * Math.sin(stpCenterTh),
+      0.0
+    );
     cols.push({
-      id: 'DPPD_STPUI_NorthPortico',
+      id: 'DPPD_STPUI_Portico',
       type: 'CYL',
       x: porticoW.x,
       z: porticoW.z,
-      r: 5.4 * s,
+      r: 4.2 * s,
       minY: baseY,
-      maxY: baseY + 4.8 * s
+      maxY: baseY + 6.8 * s
     });
 
-    // 4. ILRC / DRPM 4-Story East Laboratory Wing (-31.5° .. +50°) + SE 25.2m Terracotta Brick Tower
-    const eastStart = (-31.5 * Math.PI) / 180.0;
-    const eastSpan = (81.5 * Math.PI) / 180.0;
-    for (let k = 0; k < 7; k++) {
-      const th = eastStart + ((k + 0.5) / 7) * eastSpan;
-      const wp = DPPDComplexBuilder.localToWorld(37.0 * Math.cos(th), 0, 37.0 * Math.sin(th), 0.0);
+    // 4. Gedung ILRC UI — 6-Story Flat-Roofed Curved Research Laboratory (-4° .. +74°) + Twin-Pier Atrium Portal
+    const ilrcTh0 = (DPPDComplexBuilder.ILRC_START_DEG * Math.PI) / 180.0;
+    const ilrcTh1 = (DPPDComplexBuilder.ILRC_END_DEG * Math.PI) / 180.0;
+    for (let k = 0; k < 8; k++) {
+      const th = ilrcTh0 + ((k + 0.5) / 8) * (ilrcTh1 - ilrcTh0);
+      const wp = DPPDComplexBuilder.localToWorld(37.4 * Math.cos(th), 0, 37.4 * Math.sin(th), 0.0);
       cols.push({
-        id: `DPPD_ILRC_EastLabSector_${k}`,
+        id: `DPPD_ILRC_6Story_Sector_${k}`,
         type: 'CYL',
         x: wp.x,
         z: wp.z,
-        r: 6.8 * s,
+        r: 6.7 * s,
         minY: baseY,
-        maxY: baseY + 15.4 * s
+        maxY: baseY + 36.25 * s
       });
     }
-    const ilrcEnd = (-129.0 + 179.0) * (Math.PI / 180.0);
-    const seTowerW = DPPDComplexBuilder.localToWorld(38.5 * Math.cos(ilrcEnd), 0, 38.5 * Math.sin(ilrcEnd), 0.0);
+    const ilrcCenterTh = 0.5 * (ilrcTh0 + ilrcTh1);
+    const ilrcPortalW = DPPDComplexBuilder.localToWorld(
+      45.8 * Math.cos(ilrcCenterTh),
+      0,
+      45.8 * Math.sin(ilrcCenterTh),
+      0.0
+    );
     cols.push({
-      id: 'DPPD_ILRC_SEBrickTower',
+      id: 'DPPD_ILRC_AtriumCanopy',
       type: 'CYL',
-      x: seTowerW.x,
-      z: seTowerW.z,
-      r: 7.6 * s,
+      x: ilrcPortalW.x,
+      z: ilrcPortalW.z,
+      r: 3.6 * s,
       minY: baseY,
-      maxY: baseY + 25.4 * s
+      maxY: baseY + 6.4 * s
     });
 
-    // 5. Parked Campus Vehicles in West Parking Bay
-    const parkedLocal = [
-      [-31.6, -26.4],
-      [-31.5, -20.2],
-      [-31.6, -14.0],
-      [-38.8, -18.5]
-    ];
-    parkedLocal.forEach(([px, pz], idx) => {
-      const wp = DPPDComplexBuilder.localToWorld(px, 0, pz, 0.0);
+    // 5. Parked Campus Vehicles in East Visitor Parking Bay + Halte Bikun Shelter
+    const parkTh0 = (-170.0 * Math.PI) / 180.0;
+    const parkTh1 = (-140.0 * Math.PI) / 180.0;
+    for (let c = 0; c < 4; c++) {
+      const thCar = parkTh0 + 0.09 + ((c + 0.5) / 5) * (parkTh1 - parkTh0 - 0.10);
+      const wp = DPPDComplexBuilder.localToWorld(42.2 * Math.cos(thCar), 0, 42.2 * Math.sin(thCar), 0.0);
       cols.push({
-        id: `DPPD_ParkedCar_${idx}`,
+        id: `DPPD_ParkedCar_${c}`,
         type: 'CYL',
         x: wp.x,
         z: wp.z,
@@ -2221,6 +2618,18 @@ export class DPPDComplexBuilder {
         minY: baseY,
         maxY: baseY + 1.55 * s
       });
+    }
+
+    const thHalte = (-112.0 * Math.PI) / 180.0;
+    const halteW = DPPDComplexBuilder.localToWorld(70.60 * Math.cos(thHalte), 0, 70.60 * Math.sin(thHalte), 0.0);
+    cols.push({
+      id: 'DPPD_HalteBikun',
+      type: 'CYL',
+      x: halteW.x,
+      z: halteW.z,
+      r: 2.4 * s,
+      minY: baseY,
+      maxY: baseY + 3.7 * s
     });
 
     return cols;

@@ -2709,7 +2709,7 @@ export class DynamicTrafficAI {
       {
         behavior: 'JOGGER_LOOP',
         jogTrack: 'DPPD_RING',
-        radius: 36.6,
+        radius: 38.62,
         angle0: 1.15,
         dir: 1.0,
         baseSpeed: 2.36,

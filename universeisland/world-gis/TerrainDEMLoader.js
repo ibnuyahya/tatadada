@@ -1222,13 +1222,13 @@ export class TerrainDEMLoader {
       }
     }
 
-    // 4B3. Kompleks Kantor DPPD, Perpustakaan Lama, STP-UI, & ILRC Campus Terrace on Pulau U (-255, 329)
+    // 4B3. Kompleks Kantor DPPD (2 Lantai), ILRC (6 Lantai), & STP-UI (8 Lantai) Campus Terrace on Pulau U (-255, 329)
     //      Smoothly grades a flat +4.85m academic & science-park terrace facing Gedung Rektorat UI across Teluk U
     //      while preserving SE Right-Arm Hill peak (-228, 384 > 12.0m) & gentle <= 24 deg coastal grass slopes!
     const rDppd = Math.hypot(x - TerrainDEMLoader.DPPD_CX, z - TerrainDEMLoader.DPPD_CZ);
     if (rDppd < 61.1) {
       const dppdFlatMask =
-        (1.0 - TerrainDEMLoader._geotechRamp01(38.2, 61.1, rDppd)) *
+        (1.0 - TerrainDEMLoader._geotechRamp01(39.6, 61.1, rDppd)) *
         TerrainDEMLoader._geotechRamp01(-1.4, -15.5, dU);
       const targetDppdY = TerrainDEMLoader.DPPD_PLATEAU_Y * coastCollar;
       uRawY = uRawY * (1.0 - dppdFlatMask) + targetDppdY * dppdFlatMask;
@@ -1541,7 +1541,7 @@ export class TerrainDEMLoader {
       2.2,
       [
         { type: 'start', y: yDppdSouthJunc, flatM: 3.5, radiusM: 6.0 },
-        { type: 'end', y: TerrainDEMLoader.DPPD_PLATEAU_Y + 0.045, flatM: 3.5, radiusM: 6.0 }
+        { type: 'end', y: TerrainDEMLoader.DPPD_PLATEAU_Y + 0.008, flatM: 3.5, radiusM: 6.0 }
       ],
       0.055
     );
@@ -1552,7 +1552,7 @@ export class TerrainDEMLoader {
       2.8,
       [
         { type: 'start', y: yDppdEastJunc, flatM: 6.5, radiusM: 18.0 },
-        { type: 'end', y: TerrainDEMLoader.DPPD_PLATEAU_Y + 0.045, flatM: 8.0, radiusM: 20.0 }
+        { type: 'end', y: TerrainDEMLoader.DPPD_PLATEAU_Y + 0.008, flatM: 8.0, radiusM: 20.0 }
       ],
       0.055
     );
