@@ -1045,14 +1045,16 @@ async function bootstrapNexusSimulator() {
 
   function syncHardwareTelemetryDOM() {
     const hw = hwGovernor.getTelemetryState();
+    const pr = Number.isFinite(hw.pixelRatio) ? hw.pixelRatio : Number(hw.livePixelRatio) || 1.0;
+    const cDist = Number.isFinite(hw.closeDerivativeDist) ? hw.closeDerivativeDist : 18.0;
     if (elHwTier) {
-      elHwTier.textContent = `${hw.tier} · ${hw.tierShort}`;
+      elHwTier.textContent = `${hw.tier || hw.activeTierId || 'TIER_S'} · ${hw.tierShort || hw.badgeLabel || 'Auto'}`;
     }
     if (elHwDetail) {
-      elHwDetail.textContent = `GPU BoneTex · ${hw.pixelRatio.toFixed(2)}× · ${hw.closeDerivativeDist.toFixed(0)}m`;
+      elHwDetail.textContent = `GPU BoneTex · ${pr.toFixed(2)}× · ${cDist.toFixed(0)}m`;
     }
     if (elHwGpuName) {
-      elHwGpuName.textContent = `GPU: ${hw.gpuRenderer} (${hw.cpuCores} Core, ${hw.deviceMemoryGB} GB, Target ${hw.targetFps} FPS)`;
+      elHwGpuName.textContent = `GPU: ${hw.gpuRenderer || hw.gpuModel || 'WebGL2 GPU'} (${hw.cpuCores || 8} Core, ${hw.deviceMemoryGB || 8} GB, Target ${hw.targetFps || 120} FPS)`;
     }
   }
   syncHardwareTelemetryDOM();
@@ -1130,7 +1132,7 @@ async function bootstrapNexusSimulator() {
       windMultiplier: weather.getWindGustMultiplier()
     });
 
-    hwGovernor.update(dt, camera, controls.target, weather);
+    hwGovernor.update(dt, camera, controls.enabled ? controls.target : null, weather);
     videotron.update(camera, window.innerWidth, window.innerHeight, sharedUniforms);
     renderer.render(scene, camera);
 

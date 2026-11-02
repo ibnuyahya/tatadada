@@ -350,15 +350,26 @@ export class HardwareTelemetryGovernor {
         shCam.updateProjectionMatrix();
       }
 
-      // Compute focus center (OrbitControls target or camera position projected forward)
+      // Compute focus center (OrbitControls target when enabled, or camera forward ground projection in Mavic/FPS/Walk)
       let fx = 0.0;
       let fz = 35.0;
-      if (focusTarget && Number.isFinite(focusTarget.x) && Number.isFinite(focusTarget.z)) {
+      if (
+        focusTarget &&
+        focusTarget.isOrbitActive !== false &&
+        Number.isFinite(focusTarget.x) &&
+        Number.isFinite(focusTarget.z)
+      ) {
         fx = focusTarget.x;
         fz = focusTarget.z;
       } else if (camera && camera.position) {
-        fx = camera.position.x;
-        fz = camera.position.z;
+        if (typeof camera.getWorldDirection === 'function') {
+          camera.getWorldDirection(this._tmpFocus);
+          fx = camera.position.x + this._tmpFocus.x * 52.0;
+          fz = camera.position.z + this._tmpFocus.z * 52.0;
+        } else {
+          fx = camera.position.x;
+          fz = camera.position.z;
+        }
       }
 
       // Clamp focus within Kepulauan UI bounds and snap to world texel grid (eliminates shadow edge swimming!)
@@ -433,12 +444,17 @@ export class HardwareTelemetryGovernor {
 
   getTelemetryState() {
     const cfg = this.getActiveTierConfig();
+    const safePr = Number.isFinite(this.livePixelRatio) ? this.livePixelRatio : 1.0;
+    const safeCloseDist = Number.isFinite(cfg.closeDerivativeDistM) ? cfg.closeDerivativeDistM : 18.0;
     return {
       mode: this.mode,
+      tier: this.activeTierId,
+      tierShort: cfg.badgeLabel,
       detectedTierId: this.detectedTierId,
       activeTierId: this.activeTierId,
       tierLabel: cfg.shortLabel,
       badgeLabel: cfg.badgeLabel,
+      gpuRenderer: this.gpuModel,
       gpuModel: this.gpuModel,
       gpuVendor: this.gpuVendor,
       gpuClass: this.gpuClass,
@@ -448,7 +464,9 @@ export class HardwareTelemetryGovernor {
       liveFps: Math.round(this.emaFps),
       liveFrameMs: +this.emaFrameMs.toFixed(2),
       warmupAvgFrameMs: +this.warmupAvgFrameMs.toFixed(2),
-      livePixelRatio: this.livePixelRatio,
+      pixelRatio: safePr,
+      livePixelRatio: safePr,
+      closeDerivativeDist: safeCloseDist,
       shadowMapSize: cfg.shadowMapSize,
       shadowRefreshStride: cfg.shadowRefreshStride
     };

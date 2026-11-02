@@ -802,11 +802,16 @@ export function injectOmniScaleSurfaceShader(
         ].join('\n')
       )
       // 3. DISTANCE-ADAPTIVE TANGENT / SCREEN-SPACE DERIVATIVE MICRO-NORMAL PERTURBATION
+      //    (Screen-space derivatives dFdx/dFdy are evaluated in uniform control flow for strict D3D11/ANGLE compliance)
       .replace(
         '#include <normal_fragment_maps>',
         [
           '#include <normal_fragment_maps>',
           '#if OMNI_PROFILE != 4 && OMNI_PROFILE != 5',
+          'float omniDHdx = dFdx(omniSurfDetail.x);',
+          'float omniDHdy = dFdy(omniSurfDetail.x);',
+          'vec3 omniDPdx = dFdx(vViewPosition);',
+          'vec3 omniDPdy = dFdy(vViewPosition);',
           'if (uShaderQuality > 0.5 && uZebraInspectMode < 0.5 && uBumpScale > 0.01) {',
           '  float camDist = length(vViewPosition);',
           '  float bumpFade = (1.0 - smoothstep(26.0, 82.0, camDist)) * (1.0 - omniPuddleMask * 0.88);',
@@ -825,14 +830,10 @@ export function injectOmniScaleSurfaceShader(
           '      vec3 viewGrad = (viewMatrix * vec4(worldGrad, 0.0)).xyz;',
           '      normal = normalize(normal - viewGrad);',
           '    } else {',
-          '      float dHdx = dFdx(omniSurfDetail.x);',
-          '      float dHdy = dFdy(omniSurfDetail.x);',
-          '      vec3 dPdx = dFdx(vViewPosition);',
-          '      vec3 dPdy = dFdy(vViewPosition);',
-          '      vec3 r1 = cross(dPdy, normal);',
-          '      vec3 r2 = cross(normal, dPdx);',
-          '      float det = dot(dPdx, r1);',
-          '      vec3 surfGrad = sign(det) * (dHdx * r1 + dHdy * r2) / max(abs(det), 1e-6);',
+          '      vec3 r1 = cross(omniDPdy, normal);',
+          '      vec3 r2 = cross(normal, omniDPdx);',
+          '      float det = dot(omniDPdx, r1);',
+          '      vec3 surfGrad = sign(det) * (omniDHdx * r1 + omniDHdy * r2) / max(abs(det), 1e-6);',
           '      normal = normalize(normal - clamp(surfGrad * (uBumpScale * 0.65 * bumpFade), vec3(-0.10), vec3(0.10)));',
           '    }',
           '  }',

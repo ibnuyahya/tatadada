@@ -196,6 +196,9 @@ export class CameraDirector {
     this._forward = new THREE.Vector3();
     this._right = new THREE.Vector3();
     this._up = new THREE.Vector3(0, 1, 0);
+    this._droneManualEngaged = false;
+    this._mavicGimbalYaw = 0.0;
+    this._mavicGimbalPitch = 0.0;
 
     // Hard 3D solid-world physics context & previous-frame position for continuous sweep anti-tunneling
     this.physicsContext = null;
@@ -495,6 +498,8 @@ export class CameraDirector {
       }
       this.velocity.set(0, 0, 0);
       this._droneManualEngaged = false;
+      this._mavicGimbalYaw = 0.0;
+      this._mavicGimbalPitch = 0.0;
     } else if (newMode === 'WALK_SIVITAS') {
       if (this.controls) this.controls.enabled = false;
       const walkPos = new THREE.Vector3(-2.5, 1.72, 74.5);
@@ -580,6 +585,11 @@ export class CameraDirector {
       return;
     }
     if (this.mode !== 'DRONE_6DOF' && this.mode !== 'WALK_SIVITAS') return;
+    if (this.mode === 'DRONE_6DOF' && !this._droneManualEngaged) {
+      this._mavicGimbalYaw = Math.max(-2.6, Math.min(2.6, this._mavicGimbalYaw - dx * sensitivity));
+      this._mavicGimbalPitch = Math.max(-0.95, Math.min(0.85, this._mavicGimbalPitch - dy * sensitivity));
+      return;
+    }
     this.yaw -= dx * sensitivity;
     this.pitch = Math.max(-1.35, Math.min(1.35, this.pitch - dy * sensitivity));
   }
@@ -958,8 +968,9 @@ export class CameraDirector {
       this.camera.position.y += (this.goalPos.y - this.camera.position.y) * dampAlpha * 0.55;
       const lookDx = this.goalTarget.x - this.camera.position.x;
       const lookDz = this.goalTarget.z - this.camera.position.z;
-      this.yaw = Math.atan2(-lookDx, -lookDz);
-      this.pitch = Math.atan2(this.goalTarget.y - this.camera.position.y, Math.hypot(lookDx, lookDz));
+      this.yaw = Math.atan2(-lookDx, -lookDz) + this._mavicGimbalYaw;
+      const basePitch = Math.atan2(this.goalTarget.y - this.camera.position.y, Math.hypot(lookDx, lookDz));
+      this.pitch = Math.max(-1.35, Math.min(1.15, basePitch + this._mavicGimbalPitch));
       this.roll += (0.036 * Math.cos(this.cinematicAngle) - this.roll) * dampAlpha; // Mavic centripetal roll banking
     } else {
       this.velocity.addScaledVector(this._forward, moveF * accel * clampedDt);
