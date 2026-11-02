@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solitaire</title>
+
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Config & CSS Tokens -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        header: 'var(--header-bg)',
+                        editor: 'var(--editor-bg)',
+                        preview: 'var(--preview-bg)',
+                        card: 'var(--card-bg)',
+                        footer: 'var(--footer-bg)',
+                        borderTheme: 'var(--border-color)',
+                        main: 'var(--text-main)',
+                        dim: 'var(--text-dim)',
+                        accent: 'var(--theme-accent)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            
+            --card-face: #ffffff;
+            --card-back-grad1: #3b82f6;
+            --card-back-grad2: #1d4ed8;
+            --slot-bg: rgba(0, 0, 0, 0.04);
+            --slot-border: rgba(0, 0, 0, 0.1);
+        }
+        
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            color-scheme: dark;
+
+            --card-face: #1e293b;
+            --card-back-grad1: #1e3a8a;
+            --card-back-grad2: #0f172a;
+            --slot-bg: rgba(255, 255, 255, 0.05);
+            --slot-border: rgba(255, 255, 255, 0.15);
+        }
+
+        body {
+            background-color: var(--preview-bg);
+            color: var(--text-main);
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Solitaire Game Specific Styles */
+        .game-board {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .top-row { display: flex; justify-content: space-between; gap: 12px; }
+        .stock-waste { display: flex; gap: 12px; }
+        .foundations { display: flex; gap: 12px; }
+        .tableau { display: flex; gap: 12px; min-height: 400px; }
+        .column { flex: 1; min-width: 70px; position: relative; min-height: 440px; }
+
+        /* Card Dimensions */
+        .card-slot, .foundation-slot, .stock-pile, .card {
+            width: 90px;
+            height: 130px;
+            border-radius: 10px;
+        }
+
+        .card-slot {
+            border: 2px dashed var(--slot-border);
+            position: relative;
+        }
+
+        .foundation-slot {
+            border: 2px solid var(--slot-border);
+            background: var(--slot-bg);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 32px; color: var(--slot-border);
+            position: relative;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+            transition: all 0.2s ease;
+        }
+
+        .stock-pile {
+            cursor: pointer; position: relative;
+            transition: transform 0.1s ease;
+        }
+        .stock-pile:active { transform: scale(0.96); }
+        .stock-pile.empty {
+            border: 2px dashed var(--slot-border);
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* Core Card Styling */
+        .card {
+            position: absolute;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            background: var(--card-face);
+            border: 1px solid var(--border-color);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+        }
+
+        .card.dragging {
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3) !important;
+            z-index: 9999 !important;
+            transition: none;
+            opacity: 0.95;
+            transform: scale(1.05);
+        }
+
+        .card.face-down {
+            background: linear-gradient(135deg, var(--card-back-grad1) 0%, var(--card-back-grad2) 100%);
+            border: 2px solid rgba(255,255,255,0.1);
+            background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 10px, transparent 10px, transparent 20px);
+        }
+
+        .card .card-corner { position: absolute; display: flex; flex-direction: column; align-items: center; line-height: 1; }
+        .card .card-corner.top { top: 6px; left: 8px; }
+        .card .card-corner.bottom { bottom: 6px; right: 8px; transform: rotate(180deg); }
+        .card .card-value { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700; letter-spacing: -1px; }
+        .card .card-suit-small { font-size: 16px; margin-top: 2px; }
+        .card .card-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 48px; opacity: 0.9; }
+
+        .card.red { color: #ef4444; }
+        .card.black { color: var(--text-main); }
+
+        .card.highlight {
+            box-shadow: 0 0 0 3px var(--theme-accent), 0 4px 12px rgba(0,0,0,0.4) !important;
+            transform: translateY(-4px);
+        }
+
+        .highlight-zone {
+            position: absolute; inset: -4px; border: 3px solid var(--theme-accent); border-radius: 12px;
+            background: rgba(59, 130, 246, 0.1); pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 100;
+        }
+        .highlight-zone.active { opacity: 1; }
+
+        /* Animations */
+        .score-popup {
+            position: fixed; color: #10b981; font-family: 'JetBrains Mono', monospace;
+            font-size: 20px; font-weight: 700; pointer-events: none; z-index: 9999;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            animation: scoreFloat 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes scoreFloat {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-40px) scale(1.2); }
+        }
+
+        .confetti {
+            position: absolute; width: 10px; height: 10px; top: -10px;
+            animation: confettiFall linear forwards;
+        }
+
+        @keyframes confettiFall {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* Tooltip */
+        .group:hover .group-hover\:opacity-100 { opacity: 1; visibility: visible; }
+    </style>
+</head>
+<body class="h-screen flex flex-col font-sans transition-colors duration-300">
+
+    <!-- HEADER -->
+    <header class="h-14 bg-header border-b border-borderTheme flex items-center justify-between px-6 shrink-0 z-50">
+        <div class="flex items-center gap-4">
+            <div class="flex flex-col">
+                <div class="flex items-center gap-2">
+                    <h1 class="text-lg font-bold bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">Solitaire</h1>
+                    <span class="text-xs italic text-dim font-mono">v2.0</span>
+                    <div class="relative group ml-1 flex items-center">
+                        <i data-lucide="help-circle" class="w-4 h-4 text-dim cursor-help hover:text-accent transition-colors"></i>
+                        <div class="absolute left-0 top-full mt-2 w-64 p-3 bg-card border border-borderTheme rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 transition-all duration-200 z-50">
+                            <p class="text-sm text-main" id="tt-desc">Classic Klondike Solitaire card game. Build all four suits from Ace to King.</p>
+                            <p class="text-xs text-dim mt-2" id="tt-inst">Drag and drop cards in alternating colors. Double click to auto-move to foundations.</p>
+                        </div>
+                    </div>
+                </div>
+                <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 transition-colors">by AhmadDanial</a>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <!-- Game Actions -->
+            <button onclick="newGame()" class="p-2 rounded-lg hover:bg-preview text-main transition-colors flex items-center gap-2" id="btn-new">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                <span class="text-sm font-medium hidden sm:inline">New Game</span>
+            </button>
+            <button onclick="undoMove()" class="p-2 rounded-lg hover:bg-preview text-main transition-colors flex items-center gap-2" id="btn-undo">
+                <i data-lucide="undo-2" class="w-4 h-4"></i>
+                <span class="text-sm font-medium hidden sm:inline">Undo</span>
+            </button>
+            <button onclick="hint()" class="p-2 rounded-lg hover:bg-preview text-main transition-colors flex items-center gap-2" id="btn-hint">
+                <i data-lucide="lightbulb" class="w-4 h-4"></i>
+                <span class="text-sm font-medium hidden sm:inline">Hint</span>
+            </button>
+
+            <div class="w-px h-6 bg-borderTheme mx-1"></div>
+
+            <!-- Toggles -->
+            <button onclick="toggleLang()" class="p-2 rounded-lg hover:bg-preview text-main transition-colors" id="lang-toggle" title="Toggle Language">
+                <span class="font-medium text-sm">EN</span>
+            </button>
+            <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-preview text-main transition-colors" title="Toggle Theme">
+                <i data-lucide="moon" class="w-5 h-5 hidden dark:block"></i>
+                <i data-lucide="sun" class="w-5 h-5 block dark:hidden"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 overflow-auto p-4 md:p-8 flex items-start justify-center">
+        <!-- Single View Container (Card Layout) -->
+        <div class="max-w-5xl w-full bg-card rounded-2xl shadow-xl border border-borderTheme p-6 md:p-8 relative">
+            <div class="game-area">
+                <div class="game-board" id="gameBoard">
+                    <div class="top-row">
+                        <div class="stock-waste">
+                            <div class="stock-pile empty flex items-center justify-center text-dim" id="stockPile" onclick="drawCard()">
+                                <i data-lucide="rotate-ccw" class="w-8 h-8 opacity-50"></i>
+                            </div>
+                            <div class="card-slot" id="wasteSlot"></div>
+                        </div>
+                        <div class="foundations" id="foundations"></div>
+                    </div>
+                    <div class="tableau" id="tableau"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="h-8 bg-footer border-t border-borderTheme flex items-center justify-between px-6 shrink-0 text-xs text-dim z-40">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></span>
+            <span id="status-text">System Ready</span>
+        </div>
+        <div class="flex items-center gap-6 font-mono">
+            <div class="flex gap-2 items-center">
+                <span class="uppercase opacity-70" id="lbl-score">Score</span>
+                <span class="text-main font-bold" id="scoreDisplay">0</span>
+            </div>
+            <div class="flex gap-2 items-center">
+                <span class="uppercase opacity-70" id="lbl-moves">Moves</span>
+                <span class="text-main font-bold" id="movesDisplay">0</span>
+            </div>
+            <div class="flex gap-2 items-center">
+                <i data-lucide="clock" class="w-3 h-3 opacity-70"></i>
+                <span class="text-main font-bold" id="timeDisplay">0:00</span>
+            </div>
+        </div>
+        <div class="flex items-center">
+            <button onclick="document.getElementById('termsModal').classList.remove('hidden')" class="hover:text-main transition-colors underline-offset-2 hover:underline">Terms</button>
+        </div>
+    </footer>
+
+    <!-- WIN OVERLAY (Modal) -->
+    <div id="winOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-[10000] opacity-0 transition-opacity duration-300">
+        <div class="bg-card p-8 rounded-2xl shadow-2xl border border-borderTheme text-center max-w-sm w-full mx-4 transform scale-95 transition-transform duration-300" id="winDialog">
+            <div class="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i data-lucide="trophy" class="w-10 h-10 text-green-500"></i>
+            </div>
+            <h2 class="text-3xl font-bold text-main mb-2" id="win-title">You Win!</h2>
+            <div class="space-y-3 mb-8 text-dim font-mono text-sm bg-preview p-4 rounded-xl border border-borderTheme text-left">
+                <div class="flex justify-between"><span id="win-lbl-score">Score</span> <span id="winScore" class="font-bold text-main">0</span></div>
+                <div class="flex justify-between"><span id="win-lbl-time">Time</span> <span id="winTime" class="font-bold text-main">0:00</span></div>
+                <div class="flex justify-between"><span id="win-lbl-moves">Moves</span> <span id="winMoves" class="font-bold text-main">0</span></div>
+            </div>
+            <button class="w-full bg-accent hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors shadow-lg shadow-blue-500/30" onclick="closeWin()" id="win-btn">Play Again</button>
+        </div>
+    </div>
+
+    <!-- TERMS MODAL -->
+    <div id="termsModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-[10000]">
+        <div class="bg-card w-full max-w-lg p-6 rounded-2xl shadow-2xl border border-borderTheme mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-main" id="modal-title">Terms of Use & Disclaimer</h3>
+                <button onclick="document.getElementById('termsModal').classList.add('hidden')" class="text-dim hover:text-main">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="text-sm text-dim space-y-4 max-h-[60vh] overflow-y-auto pr-2" id="modal-content">
+                <!-- Content injected by JS based on Lang -->
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed inset-0 pointer-events-none z-[10001] overflow-hidden" id="confettiContainer"></div>
+
+<script>
+// Icon Initialization
+lucide.createIcons();
+
+// --- THEME & LOCALIZATION ---
+const translations = {
+    'en': {
+        langCode: 'EN',
+        ttDesc: 'Classic Klondike Solitaire card game. Build all four suits from Ace to King.',
+        ttInst: 'Drag and drop cards in alternating colors. Double click to auto-move to foundations.',
+        statusReady: 'System Ready',
+        statusPlaying: 'Game Active',
+        lblScore: 'Score',
+        lblMoves: 'Moves',
+        btnNew: 'New Game',
+        btnUndo: 'Undo',
+        btnHint: 'Hint',
+        winTitle: 'You Win!',
+        winBtn: 'Play Again',
+        modalTitle: 'Terms of Use & Disclaimer',
+        modalContext: 'This application is a completely localized client-side game. It runs entirely in your browser and does not transmit any card data or game progress to external servers.',
+        modalLegal: 'There is no coercion to use this app. This app is provided \'as-is\' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics to collect anonymous usage data for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.'
+    },
+    'id': {
+        langCode: 'ID',
+        ttDesc: 'Permainan kartu Solitaire Klondike klasik. Susun keempat jenis lambang dari As hingga King.',
+        ttInst: 'Tarik dan lepas kartu dengan warna berselang-seling. Klik ganda untuk memindahkan otomatis ke fondasi.',
+        statusReady: 'Sistem Siap',
+        statusPlaying: 'Permainan Aktif',
+        lblScore: 'Skor',
+        lblMoves: 'Langkah',
+        btnNew: 'Mulai Baru',
+        btnUndo: 'Urungkan',
+        btnHint: 'Petunjuk',
+        winTitle: 'Anda Menang!',
+        winBtn: 'Main Lagi',
+        modalTitle: 'Syarat Penggunaan & Penyangkalan',
+        modalContext: 'Aplikasi ini adalah permainan berbasis sisi klien yang berjalan sepenuhnya secara lokal di peramban Anda dan tidak mengirimkan data kartu atau kemajuan permainan ke server eksternal.',
+        modalLegal: 'Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan \'as-is\' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics untuk mengumpulkan data penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.'
+    }
+};
+
+let currentLang = localStorage.getItem('app_lang') || 'en';
+
+// Game variables hoisted to prevent ReferenceError during applyLang
+const SUITS = ['♥','♦','♣','♠'];
+const VALUES = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
+let deck = [], stock = [], waste = [], foundations = [[], [], [], []], tableau = [[], [], [], [], [], [], []];
+let score = 0, moves = 0, gameTime = 0, timerInterval = null, gameStarted = false, history = [];
+let dragging = null, dragOffsetX = 0, dragOffsetY = 0, hintHighlight = null;
+
+function toggleTheme() {
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('app_theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+}
+
+function initTheme() {
+    if (localStorage.getItem('app_theme') === 'dark' || (!('app_theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+    }
+}
+
+function toggleLang() {
+    currentLang = currentLang === 'en' ? 'id' : 'en';
+    localStorage.setItem('app_lang', currentLang);
+    applyLang();
+}
+
+function applyLang() {
+    const t = translations[currentLang];
+    document.getElementById('lang-toggle').querySelector('span').innerText = t.langCode;
+    document.getElementById('tt-desc').innerText = t.ttDesc;
+    document.getElementById('tt-inst').innerText = t.ttInst;
+    document.getElementById('lbl-score').innerText = t.lblScore;
+    document.getElementById('lbl-moves').innerText = t.lblMoves;
+    document.getElementById('btn-new').querySelector('span').innerText = t.btnNew;
+    document.getElementById('btn-undo').querySelector('span').innerText = t.btnUndo;
+    document.getElementById('btn-hint').querySelector('span').innerText = t.btnHint;
+    
+    document.getElementById('win-title').innerText = t.winTitle;
+    document.getElementById('win-lbl-score').innerText = t.lblScore;
+    document.getElementById('win-lbl-time').innerText = currentLang === 'id' ? 'Waktu' : 'Time';
+    document.getElementById('win-lbl-moves').innerText = t.lblMoves;
+    document.getElementById('win-btn').innerText = t.btnBtn || t.winBtn;
+    
+    document.getElementById('modal-title').innerText = t.modalTitle;
+    document.getElementById('modal-content').innerHTML = `
+        <p><strong>Context:</strong> ${t.modalContext}</p>
+        <p><strong>Disclaimer:</strong> ${t.modalLegal}</p>
+    `;
+
+    if(!gameStarted) document.getElementById('status-text').innerText = t.statusReady;
+    else document.getElementById('status-text').innerText = t.statusPlaying;
+}
+
+initTheme();
+applyLang();
+
+// --- SOLITAIRE GAME LOGIC (Preserved & Adapted) ---
+function createDeck() {
+    const d = [];
+    for (let s = 0; s < 4; s++) {
+        for (let v = 0; v < 13; v++) d.push({ suit: s, value: v, faceUp: false, id: `${s}_${v}` });
+    }
+    return d;
+}
+
+function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function isRed(card) { return card.suit === 0 || card.suit === 1; }
+
+function canPlaceOnTableau(card, colIdx) {
+    const col = tableau[colIdx];
+    if (col.length === 0) return card.value === 12;
+    const top = col[col.length - 1];
+    return top.faceUp && isRed(card) !== isRed(top) && card.value === top.value - 1;
+}
+
+function canPlaceOnFoundation(card, foundIdx) {
+    const pile = foundations[foundIdx];
+    if (pile.length === 0) return card.value === 0;
+    const top = pile[pile.length - 1];
+    return card.suit === top.suit && card.value === top.value + 1;
+}
+
+function getCardColorClass(suit) { return (suit === 0 || suit === 1) ? 'red' : 'black'; }
+
+function createCardElement(card) {
+    const el = document.createElement('div');
+    el.className = `card ${card.faceUp ? getCardColorClass(card.suit) : 'face-down'}`;
+    el.dataset.cardId = card.id;
+
+    if (card.faceUp) {
+        el.innerHTML = `
+            <div class="card-corner top">
+                <span class="card-value">${VALUES[card.value]}</span>
+                <span class="card-suit-small">${SUITS[card.suit]}</span>
+            </div>
+            <div class="card-center">${SUITS[card.suit]}</div>
+            <div class="card-corner bottom">
+                <span class="card-value">${VALUES[card.value]}</span>
+                <span class="card-suit-small">${SUITS[card.suit]}</span>
+            </div>
+        `;
+    } else {
+        el.innerHTML = `<i data-lucide="spade" class="w-8 h-8 text-white/30 drop-shadow-md"></i>`;
+    }
+    return el;
+}
+
+function saveState() {
+    history.push({
+        stock: JSON.parse(JSON.stringify(stock)),
+        waste: JSON.parse(JSON.stringify(waste)),
+        foundations: JSON.parse(JSON.stringify(foundations)),
+        tableau: JSON.parse(JSON.stringify(tableau)),
+        score: score, moves: moves
+    });
+    if (history.length > 50) history.shift();
+}
+
+function undoMove() {
+    if (history.length === 0) return;
+    const state = history.pop();
+    stock = state.stock; waste = state.waste; foundations = state.foundations;
+    tableau = state.tableau; score = state.score; moves = state.moves;
+    clearHint(); render(); updateDisplay();
+}
+
+function showScorePopup(x, y, pts) {
+    const popup = document.createElement('div');
+    popup.className = 'score-popup';
+    popup.style.left = x + 'px'; popup.style.top = y + 'px';
+    popup.textContent = `+${pts}`;
+    document.body.appendChild(popup);
+    setTimeout(() => popup.remove(), 1000);
+}
+
+function drawCard() {
+    if (stock.length === 0) {
+        if (waste.length === 0) return;
+        saveState();
+        stock = waste.reverse().map(c => { c.faceUp = false; return c; });
+        waste = [];
+    } else {
+        saveState();
+        const card = stock.pop();
+        card.faceUp = true;
+        waste.push(card);
+    }
+    startTimer();
+    clearHint(); render();
+}
+
+function newGame() {
+    document.getElementById('winOverlay').classList.add('hidden');
+    document.getElementById('winOverlay').classList.remove('flex');
+    setTimeout(() => { document.getElementById('winOverlay').style.opacity = '0'; }, 10);
+    document.getElementById('confettiContainer').innerHTML = '';
+
+    deck = shuffle(createDeck());
+    stock = []; waste = []; foundations = [[], [], [], []]; tableau = [[], [], [], [], [], [], []];
+    score = 0; moves = 0; gameTime = 0; gameStarted = false; history = [];
+
+    if (timerInterval) clearInterval(timerInterval);
+    document.getElementById('status-text').innerText = translations[currentLang].statusReady;
+
+    let idx = 0;
+    for (let col = 0; col < 7; col++) {
+        for (let row = 0; row <= col; row++) {
+            const card = deck[idx++];
+            card.faceUp = (row === col);
+            tableau[col].push(card);
+        }
+    }
+    stock = deck.slice(idx);
+    stock.forEach(c => c.faceUp = false);
+
+    render(); updateDisplay();
+}
+
+function updateDisplay() {
+    document.getElementById('scoreDisplay').textContent = score;
+    document.getElementById('movesDisplay').textContent = moves;
+    const mins = Math.floor(gameTime / 60);
+    const secs = gameTime % 60;
+    document.getElementById('timeDisplay').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function startTimer() {
+    if (!gameStarted) {
+        gameStarted = true;
+        document.getElementById('status-text').innerText = translations[currentLang].statusPlaying;
+        timerInterval = setInterval(() => { gameTime++; updateDisplay(); }, 1000);
+    }
+}
+
+function checkWin() {
+    for (let i = 0; i < 4; i++) if (foundations[i].length !== 13) return false;
+    return true;
+}
+
+function showWin() {
+    clearInterval(timerInterval);
+    const bonus = Math.max(0, 10000 - gameTime * 2);
+    score += bonus;
+
+    document.getElementById('winScore').textContent = score;
+    document.getElementById('winTime').textContent = document.getElementById('timeDisplay').textContent;
+    document.getElementById('winMoves').textContent = moves;
+    
+    const overlay = document.getElementById('winOverlay');
+    overlay.classList.remove('hidden');
+    overlay.classList.add('flex');
+    setTimeout(() => { overlay.style.opacity = '1'; }, 10);
+    document.getElementById('winDialog').style.transform = 'scale(1)';
+
+    spawnConfetti();
+}
+
+function spawnConfetti() {
+    const container = document.getElementById('confettiContainer');
+    container.innerHTML = '';
+    const colors = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6'];
+    for (let i = 0; i < 80; i++) {
+        const c = document.createElement('div');
+        c.className = 'confetti';
+        c.style.left = Math.random() * 100 + '%';
+        c.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        c.style.animationDuration = (2 + Math.random() * 3) + 's';
+        c.style.animationDelay = Math.random() * 2 + 's';
+        c.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+        container.appendChild(c);
+    }
+}
+
+function closeWin() {
+    document.getElementById('winDialog').style.transform = 'scale(0.95)';
+    document.getElementById('winOverlay').style.opacity = '0';
+    setTimeout(() => {
+        document.getElementById('winOverlay').classList.add('hidden');
+        document.getElementById('winOverlay').classList.remove('flex');
+        document.getElementById('confettiContainer').innerHTML = '';
+        newGame();
+    }, 300);
+}
+
+function clearHint() {
+    if (hintHighlight) {
+        hintHighlight.classList.remove('highlight');
+        hintHighlight = null;
+    }
+    document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
+}
+
+function hint() {
+    clearHint();
+    const moves = findValidMoves();
+    if (moves.length === 0) return;
+
+    const move = moves[0];
+    if (move.type === 'wasteToTableau' || move.type === 'wasteToFoundation') {
+        if (waste.length > 0 && waste[waste.length - 1].element) waste[waste.length - 1].element.classList.add('highlight');
+    } else if (move.type === 'tableauToFoundation' || move.type === 'tableauToTableau') {
+        const srcCard = tableau[move.fromCol][move.cardIdx || (tableau[move.fromCol].length - 1)];
+        if (srcCard.element) srcCard.element.classList.add('highlight');
+    }
+    setTimeout(clearHint, 2000);
+}
+
+function findValidMoves() {
+    const validMoves = [];
+    if (waste.length > 0) {
+        const topWaste = waste[waste.length - 1];
+        for (let c = 0; c < 7; c++) if (canPlaceOnTableau(topWaste, c)) validMoves.push({ type: 'wasteToTableau', col: c, priority: 1 });
+        for (let f = 0; f < 4; f++) if (canPlaceOnFoundation(topWaste, f)) validMoves.push({ type: 'wasteToFoundation', foundIdx: f, priority: 2 });
+    }
+    for (let c = 0; c < 7; c++) {
+        if (tableau[c].length === 0) continue;
+        for (let i = 0; i < tableau[c].length; i++) {
+            const card = tableau[c][i];
+            if (!card.faceUp) continue;
+            // Only top cards go to foundation
+            if (i === tableau[c].length - 1) {
+                for (let f = 0; f < 4; f++) if (canPlaceOnFoundation(card, f)) validMoves.push({ type: 'tableauToFoundation', fromCol: c, foundIdx: f, priority: 3 });
+            }
+            for (let tc = 0; tc < 7; tc++) {
+                if (tc === c) continue;
+                if (canPlaceOnTableau(card, tc)) validMoves.push({ type: 'tableauToTableau', fromCol: c, toCol: tc, cardIdx: i, priority: 4 });
+            }
+        }
+    }
+    validMoves.sort((a, b) => a.priority - b.priority);
+    return validMoves;
+}
+
+function render() {
+    // Stock
+    const stockEl = document.getElementById('stockPile');
+    stockEl.innerHTML = '';
+    stockEl.className = 'stock-pile flex items-center justify-center' + (stock.length === 0 ? ' empty' : '');
+    if (stock.length > 0) {
+        const cardEl = createCardElement(stock[stock.length - 1]);
+        cardEl.style.position = 'absolute'; cardEl.style.inset = '0'; cardEl.style.pointerEvents = 'none';
+        stockEl.appendChild(cardEl);
+    } else {
+        stockEl.innerHTML = `<i data-lucide="rotate-ccw" class="w-8 h-8 opacity-50 text-main"></i>`;
+    }
+
+    // Waste
+    const wasteSlot = document.getElementById('wasteSlot');
+    wasteSlot.innerHTML = '';
+    if (waste.length > 0) {
+        const card = waste[waste.length - 1];
+        const cardEl = createCardElement(card);
+        cardEl.style.position = 'absolute'; cardEl.style.inset = '0'; cardEl.style.zIndex = 100;
+        cardEl.addEventListener('mousedown', (e) => startDrag(e, card, 'waste', null));
+        cardEl.addEventListener('touchstart', (e) => startDrag(e, card, 'waste', null), {passive: false});
+        cardEl.addEventListener('dblclick', (e) => { e.preventDefault(); autoMoveToFoundation(card, 'waste'); });
+        card.element = cardEl;
+        wasteSlot.appendChild(cardEl);
+    }
+
+    // Foundations
+    const foundContainer = document.getElementById('foundations');
+    foundContainer.innerHTML = '';
+    for (let f = 0; f < 4; f++) {
+        const slot = document.createElement('div');
+        slot.className = 'foundation-slot';
+        slot.dataset.foundIdx = f;
+        slot.innerHTML = `<span class="${f<2?'text-red-500/30':'text-main/30'}">${SUITS[f]}</span>`;
+
+        if (foundations[f].length > 0) {
+            const topCard = foundations[f][foundations[f].length - 1];
+            const cardEl = createCardElement(topCard);
+            cardEl.style.position = 'absolute'; cardEl.style.inset = '-2px'; cardEl.style.pointerEvents = 'none';
+            topCard.element = cardEl;
+            slot.appendChild(cardEl);
+        }
+        slot.addEventListener('dragover', (e) => e.preventDefault());
+        foundContainer.appendChild(slot);
+    }
+
+    // Tableau
+    const tableauContainer = document.getElementById('tableau');
+    tableauContainer.innerHTML = '';
+    for (let c = 0; c < 7; c++) {
+        const colDiv = document.createElement('div');
+        colDiv.className = 'column'; colDiv.dataset.colIdx = c;
+
+        if (tableau[c].length === 0) {
+            const slot = document.createElement('div');
+            slot.className = 'card-slot';
+            slot.style.position = 'absolute'; slot.style.top = '0'; slot.style.opacity = '0.5';
+            colDiv.appendChild(slot);
+        }
+
+        let yOffset = 0;
+        for (let i = 0; i < tableau[c].length; i++) {
+            const card = tableau[c][i];
+            const cardEl = createCardElement(card);
+            cardEl.style.position = 'absolute'; cardEl.style.top = yOffset + 'px'; cardEl.style.zIndex = i + 1;
+
+            if (card.faceUp) {
+                const stackSize = tableau[c].length - i;
+                cardEl.addEventListener('mousedown', (e) => { if (e.button === 0) { e.preventDefault(); startDrag(e, card, 'tableau', { colIdx: c, cardIdx: i, stackSize: stackSize }); }});
+                cardEl.addEventListener('touchstart', (e) => { e.preventDefault(); startDrag(e, card, 'tableau', { colIdx: c, cardIdx: i, stackSize: stackSize }); }, {passive: false});
+                cardEl.addEventListener('dblclick', (e) => { e.preventDefault(); if (i === tableau[c].length - 1) autoMoveToFoundation(card, 'tableau'); });
+            }
+            card.element = cardEl;
+            colDiv.appendChild(cardEl);
+            yOffset += card.faceUp ? 35 : 18;
+        }
+        tableauContainer.appendChild(colDiv);
+    }
+    lucide.createIcons(); // Re-trigger for dynamically added icons
+}
+
+function autoMoveToFoundation(card, source) {
+    startTimer();
+    for (let f = 0; f < 4; f++) {
+        if (canPlaceOnFoundation(card, f)) {
+            saveState();
+            if (source === 'waste') { waste.pop(); } 
+            else {
+                for (let c = 0; c < 7; c++) {
+                    if (tableau[c].length > 0 && tableau[c][tableau[c].length - 1].id === card.id) {
+                        tableau[c].pop();
+                        if (tableau[c].length > 0) tableau[c][tableau[c].length - 1].faceUp = true;
+                        break;
+                    }
+                }
+            }
+            foundations[f].push(card); moves++; score += 10;
+            render(); updateDisplay();
+            if (checkWin()) showWin();
+            return;
+        }
+    }
+}
+
+function startDrag(e, card, source, info) {
+    startTimer(); e.preventDefault();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    let cardsToDrag = [card];
+    let stackCards = [];
+    if (source === 'tableau' && info) { stackCards = tableau[info.colIdx].slice(info.cardIdx); cardsToDrag = stackCards; }
+
+    dragging = { cards: cardsToDrag, source: source, info: info, stack: stackCards, elements: [] };
+
+    const rect = card.element.getBoundingClientRect();
+    dragOffsetX = clientX - rect.left; dragOffsetY = clientY - rect.top;
+
+    cardsToDrag.forEach((c, i) => {
+        const clone = createCardElement(c);
+        clone.classList.add('dragging');
+        clone.style.position = 'fixed';
+        clone.style.left = (clientX - dragOffsetX) + 'px';
+        clone.style.top = (clientY - dragOffsetY + i * 35) + 'px';
+        clone.style.zIndex = 9999 + i;
+        document.body.appendChild(clone);
+        dragging.elements.push(clone);
+        c.element.style.opacity = '0.3';
+    });
+
+    document.addEventListener('mousemove', onDragMove); document.addEventListener('mouseup', onDragEnd);
+    document.addEventListener('touchmove', onDragMove, {passive: false}); document.addEventListener('touchend', onDragEnd);
+}
+
+function onDragMove(e) {
+    if (!dragging) return;
+    e.preventDefault();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    dragging.elements.forEach((el, i) => {
+        el.style.left = (clientX - dragOffsetX) + 'px';
+        el.style.top = (clientY - dragOffsetY + i * 35) + 'px';
+    });
+
+    document.querySelectorAll('.highlight-zone').forEach(z => z.remove());
+    const dropTarget = findDropTarget(clientX, clientY);
+    if (dropTarget) {
+        const zone = document.createElement('div');
+        zone.className = 'highlight-zone active';
+        
+        if (dropTarget.type === 'foundation') {
+            const fSlot = document.querySelectorAll('.foundation-slot')[dropTarget.idx];
+            if(fSlot) fSlot.appendChild(zone);
+        } else if (dropTarget.type === 'tableau') {
+            const cols = document.querySelectorAll('.column');
+            if (cols[dropTarget.idx]) cols[dropTarget.idx].appendChild(zone);
+        }
+    }
+}
+
+function findDropTarget(x, y) {
+    const foundSlots = document.querySelectorAll('.foundation-slot');
+    for (let f = 0; f < 4; f++) {
+        const rect = foundSlots[f].getBoundingClientRect();
+        if (x >= rect.left - 20 && x <= rect.right + 20 && y >= rect.top - 20 && y <= rect.bottom + 20) {
+            if (dragging.cards.length === 1 && canPlaceOnFoundation(dragging.cards[0], f)) return { type: 'foundation', idx: f };
+        }
+    }
+    const columns = document.querySelectorAll('.column');
+    for (let c = 0; c < 7; c++) {
+        const rect = columns[c].getBoundingClientRect();
+        if (x >= rect.left - 20 && x <= rect.right + 20 && y >= rect.top - 20 && y <= rect.bottom + 80) {
+            if (canPlaceOnTableau(dragging.cards[0], c)) {
+                if (dragging.source === 'tableau' && dragging.info.colIdx === c) continue;
+                return { type: 'tableau', idx: c };
+            }
+        }
+    }
+    return null;
+}
+
+function onDragEnd(e) {
+    if (!dragging) return;
+    const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+    const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+
+    document.removeEventListener('mousemove', onDragMove); document.removeEventListener('mouseup', onDragEnd);
+    document.removeEventListener('touchmove', onDragMove); document.removeEventListener('touchend', onDragEnd);
+    document.querySelectorAll('.highlight-zone').forEach(z => z.remove());
+
+    const dropTarget = findDropTarget(clientX, clientY);
+    if (dropTarget) {
+        saveState(); startTimer();
+        if (dropTarget.type === 'foundation') {
+            const card = dragging.cards[0];
+            if (dragging.source === 'waste') waste.pop();
+            else {
+                const col = tableau[dragging.info.colIdx]; col.pop();
+                if (col.length > 0) col[col.length - 1].faceUp = true;
+            }
+            foundations[dropTarget.idx].push(card); moves++; score += 10;
+            showScorePopup(clientX - 20, clientY - 30, 10);
+        } else if (dropTarget.type === 'tableau') {
+            if (dragging.source === 'waste') {
+                const card = waste.pop(); tableau[dropTarget.idx].push(card);
+            } else {
+                const srcCol = tableau[dragging.info.colIdx];
+                const cards = srcCol.splice(dragging.info.cardIdx);
+                tableau[dropTarget.idx].push(...cards);
+                if (srcCol.length > 0) srcCol[srcCol.length - 1].faceUp = true;
+            }
+            moves++;
+        }
+        render(); updateDisplay();
+        if (checkWin()) setTimeout(showWin, 500);
+    } else {
+        if (dragging.source === 'tableau' && dragging.info) render(); // Re-render to restore opacity
+        else if (dragging.cards[0].element) dragging.cards[0].element.style.opacity = '1';
+    }
+
+    dragging.elements.forEach(el => el.remove());
+    dragging = null;
+}
+
+// Initial Kickoff
+newGame();
+</script>
+</body>
+</html>

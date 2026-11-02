@@ -1,0 +1,588 @@
+<!-- Tafsir Visual: Ikon PotongGambar memadukan bingkai crop (resin putih) dengan sebuah lensa/fokus area (resin gelap) melayang di tengah. Palet Sunset (Orange-Magenta) dipilih untuk menonjolkan kreativitas visual yang vibrant dan energik. -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PotongGambar - Image Tools</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Cropper.js CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* CSS Tokens & Theming */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #f97316; /* Orange Apple Style */
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            
+            --checkered-light: #e5e5f7;
+            --checkered-dark: #c4c4c4;
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            
+            --checkered-light: #1f2937;
+            --checkered-dark: #374151;
+        }
+
+        body {
+            background-color: var(--preview-bg);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Utility Classes based on Tokens */
+        .bg-header { background-color: var(--header-bg); }
+        .bg-editor { background-color: var(--editor-bg); }
+        .bg-preview { background-color: var(--preview-bg); }
+        .bg-card { background-color: var(--card-bg); }
+        .bg-footer { background-color: var(--footer-bg); }
+        .border-theme { border-color: var(--border-color); }
+        .text-dim { color: var(--text-dim); }
+
+        /* Pola Papan Catur untuk Transparansi (Bisa adaptif Light/Dark) */
+        .bg-checkered {
+            background-color: var(--checkered-light);
+            background-image:  
+                linear-gradient(45deg, var(--checkered-dark) 25%, transparent 25%), 
+                linear-gradient(-45deg, var(--checkered-dark) 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, var(--checkered-dark) 75%), 
+                linear-gradient(-45deg, transparent 75%, var(--checkered-dark) 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        /* Modifikasi tampilan Cropper.js */
+        .cropper-view-box,
+        .cropper-face {
+            border-radius: 0;
+        }
+        .cropper-dashed {
+            border-color: rgba(255, 255, 255, 0.8);
+        }
+        .cropper-modal {
+            background-color: rgba(0, 0, 0, 0.75);
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-dim);
+        }
+
+        /* Input Range Premium */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: var(--theme-accent);
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: var(--border-color);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- A. HEADER WAJIB -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm">
+        <div class="flex items-center gap-3">
+            <h1 class="text-xl font-bold bg-gradient-to-r from-orange-500 to-pink-500 bg-clip-text text-transparent flex items-center gap-2 tracking-tight">
+                <i data-lucide="crop" class="text-orange-500 w-5 h-5"></i> PotongGambar
+            </h1>
+            <span class="text-xs italic text-dim border border-theme px-2 py-0.5 rounded-full mt-1">v2.0</span>
+            <span class="text-xs text-dim hidden sm:inline-block ml-2 border-l border-theme pl-3 mt-1">by AhmadDanial</span>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <!-- Help Tooltip -->
+            <div class="group relative flex items-center justify-center cursor-help">
+                <i data-lucide="help-circle" class="w-5 h-5 text-dim hover:text-[var(--text-main)] transition-colors"></i>
+                <div class="absolute right-0 top-8 w-64 p-3 bg-card border border-theme rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-xs font-medium">
+                    Upload gambar, atur crop area, pilih resolusi, dan simpan sebagai PNG transparan!
+                </div>
+            </div>
+            <!-- Toggle Bahasa -->
+            <button id="lang-toggle" class="text-xs font-bold text-dim hover:text-[var(--text-main)] transition-colors px-2 py-1 rounded border border-theme">
+                ID
+            </button>
+            <!-- Toggle Tema -->
+            <button id="theme-toggle" class="p-1.5 rounded-lg border border-theme text-dim hover:text-[var(--text-main)] hover:bg-preview transition-colors">
+                <i data-lucide="moon" class="w-4 h-4 hidden dark:block"></i>
+                <i data-lucide="sun" class="w-4 h-4 block dark:hidden"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- B. MAIN WORKSPACE (Split Pane Premium Blueprint) -->
+    <main class="flex-1 flex overflow-hidden">
+        
+        <!-- Panel Utama (Kiri): Menempel Penuh / Kanvas -->
+        <div id="left-pane" class="flex-[6] bg-editor relative overflow-hidden flex flex-col items-center justify-center">
+            
+            <!-- Placeholder saat kosong -->
+            <div id="placeholder" class="text-center text-dim flex flex-col items-center gap-4 p-8 pointer-events-none z-10">
+                <div class="w-20 h-20 bg-preview border border-theme rounded-2xl flex items-center justify-center shadow-sm">
+                    <i data-lucide="image-plus" class="w-10 h-10 opacity-50"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-[var(--text-main)]">Kanvas Kosong</h3>
+                    <p class="text-sm mt-1">Gunakan panel kanan untuk memuat gambar.</p>
+                </div>
+            </div>
+            
+            <!-- Container Gambar (Tersembunyi awal) -->
+            <div id="image-container" class="hidden w-full h-full bg-checkered absolute inset-0">
+                <img id="image-preview" src="" class="block max-w-full">
+            </div>
+        </div>
+        
+        <!-- Resizer/Gutter: WAJIB TEBAL & BERBEDA WARNA -->
+        <div id="resizer" class="w-3 bg-preview cursor-col-resize flex items-center justify-center border-x border-theme group shrink-0 z-20 hover:bg-[var(--border-color)] transition-colors">
+            <!-- Handle visual -->
+            <div class="h-10 w-1 bg-[var(--text-dim)] rounded-full group-hover:bg-orange-500 transition-colors opacity-50 group-hover:opacity-100"></div>
+        </div>
+        
+        <!-- Panel Sidebar (Kanan): Latar abu-abu (bg-preview), konten dibungkus Card -->
+        <div id="right-pane" class="flex-[3] sm:flex-[4] lg:flex-[3] w-80 bg-preview p-4 flex flex-col gap-4 overflow-y-auto">
+            
+            <!-- Card 1: Sumber Input -->
+            <div class="bg-card rounded-xl shadow-sm border border-theme p-5">
+                <h3 class="font-semibold text-sm mb-4 flex items-center gap-2">
+                    <i data-lucide="import" class="w-4 h-4 text-orange-500"></i> Sumber Gambar
+                </h3>
+                
+                <div class="flex flex-col gap-3">
+                    <input type="file" id="file-input" accept="image/*" class="hidden">
+                    <button onclick="document.getElementById('file-input').click()" class="w-full bg-[var(--text-main)] hover:opacity-90 text-[var(--card-bg)] px-4 py-2.5 rounded-lg text-sm transition-all font-medium flex items-center justify-center gap-2 shadow-sm">
+                        <i data-lucide="upload-cloud" class="w-4 h-4"></i> Unggah Gambar
+                    </button>
+                    
+                    <button id="btn-paste" class="w-full bg-editor border border-theme hover:border-orange-500 text-[var(--text-main)] px-4 py-2.5 rounded-lg text-sm transition-all font-medium flex items-center justify-center gap-2">
+                        <i data-lucide="clipboard-paste" class="w-4 h-4"></i> Tempel (Ctrl+V)
+                    </button>
+                    
+                    <div class="flex mt-1 rounded-lg overflow-hidden border border-theme focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-500/20 transition-all">
+                        <input type="text" id="url-input" placeholder="URL Gambar..." class="bg-editor text-[var(--text-main)] px-3 py-2.5 text-sm outline-none flex-1 w-full">
+                        <button id="btn-url" class="bg-preview border-l border-theme hover:bg-[var(--border-color)] px-4 py-2 text-sm transition-colors text-dim hover:text-[var(--text-main)]">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2: Preset Resolusi -->
+            <div class="bg-card rounded-xl shadow-sm border border-theme p-5">
+                <h3 class="font-semibold text-sm mb-4 flex items-center gap-2">
+                    <i data-lucide="scaling" class="w-4 h-4 text-orange-500"></i> Preset Resolusi
+                </h3>
+                
+                <div class="grid grid-cols-2 gap-2">
+                    <!-- Preset Default -->
+                    <button class="preset-btn ring-2 ring-orange-500 bg-orange-50/10 text-[var(--text-main)] py-2.5 rounded-lg text-sm transition font-medium border border-transparent shadow-sm" data-w="1920" data-h="1080">
+                        1920x1080
+                        <div class="text-[10px] text-dim font-normal mt-0.5">Lanskap 16:9</div>
+                    </button>
+                    <button class="preset-btn bg-editor border border-theme hover:border-orange-300 text-[var(--text-main)] py-2.5 rounded-lg text-sm transition font-medium" data-w="1080" data-h="1920">
+                        1080x1920
+                        <div class="text-[10px] text-dim font-normal mt-0.5">Potret 9:16</div>
+                    </button>
+                    <button class="preset-btn bg-editor border border-theme hover:border-orange-300 text-[var(--text-main)] py-2.5 rounded-lg text-sm transition font-medium" data-w="1920" data-h="1920">
+                        1920x1920
+                        <div class="text-[10px] text-dim font-normal mt-0.5">Persegi 1:1</div>
+                    </button>
+                    <button class="preset-btn bg-editor border border-theme hover:border-orange-300 text-[var(--text-main)] py-2.5 rounded-lg text-sm transition font-medium" data-w="free" data-h="free">
+                        Bebas
+                        <div class="text-[10px] text-dim font-normal mt-0.5">Free Crop</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Card 3: Kompresi & Export -->
+            <div class="bg-card rounded-xl shadow-sm border border-theme p-5 mb-auto">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-semibold text-sm flex items-center gap-2">
+                        <i data-lucide="gauge" class="w-4 h-4 text-orange-500"></i> Kompresi PNG
+                    </h3>
+                    <span id="quality-val" class="text-xs font-mono font-medium text-orange-500 bg-orange-500/10 px-2 py-1 rounded">100%</span>
+                </div>
+                
+                <input type="range" id="quality-slider" min="10" max="100" value="100" class="mb-4">
+                
+                <div class="p-3 bg-preview border border-theme rounded-lg mb-4 text-[11px] text-dim leading-relaxed flex gap-2">
+                    <i data-lucide="info" class="w-3.5 h-3.5 shrink-0 mt-0.5 text-orange-500"></i>
+                    <p>Format PNG selalu <i>lossless</i>. Menurunkan slider akan memperkecil resolusi kanvas secara proporsional untuk menghemat ukuran memori.</p>
+                </div>
+
+                <button id="btn-download" disabled class="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-bold text-sm transition-all shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none">
+                    <i data-lucide="save" class="w-4 h-4"></i> Unduh Hasil (PNG)
+                </button>
+            </div>
+            
+        </div>
+    </main>
+
+    <!-- C. FOOTER WAJIB -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500 inline-block animate-pulse"></span>
+            <span id="status-text">Menunggu gambar...</span>
+        </div>
+        <div class="font-mono hidden sm:block">
+            Target Output: <span id="target-res-txt" class="text-[var(--text-main)] font-semibold">1920x1080 px</span>
+        </div>
+        <div>
+            <button onclick="document.getElementById('terms-modal').classList.remove('hidden')" class="hover:text-[var(--text-main)] transition-colors underline decoration-dotted underline-offset-2">Terms & Privacy</button>
+        </div>
+    </footer>
+
+    <!-- MODAL TERMS (TATADADA Framework) -->
+    <div id="terms-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div class="bg-card rounded-2xl shadow-2xl p-6 w-full max-w-md border border-theme animate-in fade-in zoom-in-95 duration-200">
+            <h2 class="text-lg font-bold mb-2 flex items-center gap-2">
+                <i data-lucide="shield-check" class="w-5 h-5 text-orange-500"></i> Ketentuan Layanan
+            </h2>
+            <div class="text-sm text-dim space-y-3 mb-6 bg-preview p-4 rounded-xl border border-theme max-h-60 overflow-y-auto">
+                <p>1. <strong>Privasi Penuh:</strong> Seluruh proses pemotongan dan konversi gambar dilakukan secara lokal di peramban (browser) Anda. Kami tidak mengunggah gambar Anda ke server mana pun.</p>
+                <p>2. <strong>Proxy URL:</strong> Fitur pemuatan URL menggunakan layanan public CORS proxy (AllOrigins) murni untuk keperluan <i>bypass</i> domain.</p>
+                <p>3. <strong>Hak Cipta:</strong> Anda bertanggung jawab penuh atas hak cipta gambar yang Anda unggah, potong, dan distribusikan menggunakan layanan alat ini.</p>
+            </div>
+            <div class="flex justify-end">
+                <button onclick="document.getElementById('terms-modal').classList.add('hidden')" class="bg-[var(--text-main)] text-[var(--card-bg)] px-5 py-2.5 rounded-lg text-sm font-semibold transition hover:opacity-90">
+                    Saya Mengerti
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    <script>
+        // Init Lucide Icons
+        lucide.createIcons();
+
+        // ----------------------------------------------------
+        // 1. FRAMEWORK UI LOGIC (Theme & Resizer)
+        // ----------------------------------------------------
+        
+        // Theme Toggle
+        const themeBtn = document.getElementById('theme-toggle');
+        const rootHtml = document.documentElement;
+        
+        // Check local storage or system pref
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            rootHtml.classList.add('dark');
+        } else {
+            rootHtml.classList.remove('dark');
+        }
+
+        themeBtn.addEventListener('click', () => {
+            rootHtml.classList.toggle('dark');
+            if (rootHtml.classList.contains('dark')) {
+                localStorage.setItem('theme', 'dark');
+            } else {
+                localStorage.setItem('theme', 'light');
+            }
+        });
+
+        // Split Pane Resizer Logic
+        const resizer = document.getElementById('resizer');
+        const leftPane = document.getElementById('left-pane');
+        const rightPane = document.getElementById('right-pane');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            // Hindari selection text saat menarik resizer
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const containerWidth = document.body.clientWidth;
+            // Hitung persentase posisi mouse
+            let newBasis = (e.clientX / containerWidth) * 100;
+            
+            // Batasan minimum dan maksimum lebar (20% - 80%)
+            if(newBasis > 20 && newBasis < 80) {
+                leftPane.style.flex = `0 0 ${newBasis}%`;
+                rightPane.style.flex = `1 1 0%`; // Right pane mengisi sisa
+                
+                // Jika cropper aktif, update posisinya agar tidak rusak
+                if (cropper) {
+                    // Timeout kecil agar layout selesai render
+                    setTimeout(() => cropper.resize(), 10); 
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+            }
+        });
+
+
+        // ----------------------------------------------------
+        // 2. CORE APP LOGIC (Image Tools)
+        // ----------------------------------------------------
+        
+        let cropper = null;
+        let currentTargetW = 1920;
+        let currentTargetH = 1080;
+        
+        const imagePreview = document.getElementById('image-preview');
+        const imageContainer = document.getElementById('image-container');
+        const placeholder = document.getElementById('placeholder');
+        const btnDownload = document.getElementById('btn-download');
+        const statusText = document.getElementById('status-text');
+        const targetResTxt = document.getElementById('target-res-txt');
+
+        // Fungsi Update UI Teks
+        function updateTargetText() {
+            if(currentTargetW && currentTargetH) {
+                targetResTxt.textContent = `${currentTargetW}x${currentTargetH} px`;
+            } else {
+                targetResTxt.textContent = `Resolusi Dinamis (Free)`;
+            }
+        }
+
+        // Inisialisasi Cropper
+        function initCropper(imageUrl) {
+            if (cropper) {
+                cropper.destroy();
+            }
+            
+            imagePreview.src = imageUrl;
+            placeholder.classList.add('hidden');
+            imageContainer.classList.remove('hidden');
+            btnDownload.disabled = false;
+            statusText.textContent = "Siap untuk dipotong.";
+
+            cropper = new Cropper(imagePreview, {
+                viewMode: 2,
+                aspectRatio: currentTargetW / currentTargetH,
+                background: false, // Menghilangkan background bawaan cropper agar pola catur kita terlihat
+                autoCropArea: 0.9,
+                responsive: true,
+                restore: false
+            });
+        }
+
+        // --- HANDLERS INPUT GAMBAR ---
+
+        // 1. Unggah File
+        document.getElementById('file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                initCropper(url);
+            }
+            this.value = '';
+        });
+
+        // 2. Tempel (Paste) dari Clipboard
+        window.addEventListener('paste', function(e) {
+            const items = (e.clipboardData || window.clipboardData).items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    const url = URL.createObjectURL(blob);
+                    initCropper(url);
+                    break;
+                }
+            }
+        });
+
+        // Tombol manual untuk trigger hint paste
+        document.getElementById('btn-paste').addEventListener('click', () => {
+            alert("Sistem Keamanan Browser: Silakan tekan kombinasi tombol [Ctrl + V] (Windows) atau [Cmd + V] (Mac) pada keyboard Anda untuk menempelkan gambar secara langsung.");
+        });
+
+        // 3. Ambil dari URL
+        document.getElementById('btn-url').addEventListener('click', async function() {
+            const url = document.getElementById('url-input').value.trim();
+            if (!url) return;
+            
+            const btn = this;
+            const icon = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-orange-500"></i>';
+            lucide.createIcons();
+            btn.disabled = true;
+
+            try {
+                // CORS Proxy
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                initCropper(objectUrl);
+            } catch (error) {
+                alert('Gagal memuat gambar dari URL. Pastikan URL valid atau gambar mungkin dilindungi secara ketat oleh sistem.');
+                console.error(error);
+            } finally {
+                btn.innerHTML = icon;
+                btn.disabled = false;
+                document.getElementById('url-input').value = '';
+            }
+        });
+
+        // --- PENGATURAN CROPPER ---
+
+        // Slider Kualitas
+        const qualitySlider = document.getElementById('quality-slider');
+        const qualityVal = document.getElementById('quality-val');
+        qualitySlider.addEventListener('input', function() {
+            qualityVal.textContent = this.value + '%';
+        });
+
+        // Tombol Preset
+        const presetBtns = document.querySelectorAll('.preset-btn');
+        presetBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                // Reset semua styling preset
+                presetBtns.forEach(b => {
+                    b.classList.remove('ring-2', 'ring-orange-500', 'bg-orange-50/10');
+                    b.classList.add('bg-editor', 'border-theme', 'hover:border-orange-300');
+                    b.classList.remove('border-transparent');
+                });
+                
+                // Tambahkan styling aktif
+                this.classList.remove('bg-editor', 'border-theme', 'hover:border-orange-300');
+                this.classList.add('ring-2', 'ring-orange-500', 'bg-orange-50/10', 'border-transparent');
+
+                const w = this.getAttribute('data-w');
+                const h = this.getAttribute('data-h');
+
+                if (w === 'free') {
+                    currentTargetW = null;
+                    currentTargetH = null;
+                    if(cropper) cropper.setAspectRatio(NaN);
+                } else {
+                    currentTargetW = parseInt(w);
+                    currentTargetH = parseInt(h);
+                    if(cropper) cropper.setAspectRatio(currentTargetW / currentTargetH);
+                }
+                
+                updateTargetText();
+            });
+        });
+
+        // --- PROSES UNDUH PNG ---
+        
+        btnDownload.addEventListener('click', function() {
+            if (!cropper) return;
+
+            const oldText = this.innerHTML;
+            this.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Memproses...';
+            lucide.createIcons();
+            
+            // Jeda sebentar agar UI tombol update
+            setTimeout(() => {
+                let getCanvasOptions = {
+                    imageSmoothingEnabled: true,
+                    imageSmoothingQuality: 'high',
+                };
+
+                if (currentTargetW && currentTargetH) {
+                    getCanvasOptions.width = currentTargetW;
+                    getCanvasOptions.height = currentTargetH;
+                }
+
+                const canvas = cropper.getCroppedCanvas(getCanvasOptions);
+                const qualityPercentage = parseInt(qualitySlider.value);
+                let finalCanvas = canvas;
+
+                if (qualityPercentage < 100) {
+                    const scaleFactor = qualityPercentage / 100;
+                    finalCanvas = document.createElement('canvas');
+                    finalCanvas.width = Math.max(1, canvas.width * scaleFactor);
+                    finalCanvas.height = Math.max(1, canvas.height * scaleFactor);
+                    
+                    const ctx = finalCanvas.getContext('2d');
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'medium';
+                    ctx.drawImage(canvas, 0, 0, finalCanvas.width, finalCanvas.height);
+                }
+
+                finalCanvas.toBlob(function(blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    
+                    const date = new Date();
+                    const timeStr = `${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2,'0')}${date.getDate().toString().padStart(2,'0')}_${date.getHours()}${date.getMinutes()}${date.getSeconds()}`;
+                    
+                    a.download = `PotongGambar_${timeStr}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        btnDownload.innerHTML = oldText;
+                        lucide.createIcons();
+                    }, 100);
+                    
+                }, 'image/png');
+            }, 50);
+        });
+    </script>
+</body>
+</html>

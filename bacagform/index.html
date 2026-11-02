@@ -1,0 +1,628 @@
+<!-- Tafsir Visual: Ikon berdimensi tebal mewakili pemrosesan dokumen (kertas resin putih) yang ditelaah menggunakan lensa analitik cerdas (kamera resin gelap dengan inti oranye kemerahan). Kombinasi Oranye dan Ungu melambangkan perpaduan antara kecerdasan tajam dan kreativitas analisis. -->
+<!DOCTYPE html>
+<html lang="id" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BacaGForm - Executive Analyzer</title>
+    
+    <!-- Google Analytics TATADADA Mandatory -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { 
+                extend: { 
+                    colors: { 
+                        theme: 'var(--border-color)', 
+                        main: 'var(--text-main)', 
+                        dim: 'var(--text-dim)',
+                        accent: 'var(--theme-accent)',
+                        card: 'var(--card-bg)',
+                        preview: 'var(--preview-bg)',
+                        header: 'var(--header-bg)',
+                        footer: 'var(--footer-bg)',
+                        editor: 'var(--editor-bg)'
+                    } 
+                } 
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        /* TATADADA Framework Tokens v5.6 */
+        :root { 
+            --header-bg: #ffffff; 
+            --editor-bg: #ffffff; 
+            --preview-bg: #f1f5f9; 
+            --card-bg: #ffffff; 
+            --footer-bg: #ffffff; 
+            --border-color: #e2e8f0; 
+            --text-main: #0f172a; 
+            --text-dim: #64748b; 
+            --theme-accent: #3b82f6;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        html.dark { 
+            --header-bg: #161b22; 
+            --editor-bg: #0d1117; 
+            --preview-bg: #010409; 
+            --card-bg: #0d1117; 
+            --footer-bg: #161b22; 
+            --border-color: #30363d; 
+            --text-main: #e6edf3; 
+            --text-dim: #8b949e; 
+            color-scheme: dark;
+        }
+        
+        body { background-color: var(--preview-bg); color: var(--text-main); font-family: 'Inter', sans-serif; overflow: hidden; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+        
+        .animation-fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ====================================================
+           SUPER NEAT A4 PRINT ARCHITECTURE (IMMUNE TO DARK MODE)
+           ==================================================== */
+        .a4-wrapper {
+            width: 210mm; 
+            min-height: 297mm;
+            margin: 0 auto;
+            background: #ffffff !important;
+            color: #0f172a !important;
+            box-shadow: var(--shadow-md);
+            position: relative;
+        }
+        .a4-content { padding: 15mm; }
+        
+        .html2pdf__page-break { height: 0px !important; margin: 0 !important; padding: 0 !important; border: 0 !important; page-break-before: always; clear: both; }
+
+        /* Typography Cetak */
+        .doc-title { font-size: 24pt; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: -0.02em; line-height: 1.1; }
+        .doc-section { font-size: 14pt; font-weight: 800; color: #1e293b; border-bottom: 2px solid #cbd5e1; padding-bottom: 6pt; margin-top: 0; margin-bottom: 12pt; }
+        .doc-text { font-size: 11pt; line-height: 1.6; color: #334155; margin-bottom: 10pt; text-align: justify; }
+        .doc-label { font-size: 9pt; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+
+        /* Tabel Rapi (Anti-Terpotong) */
+        .clean-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .clean-table th { background: #f8fafc; padding: 8pt; border: 1px solid #cbd5e1; font-size: 9pt; font-weight: 700; color: #475569; text-transform: uppercase; }
+        .clean-table td { padding: 8pt; border: 1px solid #e2e8f0; font-size: 10pt; color: #1e293b; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; }
+        .avoid-break { page-break-inside: avoid; }
+
+        /* Area Grafik Proporsional */
+        .chart-container { border: 1px solid #e2e8f0; border-radius: 8pt; padding: 12pt; background: #ffffff; display: flex; flex-direction: column; height: 280px; }
+        .chart-canvas-wrap { flex: 1; position: relative; width: 100%; height: 100%; }
+
+        @media print {
+            body { background: #ffffff !important; margin: 0 !important; padding: 0 !important; overflow: visible !important;}
+            .no-print { display: none !important; }
+            .a4-wrapper { width: 100% !important; margin: 0 !important; box-shadow: none !important; }
+            .a4-content { padding: 0 !important; } 
+            #view-workspace { display: block !important; }
+            #right-pane { display: block !important; width: 100% !important; overflow: visible !important; }
+            #left-pane, #resizer { display: none !important; }
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <!-- HEADER (TATADADA v5.6) -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm no-print">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-inner">
+                <i data-lucide="brain-circuit" class="w-4 h-4 text-white"></i>
+            </div>
+            <div class="flex flex-col">
+                <h1 class="text-lg font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-500 tracking-tight leading-none flex items-center gap-1">
+                    BacaGForm <span class="italic text-[10px] text-dim font-normal bg-preview px-1 rounded border border-theme">v12</span>
+                </h1>
+                <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 mt-0.5 transition-colors w-max">by AhmadDanial</a>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <button class="text-dim hover:text-main flex items-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded-md hover:bg-preview transition-colors" title="Bantuan" id="helpBtn">
+                <i data-lucide="help-circle" class="w-4 h-4"></i> <span class="hidden sm:inline" id="txtHelp">Help</span>
+            </button>
+            <div class="w-px h-4 bg-theme"></div>
+            <button id="langToggle" class="text-dim hover:text-main flex items-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded-md hover:bg-preview transition-colors">
+                <span class="text-sm">🇮🇩</span> <span class="hidden sm:inline font-bold">ID</span>
+            </button>
+            <button id="themeToggle" class="w-8 h-8 flex items-center justify-center rounded-full bg-preview text-dim hover:text-main border border-theme transition-all focus:ring-2 focus:ring-accent/20">
+                <i data-lucide="moon" class="w-4 h-4" id="themeIcon"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden bg-preview w-full">
+        
+        <!-- SKENARIO 2: Single View Input (Tampil di awal) -->
+        <div id="view-input" class="w-full h-full flex flex-col overflow-y-auto p-4 sm:p-8 no-print animation-fade-in">
+            <div class="max-w-5xl mx-auto w-full bg-card rounded-2xl shadow-xl border border-theme p-8 my-6 flex flex-col items-center text-center">
+                <div class="w-20 h-20 bg-blue-50 dark:bg-blue-900/20 text-accent rounded-3xl flex items-center justify-center mx-auto mb-6 border border-blue-100 dark:border-blue-800">
+                    <i data-lucide="link-2" class="w-10 h-10"></i>
+                </div>
+                <h2 class="text-3xl font-black mb-3 text-main tracking-tight" id="txtTitleInput">Paste Link / Data</h2>
+                <p class="text-dim mb-8 text-sm max-w-lg mx-auto leading-relaxed" id="txtSubInput">Gunakan <kbd class="px-2 py-1 bg-preview border border-theme rounded font-mono text-xs font-bold text-main">Ctrl+V</kbd> untuk menempel URL Google Sheets (Publik) atau data mentah (Excel/CSV).</p>
+                
+                <div id="errorBox" class="hidden bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-5 rounded-xl mb-6 w-full flex items-start gap-4 border border-red-200 dark:border-red-800/50 text-left">
+                    <i data-lucide="alert-octagon" class="w-6 h-6 shrink-0 mt-0.5"></i>
+                    <div>
+                        <p id="errorMsg" class="text-base font-bold"></p>
+                        <p id="errorSubMsg" class="text-sm mt-1 font-medium opacity-80 leading-relaxed"></p>
+                    </div>
+                </div>
+
+                <textarea id="rawData" onpaste="handlePaste(event)" class="w-full h-72 p-6 rounded-2xl border border-theme bg-preview text-main focus:border-accent focus:ring-4 focus:ring-accent/10 outline-none font-mono text-[13px] resize-none shadow-inner transition-all" placeholder="Paste data (Tab/CSV) atau Link Google Sheets..."></textarea>
+            </div>
+        </div>
+
+        <!-- SKENARIO 1: Split View Workspace (Tampil setelah proses) -->
+        <div id="view-workspace" class="w-full h-full flex hidden animation-fade-in">
+            
+            <!-- PANEL KIRI (Data Mentah) -->
+            <div id="left-pane" class="flex-[4] bg-editor relative overflow-hidden flex flex-col no-print">
+                 <div class="h-14 border-b border-theme bg-card flex justify-between items-center px-5 shrink-0 shadow-sm relative z-10">
+                      <div>
+                          <h3 class="font-bold text-sm text-main flex items-center gap-2"><i data-lucide="database" class="w-4 h-4 text-accent"></i> <span id="txtDataRepo">Data Repository</span></h3>
+                          <p class="text-[10px] font-bold text-dim uppercase tracking-widest mt-1" id="tableSubtitle">0 Baris</p>
+                      </div>
+                 </div>
+                 <div class="flex-1 overflow-auto custom-scrollbar bg-preview">
+                      <table class="w-full text-left text-sm whitespace-nowrap border-separate border-spacing-0">
+                           <thead class="bg-card sticky top-0 z-10 shadow-sm" id="dataHead"></thead>
+                           <tbody class="bg-card divide-y divide-theme" id="dataBody"></tbody>
+                      </table>
+                 </div>
+            </div>
+
+            <!-- RESIZER (GUTTER TEBAL TATADADA) -->
+            <div id="resizer" class="w-3 bg-preview cursor-col-resize flex items-center justify-center border-x border-theme group shrink-0 z-20 no-print relative">
+                <div class="h-8 w-1 bg-[var(--border-color)] rounded-full group-hover:bg-accent transition-colors"></div>
+            </div>
+
+            <!-- PANEL KANAN (Alat Kontrol & A4 Layout) -->
+            <div id="right-pane" class="flex-[6] bg-preview p-4 flex flex-col gap-4 overflow-y-auto custom-scrollbar relative items-center">
+                
+                <!-- Card Control 1: Toolbar -->
+                <div class="w-full max-w-[210mm] bg-card rounded-xl shadow-sm border border-theme p-4 flex justify-between items-center no-print shrink-0 z-10">
+                    <button onclick="resetData()" class="px-4 py-2 hover:bg-red-50 text-dim hover:text-red-600 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-transparent hover:border-red-200">
+                        <i data-lucide="rotate-ccw" class="w-3 h-3"></i> <span id="btnReset">Reset</span>
+                    </button>
+                    <button onclick="downloadPDF()" id="pdfBtn" class="px-5 py-2 bg-accent hover:opacity-90 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 shadow-md">
+                        <i data-lucide="printer" class="w-4 h-4"></i> <span id="btnExport">Ekspor PDF A4</span>
+                    </button>
+                </div>
+
+                <!-- A4 Wrapper -->
+                <div id="report-document" class="a4-wrapper shrink-0">
+                    <!-- ================== HALAMAN 1 ================== -->
+                    <div class="a4-content">
+                        <div class="flex justify-between items-end border-b-[3px] border-[#0f172a] pb-6 mb-8">
+                            <div>
+                                <h1 class="doc-title" id="docTitle">Executive Report</h1>
+                                <p class="doc-label mt-2" id="reportDate"></p>
+                            </div>
+                            <div class="flex gap-6 text-right">
+                                <div>
+                                    <p class="text-[24pt] font-black leading-none text-[#0f172a]" id="bigTotalRows">0</p>
+                                    <p class="doc-label mt-1 text-[#64748b]" id="lblResponden">Responden</p>
+                                </div>
+                                <div>
+                                    <p class="text-[24pt] font-black leading-none text-[#3b82f6]" id="maturityIndex">0.0</p>
+                                    <p class="doc-label mt-1 text-[#3b82f6]" id="lblMaturity">Maturity Score</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h2 class="doc-section" id="hdrSintesis">I. Sintesis & Analisis Strategis</h2>
+                        <div id="narrativeContainer" class="mb-10"></div>
+
+                        <div class="p-6 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl">
+                            <h3 class="text-[12pt] font-bold text-[#0f172a] mb-2 flex items-center gap-2">
+                                <i data-lucide="target" class="w-5 h-5 text-[#3b82f6]"></i> <span id="lblRekomendasi">Rekomendasi Utama</span>
+                            </h3>
+                            <p class="doc-text mb-0 italic" id="recommendationText"></p>
+                        </div>
+                    </div>
+
+                    <div class="html2pdf__page-break"></div>
+
+                    <!-- ================== HALAMAN 2 ================== -->
+                    <div class="a4-content">
+                        <h2 class="doc-section" id="hdrVisual">II. Visualisasi Metrik Utama</h2>
+                        <div class="grid grid-cols-2 gap-6 mb-6">
+                            <!-- Chart 1 -->
+                            <div class="chart-container">
+                                <h4 class="text-[11pt] font-bold text-[#0f172a] text-center mb-1" id="c1T">Profil Responden</h4>
+                                <p class="doc-label text-center mb-3 truncate" id="chart1Label"></p>
+                                <div class="chart-canvas-wrap"><canvas id="pieChart"></canvas></div>
+                            </div>
+                            <!-- Chart 2 -->
+                            <div class="chart-container">
+                                <h4 class="text-[11pt] font-bold text-[#0f172a] text-center mb-1" id="c2T">Indeks Afirmasi</h4>
+                                <p class="doc-label text-center mb-3" id="c2S">Rata-rata Skor Penilaian</p>
+                                <div class="chart-canvas-wrap"><canvas id="radarChart"></canvas></div>
+                            </div>
+                            <!-- Chart 3 -->
+                            <div class="chart-container">
+                                <h4 class="text-[11pt] font-bold text-[#0f172a] text-left mb-1" id="c3T">Penetrasi Alat</h4>
+                                <p class="doc-label text-left mb-3 truncate" id="chart3Label"></p>
+                                <div class="chart-canvas-wrap"><canvas id="hbarChart"></canvas></div>
+                            </div>
+                            <!-- Chart 4 -->
+                            <div class="chart-container">
+                                <h4 class="text-[11pt] font-bold text-[#0f172a] text-left mb-1" id="c4T">Kepadatan Sentimen</h4>
+                                <p class="doc-label text-left mb-3 truncate" id="chart4Label"></p>
+                                <div class="chart-canvas-wrap"><canvas id="scatterChart"></canvas></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="html2pdf__page-break"></div>
+
+                    <!-- ================== HALAMAN 3 ================== -->
+                    <div class="a4-content">
+                        <h2 class="doc-section" id="hdrMatriks">III. Direktori Parameter Lengkap</h2>
+                        <table class="clean-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 35%;" id="th1">Parameter Evaluasi</th>
+                                    <th style="width: 15%; text-align: center;" id="th2">Tipe</th>
+                                    <th style="width: 50%;" id="th3">Intisari Temuan</th>
+                                </tr>
+                            </thead>
+                            <tbody id="summaryTableBody"></tbody>
+                        </table>
+                        <div class="mt-10 pt-4 border-t border-[#e2e8f0] flex justify-between items-center text-[8pt] text-[#64748b] font-bold uppercase tracking-widest">
+                            <span>Engine: TATADADA V5.6</span>
+                            <span>Confidential Report</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER (TATADADA v5.6) -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 no-print z-50">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span id="footerStatus">Sistem Aktif</span>
+        </div>
+        <div class="font-mono hidden sm:block">TATADADA v5.6 Engine</div>
+        <button onclick="openTerms()" class="hover:text-main transition-colors underline decoration-dotted underline-offset-2" id="footerTerms">Terms of Use</button>
+    </footer>
+
+    <!-- MODAL TERMS OF USE -->
+    <div id="termsModal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeTerms()"></div>
+        <div class="bg-card rounded-2xl shadow-2xl p-6 max-w-lg w-full relative z-10 border border-theme animation-fade-in flex flex-col gap-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xl font-bold text-main" id="modalTitle">Terms of Use</h3>
+                <button onclick="closeTerms()" class="text-dim hover:text-red-500 transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="text-sm text-dim leading-relaxed space-y-3">
+                <p><strong class="text-main">Smart Context:</strong> <span id="modalContext"></span></p>
+                <div class="h-px w-full bg-theme"></div>
+                <p id="modalStrict"></p>
+            </div>
+            <div class="mt-2 flex justify-end">
+                <button onclick="closeTerms()" class="px-5 py-2 bg-main text-card rounded-lg font-bold text-sm hover:opacity-90 transition-opacity" id="btnAgree">Saya Mengerti</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- TRANSLATION LOGIC ---
+        const translations = {
+            id: {
+                help: "Bantuan", terms: "Syarat & Ketentuan", statusActive: "Sistem Aktif", btnReset: "Reset", btnExport: "Ekspor PDF A4",
+                txtTitleInput: "Paste Link / Data", txtSubInput: "Gunakan Ctrl+V untuk menempel URL Google Sheets (Publik) atau data mentah (Excel/CSV).",
+                txtDataRepo: "Data Repository", btnAgree: "Saya Mengerti",
+                docTitle: "Executive Report", lblResponden: "Responden", lblMaturity: "Skor Kesiapan",
+                hdrSintesis: "I. Sintesis & Analisis Strategis", lblRekomendasi: "Rekomendasi Utama",
+                hdrVisual: "II. Visualisasi Metrik Utama", c1T: "Profil Responden", c2T: "Indeks Afirmasi", c2S: "Rata-rata Skor Penilaian", c3T: "Penetrasi Alat", c4T: "Kepadatan Sentimen",
+                hdrMatriks: "III. Direktori Parameter Lengkap", th1: "Parameter Evaluasi", th2: "Tipe", th3: "Intisari Temuan",
+                legalSmart: "BacaGForm beroperasi sepenuhnya secara lokal di dalam memori browser Anda. Data spreadsheet atau CSV yang di-paste tidak dikirimkan atau disimpan ke server eksternal, memastikan privasi data Anda terjamin 100%.",
+                legalStrict: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics untuk mengumpulkan data penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
+                errTitle1: "Format Data Ditolak", errSub1: "Sistem gagal menemukan pemisah antar-kolom. Harap Copy langsung dari Excel/G-Sheets atau gunakan link Google Sheets Publik.",
+                errTitle2: "Data Kurang Lengkap", errSub2: "Minimal harus ada 1 baris Judul Kolom (Header) dan 1 baris Isi Data."
+            },
+            en: {
+                help: "Help", terms: "Terms of Use", statusActive: "System Active", btnReset: "Reset", btnExport: "Export A4 PDF",
+                txtTitleInput: "Paste Link / Data", txtSubInput: "Use Ctrl+V to paste Public Google Sheets URL or raw data (Excel/CSV).",
+                txtDataRepo: "Data Repository", btnAgree: "I Agree",
+                docTitle: "Executive Report", lblResponden: "Respondents", lblMaturity: "Maturity Score",
+                hdrSintesis: "I. Synthesis & Strategic Analysis", lblRekomendasi: "Key Recommendations",
+                hdrVisual: "II. Core Metrics Visualization", c1T: "Respondent Profile", c2T: "Affirmation Index", c2S: "Average Assessment Score", c3T: "Tool Penetration", c4T: "Sentiment Density",
+                hdrMatriks: "III. Complete Parameter Directory", th1: "Evaluation Parameter", th2: "Type", th3: "Core Findings",
+                legalSmart: "BacaGForm operates entirely locally within your browser's memory. The spreadsheet or CSV data you paste is never sent or stored on any external server, ensuring 100% data privacy.",
+                legalStrict: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics to collect anonymous usage data for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.",
+                errTitle1: "Data Format Rejected", errSub1: "Failed to find column separators. Please copy directly from Excel/G-Sheets or use a Public Google Sheets link.",
+                errTitle2: "Incomplete Data", errSub2: "Must contain at least 1 Header row and 1 Data row."
+            }
+        };
+
+        let isID = localStorage.getItem('tatadada-lang') !== 'en';
+        function applyLang() {
+            const t = translations[isID ? 'id' : 'en'];
+            document.getElementById('txtHelp').innerText = t.help; document.getElementById('footerTerms').innerText = t.terms;
+            document.getElementById('footerStatus').innerText = t.statusActive; document.getElementById('btnReset').innerText = t.btnReset;
+            document.getElementById('btnExport').innerText = t.btnExport; document.getElementById('txtTitleInput').innerText = t.txtTitleInput;
+            document.getElementById('txtSubInput').innerText = t.txtSubInput; document.getElementById('txtDataRepo').innerText = t.txtDataRepo;
+            document.getElementById('modalTitle').innerText = t.terms; document.getElementById('modalContext').innerText = t.legalSmart;
+            document.getElementById('modalStrict').innerText = t.legalStrict; document.getElementById('btnAgree').innerText = t.btnAgree;
+            document.getElementById('docTitle').innerText = t.docTitle; document.getElementById('lblResponden').innerText = t.lblResponden;
+            document.getElementById('lblMaturity').innerText = t.lblMaturity; document.getElementById('hdrSintesis').innerText = t.hdrSintesis;
+            document.getElementById('lblRekomendasi').innerText = t.lblRekomendasi; document.getElementById('hdrVisual').innerText = t.hdrVisual;
+            document.getElementById('c1T').innerText = t.c1T; document.getElementById('c2T').innerText = t.c2T; document.getElementById('c2S').innerText = t.c2S;
+            document.getElementById('c3T').innerText = t.c3T; document.getElementById('c4T').innerText = t.c4T; document.getElementById('hdrMatriks').innerText = t.hdrMatriks;
+            document.getElementById('th1').innerText = t.th1; document.getElementById('th2').innerText = t.th2; document.getElementById('th3').innerText = t.th3;
+        }
+        
+        document.getElementById('langToggle').addEventListener('click', (e) => {
+            isID = !isID; localStorage.setItem('tatadada-lang', isID ? 'id' : 'en');
+            e.currentTarget.innerHTML = isID ? '<span class="text-sm">🇮🇩</span> <span class="hidden sm:inline font-bold">ID</span>' : '<span class="text-sm">🇬🇧</span> <span class="hidden sm:inline font-bold">EN</span>';
+            applyLang(); if(parsedData.length > 0) renderReport();
+        });
+        if(!isID) document.getElementById('langToggle').innerHTML = '<span class="text-sm">🇬🇧</span> <span class="hidden sm:inline font-bold">EN</span>';
+
+        // --- GLOBAL STATE & INITS ---
+        let parsedData = []; let columns = []; let stats = {}; let charts = {};
+        document.getElementById('reportDate').innerText = `${new Date().toLocaleDateString(isID ? 'id-ID' : 'en-US', {day:'numeric', month:'long', year:'numeric'})}`;
+        lucide.createIcons(); applyLang();
+
+        // --- MODAL TERMS ---
+        function openTerms() { document.getElementById('termsModal').classList.remove('hidden'); document.getElementById('termsModal').classList.add('flex'); }
+        function closeTerms() { document.getElementById('termsModal').classList.add('hidden'); document.getElementById('termsModal').classList.remove('flex'); }
+
+        // --- THEME LOGIC ---
+        const themeToggle = document.getElementById('themeToggle'); const themeIcon = document.getElementById('themeIcon');
+        let isDark = localStorage.getItem('tatadada-theme') === 'dark';
+        if(isDark) document.documentElement.classList.add('dark');
+        function updateThemeIcon() { themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon'); lucide.createIcons(); }
+        updateThemeIcon();
+        themeToggle.addEventListener('click', () => {
+            isDark = !isDark;
+            if(isDark) { document.documentElement.classList.add('dark'); localStorage.setItem('tatadada-theme', 'dark'); } 
+            else { document.documentElement.classList.remove('dark'); localStorage.setItem('tatadada-theme', 'light'); }
+            updateThemeIcon();
+        });
+
+        // --- RESIZER LOGIC ---
+        const resizer = document.getElementById('resizer'); const leftPane = document.getElementById('leftPane'); let isResizing = false;
+        resizer.addEventListener('mousedown', () => { isResizing = true; document.body.style.cursor = 'col-resize'; resizer.querySelector('div').classList.add('bg-accent'); });
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const containerOffsetLeft = leftPane.parentElement.offsetLeft;
+            const newWidth = Math.max(300, Math.min(e.clientX - containerOffsetLeft, window.innerWidth * 0.7));
+            leftPane.style.width = newWidth + 'px'; leftPane.style.flex = 'none';
+        });
+        document.addEventListener('mouseup', () => { isResizing = false; document.body.style.cursor = 'default'; resizer.querySelector('div').classList.remove('bg-accent'); });
+
+        // --- INPUT EVENT LISTENER ---
+        const rawDataInput = document.getElementById('rawData'); let inputTimeout;
+        rawDataInput.addEventListener('input', function() {
+            clearTimeout(inputTimeout);
+            inputTimeout = setTimeout(() => { const raw = this.value.trim(); if (raw.length > 10) handleInputData(raw); }, 300);
+        });
+
+        function showError(t, title, message) {
+            document.getElementById('errorMsg').innerText = t[title]; document.getElementById('errorSubMsg').innerText = t[message];
+            document.getElementById('errorBox').classList.remove('hidden'); lucide.createIcons();
+        }
+
+        function handleInputData(raw) {
+            document.getElementById('errorBox').classList.add('hidden');
+            const gsheetRegex = /https:\/\/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/;
+            const match = raw.match(gsheetRegex);
+            if (match) {
+                const sheetId = match[1]; const gidMatch = raw.match(/gid=([0-9]+)/); const gid = gidMatch ? gidMatch[1] : '0';
+                fetchGSheetData(sheetId, gid, raw);
+            } else { processLocalData(raw); }
+        }
+
+        async function fetchGSheetData(sheetId, gid, originalUrl) {
+            const textarea = document.getElementById('rawData');
+            textarea.value = isID ? 'Menyinkronkan data... Mohon tunggu.' : 'Syncing data... Please wait.'; textarea.disabled = true;
+            try {
+                const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("HTTP Error");
+                const csvText = await response.text();
+                if (csvText.trim().toLowerCase().startsWith('<!doctype html>')) throw new Error("Private Sheet");
+                textarea.value = csvText; textarea.disabled = false; processLocalData(csvText);
+            } catch (error) {
+                textarea.value = originalUrl; textarea.disabled = false;
+                showError(translations[isID ? 'id' : 'en'], 'errTitle1', 'errSub1');
+            }
+        }
+
+        function processLocalData(raw) {
+            const t = translations[isID ? 'id' : 'en'];
+            try {
+                const rows = raw.split(/\r?\n/);
+                if(rows.length < 2) throw new Error("Data Terlalu Sedikit");
+
+                let delimiter = '\t';
+                if (rows[0].includes('\t')) delimiter = '\t';
+                else if (rows[0].includes(';')) delimiter = ';';
+                else if (rows[0].includes(',')) delimiter = ',';
+                else throw new Error("Format Tabel Tidak Valid");
+
+                function parseRow(text) {
+                    let res = [], cur = '', inQ = false;
+                    for (let i = 0; i < text.length; i++) {
+                        let c = text[i];
+                        if (c === '"') { if (inQ && text[i+1] === '"') { cur += '"'; i++; } else { inQ = !inQ; } } 
+                        else if (c === delimiter && !inQ) { res.push(cur.trim()); cur = ''; } 
+                        else { cur += c; }
+                    }
+                    res.push(cur.trim()); return res;
+                }
+
+                columns = parseRow(rows[0]).map((h, i) => h || `Col ${i+1}`);
+                parsedData = [];
+
+                for (let i = 1; i < rows.length; i++) {
+                    if(!rows[i].trim()) continue;
+                    const cells = parseRow(rows[i]);
+                    if (cells.length < Math.min(2, columns.length) && cells.length !== columns.length) continue;
+                    let obj = {}; columns.forEach((h, idx) => obj[h] = cells[idx] ? cells[idx] : ''); parsedData.push(obj);
+                }
+
+                if(parsedData.length === 0) throw new Error("Data Kosong");
+
+                document.getElementById('view-input').classList.add('hidden');
+                document.getElementById('view-workspace').classList.remove('hidden');
+                document.getElementById('bigTotalRows').innerText = parsedData.length;
+                document.getElementById('tableSubtitle').innerText = `${parsedData.length} ${isID?'Baris':'Rows'} • ${columns.length} ${isID?'Kolom':'Cols'}`;
+                
+                renderRawTable(); calculateStats(); renderReport();
+            } catch (error) {
+                if(error.message === "Format Tabel Tidak Valid") showError(t, 'errTitle1', 'errSub1');
+                else showError(t, 'errTitle2', 'errSub2');
+            }
+        }
+
+        function renderRawTable() {
+            let thead = '<tr><th class="p-3 border-b border-theme text-dim font-bold text-center w-12 bg-card">#</th>';
+            columns.forEach(col => { thead += `<th class="p-3 border-b border-theme font-bold text-main bg-card max-w-[150px] truncate" title="${col}">${col}</th>`; });
+            thead += '</tr>'; document.getElementById('dataHead').innerHTML = thead;
+
+            let tbody = '';
+            for(let i=0; i<Math.min(parsedData.length, 100); i++) {
+                let row = parsedData[i];
+                tbody += `<tr class="hover:bg-preview transition-colors font-mono text-[11px]"><td class="p-3 border-b border-theme text-dim text-center">${i+1}</td>`;
+                columns.forEach(col => { tbody += `<td class="p-3 border-b border-theme text-main max-w-[150px] truncate" title="${row[col] || '-'}">${row[col] || '-'}</td>`; });
+                tbody += `</tr>`;
+            }
+            document.getElementById('dataBody').innerHTML = tbody;
+        }
+
+        function calculateStats() {
+            stats = {};
+            columns.forEach(col => {
+                let lower = col.toLowerCase();
+                let metaKeys = ['wa', 'nomor', 'nip', 'nup', 'nama', 'email', 'timestamp', 'waktu', 'username'];
+                let isMeta = metaKeys.some(k => lower.includes(k));
+                
+                let exact = {}, multi = {}, commaCount = 0, numericVals = [];
+                parsedData.forEach(r => {
+                    let val = String(r[col] || '').trim();
+                    if(!val) return;
+                    exact[val] = (exact[val]||0)+1;
+                    if(val.includes(',') && !isMeta) { 
+                        commaCount++; val.split(',').forEach(i => { let t = i.trim(); if(t) multi[t] = (multi[t]||0)+1; });
+                    }
+                    let n = Number(val.replace(/,/g, '').replace(/\./g, ''));
+                    if(!isNaN(n) && val !== '') numericVals.push(n);
+                });
+
+                let type = 'TEXT', avg = 0, stdDev = 0, isLikert = false;
+                if(isMeta) type = 'METADATA';
+                else if(numericVals.length > (parsedData.length * 0.5)) {
+                    type = 'SKALA'; avg = numericVals.reduce((a,b)=>a+b,0) / numericVals.length;
+                    stdDev = Math.sqrt(numericVals.reduce((a,b)=>a+Math.pow(b-avg,2),0) / numericVals.length);
+                    if(Math.max(...numericVals) <= 10) isLikert = true;
+                } else if(commaCount > (parsedData.length * 0.2)) type = 'MULTI-SELECT';
+                else if(Object.keys(exact).length <= Math.max(10, parsedData.length * 0.4)) type = 'CATEGORICAL';
+
+                stats[col] = { type, avg, stdDev, isLikert, counts: type === 'MULTI-SELECT' ? Object.entries(multi).sort((a,b)=>b[1]-a[1]) : Object.entries(exact).sort((a,b)=>b[1]-a[1]) };
+            });
+        }
+
+        function truncate(str, max) { return str.length > max ? str.substring(0, max) + '..' : str; }
+
+        function renderReport() {
+            Object.values(charts).forEach(c => c.destroy());
+            const likerts = columns.filter(c => stats[c].isLikert); const categoricals = columns.filter(c => stats[c].type === 'CATEGORICAL'); const multis = columns.filter(c => stats[c].type === 'MULTI-SELECT');
+            
+            // KERTAS A4 SELALU PUTIH JADI CHART HARUS GELAP
+            Chart.defaults.font.family = "'Inter', sans-serif"; Chart.defaults.color = '#475569';
+            let nar = '';
+            let bestCat = categoricals.find(c => stats[c].counts[0][1] < parsedData.length) || categoricals[0];
+            if(bestCat) nar += `<p class="doc-text"><strong>${isID?'Struktur Entitas':'Entity Structure'}:</strong> ${isID?'Pemetaan demografis pada indikator':'Demographic mapping on'} <em>${bestCat}</em> ${isID?'memperlihatkan bahwa':'shows that'} <strong>${((stats[bestCat].counts[0][1]/parsedData.length)*100).toFixed(0)}%</strong> ${isID?'populasi terkonsentrasi pada segmen':'population is concentrated in'} <strong>"${stats[bestCat].counts[0][0]}"</strong>.</p>`;
+
+            if(likerts.length >= 2) {
+                let sL = [...likerts].sort((a,b)=>stats[b].avg - stats[a].avg);
+                nar += `<p class="doc-text"><strong>${isID?'Indeks Kinerja (KPI)':'Performance Index'}:</strong> ${isID?'Sentimen paling memuaskan diraih oleh':'Highest sentiment achieved by'} <em>"${sL[0]}"</em> (${isID?'Skor':'Score'}: <strong>${stats[sL[0]].avg.toFixed(1)}</strong>). ${isID?'Indikator':'Indicator'} <em>"${sL[sL.length-1]}"</em> ${isID?'mencatat defisit terparah di angka':'records lowest deficit at'} <strong>${stats[sL[sL.length-1]].avg.toFixed(1)}</strong>.</p>`;
+                document.getElementById('maturityIndex').innerText = (likerts.reduce((a,c)=>a+stats[c].avg,0)/likerts.length).toFixed(1);
+                document.getElementById('recommendationText').innerText = isID ? `Fokuskan kapabilitas organisasi untuk mengevaluasi dan merancang perbaikan sistematis pada aspek "${sL[sL.length-1]}" demi menyeimbangkan indeks kepuasan.` : `Focus organizational capabilities to evaluate and design systematic improvements on "${sL[sL.length-1]}" to balance the maturity index.`;
+            } else {
+                document.getElementById('maturityIndex').innerText = "N/A";
+                document.getElementById('recommendationText').innerText = isID ? `Pertahankan stabilitas operasional pada kelompok sasaran utama.` : `Maintain operational stability within the primary target group.`;
+            }
+            if(multis.length) {
+                let topT = stats[multis[0]].counts.slice(0,2).map(i=>i[0]).join(isID ? " dan " : " and ");
+                nar += `<p class="doc-text"><strong>${isID?'Pola Adopsi':'Adoption Pattern'}:</strong> ${isID?'Instrumen operasional yang merajai lanskap saat ini adalah':'The ruling operational instruments are'} <strong>${topT}</strong>.</p>`;
+            }
+            document.getElementById('narrativeContainer').innerHTML = nar;
+
+            const palette = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
+            if(bestCat) {
+                document.getElementById('chart1Label').innerText = truncate(bestCat, 40);
+                charts.pie = new Chart(document.getElementById('pieChart'), { type: 'doughnut', data: { labels: stats[bestCat].counts.slice(0,4).map(i=>truncate(i[0], 15)), datasets:[{data:stats[bestCat].counts.slice(0,4).map(i=>i[1]), backgroundColor:palette, borderWidth: 2, borderColor: '#fff'}] }, options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{font:{size:9}, boxWidth: 10}}}, cutout: '65%' } });
+            }
+            if(likerts.length > 0) {
+                let lCols = likerts.slice(0,5);
+                charts.radar = new Chart(document.getElementById('radarChart'), { type: 'bar', data: { labels: lCols.map(c=>truncate(c, 18)), datasets:[{label:isID?'Rata-rata':'Avg', data:lCols.map(c=>stats[c].avg), backgroundColor:'#10b981', borderRadius: 4}] }, options: { indexAxis: 'y', responsive:true, maintainAspectRatio:false, scales:{x:{suggestedMin:0, suggestedMax:5, grid:{color:'#f1f5f9'}}, y:{grid:{display:false}, ticks:{font:{size:10}}}}, plugins:{legend:{display:false}} } });
+            }
+            if(multis.length > 0) {
+                const tH = multis[0]; document.getElementById('chart3Label').innerText = truncate(tH, 30);
+                charts.hbar = new Chart(document.getElementById('hbarChart'), { type: 'bar', data: { labels: stats[tH].counts.slice(0,5).map(i=>truncate(i[0], 15)), datasets:[{data:stats[tH].counts.slice(0,5).map(i=>i[1]), backgroundColor:'#f59e0b', borderRadius: 4}] }, options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, scales:{x:{grid:{color:'#f1f5f9'}}, y:{grid:{display:false}, ticks:{font:{size:10}}}}, plugins:{legend:{display:false}} } });
+            }
+            if(likerts.length >= 2) {
+                let cX = likerts[0], cY = likerts[1]; document.getElementById('chart4Label').innerText = `${truncate(cX,15)} vs ${truncate(cY,15)}`;
+                let pts = parsedData.map(r => ({x: Number(r[cX]) + (Math.random()-0.5)*0.3, y: Number(r[cY]) + (Math.random()-0.5)*0.3}));
+                charts.scatter = new Chart(document.getElementById('scatterChart'), { type: 'scatter', data: { datasets:[{data:pts, backgroundColor:'rgba(236,72,153,0.5)', borderColor:'#ec4899', pointRadius:4}] }, options: { responsive:true, maintainAspectRatio:false, scales:{x:{suggestedMin:1, suggestedMax:5, grid:{color:'#f1f5f9'}}, y:{suggestedMin:1, suggestedMax:5, grid:{color:'#f1f5f9'}}}, plugins:{legend:{display:false}} } });
+            }
+
+            let tb = '';
+            columns.forEach(c => {
+                let s = stats[c];
+                let typeText = s.type === 'SKALA' ? (isID?'SKALA/SKOR':'SCALE/SCORE') : s.type;
+                let res = s.type === 'SKALA' ? `${isID?'Rata-rata':'Average'}: ${s.avg.toFixed(1)}` : (s.counts.length ? `${isID?'Mayoritas':'Majority'}: "${s.counts[0][0]}"` : (isID?'Variasi input':'Input variation'));
+                if (s.type === 'METADATA') res = isID ? "Log Identitas" : "Identity Log";
+                tb += `<tr class="avoid-break"><td class="font-semibold text-[#1e293b]">${c}</td><td class="text-center font-bold text-[8pt] text-[#64748b] uppercase tracking-wide">${typeText}</td><td class="text-[#475569]">${res}</td></tr>`;
+            });
+            document.getElementById('summaryTableBody').innerHTML = tb;
+        }
+
+        function downloadPDF() {
+            const btn = document.getElementById('pdfBtn'); const ori = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="refresh-cw" class="animate-spin w-4 h-4"></i> Processing...'; btn.disabled = true; lucide.createIcons();
+            const element = document.getElementById('report-document');
+            Chart.defaults.animation = false; renderReport();
+            setTimeout(() => {
+                const opt = { margin: [10, 0, 10, 0], filename: 'Executive_Report_TATADADA.pdf', image: { type: 'jpeg', quality: 1 }, html2canvas: { scale: 2, useCORS: true, scrollY: 0, windowWidth: 800 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'] } };
+                html2pdf().set(opt).from(element).save().then(() => { btn.innerHTML = ori; btn.disabled = false; Chart.defaults.animation = true; renderReport(); lucide.createIcons(); });
+            }, 800);
+        }
+        function resetData() { location.reload(); }
+    </script>
+</body>
+</html>

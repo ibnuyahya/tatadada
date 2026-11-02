@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PetaPikir - Interactive MindMap</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Merriweather:wght@400;700&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* TATADADA CSS Tokens & Framework Rules */
+        :root {
+            --bg-color: #f8fafc;
+            --node-bg: #ffffff;
+            --text-main: #0f172a;
+            --border-color: #cbd5e1;
+            --dim-color: #64748b;
+            --line-color: #94a3b8;
+            --stripe-color: rgba(0,0,0,0.05);
+            --font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--dim-color); }
+
+        .polka-bg {
+            background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="flex items-center justify-between px-6 border-b border-[var(--border-color)] bg-[var(--bg-color)] shrink-0 h-14 z-50 shadow-sm transition-colors">
+        <div class="flex items-center gap-3">
+            <div class="p-1.5 bg-blue-500 rounded-lg text-white"><i data-lucide="list-tree" class="w-5 h-5"></i></div>
+            <h1 class="font-bold text-lg tracking-tight">PetaPikir</h1>
+            <span class="text-[10px] px-2 py-0.5 rounded-full border border-[var(--border-color)] text-[var(--dim-color)]">AI Powered</span>
+            
+            <div class="relative group ml-2 mt-1 cursor-help flex items-center">
+                <i data-lucide="help-circle" class="w-4 h-4 text-[var(--dim-color)] hover:text-[var(--text-main)] transition-colors"></i>
+                <div class="absolute left-0 top-full mt-2 w-72 p-3 rounded-md shadow-xl text-xs invisible group-hover:visible z-50 whitespace-pre-wrap border border-[var(--border-color)] bg-[var(--node-bg)] text-[var(--text-main)]">Panduan:
+1. Unggah gambar Mind Map (JPG/PNG).
+2. Scroll mouse untuk Zoom In/Out.
+3. Klik dan seret untuk menggeser kanvas.
+4. Klik node untuk membuka/menutup cabang.
+5. Gunakan tombol Ekspor 4K untuk mengunduh.</div>
+            </div>
+        </div>
+        
+        <!-- Toolbar Kanan -->
+        <div id="header-toolbar" class="flex items-center gap-3"></div>
+    </header>
+
+    <!-- Modals & Overlays Container -->
+    <div id="overlays-container"></div>
+
+    <!-- Main Workspace -->
+    <main id="workspace" class="flex-1 relative overflow-hidden transition-colors"></main>
+
+    <!-- Footer -->
+    <footer class="flex items-center justify-between px-6 border-t border-[var(--border-color)] bg-[var(--bg-color)] text-[10px] text-[var(--dim-color)] shrink-0 h-8 transition-colors">
+        <div class="flex items-center gap-1.5 font-mono">
+            <div id="status-indicator" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span id="status-text">Menunggu Gambar</span>
+        </div>
+        
+        <div id="stats-container" class="font-mono hidden sm:block"></div>
+        
+        <div>
+            <button onclick="APP.showTerms()" class="hover:text-[var(--text-main)] underline underline-offset-2 transition-colors">Ketentuan</button>
+        </div>
+    </footer>
+
+    <script>
+        // --- KONFIGURASI GLOBAL ---
+        const API_KEY = ""; // Diisi runtime environment
+
+        const THEMES = {
+            light: { bg: '#f8fafc', node: '#ffffff', text: '#0f172a', border: '#cbd5e1', dim: '#64748b', line: '#94a3b8', darkStripe: false },
+            dark: { bg: '#0f172a', node: '#1e293b', text: '#f8fafc', border: '#334155', dim: '#94a3b8', line: '#475569', darkStripe: true },
+            forest: { bg: '#f0fdf4', node: '#ffffff', text: '#064e3b', border: '#86efac', dim: '#047857', line: '#34d399', darkStripe: false },
+            sunset: { bg: '#fff7ed', node: '#ffffff', text: '#7c2d12', border: '#fdba74', dim: '#c2410c', line: '#fb923c', darkStripe: false },
+            ocean: { bg: '#f0f9ff', node: '#ffffff', text: '#0c4a6e', border: '#7dd3fc', dim: '#0369a1', line: '#38bdf8', darkStripe: false },
+            monochrome: { bg: '#ffffff', node: '#ffffff', text: '#000000', border: '#000000', dim: '#666666', line: '#000000', darkStripe: false }
+        };
+
+        const FONTS = {
+            inter: "'Inter', sans-serif",
+            mono: "'JetBrains Mono', monospace",
+            serif: "'Merriweather', serif",
+            comic: "'Comic Neue', cursive"
+        };
+
+        const SIZES = {
+            sm: { text: 'text-xs', pad: 'px-3 py-1.5' },
+            md: { text: 'text-sm', pad: 'px-4 py-2' },
+            lg: { text: 'text-base', pad: 'px-5 py-2.5' }
+        };
+
+        // --- STATE MANAGEMENT ---
+        const STATE = {
+            mode: 'upload', // upload, loading, error, view
+            errorMsg: '',
+            data: null,
+            expandedNodes: {},
+            maxDepth: 0,
+            currentLevel: 999,
+            
+            theme: 'light',
+            font: 'inter',
+            uiSize: 'md',
+            layoutMode: 'right', // right, balanced, down, lucky
+            
+            showSettings: false,
+            showTermsModal: false,
+
+            zoom: 0.8,
+            pan: { x: 100, y: 150 },
+            isDragging: false,
+            dragStart: { x: 0, y: 0 }
+        };
+
+        // --- CORE APPLICATION LOGIC ---
+        const APP = {
+            init() {
+                this.applyTheme();
+                this.attachEventListeners();
+                this.render();
+            },
+
+            // --- Theme & Styles ---
+            applyTheme() {
+                const root = document.documentElement;
+                const t = THEMES[STATE.theme];
+                root.style.setProperty('--bg-color', t.bg);
+                root.style.setProperty('--node-bg', t.node);
+                root.style.setProperty('--text-main', t.text);
+                root.style.setProperty('--border-color', t.border);
+                root.style.setProperty('--dim-color', t.dim);
+                root.style.setProperty('--line-color', t.line);
+                root.style.setProperty('--stripe-color', t.darkStripe ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)');
+                root.style.setProperty('--font-family', FONTS[STATE.font]);
+            },
+
+            setTheme(key) { STATE.theme = key; this.applyTheme(); this.renderOverlays(); },
+            setFont(key) { STATE.font = key; this.applyTheme(); this.render(); },
+            setUiSize(key) { STATE.uiSize = key; this.render(); },
+            setLayout(key) { STATE.layoutMode = key; this.processExtractedData(STATE.data, true); this.resetView(); this.render(); },
+
+            // --- API & Extraction ---
+            async handleFileUpload(file) {
+                if (!file) return;
+                if (!file.type.startsWith('image/')) {
+                    STATE.errorMsg = 'Harap unggah file gambar (PNG/JPG).';
+                    STATE.mode = 'error';
+                    this.render();
+                    return;
+                }
+
+                STATE.mode = 'loading';
+                this.render();
+
+                try {
+                    const base64 = await this.fileToBase64(file);
+                    const prompt = `
+                        Anda adalah AI PetaPikir. Analisis diagram terlampir.
+                        Ekstrak SEMUA teks dan hierarkinya secara absolut.
+                        1. DILARANG MERANGKUM. Telusuri dari akar hingga ujung daun.
+                        2. Jika BUKAN mind map/hierarki, kembalikan JSON: {"error": "NOT_A_MINDMAP"}.
+                        Format strict JSON: { "id": "1", "name": "Akar", "children": [...] }
+                    `;
+                    const payload = {
+                        contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: file.type, data: base64 } }] }],
+                        generationConfig: { responseMimeType: "application/json" }
+                    };
+
+                    let data = null;
+                    let retries = 0;
+                    while (retries <= 3) {
+                        try {
+                            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                            });
+                            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                            const result = await res.json();
+                            let text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                            data = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
+                            break;
+                        } catch (e) {
+                            if (retries === 3) throw e;
+                            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+                            retries++;
+                        }
+                    }
+
+                    if (data.error) throw new Error("Bukan Peta Konsep/Mind Map.");
+                    this.processExtractedData(data);
+                    STATE.mode = 'view';
+                    this.resetView();
+                    this.render();
+
+                } catch (err) {
+                    STATE.errorMsg = err.message || String(err);
+                    STATE.mode = 'error';
+                    this.render();
+                }
+            },
+
+            fileToBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = () => resolve(reader.result.split(',')[1]);
+                    reader.onerror = reject;
+                });
+            },
+
+            processExtractedData(data, keepExpansion = false) {
+                if(!data) return;
+                const initialExpanded = keepExpansion ? STATE.expandedNodes : {};
+                let maxDepth = 0;
+                
+                const enrichData = (node, prefix, depth = 0) => {
+                    const id = node.id || `${prefix}-${Math.random().toString(36).substr(2, 5)}`;
+                    if(!keepExpansion) initialExpanded[id] = true; 
+                    if (depth > maxDepth) maxDepth = depth;
+                    
+                    const luckyBg = `hsl(${Math.random() * 360}, 70%, 90%)`;
+                    const luckyBorder = `hsl(${Math.random() * 360}, 80%, 40%)`;
+
+                    return {
+                        ...node, id, depth, luckyBg, luckyBorder,
+                        children: (node.children || []).map((c, i) => enrichData(c, `${id}-${i}`, depth + 1))
+                    };
+                };
+
+                let enriched = enrichData(data, 'root', 0);
+
+                if (STATE.layoutMode === 'balanced' && enriched.children) {
+                    const mid = Math.ceil(enriched.children.length / 2);
+                    enriched.children.forEach((c, i) => c._balancedDir = i < mid ? 'left' : 'right');
+                }
+
+                STATE.data = enriched;
+                if(!keepExpansion) STATE.expandedNodes = initialExpanded;
+                STATE.maxDepth = maxDepth;
+                if(!keepExpansion) STATE.currentLevel = maxDepth;
+            },
+
+            updateExpansionByLevel(targetLevel) {
+                if (!STATE.data) return;
+                const newExpanded = {};
+                const traverse = (node) => {
+                    newExpanded[node.id] = node.depth < targetLevel;
+                    if (node.children) node.children.forEach(traverse);
+                };
+                traverse(STATE.data);
+                STATE.expandedNodes = newExpanded;
+                STATE.currentLevel = targetLevel;
+                this.render();
+            },
+            levelUp() { if(STATE.currentLevel > 0) this.updateExpansionByLevel(STATE.currentLevel - 1); },
+            levelDown() { if(STATE.currentLevel < STATE.maxDepth) this.updateExpansionByLevel(STATE.currentLevel + 1); },
+            levelMax() { this.updateExpansionByLevel(STATE.maxDepth); },
+
+            toggleNode(id) {
+                STATE.expandedNodes[id] = !STATE.expandedNodes[id];
+                this.renderWorkspaceTreeOnly();
+            },
+
+            attachEventListeners() {
+                const ws = document.getElementById('workspace');
+                
+                ws.addEventListener('wheel', (e) => {
+                    if (STATE.mode !== 'view') return;
+                    e.preventDefault();
+                    STATE.zoom = Math.min(Math.max(0.2, STATE.zoom - e.deltaY * 0.001), 3);
+                    this.applyTransform();
+                }, { passive: false });
+
+                ws.addEventListener('mousedown', (e) => {
+                    if (STATE.mode !== 'view' || e.target.closest('.node-element')) return;
+                    STATE.isDragging = true;
+                    STATE.dragStart = { x: e.clientX - STATE.pan.x, y: e.clientY - STATE.pan.y };
+                    ws.style.cursor = 'grabbing';
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    if (!STATE.isDragging) return;
+                    STATE.pan = { x: e.clientX - STATE.dragStart.x, y: e.clientY - STATE.dragStart.y };
+                    this.applyTransform();
+                });
+
+                window.addEventListener('mouseup', () => {
+                    STATE.isDragging = false;
+                    ws.style.cursor = STATE.mode === 'view' ? 'grab' : 'default';
+                });
+
+                ws.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+                ws.addEventListener('drop', e => {
+                    e.preventDefault(); e.stopPropagation();
+                    if (e.dataTransfer.files?.[0]) this.handleFileUpload(e.dataTransfer.files[0]);
+                });
+            },
+
+            applyTransform() {
+                const container = document.getElementById('canvas-transform-layer');
+                if (container) {
+                    container.style.transform = `translate(${STATE.pan.x}px, ${STATE.pan.y}px) scale(${STATE.zoom})`;
+                    this.drawSVG();
+                }
+                const ws = document.getElementById('workspace');
+                if(ws) ws.style.backgroundPosition = `${STATE.pan.x % 24}px ${STATE.pan.y % 24}px`;
+            },
+
+            resetView() {
+                STATE.zoom = 0.8;
+                STATE.pan = { x: STATE.layoutMode === 'balanced' ? 500 : 100, y: 150 };
+                this.applyTransform();
+            },
+
+            render() {
+                this.renderHeader();
+                this.renderWorkspace();
+                this.renderFooter();
+                this.renderOverlays();
+                lucide.createIcons();
+            },
+
+            renderWorkspaceTreeOnly() {
+                this.renderWorkspaceContent();
+                lucide.createIcons();
+            },
+
+            renderHeader() {
+                const toolbar = document.getElementById('header-toolbar');
+                if (STATE.mode === 'view') {
+                    toolbar.innerHTML = `
+                        <div class="flex items-center bg-[var(--node-bg)] border border-[var(--border-color)] rounded-lg overflow-hidden mr-2">
+                            <button onclick="APP.levelDown()" title="Tutup 1 Level" class="px-3 py-1.5 hover:bg-[var(--stripe-color)] text-sm font-medium border-r border-[var(--border-color)]">-1 Lvl</button>
+                            <button onclick="APP.levelMax()" title="Buka Semua" class="px-3 py-1.5 hover:bg-[var(--stripe-color)] text-sm font-medium border-r border-[var(--border-color)]">Maks</button>
+                            <button onclick="APP.levelUp()" title="Buka 1 Level" class="px-3 py-1.5 hover:bg-[var(--stripe-color)] text-sm font-medium">+1 Lvl</button>
+                        </div>
+                        <button onclick="APP.toggleSettings()" class="p-2 rounded-lg bg-[var(--node-bg)] border border-[var(--border-color)] hover:opacity-80 transition">
+                            <i data-lucide="palette" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="APP.export4K()" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium shadow-md transition">
+                            <i data-lucide="image" class="w-4 h-4"></i> Ekspor 4K
+                        </button>
+                    `;
+                } else {
+                    toolbar.innerHTML = '';
+                }
+            },
+
+            renderFooter() {
+                const statusInd = document.getElementById('status-indicator');
+                const statusTxt = document.getElementById('status-text');
+                const statsBox = document.getElementById('stats-container');
+
+                statusInd.className = `w-2 h-2 rounded-full ${STATE.mode === 'loading' ? 'bg-amber-500 animate-spin' : STATE.mode === 'error' ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`;
+                statusTxt.innerText = STATE.mode === 'upload' ? 'Menunggu Gambar' : STATE.mode === 'loading' ? 'Menganalisis AI...' : STATE.mode === 'error' ? 'Gagal' : 'Mesin Siap';
+
+                if (STATE.mode === 'view' && STATE.data) {
+                    const count = this.countNodes(STATE.data);
+                    statsBox.innerHTML = `Total Node: <span class="text-[var(--text-main)] font-semibold">${count}</span>`;
+                    statsBox.classList.remove('hidden');
+                } else {
+                    statsBox.classList.add('hidden');
+                }
+            },
+
+            countNodes(node) {
+                if (!node || !node.children || node.children.length === 0) return 1;
+                return 1 + node.children.reduce((sum, c) => sum + this.countNodes(c), 0);
+            },
+
+            renderWorkspace() {
+                const ws = document.getElementById('workspace');
+                if (STATE.mode === 'view') {
+                    ws.classList.add('polka-bg');
+                    ws.style.cursor = STATE.isDragging ? 'grabbing' : 'grab';
+                    this.renderWorkspaceContent();
+                } else {
+                    ws.classList.remove('polka-bg');
+                    ws.style.cursor = 'default';
+                    ws.innerHTML = this.getScreenHTML();
+                }
+            },
+
+            getScreenHTML() {
+                if (STATE.mode === 'upload') {
+                    return `
+                        <div class="absolute inset-0 flex flex-col items-center justify-center p-6">
+                            <h2 class="text-3xl font-bold mb-2">Ubah Gambar Jadi PetaPikir</h2>
+                            <p class="text-[var(--dim-color)] mb-8 text-center max-w-md">Kecerdasan Buatan kami akan mengekstrak struktur hierarki dari foto coretan, presentasi, atau diagram Anda secara otomatis.</p>
+                            <label class="flex flex-col items-center justify-center w-full max-w-2xl h-80 border-2 border-dashed border-[var(--border-color)] rounded-3xl bg-[var(--node-bg)] hover:border-blue-500 transition-all cursor-pointer shadow-sm group">
+                                <div class="flex flex-col items-center justify-center pt-5 pb-6 text-center">
+                                    <div class="p-4 rounded-full bg-blue-50 text-blue-500 mb-4 transition-transform group-hover:scale-110">
+                                        <i data-lucide="image-plus" class="w-12 h-12"></i>
+                                    </div>
+                                    <p class="mb-2 text-xl font-semibold">Tarik & Lepas File di Sini</p>
+                                    <p class="text-sm text-[var(--dim-color)]">Mendukung format PNG atau JPG resolusi tinggi.</p>
+                                </div>
+                                <input type="file" class="hidden" accept="image/png, image/jpeg" onchange="APP.handleFileUpload(this.files[0])" />
+                                <div class="mt-4 px-8 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">
+                                    Pilih dari Perangkat
+                                </div>
+                            </label>
+                        </div>`;
+                }
+                if (STATE.mode === 'loading') {
+                    return `
+                        <div class="absolute inset-0 flex flex-col items-center justify-center p-6">
+                            <div class="relative w-20 h-20 mb-6">
+                            <div class="absolute inset-0 border-4 border-[var(--border-color)] rounded-full"></div>
+                            <div class="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+                            <i data-lucide="list-tree" class="absolute inset-0 m-auto w-8 h-8 text-blue-500 animate-pulse"></i>
+                            </div>
+                            <h2 class="text-xl font-bold animate-pulse">Menelusuri Hierarki...</h2>
+                            <p class="text-[var(--dim-color)] mt-2 max-w-md text-center">PetaPikir AI sedang membedah setiap piksel gambar Anda untuk merangkai struktur yang sempurna.</p>
+                        </div>`;
+                }
+                if (STATE.mode === 'error') {
+                    return `
+                        <div class="absolute inset-0 flex flex-col items-center justify-center p-6">
+                            <div class="p-4 rounded-full bg-red-100 text-red-600 mb-4"><i data-lucide="alert-circle" class="w-12 h-12"></i></div>
+                            <h2 class="text-xl font-bold mb-2">Gagal Memproses</h2>
+                            <p class="text-[var(--dim-color)] text-center max-w-md mb-6">${STATE.errorMsg}</p>
+                            <button onclick="STATE.mode='upload'; APP.render()" class="px-6 py-2 rounded-lg bg-[var(--node-bg)] border border-[var(--border-color)] font-medium shadow-sm">Coba Gambar Lain</button>
+                        </div>`;
+                }
+                return '';
+            },
+
+            renderWorkspaceContent() {
+                const ws = document.getElementById('workspace');
+                let html = `
+                    <div class="absolute bottom-6 right-6 flex flex-col gap-2 z-30 bg-[var(--bg-color)] p-2 rounded-xl border border-[var(--border-color)] shadow-xl">
+                        <button onclick="STATE.zoom = Math.min(STATE.zoom + 0.2, 3); APP.applyTransform()" class="p-2 hover:bg-[var(--stripe-color)] rounded-lg"><i data-lucide="zoom-in" class="w-5 h-5"></i></button>
+                        <button onclick="APP.resetView()" class="p-2 hover:bg-[var(--stripe-color)] rounded-lg"><i data-lucide="maximize" class="w-5 h-5"></i></button>
+                        <button onclick="STATE.zoom = Math.max(STATE.zoom - 0.2, 0.3); APP.applyTransform()" class="p-2 hover:bg-[var(--stripe-color)] rounded-lg"><i data-lucide="zoom-out" class="w-5 h-5"></i></button>
+                    </div>
+
+                    <div id="canvas-transform-layer" class="absolute origin-top-left transition-transform ease-out duration-75" style="transform: translate(${STATE.pan.x}px, ${STATE.pan.y}px) scale(${STATE.zoom})">
+                        <div class="relative p-20 select-none inline-block min-w-max ${STATE.layoutMode === 'balanced' ? 'flex justify-center' : ''}" id="tree-render-container">
+                            <svg id="svg-overlay" class="absolute top-0 left-0 pointer-events-none z-0" style="width: 100%; height: 100%; overflow: visible;"></svg>
+                            ${this.buildTreeHTML()}
+                        </div>
+                    </div>
+
+                    <div class="absolute top-6 right-6 z-30">
+                        <button onclick="STATE.mode='upload'; STATE.data=null; STATE.showSettings=false; APP.render()" class="flex items-center gap-2 px-4 py-2 bg-[var(--bg-color)] border border-[var(--border-color)] hover:bg-[var(--stripe-color)] shadow-lg rounded-full text-sm font-medium transition">
+                            <i data-lucide="upload-cloud" class="w-4 h-4"></i> Unggah Baru
+                        </button>
+                    </div>
+                `;
+                ws.innerHTML = html;
+                this.drawSVG();
+            },
+
+            buildTreeHTML() {
+                if (!STATE.data) return '';
+                if (STATE.layoutMode === 'balanced') {
+                    let leftHTML = `<div class="flex flex-col items-end mr-12">`;
+                    let rightHTML = `<div class="flex flex-col items-start ml-12">`;
+                    
+                    if (STATE.data.children) {
+                        STATE.data.children.forEach(c => {
+                            if (c._balancedDir === 'left') leftHTML += this.renderNode(c, false, 'left');
+                            else rightHTML += this.renderNode(c, false, 'right');
+                        });
+                    }
+                    leftHTML += `</div>`;
+                    rightHTML += `</div>`;
+
+                    const rootHTML = `
+                        <div id="node-${STATE.data.id}" onclick="APP.toggleNode('${STATE.data.id}')" class="node-element bg-[var(--text-main)] text-[var(--bg-color)] border-transparent font-bold text-lg shadow-xl z-20 flex items-center rounded-xl whitespace-nowrap cursor-pointer ${SIZES[STATE.uiSize].pad} ${SIZES[STATE.uiSize].text}">
+                            ${this.escapeHTML(STATE.data.name)}
+                        </div>`;
+                    
+                    return `<div class="flex items-center relative z-10">${leftHTML}${rootHTML}${rightHTML}</div>`;
+                } else {
+                    return this.renderNode(STATE.data, true, 'right');
+                }
+            },
+
+            renderNode(node, isRoot, direction) {
+                const isOpen = STATE.expandedNodes[node.id];
+                const hasChildren = node.children && node.children.length > 0;
+                
+                const isLucky = STATE.layoutMode === 'lucky';
+                const isVertical = STATE.layoutMode === 'down' || isLucky;
+                const isLeftDir = direction === 'left';
+
+                let containerClass = "flex items-center";
+                let marginClass = "";
+                
+                if (!isRoot) {
+                    if (isVertical) marginClass = "mt-8 mx-2";
+                    else marginClass = isLeftDir ? "mr-12 my-2" : "ml-12 my-2";
+                }
+
+                if (isVertical) containerClass = "flex flex-col items-center";
+                else if (isLeftDir) containerClass = "flex flex-row-reverse items-center";
+
+                let childrenContainerClass = "flex justify-center";
+                if (isVertical) childrenContainerClass += " flex-row";
+                else if (isLeftDir) childrenContainerClass += " flex-col items-end";
+                else childrenContainerClass += " flex-col items-start";
+
+                const sizeClass = `${SIZES[STATE.uiSize].pad} ${SIZES[STATE.uiSize].text}`;
+                let styleStr = '';
+                let nodeClass = `node-element relative z-10 flex items-center rounded-xl border shadow-sm whitespace-nowrap transition-all duration-200 ${sizeClass} `;
+                
+                if (isRoot) {
+                    nodeClass += 'bg-[var(--text-main)] text-[var(--bg-color)] border-transparent font-bold text-lg shadow-md z-20 ';
+                } else if (isLucky) {
+                    nodeClass += 'font-medium ';
+                    styleStr = `background-color: ${node.luckyBg}; border-color: ${node.luckyBorder}; border-width: 2px; color: #000;`;
+                } else {
+                    nodeClass += 'bg-[var(--node-bg)] text-[var(--text-main)] border-[var(--border-color)] hover:border-[var(--dim-color)] ';
+                }
+
+                if (hasChildren) nodeClass += 'cursor-pointer hover:shadow-md ';
+
+                let leftChevron = '';
+                let rightChevron = '';
+                
+                if (isLeftDir && hasChildren) {
+                    leftChevron = `<div class="mr-2 w-4 h-4 flex items-center justify-center rounded-full bg-[var(--stripe-color)] transition-transform duration-300 ${!isOpen ? 'rotate-90' : 'rotate-180'}"><i data-lucide="chevron-right" class="w-3 h-3 opacity-60"></i></div>`;
+                }
+                
+                if ((!isLeftDir || isVertical) && hasChildren) {
+                    const rotClass = isVertical ? (!isOpen ? 'rotate-0' : 'rotate-180') : (!isOpen ? '-rotate-90' : 'rotate-0');
+                    const iconName = isVertical ? 'arrow-down' : 'chevron-right';
+                    rightChevron = `<div class="ml-2 w-4 h-4 flex items-center justify-center rounded-full bg-[var(--stripe-color)] transition-transform duration-300 ${rotClass}"><i data-lucide="${iconName}" class="w-3 h-3 opacity-60"></i></div>`;
+                }
+
+                let html = `<div class="${containerClass} ${marginClass} relative">`;
+                
+                html += `<div id="node-${node.id}" onclick="APP.toggleNode('${node.id}')" style="${styleStr}" class="${nodeClass}">
+                            ${leftChevron}
+                            <span class="${isVertical ? 'text-center' : ''}">${this.escapeHTML(node.name || '')}</span>
+                            ${rightChevron}
+                         </div>`;
+
+                if (hasChildren && isOpen) {
+                    html += `<div class="${childrenContainerClass}">`;
+                    node.children.forEach(child => {
+                        html += this.renderNode(child, false, child._balancedDir || direction);
+                    });
+                    html += `</div>`;
+                }
+                html += `</div>`;
+                
+                return html;
+            },
+
+            drawSVG() {
+                if(STATE.mode !== 'view' || !STATE.data) return;
+                requestAnimationFrame(() => {
+                    const container = document.getElementById('tree-render-container');
+                    const svg = document.getElementById('svg-overlay');
+                    if (!container || !svg) return;
+                    
+                    const containerRect = container.getBoundingClientRect();
+                    // Gunakan STATE.zoom langsung untuk akurasi mutlak!
+                    const scale = STATE.zoom; 
+                    let paths = '';
+
+                    const traverse = (node, direction = 'right') => {
+                        if (!node.children || node.children.length === 0 || !STATE.expandedNodes[node.id]) return;
+                        const parentEl = document.getElementById(`node-${node.id}`);
+                        if (!parentEl) return;
+                        const pRect = parentEl.getBoundingClientRect();
+
+                        node.children.forEach(child => {
+                            const childEl = document.getElementById(`node-${child.id}`);
+                            if (childEl && STATE.expandedNodes[node.id]) {
+                                const cRect = childEl.getBoundingClientRect();
+                                let d = "";
+                                
+                                if (STATE.layoutMode === 'down' || STATE.layoutMode === 'lucky') {
+                                    const startX = (pRect.left + pRect.width/2 - containerRect.left) / scale;
+                                    const startY = (pRect.bottom - containerRect.top) / scale;
+                                    const endX = (cRect.left + cRect.width/2 - containerRect.left) / scale;
+                                    const endY = (cRect.top - containerRect.top) / scale;
+                                    const midY = startY + (endY - startY) / 2;
+                                    d = `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`;
+                                } else {
+                                    const isLeftDirected = direction === 'left';
+                                    const startX = (isLeftDirected ? pRect.left : pRect.right) - containerRect.left;
+                                    const startY = pRect.top + pRect.height/2 - containerRect.top;
+                                    const endX = (isLeftDirected ? cRect.right : cRect.left) - containerRect.left;
+                                    const endY = cRect.top + cRect.height/2 - containerRect.top;
+                                    
+                                    const sX = startX / scale;
+                                    const sY = startY / scale;
+                                    const eX = endX / scale;
+                                    const eY = endY / scale;
+                                    const midX = sX + (eX - sX) / 2;
+                                    d = `M ${sX} ${sY} C ${midX} ${sY}, ${midX} ${eY}, ${eX} ${eY}`;
+                                }
+                                paths += `<path d="${d}" fill="none" stroke="var(--line-color)" stroke-width="2.5" stroke-linecap="round" class="opacity-70"></path>`;
+                            }
+                            traverse(child, child._balancedDir || direction);
+                        });
+                    };
+
+                    traverse(STATE.data, 'right');
+                    svg.innerHTML = paths;
+                });
+            },
+
+            // --- Overlays & Modals ---
+            toggleSettings() { STATE.showSettings = !STATE.showSettings; this.renderOverlays(); lucide.createIcons(); },
+            showTerms() { STATE.showTermsModal = true; this.renderOverlays(); lucide.createIcons(); },
+            hideTerms() { STATE.showTermsModal = false; this.renderOverlays(); },
+
+            renderOverlays() {
+                const container = document.getElementById('overlays-container');
+                let html = '';
+
+                if (STATE.showSettings && STATE.mode === 'view') {
+                    const tBtns = Object.keys(THEMES).map(t => 
+                        `<button onclick="APP.setTheme('${t}')" class="h-8 rounded border ${STATE.theme === t ? 'border-blue-500 ring-2 ring-blue-200' : 'border-[var(--border-color)]'} capitalize text-xs font-medium" style="background: ${THEMES[t].bg}; color: ${THEMES[t].text}">${t}</button>`
+                    ).join('');
+
+                    const lm = STATE.layoutMode;
+                    const lBtns = `
+                        <button onclick="APP.setLayout('right')" class="py-1.5 rounded border ${lm === 'right' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-[var(--node-bg)] border-[var(--border-color)]'} text-xs font-medium">Kanan</button>
+                        <button onclick="APP.setLayout('balanced')" class="py-1.5 rounded border ${lm === 'balanced' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-[var(--node-bg)] border-[var(--border-color)]'} text-xs font-medium">Seimbang</button>
+                        <button onclick="APP.setLayout('down')" class="py-1.5 rounded border ${lm === 'down' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-[var(--node-bg)] border-[var(--border-color)]'} text-xs font-medium">Ke Bawah</button>
+                        <button onclick="APP.setLayout('lucky')" class="py-1.5 rounded border ${lm === 'lucky' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-[var(--node-bg)] border-[var(--border-color)]'} text-xs font-medium flex items-center justify-center gap-1"><i data-lucide="wand-2" class="w-3 h-3"></i> Hoki</button>
+                    `;
+
+                    html += `
+                        <div class="absolute top-16 right-6 w-72 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl shadow-2xl z-50 p-4">
+                            <h3 class="font-semibold mb-3 text-sm flex items-center gap-2"><i data-lucide="palette" class="w-4 h-4"></i> Tema & Warna</h3>
+                            <div class="grid grid-cols-3 gap-2 mb-4">${tBtns}</div>
+                            
+                            <h3 class="font-semibold mb-3 text-sm flex items-center gap-2"><i data-lucide="align-left" class="w-4 h-4"></i> Auto Layout</h3>
+                            <div class="grid grid-cols-2 gap-2 mb-4">${lBtns}</div>
+
+                            <h3 class="font-semibold mb-3 text-sm flex items-center gap-2"><i data-lucide="type" class="w-4 h-4"></i> Tipografi</h3>
+                            <div class="grid grid-cols-2 gap-2 mb-4">
+                                <select onchange="APP.setFont(this.value)" class="col-span-2 p-1.5 bg-[var(--node-bg)] border border-[var(--border-color)] rounded text-xs outline-none">
+                                    <option value="inter" ${STATE.font==='inter'?'selected':''}>Modern (Inter)</option>
+                                    <option value="mono" ${STATE.font==='mono'?'selected':''}>Koding (JetBrains)</option>
+                                    <option value="serif" ${STATE.font==='serif'?'selected':''}>Klasik (Serif)</option>
+                                    <option value="comic" ${STATE.font==='comic'?'selected':''}>Santai (Comic)</option>
+                                </select>
+                                <div class="col-span-2 flex rounded border border-[var(--border-color)] overflow-hidden">
+                                    <button onclick="APP.setUiSize('sm')" class="flex-1 py-1 text-xs ${STATE.uiSize === 'sm' ? 'bg-[var(--stripe-color)] font-bold' : ''}">Kecil</button>
+                                    <button onclick="APP.setUiSize('md')" class="flex-1 py-1 text-xs border-l border-r border-[var(--border-color)] ${STATE.uiSize === 'md' ? 'bg-[var(--stripe-color)] font-bold' : ''}">Sedang</button>
+                                    <button onclick="APP.setUiSize('lg')" class="flex-1 py-1 text-xs ${STATE.uiSize === 'lg' ? 'bg-[var(--stripe-color)] font-bold' : ''}">Besar</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                if (STATE.showTermsModal) {
+                    html += `
+                        <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                            <div class="bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl shadow-2xl max-w-sm w-full overflow-hidden flex flex-col">
+                                <div class="p-5">
+                                    <div class="flex items-center gap-2 mb-4">
+                                        <i data-lucide="check-circle-2" class="w-5 h-5 text-blue-500"></i>
+                                        <h3 class="text-lg font-semibold text-[var(--text-main)]">Ketentuan</h3>
+                                    </div>
+                                    <p class="text-sm leading-relaxed text-[var(--dim-color)]">
+                                        Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
+                                    </p>
+                                </div>
+                                <div class="px-5 py-4 border-t border-[var(--border-color)] bg-[var(--stripe-color)] flex justify-end">
+                                    <button onclick="APP.hideTerms()" class="px-4 py-2 text-sm font-medium rounded-lg bg-[var(--node-bg)] text-[var(--text-main)] border border-[var(--border-color)] hover:opacity-80 transition-colors">Tutup</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                container.innerHTML = html;
+            },
+
+            // --- EKSPOR CANVAS 4K (FIXED) ---
+            export4K() {
+                if (!STATE.data) return;
+                const container = document.getElementById('tree-render-container');
+                const rect = container.getBoundingClientRect();
+                
+                // Murni De-Scaling: Koordinat Dom dibagi skala Zoom untuk presisi absolut
+                const currentZoom = STATE.zoom;
+                const baseWidth = rect.width / currentZoom;
+                const baseHeight = rect.height / currentZoom;
+                
+                const exportScale = 4; // Resolusi 4K (4x lipat)
+
+                const canvas = document.createElement('canvas');
+                canvas.width = baseWidth * exportScale;
+                canvas.height = baseHeight * exportScale;
+                const ctx = canvas.getContext('2d');
+                ctx.scale(exportScale, exportScale);
+
+                // Latar Belakang
+                ctx.fillStyle = THEMES[STATE.theme].bg;
+                ctx.fillRect(0, 0, baseWidth, baseHeight);
+
+                // 1. Gambar Garis Vektor SVG
+                const svgEl = container.querySelector('svg');
+                if (svgEl) {
+                    const paths = svgEl.querySelectorAll('path');
+                    ctx.strokeStyle = THEMES[STATE.theme].line;
+                    ctx.lineWidth = 2.5;
+                    ctx.lineCap = 'round';
+                    paths.forEach(p => {
+                        const d = p.getAttribute('d');
+                        const path2d = new Path2D(d);
+                        ctx.stroke(path2d);
+                    });
+                }
+
+                // 2. Gambar Node Rekursif
+                const drawNodeToCanvas = (node, isRootNode) => {
+                    const el = document.getElementById(`node-${node.id}`);
+                    if (!el) return;
+                    
+                    const elRect = el.getBoundingClientRect();
+                    
+                    // Kembalikan koordinat Bounding Client Rect menjadi unscaled!
+                    const x = (elRect.left - rect.left) / currentZoom;
+                    const y = (elRect.top - rect.top) / currentZoom;
+                    const w = elRect.width / currentZoom;
+                    const h = elRect.height / currentZoom;
+
+                    const computed = window.getComputedStyle(el);
+                    
+                    // Background & Border
+                    ctx.fillStyle = computed.backgroundColor;
+                    ctx.strokeStyle = computed.borderColor;
+                    ctx.lineWidth = parseFloat(computed.borderWidth) || 0;
+                    
+                    const radius = 12; // rounded-xl
+                    ctx.beginPath();
+                    ctx.moveTo(x + radius, y);
+                    ctx.lineTo(x + w - radius, y);
+                    ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+                    ctx.lineTo(x + w, y + h - radius);
+                    ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+                    ctx.lineTo(x + radius, y + h);
+                    ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+                    ctx.lineTo(x, y + radius);
+                    ctx.quadraticCurveTo(x, y, x + radius, y);
+                    ctx.closePath();
+                    
+                    // Tambahkan efek Drop Shadow mirip web
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+                    ctx.shadowBlur = isRootNode ? 15 : 4;
+                    ctx.shadowOffsetY = isRootNode ? 4 : 1;
+                    
+                    ctx.fill();
+                    
+                    ctx.shadowColor = 'transparent';
+                    if (ctx.lineWidth > 0 && computed.borderColor !== 'rgba(0, 0, 0, 0)') ctx.stroke();
+
+                    // Teks Center
+                    ctx.fillStyle = computed.color;
+                    const fontWeight = isRootNode ? 'bold' : computed.fontWeight;
+                    const fontSize = parseFloat(computed.fontSize);
+                    ctx.font = `${fontWeight} ${fontSize}px ${FONTS[STATE.font]}`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    
+                    // Tulisan pas di tengah kotak yang telah dikalibrasi
+                    ctx.fillText(node.name || '', x + w/2, y + h/2);
+
+                    if (STATE.expandedNodes[node.id] && node.children) {
+                        node.children.forEach(c => drawNodeToCanvas(c, false));
+                    }
+                };
+
+                drawNodeToCanvas(STATE.data, true);
+
+                // Unduh Otomatis
+                const link = document.createElement('a');
+                link.download = `PetaPikir_${STATE.theme}_4K.png`;
+                link.href = canvas.toDataURL('image/png', 1.0);
+                link.click();
+            },
+
+            // Utils
+            escapeHTML(str) {
+                return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag]));
+            }
+        };
+
+        // --- MULAI APLIKASI ---
+        document.addEventListener('DOMContentLoaded', () => APP.init());
+    </script>
+</body>
+</html>

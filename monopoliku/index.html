@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Monopoliku 3D - Tatadada Edition</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Three.js & Tween.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+
+    <style>
+        /* TATADADA TOKENS */
+        :root {
+            --header-bg: rgba(255, 255, 255, 0.9);
+            --preview-bg: #f8fafc;
+            --footer-bg: rgba(255, 255, 255, 0.9);
+            --border-color: rgba(226, 232, 240, 0.8);
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.5);
+            --glass-shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        html.dark {
+            --header-bg: rgba(22, 27, 34, 0.9);
+            --preview-bg: #010409;
+            --footer-bg: rgba(22, 27, 34, 0.9);
+            --border-color: rgba(48, 54, 61, 0.8);
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --glass-bg: rgba(13, 17, 23, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass-shadow: rgba(0, 0, 0, 0.5);
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; margin: 0; padding: 0;
+            user-select: none; -webkit-user-select: none;
+        }
+
+        .font-brand { font-family: 'Black Ops One', system-ui; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px var(--glass-shadow);
+            transition: all 0.3s ease;
+        }
+
+        .btn-action {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white; border: 1px solid #60a5fa; border-bottom: 3px solid #1e3a8a;
+            transition: all 0.1s; text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em;
+        }
+        .btn-action:active:not(:disabled) { transform: translateY(2px); border-bottom-width: 1px; margin-bottom: 2px; }
+        .btn-action:disabled { background: linear-gradient(135deg, #64748b, #334155); border-color: #94a3b8; border-bottom-color: #1e293b; color: #cbd5e1; cursor: not-allowed; transform: none; }
+
+        .btn-danger { background: linear-gradient(135deg, #ef4444, #b91c1c); border-color: #f87171; border-bottom-color: #7f1d1d; }
+        .btn-success { background: linear-gradient(135deg, #10b981, #047857); border-color: #34d399; border-bottom-color: #064e3b; }
+        .btn-warning { background: linear-gradient(135deg, #f59e0b, #b45309); border-color: #fcd34d; border-bottom-color: #78350f; }
+
+        .player-card { transition: transform 0.3s, border-color 0.3s; border: 2px solid transparent; }
+        .player-card.active { border-color: #3b82f6; transform: scale(1.05); box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); }
+
+        #dice-container { perspective: 1000px; }
+        .dice { width: 60px; height: 60px; transform-style: preserve-3d; transition: transform 1s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .face { position: absolute; width: 100%; height: 100%; background: white; border: 2px solid #e2e8f0; border-radius: 10px; display: flex; justify-content: center; align-items: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.1); }
+        .front  { transform: translateZ(30px); } .back   { transform: rotateY(180deg) translateZ(30px); }
+        .right  { transform: rotateY(90deg) translateZ(30px); } .left   { transform: rotateY(-90deg) translateZ(30px); }
+        .top    { transform: rotateX(90deg) translateZ(30px); } .bottom { transform: rotateX(-90deg) translateZ(30px); }
+
+        .dot { width: 12px; height: 12px; background: #0f172a; border-radius: 50%; position: absolute; }
+        .d1 .dot:nth-child(1) { top: 50%; left: 50%; transform: translate(-50%, -50%); background: #ef4444; width: 16px; height: 16px;}
+        .d2 .dot:nth-child(1) { top: 20%; left: 20%; } .d2 .dot:nth-child(2) { bottom: 20%; right: 20%; }
+        .d3 .dot:nth-child(1) { top: 20%; left: 20%; } .d3 .dot:nth-child(2) { top: 50%; left: 50%; transform: translate(-50%, -50%); } .d3 .dot:nth-child(3) { bottom: 20%; right: 20%; }
+        .d4 .dot:nth-child(1) { top: 20%; left: 20%; } .d4 .dot:nth-child(2) { top: 20%; right: 20%; } .d4 .dot:nth-child(3) { bottom: 20%; left: 20%; } .d4 .dot:nth-child(4) { bottom: 20%; right: 20%; }
+        .d5 .dot:nth-child(1) { top: 20%; left: 20%; } .d5 .dot:nth-child(2) { top: 20%; right: 20%; } .d5 .dot:nth-child(3) { bottom: 20%; left: 20%; } .d5 .dot:nth-child(4) { bottom: 20%; right: 20%; } .d5 .dot:nth-child(5) { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .d6 .dot:nth-child(1) { top: 20%; left: 20%; } .d6 .dot:nth-child(2) { top: 20%; right: 20%; } .d6 .dot:nth-child(3) { top: 50%; left: 20%; transform: translateY(-50%); } .d6 .dot:nth-child(4) { top: 50%; right: 20%; transform: translateY(-50%); } .d6 .dot:nth-child(5) { bottom: 20%; left: 20%; } .d6 .dot:nth-child(6) { bottom: 20%; right: 20%; }
+
+        #particle-canvas { pointer-events: none; }
+        .floating-text { position: absolute; animation: floatUp 1.5s ease-out forwards; font-weight: bold; font-family: 'JetBrains Mono', monospace; text-shadow: 0 2px 4px rgba(0,0,0,0.5); z-index: 100; pointer-events: none; }
+        @keyframes floatUp { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-50px) scale(1.5); opacity: 0; } }
+
+        /* House Level Indicators */
+        .house-indicator { width: 10px; height: 10px; background: #10b981; border: 1px solid #064e3b; border-radius: 2px; }
+        .hotel-indicator { width: 14px; height: 14px; background: #ef4444; border: 1px solid #7f1d1d; border-radius: 2px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col relative transition-colors duration-300">
+
+    <div id="canvas-container" class="absolute inset-0 z-0"></div>
+    <canvas id="particle-canvas" class="absolute inset-0 z-40"></canvas>
+
+    <header class="flex items-center justify-between px-6 h-14 border-b border-[var(--border-color)] bg-[var(--header-bg)] backdrop-blur-md shrink-0 relative z-50 transition-colors duration-300">
+        <div class="flex items-center gap-3">
+            <h1 class="text-xl font-bold bg-gradient-to-r from-blue-500 to-teal-400 bg-clip-text text-transparent tracking-wider font-brand flex items-center gap-2">
+                <i data-lucide="building-2" class="text-blue-500 w-5 h-5"></i>
+                MONOPOLIKU <span class="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-1 rounded">PRO</span>
+            </h1>
+            
+            <div class="group relative flex items-center justify-center cursor-help ml-2 text-[var(--text-dim)] hover:text-[var(--text-main)]">
+                <i data-lucide="info" class="w-4 h-4"></i>
+                <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 w-72 p-4 rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-xs leading-relaxed glass-panel text-[var(--text-main)]">
+                    <b class="text-blue-500 text-sm block mb-1 font-brand">Fitur Rento-Like</b>
+                    1. <b>AI Bot:</b> Biru akan bermain otomatis.<br>
+                    2. <b>Bangun Rumah:</b> Upgrade properti Anda (Maks Hotel) untuk sewa berlipat ganda.<br>
+                    3. <b>Penjara:</b> Bayar M50 atau kocok Double untuk keluar.<br>
+                    4. <b>Double Roll:</b> Dadu ganda = ekstra giliran.
+                </div>
+            </div>
+        </div>
+        <button id="themeToggle" class="text-[var(--text-dim)] hover:text-[var(--text-main)] p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5"><i data-lucide="moon" id="themeIcon" class="w-5 h-5"></i></button>
+    </header>
+
+    <main class="flex-1 relative z-10 pointer-events-none p-4 md:p-6 flex flex-col justify-between">
+        
+        <div class="flex justify-between items-start w-full max-w-5xl mx-auto gap-4">
+            <!-- P1 (Human) -->
+            <div id="p1-card" class="player-card glass-panel rounded-2xl p-4 w-40 md:w-56 flex flex-col items-center pointer-events-auto active">
+                <div class="w-10 h-10 rounded-full bg-red-500 border-2 border-white shadow-[0_0_15px_rgba(239,68,68,0.5)] flex items-center justify-center mb-2"><i data-lucide="user" class="text-white w-5 h-5"></i></div>
+                <h2 class="font-bold text-sm md:text-base text-center">Pemain Merah</h2>
+                <div class="text-2xl md:text-3xl font-black font-mono text-green-500 mt-1 drop-shadow-sm flex items-center gap-1"><span class="text-sm">M</span><span id="p1-money">1500</span></div>
+                <div class="mt-2 text-[10px] text-[var(--text-dim)] uppercase font-bold flex gap-2"><span>Aset: <span id="p1-props">0</span></span></div>
+            </div>
+
+            <!-- Info Center -->
+            <div class="flex-1 flex flex-col items-center justify-start pointer-events-auto">
+                <div id="turn-banner" class="glass-panel px-6 py-2 rounded-full font-brand text-lg tracking-widest shadow-lg animate-pulse mb-4 border-red-400 text-red-500">GILIRAN MERAH</div>
+                <div id="extra-turn-badge" class="bg-yellow-400 text-black px-3 py-1 rounded font-bold text-xs mb-2 hidden shadow-md uppercase animate-bounce">Double! Giliran Ekstra</div>
+
+                <div id="tile-info" class="glass-panel rounded-xl w-64 overflow-hidden shadow-2xl transform scale-90 opacity-0 transition-all duration-300 flex flex-col">
+                    <div id="tile-header" class="h-12 flex items-center justify-center font-bold text-white uppercase tracking-wider shadow-inner">NAMA KOTA</div>
+                    <div class="p-4 flex flex-col items-center text-center bg-[var(--header-bg)]">
+                        <span id="tile-type" class="text-xs text-[var(--text-dim)] font-mono mb-2">PROPERTI</span>
+                        
+                        <div id="tile-price-box" class="flex flex-col items-center w-full">
+                            <span class="text-sm">Harga Dasar</span>
+                            <span class="text-xl font-black font-mono text-green-500">M<span id="tile-price">100</span></span>
+                            <div class="flex gap-1 mt-2 mb-1" id="tile-houses-display"></div>
+                            <div class="w-full h-px bg-[var(--border-color)] my-2"></div>
+                            <span class="text-sm font-bold text-red-500">Sewa: M<span id="tile-rent">10</span></span>
+                        </div>
+                        
+                        <div id="tile-owner-box" class="hidden w-full text-center py-2 rounded bg-black/5 dark:bg-white/5 border border-[var(--border-color)] mt-3">
+                            <span class="text-xs">Pemilik</span><br><span id="tile-owner" class="font-bold text-sm">MERAH</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- P2 (Bot) -->
+            <div id="p2-card" class="player-card glass-panel rounded-2xl p-4 w-40 md:w-56 flex flex-col items-center pointer-events-auto">
+                <div class="w-10 h-10 rounded-full bg-blue-500 border-2 border-white shadow-[0_0_15px_rgba(59,130,246,0.5)] flex items-center justify-center mb-2 relative">
+                    <i data-lucide="bot" class="text-white w-5 h-5"></i>
+                    <span class="absolute -top-1 -right-1 flex h-3 w-3"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span></span>
+                </div>
+                <h2 class="font-bold text-sm md:text-base text-center">Bot Biru</h2>
+                <div class="text-2xl md:text-3xl font-black font-mono text-green-500 mt-1 drop-shadow-sm flex items-center gap-1"><span class="text-sm">M</span><span id="p2-money">1500</span></div>
+                <div class="mt-2 text-[10px] text-[var(--text-dim)] uppercase font-bold flex gap-2"><span>Aset: <span id="p2-props">0</span></span></div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="w-full max-w-md mx-auto pointer-events-auto flex flex-col items-center gap-4 mb-4">
+            
+            <div id="dice-container" class="flex gap-4 mb-2 opacity-0 transform translate-y-4 transition-all duration-300">
+                <div class="dice" id="dice1"><div class="face front d1"><div class="dot"></div></div><div class="face back d6"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><div class="face right d3"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><div class="face left d4"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><div class="face top d2"><div class="dot"></div><div class="dot"></div></div><div class="face bottom d5"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>
+                <div class="dice" id="dice2"><div class="face front d1"><div class="dot"></div></div><div class="face back d6"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><div class="face right d3"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><div class="face left d4"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><div class="face top d2"><div class="dot"></div><div class="dot"></div></div><div class="face bottom d5"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>
+            </div>
+
+            <!-- Main Actions -->
+            <div class="flex gap-2 w-full" id="roll-container">
+                <button id="btn-roll" class="btn-action flex-1 py-4 rounded-xl text-lg flex justify-center items-center gap-2 shadow-lg"><i data-lucide="dices"></i> KOCOK DADU</button>
+            </div>
+            
+            <div id="action-container" class="flex gap-2 w-full hidden">
+                <button id="btn-buy" class="btn-action btn-success flex-1 py-3 rounded-xl text-xs md:text-sm flex justify-center items-center gap-1 shadow-lg"><i data-lucide="shopping-cart" class="w-4 h-4"></i> BELI TANAH</button>
+                <button id="btn-upgrade" class="btn-action btn-warning flex-1 py-3 rounded-xl text-xs md:text-sm flex justify-center items-center gap-1 shadow-lg hidden"><i data-lucide="hammer" class="w-4 h-4"></i> BANGUN RUMAH</button>
+                <button id="btn-end" class="btn-action flex-1 py-3 rounded-xl text-xs md:text-sm flex justify-center items-center gap-1 shadow-lg"><i data-lucide="arrow-right-circle" class="w-4 h-4"></i> AKHIRI</button>
+            </div>
+            
+            <div id="pay-container" class="flex gap-2 w-full hidden">
+                <button id="btn-pay" class="btn-action btn-danger flex-1 py-4 rounded-xl text-lg flex justify-center items-center gap-2 shadow-lg animate-pulse"><i data-lucide="coins"></i> BAYAR SEWA</button>
+            </div>
+
+            <!-- Jail Actions -->
+            <div id="jail-container" class="flex gap-2 w-full hidden">
+                <button id="btn-jail-pay" class="btn-action btn-warning flex-1 py-3 rounded-xl text-xs md:text-sm flex justify-center items-center gap-1 shadow-lg"><i data-lucide="banknote" class="w-4 h-4"></i> BAYAR M50</button>
+                <button id="btn-jail-roll" class="btn-action flex-1 py-3 rounded-xl text-xs md:text-sm flex justify-center items-center gap-1 shadow-lg"><i data-lucide="dices" class="w-4 h-4"></i> COBA DOUBLE</button>
+            </div>
+
+        </div>
+    </main>
+
+    <div id="gameover-overlay" class="absolute inset-0 z-[100] bg-black/80 backdrop-blur-sm hidden flex-col justify-center items-center p-4">
+        <div class="glass-panel p-8 rounded-3xl text-center max-w-md w-full border-blue-500 shadow-[0_0_50px_rgba(59,130,246,0.3)]">
+            <i data-lucide="trophy" class="w-24 h-24 text-yellow-400 mx-auto mb-4 drop-shadow-[0_0_15px_rgba(250,204,21,0.8)]"></i>
+            <h1 class="text-4xl font-brand text-white mb-2 uppercase" id="winner-text">MERAH MENANG!</h1>
+            <p class="text-slate-300 font-mono mb-8">Lawan mengalami kebangkrutan total.</p>
+            <button onclick="location.reload()" class="btn-action w-full py-4 rounded-xl text-lg">MAIN LAGI</button>
+        </div>
+    </div>
+
+    <footer class="flex items-center justify-between px-6 h-8 shrink-0 z-50 border-t border-[var(--border-color)] bg-[var(--footer-bg)] backdrop-blur-md text-[10px] text-[var(--text-dim)] transition-colors duration-300">
+        <div class="flex items-center gap-2 font-mono"><div class="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_#22c55e]"></div><span>Rento-like Engine v2.0</span></div>
+        <div class="font-mono">TATADADA SYSTEM</div>
+    </footer>
+
+    <script>
+        // ==========================================
+        // 1. SETUP & AUDIO
+        // ==========================================
+        lucide.createIcons();
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        let isDark = localStorage.getItem('theme') === 'dark';
+
+        function applyTheme() {
+            if (isDark) { document.documentElement.classList.add('dark'); themeIcon.setAttribute('data-lucide', 'sun'); } 
+            else { document.documentElement.classList.remove('dark'); themeIcon.setAttribute('data-lucide', 'moon'); }
+            lucide.createIcons();
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            if(window.scene) {
+                window.scene.background = new THREE.Color(isDark ? 0x010409 : 0xf8fafc);
+                window.scene.fog.color.setHex(isDark ? 0x010409 : 0xf8fafc);
+            }
+        }
+        applyTheme();
+        themeToggle.addEventListener('click', () => { isDark = !isDark; applyTheme(); });
+
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        const sfx = {
+            init: () => { if(!audioCtx) audioCtx = new AudioContext(); if(audioCtx.state === 'suspended') audioCtx.resume(); },
+            playTone: (freq, type, duration, vol=0.1) => {
+                if(!audioCtx || audioCtx.state !== 'running') return;
+                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                osc.type = type; osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + duration);
+            },
+            step: () => sfx.playTone(300, 'sine', 0.1, 0.05),
+            roll: () => { for(let i=0; i<5; i++) setTimeout(() => sfx.playTone(400 + Math.random()*200, 'triangle', 0.05, 0.02), i*100); },
+            cash: () => { sfx.playTone(800, 'square', 0.1, 0.1); setTimeout(() => sfx.playTone(1200, 'square', 0.2, 0.1), 100); },
+            error: () => sfx.playTone(150, 'sawtooth', 0.3, 0.1),
+            build: () => { sfx.playTone(500, 'square', 0.1, 0.1); setTimeout(() => sfx.playTone(600, 'square', 0.1, 0.1), 100); },
+            win: () => { [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => setTimeout(() => sfx.playTone(f, 'sine', 0.4, 0.2), i * 150)); }
+        };
+
+        function showFloatingText(text, color, x, y) {
+            const el = document.createElement('div'); el.className = 'floating-text text-xl';
+            el.style.color = color; el.style.left = x + 'px'; el.style.top = y + 'px'; el.innerText = text;
+            document.body.appendChild(el); setTimeout(() => el.remove(), 1500);
+        }
+
+        // ==========================================
+        // 2. GAME DATA
+        // ==========================================
+        const BOARD_SIZE = 40; const TILE_WIDTH = 2; const BOARD_TILES_PER_SIDE = 10;
+        const C_BROWN = 0x8B4513, C_LBLUE = 0x87CEEB, C_PINK = 0xFF69B4, C_ORANGE = 0xFFA500;
+        const C_RED = 0xFF0000, C_YELLOW = 0xFFD700, C_GREEN = 0x008000, C_DBLUE = 0x0000CD;
+        const C_STATION = 0x333333, C_UTIL = 0xAAAAAA, C_SPECIAL = 0xdddddd;
+
+        const boardData = [
+            { id: 0, name: "MULAI", type: "go", color: 0xFFFFFF, price: 0 },
+            { id: 1, name: "Monas", type: "prop", group: "brown", color: C_BROWN, price: 60, baseRent: 2, level: 0 },
+            { id: 2, name: "Dana Umum", type: "chest", color: C_SPECIAL },
+            { id: 3, name: "Kota Tua", type: "prop", group: "brown", color: C_BROWN, price: 60, baseRent: 4, level: 0 },
+            { id: 4, name: "Pajak Jalan", type: "tax", color: C_SPECIAL, amount: 200 },
+            { id: 5, name: "Stasiun Kota", type: "station", color: C_STATION, price: 200, baseRent: 25 },
+            { id: 6, name: "Lembang", type: "prop", group: "lblue", color: C_LBLUE, price: 100, baseRent: 6, level: 0 },
+            { id: 7, name: "Kesempatan", type: "chance", color: C_SPECIAL },
+            { id: 8, name: "Dago", type: "prop", group: "lblue", color: C_LBLUE, price: 100, baseRent: 6, level: 0 },
+            { id: 9, name: "Gedung Sate", type: "prop", group: "lblue", color: C_LBLUE, price: 120, baseRent: 8, level: 0 },
+            { id: 10, name: "Penjara", type: "jail", color: 0xffaa00 },
+            { id: 11, name: "Malioboro", type: "prop", group: "pink", color: C_PINK, price: 140, baseRent: 10, level: 0 },
+            { id: 12, name: "PLN", type: "util", color: C_UTIL, price: 150, baseRent: 10 },
+            { id: 13, name: "Prambanan", type: "prop", group: "pink", color: C_PINK, price: 140, baseRent: 10, level: 0 },
+            { id: 14, name: "Keraton", type: "prop", group: "pink", color: C_PINK, price: 160, baseRent: 12, level: 0 },
+            { id: 15, name: "Stasiun Tugu", type: "station", color: C_STATION, price: 200, baseRent: 25 },
+            { id: 16, name: "Lawang Sewu", type: "prop", group: "orange", color: C_ORANGE, price: 180, baseRent: 14, level: 0 },
+            { id: 17, name: "Dana Umum", type: "chest", color: C_SPECIAL },
+            { id: 18, name: "Simpang 5", type: "prop", group: "orange", color: C_ORANGE, price: 180, baseRent: 14, level: 0 },
+            { id: 19, name: "Kota Lama", type: "prop", group: "orange", color: C_ORANGE, price: 200, baseRent: 16, level: 0 },
+            { id: 20, name: "Parkir Bebas", type: "parking", color: 0xcccccc },
+            { id: 21, name: "Tunjungan", type: "prop", group: "red", color: C_RED, price: 220, baseRent: 18, level: 0 },
+            { id: 22, name: "Kesempatan", type: "chance", color: C_SPECIAL },
+            { id: 23, name: "Suramadu", type: "prop", group: "red", color: C_RED, price: 220, baseRent: 18, level: 0 },
+            { id: 24, name: "Tugu Pahlawan", type: "prop", group: "red", color: C_RED, price: 240, baseRent: 20, level: 0 },
+            { id: 25, name: "Stasiun Gubeng", type: "station", color: C_STATION, price: 200, baseRent: 25 },
+            { id: 26, name: "Sanur", type: "prop", group: "yellow", color: C_YELLOW, price: 260, baseRent: 22, level: 0 },
+            { id: 27, name: "Kuta", type: "prop", group: "yellow", color: C_YELLOW, price: 260, baseRent: 22, level: 0 },
+            { id: 28, name: "PDAM", type: "util", color: C_UTIL, price: 150, baseRent: 10 },
+            { id: 29, name: "Ubud", type: "prop", group: "yellow", color: C_YELLOW, price: 280, baseRent: 24, level: 0 },
+            { id: 30, name: "Masuk Penjara", type: "gotojail", color: 0xaa0000 },
+            { id: 31, name: "Losari", type: "prop", group: "green", color: C_GREEN, price: 300, baseRent: 26, level: 0 },
+            { id: 32, name: "Bantimurung", type: "prop", group: "green", color: C_GREEN, price: 300, baseRent: 26, level: 0 },
+            { id: 33, name: "Dana Umum", type: "chest", color: C_SPECIAL },
+            { id: 34, name: "Rotterdam", type: "prop", group: "green", color: C_GREEN, price: 320, baseRent: 28, level: 0 },
+            { id: 35, name: "St. Ps. Turi", type: "station", color: C_STATION, price: 200, baseRent: 25 },
+            { id: 36, name: "Kesempatan", type: "chance", color: C_SPECIAL },
+            { id: 37, name: "Bunaken", type: "prop", group: "dblue", color: C_DBLUE, price: 350, baseRent: 35, level: 0 },
+            { id: 38, name: "Pajak Mewah", type: "tax", color: C_SPECIAL, amount: 100 },
+            { id: 39, name: "Raja Ampat", type: "prop", group: "dblue", color: C_DBLUE, price: 400, baseRent: 50, level: 0 }
+        ];
+
+        const rentMultipliers = [1, 5, 15, 45, 80, 125]; // Level 0 to 5(Hotel) multiplier against baseRent
+
+        function getRent(tileId) {
+            const t = boardData[tileId];
+            if(!t.baseRent) return 0;
+            if(t.type === 'station') {
+                if (t.owner === undefined) return t.baseRent;
+                const owner = players[t.owner];
+                return 25 * Math.pow(2, owner.props.filter(pid => boardData[pid].type === 'station').length - 1); // 25, 50, 100, 200
+            }
+            if(t.type === 'util') return (Math.floor(Math.random()*6)+1 + Math.floor(Math.random()*6)+1) * 4;
+            return t.baseRent * rentMultipliers[t.level || 0];
+        }
+
+        const players = [
+            { id: 0, name: "MERAH", color: 0xff3333, money: 1500, pos: 0, props: [], inJail: false, jailTurns: 0, isBot: false, mesh: null },
+            { id: 1, name: "BOT BIRU", color: 0x3366ff, money: 1500, pos: 0, props: [], inJail: false, jailTurns: 0, isBot: true, mesh: null }
+        ];
+
+        let currentTurn = 0;
+        let gameState = 'IDLE'; 
+        let extraTurn = false; // Double dice flag
+
+        // ==========================================
+        // 3. THREE.JS BOARD & RENDERING
+        // ==========================================
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene(); window.scene = scene;
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+        camera.position.set(0, 30, 40); camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        dirLight.position.set(20, 50, 20); dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5; dirLight.shadow.camera.far = 100;
+        dirLight.shadow.camera.left = -30; dirLight.shadow.camera.right = 30;
+        dirLight.shadow.camera.top = 30; dirLight.shadow.camera.bottom = -30;
+        scene.add(dirLight);
+
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+
+        const tiles3D = [];
+        const boardGroup = new THREE.Group(); scene.add(boardGroup);
+
+        function getTilePosition(index) {
+            const size = BOARD_TILES_PER_SIDE; const tW = TILE_WIDTH; const offset = (size * tW)/2 - (tW/2);
+            let x = 0, z = 0;
+            if (index < size) { x = offset - (index * tW); z = offset; }
+            else if (index < size*2 - 1) { x = -offset; z = offset - ((index - size + 1) * tW); }
+            else if (index < size*3 - 2) { x = -offset + ((index - (size*2 - 2)) * tW); z = -offset; }
+            else { x = offset; z = -offset + ((index - (size*3 - 3)) * tW); }
+            return new THREE.Vector3(x, 0.5, z);
+        }
+
+        function createTileTexture(data) {
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256; const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 256, 256); ctx.lineWidth = 4; ctx.strokeStyle = '#cccccc'; ctx.strokeRect(0, 0, 256, 256);
+            if(['prop', 'station', 'util'].includes(data.type)) {
+                ctx.fillStyle = '#' + data.color.toString(16).padStart(6, '0'); ctx.fillRect(0, 0, 256, 60);
+                ctx.fillStyle = '#000000'; ctx.font = 'bold 28px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText(data.name.split(' ')[0], 128, 110); if(data.name.split(' ')[1]) ctx.fillText(data.name.split(' ')[1], 128, 145);
+                ctx.font = 'bold 24px monospace'; ctx.fillText('M' + data.price, 128, 220);
+            } else {
+                ctx.fillStyle = '#' + data.color.toString(16).padStart(6, '0'); ctx.fillRect(0,0,256,256);
+                ctx.fillStyle = (data.color === 0xFFFFFF || data.color === 0xcccccc) ? '#000000' : '#ffffff';
+                ctx.font = 'bold 32px sans-serif'; ctx.textAlign = 'center';
+                data.name.split(' ').forEach((w, i) => ctx.fillText(w, 128, 120 + (i*40)));
+            }
+            const tex = new THREE.CanvasTexture(canvas); tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); return tex;
+        }
+
+        const geoBox = new THREE.BoxGeometry(TILE_WIDTH*0.95, 1, TILE_WIDTH*0.95);
+        boardData.forEach((data, i) => {
+            const pos = getTilePosition(i);
+            const tex = createTileTexture(data);
+            const matTop = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 });
+            const matSide = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.5 });
+            const mesh = new THREE.Mesh(geoBox, [matSide, matSide, matTop, matSide, matSide, matSide]);
+            mesh.position.copy(pos); mesh.receiveShadow = true; mesh.castShadow = true;
+            if(i>0 && i<10) mesh.rotation.y = Math.PI; else if(i>10 && i<20) mesh.rotation.y = -Math.PI/2; else if(i>20 && i<30) mesh.rotation.y = 0; else if(i>30) mesh.rotation.y = Math.PI/2;
+            boardGroup.add(mesh); tiles3D.push(mesh);
+        });
+
+        boardGroup.add(new THREE.Mesh(new THREE.BoxGeometry(TILE_WIDTH*8, 0.5, TILE_WIDTH*8), new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 })).translateY(0.25));
+
+        // Pembangunan Rumah 3D
+        function build3DHouses(tileId) {
+            const t = boardData[tileId];
+            if(t.houseMeshes) t.houseMeshes.forEach(m => boardGroup.remove(m));
+            t.houseMeshes = [];
+            if(!t.level) return;
+
+            const pos = getTilePosition(tileId);
+            const baseMesh = tiles3D[tileId];
+            
+            // Build relative to tile's rotation so houses are always on the inner colored edge
+            if(t.level < 5) {
+                for(let i=0; i<t.level; i++) {
+                    const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshStandardMaterial({color: 0x10b981}));
+                    m.position.set(-0.45 + (i*0.3), 0.65, -0.6); // local coordinates
+                    m.position.applyEuler(baseMesh.rotation);
+                    m.position.add(pos);
+                    m.castShadow = true;
+                    boardGroup.add(m); t.houseMeshes.push(m);
+                }
+            } else {
+                const m = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.4), new THREE.MeshStandardMaterial({color: 0xef4444}));
+                m.position.set(0, 0.75, -0.6);
+                m.position.applyEuler(baseMesh.rotation);
+                m.position.add(pos);
+                m.castShadow = true;
+                boardGroup.add(m); t.houseMeshes.push(m);
+            }
+        }
+
+        // Token Pemain
+        players.forEach(p => {
+            const g = new THREE.Group();
+            const b = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 0.2, 16), new THREE.MeshStandardMaterial({color: p.color, metalness: 0.3, roughness: 0.4})); b.position.y = 0.1; b.castShadow = true; g.add(b);
+            const body = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1, 16), b.material); body.position.y = 0.7; body.castShadow = true; g.add(body);
+            p.mesh = g; scene.add(g);
+        });
+
+        function updateTokenPositionInstant(player) {
+            const pos = getTilePosition(player.pos);
+            const offset = player.id === 0 ? 0.3 : -0.3;
+            player.mesh.position.set(pos.x + offset, pos.y + 0.5, pos.z + offset);
+        }
+        updateTokenPositionInstant(players[0]); updateTokenPositionInstant(players[1]);
+
+        // Camera
+        const targetCameraPos = new THREE.Vector3(); const targetCameraLookAt = new THREE.Vector3(); let currentLookAt = new THREE.Vector3();
+        function updateCameraTarget(playerPosIndex) {
+            const pPos = getTilePosition(playerPosIndex); targetCameraLookAt.copy(pPos);
+            const dist = 12, height = 15;
+            if(playerPosIndex < 10) targetCameraPos.set(pPos.x, height, pPos.z + dist);
+            else if(playerPosIndex < 20) targetCameraPos.set(pPos.x - dist, height, pPos.z);
+            else if(playerPosIndex < 30) targetCameraPos.set(pPos.x, height, pPos.z - dist);
+            else targetCameraPos.set(pPos.x + dist, height, pPos.z);
+        }
+        updateCameraTarget(0); camera.position.copy(targetCameraPos); currentLookAt.copy(targetCameraLookAt);
+
+        function animate(time) {
+            requestAnimationFrame(animate); TWEEN.update(time);
+            camera.position.lerp(targetCameraPos, 0.05); currentLookAt.lerp(targetCameraLookAt, 0.05); camera.lookAt(currentLookAt);
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // ==========================================
+        // 4. UI & GAME LOGIC
+        // ==========================================
+        const UI = {
+            stats: () => {
+                document.getElementById('p1-money').innerText = players[0].money; document.getElementById('p2-money').innerText = players[1].money;
+                document.getElementById('p1-props').innerText = players[0].props.length; document.getElementById('p2-props').innerText = players[1].props.length;
+            },
+            setTurn: (pid) => {
+                const name = players[pid].name;
+                const c = pid === 0 ? 'text-red-500 border-red-400' : 'text-blue-500 border-blue-400';
+                const banner = document.getElementById('turn-banner');
+                banner.className = `glass-panel px-6 py-2 rounded-full font-brand text-lg tracking-widest shadow-lg animate-pulse mb-2 border-2 ${c}`;
+                banner.innerText = `GILIRAN ${name}`;
+                
+                document.getElementById('extra-turn-badge').style.display = extraTurn ? 'block' : 'none';
+
+                if(pid===0){ document.getElementById('p1-card').classList.add('active'); document.getElementById('p2-card').classList.remove('active'); }
+                else { document.getElementById('p2-card').classList.add('active'); document.getElementById('p1-card').classList.remove('active'); }
+                
+                updateCameraTarget(players[pid].pos);
+                UI.hideTileInfo();
+                
+                gameState = 'IDLE';
+                
+                if (players[pid].inJail) {
+                    UI.showJailBtns();
+                } else {
+                    UI.showRollBtn();
+                }
+
+                // AI Trigger
+                if(players[pid].isBot) checkBotTurn();
+            },
+            hideAllBtns: () => {
+                document.getElementById('roll-container').classList.add('hidden');
+                document.getElementById('action-container').classList.add('hidden');
+                document.getElementById('pay-container').classList.add('hidden');
+                document.getElementById('jail-container').classList.add('hidden');
+            },
+            showRollBtn: () => { UI.hideAllBtns(); document.getElementById('roll-container').classList.remove('hidden'); document.getElementById('btn-roll').disabled = false; },
+            showActionBtns: (canBuy, canUpgrade) => { 
+                UI.hideAllBtns(); document.getElementById('action-container').classList.remove('hidden'); 
+                const b = document.getElementById('btn-buy'); const u = document.getElementById('btn-upgrade');
+                b.disabled = !canBuy; b.style.opacity = canBuy ? '1' : '0.5';
+                if(canUpgrade) { u.classList.remove('hidden'); u.disabled = false; b.classList.add('hidden'); } 
+                else { u.classList.add('hidden'); b.classList.remove('hidden'); }
+            },
+            showPayBtn: () => { UI.hideAllBtns(); document.getElementById('pay-container').classList.remove('hidden'); },
+            showJailBtns: () => { UI.hideAllBtns(); document.getElementById('jail-container').classList.remove('hidden'); },
+            
+            showTileInfo: (t) => {
+                document.getElementById('tile-header').innerText = t.name;
+                document.getElementById('tile-header').style.backgroundColor = (t.color !== 0xFFFFFF && t.color !== 0xcccccc) ? '#' + t.color.toString(16).padStart(6, '0') : '#333333';
+                document.getElementById('tile-type').innerText = t.type.toUpperCase();
+                
+                const pBox = document.getElementById('tile-price-box'); const oBox = document.getElementById('tile-owner-box');
+                const hDisp = document.getElementById('tile-houses-display'); hDisp.innerHTML = '';
+
+                if(t.price > 0) {
+                    pBox.classList.remove('hidden');
+                    document.getElementById('tile-price').innerText = t.price;
+                    document.getElementById('tile-rent').innerText = getRent(t.id);
+                    
+                    if(t.level && t.level > 0) {
+                        if(t.level < 5) { for(let i=0; i<t.level; i++) hDisp.innerHTML += '<div class="house-indicator"></div>'; }
+                        else hDisp.innerHTML = '<div class="hotel-indicator"></div>';
+                    }
+
+                    if(t.owner !== undefined) {
+                        oBox.classList.remove('hidden');
+                        document.getElementById('tile-owner').className = `font-bold text-sm ${t.owner === 0 ? 'text-red-500' : 'text-blue-500'}`;
+                        document.getElementById('tile-owner').innerText = players[t.owner].name;
+                    } else oBox.classList.add('hidden');
+                } else { pBox.classList.add('hidden'); oBox.classList.add('hidden'); }
+
+                document.getElementById('tile-info').classList.replace('scale-90', 'scale-100');
+                document.getElementById('tile-info').classList.replace('opacity-0', 'opacity-100');
+            },
+            hideTileInfo: () => {
+                document.getElementById('tile-info').classList.replace('scale-100', 'scale-90');
+                document.getElementById('tile-info').classList.replace('opacity-100', 'opacity-0');
+            }
+        };
+
+        // --- Dice & Movement ---
+        function rollDice(forJail = false) {
+            sfx.init(); sfx.roll();
+            const d1 = Math.floor(Math.random() * 6) + 1; const d2 = Math.floor(Math.random() * 6) + 1;
+            const total = d1 + d2;
+            const isDouble = (d1 === d2);
+            
+            document.getElementById('dice-container').classList.remove('opacity-0', 'translate-y-4');
+            const d1el = document.getElementById('dice1'); const d2el = document.getElementById('dice2');
+            d1el.style.transform = `rotateX(${Math.random()*720}deg) rotateY(${Math.random()*720}deg)`;
+            d2el.style.transform = `rotateX(${Math.random()*720}deg) rotateY(${Math.random()*720}deg)`;
+
+            setTimeout(() => {
+                const r = (v) => { switch(v) { case 1: return 'rotateX(0deg) rotateY(0deg)'; case 6: return 'rotateX(180deg) rotateY(0deg)'; case 3: return 'rotateX(0deg) rotateY(-90deg)'; case 4: return 'rotateX(0deg) rotateY(90deg)'; case 2: return 'rotateX(-90deg) rotateY(0deg)'; case 5: return 'rotateX(90deg) rotateY(0deg)'; } };
+                d1el.style.transform = r(d1); d2el.style.transform = r(d2);
+                
+                setTimeout(() => {
+                    document.getElementById('dice-container').classList.add('opacity-0', 'translate-y-4');
+                    if (forJail) handleJailRollResult(isDouble, total);
+                    else {
+                        extraTurn = isDouble; // Rule: Doubles get another turn
+                        movePlayer(total);
+                    }
+                }, 1000);
+            }, 600);
+        }
+
+        function movePlayer(steps) {
+            gameState = 'MOVING';
+            const player = players[currentTurn]; let c = 0;
+            function step() {
+                if(c >= steps) { handleLanded(); return; }
+                c++; player.pos = (player.pos + 1) % BOARD_SIZE;
+                if(player.pos === 0) { player.money += 200; UI.stats(); sfx.cash(); showFloatingText("+M200", "#10b981", window.innerWidth/2, window.innerHeight/2); }
+
+                const tPos = getTilePosition(player.pos); const off = player.id === 0 ? 0.3 : -0.3;
+                new TWEEN.Tween(player.mesh.position).to({ y: 2.5 }, 150).easing(TWEEN.Easing.Quadratic.Out).chain(
+                    new TWEEN.Tween(player.mesh.position).to({ y: tPos.y + 0.5 }, 150).easing(TWEEN.Easing.Quadratic.In).onComplete(() => { sfx.step(); updateCameraTarget(player.pos); setTimeout(step, 50); })
+                ).start();
+                new TWEEN.Tween(player.mesh.position).to({ x: tPos.x + off, z: tPos.z + off }, 300).start();
+            }
+            step();
+        }
+
+        // --- Logic After Landed ---
+        function handleLanded() {
+            gameState = 'ACTION';
+            const p = players[currentTurn]; const t = boardData[p.pos];
+            UI.showTileInfo(t);
+
+            if(['prop', 'station', 'util'].includes(t.type) && t.owner === undefined) {
+                UI.showActionBtns(p.money >= t.price, false);
+            } else if(['prop', 'station', 'util'].includes(t.type) && t.owner !== undefined) {
+                if (t.owner === p.id) {
+                    // Own property -> Upgrade option (only for standard properties, not stations/utils)
+                    const canUpgrade = (t.type === 'prop' && t.level < 5 && p.money >= (t.price/2));
+                    UI.showActionBtns(false, canUpgrade);
+                } else {
+                    // Pay rent
+                    UI.showPayBtn(); sfx.error();
+                }
+            } else if(t.type === 'tax') {
+                p.money -= t.amount; showFloatingText("-M" + t.amount, "#ef4444", window.innerWidth/2, window.innerHeight/2);
+                sfx.error(); UI.stats(); checkBankrupt(); UI.showActionBtns(false, false);
+            } else if(['chance', 'chest'].includes(t.type)) {
+                const amt = (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random() * 5) + 1) * 20;
+                p.money += amt; const col = amt > 0 ? "#10b981" : "#ef4444";
+                showFloatingText((amt>0?"+":"") + "M" + Math.abs(amt), col, window.innerWidth/2, window.innerHeight/2);
+                if(amt>0) sfx.cash(); else sfx.error(); UI.stats(); checkBankrupt(); UI.showActionBtns(false, false);
+            } else if(t.type === 'gotojail') {
+                p.pos = 10; p.inJail = true; p.jailTurns = 0; extraTurn = false; // Lose double turn
+                updateTokenPositionInstant(p); updateCameraTarget(10); sfx.error(); UI.showActionBtns(false, false);
+            } else {
+                UI.showActionBtns(false, false);
+            }
+            if(p.isBot) checkBotTurn();
+        }
+
+        // --- Jail Mechanics ---
+        function handleJailRollResult(isDouble, total) {
+            const p = players[currentTurn];
+            if (isDouble) {
+                p.inJail = false; p.jailTurns = 0; showFloatingText("BEBAS!", "#10b981", window.innerWidth/2, window.innerHeight/2);
+                extraTurn = false; // Does not get an extra turn after getting out via double
+                movePlayer(total);
+            } else {
+                p.jailTurns++; sfx.error(); showFloatingText("GAGAL DOUBLE", "#ef4444", window.innerWidth/2, window.innerHeight/2);
+                if (p.jailTurns >= 3) {
+                    // Force pay next turn
+                }
+                UI.showActionBtns(false, false);
+                if(p.isBot) checkBotTurn();
+            }
+        }
+
+        // --- Actions ---
+        document.getElementById('btn-roll').addEventListener('click', () => { UI.hideAllBtns(); rollDice(); });
+        
+        document.getElementById('btn-buy').addEventListener('click', () => {
+            const p = players[currentTurn]; const t = boardData[p.pos];
+            if(p.money >= t.price) {
+                p.money -= t.price; t.owner = p.id; p.props.push(t.id);
+                sfx.cash(); UI.stats(); UI.showTileInfo(t); tiles3D[p.pos].material[2].color.setHex(p.color); UI.showActionBtns(false, false);
+            }
+        });
+
+        document.getElementById('btn-upgrade').addEventListener('click', () => {
+            const p = players[currentTurn]; const t = boardData[p.pos]; const cost = t.price / 2;
+            if(p.money >= cost && t.level < 5) {
+                p.money -= cost; t.level++; sfx.build(); build3DHouses(p.pos); UI.stats(); UI.showTileInfo(t);
+                // Can upgrade multiple times if money allows
+                UI.showActionBtns(false, (t.level < 5 && p.money >= cost));
+            }
+        });
+
+        document.getElementById('btn-pay').addEventListener('click', () => {
+            const p = players[currentTurn]; const t = boardData[p.pos]; const o = players[t.owner];
+            const amt = getRent(p.pos); p.money -= amt; o.money += amt;
+            showFloatingText("-M" + amt, "#ef4444", window.innerWidth/2, window.innerHeight/2);
+            sfx.cash(); UI.stats(); if(checkBankrupt()) return; UI.showActionBtns(false, false);
+        });
+
+        document.getElementById('btn-jail-pay').addEventListener('click', () => {
+            const p = players[currentTurn]; p.money -= 50; p.inJail = false; p.jailTurns = 0;
+            sfx.cash(); UI.stats(); if(checkBankrupt()) return;
+            UI.showRollBtn(); if(p.isBot) checkBotTurn();
+        });
+
+        document.getElementById('btn-jail-roll').addEventListener('click', () => { UI.hideAllBtns(); rollDice(true); });
+
+        document.getElementById('btn-end').addEventListener('click', () => {
+            if (extraTurn) { extraTurn = false; UI.setTurn(currentTurn); } // Same player
+            else { currentTurn = currentTurn === 0 ? 1 : 0; UI.setTurn(currentTurn); }
+        });
+
+        function checkBankrupt() {
+            if(players[currentTurn].money < 0) {
+                sfx.error(); document.getElementById('gameover-overlay').style.display = 'flex';
+                document.getElementById('winner-text').innerText = `${players[currentTurn===0?1:0].name} MENANG!`; sfx.win(); return true;
+            } return false;
+        }
+
+        // ==========================================
+        // 5. AI BOT LOGIC (Player 2)
+        // ==========================================
+        function checkBotTurn() {
+            const p = players[currentTurn]; if (!p.isBot) return;
+            setTimeout(() => {
+                if (gameState === 'IDLE') {
+                    if (p.inJail) {
+                        if (p.jailTurns >= 2 || p.money > 1000) document.getElementById('btn-jail-pay').click();
+                        else document.getElementById('btn-jail-roll').click();
+                    } else {
+                        document.getElementById('btn-roll').click();
+                    }
+                } else if (gameState === 'ACTION') {
+                    if (!document.getElementById('pay-container').classList.contains('hidden')) {
+                        document.getElementById('btn-pay').click(); setTimeout(() => document.getElementById('btn-end').click(), 1000);
+                    } else if (!document.getElementById('action-container').classList.contains('hidden')) {
+                        const t = boardData[p.pos];
+                        const btnBuy = document.getElementById('btn-buy'); const btnUp = document.getElementById('btn-upgrade');
+                        
+                        if (!btnBuy.classList.contains('hidden') && !btnBuy.disabled && p.money > t.price + 200) {
+                            btnBuy.click(); setTimeout(() => document.getElementById('btn-end').click(), 1000);
+                        } else if (!btnUp.classList.contains('hidden') && !btnUp.disabled && p.money > (t.price/2) + 300) {
+                            btnUp.click(); setTimeout(() => checkBotTurn(), 800); // Check again if it can upgrade more
+                        } else {
+                            document.getElementById('btn-end').click();
+                        }
+                    }
+                }
+            }, 1000);
+        }
+
+        // Start
+        setTimeout(() => { UI.setTurn(0); UI.stats(); }, 1000);
+
+    </script>
+</body>
+</html>

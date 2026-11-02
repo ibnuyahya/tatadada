@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excelin - TATADADA UI</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- TATADADA UI Framework CSS -->
+    <style>
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-theme: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+        }
+        
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-theme: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+
+        .bg-header { background-color: var(--header-bg); }
+        .bg-editor { background-color: var(--editor-bg); }
+        .bg-preview { background-color: var(--preview-bg); }
+        .bg-card { background-color: var(--card-bg); }
+        .bg-footer { background-color: var(--footer-bg); }
+        .border-theme { border-color: var(--border-theme); }
+        .text-main { color: var(--text-main); }
+        .text-dim { color: var(--text-dim); }
+        
+        /* Font spesifik untuk tabel */
+        .font-data { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Premium Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-theme); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Utilitas Animasi */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER (h-14) -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm">
+        <div class="flex items-center space-x-3">
+            <div class="p-1.5 bg-gradient-to-br from-green-400 to-teal-500 rounded-lg shadow-sm">
+                <i data-lucide="file-spreadsheet" class="text-white w-5 h-5"></i>
+            </div>
+            <div class="flex flex-col">
+                <h1 class="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-teal-600">
+                    Excelin <span class="text-[10px] italic text-dim font-normal ml-1">v2.0</span>
+                </h1>
+                <span class="text-[10px] text-dim">by AhmadDanial</span>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-4">
+            <div class="group relative flex items-center">
+                <i data-lucide="help-circle" class="w-[18px] h-[18px] text-dim hover:text-main cursor-pointer transition-colors"></i>
+                <div class="absolute top-8 right-0 w-64 bg-card border border-theme p-3 rounded-xl shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                    <p class="text-xs text-main" id="help-text" data-id="Tekan Ctrl+V untuk menempelkan data dari Spreadsheet." data-en="Press Ctrl+V to paste data from Spreadsheet.">
+                        Tekan Ctrl+V untuk menempelkan data dari Spreadsheet.
+                    </p>
+                </div>
+            </div>
+            
+            <button id="btn-lang" class="flex items-center text-xs font-medium text-dim hover:text-main transition-colors bg-preview px-2 py-1 rounded-md border border-theme">
+                <i data-lucide="globe" class="w-3.5 h-3.5 mr-1"></i> <span id="lang-label">ID</span>
+            </button>
+            
+            <button id="btn-theme" class="text-dim hover:text-main transition-colors p-1.5 rounded-md hover:bg-preview border border-transparent hover:border-theme flex items-center justify-center">
+                <i data-lucide="moon" id="icon-moon" class="w-[18px] h-[18px]"></i>
+                <i data-lucide="sun" id="icon-sun" class="w-[18px] h-[18px] hidden"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE (Split Pane Atas-Bawah) -->
+    <main class="flex-1 flex flex-col overflow-hidden">
+        
+        <!-- Panel Atas: Kanvas/Editor -->
+        <div id="top-pane" class="bg-editor relative overflow-hidden flex flex-col" style="height: 60%;">
+            
+            <!-- Loading Overlay Kaca (Hidden by default) -->
+            <div id="loading-overlay" class="hidden absolute inset-0 z-50 flex items-center justify-center bg-card/50 backdrop-blur-md fade-in">
+                <div class="bg-card p-8 rounded-2xl shadow-xl max-w-sm w-full text-center border border-theme">
+                    <i data-lucide="loader-2" class="w-10 h-10 text-green-500 animate-spin mx-auto mb-4"></i>
+                    <h3 class="text-lg font-bold text-main mb-2" data-id="Memproses Data..." data-en="Processing Data...">Memproses Data...</h3>
+                    <div class="w-full bg-preview rounded-full h-2.5 mb-2 overflow-hidden border border-theme relative">
+                        <div id="progress-bar" class="bg-gradient-to-r from-green-500 to-teal-500 h-2.5 rounded-full transition-all duration-200 ease-out absolute left-0 top-0" style="width: 0%;"></div>
+                    </div>
+                    <p class="text-xs font-semibold text-dim"><span id="progress-text">0</span>% <span data-id="Selesai" data-en="Done">Selesai</span></p>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="flex-1 flex flex-col items-center justify-center p-8">
+                <div class="max-w-md w-full bg-card border border-theme rounded-2xl shadow-sm p-10 flex flex-col items-center text-center transition-all">
+                    <div class="w-16 h-16 bg-preview border border-theme text-green-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                        <i data-lucide="clipboard-paste" class="w-8 h-8"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-main mb-2" data-id="Area Tempel Data" data-en="Data Paste Area">Area Tempel Data</h2>
+                    <p class="text-dim mb-6 text-sm">
+                        <span data-id="Salin range dari Excel/Sheets, lalu tekan" data-en="Copy range from Excel/Sheets, then press">Salin range dari Excel/Sheets, lalu tekan</span> 
+                        <kbd class="mx-1 px-1.5 py-0.5 bg-preview border border-theme rounded text-xs font-mono text-main shadow-sm">Ctrl + V</kbd>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Spreadsheet View (Table Container) -->
+            <div id="table-container" class="hidden flex-1 overflow-auto bg-editor p-4">
+                <!-- Tabel akan digenerate oleh JS -->
+            </div>
+        </div>
+
+        <!-- Resizer/Gutter: WAJIB TEBAL & BERBEDA WARNA -->
+        <div id="resizer" class="h-3 w-full bg-preview cursor-row-resize flex items-center justify-center border-y border-theme group shrink-0 z-20 hover:bg-theme-accent/5 transition-colors">
+            <div class="w-10 h-1 bg-[var(--border-theme)] rounded-full group-hover:bg-blue-500 transition-colors"></div>
+        </div>
+
+        <!-- Panel Bawah: Alat Kontrol (Dibungkus Card) -->
+        <div id="bottom-pane" class="bg-preview p-4 flex flex-col lg:flex-row gap-4 overflow-y-auto" style="height: 40%;">
+            
+            <!-- Card 1: Format & Kontrol -->
+            <div class="bg-card rounded-xl shadow-sm border border-theme p-5 flex flex-col gap-4 lg:w-1/3 shrink-0">
+                <div class="flex items-center justify-between border-b border-theme pb-3">
+                    <h3 class="font-semibold text-sm text-main flex items-center">
+                        <i data-lucide="settings-2" class="w-4 h-4 mr-2 text-dim"></i> 
+                        <span data-id="Opsi Konversi" data-en="Conversion Options">Opsi Konversi</span>
+                    </h3>
+                    <button id="btn-clear" class="hidden text-xs text-red-500 hover:text-red-600 font-medium px-2 py-1 bg-red-50 dark:bg-red-900/20 rounded-md border border-red-200 dark:border-red-900/50 transition-colors flex items-center">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5 mr-1"></i> 
+                        <span data-id="Bersihkan" data-en="Clear">Bersihkan</span>
+                    </button>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <label class="text-[10px] font-bold text-dim uppercase tracking-wider" data-id="Format Keluaran" data-en="Output Format">Format Keluaran</label>
+                    <div class="flex bg-preview p-1 rounded-lg border border-theme" id="format-buttons">
+                        <button data-format="csv" class="format-btn active-format flex-1 flex items-center justify-center py-1.5 px-2 text-xs font-semibold rounded-md transition-all bg-card text-blue-500 shadow-sm border border-theme">
+                            <i data-lucide="table" class="w-3.5 h-3.5 mr-1.5 hidden xl:block"></i> CSV
+                        </button>
+                        <button data-format="markdown" class="format-btn flex-1 flex items-center justify-center py-1.5 px-2 text-xs font-semibold rounded-md transition-all text-dim hover:text-main hover:bg-card/50 border border-transparent">
+                            <i data-lucide="file-text" class="w-3.5 h-3.5 mr-1.5 hidden xl:block"></i> MD
+                        </button>
+                        <button data-format="html" class="format-btn flex-1 flex items-center justify-center py-1.5 px-2 text-xs font-semibold rounded-md transition-all text-dim hover:text-main hover:bg-card/50 border border-transparent">
+                            <i data-lucide="code" class="w-3.5 h-3.5 mr-1.5 hidden xl:block"></i> HTML
+                        </button>
+                        <button data-format="txt" class="format-btn flex-1 flex items-center justify-center py-1.5 px-2 text-xs font-semibold rounded-md transition-all text-dim hover:text-main hover:bg-card/50 border border-transparent">
+                            <i data-lucide="file-text" class="w-3.5 h-3.5 mr-1.5 hidden xl:block"></i> TXT
+                        </button>
+                    </div>
+                </div>
+
+                <div id="csv-options" class="flex flex-col gap-2 fade-in">
+                    <label class="text-[10px] font-bold text-dim uppercase tracking-wider" data-id="Pemisah Nilai" data-en="Value Separator">Pemisah Nilai</label>
+                    <select id="csv-separator" class="w-full bg-editor border border-theme text-main text-sm rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block p-2 outline-none transition-all shadow-sm">
+                        <option value="," data-id="Koma ( , )" data-en="Comma ( , )">Koma ( , )</option>
+                        <option value=";" data-id="Titik Koma ( ; )" data-en="Semicolon ( ; )">Titik Koma ( ; )</option>
+                        <option value="|" data-id="Garis Vertikal ( | )" data-en="Pipe ( | )">Garis Vertikal ( | )</option>
+                        <option value="&#9;" data-id="Tab Space" data-en="Tab Space">Tab Space</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Card 2: Hasil & Preview -->
+            <div class="bg-card rounded-xl shadow-sm border border-theme p-5 flex flex-col flex-1 min-h-[200px]">
+                <div class="flex items-center justify-between mb-3">
+                    <label class="text-[10px] font-bold text-dim uppercase tracking-wider" data-id="Pratinjau Hasil" data-en="Result Preview">Pratinjau Hasil</label>
+                    <div class="flex items-center gap-2">
+                        <button id="btn-download" disabled class="flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm border bg-white text-dim hover:text-main border-theme hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i data-lucide="download" class="w-3.5 h-3.5 mr-1.5"></i>
+                            <span id="download-text" data-id="Unduh" data-en="Download">Unduh</span>
+                        </button>
+                        <button id="btn-copy" disabled class="flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm border bg-blue-500 text-white hover:bg-blue-600 border-blue-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i data-lucide="copy" id="icon-copy" class="w-3.5 h-3.5 mr-1.5"></i>
+                            <i data-lucide="check" id="icon-check" class="w-3.5 h-3.5 mr-1.5 hidden"></i>
+                            <span id="copy-text" data-id="Salin Teks" data-en="Copy Text">Salin Teks</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <textarea id="result-area" readonly class="flex-1 w-full p-4 bg-editor border border-theme rounded-xl text-sm font-data text-main shadow-inner resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 whitespace-pre overflow-auto" placeholder="Hasil konversi akan tampil di sini..."></textarea>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER (h-8) -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] font-medium text-dim shrink-0">
+        <div class="flex items-center space-x-2">
+            <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span data-id="Sistem Siap" data-en="System Ready">Sistem Siap</span>
+        </div>
+        <div id="status-stats">
+            <span data-id="Menunggu Data" data-en="Waiting for Data">Menunggu Data</span>
+        </div>
+        <button id="btn-terms" class="hover:text-main transition-colors underline decoration-dotted underline-offset-2" data-id="Ketentuan Layanan" data-en="Terms of Service">
+            Ketentuan Layanan
+        </button>
+    </footer>
+
+    <!-- MODAL TERMS (TATADADA Standard) -->
+    <div id="modal-terms" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm fade-in">
+        <div class="bg-card rounded-2xl shadow-2xl border border-theme max-w-md w-full p-6 flex flex-col relative scale-100 duration-200">
+            <button id="btn-close-terms" class="absolute top-4 right-4 text-dim hover:text-main bg-preview p-1 rounded-full transition-colors">
+                <i data-lucide="x" class="w-[18px] h-[18px]"></i>
+            </button>
+            <h2 class="text-lg font-bold text-main mb-4" data-id="Ketentuan Layanan" data-en="Terms of Service">Ketentuan Layanan</h2>
+            <div class="text-sm text-dim space-y-3 leading-relaxed max-h-[60vh] overflow-y-auto pr-2">
+                <p data-id="Aplikasi Excelin beroperasi sepenuhnya di sisi klien (browser) Anda." data-en="The Excelin application operates entirely on your client-side (browser).">Aplikasi Excelin beroperasi sepenuhnya di sisi klien (browser) Anda.</p>
+                <p data-id="Kami tidak mengirimkan, menyimpan, atau merekam data yang Anda tempelkan ke server eksternal mana pun." data-en="We do not transmit, store, or record the data you paste to any external servers.">Kami tidak mengirimkan, menyimpan, atau merekam data yang Anda tempelkan ke server eksternal mana pun.</p>
+                <p data-id="Dengan menggunakan alat ini, Anda memahami bahwa privasi data Anda dijamin oleh isolasi browser lokal Anda sendiri." data-en="By using this tool, you understand that your data privacy is guaranteed by your own local browser isolation.">Dengan menggunakan alat ini, Anda memahami bahwa privasi data Anda dijamin oleh isolasi browser lokal Anda sendiri.</p>
+            </div>
+            <div class="mt-6 pt-4 border-t border-theme flex justify-end">
+                <button id="btn-accept-terms" class="px-5 py-2 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors shadow-sm" data-id="Saya Mengerti" data-en="I Understand">
+                    Saya Mengerti
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // Inisialisasi Icon Lucide
+        lucide.createIcons();
+
+        // State Aplikasi
+        let gridData = [];
+        let exportFormat = 'csv';
+        let csvSeparator = ',';
+        let lang = 'ID';
+        let isDarkMode = false;
+        
+        // Caching Elemen DOM
+        const elTopPane = document.getElementById('top-pane');
+        const elBottomPane = document.getElementById('bottom-pane');
+        const elResizer = document.getElementById('resizer');
+        const elEmptyState = document.getElementById('empty-state');
+        const elTableContainer = document.getElementById('table-container');
+        const elLoadingOverlay = document.getElementById('loading-overlay');
+        const elProgressBar = document.getElementById('progress-bar');
+        const elProgressText = document.getElementById('progress-text');
+        const elResultArea = document.getElementById('result-area');
+        const elBtnCopy = document.getElementById('btn-copy');
+        const elBtnDownload = document.getElementById('btn-download');
+        const elBtnClear = document.getElementById('btn-clear');
+        const elStatusStats = document.getElementById('status-stats');
+        const elCsvOptions = document.getElementById('csv-options');
+
+        // ==== TEMA (DARK/LIGHT MODE) ====
+        const initTheme = () => {
+            const savedTheme = localStorage.getItem('tatadada-theme');
+            if (savedTheme === 'dark') {
+                isDarkMode = true;
+                document.documentElement.classList.add('dark');
+                document.getElementById('icon-moon').classList.add('hidden');
+                document.getElementById('icon-sun').classList.remove('hidden');
+            }
+        };
+        initTheme();
+
+        document.getElementById('btn-theme').addEventListener('click', () => {
+            isDarkMode = !isDarkMode;
+            if (isDarkMode) {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('tatadada-theme', 'dark');
+                document.getElementById('icon-moon').classList.add('hidden');
+                document.getElementById('icon-sun').classList.remove('hidden');
+            } else {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('tatadada-theme', 'light');
+                document.getElementById('icon-moon').classList.remove('hidden');
+                document.getElementById('icon-sun').classList.add('hidden');
+            }
+        });
+
+        // ==== BILINGUAL (LOKALISASI) ====
+        const updateLanguage = () => {
+            document.getElementById('lang-label').innerText = lang;
+            
+            // Update teks biasa
+            document.querySelectorAll('[data-id][data-en]').forEach(el => {
+                // Jangan override jika elemen ini punya child HTML kompleks, hanya untuk text sederhana
+                if (el.tagName === 'OPTION' || el.tagName === 'SPAN' || el.tagName === 'P' || el.tagName === 'H2' || el.tagName === 'H3' || el.tagName === 'LABEL' || el.tagName === 'BUTTON') {
+                    // khusus button copy yg ada icon di dalamnya, update span child nya saja (sudah disetting dgn id="copy-text")
+                    if(el.id === 'btn-copy' || el.id === 'btn-accept-terms') return; 
+                    el.innerText = lang === 'ID' ? el.getAttribute('data-id') : el.getAttribute('data-en');
+                }
+            });
+
+            // Update manual untuk elemen spesifik
+            document.getElementById('copy-text').innerText = lang === 'ID' ? (elBtnCopy.classList.contains('copied') ? 'Tersalin!' : 'Salin Teks') : (elBtnCopy.classList.contains('copied') ? 'Copied!' : 'Copy Text');
+            document.getElementById('btn-accept-terms').innerText = lang === 'ID' ? 'Saya Mengerti' : 'I Understand';
+            elResultArea.placeholder = lang === 'ID' ? 'Hasil konversi akan tampil di sini...' : 'Converted result will appear here...';
+            
+            updateStats();
+        };
+
+        document.getElementById('btn-lang').addEventListener('click', () => {
+            lang = lang === 'ID' ? 'EN' : 'ID';
+            updateLanguage();
+        });
+
+        const updateStats = () => {
+            if (gridData.length > 0) {
+                const maxCols = Math.max(...gridData.map(r => r.length));
+                const baris = lang === 'ID' ? 'Baris' : 'Rows';
+                const kolom = lang === 'ID' ? 'Kolom' : 'Cols';
+                elStatusStats.innerText = `${gridData.length} ${baris} • ${maxCols} ${kolom}`;
+            } else {
+                elStatusStats.innerText = lang === 'ID' ? 'Menunggu Data' : 'Waiting for Data';
+            }
+        };
+
+        // ==== RESIZER LOGIC ====
+        let isResizing = false;
+        elResizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'row-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const headerHeight = 56; 
+            const footerHeight = 32; 
+            const mainHeight = window.innerHeight - headerHeight - footerHeight;
+            let newHeight = ((e.clientY - headerHeight) / mainHeight) * 100;
+            
+            if (newHeight < 20) newHeight = 20;
+            if (newHeight > 80) newHeight = 80;
+            
+            elTopPane.style.height = `${newHeight}%`;
+            elBottomPane.style.height = `${100 - newHeight}%`;
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = 'default';
+                document.body.style.userSelect = 'auto';
+            }
+        });
+
+        // ==== DATA PARSING & CHUNKING ====
+        document.addEventListener('paste', (e) => {
+            const clipboardData = e.clipboardData || window.clipboardData;
+            const pastedText = clipboardData.getData('Text');
+
+            if (pastedText) {
+                // Hindari default jika di dalam textarea
+                if(e.target === elResultArea) return; 
+                e.preventDefault(); 
+                
+                elEmptyState.classList.add('hidden');
+                elTableContainer.classList.add('hidden');
+                elLoadingOverlay.classList.remove('hidden');
+                
+                elProgressBar.style.width = '0%';
+                elProgressText.innerText = '0';
+
+                // Beri jeda UI untuk merender layar loading
+                setTimeout(() => {
+                    const cleanText = pastedText.replace(/\r?\n$/, "");
+                    const rows = cleanText.split(/\r?\n/);
+                    const totalRows = rows.length;
+                    const parsedData = [];
+                    
+                    const chunkSize = 1000;
+                    let currentIndex = 0;
+
+                    const processChunk = () => {
+                        const end = Math.min(currentIndex + chunkSize, totalRows);
+                        for (let i = currentIndex; i < end; i++) {
+                            parsedData.push(rows[i].split('\t'));
+                        }
+                        currentIndex = end;
+                        
+                        const pct = Math.round((currentIndex / totalRows) * 100);
+                        elProgressBar.style.width = `${pct}%`;
+                        elProgressText.innerText = pct;
+
+                        if (currentIndex < totalRows) {
+                            setTimeout(processChunk, 0); // Lanjut chunk berikutnya
+                        } else {
+                            // Selesai memproses
+                            gridData = parsedData;
+                            renderGrid();
+                            updatePreview();
+                            
+                            elLoadingOverlay.classList.add('hidden');
+                            elTableContainer.classList.remove('hidden');
+                            elBtnClear.classList.remove('hidden');
+                            elBtnCopy.disabled = false;
+                            elBtnCopy.classList.remove('disabled:opacity-50', 'disabled:cursor-not-allowed');
+                            elBtnDownload.disabled = false;
+                            elBtnDownload.classList.remove('disabled:opacity-50', 'disabled:cursor-not-allowed');
+                            updateStats();
+                        }
+                    };
+                    processChunk();
+                }, 50);
+            }
+        });
+
+        // ==== TABLE RENDERING ====
+        const getColumnLabel = (index) => {
+            let label = '';
+            let n = index;
+            while (n >= 0) {
+                label = String.fromCharCode((n % 26) + 65) + label;
+                n = Math.floor(n / 26) - 1;
+            }
+            return label;
+        };
+
+        const escapeHTML = (str) => {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag])
+            );
+        };
+
+        const renderGrid = () => {
+            if (gridData.length === 0) return;
+            const maxCols = Math.max(...gridData.map(row => row.length));
+            
+            let htmlStr = `<table class="border-separate border-spacing-0 w-max rounded-xl border border-theme overflow-hidden bg-card font-data text-sm">`;
+            
+            // THEAD
+            htmlStr += `<thead class="sticky top-0 z-20 bg-header shadow-[0_1px_0_var(--border-theme)]"><tr>`;
+            htmlStr += `<th class="bg-preview border-r border-b border-theme w-10 min-w-[40px] z-30 sticky left-0 shadow-[1px_0_0_var(--border-theme)]"></th>`;
+            for (let c = 0; c < maxCols; c++) {
+                htmlStr += `<th class="bg-header border-r border-b border-theme px-3 py-1.5 text-center text-xs font-semibold text-dim select-none min-w-[100px]">${getColumnLabel(c)}</th>`;
+            }
+            htmlStr += `</tr></thead><tbody>`;
+
+            // TBODY
+            gridData.forEach((row, rIdx) => {
+                htmlStr += `<tr class="hover:bg-preview/50 transition-colors">`;
+                htmlStr += `<td class="bg-preview border-r border-b border-theme px-2 py-1.5 text-center text-xs font-medium text-dim select-none sticky left-0 shadow-[1px_0_0_var(--border-theme)] z-10">${rIdx + 1}</td>`;
+                
+                for (let c = 0; c < maxCols; c++) {
+                    const cellValue = row[c] || '';
+                    htmlStr += `<td class="border-r border-b border-theme px-3 py-1.5 min-w-[100px] text-main break-words max-w-[300px]">${escapeHTML(cellValue)}</td>`;
+                }
+                htmlStr += `</tr>`;
+            });
+            
+            htmlStr += `</tbody></table>`;
+            elTableContainer.innerHTML = htmlStr;
+        };
+
+        // ==== FORMATTING & EXPORT ====
+        const updatePreview = () => {
+            if (!gridData || gridData.length === 0) {
+                elResultArea.value = '';
+                return;
+            }
+            
+            let result = '';
+            
+            if (exportFormat === 'csv') {
+                result = gridData.map(row => 
+                    row.map(cell => {
+                        const strCell = String(cell);
+                        if (strCell.includes(csvSeparator) || strCell.includes('"') || strCell.includes('\n')) {
+                            return `"${strCell.replace(/"/g, '""')}"`;
+                        }
+                        return strCell;
+                    }).join(csvSeparator)
+                ).join('\n');
+            } 
+            else if (exportFormat === 'markdown') {
+                let md = '| ' + gridData[0].join(' | ') + ' |\n';
+                md += '|' + gridData[0].map(() => '---').join('|') + '|\n';
+                for (let i = 1; i < gridData.length; i++) {
+                    md += '| ' + gridData[i].join(' | ') + ' |\n';
+                }
+                result = md;
+            } 
+            else if (exportFormat === 'html') {
+                let html = '<table>\n';
+                if (gridData.length > 0) {
+                    html += '  <thead>\n    <tr>\n';
+                    gridData[0].forEach(cell => html += `      <th>${escapeHTML(cell)}</th>\n`);
+                    html += '    </tr>\n  </thead>\n  <tbody>\n';
+                    for (let i = 1; i < gridData.length; i++) {
+                        html += '    <tr>\n';
+                        gridData[i].forEach(cell => html += `      <td>${escapeHTML(cell)}</td>\n`);
+                        html += '    </tr>\n';
+                    }
+                    html += '  </tbody>\n';
+                }
+                html += '</table>';
+                result = html;
+            } 
+            else if (exportFormat === 'txt') {
+                result = gridData.map(row => row.join('\t')).join('\n');
+            }
+            
+            elResultArea.value = result;
+        };
+
+        // Event Format Buttons
+        document.querySelectorAll('.format-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Remove active styling from all
+                document.querySelectorAll('.format-btn').forEach(b => {
+                    b.classList.remove('bg-card', 'text-blue-500', 'shadow-sm', 'border-theme');
+                    b.classList.add('text-dim', 'border-transparent');
+                });
+                
+                // Add active styling to clicked
+                const target = e.currentTarget;
+                target.classList.remove('text-dim', 'border-transparent');
+                target.classList.add('bg-card', 'text-blue-500', 'shadow-sm', 'border-theme');
+                
+                exportFormat = target.getAttribute('data-format');
+                
+                if(exportFormat === 'csv') {
+                    elCsvOptions.classList.remove('hidden');
+                } else {
+                    elCsvOptions.classList.add('hidden');
+                }
+                
+                // Cegah UI freeze dengan memberi waktu browser me-render tombol aktif terlebih dahulu
+                elResultArea.value = lang === 'ID' ? 'Memperbarui...' : 'Updating...';
+                setTimeout(() => {
+                    updatePreview();
+                }, 10);
+            });
+        });
+
+        document.getElementById('csv-separator').addEventListener('change', (e) => {
+            csvSeparator = e.target.value;
+            elResultArea.value = lang === 'ID' ? 'Memperbarui...' : 'Updating...';
+            setTimeout(() => {
+                updatePreview();
+            }, 10);
+        });
+
+        // ==== CLEAR & COPY ====
+        elBtnClear.addEventListener('click', () => {
+            gridData = [];
+            elTableContainer.innerHTML = '';
+            elTableContainer.classList.add('hidden');
+            elBtnClear.classList.add('hidden');
+            elEmptyState.classList.remove('hidden');
+            elResultArea.value = '';
+            elBtnCopy.disabled = true;
+            elBtnCopy.classList.add('disabled:opacity-50', 'disabled:cursor-not-allowed');
+            elBtnDownload.disabled = true;
+            elBtnDownload.classList.add('disabled:opacity-50', 'disabled:cursor-not-allowed');
+            updateStats();
+        });
+
+        elBtnDownload.addEventListener('click', () => {
+            const text = elResultArea.value;
+            if(!text) return;
+
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            let ext = 'csv';
+            if (exportFormat === 'markdown') ext = 'md';
+            else if (exportFormat === 'html') ext = 'html';
+            else if (exportFormat === 'txt') ext = 'txt';
+            
+            // Heuristik untuk menentukan nama file secara dinamis
+            let baseName = "excelin_export";
+            if (gridData && gridData.length > 0) {
+                let foundNames = [];
+                // Cek 3 baris pertama untuk mencari kata yang representatif (biasanya header)
+                for (let r = 0; r < Math.min(3, gridData.length); r++) {
+                    for (let c = 0; c < gridData[r].length; c++) {
+                        let cellVal = String(gridData[r][c]).trim();
+                        // Ambil cell yang memiliki huruf/angka dan panjang lebih dari 2 karakter
+                        if (cellVal.length > 2 && /[a-zA-Z0-9]/.test(cellVal)) {
+                            // Bersihkan karakter aneh, ganti spasi dengan underscore
+                            let cleanWord = cellVal.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '_');
+                            if (cleanWord) {
+                                foundNames.push(cleanWord);
+                            }
+                        }
+                        if (foundNames.length >= 2) break; // Maksimal ambil 2 sampel nama kolom/sel
+                    }
+                    if (foundNames.length > 0) break;
+                }
+                
+                if (foundNames.length > 0) {
+                    // Batasi panjang maksimal 30 karakter agar tidak terlalu panjang
+                    baseName = foundNames.join('_').substring(0, 30); 
+                }
+            }
+
+            // Tambahkan timestamp (YYYYMMDD_HHMM) agar nama file selalu rapi dan unik
+            const now = new Date();
+            const ts = now.getFullYear() + 
+                       String(now.getMonth() + 1).padStart(2, '0') + 
+                       String(now.getDate()).padStart(2, '0') + "_" + 
+                       String(now.getHours()).padStart(2, '0') + 
+                       String(now.getMinutes()).padStart(2, '0');
+
+            a.download = `${baseName}_${ts}.${ext}`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        elBtnCopy.addEventListener('click', () => {
+            const text = elResultArea.value;
+            if(!text) return;
+
+            try {
+                // Fallback execCommand method for widespread iframe support
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand("copy");
+                document.body.removeChild(textArea);
+                
+                // UI update success
+                elBtnCopy.classList.add('copied', 'bg-green-500', 'border-green-600');
+                elBtnCopy.classList.remove('bg-blue-500', 'hover:bg-blue-600', 'border-blue-600');
+                document.getElementById('icon-copy').classList.add('hidden');
+                document.getElementById('icon-check').classList.remove('hidden');
+                document.getElementById('copy-text').innerText = lang === 'ID' ? 'Tersalin!' : 'Copied!';
+                
+                setTimeout(() => {
+                    elBtnCopy.classList.remove('copied', 'bg-green-500', 'border-green-600');
+                    elBtnCopy.classList.add('bg-blue-500', 'hover:bg-blue-600', 'border-blue-600');
+                    document.getElementById('icon-copy').classList.remove('hidden');
+                    document.getElementById('icon-check').classList.add('hidden');
+                    document.getElementById('copy-text').innerText = lang === 'ID' ? 'Salin Teks' : 'Copy Text';
+                }, 2000);
+            } catch (err) {
+                console.error('Gagal menyalin', err);
+            }
+        });
+
+        // ==== MODAL TERMS ====
+        const elModal = document.getElementById('modal-terms');
+        document.getElementById('btn-terms').addEventListener('click', () => elModal.classList.remove('hidden'));
+        document.getElementById('btn-close-terms').addEventListener('click', () => elModal.classList.add('hidden'));
+        document.getElementById('btn-accept-terms').addEventListener('click', () => elModal.classList.add('hidden'));
+
+    </script>
+</body>
+</html>

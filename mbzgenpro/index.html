@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="id" class="antialiased">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MBZGen 4.5 Pro - Moodle Shell Generator</title>
+
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+    <noscript><a href="/" target="_blank"><img  src="//sstatic1.histats.com/0.gif?5024490&101" alt="" border="0"></a></noscript>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/fflate@0.8.2/umd/index.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --header-bg: rgba(255, 255, 255, 0.85);
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --footer-bg: rgba(255, 255, 255, 0.85);
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #f97316;
+            --theme-accent-hover: #ea580c;
+        }
+
+        html.dark {
+            --header-bg: rgba(22, 27, 34, 0.85);
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: rgba(22, 27, 34, 0.85);
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --theme-accent: #f97316;
+            --theme-accent-hover: #ea580c;
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow-x: hidden; 
+            user-select: none; 
+            -webkit-user-select: none;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh; 
+        }
+
+        input, textarea, pre, code, .selectable {
+            user-select: text;
+            -webkit-user-select: text;
+            font-size: 16px; 
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; border: 2px solid var(--card-bg); }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        .glass-panel {
+            background: var(--header-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .card-depth {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 10px 15px -3px rgba(0, 0, 0, 0.02);
+            border-radius: 1.5rem;
+        }
+
+        .console-depth {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 1rem;
+        }
+        
+        html.dark .console-depth {
+            background: #010409;
+            border-color: #30363d;
+        }
+
+        .editor-container {
+            background: var(--editor-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+            transition: all 0.2s ease;
+        }
+
+        .editor-container:focus-within {
+            border-color: var(--theme-accent);
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+        }
+
+        .editor-sync {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem; 
+            line-height: 1.6;
+            padding: 1rem; 
+            white-space: pre;
+            word-wrap: normal;
+            overflow-wrap: normal;
+            tab-size: 4;
+            -moz-tab-size: 4;
+            margin: 0;
+        }
+
+        mark.error-highlight {
+            background-color: rgba(239, 68, 68, 0.25);
+            color: transparent;
+            border-radius: 2px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--theme-accent) 0%, var(--theme-accent-hover) 100%);
+            box-shadow: 0 4px 14px 0 rgba(249, 115, 22, 0.39);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(249, 115, 22, 0.5);
+        }
+        .btn-primary:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        
+        @media (min-width: 1024px) {
+            body { height: 100vh; overflow: hidden; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="glass-panel h-14 flex items-center justify-between px-4 md:px-6 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/30">
+                <i data-lucide="box" class="w-5 h-5 text-white"></i>
+            </div>
+            <div class="flex flex-col justify-center">
+                <h1 class="font-bold text-sm tracking-tight text-[var(--text-main)] leading-tight">
+                    MBZGen <span class="text-orange-500">Pro</span> <span class="italic text-xs font-normal text-[var(--text-dim)]">v4.5</span>
+                </h1>
+                <a href="#" class="lowercase font-bold tracking-[0.25em] text-[8px] text-[var(--text-dim)] hover:text-orange-500 transition-colors">Ultimate Strict XML Edition</a>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2 md:gap-4">
+            <div class="hidden md:flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Moodle 4.x Compatible</span>
+            </div>
+            <button onclick="toggleTheme()" class="p-2 rounded-full hover:bg-[var(--border-color)] text-[var(--text-dim)] transition-colors" title="Toggle Theme">
+                <i data-lucide="moon" class="w-5 h-5 hidden dark:block"></i>
+                <i data-lucide="sun" class="w-5 h-5 block dark:hidden"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-grow flex flex-col lg:flex-row p-3 md:p-4 gap-4 max-w-[1600px] w-full mx-auto relative z-10 lg:overflow-hidden">
+        
+        <section class="flex-1 flex flex-col card-depth p-4 md:p-5 min-h-[450px] lg:min-h-0 lg:overflow-hidden">
+            <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-3 mb-4 shrink-0">
+                <div class="flex items-center gap-3">
+                    <h2 class="font-semibold text-sm flex items-center gap-2 text-[var(--text-main)]">
+                        <i data-lucide="file-code-2" class="w-4 h-4 text-orange-500"></i>
+                        <span>Struktur Blueprint</span>
+                    </h2>
+                    <div id="validationIndicator" class="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-preview border border-[var(--border-color)]">
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="saveIndicator" class="text-[10px] text-emerald-500 font-medium opacity-0 transition-opacity flex items-center gap-1 mr-1">
+                        <i data-lucide="check" class="w-3 h-3"></i> <span class="hidden md:inline">Tersimpan</span>
+                    </span>
+                    <button onclick="toggleModal('sampleModal')" class="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 flex items-center gap-1.5 transition-colors bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-md border border-blue-200 dark:border-blue-800/50">
+                        <i data-lucide="book-template" class="w-3.5 h-3.5"></i> <span class="hidden md:inline">Contoh Format</span>
+                    </button>
+                    <button onclick="toggleModal('customConfirmModal')" class="text-xs font-medium text-orange-600 dark:text-orange-400 hover:text-orange-800 flex items-center gap-1.5 transition-colors bg-orange-50 dark:bg-orange-900/20 px-3 py-1.5 rounded-md border border-orange-200 dark:border-orange-800/50">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex-grow relative flex flex-col editor-container overflow-hidden mt-1">
+                <div id="backdrop" class="editor-sync absolute inset-0 overflow-hidden pointer-events-none text-transparent z-0 bg-transparent"></div>
+                <textarea id="editor" class="editor-sync absolute inset-0 w-full h-full bg-transparent text-[var(--text-main)] resize-none outline-none caret-orange-500 custom-scrollbar z-10 border-none focus:ring-0" spellcheck="false" placeholder="Paste struktur materi di sini..."></textarea>
+            </div>
+        </section>
+
+        <section class="w-full lg:w-[400px] xl:w-[480px] shrink-0 flex flex-col gap-4 lg:overflow-hidden">
+            <div class="card-depth p-4 md:p-5 shrink-0 relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                    <i data-lucide="cpu" class="w-24 h-24"></i>
+                </div>
+                <h3 class="font-bold text-sm mb-2 flex items-center gap-2 text-[var(--text-main)]">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-emerald-500"></i>
+                    <span>Strict XML Settings Active</span>
+                </h3>
+                <p class="text-xs text-[var(--text-dim)] mb-3 leading-relaxed">Sistem kini menyuntikkan kerangka <b>Native Moodle XML</b> beserta blok mandatory <code>&lt;settings&gt;</code> untuk menjamin semua modul tidak dihiraukan (skipped) oleh <i>Restore Engine</i> EMAS UI 4.5.</p>
+                
+                <ul class="text-[11px] md:text-xs text-[var(--text-dim)] space-y-2 font-mono">
+                    <li class="flex items-center gap-2 bg-[var(--preview-bg)] p-1.5 rounded-md border border-[var(--border-color)]">
+                        <span class="text-orange-500 font-bold">1</span> <span>COURSE: Nama (Singkatan)</span>
+                    </li>
+                    <li class="flex items-center gap-2 bg-[var(--preview-bg)] p-1.5 rounded-md border border-[var(--border-color)]">
+                        <span class="text-orange-500 font-bold">2</span> <span>SECTION N: Judul Bab</span>
+                    </li>
+                    <li class="flex items-center gap-2 bg-[var(--preview-bg)] p-1.5 rounded-md border border-[var(--border-color)]">
+                        <span class="text-orange-500 font-bold">3</span> <span>mod/[tipe]: Judul Aktivitas</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="console-depth p-4 flex-grow flex flex-col relative overflow-hidden min-h-[250px] lg:min-h-0">
+                <div class="flex items-center justify-between mb-3 shrink-0">
+                    <span class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                        <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i> SYSTEM LOG
+                    </span>
+                    <span class="text-[10px] text-slate-500 font-mono" id="logTime">00:00:00</span>
+                </div>
+
+                <div id="statusPanel" class="flex-grow font-mono text-[11px] md:text-xs leading-relaxed overflow-y-auto custom-scrollbar pr-2 pb-2 space-y-1">
+                    <div class="text-slate-500">&gt; Menunggu instruksi kompilasi...</div>
+                </div>
+
+                <div class="pt-4 mt-2 border-t border-slate-700/50 shrink-0">
+                    <div class="mb-3">
+                        <label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Target LMS Version</label>
+                        <div class="relative">
+                            <select id="moodleVersion" class="w-full bg-[#1e293b] text-white border border-slate-700 rounded-lg pl-3 pr-8 py-2 text-xs appearance-none focus:outline-none focus:border-orange-500 transition-colors cursor-pointer">
+                                <option value="4.5">Moodle 4.5 (Modern Strict)</option>
+                                <option value="3.9">Moodle 3.9 LTS (Max Compatibility)</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+                                <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="btnGenerate" onclick="processAndGenerate()" class="btn-primary w-full py-3.5 rounded-xl text-white font-bold text-sm md:text-base flex items-center justify-center gap-2 group relative overflow-hidden transition-all disabled:opacity-50 disabled:saturate-50 disabled:cursor-not-allowed">
+                        <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out z-0"></div>
+                        <i data-lucide="package-plus" class="w-5 h-5 relative z-10 group-hover:scale-110 transition-transform"></i>
+                        <span class="relative z-10">Generate Ultimate MBZ</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="sampleModal" class="fixed inset-0 z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="toggleModal('sampleModal')"></div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-2xl bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="p-5 md:p-6 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--header-bg)]">
+                <h3 class="font-bold text-lg text-[var(--text-main)] flex items-center gap-2">
+                    <i data-lucide="book-template" class="w-5 h-5 text-blue-500"></i> Sampel Struktur Valid
+                </h3>
+                <button onclick="toggleModal('sampleModal')" class="text-[var(--text-dim)] hover:text-red-500 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-5 md:p-6 bg-[var(--preview-bg)] flex flex-col gap-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div class="bg-[var(--editor-bg)] border border-[var(--border-color)] rounded-xl p-4 md:p-6 shadow-sm">
+<pre class="font-mono text-xs md:text-sm text-[var(--text-main)] leading-relaxed whitespace-pre-wrap">COURSE: Manajemen Strategis (MS-101)
+
+SECTION 1: Pendahuluan
+  mod/label: Modul 1 Pengantar
+  mod/page: Video: Konsep Dasar Strategi
+  mod/page: Bacaan: Analisis SWOT
+  mod/h5pactivity: Aktivitas: Peta Konsep
+  mod/quiz: Kuis Pendahuluan
+
+SECTION 2: Analisis Lingkungan
+  mod/label: Modul 2 Internal & Eksternal
+  mod/page: Video: Lima Kekuatan Porter
+  mod/quiz: Kuis Analisis Lingkungan</pre>
+                </div>
+                
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                    <h4 class="font-bold text-blue-800 dark:text-blue-300 text-sm mb-2 flex items-center gap-2">
+                        <i data-lucide="info" class="w-4 h-4"></i> Aturan Validasi
+                    </h4>
+                    <ul class="text-xs text-blue-700 dark:text-blue-400 space-y-2 ml-1">
+                        <li class="flex items-start gap-2">
+                            <i data-lucide="check-circle" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
+                            <span>Hanya boleh ada <strong>1 baris COURSE</strong> (harus ditempatkan paling atas).</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i data-lucide="check-circle" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
+                            <span>Minimal harus ada <strong>1 baris SECTION</strong>.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i data-lucide="check-circle" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
+                            <span>Semua baris <code>mod/tipe:</code> <strong>WAJIB</strong> berada di bawah baris SECTION.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i data-lucide="check-circle" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
+                            <span>Spasi kosong atau indentasi (Tab) di awal baris diperbolehkan untuk kerapian.</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="p-4 border-t border-[var(--border-color)] bg-[var(--header-bg)] flex justify-end">
+                <button onclick="toggleModal('sampleModal')" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors">Saya Mengerti</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="customConfirmModal" class="fixed inset-0 z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="toggleModal('customConfirmModal')"></div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-sm bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-500 flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="triangle-alert" class="w-6 h-6"></i>
+                </div>
+                <h3 class="font-bold text-lg text-[var(--text-main)] mb-2">Reset Template?</h3>
+                <p class="text-sm text-[var(--text-dim)]">Apakah Anda yakin ingin mengembalikan struktur materi ke template bawaan? Draf saat ini akan terhapus.</p>
+            </div>
+            <div class="p-4 bg-[var(--preview-bg)] border-t border-[var(--border-color)] flex justify-end gap-3">
+                <button onclick="toggleModal('customConfirmModal')" class="px-4 py-2 text-[var(--text-dim)] hover:text-[var(--text-main)] text-sm font-medium transition-colors">Batal</button>
+                <button onclick="executeReset()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors">Ya, Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('logTime').textContent = now.toLocaleTimeString('en-US', {hour12: false});
+        }, 1000);
+
+        const themeState = localStorage.getItem('theme') || 'light';
+        if (themeState === 'dark') document.documentElement.classList.add('dark');
+        
+        function toggleTheme() {
+            const html = document.documentElement;
+            html.classList.toggle('dark');
+            localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+        }
+
+        function toggleModal(id) {
+            const modal = document.getElementById(id);
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                setTimeout(() => modal.classList.remove('opacity-0'), 10);
+            } else {
+                modal.classList.add('opacity-0');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            }
+        }
+
+        const defaultTemplate = `COURSE: UI-ALEX Pilar 2: Governance & Kepatuhan (ALEX-P2-C2)
+  SECTION 2: Direktorat Hukum dan Kearsipan (DHK)
+    mod/label: Topik 1: Instrumen Legislasi
+      mod/page: Video: Perbedaan Esensial Sifat Hukum Antara Produk Hukum Mengatur (Regeling) dan Menetapkan (Beschikking)
+      mod/page: Bacaan: Analisis Komparatif PP No. 75 Tahun 2021 (Statuta UI), Peraturan MWA UI No. 001 Tahun 2022, Struktur Produk Hukum Internal, Serta SLA Penyusunan
+      mod/h5pactivity: Aktivitas: Interactive Video Analisis Sifat Norma Hukum (Umum-Abstrak Kontra Individual-Konkret) Berdasarkan Studi Kasus Legalitas UI
+      mod/quiz: Kuis: Kuis Mandiri Penentuan Jenis Produk Hukum Internal Universitas Berdasarkan Skenario Kebijakan Tertentu
+    
+    mod/label: Topik 2: Kajian Hukum Kerja Sama
+      mod/page: Video: Klasifikasi Dokumen Hubungan Hukum Kerja Sama Serta Prosedur Due Diligence Kemitraan
+      mod/page: Bacaan: Perbedaan Aspek Yuridis NKB, MoU, PKS, Serta AoI Sesuai Peraturan Rektor No. 21 Tahun 2025, dan Validasi Pasal 1320 KUHPerdata
+      mod/h5pactivity: Aktivitas: Branching Scenario Proses Penilaian Klausul Kontrak (Legal Drafting) Serta Pengujian Sifat Keterikatan Hukum (Legally Binding)
+      mod/quiz: Kuis: Penilaian Keabsahan Dokumen Perjanjian Kerja Sama Domestik dan Internasional Serta Pengendalian Risiko Hukum
+    
+    mod/label: Topik 3: Manajemen Dokumen dan Kearsipan
+      mod/page: Video: Tata Kelola Administrasi Naskah Dinas Universitas dan Keamanan Penggunaan Tanda Tangan Elektronik (TTE)
+      mod/page: Bacaan: Matriks Otorisasi Penandatanganan, Tata Ruang Klasifikasi Arsip Vital, Jadwal Retensi Arsip (JRA), Alur Pemusnahan, Sanksi UU Kearsipan
+      mod/h5pactivity: Aktivitas: Drag-and-Drop Pemetaan Jenis Dokumen Dinas Berdasarkan Klasifikasi Fungsi Administrasi Serta Masa Retensi Penyimpanan
+      mod/quiz: Kuis: Pemahaman Prosedur Teknis Penyusutan Dokumen dan Kebijakan Pemeliharaan Keaslian Arsip Negara`;
+
+        function executeReset() {
+            document.getElementById('editor').value = defaultTemplate;
+            localStorage.removeItem('mbzgen_autosave');
+            toggleModal('customConfirmModal');
+            logStatus("> Template berhasil di-reset.", "info");
+            runValidation();
+        }
+
+        window.onload = () => {
+            const savedContent = localStorage.getItem('mbzgen_autosave');
+            if (savedContent) {
+                document.getElementById('editor').value = savedContent;
+                logStatus("> Draf auto-save berhasil dimuat.", "success");
+            } else {
+                document.getElementById('editor').value = defaultTemplate;
+            }
+            runValidation();
+        };
+
+        const courseRegex = /^\s*COURSE:\s*(.+?)\s*\((.+?)\)/i;
+        const sectionRegex = /^\s*SECTION\s*\d+:\s*(.+)/i;
+        const activityRegex = /^\s*(?:-\s*)?mod\/([a-z0-9_]+):\s*(.+)/i;
+
+        function runValidation() {
+            const text = document.getElementById('editor').value;
+            const lines = text.split('\n');
+            let hasCourse = false;
+            let hasSection = false;
+            let isValid = true;
+            let errorCount = 0;
+            let backdropHtml = '';
+
+            lines.forEach((line) => {
+                let isLineValid = true;
+                const trimmed = line.trim();
+
+                if (trimmed === '') {
+                    backdropHtml += escapeXml(line) + '\n';
+                    return;
+                }
+
+                if (courseRegex.test(line)) {
+                    if (hasCourse) {
+                        isLineValid = false; 
+                    }
+                    hasCourse = true;
+                } else if (sectionRegex.test(line)) {
+                    hasSection = true;
+                } else if (activityRegex.test(line)) {
+                    if (!hasSection) {
+                        isLineValid = false; 
+                    }
+                } else {
+                    isLineValid = false; 
+                }
+
+                if (!isLineValid) {
+                    isValid = false;
+                    errorCount++;
+                    backdropHtml += `<mark class="error-highlight">${escapeXml(line)}</mark>\n`;
+                } else {
+                    backdropHtml += escapeXml(line) + '\n';
+                }
+            });
+
+            if (!hasCourse || !hasSection) isValid = false;
+
+            backdropHtml += '<br/>'; 
+            document.getElementById('backdrop').innerHTML = backdropHtml;
+
+            const btnGen = document.getElementById('btnGenerate');
+            const validIndicator = document.getElementById('validationIndicator');
+
+            if (isValid) {
+                btnGen.disabled = false;
+                validIndicator.innerHTML = `<i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i> <span class="text-emerald-500">Valid</span>`;
+            } else {
+                btnGen.disabled = true;
+                let errorMsg = errorCount > 0 ? `${errorCount} Baris Salah` : (!hasCourse ? 'Header COURSE Hilang' : 'Butuh 1 SECTION');
+                validIndicator.innerHTML = `<i data-lucide="alert-circle" class="w-4 h-4 text-red-500"></i> <span class="text-red-500">${errorMsg}</span>`;
+            }
+            lucide.createIcons();
+        }
+
+        let saveTimeout;
+        const editorEl = document.getElementById('editor');
+        const backdropEl = document.getElementById('backdrop');
+
+        editorEl.addEventListener('scroll', () => {
+            backdropEl.scrollTop = editorEl.scrollTop;
+            backdropEl.scrollLeft = editorEl.scrollLeft;
+        });
+
+        editorEl.addEventListener('input', function() {
+            const val = this.value;
+            runValidation(); 
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                localStorage.setItem('mbzgen_autosave', val);
+                const indicator = document.getElementById('saveIndicator');
+                indicator.classList.remove('opacity-0');
+                setTimeout(() => indicator.classList.add('opacity-0'), 2000);
+            }, 1000);
+        });
+
+        function logStatus(message, type="info") {
+            const panel = document.getElementById('statusPanel');
+            let colorClass = "text-slate-300";
+            if(type === "error") colorClass = "text-red-400 font-semibold";
+            if(type === "success") colorClass = "text-emerald-400 font-semibold";
+            if(type === "warn") colorClass = "text-yellow-400";
+            
+            const time = new Date().toLocaleTimeString('en-US', {hour12: false, hour: "2-digit", minute:"2-digit", second:"2-digit"});
+            panel.innerHTML += `<div class="${colorClass} py-0.5 border-b border-slate-800/50 flex gap-2"><span class="text-slate-600 shrink-0">[${time}]</span> <span class="break-words">${message}</span></div>`;
+            panel.scrollTop = panel.scrollHeight;
+        }
+
+        function clearLog() { document.getElementById('statusPanel').innerHTML = ''; }
+        
+        function escapeXml(unsafe) {
+            return unsafe.replace(/[<>&'"]/g, function (c) {
+                switch (c) {
+                    case '<': return '&lt;';
+                    case '>': return '&gt;';
+                    case '&': return '&amp;';
+                    case '\'': return '&apos;';
+                    case '"': return '&quot;';
+                }
+            });
+        }
+    </script>
+
+    <script>
+        function parseInput(text) {
+            const lines = text.split('\n');
+            let course = { fullname: 'Course Name', shortname: 'COURSE' };
+            let sections = [];
+            let currentSection = null;
+
+            lines.forEach(line => {
+                if(line.trim() === '') return;
+
+                const cMatch = line.match(courseRegex);
+                if (cMatch) {
+                    course.fullname = cMatch[1].trim();
+                    course.shortname = cMatch[2].trim();
+                    return;
+                }
+
+                const sMatch = line.match(sectionRegex);
+                if (sMatch) {
+                    currentSection = {
+                        id: parseInt(sMatch[1].trim(), 10) || sections.length + 1,
+                        title: sMatch[1].trim(),
+                        activities: []
+                    };
+                    sections.push(currentSection);
+                    return;
+                }
+
+                const aMatch = line.match(activityRegex);
+                if (aMatch && currentSection) {
+                    currentSection.activities.push({
+                        type: aMatch[1].trim().toLowerCase(),
+                        title: aMatch[2].trim()
+                    });
+                }
+            });
+
+            return { course, sections };
+        }
+
+        // REVOLUSI TARBALL: Pembangunan USTAR Header Tipe 5 (Direktori)
+        function createTar(files) {
+            let tarSize = 0;
+            const encodedFiles = files.map(f => {
+                const isDir = f.name.endsWith('/'); 
+                const contentBytes = isDir ? new Uint8Array(0) : new TextEncoder().encode(f.content);
+                const paddedSize = Math.ceil(contentBytes.length / 512) * 512;
+                tarSize += 512 + paddedSize; 
+                return { name: f.name, content: contentBytes, size: contentBytes.length, paddedSize, isDir };
+            });
+
+            tarSize += 1024;
+            const tar = new Uint8Array(tarSize);
+            let offset = 0;
+
+            encodedFiles.forEach(f => {
+                const header = new Uint8Array(512);
+                header.set(new TextEncoder().encode(f.name.substring(0, 100)), 0);
+                
+                const mode = f.isDir ? '0000755\0' : '0000644\0';
+                header.set(new TextEncoder().encode(mode), 100);
+                
+                header.set(new TextEncoder().encode('0000000\0'), 108);
+                header.set(new TextEncoder().encode('0000000\0'), 116);
+                const sizeStr = f.size.toString(8).padStart(11, '0') + ' ';
+                header.set(new TextEncoder().encode(sizeStr), 124);
+                const mtime = Math.floor(Date.now() / 1000).toString(8).padStart(11, '0') + ' ';
+                header.set(new TextEncoder().encode(mtime), 136);
+                
+                header[156] = f.isDir ? 53 : 48; 
+                
+                header.set([117, 115, 116, 97, 114, 0], 257); 
+                header.set([48, 48], 263);
+
+                let chksum = 0;
+                for (let i = 0; i < 512; i++) {
+                    chksum += (i >= 148 && i < 156) ? 32 : header[i];
+                }
+                const chksumStr = chksum.toString(8).padStart(6, '0') + '\0 ';
+                header.set(new TextEncoder().encode(chksumStr), 148);
+
+                tar.set(header, offset);
+                offset += 512;
+                tar.set(f.content, offset);
+                offset += f.paddedSize;
+            });
+
+            return tar;
+        }
+
+        // SANGAT PENTING: Jangan ubah \n karena parser Moodle sangat sensitif (Strict Tree)
+        const EMPTY_XML_TEMPLATES = {
+            'files': '<files>\n</files>',
+            'scales_definition': '<scales_definition>\n</scales_definition>',
+            'question_categories': '<question_categories>\n</question_categories>',
+            'groups': '<groups>\n</groups>',
+            'roles_definition': '<roles_definition>\n</roles_definition>',
+            'outcomes_definition': '<outcomes_definition>\n</outcomes_definition>',
+            'gradebook': '<gradebook>\n  <grade_categories>\n  </grade_categories>\n  <grade_items>\n  </grade_items>\n  <grade_letters>\n  </grade_letters>\n  <grade_settings>\n  </grade_settings>\n</gradebook>',
+            'course_completion': '<course_completion>\n</course_completion>',
+            'inforef': '<inforef>\n</inforef>',
+            'roles': '<roles>\n  <role_overrides>\n  </role_overrides>\n  <role_assignments>\n  </role_assignments>\n</roles>',
+            'enrolments': '<enrolments>\n  <enrols>\n  </enrols>\n</enrolments>',
+            'block_instances': '<block_instances>\n</block_instances>',
+            'filters': '<filters>\n  <filter_actives>\n  </filter_actives>\n  <filter_configs>\n  </filter_configs>\n</filters>',
+            'course_competencies': '<course_competencies>\n</course_competencies>',
+            'activity_gradebook': '<activity_gradebook>\n  <grade_items>\n  </grade_items>\n  <grade_letters>\n  </grade_letters>\n</activity_gradebook>',
+            'events': '<events>\n</events>',
+            'grade_history': '<grade_history>\n  <grade_grades>\n  </grade_grades>\n</grade_history>',
+            'users': '<users>\n</users>'
+        };
+
+        function getEmptyXml(type) {
+            return `<?xml version="1.0" encoding="UTF-8"?>\n${EMPTY_XML_TEMPLATES[type] || `<${type}></${type}>`}`;
+        }
+
+        async function processAndGenerate() {
+            clearLog();
+            
+            const selectedVersion = document.getElementById('moodleVersion').value;
+            const vConf = selectedVersion === '4.5' 
+                ? { v: '2024100700', r: '4.5' } 
+                : { v: '2020061500', r: '3.9' };
+
+            logStatus(`> Mengaktifkan Native Module & Settings Engine Moodle ${vConf.r}...`, "warn");
+            
+            const btn = document.getElementById('btnGenerate');
+            const originalBtnContent = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Merakit Ultimate Shell...`;
+            lucide.createIcons();
+            
+            setTimeout(async () => {
+                try {
+                    const text = document.getElementById('editor').value;
+                    const parsedData = parseInput(text);
+                    const course = parsedData.course;
+                    
+                    if(!course.shortname || parsedData.sections.length === 0) {
+                        throw new Error("Format tidak valid. Pastikan header COURSE dan SECTION ada.");
+                    }
+
+                    let currentGlobalTime = Math.floor(Date.now() / 1000) - 86400; 
+                    function getSequentialTime() { return currentGlobalTime++; }
+                    const now = getSequentialTime();
+                    const oneYearLater = now + 31536000;
+                    
+                    let files = [];
+                    let globalCmid = 10;
+                    let globalCtx = 100;
+                    let globalActId = 10;
+                    const backupId = crypto.randomUUID().replace(/-/g, '');
+
+                    // === 1. PEMBUATAN BLOK SETTINGS ROOT (MANDATORY MOODLE) ===
+                    let backupSettingsXML = `
+    <setting>
+      <level>root</level>
+      <name>filename</name>
+      <value>backup.mbz</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>imscc11</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>users</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>anonymize</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>role_assignments</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>activities</name>
+      <value>1</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>blocks</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>files</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>filters</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>comments</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>badges</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>calendarevents</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>userscompletion</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>logs</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>grade_histories</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>questionbank</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>groups</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>competencies</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>customfield</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>contentbank</name>
+      <value>0</value>
+    </setting>
+    <setting>
+      <level>root</level>
+      <name>legacyfiles</name>
+      <value>0</value>
+    </setting>`;
+                    
+                    // ROOT DIRECTORIES
+                    files.push({ name: 'course/', content: '' });
+                    files.push({ name: 'sections/', content: '' });
+                    files.push({ name: 'activities/', content: '' });
+
+                    // Root Files (Strict Moodle Templates)
+                    files.push({ name: 'files.xml', content: getEmptyXml('files') });
+                    files.push({ name: 'scales.xml', content: getEmptyXml('scales_definition') });
+                    files.push({ name: 'questions.xml', content: getEmptyXml('question_categories') });
+                    files.push({ name: 'groups.xml', content: getEmptyXml('groups') });
+                    files.push({ name: 'roles.xml', content: getEmptyXml('roles_definition') }); 
+                    files.push({ name: 'outcomes.xml', content: getEmptyXml('outcomes_definition') });
+                    files.push({ name: 'gradebook.xml', content: getEmptyXml('gradebook') });
+                    files.push({ name: 'completion.xml', content: getEmptyXml('course_completion') }); 
+                    files.push({ name: 'users.xml', content: getEmptyXml('users') }); 
+
+                    // Course Level Files
+                    files.push({ name: 'course/inforef.xml', content: getEmptyXml('inforef') });
+                    files.push({ name: 'course/roles.xml', content: getEmptyXml('roles') }); 
+                    files.push({ name: 'course/enrolments.xml', content: getEmptyXml('enrolments') }); 
+                    files.push({ name: 'course/blocks.xml', content: getEmptyXml('block_instances') });
+                    files.push({ name: 'course/filters.xml', content: getEmptyXml('filters') });
+                    files.push({ name: 'course/competencies.xml', content: getEmptyXml('course_competencies') });
+
+                    files.push({
+                        name: 'course/course.xml',
+                        content: `<?xml version="1.0" encoding="UTF-8"?>
+<course id="1" contextid="2">
+  <shortname>${escapeXml(course.shortname)}</shortname>
+  <fullname>${escapeXml(course.fullname)}</fullname>
+  <idnumber></idnumber>
+  <summary>Kursus ini di-generate otomatis menggunakan BerapaMas / MBZGen Pipeline.</summary>
+  <summaryformat>1</summaryformat>
+  <format>topics</format>
+  <showgrades>1</showgrades>
+  <newsitems>5</newsitems>
+  <startdate>${now}</startdate>
+  <enddate>${oneYearLater}</enddate>
+  <marker>0</marker>
+  <maxbytes>0</maxbytes>
+  <legacyfiles>0</legacyfiles>
+  <showreports>0</showreports>
+  <visible>1</visible>
+  <groupmode>0</groupmode>
+  <groupmodeforce>0</groupmodeforce>
+  <defaultgroupingid>0</defaultgroupingid>
+  <lang></lang>
+  <theme></theme>
+  <timecreated>${now}</timecreated>
+  <timemodified>${now}</timemodified>
+  <requested>0</requested>
+  <enablecompletion>1</enablecompletion>
+  <category id="1">
+    <name>Miscellaneous</name>
+  </category>
+</course>`
+                    });
+
+                    let sectionsManifest = '';
+                    let backupActivitiesXML = '';
+                    
+                    let allSections = [
+                        { id: 0, title: "General", activities: [] }
+                    ];
+                    parsedData.sections.forEach(s => allSections.push(s));
+
+                    allSections.forEach((sec, idx) => {
+                        const secDir = `sections/section_${sec.id}/`;
+                        files.push({ name: secDir, content: '' });
+                        
+                        // Menambahkan Section Settings
+                        backupSettingsXML += `
+    <setting>
+      <level>section</level>
+      <section>section_${sec.id}</section>
+      <name>section_${sec.id}_included</name>
+      <value>1</value>
+    </setting>
+    <setting>
+      <level>section</level>
+      <section>section_${sec.id}</section>
+      <name>section_${sec.id}_userinfo</name>
+      <value>0</value>
+    </setting>`;
+
+                        let sequence = [];
+                        
+                        sec.activities.forEach(act => {
+                            const actTime = getSequentialTime();
+                            const cmid = globalCmid++;
+                            const ctxid = globalCtx++;
+                            const actid = globalActId++;
+                            sequence.push(cmid);
+                            
+                            let mappedType = act.type;
+                            let safeTitle = escapeXml(act.title);
+                            let mappedContentStr = `&lt;p&gt;Silakan ubah placeholder ini dengan materi Anda.&lt;/p&gt;`;
+                            
+                            if (act.type !== 'label' && act.type !== 'page' && act.type !== 'h5pactivity' && act.type !== 'quiz') {
+                                safeTitle = `[${act.type.toUpperCase()}] ${safeTitle}`;
+                                mappedType = 'page';
+                                logStatus(`  - Map: ${act.type} -> page`, "warn");
+                            }
+
+                            // LOGIKA AUTO-INDENT: Label = 0, selain label = 1 (Move Right)
+                            let indentValue = (mappedType === 'label') ? 0 : 1;
+
+                            backupSettingsXML += `
+    <setting>
+      <level>activity</level>
+      <activity>${mappedType}_${cmid}</activity>
+      <name>${mappedType}_${cmid}_included</name>
+      <value>1</value>
+    </setting>
+    <setting>
+      <level>activity</level>
+      <activity>${mappedType}_${cmid}</activity>
+      <name>${mappedType}_${cmid}_userinfo</name>
+      <value>0</value>
+    </setting>`;
+                            
+                            backupActivitiesXML += `
+        <activity>
+          <moduleid>${cmid}</moduleid>
+          <sectionid>${sec.id}</sectionid>
+          <modulename>${mappedType}</modulename>
+          <title>${safeTitle}</title>
+          <directory>activities/${mappedType}_${cmid}</directory>
+        </activity>`;
+
+                            const actDir = `activities/${mappedType}_${cmid}/`;
+                            files.push({ name: actDir, content: '' });
+                            
+                            files.push({ name: `${actDir}inforef.xml`, content: getEmptyXml('inforef') });
+                            files.push({ name: `${actDir}roles.xml`, content: getEmptyXml('roles') });
+                            files.push({ name: `${actDir}grades.xml`, content: getEmptyXml('activity_gradebook') });
+                            files.push({ name: `${actDir}filters.xml`, content: getEmptyXml('filters') });
+                            files.push({ name: `${actDir}calendar.xml`, content: getEmptyXml('events') });
+                            files.push({ name: `${actDir}grade_history.xml`, content: getEmptyXml('grade_history') });
+                            
+                            files.push({
+                                name: `${actDir}module.xml`,
+                                content: `<?xml version="1.0" encoding="UTF-8"?>
+<module id="${cmid}" version="${vConf.v}">
+  <modulename>${mappedType}</modulename>
+  <sectionid>${sec.id}</sectionid>
+  <sectionnumber>${idx}</sectionnumber>
+  <idnumber></idnumber>
+  <added>${actTime}</added>
+  <score>0</score>
+  <indent>${indentValue}</indent>
+  <visible>1</visible>
+  <visibleoncoursepage>1</visibleoncoursepage>
+  <visibleold>1</visibleold>
+  <groupmode>0</groupmode>
+  <groupingid>0</groupingid>
+  <completion>0</completion>
+  <completiongradeitemnumber>$@NULL@$</completiongradeitemnumber>
+  <completionview>0</completionview>
+  <completionexpected>0</completionexpected>
+  <showdescription>0</showdescription>
+  <availabilityjson>$@NULL@$</availabilityjson>
+  <tags>
+  </tags>
+</module>`
+                            });
+
+                            let specificContent = '';
+                            if (mappedType === 'label') {
+                                specificContent = `<label id="${actid}"><name>${safeTitle}</name><intro>&lt;h4&gt;${safeTitle}&lt;/h4&gt;</intro><introformat>1</introformat><timemodified>${actTime}</timemodified></label>`;
+                            } else if (mappedType === 'page') {
+                                specificContent = `<page id="${actid}"><name>${safeTitle}</name><intro></intro><introformat>1</introformat><content>${mappedContentStr}</content><contentformat>1</contentformat><legacyfiles>0</legacyfiles><legacyfileslast>0</legacyfileslast><display>5</display><displayoptions>a:1:{s:12:"printheading";i:1;}</displayoptions><revision>1</revision><timemodified>${actTime}</timemodified></page>`;
+                            } else if (mappedType === 'h5pactivity') {
+                                specificContent = `<h5pactivity id="${actid}"><name>${safeTitle}</name><intro></intro><introformat>1</introformat><grade>100</grade><displayoptions>0</displayoptions><enabletracking>1</enabletracking><grademethod>1</grademethod><reviewmode>1</reviewmode><timecreated>${actTime}</timecreated><timemodified>${actTime}</timemodified></h5pactivity>`;
+                            } else if (mappedType === 'quiz') {
+                                specificContent = `<quiz id="${actid}"><name>${safeTitle}</name><intro></intro><introformat>1</introformat><timeopen>0</timeopen><timeclose>0</timeclose><timelimit>0</timelimit><overduehandling>autoabandon</overduehandling><graceperiod>0</graceperiod><preferredbehaviour>deferredfeedback</preferredbehaviour><canredoquestions>0</canredoquestions><attempts>0</attempts><attemptonlast>0</attemptonlast><grademethod>1</grademethod><decimalpoints>2</decimalpoints><questiondecimalpoints>-1</questiondecimalpoints><reviewattempt>69888</reviewattempt><reviewcorrectness>4352</reviewcorrectness><reviewmarks>4352</reviewmarks><reviewspecificfeedback>4352</reviewspecificfeedback><reviewgeneralfeedback>4352</reviewgeneralfeedback><reviewrightanswer>4352</reviewrightanswer><reviewoverallfeedback>4352</reviewoverallfeedback><questionsperpage>1</questionsperpage><navmethod>free</navmethod><shuffleanswers>1</shuffleanswers><sumgrades>0.00000</sumgrades><grade>10.00000</grade><timecreated>${actTime}</timecreated><timemodified>${actTime}</timemodified><password></password><subnet></subnet><browsersecurity>-</browsersecurity><delay1>0</delay1><delay2>0</delay2><showuserpicture>0</showuserpicture><showblocks>0</showblocks><completionattemptsexhausted>0</completionattemptsexhausted><completionpass>0</completionpass><allowofflineattempts>0</allowofflineattempts></quiz>`;
+                            } 
+
+                            files.push({
+                                name: `${actDir}${mappedType}.xml`,
+                                content: `<?xml version="1.0" encoding="UTF-8"?>
+<activity id="${actid}" moduleid="${cmid}" modulename="${mappedType}" contextid="${ctxid}">
+  ${specificContent}
+</activity>`
+                            });
+                        });
+
+                        files.push({ name: `${secDir}inforef.xml`, content: getEmptyXml('inforef') });
+                        files.push({
+                            name: `${secDir}section.xml`,
+                            content: `<?xml version="1.0" encoding="UTF-8"?>
+<section id="${sec.id}">
+  <number>${idx}</number>
+  <name>${sec.id === 0 ? '' : escapeXml(sec.title)}</name>
+  <summary></summary>
+  <summaryformat>1</summaryformat>
+  <sequence>${sequence.join(',')}</sequence>
+  <visible>1</visible>
+  <availabilityjson>$@NULL@$</availabilityjson>
+  <timemodified>${getSequentialTime()}</timemodified>
+</section>`
+                        });
+                        
+                        sectionsManifest += `
+        <section>
+          <sectionid>${sec.id}</sectionid>
+          <title>${sec.id === 0 ? 'General' : escapeXml(sec.title)}</title>
+          <directory>sections/section_${sec.id}</directory>
+        </section>`;
+                    });
+
+                    logStatus(`> Menyusun root moodle_backup.xml (Target: Moodle ${vConf.r})...`, "info");
+                    
+                    files.push({
+                        name: 'moodle_backup.xml',
+                        content: `<?xml version="1.0" encoding="UTF-8"?>
+<moodle_backup>
+  <information>
+    <name>backup-moodle2-course-1-generated.mbz</name>
+    <moodle_version>${vConf.v}</moodle_version>
+    <moodle_release>${vConf.r}</moodle_release>
+    <backup_version>${vConf.v}</backup_version>
+    <backup_release>${vConf.r}</backup_release>
+    <backup_date>${now}</backup_date>
+    <mnet_remoteusers>0</mnet_remoteusers>
+    <include_file_references_to_external_content>0</include_file_references_to_external_content>
+    <original_wwwroot>http://localhost</original_wwwroot>
+    <original_site_identifier_hash>generated_hash_${backupId}</original_site_identifier_hash>
+    <original_course_id>1</original_course_id>
+    <original_course_format>topics</original_course_format>
+    <original_course_fullname>${escapeXml(course.fullname)}</original_course_fullname>
+    <original_course_shortname>${escapeXml(course.shortname)}</original_course_shortname>
+    <original_course_startdate>${now}</original_course_startdate>
+    <original_course_enddate>${oneYearLater}</original_course_enddate>
+    <original_course_contextid>2</original_course_contextid>
+    <original_system_contextid>1</original_system_contextid>
+    <details>
+      <detail backup_id="gen${now}">
+        <type>course</type>
+        <format>moodle2</format>
+        <interactive>1</interactive>
+        <mode>10</mode>
+        <execution>1</execution>
+        <executiontime>0</executiontime>
+      </detail>
+    </details>
+    <contents>
+      <activities>${backupActivitiesXML}
+      </activities>
+      <sections>${sectionsManifest}
+      </sections>
+      <course>
+        <courseid>1</courseid>
+        <title>${escapeXml(course.shortname)}</title>
+        <directory>course</directory>
+      </course>
+    </contents>
+    <settings>${backupSettingsXML}
+    </settings>
+  </information>
+</moodle_backup>`
+                    });
+
+                    logStatus("> Mengompresi berkas ke dalam MBZ (fflate)...", "warn");
+                    
+                    const tarArchive = createTar(files);
+                    const gzipped = fflate.gzipSync(tarArchive);
+                    
+                    logStatus("> BERHASIL! Menyiapkan berkas unduhan...", "success");
+                    
+                    const blob = new Blob([gzipped], { type: 'application/x-gzip' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${course.shortname.replace(/\s+/g, '_')}_Ultimate.mbz`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    logStatus("> EKSEKUSI SUKSES! File MBZ berhasil di-download.", "success");
+                } catch (err) {
+                    logStatus("> SYSTEM HALT: " + err.message, "error");
+                    console.error(err);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = originalBtnContent;
+                }
+            }, 100);
+        }
+    </script>
+</body>
+</html>

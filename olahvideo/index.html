@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OlahVideo</title>
+    
+    <!-- Google Analytics (TATADADA Wajib) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+
+    <!-- Histats Tracker (TATADADA Wajib) -->
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+
+    <!-- TATADADA Auto-Favicon Injector (Versi Diperbarui) -->
+    <script>
+    fetch('icon.xml').then(r => r.text()).then(xml => {
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+        const cStart = doc.querySelector('color_start')?.textContent || '#4f46e5';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#f43f5e';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
+        const link = document.createElement('link');
+        link.rel = 'icon'; link.type = 'image/svg+xml';
+        link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+    }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+
+    <!-- Tailwind CSS & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- MP4 Muxer untuk Engine Render WebCodecs -->
+    <script src="https://unpkg.com/mp4-muxer/build/mp4-muxer.js"></script>
+
+    <style>
+        /* TATADADA PREMIUM CSS TOKENS */
+        :root {
+            --header-bg: #ffffff;
+            --preview-bg: #f1f5f9; 
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #6366f1;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        }
+
+        html.dark {
+            /* Warna OLED Pro */
+            --header-bg: #0b0c0f;
+            --preview-bg: #050506;
+            --card-bg: #121419;
+            --footer-bg: #0b0c0f;
+            --border-color: #222630;
+            --text-main: #f1f5f9;
+            --text-dim: #94a3b8;
+            --theme-accent: #6366f1;
+            color-scheme: dark;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--preview-bg);
+            color: var(--text-main);
+            overflow: hidden;
+        }
+
+        /* Scrollbar Premium */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: var(--text-dim); }
+
+        /* Utilities */
+        .bg-header { background-color: var(--header-bg); }
+        .bg-preview { background-color: var(--preview-bg); }
+        .bg-card { background-color: var(--card-bg); }
+        .bg-footer { background-color: var(--footer-bg); }
+        .border-theme { border-color: var(--border-color); }
+        .text-main { color: var(--text-main); }
+        .text-dim { color: var(--text-dim); }
+        .text-accent { color: var(--theme-accent); }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        .gradient-text {
+            background: linear-gradient(90deg, #818cf8, #f43f5e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Video Editor Custom Controls */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px; width: 14px;
+            border-radius: 50%;
+            background: var(--theme-accent);
+            cursor: pointer;
+            margin-top: -5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px;
+            cursor: pointer;
+            background: var(--border-color);
+            border-radius: 2px;
+        }
+
+        .clip-block {
+            transition: opacity 0.2s ease, filter 0.2s ease;
+        }
+        .clip-block:hover {
+            filter: brightness(1.1);
+        }
+        .clip-block.selected {
+            z-index: 10;
+        }
+        
+        #timeline-container {
+            /* Realistic Pro Ruler Pattern */
+            background-image: 
+                linear-gradient(to right, var(--border-color) 1px, transparent 1px),
+                linear-gradient(to right, var(--border-color) 1px, transparent 1px);
+            background-size: 40px 100%, 10px 100%;
+            background-position: 0 0, 0 80%;
+            background-repeat: repeat-x;
+        }
+
+        /* Smooth UI scale for micro-interactions */
+        .btn-press:active { transform: scale(0.95); }
+    </style>
+</head>
+<body class="h-screen flex flex-col antialiased transition-colors duration-200">
+
+    <!-- HEADER -->
+    <header class="h-14 bg-card/80 backdrop-blur-xl border-b border-theme flex items-center justify-between px-6 shrink-0 shadow-sm z-30 relative">
+        <div class="flex items-center gap-3">
+            <h1 class="text-xl font-bold tracking-tight gradient-text drop-shadow-sm">OlahVideo</h1>
+            <span class="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-preview border border-theme text-dim mt-0.5 shadow-inner">Pro v2.5</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-indigo-400 transition-colors mt-1 ml-2">by AhmadDanial</a>
+            <div class="relative group ml-2 cursor-help mt-0.5">
+                <i data-lucide="help-circle" class="w-4 h-4 text-dim hover:text-main transition-colors"></i>
+                <div class="absolute left-0 top-6 w-64 bg-card border border-theme p-3 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-xs text-main">
+                    <p id="tt-help">Unggah klip video, atur urutan di timeline, gunakan fitur Split/Trim, lalu Render & Export menjadi format MP4 WhatsApp-Ready.</p>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="document.getElementById('file-input').click()" class="btn-press flex items-center gap-2 bg-preview hover:bg-theme border border-theme hover:border-accent text-main px-3 py-1.5 rounded-md text-[13px] font-semibold transition-all shadow-sm">
+                <i data-lucide="video" class="w-4 h-4 text-accent"></i>
+                <span id="lbl-add">Impor Media</span>
+            </button>
+            <input type="file" id="file-input" accept="video/mp4, video/webm" class="hidden" multiple>
+
+            <button onclick="startExport()" class="btn-press flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-1.5 rounded-md text-[13px] font-bold hover:shadow-[0_0_15px_rgba(79,70,229,0.4)] transition-all">
+                <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+                <span id="lbl-export">Export</span>
+            </button>
+
+            <div class="h-6 w-px bg-theme border-r border-theme mx-2"></div>
+
+            <button onclick="app.toggleLang()" class="text-lg hover:scale-110 transition-transform drop-shadow-sm" title="Ubah Bahasa" id="btn-lang">🇮🇩</button>
+            <button onclick="app.toggleTheme()" class="p-2 rounded-full hover:bg-preview text-dim transition-colors">
+                <i data-lucide="sun" id="icon-theme" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 flex flex-col min-h-0 bg-preview p-4 gap-4">
+        
+        <!-- TOP SECTION: Player + Properties -->
+        <div class="flex-1 flex min-h-0 gap-4">
+            
+            <!-- Area Kiri: Video Player & Control Bar -->
+            <section class="flex-1 bg-card rounded-2xl shadow-lg border border-theme flex flex-col overflow-hidden relative backdrop-blur-md">
+                
+                <!-- Aspect Ratio Selector (Floating) -->
+                <div class="absolute top-4 right-4 z-30">
+                    <select id="ratio-selector" onchange="app.changeRatio(this.value)" class="bg-black/40 hover:bg-black/60 backdrop-blur-md text-xs font-semibold text-white/90 border border-white/20 rounded-md px-3 py-1.5 shadow-lg outline-none cursor-pointer transition-all">
+                        <option value="auto">Auto Ratio</option>
+                        <option value="16/9">16:9 (Lanskap)</option>
+                        <option value="9/16">9:16 (Vertikal)</option>
+                        <option value="1/1">1:1 (Persegi)</option>
+                    </select>
+                </div>
+
+                <!-- Video Screen -->
+                <div id="player-container" class="flex-1 bg-[#020202] relative flex items-center justify-center p-4 min-h-0 overflow-hidden">
+                    <!-- Premium Player Wrapper -->
+                    <div id="player-wrapper" class="relative bg-black shadow-[0_0_50px_rgba(0,0,0,0.5)] transition-all duration-300 flex items-center justify-center border border-white/5 rounded-sm overflow-hidden" style="max-height: 100%; max-width: 100%; aspect-ratio: 16/9;">
+                        <video id="preview-player" class="w-full h-full object-contain" playsinline></video>
+                    </div>
+                    
+                    <!-- Empty State -->
+                    <div id="player-empty" class="absolute inset-0 flex flex-col items-center justify-center text-dim z-10 animate-pulse duration-1000">
+                        <div class="p-6 rounded-full bg-card/5 border border-white/5 mb-4">
+                            <i data-lucide="clapperboard" class="w-12 h-12 opacity-30"></i>
+                        </div>
+                        <p class="text-sm font-semibold tracking-wide" id="lbl-empty-player">Belum Ada Media di Timeline</p>
+                    </div>
+                </div>
+
+                <!-- Premium Control Bar (NLE Layout) -->
+                <div class="h-14 bg-card/90 backdrop-blur-xl border-t border-theme flex items-center justify-between px-6 shrink-0 z-20">
+                    
+                    <!-- Left Tools -->
+                    <div class="flex items-center gap-1.5 text-main">
+                        <button onclick="playback.seekToStart()" class="p-2 hover:bg-preview text-dim hover:text-main rounded-md transition-colors" title="Awal">
+                            <i data-lucide="skip-back" class="w-4 h-4"></i>
+                        </button>
+                        
+                        <!-- Main Play Button -->
+                        <button onclick="playback.togglePlay()" class="btn-press mx-1 w-9 h-9 flex items-center justify-center bg-accent hover:bg-indigo-500 rounded-full transition-all shadow-[0_0_12px_rgba(99,102,241,0.4)] text-white" title="Play/Pause">
+                            <i data-lucide="play" id="icon-play" class="w-4 h-4 fill-current ml-0.5"></i>
+                        </button>
+
+                        <button onclick="playback.seekToEnd()" class="p-2 hover:bg-preview text-dim hover:text-main rounded-md transition-colors" title="Akhir">
+                            <i data-lucide="skip-forward" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <!-- Center Time Display -->
+                    <div class="flex flex-col items-center justify-center">
+                        <div class="font-mono text-base text-accent font-bold tracking-widest drop-shadow" id="lbl-global-time">00:00.0</div>
+                    </div>
+
+                    <!-- Right Tools -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-[9px] text-dim font-bold tracking-widest uppercase mr-1" id="lbl-speed-title">Speed</span>
+                        <div class="flex items-center bg-preview rounded border border-theme px-1 py-0.5">
+                            <button onclick="playback.speedDown()" class="text-dim hover:text-main p-1 transition-colors" title="Perlambat"><i data-lucide="minus" class="w-3 h-3"></i></button>
+                            <span id="lbl-speed" class="text-xs font-mono w-8 text-center text-main font-bold">1x</span>
+                            <button onclick="playback.speedUp()" class="text-dim hover:text-main p-1 transition-colors" title="Percepat"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Area Kanan: Panel Properties -->
+            <aside class="w-[280px] bg-card rounded-2xl shadow-lg border border-theme flex flex-col overflow-y-auto shrink-0 custom-scrollbar relative">
+                
+                <!-- PENGATURAN PROYEK -->
+                <div class="p-5 border-b border-theme bg-gradient-to-b from-preview/50 to-transparent">
+                    <h2 class="text-[10px] uppercase tracking-widest font-bold text-dim mb-4 flex items-center gap-2">
+                        <i data-lucide="layers" class="w-3.5 h-3.5 text-accent"></i> <span id="lbl-proj-title">Pengaturan Utama</span>
+                    </h2>
+
+                    <!-- Global Fade Card -->
+                    <div class="bg-card p-3.5 rounded-xl border border-theme shadow-sm relative overflow-hidden group">
+                        <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500"></div>
+                        <h3 class="text-[11px] font-bold text-main mb-3 pl-2">Efek Fade Proyek</h3>
+                        
+                        <div class="flex flex-col gap-3 pl-2">
+                            <div class="flex items-center justify-between gap-2 text-xs font-medium">
+                                <label class="flex items-center gap-2 cursor-pointer group-hover:text-accent transition-colors">
+                                    <input type="checkbox" id="chk-global-fade-in" class="w-3.5 h-3.5 rounded border-dim text-accent focus:ring-accent bg-preview" onchange="app.updateGlobalFade('in', this.checked)"> <span>Fade Masuk</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer group-hover:text-accent transition-colors">
+                                    <input type="checkbox" id="chk-global-fade-out" class="w-3.5 h-3.5 rounded border-dim text-accent focus:ring-accent bg-preview" onchange="app.updateGlobalFade('out', this.checked)"> <span>Fade Keluar</span>
+                                </label>
+                            </div>
+                            
+                            <div class="flex items-center justify-between text-xs pt-1">
+                                <span class="text-dim font-medium">Durasi:</span>
+                                <div class="flex items-center gap-1 bg-preview rounded border border-theme px-1 py-0.5">
+                                    <input type="number" id="num-global-fade-dur" class="bg-transparent w-10 text-main font-mono text-center outline-none text-xs" min="0.1" max="10" step="0.1" value="2.0" onchange="app.updateGlobalFade('dur', this.value)">
+                                    <span class="text-dim text-[10px] font-mono pr-1">dtk</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROPERTI KLIP -->
+                <div class="p-5 flex-1 flex flex-col gap-4" id="panel-properties">
+                    <h2 class="text-[10px] uppercase tracking-widest font-bold text-dim flex items-center gap-2">
+                        <i data-lucide="sliders" class="w-3.5 h-3.5 text-accent"></i> <span id="lbl-prop-title">Inspektur Klip</span>
+                    </h2>
+
+                    <!-- Empty State -->
+                    <div id="prop-empty" class="text-center text-dim text-sm py-10">
+                        <div class="inline-flex p-3 rounded-full bg-preview border border-theme mb-3">
+                            <i data-lucide="mouse-pointer-click" class="w-5 h-5 opacity-40"></i>
+                        </div>
+                        <p id="lbl-empty-prop" class="text-[11px] font-medium tracking-wide uppercase">Pilih klip di timeline</p>
+                    </div>
+
+                    <!-- Selected Controls -->
+                    <div id="prop-controls" class="hidden flex-col gap-5">
+                        
+                        <div class="bg-preview/50 p-3 rounded-xl border border-theme text-xs flex flex-col gap-2 shadow-inner">
+                            <div class="flex justify-between items-center"><span class="text-dim font-medium" id="lbl-prop-name">File:</span> <span id="val-clip-name" class="font-mono font-medium text-main truncate max-w-[130px] text-[10.5px]">vid.mp4</span></div>
+                            <div class="flex justify-between items-center"><span class="text-dim font-medium" id="lbl-prop-dur">Durasi:</span> <span id="val-clip-dur" class="font-mono font-medium text-accent text-[11px]">0.0s</span></div>
+                        </div>
+
+                        <!-- Trim Sliders -->
+                        <div class="space-y-5 px-1">
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-2">
+                                    <label class="text-dim font-bold tracking-wide uppercase" id="lbl-trim-start">Trim Kiri</label>
+                                    <span id="val-trim-start" class="font-mono text-main bg-preview px-1.5 py-0.5 rounded border border-theme">0.0s</span>
+                                </div>
+                                <input type="range" id="slider-trim-start" min="0" max="100" step="0.1" value="0">
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-2">
+                                    <label class="text-dim font-bold tracking-wide uppercase" id="lbl-trim-end">Trim Kanan</label>
+                                    <span id="val-trim-end" class="font-mono text-main bg-preview px-1.5 py-0.5 rounded border border-theme">100.0s</span>
+                                </div>
+                                <input type="range" id="slider-trim-end" min="0" max="100" step="0.1" value="100">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- BOTTOM SECTION: Timeline Editor -->
+        <section class="h-[260px] bg-card rounded-2xl shadow-lg border border-theme flex flex-col shrink-0 overflow-hidden relative">
+            
+            <!-- Timeline Toolbar (NLE Style) -->
+            <div class="h-11 bg-preview border-b border-theme flex items-center px-4 justify-between shrink-0 relative z-20 shadow-sm">
+                
+                <div class="flex items-center gap-1.5">
+                    <span class="text-dim font-bold tracking-widest uppercase text-[9px] mr-3" id="lbl-tools-title">Toolbar</span>
+                    
+                    <button onclick="editor.splitAtPlayhead()" class="btn-press px-2.5 py-1.5 bg-card hover:bg-blue-500/10 border border-theme hover:border-blue-500/50 text-main hover:text-blue-500 rounded-md transition-all shadow-sm flex items-center gap-1.5" title="Pisah Klip (Split)">
+                        <i data-lucide="scissors" class="w-3.5 h-3.5"></i>
+                        <span id="lbl-btn-split" class="text-[10px] font-bold uppercase tracking-wider hidden sm:block">Split</span>
+                    </button>
+                    
+                    <div class="w-px h-5 bg-theme border-r border-theme mx-2"></div>
+                    
+                    <button onclick="editor.duplicateClip()" class="btn-press p-1.5 bg-card hover:bg-preview border border-theme text-main rounded-md transition-all shadow-sm group" title="Duplikat">
+                        <i data-lucide="copy" class="w-4 h-4 group-hover:text-accent"></i>
+                    </button>
+                    <button onclick="editor.deleteClip()" class="btn-press p-1.5 bg-card hover:bg-red-500/10 border border-theme hover:border-red-500/30 text-main hover:text-red-500 rounded-md transition-all shadow-sm group" title="Hapus">
+                        <i data-lucide="trash-2" class="w-4 h-4 group-hover:text-red-500"></i>
+                    </button>
+                </div>
+
+                <div class="font-mono text-[11px] font-bold text-main flex items-center gap-2">
+                    <span class="text-dim uppercase tracking-wider text-[9px]">Timeline:</span>
+                    <span id="lbl-total-duration" class="bg-card px-2 py-1 rounded-md border border-theme text-accent shadow-inner">00:00.0</span>
+                </div>
+            </div>
+
+            <!-- Timeline Tracks -->
+            <div class="flex-1 relative overflow-x-auto overflow-y-hidden custom-scrollbar bg-black/5" id="timeline-scroll">
+                <div id="timeline-container" class="absolute top-0 left-0 h-full min-w-full cursor-pointer relative pt-6" style="width: 1000px;">
+                    
+                    <!-- Pro Time Ruler -->
+                    <div id="timeline-ruler" class="absolute top-0 w-full h-6 border-b border-theme relative pointer-events-none text-[9px] text-dim font-mono z-10 bg-card/80 backdrop-blur-md"></div>
+
+                    <!-- Clip Tracks Container -->
+                    <div id="timeline-tracks" class="absolute top-6 left-0 right-0 bottom-0 py-5 px-0 flex items-start h-full items-center">
+                        <!-- Clips injected here -->
+                    </div>
+
+                    <!-- Global Fade Visual Overlay -->
+                    <div id="global-fade-overlay" class="absolute top-6 left-0 right-0 bottom-0 py-5 px-0 pointer-events-none z-20"></div>
+
+                    <!-- Precision Playhead (Red Needle Style) -->
+                    <div id="playhead" class="absolute top-0 bottom-0 w-[1.5px] bg-red-500 z-40 pointer-events-none transform -translate-x-1/2 shadow-[0_0_8px_rgba(239,68,68,0.6)]" style="left: 0px;">
+                        <!-- Diamond Head -->
+                        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-red-500 rounded-sm rotate-45 transform origin-center shadow-md"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="h-8 bg-card border-t border-theme flex items-center justify-between px-6 shrink-0 text-[10px] text-dim relative z-20 font-semibold tracking-wide uppercase">
+        <div class="flex items-center gap-2">
+            <div class="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)] animate-pulse"></div>
+            <span id="sys-status">Sistem Siap</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <span id="stat-clips" class="font-mono">0 Klip</span>
+            <div class="w-px h-3 bg-theme border-r border-theme"></div>
+            <a href="#" onclick="app.showTerms(event)" class="hover:text-main transition-colors decoration-dotted underline underline-offset-4">Syarat & Ketentuan</a>
+        </div>
+    </footer>
+
+    <!-- MODAL TERMS (Animation Enhanced) -->
+    <div id="modal-terms" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
+        <div class="bg-card w-full max-w-lg rounded-2xl shadow-2xl border border-theme p-6 transform scale-95 transition-transform duration-300" id="modal-terms-content">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="text-lg font-bold text-main" id="term-title">Syarat Penggunaan</h3>
+                <button onclick="app.hideTerms()" class="text-dim hover:text-main p-1.5 rounded-lg hover:bg-preview transition-colors bg-card border border-theme shadow-sm"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <div class="space-y-4 text-sm text-dim leading-relaxed h-64 overflow-y-auto pr-3 custom-scrollbar">
+                <p id="term-specific" class="font-medium text-main">OlahVideo beroperasi sepenuhnya secara lokal di dalam browser Anda. Proses rendering, pemotongan, dan manipulasi data video menggunakan kapabilitas perangkat Anda tanpa mengirim file media ke server eksternal, menjamin privasi penuh atas file Anda.</p>
+                <div class="h-px bg-theme w-full border-t border-theme border-dashed"></div>
+                <p id="term-legal">Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.</p>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="app.hideTerms()" class="bg-main text-white dark:bg-white dark:text-black px-6 py-2.5 rounded-lg font-bold hover:scale-105 active:scale-95 transition-all shadow-md" id="btn-term-agree">Saya Mengerti</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EXPORT PROGRESS OVERLAY -->
+    <div id="export-overlay" class="fixed inset-0 bg-black/90 backdrop-blur-xl z-[100] hidden flex-col items-center justify-center">
+        <div class="bg-card border border-theme p-8 rounded-3xl shadow-2xl max-w-md w-full text-center relative overflow-hidden ring-1 ring-white/10">
+            <div class="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 pointer-events-none"></div>
+            
+            <i data-lucide="loader-2" class="w-14 h-14 text-accent animate-spin mx-auto mb-5 relative z-10 drop-shadow-[0_0_15px_rgba(99,102,241,0.5)]"></i>
+            <h3 class="text-xl font-bold text-main mb-2 relative z-10 tracking-tight" id="exp-title">Mengekspor Video...</h3>
+            <p class="text-dim text-sm mb-6 relative z-10 font-medium" id="exp-desc">Tolong jangan tutup tab browser ini.</p>
+            
+            <div class="w-full bg-preview rounded-full h-2.5 mb-3 overflow-hidden border border-theme relative z-10 shadow-inner">
+                <div id="export-progress-bar" class="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all duration-300 w-0 relative overflow-hidden">
+                    <!-- Shimmer effect -->
+                    <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]"></div>
+                </div>
+            </div>
+            <p id="export-status-text" class="text-[11px] text-dim font-mono mb-8 relative z-10 tracking-widest uppercase">0%</p>
+
+            <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 text-left relative z-10 backdrop-blur-sm">
+                <p class="text-[11px] text-indigo-400 flex gap-2.5 items-start">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 shrink-0 text-green-400 mt-0.5"></i>
+                    <span class="leading-relaxed"><strong>WhatsApp Ready:</strong> Export menggunakan WebCodecs dengan index 'Fast Start'. Anda dapat langsung mengirim MP4 ini ke status atau chat video WA dengan lancar.</span>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Rendering Engine Elements -->
+    <canvas id="render-canvas" class="hidden"></canvas>
+
+    <!-- CORE LOGIC: VANILLA JS -->
+    <script>
+        // Init Icons
+        lucide.createIcons();
+
+        // Shimmer Keyframe
+        const style = document.createElement('style');
+        style.innerHTML = `@keyframes shimmer { 100% { transform: translateX(100%); } }`;
+        document.head.appendChild(style);
+
+        // Constants & Config
+        const PIXELS_PER_SECOND = 40; 
+        const FPS = 30;
+        const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
+
+        // Dictionaries (Indonesian)
+        const dict = {
+            id: {
+                title: "OlahVideo", ttHelp: "Unggah klip video, atur urutan di timeline, gunakan fitur Split/Trim, lalu Render & Export menjadi format MP4 WhatsApp-Ready.",
+                btnAdd: "Impor Media", btnExp: "Export", lblEmptyPlayer: "Belum Ada Media di Timeline",
+                propTitle: "Inspektur Klip", emptyProp: "Pilih klip di timeline", propName: "File:", propDur: "Durasi:",
+                btnSplit: "Split", btnDup: "Duplikat", btnDel: "Hapus", trimStart: "Trim Kiri", trimEnd: "Trim Kanan",
+                tlTitle: "Timeline Editor", sysReady: "Sistem Siap", statClips: "Klip",
+                projTitle: "Pengaturan Utama", ratio: "Rasio Aspek:", tools: "Toolbar", speed: "Speed",
+                termSpecific: "OlahVideo beroperasi sepenuhnya secara lokal di dalam browser Anda. Proses rendering, pemotongan, dan manipulasi data video menggunakan kapabilitas perangkat Anda tanpa mengirim file media ke server eksternal, menjamin privasi penuh atas file Anda.",
+                termLegal: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
+                btnAgree: "Saya Mengerti", expTitle: "Mengekspor Video...", expDesc: "Tolong jangan tutup tab browser ini."
+            },
+            en: {
+                title: "OlahVideo", ttHelp: "Upload video clips, arrange them on the timeline, use Split/Trim features, then Render & Export as WhatsApp-Ready MP4.",
+                btnAdd: "Import Media", btnExp: "Export", lblEmptyPlayer: "No Media in Timeline",
+                propTitle: "Clip Inspector", emptyProp: "Select a clip in timeline", propName: "File:", propDur: "Duration:",
+                btnSplit: "Split", btnDup: "Duplicate", btnDel: "Delete", trimStart: "Trim Left", trimEnd: "Trim Right",
+                tlTitle: "Timeline Editor", sysReady: "System Ready", statClips: "Clips",
+                projTitle: "Main Settings", ratio: "Aspect Ratio:", tools: "Toolbar", speed: "Speed",
+                termSpecific: "OlahVideo operates entirely locally within your browser. Rendering, trimming, and video manipulation processes use your device's capabilities without sending media files to external servers, ensuring complete privacy of your files.",
+                termLegal: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics and Histats to collect anonymous visit and usage statistics for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.",
+                btnAgree: "I Understand", expTitle: "Exporting Video...", expDesc: "Please do not close this browser tab."
+            }
+        };
+
+        // App State
+        const state = {
+            lang: localStorage.getItem('olah_lang') || 'id',
+            theme: localStorage.getItem('olah_theme') || 'dark', // Default ke dark mode krn lebih pro
+            clips: [], 
+            selectedId: null,
+            playheadTime: 0, 
+            isPlaying: false,
+            totalDuration: 0,
+            speedIndex: 3, 
+            ratio: 'auto',
+            globalFadeIn: false,
+            globalFadeOut: false,
+            globalFadeDur: 2.0
+        };
+
+        // DOM Elements
+        const DOM = {
+            player: document.getElementById('preview-player'),
+            playerEmpty: document.getElementById('player-empty'),
+            playIcon: document.getElementById('icon-play'),
+            lblGlobalTime: document.getElementById('lbl-global-time'),
+            tlContainer: document.getElementById('timeline-container'),
+            tlScroll: document.getElementById('timeline-scroll'),
+            tlRuler: document.getElementById('timeline-ruler'),
+            tlTracks: document.getElementById('timeline-tracks'),
+            tlFadeOverlay: document.getElementById('global-fade-overlay'),
+            playhead: document.getElementById('playhead'),
+            propEmpty: document.getElementById('prop-empty'),
+            propControls: document.getElementById('prop-controls'),
+            fileInput: document.getElementById('file-input'),
+            trimStartSlider: document.getElementById('slider-trim-start'),
+            trimEndSlider: document.getElementById('slider-trim-end'),
+            valTrimStart: document.getElementById('val-trim-start'),
+            valTrimEnd: document.getElementById('val-trim-end'),
+            chkGlobalFadeIn: document.getElementById('chk-global-fade-in'),
+            chkGlobalFadeOut: document.getElementById('chk-global-fade-out'),
+            numGlobalFadeDur: document.getElementById('num-global-fade-dur')
+        };
+
+        // --- Core App Management ---
+        const app = {
+            init() {
+                this.applyTheme(state.theme);
+                this.applyLang(state.lang);
+                this.setupEventListeners();
+                this.changeRatio(state.ratio);
+                
+                DOM.chkGlobalFadeIn.checked = state.globalFadeIn;
+                DOM.chkGlobalFadeOut.checked = state.globalFadeOut;
+                DOM.numGlobalFadeDur.value = state.globalFadeDur;
+
+                if (typeof VideoEncoder === 'undefined') {
+                    console.warn("WebCodecs API not detected. Export may fail.");
+                }
+
+                requestAnimationFrame(playback.loop);
+            },
+            toggleTheme() {
+                state.theme = state.theme === 'light' ? 'dark' : 'light';
+                localStorage.setItem('olah_theme', state.theme);
+                this.applyTheme(state.theme);
+            },
+            applyTheme(theme) {
+                const html = document.documentElement;
+                const icon = document.getElementById('icon-theme');
+                if (theme === 'dark') {
+                    html.classList.add('dark');
+                    icon.setAttribute('data-lucide', 'sun');
+                } else {
+                    html.classList.remove('dark');
+                    icon.setAttribute('data-lucide', 'moon');
+                }
+                lucide.createIcons();
+            },
+            toggleLang() {
+                state.lang = state.lang === 'id' ? 'en' : 'id';
+                localStorage.setItem('olah_lang', state.lang);
+                this.applyLang(state.lang);
+            },
+            changeRatio(val) {
+                state.ratio = val;
+                const wrapper = document.getElementById('player-wrapper');
+                let rW = 16, rH = 9; 
+                if (val === 'auto') {
+                    if (state.clips.length > 0 && state.clips[0].width) {
+                        rW = state.clips[0].width;
+                        rH = state.clips[0].height;
+                    }
+                } else {
+                    const parts = val.split('/');
+                    rW = parseInt(parts[0]);
+                    rH = parseInt(parts[1]);
+                }
+                wrapper.style.aspectRatio = `${rW} / ${rH}`;
+            },
+            applyLang(l) {
+                const btnLang = document.getElementById('btn-lang');
+                if (btnLang) btnLang.innerText = l === 'id' ? '🇮🇩' : '🇬🇧';
+                
+                const d = dict[l];
+                const updateText = (id, text) => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerText = text;
+                };
+
+                updateText('tt-help', d.ttHelp);
+                updateText('lbl-add', d.btnAdd);
+                updateText('lbl-export', d.btnExp);
+                updateText('lbl-empty-player', d.lblEmptyPlayer);
+                updateText('lbl-prop-title', d.propTitle);
+                updateText('lbl-empty-prop', d.emptyProp);
+                updateText('lbl-prop-name', d.propName);
+                updateText('lbl-prop-dur', d.propDur);
+                updateText('lbl-trim-start', d.trimStart);
+                updateText('lbl-trim-end', d.trimEnd);
+                updateText('lbl-proj-title', d.projTitle);
+                updateText('lbl-ratio-title', d.ratio);
+                updateText('lbl-tools-title', d.tools);
+                updateText('lbl-btn-split', d.btnSplit);
+                updateText('lbl-speed-title', d.speed);
+                updateText('sys-status', d.sysReady);
+                updateText('stat-clips', `${state.clips.length} ${d.statClips}`);
+                
+                updateText('term-specific', d.termSpecific);
+                updateText('term-legal', d.termLegal);
+                updateText('btn-term-agree', d.btnAgree);
+                updateText('exp-title', d.expTitle);
+                updateText('exp-desc', d.expDesc);
+            },
+            updateGlobalFade(type, val) {
+                if (type === 'in') state.globalFadeIn = val;
+                else if (type === 'out') state.globalFadeOut = val;
+                else if (type === 'dur') {
+                    let d = parseFloat(val);
+                    if (d < 0.1) d = 0.1;
+                    state.globalFadeDur = d;
+                }
+                editor.renderTimeline(); 
+                playback.seek(state.playheadTime); 
+            },
+            showTerms(e) {
+                e.preventDefault();
+                const modal = document.getElementById('modal-terms');
+                const content = document.getElementById('modal-terms-content');
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    content.classList.remove('scale-95');
+                }, 10);
+            },
+            hideTerms() {
+                const modal = document.getElementById('modal-terms');
+                const content = document.getElementById('modal-terms-content');
+                modal.classList.add('opacity-0');
+                content.classList.add('scale-95');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            },
+            setupEventListeners() {
+                DOM.fileInput.addEventListener('change', editor.handleUpload);
+                
+                DOM.trimStartSlider.addEventListener('input', e => editor.updateTrim('start', parseFloat(e.target.value)));
+                DOM.trimEndSlider.addEventListener('input', e => editor.updateTrim('end', parseFloat(e.target.value)));
+                
+                DOM.tlContainer.addEventListener('mousedown', e => {
+                    if (e.target.closest('.clip-block-prevent')) return; 
+                    const rect = DOM.tlContainer.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    let time = x / PIXELS_PER_SECOND;
+                    if (time < 0) time = 0;
+                    if (time > state.totalDuration) time = state.totalDuration;
+                    
+                    playback.seek(time);
+                    
+                    const onMouseMove = (moveEvent) => {
+                        const mx = moveEvent.clientX - rect.left;
+                        let mtime = mx / PIXELS_PER_SECOND;
+                        if(mtime < 0) mtime = 0;
+                        if(mtime > state.totalDuration) mtime = state.totalDuration;
+                        playback.seek(mtime);
+                    };
+                    const onMouseUp = () => {
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                    };
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+
+                DOM.player.addEventListener('timeupdate', () => {
+                   if(state.clips.length === 0) return;
+                });
+            }
+        };
+
+        // --- Editor Logic ---
+        const editor = {
+            async handleUpload(e) {
+                const files = e.target.files;
+                if(!files.length) return;
+                
+                document.body.style.cursor = 'wait';
+                
+                for(const file of files) {
+                    try {
+                        const url = URL.createObjectURL(file);
+                        const data = await editor.getVideoData(url);
+                        const thumb = await editor.generateThumbnail(url, data.dur > 1 ? 1 : 0);
+                        
+                        const clip = {
+                            id: 'c_' + Date.now() + Math.random().toString(36).substr(2,4),
+                            file: file,
+                            url: url,
+                            origDur: data.dur,
+                            trimStart: 0,
+                            trimEnd: data.dur,
+                            width: data.w,
+                            height: data.h,
+                            name: file.name,
+                            thumb: thumb
+                        };
+                        state.clips.push(clip);
+                    } catch (err) {
+                        console.error(err);
+                    }
+                }
+                
+                document.body.style.cursor = 'default';
+                DOM.fileInput.value = '';
+                
+                if(state.clips.length > 0 && !state.selectedId) {
+                    editor.selectClip(state.clips[0].id);
+                }
+                
+                if (state.clips.length > 0 && state.ratio === 'auto') {
+                    app.changeRatio('auto');
+                }
+                
+                editor.renderTimeline();
+            },
+            getVideoData(url) {
+                return new Promise((resolve, reject) => {
+                    const v = document.createElement('video');
+                    v.preload = 'metadata';
+                    v.onloadedmetadata = () => resolve({ dur: v.duration, w: v.videoWidth, h: v.videoHeight });
+                    v.onerror = () => reject('Error loading video');
+                    v.src = url;
+                });
+            },
+            generateThumbnail(url, time) {
+                return new Promise(resolve => {
+                    const v = document.createElement('video');
+                    v.src = url;
+                    v.currentTime = time;
+                    v.muted = true;
+                    v.onseeked = () => {
+                        const c = document.createElement('canvas');
+                        c.width = 160; c.height = 90;
+                        const ctx = c.getContext('2d');
+                        ctx.drawImage(v, 0, 0, c.width, c.height);
+                        resolve(c.toDataURL('image/jpeg', 0.5));
+                    };
+                    setTimeout(() => resolve(''), 2000); 
+                });
+            },
+            selectClip(id) {
+                state.selectedId = id;
+                editor.renderTimeline(); 
+                editor.updatePropertiesPanel();
+            },
+            updatePropertiesPanel() {
+                const clip = state.clips.find(c => c.id === state.selectedId);
+                if(!clip) {
+                    DOM.propEmpty.classList.remove('hidden');
+                    DOM.propControls.classList.add('hidden');
+                    return;
+                }
+                
+                DOM.propEmpty.classList.add('hidden');
+                DOM.propControls.classList.remove('hidden');
+                DOM.propControls.classList.add('flex');
+                
+                document.getElementById('val-clip-name').innerText = clip.name;
+                document.getElementById('val-clip-dur').innerText = (clip.trimEnd - clip.trimStart).toFixed(1) + 's';
+                
+                DOM.trimStartSlider.max = clip.origDur;
+                DOM.trimStartSlider.value = clip.trimStart;
+                DOM.valTrimStart.innerText = clip.trimStart.toFixed(1) + 's';
+                
+                DOM.trimEndSlider.max = clip.origDur;
+                DOM.trimEndSlider.value = clip.trimEnd;
+                DOM.valTrimEnd.innerText = clip.trimEnd.toFixed(1) + 's';
+            },
+            updateTrim(type, val) {
+                const clip = state.clips.find(c => c.id === state.selectedId);
+                if(!clip) return;
+                
+                if(type === 'start') {
+                    if(val >= clip.trimEnd - 0.1) val = clip.trimEnd - 0.1;
+                    clip.trimStart = val;
+                    DOM.trimStartSlider.value = val;
+                } else {
+                    if(val <= clip.trimStart + 0.1) val = clip.trimStart + 0.1;
+                    clip.trimEnd = val;
+                    DOM.trimEndSlider.value = val;
+                }
+                
+                editor.updatePropertiesPanel();
+                editor.renderTimeline();
+                playback.seekToClipLocal(clip, type === 'start' ? clip.trimStart : clip.trimEnd);
+            },
+            duplicateClip() {
+                const idx = state.clips.findIndex(c => c.id === state.selectedId);
+                if(idx === -1) return;
+                const original = state.clips[idx];
+                const clone = { ...original, id: 'c_' + Date.now() + Math.random().toString(36).substr(2,4) };
+                state.clips.splice(idx + 1, 0, clone);
+                editor.selectClip(clone.id); 
+            },
+            deleteClip() {
+                const idx = state.clips.findIndex(c => c.id === state.selectedId);
+                if(idx === -1) return;
+                state.clips.splice(idx, 1);
+                state.selectedId = null;
+                
+                if(state.clips.length > 0) {
+                    editor.selectClip(state.clips[Math.min(idx, state.clips.length - 1)].id);
+                } else {
+                    editor.updatePropertiesPanel();
+                    DOM.playerEmpty.classList.remove('hidden');
+                    DOM.player.src = "";
+                }
+                editor.renderTimeline();
+            },
+            splitAtPlayhead() {
+                const res = playback.getClipAtGlobalTime(state.playheadTime);
+                if(!res) return;
+                
+                const { clip, localTime, clipIndex } = res;
+                if(localTime - clip.trimStart < 0.2 || clip.trimEnd - localTime < 0.2) return;
+                
+                const clip1 = { ...clip, trimEnd: localTime };
+                const clip2 = { ...clip, trimStart: localTime, id: 'c_' + Date.now() + Math.random().toString(36).substr(2,4) };
+                
+                state.clips.splice(clipIndex, 1, clip1, clip2);
+                editor.selectClip(clip2.id);
+            },
+            renderTimeline() {
+                state.totalDuration = state.clips.reduce((acc, c) => acc + (c.trimEnd - c.trimStart), 0);
+                
+                const d = dict[state.lang];
+                document.getElementById('lbl-total-duration').innerText = playback.formatTime(state.totalDuration);
+                document.getElementById('stat-clips').innerText = `${state.clips.length} ${d.statClips}`;
+                
+                const containerWidth = Math.max(DOM.tlScroll.clientWidth, state.totalDuration * PIXELS_PER_SECOND + 200);
+                DOM.tlContainer.style.width = containerWidth + 'px';
+                
+                // Render Ruler
+                let rulerHtml = '';
+                const totalSeconds = Math.ceil(containerWidth / PIXELS_PER_SECOND);
+                for(let i=0; i<=totalSeconds; i++) {
+                    const left = i * PIXELS_PER_SECOND;
+                    rulerHtml += `<div class="absolute bottom-0 border-l border-theme h-2" style="left: ${left}px;"></div>`;
+                    if(i % 5 === 0) { 
+                        rulerHtml += `<div class="absolute bottom-3 -ml-2.5 px-1 rounded text-dim bg-transparent tracking-widest" style="left: ${left}px;">00:${i.toString().padStart(2,'0')}</div>`;
+                    }
+                }
+                DOM.tlRuler.innerHTML = rulerHtml;
+                
+                // Render Clips
+                DOM.tlTracks.innerHTML = '';
+                let currentOffset = 0;
+                
+                state.clips.forEach((clip, index) => {
+                    const dur = clip.trimEnd - clip.trimStart;
+                    const width = dur * PIXELS_PER_SECOND;
+                    const left = currentOffset * PIXELS_PER_SECOND;
+                    
+                    const el = document.createElement('div');
+                    el.className = `clip-block absolute h-[60px] cursor-pointer flex flex-col group ${clip.id === state.selectedId ? 'selected' : ''}`;
+                    el.style.width = width + 'px';
+                    el.style.left = left + 'px';
+                    
+                    el.onmousedown = (e) => {
+                        if (e.target.closest('.clip-block-prevent')) return;
+                        e.stopPropagation(); 
+                        editor.selectClip(clip.id);
+                    };
+                    
+                    let bgStyle = '';
+                    if(clip.thumb) bgStyle = `background-image: url(${clip.thumb}); background-size: auto 100%; background-repeat: repeat-x;`;
+                    
+                    // iOS Pro Style Clip Base
+                    let innerHtml = `
+                        <div class="flex-1 w-full bg-[#111] relative overflow-hidden pointer-events-none rounded-md border border-white/10 shadow-sm transition-all duration-300">
+                            <div class="absolute inset-0 opacity-80" style="${bgStyle}"></div>
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60"></div>
+                            <div class="absolute bottom-1 left-1.5 right-1.5 text-[9px] text-white/90 flex justify-between items-center font-medium drop-shadow-md">
+                                <span class="truncate w-3/4 tracking-wide">${clip.name}</span>
+                                <span class="font-mono opacity-80">${dur.toFixed(1)}s</span>
+                            </div>
+                        </div>
+                    `;
+
+                    // Smart Trim Handles & Selection Border
+                    if (clip.id === state.selectedId) {
+                        innerHtml += `
+                            <!-- Active Accent Border -->
+                            <div class="absolute inset-0 border-[2.5px] border-accent rounded-md pointer-events-none z-20 shadow-[0_0_10px_rgba(99,102,241,0.4)]"></div>
+                            
+                            <!-- Left Handle -->
+                            <div class="absolute left-0 top-0 bottom-0 w-3.5 bg-accent cursor-ew-resize flex items-center justify-center z-30 clip-block-prevent shadow-lg rounded-l-sm" onmousedown="editor.startDragTrim(event, '${clip.id}', 'start')">
+                                <div class="w-[2px] h-3.5 bg-white/90 rounded-full pointer-events-none"></div>
+                            </div>
+                            
+                            <!-- Right Handle -->
+                            <div class="absolute right-0 top-0 bottom-0 w-3.5 bg-accent cursor-ew-resize flex items-center justify-center z-30 clip-block-prevent shadow-lg rounded-r-sm" onmousedown="editor.startDragTrim(event, '${clip.id}', 'end')">
+                                <div class="w-[2px] h-3.5 bg-white/90 rounded-full pointer-events-none"></div>
+                            </div>
+                        `;
+                    }
+                    
+                    el.innerHTML = innerHtml;
+                    DOM.tlTracks.appendChild(el);
+                    currentOffset += dur;
+                });
+                
+                // Render Global Fade Overlay
+                DOM.tlFadeOverlay.innerHTML = '';
+                if (state.totalDuration > 0) {
+                    if (state.globalFadeIn) {
+                        const fW = Math.min(state.globalFadeDur, state.totalDuration) * PIXELS_PER_SECOND;
+                        DOM.tlFadeOverlay.innerHTML += `
+                            <div class="absolute left-0 top-0 bottom-0 opacity-80" style="width: ${fW}px; background: linear-gradient(to right, rgba(0,0,0,0.95), transparent);">
+                            </div>
+                        `;
+                    }
+                    if (state.globalFadeOut) {
+                        const fW = Math.min(state.globalFadeDur, state.totalDuration) * PIXELS_PER_SECOND;
+                        const leftPos = (state.totalDuration * PIXELS_PER_SECOND) - fW;
+                        DOM.tlFadeOverlay.innerHTML += `
+                            <div class="absolute top-0 bottom-0 opacity-80" style="left: ${leftPos}px; width: ${fW}px; background: linear-gradient(to left, rgba(0,0,0,0.95), transparent);">
+                            </div>
+                        `;
+                    }
+                }
+
+                if(state.clips.length === 0) {
+                    DOM.playerEmpty.classList.remove('hidden');
+                    DOM.player.src = "";
+                }
+            },
+            startDragTrim(e, clipId, type) {
+                e.stopPropagation();
+                const clip = state.clips.find(c => c.id === clipId);
+                if(!clip) return;
+                
+                const startX = e.clientX;
+                const initialVal = type === 'start' ? clip.trimStart : clip.trimEnd;
+
+                const onMouseMove = (moveEvent) => {
+                    const dx = moveEvent.clientX - startX;
+                    const dt = dx / PIXELS_PER_SECOND;
+                    let newVal = initialVal + dt;
+                    
+                    if (type === 'start') {
+                        if (newVal < 0) newVal = 0;
+                        if (newVal >= clip.trimEnd - 0.1) newVal = clip.trimEnd - 0.1;
+                        clip.trimStart = newVal;
+                    } else {
+                        if (newVal <= clip.trimStart + 0.1) newVal = clip.trimStart + 0.1;
+                        if (newVal > clip.origDur) newVal = clip.origDur;
+                        clip.trimEnd = newVal;
+                    }
+                    
+                    editor.updatePropertiesPanel();
+                    editor.renderTimeline();
+                    playback.seekToClipLocal(clip, type === 'start' ? clip.trimStart : clip.trimEnd);
+                };
+                
+                const onMouseUp = () => {
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                };
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            }
+        };
+
+        // --- Playback Engine ---
+        const playback = {
+            lastTime: 0,
+            
+            togglePlay() {
+                if(state.clips.length === 0) return;
+                state.isPlaying = !state.isPlaying;
+                
+                if(state.isPlaying) {
+                    DOM.playIcon.setAttribute('data-lucide', 'pause');
+                    if(state.playheadTime >= state.totalDuration) {
+                        playback.seek(0);
+                    }
+                    DOM.player.play().catch(e => console.warn(e)); 
+                    playback.lastTime = performance.now();
+                } else {
+                    DOM.playIcon.setAttribute('data-lucide', 'play');
+                    DOM.player.pause();
+                }
+                lucide.createIcons();
+            },
+            seekToStart() { playback.seek(0); },
+            seekToEnd() { playback.seek(state.totalDuration); },
+            speedUp() {
+                if(state.speedIndex < SPEEDS.length - 1) {
+                    state.speedIndex++;
+                    playback.updateSpeed();
+                }
+            },
+            speedDown() {
+                if(state.speedIndex > 0) {
+                    state.speedIndex--;
+                    playback.updateSpeed();
+                }
+            },
+            updateSpeed() {
+                const speed = SPEEDS[state.speedIndex];
+                DOM.player.playbackRate = speed;
+                document.getElementById('lbl-speed').innerText = speed + 'x';
+            },
+            seek(timeSec) {
+                state.playheadTime = timeSec;
+                playback.updateUI();
+                playback.syncPlayer();
+            },
+            seekToClipLocal(clip, localTimeSec) {
+                let globalOffset = 0;
+                for(const c of state.clips) {
+                    if(c.id === clip.id) break;
+                    globalOffset += (c.trimEnd - c.trimStart);
+                }
+                const globalTime = globalOffset + (localTimeSec - clip.trimStart);
+                playback.seek(globalTime);
+            },
+            getClipAtGlobalTime(timeSec) {
+                let offset = 0;
+                for(let i=0; i<state.clips.length; i++) {
+                    const c = state.clips[i];
+                    const dur = c.trimEnd - c.trimStart;
+                    if(timeSec >= offset && timeSec < offset + dur) {
+                        return {
+                            clip: c,
+                            clipIndex: i,
+                            localTime: c.trimStart + (timeSec - offset)
+                        };
+                    }
+                    offset += dur;
+                }
+                if(state.clips.length > 0 && timeSec >= state.totalDuration) {
+                    const c = state.clips[state.clips.length-1];
+                    return { clip: c, clipIndex: state.clips.length-1, localTime: c.trimEnd };
+                }
+                return null;
+            },
+            getGlobalFadeRatio(globalTime) {
+                let ratio = 1.0;
+                if (state.globalFadeIn && globalTime < state.globalFadeDur) {
+                    ratio = globalTime / state.globalFadeDur;
+                } else if (state.globalFadeOut && globalTime > state.totalDuration - state.globalFadeDur) {
+                    ratio = (state.totalDuration - globalTime) / state.globalFadeDur;
+                }
+                return Math.max(0, Math.min(1, ratio));
+            },
+            syncPlayer() {
+                const res = playback.getClipAtGlobalTime(state.playheadTime);
+                if(!res) {
+                    DOM.playerEmpty.classList.remove('hidden');
+                    DOM.player.pause();
+                    return;
+                }
+                
+                DOM.playerEmpty.classList.add('hidden');
+                const { clip, localTime } = res;
+                
+                if(!DOM.player.src.endsWith(clip.url)) {
+                    DOM.player.src = clip.url;
+                    if(state.isPlaying) DOM.player.play().catch(e=>{});
+                }
+                
+                if(Math.abs(DOM.player.currentTime - localTime) > 0.2) {
+                    DOM.player.currentTime = localTime;
+                }
+
+                const ratio = playback.getGlobalFadeRatio(state.playheadTime);
+                DOM.player.style.opacity = ratio;
+                DOM.player.volume = ratio;
+            },
+            updateUI() {
+                const left = state.playheadTime * PIXELS_PER_SECOND;
+                DOM.playhead.style.left = left + 'px';
+                DOM.lblGlobalTime.innerText = playback.formatTime(state.playheadTime);
+                
+                const scrollLeft = DOM.tlScroll.scrollLeft;
+                const clientWidth = DOM.tlScroll.clientWidth;
+                if(left > scrollLeft + clientWidth - 100) {
+                    DOM.tlScroll.scrollLeft = left - clientWidth + 100;
+                } else if (left < scrollLeft) {
+                    DOM.tlScroll.scrollLeft = Math.max(0, left - 100);
+                }
+            },
+            formatTime(seconds) {
+                const m = Math.floor(seconds / 60);
+                const s = Math.floor(seconds % 60);
+                const ms = Math.floor((seconds % 1) * 10);
+                return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}.${ms}`;
+            },
+            loop(timestamp) {
+                if(state.isPlaying) {
+                    const delta = (timestamp - playback.lastTime) / 1000;
+                    playback.lastTime = timestamp;
+                    
+                    const speed = SPEEDS[state.speedIndex];
+                    state.playheadTime += (delta * speed);
+                    
+                    if(state.playheadTime >= state.totalDuration) {
+                        state.playheadTime = state.totalDuration;
+                        playback.togglePlay(); 
+                    }
+                    
+                    playback.updateUI();
+                    playback.syncPlayer();
+                }
+                requestAnimationFrame(playback.loop);
+            }
+        };
+
+        // --- MODERN EXPORT ENGINE ---
+        async function startExport() {
+            if(state.clips.length === 0) return;
+            
+            if (typeof Mp4Muxer === 'undefined' || typeof VideoEncoder === 'undefined') {
+                alert("Browser Anda tidak mendukung WebCodecs. Mohon gunakan Chrome atau Edge versi terbaru di PC.");
+                return;
+            }
+
+            if(state.isPlaying) playback.togglePlay();
+            
+            const overlay = document.getElementById('export-overlay');
+            const progBar = document.getElementById('export-progress-bar');
+            const txtStatus = document.getElementById('export-status-text');
+            
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+            progBar.style.width = '0%';
+            
+            const renderVideo = document.createElement('video');
+            renderVideo.style.display = 'none';
+            renderVideo.playsInline = true;
+            document.body.appendChild(renderVideo);
+
+            let audioCtx = null;
+
+            try {
+                const canvas = document.getElementById('render-canvas');
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                
+                let rW = 16, rH = 9;
+                const ratioVal = document.getElementById('ratio-selector').value;
+                if (ratioVal === 'auto' && state.clips.length > 0 && state.clips[0].width) {
+                    rW = state.clips[0].width;
+                    rH = state.clips[0].height;
+                } else if (ratioVal !== 'auto') {
+                    const parts = ratioVal.split('/');
+                    rW = parseInt(parts[0]); rH = parseInt(parts[1]);
+                }
+                
+                let targetH = 720;
+                let w = Math.round(targetH * (rW / rH)); let h = targetH;
+                if (rW === 9 && rH === 16) { w = 720; h = 1280; } 
+                else if (rW === 1 && rH === 1) { w = 1080; h = 1080; }
+                
+                w = w % 2 === 0 ? w : w + 1;
+                h = h % 2 === 0 ? h : h + 1;
+                canvas.width = w; canvas.height = h;
+
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+                await audioCtx.resume(); 
+                
+                const audioSampleRate = audioCtx.sampleRate;
+                const audioChannels = 2; 
+
+                let muxer = new Mp4Muxer.Muxer({
+                    target: new Mp4Muxer.ArrayBufferTarget(),
+                    video: { codec: 'avc', width: w, height: h },
+                    audio: { codec: 'aac', numberOfChannels: audioChannels, sampleRate: audioSampleRate },
+                    fastStart: 'in-memory',
+                    firstTimestampBehavior: 'offset' 
+                });
+
+                let videoEncoder = new VideoEncoder({
+                    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+                    error: e => console.error("VideoEncoder error:", e)
+                });
+                videoEncoder.configure({
+                    codec: 'avc1.42001f', 
+                    width: w, height: h,
+                    bitrate: 2_500_000, 
+                    framerate: 30
+                });
+
+                let audioEncoder = new AudioEncoder({
+                    output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+                    error: e => console.error("AudioEncoder error:", e)
+                });
+                audioEncoder.configure({
+                    codec: 'mp4a.40.2', 
+                    numberOfChannels: audioChannels,
+                    sampleRate: audioSampleRate,
+                    bitrate: 128000
+                });
+
+                const source = audioCtx.createMediaElementSource(renderVideo);
+                const gainNode = audioCtx.createGain(); 
+                
+                const bufferSize = 4096;
+                const scriptNode = audioCtx.createScriptProcessor(bufferSize, audioChannels, audioChannels);
+                
+                const muteNode = audioCtx.createGain();
+                muteNode.gain.value = 0; 
+
+                let audioTimestampUs = 0;
+                let isRendering = false;
+
+                scriptNode.onaudioprocess = (e) => {
+                    if (!isRendering) return; 
+                    
+                    const inputBuffer = e.inputBuffer;
+                    const frames = inputBuffer.length;
+                    const data = new Float32Array(frames * audioChannels);
+                    
+                    for (let i = 0; i < audioChannels; i++) {
+                        data.set(inputBuffer.getChannelData(i), i * frames);
+                    }
+                    
+                    const audioData = new AudioData({
+                        format: 'f32-planar',
+                        sampleRate: audioSampleRate,
+                        numberOfFrames: frames,
+                        numberOfChannels: audioChannels,
+                        timestamp: audioTimestampUs, 
+                        data: data
+                    });
+                    
+                    audioTimestampUs += Math.round((frames / audioSampleRate) * 1000000);
+                    
+                    if (audioEncoder.state === 'configured') {
+                        audioEncoder.encode(audioData);
+                    }
+                    audioData.close();
+                };
+
+                source.connect(gainNode);
+                gainNode.connect(scriptNode);
+                scriptNode.connect(muteNode);
+                muteNode.connect(audioCtx.destination);
+
+                const prepareVideo = async (clip) => {
+                    renderVideo.src = clip.url;
+                    renderVideo.load();
+                    await new Promise(r => { renderVideo.oncanplay = r; setTimeout(r, 1000); });
+                    renderVideo.currentTime = clip.trimStart;
+                    await new Promise(r => {
+                        const check = () => { renderVideo.removeEventListener('seeked', check); r(); };
+                        renderVideo.addEventListener('seeked', check);
+                        setTimeout(r, 300); 
+                    });
+                };
+
+                txtStatus.innerText = "Menyiapkan mesin render WhatsApp-Ready...";
+                await prepareVideo(state.clips[0]);
+
+                let currentGlobalTime = 0;
+                let frameCount = 0;
+                let lastVideoTimestampUs = -1;
+
+                for(let i=0; i<state.clips.length; i++) {
+                    const clip = state.clips[i];
+                    
+                    isRendering = false; 
+                    if (i > 0) {
+                        await prepareVideo(clip);
+                    }
+                    
+                    isRendering = true; 
+                    await renderVideo.play();
+
+                    await new Promise(resolveClip => {
+                        function renderFrame() {
+                            if (!isRendering) return;
+
+                            const cTime = renderVideo.currentTime;
+                            const globalTimeNow = currentGlobalTime + (cTime - clip.trimStart);
+                            const progress = (globalTimeNow / state.totalDuration) * 100;
+                            
+                            progBar.style.width = `${Math.min(99, progress)}%`;
+                            txtStatus.innerText = `Menjahit Klip ${i+1}/${state.clips.length} (${Math.round(progress)}%)`;
+
+                            const fadeRatio = playback.getGlobalFadeRatio(globalTimeNow);
+                            gainNode.gain.value = fadeRatio;
+
+                            const vR = renderVideo.videoWidth / renderVideo.videoHeight;
+                            const cR = w / h;
+                            let dw, dh, dx, dy;
+                            if(vR > cR) { dw = w; dh = w/vR; dx = 0; dy = (h-dh)/2; } 
+                            else { dw = h*vR; dh = h; dx = (w-dw)/2; dy = 0; }
+
+                            ctx.fillStyle = '#000';
+                            ctx.fillRect(0,0,w,h);
+                            ctx.globalAlpha = fadeRatio;
+                            ctx.drawImage(renderVideo, dx, dy, dw, dh);
+                            ctx.globalAlpha = 1.0; 
+
+                            const videoTimestampUs = Math.round(globalTimeNow * 1000000);
+                            if (videoTimestampUs > lastVideoTimestampUs) {
+                                const frame = new VideoFrame(canvas, { timestamp: videoTimestampUs });
+                                videoEncoder.encode(frame, { keyFrame: frameCount % 30 === 0 });
+                                frame.close();
+                                lastVideoTimestampUs = videoTimestampUs;
+                                frameCount++;
+                            }
+
+                            if(cTime >= clip.trimEnd || renderVideo.ended) {
+                                isRendering = false; 
+                                renderVideo.pause();
+                                currentGlobalTime += (clip.trimEnd - clip.trimStart);
+                                resolveClip();
+                            } else {
+                                requestAnimationFrame(renderFrame);
+                            }
+                        }
+                        renderFrame();
+                    });
+                }
+
+                txtStatus.innerText = "Menyatukan Video & Audio...";
+                progBar.style.width = "100%";
+
+                if (videoEncoder.state !== 'closed') await videoEncoder.flush();
+                if (audioEncoder.state !== 'closed') await audioEncoder.flush();
+                
+                muxer.finalize(); 
+
+                const buffer = muxer.target.buffer;
+                const blob = new Blob([buffer], { type: 'video/mp4' });
+                const fileUrl = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = fileUrl;
+                a.download = `OlahVideo_WA_Ready_${Date.now()}.mp4`;
+                a.click();
+                
+                URL.revokeObjectURL(fileUrl);
+            } catch(e) {
+                console.error(e);
+                alert("Export gagal: " + e.message);
+            } finally {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+                
+                if (renderVideo.parentNode) renderVideo.parentNode.removeChild(renderVideo);
+                if (audioCtx && audioCtx.state !== 'closed') audioCtx.close().catch(e => {});
+            }
+        }
+
+        // --- Run App ---
+        document.addEventListener('DOMContentLoaded', () => app.init());
+    </script>
+</body>
+</html>

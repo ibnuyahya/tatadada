@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NormalizeAudio</title>
+    
+    <!-- TATADADA: Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK620QSKYN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK620QSKYN', {
+        'page_path': window.location.pathname,
+        'app_instance_name': document.title
+      });
+    </script>
+
+    <!-- TATADADA: Histats.com Tracker -->
+    <script type="text/javascript">var _Hasync= _Hasync|| [];
+    _Hasync.push(['Histats.start', '1,5024490,4,0,0,0,00010000']);
+    _Hasync.push(['Histats.fasi', '1']);
+    _Hasync.push(['Histats.track_hits', '']);
+    (function() {
+    var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
+    hs.src = ('//s10.histats.com/js15_as.js');
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
+    })();</script>
+    <noscript><a href="/" target="_blank"><img  src="//sstatic1.histats.com/0.gif?5024490&101" alt="" border="0"></a></noscript>
+
+    <!-- TATADADA: Auto-Favicon Injector -->
+    <script>
+    fetch('icon.xml').then(r => r.text()).then(xml => {
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const svgNode = doc.querySelector('svg_elements');
+        if (!svgNode) return;
+        svgNode.querySelectorAll('text').forEach(t => t.remove());
+        const cStart = doc.querySelector('color_start')?.textContent || '#022c22';
+        const cEnd = doc.querySelector('color_end')?.textContent || '#059669';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 76 76"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cStart}"/><stop offset="100%" stop-color="${cEnd}"/></linearGradient><linearGradient id="glossy-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="100%" stop-color="#fff" stop-opacity="0.4"/></linearGradient><linearGradient id="glossy-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#333" stop-opacity="0.9"/><stop offset="100%" stop-color="#000" stop-opacity="0.5"/></linearGradient><filter id="inner-shadow"><feOffset dy="1"/><feGaussianBlur stdDeviation="1" result="offset-blur"/><feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/><feFlood flood-color="black" flood-opacity="0.2" result="color"/><feComposite operator="in" in="color" in2="inverse" result="shadow"/><feComposite operator="over" in="shadow" in2="SourceGraphic"/></filter><filter id="drop-shadow-sm"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><style>.frosted-glass{fill:rgba(255,255,255,0.3);}</style><rect x="12" y="12" width="76" height="76" rx="18" fill="url(#bg)" />${svgNode.innerHTML}</svg>`;
+        const link = document.createElement('link');
+        link.rel = 'icon'; link.type = 'image/svg+xml';
+        link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+    }).catch(e => console.warn('Favicon XML not loaded.'));
+    </script>
+
+    <!-- UI Libs & Hardware Engines -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
+    <script src="https://unpkg.com/mp4-muxer/build/mp4-muxer.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #10b981;
+        }
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --theme-accent: #10b981;
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            overflow: hidden; 
+            user-select: none; 
+            -webkit-user-select: none;
+        }
+        
+        input, textarea, pre, code, .selectable, .selectable * {
+            user-select: text; -webkit-user-select: text;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+
+        .layout-border { border-color: var(--border-color); }
+        .bg-main { background-color: var(--card-bg); }
+        .text-main { color: var(--text-main); }
+        .text-dim { color: var(--text-dim); }
+        
+        .slider-accent { accent-color: var(--theme-accent); }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER (h-14) -->
+    <header class="h-14 shrink-0 bg-[var(--header-bg)] border-b layout-border px-6 flex items-center justify-between z-10 shadow-sm transition-colors">
+        <div class="flex items-center gap-3">
+            <h1 class="font-black text-xl tracking-tight text-main bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-500">
+                Normalize<span class="font-light text-main">Audio</span>
+            </h1>
+            <span class="text-[10px] italic font-semibold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">v2.0 Studio</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-emerald-500 transition-colors ml-2">by AhmadDanial</a>
+            <button class="ml-2 text-dim hover:text-emerald-500 transition-colors" title="Bantuan" onclick="document.getElementById('terms-modal').style.display='flex'">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+            </button>
+        </div>
+        <div class="flex items-center gap-4">
+            <button id="btn-lang" class="text-sm font-bold text-dim hover:text-main transition-colors">ID</button>
+            <div class="w-px h-4 bg-[var(--border-color)]"></div>
+            <button id="btn-theme" class="text-dim hover:text-main transition-colors">
+                <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                <i data-lucide="sun" class="w-5 h-5 hidden dark:block text-amber-400"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 flex gap-4 p-4 min-h-0 overflow-hidden relative">
+        
+        <!-- LEFT: VIDEO & TIMELINE -->
+        <div class="flex-[3] flex flex-col min-w-0 bg-main rounded-2xl border layout-border shadow-md overflow-hidden relative">
+            
+            <!-- Video Player Area -->
+            <div class="flex-1 relative bg-black flex flex-col justify-center items-center overflow-hidden group">
+                <video id="video-preview" class="max-w-full max-h-full w-full h-full object-contain z-10" playsinline controls></video>
+                <div id="video-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 z-0">
+                    <i data-lucide="upload-cloud" class="w-16 h-16 mb-4 opacity-50"></i>
+                    <p class="font-medium" data-i18n="lblUploadPrompt">Unggah Video (MP4) untuk memulai</p>
+                </div>
+                
+                <!-- Floating Upload Button -->
+                <button onclick="document.getElementById('video-input').click()" class="absolute top-4 right-4 z-20 bg-black/50 hover:bg-black/80 backdrop-blur-md text-white px-4 py-2 rounded-xl text-sm font-bold border border-white/10 shadow-xl transition-all flex items-center gap-2">
+                    <i data-lucide="folder-open" class="w-4 h-4"></i> <span data-i18n="btnOpen">Buka File</span>
+                </button>
+                <input type="file" id="video-input" class="hidden" accept="video/mp4">
+            </div>
+
+            <!-- Dashboard Bawah Player -->
+            <div class="h-64 shrink-0 bg-[var(--card-bg)] border-t layout-border p-5 flex flex-col gap-4 overflow-y-auto">
+                
+                <!-- A/B Monitor Switch -->
+                <div class="flex items-center justify-between">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-bold text-dim uppercase tracking-widest mb-1">Monitor Suara</span>
+                        <div class="flex items-center gap-2 text-sm font-bold text-emerald-500" id="active-monitor-label">
+                            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                            Sesudah (Processed)
+                        </div>
+                    </div>
+                    
+                    <div class="flex bg-[var(--preview-bg)] p-1 rounded-lg border layout-border shadow-inner gap-1">
+                        <button id="btn-monitor-pre" class="px-4 py-1.5 rounded-md text-xs font-bold transition-all text-dim hover:text-main flex items-center gap-2">
+                            <div class="w-2.5 h-2.5 rounded-full bg-rose-500"></div> SEBELUM (Asli)
+                        </button>
+                        <button id="btn-monitor-post" class="px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-white dark:bg-slate-800 text-emerald-500 shadow border border-emerald-500/20 flex items-center gap-2">
+                            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div> SESUDAH (Proses)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Timeline Analyzer Map -->
+                <div class="flex flex-col flex-1 min-h-0">
+                    <div class="flex justify-between items-end mb-2">
+                        <span class="text-[10px] font-bold text-main uppercase tracking-widest">Peta Dinamika Durasi Penuh</span>
+                        <div class="flex gap-3 text-[9px] font-bold text-dim uppercase">
+                            <span class="flex items-center gap-1"><div class="w-2 h-2 bg-rose-400/50 rounded-sm"></div> Asli</span>
+                            <span class="flex items-center gap-1"><div class="w-2 h-2 bg-emerald-500 rounded-sm"></div> Simulasi</span>
+                        </div>
+                    </div>
+                    
+                    <!-- THE TIMELINE CANVAS -->
+                    <div class="relative flex-1 w-full bg-[var(--preview-bg)] rounded-lg overflow-hidden border layout-border shadow-inner" id="timeline-container">
+                        <canvas id="timeline-canvas" class="absolute inset-0 w-full h-full z-10"></canvas>
+                        <!-- Thin Yellow Playhead -->
+                        <div id="timeline-playhead" class="absolute top-0 bottom-0 w-[2px] bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)] z-20 pointer-events-none" style="left: 0%;"></div>
+                        <!-- Clickable Seek Overlay -->
+                        <div id="timeline-seek-overlay" class="absolute inset-0 w-full h-full z-30 cursor-pointer"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: DSP CONTROLS -->
+        <div class="flex-[1.2] min-w-[320px] bg-main rounded-2xl border layout-border shadow-md flex flex-col">
+            <div class="p-4 border-b layout-border bg-[var(--preview-bg)]/50 rounded-t-2xl">
+                <h2 class="text-xs font-bold text-dim uppercase tracking-widest flex items-center gap-2">
+                    <i data-lucide="sliders" class="w-4 h-4"></i> DSP Controls
+                </h2>
+            </div>
+            
+            <div class="p-5 flex flex-col gap-6 flex-1 overflow-y-auto">
+                
+                <!-- Live Unified Spectrum -->
+                <div class="flex flex-col gap-2">
+                    <div class="flex justify-between items-end">
+                        <span class="text-[10px] font-bold text-main uppercase tracking-widest">Live Spectrum</span>
+                        <div class="flex gap-2 text-[9px] font-mono text-dim">
+                            <span class="flex items-center gap-1"><div class="w-2 h-2 bg-rose-400/50 rounded-sm"></div> Bar (Pre)</span>
+                            <span class="flex items-center gap-1"><div class="w-3 h-0.5 bg-emerald-500"></div> Curve (Post)</span>
+                        </div>
+                    </div>
+                    <div class="h-32 w-full bg-[var(--preview-bg)] rounded-xl border layout-border shadow-inner overflow-hidden relative">
+                        <canvas id="spectrum-canvas" class="absolute inset-0 w-full h-full"></canvas>
+                    </div>
+                </div>
+
+                <!-- Presets -->
+                <div class="flex flex-col gap-2">
+                    <span class="text-[10px] font-bold text-dim uppercase tracking-widest">Presets Pembelajaran</span>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button class="preset-btn py-2 text-xs font-bold rounded-lg border layout-border bg-[var(--card-bg)] hover:bg-[var(--preview-bg)] hover:border-emerald-500/50 text-main transition-all" data-th="-18" data-ratio="3" data-gain="4">E-Learning (-16 LUFS)</button>
+                        <button class="preset-btn py-2 text-xs font-bold rounded-lg border layout-border bg-[var(--card-bg)] hover:bg-[var(--preview-bg)] hover:border-emerald-500/50 text-main transition-all" data-th="-14" data-ratio="4" data-gain="2">Podcast (-14 LUFS)</button>
+                        <button class="preset-btn py-2 text-xs font-bold rounded-lg border layout-border bg-[var(--card-bg)] hover:bg-[var(--preview-bg)] hover:border-emerald-500/50 text-main transition-all" data-th="-24" data-ratio="6" data-gain="8">Audio Drop (Heavy)</button>
+                        <button class="preset-btn py-2 text-xs font-bold rounded-lg border layout-border bg-[var(--card-bg)] hover:bg-[var(--preview-bg)] hover:border-emerald-500/50 text-main transition-all" data-th="-20" data-ratio="2" data-gain="3">Broadcasting R128</button>
+                    </div>
+                </div>
+
+                <!-- Sliders -->
+                <div class="flex flex-col gap-5 mt-2">
+                    <!-- Gain -->
+                    <div class="flex flex-col gap-2">
+                        <div class="flex justify-between items-center text-xs font-bold text-main">
+                            <span>Target Gain (Amplifikasi)</span>
+                            <span id="val-gain" class="text-emerald-500 font-mono">0.0 dB</span>
+                        </div>
+                        <input type="range" id="comp-gain" min="-10" max="20" step="0.5" value="0" class="w-full h-2 rounded-lg appearance-none bg-[var(--preview-bg)] slider-accent cursor-pointer shadow-inner border layout-border">
+                    </div>
+                    <!-- Threshold -->
+                    <div class="flex flex-col gap-2">
+                        <div class="flex justify-between items-center text-xs font-bold text-main">
+                            <span>Compressor Threshold</span>
+                            <span id="val-threshold" class="text-emerald-500 font-mono">-24.0 dB</span>
+                        </div>
+                        <input type="range" id="comp-threshold" min="-60" max="0" step="1" value="-24" class="w-full h-2 rounded-lg appearance-none bg-[var(--preview-bg)] slider-accent cursor-pointer shadow-inner border layout-border">
+                    </div>
+                    <!-- Ratio -->
+                    <div class="flex flex-col gap-2">
+                        <div class="flex justify-between items-center text-xs font-bold text-main">
+                            <span>Compression Ratio</span>
+                            <span id="val-ratio" class="text-emerald-500 font-mono">3.0 : 1</span>
+                        </div>
+                        <input type="range" id="comp-ratio" min="1" max="20" step="0.5" value="3" class="w-full h-2 rounded-lg appearance-none bg-[var(--preview-bg)] slider-accent cursor-pointer shadow-inner border layout-border">
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 border-t layout-border bg-[var(--card-bg)] rounded-b-2xl">
+                <button id="btn-render" class="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold tracking-wide shadow-[0_4px_14px_0_rgba(16,185,129,0.39)] transition-all hover:scale-[0.98] flex items-center justify-center gap-2">
+                    <i data-lucide="zap" class="w-5 h-5 fill-current text-yellow-300"></i>
+                    Render MP4 (Hardware Accelerated)
+                </button>
+            </div>
+        </div>
+
+        <!-- Render Overlay Modal -->
+        <div id="render-overlay" class="absolute inset-0 bg-[var(--preview-bg)]/90 backdrop-blur-md z-50 hidden flex-col items-center justify-center p-6 text-center border layout-border m-4 rounded-2xl shadow-2xl">
+            <i data-lucide="aperture" class="w-12 h-12 text-emerald-500 animate-spin mb-4"></i>
+            <h2 class="text-2xl font-bold text-main mb-2">Merender Resolusi Tinggi...</h2>
+            <p class="text-dim max-w-md text-sm mb-6">Menyatukan audio termodifikasi dengan aliran video menggunakan Mesin WebCodecs Kinerja Tinggi (GPU Hardware Accelerated).</p>
+
+            <div class="w-full max-w-2xl bg-[var(--card-bg)] p-6 rounded-xl border layout-border shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)] flex flex-col gap-4">
+                <div class="flex justify-between items-end">
+                    <div class="text-left">
+                        <div class="text-[10px] font-bold text-dim uppercase tracking-widest mb-1">Status Progres</div>
+                        <div class="text-5xl font-black text-emerald-500 font-mono leading-none tracking-tighter" id="render-pct">0%</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[10px] font-bold text-dim uppercase tracking-widest mb-1">Hardware Engine</div>
+                        <div class="text-xs font-bold text-main font-mono px-2 py-1 bg-emerald-500/10 text-emerald-600 rounded border border-emerald-500/20 shadow-sm">WebCodecs API ⚡</div>
+                    </div>
+                </div>
+
+                <div class="w-full bg-[var(--preview-bg)] rounded-full h-4 overflow-hidden border layout-border relative shadow-inner">
+                    <div id="render-progress" class="bg-emerald-500 h-full w-0 transition-all duration-200 relative">
+                        <div class="absolute inset-0 bg-white/20 w-full h-full" style="animation: shimmer 2s infinite linear; background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent); transform: skewX(-20deg);"></div>
+                    </div>
+                </div>
+
+                <!-- Terminal Log Box -->
+                <div id="render-log-box" class="h-32 overflow-y-auto bg-[#0d1117] rounded-lg border layout-border p-3 text-[10px] font-mono text-slate-300 text-left flex flex-col gap-1.5 selectable mt-2 shadow-inner">
+                    <div class="text-emerald-500 font-bold">[System] Menunggu inisialisasi mesin...</div>
+                </div>
+            </div>
+            
+            <button id="btn-cancel-render" class="mt-6 text-sm font-bold text-rose-500 hover:text-rose-600 bg-rose-500/10 px-4 py-2 rounded-lg transition-colors border border-rose-500/20 hidden">
+                Batalkan Proses
+            </button>
+        </div>
+    </main>
+
+    <!-- FOOTER (h-8) -->
+    <footer class="h-8 shrink-0 bg-[var(--footer-bg)] border-t layout-border flex items-center justify-between px-6 text-xs text-dim z-10">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
+            <span class="font-medium tracking-wide uppercase">Engine: <strong class="text-main">Web Audio + WebCodecs</strong></span>
+        </div>
+        <button onclick="document.getElementById('terms-modal').style.display='flex'" class="hover:text-main transition-colors font-bold">Terms & Disclaimer</button>
+    </footer>
+
+    <!-- TERMS MODAL -->
+    <div id="terms-modal" class="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-[var(--card-bg)] p-6 rounded-2xl border layout-border max-w-lg w-full shadow-2xl flex flex-col gap-4">
+            <h3 class="text-lg font-bold text-main border-b layout-border pb-2 flex items-center gap-2">
+                <i data-lucide="shield-alert" class="w-5 h-5 text-emerald-500"></i> Terms of Use
+            </h3>
+            <div class="text-sm text-dim space-y-3 leading-relaxed h-64 overflow-y-auto pr-2 selectable">
+                <p><strong class="text-main">Smart Context:</strong> Aplikasi NormalizeAudio beroperasi sepenuhnya secara lokal di dalam peramban (browser) Anda menggunakan CPU/GPU perangkat (OfflineAudioContext & WebCodecs). Tidak ada data video atau audio yang diunggah ke server manapun.</p>
+                <p>Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan anonim tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.</p>
+            </div>
+            <button onclick="document.getElementById('terms-modal').style.display='none'" class="w-full py-2.5 bg-[var(--preview-bg)] hover:bg-[var(--border-color)] text-main font-bold rounded-lg transition-colors border layout-border">
+                Saya Setuju
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN LOGIC -->
+    <script>
+        lucide.createIcons();
+
+        // Theme Toggle
+        const rootHtml = document.documentElement;
+        document.getElementById('btn-theme').addEventListener('click', () => {
+            rootHtml.classList.toggle('dark');
+        });
+
+        // Anti Right-Click (UX Protection)
+        document.addEventListener('contextmenu', e => {
+            if (!e.target.closest('input, textarea, .allow-context, .selectable')) {
+                e.preventDefault();
+            }
+        });
+
+        // UI Elements
+        const videoInput = document.getElementById('video-input');
+        const videoPreview = document.getElementById('video-preview');
+        const placeholder = document.getElementById('video-placeholder');
+        const renderOverlay = document.getElementById('render-overlay');
+        const logBox = document.getElementById('render-log-box');
+        const btnRender = document.getElementById('btn-render');
+        const btnCancelRender = document.getElementById('btn-cancel-render');
+        
+        // Sliders
+        const slGain = document.getElementById('comp-gain');
+        const slThresh = document.getElementById('comp-threshold');
+        const slRatio = document.getElementById('comp-ratio');
+        
+        // Web Audio API State
+        let audioCtx, sourceNode;
+        let compressorNode, makeupGainNode;
+        let preAnalyser, postAnalyser;
+        let preGainNode, postGainNode;
+        let audioBufferOriginal = null;
+        let isProcessingRender = false;
+        let isRenderCanceled = false;
+
+        // Terminal Logger
+        function tlog(msg, type = 'text-slate-300') {
+            const line = document.createElement('div');
+            line.className = type;
+            line.innerText = `> ${msg}`;
+            logBox.appendChild(line);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        // Init Audio Engine (Fixed for robust playback & state handling)
+        function initAudioEngine(fileUrl) {
+            if (!audioCtx) {
+                // Inisialisasi Audio Context HANYA SATU KALI untuk mencegah DOMException
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                sourceNode = audioCtx.createMediaElementSource(videoPreview);
+                
+                preAnalyser = audioCtx.createAnalyser(); preAnalyser.fftSize = 1024;
+                postAnalyser = audioCtx.createAnalyser(); postAnalyser.fftSize = 1024;
+                
+                compressorNode = audioCtx.createDynamicsCompressor();
+                compressorNode.attack.value = 0.005;
+                compressorNode.release.value = 0.050;
+                
+                makeupGainNode = audioCtx.createGain();
+                
+                preGainNode = audioCtx.createGain();
+                postGainNode = audioCtx.createGain();
+
+                // Routing Graph
+                sourceNode.connect(preAnalyser);
+                preAnalyser.connect(preGainNode);
+                preGainNode.connect(audioCtx.destination);
+                
+                sourceNode.connect(compressorNode);
+                compressorNode.connect(makeupGainNode);
+                makeupGainNode.connect(postAnalyser);
+                postAnalyser.connect(postGainNode);
+                postGainNode.connect(audioCtx.destination);
+
+                // Pastikan audio context aktif saat user memutar video
+                videoPreview.addEventListener('play', () => {
+                    if (audioCtx.state === 'suspended') audioCtx.resume();
+                });
+
+                drawLiveSpectrum(); // Mulai loop animasi spektrum
+            }
+
+            // Terapkan URL file baru ke elemen video
+            videoPreview.src = fileUrl;
+            videoPreview.load();
+
+            updateDSPParams();
+            setMonitorState('post'); // Default ke Sesudah (Processed)
+            
+            // Auto-play dengan error handling gracefully
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            videoPreview.play().catch(e => {
+                console.log("Auto-play dicegah oleh browser. Pengguna harus menekan Play.");
+            });
+        }
+
+        function updateDSPParams() {
+            if (!compressorNode) return;
+            const thresh = parseFloat(slThresh.value);
+            const ratio = parseFloat(slRatio.value);
+            const gainDB = parseFloat(slGain.value);
+            
+            compressorNode.threshold.value = thresh;
+            compressorNode.ratio.value = ratio;
+            makeupGainNode.gain.value = Math.pow(10, gainDB / 20); // dB to Linear
+            
+            document.getElementById('val-threshold').innerText = `${thresh.toFixed(1)} dB`;
+            document.getElementById('val-ratio').innerText = `${ratio.toFixed(1)} : 1`;
+            document.getElementById('val-gain').innerText = `${gainDB > 0 ? '+'+gainDB.toFixed(1) : gainDB.toFixed(1)} dB`;
+
+            drawTimeline(); // Redraw simulation curve instantly
+        }
+
+        [slGain, slThresh, slRatio].forEach(sl => sl.addEventListener('input', updateDSPParams));
+
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                slThresh.value = e.target.dataset.th;
+                slRatio.value = e.target.dataset.ratio;
+                slGain.value = e.target.dataset.gain;
+                updateDSPParams();
+            });
+        });
+
+        // A/B Monitor Switch
+        const btnPre = document.getElementById('btn-monitor-pre');
+        const btnPost = document.getElementById('btn-monitor-post');
+        const activeLabel = document.getElementById('active-monitor-label');
+
+        function setMonitorState(state) {
+            if (!preGainNode) return;
+            if (state === 'pre') {
+                preGainNode.gain.value = 1; postGainNode.gain.value = 0;
+                btnPre.className = "px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-white dark:bg-slate-800 text-rose-500 shadow border border-rose-500/20 flex items-center gap-2";
+                btnPost.className = "px-4 py-1.5 rounded-md text-xs font-bold transition-all text-dim hover:text-main flex items-center gap-2";
+                activeLabel.innerHTML = `<div class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></div> Sebelum (Asli)`;
+                activeLabel.className = "flex items-center gap-2 text-sm font-bold text-rose-500";
+            } else {
+                preGainNode.gain.value = 0; postGainNode.gain.value = 1;
+                btnPost.className = "px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-white dark:bg-slate-800 text-emerald-500 shadow border border-emerald-500/20 flex items-center gap-2";
+                btnPre.className = "px-4 py-1.5 rounded-md text-xs font-bold transition-all text-dim hover:text-main flex items-center gap-2";
+                activeLabel.innerHTML = `<div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div> Sesudah (Processed)`;
+                activeLabel.className = "flex items-center gap-2 text-sm font-bold text-emerald-500";
+            }
+        }
+
+        btnPre.addEventListener('click', () => setMonitorState('pre'));
+        btnPost.addEventListener('click', () => setMonitorState('post'));
+
+        // Upload Logic & Audio Decoding
+        videoInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            placeholder.style.display = 'none';
+            const fileUrl = URL.createObjectURL(file);
+            initAudioEngine(fileUrl);
+            
+            // Decode full audio for timeline map
+            const arrayBuffer = await file.arrayBuffer();
+            const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+            try {
+                audioBufferOriginal = await tempCtx.decodeAudioData(arrayBuffer);
+                drawTimeline();
+            } catch (err) {
+                console.error("Format audio tidak didukung untuk mapping timeline.");
+            }
+        });
+
+        // Timeline Seek & Playhead
+        const playhead = document.getElementById('timeline-playhead');
+        videoPreview.addEventListener('timeupdate', () => {
+            if (videoPreview.duration) {
+                const pct = (videoPreview.currentTime / videoPreview.duration) * 100;
+                playhead.style.left = `${pct}%`;
+            }
+        });
+
+        document.getElementById('timeline-seek-overlay').addEventListener('click', (e) => {
+            if (!videoPreview.duration) return;
+            const rect = e.target.getBoundingClientRect();
+            const pct = (e.clientX - rect.left) / rect.width;
+            videoPreview.currentTime = pct * videoPreview.duration;
+            if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            videoPreview.play().catch(e=>{}); // Otomatis mainkan setelah melompat durasi
+        });
+
+        // Drawing Functions
+        function drawLiveSpectrum() {
+            requestAnimationFrame(drawLiveSpectrum);
+            if(!preAnalyser || !postAnalyser) return;
+            
+            const canvas = document.getElementById('spectrum-canvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width = canvas.offsetWidth;
+            const height = canvas.height = canvas.offsetHeight;
+            
+            const preData = new Uint8Array(preAnalyser.frequencyBinCount);
+            preAnalyser.getByteFrequencyData(preData);
+            
+            const postData = new Uint8Array(postAnalyser.frequencyBinCount);
+            postAnalyser.getByteFrequencyData(postData);
+            
+            ctx.clearRect(0,0,width,height);
+            
+            const barWidth = (width / 80); // reduced bars for aesthetics
+            let x = 0;
+            
+            // Pre (Bars)
+            ctx.fillStyle = 'rgba(244, 63, 94, 0.4)'; // Rose
+            for(let i=0; i<80; i++) {
+                const barHeight = (preData[i] / 255) * height;
+                ctx.fillRect(x, height - barHeight, barWidth - 1, barHeight);
+                x += barWidth;
+            }
+            
+            // Post (Curve)
+            ctx.beginPath();
+            ctx.strokeStyle = '#10b981'; // Emerald
+            ctx.lineWidth = 2.5;
+            x = 0;
+            for(let i=0; i<80; i++) {
+                const y = height - ((postData[i] / 255) * height);
+                if(i===0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+                x += barWidth;
+            }
+            ctx.stroke();
+        }
+
+        function drawTimeline() {
+            if(!audioBufferOriginal) return;
+            const canvas = document.getElementById('timeline-canvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width = canvas.offsetWidth;
+            const height = canvas.height = canvas.offsetHeight;
+            
+            const data = audioBufferOriginal.getChannelData(0);
+            const step = Math.ceil(data.length / width);
+            
+            ctx.clearRect(0,0,width,height);
+            
+            // Draw Pre (Red bars)
+            ctx.fillStyle = 'rgba(244, 63, 94, 0.3)';
+            for(let i=0; i<width; i++) {
+                let min = 1.0, max = -1.0;
+                for(let j=0; j<step; j++) {
+                    const datum = data[(i*step)+j];
+                    if (datum < min) min = datum;
+                    if (datum > max) max = datum;
+                }
+                const y = (1 + min) * height / 2;
+                const h = Math.max(1, (max - min) * height / 2);
+                ctx.fillRect(i, y, 1, h);
+            }
+            
+            // Draw Post Simulation (Green Curve)
+            const thresh = parseFloat(slThresh.value);
+            const ratio = parseFloat(slRatio.value);
+            const makeup = parseFloat(slGain.value);
+            
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            for(let i=0; i<width; i++) {
+                let peak = 0;
+                for(let j=0; j<step; j++) {
+                    const val = Math.abs(data[(i*step)+j]);
+                    if(val > peak) peak = val;
+                }
+                
+                let peakDb = 20 * Math.log10(peak || 0.0001);
+                let outDb = peakDb;
+                if (peakDb > thresh) outDb = thresh + (peakDb - thresh) / ratio;
+                outDb += makeup;
+                
+                let outLinear = Math.pow(10, outDb / 20);
+                outLinear = Math.min(1, outLinear);
+                
+                const y = height / 2 - (outLinear * height / 2);
+                if(i===0) ctx.moveTo(i, y);
+                else ctx.lineTo(i, y);
+            }
+            ctx.stroke();
+        }
+
+        window.addEventListener('resize', () => { drawTimeline(); });
+
+        // Offline Fast Render Audio Generator
+        async function generateNormalizedAudioBuffer() {
+            const sr = audioBufferOriginal.sampleRate;
+            const offlineCtx = new OfflineAudioContext(audioBufferOriginal.numberOfChannels, audioBufferOriginal.length, sr);
+            const source = offlineCtx.createBufferSource();
+            source.buffer = audioBufferOriginal;
+
+            const comp = offlineCtx.createDynamicsCompressor();
+            comp.threshold.value = parseFloat(slThresh.value);
+            comp.ratio.value = parseFloat(slRatio.value);
+            comp.attack.value = 0.005;
+            comp.release.value = 0.050;
+
+            const gain = offlineCtx.createGain();
+            gain.gain.value = Math.pow(10, parseFloat(slGain.value) / 20);
+
+            source.connect(comp);
+            comp.connect(gain);
+            gain.connect(offlineCtx.destination);
+
+            source.start(0);
+            return await offlineCtx.startRendering();
+        }
+
+        // ==========================================
+        // FAST WEBCODECS RENDER PIPELINE
+        // ==========================================
+        btnCancelRender.addEventListener('click', () => { isRenderCanceled = true; });
+
+        btnRender.addEventListener('click', async () => {
+            const file = videoInput.files[0];
+            if (!file || !audioBufferOriginal) {
+                alert("Harap unggah video MP4 terlebih dahulu."); return;
+            }
+            if (!window.VideoEncoder || !window.AudioEncoder) {
+                alert("Browser Anda tidak mendukung WebCodecs API (Chrome/Edge terbaru disarankan)."); return;
+            }
+
+            // UI Setup
+            renderOverlay.classList.remove('hidden');
+            renderOverlay.classList.add('flex');
+            btnCancelRender.classList.remove('hidden');
+            logBox.innerHTML = '';
+            
+            isRenderCanceled = false;
+            isProcessingRender = true;
+            videoPreview.pause();
+
+            const pctText = document.getElementById('render-pct');
+            const pb = document.getElementById('render-progress');
+
+            try {
+                tlog("🚀 Memulai Pipeline Remuxing WebCodecs Hardware Accelerated...", "text-blue-400 font-bold");
+                
+                // 1. Offline Audio Processing (DSP CPU)
+                tlog("Memproses Dinamika Audio secara Offline (Sangat Cepat)...");
+                const processedAudio = await generateNormalizedAudioBuffer();
+                const audioSr = processedAudio.sampleRate;
+                const audioCh = processedAudio.numberOfChannels;
+                pctText.innerText = "10%"; pb.style.width = "10%";
+
+                // 2. Extract Video Info (MP4Box Demuxer)
+                tlog("Membongkar Header MP4 (Demuxing)...");
+                let origFPS = 30, videoTrackId = null, vCodec = '', description = null;
+                let vWidth = videoPreview.videoWidth || 1280, vHeight = videoPreview.videoHeight || 720;
+
+                await new Promise((resolve, reject) => {
+                    const mp4boxfile = MP4Box.createFile();
+                    mp4boxfile.onError = reject;
+                    mp4boxfile.onReady = (info) => {
+                        const vt = info.videoTracks[0];
+                        if (!vt) return reject(new Error("Track video tidak ditemukan."));
+                        videoTrackId = vt.id; vCodec = vt.codec;
+                        origFPS = vt.nb_samples / (info.duration / info.timescale) || 30;
+                        
+                        const trak = mp4boxfile.getTrackById(vt.id);
+                        try {
+                            for (const entry of trak.mdia.minf.stbl.stsd.entries) {
+                                if (entry.avcC) {
+                                    const stream = new DataStream(undefined, 0, DataStream.BIG_ENDIAN);
+                                    entry.avcC.write(stream); description = new Uint8Array(stream.buffer, 8); break;
+                                }
+                            }
+                        } catch(e){}
+                        resolve();
+                    };
+                    const reader = new FileReader();
+                    reader.onload = e => { const b = e.target.result; b.fileStart = 0; mp4boxfile.appendBuffer(b); };
+                    reader.readAsArrayBuffer(file.slice(0, 5000000));
+                });
+                
+                tlog(`Dimensi Video: ${vWidth}x${vHeight} @ ${origFPS.toFixed(1)} FPS.`);
+                pctText.innerText = "15%"; pb.style.width = "15%";
+
+                // 3. Muxer Setup
+                const muxer = new Mp4Muxer.Muxer({
+                    target: new Mp4Muxer.ArrayBufferTarget(),
+                    video: { codec: 'avc', width: vWidth, height: vHeight },
+                    audio: { codec: 'aac', sampleRate: audioSr, numberOfChannels: audioCh },
+                    fastStart: 'in-memory'
+                });
+
+                // 4. Audio Encoder Setup (Video disalin langsung, tidak di-encode)
+                let isPipelineFailed = false;
+                tlog("Menginisialisasi Audio Encoder (AAC Hardware)...");
+                const audioEncoder = new AudioEncoder({ 
+                    output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), 
+                    error: e => { isPipelineFailed=true; throw e; } 
+                });
+                audioEncoder.configure({ codec: 'mp4a.40.2', sampleRate: audioSr, numberOfChannels: audioCh, bitrate: 192000 });
+
+                let expectedFrames = Math.floor((processedAudio.length / audioSr) * origFPS);
+
+                // 5. Encode Audio to AAC
+                tlog("Menyuntikkan Audio Baru (Normalisasi)...");
+                const framesPerChunk = audioSr; // 1 detik per chunk
+                for (let offset = 0; offset < processedAudio.length; offset += framesPerChunk) {
+                    if(isRenderCanceled) break;
+                    const frameCount = Math.min(framesPerChunk, processedAudio.length - offset);
+                    const data = new Float32Array(frameCount * audioCh);
+                    for (let c = 0; c < audioCh; c++) data.set(processedAudio.getChannelData(c).subarray(offset, offset + frameCount), c * frameCount);
+                    const aData = new AudioData({ format: 'f32-planar', sampleRate: audioSr, numberOfFrames: frameCount, numberOfChannels: audioCh, timestamp: (offset / audioSr) * 1000000, data });
+                    audioEncoder.encode(aData); aData.close();
+                    
+                    const prog = 15 + ((offset / processedAudio.length) * 35);
+                    pctText.innerText = `${Math.floor(prog)}%`; pb.style.width = `${prog}%`;
+                    await new Promise(r => setTimeout(r, 0)); // Yield thread (Cegah Freeze)
+                }
+                await audioEncoder.flush(); audioEncoder.close();
+
+                // 6. True Remuxing: Salin Data Video Asli (Tanpa Decoding)
+                tlog("Mengeksekusi Remuxing Video (Kecepatan ⚡ Maksimal)...");
+                await new Promise((resolve, reject) => {
+                    const mp4boxfile = MP4Box.createFile();
+                    mp4boxfile.onError = reject;
+                    mp4boxfile.onReady = () => { 
+                        mp4boxfile.setExtractionOptions(videoTrackId); 
+                        mp4boxfile.start(); 
+                    };
+                    
+                    let processedSamples = 0;
+                    mp4boxfile.onSamples = (id, user, samples) => {
+                        for (const sample of samples) {
+                            if(isRenderCanceled) break;
+                            
+                            // Langsung masukkan bitstream mentah ke Muxer (Passthrough)
+                            const chunk = new EncodedVideoChunk({ 
+                                type: sample.is_sync ? 'key' : 'delta', 
+                                timestamp: (sample.cts / sample.timescale) * 1e6, 
+                                duration: (sample.duration / sample.timescale) * 1e6, 
+                                data: sample.data 
+                            });
+                            
+                            const meta = {};
+                            // Sertakan header extradata/avcC di keyframe
+                            if (sample.is_sync && description) {
+                                meta.decoderConfig = { codec: vCodec, codedWidth: vWidth, codedHeight: vHeight, description: description };
+                            }
+                            
+                            muxer.addVideoChunk(chunk, meta);
+                            processedSamples++;
+                        }
+                        
+                        // Update Progress Video (50% hingga 95%)
+                        if (expectedFrames > 0) {
+                            const prog = 50 + Math.min(45, (processedSamples / expectedFrames) * 45);
+                            pctText.innerText = `${Math.floor(prog)}%`; pb.style.width = `${prog}%`;
+                        }
+                    };
+                    
+                    const reader = new FileReader(); let offset = 0; const chunkSize = 15 * 1024 * 1024; // 15MB per sedotan
+                    reader.onload = async (e) => {
+                        if(isRenderCanceled || isPipelineFailed) return resolve();
+                        const b = e.target.result; b.fileStart = offset; offset += b.byteLength;
+                        mp4boxfile.appendBuffer(b);
+                        
+                        if (offset < file.size) {
+                            await new Promise(r => setTimeout(r, 0)); // Cegah UI Freeze
+                            reader.readAsArrayBuffer(file.slice(offset, offset + chunkSize));
+                        }
+                        else { 
+                            mp4boxfile.flush(); resolve(); 
+                        }
+                    };
+                    reader.readAsArrayBuffer(file.slice(0, chunkSize));
+                });
+
+                if (isRenderCanceled) throw new Error("Dibatalkan pengguna.");
+                if (isPipelineFailed) throw new Error("Terjadi kesalahan pada Pipeline.");
+
+                tlog("Merakit file MP4 Final (Muxing)...");
+                pctText.innerText = "95%"; pb.style.width = "95%";
+                muxer.finalize();
+                
+                // Download
+                const blob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = `NormalizeAudio_Pro_${Date.now()}.mp4`; a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+                tlog("✅ RENDER SUKSES!", "text-emerald-500 font-bold text-lg");
+                pctText.innerText = "100%"; pb.style.width = "100%";
+                btnCancelRender.classList.add('hidden');
+                setTimeout(() => {
+                    renderOverlay.classList.remove('flex'); renderOverlay.classList.add('hidden');
+                    pctText.innerText = "0%"; pb.style.width = "0%";
+                }, 3000);
+
+            } catch (err) {
+                tlog(`❌ GAGAL: ${err.message}`, "text-rose-500 font-bold text-lg");
+                pb.style.backgroundColor = '#f43f5e';
+                btnCancelRender.innerText = "Tutup Peringatan";
+                btnCancelRender.onclick = () => {
+                    renderOverlay.classList.remove('flex'); renderOverlay.classList.add('hidden');
+                    pctText.innerText = "0%"; pb.style.width = "0%"; pb.style.backgroundColor = '#10b981';
+                };
+            } finally {
+                isProcessingRender = false;
+            }
+        });
+
+    </script>
+</body>
+</html>

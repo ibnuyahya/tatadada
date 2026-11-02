@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>mangbomber</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* TATADADA CSS TOKENS */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9; /* Selokan kedalaman */
+            --card-bg: #ffffff;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #f97316; /* Amber/Orange Accent */
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409; /* Selokan gelap */
+            --card-bg: #0d1117;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            margin: 0;
+            padding: 0;
+            touch-action: none;
+        }
+
+        /* CUSTOM SCROLLBAR */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: var(--text-dim); }
+
+        /* GAME INTERNAL STYLES */
+        #game-container {
+            position: relative; 
+            width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            background-color: #0f172a;
+            background-image: 
+                linear-gradient(rgba(249, 115, 22, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(249, 115, 22, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            overflow: hidden;
+        }
+
+        canvas {
+            background: #1e293b;
+            border: 4px solid #334155; 
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 20px rgba(249, 115, 22, 0.2);
+            max-width: 100%; max-height: 100%;
+            image-rendering: pixelated;
+        }
+
+        /* UI Overlays */
+        #ui-top-bar {
+            position: absolute; top: 10px; left: 10px; right: 10px;
+            display: flex; justify-content: space-between; z-index: 20;
+            pointer-events: none;
+        }
+        
+        .hud-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 900;
+            color: #f97316;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            font-size: 1.25rem;
+        }
+
+        #menu-overlay, #game-over-overlay {
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.9);
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; z-index: 50; text-align: center;
+        }
+        #game-over-overlay { display: none; }
+        
+        .game-btn { 
+            background: linear-gradient(135deg, #f97316, #c2410c);
+            padding: 12px 32px; border-radius: 8px; font-weight: 900;
+            cursor: pointer; transition: all 0.2s ease;
+            margin-top: 20px; color: white;
+            border: 2px solid #fdba74; box-shadow: 0 4px 0 #9a3412;
+            text-transform: uppercase; letter-spacing: 1px;
+            pointer-events: auto;
+        }
+        .game-btn:active { transform: translateY(4px); box-shadow: 0 0 0 #9a3412; }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            position: absolute; bottom: 20px; left: 0; right: 0;
+            display: flex; justify-content: space-between; align-items: flex-end;
+            padding: 0 20px; z-index: 30; pointer-events: none;
+        }
+
+        .d-pad {
+            position: relative; width: 120px; height: 120px;
+            pointer-events: auto;
+        }
+        .d-btn {
+            position: absolute; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 8px; display: flex; justify-content: center; align-items: center;
+            color: rgba(255,255,255,0.5); font-weight: bold; user-select: none;
+        }
+        .d-btn:active { background: rgba(249, 115, 22, 0.4); border-color: #f97316; color: white; }
+        .d-up { top: 0; left: 40px; width: 40px; height: 40px; }
+        .d-down { bottom: 0; left: 40px; width: 40px; height: 40px; }
+        .d-left { top: 40px; left: 0; width: 40px; height: 40px; }
+        .d-right { top: 40px; right: 0; width: 40px; height: 40px; }
+
+        .action-btn {
+            width: 70px; height: 70px; border-radius: 50%;
+            background: rgba(239, 68, 68, 0.2); border: 3px solid rgba(239, 68, 68, 0.5);
+            color: rgba(255,255,255,0.6); display: flex; justify-content: center; align-items: center;
+            font-weight: 900; pointer-events: auto; user-select: none; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .action-btn:active { background: rgba(239, 68, 68, 0.6); border-color: #ef4444; color: white; transform: scale(0.95); }
+
+        @media (min-width: 768px) {
+            #mobile-controls { display: none; }
+        }
+
+        .text-dim { color: var(--text-dim); }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER -->
+    <header class="flex items-center justify-between px-6 h-14 border-b shrink-0 relative z-50 transition-colors" style="background-color: var(--header-bg); border-color: var(--border-color);">
+        <div class="flex items-center gap-3">
+            <h1 class="text-xl font-black bg-gradient-to-r from-orange-500 to-amber-400 bg-clip-text text-transparent italic tracking-tighter">mangbomber</h1>
+            <span class="text-[10px] font-mono italic text-dim hidden sm:inline-block">v4.0</span>
+            <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 transition-colors hidden sm:inline-block">by AhmadDanial</a>
+            
+            <!-- Tooltip -->
+            <div class="group relative flex items-center justify-center cursor-help ml-2 hover:text-orange-500 transition-colors text-dim">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+                <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-3 border rounded shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-[10px]" 
+                     style="background-color: var(--header-bg); border-color: var(--border-color); color: var(--text-main);"
+                     id="help-text">
+                    Gunakan WASD/Panah atau D-Pad untuk bergerak. Spasi atau tombol merah untuk meletakkan BOM. Hancurkan kotak, hindari ledakan dan musuh!
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-5">
+            <button id="langToggle" class="text-sm font-bold flex items-center gap-1 hover:opacity-70 transition-opacity" style="color: var(--text-main);">
+                <span id="langIcon">🇮🇩</span> <span id="langText">ID</span>
+            </button>
+            <button id="themeToggle" class="hover:opacity-70 transition-opacity" style="color: var(--text-main);">
+                <i data-lucide="sun" id="themeIcon" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE (CARD LAYOUT DENGAN SELOKAN/GUTTER) -->
+    <main class="flex-1 relative overflow-hidden flex items-center justify-center p-2 sm:p-6" style="background-color: var(--preview-bg);">
+        <div class="max-w-5xl mx-auto w-full h-full relative rounded-2xl shadow-xl border overflow-hidden flex flex-col transition-colors" 
+             style="background-color: var(--card-bg); border-color: var(--border-color);">
+            
+            <div id="game-container" class="rounded-xl overflow-hidden m-2">
+                <canvas id="gameCanvas"></canvas>
+                
+                <!-- HUD -->
+                <div id="ui-top-bar">
+                    <div class="hud-text">SKOR: <span id="scoreVal">0</span></div>
+                    <div class="hud-text text-red-400" id="lifeVal">❤️ x3</div>
+                </div>
+
+                <!-- Mobile Controls -->
+                <div id="mobile-controls">
+                    <div class="d-pad">
+                        <div class="d-btn d-up" id="btn-up">W</div>
+                        <div class="d-btn d-left" id="btn-left">A</div>
+                        <div class="d-btn d-right" id="btn-right">D</div>
+                        <div class="d-btn d-down" id="btn-down">S</div>
+                    </div>
+                    <div class="action-btn" id="btn-bomb">BOMB</div>
+                </div>
+
+                <!-- Main Menu -->
+                <div id="menu-overlay">
+                    <h1 class="text-5xl md:text-7xl font-black italic tracking-tighter text-orange-400 mb-2 drop-shadow-[0_0_15px_rgba(249,115,22,0.5)]">mangbomber</h1>
+                    <p class="text-amber-200 font-bold tracking-[0.3em] text-[10px] md:text-xs uppercase mb-8" id="subtitle-text">Hancurkan Jalurmu</p>
+                    <div id="start-btn" class="game-btn">Mulai Bermain</div>
+                    <p class="text-[10px] text-gray-400 mt-4 max-w-xs" id="bgm-note">(Lagu BGM akan diputar saat game dimulai)</p>
+                </div>
+
+                <!-- Game Over Menu -->
+                <div id="game-over-overlay">
+                    <h2 class="text-5xl font-black italic text-red-500 mb-2 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]" id="go-title">GUGUR!</h2>
+                    <p class="text-white text-xl mb-6 font-mono" id="go-score-text">Skor Akhir: <span id="final-score" class="text-orange-400 font-bold">0</span></p>
+                    <div id="restart-btn" class="game-btn bg-red-600 border-red-400 shadow-[0_4px_0_#991b1b]">Main Lagi</div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="flex items-center justify-between px-6 h-8 border-t shrink-0 z-50 text-[10px] transition-colors" style="background-color: var(--footer-bg); border-color: var(--border-color); color: var(--text-dim);">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span id="footer-status">Sistem Rendering Online</span>
+        </div>
+        <div>
+            <span class="font-mono" id="footer-audio">BGM: 8-Bit Synth</span>
+        </div>
+        <button id="termsBtn" class="hover:underline hover:text-orange-500 transition-colors">Terms of Use</button>
+    </footer>
+
+    <!-- TERMS MODAL (STRICT & SMART MODE) -->
+    <div id="termsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm justify-center items-center z-[100] hidden flex">
+        <div class="border p-6 rounded-2xl max-w-lg w-full shadow-2xl relative mx-4" style="background-color: var(--card-bg); border-color: var(--border-color);">
+            <h2 class="text-xl font-black mb-4 flex items-center gap-2" style="color: var(--text-main);">
+                <i data-lucide="shield-alert" class="text-orange-500 w-5 h-5"></i> 
+                <span id="terms-title">Ketentuan Penggunaan</span>
+            </h2>
+            
+            <!-- Smart Context Section -->
+            <p class="text-sm mb-4 leading-relaxed font-medium" style="color: var(--theme-accent);" id="terms-context">
+                <strong class="font-bold">Konteks Aplikasi:</strong> Aplikasi "mangbomber" beroperasi sepenuhnya di peramban lokal perangkat Anda menggunakan logika Javascript Vanilla dan API Audio Web. Game ini tidak melakukan transmisi data skor, status kehidupan, maupun input kendali ke peladen eksternal mana pun.
+            </p>
+
+            <!-- Mandatory Legal Section -->
+            <p class="text-sm mb-6 leading-relaxed p-4 rounded-xl" style="background-color: var(--preview-bg); color: var(--text-dim);" id="terms-content">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.
+            </p>
+            
+            <div class="flex justify-end">
+                <button id="closeTermsBtn" class="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-lg text-xs font-bold transition-all shadow-md shadow-orange-500/20 active:scale-95" id="terms-close">
+                    Saya Mengerti
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIC -->
+    <script>
+        lucide.createIcons();
+
+        // --- THEME & I18N SETUP (TATADADA FRAMEWORK) ---
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const htmlElement = document.documentElement;
+
+        const applyTheme = (isDark) => {
+            if (isDark) {
+                htmlElement.classList.add('dark');
+                themeIcon.setAttribute('data-lucide', 'sun');
+            } else {
+                htmlElement.classList.remove('dark');
+                themeIcon.setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons();
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        };
+        applyTheme(localStorage.getItem('theme') === 'dark');
+        themeToggle.addEventListener('click', () => applyTheme(!htmlElement.classList.contains('dark')));
+
+        // TERMS MODAL LOGIC
+        const termsModal = document.getElementById('termsModal');
+        const termsBtn = document.getElementById('termsBtn');
+        const closeTermsBtn = document.getElementById('closeTermsBtn');
+
+        termsBtn.addEventListener('click', () => { termsModal.classList.remove('hidden'); termsModal.classList.add('flex'); });
+        closeTermsBtn.addEventListener('click', () => { termsModal.classList.add('hidden'); termsModal.classList.remove('flex'); });
+
+        let isIndo = localStorage.getItem('lang') !== 'en';
+        
+        const applyLang = () => {
+            document.getElementById('langIcon').textContent = isIndo ? '🇮🇩' : '🇬🇧';
+            document.getElementById('langText').textContent = isIndo ? 'ID' : 'EN';
+            document.getElementById('help-text').textContent = isIndo ? "Gunakan WASD/Panah atau D-Pad untuk bergerak. Spasi atau tombol merah untuk meletakkan BOM. Hancurkan kotak, hindari ledakan dan musuh!" : "Use WASD/Arrows or D-Pad to move. Space or red button to place BOMB. Destroy crates, avoid explosions and enemies!";
+            document.getElementById('start-btn').textContent = isIndo ? 'Mulai Bermain' : 'Start Game';
+            document.getElementById('go-title').textContent = isIndo ? 'GUGUR!' : 'ELIMINATED!';
+            document.getElementById('restart-btn').textContent = isIndo ? 'Main Lagi' : 'Play Again';
+            document.getElementById('subtitle-text').textContent = isIndo ? 'Hancurkan Jalurmu' : 'Blast Your Way';
+            document.getElementById('bgm-note').textContent = isIndo ? '(Lagu BGM akan diputar saat game dimulai)' : '(BGM will play when the game starts)';
+            document.getElementById('go-score-text').innerHTML = isIndo ? 'Skor Akhir: <span id="final-score" class="text-orange-400 font-bold">0</span>' : 'Final Score: <span id="final-score" class="text-orange-400 font-bold">0</span>';
+            document.getElementById('footer-status').textContent = isIndo ? 'Sistem Rendering Online' : 'Rendering System Online';
+            
+            // Terms Translation
+            document.getElementById('terms-title').textContent = isIndo ? 'Ketentuan Penggunaan' : 'Terms of Use';
+            document.getElementById('terms-context').innerHTML = isIndo 
+                ? '<strong class="font-bold">Konteks Aplikasi:</strong> Aplikasi "mangbomber" beroperasi sepenuhnya di peramban lokal perangkat Anda menggunakan logika Javascript Vanilla dan API Audio Web. Game ini tidak melakukan transmisi data skor, status kehidupan, maupun input kendali ke peladen eksternal mana pun.'
+                : '<strong class="font-bold">App Context:</strong> The "mangbomber" app operates entirely within your local device browser using Vanilla Javascript logic and the Web Audio API. This game does not transmit score data, life status, or control inputs to any external servers.';
+            document.getElementById('terms-content').textContent = isIndo
+                ? "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini tidak menyimpan data pribadi Anda di server kami. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya."
+                : "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app does not store your personal data on our servers. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.";
+            document.getElementById('closeTermsBtn').textContent = isIndo ? 'Saya Mengerti' : 'I Understand';
+        };
+        applyLang();
+
+        document.getElementById('langToggle').addEventListener('click', () => {
+            isIndo = !isIndo;
+            localStorage.setItem('lang', isIndo ? 'id' : 'en');
+            applyLang();
+        });
+
+        // --- AUDIO SYNTHESIZER (8-BIT CHIPTUNE BGM & SFX) ---
+        const AudioSys = {
+            ctx: null,
+            bgmOscillator: null,
+            bgmGain: null,
+            isPlaying: false,
+            tempo: 160, 
+            noteIndex: 0,
+            nextNoteTime: 0,
+            intervalId: null,
+            
+            melody: [
+                523.25, 0, 392.00, 0, 329.63, 0, 392.00, 0,  587.33, 0, 493.88, 0, 392.00, 0, 493.88, 0, 
+                523.25, 0, 392.00, 0, 329.63, 0, 392.00, 0,  587.33, 0, 493.88, 0, 392.00, 0, 493.88, 0, 
+                659.25, 0, 523.25, 0, 440.00, 0, 523.25, 0,  587.33, 0, 493.88, 0, 392.00, 0, 493.88, 0, 
+                523.25, 0, 0,      0, 523.25, 0, 0,      0,  523.25, 0, 0,      0, 0,      0, 0,      0  
+            ],
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+            },
+
+            playBGM() {
+                this.init();
+                if (this.isPlaying) return;
+                this.isPlaying = true;
+                this.noteIndex = 0;
+                this.nextNoteTime = this.ctx.currentTime + 0.1;
+                
+                const lookahead = 25.0;
+                const scheduleAheadTime = 0.1;
+
+                const scheduleNote = () => {
+                    while (this.nextNoteTime < this.ctx.currentTime + scheduleAheadTime) {
+                        if (this.melody[this.noteIndex] !== 0) {
+                            this.playSynthNote(this.melody[this.noteIndex], this.nextNoteTime);
+                        }
+                        
+                        const secondsPerBeat = 60.0 / this.tempo;
+                        this.nextNoteTime += 0.25 * secondsPerBeat; 
+                        
+                        this.noteIndex++;
+                        if (this.noteIndex >= this.melody.length) {
+                            this.noteIndex = 0;
+                        }
+                    }
+                    if(this.isPlaying) {
+                        this.intervalId = setTimeout(scheduleNote, lookahead);
+                    }
+                };
+                scheduleNote();
+            },
+
+            stopBGM() {
+                this.isPlaying = false;
+                clearTimeout(this.intervalId);
+            },
+
+            playSynthNote(freq, time) {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square'; 
+                osc.frequency.setValueAtTime(freq, time);
+                gain.gain.setValueAtTime(0.08, time); 
+                gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(time);
+                osc.stop(time + 0.1);
+            },
+
+            sfxBombDrop() {
+                if(!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.1);
+            },
+
+            sfxExplosion() {
+                if(!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(100, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(10, this.ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.3);
+            },
+
+            sfxDead() {
+                if(!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(50, this.ctx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.5);
+            }
+        };
+
+
+        // --- GAME ENGINE (BOMBERMAN CLONE) ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const TILE_SIZE = 40;
+        const COLS = 15;
+        const ROWS = 11;
+        canvas.width = COLS * TILE_SIZE;
+        canvas.height = ROWS * TILE_SIZE;
+
+        const EMPTY = 0;
+        const WALL = 1;
+        const BRICK = 2;
+
+        let map = [];
+        let player = null;
+        let bombs = [];
+        let explosions = [];
+        let enemies = [];
+        let score = 0;
+        let lives = 3;
+        let gameState = 'menu'; 
+        let animationId;
+        let frameCount = 0;
+
+        const keys = { w: false, a: false, s: false, d: false, space: false };
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'w' || e.key === 'ArrowUp') keys.w = true;
+            if (e.key === 'a' || e.key === 'ArrowLeft') keys.a = true;
+            if (e.key === 's' || e.key === 'ArrowDown') keys.s = true;
+            if (e.key === 'd' || e.key === 'ArrowRight') keys.d = true;
+            if (e.key === ' ' && gameState === 'playing' && !keys.space) {
+                keys.space = true;
+                player.placeBomb();
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'w' || e.key === 'ArrowUp') keys.w = false;
+            if (e.key === 'a' || e.key === 'ArrowLeft') keys.a = false;
+            if (e.key === 's' || e.key === 'ArrowDown') keys.s = false;
+            if (e.key === 'd' || e.key === 'ArrowRight') keys.d = false;
+            if (e.key === ' ') keys.space = false;
+        });
+
+        const bindTouch = (id, keyChar) => {
+            const el = document.getElementById(id);
+            el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyChar] = true; if(keyChar==='space' && gameState==='playing') player.placeBomb(); });
+            el.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyChar] = false; });
+        };
+        bindTouch('btn-up', 'w'); bindTouch('btn-left', 'a'); bindTouch('btn-down', 's'); bindTouch('btn-right', 'd'); bindTouch('btn-bomb', 'space');
+
+
+        class Player {
+            constructor() {
+                this.x = TILE_SIZE * 1;
+                this.y = TILE_SIZE * 1;
+                this.size = TILE_SIZE * 0.65;
+                this.speed = 2.5;
+                this.maxBombs = 1;
+                this.bombRadius = 2;
+                this.isDead = false;
+                this.dir = 2; 
+                this.walkCycle = 0;
+            }
+
+            update() {
+                if(this.isDead) return;
+
+                let dx = 0, dy = 0;
+                let isMoving = false;
+                if (keys.w) { dy -= this.speed; this.dir = 0; isMoving = true; }
+                if (keys.s) { dy += this.speed; this.dir = 2; isMoving = true; }
+                if (keys.a) { dx -= this.speed; this.dir = 3; isMoving = true; }
+                if (keys.d) { dx += this.speed; this.dir = 1; isMoving = true; }
+
+                if (isMoving) {
+                    this.move(dx, dy);
+                    this.walkCycle += 0.2;
+                } else {
+                    this.walkCycle = 0; 
+                }
+
+                const margin = (TILE_SIZE - this.size) / 2;
+                const left = this.x + margin;
+                const right = this.x + this.size + margin;
+                const top = this.y + margin;
+                const bottom = this.y + this.size + margin;
+
+                for(let b of bombs) {
+                    if (!b.solid) {
+                        const bLeft = b.x; const bRight = b.x + TILE_SIZE;
+                        const bTop = b.y; const bBottom = b.y + TILE_SIZE;
+                        if (right <= bLeft || left >= bRight || bottom <= bTop || top >= bBottom) {
+                            b.solid = true;
+                        }
+                    }
+                }
+            }
+
+            move(dx, dy) {
+                this.x += dx;
+                if (this.checkCollision()) {
+                    this.x -= dx;
+                    if(dx !== 0 && dy === 0) {
+                        let centerRow = (this.y + TILE_SIZE/2) / TILE_SIZE;
+                        if(centerRow % 1 < 0.3) this.y -= this.speed;
+                        if(centerRow % 1 > 0.7) this.y += this.speed;
+                    }
+                }
+                
+                this.y += dy;
+                if (this.checkCollision()) {
+                    this.y -= dy;
+                    if(dy !== 0 && dx === 0) {
+                        let centerCol = (this.x + TILE_SIZE/2) / TILE_SIZE;
+                        if(centerCol % 1 < 0.3) this.x -= this.speed;
+                        if(centerCol % 1 > 0.7) this.x += this.speed;
+                    }
+                }
+            }
+
+            checkCollision() {
+                const margin = (TILE_SIZE - this.size) / 2;
+                const left = this.x + margin;
+                const right = this.x + this.size + margin;
+                const top = this.y + margin;
+                const bottom = this.y + this.size + margin;
+
+                const c1 = Math.floor(left / TILE_SIZE);
+                const r1 = Math.floor(top / TILE_SIZE);
+                const c2 = Math.floor((right - 1) / TILE_SIZE);
+                const r2 = Math.floor((bottom - 1) / TILE_SIZE);
+
+                if(c1 < 0 || c2 >= COLS || r1 < 0 || r2 >= ROWS) return true;
+
+                for(let r = r1; r <= r2; r++) {
+                    for(let c = c1; c <= c2; c++) {
+                        if (map[r][c] !== EMPTY) return true;
+                    }
+                }
+                
+                for(let b of bombs) {
+                    if (b.solid) {
+                        const bLeft = b.x; const bRight = b.x + TILE_SIZE;
+                        const bTop = b.y; const bBottom = b.y + TILE_SIZE;
+                        if (left < bRight && right > bLeft && top < bBottom && bottom > bTop) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            placeBomb() {
+                if (bombs.length < this.maxBombs) {
+                    const c = Math.floor((this.x + TILE_SIZE/2) / TILE_SIZE);
+                    const r = Math.floor((this.y + TILE_SIZE/2) / TILE_SIZE);
+                    
+                    for(let b of bombs) {
+                        if(b.col === c && b.row === r) return;
+                    }
+
+                    bombs.push(new Bomb(c, r, this.bombRadius));
+                    AudioSys.sfxBombDrop();
+                }
+            }
+
+            draw() {
+                if(this.isDead) return;
+                const cx = this.x + TILE_SIZE/2;
+                const cy = this.y + TILE_SIZE/2;
+                const bobbing = Math.sin(this.walkCycle) * 2; 
+
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.beginPath(); ctx.ellipse(cx, cy + 12, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
+                
+                if (this.dir === 0 || this.dir === 1 || this.dir === 3) {
+                    ctx.fillStyle = '#64748b'; 
+                    ctx.fillRect(cx - 6, cy - 8 + bobbing, 12, 14);
+                    if (keys.w || keys.a || keys.s || keys.d) {
+                        ctx.fillStyle = '#38bdf8';
+                        ctx.beginPath(); ctx.arc(cx - 3, cy + 8 + bobbing, 3, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(cx + 3, cy + 8 + bobbing, 3, 0, Math.PI*2); ctx.fill();
+                    }
+                }
+
+                ctx.fillStyle = '#059669'; 
+                ctx.beginPath();
+                ctx.roundRect(cx - 8, cy - 2 + bobbing, 16, 12, 4);
+                ctx.fill();
+
+                ctx.fillStyle = '#f8fafc'; 
+                ctx.beginPath();
+                ctx.arc(cx, cy - 6 + bobbing, 10, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                ctx.beginPath();
+                ctx.arc(cx, cy - 6 + bobbing, 10, 0, Math.PI);
+                ctx.fill();
+
+                if (this.dir !== 0) { 
+                    ctx.fillStyle = '#0f172a'; 
+                    const visorW = this.dir === 2 ? 14 : 10;
+                    const visorX = this.dir === 2 ? cx - 7 : (this.dir === 1 ? cx : cx - 10);
+                    ctx.fillRect(visorX, cy - 10 + bobbing, visorW, 6);
+                    
+                    ctx.fillStyle = '#10b981'; 
+                    ctx.fillRect(visorX + 1, cy - 9 + bobbing, visorW - 2, 4);
+                    
+                    ctx.fillStyle = '#6ee7b7';
+                    ctx.fillRect(visorX + 2, cy - 9 + bobbing, 4, 2);
+                }
+            }
+            
+            die() {
+                if(this.isDead) return;
+                this.isDead = true;
+                AudioSys.sfxDead();
+                lives--;
+                updateHUD();
+                
+                explosions.push(new Explosion(Math.floor(this.x/TILE_SIZE), Math.floor(this.y/TILE_SIZE), true));
+
+                if (lives <= 0) {
+                    setTimeout(() => {
+                        gameState = 'gameover';
+                        AudioSys.stopBGM();
+                        document.getElementById('final-score').textContent = score;
+                        document.getElementById('game-over-overlay').style.display = 'flex';
+                    }, 1000);
+                } else {
+                    setTimeout(() => {
+                        this.x = TILE_SIZE; this.y = TILE_SIZE;
+                        this.isDead = false;
+                        map[1][1] = EMPTY; map[1][2] = EMPTY; map[2][1] = EMPTY; 
+                    }, 1000);
+                }
+            }
+        }
+
+        class Bomb {
+            constructor(c, r, radius) {
+                this.col = c;
+                this.row = r;
+                this.x = c * TILE_SIZE;
+                this.y = r * TILE_SIZE;
+                this.radius = radius;
+                this.timer = 180;
+                this.solid = false; 
+            }
+
+            update() {
+                this.timer--;
+                if (this.timer <= 0) {
+                    this.explode();
+                    return true;
+                }
+                return false;
+            }
+
+            explode() {
+                AudioSys.sfxExplosion();
+                explosions.push(new Explosion(this.col, this.row));
+                
+                const dirs = [[1,0], [-1,0], [0,1], [0,-1]];
+                for(let d of dirs) {
+                    for(let i=1; i<=this.radius; i++) {
+                        let nc = this.col + d[0] * i;
+                        let nr = this.row + d[1] * i;
+                        
+                        if(nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) break;
+                        if(map[nr][nc] === WALL) break;
+                        
+                        explosions.push(new Explosion(nc, nr));
+                        
+                        if(map[nr][nc] === BRICK) {
+                            map[nr][nc] = EMPTY;
+                            score += 10;
+                            updateHUD();
+                            break; 
+                        }
+                        
+                        for(let b of bombs) {
+                            if(b !== this && b.col === nc && b.row === nr) {
+                                b.timer = Math.min(b.timer, 5);
+                            }
+                        }
+                    }
+                }
+            }
+
+            draw() {
+                const cx = this.x + TILE_SIZE/2;
+                const cy = this.y + TILE_SIZE/2;
+                const scale = 1 + Math.sin(frameCount * 0.2) * 0.05; 
+                
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.beginPath(); ctx.ellipse(cx, cy + 12, 12, 5, 0, 0, Math.PI*2); ctx.fill();
+
+                let gradient = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, 14);
+                gradient.addColorStop(0, '#64748b'); 
+                gradient.addColorStop(0.5, '#1e293b'); 
+                gradient.addColorStop(1, '#020617'); 
+                
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.scale(scale, scale);
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI*2); ctx.fill();
+                
+                ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(0, 0, 14, -Math.PI/4, Math.PI*3/4); ctx.stroke();
+
+                const blinkRate = this.timer < 60 ? 5 : 15;
+                if (frameCount % blinkRate < blinkRate / 2) {
+                    ctx.fillStyle = '#ef4444';
+                    ctx.shadowBlur = 10; ctx.shadowColor = '#ef4444';
+                    ctx.beginPath(); ctx.arc(0, -2, 4, 0, Math.PI*2); ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+
+                ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(0, -14); ctx.quadraticCurveTo(8, -18, 10, -22); ctx.stroke();
+                
+                if (Math.random() > 0.3) {
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.beginPath(); ctx.arc(10 + (Math.random()*4-2), -22 + (Math.random()*4-2), 2, 0, Math.PI*2); ctx.fill();
+                }
+
+                ctx.restore();
+            }
+        }
+
+        class Explosion {
+            constructor(c, r, isSmall = false) {
+                this.col = c;
+                this.row = r;
+                this.x = c * TILE_SIZE;
+                this.y = r * TILE_SIZE;
+                this.timer = 25; 
+                this.isSmall = isSmall;
+            }
+            update() {
+                this.timer--;
+                
+                if(!player.isDead && !this.isSmall) {
+                    let pc = Math.floor((player.x + TILE_SIZE/2) / TILE_SIZE);
+                    let pr = Math.floor((player.y + TILE_SIZE/2) / TILE_SIZE);
+                    if(pc === this.col && pr === this.row) {
+                        player.die();
+                    }
+                }
+
+                if(!this.isSmall) {
+                    for(let i = enemies.length - 1; i >= 0; i--) {
+                        let e = enemies[i];
+                        let ec = Math.floor((e.x + TILE_SIZE/2) / TILE_SIZE);
+                        let er = Math.floor((e.y + TILE_SIZE/2) / TILE_SIZE);
+                        if(ec === this.col && er === this.row) {
+                            enemies.splice(i, 1);
+                            score += 50;
+                            updateHUD();
+                        }
+                    }
+                }
+                return this.timer <= 0;
+            }
+            draw() {
+                const cx = this.x + TILE_SIZE/2;
+                const cy = this.y + TILE_SIZE/2;
+                const progress = this.timer / 25; 
+                
+                ctx.save();
+                ctx.translate(cx, cy);
+                
+                ctx.globalAlpha = progress;
+                ctx.fillStyle = '#b91c1c'; 
+                ctx.beginPath(); ctx.arc(0, 0, TILE_SIZE * 0.7 * progress, 0, Math.PI*2); ctx.fill();
+                
+                ctx.fillStyle = '#f59e0b';
+                const sz = (TILE_SIZE * 0.9) * Math.sin(progress * Math.PI);
+                ctx.fillRect(-sz/2, -sz/6, sz, sz/3);
+                ctx.fillRect(-sz/6, -sz/2, sz/3, sz);
+                
+                ctx.fillStyle = '#fef08a';
+                ctx.beginPath(); ctx.arc(0, 0, TILE_SIZE * 0.25 * progress, 0, Math.PI*2); ctx.fill();
+
+                ctx.fillStyle = '#fff';
+                for(let i=0; i<4; i++) {
+                    let px = Math.cos(i * Math.PI/2 + frameCount) * (TILE_SIZE*0.4 * (1-progress));
+                    let py = Math.sin(i * Math.PI/2 + frameCount) * (TILE_SIZE*0.4 * (1-progress));
+                    ctx.fillRect(px, py, 2, 2);
+                }
+
+                ctx.restore();
+            }
+        }
+
+        class Enemy {
+            constructor(c, r) {
+                this.x = c * TILE_SIZE;
+                this.y = r * TILE_SIZE;
+                this.size = TILE_SIZE * 0.6;
+                this.speed = 1.0;
+                this.dir = Math.floor(Math.random() * 4);
+                this.moving = true;
+                this.hoverOffset = Math.random() * Math.PI;
+            }
+
+            update() {
+                if(!this.moving) return;
+
+                let dx = 0, dy = 0;
+                if(this.dir === 0) dy = -this.speed;
+                if(this.dir === 1) dx = this.speed;
+                if(this.dir === 2) dy = this.speed;
+                if(this.dir === 3) dx = -this.speed;
+
+                this.x += dx;
+                this.y += dy;
+
+                const margin = (TILE_SIZE - this.size) / 2;
+                const cx = this.x + TILE_SIZE/2;
+                const cy = this.y + TILE_SIZE/2;
+
+                const cc = Math.floor(cx / TILE_SIZE);
+                const cr = Math.floor(cy / TILE_SIZE);
+
+                const checkPt = (x, y) => {
+                    const c = Math.floor(x/TILE_SIZE);
+                    const r = Math.floor(y/TILE_SIZE);
+                    if(c<0||c>=COLS||r<0||r>=ROWS) return true;
+                    return map[r][c] !== EMPTY;
+                };
+
+                let hit = false;
+                if(dx > 0) hit = checkPt(this.x + this.size + margin, cy);
+                if(dx < 0) hit = checkPt(this.x + margin, cy);
+                if(dy > 0) hit = checkPt(cx, this.y + this.size + margin);
+                if(dy < 0) hit = checkPt(cx, this.y + margin);
+                
+                for(let b of bombs) {
+                    if(Math.floor(b.x/TILE_SIZE) === Math.floor(cx/TILE_SIZE) && Math.floor(b.y/TILE_SIZE) === Math.floor(cy/TILE_SIZE)) {
+                        hit = true;
+                    }
+                }
+
+                if (hit) {
+                    this.x -= dx; this.y -= dy;
+                    this.x = cc * TILE_SIZE; this.y = cr * TILE_SIZE;
+                    this.dir = Math.floor(Math.random() * 4);
+                }
+
+                if(!player.isDead) {
+                    const pcx = player.x + TILE_SIZE/2;
+                    const pcy = player.y + TILE_SIZE/2;
+                    if (Math.hypot(cx - pcx, cy - pcy) < TILE_SIZE * 0.5) {
+                        player.die();
+                    }
+                }
+            }
+
+            draw() {
+                const cx = this.x + TILE_SIZE/2;
+                const hover = Math.sin(frameCount * 0.1 + this.hoverOffset) * 3;
+                const cy = this.y + TILE_SIZE/2 + hover;
+                
+                ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                ctx.beginPath(); ctx.ellipse(cx, this.y + TILE_SIZE - 4, 10 - hover/2, 3, 0, 0, Math.PI*2); ctx.fill();
+
+                ctx.fillStyle = '#475569';
+                ctx.beginPath();
+                ctx.moveTo(cx - 14, cy); ctx.lineTo(cx - 6, cy - 8); ctx.lineTo(cx - 6, cy + 4); ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(cx + 14, cy); ctx.lineTo(cx + 6, cy - 8); ctx.lineTo(cx + 6, cy + 4); ctx.fill();
+
+                ctx.fillStyle = '#334155'; 
+                ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI*2); ctx.fill();
+                
+                ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(cx, cy, 10, -Math.PI/8, Math.PI+Math.PI/8); ctx.stroke();
+                
+                ctx.fillStyle = '#ef4444';
+                ctx.shadowBlur = 5; ctx.shadowColor = '#ef4444';
+                ctx.beginPath(); ctx.arc(cx, cy - 2, 4, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.shadowBlur = 0;
+                ctx.beginPath(); ctx.arc(cx + 1, cy - 3, 1.5, 0, Math.PI*2); ctx.fill();
+
+                ctx.fillStyle = '#38bdf8';
+                ctx.globalAlpha = 0.7 + Math.random() * 0.3;
+                ctx.beginPath();
+                ctx.moveTo(cx - 4, cy + 8);
+                ctx.lineTo(cx + 4, cy + 8);
+                ctx.lineTo(cx, cy + 16 + (Math.random()*4));
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        function generateMap() {
+            map = [];
+            for (let r = 0; r < ROWS; r++) {
+                let row = [];
+                for (let c = 0; c < COLS; c++) {
+                    if (r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1 || (r % 2 === 0 && c % 2 === 0)) {
+                        row.push(WALL);
+                    } else {
+                        if ((c === 1 && r === 1) || (c === 1 && r === 2) || (c === 2 && r === 1)) {
+                            row.push(EMPTY);
+                        } else {
+                            row.push(Math.random() < 0.35 ? BRICK : EMPTY);
+                        }
+                    }
+                }
+                map.push(row);
+            }
+        }
+
+        function drawMapDetails() {
+            ctx.strokeStyle = 'rgba(30, 41, 59, 0.4)';
+            ctx.lineWidth = 1;
+            for(let i=0; i<=canvas.width; i+=TILE_SIZE) {
+                ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke();
+            }
+            for(let i=0; i<=canvas.height; i+=TILE_SIZE) {
+                ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke();
+            }
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const x = c * TILE_SIZE;
+                    const y = r * TILE_SIZE;
+                    
+                    if (map[r][c] === WALL) {
+                        ctx.fillStyle = '#1e293b'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        ctx.fillStyle = '#475569';
+                        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+TILE_SIZE,y); ctx.lineTo(x+TILE_SIZE-6,y+6); ctx.lineTo(x+6,y+6); ctx.lineTo(x+6,y+TILE_SIZE-6); ctx.lineTo(x,y+TILE_SIZE); ctx.fill();
+                        ctx.fillStyle = '#0f172a';
+                        ctx.beginPath(); ctx.moveTo(x+TILE_SIZE,y); ctx.lineTo(x+TILE_SIZE,y+TILE_SIZE); ctx.lineTo(x,y+TILE_SIZE); ctx.lineTo(x+6,y+TILE_SIZE-6); ctx.lineTo(x+TILE_SIZE-6,y+TILE_SIZE-6); ctx.lineTo(x+TILE_SIZE-6,y+6); ctx.fill();
+                        ctx.fillStyle = '#020617'; ctx.fillRect(x+6, y+6, TILE_SIZE-12, TILE_SIZE-12);
+                        ctx.fillStyle = '#0ea5e9';
+                        ctx.fillRect(x+14, y+14, TILE_SIZE-28, TILE_SIZE-28);
+                        
+                    } else if (map[r][c] === BRICK) {
+                        ctx.fillStyle = '#b45309'; 
+                        ctx.fillRect(x+2, y+2, TILE_SIZE-4, TILE_SIZE-4);
+                        ctx.fillStyle = '#d97706'; ctx.fillRect(x+2, y+2, TILE_SIZE-4, 4); ctx.fillRect(x+2, y+2, 4, TILE_SIZE-4);
+                        ctx.fillStyle = '#78350f'; ctx.fillRect(x+2, y+TILE_SIZE-6, TILE_SIZE-4, 4); ctx.fillRect(x+TILE_SIZE-6, y+2, 4, TILE_SIZE-4);
+                        ctx.fillStyle = '#92400e'; ctx.fillRect(x+6, y+6, TILE_SIZE-12, TILE_SIZE-12);
+                        ctx.strokeStyle = '#fcd34d'; ctx.lineWidth = 3;
+                        ctx.beginPath(); ctx.moveTo(x+6, y+6); ctx.lineTo(x+TILE_SIZE-6, y+TILE_SIZE-6); ctx.stroke();
+                        ctx.beginPath(); ctx.moveTo(x+TILE_SIZE-6, y+6); ctx.lineTo(x+6, y+TILE_SIZE-6); ctx.stroke();
+                        ctx.fillStyle = '#cbd5e1';
+                        ctx.fillRect(x+4,y+4,2,2); ctx.fillRect(x+TILE_SIZE-6,y+4,2,2);
+                        ctx.fillRect(x+4,y+TILE_SIZE-6,2,2); ctx.fillRect(x+TILE_SIZE-6,y+TILE_SIZE-6,2,2);
+                    }
+                }
+            }
+        }
+
+        function spawnEnemies() {
+            enemies = [];
+            for(let i=0; i<4; i++) {
+                let placed = false;
+                while(!placed) {
+                    let c = Math.floor(Math.random() * COLS);
+                    let r = Math.floor(Math.random() * ROWS);
+                    if(map[r][c] === EMPTY && (c > 4 || r > 4)) {
+                        enemies.push(new Enemy(c, r));
+                        placed = true;
+                    }
+                }
+            }
+        }
+
+        function updateHUD() {
+            document.getElementById('scoreVal').textContent = score;
+            document.getElementById('lifeVal').textContent = '❤️ x' + lives;
+        }
+
+        function initGame() {
+            generateMap();
+            player = new Player();
+            bombs = [];
+            explosions = [];
+            score = 0;
+            lives = 3;
+            frameCount = 0;
+            updateHUD();
+            spawnEnemies();
+        }
+
+        function gameLoop() {
+            if (gameState === 'playing') {
+                frameCount++;
+                
+                ctx.fillStyle = '#09090b'; 
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                drawMapDetails();
+
+                for (let i = bombs.length - 1; i >= 0; i--) {
+                    if (bombs[i].update()) {
+                        bombs.splice(i, 1);
+                    } else {
+                        bombs[i].draw();
+                    }
+                }
+
+                for (let i = explosions.length - 1; i >= 0; i--) {
+                    if (explosions[i].update()) {
+                        explosions.splice(i, 1);
+                    } else {
+                        explosions[i].draw();
+                    }
+                }
+
+                enemies.forEach(e => {
+                    e.update();
+                    e.draw();
+                });
+                
+                if(enemies.length === 0) spawnEnemies();
+
+                player.update();
+                player.draw();
+            }
+
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('menu-overlay').style.display = 'none';
+            gameState = 'playing';
+            initGame();
+            AudioSys.playBGM();
+        });
+
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            document.getElementById('game-over-overlay').style.display = 'none';
+            gameState = 'playing';
+            initGame();
+            AudioSys.playBGM();
+        });
+
+        requestAnimationFrame(gameLoop);
+
+    </script>
+</body>
+</html>

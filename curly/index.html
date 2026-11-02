@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curly - cURL Online Web</title>
+    <!-- Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- TATADADA UI Framework - CSS Tokens -->
+    <style>
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+            --input-bg: #ffffff;
+            --input-border: #cbd5e1;
+            --tab-active: #3b82f6;
+            --tab-inactive: transparent;
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            --input-bg: #0d1117;
+            --input-border: #30363d;
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color); 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-dim); 
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        /* Tooltip utilities */
+        .group:hover .tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER (WAJIB) -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-[var(--border-color)] bg-[var(--header-bg)] shrink-0 relative z-50 transition-colors duration-200">
+        <!-- Kiri: Branding & Help -->
+        <div class="flex items-center gap-3">
+            <div class="flex items-baseline gap-2">
+                <h1 class="text-lg font-bold bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent">
+                    Curly
+                </h1>
+                <span class="text-[10px] font-mono text-[var(--text-dim)] italic">v1.0</span>
+            </div>
+            <a href="https://danial.my.id" target="_blank" rel="noopener noreferrer" class="lowercase font-bold tracking-[0.25em] text-[8px] text-[var(--text-dim)] hover:text-blue-500 transition-colors ml-1">
+                by AhmadDanial
+            </a>
+            
+            <!-- Help Icon with Tooltip -->
+            <div class="relative group ml-2 flex items-center cursor-help">
+                <i data-lucide="help-circle" class="w-4 h-4 text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors"></i>
+                <div class="tooltip absolute left-0 top-full mt-2 w-64 p-3 bg-[var(--editor-bg)] border border-[var(--border-color)] rounded shadow-lg text-xs text-[var(--text-main)] opacity-0 invisible transition-all duration-200 z-50">
+                    <span id="helpText">Pilih metode, masukkan URL, atur headers/body, lalu klik Kirim.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kanan: Actions -->
+        <div class="flex items-center gap-4">
+            <!-- Language Toggle -->
+            <button id="langToggle" class="flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors" onclick="toggleLanguage()">
+                <span id="flagIcon">🇮🇩</span>
+                <span id="langText">ID</span>
+            </button>
+            
+            <!-- Divider -->
+            <div class="h-4 w-px bg-[var(--border-color)]"></div>
+
+            <!-- Dark Mode Toggle -->
+            <button id="themeToggle" class="text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors" onclick="toggleTheme()" aria-label="Toggle Dark Mode">
+                <i data-lucide="moon" id="themeIcon" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE: Skenario 1 (Top-Down Split Pane) -->
+    <main class="flex-1 relative overflow-hidden bg-[var(--preview-bg)] flex flex-col">
+        
+        <!-- Top Pane (Area Input / Request) -->
+        <section id="topPane" style="height: 40%;" class="flex flex-col bg-[var(--editor-bg)] border-b border-[var(--border-color)] relative min-h-[15%] max-h-[85%] transition-colors duration-200">
+            <div class="p-4 flex flex-col gap-3 flex-1 overflow-y-auto">
+                
+                <!-- URL & Method Bar -->
+                <div class="flex gap-2 shrink-0">
+                    <select id="method" class="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-main)] rounded-md px-3 py-1.5 text-sm font-mono focus:outline-none focus:border-blue-500 transition-colors">
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="PATCH">PATCH</option>
+                        <option value="DELETE">DELETE</option>
+                    </select>
+                    <input type="url" id="url" data-i18n-ph="urlPlaceholder" placeholder="https://api.contoh.com/data" class="flex-1 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-main)] rounded-md px-4 py-1.5 text-sm font-mono focus:outline-none focus:border-blue-500 transition-colors" value="https://jsonplaceholder.typicode.com/posts/1">
+                    <button id="sendBtn" onclick="sendRequest()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-1.5 rounded-md transition-colors flex items-center gap-2 text-sm shrink-0">
+                        <span data-i18n="sendBtn">Kirim</span>
+                        <i data-lucide="send" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- CORS Proxy Toggle -->
+                <div class="flex items-center shrink-0">
+                    <label class="inline-flex items-center cursor-pointer group">
+                        <input type="checkbox" id="useProxy" class="sr-only peer">
+                        <div class="relative w-8 h-4 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-blue-500"></div>
+                        <span class="ms-2 text-[10px] font-medium text-[var(--text-dim)] group-hover:text-[var(--text-main)] transition-colors" data-i18n="useProxyLabel">Gunakan CORS Proxy (Bypass Error)</span>
+                    </label>
+                </div>
+
+                <!-- Error Message -->
+                <div id="errorMessage" class="hidden bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-2 rounded-md text-xs shrink-0">
+                    Pesan Error akan muncul di sini.
+                </div>
+
+                <!-- Request Tabs -->
+                <div class="flex-1 flex flex-col min-h-0">
+                    <div class="flex border-b border-[var(--border-color)] shrink-0">
+                        <button onclick="switchTab('req', 'headers')" id="tab-req-headers" data-i18n="tabReqHeaders" class="px-4 py-2 text-xs font-medium border-b-2 border-blue-500 text-blue-500">Headers</button>
+                        <button onclick="switchTab('req', 'body')" id="tab-req-body" data-i18n="tabReqBody" class="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-[var(--text-dim)] hover:text-[var(--text-main)]">Body</button>
+                    </div>
+
+                    <!-- Headers Content -->
+                    <div id="content-req-headers" class="pt-3 flex-1 overflow-y-auto">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="text-xs font-semibold text-[var(--text-dim)] uppercase tracking-wider" data-i18n="customHeaders">Kustom Headers</h3>
+                            <button onclick="addHeaderRow()" class="text-[10px] font-medium border border-[var(--border-color)] hover:bg-[var(--preview-bg)] text-[var(--text-main)] px-2 py-1 rounded transition-colors" data-i18n="addHeaderBtn">+ Tambah Header</button>
+                        </div>
+                        <div id="headersList" class="flex flex-col gap-2">
+                            <div class="flex gap-2 header-row">
+                                <input type="text" placeholder="Kunci" value="Content-Type" class="header-key flex-1 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-main)] rounded px-3 py-1.5 text-xs font-mono focus:border-blue-500 focus:outline-none transition-colors">
+                                <input type="text" placeholder="Nilai" value="application/json" class="header-value flex-1 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-main)] rounded px-3 py-1.5 text-xs font-mono focus:border-blue-500 focus:outline-none transition-colors">
+                                <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 px-1 transition-colors" title="Hapus">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Body Content -->
+                    <div id="content-req-body" class="pt-3 hidden flex-1 flex-col h-full min-h-0">
+                        <div class="mb-2 text-[10px] text-[var(--text-dim)]" data-i18n="reqBodyHint">Format: JSON, Teks, dll. (Pastikan header Content-Type sesuai)</div>
+                        <textarea id="reqBody" class="w-full flex-1 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-main)] rounded p-3 font-mono text-xs focus:outline-none focus:border-blue-500 resize-none transition-colors" placeholder='{\n  "kunci": "nilai"\n}'></textarea>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Horizontal Resizer -->
+        <div id="resizer" class="h-1 bg-[var(--border-color)] cursor-row-resize shrink-0 hover:bg-blue-400 transition-colors z-40 relative flex justify-center items-center">
+            <div class="w-8 h-[2px] bg-gray-400 rounded-full opacity-50"></div>
+        </div>
+
+        <!-- Bottom Pane (Area Output / Respons) -->
+        <section id="bottomPane" class="flex-1 flex flex-col bg-[var(--preview-bg)] relative min-h-[15%] transition-colors duration-200">
+            
+            <!-- Loading Overlay -->
+            <div id="loadingOverlay" class="hidden absolute inset-0 bg-[var(--preview-bg)] bg-opacity-80 backdrop-blur-sm flex flex-col items-center justify-center z-10 transition-colors">
+                <i data-lucide="loader-2" class="w-8 h-8 text-blue-500 animate-spin mb-3"></i>
+                <p class="text-blue-500 font-medium text-xs animate-pulse" data-i18n="loadingText">Mengirim permintaan...</p>
+            </div>
+
+            <!-- Response Stats Header -->
+            <div class="px-4 py-2 border-b border-[var(--border-color)] bg-[var(--header-bg)] flex items-center justify-between shrink-0 transition-colors">
+                <h2 class="font-semibold text-[var(--text-main)] text-sm" data-i18n="resTitle">Respons</h2>
+                <div class="flex gap-4 text-xs font-mono">
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[var(--text-dim)]" data-i18n="statusLabel">Status:</span>
+                        <span id="resStatus" class="font-bold text-[var(--text-dim)]">-</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[var(--text-dim)]" data-i18n="timeLabel">Waktu:</span>
+                        <span id="resTime" class="font-bold text-blue-500">- ms</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Response Tabs -->
+            <div class="flex border-b border-[var(--border-color)] px-4 bg-[var(--header-bg)] shrink-0 transition-colors">
+                <button onclick="switchTab('res', 'body')" id="tab-res-body" data-i18n="tabResBody" class="px-4 py-2 text-xs font-medium border-b-2 border-blue-500 text-blue-500">Body Respons</button>
+                <button onclick="switchTab('res', 'headers')" id="tab-res-headers" data-i18n="tabResHeaders" class="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-[var(--text-dim)] hover:text-[var(--text-main)]">Headers Respons</button>
+            </div>
+
+            <!-- Response Body -->
+            <div id="content-res-body" class="flex-1 p-4 overflow-auto relative">
+                <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center text-[var(--text-dim)]">
+                    <i data-lucide="zap" class="w-12 h-12 mb-3 opacity-20"></i>
+                    <p class="text-xs" data-i18n="emptyStateMsg">Masukkan URL dan tekan Kirim untuk melihat respons.</p>
+                </div>
+                <pre id="resBodyDisplay" class="hidden text-xs font-mono text-[var(--text-main)] bg-[var(--editor-bg)] border border-[var(--border-color)] p-4 rounded-md min-h-full"></pre>
+            </div>
+
+            <!-- Response Headers -->
+            <div id="content-res-headers" class="hidden flex-1 p-4 overflow-auto">
+                <div class="rounded-md border border-[var(--border-color)] overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-[var(--freeze-bg)] border-b border-[var(--border-color)]">
+                            <tr>
+                                <th class="px-4 py-2 text-xs font-semibold text-[var(--text-dim)] uppercase" data-i18n="thKey">Kunci Header</th>
+                                <th class="px-4 py-2 text-xs font-semibold text-[var(--text-dim)] uppercase" data-i18n="thValue">Nilai</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resHeadersTable" class="text-xs font-mono text-[var(--text-main)] divide-y divide-[var(--stripe-color)]">
+                            <!-- Diisi oleh JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+        </section>
+    </main>
+
+    <!-- FOOTER (WAJIB) -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-[var(--border-color)] bg-[var(--footer-bg)] text-[10px] text-[var(--text-dim)] shrink-0 transition-colors duration-200">
+        <div class="flex items-center gap-2">
+            <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            <span data-i18n="engineStatus">Engine Ready</span>
+        </div>
+        <button onclick="document.getElementById('termsModal').classList.remove('hidden')" class="hover:text-[var(--text-main)] underline underline-offset-2 transition-colors">
+            <span data-i18n="termsTitle">Syarat Penggunaan</span>
+        </button>
+    </footer>
+
+    <!-- MODAL TERMS OF USE (WAJIB) -->
+    <div id="termsModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div class="bg-[var(--editor-bg)] border border-[var(--border-color)] rounded-lg shadow-xl max-w-md w-full p-6 text-[var(--text-main)]">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-lg" data-i18n="termsTitle">Syarat Penggunaan</h3>
+                <button onclick="document.getElementById('termsModal').classList.add('hidden')" class="text-[var(--text-dim)] hover:text-red-500 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <p id="termsText" class="text-sm leading-relaxed text-[var(--text-dim)]">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
+            </p>
+            <div class="mt-6 flex justify-end">
+                <button onclick="document.getElementById('termsModal').classList.add('hidden')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors" data-i18n="closeBtn">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- TATADADA: Inisialisasi Icons ---
+        lucide.createIcons();
+
+        // --- TATADADA: Dark Mode Logic ---
+        const themeToggleBtn = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        
+        function applyTheme(isDark) {
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+                themeIcon.setAttribute('data-lucide', 'sun');
+            } else {
+                document.documentElement.classList.remove('dark');
+                themeIcon.setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons();
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.contains('dark');
+            applyTheme(!isDark);
+        }
+
+        // Init Theme
+        const savedTheme = localStorage.getItem('theme');
+        applyTheme(savedTheme === 'dark');
+
+
+        // --- TATADADA: Localization Logic ---
+        const dict = {
+            id: {
+                helpText: "Pilih metode, masukkan URL, atur headers/body, lalu klik Kirim.",
+                sendBtn: "Kirim",
+                tabReqHeaders: "Headers",
+                tabReqBody: "Body",
+                customHeaders: "Kustom Headers",
+                addHeaderBtn: "+ Tambah Header",
+                reqBodyHint: "Format: JSON, Teks, dll. (Pastikan header Content-Type sesuai)",
+                resTitle: "Respons",
+                statusLabel: "Status:",
+                timeLabel: "Waktu:",
+                tabResBody: "Body Respons",
+                tabResHeaders: "Headers Respons",
+                emptyStateMsg: "Masukkan URL dan tekan Kirim untuk melihat respons.",
+                termsTitle: "Syarat Penggunaan",
+                termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+                closeBtn: "Tutup",
+                engineStatus: "Engine Ready",
+                urlPlaceholder: "https://api.contoh.com/data",
+                thKey: "Kunci Header",
+                thValue: "Nilai",
+                loadingText: "Mengirim permintaan...",
+                noHeaderMsg: "Tidak ada header terdeteksi",
+                useProxyLabel: "Gunakan CORS Proxy (Bypass Error)"
+            },
+            en: {
+                helpText: "Select method, enter URL, configure headers/body, then click Send.",
+                sendBtn: "Send",
+                tabReqHeaders: "Headers",
+                tabReqBody: "Body",
+                customHeaders: "Custom Headers",
+                addHeaderBtn: "+ Add Header",
+                reqBodyHint: "Format: JSON, Text, etc. (Ensure correct Content-Type header)",
+                resTitle: "Response",
+                statusLabel: "Status:",
+                timeLabel: "Time:",
+                tabResBody: "Response Body",
+                tabResHeaders: "Response Headers",
+                emptyStateMsg: "Enter URL and click Send to view response.",
+                termsTitle: "Terms of Use",
+                termsText: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                closeBtn: "Close",
+                engineStatus: "Engine Ready",
+                urlPlaceholder: "https://api.example.com/data",
+                thKey: "Header Key",
+                thValue: "Value",
+                loadingText: "Sending request...",
+                noHeaderMsg: "No headers detected",
+                useProxyLabel: "Use CORS Proxy (Bypass Error)"
+            }
+        };
+
+        let currentLang = localStorage.getItem('lang') || 'id';
+
+        function applyLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('lang', lang);
+            
+            // Update UI Button
+            document.getElementById('flagIcon').textContent = lang === 'id' ? '🇮🇩' : '🇬🇧';
+            document.getElementById('langText').textContent = lang.toUpperCase();
+
+            // Update Texts
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[lang][key]) el.textContent = dict[lang][key];
+            });
+
+            // Update Placeholders
+            document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+                const key = el.getAttribute('data-i18n-ph');
+                if (dict[lang][key]) el.placeholder = dict[lang][key];
+            });
+
+            // Update Specific Elements
+            document.getElementById('helpText').textContent = dict[lang].helpText;
+            document.getElementById('termsText').textContent = dict[lang].termsText;
+        }
+
+        function toggleLanguage() {
+            applyLanguage(currentLang === 'id' ? 'en' : 'id');
+        }
+
+        // Init Language
+        applyLanguage(currentLang);
+
+
+        // --- TATADADA: Split Pane Resizer Logic ---
+        const resizer = document.getElementById('resizer');
+        const topPane = document.getElementById('topPane');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            document.body.style.cursor = 'row-resize';
+            // Disable pointer events on children to prevent text selection/iframe issues while dragging
+            topPane.style.pointerEvents = 'none';
+            document.getElementById('bottomPane').style.pointerEvents = 'none';
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            // Calculate new height percentage based on viewport
+            const containerOffsetTop = topPane.parentElement.offsetTop;
+            const pointerRelativeYpos = e.clientY - containerOffsetTop;
+            const containerHeight = topPane.parentElement.clientHeight;
+            let newHeightPerc = (pointerRelativeYpos / containerHeight) * 100;
+            
+            // Constrain between 15% and 85%
+            if (newHeightPerc < 15) newHeightPerc = 15;
+            if (newHeightPerc > 85) newHeightPerc = 85;
+            
+            topPane.style.height = `${newHeightPerc}%`;
+        });
+
+        document.addEventListener('mouseup', function(e) {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = 'default';
+                topPane.style.pointerEvents = 'auto';
+                document.getElementById('bottomPane').style.pointerEvents = 'auto';
+            }
+        });
+
+
+        // =====================================================================
+        // LOGIKA APLIKASI INTI (TIDAK DISENTUH - SESUAI INSTRUKSI)
+        // =====================================================================
+
+        // --- UI Logic: Tabs ---
+        function switchTab(section, tabName) {
+            // Reset tabs
+            const tabs = ['headers', 'body'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`tab-${section}-${t}`);
+                const content = document.getElementById(`content-${section}-${t}`);
+                
+                if (t === tabName) {
+                    btn.classList.add('border-blue-500', 'text-blue-500');
+                    btn.classList.remove('border-transparent', 'text-[var(--text-dim)]');
+                    content.classList.remove('hidden');
+                    if(section === 'req' && t === 'body') content.classList.add('flex');
+                } else {
+                    btn.classList.remove('border-blue-500', 'text-blue-500');
+                    btn.classList.add('border-transparent', 'text-[var(--text-dim)]');
+                    content.classList.add('hidden');
+                    if(section === 'req' && t === 'body') content.classList.remove('flex');
+                }
+            });
+        }
+
+        // --- UI Logic: Dynamic Headers ---
+        function addHeaderRow() {
+            const container = document.getElementById('headersList');
+            const row = document.createElement('div');
+            row.className = 'flex gap-2 header-row animate-fade-in mt-2';
+            row.innerHTML = `
+                <input type="text" placeholder="Kunci" class="header-key flex-1 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-main)] rounded px-3 py-1.5 text-xs font-mono focus:border-blue-500 focus:outline-none transition-colors">
+                <input type="text" placeholder="Nilai" class="header-value flex-1 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-main)] rounded px-3 py-1.5 text-xs font-mono focus:border-blue-500 focus:outline-none transition-colors">
+                <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 px-1 transition-colors" title="Hapus">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+            `;
+            container.appendChild(row);
+            lucide.createIcons(); // render trash icon
+        }
+
+        // --- UI Logic: Error Message ---
+        function showError(message) {
+            const errDiv = document.getElementById('errorMessage');
+            errDiv.textContent = message;
+            errDiv.classList.remove('hidden');
+            setTimeout(() => {
+                errDiv.classList.add('hidden');
+            }, 5000);
+        }
+
+        // --- Core Logic: Fetch API ---
+        async function sendRequest() {
+            const urlInput = document.getElementById('url').value.trim();
+            const method = document.getElementById('method').value;
+            const reqBodyRaw = document.getElementById('reqBody').value;
+            const useProxy = document.getElementById('useProxy').checked;
+            
+            // Validasi URL
+            if (!urlInput) {
+                showError("Mohon masukkan URL tujuan terlebih dahulu.");
+                return;
+            }
+
+            try {
+                new URL(urlInput); // Cek apakah URL valid
+            } catch (e) {
+                showError("URL tidak valid. Pastikan menggunakan format http:// atau https://");
+                return;
+            }
+
+            // Kumpulkan Headers
+            const headers = {};
+            const keys = document.querySelectorAll('.header-key');
+            const values = document.querySelectorAll('.header-value');
+            
+            keys.forEach((keyInput, index) => {
+                const key = keyInput.value.trim();
+                const val = values[index].value.trim();
+                if (key) {
+                    headers[key] = val;
+                }
+            });
+
+            // Siapkan opsi fetch
+            const fetchOptions = {
+                method: method,
+                headers: headers
+            };
+
+            // Tambahkan body jika metode mengizinkan
+            if (method !== 'GET' && method !== 'HEAD') {
+                fetchOptions.body = reqBodyRaw;
+            }
+
+            // Tentukan Target URL (menggunakan Proxy jika dicentang)
+            let targetUrl = urlInput;
+            if (useProxy) {
+                targetUrl = 'https://corsproxy.io/?' + encodeURIComponent(urlInput);
+            }
+
+            // UI Loading state
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            document.getElementById('emptyState').classList.add('hidden');
+            const resBodyDisplay = document.getElementById('resBodyDisplay');
+            resBodyDisplay.classList.add('hidden');
+            resBodyDisplay.textContent = "";
+            document.getElementById('resHeadersTable').innerHTML = "";
+            
+            const statusEl = document.getElementById('resStatus');
+            const timeEl = document.getElementById('resTime');
+            statusEl.textContent = "Loading...";
+            statusEl.className = "font-bold text-[var(--text-dim)]";
+            timeEl.textContent = "- ms";
+
+            const startTime = performance.now();
+
+            try {
+                const response = await fetch(targetUrl, fetchOptions);
+                const endTime = performance.now();
+                const timeTaken = Math.round(endTime - startTime);
+
+                // Update Status & Time
+                statusEl.textContent = `${response.status} ${response.statusText}`;
+                if (response.ok) {
+                    statusEl.className = "font-bold text-green-500";
+                } else {
+                    statusEl.className = "font-bold text-red-500";
+                }
+                timeEl.textContent = `${timeTaken} ms`;
+
+                // Update Headers Respons
+                const resHeadersTable = document.getElementById('resHeadersTable');
+                let hasHeaders = false;
+                for (let [key, value] of response.headers.entries()) {
+                    hasHeaders = true;
+                    resHeadersTable.innerHTML += `
+                        <tr class="hover:bg-[var(--freeze-hover)] transition-colors">
+                            <td class="px-4 py-2 break-all text-[var(--text-main)]">${key}</td>
+                            <td class="px-4 py-2 break-all text-[var(--text-dim)]">${value}</td>
+                        </tr>
+                    `;
+                }
+                if(!hasHeaders) {
+                    resHeadersTable.innerHTML = `<tr><td colspan="2" class="px-4 py-3 text-center text-[var(--text-dim)]">${dict[currentLang].noHeaderMsg}</td></tr>`;
+                }
+
+                // Parse Body Respons
+                const contentType = response.headers.get("content-type");
+                let responseData;
+                
+                try {
+                    if (contentType && contentType.includes("application/json")) {
+                        const json = await response.json();
+                        responseData = JSON.stringify(json, null, 2);
+                    } else {
+                        responseData = await response.text();
+                    }
+                } catch(parseErr) {
+                    responseData = "Gagal mem-parsing isi respons: " + parseErr.message;
+                }
+
+                resBodyDisplay.textContent = responseData;
+                resBodyDisplay.classList.remove('hidden');
+
+            } catch (error) {
+                // Tangani error jaringan / CORS
+                const endTime = performance.now();
+                timeEl.textContent = `${Math.round(endTime - startTime)} ms`;
+                statusEl.textContent = "ERROR (Network / CORS)";
+                statusEl.className = "font-bold text-red-500";
+                
+                resBodyDisplay.textContent = `Permintaan Gagal.\n\nDetail Error: ${error.message}\n\nCatatan:\nJika Anda mencoba mengakses API eksternal (domain yang berbeda), browser mungkin memblokirnya karena kebijakan CORS (Cross-Origin Resource Sharing). Aplikasi cURL di browser hanya dapat mengakses API yang secara eksplisit mengizinkan CORS.`;
+                resBodyDisplay.classList.remove('hidden');
+                // Mengganti warna class pada element error tidak dilakukan secara strict di style, membiarkan pewarnaan default
+            } finally {
+                document.getElementById('loadingOverlay').classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

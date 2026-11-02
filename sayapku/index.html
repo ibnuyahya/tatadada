@@ -1,0 +1,863 @@
+<!-- Tafsir Visual: Siluet sayap (airfoil) bergaya frosted glass dengan garis aliran angin (streamlines) neon melewatinya, di atas latar belakang ombak fluida (fluid wave) khas iOS 17 berwarna biru langit hingga nila, melambangkan analisis aerodinamika komputasional yang canggih dan modern. -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sayapku - Aerodynamics Simulator</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Tailwind Config & TATADADA CSS Tokens -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        header: 'var(--header-bg)',
+                        editor: 'var(--editor-bg)',
+                        preview: 'var(--preview-bg)',
+                        card: 'var(--card-bg)',
+                        footer: 'var(--footer-bg)',
+                        theme: 'var(--border-color)',
+                        main: 'var(--text-main)',
+                        dim: 'var(--text-dim)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* TATADADA CSS Variables (Vibrant Depth Edition) */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f1f5f9; 
+            --card-bg: rgba(255, 255, 255, 0.85); 
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --theme-accent: #3b82f6;
+        }
+        
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --card-bg: rgba(13, 17, 23, 0.85); 
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --theme-accent: #3b82f6;
+            color-scheme: dark;
+        }
+        
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+
+        /* TATADADA Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Premium UI Components */
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        .tooltip-text {
+            visibility: hidden; opacity: 0; transition: opacity 0.2s;
+        }
+        .has-tooltip:hover .tooltip-text {
+            visibility: visible; opacity: 1;
+        }
+        
+        /* Range Slider Modern */
+        input[type=range] { -webkit-appearance: none; background: transparent; outline: none; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%;
+            background: #ffffff; cursor: pointer; margin-top: -8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3); border: 1px solid var(--border-color);
+        }
+        html.dark input[type=range]::-webkit-slider-thumb {
+            background: var(--text-main); border-color: var(--text-main);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: var(--border-color); border-radius: 2px;
+        }
+        input[type=range]:focus::-webkit-slider-thumb {
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Collapsible Animation */
+        #paramsContent {
+            transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out, padding 0.3s ease-in-out;
+            overflow: hidden;
+        }
+        .collapsed #paramsContent {
+            max-height: 0 !important;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+        .collapsed #collapseIcon {
+            transform: rotate(180deg);
+        }
+        #collapseIcon {
+            transition: transform 0.3s ease;
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER -->
+    <header class="h-14 flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 shadow-sm">
+        <div class="flex items-center gap-3">
+            <!-- App Icon -->
+            <div class="relative w-8 h-8 bg-gradient-to-br from-sky-400 to-indigo-600 rounded-lg shadow-md flex items-center justify-center overflow-hidden border border-black/10 dark:border-white/10">
+                <svg viewBox="0 0 24 24" class="w-6 h-6 text-white drop-shadow-md" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M2 8s5-3 10-3 10 3 10 3" stroke-linecap="round" class="opacity-70"/>
+                    <path d="M3 13.5c3-4 8-4.5 17-1-6 2-11 2.5-17 1z" fill="rgba(255,255,255,0.9)" stroke="none"/>
+                    <path d="M2 18s5 2 10 2 10-2 10-2" stroke-linecap="round" class="opacity-70"/>
+                </svg>
+            </div>
+            
+            <div class="flex items-baseline gap-2">
+                <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-sky-400 to-indigo-600 bg-clip-text text-transparent">Sayapku</h1>
+                <span class="text-[10px] font-mono text-dim italic">v2.1</span>
+                <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 transition-colors ml-1">by AhmadDanial</a>
+            </div>
+            
+            <!-- Help Tooltip -->
+            <div class="relative has-tooltip ml-1 flex items-center cursor-help">
+                <i data-lucide="help-circle" class="w-4 h-4 text-dim hover:text-main transition-colors"></i>
+                <div class="tooltip-text absolute left-6 top-0 w-64 bg-card backdrop-blur-md border border-theme text-main text-[11px] p-4 rounded-xl shadow-xl z-50 pointer-events-none">
+                    <p id="langHelp" class="leading-relaxed">Geser slider pada panel untuk mengubah geometri dan kecepatan aliran. Warna biru menandakan area tekanan rendah (kecepatan tinggi).</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <!-- Pause/Resume Button -->
+            <button id="btnPause" class="flex items-center justify-center gap-2 px-4 py-1.5 bg-editor border border-theme hover:bg-preview text-main text-xs font-semibold rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-blue-500/20 outline-none">
+                <i id="pauseIcon" data-lucide="pause" class="w-3.5 h-3.5"></i>
+                <span id="langBtnPause">Jeda</span>
+            </button>
+
+            <!-- 4K Download Button -->
+            <button id="btnDownload4K" class="flex items-center gap-2 px-4 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-sky-500/50 outline-none">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <span id="langBtnDownload">Unduh 4K</span>
+            </button>
+            
+            <div class="w-px h-6 bg-theme mx-1"></div>
+
+            <!-- Language Toggle -->
+            <button onclick="toggleLanguage()" class="flex items-center justify-center w-8 h-8 rounded-lg border border-transparent hover:border-theme hover:bg-preview text-xs font-bold text-dim hover:text-main transition-all focus:ring-2 focus:ring-blue-500/20 outline-none" title="Toggle Language">
+                <span id="langFlag">ID</span>
+            </button>
+
+            <!-- Theme Toggle -->
+            <button onclick="toggleTheme()" class="flex items-center justify-center w-8 h-8 rounded-lg border border-transparent hover:border-theme hover:bg-preview text-dim hover:text-main transition-all focus:ring-2 focus:ring-blue-500/20 outline-none" title="Toggle Dark/Light Mode">
+                <i id="themeIcon" data-lucide="sun" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main id="mainWorkspace" class="flex-1 relative bg-preview overflow-hidden">
+        
+        <!-- Background Canvas Simulasi -->
+        <canvas id="glCanvas" class="absolute inset-0 w-full h-full"></canvas>
+        <canvas id="boundaryCanvas" style="display:none;"></canvas>
+
+        <!-- Floating Collapsible Control Panel -->
+        <div id="controlPanel" class="absolute top-6 right-6 w-80 glass-card rounded-2xl z-10 flex flex-col transition-all duration-300">
+            <!-- Panel Header -->
+            <div class="flex items-center justify-between p-4 cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 rounded-t-2xl transition-colors" onclick="togglePanel()">
+                <div>
+                    <h2 class="text-sm font-bold text-main" id="langPanelTitle">Parameter Aerodinamika</h2>
+                    <p class="text-[10px] text-dim font-mono mt-0.5">LBM D2Q9 SOLVER</p>
+                </div>
+                <button class="text-dim hover:text-main p-1 rounded-md transition-colors outline-none focus:ring-2 focus:ring-blue-500/20">
+                    <i id="collapseIcon" data-lucide="chevron-up" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Panel Content -->
+            <div id="paramsContent" class="px-5 pb-5 flex flex-col gap-5 border-t border-theme border-opacity-50" style="max-height: 500px;">
+                
+                <div class="space-y-5 pt-3">
+                    <!-- Sudut Serang -->
+                    <div class="group">
+                        <div class="flex justify-between mb-2 text-xs">
+                            <label class="text-main font-medium group-hover:text-blue-500 transition-colors" id="langLblAoA">Sudut Serang (AoA)</label>
+                            <span id="aoaValue" class="font-mono text-blue-500 font-bold bg-blue-500/10 px-2 py-0.5 rounded text-[10px]">5°</span>
+                        </div>
+                        <input type="range" id="aoaSlider" min="-10" max="25" value="5" class="w-full">
+                    </div>
+
+                    <!-- Kecepatan Inlet -->
+                    <div class="group">
+                        <div class="flex justify-between mb-2 text-xs">
+                            <label class="text-main font-medium group-hover:text-blue-500 transition-colors" id="langLblSpeed">Kecepatan Inlet</label>
+                            <span id="speedValue" class="font-mono text-blue-500 font-bold bg-blue-500/10 px-2 py-0.5 rounded text-[10px]">0.06</span>
+                        </div>
+                        <input type="range" id="speedSlider" min="0.02" max="0.12" step="0.01" value="0.06" class="w-full">
+                    </div>
+
+                    <!-- Viskositas -->
+                    <div class="group">
+                        <div class="flex justify-between mb-2 text-xs">
+                            <label class="text-main font-medium group-hover:text-blue-500 transition-colors" id="langLblVisc">Reynolds / Viskositas</label>
+                            <span id="viscValue" class="font-mono text-blue-500 font-bold bg-blue-500/10 px-2 py-0.5 rounded text-[10px]">Transisi</span>
+                        </div>
+                        <input type="range" id="tauSlider" min="0.52" max="0.70" step="0.01" value="0.55" class="w-full">
+                    </div>
+                </div>
+
+                <!-- Legenda Tekanan -->
+                <div class="pt-4 border-t border-theme border-opacity-50">
+                    <div class="text-[10px] text-dim mb-2 flex justify-between font-medium tracking-wide">
+                        <span id="langHighPress">Tekanan Tinggi</span>
+                        <span id="langLowPress">Rendah</span>
+                    </div>
+                    <div class="h-2 w-full rounded-full bg-gradient-to-r from-red-500 via-green-400 to-sky-500 shadow-inner"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="errorMsg" class="hidden absolute inset-0 bg-card z-50 flex items-center justify-center p-10 text-center">
+            <div class="bg-editor p-8 rounded-2xl border border-theme shadow-xl max-w-md">
+                <i data-lucide="alert-triangle" class="w-12 h-12 text-red-500 mx-auto mb-4"></i>
+                <h2 class="text-xl text-main font-bold mb-2">WebGL 2.0 Error</h2>
+                <p class="text-dim text-sm">Browser Anda tidak mendukung ekstensi Float Texture yang dibutuhkan simulasi ini.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="h-8 flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 relative z-50">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]"></span>
+            <span id="langStatus" class="font-medium tracking-wide">Engine Ready</span>
+        </div>
+
+        <div class="font-mono flex items-center gap-3">
+            <div>FPS: <span id="fpsVal" class="text-main font-bold">--</span></div>
+            <div class="w-1 h-1 rounded-full bg-theme"></div>
+            <div>GRID: <span class="text-main font-bold">1024x512</span></div>
+        </div>
+
+        <button onclick="toggleModal('termsModal')" class="hover:text-main transition-colors font-medium underline decoration-transparent hover:decoration-theme underline-offset-4 outline-none focus:ring-2 focus:ring-blue-500/20 rounded px-1" id="langTermsLink">Terms of Use</button>
+    </footer>
+
+    <!-- MODAL TERMS OF USE -->
+    <div id="termsModal" class="fixed inset-0 hidden items-center justify-center z-[100] bg-black/20 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div class="bg-card border border-theme rounded-2xl shadow-2xl w-full max-w-lg p-8 transform scale-95 transition-transform duration-300">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-lg">
+                        <i data-lucide="shield-alert" class="w-5 h-5 text-blue-500"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-main" id="langModalTitle">Disclaimer & Terms of Use</h2>
+                </div>
+                <button onclick="toggleModal('termsModal')" class="text-dim hover:text-red-500 bg-transparent hover:bg-red-50 dark:hover:bg-red-500/10 p-2 rounded-lg transition-colors outline-none focus:ring-2 focus:ring-red-500/20">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4 text-sm text-dim leading-relaxed mb-8">
+                <p id="langModalContext" class="p-4 bg-preview rounded-xl border border-theme">
+                    Aplikasi ini beroperasi sepenuhnya di sisi klien (browser lokal) Anda menggunakan teknologi WebGL. Simulasi aerodinamika (CFD LBM) dijalankan langsung pada GPU perangkat Anda. Kami tidak mengirimkan, memproses, atau merekam data simulasi ke server eksternal mana pun.
+                </p>
+                <p id="langModalLegal">
+                    Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil komputasi fluida tidak dijamin untuk keperluan rekayasa absolut. Pembuatan aplikasi ini dibantu oleh AI tools. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.
+                </p>
+            </div>
+            
+            <div class="flex justify-end">
+                <button onclick="toggleModal('termsModal')" class="px-6 py-2.5 bg-main text-editor text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity shadow-sm focus:ring-2 focus:ring-main/20 outline-none" id="langModalBtn">Saya Mengerti</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- =============== SHADERS GLSL (LBM 2D HD) =============== -->
+    <script id="vs-quad" type="x-shader/x-vertex">
+        #version 300 es
+        in vec2 a_position;
+        out vec2 v_uv;
+        void main() {
+            v_uv = a_position * 0.5 + 0.5;
+            gl_Position = vec4(a_position, 0.0, 1.0);
+        }
+    </script>
+
+    <script id="fs-init" type="x-shader/x-fragment">
+        #version 300 es
+        precision highp float;
+        layout(location=0) out vec4 f0;
+        layout(location=1) out vec4 f1;
+        layout(location=2) out vec4 f2;
+        uniform vec2 u_inlet;
+        
+        void main() {
+            vec2 u = vec2(u_inlet.x, 0.0);
+            float rho = 1.0;
+            float u2 = dot(u, u);
+            
+            float w0 = 4.0/9.0; float w1 = 1.0/9.0; float w2 = 1.0/36.0;
+            float eu1 = u.x; float eu2 = u.y; float eu3 = -u.x; float eu4 = -u.y;
+            float eu5 = u.x + u.y; float eu6 = -u.x + u.y; float eu7 = -u.x - u.y; float eu8 = u.x - u.y;
+
+            f0 = vec4(w0*rho*(1.0-1.5*u2), w1*rho*(1.0+3.0*eu1+4.5*eu1*eu1-1.5*u2), w1*rho*(1.0+3.0*eu2+4.5*eu2*eu2-1.5*u2), w1*rho*(1.0+3.0*eu3+4.5*eu3*eu3-1.5*u2));
+            f1 = vec4(w1*rho*(1.0+3.0*eu4+4.5*eu4*eu4-1.5*u2), w2*rho*(1.0+3.0*eu5+4.5*eu5*eu5-1.5*u2), w2*rho*(1.0+3.0*eu6+4.5*eu6*eu6-1.5*u2), w2*rho*(1.0+3.0*eu7+4.5*eu7*eu7-1.5*u2));
+            f2 = vec4(w2*rho*(1.0+3.0*eu8+4.5*eu8*eu8-1.5*u2), u.x, u.y, rho);
+        }
+    </script>
+
+    <script id="fs-lbm" type="x-shader/x-fragment">
+        #version 300 es
+        precision highp float;
+        in vec2 v_uv;
+        layout(location=0) out vec4 out_f0; layout(location=1) out vec4 out_f1; layout(location=2) out vec4 out_f2;
+
+        uniform sampler2D tex_f0; uniform sampler2D tex_f1; uniform sampler2D tex_f2; uniform sampler2D tex_boundary;
+        uniform vec2 u_res; uniform float u_omega; uniform float u_inlet_vel;
+
+        void main() {
+            vec2 px = 1.0 / u_res; vec2 p = v_uv;
+            float f0 = texture(tex_f0, p).x;
+            float f1 = texture(tex_f0, p + vec2(-px.x, 0.0)).y; 
+            float f2 = texture(tex_f0, p + vec2(0.0, -px.y)).z; 
+            float f3 = texture(tex_f0, p + vec2(px.x, 0.0)).w; 
+            float f4 = texture(tex_f1, p + vec2(0.0, px.y)).x; 
+            float f5 = texture(tex_f1, p + vec2(-px.x, -px.y)).y; 
+            float f6 = texture(tex_f1, p + vec2(px.x, -px.y)).z; 
+            float f7 = texture(tex_f1, p + vec2(px.x, px.y)).w; 
+            float f8 = texture(tex_f2, p + vec2(-px.x, px.y)).x; 
+
+            bool isSolid = texture(tex_boundary, p).r > 0.5;
+            if (isSolid) {
+                out_f0 = vec4(f0, f3, f4, f1); out_f1 = vec4(f2, f7, f8, f5); out_f2 = vec4(f6, 0.0, 0.0, 1.0); 
+                return;
+            }
+
+            float rho = f0 + f1 + f2 + f3 + f4 + f5 + f6 + f7 + f8;
+            vec2 u = vec2(f1 + f5 + f8 - (f3 + f6 + f7), f2 + f5 + f6 - (f4 + f7 + f8)) / max(rho, 0.1);
+            float current_omega = u_omega;
+
+            if (p.x < 3.0*px.x || p.x > 1.0-3.0*px.x || p.y < 3.0*px.y || p.y > 1.0-3.0*px.y) {
+                u = vec2(u_inlet_vel, 0.0); rho = 1.0; current_omega = 1.0; 
+            } else {
+                rho = clamp(rho, 0.4, 2.5); u.x = clamp(u.x, -0.5, 0.5); u.y = clamp(u.y, -0.5, 0.5);
+            }
+
+            float u2 = dot(u, u);
+            float w0 = 4.0/9.0; float w1 = 1.0/9.0; float w2 = 1.0/36.0;
+            float eu1=u.x; float eu2=u.y; float eu3=-u.x; float eu4=-u.y;
+            float eu5=u.x+u.y; float eu6=-u.x+u.y; float eu7=-u.x-u.y; float eu8=u.x-u.y;
+
+            float feq0 = w0*rho*(1.0-1.5*u2); float feq1 = w1*rho*(1.0+3.0*eu1+4.5*eu1*eu1-1.5*u2);
+            float feq2 = w1*rho*(1.0+3.0*eu2+4.5*eu2*eu2-1.5*u2); float feq3 = w1*rho*(1.0+3.0*eu3+4.5*eu3*eu3-1.5*u2);
+            float feq4 = w1*rho*(1.0+3.0*eu4+4.5*eu4*eu4-1.5*u2); float feq5 = w2*rho*(1.0+3.0*eu5+4.5*eu5*eu5-1.5*u2);
+            float feq6 = w2*rho*(1.0+3.0*eu6+4.5*eu6*eu6-1.5*u2); float feq7 = w2*rho*(1.0+3.0*eu7+4.5*eu7*eu7-1.5*u2);
+            float feq8 = w2*rho*(1.0+3.0*eu8+4.5*eu8*eu8-1.5*u2);
+
+            f0 = mix(f0, feq0, current_omega); f1 = mix(f1, feq1, current_omega); f2 = mix(f2, feq2, current_omega);
+            f3 = mix(f3, feq3, current_omega); f4 = mix(f4, feq4, current_omega); f5 = mix(f5, feq5, current_omega);
+            f6 = mix(f6, feq6, current_omega); f7 = mix(f7, feq7, current_omega); f8 = mix(f8, feq8, current_omega);
+
+            out_f0 = vec4(f0, f1, f2, f3); out_f1 = vec4(f4, f5, f6, f7); out_f2 = vec4(f8, u.x, u.y, rho);
+        }
+    </script>
+
+    <!-- Shader Render Modifikasi (Bentuk Kepala Panah Runcing & Jarak Diperlebar) -->
+    <script id="fs-render" type="x-shader/x-fragment">
+        #version 300 es
+        precision highp float;
+        in vec2 v_uv; out vec4 fragColor;
+        uniform sampler2D tex_f2; uniform sampler2D tex_boundary;
+        uniform float u_inlet_vel; uniform float u_time; uniform vec2 u_res;
+
+        vec4 getLinear(sampler2D tex, vec2 uv, vec2 res) {
+            vec2 px = uv * res - 0.5; vec2 p0 = floor(px); vec2 f = fract(px);
+            vec2 p00 = clamp(p0 + vec2(0.5, 0.5), vec2(0.5), res - 0.5) / res;
+            vec2 p10 = clamp(p0 + vec2(1.5, 0.5), vec2(0.5), res - 0.5) / res;
+            vec2 p01 = clamp(p0 + vec2(0.5, 1.5), vec2(0.5), res - 0.5) / res;
+            vec2 p11 = clamp(p0 + vec2(1.5, 1.5), vec2(0.5), res - 0.5) / res;
+            vec4 c00 = texture(tex, p00); vec4 c10 = texture(tex, p10);
+            vec4 c01 = texture(tex, p01); vec4 c11 = texture(tex, p11);
+            return mix(mix(c00, c10, f.x), mix(c01, c11, f.x), f.y);
+        }
+
+        vec3 colorMap(float t) {
+            vec3 c = vec3(0.0);
+            if (t < 0.25) c = mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 1.0, 0.0), t/0.25);
+            else if (t < 0.5) c = mix(vec3(1.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), (t-0.25)/0.25);
+            else if (t < 0.75) c = mix(vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 1.0), (t-0.5)/0.25);
+            else c = mix(vec3(0.0, 1.0, 1.0), vec3(0.0, 0.2, 1.0), min((t-0.75)/0.25, 1.0));
+            return c;
+        }
+
+        void main() {
+            vec4 macro = getLinear(tex_f2, v_uv, u_res);
+            vec2 vel = macro.yz;
+            float speed = length(vel);
+            float normSpeed = clamp(speed / (u_inlet_vel * 1.5), 0.0, 1.0);
+            vec3 baseColor = colorMap(normSpeed);
+            
+            float yCoord = v_uv.y - vel.y * 1.2; 
+            
+            // Mengurangi pengali Y agar barisan vertikal makin berjarak
+            float linePhase = yCoord * 20.0; 
+            float lineIndex = floor(linePhase); 
+            float lineDist = abs(fract(linePhase) - 0.5); 
+            
+            float staggerOffset = fract(sin(lineIndex * 12.9898) * 43758.5453);
+            
+            // Mengurangi pengali X agar jarak horizontal panah makin lebar (dulu 35.0)
+            float localX = fract(v_uv.x * 12.0 - u_time * 2.0 + staggerOffset);
+            
+            // --- PEMBENTUKAN ANAK PANAH AKURAT (TANPA GARIS VERTIKAL) ---
+            float width = 0.0;
+            
+            if (localX < 0.1) {
+                // Ekor meredup pelan (Fade in)
+                width = mix(0.0, 0.01, localX / 0.1); 
+            } else if (localX < 0.65) {
+                // Badan panah lurus konstan
+                width = 0.01; 
+            } else if (localX < 0.82) {
+                // Pangkal kepala panah melebar (bentuk layang-layang)
+                width = mix(0.01, 0.05, (localX - 0.65) / 0.17); 
+            } else if (localX < 0.95) {
+                // Kepala meruncing tajam ke sebuah titik
+                width = mix(0.05, 0.0, (localX - 0.82) / 0.13); 
+            }
+            
+            // Menggunakan pengamanan +0.001 untuk mencegah division by zero (penyebab garis rusak)
+            float arrowAlpha = 0.0;
+            if (width > 0.0) {
+                arrowAlpha = 1.0 - smoothstep(max(0.0, width - 0.015), width + 0.001, lineDist);
+            }
+            
+            vec3 finalColor = mix(baseColor * 0.75, vec3(1.0), arrowAlpha * 0.9);
+
+            float isSolid = texture(tex_boundary, v_uv).r;
+            float crispSolid = smoothstep(0.3, 0.7, isSolid);
+            
+            if (crispSolid > 0.5) {
+                vec3 wingColor = vec3(0.35) + vec3(v_uv.y * 0.25); 
+                fragColor = vec4(wingColor, 1.0);
+            } else {
+                fragColor = vec4(finalColor, 1.0);
+            }
+        }
+    </script>
+
+
+    <!-- =============== JS LOGIC (Framework & Simulation) =============== -->
+    <script>
+        lucide.createIcons();
+
+        // Variabel Status Pause diangkat ke global
+        let isPaused = false; 
+
+        const themeIcon = document.getElementById('themeIcon');
+        const isDark = localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) {
+            document.documentElement.classList.add('dark');
+            themeIcon.setAttribute('data-lucide', 'moon');
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                themeIcon.setAttribute('data-lucide', 'sun');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                themeIcon.setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons();
+        }
+
+        let currentLang = localStorage.getItem('lang') || 'ID';
+        const langData = {
+            'ID': {
+                flag: 'ID',
+                help: 'Geser slider pada panel untuk mengubah geometri dan kecepatan aliran. Warna biru menandakan area tekanan rendah (kecepatan tinggi).',
+                btnPause: 'Jeda',
+                btnResume: 'Lanjut',
+                download: 'Unduh 4K',
+                panelTitle: 'Parameter Aerodinamika',
+                lblAoA: 'Sudut Serang (AoA)',
+                lblSpeed: 'Kecepatan Inlet',
+                lblVisc: 'Reynolds / Viskositas',
+                highPress: 'Tekanan Tinggi',
+                lowPress: 'Rendah',
+                statusReady: 'Engine Ready',
+                statusPaused: 'Engine Paused',
+                termsLink: 'Terms of Use',
+                modalTitle: 'Disclaimer & Terms of Use',
+                modalContext: "Aplikasi ini beroperasi sepenuhnya di sisi klien (browser lokal) Anda menggunakan teknologi WebGL. Simulasi aerodinamika (CFD LBM) dijalankan langsung pada GPU perangkat Anda. Kami tidak mengirimkan, memproses, atau merekam data simulasi ke server eksternal mana pun.",
+                modalLegal: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil komputasi fluida tidak dijamin untuk keperluan rekayasa absolut. Pembuatan aplikasi ini dibantu oleh AI tools. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.",
+                modalBtn: 'Saya Mengerti'
+            },
+            'EN': {
+                flag: 'EN',
+                help: 'Slide the panel controls to change geometry and flow speed. Blue colors indicate low pressure (high speed) areas.',
+                btnPause: 'Pause',
+                btnResume: 'Resume',
+                download: '4K Download',
+                panelTitle: 'Aerodynamics Parameters',
+                lblAoA: 'Angle of Attack (AoA)',
+                lblSpeed: 'Inlet Velocity',
+                lblVisc: 'Reynolds / Viscosity',
+                highPress: 'High Pressure',
+                lowPress: 'Low',
+                statusReady: 'Engine Ready',
+                statusPaused: 'Engine Paused',
+                termsLink: 'Terms of Use',
+                modalTitle: 'Disclaimer & Terms of Use',
+                modalContext: "This application operates entirely on your client-side (local browser) using WebGL technology. The aerodynamics simulation (CFD LBM) is executed directly on your device's GPU. We do not transmit, process, or record any simulation data to any external server.",
+                modalLegal: "There is no coercion to use this app. This app is provided 'as-is' and the accuracy of fluid computation results is not guaranteed for absolute engineering purposes. The development of this app was assisted by AI tools. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.",
+                modalBtn: 'I Understand'
+            }
+        };
+
+        function updateLanguage() {
+            const t = langData[currentLang];
+            document.getElementById('langFlag').innerText = t.flag;
+            document.getElementById('langHelp').innerText = t.help;
+            document.getElementById('langBtnPause').innerText = isPaused ? t.btnResume : t.btnPause;
+            document.getElementById('langBtnDownload').innerText = t.download;
+            document.getElementById('langPanelTitle').innerText = t.panelTitle;
+            document.getElementById('langLblAoA').innerText = t.lblAoA;
+            document.getElementById('langLblSpeed').innerText = t.lblSpeed;
+            document.getElementById('langLblVisc').innerText = t.lblVisc;
+            document.getElementById('langHighPress').innerText = t.highPress;
+            document.getElementById('langLowPress').innerText = t.lowPress;
+            document.getElementById('langStatus').innerText = isPaused ? t.statusPaused : t.statusReady;
+            document.getElementById('langTermsLink').innerText = t.termsLink;
+            document.getElementById('langModalTitle').innerText = t.modalTitle;
+            document.getElementById('langModalContext').innerText = t.modalContext;
+            document.getElementById('langModalLegal').innerText = t.modalLegal;
+            document.getElementById('langModalBtn').innerText = t.modalBtn;
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'ID' ? 'EN' : 'ID';
+            localStorage.setItem('lang', currentLang);
+            updateLanguage();
+            let evt = new Event('input');
+            document.getElementById('tauSlider').dispatchEvent(evt);
+        }
+        
+        function toggleModal(id) {
+            const modal = document.getElementById(id);
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.querySelector('div').classList.remove('scale-95');
+                }, 10);
+            } else {
+                modal.classList.add('opacity-0');
+                modal.querySelector('div').classList.add('scale-95');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }, 300);
+            }
+        }
+
+        function togglePanel() {
+            const panel = document.getElementById('controlPanel');
+            panel.classList.toggle('collapsed');
+        }
+
+        updateLanguage();
+
+
+        // ==========================================
+        // SIMULATION LOGIC (LBM 2D HD GPU)
+        // ==========================================
+        const canvasGL = document.getElementById('glCanvas');
+        const gl = canvasGL.getContext('webgl2', { antialias: false, preserveDrawingBuffer: true });
+        
+        if (!gl || !gl.getExtension("EXT_color_buffer_float")) {
+            document.getElementById('errorMsg').classList.remove('hidden');
+            throw new Error("WebGL 2.0 Float Textures not supported.");
+        }
+
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+        const SIM_W = 1024;
+        const SIM_H = 512;
+        
+        let aoa = 5; 
+        let u_inlet = 0.06; 
+        let tau = 0.55; 
+        
+        document.getElementById('aoaSlider').addEventListener('input', (e) => {
+            aoa = parseFloat(e.target.value); document.getElementById('aoaValue').innerText = aoa + '°';
+            updateBoundaryTexture(); initLBM(); 
+        });
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            u_inlet = parseFloat(e.target.value); document.getElementById('speedValue').innerText = u_inlet.toFixed(2);
+        });
+        document.getElementById('tauSlider').addEventListener('input', (e) => {
+            tau = parseFloat(e.target.value); 
+            let lblID = tau < 0.54 ? "Turbulen (Stall+)" : tau < 0.58 ? "Transisi" : "Laminar (Viscous)";
+            let lblEN = tau < 0.54 ? "Turbulent (Stall+)" : tau < 0.58 ? "Transition" : "Laminar (Viscous)";
+            document.getElementById('viscValue').innerText = currentLang === 'ID' ? lblID : lblEN;
+        });
+
+        function compileShader(type, id) {
+            const src = document.getElementById(id).text.trim();
+            const s = gl.createShader(type);
+            gl.shaderSource(s, src); gl.compileShader(s);
+            if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(id, gl.getShaderInfoLog(s));
+            return s;
+        }
+
+        function createProgram(vsId, fsId) {
+            const p = gl.createProgram();
+            gl.attachShader(p, compileShader(gl.VERTEX_SHADER, vsId));
+            gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fsId));
+            gl.linkProgram(p); return p;
+        }
+
+        const quadBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+        const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+        gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+        const prgInit = createProgram('vs-quad', 'fs-init');
+        const prgLBM = createProgram('vs-quad', 'fs-lbm');
+        const prgRender = createProgram('vs-quad', 'fs-render');
+
+        function createPingPongSet() {
+            const set = { fb: gl.createFramebuffer(), tex: [] };
+            gl.bindFramebuffer(gl.FRAMEBUFFER, set.fb);
+            const attachments = [gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1, gl.COLOR_ATTACHMENT2];
+            for (let i = 0; i < 3; i++) {
+                const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, SIM_W, SIM_H, 0, gl.RGBA, gl.FLOAT, null);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, attachments[i], gl.TEXTURE_2D, tex, 0);
+                set.tex.push(tex);
+            }
+            gl.drawBuffers(attachments); return set;
+        }
+
+        let fbA = createPingPongSet(); let fbB = createPingPongSet();
+        
+        const texBoundary = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texBoundary);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        const bCanvas = document.getElementById('boundaryCanvas');
+        const bCtx = bCanvas.getContext('2d', { willReadFrequently: true });
+        bCanvas.width = SIM_W; bCanvas.height = SIM_H;
+
+        function updateBoundaryTexture() {
+            bCtx.fillStyle = 'black'; bCtx.fillRect(0, 0, SIM_W, SIM_H);
+            
+            // UKURAN SAYAP DIPERBESAR
+            let chord = SIM_W * 0.35; 
+            let cx = SIM_W * 0.40; 
+            let cy = SIM_H * 0.55; 
+            let m = 0.04, p = 0.4, t = 0.12;
+
+            let pts = []; let rad = aoa * Math.PI / 180; 
+            let cosA = Math.cos(rad), sinA = Math.sin(rad);
+
+            for(let step = 0; step <= 1; step+=0.005) pts.push(calcNaca(step, true, m, p, t)); 
+            for(let step = 1; step >= 0; step-=0.005) pts.push(calcNaca(step, false, m, p, t));
+
+            bCtx.fillStyle = 'red'; bCtx.beginPath();
+            for(let i=0; i<pts.length; i++) {
+                let x_c = (pts[i].x - 0.25) * chord; let y_c = -pts[i].y * chord; 
+                let xr = x_c * cosA - y_c * sinA + cx; let yr = x_c * sinA + y_c * cosA + cy;
+                if(i===0) bCtx.moveTo(xr, yr); else bCtx.lineTo(xr, yr);
+            }
+            bCtx.fill();
+
+            gl.bindTexture(gl.TEXTURE_2D, texBoundary);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bCanvas);
+        }
+
+        function calcNaca(xc, isUpper, m, p, t) {
+            let yt = 5*t*(0.2969*Math.sqrt(xc) - 0.1260*xc - 0.3516*xc*xc + 0.2843*Math.pow(xc,3) - 0.1015*Math.pow(xc,4));
+            let yc = 0, dy = 0;
+            if (xc <= p) { yc = (m/(p*p))*(2*p*xc - xc*xc); dy = (2*m/(p*p))*(p-xc); } 
+            else { yc = (m/Math.pow(1-p,2))*((1-2*p)+2*p*xc - xc*xc); dy = (2*m/Math.pow(1-p,2))*(p-xc); }
+            let th = Math.atan(dy);
+            return { x: isUpper ? xc - yt*Math.sin(th) : xc + yt*Math.sin(th), y: isUpper ? yc + yt*Math.cos(th) : yc - yt*Math.cos(th) };
+        }
+
+        function initLBM() {
+            gl.useProgram(prgInit); gl.uniform2f(gl.getUniformLocation(prgInit, "u_inlet"), u_inlet, 0);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbA.fb); gl.viewport(0, 0, SIM_W, SIM_H); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbB.fb); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        }
+
+        const mainWorkspace = document.getElementById('mainWorkspace');
+        function resize() {
+            if(canvasGL.width !== mainWorkspace.clientWidth || canvasGL.height !== mainWorkspace.clientHeight){
+                canvasGL.width = mainWorkspace.clientWidth;
+                canvasGL.height = mainWorkspace.clientHeight;
+            }
+        }
+
+        let frameCount = 0; let lastTime = performance.now(); let simTime = 0;
+
+        document.getElementById('btnPause').addEventListener('click', () => {
+            isPaused = !isPaused;
+            const icon = document.getElementById('pauseIcon');
+            const statusDot = document.querySelector('footer .bg-green-500, footer .bg-yellow-500');
+            
+            if (isPaused) {
+                icon.setAttribute('data-lucide', 'play');
+                statusDot.classList.remove('bg-green-500', 'animate-pulse', 'shadow-[0_0_5px_rgba(34,197,94,0.5)]');
+                statusDot.classList.add('bg-yellow-500', 'shadow-[0_0_5px_rgba(234,179,8,0.5)]');
+            } else {
+                icon.setAttribute('data-lucide', 'pause');
+                statusDot.classList.remove('bg-yellow-500', 'shadow-[0_0_5px_rgba(234,179,8,0.5)]');
+                statusDot.classList.add('bg-green-500', 'animate-pulse', 'shadow-[0_0_5px_rgba(34,197,94,0.5)]');
+            }
+            lucide.createIcons();
+            updateLanguage(); 
+        });
+
+        function forceRenderPass(width, height) {
+            gl.useProgram(prgRender);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null); 
+            gl.viewport(0, 0, width, height);
+
+            gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[2]);
+            gl.uniform1i(gl.getUniformLocation(prgRender, "tex_f2"), 0);
+            
+            gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texBoundary);
+            gl.uniform1i(gl.getUniformLocation(prgRender, "tex_boundary"), 1);
+
+            gl.uniform1f(gl.getUniformLocation(prgRender, "u_inlet_vel"), u_inlet);
+            gl.uniform1f(gl.getUniformLocation(prgRender, "u_time"), simTime * 0.01);
+            gl.uniform2f(gl.getUniformLocation(prgRender, "u_res"), SIM_W, SIM_H);
+
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        }
+
+        function render() {
+            resize();
+            let stepsPerFrame = 25; 
+            
+            gl.useProgram(prgLBM);
+            gl.uniform2f(gl.getUniformLocation(prgLBM, "u_res"), SIM_W, SIM_H);
+            gl.uniform1f(gl.getUniformLocation(prgLBM, "u_omega"), 1.0 / tau);
+            gl.uniform1f(gl.getUniformLocation(prgLBM, "u_inlet_vel"), u_inlet);
+
+            gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, texBoundary);
+            gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_boundary"), 3);
+
+            if (!isPaused) {
+                for (let i = 0; i < stepsPerFrame; i++) {
+                    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[0]);
+                    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[1]);
+                    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, fbA.tex[2]);
+                    gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_f0"), 0);
+                    gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_f1"), 1);
+                    gl.uniform1i(gl.getUniformLocation(prgLBM, "tex_f2"), 2);
+
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, fbB.fb);
+                    gl.viewport(0, 0, SIM_W, SIM_H);
+                    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+                    let temp = fbA; fbA = fbB; fbB = temp;
+                    simTime++;
+                }
+            }
+
+            forceRenderPass(canvasGL.width, canvasGL.height);
+
+            frameCount++; let now = performance.now();
+            if(now - lastTime >= 1000) {
+                document.getElementById('fpsVal').innerText = frameCount;
+                frameCount = 0; lastTime = now;
+            }
+            requestAnimationFrame(render);
+        }
+
+        updateBoundaryTexture();
+        initLBM();
+        requestAnimationFrame(render);
+
+        // ==========================================
+        // 4K PNG DOWNLOAD LOGIC
+        // ==========================================
+        document.getElementById('btnDownload4K').addEventListener('click', () => {
+            const originalW = canvasGL.width;
+            const originalH = canvasGL.height;
+
+            const targetW = 3840;
+            const targetH = 2160;
+
+            canvasGL.width = targetW;
+            canvasGL.height = targetH;
+            
+            forceRenderPass(targetW, targetH);
+
+            const dataURL = canvasGL.toDataURL('image/png');
+
+            const link = document.createElement('a');
+            link.download = `Sayapku_4K_Simulation_${Date.now()}.png`;
+            link.href = dataURL;
+            link.click();
+
+            canvasGL.width = originalW;
+            canvasGL.height = originalH;
+        });
+
+    </script>
+</body>
+</html>

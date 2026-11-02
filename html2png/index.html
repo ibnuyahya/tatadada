@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML to 4K PNG</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&family=Noto+Serif:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- TATADADA CSS Tokens -->
+    <style>
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+        }
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            color-scheme: dark;
+        }
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+        
+        .bg-header { background-color: var(--header-bg); }
+        .bg-editor { background-color: var(--editor-bg); }
+        .bg-preview { background-color: var(--preview-bg); }
+        .bg-footer { background-color: var(--footer-bg); }
+        .border-theme { border-color: var(--border-color); }
+        .text-dim { color: var(--text-dim); }
+        
+        /* Utility untuk textarea JetBrains Mono */
+        .font-code { font-family: 'JetBrains Mono', monospace; white-space: pre; line-height: 1.6; }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- === HEADER === -->
+    <header class="flex items-center justify-between px-6 border-b border-theme bg-header shrink-0 relative z-50 h-14">
+        <div class="flex items-center gap-3">
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="font-bold text-lg bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent">
+                        HTML to 4K PNG
+                    </h1>
+                    <span class="text-[10px] font-mono text-dim italic">v2.0 (Vanilla)</span>
+                </div>
+                <a href="https://danial.my.id" target="_blank" rel="noreferrer" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 transition-colors">
+                    by AhmadDanial
+                </a>
+            </div>
+            <div class="relative group cursor-pointer ml-2">
+                <i data-lucide="help-circle" class="w-4 h-4 text-dim hover:text-blue-500 transition-colors"></i>
+                <div id="ui-help" class="absolute left-0 top-full mt-2 w-64 p-3 bg-gray-800 text-white text-xs rounded shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-pre-line">
+                    <!-- Text diisi oleh JS -->
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <button id="btn-lang" class="text-lg hover:scale-110 transition-transform" title="Toggle Language">🇮🇩</button>
+            <button id="btn-theme" class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border border-theme flex items-center justify-center">
+                <i id="icon-theme" data-lucide="moon" class="w-4 h-4 text-slate-600"></i>
+            </button>
+            
+            <div class="w-px h-5 bg-[var(--border-color)] mx-1"></div>
+
+            <button id="btn-export" class="flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded shadow-sm transition-all active:scale-95">
+                <i id="icon-export" data-lucide="file-image" class="w-3.5 h-3.5"></i> 
+                <span id="ui-btn-export">Ekspor 4K PNG</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- === MAIN WORKSPACE (SIDE-BY-SIDE SPLIT) === -->
+    <div id="workspace-container" class="flex-1 relative flex flex-row bg-preview overflow-hidden">
+        
+        <!-- LEFT PANE: Editor -->
+        <div id="left-pane" style="width: 40%;" class="bg-editor flex flex-col shrink-0 min-w-[20%] max-w-[80%] border-r border-theme z-30">
+            <div class="flex items-center justify-between px-4 py-2 border-b border-theme bg-header shrink-0">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="layout-template" class="w-3.5 h-3.5 text-dim"></i>
+                    <span id="ui-editor-label" class="text-[10px] font-bold text-dim tracking-wider">HTML / TAILWIND EDITOR</span>
+                </div>
+            </div>
+            <textarea id="editor-textarea" class="flex-1 w-full p-4 resize-none focus:outline-none bg-transparent text-[13px] text-[var(--text-main)] font-code" spellcheck="false"></textarea>
+        </div>
+
+        <!-- VERTICAL RESIZER -->
+        <div id="resizer" class="w-1.5 bg-[var(--border-color)] cursor-col-resize hover:bg-indigo-500 active:bg-indigo-600 transition-colors shrink-0 z-40"></div>
+
+        <!-- RIGHT PANE: Preview -->
+        <div id="preview-pane" class="flex-1 flex flex-col relative overflow-hidden bg-[var(--stripe-color)]">
+            
+            <!-- Toolbar Zoom Overlay -->
+            <div class="absolute top-4 left-4 right-4 z-20 flex flex-col sm:flex-row gap-2 items-start justify-between pointer-events-none">
+                <span class="bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 px-3 py-1.5 rounded-full text-[9px] font-bold tracking-widest uppercase shadow-sm flex items-center gap-1.5">
+                    <i data-lucide="zoom-in" class="w-3 h-3"></i> 
+                    <span id="ui-preview-label">LIVE PREVIEW</span>
+                </span>
+
+                <!-- Kontrol Zoom -->
+                <div class="pointer-events-auto flex items-center gap-1.5 bg-header/90 backdrop-blur-sm p-1.5 rounded-lg shadow-sm border border-theme text-xs">
+                    <button id="btn-fit-all" class="p-1.5 rounded transition-colors text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800" title="Fit Semua Area">
+                        <i data-lucide="maximize" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <button id="btn-fit-width" class="p-1.5 rounded transition-colors text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800" title="Fit Lebar">
+                        <i data-lucide="move-horizontal" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <button id="btn-fit-height" class="p-1.5 rounded transition-colors text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800" title="Fit Tinggi">
+                        <i data-lucide="move-vertical" class="w-3.5 h-3.5"></i>
+                    </button>
+
+                    <div class="w-px h-4 bg-[var(--border-color)] mx-1"></div>
+
+                    <input type="range" id="zoom-slider" min="0.1" max="2" step="0.05" value="1" class="w-20 md:w-24 cursor-pointer accent-indigo-600">
+                    <span id="zoom-text" class="font-mono font-bold w-12 text-right text-dim">100%</span>
+                </div>
+            </div>
+            
+            <!-- Scrollable Container -->
+            <div class="flex-1 overflow-auto relative w-full h-full">
+                <div class="min-w-full w-fit min-h-full p-8">
+                    <!-- CSS Transition Wrapper -->
+                    <div id="scale-wrapper" class="shrink-0 transition-all duration-200 ease-out mx-auto" style="width: 794px; height: 1123px;">
+                        <!-- Transform Scale Target -->
+                        <div id="transform-target" class="bg-white shadow-2xl origin-top-left" style="width: 794px; height: 1123px; transform: scale(1);">
+                            <iframe id="preview-iframe" title="Live Preview" class="w-full h-full border-none pointer-events-none" sandbox="allow-scripts allow-same-origin"></iframe>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === FOOTER === -->
+    <footer class="flex items-center justify-between px-6 border-t border-theme bg-footer text-[10px] text-dim shrink-0 h-8 z-50 relative">
+        <div class="flex items-center gap-2">
+            <i data-lucide="check-circle-2" class="w-3 h-3 text-emerald-500"></i>
+            <span id="ui-ready">Sistem Siap</span>
+        </div>
+        <div class="hidden md:block">
+            <span id="ui-resolution" class="font-mono bg-[var(--border-color)] px-2 py-0.5 rounded text-[9px]">
+                Content Size: 794px × 1123px
+            </span>
+        </div>
+        <button id="btn-terms" class="hover:text-[var(--text-main)] transition-colors underline decoration-dotted">
+            Terms
+        </button>
+    </footer>
+
+    <!-- === MODAL TERMS OF USE === -->
+    <div id="modal-terms" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div class="bg-header border border-theme rounded-lg shadow-2xl max-w-sm w-full relative p-6">
+            <button id="btn-close-terms" class="absolute top-3 right-3 p-1 text-dim hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+            <h3 id="ui-terms-title" class="text-lg font-bold mb-3">Syarat Penggunaan</h3>
+            <p id="ui-terms-text" class="text-sm text-dim leading-relaxed text-justify">
+                <!-- Text diisi oleh JS -->
+            </p>
+            <div class="mt-6 flex justify-end">
+                <button id="btn-ok-terms" class="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded hover:bg-indigo-700 transition-colors">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- === VANNILA JAVASCRIPT LOGIC === -->
+    <script>
+        // Inisialisasi Icons
+        lucide.createIcons();
+
+        // === KODE DEFAULT HTML ===
+        const defaultCode = `<!-- Konten akan dirender pada ukuran A4 (794px x 1123px) -->
+<div class="text-center mb-12 border-b-4 border-indigo-600 pb-8">
+    <span class="bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase">2025 Strategy</span>
+    <h1 class="text-5xl font-bold mt-4 text-slate-900">Academic <span class="text-indigo-600">Pop</span></h1>
+    <p class="text-xl text-slate-500 mt-4">Hacking the Credibility Code</p>
+</div>
+
+<div class="mb-12">
+    <h2 class="text-2xl font-bold mb-6 text-center text-slate-800">Three Strategic Pillars</h2>
+    <div class="grid grid-cols-3 gap-6">
+        <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100 flex flex-col items-center text-center">
+            <div class="w-12 h-12 bg-indigo-600 text-white flex items-center justify-center rounded-full text-2xl mb-4">🎨</div>
+            <h3 class="font-bold text-lg text-indigo-900 mb-2">Visual Identity</h3>
+            <p class="text-sm text-slate-600 leading-relaxed">Adapting traditional heraldry for the digital-first "scroll" generation.</p>
+        </div>
+        <div class="bg-fuchsia-50 p-6 rounded-xl border border-fuchsia-100 flex flex-col items-center text-center">
+            <div class="w-12 h-12 bg-fuchsia-600 text-white flex items-center justify-center rounded-full text-2xl mb-4">🚀</div>
+            <h3 class="font-bold text-lg text-fuchsia-900 mb-2">Growth Loops</h3>
+            <p class="text-sm text-slate-600 leading-relaxed">Leveraging viral mechanics and social proof to reduce CAC.</p>
+        </div>
+        <div class="bg-emerald-50 p-6 rounded-xl border border-emerald-100 flex flex-col items-center text-center">
+            <div class="w-12 h-12 bg-emerald-600 text-white flex items-center justify-center rounded-full text-2xl mb-4">🤝</div>
+            <h3 class="font-bold text-lg text-emerald-900 mb-2">Community</h3>
+            <p class="text-sm text-slate-600 leading-relaxed">Decentralized student governance and transparent data sharing.</p>
+        </div>
+    </div>
+</div>
+
+<div class="mb-12">
+    <h3 class="text-2xl font-bold mb-6 border-l-8 border-indigo-500 pl-4 text-slate-800">Performance Metrics</h3>
+    <div class="space-y-6">
+        <div>
+            <div class="flex justify-between text-sm font-bold mb-1 text-slate-700">
+                <span>Brand Awareness</span>
+                <span class="text-indigo-600">85%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+                <div class="bg-indigo-600 h-3 rounded-full" style="width: 85%"></div>
+            </div>
+        </div>
+         <div>
+            <div class="flex justify-between text-sm font-bold mb-1 text-slate-700">
+                <span>Student Satisfaction</span>
+                <span class="text-fuchsia-600">92%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+                <div class="bg-fuchsia-600 h-3 rounded-full" style="width: 92%"></div>
+            </div>
+        </div>
+    </div>
+</div>`;
+
+        // === STATE & ELEMENTS ===
+        let lang = localStorage.getItem('lang') || 'ID';
+        let isDark = localStorage.getItem('theme') === 'dark';
+        let isGenerating = false;
+        let zoomMode = 'fit-all'; // 'fit-all', 'fit-width', 'fit-height', 'manual'
+        let currentScale = 1;
+        let manualScale = 1;
+        
+        const WEB_WIDTH = 794;
+        let dynamicContentHeight = 1123;
+        let currentFilename = 'Web_Long_Design.png';
+
+        const els = {
+            html: document.documentElement,
+            editor: document.getElementById('editor-textarea'),
+            iframe: document.getElementById('preview-iframe'),
+            scaleWrapper: document.getElementById('scale-wrapper'),
+            transformTarget: document.getElementById('transform-target'),
+            previewPane: document.getElementById('preview-pane'),
+            workspace: document.getElementById('workspace-container'),
+            leftPane: document.getElementById('left-pane'),
+            resizer: document.getElementById('resizer'),
+            slider: document.getElementById('zoom-slider'),
+            zoomText: document.getElementById('zoom-text'),
+            resolutionText: document.getElementById('ui-resolution'),
+            btnExport: document.getElementById('btn-export'),
+            btnExportText: document.getElementById('ui-btn-export'),
+            exportIcon: document.getElementById('icon-export')
+        };
+
+        // === DICTIONARY ===
+        const dict = {
+            ID: {
+                help: "1. Masukkan kode HTML di panel kiri.\n2. Preview akan otomatis di-zoom agar muat.\n3. Klik Export 4K PNG untuk mengunduh.",
+                export: "Ekspor 4K PNG",
+                exporting: "Merender 4K...",
+                ready: "Sistem Siap",
+                termsTitle: "Syarat Penggunaan",
+                termsText: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+                editorLabel: "HTML / TAILWIND EDITOR",
+                previewLabel: "LIVE PREVIEW",
+                fitAll: "Fit Semua Area",
+                fitWidth: "Fit Lebar",
+                fitHeight: "Fit Tinggi"
+            },
+            EN: {
+                help: "1. Enter HTML code in the left pane.\n2. Preview scales automatically.\n3. Click Export 4K PNG to download.",
+                export: "Export 4K PNG",
+                exporting: "Rendering 4K...",
+                ready: "Engine Ready",
+                termsTitle: "Terms of Use",
+                termsText: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools. The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                editorLabel: "HTML / TAILWIND EDITOR",
+                previewLabel: "LIVE PREVIEW",
+                fitAll: "Fit All Area",
+                fitWidth: "Fit Width",
+                fitHeight: "Fit Height"
+            }
+        };
+
+        function applyLocalization() {
+            const t = dict[lang];
+            document.getElementById('ui-help').innerText = t.help;
+            document.getElementById('btn-lang').innerText = lang === 'ID' ? '🇮🇩' : '🇬🇧';
+            if(!isGenerating) els.btnExportText.innerText = t.export;
+            document.getElementById('ui-ready').innerText = t.ready;
+            document.getElementById('ui-terms-title').innerText = t.termsTitle;
+            document.getElementById('ui-terms-text').innerText = t.termsText;
+            document.getElementById('ui-editor-label').innerText = t.editorLabel;
+            document.getElementById('ui-preview-label').innerText = t.previewLabel;
+            document.getElementById('btn-fit-all').title = t.fitAll;
+            document.getElementById('btn-fit-width').title = t.fitWidth;
+            document.getElementById('btn-fit-height').title = t.fitHeight;
+        }
+
+        function toggleLanguage() {
+            lang = lang === 'ID' ? 'EN' : 'ID';
+            localStorage.setItem('lang', lang);
+            applyLocalization();
+        }
+        document.getElementById('btn-lang').addEventListener('click', toggleLanguage);
+
+        // === THEME HANDLING ===
+        function applyTheme() {
+            const icon = document.getElementById('icon-theme');
+            if (isDark) {
+                els.html.classList.add('dark');
+                icon.setAttribute('data-lucide', 'sun');
+                icon.classList.remove('text-slate-600');
+                icon.classList.add('text-yellow-400');
+            } else {
+                els.html.classList.remove('dark');
+                icon.setAttribute('data-lucide', 'moon');
+                icon.classList.add('text-slate-600');
+                icon.classList.remove('text-yellow-400');
+            }
+            lucide.createIcons();
+        }
+
+        document.getElementById('btn-theme').addEventListener('click', () => {
+            isDark = !isDark;
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            applyTheme();
+        });
+
+        // === MODAL TERMS ===
+        const modal = document.getElementById('modal-terms');
+        document.getElementById('btn-terms').addEventListener('click', () => {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        });
+        const closeModal = () => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        };
+        document.getElementById('btn-close-terms').addEventListener('click', closeModal);
+        document.getElementById('btn-ok-terms').addEventListener('click', closeModal);
+
+        // === SPLIT PANE RESIZER ===
+        let isDragging = false;
+        els.resizer.addEventListener('mousedown', () => { isDragging = true; });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const newWidth = (e.clientX / els.workspace.clientWidth) * 100;
+            if (newWidth > 15 && newWidth < 85) {
+                els.leftPane.style.width = newWidth + '%';
+                calculateZoom(); // Update auto-zoom ketika ukuran panel berubah
+            }
+        });
+
+        // === IFRAME RENDERER ===
+        function updateIframe() {
+            const htmlContent = els.editor.value;
+            const srcDoc = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <script src="https://cdn.tailwindcss.com"><\/script>
+                    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Serif:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+                    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"><\/script>
+                    <style>
+                        body { margin: 0; font-family: 'Inter', sans-serif; background: transparent; color: #1e293b; overflow: hidden; }
+                        #inner-wrapper { padding: 40px; box-sizing: border-box; background: white; min-height: 1123px; width: 794px; }
+                        h1, h2, h3 { font-family: 'Noto Serif', serif; }
+                    </style>
+                </head>
+                <body>
+                    <div id="inner-wrapper">
+                        ${htmlContent}
+                    </div>
+                    <script>
+                        const wrapper = document.getElementById('inner-wrapper');
+                        const observer = new ResizeObserver(entries => {
+                            const contentHeight = entries[0].target.scrollHeight;
+                            window.parent.postMessage({ type: 'iframeHeight', height: contentHeight }, '*');
+                        });
+                        observer.observe(wrapper);
+
+                        window.addEventListener('message', async (e) => {
+                            if (e.data && e.data.type === 'EXPORT_PNG') {
+                                try {
+                                    await document.fonts.ready;
+                                    if (typeof htmlToImage === 'undefined') throw new Error("Library render belum siap.");
+                                    
+                                    const dataUrl = await htmlToImage.toPng(wrapper, {
+                                        pixelRatio: e.data.scale,
+                                        backgroundColor: '#ffffff',
+                                        style: { transform: 'scale(1)', transformOrigin: 'top left' }
+                                    });
+                                    window.parent.postMessage({ type: 'EXPORT_RESULT', dataUrl: dataUrl }, '*');
+                                } catch (error) {
+                                    window.parent.postMessage({ type: 'EXPORT_ERROR', error: error.message }, '*');
+                                }
+                            }
+                        });
+                    <\/script>
+                </body>
+                </html>
+            `;
+            els.iframe.srcdoc = srcDoc;
+        }
+
+        // Debounce input to avoid flickering
+        let debounceTimer;
+        els.editor.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(updateIframe, 500);
+        });
+
+        // === ZOOM & LAYOUT CALCULATION ===
+        function updateActiveButton() {
+            const btnAll = document.getElementById('btn-fit-all');
+            const btnWidth = document.getElementById('btn-fit-width');
+            const btnHeight = document.getElementById('btn-fit-height');
+            
+            const activeClass = ['bg-indigo-100', 'text-indigo-700', 'dark:bg-indigo-900/50', 'dark:text-indigo-300'];
+            const inactiveClass = ['text-slate-600', 'hover:bg-slate-100', 'dark:text-slate-400', 'dark:hover:bg-slate-800'];
+            
+            [btnAll, btnWidth, btnHeight].forEach(btn => {
+                btn.classList.remove(...activeClass);
+                btn.classList.add(...inactiveClass);
+            });
+
+            if (zoomMode === 'fit-all') btnAll.classList.add(...activeClass), btnAll.classList.remove(...inactiveClass);
+            if (zoomMode === 'fit-width') btnWidth.classList.add(...activeClass), btnWidth.classList.remove(...inactiveClass);
+            if (zoomMode === 'fit-height') btnHeight.classList.add(...activeClass), btnHeight.classList.remove(...inactiveClass);
+        }
+
+        function calculateZoom() {
+            const containerW = els.previewPane.clientWidth;
+            const containerH = els.previewPane.clientHeight;
+            const PADDING = 64;
+
+            const scaleX = containerW > 0 ? (containerW - PADDING) / WEB_WIDTH : 1;
+            const scaleY = containerH > 0 ? (containerH - PADDING) / dynamicContentHeight : 1;
+
+            if (zoomMode === 'fit-all') currentScale = Math.min(scaleX, scaleY);
+            else if (zoomMode === 'fit-width') currentScale = scaleX;
+            else if (zoomMode === 'fit-height') currentScale = scaleY;
+            else currentScale = manualScale;
+
+            // Apply style
+            els.scaleWrapper.style.width = `${WEB_WIDTH * currentScale}px`;
+            els.scaleWrapper.style.height = `${dynamicContentHeight * currentScale}px`;
+            els.transformTarget.style.height = `${dynamicContentHeight}px`;
+            els.transformTarget.style.transform = `scale(${currentScale})`;
+            
+            // Update Slider UI
+            els.slider.value = currentScale;
+            els.zoomText.innerText = `${(currentScale * 100).toFixed(0)}%`;
+            updateActiveButton();
+        }
+
+        // Listener Resize Container
+        const resizeObserver = new ResizeObserver(() => calculateZoom());
+        resizeObserver.observe(els.previewPane);
+
+        // Listener Toolbar Zoom
+        document.getElementById('btn-fit-all').addEventListener('click', () => { zoomMode = 'fit-all'; calculateZoom(); });
+        document.getElementById('btn-fit-width').addEventListener('click', () => { zoomMode = 'fit-width'; calculateZoom(); });
+        document.getElementById('btn-fit-height').addEventListener('click', () => { zoomMode = 'fit-height'; calculateZoom(); });
+        
+        els.slider.addEventListener('input', (e) => {
+            zoomMode = 'manual';
+            manualScale = parseFloat(e.target.value);
+            calculateZoom();
+        });
+
+        // === WINDOW MESSAGE LISTENER ===
+        window.addEventListener('message', (e) => {
+            if (e.data && e.data.type === 'iframeHeight' && e.data.height) {
+                dynamicContentHeight = Math.max(e.data.height, 100);
+                els.resolutionText.innerText = `Content Size: ${WEB_WIDTH}px × ${dynamicContentHeight}px`;
+                calculateZoom();
+            }
+            else if (e.data && e.data.type === 'EXPORT_RESULT') {
+                const link = document.createElement('a');
+                link.download = currentFilename;
+                link.href = e.data.dataUrl;
+                link.click();
+                finishExport();
+            }
+            else if (e.data && e.data.type === 'EXPORT_ERROR') {
+                console.error(e.data.error);
+                alert("Gagal memproses gambar: " + e.data.error);
+                finishExport();
+            }
+        });
+
+        // === EXPORT LOGIC ===
+        function getSmartFilename(htmlText) {
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, 'text/html');
+                const heading = doc.querySelector('h1') || doc.querySelector('h2');
+                let title = "Poster_Digital";
+                if (heading && heading.innerText) {
+                    title = heading.innerText.trim().substring(0, 30).replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+                }
+                const now = new Date();
+                const pad = (n) => n.toString().padStart(2, '0');
+                const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+                return `${title}_${timestamp}.png`;
+            } catch (e) {
+                return `Export_${new Date().getTime()}.png`;
+            }
+        }
+
+        function finishExport() {
+            isGenerating = false;
+            els.btnExportText.innerText = dict[lang].export;
+            els.exportIcon.classList.remove('hidden');
+            els.btnExportText.classList.remove('animate-pulse');
+            els.btnExport.classList.remove('bg-indigo-400', 'cursor-wait');
+            els.btnExport.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+        }
+
+        els.btnExport.addEventListener('click', () => {
+            if (isGenerating) return;
+            isGenerating = true;
+            
+            // Update UI Button
+            els.btnExportText.innerText = dict[lang].exporting;
+            els.exportIcon.classList.add('hidden');
+            els.btnExportText.classList.add('animate-pulse');
+            els.btnExport.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+            els.btnExport.classList.add('bg-indigo-400', 'cursor-wait');
+
+            // Set filename & send export message to iframe
+            currentFilename = getSmartFilename(els.editor.value);
+            els.iframe.contentWindow.postMessage({ type: 'EXPORT_PNG', scale: 5 }, '*');
+        });
+
+        // === BOOTSTRAP ===
+        els.editor.value = defaultCode;
+        applyTheme();
+        applyLocalization();
+        updateIframe();
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,1749 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuantumVault Pro — Neural Licensing &amp; DevTools Pen-Test (De-obfuscated)</title>
+  <style>
+    :root {
+      --bg-deep: #060913;
+      --glass-bg: rgba(15, 23, 42, 0.72);
+      --glass-border: rgba(99, 102, 241, 0.28);
+      --accent-cyan: #06b6d4;
+      --accent-indigo: #6366f1;
+      --accent-fuchsia: #d946ef;
+      --accent-emerald: #10b981;
+      --tilt-x: 0deg;
+      --tilt-y: 0deg;
+      --glow-x: 50%;
+      --glow-y: 50%;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(99, 102, 241, 0.16), transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(217, 70, 239, 0.14), transparent 40%),
+        var(--bg-deep);
+      color: #f8fafc;
+      margin: 0;
+      padding: 18px;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    .grid-layout {
+      max-width: 920px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 16px;
+      perspective: 1100px;
+    }
+    @media (max-width: 720px) {
+      .grid-layout { grid-template-columns: 1fr; }
+    }
+    .glass-card {
+      position: relative;
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      transform: rotateX(var(--tilt-y)) rotateY(var(--tilt-x));
+      transition: transform 0.12s ease-out, border-color 0.25s ease;
+      overflow: hidden;
+    }
+    .glass-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(360px circle at var(--glow-x) var(--glow-y), rgba(56, 189, 248, 0.13), transparent 65%);
+      pointer-events: none;
+    }
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.14);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+    .badge-pill.scanner {
+      background: rgba(217, 70, 239, 0.15);
+      color: #f0abfc;
+      border-color: rgba(217, 70, 239, 0.35);
+    }
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+      animation: qvPulse 1.8s infinite;
+    }
+    @keyframes qvPulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.45); opacity: 0.45; }
+    }
+    h2 {
+      margin: 10px 0 4px 0;
+      font-size: 18px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #fff, #38bdf8, #e879f9);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      margin: 0 0 14px 0;
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 1.45;
+    }
+    .canvas-box {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(51, 65, 85, 0.8);
+      background: #030712;
+      height: 128px;
+      margin-bottom: 14px;
+    }
+    canvas#waveCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .canvas-hud {
+      position: absolute;
+      inset: 8px 10px auto 10px;
+      display: flex;
+      justify-content: space-between;
+      font-family: monospace;
+      font-size: 11px;
+      color: #38bdf8;
+      pointer-events: none;
+    }
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .input-card {
+      background: rgba(2, 6, 23, 0.65);
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+    .input-card label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+    .input-card input[type="range"] {
+      width: 100%;
+      accent-color: #d946ef;
+      cursor: pointer;
+    }
+    .input-card input[type="text"] {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: #f8fafc;
+      font-family: monospace;
+      font-size: 13px;
+      font-weight: 600;
+      outline: none;
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .btn-primary {
+      flex: 1;
+      padding: 9px 14px;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(135deg, #4f46e5, #c026d3);
+      color: #fff;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(192, 38, 211, 0.3);
+      transition: transform 0.12s, filter 0.15s;
+    }
+    .btn-primary.audit-btn {
+      background: linear-gradient(135deg, #059669, #0284c7);
+    }
+    .btn-primary:hover {
+      filter: brightness(1.12);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      padding: 9px 12px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-secondary:hover { background: #1e293b; }
+    .terminal-out {
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(2, 6, 23, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      font-family: monospace;
+      font-size: 11.5px;
+      color: #34d399;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .audit-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .audit-item {
+      background: rgba(2, 6, 23, 0.75);
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 9px 11px;
+      font-size: 11.5px;
+    }
+    .audit-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+    .status-tag {
+      font-family: monospace;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 6px;
+    }
+    .status-safe {
+      background: rgba(16, 185, 129, 0.18);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+    .status-warn {
+      background: rgba(245, 158, 11, 0.18);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+    .audit-detail {
+      color: #94a3b8;
+      font-size: 10.5px;
+      font-family: monospace;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-layout">
+    <!-- Panel Kiri: Neural FinTech & License Synthesizer -->
+    <div class="glass-card" id="mainCard">
+      <div class="badge-pill">
+        <span class="pulse-dot"></span>
+        <span>Quantum Enclave Engine v4.2</span>
+      </div>
+      <h2>Neural FinTech &amp; License Synthesizer</h2>
+      <p class="subtitle">
+        Menguji CSS3 variabel dinamis, animasi Canvas 60FPS, WeakMap closure, serta ketahanan terhadap inspeksi DevTools.
+      </p>
+
+      <div class="canvas-box">
+        <canvas id="waveCanvas" width="460" height="128"></canvas>
+        <div class="canvas-hud">
+          <span id="entropyLabel">ENTROPY: 99.94%</span>
+          <span id="streamLabel">STREAM: ACTIVE</span>
+        </div>
+      </div>
+
+      <div class="controls-grid">
+        <div class="input-card">
+          <label>
+            <span>Modal Likuiditas (IDR)</span>
+            <span id="capitalDisplay">Rp 250 Jt</span>
+          </label>
+          <input type="text" id="capitalInput" value="250000000">
+        </div>
+        <div class="input-card">
+          <label>
+            <span>Orderbook Leverage</span>
+            <span id="leverageDisplay">12x</span>
+          </label>
+          <input type="range" id="leverageInput" min="1" max="50" value="12">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-primary" id="calcBtn">Sintesis Kunci &amp; Proyeksi Yield</button>
+        <button class="btn-secondary" id="randBtn">Acak Frekuensi</button>
+      </div>
+
+      <div class="terminal-out" id="terminalBox">
+        <div id="sigOutput">SIGNATURE: Menunggu kalkulasi...</div>
+        <div id="yieldOutput">ESTIMASI YIELD: -</div>
+      </div>
+    </div>
+
+    <!-- Panel Kanan: Live Self-Hack Scanner -->
+    <div class="glass-card">
+      <div class="badge-pill scanner">
+        <span>Live Self-Hack Scanner</span>
+      </div>
+      <h2>Audit Celah Developer Tools</h2>
+      <p class="subtitle">
+        <span>Klik tombol di bawah untuk mensimulasikan serangan yang dilakukan </span>
+        <em>reverse engineer</em>
+        <span> dari Console / Elements DevTools:</span>
+      </p>
+      <div class="btn-row">
+        <button class="btn-primary audit-btn" id="scanBtn">Jalankan Simulasi Bobol DevTools</button>
+      </div>
+      <div class="audit-list" id="auditResults"></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      // WeakMap Enclave & Konstanta Hash (Golden Ratio & MurmurHash3 / xxHash32)
+      const enclaveMap = new WeakMap();
+      const enclaveKey = {};
+      const SECRET_MATRIX = new Uint32Array([
+        0x9e3779b9,
+        0x85ebca6b,
+        0xc2b2ae35,
+        0x27d4eb2f
+      ]);
+
+      enclaveMap.set(enclaveKey, {
+        salt: 0x7f4a7c15,
+        baseRate: 0.0185,
+        wavePhase: 1.4,
+        mutationCount: 0
+      });
+
+      function computeQuantumSignature(capital, leverage) {
+        const state = enclaveMap.get(enclaveKey);
+        let h1 = (SECRET_MATRIX[0] ^ capital) >>> 0;
+        let h2 = (SECRET_MATRIX[1] ^ (leverage * 0x45d9f3b)) >>> 0;
+
+        for (let round = 0; round < 6; round++) {
+          h1 = Math.imul(h1 ^ (h1 >>> 16), SECRET_MATRIX[2]) >>> 0;
+          h2 = Math.imul(h2 ^ (h2 >>> 13), SECRET_MATRIX[3]) >>> 0;
+          h1 = (h1 + h2 + state.salt + round) >>> 0;
+        }
+
+        const multiplier = Math.pow(leverage, 1.15) * state.baseRate;
+        const netYield = Math.round(capital * multiplier * (0.85 + (h1 & 0xff) / 1000));
+        const tokenHex =
+          (h1 >>> 0).toString(16).toUpperCase().padStart(8, '0') +
+          '-' +
+          (h2 >>> 0).toString(16).toUpperCase().padStart(8, '0');
+
+        return {
+          signature: 'QVP-' + tokenHex,
+          netYield: netYield,
+          entropy: (98.5 + (h1 & 0xfff) / 3000).toFixed(2)
+        };
+      }
+
+      function initApp() {
+        const mainCard = document.getElementById('mainCard');
+        const canvas = document.getElementById('waveCanvas');
+        const capitalInput = document.getElementById('capitalInput');
+        const leverageInput = document.getElementById('leverageInput');
+        const capitalDisplay = document.getElementById('capitalDisplay');
+        const leverageDisplay = document.getElementById('leverageDisplay');
+        const calcBtn = document.getElementById('calcBtn');
+        const randBtn = document.getElementById('randBtn');
+        const sigOutput = document.getElementById('sigOutput');
+        const yieldOutput = document.getElementById('yieldOutput');
+        const entropyLabel = document.getElementById('entropyLabel');
+        const scanBtn = document.getElementById('scanBtn');
+        const auditResults = document.getElementById('auditResults');
+
+        if (!canvas || !calcBtn) return;
+
+        // Efek 3D Tilt & Radial Glow pada Kartu Utama
+        if (mainCard) {
+          mainCard.addEventListener('mousemove', function (e) {
+            const rect = mainCard.getBoundingClientRect();
+            const relX = e.clientX - rect.left;
+            const relY = e.clientY - rect.top;
+            const tiltX = ((relX / rect.width - 0.5) * 8).toFixed(2) + 'deg';
+            const tiltY = ((0.5 - relY / rect.height) * 6).toFixed(2) + 'deg';
+
+            mainCard.style.setProperty('--tilt-x', tiltX);
+            mainCard.style.setProperty('--tilt-y', tiltY);
+            mainCard.style.setProperty('--glow-x', relX + 'px');
+            mainCard.style.setProperty('--glow-y', relY + 'px');
+          });
+
+          mainCard.addEventListener('mouseleave', function () {
+            mainCard.style.setProperty('--tilt-x', '0deg');
+            mainCard.style.setProperty('--tilt-y', '0deg');
+          });
+        }
+
+        // Animasi Gelombang Canvas 60FPS
+        const ctx = canvas.getContext('2d');
+        let frame = 0;
+
+        function renderWave() {
+          const state = enclaveMap.get(enclaveKey);
+          const w = canvas.width;
+          const h = canvas.height;
+
+          ctx.clearRect(0, 0, w, h);
+          ctx.strokeStyle = 'rgba(51, 65, 85, 0.25)';
+          ctx.lineWidth = 1;
+
+          for (let x = 0; x < w; x += 28) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, h);
+            ctx.stroke();
+          }
+
+          const colors = ['#38bdf8', '#e879f9'];
+          for (let layer = 0; layer < 2; layer++) {
+            ctx.beginPath();
+            ctx.strokeStyle = colors[layer];
+            ctx.lineWidth = 2;
+
+            for (let x = 0; x <= w; x += 4) {
+              const freq = (layer * 0.012 + 0.022) * state.wavePhase;
+              const y =
+                h / 2 +
+                Math.sin(x * freq + frame * (layer === 0 ? 0.06 : -0.045)) *
+                  (26 - layer * 8);
+              if (x === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+          }
+
+          frame++;
+          requestAnimationFrame(renderWave);
+        }
+        renderWave();
+
+        // Kalkulasi Signature & Yield
+        function updateCalculation() {
+          const capital = Math.max(
+            1000000,
+            parseInt(capitalInput.value.replace(/[^0-9]/g, ''), 10) || 250000000
+          );
+          const leverage = parseInt(leverageInput.value, 10) || 12;
+
+          capitalDisplay.textContent = 'Rp ' + (capital / 1000000).toFixed(0) + ' Jt';
+          leverageDisplay.textContent = leverage + 'x';
+
+          const res = computeQuantumSignature(capital, leverage);
+          sigOutput.textContent = 'TOKEN: ' + res.signature;
+          yieldOutput.textContent =
+            'PROYEKSI YIELD: Rp ' + res.netYield.toLocaleString('id-ID') + ' / bln';
+          entropyLabel.textContent = 'ENTROPY: ' + res.entropy + '%';
+        }
+
+        capitalInput.addEventListener('input', updateCalculation);
+        leverageInput.addEventListener('input', updateCalculation);
+        calcBtn.addEventListener('click', updateCalculation);
+
+        randBtn.addEventListener('click', function () {
+          const state = enclaveMap.get(enclaveKey);
+          state.wavePhase = 0.7 + Math.random() * 1.8;
+          state.salt = (state.salt ^ ((Math.random() * 0xffffff) | 0)) >>> 0;
+          updateCalculation();
+        });
+
+        // Self-Hack Scanner (Menguji isolasi DOM global)
+        function runSecurityAudit() {
+          const globalDoc = window.document;
+          const results = [];
+
+          const leakedInput = globalDoc.getElementById('capitalInput');
+          results.push({
+            title: '1. Celah Console DOM Query (document.getElementById)',
+            safe: !leakedInput,
+            badge: !leakedInput ? 'TERTUTUP (Closed Shadow)' : 'TERBUKA (Mode Biasa)',
+            detail: !leakedInput
+              ? 'window.document.getElementById("_6f3i5") -> null (Terisolasi di dalam Closed Shadow Root!)'
+              : 'Elemen masih bisa diakses dari global document.'
+          });
+
+          const styleCount = globalDoc.querySelectorAll('style').length;
+          results.push({
+            title: '2. Celah Intip CSS (Tag style di Head/Body)',
+            safe: styleCount === 0,
+            badge: styleCount === 0 ? '0 TAG STYLE' : styleCount + ' TAG TERLIHAT',
+            detail:
+              styleCount === 0
+                ? 'window.document.querySelectorAll("style").length -> 0 (CSS + Teks diinjeksi ke memori CSSOM adoptedStyleSheets)'
+                : 'Terdapat ' + styleCount + ' tag style di DOM standar.'
+          });
+
+          const h2El = document.querySelector('h2');
+          const h2Text = h2El ? h2El.textContent.trim() : '';
+          const isGhostText = h2Text.length === 0;
+          results.push({
+            title: '3. Celah "Copy Element" di DevTools (Ghost Text & Hex Class)',
+            safe: isGhostText,
+            badge: isGhostText ? '0 TEKS DI DOM' : 'TEKS TERLIHAT',
+            detail: isGhostText
+              ? 'h2.textContent -> "" (Kosong! Semua teks dirender dari memori CSSOM ::before sehingga Copy DOM hanya menghasilkan tag kosong tanpa CSS & tanpa JS)'
+              : 'Teks statis masih tersimpan sebagai TextNode di dalam DOM.'
+          });
+
+          const inlineScripts = globalDoc.querySelectorAll('script:not([src])').length;
+          results.push({
+            title: '4. Celah Dump Tag script di Tab Elements',
+            safe: inlineScripts === 0,
+            badge: inlineScripts === 0 ? '0 SCRIPT TERSISA' : inlineScripts + ' SCRIPT ADA',
+            detail:
+              inlineScripts === 0
+                ? 'window.document.querySelectorAll("script").length -> 0 (Ghost Script Self-Erase berhasil menghapus jejak)'
+                : 'Masih ada tag script di pohon DOM.'
+          });
+
+          const leakedGlobals = ['computeQuantumSignature', '_privateVault', '_secretMatrix'].filter(
+            (k) => k in window
+          );
+          results.push({
+            title: '5. Celah Kebocoran Variabel/Fungsi di window.*',
+            safe: leakedGlobals.length === 0,
+            badge: leakedGlobals.length === 0 ? 'ZERO GLOBAL LEAK' : 'BOCOR',
+            detail:
+              leakedGlobals.length === 0
+                ? 'Semua rumus & matriks kunci terkunci rapat di dalam IIFE + WeakMap Enclave.'
+                : 'Variabel ditemukan di window: ' + leakedGlobals.join(', ')
+          });
+
+          auditResults.innerHTML = results
+            .map(
+              (item) => `
+              <div class="audit-item">
+                <div class="audit-header">
+                  <span>${item.title}</span>
+                  <span class="status-tag ${item.safe ? 'status-safe' : 'status-warn'}">${item.badge}</span>
+                </div>
+                <div class="audit-detail">${item.detail}</div>
+              </div>`
+            )
+            .join('');
+        }
+
+        scanBtn.addEventListener('click', runSecurityAudit);
+        updateCalculation();
+        setTimeout(runSecurityAudit, 120);
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initApp);
+      } else {
+        initApp();
+      }
+    })();
+  </script>
+</body>
+</html>
+4. Evaluasi Celah & Saran Penguatan Packer
+Mengapa packer di atas bisa dibongkar dengan cepat lewat analisis statis, dan bagaimana cara menutup celahnya?
+
+Titik Chokepoint pada JSON.parse dan new Function:
+Sekuat apa pun obfuskasi pada dekriptor _0x50e7ee, seluruh hasil dekripsi bermuara pada satu baris:var _0x4f5aaa = JSON.parse(_0x3956ca);
+Di browser, seseorang cukup menjalankan script override sederhana melalui ekstensi atau DevTools Snippets sebelum halaman dimuat (const orig = JSON.parse; JSON.parse = (s) => { console.dir(orig(s)); return orig(s); };) untuk mendapatkan seluruh objek { c, h, j } tanpa perlu membaca logika cipher sama sekali.
+
+Solusi: Hindari menyimpan payload dalam satu bundel JSON utuh. Pecah struktur DOM dan bytecode ke dalam format biner kustom (DataView / ArrayBuffer) yang langsung membangun node DOM secara bertahap tanpa melewati JSON.parse.
+
+Kunci Dekripsi Statis di Dalam File (Self-Contained Key):
+Karena array kunci arr1 (16 byte) dan urutan opcode arr2 ([17, 99, 133, 71]) tertanam langsung di pemanggilan _0x50e7ee(...), skrip Python eksternal dapat langsung meniru loop dekripsinya di luar browser.
+
+Solusi: Jika aplikasi ditujukan untuk lisensi terbatas, turunkan kunci dekripsi (arr1) menggunakan Web Crypto API (SubtleCrypto PBKDF2 / HKDF) dari passphrase atau token lisensi yang diinput pengguna, sehingga tanpa kunci lisensi yang valid, payload tidak dapat didekripsi secara statis.
+
+Pindahkan Logika Hash Sensitif (_0x2b22df) ke WebAssembly (WASM):
+Konstanta Uint32Array([0x9e3779b9, 0x85ebca6b, 0xc2b2ae35, 0x27d4eb2f]) dan rumus kalkulasi di dalam j[2] masih berupa teks JavaScript setelah didekompresi. Mengompilasi fungsi computeQuantumSignature ke biner WASM yang di-injeksi sebagai Uint8Array akan memaksa reverse engineer melakukan dekompilasi instruksi stack WASM, bukan sekadar mendekode string array JS.
+
+Ingin saya buatkan skrip Python otomatis untuk mengemas atau membongkar format packer ini?
+
+Yes
+intinya saya maunya obfuscator berupa web app yg mudah saya deploy
+
+Saya akan membuatkan aplikasi web QuantumPacker Studio dalam satu file HTML mandiri (zero-dependency backend) yang siap langsung Anda deploy ke layanan hosting statis mana pun (seperti Cloudflare Pages, Vercel, Netlify Drop, atau GitHub Pages).
+
+Aplikasi ini mengimplementasikan seluruh teknik proteksi dari contoh Anda sebelumnya sekaligus menutup celah JSON.parse yang kita bahas tadi dengan menggantinya menggunakan protokol biner ArrayBuffer / DataView.
+
+QuantumPacker Studio — HTML Enclave Obfuscator
+
+
+
+Ringkasan Fitur QuantumPacker Studio v5.0 yang Siap Anda Deploy:
+100% Tanpa Server (Zero-Backend Static Web App):
+Seluruh proses kompilasi, kompresi CompressionStream('deflate-raw'), enkripsi WebCrypto, dan pembentukan loader berjalan murni di browser. Anda cukup mengunggah file index.html ini ke Netlify Drop, Cloudflare Pages, Vercel, atau GitHub Pages.
+
+Protokol Biner DataView (Menutup Celah JSON.parse):
+Tidak seperti versi sebelumnya yang mudah di-intercept dengan membajak JSON.parse, aplikasi ini mengemas CSS, HTML, dan JS ke dalam binary frame (Uint8Array + DataView) sehingga hook pada JSON.parse tidak mendapatkan apa-apa.
+
+Opsi Kunci Lisensi Militer (PBKDF2 + AES-256-GCM):
+Jika Anda mengisi kolom Kunci Lisensi / Passphrase, payload akan dienkripsi menggunakan AES-256-GCM. Sekalipun reverse engineer membongkar algoritma loader-nya dengan Python, mereka tetap tidak bisa mendekripsi isi aplikasi tanpa mengetahui passphrase tersebut.
+
+Live Enclave Sandbox:
+Anda bisa langsung menekan tombol "Uji Hasil di Sandbox" di pojok kanan atas untuk mencoba hasil file HTML yang sudah di-obfuskasi beserta Live Self-Hack Scanner-nya secara langsung.
+
+Ingin menambahkan fitur watermark domain-lock agar file HTML hasil obfuskasi hanya bisa dibuka di domain milik Anda?
+
+Yes
+Opsi Kunci Lisensi Militer (PBKDF2 + AES-256-GCM):
+
+Jika Anda mengisi kolom Kunci Lisensi / Passphrase, payload akan dienkripsi menggunakan AES-256-GCM. Sekalipun reverse engineer membongkar algoritma loader-nya dengan Python, mereka tetap tidak bisa mendekripsi isi aplikasi tanpa mengetahui passphrase tersebut.
+
+
+
+saya blm ngerti yg ini. kunci dipasang dmn? apakah pada mesin obfus bisa kita tanam kunci agar tdk repot
+
+Pada skema PBKDF2 + AES-256-GCM, kunci sengaja tidak ikut disimpan di dalam file HTML hasil obfuskasi. Saat Anda mengetik passphrase di mesin obfuscator, passphrase tersebut hanya dipakai untuk mengenkripsi payload, lalu dibuang setelah file HTML selesai dibuat.
+
+Mengapa Kunci Tidak Boleh Ditanam Langsung di Dalam Kode (Hardcoded)?
+Jika mesin obfuscator menanam kuncinya langsung di dalam file HTML (misalnya const key = "rahasia123"), itu ibarat mengunci brankas dengan gembok baja militer, tetapi menempelkan anak kuncinya di pintu brankas.
+
+Itulah persisnya kelemahan pada kode QuantumVault pertama yang Anda kirimkan tadi: kode tersebut sudah memiliki enkripsi berlapis, tetapi karena array kunci 16-byte [179, 43, 75, ...] ditanam langsung di bagian bawah skrip, skrip Python saya bisa langsung mengambil angka-angka kunci tersebut dari dalam kode dan membongkarnya dalam 2 detik tanpa perlu menebak apa pun.
+
+Solusi: Cara "Menanam" Kunci Agar Tidak Repot (Tanpa Input Password Manual)
+Agar pengguna tidak perlu repot mengetik password setiap kali membuka aplikasi, namun kuncinya juga tidak tertulis di dalam kode sumber HTML, Anda bisa mengubah mesin obfuscator agar mengambil kunci secara otomatis dari lingkungan eksekusi (environment).
+
+Berikut adalah 4 metode paling praktis beserta tingkat keamanannya:
+
+Metode Penanaman Kunci	Di Mana Kunci Disimpan?	Perlu Ketik Password?	Ketahanan terhadap De-obfuskasi (Python / Inspect)
+1. Tanam di Kode (Hardcoded)	Tertulis di dalam variabel JS	Tidak perlu	Rendah — Kunci langsung terlihat jika loader dibedah dengan skrip.
+2. Domain-Bound Key (location.hostname)	Menggunakan nama domain tempat web di-hosting	Tidak perlu (Otomatis)	Tinggi — Kunci tidak tertulis di kode. Jika file di-download dan dibuka di localhost, dekripsi gagal otomatis.
+3. URL Fragment Key (#kunci di Link)	Di ujung URL (app.html#KunciRahasia) lalu dihapus otomatis	Tidak perlu (Cukup klik link)	Sangat Tinggi — File HTML 100% buta terhadap kunci. Tanpa link lengkap, file HTML tidak bisa dibuka sama sekali.
+4. Edge / Worker Key (Cloudflare Worker)	Dikirim lewat endpoint/header saat origin valid	Tidak perlu (Otomatis)	Maksimal — Kunci berada di luar file HTML dan hanya diberikan jika diakses dari domain resmi.
+Cara Kerja 3 Mode Otomatis (Tanpa Repot) di Mesin Obfuscator
+Anda bisa menanam logika Auto-Key berikut ke dalam mesin obfuscator sehingga aplikasi langsung terbuka tanpa pop-up password:
+
+1. Mode Domain-Bound Key (Paling Praktis untuk Deploy Statis)
+Saat meng-obfuskasi kode di mesin obfuscator, Anda cukup memasukkan nama domain target (misalnya app.domainanda.id) sebagai kunci enkripsi AES-256-GCM.
+Di dalam file HTML hasil obfuskasi, loader tidak menyimpan teks "app.domainanda.id", melainkan memanggil:
+
+JavaScript
+// Loader mengambil nama domain aktif sebagai kunci dekripsi AES-256-GCM
+const autoKey = window.location.hostname.trim().toLowerCase();
+Efeknya: Saat dibuka di [https://app.domainanda.id](https://app.domainanda.id), window.location.hostname otomatis menghasilkan string yang tepat dan aplikasi langsung terbuka tanpa menanyakan password.
+
+Namun, jika seseorang mencuri file HTML Anda (Ctrl+S atau scraping) dan mencoba membukanya di komputer mereka (file:// atau localhost), nilai location.hostname akan salah dan dekripsi AES-256-GCM langsung gagal (OperationError).
+
+2. Mode Self-Erasing URL Hash (#key)
+Jika Anda ingin membagikan file ke klien atau tim internal tanpa bergantung pada satu domain, mesin obfuscator mengenkripsi file dengan kunci pendek (misalnya QV99X), lalu memberikan Anda link siap pakai: [https://domainanda.id/app.html#QV99X](https://domainanda.id/app.html#QV99X).
+Begitu halaman dibuka, loader mengambil kunci dari URL dan langsung menghapus jejaknya dari address bar browser:
+
+JavaScript
+// 1. Ambil kunci otomatis dari URL hash (#...) atau dari cache localStorage
+let autoKey = window.location.hash.slice(1) || localStorage.getItem('_qv_lic');
+
+if (autoKey) {
+  // 2. Simpan ke localStorage agar kunjungan berikutnya tidak butuh #hash lagi
+  localStorage.setItem('_qv_lic', autoKey);
+  // 3. Hapus #hash dari address bar secara instan agar tidak terlihat
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+}
+Efeknya: Pengguna cukup mengklik link satu kali, hash di address bar langsung hilang dalam 1 milidetik, dan untuk kunjungan selanjutnya mereka cukup membuka [https://domainanda.id/app.html](https://domainanda.id/app.html) biasa karena kuncinya sudah tersimpan di localStorage browser mereka.
+
+3. Mode Preset Key di Mesin Obfuscator (Kunci Bawaan Studio)
+Jika yang Anda maksud dengan "tanam kunci di mesin obfus agar tidak repot" adalah agar Anda sebagai pemilik mesin obfuscator tidak perlu mengetik ulang passphrase atau nama domain setiap kali meng-compile kode, kita bisa menambahkan fitur Master Preset / Auto-Bind di dalam aplikasi QuantumPacker Studio:
+
+Mesin obfuscator memiliki daftar Preset Kunci / Domain Anda yang tersimpan otomatis.
+
+Saat Anda menekan tombol Compile, mesin obfuscator otomatis mengunci payload menggunakan kombinasi Domain Target (location.hostname) + Secret Salt tanpa perlu Anda ketik manual.
+
+Di sisi pengunjung web, aplikasi tetap langsung terbuka 100% otomatis tanpa prompt password selama dibuka di domain Anda.
+
+gini. saya punya domain danial.my.id yg under github page dan semua deployan mau saya masukkan di folder2 sebuah repo saya bernama tatadada. misal danial.my.id/obfus/index.html (saya akan simpan spaf dgn nama index.html dgn nama app opfus. polanya akan gitu terus)
+
+
+
+kunci domain agar selalu under domain.my.id aja . script kalau ditemukan dalam github pun akan useless
+
+Your HTML file is ready
+
+HTML icon
+index
+ HTML 
+File index.html di atas adalah aplikasi web QuantumPacker Studio (Domain-Bound Edition) yang sudah dikonfigurasi khusus untuk struktur repositori tatadada dan domain danial.my.id. Anda bisa langsung menaruh file tersebut di folder /obfus/index.html pada repositori GitHub Anda sehingga dapat diakses melalui [https://danial.my.id/obfus/](https://danial.my.id/obfus/).
+
+1. Bagaimana Cara Kerja "Kunci Domain Tanpa Repot" Ini?
+Berbeda dengan domain lock biasa yang hanya memakai pengecekan if (location.hostname !== 'danial.my.id') (yang sangat mudah diakali dengan menghapus baris if-nya), mesin obfuscator ini menggunakan nama domain sebagai kunci dekripsi kriptografi (AES-256-GCM + PBKDF2):
+
+Saat Anda Klik "Compile & Kunci ke Domain" di Studio:
+
+Mesin mengambil teks danial.my.id dari kolom input, menggabungkannya dengan random 32-bit split pepper, lalu menurunkan kunci enkripsi AES-256-GCM melalui PBKDF2 (100.000 iterasi SHA-256).
+
+Seluruh kode aplikasi Anda (CSS, HTML, JS) dikemas ke format biner DataView (tanpa JSON.parse), dikompresi dengan deflate-raw, dienkripsi dengan AES-256-GCM, lalu dilapisi lagi dengan Rolling Byte-Cipher dan RC4 String Table.
+
+Penting: Teks "danial.my.id" dibuang dan tidak pernah ditulis di dalam file index.html hasil obfuskasi.
+
+Saat Pengunjung Membuka [https://danial.my.id/nama-app/](https://danial.my.id/nama-app/):
+
+Loader membaca location.hostname secara otomatis dari browser pengunjung:
+
+JavaScript
+location.hostname.trim().toLowerCase().replace(/^www\./, '').split('.').slice(-3).join('.')
+Ekspresi di atas otomatis mengambil 3 segmen terakhir (danial.my.id), sehingga baik dibuka di danial.my.id/obfus/, www.danial.my.id/app2/, maupun subdomain app.danial.my.id, kuncinya selalu cocok 100% otomatis tanpa perlu ketik password.
+
+Saat Script Ditemukan / Di-Clone dari GitHub (tatadada):
+
+Jika seseorang mengunduh index.html dari repo GitHub Anda lalu membukanya di komputer mereka (file:// atau localhost), atau melakukan fork ke username.github.io/tatadada/, nilai location.hostname akan berisi "", "localhost", atau "github.io".
+
+Ketika nilai tersebut dimasukkan ke PBKDF2 -> AES-256-GCM, kunci yang dihasilkan salah secara matematis. WebCrypto API langsung melempar OperationError (gagal autentikasi GCM Tag) dan layar hanya menampilkan pesan 🔒 ENCLAVE LOCKED.
+
+Mau dibuka di folder mana pun di dalam danial.my.id (/app1/index.html, /simulasi/index.html, /obfus/index.html), file tetap langsung jalan tanpa perlu mengubah pengaturan apa pun.
+
+2. Alur Deploy ke Repo tatadada (danial.my.id/obfus/index.html)
+Agar mesin obfuscator Anda di /obfus/index.html juga ikut terlindungi saat berada di dalam repositori publik GitHub:
+
+Buka file index.html yang baru Anda unduh di browser.
+
+Klik tombol "Obfus App Ini" di bagian atas panel kiri (tombol ini akan menyalin seluruh kode sumber QuantumPacker Studio sendiri ke kolom input).
+
+Pastikan opsi "Mode Preview Sandbox / Localhost (Dev)" dalam keadaan Tidak Dicentang (Mati), lalu klik 🔒 Compile & Kunci ke Domain.
+
+Klik 💾 Download index.html, lalu upload / push hasil download tersebut ke tatadada/obfus/index.html.
+
+Hasilnya: Aplikasi obfuscator Anda di [https://danial.my.id/obfus/](https://danial.my.id/obfus/) tampil dan berfungsi normal, tetapi jika orang lain membuka kode sumber tatadada/obfus/index.html di GitHub, isinya sudah terenkripsi penuh dan tidak bisa dijalankan di luar danial.my.id.
+
+3. Catatan Keamanan Transparan untuk Repo GitHub Publik
+Terhadap pencuri kode, scraper, forker, dan pengguna Inspect Element: Skema ini 100% membuat file tidak berguna di luar danial.my.id karena tidak ada branch if/else yang bisa di-bypass dan tidak ada kunci plaintext di dalam script.
+
+Terhadap reverse engineer tingkat lanjut yang mengintip file CNAME di repo publik Anda: Karena GitHub Pages menyimpan file CNAME berisi danial.my.id di repositori, reverse engineer yang membedah loader RC4 sampai tuntas bisa menebak bahwa nilai location.hostname yang diharapkan adalah danial.my.id (misalnya dengan mengedit file /etc/hosts di komputer mereka).
+
+Cara Menutup Celah /etc/hosts (Jika Suatu Saat Dibutuhkan): Karena Anda juga sering menggunakan Cloudflare Workers, untuk proyek yang sangat rahasia kita bisa memindahkan 16-byte salt atau pepper-nya ke endpoint Worker Anda yang memvalidasi header Origin: [https://danial.my.id](https://danial.my.id).
+
+Ingin saya buatkan opsi pengunci tambahan via Cloudflare Worker untuk aplikasi yang sifatnya sangat rahasia?
+
+Yes
+
+
+
+
+Gemini is AI and can make mistakes.
+
+Understanding user's website deployment needs
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuantumPacker Studio — Domain-Bound Obfuscator (danial.my.id)</title>
+  <style>
+    :root {
+      --bg-base: #050811;
+      --bg-panel: rgba(15, 23, 42, 0.78);
+      --bg-input: rgba(2, 6, 23, 0.85);
+      --border: rgba(99, 102, 241, 0.28);
+      --border-subtle: rgba(51, 65, 85, 0.6);
+      --cyan: #06b6d4;
+      --indigo: #6366f1;
+      --fuchsia: #d946ef;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(circle at 10% 15%, rgba(99, 102, 241, 0.15), transparent 40%),
+        radial-gradient(circle at 90% 85%, rgba(217, 70, 239, 0.12), transparent 40%),
+        var(--bg-base);
+      color: var(--text-main);
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 1320px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      backdrop-filter: blur(16px);
+      margin-bottom: 18px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--indigo), var(--fuchsia));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 18px;
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.45);
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 18px;
+      background: linear-gradient(90deg, #fff, #38bdf8, #e879f9);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .brand p {
+      margin: 2px 0 0 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .badge-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 11px;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.14);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      font-family: monospace;
+    }
+    .pill.purple {
+      background: rgba(217, 70, 239, 0.14);
+      color: #f0abfc;
+      border-color: rgba(217, 70, 239, 0.35);
+    }
+    .workspace {
+      display: grid;
+      grid-template-columns: 1fr 380px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 1120px) {
+      .workspace { grid-template-columns: 1fr; }
+    }
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    textarea {
+      width: 100%;
+      height: 440px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 12px;
+      color: #e2e8f0;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      resize: vertical;
+      outline: none;
+    }
+    textarea:focus {
+      border-color: var(--indigo);
+    }
+    .field {
+      margin-bottom: 12px;
+    }
+    .field label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 5px;
+    }
+    .field input[type="text"], .field select {
+      width: 100%;
+      padding: 9px 11px;
+      border-radius: 9px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-input);
+      color: var(--text-main);
+      font-family: monospace;
+      font-size: 12.5px;
+      outline: none;
+    }
+    .field input[type="text"]:focus {
+      border-color: var(--cyan);
+    }
+    .field-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+    .toggle-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 14px 0;
+      padding: 10px;
+      background: rgba(2, 6, 23, 0.55);
+      border-radius: 10px;
+      border: 1px solid var(--border-subtle);
+    }
+    .toggle-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+      color: #e2e8f0;
+      cursor: pointer;
+    }
+    .toggle-item input {
+      margin-top: 2px;
+      accent-color: var(--fuchsia);
+      cursor: pointer;
+    }
+    .toggle-item span small {
+      display: block;
+      font-size: 10.5px;
+      color: var(--text-muted);
+    }
+    .btn {
+      width: 100%;
+      padding: 11px 16px;
+      border: none;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      transition: transform 0.12s, filter 0.15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn:hover {
+      filter: brightness(1.12);
+      transform: translateY(-1px);
+    }
+    .btn-compile {
+      background: linear-gradient(135deg, var(--indigo), var(--fuchsia));
+      color: #fff;
+      box-shadow: 0 8px 25px rgba(192, 38, 211, 0.35);
+      margin-bottom: 8px;
+    }
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .btn-sec {
+      background: #0f172a;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+    .btn-emerald {
+      background: linear-gradient(135deg, #059669, #0284c7);
+      color: #fff;
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+    .stats-bar {
+      margin-top: 10px;
+      padding: 9px 11px;
+      background: rgba(2, 6, 23, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 9px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #34d399;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .sandbox-wrap {
+      margin-top: 18px;
+      display: none;
+    }
+    .sandbox-wrap.active {
+      display: block;
+    }
+    iframe#sandboxFrame {
+      width: 100%;
+      height: 460px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #050811;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="brand-icon">QP</div>
+        <div>
+          <h1>QuantumPacker Studio v5.3 — Domain-Bound Edition</h1>
+          <p>Single-File HTML Enclave Compiler &bull; Pre-configured untuk <strong>danial.my.id</strong> (Repo: <code>tatadada</code>)</p>
+        </div>
+      </div>
+      <div class="badge-group">
+        <span class="pill">AES-256-GCM + PBKDF2</span>
+        <span class="pill purple">RC4 String Table + Hex Math</span>
+        <span class="pill">Binary DataView (No JSON.parse)</span>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <!-- PANEL KIRI: SOURCE HTML -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">1. Input Source HTML (SPA / App)</div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-sec" style="width:auto;padding:5px 10px;" id="loadDemoBtn">Muat Demo</button>
+            <button class="btn btn-sec" style="width:auto;padding:5px 10px;" id="selfLoadBtn" title="Muat kode aplikasi obfuscator ini sendiri untuk di-obfus sebelum push ke GitHub">Obfus App Ini</button>
+            <label class="btn btn-sec" style="width:auto;padding:5px 10px;margin:0;">
+              Upload .html
+              <input type="file" id="fileInput" accept=".html,.htm" style="display:none;">
+            </label>
+          </div>
+        </div>
+        <textarea id="sourceHtml" spellcheck="false" placeholder="Tempelkan kode <!DOCTYPE html>... Anda di sini"></textarea>
+      </div>
+
+      <!-- PANEL TENGAH: KONFIGURASI DOMAIN & ENCLAVE -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">2. Konfigurasi Kunci Domain</div>
+        </div>
+
+        <div class="field">
+          <label>
+            <span>Target Root Domain (Kunci Kriptografi)</span>
+            <span style="color:#34d399;">Auto-Bound</span>
+          </label>
+          <input type="text" id="targetDomain" value="danial.my.id">
+          <div class="field-hint">
+            Teks <code>danial.my.id</code> <strong>TIDAK</strong> pernah disimpan di dalam file output. Saat halaman dibuka, loader mengekstrak root domain dari <code>location.hostname</code> untuk menurunkan kunci dekripsi <strong>AES-256-GCM</strong>. Dibuka lewat <code>github.com</code>, <code>tatadada.github.io</code>, atau <code>localhost</code> = gagal dekripsi otomatis.
+          </div>
+        </div>
+
+        <div class="field">
+          <label>
+            <span>Mode Penguncian Subfolder / Path</span>
+          </label>
+          <select id="pathLockMode">
+            <option value="any">Bebas di semua subfolder (danial.my.id/*/index.html)</option>
+            <option value="specific">Kunci ke subfolder spesifik (mis. /obfus/)</option>
+          </select>
+        </div>
+
+        <div class="field" id="customPathField" style="display:none;">
+          <label><span>Nama Subfolder (contoh: /obfus/)</span></label>
+          <input type="text" id="targetPath" value="/obfus/">
+        </div>
+
+        <div class="field">
+          <label>
+            <span>Pesan Saat Dibuka di Luar danial.my.id</span>
+          </label>
+          <input type="text" id="deniedMsg" value="ACCESS DENIED: Aplikasi ini terkunci secara kriptografis dan hanya dapat dijalankan di domain resmi.">
+        </div>
+
+        <div class="toggle-list">
+          <label class="toggle-item">
+            <input type="checkbox" id="optGhostText" checked>
+            <span>
+              <strong>Ghost Text (::before CSSOM)</strong>
+              <small>Keluarkan teks statis dari HTML agar Copy Element menghasilkan tag kosong.</small>
+            </span>
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="optShadow" checked>
+            <span>
+              <strong>Closed Shadow Root + Proxy Document</strong>
+              <small>Isolasi DOM dari Console sambil menjaga getElementById aplikasi tetap jalan.</small>
+            </span>
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="optSelfErase" checked>
+            <span>
+              <strong>Ghost Script Self-Erase &amp; Anti-Beautify</strong>
+              <small>Hapus tag &lt;script&gt; dari DOM &amp; rusak kunci jika kode di-Prettify.</small>
+            </span>
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="optDevtoolsBlock" checked>
+            <span>
+              <strong>Blokir F12 / Klik Kanan / Console Log</strong>
+              <small>Matikan shortcut inspeksi &amp; bersihkan output console.</small>
+            </span>
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="optAllowLocalTest">
+            <span>
+              <strong>Mode Preview Sandbox / Localhost (Dev)</strong>
+              <small>Centang HANYA saat ingin menguji di Sandbox bawah pada komputer lokal. <b>Biarkan mati</b> saat sudah berjalan di <code>danial.my.id/obfus/</code>!</small>
+            </span>
+          </label>
+        </div>
+
+        <button class="btn btn-compile" id="compileBtn">
+          <span>🔒 Compile &amp; Kunci ke Domain</span>
+        </button>
+
+        <div class="stats-bar" id="statusBox">
+          <div>STATUS: Siap melakukan kompilasi.</div>
+          <div id="statDetail">Target: *.danial.my.id (Strict AES-256-GCM)</div>
+        </div>
+      </div>
+
+      <!-- PANEL KANAN: OUTPUT HTML -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">3. Output index.html (Siap Push ke tatadada)</div>
+        </div>
+        <textarea id="outputHtml" readonly spellcheck="false" placeholder="Hasil obfuskasi index.html akan muncul di sini..."></textarea>
+        <div class="btn-row">
+          <button class="btn btn-sec" id="copyBtn">📋 Salin Kode</button>
+          <button class="btn btn-emerald" id="downloadBtn">💾 Download index.html</button>
+        </div>
+        <div style="margin-top:8px;">
+          <button class="btn btn-sec" id="testSandboxBtn">🧪 Uji Hasil di Live Sandbox</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SANDBOX PREVIEW -->
+    <div class="panel sandbox-wrap" id="sandboxPanel">
+      <div class="panel-header">
+        <div class="panel-title">Live Enclave Sandbox Preview</div>
+        <button class="btn btn-sec" style="width:auto;padding:4px 10px;" id="closeSandboxBtn">Tutup Preview</button>
+      </div>
+      <iframe id="sandboxFrame"></iframe>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const DEMO_HTML = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Protected App — danial.my.id</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #060913;
+      color: #f8fafc;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+    }
+    .card {
+      max-width: 480px;
+      width: 100%;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+    }
+    h2 { margin-top: 0; color: #38bdf8; }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 99px;
+      font-size: 11px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      margin-bottom: 10px;
+    }
+    button {
+      background: linear-gradient(135deg, #4f46e5, #c026d3);
+      color: #fff;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 12px;
+    }
+    .out {
+      margin-top: 14px;
+      padding: 10px;
+      border-radius: 8px;
+      background: #020617;
+      font-family: monospace;
+      font-size: 12px;
+      color: #34d399;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="badge">Protected App Enclave</span>
+    <h2>Aplikasi Terkunci di danial.my.id</h2>
+    <p>Jika kode ini di-clone dari repo GitHub tatadada dan dibuka di luar danial.my.id, dekripsi AES-256-GCM akan gagal secara matematis.</p>
+    <button id="actionBtn">Hitung Token Enclave</button>
+    <div class="out" id="resultBox">Status: Menunggu eksekusi...</div>
+  </div>
+  <script>
+    document.getElementById('actionBtn').addEventListener('click', function () {
+      const box = document.getElementById('resultBox');
+      const token = 'DNL-' + Math.random().toString(16).slice(2, 10).toUpperCase();
+      box.setAttribute('data-dyn', 'TOKEN AKTIF: ' + token + ' @ ' + (location.hostname || 'sandbox'));
+      box.textContent = '';
+    });
+  <\/script>
+</body>
+</html>`;
+
+      const sourceHtmlEl = document.getElementById('sourceHtml');
+      const outputHtmlEl = document.getElementById('outputHtml');
+      const targetDomainEl = document.getElementById('targetDomain');
+      const pathLockModeEl = document.getElementById('pathLockMode');
+      const customPathField = document.getElementById('customPathField');
+      const targetPathEl = document.getElementById('targetPath');
+      const deniedMsgEl = document.getElementById('deniedMsg');
+      const optGhostTextEl = document.getElementById('optGhostText');
+      const optShadowEl = document.getElementById('optShadow');
+      const optSelfEraseEl = document.getElementById('optSelfErase');
+      const optDevtoolsBlockEl = document.getElementById('optDevtoolsBlock');
+      const optAllowLocalTestEl = document.getElementById('optAllowLocalTest');
+      const statusBoxEl = document.getElementById('statusBox');
+      const statDetailEl = document.getElementById('statDetail');
+
+      sourceHtmlEl.value = DEMO_HTML;
+
+      pathLockModeEl.addEventListener('change', () => {
+        customPathField.style.display = pathLockModeEl.value === 'specific' ? 'block' : 'none';
+      });
+
+      document.getElementById('loadDemoBtn').addEventListener('click', () => {
+        sourceHtmlEl.value = DEMO_HTML;
+      });
+
+      document.getElementById('selfLoadBtn').addEventListener('click', () => {
+        sourceHtmlEl.value = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+      });
+
+      document.getElementById('fileInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => { sourceHtmlEl.value = ev.target.result; };
+        reader.readAsText(file);
+      });
+
+      // 1. Parse Source HTML menjadi { title, bs, bc, c, h, j }
+      function parseSourceHTML(rawHtml, useGhostText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(rawHtml, 'text/html');
+
+        const title = doc.title || 'Protected Application';
+        let cssChunks = [];
+        doc.querySelectorAll('style').forEach((s) => {
+          cssChunks.push(s.textContent || '');
+          s.remove();
+        });
+
+        let jsChunks = [];
+        doc.querySelectorAll('script').forEach((sc) => {
+          if (!sc.src && sc.textContent.trim()) {
+            jsChunks.push(sc.textContent);
+            sc.remove();
+          }
+        });
+
+        let ghostCss = '[data-dyn]::before{content:attr(data-dyn);}';
+        if (useGhostText) {
+          let gIdx = 0;
+          const walk = (node) => {
+            if (!node || !node.childNodes) return;
+            const children = Array.from(node.childNodes);
+            if (
+              node.nodeType === 1 &&
+              children.length === 1 &&
+              children[0].nodeType === 3 &&
+              !['SCRIPT', 'STYLE', 'TEXTAREA', 'TITLE', 'OPTION'].includes(node.tagName)
+            ) {
+              const txt = children[0].nodeValue;
+              if (txt && txt.trim().length > 0 && txt.length < 280 && !txt.includes('\n')) {
+                const key = '_g' + (gIdx++).toString(36);
+                node.setAttribute('data-v', key);
+                node.textContent = '';
+                ghostCss += `[data-v="${key}"]:empty::before{content:${JSON.stringify(txt)};}`;
+                return;
+              }
+            }
+            children.forEach(walk);
+          };
+          walk(doc.body);
+        }
+
+        let ivIdx = 0;
+        doc.body.querySelectorAll('input[value]').forEach((inp) => {
+          const val = inp.getAttribute('value');
+          if (val !== null && val !== '') {
+            const ivKey = '_iv' + (ivIdx++);
+            inp.removeAttribute('value');
+            inp.setAttribute('data-iv', ivKey);
+            jsChunks.unshift(
+              `(function(){var el=document.querySelector('[data-iv="${ivKey}"]');if(el){el.value=${JSON.stringify(val)};el.removeAttribute('data-iv');}})();`
+            );
+          }
+        });
+
+        const bs = doc.body.getAttribute('style') || '';
+        const bc = doc.body.getAttribute('class') || '';
+        const h = doc.body.innerHTML.trim();
+        const c = cssChunks.join('\n') + '\n' + ghostCss;
+
+        return { title, bs, bc, c, h, j: jsChunks };
+      }
+
+      // 2. Pack ke Binary Frame (DataView) tanpa JSON.parse
+      function packBinaryFrame(payload) {
+        const enc = new TextEncoder();
+        const bBs = enc.encode(payload.bs);
+        const bBc = enc.encode(payload.bc);
+        const bC = enc.encode(payload.c);
+        const bH = enc.encode(payload.h);
+        const bJsList = payload.j.map((code) => enc.encode(code));
+
+        let totalSize = 4 * 5 + bBs.length + bBc.length + bC.length + bH.length;
+        for (const jb of bJsList) totalSize += 4 + jb.length;
+
+        const buf = new ArrayBuffer(totalSize);
+        const view = new DataView(buf);
+        const u8 = new Uint8Array(buf);
+        let offset = 0;
+
+        const writeChunk = (bytes) => {
+          view.setUint32(offset, bytes.length, true);
+          offset += 4;
+          u8.set(bytes, offset);
+          offset += bytes.length;
+        };
+
+        writeChunk(bBs);
+        writeChunk(bBc);
+        writeChunk(bC);
+        writeChunk(bH);
+
+        view.setUint32(offset, bJsList.length, true);
+        offset += 4;
+        for (const jb of bJsList) {
+          writeChunk(jb);
+        }
+        return u8;
+      }
+
+      async function compressDeflateRaw(u8) {
+        const cs = new CompressionStream('deflate-raw');
+        const writer = cs.writable.getWriter();
+        writer.write(u8);
+        writer.close();
+        const ab = await new Response(cs.readable).arrayBuffer();
+        return new Uint8Array(ab);
+      }
+
+      async function deriveDomainKey(domainStr, saltBytes, pepperNum) {
+        const enc = new TextEncoder();
+        const normDomain = domainStr.trim().toLowerCase().replace(/^www\./, '');
+        const keyMaterialStr = `${normDomain}::qv5::${pepperNum}`;
+        const baseKey = await crypto.subtle.importKey(
+          'raw',
+          enc.encode(keyMaterialStr),
+          'PBKDF2',
+          false,
+          ['deriveKey']
+        );
+        return crypto.subtle.deriveKey(
+          {
+            name: 'PBKDF2',
+            salt: saltBytes,
+            iterations: 100000,
+            hash: 'SHA-256'
+          },
+          baseKey,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['encrypt', 'decrypt']
+        );
+      }
+
+      function uint8ToBase64(u8) {
+        let bin = '';
+        const chunk = 0x8000;
+        for (let i = 0; i < u8.length; i += chunk) {
+          bin += String.fromCharCode.apply(null, u8.subarray(i, i + chunk));
+        }
+        return btoa(bin);
+      }
+
+      // Helper untuk membuat ekspresi heksadesimal acak (seperti 0x14a2+-0x3b0+0x...)
+      function toHexExpr(num) {
+        const a = (Math.random() * 0x1800) | 0;
+        const b = (Math.random() * 0x1800) | 0;
+        const c = num - a + b;
+        const fmt = (x) => (x < 0 ? '-0x' + (-x).toString(16) : '0x' + x.toString(16));
+        return `(${fmt(a)}+${fmt(-b)}+${fmt(c)})`;
+      }
+
+      // RC4 Encrypt + Base64 untuk String Table Loader
+      function rc4EncryptToB64(plainStr, keyStr) {
+        const s = [];
+        for (let i = 0; i < 256; i++) s[i] = i;
+        let j = 0;
+        for (let i = 0; i < 256; i++) {
+          j = (j + s[i] + keyStr.charCodeAt(i % keyStr.length)) & 255;
+          const tmp = s[i]; s[i] = s[j]; s[j] = tmp;
+        }
+        let i = 0;
+        j = 0;
+        const utf8 = encodeURIComponent(plainStr).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+          String.fromCharCode(parseInt(p1, 16))
+        );
+        let out = '';
+        for (let k = 0; k < utf8.length; k++) {
+          i = (i + 1) & 255;
+          j = (j + s[i]) & 255;
+          const tmp = s[i]; s[i] = s[j]; s[j] = tmp;
+          out += String.fromCharCode(utf8.charCodeAt(k) ^ s[(s[i] + s[j]) & 255]);
+        }
+        return btoa(out);
+      }
+
+      // 3. Bangun Loader dengan RC4 String Table + Hex Math + Domain-Bound AES-256-GCM
+      function buildObfuscatedHTML(params) {
+        const {
+          title,
+          b64Cipher,
+          saltArr,
+          ivArr,
+          xorKeyArr,
+          pepperA,
+          pepperB,
+          pathLockMode,
+          targetPath,
+          deniedMsg,
+          optShadow,
+          optSelfErase,
+          optDevtoolsBlock,
+          optAllowLocalTest,
+          targetDomain
+        } = params;
+
+        const rc4Key = Math.random().toString(36).slice(2, 8);
+        const domainPartsCount = targetDomain.split('.').length;
+        const baseOffset = 0x140 + ((Math.random() * 60) | 0);
+
+        // Daftar seluruh string sensitif di dalam loader yang akan dienkripsi ke RC4 String Table
+        const rawStrings = [
+          'script',                  // 0
+          'src',                     // 1
+          'parentNode',              // 2
+          'removeChild',             // 3
+          'toString',                // 4
+          'indexOf',                 // 5
+          'console',                 // 6
+          'contextmenu',             // 7
+          'keydown',                 // 8
+          'preventDefault',          // 9
+          'hostname',                // 10
+          'pathname',                // 11
+          'startsWith',              // 12
+          '::qv5::',                 // 13
+          'raw',                     // 14
+          'PBKDF2',                  // 15
+          'deriveKey',               // 16
+          'SHA-256',                 // 17
+          'AES-GCM',                 // 18
+          'decrypt',                 // 19
+          'deflate-raw',             // 20
+          'writable',                // 21
+          'getWriter',               // 22
+          'readable',                // 23
+          'arrayBuffer',             // 24
+          'style',                   // 25
+          'class',                   // 26
+          'div',                     // 27
+          'attachShadow',            // 28
+          optShadow ? 'closed' : 'open', // 29
+          ':host',                   // 30
+          'adoptedStyleSheets',      // 31
+          'replaceSync',             // 32
+          'data-dyn',                // 33
+          'data-d',                  // 34
+          'cssRules',                // 35
+          'rules',                   // 36
+          'Access denied.',          // 37
+          'SecurityError',           // 38
+          'template',                // 39
+          'innerHTML',               // 40
+          'content',                 // 41
+          'cloneNode',               // 42
+          'appendChild',             // 43
+          'getElementById',          // 44
+          'querySelector',           // 45
+          'querySelectorAll',        // 46
+          'body',                    // 47
+          'loading',                 // 48
+          'DOMContentLoaded',        // 49
+          deniedMsg,                 // 50
+          targetPath,                // 51
+          optAllowLocalTest ? targetDomain : '' // 52
+        ];
+
+        const encryptedTable = rawStrings.map((s) => rc4EncryptToB64(s, rc4Key));
+        const S = (idx) => `_0xdec(${toHexExpr(baseOffset + idx)})`;
+
+        // Ekstrak N segmen terakhir dari location.hostname (mis. 3 segmen untuk danial.my.id)
+        // sehingga baik danial.my.id maupun sub.danial.my.id menghasilkan "danial.my.id"
+        // sedangkan tatadada.github.io menghasilkan "tatadada.github.io" (gagal dekripsi!)
+        const hostResolverExpr = optAllowLocalTest
+          ? `((location[${S(10)}]===''||location[${S(10)}]==='localhost'||location[${S(10)}]==='127.0.0.1')?${S(52)}:location[${S(10)}].trim().toLowerCase().replace(/^www\\./,'').split('.').slice(-${domainPartsCount}).join('.'))`
+          : `location[${S(10)}].trim().toLowerCase().replace(/^www\\./,'').split('.').slice(-${domainPartsCount}).join('.')`;
+
+        const pathCheckCode =
+          pathLockMode === 'specific'
+            ? `if(!location[${S(11)}][${S(12)}](${S(51)}))throw new Error();`
+            : ``;
+
+        const saltHex = saltArr.map(toHexExpr).join(',');
+        const ivHex = ivArr.map(toHexExpr).join(',');
+        const xkHex = xorKeyArr.map(toHexExpr).join(',');
+
+        const loaderCode =
+          `(function(){` +
+          `const _0xtbl=${JSON.stringify(encryptedTable)};` +
+          `const _0xdec=function(_i){` +
+          `_i=_i-${toHexExpr(baseOffset)};` +
+          `const _b=atob(_0xtbl[_i]),_k=${JSON.stringify(rc4Key)},_s=[];` +
+          `for(let i=0;i<256;i++)_s[i]=i;let j=0;` +
+          `for(let i=0;i<256;i++){j=(j+_s[i]+_k.charCodeAt(i%_k.length))&255;const t=_s[i];_s[i]=_s[j];_s[j]=t;}` +
+          `let i=0;j=0;let _o='';` +
+          `for(let c=0;c<_b.length;c++){i=(i+1)&255;j=(j+_s[i])&255;const t=_s[i];_s[i]=_s[j];_s[j]=t;_o+='%'+('00'+(_b.charCodeAt(c)^_s[(_s[i]+_s[j])&255]).toString(16)).slice(-2);}` +
+          `return decodeURIComponent(_o);};` +
+          `const _0xrun=async function(_b64,_s,_iv,_xk){` +
+          (optSelfErase
+            ? `const _sc=document[${S(46)}](${S(0)});for(let i=0;i<_sc.length;i++){if(!_sc[i][${S(1)}]&&_sc[i][${S(2)}])_sc[i][${S(2)}][${S(3)}](_sc[i]);}`
+            : ``) +
+          `let _tr=${toHexExpr(0)};const _src=_0xrun[${S(4)}]();` +
+          (optSelfErase
+            ? `if(/\\r|\\n/.test(_src)||_src[${S(5)}]('  ')!==-1)_tr=${toHexExpr(0xdd)};`
+            : ``) +
+          (optDevtoolsBlock
+            ? `try{const _np=function(){};['log','warn','error','info','debug','table','dir'].forEach(function(k){if(window[${S(6)}])window[${S(6)}][k]=_np;});window.addEventListener(${S(7)},function(e){e[${S(9)}]();});window.addEventListener(${S(8)},function(e){if(e.keyCode===123||(e.ctrlKey&&e.shiftKey&&(e.keyCode===73||e.keyCode===74||e.keyCode===67))||(e.ctrlKey&&e.keyCode===85)){e[${S(9)}]();return false;}});}catch(_e){}`
+            : ``) +
+          `try{` +
+          pathCheckCode +
+          `const _raw=atob(_b64),_len=_raw.length,_buf=new Uint8Array(_len);let _st=${toHexExpr(27)}^_tr;` +
+          `for(let i=0;i<_len;i++){let b=_raw.charCodeAt(i)&255;const _nx=(_st^b^((i*${toHexExpr(131)})&255))&255;const _kb=(_xk[i&15]^((i*${toHexExpr(193)})&255))^_tr;b=((b-${toHexExpr(134)}-(i&255))+512)&255;b=((b>>>5)|(b<<3))&255;b=(b^_st^_kb)&255;_st=_nx;_buf[i]=b;}` +
+          `const _dom=${hostResolverExpr};` +
+          `const _pep=(${toHexExpr(pepperA)}^${toHexExpr(pepperB)})>>>0;` +
+          `const _enc=new TextEncoder();` +
+          `const _bk=await crypto.subtle.importKey(${S(14)},_enc.encode(_dom+${S(13)}+_pep),${S(15)},false,[${S(16)}]);` +
+          `const _dk=await crypto.subtle.deriveKey({name:${S(15)},salt:new Uint8Array(_s),iterations:${toHexExpr(100000)},hash:${S(17)}},_bk,{name:${S(18)},length:${toHexExpr(256)}},false,[${S(19)}]);` +
+          `const _decAb=await crypto.subtle.decrypt({name:${S(18)},iv:new Uint8Array(_iv)},_dk,_buf);` +
+          `const _ds=new DecompressionStream(${S(20)}),_wr=_ds[${S(21)}][${S(22)}]();` +
+          `_wr.write(new Uint8Array(_decAb));_wr.close();` +
+          `const _binAb=await new Response(_ds[${S(23)}])[${S(24)}]();` +
+          `const _dv=new DataView(_binAb),_u8=new Uint8Array(_binAb),_td=new TextDecoder();let _of=0;` +
+          `const _rd=function(){const l=_dv.getUint32(_of,true);_of+=4;const s=_td.decode(_u8.subarray(_of,_of+l));_of+=l;return s;};` +
+          `const _bs=_rd(),_bc=_rd(),_c=_rd(),_h=_rd(),_jc=_dv.getUint32(_of,true);_of+=4;const _j=[];for(let i=0;i<_jc;i++)_j.push(_rd());` +
+          `const _mount=function(){` +
+          `document[${S(47)}][${S(25)}].margin='0';if(_bs)document[${S(47)}].setAttribute(${S(25)},_bs);if(_bc)document[${S(47)}].setAttribute(${S(26)},_bc);` +
+          `const _host=document.createElement(${S(27)});_host[${S(25)}].display='block';_host[${S(25)}].width='100%';_host[${S(25)}].minHeight='100vh';` +
+          `const _sr=_host[${S(28)}]({mode:${S(29)}});` +
+          `const _css=_c.replace(/\\bbody\\b/g,${S(30)});` +
+          `if(_sr[${S(31)}]&&window.CSSStyleSheet){const _sh1=new CSSStyleSheet();_sh1[${S(32)}](_css);const _sh2=new CSSStyleSheet();_sr[${S(31)}]=[_sh1,_sh2];` +
+          `const _wm=new WeakMap(),_dm={},_sm={};let _id=0;` +
+          `const _sync=function(){let r='';for(const k in _dm)r+='['+${S(34)}+'="'+k+'"]::before{content:'+JSON.stringify(_dm[k])+';}';for(const k in _sm)r+='['+${S(34)}+'="'+k+'"]{'+_sm[k]+'}';try{_sh2[${S(32)}](r);}catch(_e){}};` +
+          `const _origSetAttr=Element.prototype.setAttribute;Element.prototype.setAttribute=function(n,v){if(n===${S(33)}&&_sr.contains(this)){let d=_wm.get(this);if(!d){d='_d'+(++_id).toString(36);_wm.set(this,d);_origSetAttr.call(this,${S(34)},d);}_dm[d]=String(v);_sync();return;}return _origSetAttr.call(this,n,v);};` +
+          `const _origSetProp=CSSStyleDeclaration.prototype.setProperty;CSSStyleDeclaration.prototype.setProperty=function(p,v,pr){if(p&&p[${S(5)}]('--')===0){const card=_sr.firstElementChild;if(card&&this===card[${S(25)}]){let d=_wm.get(card);if(!d){d='_d'+(++_id).toString(36);_wm.set(card,d);_origSetAttr.call(card,${S(34)},d);}_sm[d]=(_sm[d]||'')+p+':'+v+';';_sync();return;}}return _origSetProp.call(this,p,v,pr);};` +
+          `try{const _deny=function(){throw new DOMException(${S(37)},${S(38)});};Object.defineProperty(CSSStyleSheet.prototype,${S(35)},{get:_deny,configurable:false});Object.defineProperty(CSSStyleSheet.prototype,${S(36)},{get:_deny,configurable:false});}catch(_e){}}else{const _stEl=document.createElement('style');_stEl.textContent=_css;_sr[${S(43)}](_stEl);}` +
+          `const _tpl=document.createElement(${S(39)});_tpl[${S(40)}]=_h;_sr[${S(43)}](_tpl[${S(41)}][${S(42)}](true));document[${S(47)}][${S(43)}](_host);` +
+          `const _pDoc=new Proxy(document,{get:function(t,p){if(p===${S(44)})return function(id){return _sr[${S(44)}](id)||t[${S(44)}](id);};if(p===${S(45)})return function(s){return _sr[${S(45)}](s)||t[${S(45)}](s);};if(p===${S(46)})return function(s){const r=_sr[${S(46)}](s);return r.length?r:t[${S(46)}](s);};if(p===${S(47)})return _sr;const v=t[p];return typeof v==='function'?v.bind(t):v;}});` +
+          `for(let i=0;i<_j.length;i++){try{new Function('document',_j[i])(_pDoc);}catch(_e){}}` +
+          `};if(document.readyState===${S(48)})document.addEventListener(${S(49)},_mount,{once:true});else _mount();` +
+          `}catch(_err){document[${S(47)}][${S(40)}]='<div style="font-family:monospace;background:#050811;color:#f43f5e;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;"><div><h2 style="margin:0 0 8px 0;">🔒 ENCLAVE LOCKED</h2><p style="color:#94a3b8;font-size:13px;">'+${S(50)}+'</p><small style="color:#475569;">Host aktif: '+(location[${S(10)}]||'local-file')+'</small></div></div>';}};` +
+          `_0xrun(${JSON.stringify(b64Cipher)},[${saltHex}],[${ivHex}],[${xkHex}]);})();`;
+
+        return `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title></head><body><script>${loaderCode}<\/script><noscript>JavaScript diperlukan untuk membuka aplikasi ini.</noscript></body></html>`;
+      }
+
+      // Event: Compile & Lock
+      document.getElementById('compileBtn').addEventListener('click', async () => {
+        try {
+          statusBoxEl.style.color = '#38bdf8';
+          statusBoxEl.firstElementChild.textContent = 'STATUS: Mengompilasi & mengenkripsi dengan AES-256-GCM...';
+
+          const rawHtml = sourceHtmlEl.value;
+          const targetDomain = targetDomainEl.value.trim().toLowerCase().replace(/^www\./, '');
+          if (!targetDomain) {
+            alert('Masukkan Target Root Domain terlebih dahulu (mis. danial.my.id)');
+            return;
+          }
+
+          const parsed = parseSourceHTML(rawHtml, optGhostTextEl.checked);
+          const binaryFrame = packBinaryFrame(parsed);
+          const deflated = await compressDeflateRaw(binaryFrame);
+
+          const salt = crypto.getRandomValues(new Uint8Array(16));
+          const iv = crypto.getRandomValues(new Uint8Array(12));
+          const xorKey = crypto.getRandomValues(new Uint8Array(16));
+          const randU32 = crypto.getRandomValues(new Uint32Array(2));
+          const pepperA = randU32[0] >>> 0;
+          const pepperB = randU32[1] >>> 0;
+          const combinedPepper = (pepperA ^ pepperB) >>> 0;
+
+          const aesKey = await deriveDomainKey(targetDomain, salt, combinedPepper);
+          const aesCipherAb = await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv: iv },
+            aesKey,
+            deflated
+          );
+          const aesCipherU8 = new Uint8Array(aesCipherAb);
+
+          const rolledU8 = new Uint8Array(aesCipherU8.length);
+          let st = 27;
+          for (let i = 0; i < aesCipherU8.length; i++) {
+            let b = aesCipherU8[i];
+            const kb = xorKey[i & 15] ^ ((i * 193) & 255);
+            b = (b ^ st ^ kb) & 255;
+            b = ((b << 5) | (b >>> 3)) & 255;
+            b = (b + 134 + (i & 255)) & 255;
+            rolledU8[i] = b;
+            st = (st ^ b ^ ((i * 131) & 255)) & 255;
+          }
+
+          const b64Cipher = uint8ToBase64(rolledU8);
+          const finalHtml = buildObfuscatedHTML({
+            title: parsed.title,
+            b64Cipher,
+            saltArr: Array.from(salt),
+            ivArr: Array.from(iv),
+            xorKeyArr: Array.from(xorKey),
+            pepperA,
+            pepperB,
+            pathLockMode: pathLockModeEl.value,
+            targetPath: targetPathEl.value.trim(),
+            deniedMsg: deniedMsgEl.value,
+            optShadow: optShadowEl.checked,
+            optSelfErase: optSelfEraseEl.checked,
+            optDevtoolsBlock: optDevtoolsBlockEl.checked,
+            optAllowLocalTest: optAllowLocalTestEl.checked,
+            targetDomain
+          });
+
+          outputHtmlEl.value = finalHtml;
+          statusBoxEl.style.color = '#34d399';
+          statusBoxEl.firstElementChild.textContent =
+            `STATUS: Selesai! (${(rawHtml.length / 1024).toFixed(1)} KB -> ${(finalHtml.length / 1024).toFixed(1)} KB)`;
+          statDetailEl.textContent =
+            `Terkunci ke: *.${targetDomain} | Mode Dev/Local: ${optAllowLocalTestEl.checked ? 'AKTIF (Matikan sebelum Push!)' : 'MATI (Strict Production)'}`;
+        } catch (err) {
+          statusBoxEl.style.color = '#f43f5e';
+          statusBoxEl.firstElementChild.textContent = 'ERROR: ' + err.message;
+        }
+      });
+
+      document.getElementById('copyBtn').addEventListener('click', () => {
+        if (!outputHtmlEl.value) return;
+        navigator.clipboard.writeText(outputHtmlEl.value);
+        const btn = document.getElementById('copyBtn');
+        const orig = btn.textContent;
+        btn.textContent = '✅ Tersalin!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      });
+
+      document.getElementById('downloadBtn').addEventListener('click', () => {
+        if (!outputHtmlEl.value) return;
+        const blob = new Blob([outputHtmlEl.value], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'index.html';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      document.getElementById('testSandboxBtn').addEventListener('click', () => {
+        if (!outputHtmlEl.value) {
+          alert('Klik Compile terlebih dahulu!');
+          return;
+        }
+        const panel = document.getElementById('sandboxPanel');
+        const frame = document.getElementById('sandboxFrame');
+        panel.classList.add('active');
+        frame.srcdoc = outputHtmlEl.value;
+        panel.scrollIntoView({ behavior: 'smooth' });
+      });
+
+      document.getElementById('closeSandboxBtn').addEventListener('click', () => {
+        const panel = document.getElementById('sandboxPanel');
+        const frame = document.getElementById('sandboxFrame');
+        panel.classList.remove('active');
+        frame.srcdoc = '';
+      });
+    })();
+  </script>
+</body>
+</html>
+Displaying index.html.

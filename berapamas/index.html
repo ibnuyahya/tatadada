@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BerapaMas - BRP Extractor</title>
+    
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        header: 'var(--header-bg)',
+                        editor: 'var(--editor-bg)',
+                        preview: 'var(--preview-bg)',
+                        footer: 'var(--footer-bg)',
+                        theme: 'var(--border-color)',
+                        main: 'var(--text-main)',
+                        dim: 'var(--text-dim)',
+                        stripe: 'var(--stripe-color)',
+                        freeze: 'var(--freeze-bg)',
+                        'freeze-even': 'var(--freeze-bg-even)',
+                        'freeze-hover': 'var(--freeze-hover)',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Lucide Icons & PDF.js -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+
+    <!-- JSZip Library untuk Generate MBZ (ZIP) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- CSS Tokens & TATADADA Rules -->
+    <style>
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Legacy Custom Brand Class (Safe Area) */
+        .moodle-brand-bg { background-color: #0a1930; }
+        .moodle-brand-border { border-color: #fdd000; }
+        .moodle-brand-text { color: #fdd000; }
+        .moodle-brand-btn { background-color: #fdd000; color: #0a1930; }
+        .moodle-brand-btn:hover { background-color: #e6bd00; }
+        .pdf-highlight {
+            box-shadow: 0 0 0 4px #facc15, 0 0 30px rgba(250, 204, 21, 0.5) !important;
+            border-color: #facc15 !important;
+            transform: scale(1.01);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- HEADER TATADADA -->
+    <header class="flex items-center justify-between px-6 border-b border-theme bg-header h-14 shrink-0 relative z-50 shadow-sm">
+        <!-- Kiri: Branding -->
+        <div class="flex items-center gap-3">
+            <i data-lucide="file-archive" class="w-6 h-6 text-blue-500"></i>
+            <div class="flex flex-col">
+                <div class="flex items-baseline gap-2">
+                    <span class="font-bold text-lg bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent">BerapaMas</span>
+                    <span class="text-[10px] font-mono text-dim italic">v2.4.0</span>
+                </div>
+                <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-dim hover:text-blue-500 transition-colors">
+                    by AhmadDanial
+                </a>
+            </div>
+            
+            <div class="group relative ml-2 cursor-help flex items-center justify-center">
+                <i data-lucide="help-circle" class="w-4 h-4 text-dim hover:text-main transition-colors"></i>
+                <div id="helpTooltip" class="absolute left-0 top-full mt-2 w-64 p-3 bg-editor border border-theme rounded-md shadow-lg text-xs text-main opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                    Unggah file BRP (PDF) untuk mengekstrak dan memformatnya menjadi kelas Moodle (MBZ).
+                </div>
+            </div>
+        </div>
+
+        <!-- Kanan: Actions -->
+        <div class="flex items-center gap-4">
+            <button id="langToggle" class="flex items-center gap-2 px-3 py-1.5 rounded-md border border-theme bg-editor hover:bg-preview transition-colors text-xs font-semibold text-main">
+                <span id="langIcon">🇮🇩</span>
+                <span id="langText">ID</span>
+            </button>
+            <button id="themeToggle" class="p-1.5 rounded-md border border-theme bg-editor hover:bg-preview transition-colors text-dim hover:text-main">
+                <i data-lucide="sun" id="iconSun" class="w-4 h-4 hidden"></i>
+                <i data-lucide="moon" id="iconMoon" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 relative overflow-hidden bg-preview flex flex-col" id="main-workspace">
+        <div class="max-w-7xl mx-auto w-full flex-1 flex flex-col p-6 overflow-hidden">
+            
+            <!-- Stepper Indicator -->
+            <div class="relative px-8 mb-8 shrink-0" id="stepper-wrapper">
+                <div class="absolute left-16 right-16 top-4 h-1 bg-theme z-0 rounded"></div>
+                <div id="stepper-line-active" class="absolute left-16 top-4 h-1 bg-blue-600 transition-all duration-500 z-0 rounded" style="width: 0%;"></div>
+                <div id="stepper-dots" class="flex items-center justify-between relative z-10">
+                    <!-- Dots Injected via JS -->
+                </div>
+            </div>
+
+            <!-- STEP 1: UPLOAD -->
+            <div id="step-1" class="step-pane flex-1 overflow-y-auto flex flex-col items-center justify-center bg-editor rounded-xl shadow-sm border border-theme p-12 text-center transition-all duration-300">
+                <div class="w-24 h-24 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center mb-6 border border-blue-100 dark:border-blue-800">
+                    <i data-lucide="upload-cloud" class="w-12 h-12 text-blue-600 dark:text-blue-400"></i>
+                </div>
+                <h2 id="lblUploadTitle" class="text-2xl font-bold text-main mb-2">Unggah Dokumen BRP</h2>
+                <p id="lblUploadDesc" class="text-dim mb-8 max-w-md">Silakan unggah file PDF BRP hasil unduhan dari sistem brp.ui.ac.id.</p>
+                
+                <input type="file" accept="application/pdf" class="hidden" id="fileInput">
+                <div class="border-2 border-dashed border-theme rounded-lg p-12 w-full max-w-lg hover:bg-preview transition-colors cursor-pointer group" onclick="document.getElementById('fileInput').click()">
+                    <i data-lucide="file-text" class="w-10 h-10 text-dim mx-auto mb-3 group-hover:text-blue-500 transition-colors"></i>
+                    <p id="lblUploadBtn" class="text-sm font-bold text-main">Klik untuk memilih file PDF BRP</p>
+                    <p class="text-xs text-dim mt-1">Mendukung format .pdf</p>
+                </div>
+            </div>
+
+            <!-- STEP 2: PREVIEW & SETTINGS -->
+            <div id="step-2" class="step-pane hidden flex-1 overflow-y-auto flex-col lg:flex-row gap-6 transition-all duration-300">
+                <!-- Kiri: PDF Preview -->
+                <div class="flex-1 bg-editor rounded-xl shadow-sm border border-theme p-6 flex flex-col min-h-0">
+                    <div class="flex items-center justify-between mb-4 pb-2 border-b border-theme shrink-0">
+                        <h2 class="text-xl font-bold text-main flex items-center">
+                            <i data-lucide="file-check" class="w-5 h-5 mr-2 text-green-500"></i> 
+                            <span id="lblPreviewTitle">Preview Dokumen</span>
+                        </h2>
+                        <span id="pdfFileName" class="text-sm text-dim font-medium truncate max-w-[200px] font-mono">Dokumen.pdf</span>
+                    </div>
+                    <div class="flex-1 bg-preview border border-theme rounded-lg p-6 overflow-y-auto min-h-[400px]">
+                        <!-- Area Halaman Sampul -->
+                        <div class="mb-8 w-full flex flex-col items-center">
+                            <span class="text-xs font-bold text-dim uppercase tracking-wider mb-3 block text-center">Halaman Sampul</span>
+                            <div class="relative flex items-center justify-center bg-editor shadow-md border border-theme">
+                                <canvas id="canvas-cover" class="w-72 md:w-80 h-auto"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Area Thumbnail Isi Dokumen -->
+                        <div class="w-full">
+                            <span class="text-xs font-bold text-dim uppercase tracking-wider mb-4 block text-center border-t border-theme pt-6">Isi Dokumen</span>
+                            <div id="pdf-thumbs" class="flex flex-wrap gap-5 justify-center">
+                                <!-- Thumbs diinjeksi via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kanan: Settings -->
+                <div class="w-full lg:w-[400px] bg-editor rounded-xl shadow-sm border border-theme p-6 flex flex-col shrink-0 h-fit">
+                    <h2 class="text-xl font-bold text-main mb-4 pb-2 border-b border-theme flex items-center shrink-0">
+                        <i data-lucide="settings" class="w-5 h-5 mr-2 text-dim"></i> 
+                        <span id="lblSettingsTitle">Pengaturan Kelas</span>
+                    </h2>
+                    
+                    <div class="flex-1 overflow-y-auto pr-2">
+                        <h3 class="font-bold text-main mb-3 text-sm">Course format</h3>
+                        <div class="space-y-1">
+                            <label class="flex items-start p-2 rounded cursor-not-allowed opacity-50">
+                                <input type="radio" name="format" disabled class="mt-1 mr-3 w-4 h-4 text-blue-600 cursor-not-allowed">
+                                <div><span class="font-bold text-main text-sm">Kickstart format</span></div>
+                            </label>
+                            
+                            <!-- Terpilih: Custom Sections -->
+                            <label class="flex items-start p-3 rounded-md cursor-pointer border bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
+                                <div class="relative flex items-center justify-center mt-0.5 mr-3">
+                                    <input type="radio" name="format" checked class="w-4 h-4 text-main bg-preview border-theme cursor-pointer">
+                                    <div class="absolute w-2 h-2 bg-main rounded-full pointer-events-none"></div>
+                                </div>
+                                <div>
+                                    <span class="font-bold text-main text-sm">Custom sections</span>
+                                    <p class="text-xs text-dim mt-1">The course is divided into customisable sections.</p>
+                                </div>
+                            </label>
+
+                            <label class="flex items-start p-2 rounded cursor-not-allowed opacity-50">
+                                <input type="radio" name="format" disabled class="mt-1 mr-3 w-4 h-4 text-blue-600 cursor-not-allowed">
+                                <div><span class="font-bold text-main text-sm">Weekly sections</span></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button id="btn-extract" onclick="runLoadingTask('Menganalisis & Mapping Data BRP...', 3)" class="w-full mt-4 py-3 rounded-lg font-bold flex items-center justify-center transition-colors shadow-md bg-blue-600 hover:bg-blue-700 text-white shrink-0">
+                        <span id="lblBtnExtract">Mulai Ekstraksi Data</span> 
+                        <i data-lucide="chevron-right" class="w-5 h-5 ml-1"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- STEP 3: REVIEW MOODLE THEME DENGAN SPLIT PANE -->
+            <div id="step-3" class="step-pane hidden flex-1 flex-col overflow-hidden transition-all duration-300">
+                
+                <div class="flex justify-between items-center mb-4 shrink-0">
+                    <div>
+                        <h2 id="lblReviewTitle" class="text-2xl font-bold text-main">Review Struktur (Tema Lambda)</h2>
+                        <p id="lblReviewDesc" class="text-sm text-dim">Pratinjau tampilan kelas di EMAS UI sebelum di-export ke MBZ.</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <!-- Tombol Split View -->
+                        <button id="btn-split-toggle" onclick="toggleSplitView()" class="px-4 py-2 rounded-lg font-bold flex items-center border border-theme bg-editor hover:bg-preview transition-colors text-main shadow-sm">
+                            <i data-lucide="columns" class="w-5 h-5 mr-2"></i> <span id="lblBtnSplit">Lihat PDF Asli</span>
+                        </button>
+                        <button onclick="runLoadingTask('Membungkus ke Format MBZ...', 5)" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold flex items-center shadow-md transition-colors">
+                            <span id="lblBtnGenerate">Generate MBZ</span> 
+                            <i data-lucide="download" class="w-5 h-5 ml-2"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- SPLIT LAYOUT CONTAINER -->
+                <div class="flex-1 border border-theme rounded-lg overflow-hidden flex flex-row shadow-lg bg-editor relative min-h-0">
+                    
+                    <!-- KIRI: Mockup EMAS / Moodle -->
+                    <div id="moodle-pane" class="flex-1 flex flex-col h-full overflow-hidden min-w-[300px] transition-all relative">
+                        <!-- Navbar Moodle Lambda -->
+                        <div class="moodle-brand-bg text-white h-14 flex items-center justify-between px-4 border-b-4 moodle-brand-border shrink-0">
+                            <div class="flex items-center space-x-4">
+                                <div class="w-8 h-8 flex flex-col justify-center space-y-1.5 cursor-pointer opacity-80 hover:opacity-100">
+                                    <span class="w-6 h-0.5 bg-white"></span>
+                                    <span class="w-6 h-0.5 bg-white"></span>
+                                    <span class="w-6 h-0.5 bg-white"></span>
+                                </div>
+                                <div class="text-xl md:text-2xl font-bold tracking-widest moodle-brand-text">EMAS</div>
+                                <div class="hidden md:flex space-x-4 pl-4 text-sm font-semibold opacity-90">
+                                    <span class="hover:text-yellow-400 cursor-pointer">Home</span>
+                                    <span class="hover:text-yellow-400 cursor-pointer">Dashboard</span>
+                                </div>
+                            </div>
+                            <div class="w-8 h-8 bg-gray-500 rounded-full border-2 border-gray-400"></div>
+                        </div>
+
+                        <!-- Breadcrumbs & Title Bar -->
+                        <div class="bg-editor px-4 md:px-8 pt-4 border-b border-theme shadow-sm relative shrink-0 z-10">
+                            <div class="text-[10px] md:text-xs text-dim font-medium mb-4 flex items-center space-x-2">
+                                <span class="hover:underline cursor-pointer">Dashboard</span> <i data-lucide="chevron-right" class="w-3 h-3 text-dim"></i> 
+                                <span class="hover:underline cursor-pointer hidden md:inline">Courses</span> <i data-lucide="chevron-right" class="w-3 h-3 text-dim hidden md:inline"></i> 
+                                <span class="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">SCMA603129</span>
+                            </div>
+                            
+                            <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
+                                <h1 class="text-2xl md:text-3xl font-bold text-main flex items-center">
+                                    Perancangan & Analisis Algoritma
+                                    <i data-lucide="pencil" id="iconEditTitle" class="w-5 h-5 ml-3 text-dim cursor-pointer hidden"></i>
+                                </h1>
+                                <button id="btn-toggle-edit" class="moodle-brand-btn px-4 py-2 rounded text-sm font-bold shadow transition-colors whitespace-nowrap">
+                                    Turn editing on
+                                </button>
+                            </div>
+
+                            <div class="flex space-x-6 text-sm font-bold text-dim overflow-x-auto pb-1">
+                                <span class="pb-3 border-b-4 border-blue-600 text-blue-600 dark:text-blue-400 cursor-pointer">Course</span>
+                                <span class="pb-3 hover:text-main cursor-pointer">Settings</span>
+                                <span class="pb-3 hover:text-main cursor-pointer">Participants</span>
+                                <span class="pb-3 hover:text-main cursor-pointer">Grades</span>
+                            </div>
+                        </div>
+
+                        <!-- Course Content Area -->
+                        <div class="p-4 md:p-8 overflow-y-auto flex-1 bg-preview flex justify-center relative z-0">
+                            <div class="w-full max-w-4xl" id="moodle-sections-container">
+                                <!-- Injeksi JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RESIZER PEMISAH (Vertical) -->
+                    <div id="split-resizer" class="hidden w-1.5 bg-theme cursor-col-resize hover:bg-blue-500 transition-colors shrink-0 z-20 flex items-center justify-center">
+                        <div class="h-12 w-0.5 bg-dim rounded-full opacity-50"></div>
+                    </div>
+
+                    <!-- KANAN: PDF View (Split) -->
+                    <div id="pdf-split-pane" class="hidden w-[40%] flex-col bg-editor h-full overflow-hidden shrink-0 border-l border-theme z-10 relative">
+                        <div class="h-14 border-b border-theme bg-preview flex items-center px-4 font-bold text-main shrink-0 shadow-sm justify-between relative z-20">
+                            <div class="flex items-center">
+                                <i data-lucide="file-check" class="w-5 h-5 mr-2 text-blue-500"></i> 
+                                <span id="lblSplitPdfTitle">Dokumen Asli BRP</span>
+                            </div>
+                            <button onclick="toggleSplitView()" class="p-1.5 rounded hover:bg-theme text-dim transition-colors">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                        <div id="pdf-split-content" class="flex-1 overflow-y-auto p-4 flex flex-col gap-6 bg-preview/50 items-center scroll-smooth pb-20 relative z-0">
+                            <!-- Injected Canvases via JS -->
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- LOADING OVERLAY -->
+            <div id="step-loading" class="step-pane hidden flex-1 flex-col items-center justify-center bg-editor rounded-xl shadow-sm border border-theme p-16 text-center">
+                <div class="relative w-24 h-24 mb-6">
+                    <div class="absolute inset-0 border-4 border-preview rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+                    <div id="loading-progress" class="absolute inset-0 flex items-center justify-center text-main font-bold text-lg font-mono">0%</div>
+                </div>
+                <h2 id="loading-msg" class="text-xl font-bold text-main mb-2">Memproses...</h2>
+                <p class="text-dim max-w-md">Harap tunggu, sistem sedang memproses struktur XML Moodle.</p>
+            </div>
+
+            <!-- STEP 5: DONE -->
+            <div id="step-5" class="step-pane hidden flex-1 flex-col items-center justify-center bg-editor rounded-xl shadow-sm border border-theme p-12 text-center transition-all duration-300">
+                <div class="w-24 h-24 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-6 border border-green-100 dark:border-green-800">
+                    <i data-lucide="download" class="w-12 h-12 text-green-500 animate-bounce"></i>
+                </div>
+                <h2 id="lblDoneTitle" class="text-3xl font-bold text-main mb-2">Selesai! File MBZ Siap</h2>
+                <p id="lblDoneDesc" class="text-dim mb-8 max-w-md">Format kelas <b>Custom Sections</b> (Tema Lambda) telah dikemas ke dalam Moodle Backup.</p>
+                
+                <div class="bg-preview border border-theme rounded-lg p-6 mb-8 w-full max-w-md flex flex-col items-center">
+                    <i data-lucide="file-archive" class="w-12 h-12 text-blue-500 mb-2"></i>
+                    <div class="font-bold text-main font-mono text-sm" id="resultFileName">SCMA603129_BRP_Structure.mbz</div>
+                    <div class="text-xs text-dim mb-4" id="resultFileSize">Menghitung ukuran...</div>
+                    
+                    <button id="btnDownloadContainer" onclick="handleDownloadMBZ()" class="w-full moodle-brand-btn py-3 rounded-lg font-bold flex items-center justify-center transition-colors shadow-lg">
+                        <i data-lucide="download" class="w-5 h-5 mr-2"></i> <span id="lblBtnDownload">Unduh File MBZ</span>
+                    </button>
+                </div>
+
+                <button onclick="resetApp()" class="text-blue-600 dark:text-blue-400 hover:underline text-sm font-bold">
+                    <span id="lblBtnNew">Mulai Konversi Baru</span>
+                </button>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- FOOTER TATADADA -->
+    <footer class="flex items-center justify-between px-6 border-t border-theme bg-footer h-8 text-[10px] text-dim shrink-0 z-50 relative">
+        <div class="flex items-center gap-2 w-1/3">
+            <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            <span id="footerStatus">Engine Ready</span>
+        </div>
+        <div class="font-mono w-1/3 text-center truncate">
+            Moodle 4.5 XML Builder
+        </div>
+        <div class="w-1/3 text-right">
+            <button onclick="document.getElementById('termsModal').classList.remove('hidden')" class="hover:text-main hover:underline transition-colors" id="lblTermsLink">Terms of Use</button>
+        </div>
+    </footer>
+
+    <!-- MODAL TERMS OF USE -->
+    <div id="termsModal" class="hidden fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-editor border border-theme rounded-xl shadow-xl max-w-md w-full p-6 relative">
+            <button onclick="document.getElementById('termsModal').classList.add('hidden')" class="absolute top-4 right-4 text-dim hover:text-main transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <h3 class="text-lg font-bold text-main mb-4 flex items-center gap-2">
+                <i data-lucide="shield-alert" class="w-5 h-5 text-orange-500"></i>
+                <span id="lblTermsTitle">Terms of Use</span>
+            </h3>
+            <p class="text-sm text-main leading-relaxed" id="lblTermsContent">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
+            </p>
+            <div class="mt-6 flex justify-end">
+                <button onclick="document.getElementById('termsModal').classList.add('hidden')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors" id="lblTermsBtn">Saya Mengerti</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIKA APLIKASI -->
+    <script>
+        // Init PDF.js Worker
+        pdfjsLib.GlobalWorkerOptions.disableWorker = true;
+
+        // Init Lucide
+        lucide.createIcons();
+
+        // ==========================================
+        // TATADADA CORE: TEMA & BAHASA
+        // ==========================================
+        const themeToggle = document.getElementById('themeToggle');
+        const iconSun = document.getElementById('iconSun');
+        const iconMoon = document.getElementById('iconMoon');
+        const html = document.documentElement;
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem('tatadada_theme');
+            if (savedTheme === 'dark') {
+                html.classList.add('dark');
+                iconMoon.classList.add('hidden');
+                iconSun.classList.remove('hidden');
+            } else {
+                html.classList.remove('dark');
+                iconSun.classList.add('hidden');
+                iconMoon.classList.remove('hidden');
+            }
+        }
+
+        themeToggle.addEventListener('click', () => {
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('tatadada_theme', 'light');
+                iconSun.classList.add('hidden');
+                iconMoon.classList.remove('hidden');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('tatadada_theme', 'dark');
+                iconMoon.classList.add('hidden');
+                iconSun.classList.remove('hidden');
+            }
+        });
+
+        const langToggle = document.getElementById('langToggle');
+        const langIcon = document.getElementById('langIcon');
+        const langText = document.getElementById('langText');
+
+        const dictionary = {
+            id: {
+                helpTooltip: "Unggah file BRP (PDF) untuk mengekstrak dan memformatnya menjadi kelas Moodle (MBZ).",
+                steps: ['Unggah BRP', 'Preview & Format', 'Review Tema Lambda', 'Generate MBZ', 'Selesai'],
+                lblUploadTitle: "Unggah Dokumen BRP",
+                lblUploadDesc: "Silakan unggah file PDF BRP hasil unduhan dari sistem brp.ui.ac.id.",
+                lblUploadBtn: "Klik untuk memilih file PDF BRP",
+                lblPreviewTitle: "Preview Dokumen",
+                lblSettingsTitle: "Pengaturan Kelas",
+                lblBtnExtract: "Mulai Ekstraksi Data",
+                lblReviewTitle: "Review Struktur (Tema Lambda)",
+                lblReviewDesc: "Pratinjau tampilan kelas di EMAS UI sebelum di-export ke MBZ.",
+                lblBtnGenerate: "Generate MBZ",
+                lblBtnSplit: "Lihat PDF Asli",
+                lblBtnSplitClose: "Tutup PDF",
+                lblSplitPdfTitle: "Dokumen Asli BRP",
+                lblDoneTitle: "Selesai! File MBZ Siap",
+                lblDoneDesc: "Format kelas <b>Custom Sections</b> telah dikemas ke dalam Moodle Backup.",
+                lblBtnDownload: "Unduh File MBZ",
+                lblBtnNew: "Mulai Konversi Baru",
+                footerStatus: "Engine Ready",
+                editOn: "Turn editing on",
+                editOff: "Turn editing off",
+                btnGoToPdf: "Lihat halaman PDF yang bersesuaian",
+                lblTermsLink: "Syarat & Ketentuan",
+                lblTermsTitle: "Syarat Penggunaan",
+                lblTermsContent: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+                lblTermsBtn: "Saya Mengerti"
+            },
+            en: {
+                helpTooltip: "Upload a BRP file (PDF) to extract and format it into a Moodle class (MBZ).",
+                steps: ['Upload BRP', 'Preview & Format', 'Review Lambda Theme', 'Generate MBZ', 'Done'],
+                lblUploadTitle: "Upload BRP Document",
+                lblUploadDesc: "Please upload the BRP PDF file downloaded from the brp.ui.ac.id system.",
+                lblUploadBtn: "Click to select BRP PDF file",
+                lblPreviewTitle: "Document Preview",
+                lblSettingsTitle: "Course Settings",
+                lblBtnExtract: "Start Data Extraction",
+                lblReviewTitle: "Structure Review (Lambda Theme)",
+                lblReviewDesc: "Preview the class appearance on EMAS UI before exporting to MBZ.",
+                lblBtnGenerate: "Generate MBZ",
+                lblBtnSplit: "View Original PDF",
+                lblBtnSplitClose: "Close PDF",
+                lblSplitPdfTitle: "Original BRP Document",
+                lblDoneTitle: "Done! MBZ File Ready",
+                lblDoneDesc: "The <b>Custom Sections</b> class format has been packed into a Moodle Backup.",
+                lblBtnDownload: "Download MBZ File",
+                lblBtnNew: "Start New Conversion",
+                footerStatus: "Engine Ready",
+                editOn: "Turn editing on",
+                editOff: "Turn editing off",
+                btnGoToPdf: "View corresponding PDF page",
+                lblTermsLink: "Terms of Use",
+                lblTermsTitle: "Terms of Use",
+                lblTermsContent: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                lblTermsBtn: "I Understand"
+            }
+        };
+
+        function translateUI(lang) {
+            const t = dictionary[lang];
+            document.getElementById('helpTooltip').innerText = t.helpTooltip;
+            document.getElementById('lblUploadTitle').innerText = t.lblUploadTitle;
+            document.getElementById('lblUploadDesc').innerText = t.lblUploadDesc;
+            document.getElementById('lblUploadBtn').innerText = t.lblUploadBtn;
+            document.getElementById('lblPreviewTitle').innerText = t.lblPreviewTitle;
+            document.getElementById('lblSettingsTitle').innerText = t.lblSettingsTitle;
+            document.getElementById('lblBtnExtract').innerText = t.lblBtnExtract;
+            document.getElementById('lblReviewTitle').innerText = t.lblReviewTitle;
+            document.getElementById('lblReviewDesc').innerText = t.lblReviewDesc;
+            document.getElementById('lblBtnGenerate').innerText = t.lblBtnGenerate;
+            
+            const splitBtn = document.getElementById('lblBtnSplit');
+            if (splitBtn) splitBtn.innerText = isSplitView ? t.lblBtnSplitClose : t.lblBtnSplit;
+            document.getElementById('lblSplitPdfTitle').innerText = t.lblSplitPdfTitle;
+            
+            document.getElementById('lblDoneTitle').innerText = t.lblDoneTitle;
+            document.getElementById('lblDoneDesc').innerHTML = t.lblDoneDesc;
+            document.getElementById('lblBtnDownload').innerText = t.lblBtnDownload;
+            document.getElementById('lblBtnNew').innerText = t.lblBtnNew;
+            document.getElementById('footerStatus').innerText = t.footerStatus;
+            
+            const btnEdit = document.getElementById('btn-toggle-edit');
+            if(btnEdit) btnEdit.innerText = isEditing ? t.editOff : t.editOn;
+
+            // Modal Translations
+            document.getElementById('lblTermsLink').innerText = t.lblTermsLink;
+            document.getElementById('lblTermsTitle').innerText = t.lblTermsTitle;
+            document.getElementById('lblTermsContent').innerText = t.lblTermsContent;
+            document.getElementById('lblTermsBtn').innerText = t.lblTermsBtn;
+            
+            updateStepper();
+            if (currentStep === 3) renderMoodleUI(); // refresh to update title tooltips
+        }
+
+        langToggle.addEventListener('click', () => {
+            const currentLang = localStorage.getItem('tatadada_lang') || 'id';
+            const newLang = currentLang === 'id' ? 'en' : 'id';
+            localStorage.setItem('tatadada_lang', newLang);
+            langIcon.innerText = newLang === 'en' ? '🇬🇧' : '🇮🇩';
+            langText.innerText = newLang.toUpperCase();
+            translateUI(newLang);
+        });
+
+        // ==========================================
+        // STATE & LOGIC APLIKASI (AREA SAKRAL)
+        // ==========================================
+        let currentStep = 1;
+        let isParsing = false;
+        let pdfDoc = null;
+        let isEditing = false;
+        let isSplitView = false;
+        let pdfSplitRendered = false;
+        let generatedBlob = null;
+        
+        const mockCourseData = {
+            fullname: "Perancangan & Analisis Algoritma",
+            code: "SCMA603129",
+            sections: [
+                { week: "1", title: "Pendahuluan Konsep Algoritmik", cpmk: "Sub-CPMK1: Mengukur kinerja & efisiensi algoritma", pdfPage: 4, modules: [
+                    { type: "label", name: "Bahan Kajian / Materi", desc: "Pengertian Algoritmik, Dasar Matematika, Analisa Algoritma", pdfPage: 3 },
+                    { type: "forum", name: "Diskusi Asinkron Minggu 1", desc: "Forum diskusi terkait konsep algoritmik dasar", pdfPage: 4 },
+                    { type: "url", name: "Video Lecturing EMAS", desc: "Tautan video materi pengantar", pdfPage: 4 }
+                ]},
+                { week: "2", title: "Time Complexity", cpmk: "Sub-CPMK2: Mengukur time complexity suatu algoritma", pdfPage: 5, modules: [
+                    { type: "label", name: "Bahan Kajian / Materi", desc: "Pengertian dan definisi Time Complexity", pdfPage: 3 },
+                    { type: "forum", name: "Diskusi Asinkron Minggu 2", desc: "Diskusi mengenai time complexity", pdfPage: 5 }
+                ]},
+                { week: "3", title: "Kondisi Best, Average, Worst Case", cpmk: "Sub-CPMK3: Kinerja algoritma di berbagai kondisi", pdfPage: 6, modules: [
+                    { type: "label", name: "Bahan Kajian / Materi", desc: "Pengertian Best, Average dan Worst Case", pdfPage: 3 },
+                    { type: "assign", name: "Tugas Individu: Time Complexity", desc: "Menentukan time complexity dari algoritma/program sesuai running time. Batas Waktu: 1 Minggu.", pdfPage: 15 }
+                ]},
+                { week: "4", title: "Notasi Asymptotic", cpmk: "Sub-CPMK4: Membedakan Big-O, Big-Ω, Big-Θ", pdfPage: 7, modules: [
+                    { type: "label", name: "Bahan Kajian / Materi", desc: "Pengertian dan definisi Notasi Asymptotic", pdfPage: 3 },
+                    { type: "assign", name: "Tugas Individu: Notasi Asymptot", desc: "Pengukuran time complexity berdasarkan definisi Big-O, Big-Ω, Big-Θ. Batas Waktu: 1 Minggu.", pdfPage: 15 }
+                ]},
+                { week: "5-6", title: "Recurrence Relation", cpmk: "Sub-CPMK5: Menentukan closed-form recurrence relation", pdfPage: 8, modules: [
+                    { type: "label", name: "Bahan Kajian / Materi", desc: "Pengertian, Klasifikasi dan metode penyelesaian Recurrence Relation", pdfPage: 3 },
+                    { type: "assign", name: "Tugas Individu: Recurrence Relations", desc: "Menyelesaikan recurrence relations dengan cara substitusi atau Master's Theorem.", pdfPage: 15 }
+                ]},
+                { week: "7", title: "Brute Force dan Divide-and-Conquer", cpmk: "Sub-CPMK6: Menerapkan teknik DAQ", pdfPage: 9, modules: [
+                    { type: "label", name: "Bahan Kajian / Materi", desc: "Elemen dari strategi Divide-and-Conquer dan Contoh penerapan", pdfPage: 3 },
+                    { type: "assign", name: "Tugas Individu: Divide and Conquer", desc: "Menentukan time complexity dari penyelesaian masalah dengan menerapkan teknik DAQ.", pdfPage: 15 }
+                ]},
+                { week: "8", title: "Algoritma Greedy", cpmk: "Sub-CPMK7: Penerapan pada Graph & persoalan lain", pdfPage: 10, modules: [
+                    { type: "label", name: "Bahan Kajian / Materi", desc: "Pengertian dan elemen-elemen Algoritma Greedy", pdfPage: 3 },
+                    { type: "assign", name: "Tugas Kelompok: Teknik Greedy", desc: "Tugas pemrograman kelompok. Pengukuran kinerja algoritma Greedy.", pdfPage: 15 }
+                ]},
+                { week: "10-11", title: "Dynamic Programming", cpmk: "Sub-CPMK8: Penerapan pada masalah optimisasi", pdfPage: 11, modules: [
+                    { type: "label", name: "Bahan Kajian / Materi", desc: "Pengertian Algoritma Dynamic Programming", pdfPage: 3 },
+                    { type: "assign", name: "Tugas Kelompok: Dynamic Programming", desc: "Tugas pemrograman kelompok menerapkan teknik Dynamic Programming.", pdfPage: 16 }
+                ]},
+                { week: "12-13", title: "Algoritma Graph", cpmk: "Sub-CPMK9: Menyusun algoritma traversal", pdfPage: 12, modules: [
+                    { type: "label", name: "Bahan Kajian / Materi", desc: "Definisi, Tree Traversal, DFS, BFS, Branch and Bound", pdfPage: 3 },
+                    { type: "assign", name: "Tugas Kelompok: Algoritma Graph", desc: "Menentukan Graph Traversal berdasarkan strategy DFS & BFS.", pdfPage: 16 }
+                ]},
+                { week: "14-15", title: "Pendahuluan Algoritma Paralel", cpmk: "Sub-CPMK10: Komputasi paralel", pdfPage: 13, modules: [
+                    { type: "label", name: "Bahan Kajian / Materi", desc: "Pengertian komputasi paralel dan taxonomy", pdfPage: 3 },
+                    { type: "assign", name: "Tugas Kelompok: Komputasi Paralel", desc: "Melakukan simulasi komputasi paralel mengikuti kaidah paralelisasi.", pdfPage: 16 }
+                ]}
+            ]
+        };
+
+        function updateStepper() {
+            const container = document.getElementById('stepper-dots');
+            const lang = localStorage.getItem('tatadada_lang') || 'id';
+            const labels = dictionary[lang].steps;
+            
+            let html = '';
+            labels.forEach((label, idx) => {
+                const stepNum = idx + 1;
+                const isCompleted = currentStep > stepNum;
+                const isCurrent = currentStep === stepNum;
+                const isClickable = isCompleted && !isParsing;
+                
+                let circleClass = 'bg-editor text-dim border border-theme';
+                if (isCompleted) circleClass = 'bg-blue-600 dark:bg-blue-500 text-white shadow-md cursor-pointer hover:bg-blue-700 transition-colors';
+                if (isCurrent) circleClass = 'bg-yellow-400 text-yellow-900 ring-4 ring-yellow-400/30';
+                
+                let textClass = (isCompleted || isCurrent) ? 'text-main' : 'text-dim';
+                
+                html += `
+                <div class="flex flex-col items-center z-10 w-24 ${isClickable ? 'group' : ''}" ${isClickable ? `onclick="goToStep(${stepNum})"` : ''} style="${isClickable ? 'cursor:pointer;' : ''}">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${circleClass} ${isClickable ? 'group-hover:scale-110 transition-transform' : ''}">
+                        ${isCompleted ? `<i data-lucide="check" class="w-5 h-5"></i>` : stepNum}
+                    </div>
+                    <span class="text-xs mt-2 font-bold text-center ${textClass} ${isClickable ? 'group-hover:text-blue-500' : ''}">${label}</span>
+                </div>
+                `;
+            });
+            container.innerHTML = html;
+            lucide.createIcons();
+            
+            document.getElementById('stepper-line-active').style.width = `${((currentStep - 1) / 4) * 100}%`;
+        }
+
+        function goToStep(stepNumber) {
+            if (isParsing) return;
+            currentStep = stepNumber;
+            document.querySelectorAll('.step-pane').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.step-pane').forEach(el => el.classList.remove('flex'));
+            
+            const targetEl = document.getElementById(`step-${stepNumber}`);
+            if(targetEl) {
+                targetEl.classList.remove('hidden');
+                targetEl.classList.add('flex');
+            }
+            
+            if (stepNumber === 3) renderMoodleUI();
+            if (stepNumber === 5) generateZipMemory(); // Generate zip when reaching step 5
+            updateStepper();
+        }
+
+        function runLoadingTask(message, nextStep) {
+            isParsing = true;
+            updateStepper(); // disable clicks
+            
+            document.querySelectorAll('.step-pane').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.step-pane').forEach(el => el.classList.remove('flex'));
+            
+            const loadPane = document.getElementById('step-loading');
+            loadPane.classList.remove('hidden');
+            loadPane.classList.add('flex');
+            document.getElementById('loading-msg').innerText = message;
+            
+            let p = 0;
+            const progressEl = document.getElementById('loading-progress');
+            progressEl.innerText = '0%';
+            
+            const timer = setInterval(() => {
+                p += 20;
+                if(p > 100) p = 100;
+                progressEl.innerText = p + '%';
+                if (p === 100) {
+                    clearInterval(timer);
+                    isParsing = false;
+                    setTimeout(() => goToStep(nextStep), 300);
+                }
+            }, 300);
+        }
+
+        // ==========================================
+        // PDF HANDLING & RENDERING
+        // ==========================================
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file || file.type !== 'application/pdf') {
+                alert("Mohon unggah file format PDF.");
+                return;
+            }
+            document.getElementById('pdfFileName').innerText = file.name;
+            goToStep(2);
+            
+            const fileReader = new FileReader();
+            fileReader.onload = async function() {
+                const typedarray = new Uint8Array(this.result);
+                try {
+                    const loadingTask = pdfjsLib.getDocument(typedarray);
+                    pdfDoc = await loadingTask.promise;
+                    
+                    pdfSplitRendered = false; // reset status split render
+
+                    // Render Cover (Step 2)
+                    renderPageToCanvas(1, 'canvas-cover', 1.2);
+                    
+                    // Render Thumbs (Step 2)
+                    const thumbContainer = document.getElementById('pdf-thumbs');
+                    thumbContainer.innerHTML = '';
+                    const numThumbs = Math.min(pdfDoc.numPages - 1, 10);
+                    for (let i = 2; i <= numThumbs + 1; i++) {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'flex flex-col items-center group';
+                        wrapper.innerHTML = `
+                            <div class="relative flex items-center justify-center bg-white shadow-md border border-theme w-28 group-hover:scale-105 transition-transform overflow-hidden">
+                                <canvas id="canvas-page-${i}" class="max-w-full h-auto"></canvas>
+                            </div>
+                            <span class="text-[11px] font-semibold text-dim mt-2">Halaman ${i}</span>`;
+                        thumbContainer.appendChild(wrapper);
+                        renderPageToCanvas(i, `canvas-page-${i}`, 0.35);
+                    }
+                    
+                    if (pdfDoc.numPages > 11) {
+                        thumbContainer.innerHTML += `
+                            <div class="flex flex-col items-center justify-center">
+                                <div class="w-28 h-[155px] bg-preview border-2 border-theme border-dashed rounded-md flex items-center justify-center text-dim text-sm font-bold shadow-inner">
+                                    +${pdfDoc.numPages - 11} Hal
+                                </div>
+                            </div>`;
+                    }
+                } catch(err) {
+                    alert('Gagal memproses PDF: ' + err.message);
+                }
+            };
+            fileReader.readAsArrayBuffer(file);
+        });
+
+        async function renderPageToCanvas(pageNum, canvasId, scale) {
+            const page = await pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: scale });
+            const canvas = document.getElementById(canvasId);
+            if(!canvas) return;
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
+        }
+
+        // ==========================================
+        // SPLIT VIEW, RESIZER, & HIGHLIGHT PDF LOGIC
+        // ==========================================
+        const splitResizer = document.getElementById('split-resizer');
+        const moodlePane = document.getElementById('moodle-pane');
+        const pdfSplitPane = document.getElementById('pdf-split-pane');
+        const btnSplitToggle = document.getElementById('btn-split-toggle');
+        const lblBtnSplit = document.getElementById('lblBtnSplit');
+        let isResizing = false;
+
+        // Observer untuk Lazy Load PDF Split View agar browser tidak crash/blank
+        const pdfObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const wrapper = entry.target;
+                    const pageNum = parseInt(wrapper.dataset.page);
+                    const canvas = wrapper.querySelector('canvas');
+                    if (!canvas.dataset.rendered) {
+                        canvas.dataset.rendered = 'true';
+                        renderPageToCanvas(pageNum, canvas.id, 1.5).then(() => {
+                            canvas.classList.remove('opacity-0');
+                            const loader = document.getElementById(`loader-split-${pageNum}`);
+                            if (loader) loader.remove();
+                        }).catch(e => console.error('Gagal render halaman PDF:', e));
+                    }
+                }
+            });
+        }, { root: document.getElementById('pdf-split-content'), rootMargin: '300px' });
+
+        async function toggleSplitView() {
+            isSplitView = !isSplitView;
+            const lang = localStorage.getItem('tatadada_lang') || 'id';
+
+            if (isSplitView) {
+                pdfSplitPane.classList.remove('hidden');
+                pdfSplitPane.classList.add('flex');
+                splitResizer.classList.remove('hidden');
+                
+                btnSplitToggle.classList.add('bg-blue-100', 'dark:bg-blue-900/40', 'border-blue-300', 'dark:border-blue-700', 'text-blue-700', 'dark:text-blue-400');
+                lblBtnSplit.innerText = dictionary[lang].lblBtnSplitClose;
+
+                // Render PDF Full if not rendered yet
+                if (!pdfSplitRendered && pdfDoc) {
+                    const container = document.getElementById('pdf-split-content');
+                    container.innerHTML = ''; // bersihkan loader
+                    
+                    for (let i = 1; i <= pdfDoc.numPages; i++) {
+                        const wrapper = document.createElement('div');
+                        wrapper.id = `split-wrapper-${i}`;
+                        wrapper.dataset.page = i;
+                        
+                        wrapper.className = 'w-full bg-white shadow-md border border-theme relative rounded overflow-hidden shrink-0 mb-6';
+                        wrapper.style.aspectRatio = '1 / 1.414'; 
+                        
+                        wrapper.innerHTML = `
+                            <div id="loader-split-${i}" class="absolute inset-0 flex items-center justify-center text-dim bg-preview animate-pulse font-mono text-sm">Memuat Hal ${i}...</div>
+                            <canvas id="split-canvas-${i}" class="absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-500"></canvas>
+                            <div class="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded shadow-sm z-10">Hal ${i}</div>
+                        `;
+                        container.appendChild(wrapper);
+                        
+                        // Gunakan observer untuk me-render saat halamannya terlihat di layar
+                        pdfObserver.observe(wrapper);
+                    }
+                    pdfSplitRendered = true;
+                }
+            } else {
+                pdfSplitPane.classList.add('hidden');
+                pdfSplitPane.classList.remove('flex');
+                splitResizer.classList.add('hidden');
+                
+                btnSplitToggle.classList.remove('bg-blue-100', 'dark:bg-blue-900/40', 'border-blue-300', 'dark:border-blue-700', 'text-blue-700', 'dark:text-blue-400');
+                lblBtnSplit.innerText = dictionary[lang].lblBtnSplit;
+                
+                // Reset moodle pane flex behavior to full
+                moodlePane.style.width = 'auto';
+                pdfSplitPane.style.width = '40%';
+            }
+        }
+
+        async function jumpToPdfPage(pageNum, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            
+            if (!pageNum) return;
+
+            if (!isSplitView) {
+                await toggleSplitView();
+                if (pdfSplitRendered === false) {
+                    await new Promise(r => setTimeout(r, 600));
+                }
+            }
+
+            const wrapper = document.getElementById(`split-wrapper-${pageNum}`);
+            if (wrapper) {
+                wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                wrapper.classList.add('pdf-highlight');
+                setTimeout(() => {
+                    wrapper.classList.remove('pdf-highlight');
+                }, 2000);
+            }
+        }
+
+        splitResizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const containerRect = moodlePane.parentElement.getBoundingClientRect();
+            
+            let newRightWidth = containerRect.right - e.clientX;
+            
+            if (newRightWidth > 300 && (containerRect.width - newRightWidth) > 400) {
+                pdfSplitPane.style.width = `${newRightWidth}px`;
+                pdfSplitPane.style.flex = 'none';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+            }
+        });
+
+        // ==========================================
+        // MOODLE UI RENDER
+        // ==========================================
+        function renderMoodleUI() {
+            const container = document.getElementById('moodle-sections-container');
+            const lang = localStorage.getItem('tatadada_lang') || 'id';
+            const tooltipTxt = dictionary[lang].btnGoToPdf;
+            
+            let html = `
+                <div class="flex justify-end mb-4">
+                    <span class="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">Collapse all</span>
+                </div>
+                
+                <!-- General Section -->
+                <div class="mb-6 bg-editor border ${isEditing ? 'border-2 border-dashed border-gray-400' : 'border-theme'} shadow-sm rounded-lg overflow-hidden">
+                    <div class="px-4 md:px-6 py-4 bg-preview border-b border-theme flex justify-between items-center">
+                        <h3 class="text-lg font-bold text-main flex items-center">
+                            <i data-lucide="layers" class="w-5 h-5 mr-3 text-blue-600 dark:text-blue-400"></i> General
+                            ${isEditing ? `<i data-lucide="pencil" class="w-4 h-4 ml-2 text-dim cursor-pointer"></i>` : ''}
+                        </h3>
+                        ${isEditing ? `<div class="text-blue-600 dark:text-blue-400 text-sm font-medium cursor-pointer">Edit <i data-lucide="chevron-down" class="w-4 h-4 inline"></i></div>` : ''}
+                    </div>
+                    <div class="p-4 md:p-6">
+                        <div class="flex items-center hover:bg-preview p-2 rounded-md transition-colors cursor-pointer border border-transparent hover:border-theme group">
+                            ${isEditing ? `<i data-lucide="move" class="w-5 h-5 mr-3 text-dim cursor-move flex-shrink-0"></i>` : ''}
+                            <div class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mr-4 shadow-sm border border-theme shrink-0">
+                                <i data-lucide="message-square" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                            </div>
+                            <span class="font-semibold text-blue-700 dark:text-blue-400 text-sm md:text-base">Announcements</span>
+                            
+                            ${isEditing ? `
+                                <div class="ml-auto text-blue-600 dark:text-blue-400 text-sm font-medium cursor-pointer flex items-center">
+                                    Edit <i data-lucide="chevron-down" class="w-4 h-4 ml-1"></i>
+                                </div>
+                            ` : `
+                                <div class="ml-auto opacity-0 group-hover:opacity-100 text-sm text-dim font-medium px-2 py-1 hover:bg-editor border border-transparent hover:border-theme rounded cursor-pointer transition-opacity">⋮</div>
+                            `}
+                        </div>
+                        ${isEditing ? `<div class="mt-4 flex items-center text-blue-600 dark:text-blue-400 font-medium cursor-pointer hover:underline text-sm md:text-base"><i data-lucide="plus" class="w-5 h-5 mr-1"></i> Add an activity or resource</div>` : ''}
+                    </div>
+                </div>
+            `;
+            
+            mockCourseData.sections.forEach(sec => {
+                const modulesHtml = sec.modules.map(mod => {
+                    let iconName = 'file-text', iconColor = 'text-dim', bgIcon = 'bg-preview';
+                    if (mod.type === 'label') { iconName = 'book-open'; iconColor = 'text-blue-500'; bgIcon = 'bg-blue-50 dark:bg-blue-900/30'; }
+                    else if (mod.type === 'forum') { iconName = 'message-square'; iconColor = 'text-green-500'; bgIcon = 'bg-green-50 dark:bg-green-900/30'; }
+                    else if (mod.type === 'assign') { iconName = 'edit-3'; iconColor = 'text-red-500'; bgIcon = 'bg-red-50 dark:bg-red-900/30'; }
+                    else if (mod.type === 'url') { iconName = 'link'; iconColor = 'text-purple-500'; bgIcon = 'bg-purple-50 dark:bg-purple-900/30'; }
+                    
+                    return `
+                    <div class="flex items-start group hover:bg-preview p-3 rounded-lg transition-colors border border-transparent hover:border-theme">
+                        ${isEditing ? `<i data-lucide="move" class="w-5 h-5 mr-3 mt-2 text-dim cursor-move flex-shrink-0"></i>` : ''}
+                        <div class="w-10 h-10 rounded-lg ${bgIcon} flex items-center justify-center mr-4 shadow-sm border border-theme flex-shrink-0">
+                            <i data-lucide="${iconName}" class="w-5 h-5 ${iconColor}"></i>
+                        </div>
+                        <div class="flex-1 mt-0.5">
+                            <div class="font-semibold text-blue-700 dark:text-blue-400 hover:underline cursor-pointer text-sm md:text-[15px] flex items-center">
+                                ${mod.name}
+                                ${isEditing ? `<i data-lucide="pencil" class="w-3.5 h-3.5 ml-2 text-dim cursor-pointer"></i>` : ''}
+                                <button onclick="jumpToPdfPage(${mod.pdfPage}, event)" class="ml-2 p-1 text-dim hover:text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900 rounded transition-colors" title="${tooltipTxt}">
+                                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                            <div class="text-xs md:text-sm text-dim mt-1 max-w-2xl">${mod.desc}</div>
+                        </div>
+                        ${isEditing ? `
+                            <div class="ml-auto text-blue-600 dark:text-blue-400 text-sm font-medium cursor-pointer flex items-center self-center shrink-0">
+                                Edit <i data-lucide="chevron-down" class="w-4 h-4 ml-1"></i>
+                            </div>
+                        ` : `
+                            <div class="opacity-0 group-hover:opacity-100 text-sm text-dim font-medium px-2 py-1 hover:bg-editor border border-transparent hover:border-theme rounded cursor-pointer transition-opacity self-center shrink-0">⋮</div>
+                        `}
+                    </div>`;
+                }).join('');
+                
+                html += `
+                <div class="mb-6 bg-editor border ${isEditing ? 'border-2 border-dashed border-gray-400' : 'border-theme'} shadow-sm rounded-lg overflow-hidden">
+                    <div class="px-4 md:px-6 py-4 bg-preview border-b border-theme flex justify-between items-center group cursor-pointer hover:bg-editor transition-colors">
+                        <div class="flex items-center">
+                            ${isEditing ? `<i data-lucide="move" class="w-5 h-5 mr-3 text-dim cursor-move flex-shrink-0"></i>` : ''}
+                            <div>
+                                <h3 class="text-lg md:text-xl font-bold text-main mb-1 flex items-center">
+                                    ${sec.title}
+                                    ${isEditing ? `<i data-lucide="pencil" class="w-4 h-4 ml-2 text-dim cursor-pointer"></i>` : ''}
+                                    <button onclick="jumpToPdfPage(${sec.pdfPage}, event)" class="ml-3 p-1.5 text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 rounded-md transition-colors" title="${tooltipTxt}">
+                                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                                    </button>
+                                </h3>
+                                <div class="text-[10px] md:text-xs font-bold text-yellow-800 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 inline-block px-2 py-1 rounded border border-yellow-300 dark:border-yellow-700">
+                                    Target: ${sec.cpmk}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            ${isEditing ? `<div class="text-blue-600 dark:text-blue-400 text-sm font-medium cursor-pointer mr-4 hidden md:flex items-center">Edit <i data-lucide="chevron-down" class="w-4 h-4 ml-1"></i></div>` : ''}
+                            <i data-lucide="chevron-down" class="w-6 h-6 text-dim group-hover:text-main"></i>
+                        </div>
+                    </div>
+                    <div class="p-4 md:p-6 space-y-4">
+                        ${modulesHtml}
+                        ${isEditing ? `<div class="mt-4 pt-2 flex items-center text-blue-600 dark:text-blue-400 font-medium cursor-pointer hover:underline text-sm md:text-base"><i data-lucide="plus" class="w-5 h-5 mr-1"></i> Add an activity or resource</div>` : ''}
+                    </div>
+                </div>`;
+            });
+            
+            if (isEditing) {
+                html += `<div class="mb-10 p-4 border-2 border-dashed border-theme rounded-lg bg-preview flex items-center justify-center text-dim font-bold cursor-pointer hover:bg-editor hover:text-main transition-colors"><i data-lucide="plus" class="w-6 h-6 mr-2"></i> Add topics</div>`;
+            }
+            
+            container.innerHTML = html;
+            lucide.createIcons();
+
+            const iconEditTitle = document.getElementById('iconEditTitle');
+            if (iconEditTitle) {
+                if(isEditing) iconEditTitle.classList.remove('hidden');
+                else iconEditTitle.classList.add('hidden');
+            }
+        }
+
+        // ==========================================
+        // XML & MBZ GENERATOR (JSZIP)
+        // ==========================================
+        async function generateZipMemory() {
+            try {
+                const fullName = mockCourseData.fullname || 'Tanpa Nama';
+                const shortName = mockCourseData.code || 'TN-1';
+                const summary = "Kursus ini di-generate otomatis menggunakan BerapaMas (BRP to MBZ Converter).";
+                const now = Math.floor(Date.now() / 1000);
+                const oneYearLater = now + (365 * 24 * 60 * 60);
+
+                const zip = new JSZip();
+
+                zip.file("files.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<files></files>`);
+                zip.file("scales.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<scales_definition></scales_definition>`);
+                zip.file("groups.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<groups></groups>`);
+                zip.file("questions.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<question_categories></question_categories>`);
+                zip.file("gradebook.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<gradebook></gradebook>`);
+                zip.file("outcomes.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<outcomes_definition></outcomes_definition>`);
+                zip.file("roles.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<roles_definition></roles_definition>`);
+
+                const courseFolder = zip.folder("course");
+                courseFolder.file("roles.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<roles></roles>`);
+                courseFolder.file("enrolments.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<enrolments></enrolments>`);
+                
+                const courseXML = `<?xml version="1.0" encoding="UTF-8"?>
+<course id="1" contextid="2">
+  <shortname>${shortName}</shortname>
+  <fullname>${fullName}</fullname>
+  <idnumber></idnumber>
+  <summary>${summary}</summary>
+  <summaryformat>1</summaryformat>
+  <format>topics</format>
+  <showgrades>1</showgrades>
+  <newsitems>5</newsitems>
+  <startdate>${now}</startdate>
+  <enddate>${oneYearLater}</enddate>
+  <marker>0</marker>
+  <maxbytes>0</maxbytes>
+  <legacyfiles>0</legacyfiles>
+  <showreports>0</showreports>
+  <visible>1</visible>
+  <groupmode>0</groupmode>
+  <groupmodeforce>0</groupmodeforce>
+  <defaultgroupingid>0</defaultgroupingid>
+  <lang></lang>
+  <theme></theme>
+  <timecreated>${now}</timecreated>
+  <timemodified>${now}</timemodified>
+  <requested>0</requested>
+  <enablecompletion>1</enablecompletion>
+  <category id="1">
+    <name>Miscellaneous</name>
+  </category>
+</course>`;
+                courseFolder.file("course.xml", courseXML);
+
+                const sectionsFolder = zip.folder("sections");
+                let sectionsManifest = '';
+                let allSections = [{ id: 0, name: "General", summary: "" }];
+                
+                mockCourseData.sections.forEach((sec, idx) => {
+                    allSections.push({
+                        id: idx + 1,
+                        name: sec.title,
+                        summary: sec.cpmk
+                    });
+                });
+
+                allSections.forEach((sec, idx) => {
+                    const secFolder = sectionsFolder.folder(`section_${sec.id}`);
+                    const secXML = `<?xml version="1.0" encoding="UTF-8"?>
+<section id="${sec.id}">
+  <number>${idx}</number>
+  <name>${sec.id === 0 ? '' : sec.name}</name>
+  <summary>${sec.summary}</summary>
+  <summaryformat>1</summaryformat>
+  <sequence></sequence>
+  <visible>1</visible>
+  <timemodified>${now}</timemodified>
+</section>`;
+                    secFolder.file("section.xml", secXML);
+                    
+                    sectionsManifest += `
+        <section>
+          <sectionid>${sec.id}</sectionid>
+          <title>${sec.id === 0 ? 'General' : sec.name}</title>
+          <directory>sections/section_${sec.id}</directory>
+        </section>`;
+                });
+
+                const backupXML = `<?xml version="1.0" encoding="UTF-8"?>
+<moodle_backup>
+  <information>
+    <name>backup-moodle2-course-1-generated.mbz</name>
+    <moodle_version>2024100700</moodle_version>
+    <moodle_release>4.5</moodle_release>
+    <backup_version>2024100700</backup_version>
+    <backup_release>4.5</backup_release>
+    <backup_date>${now}</backup_date>
+    <mnet_remoteusers>0</mnet_remoteusers>
+    <include_file_references_to_external_content>0</include_file_references_to_external_content>
+    <original_wwwroot>http://localhost</original_wwwroot>
+    <original_site_identifier_hash>generated_hash_12345</original_site_identifier_hash>
+    <original_course_id>1</original_course_id>
+    <original_course_format>topics</original_course_format>
+    <original_course_fullname>${fullName}</original_course_fullname>
+    <original_course_shortname>${shortName}</original_course_shortname>
+    <original_course_startdate>${now}</original_course_startdate>
+    <original_course_enddate>${oneYearLater}</original_course_enddate>
+    <original_course_contextid>2</original_course_contextid>
+    <original_system_contextid>1</original_system_contextid>
+    <details>
+      <detail backup_id="gen${now}">
+        <type>course</type>
+        <format>moodle2</format>
+        <interactive>1</interactive>
+        <mode>10</mode>
+        <execution>1</execution>
+        <executiontime>0</executiontime>
+      </detail>
+    </details>
+    <contents>
+      <activities></activities>
+      <sections>${sectionsManifest}
+      </sections>
+      <course>
+        <courseid>1</courseid>
+        <title>${shortName}</title>
+        <directory>course</directory>
+      </course>
+    </contents>
+  </information>
+</moodle_backup>`;
+                zip.file("moodle_backup.xml", backupXML);
+
+                generatedBlob = await zip.generateAsync({ type: "blob" });
+                
+                // Update UI Ukuran File
+                const sizeKb = (generatedBlob.size / 1024).toFixed(2);
+                document.getElementById('resultFileSize').innerText = `Ukuran Asli: ${sizeKb} KB`;
+
+            } catch (error) {
+                console.error("Error generating MBZ memory:", error);
+                document.getElementById('resultFileSize').innerText = `Gagal menyusun memori XML`;
+            }
+        }
+
+        async function handleDownloadMBZ() {
+            if (!generatedBlob) {
+                alert("File MBZ belum siap atau gagal diproses.");
+                return;
+            }
+
+            const btn = document.getElementById('btnDownloadContainer');
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 mr-2 animate-spin"></i> <span id="lblBtnDownload">Mengunduh...</span>`;
+            btn.disabled = true;
+            lucide.createIcons();
+
+            try {
+                const shortName = mockCourseData.code || 'TN-1';
+                const url = URL.createObjectURL(generatedBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${shortName.replace(/[^a-z0-9]/gi, '_').toUpperCase()}_BRP_Structure.mbz`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error("Error downloading MBZ:", error);
+                alert("Gagal mengunduh file MBZ.");
+            } finally {
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    lucide.createIcons();
+                }, 1000);
+            }
+        }
+
+        function resetApp() {
+            document.getElementById('fileInput').value = '';
+            pdfDoc = null;
+            isEditing = false;
+            generatedBlob = null;
+            if (isSplitView) toggleSplitView(); // Tutup split view jika terbuka
+            pdfSplitRendered = false;
+            goToStep(1);
+        }
+
+        // Boot
+        initTheme();
+        
+        const savedLang = localStorage.getItem('tatadada_lang') || 'id';
+        langIcon.innerText = savedLang === 'en' ? '🇬🇧' : '🇮🇩';
+        langText.innerText = savedLang.toUpperCase();
+        translateUI(savedLang);
+        
+        goToStep(1);
+
+    </script>
+</body>
+</html>

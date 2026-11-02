@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Nyapuduar - Tactical Sweeper</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Share+Tech+Mono&family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ========================================================
+           1. TATADADA CSS TOKENS (DARK MODE SUPPORT)
+           ======================================================== */
+        :root {
+            --header-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --preview-bg: #f8fafc;
+            --footer-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --stripe-color: rgba(0, 0, 0, 0.02);
+            --freeze-bg: #f8fafc; 
+            --freeze-bg-even: #f1f5f9;
+            --freeze-hover: #eff6ff;
+            
+            /* EXISTING TACTICAL TOKENS (PRESERVED) */
+            --metal-light: #94a3b8;
+            --metal-base: #475569;
+            --metal-dark: #1e293b;
+            --metal-shadow: #0f172a;
+            --neon-danger: #ef4444;
+            --neon-warn: #f59e0b;
+            --neon-safe: #10b981;
+            --glass-bg: rgba(15, 23, 42, 0.7);
+        }
+
+        html.dark {
+            --header-bg: #161b22;
+            --editor-bg: #0d1117;
+            --preview-bg: #010409;
+            --footer-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-dim: #8b949e;
+            --stripe-color: rgba(255, 255, 255, 0.03);
+            --freeze-bg: #010409;
+            --freeze-bg-even: #0d1117;
+            --freeze-hover: rgba(59, 130, 246, 0.1);
+            color-scheme: dark;
+        }
+
+        body { 
+            background-color: var(--preview-bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            margin: 0; padding: 0;
+            touch-action: none; 
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* TATADADA CUSTOM SCROLLBAR */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* ========================================================
+           2. EXISTING GAME STYLES (PRESERVED)
+           ======================================================== */
+        .font-tactical { font-family: 'Black Ops One', system-ui; }
+        .font-mono-tech { font-family: 'JetBrains Mono', 'Share Tech Mono', monospace; }
+
+        /* Tactical Carbon Background specifically for Workspace to preserve design */
+        #main-area {
+            background-image: 
+                radial-gradient(circle at center, rgba(30, 41, 59, 0.8) 0%, #020617 100%),
+                url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 20.5V18H0v-2h20v-2H0v-2h20v-2H0V8h20V6H0V4h20V2H0V0h22v20h2v-2h2v2h2v-2h2v2h2v-2h2v2h-2v2h2v2h-2v2h2v2h-2v2h2v2h-2v2h2v2h-2v2h2v2h-2v2h-2v-2h-2v2h-2v-2h-2v2h-2v-2h-2v2h-2v-2h-2v2H20v-1.5zM0 20h2v2H0v-2zm4 0h2v2H4v-2zm4 0h2v2H8v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zm0 4h2v2h-2v-2zm-4 0h2v2h-2v-2zm-4 0h2v2H8v-2zm-4 0h2v2H4v-2zm-4 0h2v2H0v-2zm0 4h2v2H0v-2zm4 0h2v2H4v-2zm4 0h2v2H8v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zm0 4h2v2h-2v-2zm-4 0h2v2h-2v-2zm-4 0h2v2H8v-2zm-4 0h2v2H4v-2zm-4 0h2v2H0v-2zm0 4h2v2H0v-2zm4 0h2v2H4v-2zm4 0h2v2H8v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z' fill='%23334155' fill-opacity='0.15' fill-rule='evenodd'/%3E%3C/svg%3E");
+            background-attachment: fixed;
+        }
+
+        .board-frame {
+            width: 100%; max-width: 500px; aspect-ratio: 1 / 1; margin: 0 auto; border-radius: 16px; position: relative;
+            background: linear-gradient(135deg, var(--metal-light) 0%, var(--metal-base) 40%, var(--metal-dark) 80%, #000 100%);
+            padding: 10px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8), inset 0 2px 4px rgba(255,255,255,0.4), inset 0 -4px 8px rgba(0,0,0,0.9), 0 0 0 1px #000;
+        }
+
+        .game-container {
+            width: 100%; height: 100%; background: #0f172a; border-radius: 8px; position: relative; padding: 6px; box-sizing: border-box;
+            box-shadow: inset 0 10px 20px rgba(0,0,0,0.9), inset 0 0 5px rgba(0,0,0,0.9); border: 2px solid #020617; display: grid; gap: 3px;
+        }
+
+        .cell {
+            width: 100%; height: 100%; border-radius: 4px; display: flex; justify-content: center; align-items: center;
+            font-size: clamp(14px, 4vw, 22px); font-family: 'JetBrains Mono', monospace; font-weight: bold; user-select: none; cursor: pointer; position: relative; transition: transform 0.1s, filter 0.1s, background 0.2s;
+        }
+
+        .cell-hidden {
+            background: linear-gradient(135deg, #64748b 0%, #334155 100%);
+            box-shadow: inset 2px 2px 3px rgba(255,255,255,0.3), inset -2px -2px 3px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.5);
+            border: 1px solid #1e293b; color: white;
+        }
+        .cell-hidden:hover { filter: brightness(1.2); }
+        .cell-hidden:active { transform: scale(0.95); box-shadow: inset 2px 2px 5px rgba(0,0,0,0.8); }
+
+        .cell-revealed {
+            background: #020617; box-shadow: inset 0 3px 5px rgba(0,0,0,0.8), inset 0 0 2px rgba(0,0,0,0.5); border: 1px solid #1e293b;
+        }
+
+        .cell-exploded {
+            background: radial-gradient(circle, #ff0000 0%, #7f1d1d 100%); box-shadow: 0 0 20px #ff0000, inset 0 0 10px #000; border: 1px solid #fca5a5; animation: pulse-danger 0.5s infinite alternate; z-index: 10;
+        }
+
+        .val-1 { color: #38bdf8; text-shadow: 0 0 5px rgba(56, 189, 248, 0.5); }
+        .val-2 { color: #4ade80; text-shadow: 0 0 5px rgba(74, 222, 128, 0.5); }
+        .val-3 { color: #f87171; text-shadow: 0 0 5px rgba(248, 113, 113, 0.5); }
+        .val-4 { color: #c084fc; text-shadow: 0 0 5px rgba(192, 132, 252, 0.5); }
+        .val-5 { color: #fbbf24; text-shadow: 0 0 5px rgba(251, 191, 36, 0.5); }
+        .val-6 { color: #2dd4bf; text-shadow: 0 0 5px rgba(45, 212, 191, 0.5); }
+        .val-7 { color: #e2e8f0; text-shadow: 0 0 5px rgba(226, 232, 240, 0.5); }
+        .val-8 { color: #94a3b8; text-shadow: 0 0 5px rgba(148, 163, 184, 0.5); }
+
+        @keyframes pulse-danger { from { filter: brightness(1) drop-shadow(0 0 5px red); } to { filter: brightness(1.5) drop-shadow(0 0 15px red); } }
+        @keyframes board-shake { 0% { transform: translate(1px, 1px) rotate(0deg); } 10% { transform: translate(-1px, -2px) rotate(-1deg); } 20% { transform: translate(-3px, 0px) rotate(1deg); } 30% { transform: translate(3px, 2px) rotate(0deg); } 40% { transform: translate(1px, -1px) rotate(1deg); } 50% { transform: translate(-1px, 2px) rotate(-1deg); } 60% { transform: translate(-3px, 1px) rotate(0deg); } 70% { transform: translate(3px, 1px) rotate(-1deg); } 80% { transform: translate(-1px, -1px) rotate(1deg); } 90% { transform: translate(1px, 2px) rotate(0deg); } 100% { transform: translate(1px, -2px) rotate(-1deg); } }
+        .shake-intense { animation: board-shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+
+        .hud-box {
+            background: #020617; border: 2px solid #334155; border-top: 2px solid #1e293b; border-bottom: 2px solid #475569; border-radius: 8px; padding: 8px 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 90px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.8), 0 4px 6px rgba(0,0,0,0.4);
+        }
+
+        .action-btn { background: linear-gradient(to bottom, #475569, #1e293b); color: #f8fafc; border: 2px solid #64748b; border-bottom: 4px solid #0f172a; border-radius: 12px; font-weight: 800; text-transform: uppercase; box-shadow: 0 6px 15px rgba(0,0,0,0.4); transition: all 0.1s; }
+        .action-btn:active { transform: translateY(4px); border-bottom-width: 0px; margin-bottom: 4px;}
+        .action-btn.danger { background: linear-gradient(to bottom, #ef4444, #991b1b); border-color: #f87171; border-bottom-color: #450a0a; text-shadow: 0 1px 2px #000;}
+        .action-btn.primary { background: linear-gradient(to bottom, #3b82f6, #1d4ed8); border-color: #60a5fa; border-bottom-color: #1e3a8a; text-shadow: 0 1px 2px #000;}
+
+        /* Mode Switcher Toggle */
+        .toggle-switch { display: flex; background: #0f172a; border-radius: 99px; padding: 4px; border: 1px solid #334155; box-shadow: inset 0 2px 5px rgba(0,0,0,0.8); position: relative; }
+        .toggle-btn { flex: 1; padding: 10px 20px; border-radius: 99px; font-weight: bold; font-size: 0.875rem; text-align: center; z-index: 2; transition: color 0.2s; color: #64748b; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .toggle-btn.active { color: white; }
+        .toggle-slider { position: absolute; top: 4px; bottom: 4px; width: calc(50% - 4px); background: linear-gradient(135deg, #3b82f6, #1e40af); border-radius: 99px; z-index: 1; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 2px 5px rgba(0,0,0,0.5), inset 0 2px 2px rgba(255,255,255,0.2); }
+        .mode-flag .toggle-slider { transform: translateX(100%); background: linear-gradient(135deg, #ef4444, #991b1b); }
+
+        .overlay { position: absolute; inset: 0; background: rgba(2, 6, 23, 0.85); backdrop-filter: blur(8px); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; transition: opacity 0.3s; }
+    </style>
+</head>
+<body class="h-screen flex flex-col relative transition-colors duration-300">
+
+    <canvas id="fxCanvas" class="absolute inset-0 pointer-events-none z-50"></canvas>
+
+    <!-- ========================================================
+         HEADER TATADADA
+         ======================================================== -->
+    <header class="flex items-center justify-between px-6 h-14 border-b border-[var(--border-color)] bg-[var(--header-bg)] shrink-0 relative z-50 transition-colors duration-300 shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="flex flex-col">
+                <div class="flex items-center gap-2">
+                    <h1 class="text-lg md:text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-600 bg-clip-text text-transparent tracking-wider font-tactical flex items-center gap-2">
+                        <i data-lucide="bomb" class="text-red-500 w-5 h-5 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]"></i>
+                        NYAPUDUAR
+                    </h1>
+                    <span class="text-[10px] font-mono text-[var(--text-dim)] italic">v1.0</span>
+                </div>
+                <a href="https://danial.my.id" target="_blank" class="lowercase font-bold tracking-[0.25em] text-[8px] text-[var(--text-dim)] hover:text-blue-500 transition-colors">by AhmadDanial</a>
+            </div>
+            
+            <div class="group relative flex items-center justify-center cursor-help ml-2 text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+                <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 w-72 p-5 rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-xs leading-relaxed bg-[var(--header-bg)] border border-[var(--border-color)] text-[var(--text-main)]">
+                    <b class="text-red-500 text-sm block mb-2 font-tactical" id="i18n-help-title">Protokol Pembersihan</b>
+                    <span id="i18n-help-desc1">Buka seluruh area aman tanpa memicu bahan peledak (Duar!).</span><br><br>
+                    <span id="i18n-help-desc2">Angka menunjukkan jumlah peledak di 8 kotak sekitarnya. Gunakan mode <b>Tandai (Flag)</b> atau klik kanan/tahan untuk menandai kotak yang dicurigai.</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <button id="langToggle" class="flex items-center gap-1 text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors text-xs font-bold" title="Toggle Language">
+                <span id="langFlag">🇮🇩</span> <span id="langText">ID</span>
+            </button>
+            <button id="themeToggle" class="text-[var(--text-dim)] hover:text-[var(--text-main)] transition-colors" title="Toggle Dark/Light Mode">
+                <i data-lucide="moon" id="themeIcon" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- ========================================================
+         MAIN WORKSPACE (SINGLE VIEW - TACTICAL BACKGROUND)
+         ======================================================== -->
+    <main id="main-area" class="flex-1 relative flex flex-col items-center justify-center gap-4 p-4 md:p-8 overflow-y-auto w-full mx-auto">
+        
+        <!-- HUD / TOP STATS -->
+        <div class="w-full max-w-[500px] flex justify-between items-center gap-2 z-10 px-2">
+            <!-- Left: Mines Left -->
+            <div class="hud-box relative overflow-hidden group">
+                <div class="absolute -left-2 -bottom-2 opacity-10"><i data-lucide="flag" class="w-12 h-12 text-red-500 fill-current"></i></div>
+                <span id="i18n-threats" class="text-[9px] font-black uppercase tracking-widest text-slate-400 font-mono-tech text-center w-full">Sisa Ancaman</span>
+                <span id="minesCountDisplay" class="text-2xl md:text-3xl font-black font-mono-tech text-red-400 drop-shadow-[0_0_5px_rgba(248,113,113,0.5)]">000</span>
+            </div>
+            
+            <!-- Center: Restart Face -->
+            <button id="btn-face" class="w-12 h-12 glass-panel rounded-full flex justify-center items-center hover:scale-110 active:scale-95 transition-all text-slate-200 border-2 border-slate-600 shadow-[0_0_15px_rgba(0,0,0,0.5)] bg-slate-800">
+                <i id="face-icon" data-lucide="smile" class="w-6 h-6 text-yellow-400 drop-shadow-md"></i>
+            </button>
+
+            <!-- Right: Timer -->
+            <div class="hud-box relative overflow-hidden">
+                <div class="absolute -right-2 -bottom-2 opacity-10"><i data-lucide="clock" class="w-12 h-12 text-blue-400"></i></div>
+                <span id="i18n-time" class="text-[9px] font-black uppercase tracking-widest text-slate-400 font-mono-tech text-center w-full">Waktu Ops</span>
+                <span id="timerDisplay" class="text-2xl md:text-3xl font-black font-mono-tech text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.5)]">000</span>
+            </div>
+        </div>
+
+        <!-- CENTER: REALISTIC METAL BOARD -->
+        <div class="board-frame z-10" id="board-chassis">
+            <div class="game-container" id="grid-container">
+                <!-- Cells generated by JS -->
+            </div>
+        </div>
+
+        <!-- BOTTOM CONTROLS -->
+        <div class="w-full max-w-[500px] flex flex-col justify-center gap-4 z-10 mt-2 px-2">
+            <div id="interaction-mode" class="toggle-switch cursor-pointer w-full max-w-[250px] mx-auto">
+                <div class="toggle-slider"></div>
+                <div class="toggle-btn active" id="mode-sweep"><i data-lucide="scan" class="w-4 h-4"></i> <span id="i18n-sweep">Buka</span></div>
+                <div class="toggle-btn" id="mode-flag"><i data-lucide="flag" class="w-4 h-4"></i> <span id="i18n-flag">Tandai</span></div>
+            </div>
+            <p id="i18n-hint" class="text-center text-[10px] text-slate-400 font-mono-tech drop-shadow-md">Klik kanan atau tahan untuk menandai tanpa mengganti mode.</p>
+        </div>
+
+        <!-- OVERLAYS (TACTICAL THEMED, BUT IN WORKSPACE) -->
+        <div id="menu-overlay" class="overlay">
+            <div class="text-center mb-8 relative">
+                <div class="flex justify-center mb-4"><i data-lucide="bomb" class="w-20 h-20 text-red-500 drop-shadow-[0_0_20px_rgba(239,68,68,0.8)] animate-pulse"></i></div>
+                <h1 class="text-5xl md:text-7xl font-tactical text-transparent bg-clip-text bg-gradient-to-b from-slate-200 to-slate-500 drop-shadow-[0_5px_10px_rgba(0,0,0,1)] mb-2">NYAPUDUAR</h1>
+                <p class="text-xs md:text-sm tracking-[0.3em] uppercase font-bold text-red-500 mb-8 font-mono-tech drop-shadow-md">Tactical Sweeper Ops</p>
+                
+                <div class="flex flex-col gap-3 max-w-[250px] mx-auto">
+                    <button class="action-btn primary py-3 text-sm diff-btn" data-cols="8" data-mines="10"><span class="i18n-easy">RINGAN</span> (8x8)</button>
+                    <button class="action-btn py-3 text-sm diff-btn" data-cols="10" data-mines="15"><span class="i18n-med">SEDANG</span> (10x10)</button>
+                    <button class="action-btn danger py-3 text-sm diff-btn" data-cols="12" data-mines="25"><span class="i18n-hard">EKSTREM</span> (12x12)</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="gameover-overlay" class="overlay" style="display: none;">
+            <div class="text-center p-8 rounded-2xl max-w-sm w-full glass-panel border border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.2)] relative overflow-hidden">
+                <div class="absolute inset-0 bg-[radial-gradient(circle,rgba(239,68,68,0.1)_0%,transparent_80%)]"></div>
+                <div class="relative z-10 text-white">
+                    <div class="text-6xl mb-4 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]">💥</div>
+                    <h2 id="i18n-go-title" class="text-3xl font-tactical mb-2">DUAR! Kritis.</h2>
+                    <p class="text-sm mb-6 text-slate-300 font-mono-tech"><span id="i18n-go-desc">Operasi Gagal. Peledak terpicu pada</span> <span id="go-time" class="text-red-400 font-bold"></span>s.</p>
+                    <button class="action-btn w-full py-4 text-sm return-menu-btn"><i data-lucide="rotate-ccw" class="w-4 h-4 inline mr-2"></i> <span class="i18n-retry">ULANGI MISI</span></button>
+                </div>
+            </div>
+        </div>
+
+        <div id="win-overlay" class="overlay" style="display: none;">
+            <div class="text-center p-8 rounded-2xl max-w-sm w-full glass-panel border border-blue-500/30 shadow-[0_0_50px_rgba(59,130,246,0.3)] relative overflow-hidden">
+                <div class="absolute inset-0 bg-[radial-gradient(circle,rgba(59,130,246,0.15)_0%,transparent_80%)]"></div>
+                <div class="relative z-10 text-white">
+                    <div class="text-6xl mb-4 drop-shadow-[0_0_15px_rgba(59,130,246,0.8)]">🎖️</div>
+                    <h2 id="i18n-win-title" class="text-3xl font-tactical mb-2 text-blue-100">AREA AMAN</h2>
+                    <p id="i18n-win-desc" class="text-xs font-bold uppercase tracking-widest text-blue-400 mb-6 font-mono-tech drop-shadow-md">Misi Berhasil Diselesaikan</p>
+                    
+                    <div class="bg-black/50 rounded-xl p-4 mb-6 border border-white/5">
+                        <div id="i18n-win-time-lbl" class="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-mono-tech">Waktu Penyelesaian</div>
+                        <div class="text-4xl font-black text-blue-400 font-mono-tech mt-1 drop-shadow-md"><span id="win-time">0</span>s</div>
+                    </div>
+                    
+                    <button class="action-btn primary w-full py-4 text-sm return-menu-btn"><i data-lucide="check-circle" class="w-4 h-4 inline mr-2"></i> <span id="i18n-win-btn">KEMBALI KE MARKAS</span></button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ========================================================
+         FOOTER TATADADA
+         ======================================================== -->
+    <footer class="flex items-center justify-between px-6 h-8 shrink-0 z-40 border-t border-[var(--border-color)] bg-[var(--footer-bg)] text-[10px] text-[var(--text-dim)] transition-colors duration-300">
+        <div class="flex items-center gap-2 font-mono">
+            <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_#22c55e]"></div>
+            <span id="footerStatus">Engine Ready</span>
+        </div>
+        <div class="font-mono hidden md:block">NYAPUDUAR SYS</div>
+        <button id="btnTerms" class="hover:text-[var(--text-main)] transition-colors underline-offset-2 hover:underline">Terms</button>
+    </footer>
+
+    <!-- MODAL TERMS OF USE -->
+    <div id="termsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4 transition-opacity duration-300 opacity-0">
+        <div class="bg-[var(--header-bg)] border border-[var(--border-color)] text-[var(--text-main)] max-w-md w-full rounded-lg shadow-2xl p-6 transform transition-transform scale-95 duration-300" id="termsModalContent">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold font-mono" id="i18n-modal-title">Terms of Use / Disclaimer</h3>
+                <button id="closeTerms" class="text-[var(--text-dim)] hover:text-red-500 transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="text-sm text-[var(--text-dim)] leading-relaxed font-mono" id="i18n-modal-desc">
+                Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button id="btnAcceptTerms" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition-colors shadow" id="i18n-modal-btn">Understood</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. UI & ICONS SETUP ---
+        lucide.createIcons();
+
+        // --- 2. TATADADA THEME & LOKALISASI LOGIC ---
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const langToggle = document.getElementById('langToggle');
+        const langFlag = document.getElementById('langFlag');
+        const langText = document.getElementById('langText');
+        const termsModal = document.getElementById('termsModal');
+        const termsModalContent = document.getElementById('termsModalContent');
+
+        // Theme Logic
+        let isDark = localStorage.getItem('theme') === 'dark';
+        const applyTheme = () => {
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+                themeIcon.setAttribute('data-lucide', 'sun');
+            } else {
+                document.documentElement.classList.remove('dark');
+                themeIcon.setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons();
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        };
+        applyTheme();
+
+        themeToggle.addEventListener('click', () => {
+            isDark = !isDark;
+            applyTheme();
+        });
+
+        // Localization Dictionary
+        const i18n = {
+            id: {
+                flag: '🇮🇩', text: 'ID', status: 'Sistem Siap',
+                helpTitle: 'Protokol Pembersihan',
+                helpDesc1: 'Buka seluruh area aman tanpa memicu bahan peledak (Duar!).',
+                helpDesc2: 'Angka menunjukkan jumlah peledak di sekitar. Gunakan mode <b>Tandai</b> untuk kotak dicurigai.',
+                threats: 'Sisa Ancaman', time: 'Waktu Ops',
+                sweep: 'Buka', flag: 'Tandai', hint: 'Klik kanan/tahan untuk menandai tanpa mengganti mode.',
+                btnEasy: 'RINGAN', btnMed: 'SEDANG', btnHard: 'EKSTREM',
+                goTitle: 'DUAR! Kritis.', goDesc: 'Operasi Gagal. Peledak terpicu pada', retry: 'ULANGI MISI',
+                winTitle: 'AREA AMAN', winDesc: 'Misi Berhasil Diselesaikan', winTimeLbl: 'Waktu Penyelesaian', winBtn: 'KEMBALI KE MARKAS',
+                modalTitle: 'Ketentuan Penggunaan',
+                modalDesc: "Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya). Pembuatan aplikasi dibantu oleh AI tools (Gemini dan Qwen). Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun atas penggunaan aplikasi ini.",
+                modalBtn: 'Mengerti'
+            },
+            en: {
+                flag: '🇬🇧', text: 'EN', status: 'Engine Ready',
+                helpTitle: 'Sweep Protocol',
+                helpDesc1: 'Reveal all safe areas without triggering explosives (Boom!).',
+                helpDesc2: 'Numbers indicate explosives nearby. Use <b>Flag</b> mode to mark suspicious cells.',
+                threats: 'Threats Left', time: 'Ops Time',
+                sweep: 'Sweep', flag: 'Flag', hint: 'Right-click/hold to flag without changing mode.',
+                btnEasy: 'EASY', btnMed: 'MEDIUM', btnHard: 'EXTREME',
+                goTitle: 'BOOM! Critical.', goDesc: 'Operation Failed. Explosives triggered at', retry: 'RETRY MISSION',
+                winTitle: 'AREA SECURED', winDesc: 'Mission Successfully Completed', winTimeLbl: 'Completion Time', winBtn: 'RETURN TO BASE',
+                modalTitle: 'Terms of Use',
+                modalDesc: "There is no coercion to use this app. This app is provided 'as-is'. The development of this app was assisted by AI tools (Gemini and Qwen). The creator is absolved from any consequences, damages, or claims arising from the use of this app.",
+                modalBtn: 'Understood'
+            }
+        };
+
+        let currentLang = localStorage.getItem('lang') || 'id';
+
+        const applyLang = () => {
+            const t = i18n[currentLang];
+            langFlag.textContent = t.flag;
+            langText.textContent = t.text;
+            
+            document.getElementById('footerStatus').textContent = t.status;
+            document.getElementById('i18n-help-title').textContent = t.helpTitle;
+            document.getElementById('i18n-help-desc1').textContent = t.helpDesc1;
+            document.getElementById('i18n-help-desc2').innerHTML = t.helpDesc2;
+            
+            document.getElementById('i18n-threats').textContent = t.threats;
+            document.getElementById('i18n-time').textContent = t.time;
+            document.getElementById('i18n-sweep').textContent = t.sweep;
+            document.getElementById('i18n-flag').textContent = t.flag;
+            document.getElementById('i18n-hint').textContent = t.hint;
+            
+            document.querySelectorAll('.i18n-easy').forEach(el => el.textContent = t.btnEasy);
+            document.querySelectorAll('.i18n-med').forEach(el => el.textContent = t.btnMed);
+            document.querySelectorAll('.i18n-hard').forEach(el => el.textContent = t.btnHard);
+            document.querySelectorAll('.i18n-retry').forEach(el => el.textContent = t.retry);
+            
+            document.getElementById('i18n-go-title').textContent = t.goTitle;
+            document.getElementById('i18n-go-desc').textContent = t.goDesc;
+            
+            document.getElementById('i18n-win-title').textContent = t.winTitle;
+            document.getElementById('i18n-win-desc').textContent = t.winDesc;
+            document.getElementById('i18n-win-time-lbl').textContent = t.winTimeLbl;
+            document.getElementById('i18n-win-btn').textContent = t.winBtn;
+
+            document.getElementById('i18n-modal-title').textContent = t.modalTitle;
+            document.getElementById('i18n-modal-desc').textContent = t.modalDesc;
+            document.getElementById('btnAcceptTerms').textContent = t.modalBtn;
+
+            localStorage.setItem('lang', currentLang);
+        };
+        applyLang();
+
+        langToggle.addEventListener('click', () => {
+            currentLang = currentLang === 'id' ? 'en' : 'id';
+            applyLang();
+        });
+
+        // Modal Logic
+        const openModal = () => {
+            termsModal.classList.remove('hidden');
+            termsModal.classList.add('flex');
+            setTimeout(() => { termsModal.classList.remove('opacity-0'); termsModalContent.classList.remove('scale-95'); }, 10);
+        };
+        const closeModal = () => {
+            termsModal.classList.add('opacity-0'); termsModalContent.classList.add('scale-95');
+            setTimeout(() => { termsModal.classList.add('hidden'); termsModal.classList.remove('flex'); }, 300);
+        };
+        document.getElementById('btnTerms').addEventListener('click', openModal);
+        document.getElementById('closeTerms').addEventListener('click', closeModal);
+        document.getElementById('btnAcceptTerms').addEventListener('click', closeModal);
+        termsModal.addEventListener('click', (e) => { if(e.target === termsModal) closeModal(); });
+
+
+        // --- 3. AUDIO SYNTHESIZER (Web Audio API) ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        
+        const sfx = {
+            init: () => { if(!audioCtx) audioCtx = new AudioContext(); if(audioCtx.state === 'suspended') audioCtx.resume(); },
+            playTone: (freq, type, duration, vol=0.1, slideFreq=null) => {
+                if(!audioCtx || audioCtx.state !== 'running') return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type; osc.frequency.value = freq;
+                if(slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, audioCtx.currentTime + duration);
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + duration);
+            },
+            sweep: () => sfx.playTone(600, 'sine', 0.05, 0.05),
+            flag: () => sfx.playTone(200, 'square', 0.1, 0.08, 100),
+            unflag: () => sfx.playTone(150, 'square', 0.1, 0.08, 300),
+            win: () => {
+                [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => setTimeout(() => sfx.playTone(f, 'sine', 0.4, 0.1), i * 150));
+            },
+            explosion: () => {
+                if(!audioCtx || audioCtx.state !== 'running') return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.8);
+                gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.8);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.8);
+                
+                const bufferSize = audioCtx.sampleRate * 0.8;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for(let i=0; i<bufferSize; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+                const noiseFilter = audioCtx.createBiquadFilter();
+                noiseFilter.type = 'lowpass'; noiseFilter.frequency.value = 800;
+                noiseFilter.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.8);
+                const noiseGain = audioCtx.createGain();
+                noiseGain.gain.setValueAtTime(1, audioCtx.currentTime);
+                noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.8);
+                noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(audioCtx.destination);
+                noise.start();
+                
+                if(navigator.vibrate) navigator.vibrate([200, 50, 200]);
+            }
+        };
+
+        // --- 4. PARTICLE ENGINE (Sparks & Explosions) ---
+        const canvas = document.getElementById('fxCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor(x, y, color, speed, size, lifeDecay) {
+                this.x = x; this.y = y; this.color = color;
+                this.size = size;
+                const angle = Math.random() * Math.PI * 2;
+                const v = Math.random() * speed + speed*0.5;
+                this.vx = Math.cos(angle) * v; this.vy = Math.sin(angle) * v;
+                this.life = 1.0; this.decay = lifeDecay;
+                this.gravity = 0.1;
+            }
+            update() { 
+                this.x += this.vx; this.y += this.vy; 
+                this.vy += this.gravity;
+                this.life -= this.decay; 
+                this.size *= 0.95;
+            }
+            draw(ctx) {
+                if(this.life <= 0) return;
+                ctx.globalAlpha = Math.max(0, this.life); 
+                ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        function animateFX() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if(Math.random() < 0.05) {
+                particles.push(new Particle(Math.random()*canvas.width, canvas.height + 10, '#f59e0b', 2, 2, 0.01));
+                particles[particles.length-1].vy = -Math.random()*2 - 1;
+                particles[particles.length-1].gravity = -0.02;
+            }
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update(); particles[i].draw(ctx);
+                if (particles[i].life <= 0 || particles[i].size < 0.1) particles.splice(i, 1);
+            }
+            requestAnimationFrame(animateFX);
+        }
+        animateFX();
+
+        function spawnExplosion(x, y) {
+            const colors = ['#ff0000', '#f97316', '#fbbf24', '#ffffff', '#475569'];
+            for(let i=0; i<60; i++) {
+                const c = colors[Math.floor(Math.random() * colors.length)];
+                particles.push(new Particle(x, y, c, 12, Math.random()*8+2, Math.random()*0.02+0.01));
+            }
+        }
+
+        // --- 5. GAME LOGIC ---
+        const Game = {
+            rows: 10, cols: 10, numMines: 15,
+            board: [], minesPlaced: false, 
+            flagsCount: 0, timeElapsed: 0, timerInterval: null,
+            status: 'idle',
+            flagMode: false,
+            
+            container: document.getElementById('grid-container'),
+            minesDisplay: document.getElementById('minesDisplay'),
+            faceIcon: document.getElementById('face-icon'),
+
+            init: function(r, c, m) {
+                sfx.init();
+                this.rows = r; this.cols = c; this.numMines = m;
+                this.reset();
+                document.getElementById('menu-overlay').style.opacity = '0';
+                setTimeout(()=> document.getElementById('menu-overlay').style.display = 'none', 300);
+            },
+
+            reset: function() {
+                clearInterval(this.timerInterval);
+                this.board = []; this.minesPlaced = false;
+                this.flagsCount = 0; this.timeElapsed = 0;
+                this.status = 'playing';
+                
+                this.updateHUD();
+                this.faceIcon.setAttribute('data-lucide', 'smile'); lucide.createIcons();
+                this.faceIcon.className = "w-6 h-6 text-yellow-400 drop-shadow-md";
+
+                document.getElementById('gameover-overlay').style.display = 'none';
+                document.getElementById('win-overlay').style.display = 'none';
+                document.getElementById('board-chassis').classList.remove('shake-intense');
+
+                this.container.style.gridTemplateColumns = `repeat(${this.cols}, 1fr)`;
+                this.container.innerHTML = '';
+                
+                for(let r=0; r<this.rows; r++) {
+                    let row = [];
+                    for(let c=0; c<this.cols; c++) {
+                        let cellObj = { r, c, isMine: false, isRevealed: false, isFlagged: false, neighborCount: 0, el: null };
+                        row.push(cellObj);
+                        
+                        let el = document.createElement('div');
+                        el.className = 'cell cell-hidden';
+                        el.dataset.r = r; el.dataset.c = c;
+                        
+                        el.addEventListener('click', (e) => this.handleCellClick(e, cellObj));
+                        el.addEventListener('contextmenu', (e) => { e.preventDefault(); this.toggleFlag(cellObj); });
+                        
+                        let pressTimer;
+                        el.addEventListener('touchstart', (e) => {
+                            if(this.status !== 'playing') return;
+                            pressTimer = setTimeout(() => {
+                                this.toggleFlag(cellObj);
+                                pressTimer = null;
+                            }, 400);
+                        }, {passive: true});
+                        el.addEventListener('touchend', () => { if(pressTimer) clearTimeout(pressTimer); });
+                        el.addEventListener('touchmove', () => { if(pressTimer) clearTimeout(pressTimer); });
+
+                        cellObj.el = el;
+                        this.container.appendChild(el);
+                    }
+                    this.board.push(row);
+                }
+            },
+
+            startTimer: function() {
+                this.timerInterval = setInterval(() => {
+                    if(this.status === 'playing') {
+                        this.timeElapsed++;
+                        this.updateHUD();
+                    }
+                }, 1000);
+            },
+
+            updateHUD: function() {
+                const pad = (num) => num.toString().padStart(3, '0');
+                document.getElementById('timerDisplay').innerText = pad(Math.min(999, this.timeElapsed));
+                document.getElementById('minesCountDisplay').innerText = pad(Math.max(0, this.numMines - this.flagsCount));
+            },
+
+            placeMines: function(firstR, firstC) {
+                let minesToPlace = this.numMines;
+                while(minesToPlace > 0) {
+                    let r = Math.floor(Math.random() * this.rows);
+                    let c = Math.floor(Math.random() * this.cols);
+                    if(!this.board[r][c].isMine && Math.abs(r-firstR) > 1 && Math.abs(c-firstC) > 1) {
+                        this.board[r][c].isMine = true;
+                        minesToPlace--;
+                    }
+                }
+                
+                for(let r=0; r<this.rows; r++) {
+                    for(let c=0; c<this.cols; c++) {
+                        if(!this.board[r][c].isMine) {
+                            let count = 0;
+                            for(let dr=-1; dr<=1; dr++) {
+                                for(let dc=-1; dc<=1; dc++) {
+                                    if(r+dr>=0 && r+dr<this.rows && c+dc>=0 && c+dc<this.cols) {
+                                        if(this.board[r+dr][c+dc].isMine) count++;
+                                    }
+                                }
+                            }
+                            this.board[r][c].neighborCount = count;
+                        }
+                    }
+                }
+            },
+
+            handleCellClick: function(e, cell) {
+                if(this.status !== 'playing') return;
+                
+                if(this.flagMode && !cell.isRevealed) {
+                    this.toggleFlag(cell);
+                    return;
+                }
+
+                if(cell.isFlagged || cell.isRevealed) return;
+
+                if(!this.minesPlaced) {
+                    sfx.init();
+                    this.placeMines(cell.r, cell.c);
+                    this.minesPlaced = true;
+                    this.startTimer();
+                }
+
+                if(cell.isMine) {
+                    this.triggerGameOver(cell);
+                } else {
+                    this.revealCell(cell);
+                    sfx.sweep();
+                    this.checkWin();
+                }
+            },
+
+            toggleFlag: function(cell) {
+                if(this.status !== 'playing' || cell.isRevealed) return;
+                sfx.init();
+                cell.isFlagged = !cell.isFlagged;
+                if(cell.isFlagged) {
+                    cell.el.innerHTML = '<i data-lucide="flag" class="w-1/2 h-1/2 text-red-500 fill-current drop-shadow-md"></i>';
+                    lucide.createIcons();
+                    this.flagsCount++;
+                    sfx.flag();
+                    if(navigator.vibrate) navigator.vibrate(50);
+                } else {
+                    cell.el.innerHTML = '';
+                    this.flagsCount--;
+                    sfx.unflag();
+                }
+                this.updateHUD();
+            },
+
+            revealCell: function(cell) {
+                if(cell.isRevealed || cell.isFlagged) return;
+                cell.isRevealed = true;
+                cell.el.classList.remove('cell-hidden');
+                cell.el.classList.add('cell-revealed');
+                
+                if(cell.neighborCount > 0) {
+                    cell.el.innerHTML = `<span class="val-${cell.neighborCount}">${cell.neighborCount}</span>`;
+                } else {
+                    for(let dr=-1; dr<=1; dr++) {
+                        for(let dc=-1; dc<=1; dc++) {
+                            let nr = cell.r+dr, nc = cell.c+dc;
+                            if(nr>=0 && nr<this.rows && nc>=0 && nc<this.cols) {
+                                this.revealCell(this.board[nr][nc]);
+                            }
+                        }
+                    }
+                }
+            },
+
+            triggerGameOver: function(triggerCell) {
+                this.status = 'lost';
+                clearInterval(this.timerInterval);
+                sfx.explosion();
+                
+                this.faceIcon.setAttribute('data-lucide', 'frown'); lucide.createIcons();
+                this.faceIcon.className = "w-6 h-6 text-red-500 drop-shadow-md";
+
+                document.getElementById('board-chassis').classList.add('shake-intense');
+
+                const rect = triggerCell.el.getBoundingClientRect();
+                spawnExplosion(rect.left + rect.width/2, rect.top + rect.height/2);
+
+                for(let r=0; r<this.rows; r++) {
+                    for(let c=0; c<this.cols; c++) {
+                        let cl = this.board[r][c];
+                        if(cl.isMine) {
+                            cl.el.classList.remove('cell-hidden');
+                            if(cl === triggerCell) {
+                                cl.el.classList.add('cell-exploded');
+                                cl.el.innerHTML = '<i data-lucide="bomb" class="w-3/4 h-3/4 text-white drop-shadow-[0_0_5px_white]"></i>';
+                            } else {
+                                cl.el.classList.add('cell-revealed');
+                                cl.el.innerHTML = '<i data-lucide="bomb" class="w-1/2 h-1/2 text-red-500"></i>';
+                            }
+                        } else if(cl.isFlagged) {
+                            cl.el.classList.remove('cell-hidden');
+                            cl.el.classList.add('cell-revealed');
+                            cl.el.innerHTML = '<i data-lucide="x" class="w-1/2 h-1/2 text-red-500 drop-shadow-md"></i>';
+                        }
+                    }
+                }
+                lucide.createIcons();
+                
+                setTimeout(() => {
+                    document.getElementById('go-time').innerText = this.timeElapsed;
+                    document.getElementById('gameover-overlay').style.display = 'flex';
+                }, 1500);
+            },
+
+            checkWin: function() {
+                let unrevealedSafe = 0;
+                for(let r=0; r<this.rows; r++) {
+                    for(let c=0; c<this.cols; c++) {
+                        if(!this.board[r][c].isMine && !this.board[r][c].isRevealed) unrevealedSafe++;
+                    }
+                }
+                if(unrevealedSafe === 0) {
+                    this.status = 'won';
+                    clearInterval(this.timerInterval);
+                    sfx.win();
+                    
+                    this.faceIcon.setAttribute('data-lucide', 'sunglasses'); lucide.createIcons();
+                    this.faceIcon.className = "w-6 h-6 text-yellow-400 drop-shadow-md";
+
+                    for(let r=0; r<this.rows; r++) {
+                        for(let c=0; c<this.cols; c++) {
+                            if(this.board[r][c].isMine && !this.board[r][c].isFlagged) {
+                                this.board[r][c].isFlagged = true;
+                                this.board[r][c].el.innerHTML = '<i data-lucide="flag" class="w-1/2 h-1/2 text-green-500 fill-current drop-shadow-[0_0_5px_rgba(16,185,129,0.8)]"></i>';
+                            }
+                        }
+                    }
+                    lucide.createIcons();
+                    this.flagsCount = this.numMines;
+                    this.updateHUD();
+
+                    setTimeout(() => {
+                        document.getElementById('win-time').innerText = this.timeElapsed;
+                        document.getElementById('win-overlay').style.display = 'flex';
+                    }, 1000);
+                }
+            }
+        };
+
+        // --- 6. EVENTS & BINDINGS ---
+        document.querySelectorAll('.diff-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const cols = parseInt(e.currentTarget.dataset.cols);
+                const mines = parseInt(e.currentTarget.dataset.mines);
+                Game.init(cols, cols, mines);
+            });
+        });
+
+        document.querySelectorAll('.return-menu-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.getElementById('gameover-overlay').style.display = 'none';
+                document.getElementById('win-overlay').style.display = 'none';
+                document.getElementById('menu-overlay').style.display = 'flex';
+                document.getElementById('menu-overlay').style.opacity = '1';
+                Game.reset();
+                Game.container.innerHTML = '';
+            });
+        });
+
+        document.getElementById('btn-face').addEventListener('click', () => {
+            if(Game.rows > 0) Game.reset();
+        });
+
+        const modeSwitch = document.getElementById('interaction-mode');
+        const btnSweep = document.getElementById('mode-sweep');
+        const btnFlag = document.getElementById('mode-flag');
+        
+        modeSwitch.addEventListener('click', () => {
+            Game.flagMode = !Game.flagMode;
+            if(Game.flagMode) {
+                modeSwitch.classList.add('mode-flag');
+                btnFlag.classList.add('active');
+                btnSweep.classList.remove('active');
+            } else {
+                modeSwitch.classList.remove('mode-flag');
+                btnSweep.classList.add('active');
+                btnFlag.classList.remove('active');
+            }
+        });
+
+    </script>
+</body>
+</html>

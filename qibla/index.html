@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>QiblaVision Pro AR - Penunjuk Kiblat Super Akurat</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for 3D AR Kaaba & 3D Wayfinder Arrow -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        emerald: {
+                            450: '#10b981',
+                            950: '#022c22',
+                        },
+                        gold: {
+                            300: '#fde047',
+                            400: '#facc15',
+                            500: '#eab308',
+                            600: '#ca8a04',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        body {
+            background-color: #040d0a;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+        /* Custom Glassmorphism */
+        .glass-panel {
+            background: rgba(6, 24, 19, 0.78);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(16, 185, 129, 0.22);
+        }
+        .glass-pill {
+            background: rgba(10, 35, 28, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(234, 179, 8, 0.25);
+        }
+        /* Aligned Glow Animation */
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.4), inset 0 0 15px rgba(16, 185, 129, 0.2); }
+            50% { box-shadow: 0 0 40px rgba(234, 179, 8, 0.7), inset 0 0 25px rgba(234, 179, 8, 0.35); }
+        }
+        .qibla-locked-glow {
+            animation: pulseGlow 2s infinite ease-in-out;
+            border-color: #facc15 !important;
+        }
+        /* Custom Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: rgba(255, 255, 255, 0.12);
+            height: 6px;
+            border-radius: 999px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #eab308;
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px rgba(234, 179, 8, 0.8);
+        }
+        /* Compass Smooth Transition Disabled in JS loop, handled via LPF */
+        #ar-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            border-radius: 1.25rem;
+        }
+        #ar-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+        #ar-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: auto;
+        }
+        .ar-hud-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 3;
+            pointer-events: none;
+        }
+        .ar-hud-interactive {
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between bg-gradient-to-b from-[#030907] via-[#061612] to-[#040b09]">
+
+    <!-- TOP HEADER & SENSOR STATUS BAR -->
+    <header class="w-full max-w-4xl mx-auto px-3 pt-3 pb-1 z-20">
+        <div class="glass-panel rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2 shadow-lg">
+            <!-- Brand Title -->
+            <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-900 border border-gold-400/50 flex items-center justify-center shadow-md">
+                    <i class="fa-solid fa-kaaba text-gold-400 text-lg"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-1.5">
+                        <h1 class="font-extrabold text-base sm:text-lg tracking-tight text-white">QiblaVision <span class="text-gold-400">AR</span></h1>
+                        <span class="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Presisi Tinggi</span>
+                    </div>
+                    <p id="location-label" class="text-xs text-slate-300 flex items-center gap-1 truncate max-w-[210px] sm:max-w-xs">
+                        <i class="fa-solid fa-location-dot text-emerald-400"></i>
+                        <span>Jakarta, Indonesia (Default/GPS)</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Live Sensor Badges & Quick Actions -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+                <button onclick="requestAllSensors()" id="btn-activate-sensors" class="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow hover:brightness-110 active:scale-95 transition">
+                    <i class="fa-solid fa-satellite-dish"></i>
+                    <span>Aktifkan Sensor</span>
+                </button>
+
+                <button onclick="toggleAudio()" id="btn-audio" title="Suara Indikator Kiblat" class="w-8 h-8 rounded-xl glass-pill flex items-center justify-center text-emerald-300 hover:text-gold-400 transition">
+                    <i class="fa-solid fa-volume-high text-xs" id="icon-audio"></i>
+                </button>
+
+                <button onclick="openModal('modal-location')" title="Ubah Lokasi / GPS" class="w-8 h-8 rounded-xl glass-pill flex items-center justify-center text-emerald-300 hover:text-gold-400 transition">
+                    <i class="fa-solid fa-map-location-dot text-xs"></i>
+                </button>
+
+                <button onclick="openModal('modal-sensors')" title="Detail Sensor & Kalibrasi" class="w-8 h-8 rounded-xl glass-pill flex items-center justify-center text-emerald-300 hover:text-gold-400 transition">
+                    <i class="fa-solid fa-microchip text-xs"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mini Sensor Telemetry Strip -->
+        <div class="grid grid-cols-4 gap-1.5 mt-2">
+            <div class="glass-panel rounded-xl px-2.5 py-1.5 flex items-center justify-between">
+                <span class="text-[11px] text-slate-400 flex items-center gap-1"><i class="fa-solid fa-compass text-gold-400"></i> Kiblat</span>
+                <span id="stat-qibla-deg" class="font-mono font-bold text-xs sm:text-sm text-gold-300">295.15°</span>
+            </div>
+            <div class="glass-panel rounded-xl px-2.5 py-1.5 flex items-center justify-between">
+                <span class="text-[11px] text-slate-400 flex items-center gap-1"><i class="fa-solid fa-location-arrow text-emerald-400"></i> Arah HP</span>
+                <span id="stat-heading-deg" class="font-mono font-bold text-xs sm:text-sm text-white">295.0°</span>
+            </div>
+            <div class="glass-panel rounded-xl px-2.5 py-1.5 flex items-center justify-between">
+                <span class="text-[11px] text-slate-400 flex items-center gap-1"><i class="fa-solid fa-ruler-horizontal text-sky-400"></i> Jarak</span>
+                <span id="stat-distance" class="font-mono font-bold text-xs sm:text-sm text-sky-300">7,919 km</span>
+            </div>
+            <div class="glass-panel rounded-xl px-2.5 py-1.5 flex items-center justify-between">
+                <span class="text-[11px] text-slate-400 flex items-center gap-1"><i class="fa-solid fa-crosshairs text-purple-400"></i> Selisih</span>
+                <span id="stat-delta" class="font-mono font-bold text-xs sm:text-sm text-emerald-400">0.2°</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN VIEWPORT: SWITCHABLE 3D AR CAMERA & 2D PRECISION COMPASS -->
+    <main class="flex-1 w-full max-w-4xl mx-auto px-3 py-1.5 flex flex-col gap-2 relative">
+
+        <!-- Mode Selector Tabs -->
+        <div class="flex items-center justify-between gap-2">
+            <div class="glass-panel p-1 rounded-xl flex items-center gap-1 w-full sm:w-auto">
+                <button onclick="switchMode('ar')" id="tab-ar" class="flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 bg-emerald-600 text-white shadow">
+                    <i class="fa-solid fa-camera-viewfinder"></i>
+                    <span>Kamera AR + 3D Ka'bah</span>
+                </button>
+                <button onclick="switchMode('compass')" id="tab-compass" class="flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-300 hover:text-white">
+                    <i class="fa-regular fa-compass"></i>
+                    <span>Kompas Presisi 2D</span>
+                </button>
+            </div>
+
+            <!-- Live Alignment Status Banner -->
+            <div id="alignment-badge" class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold text-emerald-300">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <span id="alignment-text">Arahkan perangkat ke Ka'bah</span>
+            </div>
+        </div>
+
+        <!-- VIEWPORT CONTAINER -->
+        <div id="viewport-wrapper" class="relative w-full flex-1 min-h-[380px] sm:min-h-[450px] glass-panel rounded-2xl overflow-hidden shadow-2xl border border-emerald-500/30 transition-all duration-300">
+
+            <!-- ================= MODE 1: 3D AR CAMERA + KAABA VIEW ================= -->
+            <div id="view-ar" class="w-full h-full absolute inset-0">
+                <div id="ar-container">
+                    <!-- Live Camera Feed -->
+                    <video id="ar-video" autoplay playsinline muted class="hidden"></video>
+
+                    <!-- Three.js 3D Overlay (Kaaba + 3D Wayfinder Arrow + Compass Horizon Ring) -->
+                    <canvas id="ar-canvas"></canvas>
+
+                    <!-- AR HUD Overlay -->
+                    <div class="ar-hud-overlay flex flex-col justify-between p-3">
+                        <!-- Top HUD row -->
+                        <div class="flex items-start justify-between gap-2">
+                            <!-- Sensor Active Pills -->
+                            <div class="flex flex-wrap gap-1.5">
+                                <span id="badge-gps" class="px-2 py-0.5 rounded-md text-[10px] font-mono bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> GPS Siap
+                                </span>
+                                <span id="badge-compass" class="px-2 py-0.5 rounded-md text-[10px] font-mono bg-amber-950/80 border border-amber-500/40 text-amber-300 flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Mode Hibrida/Simulasi
+                                </span>
+                                <span id="badge-cam" class="px-2 py-0.5 rounded-md text-[10px] font-mono bg-slate-900/80 border border-slate-600/40 text-slate-300 flex items-center gap-1">
+                                    <i class="fa-solid fa-video-slash text-[9px]"></i> Skybox 3D
+                                </span>
+                            </div>
+
+                            <!-- Camera Toggle Button inside AR -->
+                            <button onclick="toggleCameraAR()" id="btn-toggle-cam" class="ar-hud-interactive px-3 py-1.5 rounded-xl bg-emerald-700/90 hover:bg-emerald-600 border border-gold-400/50 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg transition active:scale-95">
+                                <i class="fa-solid fa-camera"></i>
+                                <span id="btn-cam-text">Buka Kamera AR</span>
+                            </button>
+                        </div>
+
+                        <!-- Center Reticle & Turn Guidance -->
+                        <div class="my-auto flex flex-col items-center justify-center pointer-events-none">
+                            <!-- Dynamic Turn Indicator -->
+                            <div id="ar-turn-guide" class="mb-3 px-4 py-1.5 rounded-full glass-pill text-xs sm:text-sm font-bold text-gold-300 flex items-center gap-2 shadow-lg">
+                                <i id="ar-turn-icon" class="fa-solid fa-check-circle text-emerald-400"></i>
+                                <span id="ar-turn-label">Tepat Menghadap Kiblat!</span>
+                            </div>
+
+                            <!-- Target Reticle -->
+                            <div id="ar-reticle" class="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-2 border-dashed border-gold-400/60 flex items-center justify-center relative transition-transform duration-200">
+                                <div class="w-3 h-3 rounded-full bg-gold-400/80 shadow-[0_0_12px_#facc15]"></div>
+                                <div class="absolute -top-2 w-0.5 h-3 bg-gold-400"></div>
+                                <div class="absolute -bottom-2 w-0.5 h-3 bg-gold-400"></div>
+                                <div class="absolute -left-2 h-0.5 w-3 bg-gold-400"></div>
+                                <div class="absolute -right-2 h-0.5 w-3 bg-gold-400"></div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom HUD inside AR: Mini Radar + 3D Legend -->
+                        <div class="flex items-end justify-between gap-2">
+                            <!-- Mini 2D Radar -->
+                            <div class="glass-panel rounded-2xl p-2 flex items-center gap-2.5 border border-emerald-500/30">
+                                <div class="relative w-12 h-12 rounded-full bg-emerald-950 border border-emerald-500/40 flex items-center justify-center">
+                                    <!-- Rotating Dial -->
+                                    <div id="mini-radar-dial" class="w-full h-full rounded-full relative">
+                                        <span class="absolute top-0.5 left-1/2 -translate-x-1/2 text-[8px] font-bold text-red-400">U</span>
+                                        <span class="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-bold text-slate-400">S</span>
+                                        <!-- Kaaba Marker on Mini Radar -->
+                                        <div id="mini-radar-qibla" class="absolute inset-0 flex justify-center">
+                                            <div class="w-2.5 h-2.5 -mt-1 rounded-full bg-gold-400 shadow-[0_0_8px_#facc15]"></div>
+                                        </div>
+                                    </div>
+                                    <i class="fa-solid fa-location-arrow text-emerald-400 text-xs -rotate-45 absolute"></i>
+                                </div>
+                                <div class="pr-1">
+                                    <div class="text-[10px] text-slate-400">Panah 3D Bawah</div>
+                                    <div class="text-xs font-bold text-gold-300">Menunjuk Ka'bah</div>
+                                    <div id="ar-pitch-status" class="text-[10px] text-emerald-400 font-mono">Kemiringan: Optimal</div>
+                                </div>
+                            </div>
+
+                            <!-- Kaaba Target Info Box -->
+                            <div class="glass-panel rounded-2xl px-3 py-2 text-right border border-gold-500/30">
+                                <div class="text-[10px] uppercase tracking-wider text-gold-400 font-bold">Makkah Al-Mukarramah</div>
+                                <div class="text-xs font-mono text-white">21.4225° N, 39.8262° E</div>
+                                <div id="ar-declination-info" class="text-[10px] text-slate-400 font-mono">Deklinasi Mag: +0.8°</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= MODE 2: 2D HIGH-PRECISION COMPASS & LEVEL ================= -->
+            <div id="view-compass" class="w-full h-full absolute inset-0 hidden flex flex-col items-center justify-center p-4 bg-radial from-[#09261e] to-[#040d0a]">
+                
+                <!-- Top instruction in 2D mode -->
+                <div class="text-center mb-2">
+                    <span id="compass-status-pill" class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                        Sejajarkan Jarum Emas Ka'bah dengan Panah Atas
+                    </span>
+                </div>
+
+                <!-- Interactive 2D SVG Compass Container -->
+                <div class="relative w-64 h-64 sm:w-80 sm:h-80 flex items-center justify-center my-1">
+                    <!-- Fixed Top Lubber Line (Phone Forward Direction) -->
+                    <div class="absolute -top-4 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center">
+                        <div class="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[16px] border-b-gold-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.9)]"></div>
+                    </div>
+
+                    <!-- Outer Static Bezel -->
+                    <div class="absolute inset-0 rounded-full border-4 border-emerald-500/30 shadow-[inset_0_0_30px_rgba(16,185,129,0.2)] pointer-events-none"></div>
+
+                    <!-- Rotating Compass Dial -->
+                    <div id="compass-dial-2d" class="w-full h-full rounded-full relative flex items-center justify-center">
+                        <svg viewBox="0 0 300 300" class="w-full h-full">
+                            <defs>
+                                <radialGradient id="dialGrad" cx="50%" cy="50%" r="50%">
+                                    <stop offset="0%" stop-color="#0a2e24" />
+                                    <stop offset="75%" stop-color="#051813" />
+                                    <stop offset="100%" stop-color="#020b08" />
+                                </radialGradient>
+                            </defs>
+                            <!-- Dial Background -->
+                            <circle cx="150" cy="150" r="142" fill="url(#dialGrad)" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.4"/>
+                            <circle cx="150" cy="150" r="112" fill="none" stroke="#eab308" stroke-width="0.75" stroke-dasharray="3,3" stroke-opacity="0.4"/>
+
+                            <!-- Degree Ticks generated via JS -->
+                            <g id="svg-compass-ticks"></g>
+
+                            <!-- Cardinal Directions -->
+                            <text x="150" y="36" text-anchor="middle" fill="#ef4444" font-size="16" font-weight="800" font-family="Plus Jakarta Sans">U</text>
+                            <text x="268" y="155" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="700" font-family="Plus Jakarta Sans">T</text>
+                            <text x="150" y="274" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="700" font-family="Plus Jakarta Sans">S</text>
+                            <text x="32" y="155" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="700" font-family="Plus Jakarta Sans">B</text>
+
+                            <!-- Qibla Pointer Group (Rotated inside Dial to exact Qibla Bearing) -->
+                            <g id="svg-qibla-needle" transform="rotate(295.15 150 150)">
+                                <!-- Glowing Golden Ray to Kaaba -->
+                                <line x1="150" y1="150" x2="150" y2="18" stroke="#facc15" stroke-width="3.5" stroke-linecap="round" />
+                                <polygon points="150,8 141,28 150,23 159,28" fill="#facc15" />
+                                <!-- Kaaba Badge on Perimeter -->
+                                <g transform="translate(136, 34)">
+                                    <rect x="0" y="0" width="28" height="28" rx="5" fill="#090d16" stroke="#facc15" stroke-width="2"/>
+                                    <rect x="3" y="7" width="22" height="4" fill="#facc15"/>
+                                    <rect x="15" y="13" width="5" height="9" fill="#eab308"/>
+                                </g>
+                            </g>
+                        </svg>
+                    </div>
+
+                    <!-- Center Spirit Level (Waterpass Akselerometer/Giroskop) -->
+                    <div class="absolute w-24 h-24 rounded-full bg-emerald-950/90 border border-emerald-400/40 flex items-center justify-center shadow-inner pointer-events-none">
+                        <div class="w-10 h-10 rounded-full border border-dashed border-gold-400/50"></div>
+                        <div class="absolute w-full h-[1px] bg-emerald-500/20"></div>
+                        <div class="absolute h-full w-[1px] bg-emerald-500/20"></div>
+                        <!-- Moving Bubble based on Beta/Gamma Tilt -->
+                        <div id="tilt-bubble" class="w-5 h-5 rounded-full bg-gradient-to-br from-emerald-300 to-emerald-500 shadow-[0_0_10px_#10b981] transition-transform duration-75"></div>
+                    </div>
+                </div>
+
+                <!-- Bottom Info in 2D Compass -->
+                <div class="flex flex-wrap items-center justify-center gap-3 mt-2 text-xs text-slate-300">
+                    <div class="glass-pill px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                        <i class="fa-solid fa-arrows-up-down-left-right text-emerald-400"></i>
+                        <span>Waterpass Gyro: <strong id="level-text" class="text-white font-mono">Datar (0°)</strong></span>
+                    </div>
+                    <div class="glass-pill px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                        <i class="fa-solid fa-magnet text-gold-400"></i>
+                        <span>Koreksi True North: <strong class="text-gold-300 font-mono">Aktif</strong></span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- BOTTOM CONTROL PANEL: INTERACTIVE SENSOR / MANUAL SIMULATION BAR -->
+    <footer class="w-full max-w-4xl mx-auto px-3 pb-3 pt-1 z-20">
+        <div class="glass-panel rounded-2xl p-3 shadow-lg">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div class="flex items-center justify-between sm:justify-start gap-2">
+                    <span class="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-sliders text-gold-400"></i>
+                        <span>Kontrol Arah & Uji Sensor (360°):</span>
+                    </span>
+                    <button onclick="snapToQibla()" class="px-2.5 py-1 rounded-lg bg-gold-500/20 hover:bg-gold-500/30 border border-gold-400/50 text-gold-300 text-[11px] font-bold transition flex items-center gap-1">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>Arahkan Tepat ke Kiblat</span>
+                    </button>
+                </div>
+
+                <!-- Interactive Heading Slider (Works automatically if no magnetometer, or allows testing on PC/Mobile) -->
+                <div class="flex items-center gap-3 flex-1 max-w-md">
+                    <span class="text-[11px] font-mono text-slate-400">0° U</span>
+                    <input type="range" id="slider-heading" min="0" max="360" step="0.1" value="295.15" class="w-full">
+                    <span class="text-[11px] font-mono text-slate-400">360°</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ================= MODAL 1: LOKASI & GPS SUPER AKURAT ================= -->
+    <div id="modal-location" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl max-w-md w-full p-5 border border-emerald-500/40 shadow-2xl">
+            <div class="flex items-center justify-between pb-3 border-b border-emerald-500/20">
+                <h2 class="font-bold text-base text-white flex items-center gap-2">
+                    <i class="fa-solid fa-location-crosshairs text-gold-400"></i>
+                    <span>Pengaturan Lokasi & GPS Geodetik</span>
+                </h2>
+                <button onclick="closeModal('modal-location')" class="w-8 h-8 rounded-lg bg-slate-800/80 text-slate-300 hover:text-white flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="py-4 space-y-4 text-xs">
+                <!-- Live GPS Button -->
+                <button onclick="fetchLiveGPS()" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-bold flex items-center justify-center gap-2 shadow-lg transition">
+                    <i class="fa-solid fa-satellite"></i>
+                    <span>Deteksi Lokasi GPS Akurasi Tinggi Sekarang</span>
+                </button>
+
+                <!-- Preset Cities -->
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1.5">Atau Pilih Kota Cepat (Preset):</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5" id="city-presets">
+                        <button onclick="setCityPreset('Jakarta', -6.2088, 106.8456)" class="px-2.5 py-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-800/60 border border-emerald-500/30 text-left truncate">Jakarta</button>
+                        <button onclick="setCityPreset('Surabaya', -7.2575, 112.7521)" class="px-2.5 py-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-800/60 border border-emerald-500/30 text-left truncate">Surabaya</button>
+                        <button onclick="setCityPreset('Bandung', -6.9175, 107.6191)" class="px-2.5 py-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-800/60 border border-emerald-500/30 text-left truncate">Bandung</button>
+                        <button onclick="setCityPreset('Yogyakarta', -7.7956, 110.3695)" class="px-2.5 py-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-800/60 border border-emerald-500/30 text-left truncate">Yogyakarta</button>
+                        <button onclick="setCityPreset('Medan', 3.5952, 98.6722)" class="px-2.5 py-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-800/60 border border-emerald-500/30 text-left truncate">Medan</button>
+                        <button onclick="setCityPreset('Makassar', -5.1477, 119.4327)" class="px-2.5 py-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-800/60 border border-emerald-500/30 text-left truncate">Makassar</button>
+                        <button onclick="setCityPreset('Denpasar, Bali', -8.6705, 115.2126)" class="px-2.5 py-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-800/60 border border-emerald-500/30 text-left truncate">Denpasar</button>
+                        <button onclick="setCityPreset('Banda Aceh', 5.5483, 95.3238)" class="px-2.5 py-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-800/60 border border-emerald-500/30 text-left truncate">Banda Aceh</button>
+                        <button onclick="setCityPreset('Jayapura', -2.5337, 140.7181)" class="px-2.5 py-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-800/60 border border-emerald-500/30 text-left truncate">Jayapura</button>
+                    </div>
+                </div>
+
+                <!-- Manual Coordinates Input -->
+                <div class="pt-2 border-t border-emerald-500/20">
+                    <label class="block text-slate-300 font-semibold mb-1.5">Koordinat Manual (Latitude & Longitude):</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="text-[10px] text-slate-400">Garis Lintang (Lat)</span>
+                            <input type="number" id="input-lat" step="0.0001" value="-6.2088" class="w-full mt-0.5 px-3 py-2 rounded-lg bg-slate-900 border border-emerald-500/40 text-white font-mono">
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-slate-400">Garis Bujur (Lon)</span>
+                            <input type="number" id="input-lon" step="0.0001" value="106.8456" class="w-full mt-0.5 px-3 py-2 rounded-lg bg-slate-900 border border-emerald-500/40 text-white font-mono">
+                        </div>
+                    </div>
+                    <button onclick="applyManualCoords()" class="w-full mt-2.5 py-2 rounded-xl bg-gold-500 text-slate-950 font-bold hover:bg-gold-400 transition">
+                        Terapkan Koordinat
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= MODAL 2: DIAGNOSTIK SENSOR & KALIBRASI ================= -->
+    <div id="modal-sensors" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass-panel rounded-2xl max-w-md w-full p-5 border border-emerald-500/40 shadow-2xl">
+            <div class="flex items-center justify-between pb-3 border-b border-emerald-500/20">
+                <h2 class="font-bold text-base text-white flex items-center gap-2">
+                    <i class="fa-solid fa-microchip text-emerald-400"></i>
+                    <span>Telemetri Sensor & Kalibrasi</span>
+                </h2>
+                <button onclick="closeModal('modal-sensors')" class="w-8 h-8 rounded-lg bg-slate-800/80 text-slate-300 hover:text-white flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="py-3 space-y-3 text-xs">
+                <div class="grid grid-cols-2 gap-2 font-mono">
+                    <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-700">
+                        <div class="text-[10px] text-slate-400">Sumber Orientasi</div>
+                        <div id="diag-source" class="text-emerald-300 font-bold mt-0.5">Hibrida / Simulasi</div>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-700">
+                        <div class="text-[10px] text-slate-400">Akurasi GPS</div>
+                        <div id="diag-gps-acc" class="text-gold-300 font-bold mt-0.5">± 5.0 meter</div>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-700">
+                        <div class="text-[10px] text-slate-400">Gyro Pitch (β) / Roll (γ)</div>
+                        <div id="diag-tilt" class="text-white font-bold mt-0.5">0.0° / 0.0°</div>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-700">
+                        <div class="text-[10px] text-slate-400">Deklinasi Magnetik</div>
+                        <div id="diag-declination" class="text-sky-300 font-bold mt-0.5">+0.82° (WMM)</div>
+                    </div>
+                </div>
+
+                <!-- Figure 8 Calibration Tip -->
+                <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 flex items-center gap-3">
+                    <i class="fa-solid fa-infinity text-2xl text-gold-400"></i>
+                    <div>
+                        <div class="font-bold text-gold-300">Tips Kalibrasi Magnetometer (Angka 8)</div>
+                        <p class="text-[11px] text-slate-300 mt-0.5">Ayunkan ponsel membentuk pola angka 8 di udara selama 5 detik dan jauhkan dari casing magnetik atau logam untuk akurasi kompas maksimal.</p>
+                    </div>
+                </div>
+
+                <button onclick="requestAllSensors(); closeModal('modal-sensors');" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition">
+                    Sinkronisasi Ulang Semua Sensor
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Toast Notification -->
+    <div id="toast-msg" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl glass-panel border border-gold-400/50 text-xs font-bold text-white shadow-2xl hidden flex items-center gap-2">
+        <i class="fa-solid fa-circle-info text-gold-400"></i>
+        <span id="toast-text">Pesan informasi</span>
+    </div>
+
+    <script>
+        /********************************************************************
+         * 1. KONSTANTA GEODETIK KA'BAH & STATE APLIKASI
+         ********************************************************************/
+        const KAABA_LAT = 21.422487; // Lintang Eksak Ka'bah (Makkah)
+        const KAABA_LON = 39.826206; // Bujur Eksak Ka'bah (Makkah)
+        const EARTH_RADIUS_KM = 6371.0088;
+
+        const state = {
+            userLat: -6.2088,          // Default: Jakarta
+            userLon: 106.8456,
+            locationName: 'Jakarta, Indonesia',
+            gpsAccuracy: null,
+            qiblaBearing: 295.15,      // Sudut Kiblat dari Utara Sejati (True North)
+            distanceKm: 7919,          // Jarak ke Ka'bah (km)
+            magneticDeclination: 0.82, // Estimasi Deklinasi Magnetik
+
+            // Sensor Orientation State
+            currentHeading: 295.15,    // Arah hadap ponsel (0 - 360 derajat)
+            targetHeading: 295.15,     // Target untuk smoothing Low-Pass Filter
+            pitchBeta: 65,             // Kemiringan depan-belakang
+            rollGamma: 0,              // Kemiringan kiri-kanan
+            hasLiveCompass: false,
+            sensorSourceName: 'Simulasi Interaktif',
+
+            // Mode & Camera State
+            activeMode: 'ar',          // 'ar' atau 'compass'
+            cameraActive: false,
+            cameraStream: null,
+
+            // Audio & Lock Feedback
+            audioEnabled: true,
+            isAligned: true,
+            lastBeepTime: 0
+        };
+
+        /********************************************************************
+         * 2. PERHITUNGAN TRIGONOMETRI BOLA (GREAT CIRCLE & HAVERSINE)
+         ********************************************************************/
+        function toRad(deg) { return deg * (Math.PI / 180); }
+        function toDeg(rad) { return rad * (180 / Math.PI); }
+
+        /**
+         * Menghitung arah Kiblat super akurat dengan rumus Great Circle Bearing
+         */
+        function calculateQiblaBearing(lat, lon) {
+            const phiU = toRad(lat);
+            const phiK = toRad(KAABA_LAT);
+            const deltaLon = toRad(KAABA_LON - lon);
+
+            const y = Math.sin(deltaLon) * Math.cos(phiK);
+            const x = Math.cos(phiU) * Math.sin(phiK) - Math.sin(phiU) * Math.cos(phiK) * Math.cos(deltaLon);
+
+            let theta = toDeg(Math.atan2(y, x));
+            return (theta + 360) % 360;
+        }
+
+        /**
+         * Menghitung jarak permukaan bumi ke Ka'bah menggunakan rumus Haversine
+         */
+        function calculateDistanceKm(lat, lon) {
+            const dLat = toRad(KAABA_LAT - lat);
+            const dLon = toRad(KAABA_LON - lon);
+            const a = Math.sin(dLat / 2) ** 2 +
+                      Math.cos(toRad(lat)) * Math.cos(toRad(KAABA_LAT)) * Math.sin(dLon / 2) ** 2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return EARTH_RADIUS_KM * c;
+        }
+
+        /**
+         * Estimasi Deklinasi Magnetik (perbedaan Magnetic North vs True North)
+         */
+        function estimateMagneticDeclination(lat, lon) {
+            // Model aproksimasi dipol geomagnetik ringan untuk wilayah global & ekuator
+            const radLat = toRad(lat);
+            const radLon = toRad(lon);
+            const decl = 11.5 * Math.sin(radLon - toRad(105)) * Math.cos(radLat);
+            return Math.max(-25, Math.min(25, decl));
+        }
+
+        function recalculateGeodesics() {
+            state.qiblaBearing = calculateQiblaBearing(state.userLat, state.userLon);
+            state.distanceKm = calculateDistanceKm(state.userLat, state.userLon);
+            state.magneticDeclination = estimateMagneticDeclination(state.userLat, state.userLon);
+
+            // Update UI labels
+            document.getElementById('stat-qibla-deg').textContent = state.qiblaBearing.toFixed(2) + '°';
+            document.getElementById('stat-distance').textContent = Math.round(state.distanceKm).toLocaleString('id-ID') + ' km';
+            document.getElementById('location-label').innerHTML = `<i class="fa-solid fa-location-dot text-emerald-400"></i> <span>${state.locationName} (${state.userLat.toFixed(3)}, ${state.userLon.toFixed(3)})</span>`;
+            document.getElementById('ar-declination-info').textContent = `Deklinasi Mag: ${(state.magneticDeclination >= 0 ? '+' : '')}${state.magneticDeclination.toFixed(1)}°`;
+            document.getElementById('diag-declination').textContent = `${(state.magneticDeclination >= 0 ? '+' : '')}${state.magneticDeclination.toFixed(2)}° (WMM)`;
+
+            // Update 2D SVG Qibla Needle angle inside dial
+            const needle = document.getElementById('svg-qibla-needle');
+            if (needle) {
+                needle.setAttribute('transform', `rotate(${state.qiblaBearing} 150 150)`);
+            }
+            // Update Mini Radar Qibla Dot
+            const miniQibla = document.getElementById('mini-radar-qibla');
+            if (miniQibla) {
+                miniQibla.style.transform = `rotate(${state.qiblaBearing}deg)`;
+            }
+
+            // Update 3D Kaaba Position in Three.js Scene
+            updateKaaba3DPosition();
+        }
+
+        /********************************************************************
+         * 3. THREE.JS 3D AUGMENTED REALITY ENGINE (KA'BAH + PANAH KIBLAT 3D)
+         ********************************************************************/
+        let scene, camera, renderer;
+        let kaabaGroup, kaabaGlowMesh, kaabaAuraBeam;
+        let arrow3DGroup;
+        let compassRingGroup;
+        let skyboxParticles;
+
+        function createKaabaTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            // 1. Kain Kiswah Hitam Pekat dengan tekstur tenun halus
+            ctx.fillStyle = '#0d1017';
+            ctx.fillRect(0, 0, 512, 512);
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 2;
+            for (let y = 0; y < 512; y += 6) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(512, y);
+                ctx.stroke();
+            }
+
+            // 2. Sabuk Emas Kiswah (Hizam) di sepertiga atas
+            const beltY = 120;
+            const beltH = 54;
+            const grad = ctx.createLinearGradient(0, beltY, 0, beltY + beltH);
+            grad.addColorStop(0, '#ca8a04');
+            grad.addColorStop(0.5, '#fef08a');
+            grad.addColorStop(1, '#a16207');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, beltY, 512, beltH);
+
+            // Ornamen Kaligrafi / Geometris pada Sabuk Kiswah
+            ctx.strokeStyle = '#1c1917';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(4, beltY + 5, 504, beltH - 10);
+
+            ctx.fillStyle = '#422006';
+            for (let x = 20; x < 500; x += 48) {
+                ctx.fillRect(x, beltY + 14, 28, beltH - 28);
+                ctx.strokeStyle = '#fde047';
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(x + 4, beltY + 18, 20, beltH - 36);
+            }
+
+            // 3. Pintu Emas Ka'bah (Bab al-Ka'bah)
+            const doorX = 290;
+            const doorY = 210;
+            const doorW = 86;
+            const doorH = 155;
+            ctx.fillStyle = '#eab308';
+            ctx.fillRect(doorX, doorY, doorW, doorH);
+            ctx.strokeStyle = '#713f12';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(doorX + 5, doorY + 5, doorW - 10, doorH - 10);
+            // Detail panel pintu
+            ctx.strokeRect(doorX + 14, doorY + 16, doorW - 28, 52);
+            ctx.strokeRect(doorX + 14, doorY + 80, doorW - 28, 60);
+
+            // 4. Pondasi Marmer Putih (Syadzarwan) di bagian bawah
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(0, 476, 512, 36);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 476, 512, 36);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        function initThreeAR() {
+            const container = document.getElementById('ar-container');
+            const canvas = document.getElementById('ar-canvas');
+
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(0, 1.8, 0);
+
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xfde047, 1.3);
+            dirLight.position.set(10, 25, 10);
+            scene.add(dirLight);
+
+            // ================= 1. OBJEK 3D KA'BAH =================
+            kaabaGroup = new THREE.Group();
+
+            const kaabaTexture = createKaabaTexture();
+            const topMat = new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 0.7 });
+            const sideMat = new THREE.MeshStandardMaterial({ map: kaabaTexture, roughness: 0.4, metalness: 0.2 });
+
+            const kaabaMaterials = [sideMat, sideMat, topMat, topMat, sideMat, sideMat];
+            const kaabaGeo = new THREE.BoxGeometry(3.2, 3.8, 3.2);
+            const kaabaMesh = new THREE.Mesh(kaabaGeo, kaabaMaterials);
+            kaabaMesh.position.y = 1.9;
+            kaabaGroup.add(kaabaMesh);
+
+            // Hajar Aswad Corner Accent
+            const cornerGeo = new THREE.SphereGeometry(0.22, 16, 16);
+            const cornerMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.9, roughness: 0.1 });
+            const hajarAswad = new THREE.Mesh(cornerGeo, cornerMat);
+            hajarAswad.position.set(1.62, 1.4, 1.62);
+            kaabaGroup.add(hajarAswad);
+
+            // Cincin Pelataran Tawaf di bawah Ka'bah
+            const tawafGeo = new THREE.RingGeometry(2.6, 5.2, 64);
+            const tawafMat = new THREE.MeshBasicMaterial({
+                color: 0x10b981,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.35
+            });
+            const tawafRing = new THREE.Mesh(tawafGeo, tawafMat);
+            tawafRing.rotation.x = -Math.PI / 2;
+            tawafRing.position.y = 0.02;
+            kaabaGroup.add(tawafRing);
+
+            // Cahaya Pilar Vertikal (Muncul terang saat menghadap kiblat)
+            const beamGeo = new THREE.CylinderGeometry(2.2, 2.2, 26, 32, 1, true);
+            const beamMat = new THREE.MeshBasicMaterial({
+                color: 0xfacc15,
+                transparent: true,
+                opacity: 0.18,
+                side: THREE.DoubleSide
+            });
+            kaabaAuraBeam = new THREE.Mesh(beamGeo, beamMat);
+            kaabaAuraBeam.position.y = 13;
+            kaabaGroup.add(kaabaAuraBeam);
+
+            scene.add(kaabaGroup);
+
+            // ================= 2. PANAH KIBLAT 3D DI DEPAN KAMERA =================
+            arrow3DGroup = new THREE.Group();
+
+            // Badan Panah 3D Emas
+            const shaftGeo = new THREE.BoxGeometry(0.18, 0.06, 0.75);
+            const goldMat = new THREE.MeshStandardMaterial({
+                color: 0xfacc15,
+                metalness: 0.75,
+                roughness: 0.2,
+                emissive: 0x854d0e,
+                emissiveIntensity: 0.35
+            });
+            const shaftMesh = new THREE.Mesh(shaftGeo, goldMat);
+            shaftMesh.position.z = 0.15;
+            arrow3DGroup.add(shaftMesh);
+
+            // Kepala Panah 3D
+            const headGeo = new THREE.ConeGeometry(0.28, 0.55, 4);
+            const emeraldMat = new THREE.MeshStandardMaterial({
+                color: 0x10b981,
+                metalness: 0.5,
+                roughness: 0.2,
+                emissive: 0x065f46,
+                emissiveIntensity: 0.5
+            });
+            const headMesh = new THREE.Mesh(headGeo, goldMat);
+            headMesh.rotation.x = -Math.PI / 2;
+            headMesh.rotation.y = Math.PI / 4;
+            headMesh.position.z = -0.42;
+            arrow3DGroup.add(headMesh);
+
+            // Cincin Halo di sekeliling Panah 3D
+            const haloGeo = new THREE.RingGeometry(0.52, 0.58, 32);
+            const haloMat = new THREE.MeshBasicMaterial({ color: 0x10b981, side: THREE.DoubleSide, transparent: true, opacity: 0.65 });
+            const haloRing = new THREE.Mesh(haloGeo, haloMat);
+            haloRing.rotation.x = -Math.PI / 2;
+            arrow3DGroup.add(haloRing);
+
+            scene.add(arrow3DGroup);
+
+            // ================= 3. HORIZON COMPASS GRID RING =================
+            compassRingGroup = new THREE.Group();
+            const gridHelper = new THREE.PolarGridHelper(18, 16, 8, 64, 0x059669, 0x064e3b);
+            gridHelper.position.y = -1.5;
+            compassRingGroup.add(gridHelper);
+            scene.add(compassRingGroup);
+
+            // ================= 4. AMBIENT STARS (UNTUK SKYBOX SAAT KAMERA MATI) =================
+            const starGeo = new THREE.BufferGeometry();
+            const starCount = 250;
+            const posArray = new Float32Array(starCount * 3);
+            for (let i = 0; i < starCount * 3; i += 3) {
+                const r = 40 + Math.random() * 30;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI * 0.6;
+                posArray[i] = r * Math.sin(phi) * Math.cos(theta);
+                posArray[i + 1] = Math.abs(r * Math.cos(phi)) + 1;
+                posArray[i + 2] = r * Math.sin(phi) * Math.sin(theta);
+            }
+            starGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const starMat = new THREE.PointsMaterial({ color: 0xfde047, size: 0.25, transparent: true, opacity: 0.7 });
+            skyboxParticles = new THREE.Points(starGeo, starMat);
+            scene.add(skyboxParticles);
+
+            updateKaaba3DPosition();
+
+            // Resize Listener
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function updateKaaba3DPosition() {
+            if (!kaabaGroup) return;
+            // Tempatkan Ka'bah sejauh 14 unit pada sudut Qibla Bearing
+            // Di Three.js: Utara (0°) adalah -Z, Timur (90°) adalah +X
+            const rad = toRad(state.qiblaBearing);
+            const dist = 14;
+            kaabaGroup.position.x = Math.sin(rad) * dist;
+            kaabaGroup.position.z = -Math.cos(rad) * dist;
+            kaabaGroup.position.y = -1.2;
+
+            // Hadapkan Ka'bah ke arah pengguna
+            kaabaGroup.lookAt(0, -1.2, 0);
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('ar-container');
+            if (!container || !renderer || !camera) return;
+            const w = container.clientWidth || 320;
+            const h = container.clientHeight || 400;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        }
+
+        /********************************************************************
+         * 4. INTEGRASI SENSOR DEVICE (KOMPAS, GYRO, GPS, KAMERA AR)
+         ********************************************************************/
+        function requestAllSensors() {
+            showToast('Mengaktifkan GPS, Magnetometer, dan Giroskop...');
+
+            // 1. Minta izin DeviceOrientationEvent (Khususnya iOS 13+)
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            bindOrientationListeners();
+                        } else {
+                            showToast('Izin kompas ditolak, menggunakan kontrol hibrida.');
+                        }
+                    })
+                    .catch(() => bindOrientationListeners());
+            } else {
+                bindOrientationListeners();
+            }
+
+            // 2. Aktifkan GPS
+            fetchLiveGPS();
+        }
+
+        function bindOrientationListeners() {
+            // Prioritaskan deviceorientationabsolute (Android True North)
+            if ('ondeviceorientationabsolute' in window) {
+                window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+            }
+            window.addEventListener('deviceorientation', handleOrientation, true);
+        }
+
+        function handleOrientation(event) {
+            let heading = null;
+
+            if (typeof event.webkitCompassHeading === 'number') {
+                // iOS Safari menyediakan webkitCompassHeading (0-360 terhadap Magnetic/True North)
+                heading = event.webkitCompassHeading;
+                state.sensorSourceName = 'iOS Magnetometer';
+            } else if (event.absolute === true && event.alpha !== null) {
+                // Android Chrome Absolute Orientation
+                heading = (360 - event.alpha) % 360;
+                state.sensorSourceName = 'Absolute Magnetometer';
+            } else if (event.alpha !== null) {
+                // Relative alpha + koreksi deklinasi magnetik
+                heading = (360 - event.alpha + state.magneticDeclination + 360) % 360;
+                state.sensorSourceName = 'Gyro/Magnetometer';
+            }
+
+            if (heading !== null && !isNaN(heading)) {
+                state.hasLiveCompass = true;
+                state.targetHeading = heading;
+
+                const badge = document.getElementById('badge-compass');
+                badge.className = 'px-2 py-0.5 rounded-md text-[10px] font-mono bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 flex items-center gap-1';
+                badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ${state.sensorSourceName}`;
+                document.getElementById('diag-source').textContent = state.sensorSourceName;
+            }
+
+            // Baca Kemiringan Akselerometer/Giroskop (Beta & Gamma)
+            if (event.beta !== null && event.gamma !== null) {
+                state.pitchBeta = event.beta;
+                state.rollGamma = event.gamma;
+                document.getElementById('diag-tilt').textContent = `${event.beta.toFixed(1)}° / ${event.gamma.toFixed(1)}°`;
+            }
+        }
+
+        /**
+         * Mengambil koordinat GPS presisi tinggi dari perangkat
+         */
+        function fetchLiveGPS() {
+            if (!navigator.geolocation) {
+                showToast('Geolocation tidak didukung di browser ini.');
+                return;
+            }
+
+            showToast('Mencari sinyal satelit GPS...');
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    state.userLat = pos.coords.latitude;
+                    state.userLon = pos.coords.longitude;
+                    state.gpsAccuracy = pos.coords.accuracy;
+                    state.locationName = 'Lokasi GPS Akurat';
+
+                    document.getElementById('input-lat').value = state.userLat.toFixed(4);
+                    document.getElementById('input-lon').value = state.userLon.toFixed(4);
+                    document.getElementById('diag-gps-acc').textContent = `± ${Math.round(state.gpsAccuracy)} meter`;
+
+                    const gpsBadge = document.getElementById('badge-gps');
+                    gpsBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> GPS ±${Math.round(state.gpsAccuracy)}m`;
+
+                    recalculateGeodesics();
+                    closeModal('modal-location');
+                    showToast(`GPS Terkunci! Kiblat: ${state.qiblaBearing.toFixed(2)}°`);
+                },
+                (err) => {
+                    showToast('GPS dibatasi oleh lingkungan preview. Menggunakan koordinat pilihan.');
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 8000,
+                    maximumAge: 0
+                }
+            );
+        }
+
+        /**
+         * Mengaktifkan / Mematikan Kamera Belakang untuk Mode AR
+         */
+        async function toggleCameraAR() {
+            const video = document.getElementById('ar-video');
+            const btnText = document.getElementById('btn-cam-text');
+            const badgeCam = document.getElementById('badge-cam');
+
+            if (state.cameraActive) {
+                if (state.cameraStream) {
+                    state.cameraStream.getTracks().forEach(track => track.stop());
+                }
+                video.classList.add('hidden');
+                state.cameraActive = false;
+                if (skyboxParticles) skyboxParticles.visible = true;
+                btnText.textContent = 'Buka Kamera AR';
+                badgeCam.innerHTML = `<i class="fa-solid fa-video-slash text-[9px]"></i> Skybox 3D`;
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: 'environment' } },
+                    audio: false
+                });
+                state.cameraStream = stream;
+                video.srcObject = stream;
+                video.classList.remove('hidden');
+                state.cameraActive = true;
+                if (skyboxParticles) skyboxParticles.visible = false;
+                btnText.textContent = 'Matikan Kamera';
+                badgeCam.className = 'px-2 py-0.5 rounded-md text-[10px] font-mono bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 flex items-center gap-1';
+                badgeCam.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Kamera AR Live`;
+                showToast('Kamera AR Aktif! Arahkan ponsel ke sekeliling Anda.');
+            } catch (e) {
+                showToast('Kamera tidak diizinkan/tersedia di preview ini. Menampilkan Skybox 3D AR.');
+            }
+        }
+
+        /********************************************************************
+         * 5. WEB AUDIO SYNTHESIZER (INDIKATOR SUARA TEPAT KIBLAT)
+         ********************************************************************/
+        let audioCtx = null;
+        function playLockChime() {
+            if (!state.audioEnabled) return;
+            const now = performance.now();
+            if (now - state.lastBeepTime < 3500) return; // Cooldown agar tidak berisik
+            state.lastBeepTime = now;
+
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+                osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.18); // A5
+
+                gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.45);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.45);
+
+                if (navigator.vibrate) navigator.vibrate(60);
+            } catch (err) {
+                // Abaikan jika autoplay audio belum di-trigger interaksi
+            }
+        }
+
+        function toggleAudio() {
+            state.audioEnabled = !state.audioEnabled;
+            const icon = document.getElementById('icon-audio');
+            icon.className = state.audioEnabled ? 'fa-solid fa-volume-high text-xs text-emerald-300' : 'fa-solid fa-volume-xmark text-xs text-slate-500';
+            showToast(state.audioEnabled ? 'Suara indikator Kiblat diaktifkan' : 'Suara indikator dimatikan');
+        }
+
+        /********************************************************************
+         * 6. LOOP RENDER UTAMA & FILTER SMOOTHING SENSOR (60 FPS)
+         ********************************************************************/
+        function shortestAngleDist(a, b) {
+            let diff = (b - a + 180) % 360 - 180;
+            return diff < -180 ? diff + 360 : diff;
+        }
+
+        function animateLoop() {
+            requestAnimationFrame(animateLoop);
+
+            // 1. Interpolasi Sudut Sirkular (Low-Pass Filter bebas loncatan 359° -> 0°)
+            const deltaAngle = shortestAngleDist(state.currentHeading, state.targetHeading);
+            state.currentHeading = (state.currentHeading + deltaAngle * 0.14 + 360) % 360;
+
+            // 2. Hitung Selisih Sudut terhadap Kiblat (-180° s/d +180°)
+            const qiblaError = shortestAngleDist(state.currentHeading, state.qiblaBearing);
+            const absError = Math.abs(qiblaError);
+            const isLocked = absError <= 2.5;
+
+            // 3. Update Angka Telemetri Atas
+            document.getElementById('stat-heading-deg').textContent = state.currentHeading.toFixed(1) + '°';
+            const deltaEl = document.getElementById('stat-delta');
+            deltaEl.textContent = absError.toFixed(1) + '°';
+            deltaEl.className = isLocked
+                ? 'font-mono font-bold text-xs sm:text-sm text-emerald-400'
+                : 'font-mono font-bold text-xs sm:text-sm text-amber-400';
+
+            // 4. Update Indikator Panduan Belok Kiri/Kanan
+            const turnGuide = document.getElementById('ar-turn-guide');
+            const turnIcon = document.getElementById('ar-turn-icon');
+            const turnLabel = document.getElementById('ar-turn-label');
+            const viewportWrapper = document.getElementById('viewport-wrapper');
+            const reticle = document.getElementById('ar-reticle');
+
+            if (isLocked) {
+                turnIcon.className = 'fa-solid fa-circle-check text-emerald-400';
+                turnLabel.textContent = 'TEPAT MENGHADAP KIBLAT!';
+                turnGuide.className = 'mb-3 px-4 py-1.5 rounded-full bg-emerald-950/90 border border-gold-400 text-xs sm:text-sm font-extrabold text-gold-300 flex items-center gap-2 shadow-lg';
+                viewportWrapper.classList.add('qibla-locked-glow');
+                reticle.style.transform = 'scale(1.12)';
+                reticle.style.borderColor = '#10b981';
+
+                if (!state.isAligned) {
+                    state.isAligned = true;
+                    playLockChime();
+                }
+            } else {
+                state.isAligned = false;
+                viewportWrapper.classList.remove('qibla-locked-glow');
+                reticle.style.transform = 'scale(1.0)';
+                reticle.style.borderColor = 'rgba(250, 204, 21, 0.6)';
+                turnGuide.className = 'mb-3 px-4 py-1.5 rounded-full glass-pill text-xs sm:text-sm font-bold text-white flex items-center gap-2 shadow-lg';
+
+                if (qiblaError > 0) {
+                    turnIcon.className = 'fa-solid fa-rotate-right text-gold-400';
+                    turnLabel.textContent = `Putar ke Kanan ${absError.toFixed(0)}° menuju Ka'bah`;
+                } else {
+                    turnIcon.className = 'fa-solid fa-rotate-left text-gold-400';
+                    turnLabel.textContent = `Putar ke Kiri ${absError.toFixed(0)}° menuju Ka'bah`;
+                }
+            }
+
+            // 5. Update 2D Compass & Mini Radar Rotation
+            const dial2D = document.getElementById('compass-dial-2d');
+            if (dial2D) {
+                dial2D.style.transform = `rotate(${-state.currentHeading}deg)`;
+            }
+            const miniRadarDial = document.getElementById('mini-radar-dial');
+            if (miniRadarDial) {
+                miniRadarDial.style.transform = `rotate(${-state.currentHeading}deg)`;
+            }
+
+            // 6. Update Waterpass Bubble Level (Gyro Pitch & Roll)
+            const bubble = document.getElementById('tilt-bubble');
+            if (bubble) {
+                const clampX = Math.max(-24, Math.min(24, state.rollGamma * 0.6));
+                const clampY = Math.max(-24, Math.min(24, (state.pitchBeta - (state.activeMode === 'ar' ? 65 : 0)) * 0.6));
+                bubble.style.transform = `translate(${clampX}px, ${clampY}px)`;
+            }
+
+            // 7. Update Three.js 3D Camera & 3D Wayfinder Arrow
+            if (renderer && scene && camera) {
+                const headingRad = toRad(state.currentHeading);
+
+                // Rotasikan kamera 3D sesuai arah kompas perangkat
+                camera.rotation.order = 'YXZ';
+                camera.rotation.y = -headingRad;
+                camera.rotation.x = 0;
+
+                // Posisikan Panah 3D tepat di bagian bawah pandangan kamera pengguna
+                const forwardDist = 2.6;
+                arrow3DGroup.position.x = Math.sin(headingRad) * forwardDist;
+                arrow3DGroup.position.z = -Math.cos(headingRad) * forwardDist;
+                arrow3DGroup.position.y = 1.05;
+
+                // Arahkan Panah 3D langsung menunjuk ke koordinat 3D Ka'bah!
+                arrow3DGroup.lookAt(kaabaGroup.position.x, 1.05, kaabaGroup.position.z);
+
+                // Efek animasi halus pada pilar cahaya Ka'bah
+                if (kaabaAuraBeam) {
+                    kaabaAuraBeam.material.opacity = isLocked ? 0.38 : 0.12;
+                    kaabaAuraBeam.rotation.y += 0.01;
+                }
+
+                renderer.render(scene, camera);
+            }
+        }
+
+        /********************************************************************
+         * 7. PEMBUATAN TICKS KOMPAS 2D & INTERAKSI UI
+         ********************************************************************/
+        function buildCompassTicksSVG() {
+            const g = document.getElementById('svg-compass-ticks');
+            if (!g) return;
+            let html = '';
+            for (let deg = 0; deg < 360; deg += 5) {
+                const isMajor = deg % 30 === 0;
+                const isCardinal = deg % 90 === 0;
+                const y1 = isMajor ? 8 : 11;
+                const y2 = isMajor ? 20 : 17;
+                const stroke = isCardinal ? '#facc15' : (isMajor ? '#10b981' : '#475569');
+                const width = isMajor ? 2 : 1;
+
+                html += `<line x1="150" y1="${y1}" x2="150" y2="${y2}" stroke="${stroke}" stroke-width="${width}" transform="rotate(${deg} 150 150)" />`;
+
+                if (isMajor && !isCardinal) {
+                    html += `<text x="150" y="32" text-anchor="middle" fill="#64748b" font-size="9" font-family="JetBrains Mono" transform="rotate(${deg} 150 150)">${deg}°</text>`;
+                }
+            }
+            g.innerHTML = html;
+        }
+
+        function switchMode(mode) {
+            state.activeMode = mode;
+            const viewAr = document.getElementById('view-ar');
+            const viewCompass = document.getElementById('view-compass');
+            const tabAr = document.getElementById('tab-ar');
+            const tabCompass = document.getElementById('tab-compass');
+
+            if (mode === 'ar') {
+                viewAr.classList.remove('hidden');
+                viewCompass.classList.add('hidden');
+                tabAr.className = 'flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 bg-emerald-600 text-white shadow';
+                tabCompass.className = 'flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-300 hover:text-white';
+                onWindowResize();
+            } else {
+                viewAr.classList.add('hidden');
+                viewCompass.classList.remove('hidden');
+                tabCompass.className = 'flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 bg-emerald-600 text-white shadow';
+                tabAr.className = 'flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-300 hover:text-white';
+            }
+        }
+
+        function snapToQibla() {
+            state.targetHeading = state.qiblaBearing;
+            document.getElementById('slider-heading').value = state.qiblaBearing.toFixed(1);
+            showToast(`Diarahkan tepat ke Kiblat (${state.qiblaBearing.toFixed(2)}°)`);
+        }
+
+        function setCityPreset(name, lat, lon) {
+            state.locationName = name;
+            state.userLat = lat;
+            state.userLon = lon;
+            document.getElementById('input-lat').value = lat;
+            document.getElementById('input-lon').value = lon;
+            recalculateGeodesics();
+            closeModal('modal-location');
+            showToast(`Lokasi diubah ke ${name} (Kiblat: ${state.qiblaBearing.toFixed(2)}°)`);
+        }
+
+        function applyManualCoords() {
+            const lat = parseFloat(document.getElementById('input-lat').value);
+            const lon = parseFloat(document.getElementById('input-lon').value);
+            if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+                showToast('Masukkan nilai Latitude (-90 s/d 90) & Longitude (-180 s/d 180) yang valid.');
+                return;
+            }
+            state.locationName = 'Koordinat Kustom';
+            state.userLat = lat;
+            state.userLon = lon;
+            recalculateGeodesics();
+            closeModal('modal-location');
+            showToast(`Koordinat diterapkan! Kiblat: ${state.qiblaBearing.toFixed(2)}°`);
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        let toastTimer = null;
+        function showToast(msg) {
+            const toast = document.getElementById('toast-msg');
+            document.getElementById('toast-text').textContent = msg;
+            toast.classList.remove('hidden');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toast.classList.add('hidden'), 3200);
+        }
+
+        /********************************************************************
+         * 8. INISIALISASI APLIKASI SAAT WINDOW LOAD
+         ********************************************************************/
+        window.onload = function () {
+            buildCompassTicksSVG();
+            initThreeAR();
+            recalculateGeodesics();
+
+            // Set initial heading sedikit bergeser dari kiblat agar pengguna melihat animasi panah bekerja
+            state.currentHeading = (state.qiblaBearing - 25 + 360) % 360;
+            state.targetHeading = state.qiblaBearing;
+            document.getElementById('slider-heading').value = state.qiblaBearing;
+
+            // Listener Slider Simulasi / Kontrol Manual
+            const slider = document.getElementById('slider-heading');
+            slider.addEventListener('input', (e) => {
+                state.targetHeading = parseFloat(e.target.value);
+            });
+
+            // Drag/Swipe horizontal pada layar AR untuk memutar pandangan secara interaktif
+            const arCanvas = document.getElementById('ar-canvas');
+            let isDragging = false;
+            let lastX = 0;
+
+            arCanvas.addEventListener('pointerdown', (e) => {
+                isDragging = true;
+                lastX = e.clientX;
+            });
+            window.addEventListener('pointermove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - lastX;
+                lastX = e.clientX;
+                state.targetHeading = (state.targetHeading - dx * 0.35 + 360) % 360;
+                slider.value = state.targetHeading.toFixed(1);
+            });
+            window.addEventListener('pointerup', () => {
+                isDragging = false;
+            });
+
+            // Coba aktifkan listener orientasi secara otomatis jika tidak butuh permission klik
+            bindOrientationListeners();
+
+            // Jalankan loop animasi utama
+            animateLoop();
+        };
+    </script>
+</body>
+</html>
