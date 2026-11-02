@@ -40,8 +40,9 @@ export class WeatherOpticsEngine {
   static MAX_TRANSITION_SEC = 45.0;
   static DEFAULT_TRANSITION_SEC = 25.0;
 
-  constructor(scene) {
+  constructor(scene, options = {}) {
     this.scene = scene;
+    this._shadowMapSize = Math.max(1024, Math.min(4096, Number(options.shadowMapSize) || 4096));
     this.timeOfDay = 'DAY'; // 'DAY' | 'DUSK' | 'NIGHT'
     this.weatherMode = 'CLEAR'; // 'CLEAR' | 'MIST' | 'RAIN' | 'STORM'
 
@@ -182,8 +183,8 @@ export class WeatherOpticsEngine {
     this.sunLight = new THREE.DirectionalLight(0xfff5e4, 2.45);
     this.sunLight.position.set(68, 96, 62);
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.width = 4096;
-    this.sunLight.shadow.mapSize.height = 4096;
+    this.sunLight.shadow.mapSize.width = this._shadowMapSize || 4096;
+    this.sunLight.shadow.mapSize.height = this._shadowMapSize || 4096;
     this.sunLight.shadow.camera.near = 10;
     this.sunLight.shadow.camera.far = 260;
     const d = 88;
@@ -195,6 +196,9 @@ export class WeatherOpticsEngine {
     this.sunLight.shadow.normalBias = 0.018;
     this.sunLight.shadow.radius = 2.1;
     this.scene.add(this.sunLight);
+    if (this.sunLight.target) {
+      this.scene.add(this.sunLight.target);
+    }
 
     this.fillLight = new THREE.DirectionalLight(0x9ec5eb, 0.42);
     this.fillLight.position.set(-55, 38, -48);

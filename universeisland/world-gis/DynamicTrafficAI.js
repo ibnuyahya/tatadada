@@ -3784,6 +3784,7 @@ export class DynamicTrafficAI {
     this.boneMatrixTexture.magFilter = THREE.NearestFilter;
     this.boneMatrixTexture.minFilter = THREE.NearestFilter;
     this.boneMatrixTexture.generateMipmaps = false;
+    this.boneMatrixTexture.unpackAlignment = 1;
     this.boneMatrixTexture.needsUpdate = true;
 
     if (!this.sharedUniforms.uBoneMatrixTex) {
@@ -7396,6 +7397,71 @@ export class DynamicTrafficAI {
   }
 
   /**
+   * Emergency CPU Dual-Bone LBS fallback used ONLY if a legacy WebGL context reports 0 vertex float textures.
+   */
+  skinToCPUBuffers() {
+    const rPos = this._restPos;
+    const rNorm = this._restNorm;
+    const lPos = this._livePos;
+    const lNorm = this._liveNorm;
+    const j0Arr = this._vertJ0;
+    const j1Arr = this._vertJ1;
+    const w0Arr = this._vertW0;
+    const sMats = this._skinMatrices;
+    if (!rPos || !lPos || !sMats) return;
+    const vCount = j0Arr.length;
+    for (let i = 0; i < vCount; i++) {
+      const i3 = i * 3;
+      const rx = rPos[i3];
+      const ry = rPos[i3 + 1];
+      const rz = rPos[i3 + 2];
+      const nx = rNorm[i3];
+      const ny = rNorm[i3 + 1];
+      const nz = rNorm[i3 + 2];
+      const m0 = j0Arr[i] * 16;
+      const j1 = j1Arr[i];
+      const w0 = w0Arr[i];
+      if (w0 > 0.999 || j0Arr[i] === j1) {
+        lPos[i3] = sMats[m0] * rx + sMats[m0 + 4] * ry + sMats[m0 + 8] * rz + sMats[m0 + 12];
+        lPos[i3 + 1] = sMats[m0 + 1] * rx + sMats[m0 + 5] * ry + sMats[m0 + 9] * rz + sMats[m0 + 13];
+        lPos[i3 + 2] = sMats[m0 + 2] * rx + sMats[m0 + 6] * ry + sMats[m0 + 10] * rz + sMats[m0 + 14];
+        const snx = sMats[m0] * nx + sMats[m0 + 4] * ny + sMats[m0 + 8] * nz;
+        const sny = sMats[m0 + 1] * nx + sMats[m0 + 5] * ny + sMats[m0 + 9] * nz;
+        const snz = sMats[m0 + 2] * nx + sMats[m0 + 6] * ny + sMats[m0 + 10] * nz;
+        const invL = 1.0 / (Math.hypot(snx, sny, snz) || 1.0);
+        lNorm[i3] = snx * invL;
+        lNorm[i3 + 1] = sny * invL;
+        lNorm[i3 + 2] = snz * invL;
+      } else {
+        const w1 = 1.0 - w0;
+        const m1 = j1 * 16;
+        const p0x = sMats[m0] * rx + sMats[m0 + 4] * ry + sMats[m0 + 8] * rz + sMats[m0 + 12];
+        const p0y = sMats[m0 + 1] * rx + sMats[m0 + 5] * ry + sMats[m0 + 9] * rz + sMats[m0 + 13];
+        const p0z = sMats[m0 + 2] * rx + sMats[m0 + 6] * ry + sMats[m0 + 10] * rz + sMats[m0 + 14];
+        const p1x = sMats[m1] * rx + sMats[m1 + 4] * ry + sMats[m1 + 8] * rz + sMats[m1 + 12];
+        const p1y = sMats[m1 + 1] * rx + sMats[m1 + 5] * ry + sMats[m1 + 9] * rz + sMats[m1 + 13];
+        const p1z = sMats[m1] * rx + sMats[m1 + 6] * ry + sMats[m1 + 10] * rz + sMats[m1 + 14];
+        lPos[i3] = w0 * p0x + w1 * p1x;
+        lPos[i3 + 1] = w0 * p0y + w1 * p1y;
+        lPos[i3 + 2] = w0 * p0z + w1 * p1z;
+        const n0x = sMats[m0] * nx + sMats[m0 + 4] * ny + sMats[m0 + 8] * nz;
+        const n0y = sMats[m0 + 1] * nx + sMats[m0 + 5] * ny + sMats[m0 + 9] * nz;
+        const n0z = sMats[m0 + 2] * nx + sMats[m0 + 6] * ny + sMats[m0 + 10] * nz;
+        const n1x = sMats[m1] * nx + sMats[m1 + 4] * ny + sMats[m1 + 8] * nz;
+        const n1y = sMats[m1 + 1] * nx + sMats[m1 + 5] * ny + sMats[m1 + 9] * nz;
+        const n1z = sMats[m1 + 2] * nx + sMats[m1 + 6] * ny + sMats[m1 + 10] * nz;
+        const bnx = w0 * n0x + w1 * n1x;
+        const bny = w0 * n0y + w1 * n1y;
+        const bnz = w0 * n0z + w1 * n1z;
+        const invL = 1.0 / (Math.hypot(bnx, bny, bnz) || 1.0);
+        lNorm[i3] = bnx * invL;
+        lNorm[i3 + 1] = bny * invL;
+        lNorm[i3 + 2] = bnz * invL;
+      }
+    }
+  }
+
+  /**
    * Advances all Sivitas Akademika NPCs, Cats, Vehicles, Marine & Aviation Fleet and packs all
    * articulated 4x3 bone matrices into the GPU Bone-Matrix DataTexture (< 0.4ms CPU, 0 GC, 1 Draw Call!).
    *
@@ -7463,6 +7529,12 @@ export class DynamicTrafficAI {
     }
 
     const geo = this.mesh.geometry;
+    // Fallback CPU Dual-Bone LBS ONLY if device reports zero vertex float texture support (uGpuSkinningEnabled < 0.5)
+    if (this.sharedUniforms?.uGpuSkinningEnabled && this.sharedUniforms.uGpuSkinningEnabled.value < 0.5) {
+      this.skinToCPUBuffers();
+      if (geo.attributes.position) geo.attributes.position.needsUpdate = true;
+      if (geo.attributes.normal) geo.attributes.normal.needsUpdate = true;
+    }
     if (!geo.boundingSphere) {
       const center = new THREE.Vector3(-140, 10, 350);
       geo.boundingSphere = THREE.Sphere ? new THREE.Sphere(center, 1450) : { center, radius: 1450 };

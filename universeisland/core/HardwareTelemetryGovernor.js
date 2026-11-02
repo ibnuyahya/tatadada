@@ -97,6 +97,7 @@ export class HardwareTelemetryGovernor {
         : 8;
     this.estimatedRefreshHz = 120;
     this.supportsVertexFloatTex = true;
+    this.isMobileDevice = HardwareTelemetryGovernor.detectMobilePlatform();
 
     this._warmupSamplesMs = [];
     this.warmupAvgFrameMs = 4.8;
@@ -119,9 +120,26 @@ export class HardwareTelemetryGovernor {
   }
 
   /**
+   * Detects Android / iOS / Mobile browser platform safely in both DOM and headless Node environments.
+   */
+  static detectMobilePlatform() {
+    if (typeof navigator === 'undefined') return false;
+    const ua = String(navigator.userAgent || '');
+    if (/Android|iPhone|iPad|iPod|Mobile|CriOS|FxiOS/i.test(ua)) return true;
+    if (
+      typeof window !== 'undefined' &&
+      Number(navigator.maxTouchPoints) > 1 &&
+      Math.min(window.innerWidth || 1440, window.innerHeight || 900) < 920
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Classifies raw WebGL UNMASKED_RENDERER_WEBGL string into hardware tier & short model name.
    */
-  static classifyGpuRendererString(rawRenderer = '', rawVendor = '', cpuCores = 8) {
+  static classifyGpuRendererString(rawRenderer = '', rawVendor = '', cpuCores = 8, isMobile = false) {
     const r = String(rawRenderer || '').trim();
     const v = String(rawVendor || '').trim();
 
@@ -136,9 +154,14 @@ export class HardwareTelemetryGovernor {
       .replace(/vs_\d+_\d+.*$/i, '')
       .replace(/\s+/g, ' ')
       .trim();
-    if (!cleanName) cleanName = 'WebGL2 GPU';
+    if (!cleanName) cleanName = isMobile ? 'Mobile WebGL2 GPU' : 'WebGL2 GPU';
 
     const isSoftware = /SwiftShader|llvmpipe|Software|Microsoft Basic Render/i.test(r);
+    const isFlagshipMobile =
+      /Adreno\s*\(TM\)\s*(7[345]\d|8\d\d)|Adreno\s*(7[345]\d|8\d\d)|Immortalis|Mali-G7(15|20|25)|Xclipse\s*9[24]0/i.test(
+        r
+      );
+    const isMobileGpu = /Adreno|Mali|PowerVR|Xclipse|Maleoon/i.test(r) || isMobile;
     const isGamingNvidia =
       /RTX\s*(20[6789]0|30[6789]0|40[6789]0|50[6789]0|A[23456]000)|GTX\s*(10[78]0|1660)/i.test(r);
     const isLaptopOrEntryNvidia = /RTX\s*(2050|3050|4050)|GTX\s*(1050|1060|1650)|MX\s*\d+/i.test(r);
@@ -151,12 +174,28 @@ export class HardwareTelemetryGovernor {
     const isMainstreamIgpu = /Iris\s*Xe|UHD\s*Graphics\s*(7[357]0)|Radeon\s*(660M|740M|760M|Vega)/i.test(
       r
     );
-    const isEntryOrMobile = /UHD\s*Graphics\s*(6\d0)|HD\s*Graphics|Adreno|Mali|PowerVR/i.test(r);
+    const isEntryDesktop = /UHD\s*Graphics\s*(6\d0)|HD\s*Graphics/i.test(r);
 
-    if (isSoftware || isEntryOrMobile) {
+    if (isSoftware) {
       return {
         tierId: 'TIER_C',
-        gpuClass: isSoftware ? 'SOFTWARE' : 'ENTRY_IGPU',
+        gpuClass: 'SOFTWARE',
+        cleanName,
+        vendor: v || 'Software'
+      };
+    }
+    if (isMobileGpu) {
+      return {
+        tierId: isFlagshipMobile ? 'TIER_B' : 'TIER_C',
+        gpuClass: isFlagshipMobile ? 'FLAGSHIP_MOBILE_GPU' : 'MOBILE_GPU',
+        cleanName,
+        vendor: v || 'Mobile SoC GPU'
+      };
+    }
+    if (isEntryDesktop) {
+      return {
+        tierId: 'TIER_C',
+        gpuClass: 'ENTRY_IGPU',
         cleanName,
         vendor: v || 'Integrated'
       };
@@ -216,7 +255,7 @@ export class HardwareTelemetryGovernor {
           rawVendor = gl.getParameter(gl.VENDOR) || '';
         }
         const maxVertTex = gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) || 0;
-        this.supportsVertexFloatTex = maxVertTex >= 4;
+        this.supportsVertexFloatTex = maxVertTex >= 1;
       }
     } catch (_e) {
       // Safe fallback in headless Node mock
@@ -225,8 +264,12 @@ export class HardwareTelemetryGovernor {
     const info = HardwareTelemetryGovernor.classifyGpuRendererString(
       rawRenderer,
       rawVendor,
-      this.cpuCores
+      this.cpuCores,
+      this.isMobileDevice
     );
+    if (/Adreno|Mali|PowerVR|Xclipse|Maleoon/i.test(rawRenderer)) {
+      this.isMobileDevice = true;
+    }
     this.gpuModel = info.cleanName;
     this.gpuVendor = info.vendor;
     this.gpuClass = info.gpuClass;
@@ -317,6 +360,9 @@ export class HardwareTelemetryGovernor {
       }
       if (this.sharedUniforms.uShaderQuality) {
         this.sharedUniforms.uShaderQuality.value = 1.0; // Never downgrade surface shader quality!
+      }
+      if (this.sharedUniforms.uGpuSkinningEnabled) {
+        this.sharedUniforms.uGpuSkinningEnabled.value = this.supportsVertexFloatTex ? 1.0 : 0.0;
       }
     }
   }
@@ -414,29 +460,32 @@ export class HardwareTelemetryGovernor {
       }
     }
 
-    // 2. Closed-Loop Hysteresis Governor (every 0.75s) for High-DPI Pixel Ratio fine-tuning
-    this._governorTimer += safeDt;
-    if (this._governorTimer >= 0.75) {
-      this._governorTimer = 0.0;
-      const nativeDpr =
-        typeof window !== 'undefined' && Number.isFinite(window.devicePixelRatio)
-          ? window.devicePixelRatio
-          : 1.0;
-      const maxAllowed = Math.min(cfg.maxPixelRatio, Math.max(1.0, nativeDpr));
-      const minAllowed = cfg.minPixelRatio;
+    // 2. Closed-Loop Hysteresis Governor (every 0.75s) for High-DPI Pixel Ratio fine-tuning on Desktop
+    //    (Locked on Mobile so Android/iOS WebGL drawingBuffer is never reallocated mid-flight alongside YouTube iframe!)
+    if (!this.isMobileDevice) {
+      this._governorTimer += safeDt;
+      if (this._governorTimer >= 0.75) {
+        this._governorTimer = 0.0;
+        const nativeDpr =
+          typeof window !== 'undefined' && Number.isFinite(window.devicePixelRatio)
+            ? window.devicePixelRatio
+            : 1.0;
+        const maxAllowed = Math.min(cfg.maxPixelRatio, Math.max(1.0, nativeDpr));
+        const minAllowed = cfg.minPixelRatio;
 
-      if (this.emaFrameMs > cfg.targetFrameMs * 1.18 && this.livePixelRatio > minAllowed + 0.04) {
-        this.livePixelRatio = +Math.max(minAllowed, this.livePixelRatio - 0.1).toFixed(2);
-        if (this.renderer && typeof this.renderer.setPixelRatio === 'function') {
-          this.renderer.setPixelRatio(this.livePixelRatio);
-        }
-      } else if (
-        this.emaFrameMs < cfg.targetFrameMs * 0.72 &&
-        this.livePixelRatio < maxAllowed - 0.04
-      ) {
-        this.livePixelRatio = +Math.min(maxAllowed, this.livePixelRatio + 0.05).toFixed(2);
-        if (this.renderer && typeof this.renderer.setPixelRatio === 'function') {
-          this.renderer.setPixelRatio(this.livePixelRatio);
+        if (this.emaFrameMs > cfg.targetFrameMs * 1.18 && this.livePixelRatio > minAllowed + 0.04) {
+          this.livePixelRatio = +Math.max(minAllowed, this.livePixelRatio - 0.1).toFixed(2);
+          if (this.renderer && typeof this.renderer.setPixelRatio === 'function') {
+            this.renderer.setPixelRatio(this.livePixelRatio);
+          }
+        } else if (
+          this.emaFrameMs < cfg.targetFrameMs * 0.72 &&
+          this.livePixelRatio < maxAllowed - 0.04
+        ) {
+          this.livePixelRatio = +Math.min(maxAllowed, this.livePixelRatio + 0.05).toFixed(2);
+          if (this.renderer && typeof this.renderer.setPixelRatio === 'function') {
+            this.renderer.setPixelRatio(this.livePixelRatio);
+          }
         }
       }
     }

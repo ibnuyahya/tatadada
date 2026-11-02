@@ -207,20 +207,39 @@ async function bootstrapNexusSimulator() {
   // Stage 2: WebGL2 Human-Eye Physiological HDR Renderer, Instant RTC Spatial Anchor, & PMREM Sky IBL
   await preloader.advance(2, 30, 'Menginisialisasi WebGL2 Human-Eye Photoreceptor HDR & Kubah Langit...', 28856);
   const container = document.getElementById('sim-canvas-wrap');
+  const isMobilePlatform = HardwareTelemetryGovernor.detectMobilePlatform();
+  const nativeDpr = window.devicePixelRatio || 1;
   const renderer = new THREE.WebGLRenderer({
-    antialias: true,
+    antialias: !isMobilePlatform || nativeDpr < 1.35,
     alpha: true,
     premultipliedAlpha: true,
     powerPreference: 'high-performance'
   });
   renderer.setClearColor(0x070b12, 1.0);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(nativeDpr, isMobilePlatform ? 1.05 : 2.0));
   renderer.setSize(window.innerWidth, window.innerHeight);
   // Unified in-shader HumanEyeHDROptics (Naka-Rushton + Hunt + Stevens + Purkinje) handles 100% of tone-mapping
   renderer.toneMapping = THREE.NoToneMapping;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  let webglContextLost = false;
+  renderer.domElement.addEventListener(
+    'webglcontextlost',
+    (e) => {
+      e.preventDefault();
+      webglContextLost = true;
+    },
+    false
+  );
+  renderer.domElement.addEventListener(
+    'webglcontextrestored',
+    () => {
+      webglContextLost = false;
+      renderer.shadowMap.needsUpdate = true;
+    },
+    false
+  );
   container.appendChild(renderer.domElement);
 
   let syncVideotronUIHook = null;
@@ -271,7 +290,9 @@ async function bootstrapNexusSimulator() {
 
   const sharedUniforms = createSharedSurfaceUniforms();
   const hwGovernor = new HardwareTelemetryGovernor(renderer, sharedUniforms);
-  const weather = new WeatherOpticsEngine(scene);
+  const weather = new WeatherOpticsEngine(scene, {
+    shadowMapSize: hwGovernor.getActiveTierConfig().shadowMapSize
+  });
   weather.attachRenderer(renderer);
   const waterMaterial = weather.createDanauKenangaWaterMaterial();
   const audioSynth = new AudioSynthesizer();
@@ -418,8 +439,9 @@ async function bootstrapNexusSimulator() {
   camDirector.setMode('DRONE_6DOF', { startIslandTour: true });
   camDirector.syncPreviousCameraPosition();
 
-  // Non-blocking Parallel GPU Shader Pre-Compilation (KHR_parallel_shader_compile) + 1 Warm-Up Render Frame
-  if (typeof renderer.compileAsync === 'function') {
+  // Non-blocking Parallel GPU Shader Pre-Compilation (KHR_parallel_shader_compile on Desktop; deterministic synchronous compile on Mobile)
+  await yieldToBrowserFrame();
+  if (!hwGovernor.isMobileDevice && typeof renderer.compileAsync === 'function') {
     await Promise.race([
       renderer.compileAsync(scene, camera).catch(() => {}),
       new Promise((resolve) => setTimeout(resolve, 2500))
@@ -1082,86 +1104,95 @@ async function bootstrapNexusSimulator() {
 
   function renderLoop(now) {
     requestAnimationFrame(renderLoop);
-    const dt = Math.min(0.05, (now - prevTime) * 0.001);
+    if (webglContextLost) return;
+    const dt = Math.min(0.05, Math.max(0.001, (now - prevTime) * 0.001));
     prevTime = now;
     elapsed += dt;
 
-    // Gentle 1.05s arrival camera ease-out right after preloader curtain lift
-    if (arrivalActive) {
-      arrivalEaseClock += dt;
-      const tArr = Math.min(1.0, arrivalEaseClock / 1.05);
-      const easeOut = 1.0 - Math.pow(1.0 - tArr, 3.0);
-      camera.position.y = arrivalStartY + (arrivalEndY - arrivalStartY) * easeOut;
-      if (tArr >= 1.0) arrivalActive = false;
-    }
-
-    // Real-time 1 Hz Kampus UI Depok WIB astronomical clock tracking (preserves smooth HVS pupil kinetics!)
-    clockTickAccum += dt;
-    if (clockTickAccum >= 1.0) {
-      clockTickAccum = 0.0;
-      latestDepokClock = DepokLiveWeatherService.getDepokWIBClock();
-      updateDepokTelemetryDOM();
-      if (isLiveDepok && !weather.getTransitionState().time.active) {
-        weather.setSolarHour(latestDepokClock.solarHour, sharedUniforms, {
-          immediate: true,
-          preserveAdaptation: true
-        });
+    try {
+      // Gentle 1.05s arrival camera ease-out right after preloader curtain lift
+      if (arrivalActive) {
+        arrivalEaseClock += dt;
+        const tArr = Math.min(1.0, arrivalEaseClock / 1.05);
+        const easeOut = 1.0 - Math.pow(1.0 - tArr, 3.0);
+        camera.position.y = arrivalStartY + (arrivalEndY - arrivalStartY) * easeOut;
+        if (tArr >= 1.0) arrivalActive = false;
       }
-    }
 
-    sharedUniforms.uTime.value = elapsed;
-    weather.update(dt, camera, sharedUniforms);
-    const liveSunElevDeg =
-      (Math.asin(Math.max(-1.0, Math.min(1.0, Number(weather.uniforms.uTrueSunDir.value.y) || 0.0))) * 180.0) /
-      Math.PI;
-    rotundaFountain.update(elapsed, liveSunElevDeg, sharedUniforms, weather.uniforms.uSunDir.value);
+      // Real-time 1 Hz Kampus UI Depok WIB astronomical clock tracking (preserves smooth HVS pupil kinetics!)
+      clockTickAccum += dt;
+      if (clockTickAccum >= 1.0) {
+        clockTickAccum = 0.0;
+        latestDepokClock = DepokLiveWeatherService.getDepokWIBClock();
+        updateDepokTelemetryDOM();
+        if (isLiveDepok && !weather.getTransitionState().time.active) {
+          weather.setSolarHour(latestDepokClock.solarHour, sharedUniforms, {
+            immediate: true,
+            preserveAdaptation: true
+          });
+        }
+      }
 
-    // Continuous C^1 Architectural Window, Garden Lamp, & Helipad Night Illumination + Live Audio Coupling
-    GedungRektoratUIAsset.setNightIllumination(rektoratAsset, weather.nightIlluminationLevel);
-    audioSynth.syncContinuousWeatherAudio(
-      weather.uniforms.uRainIntensity.value,
-      weather.uniforms.uStormFactor.value,
-      weather.uniforms.uWindVec.value.length()
-    );
+      sharedUniforms.uTime.value = elapsed;
+      weather.update(dt, camera, sharedUniforms);
+      const liveSunElevDeg =
+        (Math.asin(Math.max(-1.0, Math.min(1.0, Number(weather.uniforms.uTrueSunDir.value.y) || 0.0))) * 180.0) /
+        Math.PI;
+      rotundaFountain.update(elapsed, liveSunElevDeg, sharedUniforms, weather.uniforms.uSunDir.value);
 
-    sivitasAI.update(dt, elapsed, camera.position);
-    camDirector.update(dt, sampleWalkableElevation);
-    GedungRektoratUIAsset.updateKinematics(rektoratAsset, dt, {
-      isNight: weather.nightIlluminationLevel > 0.35,
-      nightLevel: weather.nightIlluminationLevel,
-      windMultiplier: weather.getWindGustMultiplier()
-    });
+      // Continuous C^1 Architectural Window, Garden Lamp, & Helipad Night Illumination + Live Audio Coupling
+      GedungRektoratUIAsset.setNightIllumination(rektoratAsset, weather.nightIlluminationLevel);
+      audioSynth.syncContinuousWeatherAudio(
+        weather.uniforms.uRainIntensity.value,
+        weather.uniforms.uStormFactor.value,
+        weather.uniforms.uWindVec.value.length()
+      );
 
-    hwGovernor.update(dt, camera, controls.enabled ? controls.target : null, weather);
-    videotron.update(camera, window.innerWidth, window.innerHeight, sharedUniforms);
-    renderer.render(scene, camera);
+      sivitasAI.update(dt, elapsed, camera.position);
+      camDirector.update(dt, sampleWalkableElevation);
+      GedungRektoratUIAsset.updateKinematics(rektoratAsset, dt, {
+        isNight: weather.nightIlluminationLevel > 0.35,
+        nightLevel: weather.nightIlluminationLevel,
+        windMultiplier: weather.getWindGustMultiplier()
+      });
 
-    // Smooth ~12 Hz UI button progress bar & countdown refresh
-    uiTransAccum += dt;
-    if (uiTransAccum >= 0.085) {
-      uiTransAccum = 0.0;
-      syncTransitionButtonsUI();
-      syncFPSStatusDOM();
-    }
+      hwGovernor.update(dt, camera, controls.enabled ? controls.target : null, weather);
+      videotron.update(camera, window.innerWidth, window.innerHeight, sharedUniforms);
+      renderer.render(scene, camera);
 
-    frameCount++;
-    statTimer += dt;
-    if (statTimer >= 0.5) {
-      const fps = Math.round(frameCount / statTimer);
-      const calls = renderer.info.render.calls;
-      elFps.textContent = `${fps} FPS`;
-      elCalls.textContent = `${calls} / 25`;
-      elTris.textContent = renderer.info.render.triangles.toLocaleString('id-ID');
-      syncHardwareTelemetryDOM();
+      // Smooth ~12 Hz UI button progress bar & countdown refresh
+      uiTransAccum += dt;
+      if (uiTransAccum >= 0.085) {
+        uiTransAccum = 0.0;
+        syncTransitionButtonsUI();
+        syncFPSStatusDOM();
+      }
 
-      const assetReport = rektoratAsset.userData.gateReport;
-      document.getElementById('sg1').textContent = assetReport?.gate1_EnvelopeAndNaN ? 'PASS' : 'WARN';
-      document.getElementById('sg2').textContent = assetReport?.gate2_ManifoldNormals ? 'PASS' : 'WARN';
-      document.getElementById('sg3').textContent = assetReport?.gate3_ZeroGapAndKinematics ? 'PASS' : 'WARN';
-      document.getElementById('sg4').textContent = calls <= 25 ? 'PASS' : 'WARN';
+      frameCount++;
+      statTimer += dt;
+      if (statTimer >= 0.5) {
+        const fps = Math.round(frameCount / statTimer);
+        const calls = renderer.info.render.calls;
+        if (elFps) elFps.textContent = `${fps} FPS`;
+        if (elCalls) elCalls.textContent = `${calls} / 25`;
+        if (elTris) elTris.textContent = renderer.info.render.triangles.toLocaleString('id-ID');
+        syncHardwareTelemetryDOM();
 
-      frameCount = 0;
-      statTimer = 0.0;
+        const assetReport = rektoratAsset.userData.gateReport;
+        const sg1 = document.getElementById('sg1');
+        const sg2 = document.getElementById('sg2');
+        const sg3 = document.getElementById('sg3');
+        const sg4 = document.getElementById('sg4');
+        if (sg1) sg1.textContent = assetReport?.gate1_EnvelopeAndNaN ? 'PASS' : 'WARN';
+        if (sg2) sg2.textContent = assetReport?.gate2_ManifoldNormals ? 'PASS' : 'WARN';
+        if (sg3) sg3.textContent = assetReport?.gate3_ZeroGapAndKinematics ? 'PASS' : 'WARN';
+        if (sg4) sg4.textContent = calls <= 25 ? 'PASS' : 'WARN';
+
+        frameCount = 0;
+        statTimer = 0.0;
+      }
+    } catch (frameErr) {
+      console.error('[NEXUS RenderLoop Error]', frameErr);
     }
   }
 
@@ -1231,4 +1262,9 @@ async function bootstrapNexusSimulator() {
   }, 45);
 }
 
-bootstrapNexusSimulator();
+bootstrapNexusSimulator().catch((err) => {
+  console.error('[NEXUS Bootstrap Error]', err);
+  if (typeof window !== 'undefined' && typeof window.__showNexusBootError === 'function') {
+    window.__showNexusBootError(err);
+  }
+});

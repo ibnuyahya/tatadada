@@ -59,6 +59,7 @@ export function getDefaultBoneMatrixTexture() {
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestFilter;
   tex.generateMipmaps = false;
+  tex.unpackAlignment = 1;
   tex.needsUpdate = true;
   _defaultBoneMatrixTex = tex;
   return tex;
@@ -80,7 +81,7 @@ export function createPhotorealHumanDepthMaterial(sharedUniforms = null) {
       : { name: 'SivitasAkademikaUIDepthMat' }
   );
   depthMat.userData.omniShaderInjected = true;
-  depthMat.customProgramCacheKey = () => 'nexus-photoreal-human-depth-gpu-skin-v60';
+  depthMat.customProgramCacheKey = () => 'nexus-photoreal-human-depth-gpu-skin-v61';
 
   depthMat.onBeforeCompile = (shader) => {
     if (!uniforms.uBoneMatrixTex || !uniforms.uBoneMatrixTex.value) {
@@ -92,16 +93,24 @@ export function createPhotorealHumanDepthMaterial(sharedUniforms = null) {
 
     shader.vertexShader = [
       'attribute vec3 aBoneBinding;',
-      'uniform sampler2D uBoneMatrixTex;',
+      'uniform highp sampler2D uBoneMatrixTex;',
       'uniform float uGpuSkinningEnabled;',
       'void humanFetchBoneRowsDepth(float jointIdx, out vec4 r0, out vec4 r1, out vec4 r2) {',
       '  float jSlot = floor(jointIdx + 0.5);',
       '  float rowIdx = floor(jSlot / 64.0);',
       '  float colBase = (jSlot - rowIdx * 64.0) * 4.0;',
+      '#if __VERSION__ >= 300',
+      '  int ix = int(colBase + 0.25);',
+      '  int iy = int(rowIdx + 0.25);',
+      '  r0 = texelFetch(uBoneMatrixTex, ivec2(ix, iy), 0);',
+      '  r1 = texelFetch(uBoneMatrixTex, ivec2(ix + 1, iy), 0);',
+      '  r2 = texelFetch(uBoneMatrixTex, ivec2(ix + 2, iy), 0);',
+      '#else',
       '  float vCoord = (rowIdx + 0.5) / 64.0;',
       '  r0 = texture2D(uBoneMatrixTex, vec2((colBase + 0.5) / 256.0, vCoord));',
       '  r1 = texture2D(uBoneMatrixTex, vec2((colBase + 1.5) / 256.0, vCoord));',
       '  r2 = texture2D(uBoneMatrixTex, vec2((colBase + 2.5) / 256.0, vCoord));',
+      '#endif',
       '}',
       shader.vertexShader
     ]
@@ -155,7 +164,7 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
 
   const hvsFallback = HumanEyeHDROptics.createUniforms();
   mat.userData.omniShaderInjected = true;
-  mat.customProgramCacheKey = () => 'nexus-photoreal-human-feline-transit-hvs-v60';
+  mat.customProgramCacheKey = () => 'nexus-photoreal-human-feline-transit-hvs-v61';
 
   mat.onBeforeCompile = (shader) => {
     if (!uniforms.uBoneMatrixTex || !uniforms.uBoneMatrixTex.value) {
@@ -189,7 +198,7 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
     shader.vertexShader = [
       'attribute vec3 aHumanMeta;',
       'attribute vec3 aBoneBinding;',
-      'uniform sampler2D uBoneMatrixTex;',
+      'uniform highp sampler2D uBoneMatrixTex;',
       'uniform float uGpuSkinningEnabled;',
       'varying vec3 vHumanMeta;',
       'varying vec2 vHumanUV;',
@@ -199,10 +208,18 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
       '  float jSlot = floor(jointIdx + 0.5);',
       '  float rowIdx = floor(jSlot / 64.0);',
       '  float colBase = (jSlot - rowIdx * 64.0) * 4.0;',
+      '#if __VERSION__ >= 300',
+      '  int ix = int(colBase + 0.25);',
+      '  int iy = int(rowIdx + 0.25);',
+      '  r0 = texelFetch(uBoneMatrixTex, ivec2(ix, iy), 0);',
+      '  r1 = texelFetch(uBoneMatrixTex, ivec2(ix + 1, iy), 0);',
+      '  r2 = texelFetch(uBoneMatrixTex, ivec2(ix + 2, iy), 0);',
+      '#else',
       '  float vCoord = (rowIdx + 0.5) / 64.0;',
       '  r0 = texture2D(uBoneMatrixTex, vec2((colBase + 0.5) / 256.0, vCoord));',
       '  r1 = texture2D(uBoneMatrixTex, vec2((colBase + 1.5) / 256.0, vCoord));',
       '  r2 = texture2D(uBoneMatrixTex, vec2((colBase + 2.5) / 256.0, vCoord));',
+      '#endif',
       '}',
       shader.vertexShader
     ]
