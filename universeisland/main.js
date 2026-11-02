@@ -36,7 +36,7 @@ if (typeof window !== 'undefined') {
   }
 }
 
-const TOTAL_EXPECTED_TRIS = 6138024;
+const TOTAL_EXPECTED_TRIS = 4469864;
 
 function yieldToBrowserFrame() {
   return new Promise((resolve) => {
@@ -181,6 +181,7 @@ async function bootstrapNexusSimulator() {
     { createSharedSurfaceUniforms },
     { VideotronYouTubeEngine },
     { RotundaDancingFountain },
+    { HardwareTelemetryGovernor },
     { FloatingOriginManager },
     { TerrainDEMLoader },
     { SplineCorridorBuilder },
@@ -194,6 +195,7 @@ async function bootstrapNexusSimulator() {
     import('./core/ProceduralTextureFactory.js'),
     import('./core/VideotronYouTubeEngine.js'),
     import('./core/RotundaDancingFountain.js'),
+    import('./core/HardwareTelemetryGovernor.js'),
     import('./world-gis/FloatingOriginManager.js'),
     import('./world-gis/TerrainDEMLoader.js'),
     import('./world-gis/SplineCorridorBuilder.js'),
@@ -268,6 +270,7 @@ async function bootstrapNexusSimulator() {
   controls.update();
 
   const sharedUniforms = createSharedSurfaceUniforms();
+  const hwGovernor = new HardwareTelemetryGovernor(renderer, sharedUniforms);
   const weather = new WeatherOpticsEngine(scene);
   weather.attachRenderer(renderer);
   const waterMaterial = weather.createDanauKenangaWaterMaterial();
@@ -407,13 +410,12 @@ async function bootstrapNexusSimulator() {
   });
   camDirector.bindKeyboard(window);
 
-  // Subtle 1.05s arrival ease-out on curtain lift (cancelled immediately on user interaction)
+  // Default Startup View: Mavic 3 Pro Drone View Circling Pulau U & Kepulauan UI
   let arrivalEaseClock = 0.0;
   const arrivalStartY = presets.oblique45.pos.y + 7.5;
   const arrivalEndY = presets.oblique45.pos.y;
-  let arrivalActive = true;
-  camera.position.y = arrivalStartY;
-  controls.update();
+  let arrivalActive = false;
+  camDirector.setMode('DRONE_6DOF', { startIslandTour: true });
   camDirector.syncPreviousCameraPosition();
 
   // Non-blocking Parallel GPU Shader Pre-Compilation (KHR_parallel_shader_compile) + 1 Warm-Up Render Frame
@@ -426,7 +428,9 @@ async function bootstrapNexusSimulator() {
     renderer.compile(scene, camera);
   }
   videotron.update(camera, window.innerWidth, window.innerHeight, sharedUniforms);
+  const tWarm0 = performance.now();
   renderer.render(scene, camera);
+  hwGovernor.recordWarmupSample(performance.now() - tWarm0);
   await preloader.advance(8, 100, 'Selamat Datang di Kepulauan Universitas Indonesia (Pulau U & I), Depok.', TOTAL_EXPECTED_TRIS);
   preloader.dismiss();
 
@@ -619,6 +623,8 @@ async function bootstrapNexusSimulator() {
       if (camDirector.mode === btn.dataset.cammode && camDirector.isFPSMode(btn.dataset.cammode)) {
         // Clicking an already-active FPS button cycles smoothly to the next subject!
         camDirector.cycleFPSSubject(1);
+      } else if (btn.dataset.cammode === 'DRONE_6DOF') {
+        camDirector.setMode('DRONE_6DOF', { startIslandTour: true });
       } else {
         camDirector.setMode(btn.dataset.cammode);
       }
@@ -1032,6 +1038,34 @@ async function bootstrapNexusSimulator() {
     audioBtn.classList.toggle('active', active);
   });
 
+  // Hardware Profiler & Adaptive 120-FPS Governor Controls
+  const elHwTier = document.getElementById('sim-hw-tier');
+  const elHwDetail = document.getElementById('sim-hw-detail');
+  const elHwGpuName = document.getElementById('sim-hw-gpu-name');
+
+  function syncHardwareTelemetryDOM() {
+    const hw = hwGovernor.getTelemetryState();
+    if (elHwTier) {
+      elHwTier.textContent = `${hw.tier} · ${hw.tierShort}`;
+    }
+    if (elHwDetail) {
+      elHwDetail.textContent = `GPU BoneTex · ${hw.pixelRatio.toFixed(2)}× · ${hw.closeDerivativeDist.toFixed(0)}m`;
+    }
+    if (elHwGpuName) {
+      elHwGpuName.textContent = `GPU: ${hw.gpuRenderer} (${hw.cpuCores} Core, ${hw.deviceMemoryGB} GB, Target ${hw.targetFps} FPS)`;
+    }
+  }
+  syncHardwareTelemetryDOM();
+
+  document.querySelectorAll('[data-hwmode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-hwmode]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      hwGovernor.setMode(btn.dataset.hwmode);
+      syncHardwareTelemetryDOM();
+    });
+  });
+
   // Main 120 FPS Ultra Render & Telemetry Loop
   const elFps = document.getElementById('sim-fps');
   const elCalls = document.getElementById('sim-calls');
@@ -1096,6 +1130,7 @@ async function bootstrapNexusSimulator() {
       windMultiplier: weather.getWindGustMultiplier()
     });
 
+    hwGovernor.update(dt, camera, controls.target, weather);
     videotron.update(camera, window.innerWidth, window.innerHeight, sharedUniforms);
     renderer.render(scene, camera);
 
@@ -1115,6 +1150,7 @@ async function bootstrapNexusSimulator() {
       elFps.textContent = `${fps} FPS`;
       elCalls.textContent = `${calls} / 25`;
       elTris.textContent = renderer.info.render.triangles.toLocaleString('id-ID');
+      syncHardwareTelemetryDOM();
 
       const assetReport = rektoratAsset.userData.gateReport;
       document.getElementById('sg1').textContent = assetReport?.gate1_EnvelopeAndNaN ? 'PASS' : 'WARN';
@@ -1135,6 +1171,7 @@ async function bootstrapNexusSimulator() {
       weather,
       videotron,
       rotundaFountain,
+      hwGovernor,
       camDirector,
       sivitasAI,
       solidWorld,
@@ -1143,6 +1180,7 @@ async function bootstrapNexusSimulator() {
       presets,
       syncTransitionButtonsUI,
       syncFPSStatusDOM,
+      syncHardwareTelemetryDOM,
       updateDepokTelemetryDOM,
       setLiveDepok(flag) {
         isLiveDepok = !!flag;

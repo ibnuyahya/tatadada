@@ -3,7 +3,10 @@ import { createSharedSurfaceUniforms } from '../core/ProceduralTextureFactory.js
 import { PhysicsKernel } from '../core/PhysicsKernel.js';
 import { TerrainDEMLoader } from './TerrainDEMLoader.js';
 import { SplineCorridorBuilder } from './SplineCorridorBuilder.js';
-import { createPhotorealHumanMaterial } from './HumanShaderMaterial.js';
+import {
+  createPhotorealHumanMaterial,
+  createPhotorealHumanDepthMaterial
+} from './HumanShaderMaterial.js';
 import {
   HumanAnatomyBuilder,
   HUMAN_PALETTE,
@@ -361,13 +364,67 @@ export class DynamicTrafficAI {
    */
   setSolidWorld(solidWorld) {
     this._solidWorld = solidWorld || null;
+    this._staticColliderGrid = null;
+    if (this._solidWorld) {
+      this._buildStaticColliderGrid();
+    }
   }
 
   _ensureSolidWorld() {
     if (!this._solidWorld) {
       this._solidWorld = SplineCorridorBuilder.buildWorldSolidColliders(null);
+      this._staticColliderGrid = null;
+    }
+    if (!this._staticColliderGrid && this._solidWorld) {
+      this._buildStaticColliderGrid();
     }
     return this._solidWorld;
+  }
+
+  /**
+   * Builds a 2D spatial hash grid (cellSize = 20.0m, AABB padding = 1.50m) over all static world
+   * colliders so agent depenetration only tests the 2-6 colliders in the local cell bucket (0 GC).
+   */
+  _buildStaticColliderGrid() {
+    const grid = new Map();
+    const staticCols = this._solidWorld ? this._solidWorld.staticColliders : null;
+    if (!staticCols) {
+      this._staticColliderGrid = grid;
+      return;
+    }
+    const cellSize = 20.0;
+    const pad = 1.50;
+    for (let k = 0; k < staticCols.length; k++) {
+      const sc = staticCols[k];
+      if (!sc || sc.type === 'ISLAND_PERIMETER') continue;
+      if (sc.bMinX === undefined) {
+        PhysicsKernel.prepareSolidCollider(sc);
+      }
+      const minGX = Math.floor((sc.bMinX - pad) / cellSize);
+      const maxGX = Math.floor((sc.bMaxX + pad) / cellSize);
+      const minGZ = Math.floor((sc.bMinZ - pad) / cellSize);
+      const maxGZ = Math.floor((sc.bMaxZ + pad) / cellSize);
+      for (let gx = minGX; gx <= maxGX; gx++) {
+        for (let gz = minGZ; gz <= maxGZ; gz++) {
+          const key = ((gx & 0xffff) << 16) | (gz & 0xffff);
+          let bucket = grid.get(key);
+          if (!bucket) {
+            bucket = [];
+            grid.set(key, bucket);
+          }
+          bucket.push(sc);
+        }
+      }
+    }
+    this._staticColliderGrid = grid;
+  }
+
+  _queryStaticColliderCell(x, z) {
+    if (!this._staticColliderGrid) return null;
+    const gx = Math.floor(x / 20.0);
+    const gz = Math.floor(z / 20.0);
+    const key = ((gx & 0xffff) << 16) | (gz & 0xffff);
+    return this._staticColliderGrid.get(key) || null;
   }
 
   /**
@@ -3682,17 +3739,78 @@ export class DynamicTrafficAI {
     this._skinMatrices = new Float32Array(totalJoints * 16);
     this._skinNormalMatrices = new Float32Array(totalJoints * 9);
 
+    // Ensure rest normals are strictly unit-length and populate static bind attributes once
+    const boneBinding = new Float32Array(totalVerts * 3);
+    for (let i = 0; i < totalVerts; i++) {
+      const i3 = i * 3;
+      const nx = this._restNorm[i3];
+      const ny = this._restNorm[i3 + 1];
+      const nz = this._restNorm[i3 + 2];
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+      if (len > 1e-6) {
+        const inv = 1.0 / len;
+        this._restNorm[i3] = nx * inv;
+        this._restNorm[i3 + 1] = ny * inv;
+        this._restNorm[i3 + 2] = nz * inv;
+      } else {
+        this._restNorm[i3] = 0.0;
+        this._restNorm[i3 + 1] = 1.0;
+        this._restNorm[i3 + 2] = 0.0;
+      }
+      boneBinding[i3] = this._vertJ0[i];
+      boneBinding[i3 + 1] = this._vertJ1[i];
+      boneBinding[i3 + 2] = this._vertW0[i];
+    }
+    this._livePos.set(this._restPos);
+    this._liveNorm.set(this._restNorm);
+
+    // Allocate 256x64 RGBA32F GPU Bone-Matrix Texture (4 texels = 16 floats per joint, up to 4096 joints)
+    const texW = 256;
+    const texH = 64;
+    this._boneTexData = new Float32Array(texW * texH * 4);
+    for (let j = 0; j < totalJoints; j++) {
+      const tOff = j * 16;
+      this._boneTexData[tOff] = 1.0;
+      this._boneTexData[tOff + 5] = 1.0;
+      this._boneTexData[tOff + 10] = 1.0;
+    }
+    this.boneMatrixTexture = new THREE.DataTexture(
+      this._boneTexData,
+      texW,
+      texH,
+      THREE.RGBAFormat,
+      THREE.FloatType
+    );
+    this.boneMatrixTexture.magFilter = THREE.NearestFilter;
+    this.boneMatrixTexture.minFilter = THREE.NearestFilter;
+    this.boneMatrixTexture.generateMipmaps = false;
+    this.boneMatrixTexture.needsUpdate = true;
+
+    if (!this.sharedUniforms.uBoneMatrixTex) {
+      this.sharedUniforms.uBoneMatrixTex = { value: this.boneMatrixTexture };
+    } else {
+      this.sharedUniforms.uBoneMatrixTex.value = this.boneMatrixTexture;
+    }
+    if (!this.sharedUniforms.uGpuSkinningEnabled) {
+      this.sharedUniforms.uGpuSkinningEnabled = { value: 1.0 };
+    } else {
+      this.sharedUniforms.uGpuSkinningEnabled.value = 1.0;
+    }
+
     const unifiedGeo = new THREE.BufferGeometry();
     unifiedGeo.setAttribute('position', new THREE.BufferAttribute(this._livePos, 3));
     unifiedGeo.setAttribute('normal', new THREE.BufferAttribute(this._liveNorm, 3));
     unifiedGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     unifiedGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     unifiedGeo.setAttribute('aHumanMeta', new THREE.BufferAttribute(humanMeta, 3));
+    unifiedGeo.setAttribute('aBoneBinding', new THREE.BufferAttribute(boneBinding, 3));
     unifiedGeo.setIndex(new THREE.BufferAttribute(indices, 1));
 
     const npcMaterial = createPhotorealHumanMaterial(this.sharedUniforms);
+    const npcDepthMaterial = createPhotorealHumanDepthMaterial(this.sharedUniforms);
 
     this.mesh = new THREE.Mesh(unifiedGeo, npcMaterial);
+    this.mesh.customDepthMaterial = npcDepthMaterial;
     this.mesh.name = 'SivitasAkademikaUIUnified18JointMesh';
     this.mesh.userData.dynamicKinematic = true;
     this.mesh.userData.skipRainBake = true;
@@ -7172,7 +7290,14 @@ export class DynamicTrafficAI {
           PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.255, this._learjetOBBScratch);
         }
 
-        if (staticCols) {
+        const npcBucket = this._queryStaticColliderCell(p.x, p.z);
+        if (npcBucket) {
+          for (let k = 0; k < npcBucket.length; k++) {
+            const sc = npcBucket[k];
+            if (isBenchSeated && sc.isBench) continue;
+            PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.255, sc);
+          }
+        } else if (staticCols && !this._staticColliderGrid) {
           for (let k = 0; k < staticCols.length; k++) {
             const sc = staticCols[k];
             if (sc.type === 'ISLAND_PERIMETER') continue;
@@ -7233,7 +7358,14 @@ export class DynamicTrafficAI {
           PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.155, this._learjetOBBScratch);
         }
 
-        if (staticCols) {
+        const catBucket = this._queryStaticColliderCell(p.x, p.z);
+        if (catBucket) {
+          for (let k = 0; k < catBucket.length; k++) {
+            const sc = catBucket[k];
+            if (isPerched && sc.isBench) continue;
+            PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.155, sc);
+          }
+        } else if (staticCols && !this._staticColliderGrid) {
           for (let k = 0; k < staticCols.length; k++) {
             const sc = staticCols[k];
             if (sc.type === 'ISLAND_PERIMETER') continue;
@@ -7264,8 +7396,8 @@ export class DynamicTrafficAI {
   }
 
   /**
-   * Advances all 24 Sivitas Akademika NPCs & executes fast Dual-Bone Linear-Blend Skinning (LBS)
-   * across all 528 articulated joints into 1 single unified Mesh (< 0.7ms CPU, 0 GC, 1 Draw Call!).
+   * Advances all Sivitas Akademika NPCs, Cats, Vehicles, Marine & Aviation Fleet and packs all
+   * articulated 4x3 bone matrices into the GPU Bone-Matrix DataTexture (< 0.4ms CPU, 0 GC, 1 Draw Call!).
    *
    * @param {number} dt - Frame delta time in seconds
    * @param {number} [elapsedTime] - Optional absolute elapsed time in seconds
@@ -7293,7 +7425,7 @@ export class DynamicTrafficAI {
     // 1b. Enforce Strict Solid-Body Non-Penetration across all vehicles, humans, cats, & world solids!
     this._resolveAllSolidBodyCollisions();
 
-    // 2. Solve Full 22-Joint Biomechanics for All 45 Humans + 18-Joint Biomechanics for All 48 Cats
+    // 2. Solve Full 22-Joint Biomechanics for All Humans + 18-Joint Biomechanics for All Cats
     for (let n = 0; n < npcCount; n++) {
       this._solveNPCBiomechanics(this.npcs[n], t, safeDt, cameraPos);
     }
@@ -7301,121 +7433,36 @@ export class DynamicTrafficAI {
       this._solveCatBiomechanics(this.cats[c], t, cameraPos);
     }
 
-    // 3. Pre-normalize 3x3 Normal Matrices for all Live Skin Matrices
+    // 3. Pack all live 4x3 affine joint matrices into the 256x64 RGBA32F GPU Bone-Matrix Texture (0 CPU Vertex Loop!)
     const sMats = this._skinMatrices;
-    const nMats = this._skinNormalMatrices;
+    const bData = this._boneTexData;
     const totalJoints = this._totalJointCount;
 
-    for (let j = 0; j < totalJoints; j++) {
-      const mOff = j * 16;
-      const nOff = j * 9;
-      const c0x = sMats[mOff];
-      const c0y = sMats[mOff + 1];
-      const c0z = sMats[mOff + 2];
-      const c1x = sMats[mOff + 4];
-      const c1y = sMats[mOff + 5];
-      const c1z = sMats[mOff + 6];
-      const c2x = sMats[mOff + 8];
-      const c2y = sMats[mOff + 9];
-      const c2z = sMats[mOff + 10];
+    if (bData) {
+      for (let j = 0; j < totalJoints; j++) {
+        const mOff = j * 16;
+        const tOff = j * 16;
+        bData[tOff] = sMats[mOff];
+        bData[tOff + 1] = sMats[mOff + 4];
+        bData[tOff + 2] = sMats[mOff + 8];
+        bData[tOff + 3] = sMats[mOff + 12];
 
-      const inv0 = 1.0 / (Math.sqrt(c0x * c0x + c0y * c0y + c0z * c0z) || 1.0);
-      const inv1 = 1.0 / (Math.sqrt(c1x * c1x + c1y * c1y + c1z * c1z) || 1.0);
-      const inv2 = 1.0 / (Math.sqrt(c2x * c2x + c2y * c2y + c2z * c2z) || 1.0);
+        bData[tOff + 4] = sMats[mOff + 1];
+        bData[tOff + 5] = sMats[mOff + 5];
+        bData[tOff + 6] = sMats[mOff + 9];
+        bData[tOff + 7] = sMats[mOff + 13];
 
-      nMats[nOff] = c0x * inv0;
-      nMats[nOff + 1] = c0y * inv0;
-      nMats[nOff + 2] = c0z * inv0;
-      nMats[nOff + 3] = c1x * inv1;
-      nMats[nOff + 4] = c1y * inv1;
-      nMats[nOff + 5] = c1z * inv1;
-      nMats[nOff + 6] = c2x * inv2;
-      nMats[nOff + 7] = c2y * inv2;
-      nMats[nOff + 8] = c2z * inv2;
-    }
-
-    // 4. Fast Register-Cached Dual-Bone Linear-Blend Skinning Loop (0 GC, 1 Draw Call!)
-    const restPos = this._restPos;
-    const restNorm = this._restNorm;
-    const livePos = this._livePos;
-    const liveNorm = this._liveNorm;
-    const vertJ0 = this._vertJ0;
-    const vertJ1 = this._vertJ1;
-    const vertW0 = this._vertW0;
-    const vCount = vertJ0.length;
-
-    let cachedJ0 = -1;
-    let s00 = 0, s01 = 0, s02 = 0, s04 = 0, s05 = 0, s06 = 0, s08 = 0, s09 = 0, s10 = 0, s12 = 0, s13 = 0, s14 = 0;
-    let n00 = 0, n01 = 0, n02 = 0, n03 = 0, n04 = 0, n05 = 0, n06 = 0, n07 = 0, n08 = 0;
-
-    for (let i = 0; i < vCount; i++) {
-      const j0 = vertJ0[i];
-      if (j0 !== cachedJ0) {
-        cachedJ0 = j0;
-        const m0 = j0 * 16;
-        const n0 = j0 * 9;
-        s00 = sMats[m0];     s01 = sMats[m0 + 1]; s02 = sMats[m0 + 2];
-        s04 = sMats[m0 + 4]; s05 = sMats[m0 + 5]; s06 = sMats[m0 + 6];
-        s08 = sMats[m0 + 8]; s09 = sMats[m0 + 9]; s10 = sMats[m0 + 10];
-        s12 = sMats[m0 + 12]; s13 = sMats[m0 + 13]; s14 = sMats[m0 + 14];
-
-        n00 = nMats[n0];     n01 = nMats[n0 + 1]; n02 = nMats[n0 + 2];
-        n03 = nMats[n0 + 3]; n04 = nMats[n0 + 4]; n05 = nMats[n0 + 5];
-        n06 = nMats[n0 + 6]; n07 = nMats[n0 + 7]; n08 = nMats[n0 + 8];
+        bData[tOff + 8] = sMats[mOff + 2];
+        bData[tOff + 9] = sMats[mOff + 6];
+        bData[tOff + 10] = sMats[mOff + 10];
+        bData[tOff + 11] = sMats[mOff + 14];
       }
-
-      const w0 = vertW0[i];
-      const i3 = i * 3;
-      const lx = restPos[i3];
-      const ly = restPos[i3 + 1];
-      const lz = restPos[i3 + 2];
-      const nx = restNorm[i3];
-      const ny = restNorm[i3 + 1];
-      const nz = restNorm[i3 + 2];
-
-      const px0 = s00 * lx + s04 * ly + s08 * lz + s12;
-      const py0 = s01 * lx + s05 * ly + s09 * lz + s13;
-      const pz0 = s02 * lx + s06 * ly + s10 * lz + s14;
-
-      const rnx0 = n00 * nx + n03 * ny + n06 * nz;
-      const rny0 = n01 * nx + n04 * ny + n07 * nz;
-      const rnz0 = n02 * nx + n05 * ny + n08 * nz;
-
-      if (w0 > 0.999 || j0 === vertJ1[i]) {
-        livePos[i3] = px0;
-        livePos[i3 + 1] = py0;
-        livePos[i3 + 2] = pz0;
-        liveNorm[i3] = rnx0;
-        liveNorm[i3 + 1] = rny0;
-        liveNorm[i3 + 2] = rnz0;
-      } else {
-        const j1 = vertJ1[i];
-        const w1 = 1.0 - w0;
-        const m1 = j1 * 16;
-        const n1 = j1 * 9;
-
-        const px1 = sMats[m1] * lx + sMats[m1 + 4] * ly + sMats[m1 + 8] * lz + sMats[m1 + 12];
-        const py1 = sMats[m1 + 1] * lx + sMats[m1 + 5] * ly + sMats[m1 + 9] * lz + sMats[m1 + 13];
-        const pz1 = sMats[m1 + 2] * lx + sMats[m1 + 6] * ly + sMats[m1 + 10] * lz + sMats[m1 + 14];
-
-        livePos[i3] = w0 * px0 + w1 * px1;
-        livePos[i3 + 1] = w0 * py0 + w1 * py1;
-        livePos[i3 + 2] = w0 * pz0 + w1 * pz1;
-
-        const rnx = w0 * rnx0 + w1 * (nMats[n1] * nx + nMats[n1 + 3] * ny + nMats[n1 + 6] * nz);
-        const rny = w0 * rny0 + w1 * (nMats[n1 + 1] * nx + nMats[n1 + 4] * ny + nMats[n1 + 7] * nz);
-        const rnz = w0 * rnz0 + w1 * (nMats[n1 + 2] * nx + nMats[n1 + 5] * ny + nMats[n1 + 8] * nz);
-
-        const invN = 1.0 / (Math.sqrt(rnx * rnx + rny * rny + rnz * rnz) || 1.0);
-        liveNorm[i3] = rnx * invN;
-        liveNorm[i3 + 1] = rny * invN;
-        liveNorm[i3 + 2] = rnz * invN;
+      if (this.boneMatrixTexture) {
+        this.boneMatrixTexture.needsUpdate = true;
       }
     }
 
     const geo = this.mesh.geometry;
-    geo.attributes.position.needsUpdate = true;
-    geo.attributes.normal.needsUpdate = true;
     if (!geo.boundingSphere) {
       const center = new THREE.Vector3(-140, 10, 350);
       geo.boundingSphere = THREE.Sphere ? new THREE.Sphere(center, 1450) : { center, radius: 1450 };

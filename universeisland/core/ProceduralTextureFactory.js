@@ -61,6 +61,9 @@ export function createSharedSurfaceUniforms() {
     uVideotronShortMode: { value: 0.0 },
     uFountainNightGlow: { value: new THREE.Vector4(0.0, 0.0, 0.0, 0.0) },
     uCockpitGlassCutRadius: { value: 0.0 },
+    uCloseDerivativeDist: { value: 22.0 },
+    uBoneMatrixTex: { value: null },
+    uGpuSkinningEnabled: { value: 1.0 },
     uHvsParams: hvsUniforms.uHvsParams,
     uHvsGlare: hvsUniforms.uHvsGlare
   };
@@ -109,6 +112,7 @@ export function injectOmniScaleSurfaceShader(
       sharedUniforms.uSunDir || { value: new THREE.Vector3(0.52, 0.72, 0.45).normalize() };
     shader.uniforms.uSunColor = sharedUniforms.uSunColor || { value: new THREE.Color(0xfff5e4) };
     shader.uniforms.uShaderQuality = sharedUniforms.uShaderQuality || { value: 1.0 };
+    shader.uniforms.uCloseDerivativeDist = sharedUniforms.uCloseDerivativeDist || { value: 22.0 };
     shader.uniforms.uZebraInspectMode = sharedUniforms.uZebraInspectMode || { value: 0.0 };
     shader.uniforms.uTime = sharedUniforms.uTime || { value: 0.0 };
     shader.uniforms.uWetness = sharedUniforms.uWetness || { value: 0.0 };
@@ -197,6 +201,7 @@ export function injectOmniScaleSurfaceShader(
       'uniform vec3 uSunDir;',
       'uniform vec3 uSunColor;',
       'uniform float uShaderQuality;',
+      'uniform float uCloseDerivativeDist;',
       'uniform float uZebraInspectMode;',
       'uniform float uTime;',
       'uniform float uWetness;',
@@ -635,11 +640,11 @@ export function injectOmniScaleSurfaceShader(
       '#elif OMNI_PROFILE == 11',
       '    // PROFILE 11: LUSH VELVET BOTANICAL FOLIAGE CANOPY (Soft 3D leaf cushions, zero harsh grain!)',
       '    float softBough = omniFbm3BL(wp, 1.4, pxSize);',
-      '    float softLeaf = omniFbm3BL(wp, 4.2, pxSize);',
-      '    h = softBough * 0.0018 + softLeaf * 0.0006;',
-      '    alb = 1.0 + softBough * 0.048 + softLeaf * 0.022;',
-      '    rDelta = -0.04 - softLeaf * 0.02;',
-      '    ao = 0.96 + 0.04 * softBough;',
+      '    float softLeaf = omniFbm3BL(wp, 4.4, pxSize);',
+      '    h = softBough * 0.0021 + softLeaf * 0.00075;',
+      '    alb = 1.0 + softBough * 0.054 + softLeaf * 0.026;',
+      '    rDelta = -0.045 - softLeaf * 0.022;',
+      '    ao = 0.955 + 0.045 * softBough;',
       '',
       '#else',
       '    float g1 = omniFbm3BL(wp, 5.0, pxSize);',
@@ -772,13 +777,16 @@ export function injectOmniScaleSurfaceShader(
           '#endif'
         ].join('\n')
       )
-      // 2. MICRO-SURFACE & WET-WEATHER PBR ROUGHNESS MODULATION
+      // 2. MICRO-SURFACE, TOKSVIG GEOMETRIC SPECULAR AA & WET-WEATHER PBR ROUGHNESS MODULATION
       .replace(
         '#include <roughnessmap_fragment>',
         [
           '#include <roughnessmap_fragment>',
           'if (uShaderQuality > 0.5 && uZebraInspectMode < 0.5) {',
-          '  roughnessFactor = clamp(roughnessFactor + omniSurfDetail.z, 0.04, 0.98);',
+          '  vec3 dNdx = dFdx(vOmniWorldNormal);',
+          '  vec3 dNdy = dFdy(vOmniWorldNormal);',
+          '  float geomRoughAA = min(0.14, dot(dNdx, dNdx) + dot(dNdy, dNdy));',
+          '  roughnessFactor = clamp(sqrt(roughnessFactor * roughnessFactor + geomRoughAA * 0.30) + omniSurfDetail.z, 0.04, 0.98);',
           '}',
           'float omniSkyExp = 1.0;',
           'float omniPuddleMask = 0.0;',
@@ -793,7 +801,7 @@ export function injectOmniScaleSurfaceShader(
           '}'
         ].join('\n')
       )
-      // 3. PER-PIXEL ANALYTICAL TANGENT-PLANE MICRO-NORMAL PERTURBATION (0 2x2 Quad Static, Soft Clamped <= 6.3 deg!)
+      // 3. DISTANCE-ADAPTIVE TANGENT / SCREEN-SPACE DERIVATIVE MICRO-NORMAL PERTURBATION
       .replace(
         '#include <normal_fragment_maps>',
         [
@@ -803,18 +811,30 @@ export function injectOmniScaleSurfaceShader(
           '  float camDist = length(vViewPosition);',
           '  float bumpFade = (1.0 - smoothstep(26.0, 82.0, camDist)) * (1.0 - omniPuddleMask * 0.88);',
           '  if (bumpFade > 0.005) {',
-          '    vec3 wN = normalize(vOmniWorldNormal);',
-          '    vec3 upRef = abs(wN.y) < 0.92 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);',
-          '    vec3 tU = normalize(cross(upRef, wN));',
-          '    vec3 tV = cross(wN, tU);',
-          '    float eps = clamp(omniPxSize * 1.65, 0.004, 0.09);',
-          '    float hU = omniEvalSurfaceDetail(uSurfaceProfile, vOmniWorldPos + tU * eps, wN, diffuseColor.rgb, omniPxSize).x;',
-          '    float hV = omniEvalSurfaceDetail(uSurfaceProfile, vOmniWorldPos + tV * eps, wN, diffuseColor.rgb, omniPxSize).x;',
-          '    float slopeU = clamp(((hU - omniSurfDetail.x) / eps) * uBumpScale * bumpFade, -0.11, 0.11);',
-          '    float slopeV = clamp(((hV - omniSurfDetail.x) / eps) * uBumpScale * bumpFade, -0.11, 0.11);',
-          '    vec3 worldGrad = slopeU * tU + slopeV * tV;',
-          '    vec3 viewGrad = (viewMatrix * vec4(worldGrad, 0.0)).xyz;',
-          '    normal = normalize(normal - viewGrad);',
+          '    if (camDist < uCloseDerivativeDist) {',
+          '      vec3 wN = normalize(vOmniWorldNormal);',
+          '      vec3 upRef = abs(wN.y) < 0.92 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);',
+          '      vec3 tU = normalize(cross(upRef, wN));',
+          '      vec3 tV = cross(wN, tU);',
+          '      float eps = clamp(omniPxSize * 1.65, 0.004, 0.09);',
+          '      float hU = omniEvalSurfaceDetail(uSurfaceProfile, vOmniWorldPos + tU * eps, wN, diffuseColor.rgb, omniPxSize).x;',
+          '      float hV = omniEvalSurfaceDetail(uSurfaceProfile, vOmniWorldPos + tV * eps, wN, diffuseColor.rgb, omniPxSize).x;',
+          '      float slopeU = clamp(((hU - omniSurfDetail.x) / eps) * uBumpScale * bumpFade, -0.11, 0.11);',
+          '      float slopeV = clamp(((hV - omniSurfDetail.x) / eps) * uBumpScale * bumpFade, -0.11, 0.11);',
+          '      vec3 worldGrad = slopeU * tU + slopeV * tV;',
+          '      vec3 viewGrad = (viewMatrix * vec4(worldGrad, 0.0)).xyz;',
+          '      normal = normalize(normal - viewGrad);',
+          '    } else {',
+          '      float dHdx = dFdx(omniSurfDetail.x);',
+          '      float dHdy = dFdy(omniSurfDetail.x);',
+          '      vec3 dPdx = dFdx(vViewPosition);',
+          '      vec3 dPdy = dFdy(vViewPosition);',
+          '      vec3 r1 = cross(dPdy, normal);',
+          '      vec3 r2 = cross(normal, dPdx);',
+          '      float det = dot(dPdx, r1);',
+          '      vec3 surfGrad = sign(det) * (dHdx * r1 + dHdy * r2) / max(abs(det), 1e-6);',
+          '      normal = normalize(normal - clamp(surfGrad * (uBumpScale * 0.65 * bumpFade), vec3(-0.10), vec3(0.10)));',
+          '    }',
           '  }',
           '}',
           '#endif'

@@ -37,9 +37,106 @@ export const HUMAN_MAT = {
   BOAT_LANTERN: 1.95
 };
 
+let _defaultBoneMatrixTex = null;
+
 /**
- * Creates the single unified MeshStandardMaterial for all 24 Sivitas Akademika humans
- * with per-vertex material-class optics (`aHumanMeta` + garment-locked `uv`).
+ * Returns a 256x64 RGBA32F fallback Bone Matrix DataTexture initialized to identity 4x3 matrices.
+ * @returns {THREE.DataTexture}
+ */
+export function getDefaultBoneMatrixTexture() {
+  if (_defaultBoneMatrixTex) return _defaultBoneMatrixTex;
+  const width = 256;
+  const height = 64;
+  const data = new Float32Array(width * height * 4);
+  const maxJoints = (width * height) / 4;
+  for (let j = 0; j < maxJoints; j++) {
+    const base = j * 16;
+    data[base + 0] = 1.0;
+    data[base + 5] = 1.0;
+    data[base + 10] = 1.0;
+  }
+  const tex = new THREE.DataTexture(data, width, height, THREE.RGBAFormat, THREE.FloatType);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  _defaultBoneMatrixTex = tex;
+  return tex;
+}
+
+/**
+ * Creates a GPU-skinned MeshDepthMaterial for the unified Sivitas/Feline/Transit mesh
+ * so real-time directional sun shadows animate on the GPU in 1 pass.
+ *
+ * @param {Object} [sharedUniforms]
+ * @returns {THREE.MeshDepthMaterial}
+ */
+export function createPhotorealHumanDepthMaterial(sharedUniforms = null) {
+  const uniforms = sharedUniforms || createSharedSurfaceUniforms();
+  const DepthMatClass = THREE.MeshDepthMaterial || THREE.MeshStandardMaterial;
+  const depthMat = new DepthMatClass(
+    THREE.MeshDepthMaterial
+      ? { depthPacking: THREE.RGBADepthPacking }
+      : { name: 'SivitasAkademikaUIDepthMat' }
+  );
+  depthMat.userData.omniShaderInjected = true;
+  depthMat.customProgramCacheKey = () => 'nexus-photoreal-human-depth-gpu-skin-v60';
+
+  depthMat.onBeforeCompile = (shader) => {
+    if (!uniforms.uBoneMatrixTex || !uniforms.uBoneMatrixTex.value) {
+      uniforms.uBoneMatrixTex = { value: getDefaultBoneMatrixTexture() };
+    }
+    shader.uniforms.uBoneMatrixTex = uniforms.uBoneMatrixTex;
+    shader.uniforms.uGpuSkinningEnabled =
+      uniforms.uGpuSkinningEnabled || { value: 1.0 };
+
+    shader.vertexShader = [
+      'attribute vec3 aBoneBinding;',
+      'uniform sampler2D uBoneMatrixTex;',
+      'uniform float uGpuSkinningEnabled;',
+      'void humanFetchBoneRowsDepth(float jointIdx, out vec4 r0, out vec4 r1, out vec4 r2) {',
+      '  float jSlot = floor(jointIdx + 0.5);',
+      '  float rowIdx = floor(jSlot / 64.0);',
+      '  float colBase = (jSlot - rowIdx * 64.0) * 4.0;',
+      '  float vCoord = (rowIdx + 0.5) / 64.0;',
+      '  r0 = texture2D(uBoneMatrixTex, vec2((colBase + 0.5) / 256.0, vCoord));',
+      '  r1 = texture2D(uBoneMatrixTex, vec2((colBase + 1.5) / 256.0, vCoord));',
+      '  r2 = texture2D(uBoneMatrixTex, vec2((colBase + 2.5) / 256.0, vCoord));',
+      '}',
+      shader.vertexShader
+    ]
+      .join('\n')
+      .replace(
+        '#include <begin_vertex>',
+        [
+          '#include <begin_vertex>',
+          'if (uGpuSkinningEnabled > 0.5) {',
+          '  float j0 = aBoneBinding.x;',
+          '  float j1 = aBoneBinding.y;',
+          '  float w0 = clamp(aBoneBinding.z, 0.0, 1.0);',
+          '  vec4 r0; vec4 r1; vec4 r2;',
+          '  humanFetchBoneRowsDepth(j0, r0, r1, r2);',
+          '  if (w0 <= 0.999 && abs(j0 - j1) >= 0.25) {',
+          '    float w1 = 1.0 - w0;',
+          '    vec4 r0B; vec4 r1B; vec4 r2B;',
+          '    humanFetchBoneRowsDepth(j1, r0B, r1B, r2B);',
+          '    r0 = w0 * r0 + w1 * r0B;',
+          '    r1 = w0 * r1 + w1 * r1B;',
+          '    r2 = w0 * r2 + w1 * r2B;',
+          '  }',
+          '  vec4 restP4 = vec4(transformed, 1.0);',
+          '  transformed = vec3(dot(r0, restP4), dot(r1, restP4), dot(r2, restP4));',
+          '}'
+        ].join('\n')
+      );
+  };
+
+  return depthMat;
+}
+
+/**
+ * Creates the single unified MeshStandardMaterial for all Sivitas Akademika humans, cats & vehicles
+ * with per-vertex material-class optics (`aHumanMeta` + garment-locked `uv`) and GPU Bone-Texture Skinning.
  *
  * @param {Object} [sharedUniforms]
  * @returns {THREE.MeshStandardMaterial}
@@ -58,9 +155,15 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
 
   const hvsFallback = HumanEyeHDROptics.createUniforms();
   mat.userData.omniShaderInjected = true;
-  mat.customProgramCacheKey = () => 'nexus-photoreal-human-feline-transit-hvs-v50';
+  mat.customProgramCacheKey = () => 'nexus-photoreal-human-feline-transit-hvs-v60';
 
   mat.onBeforeCompile = (shader) => {
+    if (!uniforms.uBoneMatrixTex || !uniforms.uBoneMatrixTex.value) {
+      uniforms.uBoneMatrixTex = { value: getDefaultBoneMatrixTexture() };
+    }
+    shader.uniforms.uBoneMatrixTex = uniforms.uBoneMatrixTex;
+    shader.uniforms.uGpuSkinningEnabled =
+      uniforms.uGpuSkinningEnabled || { value: 1.0 };
     shader.uniforms.uCockpitGlassCutRadius =
       uniforms.uCockpitGlassCutRadius || { value: 0.0 };
     shader.uniforms.uIsNight = uniforms.uIsNight || { value: 0.0 };
@@ -85,17 +188,75 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
 
     shader.vertexShader = [
       'attribute vec3 aHumanMeta;',
+      'attribute vec3 aBoneBinding;',
+      'uniform sampler2D uBoneMatrixTex;',
+      'uniform float uGpuSkinningEnabled;',
       'varying vec3 vHumanMeta;',
       'varying vec2 vHumanUV;',
       'varying vec3 vHumanWorldPos;',
       'varying vec3 vHumanWorldNorm;',
+      'void humanFetchBoneRows(float jointIdx, out vec4 r0, out vec4 r1, out vec4 r2) {',
+      '  float jSlot = floor(jointIdx + 0.5);',
+      '  float rowIdx = floor(jSlot / 64.0);',
+      '  float colBase = (jSlot - rowIdx * 64.0) * 4.0;',
+      '  float vCoord = (rowIdx + 0.5) / 64.0;',
+      '  r0 = texture2D(uBoneMatrixTex, vec2((colBase + 0.5) / 256.0, vCoord));',
+      '  r1 = texture2D(uBoneMatrixTex, vec2((colBase + 1.5) / 256.0, vCoord));',
+      '  r2 = texture2D(uBoneMatrixTex, vec2((colBase + 2.5) / 256.0, vCoord));',
+      '}',
       shader.vertexShader
     ]
       .join('\n')
       .replace(
-        '#include <skinning_vertex>',
+        '#include <beginnormal_vertex>',
         [
-          '#include <skinning_vertex>',
+          '#include <beginnormal_vertex>',
+          'vec4 hBoneR0 = vec4(1.0, 0.0, 0.0, 0.0);',
+          'vec4 hBoneR1 = vec4(0.0, 1.0, 0.0, 0.0);',
+          'vec4 hBoneR2 = vec4(0.0, 0.0, 1.0, 0.0);',
+          'float hJointBulge = 0.0;',
+          'if (uGpuSkinningEnabled > 0.5) {',
+          '  float j0 = aBoneBinding.x;',
+          '  float j1 = aBoneBinding.y;',
+          '  float w0 = clamp(aBoneBinding.z, 0.0, 1.0);',
+          '  vec4 r0A; vec4 r1A; vec4 r2A;',
+          '  humanFetchBoneRows(j0, r0A, r1A, r2A);',
+          '  if (w0 > 0.999 || abs(j0 - j1) < 0.25) {',
+          '    hBoneR0 = r0A;',
+          '    hBoneR1 = r1A;',
+          '    hBoneR2 = r2A;',
+          '  } else {',
+          '    float w1 = 1.0 - w0;',
+          '    vec4 r0B; vec4 r1B; vec4 r2B;',
+          '    humanFetchBoneRows(j1, r0B, r1B, r2B);',
+          '    hBoneR0 = w0 * r0A + w1 * r0B;',
+          '    hBoneR1 = w0 * r1A + w1 * r1B;',
+          '    hBoneR2 = w0 * r2A + w1 * r2B;',
+          '    float bendCos = clamp(dot(normalize(r0A.xyz), normalize(r0B.xyz)), -1.0, 1.0);',
+          '    hJointBulge = (4.0 * w0 * w1) * (1.0 - bendCos) * 0.0085 * step(aHumanMeta.x, 1.42);',
+          '  }',
+          '  vec3 rawSkinnedN = vec3(',
+          '    dot(hBoneR0.xyz, objectNormal),',
+          '    dot(hBoneR1.xyz, objectNormal),',
+          '    dot(hBoneR2.xyz, objectNormal)',
+          '  );',
+          '  float nLen = length(rawSkinnedN);',
+          '  objectNormal = nLen > 1e-6 ? (rawSkinnedN / nLen) : vec3(0.0, 1.0, 0.0);',
+          '}'
+        ].join('\n')
+      )
+      .replace(
+        '#include <begin_vertex>',
+        [
+          '#include <begin_vertex>',
+          'if (uGpuSkinningEnabled > 0.5) {',
+          '  vec4 restP4 = vec4(transformed, 1.0);',
+          '  transformed = vec3(',
+          '    dot(hBoneR0, restP4),',
+          '    dot(hBoneR1, restP4),',
+          '    dot(hBoneR2, restP4)',
+          '  ) + objectNormal * hJointBulge;',
+          '}',
           'vHumanMeta = aHumanMeta;',
           'vHumanUV = uv;',
           'vHumanWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',

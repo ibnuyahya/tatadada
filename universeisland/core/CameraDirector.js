@@ -162,7 +162,7 @@ export class CameraDirector {
     this.yaw = 0.0;
     this.pitch = -0.15;
     this.roll = 0.0;
-    this.cinematicAngle = 0.55;
+    this.cinematicAngle = 1.38;
 
     // 6 Natural Living Campus First-Person (FPS) State
     this.fpsAnchorProvider = null;
@@ -389,6 +389,27 @@ export class CameraDirector {
     }
   }
 
+  _evalMavicIslandOrbit(angle, floorHeightFn, outPos, outTarget) {
+    // Mavic 3 Pro Island-Circling Aerial Trajectory around Pulau U & Teluk U
+    // Tours Gedung Rektorat UI, Lapangan Rotunda, Air Mancur Dancing, Videotron, Danau Kenanga,
+    // Jembatan Teksas UI, Kompleks DPPD-ILRC-STP, Helipad VIP, & Hutan Selatan
+    const cx = -68.0;
+    const cz = 148.0;
+    const rx = 162.0 + Math.cos(angle * 2.0) * 14.0;
+    const rz = 182.0 + Math.sin(angle * 2.0) * 14.0;
+    const px = cx + Math.sin(angle) * rx;
+    const pz = cz + Math.cos(angle) * rz;
+    const gFn = floorHeightFn || this.physicsContext?.groundHeightFn || null;
+    const groundY = gFn ? Math.max(0.0, gFn(px, pz)) : 0.0;
+    const py = Math.max(55.5, groundY + 38.0 + Math.sin(angle * 1.4) * 9.0);
+    outPos.set(px, py, pz);
+
+    const tx = -52.0 + Math.sin(angle + 0.42) * 66.0;
+    const tz = 116.0 + Math.cos(angle + 0.42) * 86.0;
+    const ty = 14.5 + 4.5 * Math.cos(angle);
+    outTarget.set(tx, ty, tz);
+  }
+
   setMode(newMode, options = {}) {
     const prevMode = this.mode;
     const wasFPS = this.isFPSMode(prevMode);
@@ -435,8 +456,14 @@ export class CameraDirector {
 
     if (newMode === 'ORBIT' || newMode === 'AUTO_CINEMATIC') {
       this.roll = 0;
+      if (newMode === 'AUTO_CINEMATIC' && this.camera.position.y < 38.0) {
+        this._evalMavicIslandOrbit(this.cinematicAngle, null, this.camera.position, this.goalTarget);
+        this.syncPreviousCameraPosition();
+      }
       if (this.controls) {
-        if (wasFPS || prevMode === 'DRONE_6DOF' || prevMode === 'WALK_SIVITAS') {
+        if (newMode === 'AUTO_CINEMATIC') {
+          this.controls.target.copy(this.goalTarget);
+        } else if (wasFPS || prevMode === 'DRONE_6DOF' || prevMode === 'WALK_SIVITAS') {
           if (wasFPS && this.physicsContext && this.physicsContext.walkableHeightFn) {
             const minStandY =
               this.physicsContext.walkableHeightFn(this.camera.position.x, this.camera.position.z) + 1.65;
@@ -450,10 +477,22 @@ export class CameraDirector {
       }
     } else if (newMode === 'DRONE_6DOF') {
       if (this.controls) this.controls.enabled = false;
-      const dir = new THREE.Vector3();
-      this.camera.getWorldDirection(dir);
-      this.yaw = Math.atan2(-dir.x, -dir.z);
-      this.pitch = Math.asin(Math.max(-0.95, Math.min(0.95, dir.y)));
+      if (options.startIslandTour === true) {
+        this._evalMavicIslandOrbit(this.cinematicAngle, null, this.camera.position, this.goalTarget);
+        const lookDx = this.goalTarget.x - this.camera.position.x;
+        const lookDz = this.goalTarget.z - this.camera.position.z;
+        this.yaw = Math.atan2(-lookDx, -lookDz);
+        this.pitch = Math.atan2(this.goalTarget.y - this.camera.position.y, Math.hypot(lookDx, lookDz));
+        this.roll = 0.035;
+        const euler = new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ');
+        this.camera.quaternion.setFromEuler(euler);
+        this.syncPreviousCameraPosition();
+      } else {
+        const dir = new THREE.Vector3();
+        this.camera.getWorldDirection(dir);
+        this.yaw = Math.atan2(-dir.x, -dir.z);
+        this.pitch = Math.asin(Math.max(-0.95, Math.min(0.95, dir.y)));
+      }
       this.velocity.set(0, 0, 0);
       this._droneManualEngaged = false;
     } else if (newMode === 'WALK_SIVITAS') {
@@ -833,17 +872,11 @@ export class CameraDirector {
 
     if (this.mode === 'AUTO_CINEMATIC') {
       this.camera.up.set(0, 1, 0);
-      this.cinematicAngle += clampedDt * 0.14;
-      const radius = 88.0 + Math.sin(this.cinematicAngle * 0.7) * 14.0;
-      const height = 34.0 + Math.sin(this.cinematicAngle * 0.45) * 16.0;
-      this.goalPos.set(
-        Math.sin(this.cinematicAngle) * radius,
-        height,
-        6.0 + Math.cos(this.cinematicAngle) * radius
-      );
+      this.cinematicAngle += clampedDt * 0.115;
+      this._evalMavicIslandOrbit(this.cinematicAngle, floorHeightFn, this.goalPos, this.goalTarget);
       this.camera.position.lerp(this.goalPos, dampAlpha);
       if (this.controls) {
-        this.controls.target.lerp(this.goalTarget.set(0, 18.5, 4.0), dampAlpha);
+        this.controls.target.lerp(this.goalTarget, dampAlpha);
         this.controls.update();
       }
       resolveSoftSpatialCollision(
@@ -912,27 +945,22 @@ export class CameraDirector {
       if (this.keyState.has('KeyQ') || this.keyState.has('ShiftLeft')) moveU -= 1;
     }
 
-    // Auto gentle orbit cruise in DRONE_6DOF only near Gedung Rektorat before manual drone keys are engaged
+    // Mavic Drone Island-Circling Tour in DRONE_6DOF before manual drone keys are engaged
     const hasManualInput = moveF !== 0 || moveR !== 0 || moveU !== 0;
     if (hasManualInput) {
       this._droneManualEngaged = true;
     }
-    const nearRektorat =
-      Math.hypot(this.camera.position.x, this.camera.position.z - 6.0) < 155.0 &&
-      this.camera.position.y > 2.0;
-    if (!isWalk && !hasManualInput && !this._droneManualEngaged && nearRektorat && this.velocity.lengthSq() < 0.04) {
-      this.cinematicAngle += clampedDt * 0.15;
-      const targetOrbitX = Math.sin(this.cinematicAngle) * 86.0;
-      const targetOrbitZ = 6.0 + Math.cos(this.cinematicAngle) * 86.0;
-      const targetOrbitY = 36.0 + Math.sin(this.cinematicAngle * 1.3) * 11.0;
-      this.camera.position.x += (targetOrbitX - this.camera.position.x) * dampAlpha * 0.45;
-      this.camera.position.z += (targetOrbitZ - this.camera.position.z) * dampAlpha * 0.45;
-      this.camera.position.y += (targetOrbitY - this.camera.position.y) * dampAlpha * 0.45;
-      const lookDx = -this.camera.position.x;
-      const lookDz = 4.0 - this.camera.position.z;
+    if (!isWalk && !hasManualInput && !this._droneManualEngaged && this.camera.position.y > 2.0 && this.velocity.lengthSq() < 0.04) {
+      this.cinematicAngle += clampedDt * 0.115;
+      this._evalMavicIslandOrbit(this.cinematicAngle, floorHeightFn, this.goalPos, this.goalTarget);
+      this.camera.position.x += (this.goalPos.x - this.camera.position.x) * dampAlpha * 0.55;
+      this.camera.position.z += (this.goalPos.z - this.camera.position.z) * dampAlpha * 0.55;
+      this.camera.position.y += (this.goalPos.y - this.camera.position.y) * dampAlpha * 0.55;
+      const lookDx = this.goalTarget.x - this.camera.position.x;
+      const lookDz = this.goalTarget.z - this.camera.position.z;
       this.yaw = Math.atan2(-lookDx, -lookDz);
-      this.pitch = Math.atan2(18.5 - this.camera.position.y, Math.hypot(lookDx, lookDz));
-      this.roll += (0.045 - this.roll) * dampAlpha; // Subtle centripetal roll banking
+      this.pitch = Math.atan2(this.goalTarget.y - this.camera.position.y, Math.hypot(lookDx, lookDz));
+      this.roll += (0.036 * Math.cos(this.cinematicAngle) - this.roll) * dampAlpha; // Mavic centripetal roll banking
     } else {
       this.velocity.addScaledVector(this._forward, moveF * accel * clampedDt);
       this.velocity.addScaledVector(this._right, moveR * accel * clampedDt);

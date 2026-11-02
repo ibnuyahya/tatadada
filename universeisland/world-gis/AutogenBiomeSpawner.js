@@ -740,8 +740,8 @@ export class AutogenBiomeSpawner {
    * (38 x 26 = 1,976 tris/cloud, ZERO cones!) with natural tropical AO & sunlit leaf-tip shading.
    */
   static _buildOrganicFoliageCloudGeometry() {
-    const uSegs = 38;
-    const vSegs = 26;
+    const uSegs = 26;
+    const vSegs = 18;
     const positions = [];
     const normals = [];
     const uvs = [];
