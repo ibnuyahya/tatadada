@@ -8,14 +8,23 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const WEATHER_LABELS = {
   CLEAR: 'Cerah',
+  PARTLY_CLOUDY: 'Cerah Berawan',
+  OVERCAST: 'Mendung',
+  WINDY: 'Angin Kencang',
+  FOGGY: 'Kabut Embun',
+  POST_RAIN: 'Seusai Hujan',
   MIST: 'Gerimis',
+  SHOWER: 'Hujan Ringan',
   RAIN: 'Hujan Deras',
   STORM: 'Badai Petir'
 };
 
 const TOD_LABELS = {
+  DAWN: 'Fajar',
+  MORNING: 'Pagi',
   DAY: 'Siang',
-  DUSK: 'Sore',
+  AFTERNOON: 'Sore',
+  DUSK: 'Senja',
   NIGHT: 'Malam'
 };
 
@@ -378,27 +387,32 @@ async function bootstrapStudioWorkbench() {
   function renderAxisButtonStates(buttons, attrName, axisState) {
     const pct = Math.round(axisState.progress * 100);
     const remSec = Math.max(1, Math.ceil(axisState.remainingSec));
+    const targetCode = axisState.toMode || axisState.toTod;
+    const fromCode = axisState.fromMode || axisState.fromTod;
 
     for (const btn of buttons) {
       const code = btn.dataset[attrName];
       const subEl = btn.querySelector('.btn-sub');
+      const idleHint = btn.dataset.hint || '';
+      const compactSub = btn.dataset.compactSub === '1';
       btn.classList.remove('active', 'is-transitioning', 'is-departing');
       btn.style.setProperty('--trans-pct', '0%');
-      if (subEl) subEl.textContent = '';
+      if (subEl) subEl.textContent = idleHint;
 
       if (axisState.active) {
-        if (code === axisState.toMode || code === axisState.toTod) {
+        if (code === targetCode) {
           btn.classList.add('is-transitioning');
           btn.style.setProperty('--trans-pct', `${pct}%`);
-          if (subEl) subEl.textContent = `${pct}% · ${remSec} dtk`;
-        } else if (
-          (code === axisState.fromMode || code === axisState.fromTod) &&
-          code !== (axisState.toMode || axisState.toTod)
-        ) {
+          if (subEl) {
+            subEl.textContent = compactSub ? `${pct}%` : `${pct}%·${remSec}d`;
+          }
+        } else if (code === fromCode && code !== targetCode) {
           btn.classList.add('is-departing');
-          if (subEl) subEl.textContent = `Mereda ${Math.max(0, 100 - pct)}%`;
+          if (subEl) {
+            subEl.textContent = compactSub ? `${Math.max(0, 100 - pct)}%` : `-${pct}%`;
+          }
         }
-      } else if (code === (axisState.toMode || axisState.toTod)) {
+      } else if (code === targetCode) {
         btn.classList.add('active');
       }
     }

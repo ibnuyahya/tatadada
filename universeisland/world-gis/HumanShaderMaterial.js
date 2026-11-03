@@ -187,6 +187,7 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
     shader.uniforms.uTime = uniforms.uTime || { value: 0.0 };
     shader.uniforms.uWetness = uniforms.uWetness || { value: 0.0 };
     shader.uniforms.uRainIntensity = uniforms.uRainIntensity || { value: 0.0 };
+    shader.uniforms.uFogFactor = uniforms.uFogFactor || { value: 0.0 };
     shader.uniforms.uLightningFlash = uniforms.uLightningFlash || { value: 0.0 };
     shader.uniforms.uStreetlampPower = uniforms.uStreetlampPower || { value: 0.0 };
     shader.uniforms.uCollisionMap =
@@ -297,6 +298,7 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
       'uniform float uTime;',
       'uniform float uWetness;',
       'uniform float uRainIntensity;',
+      'uniform float uFogFactor;',
       'uniform float uLightningFlash;',
       'uniform float uStreetlampPower;',
       'uniform sampler2D uCollisionMap;',
@@ -744,7 +746,8 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
           '    uNightFactor,',
           '    uCloudCover,',
           '    uRainIntensity,',
-          '    uLightningFlash',
+          '    uLightningFlash,',
+          '    uFogFactor',
           '  );',
           '  vec3 hvsRayH = normalize(vHumanWorldPos - cameraPosition);',
           '  gl_FragColor.rgb = nexusApplyHumanEyeHDR(gl_FragColor.rgb, hvsRayH, hvsSunH, uSunColor, uHvsParams, uHvsGlare);',

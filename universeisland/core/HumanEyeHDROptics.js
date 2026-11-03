@@ -212,7 +212,14 @@ export class HumanEyeHDROptics {
    * Exact CPU/JS mirror of the 3D exponential boundary-layer atmospheric optical depth integral
    * (H_BL = 46.0m) used for 4-Gate aerial photography vs ground-level mist verification.
    */
-  static evalBoundaryLayerHazeFactorJS(camY, posY, distMeters, cloudCover = 0.22, rainIntensity = 0.0) {
+  static evalBoundaryLayerHazeFactorJS(
+    camY,
+    posY,
+    distMeters,
+    cloudCover = 0.22,
+    rainIntensity = 0.0,
+    fogFactor = 0.0
+  ) {
     const effDist = Math.max(0.0, Number(distMeters) - 20.0);
     if (effDist <= 0.001) return 0.0;
     const uc = Math.max(0.0, Number(camY)) / 46.0;
@@ -222,9 +229,10 @@ export class HumanEyeHDROptics {
       Math.abs(du) > 0.006 ? (Math.exp(-uc) - Math.exp(-up)) / du : Math.exp(-0.5 * (uc + up));
     const rainC = Math.max(0.0, Math.min(1.35, Number(rainIntensity) || 0.0));
     const cloudC = Math.max(0.0, Math.min(1.0, Number(cloudCover) || 0.0));
-    const sigmaBL = 0.00028 + 0.00105 * rainC + 0.00024 * cloudC;
-    const tauAir = effDist * (sigmaBL * Math.max(0.0, Math.min(1.0, meanBL)) + 0.000038);
-    return Math.max(0.0, Math.min(0.86, 1.0 - Math.exp(-tauAir)));
+    const fogC = Math.max(0.0, Math.min(1.0, Number(fogFactor) || 0.0));
+    const sigmaBL = 0.00028 + 0.00105 * rainC + 0.00024 * cloudC + 0.00245 * fogC;
+    const tauAir = effDist * (sigmaBL * Math.max(0.0, Math.min(1.0, meanBL)) + 0.000038 + 0.00012 * fogC);
+    return Math.max(0.0, Math.min(0.88, 1.0 - Math.exp(-tauAir)));
   }
 
   /**
@@ -264,7 +272,8 @@ export class HumanEyeHDROptics {
         float nightFactor,
         float cloudCover,
         float rainIntensity,
-        float lightningFlash
+        float lightningFlash,
+        float fogFactor
       ) {
         vec3 rayVec = worldPos - camPos;
         float dist = length(rayVec);
@@ -282,19 +291,23 @@ export class HumanEyeHDROptics {
         float cloudC = clamp(cloudCover, 0.0, 1.0);
         float duskC = clamp(duskFactor, 0.0, 1.0);
         float nightC = clamp(nightFactor, 0.0, 1.0);
+        float fogC = clamp(fogFactor, 0.0, 1.0);
 
-        float sigmaBL = 0.00028 + 0.00105 * rainC + 0.00024 * cloudC;
-        float tauAir = effDist * (sigmaBL * clamp(meanBL, 0.0, 1.0) + 0.000038);
-        float hazeFactor = clamp(1.0 - exp(-tauAir), 0.0, 0.86);
+        float sigmaBL = 0.00028 + 0.00105 * rainC + 0.00024 * cloudC + 0.00245 * fogC;
+        float tauAir = effDist * (sigmaBL * clamp(meanBL, 0.0, 1.0) + 0.000038 + 0.00012 * fogC);
+        float hazeFactor = clamp(1.0 - exp(-tauAir), 0.0, mix(0.86, 0.88, fogC));
 
         vec3 dayHorS = vec3(0.60, 0.77, 0.91);
         vec3 duskHorS = vec3(0.88, 0.47, 0.23);
         vec3 nightHorS = vec3(0.044, 0.068, 0.125);
         vec3 horBaseS = mix(mix(dayHorS, duskHorS, duskC), nightHorS, nightC);
 
+        vec3 fogDewS = mix(mix(vec3(0.79, 0.85, 0.90), vec3(0.90, 0.66, 0.48), duskC), vec3(0.085, 0.115, 0.175), nightC);
+        horBaseS = mix(horBaseS, fogDewS, fogC * 0.78);
+
         vec3 stormHorS = mix(vec3(0.42, 0.47, 0.53), vec3(0.24, 0.28, 0.34), clamp(rainC * 0.65, 0.0, 1.0));
         stormHorS *= mix(1.0, 0.22, nightC);
-        vec3 hazeSRGB = mix(horBaseS, stormHorS, clamp(rainC * 0.72 + cloudC * 0.16, 0.0, 0.90));
+        vec3 hazeSRGB = mix(horBaseS, stormHorS, clamp(rainC * 0.72 + cloudC * 0.16 * (1.0 - fogC * 0.65), 0.0, 0.90));
         vec3 hazeHDR = nexusSRGBToLinear(hazeSRGB) * mix(1.14, 0.72, nightC);
 
         vec3 rayDir = rayVec / max(dist, 1e-4);
@@ -302,9 +315,34 @@ export class HumanEyeHDROptics {
                      * (1.0 - nightC * 0.85)
                      * (1.0 - clamp(rainC, 0.0, 1.0) * 0.68);
         vec3 mieTintS = mix(vec3(0.78, 0.85, 0.96), vec3(0.98, 0.56, 0.26), duskC);
-        hazeHDR += nexusSRGBToLinear(mieTintS) * mieFwd * 0.24 + vec3(0.65, 0.82, 1.25) * lightningFlash * 0.65;
+        hazeHDR += nexusSRGBToLinear(mieTintS) * mieFwd * (0.24 + 0.12 * fogC) + vec3(0.65, 0.82, 1.25) * lightningFlash * 0.65;
 
         return mix(hdrLinear, hazeHDR, hazeFactor);
+      }
+
+      vec3 nexusApplyBoundaryLayerAerialPerspective(
+        vec3 hdrLinear,
+        vec3 camPos,
+        vec3 worldPos,
+        vec3 sunDir,
+        float duskFactor,
+        float nightFactor,
+        float cloudCover,
+        float rainIntensity,
+        float lightningFlash
+      ) {
+        return nexusApplyBoundaryLayerAerialPerspective(
+          hdrLinear,
+          camPos,
+          worldPos,
+          sunDir,
+          duskFactor,
+          nightFactor,
+          cloudCover,
+          rainIntensity,
+          lightningFlash,
+          0.0
+        );
       }
 
       float nexusNakaRushtonScalar(float x, float n, float sigmaPow, float normScale) {

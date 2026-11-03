@@ -52,6 +52,7 @@ export function createSharedSurfaceUniforms() {
     uTime: { value: 0.0 },
     uWetness: { value: 0.0 },
     uRainIntensity: { value: 0.0 },
+    uFogFactor: { value: 0.0 },
     uLightningFlash: { value: 0.0 },
     uStreetlampPower: { value: 0.0 },
     uWindVec: { value: new THREE.Vector3(0.65, 0.0, 0.35) },
@@ -117,6 +118,7 @@ export function injectOmniScaleSurfaceShader(
     shader.uniforms.uTime = sharedUniforms.uTime || { value: 0.0 };
     shader.uniforms.uWetness = sharedUniforms.uWetness || { value: 0.0 };
     shader.uniforms.uRainIntensity = sharedUniforms.uRainIntensity || { value: 0.0 };
+    shader.uniforms.uFogFactor = sharedUniforms.uFogFactor || { value: 0.0 };
     shader.uniforms.uLightningFlash = sharedUniforms.uLightningFlash || { value: 0.0 };
     shader.uniforms.uStreetlampPower = sharedUniforms.uStreetlampPower || { value: 0.0 };
     shader.uniforms.uWindVec =
@@ -206,6 +208,7 @@ export function injectOmniScaleSurfaceShader(
       'uniform float uTime;',
       'uniform float uWetness;',
       'uniform float uRainIntensity;',
+      'uniform float uFogFactor;',
       'uniform float uLightningFlash;',
       'uniform float uStreetlampPower;',
       'uniform sampler2D uCollisionMap;',
@@ -1244,7 +1247,8 @@ export function injectOmniScaleSurfaceShader(
           '      uNightFactor,',
           '      uCloudCover,',
           '      uRainIntensity,',
-          '      uLightningFlash',
+          '      uLightningFlash,',
+          '      uFogFactor',
           '    );',
           '  }',
           '  vec3 hvsRayW = normalize(vOmniWorldPos - cameraPosition);',

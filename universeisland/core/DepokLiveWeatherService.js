@@ -37,19 +37,21 @@ export class DepokLiveWeatherService {
 
     let todRegime = 'DAY';
     let periodLabelId = 'Siang';
-    if (solarHour >= 18.42 || solarHour < 5.25) {
+    if (solarHour >= 18.5 || solarHour < 5.25) {
       todRegime = 'NIGHT';
       periodLabelId = solarHour < 5.25 ? 'Dini Hari' : 'Malam';
-    } else if (solarHour >= 5.25 && solarHour < 6.38) {
-      todRegime = 'DUSK';
-      periodLabelId = 'Fajar Pagi';
-    } else if (solarHour >= 17.08 && solarHour < 18.42) {
-      todRegime = 'DUSK';
-      periodLabelId = 'Senja Sore';
-    } else if (solarHour < 10.0) {
+    } else if (solarHour >= 5.25 && solarHour < 6.58) {
+      todRegime = 'DAWN';
+      periodLabelId = 'Fajar';
+    } else if (solarHour >= 6.58 && solarHour < 10.25) {
+      todRegime = 'MORNING';
       periodLabelId = 'Pagi';
-    } else if (solarHour >= 15.0) {
+    } else if (solarHour >= 14.5 && solarHour < 17.08) {
+      todRegime = 'AFTERNOON';
       periodLabelId = 'Sore';
+    } else if (solarHour >= 17.08 && solarHour < 18.5) {
+      todRegime = 'DUSK';
+      periodLabelId = 'Senja';
     }
 
     return {
@@ -80,19 +82,21 @@ export class DepokLiveWeatherService {
 
     let todRegime = 'DAY';
     let periodLabelId = 'Siang';
-    if (hWrap >= 18.42 || hWrap < 5.25) {
+    if (hWrap >= 18.5 || hWrap < 5.25) {
       todRegime = 'NIGHT';
       periodLabelId = hWrap < 5.25 ? 'Dini Hari' : 'Malam';
-    } else if (hWrap >= 5.25 && hWrap < 6.38) {
-      todRegime = 'DUSK';
-      periodLabelId = 'Fajar Pagi';
-    } else if (hWrap >= 17.08 && hWrap < 18.42) {
-      todRegime = 'DUSK';
-      periodLabelId = 'Senja Sore';
-    } else if (hWrap < 10.0) {
+    } else if (hWrap >= 5.25 && hWrap < 6.58) {
+      todRegime = 'DAWN';
+      periodLabelId = 'Fajar';
+    } else if (hWrap >= 6.58 && hWrap < 10.25) {
+      todRegime = 'MORNING';
       periodLabelId = 'Pagi';
-    } else if (hWrap >= 15.0) {
+    } else if (hWrap >= 14.5 && hWrap < 17.08) {
+      todRegime = 'AFTERNOON';
       periodLabelId = 'Sore';
+    } else if (hWrap >= 17.08 && hWrap < 18.5) {
+      todRegime = 'DUSK';
+      periodLabelId = 'Senja';
     }
 
     return {
@@ -110,10 +114,16 @@ export class DepokLiveWeatherService {
   /**
    * Maps WMO weather code + live precipitation (mm) + cloud cover (%) into NEXUS physical weather regime.
    */
-  static classifyWMOCondition(wmoCode = 1, precipitationMm = 0.0, cloudCoverPct = 30) {
+  static classifyWMOCondition(
+    wmoCode = 1,
+    precipitationMm = 0.0,
+    cloudCoverPct = 30,
+    windSpeedKmh = 8.0
+  ) {
     const code = Number(wmoCode) || 0;
     const precip = Math.max(0.0, Number(precipitationMm) || 0.0);
     const clouds = Math.max(0.0, Math.min(100.0, Number(cloudCoverPct) || 0.0));
+    const windKmh = Math.max(0.0, Number(windSpeedKmh) || 0.0);
 
     // WMO 95, 96, 99: Thunderstorm
     if (code >= 95) {
@@ -124,42 +134,72 @@ export class DepokLiveWeatherService {
       };
     }
 
-    // WMO 61..67 (Rain), 80..82 (Rain showers), or significant live precipitation >= 1.2 mm
-    if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82) || precip >= 1.2) {
+    // WMO 63..67 (Moderate/Heavy Rain), 81..82 (Heavy Showers), or significant precipitation >= 2.2 mm
+    if ((code >= 63 && code <= 67) || (code >= 81 && code <= 82) || precip >= 2.2) {
       return {
         weatherMode: 'RAIN',
         labelId: code >= 65 || code === 82 || precip >= 4.5 ? 'Hujan Deras Depok' : 'Hujan Kampus UI',
-        cloudCoverNorm: Math.max(0.84, clouds / 100.0)
+        cloudCoverNorm: Math.max(0.86, clouds / 100.0)
       };
     }
 
-    // WMO 45..48 (Fog/Mist), 51..57 (Drizzle), or light measurable precipitation 0.08..1.2 mm
-    if ((code >= 45 && code <= 57) || precip >= 0.08) {
+    // WMO 61 (Light Rain), 80 (Slight Rain Showers), or moderate precipitation 0.85..2.2 mm
+    if (code === 61 || code === 62 || code === 80 || precip >= 0.85) {
+      return {
+        weatherMode: 'SHOWER',
+        labelId: 'Hujan Ringan Depok',
+        cloudCoverNorm: Math.max(0.78, clouds / 100.0)
+      };
+    }
+
+    // WMO 51..57 (Drizzle) or light measurable precipitation 0.08..0.85 mm
+    if ((code >= 51 && code <= 57) || precip >= 0.08) {
       return {
         weatherMode: 'MIST',
-        labelId: code <= 48 ? 'Kabut Lembap Depok' : 'Gerimis Kampus UI',
+        labelId: 'Gerimis Kampus UI',
         cloudCoverNorm: Math.max(0.68, clouds / 100.0)
       };
     }
 
-    // Dry / Clear / Partly Cloudy / Overcast Dry (WMO 0, 1, 2, 3)
+    // WMO 45..48 (Radiation / Valley Fog & Dew Mist without rain)
+    if (code >= 45 && code <= 48) {
+      return {
+        weatherMode: 'FOGGY',
+        labelId: 'Kabut Embun Depok',
+        cloudCoverNorm: Math.max(0.72, clouds / 100.0)
+      };
+    }
+
+    // Brisk dry monsoon wind >= 24 km/h
+    if (windKmh >= 24.0) {
+      return {
+        weatherMode: 'WINDY',
+        labelId: 'Angin Kencang Depok',
+        cloudCoverNorm: Math.max(0.36, Math.min(0.68, clouds / 100.0))
+      };
+    }
+
+    // WMO 3 or thick dry cloud deck >= 82% -> Overcast (Mendung)
+    if (code === 3 || clouds >= 82) {
+      return {
+        weatherMode: 'OVERCAST',
+        labelId: 'Mendung Depok',
+        cloudCoverNorm: Math.max(0.82, Math.min(0.94, clouds / 100.0))
+      };
+    }
+
+    // Clear / Fair / Partly Cloudy (WMO 0, 1, 2)
     let labelId = 'Cerah';
     let maxDryCloud = 0.25;
-    if (code === 3 || clouds >= 78) {
-      labelId = 'Berawan';
-      maxDryCloud = 0.64;
-    } else if (code === 2 || clouds >= 38) {
+    if (code === 2 || clouds >= 38) {
       labelId = 'Cerah Berawan';
-      maxDryCloud = 0.44;
-    } else if (code === 1) {
-      labelId = 'Cerah';
-      maxDryCloud = 0.25;
+      maxDryCloud = 0.46;
     }
 
     return {
       weatherMode: 'CLEAR',
       labelId,
-      cloudCoverNorm: Math.max(0.12, Math.min(maxDryCloud, (clouds / 100.0) * 0.78))
+      cloudCoverNorm: Math.max(0.12, Math.min(maxDryCloud, (clouds / 100.0) * 0.80))
     };
   }
 
@@ -238,7 +278,13 @@ export class DepokLiveWeatherService {
         Number(cur.rain || 0) + Number(cur.showers || 0)
       );
       const cloudCoverPct = Number(cur.cloud_cover ?? 30);
-      const classified = DepokLiveWeatherService.classifyWMOCondition(wmoCode, precip, cloudCoverPct);
+      const windSpeedKmh = +(Number(cur.wind_speed_10m) || 0).toFixed(1);
+      const classified = DepokLiveWeatherService.classifyWMOCondition(
+        wmoCode,
+        precip,
+        cloudCoverPct,
+        windSpeedKmh
+      );
 
       return {
         ok: true,

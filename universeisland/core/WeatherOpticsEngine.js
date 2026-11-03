@@ -40,15 +40,37 @@ export class WeatherOpticsEngine {
   static MAX_TRANSITION_SEC = 45.0;
   static DEFAULT_TRANSITION_SEC = 25.0;
 
+  static TOD_PROFILES = {
+    DAWN: { id: 'DAWN', labelId: 'Fajar', timeText: '05:45', solarHour: 5.75 },
+    MORNING: { id: 'MORNING', labelId: 'Pagi', timeText: '08:00', solarHour: 8.0 },
+    DAY: { id: 'DAY', labelId: 'Siang', timeText: '11:51', solarHour: 11.85 },
+    AFTERNOON: { id: 'AFTERNOON', labelId: 'Sore', timeText: '15:30', solarHour: 15.5 },
+    DUSK: { id: 'DUSK', labelId: 'Senja', timeText: '17:51', solarHour: 17.85 },
+    NIGHT: { id: 'NIGHT', labelId: 'Malam', timeText: '22:00', solarHour: 22.0 }
+  };
+
+  static WEATHER_PROFILES = {
+    CLEAR: { id: 'CLEAR', labelId: 'Cerah', rain: 0.0, wet: 0.0, cloud: 0.22, storm: 0.0, fog: 0.0, wind: 0.82 },
+    PARTLY_CLOUDY: { id: 'PARTLY_CLOUDY', labelId: 'Cerah Berawan', rain: 0.0, wet: 0.0, cloud: 0.48, storm: 0.0, fog: 0.0, wind: 1.05 },
+    OVERCAST: { id: 'OVERCAST', labelId: 'Mendung', rain: 0.0, wet: 0.06, cloud: 0.88, storm: 0.18, fog: 0.16, wind: 1.4 },
+    WINDY: { id: 'WINDY', labelId: 'Angin Kencang', rain: 0.0, wet: 0.0, cloud: 0.52, storm: 0.12, fog: 0.0, wind: 3.25 },
+    FOGGY: { id: 'FOGGY', labelId: 'Kabut Embun', rain: 0.0, wet: 0.34, cloud: 0.76, storm: 0.02, fog: 0.92, wind: 0.46 },
+    POST_RAIN: { id: 'POST_RAIN', labelId: 'Seusai Hujan', rain: 0.0, wet: 0.92, cloud: 0.34, storm: 0.0, fog: 0.18, wind: 0.86 },
+    MIST: { id: 'MIST', labelId: 'Gerimis', rain: 0.34, wet: 0.58, cloud: 0.74, storm: 0.05, fog: 0.0, wind: 1.2 },
+    SHOWER: { id: 'SHOWER', labelId: 'Hujan Ringan', rain: 0.66, wet: 0.82, cloud: 0.84, storm: 0.14, fog: 0.08, wind: 1.62 },
+    RAIN: { id: 'RAIN', labelId: 'Hujan Deras', rain: 1.0, wet: 0.96, cloud: 0.92, storm: 0.28, fog: 0.0, wind: 2.05 },
+    STORM: { id: 'STORM', labelId: 'Badai Petir', rain: 1.42, wet: 1.0, cloud: 1.0, storm: 1.0, fog: 0.0, wind: 3.55 }
+  };
+
   constructor(scene, options = {}) {
     this.scene = scene;
     this._shadowMapSize = Math.max(1024, Math.min(4096, Number(options.shadowMapSize) || 4096));
-    this.timeOfDay = 'DAY'; // 'DAY' | 'DUSK' | 'NIGHT'
-    this.weatherMode = 'CLEAR'; // 'CLEAR' | 'MIST' | 'RAIN' | 'STORM'
+    this.timeOfDay = 'DAY'; // 'DAWN' | 'MORNING' | 'DAY' | 'AFTERNOON' | 'DUSK' | 'NIGHT'
+    this.weatherMode = 'CLEAR'; // 10 physical regimes in WeatherOpticsEngine.WEATHER_PROFILES
 
     this.transitionDurationSec = WeatherOpticsEngine.DEFAULT_TRANSITION_SEC;
-    this.currentSolarHour = 10.35; // Continuous 24h Kampus UI Depok WIB solar clock [0, 24)
-    this.continuousSolarHour = 10.35; // Unwrapped monotonic WIB hours since _baseJD0WIB (0.000° midnight jump!)
+    this.currentSolarHour = 11.85; // Continuous 24h Kampus UI Depok WIB solar clock [0, 24)
+    this.continuousSolarHour = 11.85; // Unwrapped monotonic WIB hours since _baseJD0WIB (0.000° midnight jump!)
     this._baseJD0WIB = computeBaseJD0WIB(new Date());
     this._astroState = null;
     this.nightIlluminationLevel = 0.0; // Continuous [0, 1] architectural & aviation night glow
@@ -58,7 +80,7 @@ export class WeatherOpticsEngine {
     this.targetWetness = 0.0;
     this.targetCloudCover = 0.22;
     this.targetStormFactor = 0.0;
-    this.targetFogDensity = 0.00058;
+    this.targetFogDensity = 0.0;
     this.baseWindSpeed = 0.82;
     this.targetWindSpeed = 0.82;
     this.windGustMultiplier = 1.0;
@@ -74,7 +96,7 @@ export class WeatherOpticsEngine {
       startWet: 0.0,
       startCloud: 0.22,
       startStorm: 0.0,
-      startFog: 0.00058,
+      startFog: 0.0,
       startWind: 0.82
     };
 
@@ -85,8 +107,8 @@ export class WeatherOpticsEngine {
       elapsed: 0.0,
       duration: WeatherOpticsEngine.DEFAULT_TRANSITION_SEC,
       progress: 1.0,
-      startHour: 10.35,
-      startContinuousHour: 10.35,
+      startHour: 11.85,
+      startContinuousHour: 11.85,
       deltaHour: 0.0
     };
 
@@ -137,6 +159,7 @@ export class WeatherOpticsEngine {
       uWetness: { value: 0.0 },
       uCloudCover: { value: 0.22 },
       uStormFactor: { value: 0.0 },
+      uFogFactor: { value: 0.0 },
       uLightningFlash: { value: 0.0 },
       uLightningDir: { value: new THREE.Vector3(-0.45, 0.34, -0.82).normalize() },
       uLightningSeed: { value: 17.0 },
@@ -551,6 +574,7 @@ export class WeatherOpticsEngine {
         uRainIntensity: this.uniforms.uRainIntensity,
         uCloudCover: this.uniforms.uCloudCover,
         uStormFactor: this.uniforms.uStormFactor,
+        uFogFactor: this.uniforms.uFogFactor,
         uLightningFlash: this.uniforms.uLightningFlash,
         uLightningDir: this.uniforms.uLightningDir,
         uLightningSeed: this.uniforms.uLightningSeed,
@@ -582,6 +606,7 @@ export class WeatherOpticsEngine {
         uniform float uRainIntensity;
         uniform float uCloudCover;
         uniform float uStormFactor;
+        uniform float uFogFactor;
         uniform float uLightningFlash;
         uniform vec3 uLightningDir;
         uniform float uLightningSeed;
@@ -1139,7 +1164,12 @@ export class WeatherOpticsEngine {
 
           // Convert base sky & cloud scattering into True Scene-Referred Linear-HDR Radiance,
           // then composite Linear-HDR Cosmos (Milky Way + 208 J2000 Constellations), Moon, & Sun occluded by clouds!
-          float cloudTrans = 1.0 - cloudCoverMask;
+          float horizonFogBand = clamp(uFogFactor, 0.0, 1.0) * (1.0 - smoothstep(-0.04, 0.28, dir.y));
+          if (horizonFogBand > 0.002) {
+            vec3 fogSkyS = mix(mix(vec3(0.79, 0.85, 0.90), vec3(0.90, 0.66, 0.48), uDuskFactor), vec3(0.085, 0.115, 0.175), uNightFactor);
+            skyCol = mix(skyCol, fogSkyS, horizonFogBand * 0.82);
+          }
+          float cloudTrans = (1.0 - cloudCoverMask) * (1.0 - horizonFogBand * 0.78);
           vec3 hdrSky = nexusSRGBToLinear(max(skyCol, vec3(0.0))) * mix(1.16, 0.76, uNightFactor);
 
           // Linear-HDR Cosmos (occulted by solid Moon sphere and foreground clouds!)
@@ -2601,6 +2631,7 @@ export class WeatherOpticsEngine {
         uRainIntensity: this.uniforms.uRainIntensity,
         uCloudCover: this.uniforms.uCloudCover,
         uStormFactor: this.uniforms.uStormFactor,
+        uFogFactor: this.uniforms.uFogFactor,
         uLightningFlash: this.uniforms.uLightningFlash,
         uWindVec: this.uniforms.uWindVec,
         uWindPhase: this.uniforms.uWindPhase,
@@ -2687,6 +2718,7 @@ export class WeatherOpticsEngine {
         uniform float uRainIntensity;
         uniform float uCloudCover;
         uniform float uStormFactor;
+        uniform float uFogFactor;
         uniform float uLightningFlash;
         uniform vec3 uWindVec;
         uniform vec2 uWindPhase;
@@ -2878,7 +2910,8 @@ export class WeatherOpticsEngine {
               uNightFactor,
               uCloudCover,
               uRainIntensity,
-              uLightningFlash
+              uLightningFlash,
+              uFogFactor
             );
 
             vec3 hvsFallLin = nexusApplyHumanEyeHDR(
@@ -3146,7 +3179,8 @@ export class WeatherOpticsEngine {
               uNightFactor,
               uCloudCover,
               uRainIntensity,
-              uLightningFlash
+              uLightningFlash,
+              uFogFactor
             );
 
             vec3 hvsFreshLin = nexusApplyHumanEyeHDR(
@@ -3352,7 +3386,8 @@ export class WeatherOpticsEngine {
             uNightFactor,
             uCloudCover,
             uRainIntensity,
-            uLightningFlash
+            uLightningFlash,
+            uFogFactor
           );
 
           vec3 hvsOceanLin = nexusApplyHumanEyeHDR(
@@ -3487,16 +3522,19 @@ export class WeatherOpticsEngine {
   }
 
   static _todModeToSolarHour(mode) {
-    if (mode === 'NIGHT') return 22.25;
-    if (mode === 'DUSK') return 17.85;
-    return 10.35; // DAY
+    const profile = WeatherOpticsEngine.TOD_PROFILES[mode];
+    if (profile) return profile.solarHour;
+    return WeatherOpticsEngine.TOD_PROFILES.DAY.solarHour;
   }
 
   static _solarHourToTodMode(solarHour) {
     const h = ((solarHour % 24.0) + 24.0) % 24.0;
-    if (h >= 18.42 || h < 5.25) return 'NIGHT';
-    if ((h >= 5.25 && h < 6.38) || (h >= 17.08 && h < 18.42)) return 'DUSK';
-    return 'DAY';
+    if (h >= 18.5 || h < 5.25) return 'NIGHT';
+    if (h >= 5.25 && h < 6.58) return 'DAWN';
+    if (h >= 6.58 && h < 10.25) return 'MORNING';
+    if (h >= 10.25 && h < 14.5) return 'DAY';
+    if (h >= 14.5 && h < 17.08) return 'AFTERNOON';
+    return 'DUSK';
   }
 
   /**
@@ -3661,6 +3699,9 @@ export class WeatherOpticsEngine {
       if (sharedSurfaceUniforms.uCloudCover) {
         sharedSurfaceUniforms.uCloudCover.value = this.uniforms.uCloudCover.value;
       }
+      if (sharedSurfaceUniforms.uFogFactor) {
+        sharedSurfaceUniforms.uFogFactor.value = this.uniforms.uFogFactor.value;
+      }
       if (sharedSurfaceUniforms.uSunDir) {
         sharedSurfaceUniforms.uSunDir.value.copy(this.uniforms.uSunDir.value);
       }
@@ -3800,37 +3841,21 @@ export class WeatherOpticsEngine {
   }
 
   static _getWeatherPresetTargets(weatherMode, options = {}) {
-    if (weatherMode === 'STORM') {
+    const profile = WeatherOpticsEngine.WEATHER_PROFILES[weatherMode];
+    if (profile && weatherMode !== 'CLEAR') {
       return {
-        rain: 1.42,
-        wet: 1.0,
-        cloud: 1.0,
-        storm: 1.0,
-        fog: 0.0,
-        wind: 3.55
+        rain: profile.rain,
+        wet: profile.wet,
+        cloud:
+          options.cloudCoverNorm !== undefined && profile.rain === 0.0
+            ? Math.max(profile.cloud * 0.75, Math.min(0.96, Number(options.cloudCoverNorm)))
+            : profile.cloud,
+        storm: profile.storm,
+        fog: profile.fog,
+        wind: profile.wind
       };
     }
-    if (weatherMode === 'RAIN') {
-      return {
-        rain: 1.0,
-        wet: 0.96,
-        cloud: 0.92,
-        storm: 0.28,
-        fog: 0.0,
-        wind: 2.05
-      };
-    }
-    if (weatherMode === 'MIST') {
-      return {
-        rain: 0.34,
-        wet: 0.58,
-        cloud: 0.74,
-        storm: 0.05,
-        fog: 0.0,
-        wind: 1.2
-      };
-    }
-    // CLEAR (supports live Depok Open-Meteo cloudCoverNorm & windSpeed override!)
+    // CLEAR (supports live Depok Open-Meteo cloudCoverNorm override!)
     const liveCloud =
       options.cloudCoverNorm !== undefined
         ? Math.max(0.14, Math.min(0.86, Number(options.cloudCoverNorm)))
@@ -3847,26 +3872,26 @@ export class WeatherOpticsEngine {
 
   /**
    * Switches active meteorological regime with mandatory 20–45s staged physical transition by default!
-   * - Clouds & wind lead precipitation onset; ground wetness builds only as raindrops fall;
+   * - Clouds, fog & wind lead precipitation onset; ground wetness builds only as raindrops fall;
    * - When clearing, rain tapers gradually to drizzle -> 0, then wet ground evaporates slowly;
    * - Pass { immediate: true } ONLY for initial startup boot or instant headless test matrix snapshots.
    */
   setWeather(weatherMode, options = {}) {
     const prevMode = this.weatherMode;
-    this.weatherMode = weatherMode;
-    const preset = WeatherOpticsEngine._getWeatherPresetTargets(weatherMode, options);
+    this.weatherMode = WeatherOpticsEngine.WEATHER_PROFILES[weatherMode] ? weatherMode : 'CLEAR';
+    const preset = WeatherOpticsEngine._getWeatherPresetTargets(this.weatherMode, options);
 
     this.targetRainIntensity = preset.rain;
     this.targetWetness = preset.wet;
     this.targetCloudCover = preset.cloud;
     this.targetStormFactor = preset.storm;
-    this.targetFogDensity = 0.0;
+    this.targetFogDensity = preset.fog;
     this.targetWindSpeed = preset.wind;
 
     if (options.immediate === true) {
       this._weatherTrans.active = false;
-      this._weatherTrans.fromMode = weatherMode;
-      this._weatherTrans.toMode = weatherMode;
+      this._weatherTrans.fromMode = this.weatherMode;
+      this._weatherTrans.toMode = this.weatherMode;
       this._weatherTrans.progress = 1.0;
       this._weatherTrans.elapsed = 0.0;
 
@@ -3876,11 +3901,12 @@ export class WeatherOpticsEngine {
       }
       this.uniforms.uCloudCover.value = preset.cloud;
       this.uniforms.uStormFactor.value = preset.storm;
+      this.uniforms.uFogFactor.value = preset.fog;
       this.baseWindSpeed = preset.wind;
       if (this.scene.fog) {
         this.scene.fog.density = 0.0;
       }
-      if (weatherMode === 'STORM') {
+      if (this.weatherMode === 'STORM') {
         this.nextLightningTimer = Math.min(this.nextLightningTimer, 0.85);
       } else {
         this.uniforms.uLightningFlash.value = 0.0;
@@ -3904,18 +3930,20 @@ export class WeatherOpticsEngine {
       Math.abs(this.uniforms.uRainIntensity.value - preset.rain) +
       Math.abs(this.uniforms.uWetness.value - preset.wet) +
       Math.abs(this.uniforms.uCloudCover.value - preset.cloud) +
-      Math.abs(this.uniforms.uStormFactor.value - preset.storm);
+      Math.abs(this.uniforms.uStormFactor.value - preset.storm) +
+      Math.abs(this.uniforms.uFogFactor.value - preset.fog) +
+      Math.abs(this.baseWindSpeed - preset.wind) * 0.25;
 
     if (deltaSum < 0.015 && !this._weatherTrans.active) {
-      this._weatherTrans.fromMode = weatherMode;
-      this._weatherTrans.toMode = weatherMode;
+      this._weatherTrans.fromMode = this.weatherMode;
+      this._weatherTrans.toMode = this.weatherMode;
       this._weatherTrans.progress = 1.0;
       return;
     }
 
     this._weatherTrans.active = true;
-    this._weatherTrans.fromMode = this._weatherTrans.active ? prevMode : prevMode;
-    this._weatherTrans.toMode = weatherMode;
+    this._weatherTrans.fromMode = prevMode;
+    this._weatherTrans.toMode = this.weatherMode;
     this._weatherTrans.elapsed = 0.0;
     this._weatherTrans.duration = dur;
     this._weatherTrans.progress = 0.0;
@@ -3923,7 +3951,7 @@ export class WeatherOpticsEngine {
     this._weatherTrans.startWet = this.uniforms.uWetness.value;
     this._weatherTrans.startCloud = this.uniforms.uCloudCover.value;
     this._weatherTrans.startStorm = this.uniforms.uStormFactor.value;
-    this._weatherTrans.startFog = 0.0;
+    this._weatherTrans.startFog = this.uniforms.uFogFactor.value;
     this._weatherTrans.startWind = this.baseWindSpeed;
   }
 
@@ -3991,6 +4019,8 @@ export class WeatherOpticsEngine {
         ? WeatherOpticsEngine._smootherstep(0.28, 1.0, p)
         : WeatherOpticsEngine._smootherstep(0.30, 1.0, p);
 
+      const pFog = WeatherOpticsEngine._smootherstep(0.06, 0.86, p);
+
       this.uniforms.uCloudCover.value = s.startCloud + (this.targetCloudCover - s.startCloud) * pCloud;
       this.baseWindSpeed = s.startWind + (this.targetWindSpeed - s.startWind) * pWind;
       this.uniforms.uRainIntensity.value = s.startRain + (this.targetRainIntensity - s.startRain) * pRain;
@@ -3998,6 +4028,7 @@ export class WeatherOpticsEngine {
         this.uniforms.uRainIntensity.value = 0.0;
       }
       this.uniforms.uStormFactor.value = s.startStorm + (this.targetStormFactor - s.startStorm) * pStorm;
+      this.uniforms.uFogFactor.value = s.startFog + (this.targetFogDensity - s.startFog) * pFog;
       this.uniforms.uWetness.value = s.startWet + (this.targetWetness - s.startWet) * pWet;
 
       if (this.scene.fog) {
@@ -4020,6 +4051,8 @@ export class WeatherOpticsEngine {
         (this.targetCloudCover - this.uniforms.uCloudCover.value) * lerpRate;
       this.uniforms.uStormFactor.value +=
         (this.targetStormFactor - this.uniforms.uStormFactor.value) * lerpRate;
+      this.uniforms.uFogFactor.value +=
+        (this.targetFogDensity - this.uniforms.uFogFactor.value) * lerpRate;
       this.baseWindSpeed += (this.targetWindSpeed - this.baseWindSpeed) * lerpRate;
       if (this.scene.fog) {
         this.scene.fog.density = 0.0;
@@ -4030,6 +4063,10 @@ export class WeatherOpticsEngine {
         const targetWet = Math.min(1.0, 0.35 + rainNow * 0.72);
         const wetRate = 1.0 - Math.exp(-safeDt * (0.45 + rainNow * 0.65));
         this.uniforms.uWetness.value += (targetWet - this.uniforms.uWetness.value) * wetRate;
+      } else if (this.targetWetness > 0.01) {
+        // Sustained damp/post-rain regimes (POST_RAIN mirror puddles & FOGGY morning dew)
+        const wetHoldRate = 1.0 - Math.exp(-safeDt * 0.85);
+        this.uniforms.uWetness.value += (this.targetWetness - this.uniforms.uWetness.value) * wetHoldRate;
       } else if (this.uniforms.uWetness.value > 0.0) {
         // Gradual solar drying proportional to configured transition duration
         const dryPerSec = 1.0 / Math.max(20.0, this.transitionDurationSec * 0.85);
@@ -4042,7 +4079,7 @@ export class WeatherOpticsEngine {
       this._timeTrans.elapsed += transDt;
       const pT = Math.min(1.0, this._timeTrans.elapsed / Math.max(1.0, this._timeTrans.duration));
       this._timeTrans.progress = pT;
-      const easeT = WeatherOpticsEngine._smootherstep(0.0, 1.0, pT);
+      const easeT = WeatherOpticsEngine._smoothstep(0.0, 1.0, pT);
       this.continuousSolarHour = this._timeTrans.startContinuousHour + this._timeTrans.deltaHour * easeT;
       this.currentSolarHour = ((this.continuousSolarHour % 24.0) + 24.0) % 24.0;
       if (pT >= 1.0) {
@@ -4065,9 +4102,13 @@ export class WeatherOpticsEngine {
     this.uniforms.uWindPhase.value.x += this.uniforms.uWindVec.value.x * safeDt;
     this.uniforms.uWindPhase.value.y += this.uniforms.uWindVec.value.z * safeDt;
 
-    // Physical ocean swell momentum coupled to LIVE rainIntensity & stormFactor (grows smoothly over 20–45s!)
+    // Physical ocean swell momentum coupled to LIVE rainIntensity, stormFactor, & high wind chop!
+    const windChopBoost = Math.max(0.0, this.baseWindSpeed - 1.45) * 0.15;
     const liveSeaTarget =
-      0.32 + this.uniforms.uRainIntensity.value * 0.30 + this.uniforms.uStormFactor.value * 0.34;
+      0.32 +
+      this.uniforms.uRainIntensity.value * 0.30 +
+      this.uniforms.uStormFactor.value * 0.34 +
+      windChopBoost;
     const seaRate = 1.0 - Math.exp(-safeDt * 0.65);
     this.uniforms.uSeaState.value += (liveSeaTarget - this.uniforms.uSeaState.value) * seaRate;
 
@@ -4130,6 +4171,9 @@ export class WeatherOpticsEngine {
       }
       if (sharedSurfaceUniforms.uRainIntensity) {
         sharedSurfaceUniforms.uRainIntensity.value = this.uniforms.uRainIntensity.value;
+      }
+      if (sharedSurfaceUniforms.uFogFactor) {
+        sharedSurfaceUniforms.uFogFactor.value = this.uniforms.uFogFactor.value;
       }
       if (sharedSurfaceUniforms.uLightningFlash) {
         sharedSurfaceUniforms.uLightningFlash.value = flash;
