@@ -3363,6 +3363,28 @@ class ProceduralRailAudioEngine {
     brakePadSrc.connect(this.discBrakeFilter);
     this.discBrakeFilter.connect(this.discBrakeGain);
     this.discBrakeGain.connect(this.exteriorBus);
+    const stationHallSrc = createLoopNoise(1.58);
+    this.stationHallFilter = this.ctx.createBiquadFilter();
+    this.stationHallFilter.type = 'bandpass';
+    this.stationHallFilter.frequency.value = 520.0;
+    this.stationHallFilter.Q.value = 1.25;
+    this.stationAmbGain = this.ctx.createGain();
+    this.stationAmbGain.gain.value = 0.0;
+    stationHallSrc.connect(this.stationHallFilter);
+    this.stationHallFilter.connect(this.stationAmbGain);
+    this.stationEscOsc = this.ctx.createOscillator();
+    this.stationEscOsc.type = 'triangle';
+    this.stationEscOsc.frequency.value = 120.0;
+    const stationEscFilter = this.ctx.createBiquadFilter();
+    stationEscFilter.type = 'lowpass';
+    stationEscFilter.frequency.value = 240.0;
+    const stationEscGain = this.ctx.createGain();
+    stationEscGain.gain.value = 0.16;
+    this.stationEscOsc.connect(stationEscFilter);
+    stationEscFilter.connect(stationEscGain);
+    stationEscGain.connect(this.stationAmbGain);
+    this.stationAmbGain.connect(this.masterGain);
+    this.stationEscOsc.start();
     this.initialized = true;
   }
   toggleMute() {
@@ -3426,6 +3448,8 @@ class ProceduralRailAudioEngine {
     const pantoRaised = envContext && typeof envContext.pantoRaised === 'boolean' ? envContext.pantoRaised : true;
     const substationDist = envContext && Number.isFinite(envContext.substationDist) ? envContext.substationDist : 9999;
     const brakeDiscTempC = envContext && Number.isFinite(envContext.brakeDiscTempC) ? envContext.brakeDiscTempC : 32.0;
+    const nearStation = envContext ? Boolean(envContext.nearStation) : false;
+    const doorsOpen = envContext ? Boolean(envContext.doorsOpen) : false;
     if (inTunnel && !this._wasInTunnel && kmh > 110) {
       this.playTunnelEntryWave(absV);
     } else if (!inTunnel && this._wasInTunnel && kmh > 110) {
@@ -3483,6 +3507,12 @@ class ProceduralRailAudioEngine {
     this.coachMurmurGain.gain.setTargetAtTime(coachMurmurVol, now, 0.18);
     this.rainFilter.frequency.setTargetAtTime(isInteriorView ? 780 : 2150, now, 0.12);
     this.rainGain.gain.setTargetAtTime(rainVol, now, 0.18);
+    if (this.stationAmbGain) {
+      const stAmbVol = (nearStation && (!isInteriorView || doorsOpen))
+        ? (isInteriorView ? 0.015 : (cameraMode === 5 ? 0.036 : 0.026))
+        : 0.0;
+      this.stationAmbGain.gain.setTargetAtTime(stAmbVol, now, 0.22);
+    }
     const padFrictionVol = (brakePct > 8 && absV > 1.5)
       ? Math.min(0.048, (brakePct / 100) * Math.min(1.0, absV / 32.0) * (0.024 + (brakeDiscTempC / 600.0) * 0.022))
       : 0.0;
@@ -4038,6 +4068,76 @@ class ProceduralRailAudioEngine {
       oscMain.stop(t + 0.76);
       oscHarm.stop(t + 0.76);
     });
+  }
+  playMinibarOrder({ itemName, onCaption }) {
+    if (!this.enabled) return;
+    this.init();
+    this.cancelAnnouncements();
+    const now = this.ctx.currentTime;
+    const steamSrc = this.ctx.createBufferSource();
+    steamSrc.buffer = this.noiseBuffer;
+    const steamFlt = this.ctx.createBiquadFilter();
+    steamFlt.type = 'bandpass';
+    steamFlt.frequency.setValueAtTime(3400, now);
+    steamFlt.frequency.linearRampToValueAtTime(3950, now + 0.36);
+    steamFlt.Q.value = 1.95;
+    const steamG = this.ctx.createGain();
+    steamG.gain.setValueAtTime(0.001, now);
+    steamG.gain.linearRampToValueAtTime(0.052, now + 0.05);
+    steamG.gain.setValueAtTime(0.044, now + 0.26);
+    steamG.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+    steamSrc.connect(steamFlt);
+    steamFlt.connect(steamG);
+    steamG.connect(this.cabinBus);
+    steamSrc.start(now);
+    steamSrc.stop(now + 0.44);
+    [2780, 4160].forEach((freq, idx) => {
+      const t = now + 0.40 + idx * 0.075;
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.001, t);
+      g.gain.linearRampToValueAtTime(0.036, t + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0008, t + 0.14);
+      osc.connect(g);
+      g.connect(this.cabinBus);
+      osc.start(t);
+      osc.stop(t + 0.16);
+    });
+    const baristaMsg = `Terima kasih, pesanan ${itemName || 'Kopi Whoosh'} dari Minibar Kereta Lima telah siap disajikan. Selamat menikmati perjalanan bersama Whoosh.`;
+    const canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function';
+    const voices = canSpeak ? (window.speechSynthesis.getVoices() || []) : [];
+    const startId = setTimeout(() => {
+      if (!this.enabled) return;
+      if (onCaption) onCaption(`[MINIBAR KERETA 5] ${baristaMsg}`);
+      if (canSpeak && voices.length > 0) {
+        const utt = new window.SpeechSynthesisUtterance(baristaMsg);
+        utt.lang = 'id-ID';
+        utt.rate = 1.02;
+        utt.pitch = 1.12;
+        utt.volume = 0.74;
+        const idVoice = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith('id'));
+        if (idVoice) utt.voice = idVoice;
+        const finish = () => {
+          if (onCaption) onCaption('');
+        };
+        utt.onend = finish;
+        utt.onerror = finish;
+        try {
+          window.speechSynthesis.speak(utt);
+        } catch (_e) {
+          finish();
+        }
+      } else {
+        this._playCeilingSpeakerCadence(2.3);
+        const endId = setTimeout(() => {
+          if (onCaption) onCaption('');
+        }, 2800);
+        this._paTimeouts.push(endId);
+      }
+    }, 560);
+    this._paTimeouts.push(startId);
   }
   announceWhooshPA({ idText, enText, zhText, onCaption }) {
     if (!this.enabled) return;
@@ -5953,6 +6053,127 @@ class StreamingRailwayWorld {
     this.facadeMatCache = new Map();
     this.signMatCache = new Map();
     this.tunnelSignMatCache = new Map();
+    this.carZoneMatCache = new Map();
+    this._lastPidsKey = '';
+    if (typeof document !== 'undefined') {
+      this.platformPidsCanvas = document.createElement('canvas');
+      this.platformPidsCanvas.width = 512;
+      this.platformPidsCanvas.height = 128;
+      this.platformPidsCtx = this.platformPidsCanvas.getContext('2d');
+      this.platformPidsTex = new THREE.CanvasTexture(this.platformPidsCanvas);
+      this.platformPidsTex.colorSpace = THREE.SRGBColorSpace;
+      this.platformPidsMat = new THREE.MeshBasicMaterial({ map: this.platformPidsTex });
+      this.updatePlatformPIDSTexture({
+        clockStr: '07:30',
+        trainNo: 'G1215',
+        destName: 'TEGALLUAR',
+        statusText: 'BOARDING • PINTU PSD BUKA',
+        isExpress: false
+      });
+    } else {
+      this.platformPidsMat = new THREE.MeshBasicMaterial({ color: 0x090d16 });
+    }
+  }
+  _getCarZoneMat(carNum) {
+    if (!this.carZoneMatCache.has(carNum)) {
+      if (typeof document === 'undefined') {
+        this.carZoneMatCache.set(carNum, new THREE.MeshBasicMaterial({ color: 0x0284c7 }));
+      } else {
+        const c = document.createElement('canvas');
+        c.width = 256;
+        c.height = 64;
+        const ctx = c.getContext('2d');
+        const isBiz = carNum === 1;
+        const isFirst = carNum === 2;
+        const isDining = carNum === 5;
+        ctx.fillStyle = '#090f1d';
+        ctx.fillRect(0, 0, 256, 64);
+        ctx.strokeStyle = isFirst ? '#f59e0b' : (isBiz ? '#f43f5e' : '#38bdf8');
+        ctx.lineWidth = 4;
+        ctx.strokeRect(2, 2, 252, 60);
+        ctx.fillStyle = isFirst ? '#f59e0b' : (isBiz ? '#dc2626' : '#0284c7');
+        ctx.fillRect(6, 6, 92, 52);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`CAR ${carNum}`, 52, 41);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = 'bold 14px sans-serif';
+        const roleTxt = isBiz
+          ? 'BUSINESS CLASS'
+          : (isFirst ? 'FIRST CLASS VIP' : (isDining ? 'MINIBAR • ECO' : 'PREMIUM ECO'));
+        ctx.fillText(roleTxt, 174, 28);
+        ctx.fillStyle = '#fde047';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText(`KERETA 0${carNum} • ANTRE PSD`, 174, 48);
+        const tex = new THREE.CanvasTexture(c);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        const rim = this.roofDarkMat;
+        const face = new THREE.MeshBasicMaterial({ map: tex });
+        this.carZoneMatCache.set(carNum, [face, face, rim, rim, rim, rim]);
+      }
+    }
+    return this.carZoneMatCache.get(carNum);
+  }
+  updatePlatformPIDSTexture({
+    clockStr = '07:30',
+    trainNo = 'G1215',
+    destName = 'TEGALLUAR',
+    statusText = 'TEPAT WAKTU',
+    isExpress = false
+  } = {}) {
+    if (!this.platformPidsCtx || !this.platformPidsTex) return;
+    const key = `${clockStr}|${trainNo}|${destName}|${statusText}|${isExpress ? 1 : 0}`;
+    if (key === this._lastPidsKey) return;
+    this._lastPidsKey = key;
+    const ctx = this.platformPidsCtx;
+    ctx.fillStyle = '#040812';
+    ctx.fillRect(0, 0, 512, 128);
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(2, 2, 508, 124);
+    ctx.fillStyle = '#991b1b';
+    ctx.fillRect(4, 4, 376, 26);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(380, 4, 128, 26);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('WHOOSH KCIC • JADWAL PERON KEBERANGKATAN', 12, 22);
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 15px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${clockStr} WIB`, 500, 22);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#fde047';
+    ctx.font = 'bold 20px monospace';
+    ctx.fillText(trainNo, 12, 58);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 19px sans-serif';
+    ctx.fillText(destName.slice(0, 14), 96, 58);
+    ctx.fillStyle = isExpress ? '#f59e0b' : '#38bdf8';
+    ctx.font = 'bold 13px monospace';
+    ctx.fillText(isExpress ? 'EXPRESS 350' : 'CAR 1 - 8', 250, 57);
+    ctx.fillStyle = statusText.includes('BOARDING') ? '#10b981' : '#34d399';
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText(statusText.slice(0, 20), 348, 57);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 16px monospace';
+    ctx.fillText('G1223', 12, 86);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText(destName === 'HALIM JAKARTA' ? 'TEGALLUAR' : 'HALIM JAKARTA', 96, 86);
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 13px monospace';
+    ctx.fillText('CAR 1 - 8', 250, 86);
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText('PERSIAPAN CONCOURSE', 348, 86);
+    ctx.fillStyle = '#0c192c';
+    ctx.fillRect(4, 98, 504, 26);
+    ctx.fillStyle = '#fde047';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('CAR 1: BISNIS • CAR 2: FIRST VIP • CAR 3-8: PREMIUM ECO • CAR 5: MINIBAR', 12, 115);
+    this.platformPidsTex.needsUpdate = true;
   }
   _getRockShellMat(hexColor) {
     if (!this.rockMatCache.has(hexColor)) {
@@ -6286,6 +6507,10 @@ class StreamingRailwayWorld {
     this.sharedTerminalBoxGeo.userData.sharedGeo = true;
     this.sharedSignBoardGeo = new THREE.BoxGeometry(2.8, 0.72, 0.08);
     this.sharedSignBoardGeo.userData.sharedGeo = true;
+    this.sharedCarZoneBoardGeo = new THREE.BoxGeometry(0.08, 0.34, 1.38);
+    this.sharedCarZoneBoardGeo.userData.sharedGeo = true;
+    this.sharedPlatformPidsGeo = new THREE.BoxGeometry(0.16, 0.62, 2.48);
+    this.sharedPlatformPidsGeo.userData.sharedGeo = true;
     this.sharedPsdDoorPanelGeo = new THREE.BoxGeometry(0.05, 2.00, 1.05);
     this.sharedPsdDoorPanelGeo.userData.sharedGeo = true;
     const opaqueParts = [];
@@ -6325,11 +6550,22 @@ class StreamingRailwayWorld {
     }
     waveArchBase.dispose();
     const doorZList = [-34.2, -18.6, -12.6, 3.0, 9.0, 24.6, 30.6, 46.2, 52.2, 67.8, 73.8, 89.4, 95.4];
+    [-2.72, 7.72].forEach((tx) => {
+      addBox(opaqueParts, [0.32, 0.016, platLen - 6], [tx, 0.985, platCenterZ], 0xfacc15);
+      const signSide = tx < 0 ? -1 : 1;
+      addBox(opaqueParts, [2.8, 0.017, 0.30], [tx + signSide * 1.4, 0.986, 4.5], 0xfacc15);
+      addBox(opaqueParts, [2.4, 0.017, 0.30], [tx + signSide * 1.2, 0.986, 11.5], 0xfacc15);
+    });
     [-2.08, 7.08].forEach((px) => {
+      const qSign = px < 0 ? -1 : 1;
       addBox(opaqueParts, [0.18, 0.18, 152.0], [px, 3.16, 33.0], 0xdc2626);
-      doorZList.forEach((dz) => {
+      doorZList.forEach((dz, dIdx) => {
         addBox(opaqueParts, [0.14, 2.25, 0.24], [px, 2.10, dz - 1.20], 0x1e293b);
         addBox(opaqueParts, [0.14, 2.25, 0.24], [px, 2.10, dz + 1.20], 0x1e293b);
+        const qCol = dIdx <= 1 ? 0xdc2626 : (dIdx <= 3 ? 0xf59e0b : 0x0284c7);
+        addBox(opaqueParts, [0.58, 0.014, 0.26], [px + qSign * 0.42, 0.986, dz - 0.88], qCol);
+        addBox(opaqueParts, [0.58, 0.014, 0.26], [px + qSign * 0.42, 0.986, dz + 0.88], qCol);
+        addBox(opaqueParts, [0.22, 0.015, 1.36], [px + qSign * 0.20, 0.986, dz], 0xfacc15);
       });
       [-26.4, -4.8, 16.8, 38.4, 60.0, 81.6].forEach((midCarZ) => {
         addBox(glassParts, [0.06, 2.05, 13.0], [px, 2.02, midCarZ], null);
@@ -6343,18 +6579,53 @@ class StreamingRailwayWorld {
     addBox(opaqueParts, [14.0, 0.65, 174.0], [-14.2, 12.15, 34], 0xe2e8f0);
     addBox(opaqueParts, [4.8, 0.45, 42.0], [-20.8, 4.8, 34], 0xdc2626);
     [-5.6, 10.6].forEach((ex) => {
-      addBox(opaqueParts, [1.65, 0.45, 9.8], [ex, 4.3, 16.8], 0x475569, [0.68, 0, 0]);
-      addBox(glassParts, [1.72, 0.85, 9.6], [ex, 4.85, 16.8], null, [0.68, 0, 0]);
+      addBox(opaqueParts, [1.82, 0.48, 10.2], [ex, 4.25, 16.8], 0x475569, [0.68, 0, 0]);
+      addBox(opaqueParts, [0.12, 0.16, 10.1], [ex - 0.84, 5.18, 16.8], 0x090d16, [0.68, 0, 0]);
+      addBox(opaqueParts, [0.12, 0.16, 10.1], [ex + 0.84, 5.18, 16.8], 0x090d16, [0.68, 0, 0]);
+      addBox(glassParts, [1.76, 0.86, 9.8], [ex, 4.82, 16.8], null, [0.68, 0, 0]);
+      for (let stp = -4.2; stp <= 4.2; stp += 0.70) {
+        const sy = 4.42 - Math.sin(0.68) * stp;
+        const sz = 16.8 + Math.cos(0.68) * stp;
+        addBox(opaqueParts, [1.46, 0.12, 0.34], [ex, sy, sz], 0x94a3b8);
+      }
+      addBox(emissiveParts, [0.16, 0.32, 0.16], [ex - 0.84, 1.36, 20.8], 0x10b981);
+      addBox(emissiveParts, [0.16, 0.32, 0.16], [ex + 0.84, 1.36, 20.8], 0x10b981);
     });
+    [-6.4, 11.2].forEach((lx) => {
+      addBox(opaqueParts, [2.36, 0.28, 2.36], [lx, 8.28, 4.5], 0x0284c7);
+      for (const cxOff of [-1.06, 1.06]) {
+        for (const czOff of [-1.06, 1.06]) {
+          addBox(opaqueParts, [0.16, 7.4, 0.16], [lx + cxOff, 4.65, 4.5 + czOff], 0x334155);
+        }
+      }
+      addBox(glassParts, [2.18, 7.1, 2.18], [lx, 4.60, 4.5], null);
+      addBox(opaqueParts, [1.86, 0.14, 1.86], [lx, 1.06, 4.5], 0x475569);
+      addBox(opaqueParts, [1.86, 0.14, 1.86], [lx, 3.22, 4.5], 0xe2e8f0);
+      addBox(emissiveParts, [1.56, 0.08, 1.56], [lx, 3.12, 4.5], 0xe0f2fe);
+      addBox(emissiveParts, [0.06, 0.24, 0.42], [lx + (lx < 0 ? 1.12 : -1.12), 3.45, 4.5], 0x38bdf8);
+    });
+    for (let gz = 26.0; gz <= 43.5; gz += 2.5) {
+      addBox(opaqueParts, [1.28, 1.02, 0.28], [-9.65, 1.48, gz], 0xcbd5e1);
+      addBox(opaqueParts, [1.30, 0.08, 0.30], [-9.65, 2.01, gz], 0x0f172a);
+      addBox(emissiveParts, [0.16, 0.04, 0.16], [-9.12, 2.04, gz], 0x38bdf8);
+      addBox(emissiveParts, [0.05, 0.22, 0.18], [-9.00, 1.62, gz], 0x10b981);
+      if (gz < 43.0) {
+        addBox(opaqueParts, [0.06, 0.76, 0.72], [-9.55, 1.44, gz + 0.52], 0xdc2626);
+        addBox(opaqueParts, [0.06, 0.76, 0.72], [-9.55, 1.44, gz + 1.98], 0xdc2626);
+      }
+    }
     [-28, 36, 96].forEach((kz) => {
       addBox(opaqueParts, [2.4, 2.6, 4.8], [-7.1, 2.25, kz], 0x0f172a);
       addBox(emissiveParts, [0.12, 0.48, 4.4], [-5.88, 3.2, kz], 0xf59e0b);
       addBox(emissiveParts, [0.10, 1.4, 3.8], [-5.89, 2.1, kz], 0xe0f2fe);
     });
     [-46, -10, 26, 62, 98, 134].forEach((pz) => {
-      addBox(opaqueParts, [0.22, 0.48, 2.1], [-3.4, 3.95, pz], 0x090d16);
-      addBox(emissiveParts, [0.24, 0.32, 1.9], [-3.4, 3.95, pz], 0xf59e0b);
+      [-3.45, 8.45].forEach((px) => {
+        addCyl(opaqueParts, [0.035, 0.035, 0.75, 6], [px, 4.42, pz - 0.82], 0x475569);
+        addCyl(opaqueParts, [0.035, 0.035, 0.75, 6], [px, 4.42, pz + 0.82], 0x475569);
+      });
       addBox(opaqueParts, [0.75, 1.85, 0.85], [-7.4, 1.88, pz - 4], 0x0284c7);
+      addBox(emissiveParts, [0.06, 0.58, 0.46], [-7.00, 2.02, pz - 4], 0xbae6fd);
     });
     addBox(opaqueParts, [25.4, 0.55, 8.6], [-0.9, 7.6, 24], 0x64748b);
     addBox(glassParts, [25.0, 2.8, 8.2], [-0.9, 9.25, 24], null);
@@ -7738,6 +8009,30 @@ class StreamingRailwayWorld {
       boardR.rotation.y = -Math.PI / 2;
       stGrp.add(boardL, boardR);
     });
+    const pidsMats = [
+      this.platformPidsMat,
+      this.platformPidsMat,
+      this.roofDarkMat,
+      this.roofDarkMat,
+      this.roofDarkMat,
+      this.roofDarkMat
+    ];
+    [-46, -10, 26, 62, 98, 134].forEach((pz) => {
+      const pidsL = new THREE.Mesh(this.sharedPlatformPidsGeo, pidsMats);
+      pidsL.position.set(-3.45, 3.88, pz);
+      const pidsR = new THREE.Mesh(this.sharedPlatformPidsGeo, pidsMats);
+      pidsR.position.set(8.45, 3.88, pz);
+      stGrp.add(pidsL, pidsR);
+    });
+    const carZoneZ = [-38.0, -18.5, 4.0, 26.5, 49.0, 71.5, 94.0, 116.5];
+    carZoneZ.forEach((cz, idx) => {
+      const cMat = this._getCarZoneMat(idx + 1);
+      const cBoardL = new THREE.Mesh(this.sharedCarZoneBoardGeo, cMat);
+      cBoardL.position.set(-2.12, 3.42, cz);
+      const cBoardR = new THREE.Mesh(this.sharedCarZoneBoardGeo, cMat);
+      cBoardR.position.set(7.12, 3.42, cz);
+      stGrp.add(cBoardL, cBoardR);
+    });
     const benchZList = [-70, -40, -10, 20, 50, 80, 110, 140];
     const totalNpcs = this.stationNpcCount || 96;
     for (let k = 0; k < totalNpcs; k++) {
@@ -7914,6 +8209,10 @@ class ArticulatedTrainSystem {
     this.sunVisorAnim = 0.0;
     this.cabSunVisorMesh = null;
     this.extWiperPivots = [];
+    this.minibarOrderIdx = 0;
+    this.minibarCounterTrayGroup = null;
+    this.pantoForceN = 70;
+    this.sperlingWz = 1.42;
     this.liveryKey = 'WHOOSH';
     this.travelDir = 1;
     this.numCoaches = 8;
@@ -9003,6 +9302,31 @@ class ArticulatedTrainSystem {
     this.sunVisorDown = !this.sunVisorDown;
     return this.sunVisorDown;
   }
+  getMinibarMenuSpec(idx = this.minibarOrderIdx) {
+    const menus = [
+      { idx: 0, name: 'Kopi Whoosh & Camilan Nusantara', cupCol: 0xf8fafc, sleeveCol: 0xdc2626, mealCol: 0x991b1b },
+      { idx: 1, name: 'Kopi Cappuccino Panas & Roti Bolen Bandung', cupCol: 0xfef3c7, sleeveCol: 0x78350f, mealCol: 0xd97706 },
+      { idx: 2, name: 'Es Kopi Aren Whoosh & Cuanki Bandung Panas', cupCol: 0xfde68a, sleeveCol: 0xdc2626, mealCol: 0xef4444 },
+      { idx: 3, name: 'Wedang Teh Jahe & Nasi Ayam Taliwang', cupCol: 0xfdba74, sleeveCol: 0x0f766e, mealCol: 0x7c2d12 }
+    ];
+    return menus[idx % menus.length] || menus[1];
+  }
+  cycleMinibarOrder() {
+    this.minibarOrderIdx = (this.minibarOrderIdx % 3) + 1;
+    this.playerTrayOpen = true;
+    const spec = this.getMinibarMenuSpec(this.minibarOrderIdx);
+    const applyTrayColors = (grp) => {
+      if (!grp || !grp.userData) return;
+      const { cupMesh, sleeveMesh, snackMesh } = grp.userData;
+      if (cupMesh && cupMesh.material) cupMesh.material.color.setHex(spec.cupCol);
+      if (sleeveMesh && sleeveMesh.material) sleeveMesh.material.color.setHex(spec.sleeveCol);
+      if (snackMesh && snackMesh.material) snackMesh.material.color.setHex(spec.mealCol);
+      grp.visible = true;
+    };
+    applyTrayColors(this.playerTrayGroup);
+    applyTrayColors(this.minibarCounterTrayGroup);
+    return spec;
+  }
   build3DCoachInterior(carLen, cfg, cabinClass = 'ECONOMY') {
     const B = GeometryBatcher;
     const interior = new THREE.Group();
@@ -9016,6 +9340,7 @@ class ArticulatedTrainSystem {
     this.playerBlindBarMesh = null;
     this.playerTrayGroup = null;
     this.playerBackrestGroup = null;
+    this.minibarCounterTrayGroup = null;
     for (const lz of [-9.8, -4.0, 4.0, 9.8]) {
       const isBordesLight = Math.abs(lz) > 8.0;
       const pt = new THREE.PointLight(
@@ -9116,10 +9441,13 @@ class ArticulatedTrainSystem {
       for (let wz = -8.55; wz <= 8.56; wz += 1.90) {
         pillarIdx++;
         addBox([0.11, 0.94, 0.42], [side * 1.51, 2.45, wz], 0xe2e8f0);
+        addBox([0.024, 0.048, 0.032], [side * 1.448, 2.82, wz], 0x94a3b8);
+        addCyl([0.007, 0.007, 0.038, 6], [side * 1.430, 2.825, wz], 0xf8fafc, [0, 0, side * 1.15]);
         if (pillarIdx % 2 === 0 && Math.abs(wz) < 7.8) {
           addBox([0.028, 0.17, 0.075], [side * 1.448, 2.54, wz], 0x1e293b);
           addBox([0.032, 0.13, 0.026], [side * 1.442, 2.53, wz], 0xdc2626);
           addBox([0.036, 0.028, 0.068], [side * 1.440, 2.59, wz], 0xf8fafc);
+          addEmissiveBox([0.012, 0.034, 0.034], [side * 1.535, 2.78, wz + 0.30], 0xef4444);
         }
       }
       for (let wz = -7.60; wz <= 7.61; wz += 1.90) {
@@ -9160,8 +9488,11 @@ class ArticulatedTrainSystem {
           const bCol = bagPalette[slotHash % bagPalette.length];
           if (slotHash % 2 === 0) {
             addBox([0.42, 0.21, 0.58], [side * 1.18, 3.30, bz + 0.35], bCol, [0, 0.06 * side, side * 0.08]);
+            addBox([0.14, 0.026, 0.09], [side * 1.00, 3.30, bz + 0.65], 0x94a3b8);
+            addBox([0.07, 0.016, 0.04], [side * 0.94, 3.27, bz + 0.62], 0xdc2626);
           } else {
             addBox([0.34, 0.24, 0.44], [side * 1.16, 3.31, bz - 0.28], bCol, [0, -0.12 * side, side * 0.08]);
+            addBox([0.08, 0.14, 0.28], [side * 0.99, 3.29, bz - 0.28], 0x0f172a);
           }
         }
       }
@@ -9285,9 +9616,13 @@ class ArticulatedTrainSystem {
       addBox([0.86, 1.92, 0.68], [1.06, 2.34, rackZ], 0x475569);
       addBox([0.82, 0.05, 0.64], [1.06, 1.98, rackZ], 0xcbd5e1);
       addBox([0.82, 0.05, 0.64], [1.06, 2.62, rackZ], 0xcbd5e1);
-      addBox([0.34, 0.52, 0.48], [0.92, 1.66, rackZ], 0x991b1b);
-      addBox([0.36, 0.54, 0.46], [1.24, 1.67, rackZ], 0x1e293b);
-      addBox([0.42, 0.46, 0.44], [1.06, 2.24, rackZ], 0x0369a1);
+      addBox([0.34, 0.52, 0.48], [0.92, 1.68, rackZ], 0x991b1b);
+      addCyl([0.025, 0.025, 0.03, 8], [0.80, 1.405, rackZ - 0.16], 0x0f172a, [0, 0, Math.PI * 0.5]);
+      addCyl([0.025, 0.025, 0.03, 8], [1.04, 1.405, rackZ - 0.16], 0x0f172a, [0, 0, Math.PI * 0.5]);
+      addBox([0.14, 0.12, 0.02], [0.92, 1.99, rackZ - 0.18], 0x94a3b8);
+      addBox([0.36, 0.54, 0.46], [1.24, 1.69, rackZ], 0x1e293b);
+      addBox([0.42, 0.46, 0.44], [1.06, 2.25, rackZ], 0x0369a1);
+      addBox([0.08, 0.04, 0.02], [0.84, 2.38, rackZ - 0.18], 0xdc2626);
       if (endDir < 0) {
         addBox([0.62, 0.008, 0.76], [1.06, 1.386, -7.82], 0x0284c7);
         addBox([0.44, 0.009, 0.04], [1.06, 1.388, -7.46], 0xf8fafc);
@@ -9304,10 +9639,55 @@ class ArticulatedTrainSystem {
         addCyl([0.026, 0.026, 0.14, 8], [barX - 0.06, 2.48, barZ + 0.18], 0x38bdf8);
         addCyl([0.026, 0.026, 0.14, 8], [barX - 0.06, 2.48, barZ + 0.30], 0x10b981);
         addCyl([0.026, 0.026, 0.14, 8], [barX - 0.06, 2.48, barZ + 0.42], 0xf59e0b);
-        addBox([0.16, 0.10, 0.18], [barX - 0.08, 2.70, barZ + 0.28], 0xdc2626);
-        addBox([0.34, 0.36, 0.38], [barX - 0.10, 2.55, barZ - 0.38], 0x94a3b8);
+        addBox([0.16, 0.10, 0.18], [barX - 0.08, 2.70, barZ + 0.22], 0xd97706);
+        addBox([0.14, 0.11, 0.14], [barX - 0.08, 2.70, barZ + 0.44], 0xdc2626);
         addBox([0.88, 0.26, 1.48], [barX, 3.38, barZ], 0x0f172a);
         addEmissiveBox([0.04, 0.14, 1.24], [barX + 0.45, 3.38, barZ], 0xf43f5e);
+        addEmissiveBox([0.03, 0.34, 0.48], [barX - 0.42, 2.98, barZ - 0.36], 0xbae6fd);
+        const espMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(0.34, 0.36, 0.38),
+          new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.24, metalness: 0.82 })
+        );
+        espMesh.position.set(barX - 0.10, 2.56, barZ - 0.38);
+        espMesh.userData = { coachAction: 'MINIBAR_ORDER' };
+        const steamWand = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.008, 0.008, 0.16, 6),
+          this.sharedChromeMat
+        );
+        steamWand.position.set(barX + 0.08, 2.48, barZ - 0.26);
+        steamWand.rotation.z = -0.35;
+        steamWand.userData = { coachAction: 'MINIBAR_ORDER' };
+        const mSpec = this.getMinibarMenuSpec(this.minibarOrderIdx);
+        const barTrayGrp = new THREE.Group();
+        barTrayGrp.position.set(barX + 0.22, 2.395, barZ - 0.06);
+        const barPlatter = new THREE.Mesh(
+          new THREE.BoxGeometry(0.24, 0.016, 0.32),
+          new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 })
+        );
+        barPlatter.userData = { coachAction: 'MINIBAR_ORDER' };
+        const barCup = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.036, 0.029, 0.095, 12),
+          new THREE.MeshStandardMaterial({ color: mSpec.cupCol, roughness: 0.45 })
+        );
+        barCup.position.set(0.02, 0.055, -0.07);
+        barCup.userData = { coachAction: 'MINIBAR_ORDER' };
+        const barSleeve = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.037, 0.032, 0.046, 12),
+          new THREE.MeshStandardMaterial({ color: mSpec.sleeveCol, roughness: 0.45 })
+        );
+        barSleeve.position.set(0.02, 0.052, -0.07);
+        barSleeve.userData = { coachAction: 'MINIBAR_ORDER' };
+        const barSnack = new THREE.Mesh(
+          new THREE.BoxGeometry(0.13, 0.05, 0.12),
+          new THREE.MeshStandardMaterial({ color: mSpec.mealCol, roughness: 0.5 })
+        );
+        barSnack.position.set(0.0, 0.032, 0.07);
+        barSnack.userData = { coachAction: 'MINIBAR_ORDER' };
+        barTrayGrp.add(barPlatter, barCup, barSleeve, barSnack);
+        barTrayGrp.userData = { cupMesh: barCup, sleeveMesh: barSleeve, snackMesh: barSnack };
+        this.minibarCounterTrayGroup = barTrayGrp;
+        this.interactiveCoachMeshes.push(espMesh, steamWand, barPlatter, barCup, barSleeve, barSnack);
+        interior.add(espMesh, steamWand, barTrayGrp);
       }
       const pidHousing = new THREE.Mesh(
         new THREE.BoxGeometry(1.28, 0.28, 0.06),
@@ -9388,6 +9768,7 @@ class ArticulatedTrainSystem {
           const trayGrp = new THREE.Group();
           trayGrp.position.set(sx, 2.01, tzHinge);
           trayGrp.rotation.x = (1.0 - this.playerTrayAnim) * 1.42;
+          const pMenuSpec = this.getMinibarMenuSpec(this.minibarOrderIdx);
           const trayBoard = new THREE.Mesh(
             new THREE.BoxGeometry(sw - 0.04, 0.022, 0.27),
             new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.38, metalness: 0.12 })
@@ -9396,19 +9777,19 @@ class ArticulatedTrainSystem {
           trayBoard.userData = { coachAction: 'TRAY' };
           const cupMesh = new THREE.Mesh(
             new THREE.CylinderGeometry(0.036, 0.029, 0.09, 12),
-            new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 })
+            new THREE.MeshStandardMaterial({ color: pMenuSpec.cupCol, roughness: 0.5 })
           );
           cupMesh.position.set(-0.10, 0.055, 0.13);
           cupMesh.userData = { coachAction: 'TRAY' };
           const sleeveMesh = new THREE.Mesh(
             new THREE.CylinderGeometry(0.037, 0.032, 0.045, 12),
-            new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.45 })
+            new THREE.MeshStandardMaterial({ color: pMenuSpec.sleeveCol, roughness: 0.45 })
           );
           sleeveMesh.position.set(-0.10, 0.052, 0.13);
           sleeveMesh.userData = { coachAction: 'TRAY' };
           const snackMesh = new THREE.Mesh(
             new THREE.BoxGeometry(0.14, 0.045, 0.11),
-            new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.5 })
+            new THREE.MeshStandardMaterial({ color: pMenuSpec.mealCol, roughness: 0.5 })
           );
           snackMesh.position.set(0.08, 0.034, 0.15);
           snackMesh.userData = { coachAction: 'TRAY' };
@@ -10218,15 +10599,17 @@ class ArticulatedTrainSystem {
     ctx.fillStyle = '#f59e0b';
     ctx.fillRect(726, 141, (brakePipeBar / 5.0) * 268, 16);
     const discTemp = Math.round(this.brakeDiscTempC || 32);
+    const pantoN = Math.round(this.pantoForceN || 0);
+    const wzStr = (this.sperlingWz || 1.42).toFixed(2);
     ctx.fillStyle = this.lastWheelSlip ? '#f43f5e' : (discTemp > 320 ? '#fbbf24' : '#34d399');
     ctx.font = 'bold 12px JetBrains Mono';
     ctx.fillText(
-      this.lastWheelSlip ? '⚠ WSP: ADHESION CONTROL!' : `CW350 DISC: ${discTemp}°C (${discTemp > 320 ? 'HOT' : 'OK'})`,
+      this.lastWheelSlip ? '⚠ WSP: ADHESION CONTROL!' : `CW350 DISC: ${discTemp}°C • PANTO ${pantoN}N`,
       726,
       188
     );
-    ctx.fillStyle = '#cbd5e1';
-    ctx.fillText(`CONSIST: ${this.numCoaches}-CAR KCIC400AF`, 726, 216);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText(`SPERLING Wz: ${wzStr} (EXCELLENT) • ${this.numCoaches}C`, 726, 216);
     this.mfdTexture.needsUpdate = true;
   }
   updateKinematics(leadS, speedMps, throttlePct, brakePct, wheelSlipping, dt, audioEngine) {
@@ -10284,6 +10667,20 @@ class ArticulatedTrainSystem {
       this.cabSunVisorMesh.scale.y = 0.08 + this.sunVisorAnim * 0.92;
     }
     const frameLeadNow = EndlessWorldMathematics.getTrackFrame(leadS, 0, originS, _fCenter);
+    const tOsc = performance.now() * 0.001;
+    if (this.pantoRaised && this.pantoAnim > 0.7) {
+      const aeroUpliftN = 0.0086 * absSpd * absSpd * (frameLeadNow.inTunnel ? 1.12 : 1.0);
+      const spanRippleN = Math.sin((leadS / 50.0) * Math.PI * 2.0) * (3.5 + (absSpd / 97.2) * 14.0);
+      this.pantoForceN = THREE.MathUtils.clamp(70.0 + aeroUpliftN + spanRippleN, 42.0, 215.0);
+    } else {
+      this.pantoForceN = 0.0;
+    }
+    const curvTerm = Math.min(0.28, Math.abs(frameLeadNow.curvature) * 420.0);
+    this.sperlingWz = THREE.MathUtils.clamp(
+      1.38 + (absSpd / 97.2) * 0.48 + curvTerm + Math.sin(tOsc * 2.3) * 0.03 * (absSpd / 97.2),
+      1.35,
+      2.24
+    );
     const nf = this.nightFactor || 0.0;
     if (this.spotLight) {
       const beamPower = (frameLeadNow.inTunnel || nf > 0.45) ? 64.0 : 40.0;
@@ -12501,6 +12898,22 @@ class WhooshMasterSimulatorKernel {
       mfdExtra
     );
     this.train.updateCoachPIDTexture(speedKmh, nextSt.shortName, `${hh}:${mm}`, this.activePaCaption);
+    if (this.world && typeof this.world.updatePlatformPIDSTexture === 'function') {
+      const trainNo = this.serviceMode === 'EXPRESS'
+        ? (dir > 0 ? 'G1019' : 'G1022')
+        : (dir > 0 ? 'G1215' : 'G1218');
+      const destName = dir > 0 ? 'TEGALLUAR' : 'HALIM JAKARTA';
+      const statusText = (this.train.doorsOpen && distM < 90)
+        ? 'BOARDING • PSD BUKA'
+        : (distM < 1800 ? 'SEGERA TIBA' : 'TEPAT WAKTU');
+      this.world.updatePlatformPIDSTexture({
+        clockStr: `${hh}:${mm}`,
+        trainNo,
+        destName,
+        statusText,
+        isExpress: this.serviceMode === 'EXPRESS'
+      });
+    }
     const rL = document.getElementById('sig-red');
     const yL = document.getElementById('sig-yellow');
     const gL = document.getElementById('sig-green');
@@ -12797,6 +13210,37 @@ class WhooshMasterSimulatorKernel {
       if (this.audio) this.audio.playCabinFoley('LIGHT');
       const btn = document.getElementById('btn-coach-dim');
       if (btn) btn.classList.toggle('active', dim);
+    } else if (action === 'MINIBAR_ORDER') {
+      const spec = this.train.cycleMinibarOrder();
+      const trayBtn = document.getElementById('btn-coach-tray');
+      if (trayBtn) trayBtn.classList.add('active');
+      const ordBtn = document.getElementById('btn-coach-order');
+      if (ordBtn) ordBtn.classList.add('active');
+      const bannerEl = document.getElementById('pa-broadcast-banner');
+      const textEl = document.getElementById('pa-broadcast-text');
+      if (this.audio) {
+        this.audio.playMinibarOrder({
+          itemName: spec.name,
+          onCaption: (cap) => {
+            if (cap) {
+              this.activePaCaption = `${cap.toUpperCase()} • `;
+              if (bannerEl && textEl) {
+                textEl.textContent = cap;
+                bannerEl.classList.remove('hidden');
+                bannerEl.classList.add('flex');
+              }
+            } else {
+              this.activePaCaption = '';
+              if (ordBtn) ordBtn.classList.remove('active');
+              if (bannerEl) {
+                bannerEl.classList.add('hidden');
+                bannerEl.classList.remove('flex');
+              }
+            }
+            if (this.train) this.train.coachPidNeedsDraw = true;
+          }
+        });
+      }
     }
   }
   handle3DCoachClick(clientX, clientY) {
@@ -12996,10 +13440,12 @@ class WhooshMasterSimulatorKernel {
     const btnCoachTray = document.getElementById('btn-coach-tray');
     const btnCoachRecline = document.getElementById('btn-coach-recline');
     const btnCoachDim = document.getElementById('btn-coach-dim');
+    const btnCoachOrder = document.getElementById('btn-coach-order');
     if (btnCoachBlind) btnCoachBlind.addEventListener('click', () => this.triggerCoachErgonomicAction('BLIND'));
     if (btnCoachTray) btnCoachTray.addEventListener('click', () => this.triggerCoachErgonomicAction('TRAY'));
     if (btnCoachRecline) btnCoachRecline.addEventListener('click', () => this.triggerCoachErgonomicAction('RECLINE'));
     if (btnCoachDim) btnCoachDim.addEventListener('click', () => this.triggerCoachErgonomicAction('DIM'));
+    if (btnCoachOrder) btnCoachOrder.addEventListener('click', () => this.triggerCoachErgonomicAction('MINIBAR_ORDER'));
     const btnZoomIn = document.getElementById('btn-spotter-zoom-in');
     const btnZoomOut = document.getElementById('btn-spotter-zoom-out');
     const btnSpotReloc = document.getElementById('btn-spotter-relocate');
@@ -13119,6 +13565,7 @@ class WhooshMasterSimulatorKernel {
       if (e.code === 'KeyL') this.triggerCoachErgonomicAction('DIM');
       if (e.code === 'KeyG') this.triggerGsmrDispatch('STATUS');
       if (e.code === 'KeyZ') this.toggleSunVisor();
+      if (e.code === 'KeyK') this.triggerCoachErgonomicAction('MINIBAR_ORDER');
       if (e.code === 'KeyM') {
         this.audio.init();
         const spdKmh = Math.abs(this.speedMps) * 3.6;
@@ -13252,7 +13699,9 @@ class WhooshMasterSimulatorKernel {
         vcbClosed: this.vcbClosed,
         pantoRaised: this.train.pantoRaised,
         substationDist,
-        brakeDiscTempC: this.train.brakeDiscTempC
+        brakeDiscTempC: this.train.brakeDiscTempC,
+        nearStation: EndlessWorldMathematics.isNearStation(this.distanceS, 165),
+        doorsOpen: this.train.doorsOpen
       }
     );
     this.hudTick = (this.hudTick + 1) % 3;
