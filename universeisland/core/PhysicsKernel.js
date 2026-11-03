@@ -72,12 +72,32 @@ export class PhysicsKernel {
       col.bMinZ = col.minZ;
       col.bMaxZ = col.maxZ;
     } else if (kind === 'CYL') {
-      col.bMinX = col.x - col.r;
-      col.bMaxX = col.x + col.r;
+      const rCyl = col.r !== undefined ? col.r : col.radius || 0.5;
+      col.r = rCyl;
+      col.radius = rCyl;
+      col.bMinX = col.x - rCyl;
+      col.bMaxX = col.x + rCyl;
       col.bMinY = col.minY;
       col.bMaxY = col.maxY;
-      col.bMinZ = col.z - col.r;
-      col.bMaxZ = col.z + col.r;
+      col.bMinZ = col.z - rCyl;
+      col.bMaxZ = col.z + rCyl;
+    } else if (kind === 'ELLIPSOID') {
+      const rx = col.rx || col.r || col.radius || 1.0;
+      const ry = col.ry || 1.0;
+      const cy = col.cy !== undefined ? col.cy : 0.5 * ((col.minY || 0) + (col.maxY || 0));
+      col.rx = rx;
+      col.ry = ry;
+      col.cy = cy;
+      col.r = rx;
+      col.radius = rx;
+      col.minY = cy - ry;
+      col.maxY = cy + ry;
+      col.bMinX = col.x - rx;
+      col.bMaxX = col.x + rx;
+      col.bMinY = cy - ry;
+      col.bMaxY = cy + ry;
+      col.bMinZ = col.z - rx;
+      col.bMaxZ = col.z + rx;
     } else if (kind === 'OBB') {
       const yaw = col.yaw || 0.0;
       const sinY = Math.sin(yaw);
@@ -276,6 +296,49 @@ export class PhysicsKernel {
       }
       out.ny = 0.0;
       out.depth = radius + penR;
+      return out.depth;
+    }
+
+    if (kind === 'ELLIPSOID') {
+      if (col.cy === undefined) PhysicsKernel.prepareSolidCollider(col);
+      const rx = col.rx + radius;
+      const ry = col.ry + radius;
+      const dx = px - col.x;
+      const dy = py - col.cy;
+      const dz = pz - col.z;
+      if (Math.abs(dy) >= ry || Math.abs(dx) >= rx || Math.abs(dz) >= rx) {
+        out.depth = 0.0;
+        return 0.0;
+      }
+      const ux = dx / rx;
+      const uy = dy / ry;
+      const uz = dz / rx;
+      const qSq = ux * ux + uy * uy + uz * uz;
+      if (qSq >= 1.0) {
+        out.depth = 0.0;
+        return 0.0;
+      }
+      if (qSq < 1e-10) {
+        out.nx = 0.0;
+        out.ny = 1.0;
+        out.nz = 0.0;
+        out.depth = ry;
+        return ry;
+      }
+      const q = Math.sqrt(qSq);
+      let gx = ux / rx;
+      let gy = uy / ry;
+      let gz = uz / rx;
+      if (col.isCanopy && uy > -0.38 && gy < 0.24 / ry) {
+        gy = 0.24 / ry;
+      }
+      const gLen = Math.hypot(gx, gy, gz) || 1.0;
+      out.nx = gx / gLen;
+      out.ny = gy / gLen;
+      out.nz = gz / gLen;
+      const scaleOut = 1.0 / q - 1.0;
+      const dotE = (dx * out.nx + dy * out.ny + dz * out.nz) * scaleOut;
+      out.depth = Math.max(0.015, dotE);
       return out.depth;
     }
 

@@ -6906,60 +6906,65 @@ export class SplineCorridorBuilder {
         minY: gy - 1.0,
         maxY: gy + (isPalm ? 8.4 : 5.8) * sx
       });
-      // Solid 3D Botanical Foliage Canopy Colliders (skipWalk: true so terrestrial walkers/vehicles pass underneath,
-      // while DJI Avata 2, Mavic 3 Pro, & Cinematic Drones never clip blind through tree crowns!)
+      // Solid 3D Botanical Spheroid Dome Canopy Colliders (skipWalk: true so terrestrial walkers/vehicles pass underneath,
+      // while DJI Avata 2, Mavic 3 Pro, & Cinematic Drones smoothly vault/bank around rounded tree crowns without stalling!)
       if (t.species === 'TREMBESI') {
         pushStatic({
           id: `TreeCanopy_${i}_TREMBESI`,
-          type: 'CYL',
+          type: 'ELLIPSOID',
+          isCanopy: true,
           x: t.x,
+          cy: gy + 6.65 * sx,
           z: t.z,
-          r: 5.85 * sx,
-          minY: gy + 4.35 * sx,
-          maxY: gy + 8.80 * sx,
+          rx: 8.35 * sx,
+          ry: 2.75 * sx,
           skipWalk: true
         });
       } else if (t.species === 'MAHONI') {
         pushStatic({
           id: `TreeCanopy_${i}_MAHONI`,
-          type: 'CYL',
+          type: 'ELLIPSOID',
+          isCanopy: true,
           x: t.x,
+          cy: gy + 8.05 * sx,
           z: t.z,
-          r: 3.70 * sx,
-          minY: gy + 4.25 * sx,
-          maxY: gy + 11.15 * sx,
+          rx: 4.95 * sx,
+          ry: 4.05 * sx,
           skipWalk: true
         });
       } else if (t.species === 'CEMARA') {
         pushStatic({
           id: `TreeCanopy_${i}_CEMARA_LO`,
-          type: 'CYL',
+          type: 'ELLIPSOID',
+          isCanopy: true,
           x: t.x,
+          cy: gy + 5.65 * sx,
           z: t.z,
-          r: 2.25 * sx,
-          minY: gy + 3.55 * sx,
-          maxY: gy + 8.20 * sx,
+          rx: 3.25 * sx,
+          ry: 3.15 * sx,
           skipWalk: true
         });
         pushStatic({
           id: `TreeCanopy_${i}_CEMARA_HI`,
-          type: 'CYL',
+          type: 'ELLIPSOID',
+          isCanopy: true,
           x: t.x,
+          cy: gy + 10.95 * sx,
           z: t.z,
-          r: 1.22 * sx,
-          minY: gy + 8.20 * sx,
-          maxY: gy + 13.45 * sx,
+          rx: 1.95 * sx,
+          ry: 3.25 * sx,
           skipWalk: true
         });
       } else {
         pushStatic({
           id: `TreeCanopy_${i}_PALEM_RAJA`,
-          type: 'CYL',
+          type: 'ELLIPSOID',
+          isCanopy: true,
           x: t.x,
+          cy: gy + 8.65 * sx,
           z: t.z,
-          r: 3.15 * sx,
-          minY: gy + 7.20 * sx,
-          maxY: gy + 9.75 * sx,
+          rx: 4.25 * sx,
+          ry: 1.65 * sx,
           skipWalk: true
         });
       }
