@@ -675,6 +675,403 @@ export class PhysicsKernel {
   }
 
   /**
+   * Exact Two-Regime 3D Topological Solid Solver for Jembatan Teksas UI ("Lorong Jembatan Teksas"):
+   * - Regime A (Inside Hollow Bridge Corridor |x - bx| <= 2.40m, y in [bDeckY, roofInnerY]):
+   *   Enforces solid floor deck, solid overhead 30-module blue wave sunroof ceiling, and solid left/right
+   *   crimson-red parabolic Warren steel trusses so a drone can fly 100% cleanly THROUGH the interior corridor!
+   * - Regime B (Outside Bridge — Flying Beside over Teluk U, Underneath the Arch, or Above the Sunroof):
+   *   Treats the entire outer envelope (side trusses, Warren struts, box girder, sunroof, & concrete approach
+   *   ramp walls/handrails) as an impenetrable 3D solid with minimum-escape separation!
+   */
+  static resolveTeksasBridgeTopologicalSolids(
+    p,
+    pPrev,
+    vel,
+    radius,
+    topOffset,
+    bottomOffset,
+    bridgeCenterX,
+    bridgeDeckFn,
+    bridgeSoffitFn,
+    cancelInwardVel
+  ) {
+    if (!bridgeDeckFn) return false;
+    const bx = bridgeCenterX; // -28.0
+    const zRampW0 = 149.65;
+    const zPortW = 171.65;
+    const zPortE = 319.65;
+    const zRampE1 = 341.65;
+
+    const refX = pPrev ? pPrev.x : p.x;
+    const refY = pPrev ? pPrev.y : p.y;
+    const refZ = pPrev ? pPrev.z : p.z;
+
+    if (Math.max(p.z, refZ) < zRampW0 - radius - 0.5 || Math.min(p.z, refZ) > zRampE1 + radius + 0.5) {
+      return false;
+    }
+    const outerMaxHW = 2.88;
+    if (Math.min(Math.abs(p.x - bx), Math.abs(refX - bx)) > outerMaxHW + radius + 1.5) {
+      return false;
+    }
+
+    const bDeckY = bridgeDeckFn(bx, p.z);
+    if (bDeckY === null) return false;
+
+    let modified = false;
+
+    // 1. Main 148m Parabolic Through-Truss Arch Span across Teluk U (z in [171.65, 319.65])
+    if (p.z >= zPortW && p.z <= zPortE) {
+      const u = (p.z - 245.65) / 74.0;
+      const bSoffitY = bridgeSoffitFn ? (bridgeSoffitFn(p.z) ?? bDeckY - 1.30) : bDeckY - 1.30;
+      const chordTopY = bDeckY + 1.34 + 2.58 * Math.max(0.0, 1.0 - u * u);
+      const hasSunroof = p.z >= 174.5 && p.z <= 316.8;
+      const roofInnerY = bDeckY + 2.86;
+      const roofOuterTopY = bDeckY + 3.62;
+      const innerHalfW = 2.40;
+      const outerHalfW = 2.86;
+
+      const zRefClamp = Math.max(zPortW, Math.min(zPortE, refZ));
+      const refDeckY = bridgeDeckFn(bx, zRefClamp) ?? bDeckY;
+      const refMaxCorridorY =
+        refZ >= 174.3 && refZ <= 317.0 ? refDeckY + 2.94 : refDeckY + 4.85;
+      const inBridgeCorridor =
+        Math.abs(refX - bx) <= innerHalfW + 0.05 &&
+        refY >= refDeckY - 0.14 &&
+        refY <= refMaxCorridorY;
+
+      if (inBridgeCorridor) {
+        // Regime A: Inside Lorong Jembatan Teksas UI!
+        // A1. Solid Timber-Composite Deck Floor
+        const minInY = bDeckY + bottomOffset;
+        if (p.y < minInY) {
+          p.y = minInY;
+          cancelInwardVel(0, 1, 0);
+          modified = true;
+        }
+        // A2. Solid Overhead Blue Wave Sunroof Ceiling & Leading Lip
+        if (hasSunroof) {
+          const maxInY = roofInnerY - topOffset;
+          if (p.y > maxInY) {
+            if (refZ < 174.5 && refY > roofInnerY - topOffset * 0.5) {
+              p.z = 174.5 - radius;
+              cancelInwardVel(0, 0, -1);
+            } else if (refZ > 316.8 && refY > roofInnerY - topOffset * 0.5) {
+              p.z = 316.8 + radius;
+              cancelInwardVel(0, 0, 1);
+            } else {
+              p.y = maxInY;
+              cancelInwardVel(0, -1, 0);
+            }
+            modified = true;
+          }
+        }
+        // A3. Solid Left & Right Crimson-Red Parabolic Steel Trusses + Sunroof Edge Posts
+        const wallTopY = hasSunroof ? Math.max(chordTopY, roofOuterTopY) : chordTopY;
+        if (p.y - bottomOffset < wallTopY) {
+          const maxInX = Math.max(0.42, innerHalfW - radius);
+          const dx = p.x - bx;
+          if (Math.abs(dx) > maxInX) {
+            const sgn = dx >= 0.0 ? 1.0 : -1.0;
+            p.x = bx + sgn * maxInX;
+            cancelInwardVel(-sgn, 0, 0);
+            modified = true;
+          }
+        }
+        return modified;
+      }
+
+      // Regime B: Outside Jembatan Teksas (Beside over Teluk U, Underneath Arch, or Above Sunroof!)
+      const yMinSolid = bSoffitY;
+      const yMaxSolid = hasSunroof ? Math.max(chordTopY, roofOuterTopY) : chordTopY;
+      const dx = p.x - bx;
+      const absDx = Math.abs(dx);
+      const reqOutX = outerHalfW + radius;
+
+      if (absDx < reqOutX && p.y + topOffset > yMinSolid && p.y - bottomOffset < yMaxSolid) {
+        const pushSide = reqOutX - absDx;
+        const pushDown = p.y + topOffset - yMinSolid;
+        const pushUp = yMaxSolid - (p.y - bottomOffset);
+
+        // Bias slightly toward the regime pPrev occupied so glancing side hits NEVER snap onto roof/underbelly!
+        const wasClearlyBelow = refY + topOffset <= yMinSolid + 0.22;
+        const wasClearlyAbove = refY - bottomOffset >= yMaxSolid - 0.22;
+
+        if (wasClearlyBelow && pushDown <= pushSide + 0.45) {
+          p.y = yMinSolid - topOffset;
+          cancelInwardVel(0, -1, 0);
+        } else if (wasClearlyAbove && pushUp <= pushSide + 0.45) {
+          p.y = yMaxSolid + bottomOffset;
+          cancelInwardVel(0, 1, 0);
+        } else if (pushSide <= pushDown && pushSide <= pushUp) {
+          const refDx = refX - bx;
+          const sgn = Math.abs(refDx) > 0.05 ? (refDx >= 0.0 ? 1.0 : -1.0) : dx >= 0.0 ? 1.0 : -1.0;
+          p.x = bx + sgn * reqOutX;
+          cancelInwardVel(sgn, 0, 0);
+        } else if (pushDown < pushUp) {
+          p.y = yMinSolid - topOffset;
+          cancelInwardVel(0, -1, 0);
+        } else {
+          p.y = yMaxSolid + bottomOffset;
+          cancelInwardVel(0, 1, 0);
+        }
+        modified = true;
+      }
+      return modified;
+    }
+
+    // 2. West & East Concrete Approach Ramps + Handrails (z in [149.65, 171.65) and (319.65, 341.65])
+    const rampOuterHW = 2.76;
+    const railTopY = bDeckY + 1.12;
+    const dxR = p.x - bx;
+    const absDxR = Math.abs(dxR);
+
+    // Outside concrete ramp side wall laterally
+    if (Math.abs(refX - bx) > rampOuterHW - 0.05 && refY - bottomOffset < railTopY - 0.08) {
+      const reqOutX = rampOuterHW + radius;
+      if (absDxR < reqOutX && p.y - bottomOffset < railTopY) {
+        const sgn = (refX - bx) >= 0.0 ? 1.0 : -1.0;
+        p.x = bx + sgn * reqOutX;
+        cancelInwardVel(sgn, 0, 0);
+        return true;
+      }
+      return false;
+    }
+
+    if (absDxR < rampOuterHW + radius) {
+      // Solid concrete ramp/stair deck
+      if (p.y < bDeckY + bottomOffset) {
+        p.y = bDeckY + bottomOffset;
+        cancelInwardVel(0, 1, 0);
+        modified = true;
+      }
+      // Outer ramp handrails at |x - bx| = 2.42..2.76 up to bDeckY + 1.12
+      if (p.y - bottomOffset < railTopY && absDxR > 2.38 - radius) {
+        if (refY - bottomOffset >= railTopY - 0.16) {
+          p.y = railTopY + bottomOffset;
+          cancelInwardVel(0, 1, 0);
+        } else {
+          const sgn = dxR >= 0.0 ? 1.0 : -1.0;
+          p.x = bx + sgn * Math.max(0.4, 2.38 - radius);
+          cancelInwardVel(-sgn, 0, 0);
+        }
+        modified = true;
+      }
+      // Central ceremonial stair handrail at |x - bx| = 1.22 up to bDeckY + 1.08
+      const centerRailTop = bDeckY + 1.08;
+      if (p.y - bottomOffset < centerRailTop) {
+        const distRail = Math.abs(absDxR - 1.22);
+        const minRailClear = 0.09 + radius;
+        if (distRail < minRailClear) {
+          if (refY - bottomOffset >= centerRailTop - 0.22) {
+            p.y = centerRailTop + bottomOffset;
+            cancelInwardVel(0, 1, 0);
+          } else {
+            const sgn = dxR >= 0.0 ? 1.0 : -1.0;
+            const pushInOrOut = absDxR < 1.22 ? 1.22 - minRailClear : 1.22 + minRailClear;
+            p.x = bx + sgn * Math.max(0.0, pushInOrOut);
+          }
+          modified = true;
+        }
+      }
+    }
+    return modified;
+  }
+
+  /**
+   * Omnidirectional Binocular-Fisheye APAS (Advanced Pilot Assistance System) 3D Obstacle Field Probe.
+   * Evaluates soft repulsive normal + penetration depth for a virtual lookahead sphere of `probeRadius`
+   * against all static colliders (buildings, spires, trees, canopies, pylons), live dynamic colliders
+   * (Bus Kuning UI, Golf Cart, Catamaran Ferry, Mini Yacht, eVTOL, Aircraft), Jembatan Teksas trusses/roof,
+   * Underpass retaining walls/vault, and terrain/ocean surfaces — with ZERO heap allocations!
+   */
+  static probeDroneAPASRepulsion(px, py, pz, refX, refY, refZ, probeRadius, ctx, outRepel) {
+    outRepel.nx = 0.0;
+    outRepel.ny = 0.0;
+    outRepel.nz = 0.0;
+    outRepel.pen = 0.0;
+    if (!ctx) return 0.0;
+
+    let accX = 0.0;
+    let accY = 0.0;
+    let accZ = 0.0;
+    let maxPen = 0.0;
+    const addPush = (nx, ny, nz, pen) => {
+      if (pen <= 0.0) return;
+      accX += nx * pen;
+      accY += ny * pen;
+      accZ += nz * pen;
+      if (pen > maxPen) maxPen = pen;
+    };
+
+    const uCfg = ctx.underpassConfig || null;
+    const inSubseaBore =
+      uCfg &&
+      pz >= uCfg.zWestPortal - 0.5 &&
+      pz <= uCfg.zEastPortal + 0.5 &&
+      Math.abs(px - uCfg.ux) <= uCfg.boreHalfW + 0.25 &&
+      py <= uCfg.floorY + uCfg.clearH + 0.25;
+    const inOpenRamp =
+      !inSubseaBore &&
+      uCfg &&
+      pz >= uCfg.zWestStart &&
+      pz <= uCfg.zEastEnd &&
+      Math.abs(px - uCfg.ux) <= uCfg.boreHalfW + 0.15 &&
+      py < 1.85;
+
+    // 1. Underpass walls, ceiling vault, & headwall lintels
+    if (uCfg && pz >= uCfg.zWestStart - probeRadius && pz <= uCfg.zEastEnd + probeRadius) {
+      const ux = uCfg.ux;
+      const dxU = px - ux;
+      if (inSubseaBore) {
+        const wallPen = Math.abs(dxU) + probeRadius - uCfg.boreHalfW;
+        if (wallPen > 0.0) addPush(dxU >= 0 ? -1 : 1, 0, 0, wallPen);
+        const normX = Math.min(0.98, Math.abs(dxU) / uCfg.boreHalfW);
+        const vaultY =
+          uCfg.floorY + 2.20 + Math.sqrt(Math.max(0.0, 1.0 - normX * normX)) * (uCfg.clearH - 2.20);
+        if (py + probeRadius > vaultY) addPush(0, -1, 0, py + probeRadius - vaultY);
+        if (py - probeRadius < uCfg.floorY) addPush(0, 1, 0, uCfg.floorY - (py - probeRadius));
+      } else if (inOpenRamp) {
+        const wallPen = Math.abs(dxU) + probeRadius - uCfg.boreHalfW;
+        if (wallPen > 0.0) addPush(dxU >= 0 ? -1 : 1, 0, 0, wallPen);
+        const rY = uCfg.sampleRampY ? uCfg.sampleRampY(ux, pz) : null;
+        if (rY !== null && py - probeRadius < rY) addPush(0, 1, 0, rY - (py - probeRadius));
+      } else {
+        const outerHW = uCfg.boreHalfW + 0.72;
+        if (Math.abs(dxU) < outerHW + probeRadius && py - probeRadius < 1.35) {
+          const sgn = (refX - ux) >= 0.0 ? 1.0 : -1.0;
+          addPush(sgn, 0.25, 0, outerHW + probeRadius - Math.abs(dxU));
+        }
+      }
+    }
+
+    // 2. Jembatan Teksas UI trusses, sunroof, box girder, & approach ramps
+    const bDeckFn = ctx.bridgeDeckFn || null;
+    const bx = Number.isFinite(ctx.bridgeCenterX) ? ctx.bridgeCenterX : -28.0;
+    if (bDeckFn && pz >= 149.65 - probeRadius && pz <= 341.65 + probeRadius) {
+      const zClamped = Math.max(149.65, Math.min(341.65, pz));
+      const bDeckY = bDeckFn(bx, zClamped);
+      if (bDeckY !== null && Math.abs(px - bx) < 2.88 + probeRadius + 0.5) {
+        if (zClamped >= 171.65 && zClamped <= 319.65) {
+          const u = (zClamped - 245.65) / 74.0;
+          const bSoffitY = ctx.bridgeSoffitFn ? (ctx.bridgeSoffitFn(zClamped) ?? bDeckY - 1.30) : bDeckY - 1.30;
+          const chordTopY = bDeckY + 1.34 + 2.58 * Math.max(0.0, 1.0 - u * u);
+          const hasRoof = zClamped >= 174.5 && zClamped <= 316.8;
+          const roofInnerY = bDeckY + 2.86;
+          const roofOuterTopY = bDeckY + 3.62;
+
+          const refZCl = Math.max(171.65, Math.min(319.65, refZ));
+          const refDeck = bDeckFn(bx, refZCl) ?? bDeckY;
+          const refInCorr =
+            Math.abs(refX - bx) <= 2.42 &&
+            refY >= refDeck - 0.12 &&
+            refY <= (refZ >= 174.3 && refZ <= 317.0 ? refDeck + 2.94 : refDeck + 4.85);
+
+          if (refInCorr) {
+            const dxB = px - bx;
+            const wallPen = Math.abs(dxB) + probeRadius - 2.40;
+            if (wallPen > 0.0) addPush(dxB >= 0 ? -1 : 1, 0, 0, wallPen);
+            if (py - probeRadius < bDeckY) addPush(0, 1, 0, bDeckY - (py - probeRadius));
+            if (hasRoof && py + probeRadius > roofInnerY) addPush(0, -1, 0, py + probeRadius - roofInnerY);
+          } else {
+            const yMaxS = hasRoof ? Math.max(chordTopY, roofOuterTopY) : chordTopY;
+            const absDx = Math.abs(px - bx);
+            if (absDx < 2.86 + probeRadius && py + probeRadius > bSoffitY && py - probeRadius < yMaxS) {
+              const pSide = 2.86 + probeRadius - absDx;
+              const pDown = py + probeRadius - bSoffitY;
+              const pUp = yMaxS - (py - probeRadius);
+              if (refY + probeRadius <= bSoffitY + 0.35 && pDown <= pSide + 0.5) {
+                addPush(0, -1, 0, pDown);
+              } else if (refY - probeRadius >= yMaxS - 0.35 && pUp <= pSide + 0.5) {
+                addPush(0, 1, 0, pUp);
+              } else {
+                const sgn = (refX - bx) >= 0.0 ? 1.0 : -1.0;
+                addPush(sgn, 0, 0, pSide);
+              }
+            }
+          }
+        } else {
+          const absDx = Math.abs(px - bx);
+          if (Math.abs(refX - bx) > 2.70 && py - probeRadius < bDeckY + 1.12 && absDx < 2.76 + probeRadius) {
+            const sgn = (refX - bx) >= 0.0 ? 1.0 : -1.0;
+            addPush(sgn, 0.2, 0, 2.76 + probeRadius - absDx);
+          } else if (absDx < 2.76 + probeRadius && py - probeRadius < bDeckY) {
+            addPush(0, 1, 0, bDeckY - (py - probeRadius));
+          }
+        }
+      }
+    }
+
+    // 3. Static Colliders (Buildings, Spires, Columns, Tree Trunks, Tree Canopies, Pylons, ATC)
+    const staticCols = ctx.staticColliders || [];
+    for (let i = 0; i < staticCols.length; i++) {
+      const c = staticCols[i];
+      if (c.type === 'ISLAND_PERIMETER') continue;
+      const pen = PhysicsKernel.computeSphere3DColliderMTV(px, py, pz, probeRadius, c, _mtvScratch);
+      if (pen > 0.0) {
+        addPush(_mtvScratch.nx, _mtvScratch.ny, _mtvScratch.nz, pen);
+      }
+    }
+
+    // 4. Live Dynamic Colliders (Bus Kuning UI, Golf Cart, Catamaran Ferry, Mini Yacht, eVTOL, Aircraft, NPCs)
+    const dynCols =
+      typeof ctx.getDynamicColliders === 'function'
+        ? ctx.getDynamicColliders()
+        : ctx.dynamicColliders || [];
+    for (let i = 0; i < dynCols.length; i++) {
+      const dc = dynCols[i];
+      if (!dc || dc.enabled === false) continue;
+      const pen = PhysicsKernel.computeSphere3DColliderMTV(px, py, pz, probeRadius, dc, _mtvScratch);
+      if (pen > 0.0) {
+        addPush(_mtvScratch.nx, _mtvScratch.ny, _mtvScratch.nz, pen);
+      }
+    }
+
+    // 5. Terrain Heightfield & Ocean / Freshwater Surface
+    if (!inSubseaBore && !inOpenRamp) {
+      let minSurf = ctx.groundHeightFn ? ctx.groundHeightFn(px, pz) : 0.0;
+      const oceanY = Number.isFinite(ctx.oceanWaterY) ? ctx.oceanWaterY : -1.45;
+      if (ctx.coastDistFn) {
+        if (ctx.coastDistFn(px, pz) > -0.5) minSurf = Math.max(minSurf, oceanY);
+      } else if (minSurf < oceanY) {
+        minSurf = oceanY;
+      }
+      if (ctx.waterSurfaceFn) {
+        const fwY = ctx.waterSurfaceFn(px, pz);
+        if (fwY !== null) minSurf = Math.max(minSurf, fwY);
+      }
+      if (ctx.ferryPierDeckFn) {
+        const pierY = ctx.ferryPierDeckFn(px, pz);
+        if (pierY !== null && refY >= pierY - 0.25) minSurf = Math.max(minSurf, pierY);
+      }
+      if (py - probeRadius < minSurf) {
+        // Estimate terrain slope normal so diving toward Gunung Api / hills deflects smoothly up-slope!
+        let gNx = 0.0;
+        let gNy = 1.0;
+        let gNz = 0.0;
+        if (ctx.groundHeightFn && minSurf > oceanY + 0.3) {
+          const hX = ctx.groundHeightFn(px + 1.2, pz) - ctx.groundHeightFn(px - 1.2, pz);
+          const hZ = ctx.groundHeightFn(px, pz + 1.2) - ctx.groundHeightFn(px, pz - 1.2);
+          const nLen = Math.hypot(-hX, 2.4, -hZ) || 1.0;
+          gNx = -hX / nLen;
+          gNy = 2.4 / nLen;
+          gNz = -hZ / nLen;
+        }
+        addPush(gNx, gNy, gNz, minSurf - (py - probeRadius));
+      }
+    }
+
+    const totLen = Math.hypot(accX, accY, accZ);
+    if (totLen > 1e-5 && maxPen > 0.0) {
+      outRepel.nx = accX / totLen;
+      outRepel.ny = accY / totLen;
+      outRepel.nz = accZ / totLen;
+      outRepel.pen = maxPen;
+      return maxPen;
+    }
+    return 0.0;
+  }
+
+  /**
    * Hard Iterative 3D Camera & Drone Non-Penetration Solver (3 Gauss-Seidel passes + Sub-Stepped Sweep).
    * Guarantees 0.000m penetration into buildings, roofs, columns, trees, lamps, bridges, underpass walls/vault,
    * terrain/volcano/hills, ocean/freshwater surfaces, and live dynamic vehicles/vessels!
@@ -745,39 +1142,25 @@ export class PhysicsKernel {
           Math.abs(p.x - underpassConfig.ux) <= underpassConfig.boreHalfW + 0.05 &&
           p.y < 1.8;
 
-        // 2. Jembatan Teksas UI 3D Box-Girder Slab & Overhead Sunroof Canopy Solid Separation
-        if (!isWalk && bridgeDeckFn && Math.abs(p.x - bridgeCenterX) < bridgeHalfW + radius + 0.35) {
-          const bDeckY = bridgeDeckFn(bridgeCenterX, p.z);
-          if (bDeckY !== null) {
-            const bSoffitY = bridgeSoffitFn ? (bridgeSoffitFn(p.z) ?? bDeckY - 1.3) : bDeckY - 1.3;
-            // Solid steel box girder slab [bSoffitY, bDeckY]
-            if (p.y + topOffset > bSoffitY && p.y - bottomOffset < bDeckY) {
-              const midSlab = 0.5 * (bSoffitY + bDeckY);
-              if ((pPrev ? pPrev.y : p.y) >= midSlab) {
-                p.y = bDeckY + bottomOffset;
-                cancelInwardVel(0, 1, 0);
-              } else {
-                p.y = bSoffitY - topOffset;
-                cancelInwardVel(0, -1, 0);
-              }
-              hitAny = true;
-            }
-            // Overhead 30-unit Blue Wave Sunroof shell on main arch span [bDeckY + 2.95, bDeckY + 3.55]
-            if (p.z >= 174.5 && p.z <= 316.8 && Math.abs(p.x - bridgeCenterX) < 2.52 + radius) {
-              const roofBot = bDeckY + 2.95;
-              const roofTop = bDeckY + 3.58;
-              if (p.y + topOffset > roofBot && p.y - bottomOffset < roofTop) {
-                if ((pPrev ? pPrev.y : p.y) >= 0.5 * (roofBot + roofTop)) {
-                  p.y = roofTop + bottomOffset;
-                  cancelInwardVel(0, 1, 0);
-                } else {
-                  p.y = roofBot - topOffset;
-                  cancelInwardVel(0, -1, 0);
-                }
-                hitAny = true;
-              }
-            }
-          }
+        // 2. Jembatan Teksas UI Two-Regime 3D Topological Solids (Hollow Corridor vs Solid Red Trusses, Sunroof, Girder, & Ramps)
+        void bridgeHalfW;
+        if (
+          !isWalk &&
+          bridgeDeckFn &&
+          PhysicsKernel.resolveTeksasBridgeTopologicalSolids(
+            p,
+            pPrev,
+            vel,
+            radius,
+            topOffset,
+            bottomOffset,
+            bridgeCenterX,
+            bridgeDeckFn,
+            bridgeSoffitFn,
+            cancelInwardVel
+          )
+        ) {
+          hitAny = true;
         }
 
         // 3. Static Solid World Colliders (Buildings, Columns, Spires, Roofs, Trees, Lamps, Benches, Piers, Pylons)

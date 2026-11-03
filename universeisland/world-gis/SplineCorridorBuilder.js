@@ -6631,7 +6631,48 @@ export class SplineCorridorBuilder {
       pushStatic({ id: `Teksas_YoniHipHi_${sx}`, type: 'CYL', x: bx + sx * 4.35, z: zE + 0.45, r: 0.48, minY: 6.2, maxY: 12.8 });
     }
     pushStatic({ id: 'Teksas_LinggaSailMast', type: 'BOX', minX: bx - 0.72, maxX: bx + 1.05, minY: 10.65, maxY: 26.25, minZ: zW - 3.2, maxZ: zW + 2.4 });
+    pushStatic({ id: 'Teksas_LinggaCollar', type: 'BOX', minX: bx - 2.35, maxX: bx + 2.35, minY: 9.35, maxY: 9.95, minZ: zW - 0.35, maxZ: zW + 0.25, skipWalk: true });
     pushStatic({ id: 'Teksas_YoniCrownArch', type: 'BOX', minX: bx - 3.0, maxX: bx + 3.0, minY: 12.8, maxY: 15.55, minZ: zE - 0.55, maxZ: zE + 1.15 });
+    // Pilon Lingga & Pilon Yoni Fan Stay-Cable Envelopes above Sunroof (prevents aerial clipping into stay cables!)
+    for (const sx of [-1, 1]) {
+      for (let sStep = 0; sStep < 5; sStep++) {
+        const f = (sStep + 0.5) / 5.0;
+        const zL = 173.8 + f * (212.0 - 173.8);
+        const bDL = TerrainDEMLoader.sampleTeksasBridgeDeckY(bx, zL) || 6.0;
+        const yLoL = Math.max(bDL + 3.68, 22.4 - f * 12.8);
+        const yHiL = 23.2 - f * 10.2;
+        if (yHiL > bDL + 3.72) {
+          pushStatic({
+            id: `Teksas_LinggaForeStay_${sx}_${sStep}`,
+            type: 'CYL',
+            x: bx + sx * (0.25 + f * 2.42),
+            z: zL,
+            r: 0.28,
+            minY: Math.min(yLoL, yHiL) - 0.35,
+            maxY: Math.max(yLoL, yHiL) + 0.35,
+            skipWalk: true
+          });
+        }
+      }
+      for (let sStep = 0; sStep < 3; sStep++) {
+        const f = (sStep + 0.5) / 3.0;
+        const zY = 319.2 - f * (319.2 - 293.0);
+        const bDY = TerrainDEMLoader.sampleTeksasBridgeDeckY(bx, zY) || 5.2;
+        const yMidY = 14.3 - f * 6.8;
+        if (yMidY > bDY + 3.65) {
+          pushStatic({
+            id: `Teksas_YoniForeStay_${sx}_${sStep}`,
+            type: 'CYL',
+            x: bx + sx * (2.35 + f * 0.32),
+            z: zY,
+            r: 0.26,
+            minY: Math.max(bDY + 3.65, yMidY - 1.1),
+            maxY: yMidY + 1.1,
+            skipWalk: true
+          });
+        }
+      }
+    }
     for (const sx of [-4.2, 4.2]) {
       pushStatic({
         id: `Teksas_EastOverlookBench_${sx}`,
@@ -6854,7 +6895,8 @@ export class SplineCorridorBuilder {
       const t = spawnedTrees[i];
       const gy = TerrainDEMLoader.sampleGroundHeight(t.x, t.z);
       const sx = t.scale || 1.0;
-      const trunkR = (t.species === 'PALEM_RAJA' ? 0.34 : 0.42) * sx;
+      const isPalm = t.species === 'PALEM_RAJA';
+      const trunkR = (isPalm ? 0.34 : 0.42) * sx;
       pushStatic({
         id: `TreeTrunk_${i}_${t.species}`,
         type: 'CYL',
@@ -6862,8 +6904,65 @@ export class SplineCorridorBuilder {
         z: t.z,
         r: trunkR,
         minY: gy - 1.0,
-        maxY: gy + 5.8 * sx
+        maxY: gy + (isPalm ? 8.4 : 5.8) * sx
       });
+      // Solid 3D Botanical Foliage Canopy Colliders (skipWalk: true so terrestrial walkers/vehicles pass underneath,
+      // while DJI Avata 2, Mavic 3 Pro, & Cinematic Drones never clip blind through tree crowns!)
+      if (t.species === 'TREMBESI') {
+        pushStatic({
+          id: `TreeCanopy_${i}_TREMBESI`,
+          type: 'CYL',
+          x: t.x,
+          z: t.z,
+          r: 5.85 * sx,
+          minY: gy + 4.35 * sx,
+          maxY: gy + 8.80 * sx,
+          skipWalk: true
+        });
+      } else if (t.species === 'MAHONI') {
+        pushStatic({
+          id: `TreeCanopy_${i}_MAHONI`,
+          type: 'CYL',
+          x: t.x,
+          z: t.z,
+          r: 3.70 * sx,
+          minY: gy + 4.25 * sx,
+          maxY: gy + 11.15 * sx,
+          skipWalk: true
+        });
+      } else if (t.species === 'CEMARA') {
+        pushStatic({
+          id: `TreeCanopy_${i}_CEMARA_LO`,
+          type: 'CYL',
+          x: t.x,
+          z: t.z,
+          r: 2.25 * sx,
+          minY: gy + 3.55 * sx,
+          maxY: gy + 8.20 * sx,
+          skipWalk: true
+        });
+        pushStatic({
+          id: `TreeCanopy_${i}_CEMARA_HI`,
+          type: 'CYL',
+          x: t.x,
+          z: t.z,
+          r: 1.22 * sx,
+          minY: gy + 8.20 * sx,
+          maxY: gy + 13.45 * sx,
+          skipWalk: true
+        });
+      } else {
+        pushStatic({
+          id: `TreeCanopy_${i}_PALEM_RAJA`,
+          type: 'CYL',
+          x: t.x,
+          z: t.z,
+          r: 3.15 * sx,
+          minY: gy + 7.20 * sx,
+          maxY: gy + 9.75 * sx,
+          skipWalk: true
+        });
+      }
     }
 
     const lampCoords =

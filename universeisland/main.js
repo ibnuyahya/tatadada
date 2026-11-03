@@ -379,7 +379,10 @@ async function bootstrapNexusSimulator() {
     }
     const teksasDeckY = TerrainDEMLoader.sampleTeksasBridgeDeckY(x, z);
     if (teksasDeckY !== null) {
-      return teksasDeckY + 0.02;
+      const teksasSoffitY = TerrainDEMLoader.sampleTeksasBridgeSoffitY(z);
+      if (teksasSoffitY === null || camera.position.y >= teksasSoffitY - 0.15) {
+        return teksasDeckY + 0.02;
+      }
     }
     const rDPPD = Math.hypot(x - TerrainDEMLoader.DPPD_CX, z - TerrainDEMLoader.DPPD_CZ);
     if (rDPPD <= 39.55) {
@@ -554,6 +557,7 @@ async function bootstrapNexusSimulator() {
 
   // --- DJI AVATA 2 ACTION FPV GOGGLES 3 OSD & DUAL TOUCH FLIGHT STICKS ---
   const avataOsdModeEl = document.getElementById('avata-osd-mode');
+  const avataOsdZoneEl = document.getElementById('avata-osd-zone');
   const avataOsdAttitudeEl = document.getElementById('avata-osd-attitude');
   const avataHorizonGroupEl = document.getElementById('avata-horizon-group');
   const avataOsdSpdEl = document.getElementById('avata-osd-spd');
@@ -598,12 +602,18 @@ async function bootstrapNexusSimulator() {
 
     if (avataOsdModeEl) {
       const modeTxt = tel.autoFreestyle
-        ? 'FREESTYLE'
+        ? 'FREESTYLE 5-ACT'
         : tel.profile === 'ACRO'
           ? 'BEBAS · ACRO+'
           : 'BEBAS · SPORT';
       avataOsdModeEl.textContent = modeTxt;
       avataOsdModeEl.classList.toggle('is-acro', tel.profile === 'ACRO');
+    }
+    if (avataOsdZoneEl) {
+      avataOsdZoneEl.textContent = tel.apasActive
+        ? `APAS 360° · ${tel.zoneLabel}`
+        : tel.zoneLabel || 'KEPULAUAN UI';
+      avataOsdZoneEl.classList.toggle('apas-active', Boolean(tel.apasActive));
     }
     if (avataOsdAttitudeEl) {
       const hdg = String(tel.yawDeg).padStart(3, '0');
