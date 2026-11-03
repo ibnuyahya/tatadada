@@ -45,18 +45,20 @@ export function applyNonOccludingViewportOffset(
   viewportW,
   viewportH,
   isPanelExpanded,
-  panelRect = { width: 280, height: 0 }
+  panelRect = { width: 280, height: 0 },
+  baseVerticalFovOverride = null
 ) {
   const safeW = Math.max(1, viewportW);
   const safeH = Math.max(1, viewportH);
   const isPortrait = safeH > safeW || safeW < 768;
   camera.aspect = safeW / safeH;
 
-  const baseVerticalFov = 48;
+  const baseVerticalFov = Number.isFinite(baseVerticalFovOverride) ? baseVerticalFovOverride : 48;
+  const maxPortraitFov = baseVerticalFov > 60 ? 96 : 78;
   if (camera.aspect < 1.0) {
     const rad = (baseVerticalFov * Math.PI) / 180;
     const hFov = 2 * Math.atan(Math.tan(rad / 2) / Math.max(0.52, camera.aspect));
-    camera.fov = Math.min(78, (hFov * 180) / Math.PI);
+    camera.fov = Math.min(maxPortraitFov, (hFov * 180) / Math.PI);
   } else {
     camera.fov = baseVerticalFov;
   }
@@ -200,10 +202,139 @@ export class CameraDirector {
     this._mavicGimbalYaw = 0.0;
     this._mavicGimbalPitch = 0.0;
 
+    // DJI Avata 2 FPV Action Cinewhoop State (155° Ultra-Wide Dynamics, Sport/Acro+, Easy-Acro, & Proximity Freestyle)
+    this.avataFlightProfile = 'SPORT'; // 'SPORT' (Auto-level ±52° bank) | 'ACRO' (Full Acro ±76° / 360° roll & vertical dive)
+    this.avataAutoFreestyle = true;
+    this._avataSplineT = 0.075;
+    this._avataRejoinBlend = 0.0;
+    this._avataRejoinPos = new THREE.Vector3();
+    this._avataEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+    this._avataTmpP0 = new THREE.Vector3();
+    this._avataTmpP1 = new THREE.Vector3();
+    this._avataTmpP2 = new THREE.Vector3();
+    this._avataVelPrev = new THREE.Vector3();
+    this._avataStick = { moveX: 0, moveY: 0, lookX: 0, lookY: 0, climbY: 0, boost: false };
+    this._avataYawRateAccum = 0.0;
+    this._avataYawRateSmooth = 0.0;
+    this._avataGForce = 1.0;
+    this._avataThrottle01 = 0.35;
+    this._avataBaseVerticalFov = 74.0;
+    this._avataCurrentBaseFov = 48.0;
+    this._avataAutoRollCooldown = 5.5;
+    this._avataStunt = { active: false, type: 'ROLL_RIGHT', elapsed: 0.0, duration: 0.68 };
+
     // Hard 3D solid-world physics context & previous-frame position for continuous sweep anti-tunneling
     this.physicsContext = null;
     this._prevCamPos = new THREE.Vector3();
     this._hasPrevCamPos = false;
+  }
+
+  static AVATA_FREESTYLE_WAYPOINTS = [
+    [-22.0, 62.0, -32.0], // 0: High climb north-west of Gedung Rektorat UI
+    [-26.0, 53.5, 10.0],  // 1: Cresting beside 50m Nusantara Tajug Makara spire
+    [-13.5, 17.0, 52.0],  // 2: Steep 85 km/h proximity dive over front Courtyard & Gatehouse
+    [8.5, 5.6, 88.0],     // 3: Low-altitude whip past YouTube Widescreen Videotron UI
+    [22.5, 3.8, 136.0],   // 4: High-G banked carve around Lapangan Rotunda & Dancing Fountain
+    [-16.5, 3.4, 166.0],  // 5: Razor-low skim across south-west Rotunda boulevard
+    [-58.0, 7.6, 224.0],  // 6: Blasting out over Teluk U toward Jembatan Teksas UI
+    [-108.0, 5.4, 266.0], // 7: Water-surface skim facing Mini Yacht & Jembatan Teksas arch
+    [-192.0, 19.5, 282.0],// 8: Sweeping past Kompleks Kantor DPPD, ILRC & STP-UI
+    [-146.0, 14.0, 178.0],// 9: Fast coastal slalom northeast toward VIP Helipad
+    [-86.0, 11.5, 92.0],  // 10: Passing VIP Helipad & eVTOL Taxi toward Danau Kecil Rektorat
+    [-60.0, 35.0, 12.0]   // 11: Vertical punch-out climb back toward 50m Tajug spire
+  ];
+
+  isAvataFPVMode(mode = this.mode) {
+    return mode === 'DRONE_AVATA2_FPV';
+  }
+
+  setAvataStickInput(partial = {}) {
+    if (!partial || typeof partial !== 'object') return;
+    if (Number.isFinite(partial.moveX)) this._avataStick.moveX = Math.max(-1, Math.min(1, partial.moveX));
+    if (Number.isFinite(partial.moveY)) this._avataStick.moveY = Math.max(-1, Math.min(1, partial.moveY));
+    if (Number.isFinite(partial.lookX)) this._avataStick.lookX = Math.max(-1, Math.min(1, partial.lookX));
+    if (Number.isFinite(partial.lookY)) this._avataStick.lookY = Math.max(-1, Math.min(1, partial.lookY));
+    if (Number.isFinite(partial.climbY)) this._avataStick.climbY = Math.max(-1, Math.min(1, partial.climbY));
+    if (typeof partial.boost === 'boolean') this._avataStick.boost = partial.boost;
+  }
+
+  setAvataFlightProfile(profile) {
+    this.avataFlightProfile = profile === 'ACRO' ? 'ACRO' : 'SPORT';
+    return this.avataFlightProfile;
+  }
+
+  setAvataAutoFreestyle(enabled) {
+    const next = Boolean(enabled);
+    if (next && !this.avataAutoFreestyle) {
+      // Find nearest spline parameter so rejoining Auto Freestyle blends smoothly with zero teleport
+      const wps = CameraDirector.AVATA_FREESTYLE_WAYPOINTS;
+      let bestT = this._avataSplineT;
+      let bestDistSq = Infinity;
+      const samples = 48;
+      for (let i = 0; i < samples; i++) {
+        const candT = i / samples;
+        this._evalAvataCatmullPoint(candT, this._avataTmpP0);
+        const dSq = this._avataTmpP0.distanceToSquared(this.camera.position);
+        if (dSq < bestDistSq) {
+          bestDistSq = dSq;
+          bestT = candT;
+        }
+      }
+      this._avataSplineT = bestT;
+      this._avataRejoinPos.copy(this.camera.position);
+      this._avataRejoinBlend = 1.0;
+      void wps;
+    }
+    this.avataAutoFreestyle = next;
+    return this.avataAutoFreestyle;
+  }
+
+  triggerAvataStunt(type = 'ROLL_RIGHT') {
+    if (this.mode !== 'DRONE_AVATA2_FPV') return false;
+    if (this._avataStunt.active) return false;
+    const valid =
+      type === 'ROLL_LEFT' || type === 'ROLL_RIGHT' || type === 'SPLIT_S' || type === 'FLIP_BACK'
+        ? type
+        : 'ROLL_RIGHT';
+    this._avataStunt.active = true;
+    this._avataStunt.type = valid;
+    this._avataStunt.elapsed = 0.0;
+    this._avataStunt.duration = valid === 'SPLIT_S' ? 0.92 : 0.66;
+    if (!this.avataAutoFreestyle) {
+      // Real cinewhoop upward collective pop before barrel-roll / flip so altitude stays safe
+      this.velocity.y = Math.max(this.velocity.y + 4.2, 3.2);
+    }
+    return true;
+  }
+
+  getAvataTelemetry() {
+    const active = this.mode === 'DRONE_AVATA2_FPV';
+    const pos = this.camera ? this.camera.position : this._avataTmpP0.set(0, 0, 0);
+    const speedMs = this.velocity.length();
+    const gFn = this.physicsContext?.groundHeightFn || null;
+    const oceanY = Number.isFinite(this.physicsContext?.oceanWaterY) ? this.physicsContext.oceanWaterY : -1.45;
+    const rawGround = gFn ? gFn(pos.x, pos.z) : 0.0;
+    const surfaceY = Math.max(oceanY, rawGround);
+    const agl = Math.max(0.0, pos.y - surfaceY);
+    const homeDist = Math.hypot(pos.x - -2.5, pos.z - 141.5);
+    return {
+      active,
+      profile: this.avataFlightProfile,
+      autoFreestyle: this.avataAutoFreestyle,
+      speedMs: +speedMs.toFixed(1),
+      speedKmh: Math.round(speedMs * 3.6),
+      altitudeAGL: +agl.toFixed(1),
+      altitudeASL: +(pos.y + 1.45).toFixed(1),
+      homeDistM: Math.round(homeDist),
+      pitchDeg: Math.round((this.pitch * 180) / Math.PI),
+      rollDeg: Math.round((this.roll * 180) / Math.PI),
+      yawDeg: ((Math.round(((-this.yaw * 180) / Math.PI) % 360) + 360) % 360),
+      gForce: +this._avataGForce.toFixed(1),
+      throttlePct: Math.round(Math.max(0, Math.min(1, this._avataThrottle01)) * 100),
+      fovDeg: Math.round(this.camera?.fov || 74),
+      turnRate: Math.abs(this._avataYawRateSmooth),
+      stuntActive: this._avataStunt.active
+    };
   }
 
   isFPSMode(mode = this.mode) {
@@ -277,6 +408,18 @@ export class CameraDirector {
         } else if (e.code === 'KeyR') {
           this.resetFPSHeadLook();
         }
+      } else if (this.mode === 'DRONE_AVATA2_FPV' && !e.repeat) {
+        if (e.code === 'KeyF') {
+          this.setAvataAutoFreestyle(!this.avataAutoFreestyle);
+        } else if (e.code === 'KeyM') {
+          this.setAvataFlightProfile(this.avataFlightProfile === 'SPORT' ? 'ACRO' : 'SPORT');
+        } else if (e.code === 'Digit1') {
+          this.triggerAvataStunt('ROLL_LEFT');
+        } else if (e.code === 'Digit2') {
+          this.triggerAvataStunt('ROLL_RIGHT');
+        } else if (e.code === 'Digit3') {
+          this.triggerAvataStunt('SPLIT_S');
+        }
       }
       this.keyState.add(e.code);
     });
@@ -293,12 +436,12 @@ export class CameraDirector {
     if (!this.transitionActive) return;
     this.transitionActive = false;
     this._flightNadirSpec = null;
-    if (this.mode === 'DRONE_6DOF' || this.mode === 'WALK_SIVITAS') {
+    if (this.mode === 'DRONE_6DOF' || this.mode === 'DRONE_AVATA2_FPV' || this.mode === 'WALK_SIVITAS') {
       if (this.controls) this.controls.enabled = false;
       this.camera.getWorldDirection(this._flightLookTmp);
       this.yaw = Math.atan2(-this._flightLookTmp.x, -this._flightLookTmp.z);
       this.pitch = Math.asin(Math.max(-0.95, Math.min(0.95, this._flightLookTmp.y)));
-      this.roll = 0.0;
+      if (this.mode !== 'DRONE_AVATA2_FPV') this.roll = 0.0;
     } else if (this.controls) {
       this.controls.enabled = true;
       this.controls.update();
@@ -413,14 +556,72 @@ export class CameraDirector {
     outTarget.set(tx, ty, tz);
   }
 
+  _applyBaseVerticalFov(baseVFov = 48.0) {
+    if (!this.camera || typeof this.camera.updateProjectionMatrix !== 'function') return;
+    const aspect = Number(this.camera.aspect) || 1.6;
+    const maxPortraitFov = baseVFov > 60 ? 96 : 78;
+    let nextFov = baseVFov;
+    if (aspect < 1.0) {
+      const rad = (baseVFov * Math.PI) / 180;
+      const hFov = 2 * Math.atan(Math.tan(rad / 2) / Math.max(0.52, aspect));
+      nextFov = Math.min(maxPortraitFov, (hFov * 180) / Math.PI);
+    }
+    if (Math.abs(this.camera.fov - nextFov) > 0.04) {
+      this.camera.fov = nextFov;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  _evalAvataCatmullPoint(normT, outVec) {
+    const wps = CameraDirector.AVATA_FREESTYLE_WAYPOINTS;
+    const n = wps.length;
+    const wrapped = ((normT % 1.0) + 1.0) % 1.0;
+    const scaled = wrapped * n;
+    const idx = Math.floor(scaled) % n;
+    const u = scaled - Math.floor(scaled);
+    const p0 = wps[(idx - 1 + n) % n];
+    const p1 = wps[idx];
+    const p2 = wps[(idx + 1) % n];
+    const p3 = wps[(idx + 2) % n];
+    const u2 = u * u;
+    const u3 = u2 * u;
+    const c0 = -0.5 * u3 + u2 - 0.5 * u;
+    const c1 = 1.5 * u3 - 2.5 * u2 + 1.0;
+    const c2 = -1.5 * u3 + 2.0 * u2 + 0.5 * u;
+    const c3 = 0.5 * u3 - 0.5 * u2;
+    return outVec.set(
+      c0 * p0[0] + c1 * p1[0] + c2 * p2[0] + c3 * p3[0],
+      c0 * p0[1] + c1 * p1[1] + c2 * p2[1] + c3 * p3[1],
+      c0 * p0[2] + c1 * p1[2] + c2 * p2[2] + c3 * p3[2]
+    );
+  }
+
   setMode(newMode, options = {}) {
     const prevMode = this.mode;
     const wasFPS = this.isFPSMode(prevMode);
     const nextIsFPS = this.isFPSMode(newMode);
 
     // Capture current world view direction BEFORE resetting camera.up so leaving FPS/Drone/Walk preserves look aim
-    if ((wasFPS || prevMode === 'DRONE_6DOF' || prevMode === 'WALK_SIVITAS') && !nextIsFPS) {
+    if (
+      (wasFPS ||
+        prevMode === 'DRONE_6DOF' ||
+        prevMode === 'DRONE_AVATA2_FPV' ||
+        prevMode === 'WALK_SIVITAS') &&
+      !nextIsFPS
+    ) {
       this.camera.getWorldDirection(this._flightLookTmp);
+    }
+
+    if (prevMode === 'DRONE_AVATA2_FPV' && newMode !== 'DRONE_AVATA2_FPV') {
+      this._avataStick.moveX = 0;
+      this._avataStick.moveY = 0;
+      this._avataStick.lookX = 0;
+      this._avataStick.lookY = 0;
+      this._avataStick.climbY = 0;
+      this._avataStick.boost = false;
+      this._avataStunt.active = false;
+      this._avataCurrentBaseFov = 48.0;
+      this._applyBaseVerticalFov(48.0);
     }
 
     if (wasFPS && !nextIsFPS) {
@@ -466,7 +667,12 @@ export class CameraDirector {
       if (this.controls) {
         if (newMode === 'AUTO_CINEMATIC') {
           this.controls.target.copy(this.goalTarget);
-        } else if (wasFPS || prevMode === 'DRONE_6DOF' || prevMode === 'WALK_SIVITAS') {
+        } else if (
+          wasFPS ||
+          prevMode === 'DRONE_6DOF' ||
+          prevMode === 'DRONE_AVATA2_FPV' ||
+          prevMode === 'WALK_SIVITAS'
+        ) {
           if (wasFPS && this.physicsContext && this.physicsContext.walkableHeightFn) {
             const minStandY =
               this.physicsContext.walkableHeightFn(this.camera.position.x, this.camera.position.z) + 1.65;
@@ -500,6 +706,60 @@ export class CameraDirector {
       this._droneManualEngaged = false;
       this._mavicGimbalYaw = 0.0;
       this._mavicGimbalPitch = 0.0;
+    } else if (newMode === 'DRONE_AVATA2_FPV') {
+      if (this.controls) this.controls.enabled = false;
+      this._avataYawRateAccum = 0.0;
+      this._avataYawRateSmooth = 0.0;
+      this._avataGForce = 1.0;
+      this._avataStunt.active = false;
+      this._avataCurrentBaseFov = 74.0;
+      this._applyBaseVerticalFov(74.0);
+      if (options.profile === 'ACRO' || options.profile === 'SPORT') {
+        this.avataFlightProfile = options.profile;
+      }
+      if (options.freeFlight === true) {
+        this.avataAutoFreestyle = false;
+        this._avataRejoinBlend = 0.0;
+        const dir = this._flightLookTmp;
+        if (dir.lengthSq() < 0.2) this.camera.getWorldDirection(dir);
+        this.yaw = Math.atan2(-dir.x, -dir.z);
+        this.pitch = Math.asin(Math.max(-0.95, Math.min(0.95, dir.y)));
+        this.roll = 0.0;
+        if (this.camera.position.y > 160.0) {
+          this.camera.position.set(-18.0, 26.0, 82.0);
+          this.yaw = Math.atan2(18.0, 82.0);
+          this.pitch = -0.18;
+        }
+        this.velocity.set(0, 0, 0);
+        this._avataEuler.set(this.pitch, this.yaw, this.roll, 'YXZ');
+        this.camera.quaternion.setFromEuler(this._avataEuler);
+        this.syncPreviousCameraPosition();
+      } else {
+        this.avataAutoFreestyle = true;
+        this._avataSplineT = Number.isFinite(options.startT) ? options.startT : 0.075;
+        this._avataRejoinBlend = 0.0;
+        this._evalAvataCatmullPoint(this._avataSplineT, this.camera.position);
+        this._evalAvataCatmullPoint(this._avataSplineT + 0.004, this._avataTmpP1);
+        const dx = this._avataTmpP1.x - this.camera.position.x;
+        const dy = this._avataTmpP1.y - this.camera.position.y;
+        const dz = this._avataTmpP1.z - this.camera.position.z;
+        const hLen = Math.hypot(dx, dz) || 1.0;
+        this.yaw = Math.atan2(-dx, -dz);
+        this.pitch = Math.atan2(dy, hLen);
+        this.roll = -0.32;
+        const initDirLen = Math.hypot(dx, dy, dz) || 1.0;
+        this.velocity.set((dx / initDirLen) * 21.5, (dy / initDirLen) * 21.5, (dz / initDirLen) * 21.5);
+        this._avataVelPrev.copy(this.velocity);
+        this._avataEuler.set(this.pitch, this.yaw, this.roll, 'YXZ');
+        this.camera.quaternion.setFromEuler(this._avataEuler);
+        this.camera.up.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
+        this.syncPreviousCameraPosition();
+      }
+      if (this.camera && typeof this.camera.updateProjectionMatrix === 'function') {
+        this.camera.near = 0.1;
+        this.camera.updateProjectionMatrix();
+      }
+      return;
     } else if (newMode === 'WALK_SIVITAS') {
       if (this.controls) this.controls.enabled = false;
       const walkPos = new THREE.Vector3(-2.5, 1.72, 74.5);
@@ -582,6 +842,19 @@ export class CameraDirector {
     if (this.isFPSMode()) {
       this.fpsYawOffset = Math.max(-2.05, Math.min(2.05, this.fpsYawOffset - dx * sensitivity));
       this.fpsPitchOffset = Math.max(-1.12, Math.min(1.12, this.fpsPitchOffset - dy * sensitivity));
+      return;
+    }
+    if (this.mode === 'DRONE_AVATA2_FPV') {
+      if (this.avataAutoFreestyle && Math.hypot(dx, dy) > 2.5) {
+        this.avataAutoFreestyle = false;
+        this._avataRejoinBlend = 0.0;
+      }
+      const dYaw = -dx * sensitivity * 1.12;
+      this.yaw += dYaw;
+      this._avataYawRateAccum += dYaw;
+      const maxDownPitch = this.avataFlightProfile === 'ACRO' ? -1.48 : -1.32;
+      const maxUpPitch = this.avataFlightProfile === 'ACRO' ? 1.38 : 1.18;
+      this.pitch = Math.max(maxDownPitch, Math.min(maxUpPitch, this.pitch - dy * sensitivity * 1.08));
       return;
     }
     if (this.mode !== 'DRONE_6DOF' && this.mode !== 'WALK_SIVITAS') return;
@@ -905,6 +1178,11 @@ export class CameraDirector {
       return;
     }
 
+    if (this.mode === 'DRONE_AVATA2_FPV') {
+      this._updateAvata2FPV(clampedDt, floorHeightFn, ctx);
+      return;
+    }
+
     // DRONE_6DOF or WALK_SIVITAS
     if (this.transitionActive) {
       const anyKey =
@@ -1032,5 +1310,254 @@ export class CameraDirector {
     this._updateAltitudeAdaptiveNearPlane();
     const euler = new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ');
     this.camera.quaternion.setFromEuler(euler);
+  }
+
+  _updateAvata2FPV(clampedDt, floorHeightFn, ctx) {
+    const isAcro = this.avataFlightProfile === 'ACRO';
+    this._avataVelPrev.copy(this.velocity);
+
+    let keyF = 0;
+    let keyR = 0;
+    let keyU = 0;
+    let rollCmd = 0;
+    if (this.keyState.has('KeyW') || this.keyState.has('ArrowUp')) keyF += 1;
+    if (this.keyState.has('KeyS') || this.keyState.has('ArrowDown')) keyF -= 1;
+    if (this.keyState.has('KeyD') || this.keyState.has('ArrowRight')) keyR += 1;
+    if (this.keyState.has('KeyA') || this.keyState.has('ArrowLeft')) keyR -= 1;
+    if (this.keyState.has('Space')) keyU += 1;
+    if (this.keyState.has('KeyC') || this.keyState.has('ControlLeft') || this.keyState.has('ControlRight')) keyU -= 1;
+    if (this.keyState.has('KeyQ')) rollCmd += 1;
+    if (this.keyState.has('KeyE')) rollCmd -= 1;
+
+    const surge = Math.max(-1, Math.min(1, keyF + this._avataStick.moveY));
+    const strafe = Math.max(-1, Math.min(1, keyR + this._avataStick.moveX));
+    const climb = Math.max(-1, Math.min(1, keyU + this._avataStick.climbY));
+    const turbo =
+      this.keyState.has('ShiftLeft') || this.keyState.has('ShiftRight') || Boolean(this._avataStick.boost);
+
+    const hasManualInput =
+      Math.abs(surge) > 0.04 ||
+      Math.abs(strafe) > 0.04 ||
+      Math.abs(climb) > 0.04 ||
+      Math.abs(rollCmd) > 0.04 ||
+      Math.abs(this._avataStick.lookX) > 0.05 ||
+      Math.abs(this._avataStick.lookY) > 0.05 ||
+      turbo;
+
+    if (hasManualInput && this.avataAutoFreestyle) {
+      // Instant seamless transition from Autonomous Proximity Showreel -> 100% Free-Flight anywhere!
+      this.avataAutoFreestyle = false;
+      this._avataRejoinBlend = 0.0;
+    }
+
+    const oceanY = Number.isFinite(ctx?.oceanWaterY) ? ctx.oceanWaterY : -1.45;
+    const rawGfn = ctx?.groundHeightFn || floorHeightFn || null;
+
+    if (this.avataAutoFreestyle) {
+      this._avataYawRateAccum = 0.0;
+      const eps = 0.0022;
+      this._evalAvataCatmullPoint(this._avataSplineT - eps, this._avataTmpP0);
+      this._evalAvataCatmullPoint(this._avataSplineT + eps, this._avataTmpP2);
+      const dSplineLen = this._avataTmpP2.distanceTo(this._avataTmpP0) / (2.0 * eps);
+
+      // Modulate FPV airspeed naturally: faster (25.5 m/s = 92 km/h) on steep spire dive & lagoon run,
+      // tighter (19.5 m/s = 70 km/h) carving around Rotunda fountain!
+      const phase = ((this._avataSplineT % 1.0) + 1.0) % 1.0;
+      const diveBoost = phase > 0.08 && phase < 0.30 ? 4.2 : phase > 0.52 && phase < 0.72 ? 3.4 : 0.0;
+      const targetSpeed = 20.8 + diveBoost;
+      const dtSpline = (targetSpeed * clampedDt) / Math.max(45.0, dSplineLen);
+      this._avataSplineT = (this._avataSplineT + dtSpline) % 1.0;
+
+      this._evalAvataCatmullPoint(this._avataSplineT, this.goalPos);
+      this._evalAvataCatmullPoint(this._avataSplineT - eps, this._avataTmpP0);
+      this._evalAvataCatmullPoint(this._avataSplineT + eps, this._avataTmpP2);
+
+      // Ensure safe terrain & water proximity clearance along spline
+      const spGround = rawGfn ? rawGfn(this.goalPos.x, this.goalPos.z) : 0.0;
+      const minSplineY = Math.max(oceanY + 1.85, spGround + 2.15);
+      if (this.goalPos.y < minSplineY) this.goalPos.y = minSplineY;
+
+      if (this._avataRejoinBlend > 0.002) {
+        this._avataRejoinBlend *= Math.exp(-2.8 * clampedDt);
+        this.camera.position.lerpVectors(this.goalPos, this._avataRejoinPos, this._avataRejoinBlend);
+      } else {
+        this._avataRejoinBlend = 0.0;
+        const followAlpha = 1.0 - Math.exp(-14.0 * clampedDt);
+        this.camera.position.lerp(this.goalPos, followAlpha);
+      }
+
+      const tx = this._avataTmpP2.x - this._avataTmpP0.x;
+      const ty = this._avataTmpP2.y - this._avataTmpP0.y;
+      const tz = this._avataTmpP2.z - this._avataTmpP0.z;
+      const tLen = Math.hypot(tx, ty, tz) || 1.0;
+      this.velocity.set((tx / tLen) * targetSpeed, (ty / tLen) * targetSpeed, (tz / tLen) * targetSpeed);
+
+      // Second derivative curvature vector for physically accurate centripetal FPV bank angle
+      const scaleA = Math.pow(targetSpeed / Math.max(45.0, dSplineLen), 2) / (eps * eps);
+      const ax = (this._avataTmpP2.x - 2.0 * this.goalPos.x + this._avataTmpP0.x) * scaleA;
+      const ay = (this._avataTmpP2.y - 2.0 * this.goalPos.y + this._avataTmpP0.y) * scaleA;
+      const az = (this._avataTmpP2.z - 2.0 * this.goalPos.z + this._avataTmpP0.z) * scaleA;
+
+      const targetYaw = Math.atan2(-tx, -tz);
+      let yawDiff = targetYaw - this.yaw;
+      while (yawDiff > Math.PI) yawDiff -= Math.PI * 2.0;
+      while (yawDiff < -Math.PI) yawDiff += Math.PI * 2.0;
+      const rotAlpha = 1.0 - Math.exp(-10.5 * clampedDt);
+      this.yaw += yawDiff * rotAlpha;
+      this._avataYawRateSmooth = (yawDiff * rotAlpha) / clampedDt;
+
+      const horizLen = Math.hypot(tx, tz) || 1.0;
+      const targetPitch = Math.max(-1.25, Math.min(1.15, Math.atan2(ty, horizLen)));
+      this.pitch += (targetPitch - this.pitch) * rotAlpha;
+
+      const rx = Math.cos(this.yaw);
+      const rz = -Math.sin(this.yaw);
+      const aDotRight = ax * rx + az * rz;
+      const targetBank = Math.max(
+        -0.92,
+        Math.min(0.92, -Math.atan2(aDotRight * 1.38, 9.81 + Math.max(-5.5, ay)))
+      );
+      this.roll += (targetBank - this.roll) * (1.0 - Math.exp(-8.5 * clampedDt));
+      this._avataThrottle01 = Math.max(0.28, Math.min(0.98, 0.56 + (ty / tLen) * 0.34 + diveBoost * 0.05));
+
+      // Occasional automatic Easy-Acro Victory Barrel Roll during the high punch-out climb back to Tajug!
+      this._avataAutoRollCooldown = Math.max(0.0, this._avataAutoRollCooldown - clampedDt);
+      if (phase > 0.91 && phase < 0.95 && this._avataAutoRollCooldown <= 0.0 && !this._avataStunt.active) {
+        this._avataAutoRollCooldown = 14.0;
+        this.triggerAvataStunt('ROLL_RIGHT');
+      }
+    } else {
+      // 100% UNRESTRICTED FREE-FLIGHT FPV ACTION QUAD DYNAMICS (Fly Anywhere Across Pulau U & Pulau I!)
+      const stickYawDelta = -this._avataStick.lookX * 2.45 * clampedDt;
+      const stickPitchDelta = this._avataStick.lookY * 1.75 * clampedDt;
+      this.yaw += stickYawDelta;
+      this._avataYawRateAccum += stickYawDelta;
+      const maxDownPitch = isAcro ? -1.48 : -1.32;
+      const maxUpPitch = isAcro ? 1.38 : 1.18;
+      this.pitch = Math.max(maxDownPitch, Math.min(maxUpPitch, this.pitch + stickPitchDelta));
+
+      const instYawRate = this._avataYawRateAccum / clampedDt;
+      this._avataYawRateAccum = 0.0;
+      const yawSmoothAlpha = 1.0 - Math.exp(-11.0 * clampedDt);
+      this._avataYawRateSmooth += (instYawRate - this._avataYawRateSmooth) * yawSmoothAlpha;
+
+      const cosP = Math.cos(this.pitch);
+      this._forward.set(-Math.sin(this.yaw) * cosP, Math.sin(this.pitch), -Math.cos(this.yaw) * cosP).normalize();
+      this._right.set(Math.cos(this.yaw), 0.0, -Math.sin(this.yaw)).normalize();
+
+      const maxSpeed = turbo ? 27.0 : 19.5; // Exact DJI Avata 2 Manual spec: 27 m/s = 97.2 km/h!
+      const surgeAccel = (turbo ? 48.0 : 34.0) * (surge < 0 ? 0.68 : 1.0);
+      const strafeAccel = turbo ? 36.0 : 27.0;
+      const climbAccel = turbo ? 34.0 : 25.0;
+
+      this.velocity.addScaledVector(this._forward, surge * surgeAccel * clampedDt);
+      this.velocity.addScaledVector(this._right, strafe * strafeAccel * clampedDt);
+      this.velocity.y += climb * climbAccel * clampedDt;
+
+      // Authentic FPV aerodynamic drag + responsive air-brake when sticks center (preserves cornering drift!)
+      const thrustActive = Math.abs(surge) > 0.04 || Math.abs(strafe) > 0.04 || Math.abs(climb) > 0.04;
+      const linDrag = Math.exp(-(thrustActive ? 1.65 : 3.65) * clampedDt);
+      this.velocity.multiplyScalar(linDrag);
+      const curSpd = this.velocity.length();
+      if (curSpd > maxSpeed) {
+        this.velocity.setLength(maxSpeed);
+      } else if (!thrustActive && curSpd < 0.04) {
+        this.velocity.set(0, 0, 0);
+      }
+
+      this.camera.position.addScaledVector(this.velocity, clampedDt);
+
+      // Coordinated Yaw-Roll Banking + Lateral Strafe Bank + Direct Q/E Acro Roll
+      const horizSpd = Math.hypot(this.velocity.x, this.velocity.z);
+      const yawBank = Math.atan2(this._avataYawRateSmooth * Math.max(5.5, horizSpd) * 0.92, 9.81);
+      const strafeBank = -strafe * (isAcro ? 0.84 : 0.62);
+
+      if (isAcro && Math.abs(rollCmd) > 0.05) {
+        this.roll += rollCmd * 5.25 * clampedDt;
+        if (this.roll > Math.PI) this.roll -= Math.PI * 2.0;
+        if (this.roll < -Math.PI) this.roll += Math.PI * 2.0;
+      } else {
+        const maxBank = isAcro ? 1.28 : 0.92; // ±52.7° Sport, ±73.3° Acro
+        const directBank = rollCmd * 0.92;
+        const targetRoll = Math.max(-maxBank, Math.min(maxBank, yawBank + strafeBank + directBank));
+        // Wrap shortest angular distance back to horizon when coming out of an Acro roll
+        while (this.roll - targetRoll > Math.PI) this.roll -= Math.PI * 2.0;
+        while (this.roll - targetRoll < -Math.PI) this.roll += Math.PI * 2.0;
+        this.roll += (targetRoll - this.roll) * (1.0 - Math.exp(-9.5 * clampedDt));
+      }
+
+      const cmdMag = Math.min(1.0, Math.hypot(surge, strafe, climb));
+      this._avataThrottle01 = Math.max(
+        0.18,
+        Math.min(1.0, 0.22 + cmdMag * (turbo ? 0.78 : 0.58) + (curSpd / 27.0) * 0.2)
+      );
+    }
+
+    // Hard 3D Solid-Body Non-Penetration (0.42m Ducted Cinewhoop Prop-Guard Sphere)
+    const walkY = floorHeightFn ? floorHeightFn(this.camera.position.x, this.camera.position.z) : 0.0;
+    const minAvataY =
+      walkY < -0.5 ? walkY + 0.48 : Math.max(oceanY + 0.48, walkY + 0.48);
+    resolveSoftSpatialCollision(
+      this.camera.position,
+      this.velocity,
+      this.colliders,
+      0.42,
+      minAvataY,
+      clampedDt,
+      this._prevCamPos,
+      ctx,
+      false
+    );
+
+    // Easy-Acro 360° Stunt Overlay (Barrel Roll Left/Right, Backflip, Split-S Dive)
+    let stuntRollAdd = 0.0;
+    let stuntPitchAdd = 0.0;
+    if (this._avataStunt.active) {
+      this._avataStunt.elapsed += clampedDt;
+      const s = Math.min(1.0, this._avataStunt.elapsed / Math.max(0.2, this._avataStunt.duration));
+      const u = s * s * s * (s * (s * 6.0 - 15.0) + 10.0);
+      if (this._avataStunt.type === 'ROLL_LEFT') {
+        stuntRollAdd = u * Math.PI * 2.0;
+      } else if (this._avataStunt.type === 'ROLL_RIGHT') {
+        stuntRollAdd = -u * Math.PI * 2.0;
+      } else if (this._avataStunt.type === 'FLIP_BACK') {
+        stuntPitchAdd = u * Math.PI * 2.0;
+      } else if (this._avataStunt.type === 'SPLIT_S') {
+        const halfRoll = Math.min(1.0, s * 2.1);
+        const uRoll = halfRoll * halfRoll * (3.0 - 2.0 * halfRoll);
+        stuntRollAdd = Math.PI * Math.sin(Math.PI * u);
+        stuntPitchAdd = -0.68 * Math.sin(Math.PI * uRoll);
+      }
+      if (s >= 1.0) {
+        this._avataStunt.active = false;
+      }
+    }
+
+    // Instantaneous G-Force from 3D velocity vector derivative + gravity vector
+    const dvx = (this.velocity.x - this._avataVelPrev.x) / clampedDt;
+    const dvy = (this.velocity.y - this._avataVelPrev.y) / clampedDt + 9.81;
+    const dvz = (this.velocity.z - this._avataVelPrev.z) / clampedDt;
+    const rawG = Math.max(0.2, Math.min(6.2, Math.hypot(dvx, dvy, dvz) / 9.81));
+    this._avataGForce += (rawG - this._avataGForce) * (1.0 - Math.exp(-8.0 * clampedDt));
+
+    // Speed-Coupled 155° Super-Wide Action FOV (74° hover -> 88° at 97 km/h!) & Razor-Close 0.10m Near Plane
+    const speedNorm = Math.min(1.0, this.velocity.length() / 27.0);
+    const desiredBaseFov = 74.0 + speedNorm * 14.0;
+    this._avataCurrentBaseFov += (desiredBaseFov - this._avataCurrentBaseFov) * (1.0 - Math.exp(-7.5 * clampedDt));
+    this._applyBaseVerticalFov(this._avataCurrentBaseFov);
+
+    if (this.camera && typeof this.camera.updateProjectionMatrix === 'function') {
+      const camY = Math.max(0.0, Number(this.camera.position.y) || 0.0);
+      const desiredNear = camY < 32.0 ? 0.1 : Math.min(1.6, 0.1 + (camY - 32.0) * 0.003);
+      if (Math.abs(this.camera.near - desiredNear) > 0.02) {
+        this.camera.near = desiredNear;
+        this.camera.updateProjectionMatrix();
+      }
+    }
+
+    this._prevCamPos.copy(this.camera.position);
+    this._avataEuler.set(this.pitch + stuntPitchAdd, this.yaw, this.roll + stuntRollAdd, 'YXZ');
+    this.camera.quaternion.setFromEuler(this._avataEuler);
+    this.camera.up.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
   }
 }

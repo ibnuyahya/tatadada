@@ -289,7 +289,12 @@ async function bootstrapStudioWorkbench() {
     btn.addEventListener('click', () => {
       document.querySelectorAll('[data-cammode]').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
-      camDirector.setMode(btn.dataset.cammode);
+      if (btn.dataset.cammode === 'DRONE_AVATA2_FPV') {
+        camDirector.setMode('DRONE_AVATA2_FPV', { freeFlight: true });
+      } else {
+        camDirector.setMode(btn.dataset.cammode);
+      }
+      requestAnimationFrame(syncViewportAndOffset);
     });
   });
 

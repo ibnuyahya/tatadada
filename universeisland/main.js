@@ -465,7 +465,7 @@ async function bootstrapNexusSimulator() {
   await preloader.advance(8, 100, 'Selamat Datang di Kepulauan Universitas Indonesia (Pulau U & I), Depok.', TOTAL_EXPECTED_TRIS);
   preloader.dismiss();
 
-  // Pointer drag look in DRONE_6DOF and WALK_SIVITAS modes
+  // Pointer drag + Optional Pointer-Lock FPV look in DRONE_6DOF, DRONE_AVATA2_FPV, and WALK_SIVITAS modes
   let dragging = false;
   let lastPX = 0;
   let lastPY = 0;
@@ -481,6 +481,10 @@ async function bootstrapNexusSimulator() {
     camDirector.cancelTransition();
   }, { passive: true });
   window.addEventListener('pointermove', (e) => {
+    if (document.pointerLockElement === renderer.domElement && camDirector.isAvataFPVMode()) {
+      camDirector.lookDelta(e.movementX || 0, e.movementY || 0, 0.0021);
+      return;
+    }
     if (!dragging) return;
     camDirector.lookDelta(e.clientX - lastPX, e.clientY - lastPY);
     lastPX = e.clientX;
@@ -495,6 +499,7 @@ async function bootstrapNexusSimulator() {
   const pillLabelEl = document.getElementById('sim-pill-label');
   const drawer = document.getElementById('sim-drawer');
   const closeBtn = document.getElementById('sim-drawer-close');
+  const avataHudEl = document.getElementById('avata-fpv-hud');
   let isPanelExpanded = false;
 
   function syncViewport() {
@@ -502,11 +507,22 @@ async function bootstrapNexusSimulator() {
     const h = window.innerHeight;
     renderer.setSize(w, h);
     const rect = drawer.getBoundingClientRect();
-    applyNonOccludingViewportOffset(camera, w, h, isPanelExpanded, {
-      width: rect.width || 276,
-      height: rect.height || Math.min(h * 0.32, h * 0.34),
-      side: 'right'
-    });
+    const baseFov = camDirector.isAvataFPVMode() ? camDirector._avataCurrentBaseFov || 74 : null;
+    applyNonOccludingViewportOffset(
+      camera,
+      w,
+      h,
+      isPanelExpanded,
+      {
+        width: rect.width || 276,
+        height: rect.height || Math.min(h * 0.32, h * 0.34),
+        side: 'right'
+      },
+      baseFov
+    );
+    if (avataHudEl) {
+      avataHudEl.classList.toggle('drawer-open', isPanelExpanded);
+    }
   }
 
   function setPanelExpanded(expanded) {
@@ -514,6 +530,9 @@ async function bootstrapNexusSimulator() {
     drawer.classList.toggle('collapsed', !expanded);
     drawer.setAttribute('aria-expanded', String(expanded));
     pillBtn.classList.toggle('hidden', expanded);
+    if (expanded && document.pointerLockElement === renderer.domElement && document.exitPointerLock) {
+      document.exitPointerLock();
+    }
     requestAnimationFrame(syncViewport);
   }
 
@@ -533,6 +552,199 @@ async function bootstrapNexusSimulator() {
     });
   });
 
+  // --- DJI AVATA 2 ACTION FPV GOGGLES 3 OSD & DUAL TOUCH FLIGHT STICKS ---
+  const avataOsdModeEl = document.getElementById('avata-osd-mode');
+  const avataOsdAttitudeEl = document.getElementById('avata-osd-attitude');
+  const avataHorizonGroupEl = document.getElementById('avata-horizon-group');
+  const avataOsdSpdEl = document.getElementById('avata-osd-spd');
+  const avataOsdMsEl = document.getElementById('avata-osd-ms');
+  const avataOsdThrEl = document.getElementById('avata-osd-thr');
+  const avataThrFillEl = document.getElementById('avata-thr-fill');
+  const avataOsdAltEl = document.getElementById('avata-osd-alt');
+  const avataOsdHomeEl = document.getElementById('avata-osd-home');
+  const avataOsdFovEl = document.getElementById('avata-osd-fov');
+  const avataFreeBtn = document.getElementById('btn-avata-free-toggle');
+  const avataProfileBtn = document.getElementById('btn-avata-profile');
+  const avataRollLBtn = document.getElementById('btn-avata-roll-l');
+  const avataRollRBtn = document.getElementById('btn-avata-roll-r');
+  const avataSplitSBtn = document.getElementById('btn-avata-splits');
+  const avataMouseLockBtn = document.getElementById('btn-avata-mouse-lock');
+  const avataOsdToggleBtn = document.getElementById('btn-avata-osd-toggle');
+  let avataOsdMinimal = false;
+
+  function syncAvataHudDOM(fastFrameOnly = false) {
+    if (!avataHudEl) return;
+    const active = camDirector.isAvataFPVMode();
+    if (avataHudEl.classList.contains('active') !== active) {
+      avataHudEl.classList.toggle('active', active);
+      avataHudEl.setAttribute('aria-hidden', String(!active));
+      if (!active && document.pointerLockElement === renderer.domElement && document.exitPointerLock) {
+        document.exitPointerLock();
+      }
+    }
+    if (!active) return;
+
+    const tel = camDirector.getAvataTelemetry();
+    if (avataHorizonGroupEl) {
+      const pitchShift = Math.max(-38, Math.min(38, tel.pitchDeg * 0.72));
+      avataHorizonGroupEl.setAttribute(
+        'transform',
+        `translate(0 ${pitchShift.toFixed(1)}) rotate(${(-tel.rollDeg).toFixed(1)} 110 80)`
+      );
+    }
+    const rushAlpha = Math.max(0, Math.min(0.85, (tel.speedKmh - 52) / 48));
+    avataHudEl.style.setProperty('--avata-rush', rushAlpha.toFixed(2));
+    if (fastFrameOnly) return;
+
+    if (avataOsdModeEl) {
+      const modeTxt = tel.autoFreestyle
+        ? 'FREESTYLE'
+        : tel.profile === 'ACRO'
+          ? 'BEBAS · ACRO+'
+          : 'BEBAS · SPORT';
+      avataOsdModeEl.textContent = modeTxt;
+      avataOsdModeEl.classList.toggle('is-acro', tel.profile === 'ACRO');
+    }
+    if (avataOsdAttitudeEl) {
+      const hdg = String(tel.yawDeg).padStart(3, '0');
+      const bankVal = -tel.rollDeg;
+      const bankSign = bankVal > 0 ? '+' : '';
+      avataOsdAttitudeEl.textContent = `HDG ${hdg}° · ${tel.gForce.toFixed(1)}G · BANK ${bankSign}${bankVal}°`;
+    }
+    if (avataOsdSpdEl) avataOsdSpdEl.textContent = String(tel.speedKmh);
+    if (avataOsdMsEl) avataOsdMsEl.textContent = `${tel.speedMs.toFixed(1)} m/s`;
+    if (avataOsdThrEl) avataOsdThrEl.textContent = `THR ${tel.throttlePct}%`;
+    if (avataThrFillEl) avataThrFillEl.style.width = `${tel.throttlePct}%`;
+    if (avataOsdAltEl) avataOsdAltEl.textContent = tel.altitudeAGL.toFixed(1);
+    if (avataOsdHomeEl) avataOsdHomeEl.textContent = `H ${tel.homeDistM} m`;
+    if (avataOsdFovEl) avataOsdFovEl.textContent = `FOV ${tel.fovDeg}°`;
+
+    if (avataFreeBtn) {
+      avataFreeBtn.textContent = tel.autoFreestyle ? 'Auto Freestyle' : 'Terbang Bebas';
+      avataFreeBtn.classList.toggle('active', tel.autoFreestyle);
+      avataFreeBtn.classList.toggle('gold-active', !tel.autoFreestyle);
+    }
+    if (avataProfileBtn) {
+      avataProfileBtn.textContent = tel.profile === 'ACRO' ? 'ACRO+' : 'SPORT';
+      avataProfileBtn.classList.toggle('gold-active', tel.profile === 'ACRO');
+    }
+    if (avataMouseLockBtn) {
+      const locked = document.pointerLockElement === renderer.domElement;
+      avataMouseLockBtn.textContent = locked ? 'Esc Lepas Mouse' : 'Kunci Mouse';
+      avataMouseLockBtn.classList.toggle('active', locked);
+    }
+  }
+
+  if (avataFreeBtn) {
+    avataFreeBtn.addEventListener('click', () => {
+      camDirector.setAvataAutoFreestyle(!camDirector.avataAutoFreestyle);
+      syncAvataHudDOM();
+    });
+  }
+  if (avataProfileBtn) {
+    avataProfileBtn.addEventListener('click', () => {
+      camDirector.setAvataFlightProfile(camDirector.avataFlightProfile === 'SPORT' ? 'ACRO' : 'SPORT');
+      syncAvataHudDOM();
+    });
+  }
+  if (avataRollLBtn) {
+    avataRollLBtn.addEventListener('click', () => camDirector.triggerAvataStunt('ROLL_LEFT'));
+  }
+  if (avataRollRBtn) {
+    avataRollRBtn.addEventListener('click', () => camDirector.triggerAvataStunt('ROLL_RIGHT'));
+  }
+  if (avataSplitSBtn) {
+    avataSplitSBtn.addEventListener('click', () => camDirector.triggerAvataStunt('SPLIT_S'));
+  }
+  if (avataMouseLockBtn) {
+    avataMouseLockBtn.addEventListener('click', () => {
+      if (document.pointerLockElement === renderer.domElement) {
+        document.exitPointerLock?.();
+      } else {
+        setPanelExpanded(false);
+        renderer.domElement.requestPointerLock?.();
+      }
+      setTimeout(() => syncAvataHudDOM(), 60);
+    });
+  }
+  document.addEventListener('pointerlockchange', () => syncAvataHudDOM());
+  if (avataOsdToggleBtn) {
+    avataOsdToggleBtn.addEventListener('click', () => {
+      avataOsdMinimal = !avataOsdMinimal;
+      avataHudEl?.classList.toggle('osd-minimal', avataOsdMinimal);
+      avataOsdToggleBtn.classList.toggle('active', avataOsdMinimal);
+    });
+  }
+
+  function bindAvataVirtualStick(zoneId, nubId, onAxes) {
+    const zone = document.getElementById(zoneId);
+    const nub = document.getElementById(nubId);
+    if (!zone || !nub) return;
+    let activeId = null;
+    const maxR = 34;
+    const updateFromEvent = (e) => {
+      const r = zone.getBoundingClientRect();
+      const cx = r.left + r.width * 0.5;
+      const cy = r.top + r.height * 0.5;
+      let dx = e.clientX - cx;
+      let dy = e.clientY - cy;
+      const dist = Math.hypot(dx, dy);
+      if (dist > maxR) {
+        dx = (dx / dist) * maxR;
+        dy = (dy / dist) * maxR;
+      }
+      nub.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+      onAxes(dx / maxR, -dy / maxR);
+    };
+    const release = (e) => {
+      if (activeId === null || (e && e.pointerId !== activeId)) return;
+      activeId = null;
+      nub.style.transform = 'translate(0px, 0px)';
+      onAxes(0, 0);
+    };
+    zone.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      activeId = e.pointerId;
+      zone.setPointerCapture?.(e.pointerId);
+      updateFromEvent(e);
+    });
+    zone.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== activeId) return;
+      e.stopPropagation();
+      updateFromEvent(e);
+    });
+    zone.addEventListener('pointerup', release);
+    zone.addEventListener('pointercancel', release);
+  }
+
+  bindAvataVirtualStick('avata-stick-left', 'avata-nub-left', (nx, ny) => {
+    camDirector.setAvataStickInput({ moveX: nx, moveY: ny });
+  });
+  bindAvataVirtualStick('avata-stick-right', 'avata-nub-right', (nx, ny) => {
+    camDirector.setAvataStickInput({ lookX: nx, lookY: ny });
+  });
+
+  function bindAvataHoldPad(btnId, onHold) {
+    const el = document.getElementById(btnId);
+    if (!el) return;
+    const end = () => {
+      el.classList.remove('pressed');
+      onHold(false);
+    };
+    el.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      el.setPointerCapture?.(e.pointerId);
+      el.classList.add('pressed');
+      onHold(true);
+    });
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('lostpointercapture', end);
+  }
+  bindAvataHoldPad('avata-pad-boost', (down) => camDirector.setAvataStickInput({ boost: down }));
+  bindAvataHoldPad('avata-pad-up', (down) => camDirector.setAvataStickInput({ climbY: down ? 1 : 0 }));
+  bindAvataHoldPad('avata-pad-down', (down) => camDirector.setAvataStickInput({ climbY: down ? -1 : 0 }));
+
   // Live FPS Telemetry Status Card & Subject Cycle Controls
   const fpsLiveCardEl = document.getElementById('fps-live-card');
   const fpsLiveTitleEl = document.getElementById('fps-live-title');
@@ -542,6 +754,7 @@ async function bootstrapNexusSimulator() {
   const fpsResetBtn = document.getElementById('btn-fps-reset-look');
 
   function syncFPSStatusDOM() {
+    syncAvataHudDOM();
     if (!fpsLiveCardEl) return;
     const active = camDirector.isFPSMode();
     fpsLiveCardEl.style.display = active ? 'flex' : 'none';
@@ -634,7 +847,7 @@ async function bootstrapNexusSimulator() {
     });
   });
 
-  // Exploration & 6 Living FPS Camera Modes
+  // Exploration, DJI Avata 2 Action FPV, & 6 Living FPS Camera Modes
   document.querySelectorAll('[data-cammode]').forEach((btn) => {
     btn.addEventListener('click', () => {
       arrivalActive = false;
@@ -645,6 +858,7 @@ async function bootstrapNexusSimulator() {
       }
       if (
         (btn.dataset.cammode === 'DRONE_6DOF' ||
+          btn.dataset.cammode === 'DRONE_AVATA2_FPV' ||
           btn.dataset.cammode === 'WALK_SIVITAS' ||
           camDirector.isFPSMode(btn.dataset.cammode)) &&
         videotron.interactiveScreenClick
@@ -654,6 +868,9 @@ async function bootstrapNexusSimulator() {
       if (camDirector.mode === btn.dataset.cammode && camDirector.isFPSMode(btn.dataset.cammode)) {
         // Clicking an already-active FPS button cycles smoothly to the next subject!
         camDirector.cycleFPSSubject(1);
+      } else if (camDirector.mode === 'DRONE_AVATA2_FPV' && btn.dataset.cammode === 'DRONE_AVATA2_FPV') {
+        // Clicking Avata 2 again toggles Auto Freestyle vs Free-Flight!
+        camDirector.setAvataAutoFreestyle(!camDirector.avataAutoFreestyle);
       } else if (btn.dataset.cammode === 'DRONE_6DOF') {
         camDirector.setMode('DRONE_6DOF', { startIslandTour: true });
       } else {
@@ -1187,6 +1404,17 @@ async function bootstrapNexusSimulator() {
 
       sivitasAI.update(dt, elapsed, camera.position);
       camDirector.update(dt, sampleWalkableElevation);
+      if (camDirector.isAvataFPVMode()) {
+        syncAvataHudDOM(true);
+        audioSynth.syncAvataDroneAudio(
+          true,
+          camDirector._avataThrottle01,
+          camDirector.velocity.length(),
+          Math.abs(camDirector._avataYawRateSmooth)
+        );
+      } else {
+        audioSynth.syncAvataDroneAudio(false, 0, 0, 0);
+      }
       GedungRektoratUIAsset.updateKinematics(rektoratAsset, dt, {
         isNight: weather.nightIlluminationLevel > 0.35,
         nightLevel: weather.nightIlluminationLevel,

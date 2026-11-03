@@ -17,6 +17,12 @@ export class AudioSynthesizer {
     this.breezeFilter = null;
     this.rainRoarGain = null;
     this.rainPatterGain = null;
+    this.avataMotorOscA = null;
+    this.avataMotorOscB = null;
+    this.avataMotorFilter = null;
+    this.avataMotorGain = null;
+    this.avataWashFilter = null;
+    this.avataWashGain = null;
     this._pinkBuffer = null;
     this._thunderTimers = [];
   }
@@ -125,6 +131,47 @@ export class AudioSynthesizer {
     patterFilter.connect(this.rainPatterGain);
     this.rainPatterGain.connect(this.masterGain);
     patterSrc.start();
+
+    // Bus 5: DJI Avata 2 5-Blade Ducted Cinewhoop Brushless Quad Motor & Prop-Wash Bus
+    this.avataMotorOscA = this.ctx.createOscillator();
+    this.avataMotorOscA.type = 'sawtooth';
+    this.avataMotorOscA.frequency.value = 235;
+
+    this.avataMotorOscB = this.ctx.createOscillator();
+    this.avataMotorOscB.type = 'triangle';
+    this.avataMotorOscB.frequency.value = 472;
+
+    this.avataMotorFilter = this.ctx.createBiquadFilter();
+    this.avataMotorFilter.type = 'bandpass';
+    this.avataMotorFilter.frequency.value = 540;
+    this.avataMotorFilter.Q.value = 1.65;
+
+    this.avataMotorGain = this.ctx.createGain();
+    this.avataMotorGain.gain.value = 0.0;
+
+    this.avataMotorOscA.connect(this.avataMotorFilter);
+    this.avataMotorOscB.connect(this.avataMotorFilter);
+    this.avataMotorFilter.connect(this.avataMotorGain);
+    this.avataMotorGain.connect(this.masterGain);
+    this.avataMotorOscA.start();
+    this.avataMotorOscB.start();
+
+    const washSrc = this.ctx.createBufferSource();
+    washSrc.buffer = pinkBuffer;
+    washSrc.loop = true;
+
+    this.avataWashFilter = this.ctx.createBiquadFilter();
+    this.avataWashFilter.type = 'bandpass';
+    this.avataWashFilter.frequency.value = 720;
+    this.avataWashFilter.Q.value = 0.85;
+
+    this.avataWashGain = this.ctx.createGain();
+    this.avataWashGain.gain.value = 0.0;
+
+    washSrc.connect(this.avataWashFilter);
+    this.avataWashFilter.connect(this.avataWashGain);
+    this.avataWashGain.connect(this.masterGain);
+    washSrc.start();
   }
 
   setWeatherAudio(weatherMode) {
@@ -183,6 +230,32 @@ export class AudioSynthesizer {
     if (this.breezeFilter) {
       this.breezeFilter.frequency.setTargetAtTime(windFreq, now, 0.22);
     }
+  }
+
+  /**
+   * Modulates the DJI Avata 2 5-blade ducted cinewhoop motor harmonic & cornering prop-wash
+   * in real time from throttle (0..1), airspeed (m/s), and yaw/bank turn rate.
+   */
+  syncAvataDroneAudio(active = false, throttle01 = 0.0, speedMs = 0.0, turnRate = 0.0) {
+    if (!this.ctx || !this.avataMotorGain || !this.avataWashGain) return;
+    const now = this.ctx.currentTime;
+    if (!active || !this.enabled) {
+      this.avataMotorGain.gain.setTargetAtTime(0.0, now, 0.12);
+      this.avataWashGain.gain.setTargetAtTime(0.0, now, 0.12);
+      return;
+    }
+    const thr = Math.max(0.0, Math.min(1.0, throttle01));
+    const spd = Math.max(0.0, Math.min(30.0, speedMs));
+    const turn = Math.max(0.0, Math.min(4.0, turnRate));
+    const baseHz = 215 + thr * 285 + (spd / 27.0) * 65;
+    this.avataMotorOscA.frequency.setTargetAtTime(baseHz, now, 0.06);
+    this.avataMotorOscB.frequency.setTargetAtTime(baseHz * 2.012, now, 0.06);
+    this.avataMotorFilter.frequency.setTargetAtTime(460 + thr * 680, now, 0.08);
+    this.avataMotorGain.gain.setTargetAtTime(0.055 + thr * 0.115, now, 0.08);
+
+    const washGain = 0.04 + (spd / 27.0) * 0.18 + turn * 0.045;
+    this.avataWashFilter.frequency.setTargetAtTime(620 + (spd / 27.0) * 740 + turn * 140, now, 0.08);
+    this.avataWashGain.gain.setTargetAtTime(Math.min(0.32, washGain), now, 0.08);
   }
 
   /**
