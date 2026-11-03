@@ -201,12 +201,23 @@ export class CameraDirector {
     this._droneManualEngaged = false;
     this._mavicGimbalYaw = 0.0;
     this._mavicGimbalPitch = 0.0;
+    this._mavicSeedPhase = ((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0) % 1000 * 0.00628318;
+    this.cinematicAngle = 1.88 + (this._mavicSeedPhase % 0.16);
 
-    // DJI Avata 2 FPV Action Cinewhoop State (155° Ultra-Wide Dynamics, Sport/Acro+, Easy-Acro, APAS 360°, & 5-Act Archipelago Freestyle)
-    this.avataFlightProfile = 'SPORT'; // 'SPORT' (Auto-level ±52° bank) | 'ACRO' (Full Acro ±76° / 360° roll & vertical dive)
+    // DJI Avata 2 Pro-Pilot FPV State (Cinema 51.5°–56.5° Optics, Non-Repeating Generative Graph, Whisker APAS 360°)
+    this.avataFlightProfile = 'SPORT'; // 'SPORT' (Auto-level ±50° bank) | 'ACRO' (Full Acro ±74° / 360° roll & dive)
     this.avataAutoFreestyle = true;
-    this._avataSplineT = 0.014;
+    this._avataRngState = ((Date.now() ^ Math.floor(Math.random() * 0xffffffff) ^ 0x9e3779b9) >>> 0) || 1;
+    this._avataStreamNodes = [];
+    this._avataStreamBaseIdx = 0;
+    this._avataStreamCursor = 1.0;
+    this._avataSplineT = 0.0;
     this._avataLapCount = 0;
+    this._avataCurrentGate = 'G_ROTUNDA_N';
+    this._avataManeuverHistory = [];
+    this._avataRecentTabu = [];
+    this._avataUnvisitedSigZones = new Set(['TEKSAS_IN', 'UNDERPASS', 'PULAU_I', 'KOLONG']);
+    this._avataActiveManeuverId = 'INIT';
     this._avataRejoinBlend = 0.0;
     this._avataRejoinPos = new THREE.Vector3();
     this._avataEuler = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -214,21 +225,33 @@ export class CameraDirector {
     this._avataTmpP1 = new THREE.Vector3();
     this._avataTmpP2 = new THREE.Vector3();
     this._avataVelPrev = new THREE.Vector3();
-    this._avataMeta = { speedMs: 23.0, corridorWeight: 0.0, corridorType: 0 };
-    this._avataMetaDummy = { speedMs: 23.0, corridorWeight: 0.0, corridorType: 0 };
+    this._avataMeta = {
+      speedMs: 11.8,
+      corridorWeight: 0.0,
+      corridorType: 0,
+      lookX: 0,
+      lookY: 28,
+      lookZ: 0,
+      lookBlend: 0,
+      allowStunt: 0
+    };
     this._avataLiveLaneOffset = 0.0;
     this._avataApasTimer = 0.0;
     this._avataRepelScratch = { nx: 0, ny: 0, nz: 0, pen: 0 };
+    this._avataWhiskerScratch = { nx: 0, ny: 0, nz: 0, pen: 0 };
     this._avataStick = { moveX: 0, moveY: 0, lookX: 0, lookY: 0, climbY: 0, boost: false };
+    this._avataFreelookYaw = 0.0;
+    this._avataFreelookPitch = 0.0;
+    this._avataFreelookIdle = 5.0;
     this._avataYawRateAccum = 0.0;
     this._avataYawRateSmooth = 0.0;
     this._avataGForce = 1.0;
     this._avataThrottle01 = 0.35;
-    this._avataBaseVerticalFov = 74.0;
+    this._avataBaseVerticalFov = 51.5;
     this._avataCurrentBaseFov = 48.0;
-    this._avataAutoRollCooldown = 5.5;
+    this._avataAutoRollCooldown = 8.5;
     this._avataStuntIndex = 0;
-    this._avataStunt = { active: false, type: 'ROLL_RIGHT', elapsed: 0.0, duration: 0.68 };
+    this._avataStunt = { active: false, type: 'ROLL_RIGHT', elapsed: 0.0, duration: 0.72 };
 
     // Hard 3D solid-world physics context & previous-frame position for continuous sweep anti-tunneling
     this.physicsContext = null;
@@ -237,70 +260,657 @@ export class CameraDirector {
   }
 
   /**
-   * 5-Act Full-Archipelago Action FPV Choreographed Nodes across Pulau U & Pulau I:
-   * Format: [x, y, z, targetSpeedMs, corridorType]
+   * Non-Memorized Directed Pro-Pilot Maneuver Graph across Pulau U & Pulau I (10 Directional Gates, 21 Maneuvers).
+   * Node format: [x, y, z, speedMs, corridorType, lookX, lookY, lookZ, lookBlend, allowStunt]
    * corridorType:
-   *   0 = Open-Air Dynamic Freestyle (multi-harmonic S-carves + context-gated Easy-Acro + 3D APAS canopy clearance)
-   *   1 = Lorong Jembatan Teksas UI Precision Lock (threads INSIDE Pilon Lingga -> 148m covered truss/sunroof -> Pilon Yoni!)
-   *   2 = Underpass Bawah Laut Selatan U–I Precision Lock (dives -8.2m beneath Selat UI seabed + live Bus Kuning avoidance!)
-   *   3 = Kolong Jembatan Teksas Lagoon Skim (perpendicular water-skim underneath the +7.8m parabolic arch soffit!)
-   *   4 = Open-Air Portal Pre-Alignment (zero lateral S-carve for laser-straight portal entry/exit + full 3D APAS clearance!)
+   *   0 = Open-Air Pro-Pilot Line (seeded racing-line perturbation + 3D APAS pre-screening + heroic upward landmark gaze)
+   *   1 = Lorong Jembatan Teksas UI Precision Lock (bidirectional Northbound & Southbound inside covered truss!)
+   *   2 = Underpass Bawah Laut Selatan U–I Precision Lock (bidirectional -8.2m subsea bore + live Bus Kuning dodge!)
+   *   3 = Kolong Jembatan Teksas Lagoon Skim (bidirectional Eastbound & Westbound underneath +7.8m arch soffit!)
+   *   4 = Precision Portal / Architectural Canyon Pre-Alignment (zero random lateral drift)
    */
-  static AVATA_ARCHIPELAGO_NODES = [
-    // ACT 1: 50m Gedung Rektorat Tajug Spire Dive, YouTube Videotron Whip, & Rotunda Dancing Fountain Carve
-    [-32.0, 58.0, -34.0, 22.8, 0], // 0: High NW climb above Gedung Rektorat UI
-    [-27.5, 51.5, 4.0, 25.6, 0],   // 1: Cresting beside 50m Nusantara Tajug Makara spire
-    [-14.5, 22.5, 46.0, 26.8, 0],  // 2: 96 km/h steep proximity dive over Courtyard & Cloister
-    [6.5, 11.8, 74.0, 24.5, 0],    // 3: High-speed whip down tree-free South Plaza facing YouTube Videotron UI
-    [21.5, 5.6, 106.5, 20.6, 0],   // 4: Banked high-G carve around Lapangan Rotunda & Dancing Fountain
-    [-10.5, 4.8, 125.0, 19.6, 4],  // 5: Exiting Rotunda ring toward Jembatan Teksas approach
-    // ACT 2: Threading Straight INSIDE Lorong Jembatan Teksas UI (West Ramp -> Pilon Lingga -> Covered Arch -> Pilon Yoni!)
-    [-28.0, 3.4, 138.5, 19.0, 4],  // 6: Collinear open-air pre-alignment at x = -28.0
-    [-28.0, 2.35, 152.0, 19.8, 1], // 7: Entering West Approach Ramp above central stair rail
-    [-28.0, 6.28, 172.0, 21.8, 1], // 8: Shooting through Pilon Lingga Portal into covered bridge corridor
-    [-28.0, 9.55, 205.0, 23.8, 1], // 9: Ascending inside crimson Warren trusses & blue wave sunroof
-    [-28.0, 11.22, 245.65, 24.8, 1],// 10: Mid-span crown inside Lorong Jembatan Teksas UI (+11.22m)
-    [-28.0, 9.55, 286.0, 24.2, 1], // 11: Descending East arch inside covered corridor
-    [-28.0, 6.28, 319.4, 22.6, 1], // 12: Blasting out through Pilon Yoni Curvilinear Portal
-    [-28.0, 3.65, 336.0, 21.5, 1], // 13: Clearing East FIB Approach Ramp
-    [-28.0, 6.8, 349.0, 22.5, 4],  // 14: Collinear open-air exit over East FIB Overlook Plaza
-    // ACT 3: Kompleks DPPD–ILRC–STP Waterfront Sweep & Subsea Dive INTO Underpass Bawah Laut Selatan U–I!
-    [-76.0, 24.0, 342.0, 24.2, 0], // 15: Banked climb SW over East Teluk U shoreline
-    [-148.0, 31.0, 312.0, 25.0, 0],// 16: Panoramic sweep toward Kompleks Inovasi DPPD–ILRC–STP
-    [-208.0, 35.5, 274.0, 24.8, 0],// 17: Soaring cleanly above DPPD perimeter trees & 6-Story ILRC / 8-Story STP-UI
-    [-292.0, 43.5, 236.0, 24.2, 0],// 18: Cresting cleanly above Southern Highland Rainforest canopy (max tree 37m)
-    [-352.0, 21.5, 226.0, 22.0, 4],// 19: Banking onto tree-free Southern Arterial Road axis (x = -356.0)
-    [-356.0, 4.8, 256.0, 20.5, 4], // 20: Collinear tree-free road alignment for West Underpass Ramp
-    [-356.0, 2.85, 274.0, 21.8, 2],// 21: Diving into West Open-Cut Ramp (Pulau U)
-    [-356.0, -2.5, 302.0, 23.8, 2],// 22: Descending sunken retaining-wall trench
-    [-356.0, -6.12, 330.0, 25.6, 2],// 23: Entering -8.20m Subsea Tunnel Bore beneath West Portal Lintel!
-    [-356.0, -6.12, 415.0, 26.8, 2],// 24: 96 km/h Subsea Run beneath Selat UI (with live Bus Kuning dodge!)
-    [-356.0, -6.12, 525.0, 26.8, 2],// 25: Passing subsea marine-acrylic caustic windows
-    [-356.0, -6.12, 620.0, 25.4, 2],// 26: Approaching East Subsea Portal
-    [-356.0, -1.8, 648.0, 23.6, 2],// 27: Rocketing up East Open-Cut Ramp onto Pulau I
-    [-356.0, 3.1, 672.0, 22.8, 2], // 28: Emerging into Pulau I daylight!
-    [-356.0, 7.2, 688.0, 23.5, 4], // 29: Collinear open-air exit climb on SW Pulau I
-    // ACT 4: Pulau I — ICAO Runway 36/18 Low-Pass, Gunung Api Crater Rim, & Air Terjun Niagara Mini Dive!
-    [-326.0, 9.2, 714.0, 25.8, 0], // 30: Banking onto Landasan Pacu Pulau I (RWY 36/18)
-    [-228.0, 8.6, 716.0, 27.0, 0], // 31: 97 km/h full-throttle runway low pass past Apron & ATC Tower
-    [-136.0, 23.5, 720.0, 25.2, 0],// 32: Pulling up cleanly above volcanic foothill pines
-    [-72.0, 49.5, 722.0, 22.8, 0], // 33: Ascending southern flank of Gunung Api Pulau I
-    [-28.0, 68.5, 702.0, 21.5, 0], // 34: Cresting 58.5m Gunung Api Crater Rim over volcanic caldera!
-    [-34.0, 52.0, 666.0, 24.5, 4], // 35: Nose-down tip over SW crater lip onto tree-free waterfall sightline
-    [-55.0, 26.5, 640.0, 26.8, 4], // 36: Vertical proximity dive down center of Air Terjun Niagara Mini!
-    [-58.0, 11.8, 608.0, 25.6, 0], // 37: Pulling out above waterfall plunge pool & Dermaga I
-    // ACT 5: Northern Selat UI Ferry Skim, Northern Cape, Kolong Jembatan Teksas Water-Skim, & Tajug Roll Climb!
-    [-24.0, 11.5, 536.0, 26.0, 0], // 38: Blasting across Selat UI past Electric Catamaran Ferry
-    [68.0, 14.0, 456.0, 25.5, 0],  // 39: Sweeping around NE Cape of Pulau U over open ocean
-    [104.0, 10.5, 366.0, 25.2, 0], // 40: Rounding Northern Tip of Right Arm into mouth of Teluk U
-    [54.0, 4.8, 252.0, 25.8, 3],   // 41: Dropping low onto turquoise Teluk U lagoon facing Jembatan Teksas arch!
-    [-28.0, 1.65, 245.65, 26.6, 3],// 42: Shooting PERPENDICULARLY UNDERNEATH Jembatan Teksas's +7.8m arch!
-    [-86.0, 5.2, 226.0, 25.0, 0],  // 43: Skimming inner Teluk U lagoon past Flybridge Mini Yacht
-    [-118.0, 14.5, 136.0, 23.8, 0],// 44: Banking NW past VIP Waterfront Helipad & eVTOL Heli Taxi
-    [-86.0, 39.5, 32.0, 23.2, 0]   // 45: High clear punch-out Easy-Acro climb back toward 50m Tajug spire!
+  static AVATA_PRO_MANEUVER_GRAPH = [
+    // --- FROM G_ROTUNDA_N ([-16, 8.5, 118] flowing North) ---
+    {
+      id: 'M01_LORONG_TEKSAS_NORTH',
+      from: 'G_ROTUNDA_N',
+      to: 'G_TEKSAS_N',
+      sigZone: 'TEKSAS_IN',
+      nodes: [
+        [-28.0, 4.4, 138.5, 11.6, 4, -28.0, 18.5, 171.65, 0.28, 0],
+        [-28.0, 3.85, 152.0, 12.0, 1, -28.0, 14.0, 171.65, 0.0, 0],
+        [-28.0, 6.28, 172.0, 12.6, 1, -28.0, 11.2, 245.65, 0.0, 0],
+        [-28.0, 9.55, 205.0, 13.2, 1, -28.0, 11.2, 245.65, 0.0, 0],
+        [-28.0, 11.22, 245.65, 13.5, 1, -28.0, 10.5, 319.65, 0.0, 0],
+        [-28.0, 9.55, 286.0, 13.2, 1, -28.0, 12.5, 319.65, 0.0, 0],
+        [-28.0, 6.28, 319.4, 12.5, 1, -28.0, 8.0, 350.0, 0.0, 0],
+        [-28.0, 3.65, 336.0, 12.0, 1, -32.0, 44.0, 698.0, 0.0, 0],
+        [-28.0, 7.4, 350.5, 12.2, 4, -32.0, 46.0, 698.0, 0.25, 0]
+      ]
+    },
+    {
+      id: 'M02_KOLONG_TEKSAS_EASTBOUND',
+      from: 'G_ROTUNDA_N',
+      to: 'G_TELUK_EAST',
+      sigZone: 'KOLONG',
+      nodes: [
+        [-54.0, 8.2, 166.0, 11.8, 0, -28.0, 21.0, 171.65, 0.34, 0],
+        [-68.0, 2.35, 244.2, 12.4, 3, -28.0, 9.5, 245.65, 0.0, 0],
+        [-28.0, 1.72, 245.65, 13.0, 3, 24.0, 4.5, 247.0, 0.0, 0],
+        [18.0, 2.45, 246.8, 12.8, 3, 68.0, 9.0, 266.0, 0.0, 0],
+        [68.0, 11.2, 286.0, 12.4, 0, -32.0, 46.0, 698.0, 0.28, 0],
+        [92.0, 11.2, 272.0, 12.0, 0, -28.0, 16.0, 245.65, 0.24, 0],
+        [62.0, 7.8, 254.0, 11.8, 0, -28.0, 14.0, 245.65, 0.24, 0]
+      ]
+    },
+    {
+      id: 'M03_VIP_HELIPAD_WEST_BAY',
+      from: 'G_ROTUNDA_N',
+      to: 'G_TELUK_WEST',
+      sigZone: null,
+      nodes: [
+        [-48.0, 9.4, 148.0, 11.4, 0, 0.0, 33.0, 0.0, 0.36, 0],
+        [-88.0, 10.2, 188.0, 11.8, 0, -255.0, 26.5, 329.0, 0.34, 0],
+        [-96.0, 9.5, 228.0, 11.8, 0, -255.0, 26.5, 329.0, 0.32, 0]
+      ]
+    },
+
+    // --- FROM G_TEKSAS_N ([-28, 7.4, 350.5] flowing North) ---
+    {
+      id: 'M04_DPPD_CANYON_GAP_LINE',
+      from: 'G_TEKSAS_N',
+      to: 'G_UNDERPASS_U_N',
+      sigZone: null,
+      nodes: [
+        [-102.0, 15.2, 358.0, 12.2, 0, -255.0, 27.0, 332.0, 0.42, 0],
+        [-188.0, 18.2, 344.0, 11.6, 0, -255.0, 27.5, 332.0, 0.48, 0],
+        [-226.0, 20.2, 336.5, 11.6, 4, -255.0, 27.5, 332.0, 0.40, 0],
+        [-255.0, 20.8, 331.0, 11.6, 4, -272.0, 26.5, 339.0, 0.28, 0],
+        [-271.8, 21.2, 339.2, 11.8, 4, -262.0, 28.0, 352.0, 0.22, 0],
+        [-296.0, 22.8, 342.0, 12.0, 0, -255.0, 26.5, 332.0, 0.24, 0],
+        [-344.0, 22.5, 292.0, 12.2, 0, -255.0, 26.0, 329.0, 0.22, 0],
+        [-384.0, 16.8, 254.0, 12.0, 0, -356.0, 6.0, 268.0, 0.0, 0],
+        [-382.0, 12.8, 226.0, 12.0, 0, -356.0, 6.0, 268.0, 0.0, 0],
+        [-362.0, 8.2, 242.0, 12.0, 4, -356.0, 4.0, 280.0, 0.0, 0],
+        [-356.0, 4.8, 262.0, 12.4, 4, -356.0, -2.0, 310.0, 0.0, 0]
+      ]
+    },
+    {
+      id: 'M05_DPPD_WATERFRONT_BELVEDERE',
+      from: 'G_TEKSAS_N',
+      to: 'G_UNDERPASS_U_N',
+      sigZone: null,
+      nodes: [
+        [-84.0, 16.5, 338.0, 12.2, 0, -255.0, 26.5, 329.0, 0.36, 0],
+        [-162.0, 18.8, 294.0, 11.6, 0, -255.0, 27.5, 335.0, 0.46, 0],
+        [-222.0, 22.5, 258.0, 11.4, 0, -255.0, 28.0, 338.0, 0.44, 0],
+        [-300.0, 42.5, 234.0, 12.4, 0, -255.0, 26.0, 329.0, 0.20, 1],
+        [-348.0, 29.5, 196.0, 12.4, 0, -356.0, 8.0, 262.0, 0.0, 0],
+        [-386.0, 20.5, 210.0, 12.4, 4, -356.0, 6.0, 268.0, 0.0, 0],
+        [-364.0, 9.6, 238.0, 12.2, 4, -356.0, 4.5, 274.0, 0.0, 0],
+        [-356.0, 4.8, 262.0, 12.4, 4, -356.0, -2.0, 310.0, 0.0, 0]
+      ]
+    },
+    {
+      id: 'M06_DERMAGA_FERRY_STRAIT_DIRECT',
+      from: 'G_TEKSAS_N',
+      to: 'G_PULAU_I_RUNWAY_E',
+      sigZone: null,
+      nodes: [
+        [-46.0, 10.5, 426.0, 14.0, 0, -32.0, 48.0, 698.0, 0.36, 0],
+        [-134.0, 9.8, 536.0, 15.0, 0, -32.0, 49.0, 698.0, 0.38, 0],
+        [-258.0, 9.5, 642.0, 13.8, 0, -32.0, 48.0, 698.0, 0.36, 0],
+        [-332.0, 7.6, 712.0, 11.6, 0, -32.0, 49.0, 698.0, 0.42, 0]
+      ]
+    },
+
+    // --- FROM G_TELUK_WEST ([-96, 9.5, 228] over Inner Teluk U) ---
+    {
+      id: 'M07_WEST_BAY_TO_DPPD_CANYON',
+      from: 'G_TELUK_WEST',
+      to: 'G_UNDERPASS_U_N',
+      sigZone: null,
+      nodes: [
+        [-152.0, 13.8, 296.0, 11.8, 0, -255.0, 27.0, 332.0, 0.44, 0],
+        [-198.0, 18.2, 340.0, 11.6, 0, -255.0, 27.5, 332.0, 0.46, 0],
+        [-226.0, 20.2, 336.5, 11.6, 4, -255.0, 27.5, 332.0, 0.38, 0],
+        [-255.0, 20.8, 331.0, 11.6, 4, -272.0, 26.5, 339.0, 0.28, 0],
+        [-271.8, 21.2, 339.2, 11.8, 4, -262.0, 28.0, 352.0, 0.22, 0],
+        [-296.0, 22.8, 342.0, 12.0, 0, -255.0, 26.5, 332.0, 0.24, 0],
+        [-344.0, 22.5, 292.0, 12.2, 0, -255.0, 26.0, 329.0, 0.22, 0],
+        [-384.0, 16.8, 254.0, 12.0, 0, -356.0, 6.0, 268.0, 0.0, 0],
+        [-382.0, 12.8, 226.0, 12.0, 0, -356.0, 6.0, 268.0, 0.0, 0],
+        [-362.0, 8.2, 242.0, 12.0, 4, -356.0, 4.0, 280.0, 0.0, 0],
+        [-356.0, 4.8, 262.0, 12.4, 4, -356.0, -2.0, 310.0, 0.0, 0]
+      ]
+    },
+    {
+      id: 'M08_WEST_BAY_HIGHLAND_SWEEP',
+      from: 'G_TELUK_WEST',
+      to: 'G_UNDERPASS_U_N',
+      sigZone: null,
+      nodes: [
+        [-165.0, 17.5, 268.0, 11.4, 0, -255.0, 27.5, 334.0, 0.44, 0],
+        [-228.0, 23.0, 252.0, 11.2, 0, -255.0, 28.0, 336.0, 0.42, 0],
+        [-300.0, 42.5, 232.0, 12.4, 0, -255.0, 26.0, 329.0, 0.20, 1],
+        [-348.0, 29.5, 196.0, 12.4, 0, -356.0, 8.0, 262.0, 0.0, 0],
+        [-386.0, 20.5, 210.0, 12.4, 4, -356.0, 6.0, 268.0, 0.0, 0],
+        [-364.0, 9.6, 238.0, 12.2, 4, -356.0, 4.5, 274.0, 0.0, 0],
+        [-356.0, 4.8, 262.0, 12.4, 4, -356.0, -2.0, 310.0, 0.0, 0]
+      ]
+    },
+    {
+      id: 'M09_WEST_BAY_TO_REKTORAT_AWE',
+      from: 'G_TELUK_WEST',
+      to: 'G_ROTUNDA_S',
+      sigZone: null,
+      nodes: [
+        [-74.0, 13.2, 182.0, 11.6, 0, 0.0, 33.0, 0.0, 0.40, 0],
+        [-38.0, 12.4, 154.0, 11.2, 0, 0.0, 33.0, 0.0, 0.52, 0],
+        [-18.0, 11.2, 126.0, 10.8, 0, 0.0, 33.0, 0.0, 0.62, 0]
+      ]
+    },
+    {
+      id: 'M09B_WEST_BAY_KOLONG_TEKSAS_EASTBOUND',
+      from: 'G_TELUK_WEST',
+      to: 'G_TELUK_EAST',
+      sigZone: 'KOLONG',
+      nodes: [
+        [-68.0, 2.45, 244.2, 12.4, 3, -28.0, 9.5, 245.65, 0.0, 0],
+        [-28.0, 1.72, 245.65, 13.0, 3, 24.0, 4.5, 247.0, 0.0, 0],
+        [18.0, 2.45, 246.8, 12.6, 3, 62.0, 7.8, 254.0, 0.0, 0],
+        [62.0, 7.8, 254.0, 11.8, 0, -28.0, 14.0, 245.65, 0.24, 0]
+      ]
+    },
+
+    // --- FROM G_UNDERPASS_U_N ([-356, 4.8, 256] aligned North into Subsea Underpass) ---
+    {
+      id: 'M10_SUBSEA_UNDERPASS_NORTHBOUND',
+      from: 'G_UNDERPASS_U_N',
+      to: 'G_PULAU_I_RUNWAY_E',
+      sigZone: 'UNDERPASS',
+      nodes: [
+        [-356.0, 2.85, 274.0, 13.2, 2, -356.0, -4.0, 330.0, 0.0, 0],
+        [-356.0, -2.5, 302.0, 14.4, 2, -356.0, -6.12, 360.0, 0.0, 0],
+        [-356.0, -6.12, 330.0, 15.2, 2, -356.0, -6.12, 420.0, 0.0, 0],
+        [-356.0, -6.12, 420.0, 15.6, 2, -356.0, -6.12, 525.0, 0.0, 0],
+        [-356.0, -6.12, 525.0, 15.6, 2, -356.0, -6.12, 620.0, 0.0, 0],
+        [-356.0, -6.12, 620.0, 14.8, 2, -356.0, 0.0, 660.0, 0.0, 0],
+        [-356.0, -1.8, 648.0, 13.6, 2, -356.0, 4.0, 680.0, 0.0, 0],
+        [-356.0, 3.1, 672.0, 12.8, 2, -32.0, 48.0, 698.0, 0.0, 0],
+        [-356.0, 7.2, 688.0, 12.2, 4, -32.0, 48.0, 698.0, 0.30, 0],
+        [-332.0, 7.6, 712.0, 11.4, 0, -32.0, 49.0, 698.0, 0.42, 0]
+      ]
+    },
+
+    // --- FROM G_PULAU_I_RUNWAY_E ([-332, 7.6, 712] facing East toward 60m Gunung Api!) ---
+    {
+      id: 'M11_GUNUNG_API_CRATER_AND_NIAGARA_PLUNGE',
+      from: 'G_PULAU_I_RUNWAY_E',
+      to: 'G_PULAU_I_NORTH',
+      sigZone: 'PULAU_I',
+      nodes: [
+        [-232.0, 6.8, 715.0, 11.2, 0, -32.0, 50.0, 698.0, 0.44, 0],
+        [-136.0, 21.5, 718.0, 10.6, 0, -32.0, 53.0, 698.0, 0.42, 0],
+        [-74.0, 47.5, 720.0, 10.0, 0, -32.0, 58.5, 698.0, 0.36, 0],
+        [-28.0, 65.5, 701.0, 9.8, 0, -32.0, 46.0, 692.0, 0.26, 1],
+        [-35.0, 50.5, 666.0, 11.6, 4, -48.0, 14.0, 636.0, 0.0, 0],
+        [-53.0, 25.0, 640.0, 13.2, 4, -56.0, 8.0, 608.0, 0.0, 0],
+        [-58.0, 10.8, 604.0, 12.6, 0, 0.0, 32.0, 0.0, 0.24, 0]
+      ]
+    },
+    {
+      id: 'M12_NIAGARA_WATERFALL_ASCENT_TO_CRATER',
+      from: 'G_PULAU_I_RUNWAY_E',
+      to: 'G_PULAU_I_NORTH',
+      sigZone: 'PULAU_I',
+      nodes: [
+        [-228.0, 8.6, 710.0, 11.6, 0, -32.0, 50.0, 698.0, 0.44, 0],
+        [-128.0, 12.5, 594.0, 11.6, 0, -38.0, 46.0, 682.0, 0.46, 0],
+        [-56.0, 11.8, 608.0, 11.2, 4, -44.0, 36.0, 660.0, 0.38, 0],
+        [-48.0, 28.5, 644.0, 11.0, 4, -34.0, 56.0, 686.0, 0.28, 0],
+        [-32.0, 54.0, 676.0, 10.6, 4, -22.0, 60.0, 702.0, 0.24, 0],
+        [-8.0, 65.5, 702.0, 10.4, 0, -32.0, 46.0, 698.0, 0.26, 1],
+        [12.0, 44.0, 664.0, 12.0, 0, -48.0, 12.0, 608.0, 0.20, 0],
+        [-22.0, 22.0, 626.0, 12.4, 0, -58.0, 10.8, 604.0, 0.20, 0],
+        [-58.0, 10.8, 604.0, 12.6, 0, 0.0, 32.0, 0.0, 0.24, 0]
+      ]
+    },
+
+    // --- FROM G_PULAU_I_NORTH ([-58, 10.8, 604] off Waterfall / Dermaga I) ---
+    {
+      id: 'M13_SELAT_DIRECT_TO_KOLONG_WEST',
+      from: 'G_PULAU_I_NORTH',
+      to: 'G_TELUK_EAST',
+      sigZone: null,
+      nodes: [
+        [-16.0, 10.2, 522.0, 14.6, 0, 0.0, 32.0, 0.0, 0.28, 0],
+        [48.0, 11.5, 422.0, 14.6, 0, 0.0, 32.0, 0.0, 0.30, 0],
+        [88.0, 10.2, 326.0, 13.2, 0, -28.0, 18.0, 245.65, 0.28, 0],
+        [62.0, 7.8, 254.0, 11.8, 0, -28.0, 12.0, 245.65, 0.24, 0]
+      ]
+    },
+    {
+      id: 'M14_SELAT_FERRY_TO_TEKSAS_SOUTHBOUND',
+      from: 'G_PULAU_I_NORTH',
+      to: 'G_TEKSAS_S_ENTRY',
+      sigZone: null,
+      nodes: [
+        [-44.0, 8.4, 528.0, 14.2, 0, -28.0, 15.0, 319.65, 0.30, 0],
+        [-26.0, 9.8, 436.0, 13.4, 0, -28.0, 15.0, 319.65, 0.32, 0],
+        [-28.0, 7.2, 351.0, 12.0, 4, -28.0, 13.0, 319.65, 0.22, 0]
+      ]
+    },
+    {
+      id: 'M15_REVERSE_SUBSEA_SOUTHBOUND',
+      from: 'G_PULAU_I_NORTH',
+      to: 'G_UNDERPASS_U_S_EXIT',
+      sigZone: 'UNDERPASS',
+      nodes: [
+        [-165.0, 14.5, 636.0, 13.8, 0, -233.5, 14.0, 665.5, 0.28, 0],
+        [-296.0, 18.5, 706.0, 13.0, 0, -356.0, 4.0, 672.0, 0.20, 0],
+        [-350.0, 11.2, 704.0, 12.4, 4, -356.0, 4.0, 672.0, 0.0, 0],
+        [-356.0, 7.2, 688.0, 12.2, 4, -356.0, 2.0, 660.0, 0.0, 0],
+        [-356.0, 3.1, 672.0, 13.0, 2, -356.0, -3.0, 635.0, 0.0, 0],
+        [-356.0, -1.8, 648.0, 14.2, 2, -356.0, -6.12, 600.0, 0.0, 0],
+        [-356.0, -6.12, 620.0, 15.2, 2, -356.0, -6.12, 525.0, 0.0, 0],
+        [-356.0, -6.12, 525.0, 15.6, 2, -356.0, -6.12, 420.0, 0.0, 0],
+        [-356.0, -6.12, 420.0, 15.6, 2, -356.0, -6.12, 330.0, 0.0, 0],
+        [-356.0, -6.12, 330.0, 14.8, 2, -356.0, -1.0, 290.0, 0.0, 0],
+        [-356.0, -2.5, 302.0, 13.6, 2, -356.0, 3.0, 270.0, 0.0, 0],
+        [-356.0, 2.85, 274.0, 12.6, 2, -356.0, 7.0, 248.0, 0.0, 0],
+        [-362.0, 10.8, 254.0, 12.4, 4, -380.0, 16.0, 224.0, 0.0, 0],
+        [-384.0, 19.5, 228.0, 12.6, 0, -255.0, 26.0, 329.0, 0.15, 0],
+        [-356.0, 24.5, 202.0, 12.6, 0, -255.0, 26.0, 329.0, 0.25, 0]
+      ]
+    },
+
+    // --- FROM G_TELUK_EAST ([62, 7.8, 254] flowing West into Teluk U Mouth) ---
+    {
+      id: 'M16_KOLONG_TEKSAS_WESTBOUND',
+      from: 'G_TELUK_EAST',
+      to: 'G_TELUK_WEST',
+      sigZone: 'KOLONG',
+      nodes: [
+        [18.0, 2.35, 246.8, 12.6, 3, -28.0, 9.5, 245.65, 0.0, 0],
+        [-28.0, 1.68, 245.65, 13.2, 3, -68.0, 4.5, 244.0, 0.0, 0],
+        [-68.0, 2.45, 244.2, 12.6, 3, -96.0, 9.5, 228.0, 0.0, 0],
+        [-96.0, 9.5, 228.0, 11.8, 0, -255.0, 26.5, 329.0, 0.32, 0]
+      ]
+    },
+    {
+      id: 'M17_PILON_LINGGA_VAULT_TO_REKTORAT',
+      from: 'G_TELUK_EAST',
+      to: 'G_ROTUNDA_S',
+      sigZone: null,
+      nodes: [
+        [24.0, 15.5, 202.0, 11.8, 0, -28.0, 22.0, 171.65, 0.36, 0],
+        [-2.0, 14.2, 162.0, 11.2, 0, 0.0, 33.0, 0.0, 0.48, 0],
+        [-18.0, 11.2, 126.0, 10.8, 0, 0.0, 33.0, 0.0, 0.62, 0]
+      ]
+    },
+
+    // --- FROM G_TEKSAS_S_ENTRY ([-28, 7.2, 351] aligned South into Lorong Jembatan Teksas!) ---
+    {
+      id: 'M18_LORONG_TEKSAS_SOUTHBOUND',
+      from: 'G_TEKSAS_S_ENTRY',
+      to: 'G_ROTUNDA_S',
+      sigZone: 'TEKSAS_IN',
+      nodes: [
+        [-28.0, 3.65, 336.0, 11.8, 1, -28.0, 10.0, 319.65, 0.0, 0],
+        [-28.0, 6.28, 319.4, 12.4, 1, -28.0, 11.2, 245.65, 0.0, 0],
+        [-28.0, 9.55, 286.0, 13.0, 1, -28.0, 11.2, 245.65, 0.0, 0],
+        [-28.0, 11.22, 245.65, 13.4, 1, -28.0, 9.5, 172.0, 0.0, 0],
+        [-28.0, 9.55, 205.0, 13.0, 1, 0.0, 33.0, 0.0, 0.0, 0],
+        [-28.0, 6.28, 172.0, 12.4, 1, 0.0, 33.0, 0.0, 0.0, 0],
+        [-28.0, 3.85, 152.0, 11.8, 1, 0.0, 33.0, 0.0, 0.0, 0],
+        [-25.0, 6.8, 138.0, 11.2, 4, 0.0, 33.0, 0.0, 0.45, 0],
+        [-18.0, 11.2, 126.0, 10.8, 0, 0.0, 33.0, 0.0, 0.62, 0]
+      ]
+    },
+
+    // --- FROM G_UNDERPASS_U_S_EXIT ([-356, 6.8, 248] emerging Southbound onto Pulau U) ---
+    {
+      id: 'M19_SOUTH_COAST_RETURN_TO_REKTORAT',
+      from: 'G_UNDERPASS_U_S_EXIT',
+      to: 'G_ROTUNDA_S',
+      sigZone: null,
+      nodes: [
+        [-292.0, 24.5, 198.0, 13.2, 0, 0.0, 33.0, 0.0, 0.26, 0],
+        [-168.0, 22.5, 172.0, 13.2, 0, 0.0, 33.0, 0.0, 0.36, 0],
+        [-62.0, 14.8, 150.0, 11.8, 0, 0.0, 33.0, 0.0, 0.50, 0],
+        [-18.0, 11.2, 126.0, 10.8, 0, 0.0, 33.0, 0.0, 0.62, 0]
+      ]
+    },
+    {
+      id: 'M20_SOUTH_EXIT_TO_WEST_BAY',
+      from: 'G_UNDERPASS_U_S_EXIT',
+      to: 'G_TELUK_WEST',
+      sigZone: null,
+      nodes: [
+        [-308.0, 41.5, 224.0, 12.2, 0, -255.0, 27.0, 332.0, 0.34, 1],
+        [-212.0, 22.5, 252.0, 12.2, 0, -255.0, 27.0, 332.0, 0.38, 0],
+        [-96.0, 9.5, 228.0, 11.8, 0, -28.0, 18.0, 245.65, 0.28, 0]
+      ]
+    },
+
+    // --- FROM G_ROTUNDA_S ([-18, 11.2, 126] facing South straight at 50m Gedung Rektorat UI!) ---
+    {
+      id: 'M21_REKTORAT_LOW_PLAZA_AWE_CLIMB',
+      from: 'G_ROTUNDA_S',
+      to: 'G_ROTUNDA_N',
+      sigZone: null,
+      nodes: [
+        [-44.0, 11.8, 86.0, 10.8, 0, 0.0, 30.0, 0.0, 0.72, 0],
+        [-68.0, 16.5, 26.0, 11.4, 0, 0.0, 34.0, 0.0, 0.64, 0],
+        [-54.0, 22.0, -48.0, 11.8, 0, 0.0, 35.0, 0.0, 0.56, 0],
+        [16.0, 24.0, -72.0, 12.0, 0, 0.0, 35.0, 0.0, 0.54, 0],
+        [68.0, 19.5, -16.0, 12.0, 0, 0.0, 33.0, 0.0, 0.52, 0],
+        [66.0, 19.5, 86.0, 11.8, 0, 0.0, 30.0, 0.0, 0.42, 0],
+        [-16.0, 8.5, 118.0, 11.6, 0, -28.0, 18.0, 171.65, 0.28, 0]
+      ]
+    },
+    {
+      id: 'M22_REKTORAT_CROWN_SPLIT_S_DIVE',
+      from: 'G_ROTUNDA_S',
+      to: 'G_ROTUNDA_N',
+      sigZone: null,
+      nodes: [
+        [34.0, 18.8, 104.0, 11.2, 0, 0.0, 30.0, 0.0, 0.72, 0],
+        [68.0, 22.5, 42.0, 11.6, 0, 0.0, 36.0, 0.0, 0.62, 0],
+        [62.0, 33.5, -42.0, 11.6, 0, 0.0, 38.0, 0.0, 0.52, 1],
+        [-10.0, 34.0, -74.0, 12.0, 0, 0.0, 35.0, 0.0, 0.52, 0],
+        [-66.0, 23.0, -18.0, 12.2, 0, 0.0, 33.0, 0.0, 0.48, 0],
+        [-64.0, 20.5, 76.0, 11.8, 0, 0.0, 30.0, 0.0, 0.38, 0],
+        [-16.0, 8.5, 118.0, 11.6, 0, -28.0, 18.0, 171.65, 0.28, 0]
+      ]
+    },
+    {
+      id: 'M23_VIDEOTRON_EAST_PROMENADE_TO_KOLONG',
+      from: 'G_ROTUNDA_S',
+      to: 'G_TELUK_EAST',
+      sigZone: null,
+      nodes: [
+        [36.0, 17.8, 106.0, 11.4, 0, 0.0, 29.0, 0.0, 0.68, 0],
+        [76.0, 16.5, 108.0, 11.8, 0, 0.0, 31.0, 0.0, 0.48, 0],
+        [94.0, 13.5, 158.0, 12.4, 0, -28.0, 18.0, 245.65, 0.34, 0],
+        [88.0, 10.5, 222.0, 12.2, 0, -28.0, 16.0, 245.65, 0.30, 0],
+        [62.0, 7.8, 254.0, 11.8, 0, -28.0, 12.0, 245.65, 0.24, 0]
+      ]
+    }
   ];
 
+  static AVATA_ARCHIPELAGO_NODES = CameraDirector.AVATA_PRO_MANEUVER_GRAPH.flatMap((m) => m.nodes);
   static AVATA_FREESTYLE_WAYPOINTS = CameraDirector.AVATA_ARCHIPELAGO_NODES.map((n) => [n[0], n[1], n[2]]);
+
+  getActiveBaseVerticalFov(mode = this.mode) {
+    if (mode === 'DRONE_AVATA2_FPV') {
+      return Number.isFinite(this._avataCurrentBaseFov) ? this._avataCurrentBaseFov : 51.5;
+    }
+    if (mode === 'DRONE_6DOF' || mode === 'AUTO_CINEMATIC') {
+      return 43.0;
+    }
+    return 48.0;
+  }
+
+  _nextAvataRand01() {
+    let t = (this._avataRngState += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  _minHopsFromGateToSigZone(startGate, targetSigZone) {
+    const graph = CameraDirector.AVATA_PRO_MANEUVER_GRAPH;
+    const queue = [{ gate: startGate, hops: 0 }];
+    const seen = new Set([startGate]);
+    while (queue.length > 0) {
+      const cur = queue.shift();
+      if (cur.hops > 7) break;
+      for (let i = 0; i < graph.length; i++) {
+        const m = graph[i];
+        if (m.from !== cur.gate) continue;
+        if (m.sigZone === targetSigZone) return cur.hops + 1;
+        if (!seen.has(m.to)) {
+          seen.add(m.to);
+          queue.push({ gate: m.to, hops: cur.hops + 1 });
+        }
+      }
+    }
+    return 8;
+  }
+
+  _prescreenAndPerturbProNode(rawNode, prevNode, isGateEndpoint) {
+    let x = rawNode[0];
+    let y = rawNode[1];
+    let z = rawNode[2];
+    let spd = rawNode[3];
+    const cType = rawNode[4] || 0;
+    const lx = rawNode[5] ?? 0.0;
+    const ly = rawNode[6] ?? 26.0;
+    const lz = rawNode[7] ?? 0.0;
+    const lBlend = rawNode[8] ?? 0.0;
+    const allowStunt = rawNode[9] ?? 0;
+
+    // Apply bounded pro-pilot racing-line variation strictly on non-endpoint open-air nodes (cType === 0)
+    if (cType === 0 && !isGateEndpoint) {
+      const rLat = (this._nextAvataRand01() - 0.5) * 5.2;
+      const rAlt = (this._nextAvataRand01() - 0.42) * 3.6;
+      const rSpd = (this._nextAvataRand01() - 0.5) * 1.1;
+      if (prevNode) {
+        const dx = x - prevNode[0];
+        const dz = z - prevNode[2];
+        const hL = Math.hypot(dx, dz) || 1.0;
+        x += (-dz / hL) * rLat;
+        z += (dx / hL) * rLat;
+      } else {
+        x += rLat;
+      }
+      y += rAlt;
+      spd = Math.max(9.0, Math.min(15.6, spd + rSpd));
+    }
+
+    // Pre-screen open-air node AND chord midpoint against ALL 3D trees, buildings, bridges, & terrain!
+    const ctx = this.physicsContext;
+    if (ctx && cType === 0) {
+      const oceanY = Number.isFinite(ctx.oceanWaterY) ? ctx.oceanWaterY : -1.45;
+      const gY = ctx.groundHeightFn ? ctx.groundHeightFn(x, z) : 0.0;
+      y = Math.max(y, Math.max(oceanY + 2.8, gY + 3.4));
+      const rep = this._avataRepelScratch;
+      for (let pass = 0; pass < 4; pass++) {
+        const pen = PhysicsKernel.probeDroneAPASRepulsion(x, y, z, x, y + 4.0, z, 3.35, ctx, rep);
+        if (pen <= 0.0) break;
+        x += rep.nx * (pen + 0.45);
+        y += Math.max(0.48, rep.ny) * (pen + 0.55);
+        z += rep.nz * (pen + 0.45);
+      }
+      if (prevNode) {
+        for (const frac of [0.35, 0.55, 0.75]) {
+          const mx = prevNode[0] + (x - prevNode[0]) * frac;
+          const my = prevNode[1] + (y - prevNode[1]) * frac;
+          const mz = prevNode[2] + (z - prevNode[2]) * frac;
+          const penMid = PhysicsKernel.probeDroneAPASRepulsion(mx, my, mz, mx, my + 4.0, mz, 3.05, ctx, rep);
+          if (penMid > 0.0) {
+            x += rep.nx * (penMid + 0.65);
+            y += Math.max(0.58, rep.ny) * (penMid + 0.90);
+            z += rep.nz * (penMid + 0.65);
+          }
+        }
+      }
+    }
+
+    return [x, y, z, spd, cType, lx, ly, lz, lBlend, allowStunt];
+  }
+
+  _appendNextProPilotManeuver(forcedManeuverId = null) {
+    const graph = CameraDirector.AVATA_PRO_MANEUVER_GRAPH;
+    let chosen = null;
+    if (forcedManeuverId) {
+      chosen = graph.find((m) => m.id === forcedManeuverId) || null;
+    }
+    if (!chosen) {
+      const candidates = graph.filter((m) => m.from === this._avataCurrentGate);
+      const weights = [];
+      let sumW = 0.0;
+      for (let i = 0; i < candidates.length; i++) {
+        const m = candidates[i];
+        let w = 1.0;
+        // Tabu recency penalty so the track NEVER repeats a memorized loop
+        const recIdx = this._avataRecentTabu.lastIndexOf(m.id);
+        if (recIdx !== -1) {
+          const age = this._avataRecentTabu.length - recIdx;
+          w *= age <= 2 ? 0.05 : age <= 5 ? 0.24 : 0.55;
+        }
+        // Novelty hunger toward unvisited signature zones while discouraging re-running already-visited tunnels
+        if (this._avataUnvisitedSigZones.size > 0) {
+          if (m.sigZone && this._avataUnvisitedSigZones.has(m.sigZone)) {
+            w *= 32.0;
+          } else if (m.sigZone && !this._avataUnvisitedSigZones.has(m.sigZone)) {
+            w *= 0.01;
+          } else {
+            let bestHops = 9;
+            for (const zTag of this._avataUnvisitedSigZones) {
+              const h = this._minHopsFromGateToSigZone(m.to, zTag);
+              if (h < bestHops) bestHops = h;
+            }
+            const lenBias = 6.0 / Math.max(4.0, m.nodes.length);
+            w *= (bestHops <= 1 ? 7.5 : bestHops === 2 ? 2.2 : 0.2) * lenBias;
+          }
+        }
+        weights.push(w);
+        sumW += w;
+      }
+      let pick = this._nextAvataRand01() * Math.max(1e-6, sumW);
+      chosen = candidates[0] || graph[0];
+      for (let i = 0; i < candidates.length; i++) {
+        pick -= weights[i];
+        if (pick <= 0.0) {
+          chosen = candidates[i];
+          break;
+        }
+      }
+    }
+
+    this._avataActiveManeuverId = chosen.id;
+    this._avataCurrentGate = chosen.to;
+    this._avataManeuverHistory.push(chosen.id);
+    this._avataRecentTabu.push(chosen.id);
+    if (this._avataRecentTabu.length > 9) this._avataRecentTabu.shift();
+
+    if (chosen.sigZone) {
+      this._avataUnvisitedSigZones.delete(chosen.sigZone);
+      if (this._avataUnvisitedSigZones.size === 0) {
+        this._avataLapCount++;
+        this._avataUnvisitedSigZones = new Set(['TEKSAS_IN', 'UNDERPASS', 'PULAU_I', 'KOLONG']);
+      }
+    }
+
+    for (let i = 0; i < chosen.nodes.length; i++) {
+      const prev =
+        this._avataStreamNodes.length > 0
+          ? this._avataStreamNodes[this._avataStreamNodes.length - 1]
+          : null;
+      const isGateEnd = i === chosen.nodes.length - 1;
+      const built = this._prescreenAndPerturbProNode(chosen.nodes[i], prev, isGateEnd);
+      built.maneuverId = chosen.id;
+      this._avataStreamNodes.push(built);
+    }
+  }
+
+  _ensureAvataStreamAhead() {
+    while (this._avataStreamNodes.length - (this._avataStreamCursor - this._avataStreamBaseIdx) < 22) {
+      this._appendNextProPilotManeuver();
+    }
+    const localIdx = Math.floor(this._avataStreamCursor) - this._avataStreamBaseIdx;
+    if (localIdx > 28) {
+      const drop = localIdx - 8;
+      this._avataStreamNodes.splice(0, drop);
+      this._avataStreamBaseIdx += drop;
+    }
+  }
+
+  _initAvataProPilotStream(options = {}) {
+    if (Number.isFinite(options.seed)) {
+      this._avataRngState = (Math.trunc(options.seed) >>> 0) || 1;
+    } else {
+      this._avataRngState = ((Date.now() ^ Math.floor(Math.random() * 0xffffffff) ^ (this._avataRngState * 1664525)) >>> 0) || 1;
+    }
+    this._avataStreamNodes = [];
+    this._avataStreamBaseIdx = 0;
+    this._avataLapCount = 0;
+    this._avataManeuverHistory = [];
+    this._avataRecentTabu = [];
+    this._avataUnvisitedSigZones = new Set(['TEKSAS_IN', 'UNDERPASS', 'PULAU_I', 'KOLONG']);
+
+    let startManeuver = options.startManeuver || null;
+    let cursorOffset = Number.isFinite(options.cursorOffset) ? options.cursorOffset : 1.05;
+    if (!startManeuver && Number.isFinite(options.startT) && options.startT > 0.03) {
+      const tNorm = ((options.startT % 1.0) + 1.0) % 1.0;
+      if (tNorm >= 0.14 && tNorm < 0.31) {
+        startManeuver = 'M01_LORONG_TEKSAS_NORTH';
+        cursorOffset = 3.2;
+      } else if (tNorm >= 0.31 && tNorm < 0.46) {
+        startManeuver = 'M04_DPPD_CANYON_GAP_LINE';
+        cursorOffset = 2.2;
+      } else if (tNorm >= 0.46 && tNorm < 0.64) {
+        startManeuver = 'M10_SUBSEA_UNDERPASS_NORTHBOUND';
+        cursorOffset = 4.2;
+      } else if (tNorm >= 0.64 && tNorm < 0.84) {
+        startManeuver = 'M11_GUNUNG_API_CRATER_AND_NIAGARA_PLUNGE';
+        cursorOffset = 2.0;
+      } else if (tNorm >= 0.84) {
+        startManeuver = 'M16_KOLONG_TEKSAS_WESTBOUND';
+        cursorOffset = 1.65;
+      }
+    }
+
+    if (startManeuver) {
+      const mSpec = CameraDirector.AVATA_PRO_MANEUVER_GRAPH.find((m) => m.id === startManeuver);
+      if (mSpec) {
+        this._avataCurrentGate = mSpec.from;
+        // Prepend anchor node before startManeuver so Catmull-Rom p0 is well-defined
+        const firstN = mSpec.nodes[0];
+        const secondN = mSpec.nodes[1] || firstN;
+        this._avataStreamNodes.push([
+          firstN[0] - (secondN[0] - firstN[0]),
+          firstN[1] - (secondN[1] - firstN[1]) * 0.5,
+          firstN[2] - (secondN[2] - firstN[2]),
+          firstN[3],
+          firstN[4],
+          firstN[5] ?? 0,
+          firstN[6] ?? 26,
+          firstN[7] ?? 0,
+          firstN[8] ?? 0,
+          0
+        ]);
+        this._appendNextProPilotManeuver(startManeuver);
+        this._avataStreamCursor = cursorOffset;
+        this._ensureAvataStreamAhead();
+        this._avataSplineT = (this._avataStreamCursor / 42.0) % 1.0;
+        return;
+      }
+    }
+
+    // Randomize opening heroic Rektorat reveal line so NO TWO SESSIONS start identically!
+    const openingPool = [
+      'M21_REKTORAT_LOW_PLAZA_AWE_CLIMB',
+      'M22_REKTORAT_CROWN_SPLIT_S_DIVE',
+      'M23_VIDEOTRON_EAST_PROMENADE_TO_KOLONG'
+    ];
+    const openId = openingPool[Math.floor(this._nextAvataRand01() * openingPool.length)];
+    this._avataCurrentGate = 'G_ROTUNDA_S';
+    this._avataStreamNodes.push([-14.0, 12.8, 154.0, 11.0, 0, 0.0, 31.0, 0.0, 0.65, 0]);
+    this._avataStreamNodes.push([-18.0, 11.2, 126.0, 10.8, 0, 0.0, 31.0, 0.0, 0.72, 0]);
+    this._appendNextProPilotManeuver(openId);
+    // Start right into the monumental 50m Rektorat upward reveal, with random sub-node phase!
+    this._avataStreamCursor = 1.15 + this._nextAvataRand01() * 0.85;
+    this._ensureAvataStreamAhead();
+    this._avataSplineT = (this._avataStreamCursor / 42.0) % 1.0;
+  }
+
+  getAvataManeuverHistory() {
+    return this._avataManeuverHistory.slice();
+  }
 
   isAvataFPVMode(mode = this.mode) {
     return mode === 'DRONE_AVATA2_FPV';
@@ -330,7 +940,7 @@ export class CameraDirector {
     if (Math.hypot(x - -104.0, z - 106.5) < 42.0) return 'HELIPAD VIP PULAU U';
     if (Math.hypot(x - -2.5, z - 106.5) < 42.0) return 'AIR MANCUR ROTUNDA UI';
     if (Math.hypot(x - 28.4, z - 78.2) < 30.0) return 'VIDEOTRON YOUTUBE UI';
-    if (Math.hypot(x, z) < 62.0 && y > 28.0) return 'PUNCAK TAJUG REKTORAT';
+    if (Math.hypot(x, z) < 68.0 && y > 24.0) return 'PUNCAK TAJUG REKTORAT';
     if (z >= 145.0 && z <= 335.0 && x > -135.0) return 'TELUK U · KAMPUS DEPOK';
     return 'PULAU U · REKTORAT UI';
   }
@@ -353,22 +963,31 @@ export class CameraDirector {
   setAvataAutoFreestyle(enabled) {
     const next = Boolean(enabled);
     if (next && !this.avataAutoFreestyle) {
-      // Find nearest spline parameter across 128 samples so rejoining Auto Freestyle blends with zero teleport
-      let bestT = this._avataSplineT;
+      if (this._avataStreamNodes.length < 6) {
+        this._initAvataProPilotStream();
+      } else {
+        this._ensureAvataStreamAhead();
+      }
+      // Find nearest safe point on active rolling stream so rejoining Pro-Pilot blends smoothly
+      let bestCursor = this._avataStreamCursor;
       let bestDistSq = Infinity;
-      const samples = 128;
-      for (let i = 0; i < samples; i++) {
-        const candT = i / samples;
-        this._evalAvataCatmullPoint(candT, this._avataTmpP0);
+      const minC = this._avataStreamBaseIdx + 1.05;
+      const maxC = this._avataStreamBaseIdx + this._avataStreamNodes.length - 3.05;
+      const steps = 64;
+      for (let i = 0; i <= steps; i++) {
+        const candC = minC + ((maxC - minC) * i) / steps;
+        this._evalAvataStreamPoint(candC, this._avataTmpP0);
         const dSq = this._avataTmpP0.distanceToSquared(this.camera.position);
         if (dSq < bestDistSq) {
           bestDistSq = dSq;
-          bestT = candT;
+          bestCursor = candC;
         }
       }
-      this._avataSplineT = bestT;
+      this._avataStreamCursor = bestCursor;
       this._avataRejoinPos.copy(this.camera.position);
       this._avataRejoinBlend = 1.0;
+      this._avataFreelookYaw = 0.0;
+      this._avataFreelookPitch = 0.0;
     }
     this.avataAutoFreestyle = next;
     return this.avataAutoFreestyle;
@@ -383,7 +1002,7 @@ export class CameraDirector {
       const inUnderpass =
         pos.z >= 270.0 && pos.z <= 672.0 && Math.abs(pos.x - -356.0) <= 5.2 && pos.y < 2.5;
       const inBridge =
-        pos.z >= 149.0 && pos.z <= 342.0 && Math.abs(pos.x - -28.0) <= 3.2 && pos.y < 13.2;
+        pos.z >= 149.0 && pos.z <= 342.0 && Math.abs(pos.x - -28.0) <= 3.5 && pos.y < 13.5;
       if (inUnderpass || inBridge) return false;
     }
     const valid =
@@ -393,10 +1012,9 @@ export class CameraDirector {
     this._avataStunt.active = true;
     this._avataStunt.type = valid;
     this._avataStunt.elapsed = 0.0;
-    this._avataStunt.duration = valid === 'SPLIT_S' ? 0.92 : 0.66;
+    this._avataStunt.duration = valid === 'SPLIT_S' ? 0.96 : 0.72;
     if (!this.avataAutoFreestyle) {
-      // Real cinewhoop upward collective pop before barrel-roll / flip so altitude stays safe
-      this.velocity.y = Math.max(this.velocity.y + 4.2, 3.2);
+      this.velocity.y = Math.max(this.velocity.y + 3.6, 2.8);
     }
     return true;
   }
@@ -432,6 +1050,7 @@ export class CameraDirector {
       active,
       profile: this.avataFlightProfile,
       autoFreestyle: this.avataAutoFreestyle,
+      maneuverId: this._avataActiveManeuverId,
       speedMs: +speedMs.toFixed(1),
       speedKmh: Math.round(speedMs * 3.6),
       altitudeAGL: +agl.toFixed(1),
@@ -442,7 +1061,7 @@ export class CameraDirector {
       yawDeg: ((Math.round(((-this.yaw * 180) / Math.PI) % 360) + 360) % 360),
       gForce: +this._avataGForce.toFixed(1),
       throttlePct: Math.round(Math.max(0, Math.min(1, this._avataThrottle01)) * 100),
-      fovDeg: Math.round(this.camera?.fov || 74),
+      fovDeg: Math.round(this.camera?.fov || 52),
       turnRate: Math.abs(this._avataYawRateSmooth),
       stuntActive: this._avataStunt.active,
       apasActive: this._avataApasTimer > 0.0,
@@ -650,34 +1269,76 @@ export class CameraDirector {
   }
 
   _evalMavicIslandOrbit(angle, floorHeightFn, outPos, outTarget) {
-    // Mavic 3 Pro Island-Circling Aerial Trajectory around Pulau U & Teluk U
-    // Tours Gedung Rektorat UI, Lapangan Rotunda, Air Mancur Dancing, Videotron, Danau Kenanga,
-    // Jembatan Teksas UI, Kompleks DPPD-ILRC-STP, Helipad VIP, & Hutan Selatan
-    const cx = -68.0;
-    const cz = 148.0;
-    const rx = 162.0 + Math.cos(angle * 2.0) * 14.0;
-    const rz = 182.0 + Math.sin(angle * 2.0) * 14.0;
-    const px = cx + Math.sin(angle) * rx;
-    const pz = cz + Math.cos(angle) * rz;
-    const gFn = floorHeightFn || this.physicsContext?.groundHeightFn || null;
-    const groundY = gFn ? Math.max(0.0, gFn(px, pz)) : 0.0;
-    const py = Math.max(55.5, groundY + 38.0 + Math.sin(angle * 1.4) * 9.0);
+    // Quasi-Periodic Cinema Aerial Trajectory (Irrational Golden/Sqrt2 Harmonics -> Never Traces Identical Circle!)
+    // Frames 50m Gedung Rektorat, Jembatan Teksas, 8-Story STP-UI / 6-Story ILRC, & 60m Gunung Api from heroic angles!
+    const pA = angle * 0.6180339887 + this._mavicSeedPhase;
+    const pB = angle * 1.4142135623 - this._mavicSeedPhase * 0.73;
+    const cx = -32.0 + Math.sin(pA) * 10.0;
+    const cz = 124.0 + Math.cos(pA * 0.85) * 10.0;
+    const rx = 162.0 + Math.cos(pB) * 12.0 + Math.sin(angle * 2.0) * 5.0;
+    const rz = 238.0 + Math.sin(pB) * 12.0 + Math.cos(angle * 2.0) * 6.0;
+    let px = cx + Math.sin(angle) * rx;
+    let pz = cz + Math.cos(angle) * rz;
+
+    const ctx = this.physicsContext;
+    const gFn = ctx?.groundHeightFn || floorHeightFn || null;
+    const rawGround = gFn
+      ? 0.2 *
+        (gFn(px, pz) +
+          gFn(px + 16.0, pz) +
+          gFn(px - 16.0, pz) +
+          gFn(px, pz + 16.0) +
+          gFn(px, pz - 16.0))
+      : 0.0;
+    const oceanY = Number.isFinite(ctx?.oceanWaterY) ? ctx.oceanWaterY : -1.45;
+    const baseSurf = Math.max(oceanY, rawGround);
+
+    // Heroic low-to-mid cinema elevation (22.5m..32m over water/plaza so 50m towers & 60m volcano tower overhead,
+    // smoothly lifting above 27m hill canopies over elevated forest terrain!)
+    const landBoost = PhysicsKernel.smootherstep(-0.8, 4.5, rawGround) * 8.5;
+    let py = Math.max(22.5, baseSurf + 20.5 + landBoost + Math.sin(pB * 0.9) * 3.0 + Math.cos(pA) * 2.0);
+
+    if (ctx) {
+      const rep = this._avataRepelScratch;
+      for (let pass = 0; pass < 4; pass++) {
+        const pen = PhysicsKernel.probeDroneAPASRepulsion(px, py, pz, px, py + 6.0, pz, 4.8, ctx, rep);
+        if (pen <= 0.0) break;
+        px += rep.nx * pen * 1.15;
+        py += Math.max(0.55, rep.ny) * pen * 1.25;
+        pz += rep.nz * pen * 1.15;
+      }
+    }
     outPos.set(px, py, pz);
 
-    const tx = -52.0 + Math.sin(angle + 0.42) * 66.0;
-    const tz = 116.0 + Math.cos(angle + 0.42) * 86.0;
-    const ty = 14.5 + 4.5 * Math.cos(angle);
+    // Smooth inverse-distance landmark gaze blending with near-field fade so horizontal distance stays >= 65m
+    const dRekt = Math.hypot(px - 0.0, pz - 4.0);
+    const dTeks = Math.hypot(px - -28.0, pz - 236.0);
+    const dDppd = Math.hypot(px - -255.0, pz - 332.0);
+    const dVolc = Math.hypot(px - -32.0, pz - 698.0);
+
+    const wRekt = (4.25 * PhysicsKernel.smootherstep(32.0, 78.0, dRekt)) / (1.0 + Math.pow(dRekt / 185.0, 2.1));
+    const wTeks = (1.15 * PhysicsKernel.smootherstep(42.0, 92.0, dTeks)) / (1.0 + Math.pow(dTeks / 155.0, 2.1));
+    const wDppd = (1.95 * PhysicsKernel.smootherstep(42.0, 92.0, dDppd)) / (1.0 + Math.pow(dDppd / 170.0, 2.1));
+    const wVolc =
+      ((pz > 240.0 ? 1.35 : 0.25) * PhysicsKernel.smootherstep(48.0, 105.0, dVolc)) /
+      (1.0 + Math.pow(dVolc / 340.0, 2.0));
+    const wArch = 0.45;
+    const wSum = wRekt + wTeks + wDppd + wVolc + wArch || 1.0;
+
+    const tx = (wRekt * 0.0 + wTeks * -28.0 + wDppd * -255.0 + wVolc * -32.0 + wArch * -75.0) / wSum;
+    const ty = (wRekt * 24.5 + wTeks * 14.5 + wDppd * 21.5 + wVolc * 38.0 + wArch * 14.0) / wSum;
+    const tz = (wRekt * 4.0 + wTeks * 236.0 + wDppd * 332.0 + wVolc * 698.0 + wArch * 175.0) / wSum;
     outTarget.set(tx, ty, tz);
   }
 
   _applyBaseVerticalFov(baseVFov = 48.0) {
     if (!this.camera || typeof this.camera.updateProjectionMatrix !== 'function') return;
     const aspect = Number(this.camera.aspect) || 1.6;
-    const maxPortraitFov = baseVFov > 60 ? 96 : 78;
+    const maxPortraitFov = 68;
     let nextFov = baseVFov;
     if (aspect < 1.0) {
       const rad = (baseVFov * Math.PI) / 180;
-      const hFov = 2 * Math.atan(Math.tan(rad / 2) / Math.max(0.52, aspect));
+      const hFov = 2 * Math.atan(Math.tan(rad / 2) / Math.max(0.56, aspect));
       nextFov = Math.min(maxPortraitFov, (hFov * 180) / Math.PI);
     }
     if (Math.abs(this.camera.fov - nextFov) > 0.04) {
@@ -686,17 +1347,21 @@ export class CameraDirector {
     }
   }
 
-  _evalAvataCatmullPoint(normT, outVec, outMeta = null) {
-    const nodes = CameraDirector.AVATA_ARCHIPELAGO_NODES;
-    const n = nodes.length;
-    const wrapped = ((normT % 1.0) + 1.0) % 1.0;
-    const scaled = wrapped * n;
-    const idx = Math.floor(scaled) % n;
-    const u = scaled - Math.floor(scaled);
-    const p0 = nodes[(idx - 1 + n) % n];
+  _evalAvataStreamPoint(streamCursor, outVec, outMeta = null) {
+    if (this._avataStreamNodes.length < 6) {
+      this._initAvataProPilotStream();
+    }
+    const nodes = this._avataStreamNodes;
+    const nLen = nodes.length;
+    const rel = Math.max(1.0001, Math.min(nLen - 2.0001, streamCursor - this._avataStreamBaseIdx));
+    const idx = Math.floor(rel);
+    const u = rel - idx;
+
+    const p0 = nodes[Math.max(0, idx - 1)];
     const p1 = nodes[idx];
-    const p2 = nodes[(idx + 1) % n];
-    const p3 = nodes[(idx + 2) % n];
+    const p2 = nodes[Math.min(nLen - 1, idx + 1)];
+    const p3 = nodes[Math.min(nLen - 1, idx + 2)];
+
     const u2 = u * u;
     const u3 = u2 * u;
     const c0 = -0.5 * u3 + u2 - 0.5 * u;
@@ -715,6 +1380,12 @@ export class CameraDirector {
     const corridorWeight = c1Lock + (c2Lock - c1Lock) * sSmooth;
     const domType = u < 0.5 ? p1[4] : p2[4];
 
+    const lookX = (p1[5] ?? 0) + ((p2[5] ?? 0) - (p1[5] ?? 0)) * sSmooth;
+    const lookY = (p1[6] ?? 26) + ((p2[6] ?? 26) - (p1[6] ?? 26)) * sSmooth;
+    const lookZ = (p1[7] ?? 0) + ((p2[7] ?? 0) - (p1[7] ?? 0)) * sSmooth;
+    const lookBlend = ((p1[8] ?? 0) + ((p2[8] ?? 0) - (p1[8] ?? 0)) * sSmooth) * (1.0 - corridorWeight);
+    const allowStunt = (p1[9] || 0) > 0 || (p2[9] || 0) > 0 ? 1 : 0;
+
     const wNodeBridge = (p1[4] === 1 ? 1.0 - sSmooth : 0.0) + (p2[4] === 1 ? sSmooth : 0.0);
     const wNodeUnder = (p1[4] === 2 ? 1.0 - sSmooth : 0.0) + (p2[4] === 2 ? sSmooth : 0.0);
     const wArchSkim = (p1[4] === 3 ? 1.0 - sSmooth : 0.0) + (p2[4] === 3 ? sSmooth : 0.0);
@@ -727,23 +1398,21 @@ export class CameraDirector {
 
     const ctx = this.physicsContext;
     if (corridorWeight < 0.98) {
-      // Non-monotonous multi-lap dynamic freestyle S-carve harmonics strictly in open airspace!
-      // seamFade = sin(pi * wrapped) guarantees 0.000m jump across the lap boundary when _avataLapCount increments!
-      const seamFade = Math.sin(Math.PI * wrapped);
-      const openGain = (1.0 - corridorWeight) * (1.0 - corridorWeight) * (0.25 + 0.75 * seamFade);
-      const tx = p2[0] - p1[0];
-      const tz = p2[2] - p1[2];
+      // Irrational non-repeating organic pilot flow harmonics using C^1-continuous analytical Catmull-Rom tangent (zero node-crossing snap!)
+      const openGain = (1.0 - corridorWeight) * (1.0 - corridorWeight);
+      const dc0 = -1.5 * u2 + 2.0 * u - 0.5;
+      const dc1 = 4.5 * u2 - 5.0 * u;
+      const dc2 = -4.5 * u2 + 4.0 * u + 0.5;
+      const dc3 = 1.5 * u2 - u;
+      const tx = dc0 * p0[0] + dc1 * p1[0] + dc2 * p2[0] + dc3 * p3[0];
+      const tz = dc0 * p0[2] + dc1 * p1[2] + dc2 * p2[2] + dc3 * p3[2];
       const tHoriz = Math.hypot(tx, tz) || 1.0;
       const rightX = -tz / tHoriz;
       const rightZ = tx / tHoriz;
-      const lapSeed = this._avataLapCount * 2.399963; // Golden-angle lap variation!
-      const baseWave = 1.65 * Math.sin(wrapped * Math.PI * 16.0);
-      const lapWave =
-        seamFade *
-        (1.65 * Math.sin(wrapped * Math.PI * 16.0 + lapSeed) +
-          1.25 * Math.cos(wrapped * Math.PI * 26.0 - lapSeed * 1.618));
-      const sCarve = openGain * (baseWave + lapWave);
-      const vWave = openGain * seamFade * 1.05 * Math.sin(wrapped * Math.PI * 12.0 + lapSeed * 1.3);
+      const sCarve =
+        openGain *
+        (1.15 * Math.sin(streamCursor * 1.178097) + 0.80 * Math.cos(streamCursor * 0.728318 + 1.1));
+      const vWave = openGain * 0.65 * Math.sin(streamCursor * 0.883572 + 0.5);
       px += rightX * sCarve;
       pz += rightZ * sCarve;
       py += vWave;
@@ -754,7 +1423,7 @@ export class CameraDirector {
     const openFactor = Math.max(0.0, 1.0 - Math.max(strictFactor, wArchSkim));
 
     if (wBridge > 1e-4) {
-      // C1-Continuous Analytical Lock inside Lorong Jembatan Teksas UI (+2.12m above parabolic deck)
+      // Bidirectional C1-Continuous Lock inside Lorong Jembatan Teksas UI (+2.12m above parabolic deck)
       const zClB = Math.max(149.65, Math.min(341.65, pz));
       const targetBx = -28.0 + this._avataLiveLaneOffset * wBridge;
       px = px * (1.0 - wBridge) + targetBx * wBridge;
@@ -765,7 +1434,7 @@ export class CameraDirector {
         py = py * (1.0 - wBridge) + targetCorrY * wBridge;
       }
     } else if (wUnderpass > 1e-4) {
-      // C1-Continuous Analytical Lock inside Underpass Bawah Laut Selatan U–I (-6.12m beneath Selat UI seabed)
+      // Bidirectional C1-Continuous Lock inside Underpass Bawah Laut Selatan U–I (-6.12m beneath Selat UI)
       const zClU = Math.max(272.0, Math.min(670.0, pz));
       const targetUx = -356.0 + this._avataLiveLaneOffset * wUnderpass;
       px = px * (1.0 - wUnderpass) + targetUx * wUnderpass;
@@ -780,17 +1449,21 @@ export class CameraDirector {
     if (wArchSkim > 1e-3) {
       // Smooth C1 water-skim window UNDERNEATH Jembatan Teksas parabolic arch over Teluk U!
       const bSof = ctx?.bridgeSoffitFn ? ctx.bridgeSoffitFn(pz) : null;
-      const maxArchY = bSof !== null ? bSof - 1.65 : 5.85;
-      const clampedArchY = Math.max(oceanY + 2.45, Math.min(maxArchY, py));
+      const maxArchY = bSof !== null ? bSof - 1.75 : 5.75;
+      const clampedArchY = Math.max(oceanY + 2.55, Math.min(maxArchY, py));
       py += (clampedArchY - py) * wArchSkim;
     }
 
-    if (openFactor > 1e-3 && ctx?.groundHeightFn) {
-      // Smooth terrain/ocean floor inside spline evaluator so P0/P1/P2 tangents & arc-lengths match 100%!
+    const underpassCutMask =
+      (1.0 - PhysicsKernel.smootherstep(8.0, 16.0, Math.abs(px - -356.0))) *
+      PhysicsKernel.smootherstep(262.0, 274.0, pz) *
+      (1.0 - PhysicsKernel.smootherstep(668.0, 680.0, pz));
+    const effOpenSpline = openFactor * (1.0 - underpassCutMask);
+    if (effOpenSpline > 1e-3 && ctx?.groundHeightFn) {
       const spGround = ctx.groundHeightFn(px, pz);
-      const minSplineY = Math.max(oceanY + 2.15, spGround + 2.65);
+      const minSplineY = Math.max(oceanY + 2.35, spGround + 2.95);
       if (py < minSplineY) {
-        py += (minSplineY - py) * openFactor;
+        py += (minSplineY - py) * effOpenSpline;
       }
     }
 
@@ -801,20 +1474,36 @@ export class CameraDirector {
       outMeta.wBridge = wBridge;
       outMeta.wUnderpass = wUnderpass;
       outMeta.wArchSkim = wArchSkim;
+      outMeta.lookX = lookX;
+      outMeta.lookY = lookY;
+      outMeta.lookZ = lookZ;
+      outMeta.lookBlend = lookBlend;
+      outMeta.allowStunt = allowStunt;
+      outMeta.maneuverId = p1.maneuverId || this._avataActiveManeuverId;
     }
     return outVec.set(px, py, pz);
   }
 
+  _evalAvataCatmullPoint(normT, outVec, outMeta = null) {
+    if (this._avataStreamNodes.length < 6) {
+      this._initAvataProPilotStream();
+    }
+    const minC = this._avataStreamBaseIdx + 1.05;
+    const maxC = Math.max(minC + 1.0, this._avataStreamBaseIdx + this._avataStreamNodes.length - 3.05);
+    const wrapped = ((normT % 1.0) + 1.0) % 1.0;
+    return this._evalAvataStreamPoint(minC + wrapped * (maxC - minC), outVec, outMeta);
+  }
+
   /**
-   * Predictive Omnidirectional Binocular-Fisheye APAS (Advanced Pilot Assistance System) for ALL Drones
-   * (DJI Avata 2 FPV & Mavic 3 Pro 6-DOF). Smoothly deflects velocity around static/dynamic 3D obstacles
-   * and funnels cleanly into clear bridge/underpass portals before hard MTV separation even triggers!
+   * Whisker-Guided 360° Binocular-Fisheye APAS (Advanced Pilot Assistance System) for ALL Drones
+   * (DJI Avata 2 FPV & Mavic 3 Pro 6-DOF). Probes Center + Left-28° + Right-28° + Up-24° whiskers
+   * to steer cleanly into open air around outer leaf lobes, spires, and bridge trusses with ZERO stall!
    */
   _applyDroneAPASAvoidance(pos, vel, dt, bodyRadius, ctx, commandedSpeed = 0.0, preferUpVault = true) {
     if (!ctx || !vel) return false;
     const speed = vel.length();
     const refSpeed = Math.max(speed, commandedSpeed);
-    if (refSpeed < 0.25) return false;
+    if (refSpeed < 0.20) return false;
 
     let dirX = 0.0;
     let dirY = 0.0;
@@ -880,21 +1569,22 @@ export class CameraDirector {
       }
     }
 
-    // 2. Three-Horizon Predictive Sphere Probes (Contact Halo 0.0s + Near 0.16s + Mid 0.32s)
+    // 2. Three-Horizon Predictive Sphere Probes (Contact Halo + Near + Far Lookahead)
     const rep = this._avataRepelScratch;
     let nx = 0.0;
     let ny = 0.0;
     let nz = 0.0;
     let urgency = 0.0;
+    let hardCloseContact = false;
 
     const penContact = PhysicsKernel.probeDroneAPASRepulsion(
-      pos.x + dirX * 0.28,
-      pos.y + dirY * 0.28,
-      pos.z + dirZ * 0.28,
+      pos.x + dirX * 0.34,
+      pos.y + dirY * 0.34,
+      pos.z + dirZ * 0.34,
       pos.x,
       pos.y,
       pos.z,
-      bodyRadius + 0.42,
+      bodyRadius + 0.58,
       ctx,
       rep
     );
@@ -902,11 +1592,12 @@ export class CameraDirector {
       nx = rep.nx;
       ny = rep.ny;
       nz = rep.nz;
-      urgency = Math.min(1.0, 0.72 + penContact * 0.95);
+      urgency = Math.min(1.0, 0.80 + penContact * 0.95);
+      hardCloseContact = true;
     }
 
-    if (urgency < 0.75) {
-      const dNear = Math.min(4.8, 0.55 + refSpeed * 0.16);
+    const dNear = Math.min(5.6, 0.75 + refSpeed * 0.22);
+    if (urgency < 0.82) {
       const penNear = PhysicsKernel.probeDroneAPASRepulsion(
         pos.x + dirX * dNear,
         pos.y + dirY * dNear,
@@ -914,7 +1605,7 @@ export class CameraDirector {
         pos.x,
         pos.y,
         pos.z,
-        bodyRadius + 0.48,
+        bodyRadius + 0.68,
         ctx,
         rep
       );
@@ -922,12 +1613,13 @@ export class CameraDirector {
         nx = rep.nx;
         ny = rep.ny;
         nz = rep.nz;
-        urgency = Math.max(urgency, Math.min(1.0, 0.48 + penNear * 0.85));
+        urgency = Math.max(urgency, Math.min(1.0, 0.55 + penNear * 0.85));
+        if (penNear > 0.14) hardCloseContact = true;
       }
     }
 
-    if (urgency < 0.35 && refSpeed > 4.0) {
-      const dFar = Math.min(9.6, 1.35 + refSpeed * 0.32);
+    if (urgency < 0.42 && refSpeed > 3.2) {
+      const dFar = Math.min(10.5, 1.55 + refSpeed * 0.40);
       const penFar = PhysicsKernel.probeDroneAPASRepulsion(
         pos.x + dirX * dFar,
         pos.y + dirY * dFar,
@@ -935,7 +1627,7 @@ export class CameraDirector {
         pos.x,
         pos.y,
         pos.z,
-        bodyRadius + 0.72,
+        bodyRadius + 0.92,
         ctx,
         rep
       );
@@ -943,35 +1635,98 @@ export class CameraDirector {
         nx = rep.nx;
         ny = rep.ny;
         nz = rep.nz;
-        urgency = Math.min(0.78, 0.25 + penFar * 0.45);
+        urgency = Math.min(0.82, 0.30 + penFar * 0.48);
       }
     }
 
     if (urgency > 0.0) {
       const dDotN = dirX * nx + dirY * ny + dirZ * nz;
       const vDotN = vel.x * nx + vel.y * ny + vel.z * nz;
-      if (vDotN < 0.0 || dDotN < -0.05) {
-        // Cancel inward closing velocity smoothly & steer tangentially around/over obstacle without EVER stalling!
+      if (vDotN < 0.0 || dDotN < -0.04) {
+        // Project out inward closing velocity immediately when close so manual WASD can NEVER press into leaves!
+        let removedInwardSpd = 0.0;
         if (vDotN < 0.0) {
-          const dampIn = Math.min(1.0, urgency * 15.0 * dt);
+          const dampIn = hardCloseContact ? 1.0 : Math.min(1.0, urgency * 20.0 * dt);
+          removedInwardSpd = -vDotN * dampIn;
           vel.x -= vDotN * nx * dampIn;
           vel.y -= vDotN * ny * dampIn;
           vel.z -= vDotN * nz * dampIn;
         }
 
-        // Tangential bypass vector derived from intended travel direction so even a dead-center hit banks/vaults past!
+        // 3D Whisker Fan: test Left-28°, Right-28°, and Up-24° lookahead rays to pick the clearest open-air bypass!
         let tx = dirX - dDotN * nx;
         let ty = dirY - dDotN * ny;
         let tz = dirZ - dDotN * nz;
+
+        if (!insideEnclosedRoof) {
+          const hDir = Math.hypot(dirX, dirZ) || 1.0;
+          const rgtX = -dirZ / hDir;
+          const rgtZ = dirX / hDir;
+          const wDist = Math.min(6.2, 1.4 + refSpeed * 0.28);
+          const wRad = bodyRadius + 0.62;
+          const wScratch = this._avataWhiskerScratch;
+
+          // Left whisker (-rgt * 0.47 + dir * 0.88), Right whisker (+rgt * 0.47 + dir * 0.88), Up whisker (+Y * 0.44 + dir * 0.90)
+          const lX = dirX * 0.88 - rgtX * 0.47;
+          const lZ = dirZ * 0.88 - rgtZ * 0.47;
+          const rX = dirX * 0.88 + rgtX * 0.47;
+          const rZ = dirZ * 0.88 + rgtZ * 0.47;
+
+          const penL = PhysicsKernel.probeDroneAPASRepulsion(
+            pos.x + lX * wDist,
+            pos.y + dirY * wDist,
+            pos.z + lZ * wDist,
+            pos.x,
+            pos.y,
+            pos.z,
+            wRad,
+            ctx,
+            wScratch
+          );
+          const penR = PhysicsKernel.probeDroneAPASRepulsion(
+            pos.x + rX * wDist,
+            pos.y + dirY * wDist,
+            pos.z + rZ * wDist,
+            pos.x,
+            pos.y,
+            pos.z,
+            wRad,
+            ctx,
+            wScratch
+          );
+          const penU = preferUpVault
+            ? PhysicsKernel.probeDroneAPASRepulsion(
+                pos.x + dirX * 0.88 * wDist,
+                pos.y + (dirY * 0.88 + 0.48) * wDist,
+                pos.z + dirZ * 0.88 * wDist,
+                pos.x,
+                pos.y,
+                pos.z,
+                wRad,
+                ctx,
+                wScratch
+              )
+            : 99.0;
+
+          if (preferUpVault && penU <= Math.min(penL, penR) + 0.05 && ny > -0.22) {
+            ty += 0.78;
+          } else if (penL <= penR) {
+            tx -= rgtX * 0.72;
+            tz -= rgtZ * 0.72;
+          } else {
+            tx += rgtX * 0.72;
+            tz += rgtZ * 0.72;
+          }
+        }
+
         const hTang = Math.hypot(tx, tz);
         if (hTang < 0.42 && Math.abs(ny) < 0.88) {
-          // Dead-on horizontal approach onto trunk, column, crown, or wall: inject smooth lateral bank bypass
-          const latScale = 0.82 - hTang;
+          const latScale = 0.84 - hTang;
           tx += -nz * latScale;
           tz += nx * latScale;
         }
         if (preferUpVault && !insideEnclosedRoof && ny > -0.15) {
-          ty += ny > 0.12 ? 0.68 : 0.34;
+          ty += ny > 0.12 ? 0.62 : 0.30;
         }
         let tLen = Math.hypot(tx, ty, tz);
         if (tLen < 0.25) {
@@ -980,10 +1735,19 @@ export class CameraDirector {
           tz = nx;
           tLen = Math.hypot(tx, ty, tz) || 1.0;
         }
-        const bypassAccel = urgency * Math.max(18.5, refSpeed * 1.05);
-        vel.x += (tx / tLen + nx * 0.42) * bypassAccel * dt;
-        vel.y += (ty / tLen + ny * 0.42) * bypassAccel * dt;
-        vel.z += (tz / tLen + nz * 0.42) * bypassAccel * dt;
+        const bypassAccel = urgency * Math.max(19.5, refSpeed * 1.25);
+        const redirectSpd = !insideEnclosedRoof ? removedInwardSpd * 0.78 : 0.0;
+        vel.x += (tx / tLen) * redirectSpd + (tx / tLen + nx * 0.48) * bypassAccel * dt;
+        vel.y += (ty / tLen) * redirectSpd + (ty / tLen + ny * 0.48) * bypassAccel * dt;
+        vel.z += (tz / tLen) * redirectSpd + (tz / tLen + nz * 0.48) * bypassAccel * dt;
+        const maxBypassSpd = Math.max(8.5, refSpeed * 1.18);
+        const postSpd = Math.hypot(vel.x, vel.y, vel.z);
+        if (postSpd > maxBypassSpd) {
+          const sc = maxBypassSpd / postSpd;
+          vel.x *= sc;
+          vel.y *= sc;
+          vel.z *= sc;
+        }
         deflected = true;
       }
     }
@@ -1015,8 +1779,9 @@ export class CameraDirector {
       this._avataStick.climbY = 0;
       this._avataStick.boost = false;
       this._avataStunt.active = false;
+      this._avataFreelookYaw = 0.0;
+      this._avataFreelookPitch = 0.0;
       this._avataCurrentBaseFov = 48.0;
-      this._applyBaseVerticalFov(48.0);
     }
 
     if (wasFPS && !nextIsFPS) {
@@ -1034,6 +1799,7 @@ export class CameraDirector {
     this._flightNadirSpec = null;
     this.camera.up.set(0, 1, 0);
     this._orbitPanVel.set(0, 0, 0);
+    this._applyBaseVerticalFov(this.getActiveBaseVerticalFov(newMode));
 
     if (nextIsFPS) {
       if (this.controls) this.controls.enabled = false;
@@ -1055,7 +1821,7 @@ export class CameraDirector {
 
     if (newMode === 'ORBIT' || newMode === 'AUTO_CINEMATIC') {
       this.roll = 0;
-      if (newMode === 'AUTO_CINEMATIC' && this.camera.position.y < 38.0) {
+      if (newMode === 'AUTO_CINEMATIC' && this.camera.position.y < 16.0) {
         this._evalMavicIslandOrbit(this.cinematicAngle, null, this.camera.position, this.goalTarget);
         this.syncPreviousCameraPosition();
       }
@@ -1081,13 +1847,17 @@ export class CameraDirector {
       }
     } else if (newMode === 'DRONE_6DOF') {
       if (this.controls) this.controls.enabled = false;
+      if (Number.isFinite(options.seed)) {
+        this._mavicSeedPhase = ((Math.trunc(options.seed) >>> 0) % 1000) * 0.00628318;
+      }
       if (options.startIslandTour === true) {
         this._evalMavicIslandOrbit(this.cinematicAngle, null, this.camera.position, this.goalTarget);
         const lookDx = this.goalTarget.x - this.camera.position.x;
         const lookDz = this.goalTarget.z - this.camera.position.z;
         this.yaw = Math.atan2(-lookDx, -lookDz);
-        this.pitch = Math.atan2(this.goalTarget.y - this.camera.position.y, Math.hypot(lookDx, lookDz));
-        this.roll = 0.035;
+        const rawP = Math.atan2(this.goalTarget.y - this.camera.position.y, Math.hypot(lookDx, lookDz) || 1.0);
+        this.pitch = Math.max(-0.32, Math.min(0.14, rawP));
+        this.roll = 0.022;
         const euler = new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ');
         this.camera.quaternion.setFromEuler(euler);
         this.syncPreviousCameraPosition();
@@ -1107,8 +1877,10 @@ export class CameraDirector {
       this._avataYawRateSmooth = 0.0;
       this._avataGForce = 1.0;
       this._avataStunt.active = false;
-      this._avataCurrentBaseFov = 74.0;
-      this._applyBaseVerticalFov(74.0);
+      this._avataFreelookYaw = 0.0;
+      this._avataFreelookPitch = 0.0;
+      this._avataCurrentBaseFov = 51.5;
+      this._applyBaseVerticalFov(51.5);
       if (options.profile === 'ACRO' || options.profile === 'SPORT') {
         this.avataFlightProfile = options.profile;
       }
@@ -1121,9 +1893,9 @@ export class CameraDirector {
         this.pitch = Math.asin(Math.max(-0.95, Math.min(0.95, dir.y)));
         this.roll = 0.0;
         if (this.camera.position.y > 160.0) {
-          this.camera.position.set(-18.0, 26.0, 82.0);
-          this.yaw = Math.atan2(18.0, 82.0);
-          this.pitch = -0.18;
+          this.camera.position.set(-12.0, 14.0, 86.0);
+          this.yaw = Math.atan2(-12.0, 86.0);
+          this.pitch = 0.14;
         }
         this.velocity.set(0, 0, 0);
         this._avataEuler.set(this.pitch, this.yaw, this.roll, 'YXZ');
@@ -1131,21 +1903,21 @@ export class CameraDirector {
         this.syncPreviousCameraPosition();
       } else {
         this.avataAutoFreestyle = true;
-        this._avataSplineT = Number.isFinite(options.startT) ? options.startT : 0.014;
         this._avataLiveLaneOffset = 0.0;
         this._avataRejoinBlend = 0.0;
-        this._evalAvataCatmullPoint(this._avataSplineT, this.camera.position, this._avataMeta);
+        this._initAvataProPilotStream(options);
+        this._evalAvataStreamPoint(this._avataStreamCursor, this.camera.position, this._avataMeta);
         this.goalPos.copy(this.camera.position);
-        this._evalAvataCatmullPoint(this._avataSplineT + 0.0012, this._avataTmpP1);
+        this._evalAvataStreamPoint(this._avataStreamCursor + 0.04, this._avataTmpP1);
         const dx = this._avataTmpP1.x - this.camera.position.x;
         const dy = this._avataTmpP1.y - this.camera.position.y;
         const dz = this._avataTmpP1.z - this.camera.position.z;
         const hLen = Math.hypot(dx, dz) || 1.0;
         this.yaw = Math.atan2(-dx, -dz);
         this.pitch = Math.atan2(dy, hLen);
-        this.roll = -0.28;
+        this.roll = -0.18;
         const initDirLen = Math.hypot(dx, dy, dz) || 1.0;
-        const initSpd = this._avataMeta.speedMs || 23.0;
+        const initSpd = this._avataMeta.speedMs || 11.5;
         this.velocity.set((dx / initDirLen) * initSpd, (dy / initDirLen) * initSpd, (dz / initDirLen) * initSpd);
         this._avataVelPrev.copy(this.velocity);
         this._avataEuler.set(this.pitch, this.yaw, this.roll, 'YXZ');
@@ -1154,7 +1926,7 @@ export class CameraDirector {
         this.syncPreviousCameraPosition();
       }
       if (this.camera && typeof this.camera.updateProjectionMatrix === 'function') {
-        this.camera.near = 0.1;
+        this.camera.near = 0.14;
         this.camera.updateProjectionMatrix();
       }
       return;
@@ -1171,7 +1943,6 @@ export class CameraDirector {
         this.camera.position.copy(walkPos);
         this.syncPreviousCameraPosition();
       } else {
-        // Smooth Google Earth swoop down to Sivitas pedestrian eye-level instead of an instant teleport!
         this._beginGoogleEarthFlight(walkPos, walkLook, null);
       }
     }
@@ -1233,7 +2004,7 @@ export class CameraDirector {
     this._beginGoogleEarthFlight(nextPos, nextTarget, null);
   }
 
-  lookDelta(dx, dy, sensitivity = 0.0024) {
+  lookDelta(dx, dy, sensitivity = 0.0024, pointerLocked = false) {
     if (this.transitionActive && (Math.abs(dx) > 1.5 || Math.abs(dy) > 1.5)) {
       this.cancelTransition();
     }
@@ -1243,16 +2014,23 @@ export class CameraDirector {
       return;
     }
     if (this.mode === 'DRONE_AVATA2_FPV') {
-      if (this.avataAutoFreestyle && Math.hypot(dx, dy) > 2.5) {
+      if (this.avataAutoFreestyle && !pointerLocked) {
+        // Mouse drag in Auto Pro-Pilot pans gimbal/head-look WITHOUT aborting auto-flight into an obstacle!
+        this._avataFreelookYaw = Math.max(-1.45, Math.min(1.45, this._avataFreelookYaw - dx * sensitivity));
+        this._avataFreelookPitch = Math.max(-0.78, Math.min(0.85, this._avataFreelookPitch - dy * sensitivity));
+        this._avataFreelookIdle = 0.0;
+        return;
+      }
+      if (this.avataAutoFreestyle && pointerLocked && Math.hypot(dx, dy) > 3.5) {
         this.avataAutoFreestyle = false;
         this._avataRejoinBlend = 0.0;
       }
-      const dYaw = -dx * sensitivity * 1.12;
+      const dYaw = -dx * sensitivity * 1.05;
       this.yaw += dYaw;
       this._avataYawRateAccum += dYaw;
-      const maxDownPitch = this.avataFlightProfile === 'ACRO' ? -1.48 : -1.32;
+      const maxDownPitch = this.avataFlightProfile === 'ACRO' ? -1.48 : -1.28;
       const maxUpPitch = this.avataFlightProfile === 'ACRO' ? 1.38 : 1.18;
-      this.pitch = Math.max(maxDownPitch, Math.min(maxUpPitch, this.pitch - dy * sensitivity * 1.08));
+      this.pitch = Math.max(maxDownPitch, Math.min(maxUpPitch, this.pitch - dy * sensitivity * 1.02));
       return;
     }
     if (this.mode !== 'DRONE_6DOF' && this.mode !== 'WALK_SIVITAS') return;
@@ -1553,9 +2331,18 @@ export class CameraDirector {
 
     if (this.mode === 'AUTO_CINEMATIC') {
       this.camera.up.set(0, 1, 0);
-      this.cinematicAngle += clampedDt * 0.115;
+      this._applyBaseVerticalFov(this.getActiveBaseVerticalFov('AUTO_CINEMATIC'));
+      this.cinematicAngle += clampedDt * 0.042;
       this._evalMavicIslandOrbit(this.cinematicAngle, floorHeightFn, this.goalPos, this.goalTarget);
-      this.camera.position.lerp(this.goalPos, dampAlpha);
+      const stepDx = (this.goalPos.x - this.camera.position.x) * dampAlpha;
+      const stepDy = (this.goalPos.y - this.camera.position.y) * dampAlpha;
+      const stepDz = (this.goalPos.z - this.camera.position.z) * dampAlpha;
+      const stepLen = Math.hypot(stepDx, stepDy, stepDz);
+      const maxAutoStep = 13.8 * clampedDt;
+      const stepScale = stepLen > maxAutoStep ? maxAutoStep / stepLen : 1.0;
+      this.camera.position.x += stepDx * stepScale;
+      this.camera.position.y += stepDy * stepScale;
+      this.camera.position.z += stepDz * stepScale;
       if (this.controls) {
         this.controls.target.lerp(this.goalTarget, dampAlpha);
         this.controls.update();
@@ -1582,6 +2369,7 @@ export class CameraDirector {
     }
 
     // DRONE_6DOF or WALK_SIVITAS
+    this._applyBaseVerticalFov(this.getActiveBaseVerticalFov(this.mode));
     if (this.transitionActive) {
       const anyKey =
         this.keyState.has('KeyW') ||
@@ -1600,8 +2388,8 @@ export class CameraDirector {
           this.camera.position,
           null,
           this.colliders,
-          0.68,
-          0.68,
+          0.72,
+          0.72,
           clampedDt,
           null,
           ctx,
@@ -1613,8 +2401,10 @@ export class CameraDirector {
       }
     }
     const isWalk = this.mode === 'WALK_SIVITAS';
-    const maxSpeed = isWalk ? 6.2 : 28.0;
-    const accel = isWalk ? 26.0 : 65.0;
+    const mavicBoost =
+      !isWalk && (this.keyState.has('ShiftLeft') || this.keyState.has('ShiftRight'));
+    const maxSpeed = isWalk ? 6.2 : mavicBoost ? 17.5 : 11.5;
+    const accel = isWalk ? 32.0 : mavicBoost ? 88.0 : 58.0;
 
     this._forward.set(-Math.sin(this.yaw), isWalk ? 0 : Math.sin(this.pitch), -Math.cos(this.yaw)).normalize();
     this._right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw)).normalize();
@@ -1628,26 +2418,49 @@ export class CameraDirector {
     if (this.keyState.has('KeyA') || this.keyState.has('ArrowLeft')) moveR -= 1;
     if (!isWalk) {
       if (this.keyState.has('KeyE') || this.keyState.has('Space')) moveU += 1;
-      if (this.keyState.has('KeyQ') || this.keyState.has('ShiftLeft')) moveU -= 1;
+      if (
+        this.keyState.has('KeyQ') ||
+        this.keyState.has('KeyC') ||
+        this.keyState.has('ControlLeft') ||
+        this.keyState.has('ControlRight')
+      ) {
+        moveU -= 1;
+      }
     }
 
-    // Mavic Drone Island-Circling Tour in DRONE_6DOF before manual drone keys are engaged
+    // Mavic 3 Pro Cinema Island-Circling Tour in DRONE_6DOF before manual drone keys are engaged
     const hasManualInput = moveF !== 0 || moveR !== 0 || moveU !== 0;
     if (hasManualInput) {
       this._droneManualEngaged = true;
     }
-    if (!isWalk && !hasManualInput && !this._droneManualEngaged && this.camera.position.y > 2.0 && this.velocity.lengthSq() < 0.04) {
-      this.cinematicAngle += clampedDt * 0.115;
+    if (!isWalk && !hasManualInput && !this._droneManualEngaged && this.camera.position.y > 2.0) {
+      this.velocity.set(0, 0, 0);
+      this.cinematicAngle += clampedDt * 0.042;
       this._evalMavicIslandOrbit(this.cinematicAngle, floorHeightFn, this.goalPos, this.goalTarget);
-      this.camera.position.x += (this.goalPos.x - this.camera.position.x) * dampAlpha * 0.55;
-      this.camera.position.z += (this.goalPos.z - this.camera.position.z) * dampAlpha * 0.55;
-      this.camera.position.y += (this.goalPos.y - this.camera.position.y) * dampAlpha * 0.55;
+      const mavAlpha = 1.0 - Math.exp(-4.6 * clampedDt);
+      const mDx = (this.goalPos.x - this.camera.position.x) * mavAlpha;
+      const mDy = (this.goalPos.y - this.camera.position.y) * mavAlpha;
+      const mDz = (this.goalPos.z - this.camera.position.z) * mavAlpha;
+      const mLen = Math.hypot(mDx, mDy, mDz);
+      const maxMavStep = 13.8 * clampedDt;
+      const mScale = mLen > maxMavStep ? maxMavStep / mLen : 1.0;
+      this.camera.position.x += mDx * mScale;
+      this.camera.position.y += mDy * mScale;
+      this.camera.position.z += mDz * mScale;
       const lookDx = this.goalTarget.x - this.camera.position.x;
       const lookDz = this.goalTarget.z - this.camera.position.z;
-      this.yaw = Math.atan2(-lookDx, -lookDz) + this._mavicGimbalYaw;
-      const basePitch = Math.atan2(this.goalTarget.y - this.camera.position.y, Math.hypot(lookDx, lookDz));
-      this.pitch = Math.max(-1.35, Math.min(1.15, basePitch + this._mavicGimbalPitch));
-      this.roll += (0.036 * Math.cos(this.cinematicAngle) - this.roll) * dampAlpha; // Mavic centripetal roll banking
+      const targetMavYaw = Math.atan2(-lookDx, -lookDz) + this._mavicGimbalYaw;
+      let dyMav = targetMavYaw - this.yaw;
+      while (dyMav > Math.PI) dyMav -= Math.PI * 2.0;
+      while (dyMav < -Math.PI) dyMav += Math.PI * 2.0;
+      this.yaw += dyMav * dampAlpha;
+      const basePitch = Math.max(
+        -0.32,
+        Math.min(0.14, Math.atan2(this.goalTarget.y - this.camera.position.y, Math.hypot(lookDx, lookDz) || 1.0))
+      );
+      const targetMavPitch = Math.max(-1.35, Math.min(1.15, basePitch + this._mavicGimbalPitch));
+      this.pitch += (targetMavPitch - this.pitch) * dampAlpha;
+      this.roll += (0.028 * Math.cos(this.cinematicAngle) - this.roll) * dampAlpha;
     } else {
       this.velocity.addScaledVector(this._forward, moveF * accel * clampedDt);
       this.velocity.addScaledVector(this._right, moveR * accel * clampedDt);
@@ -1661,7 +2474,7 @@ export class CameraDirector {
 
       if (!isWalk) {
         const cmdMavicSpd = Math.hypot(moveF, moveR, moveU) > 0.04 ? maxSpeed : 0.0;
-        this._applyDroneAPASAvoidance(this.camera.position, this.velocity, clampedDt, 0.68, ctx, cmdMavicSpd, true);
+        this._applyDroneAPASAvoidance(this.camera.position, this.velocity, clampedDt, 0.72, ctx, cmdMavicSpd, true);
       }
 
       this.camera.position.addScaledVector(this.velocity, clampedDt);
@@ -1675,8 +2488,8 @@ export class CameraDirector {
     const minCamY = isWalk
       ? groundY + 1.68
       : groundY < -0.5
-        ? groundY + 0.68
-        : Math.max(0.68, groundY + 0.68);
+        ? groundY + 0.72
+        : Math.max(0.72, groundY + 0.72);
 
     if (isWalk) {
       this.camera.position.y += (minCamY - this.camera.position.y) * (1.0 - Math.exp(-14.0 * clampedDt));
@@ -1700,7 +2513,7 @@ export class CameraDirector {
         this.camera.position,
         this.velocity,
         this.colliders,
-        0.68,
+        0.72,
         minCamY,
         clampedDt,
         this._prevCamPos,
@@ -1748,9 +2561,11 @@ export class CameraDirector {
       turbo;
 
     if (hasManualInput && this.avataAutoFreestyle) {
-      // Instant seamless transition from Autonomous Proximity Showreel -> 100% Free-Flight anywhere!
+      // Explicit flight stick / WASD input seamlessly hands over from Pro-Pilot AI -> 100% Manual Free-Flight!
       this.avataAutoFreestyle = false;
       this._avataRejoinBlend = 0.0;
+      this._avataFreelookYaw = 0.0;
+      this._avataFreelookPitch = 0.0;
     }
 
     const oceanY = Number.isFinite(ctx?.oceanWaterY) ? ctx.oceanWaterY : -1.45;
@@ -1758,9 +2573,21 @@ export class CameraDirector {
 
     if (this.avataAutoFreestyle) {
       this._avataYawRateAccum = 0.0;
-      const phasePrev = ((this._avataSplineT % 1.0) + 1.0) % 1.0;
+      this._avataFreelookIdle += clampedDt;
+      if (this._avataFreelookIdle > 1.8) {
+        const flDecay = Math.exp(-2.6 * clampedDt);
+        this._avataFreelookYaw *= flDecay;
+        this._avataFreelookPitch *= flDecay;
+      }
 
-      // Live Dynamic Obstacle & Traffic Lane-Shifting inside Subsea Underpass & Lorong Jembatan Teksas!
+      this._ensureAvataStreamAhead();
+      const epsC = 0.035;
+      this._evalAvataStreamPoint(this._avataStreamCursor, this._avataTmpP1, this._avataMeta);
+      this._evalAvataStreamPoint(this._avataStreamCursor - epsC, this._avataTmpP0);
+      this._evalAvataStreamPoint(this._avataStreamCursor + epsC, this._avataTmpP2);
+      const travelSignZ = this._avataTmpP2.z - this._avataTmpP0.z >= 0.0 ? 1.0 : -1.0;
+
+      // Bidirectional Dynamic Obstacle & Traffic Lane-Shifting inside Subsea Underpass & Lorong Jembatan Teksas!
       let desiredLane = 0.0;
       let underpassOverBusLift = 0.0;
       const camX = this.camera.position.x;
@@ -1773,10 +2600,9 @@ export class CameraDirector {
             ? ctx.dynamicColliders
             : null;
 
-      if (camZ >= 250.0 && camZ <= 688.0 && camX < -305.0) {
-        // Inside or entering Underpass Bawah Laut Selatan U–I: score candidate lanes against OBB vehicles (Bus Kuning UI)
-        // while ignoring outer-sidewalk pedestrians so a sidewalk NPC NEVER steers Avata into an active bus lane!
-        desiredLane = 1.05 * Math.sin(phasePrev * Math.PI * 28.0);
+      if (camZ >= 250.0 && camZ <= 688.0 && camX < -305.0 && camY < 4.5) {
+        // Bidirectional Subsea Underpass Bus Kuning UI Dodge (works Northbound & Southbound!)
+        desiredLane = 0.92 * Math.sin(this._avataStreamCursor * 0.85);
         if (dynList) {
           let blockedWest = false;
           let blockedEast = false;
@@ -1785,16 +2611,20 @@ export class CameraDirector {
           for (let i = 0; i < dynList.length; i++) {
             const dc = dynList[i];
             if (!dc || dc.enabled === false) continue;
-            // Strict 3D co-elevation check so surface aircraft/vehicles on Pulau I NEVER trigger underground subsea lane shifts!
             if (dc.minY !== undefined && (dc.minY > camY + 2.8 || dc.maxY < camY - 2.8)) continue;
             const isObb = (dc.kind || dc.type) === 'OBB';
-            // Only carriageway vehicles (OBB or |x + 356| < 3.1m), never outer sidewalk pedestrians at ±3.85m
             const dcX = isObb ? dc.cx : Number.isFinite(dc.x) ? dc.x : 0.5 * (dc.minX + dc.maxX);
             if (!isObb && Math.abs(dcX - -356.0) > 3.05) continue;
             const dcZ = isObb ? dc.cz : Number.isFinite(dc.z) ? dc.z : 0.5 * (dc.minZ + dc.maxZ);
-            const dzRel = dcZ - camZ;
-            const dzAbs = Math.abs(dzRel);
-            if (Math.abs(dcX - -356.0) < 3.6 && dcZ >= 260.0 && dcZ <= 680.0 && dzRel >= -9.5 && dzRel <= 48.0) {
+            const dzAhead = (dcZ - camZ) * travelSignZ;
+            const dzAbs = Math.abs(dcZ - camZ);
+            if (
+              Math.abs(dcX - -356.0) < 3.6 &&
+              dcZ >= 260.0 &&
+              dcZ <= 680.0 &&
+              dzAhead >= -9.5 &&
+              dzAhead <= 48.0
+            ) {
               if (dcX < -356.0) blockedWest = true;
               else blockedEast = true;
               if (dzAbs < nearestVehicleZ) {
@@ -1810,15 +2640,19 @@ export class CameraDirector {
             desiredLane = -2.35;
             this._avataApasTimer = 0.35;
           } else if (blockedWest && blockedEast) {
-            desiredLane = singleDodgeLane;
-            if (camZ < 321.0 || camZ > 629.0) {
+            // Both lanes occupied simultaneously: thread cleanly above the -5.22m bus roof inside the -4.05m crown!
+            if (camZ >= 321.0 && camZ <= 629.0) {
+              desiredLane = 0.0;
+              underpassOverBusLift = 1.42;
+            } else {
+              desiredLane = singleDodgeLane;
               underpassOverBusLift = 2.35;
             }
             this._avataApasTimer = 0.35;
           }
         }
-      } else if (camZ >= 142.0 && camZ <= 348.0 && Math.abs(camX - -28.0) < 9.0 && camY > 4.8) {
-        // Inside or entering Lorong Jembatan Teksas UI: center-locked with live pedestrian lateral courtesy shift
+      } else if (camZ >= 142.0 && camZ <= 348.0 && Math.abs(camX - -28.0) < 9.0 && camY > 1.8) {
+        // Bidirectional Lorong Jembatan Teksas UI: center-locked with live pedestrian lateral courtesy shift
         desiredLane = 0.0;
         if (dynList) {
           let nearestNpcZ = 24.0;
@@ -1829,11 +2663,18 @@ export class CameraDirector {
             const isObb = (dc.kind || dc.type) === 'OBB';
             const dcX = isObb ? dc.cx : Number.isFinite(dc.x) ? dc.x : 0.5 * (dc.minX + dc.maxX);
             const dcZ = isObb ? dc.cz : Number.isFinite(dc.z) ? dc.z : 0.5 * (dc.minZ + dc.maxZ);
-            const dzRel = dcZ - camZ;
-            const dzAbs = Math.abs(dzRel);
-            if (Math.abs(dcX - -28.0) < 2.45 && dcZ >= 149.0 && dcZ <= 342.0 && dzRel >= -6.0 && dzRel <= 22.0 && dzAbs < nearestNpcZ) {
+            const dzAhead = (dcZ - camZ) * travelSignZ;
+            const dzAbs = Math.abs(dcZ - camZ);
+            if (
+              Math.abs(dcX - -28.0) < 2.45 &&
+              dcZ >= 149.0 &&
+              dcZ <= 342.0 &&
+              dzAhead >= -6.0 &&
+              dzAhead <= 22.0 &&
+              dzAbs < nearestNpcZ
+            ) {
               nearestNpcZ = dzAbs;
-              desiredLane = dcX >= -28.0 ? -1.15 : 1.15;
+              desiredLane = dcX >= -28.0 ? -1.12 : 1.12;
               this._avataApasTimer = 0.28;
             }
           }
@@ -1841,30 +2682,23 @@ export class CameraDirector {
       }
       this._avataLiveLaneOffset += (desiredLane - this._avataLiveLaneOffset) * (1.0 - Math.exp(-12.5 * clampedDt));
 
-      const eps = 0.0010;
-      this._evalAvataCatmullPoint(this._avataSplineT, this._avataTmpP1, this._avataMeta);
-      this._evalAvataCatmullPoint(this._avataSplineT - eps, this._avataTmpP0);
-      this._evalAvataCatmullPoint(this._avataSplineT + eps, this._avataTmpP2);
-      const dSplineLen = this._avataTmpP2.distanceTo(this._avataTmpP0) / (2.0 * eps);
-
-      // Closed-Loop Spline Leash against lifted goalPos: prevents target from ever running ahead if drone detours!
+      const dArcPerUnit = Math.max(1.2, this._avataTmpP2.distanceTo(this._avataTmpP0) / (2.0 * epsC));
       const lagDist =
         this._avataRejoinBlend > 0.002 ? 0.0 : this.camera.position.distanceTo(this.goalPos);
-      const leashScale = lagDist > 7.5 ? Math.max(0.25, 1.0 - (lagDist - 7.5) / 14.0) : 1.0;
+      const leashScale = lagDist > 7.0 ? Math.max(0.25, 1.0 - (lagDist - 7.0) / 13.0) : 1.0;
 
       const targetSpeed = this._avataMeta.speedMs;
       const effTargetSpeed = targetSpeed * leashScale;
-      const dtSpline = (effTargetSpeed * clampedDt) / Math.max(120.0, dSplineLen);
-      const nextSplineT = this._avataSplineT + dtSpline;
-      if (nextSplineT >= 1.0) {
-        this._avataLapCount += Math.floor(nextSplineT);
-      }
-      this._avataSplineT = nextSplineT % 1.0;
-      const phase = ((this._avataSplineT % 1.0) + 1.0) % 1.0;
+      this._avataStreamCursor += (effTargetSpeed * clampedDt) / dArcPerUnit;
+      this._ensureAvataStreamAhead();
+      this._avataSplineT = (this._avataStreamCursor / 42.0) % 1.0;
 
-      this._evalAvataCatmullPoint(this._avataSplineT, this.goalPos, this._avataMeta);
-      this._evalAvataCatmullPoint(this._avataSplineT - eps, this._avataTmpP0);
-      this._evalAvataCatmullPoint(this._avataSplineT + eps, this._avataTmpP2);
+      this._evalAvataStreamPoint(this._avataStreamCursor, this.goalPos, this._avataMeta);
+      this._evalAvataStreamPoint(this._avataStreamCursor - epsC, this._avataTmpP0);
+      this._evalAvataStreamPoint(this._avataStreamCursor + epsC, this._avataTmpP2);
+      if (this._avataMeta.maneuverId) {
+        this._avataActiveManeuverId = this._avataMeta.maneuverId;
+      }
 
       const corrType = this._avataMeta.corridorType;
       const corrWeight = this._avataMeta.corridorWeight;
@@ -1877,8 +2711,13 @@ export class CameraDirector {
         this.goalPos.y += underpassOverBusLift * wUnderpass;
       }
 
-      if (openFactor > 1e-3 && ctx && strictFactor < 0.35) {
-        // 3-pass 3D canopy/roof repulsion lift across open-air segments!
+      const underpassCutGoalMask =
+        (1.0 - PhysicsKernel.smootherstep(8.0, 16.0, Math.abs(this.goalPos.x - -356.0))) *
+        PhysicsKernel.smootherstep(262.0, 274.0, this.goalPos.z) *
+        (1.0 - PhysicsKernel.smootherstep(668.0, 680.0, this.goalPos.z));
+      const effOpenGoal = openFactor * (1.0 - underpassCutGoalMask);
+      if (effOpenGoal > 1e-3 && ctx && strictFactor < 0.35) {
+        // 3-pass 3D outer-leaf/roof repulsion lift across open-air segments!
         const rep = this._avataRepelScratch;
         for (let pass = 0; pass < 3; pass++) {
           const penGoal = PhysicsKernel.probeDroneAPASRepulsion(
@@ -1888,14 +2727,14 @@ export class CameraDirector {
             this.camera.position.x,
             this.camera.position.y,
             this.camera.position.z,
-            1.95,
+            2.65,
             ctx,
             rep
           );
           if (penGoal <= 0.0) break;
-          this.goalPos.x += rep.nx * (penGoal + 0.25) * openFactor;
-          this.goalPos.y += Math.max(0.38, rep.ny) * (penGoal + 0.35) * openFactor;
-          this.goalPos.z += rep.nz * (penGoal + 0.25) * openFactor;
+          this.goalPos.x += rep.nx * penGoal * 1.15 * effOpenGoal;
+          this.goalPos.y += Math.max(0.45, rep.ny) * penGoal * 1.25 * effOpenGoal;
+          this.goalPos.z += rep.nz * penGoal * 1.15 * effOpenGoal;
           this._avataApasTimer = 0.25;
         }
       }
@@ -1914,19 +2753,19 @@ export class CameraDirector {
         this.velocity.set(tanVx, tanVy, tanVz);
       } else {
         this._avataRejoinBlend = 0.0;
-        // Unified C1 Feedforward + Proportional Pursuit Velocity across ALL 46 nodes (zero regime-switch hiccups!):
         const errX = this.goalPos.x - this.camera.position.x;
         const errY = this.goalPos.y - this.camera.position.y;
         const errZ = this.goalPos.z - this.camera.position.z;
-        const gainK = 9.0 + strictFactor * 11.5;
+        const gainK = 8.8 + strictFactor * 11.5;
         this.velocity.set(tanVx + errX * gainK, tanVy + errY * gainK, tanVz + errZ * gainK);
-        const maxPursuitSpd = targetSpeed * 1.48;
+        const maxPursuitSpd = targetSpeed * 1.38;
         if (this.velocity.length() > maxPursuitSpd) {
           this.velocity.setLength(maxPursuitSpd);
         }
         if (
           strictFactor < 0.45 &&
           wArchSkim < 0.35 &&
+          underpassCutGoalMask < 0.35 &&
           this._applyDroneAPASAvoidance(
             this.camera.position,
             this.velocity,
@@ -1943,55 +2782,81 @@ export class CameraDirector {
       }
 
       // Second derivative curvature vector for physically accurate centripetal FPV bank angle
-      const scaleA = Math.pow(targetSpeed / Math.max(120.0, dSplineLen), 2) / (eps * eps);
+      const scaleA = Math.pow(targetSpeed / dArcPerUnit, 2) / (epsC * epsC);
       const ax = (this._avataTmpP2.x - 2.0 * this.goalPos.x + this._avataTmpP0.x) * scaleA;
       const ay = (this._avataTmpP2.y - 2.0 * this.goalPos.y + this._avataTmpP0.y) * scaleA;
       const az = (this._avataTmpP2.z - 2.0 * this.goalPos.z + this._avataTmpP0.z) * scaleA;
 
-      const targetYaw = Math.atan2(-tx, -tz);
+      const tanYaw = Math.atan2(-tx, -tz);
+      const horizLen = Math.hypot(tx, tz) || 1.0;
+      const tanPitch = Math.max(-1.20, Math.min(1.10, Math.atan2(ty, horizLen)));
+
+      // Heroic Monumental Scale Gaze: blend flight tangent with upward gaze toward 50m Rektorat / STP-UI / 60m Volcano!
+      let targetYaw = tanYaw;
+      let targetPitch = tanPitch;
+      const lookBlend = this._avataMeta.lookBlend || 0.0;
+      if (lookBlend > 0.01 && corrWeight < 0.15) {
+        const lx = this._avataMeta.lookX - this.camera.position.x;
+        const ly = this._avataMeta.lookY - this.camera.position.y;
+        const lz = this._avataMeta.lookZ - this.camera.position.z;
+        const lHoriz = Math.hypot(lx, lz);
+        if (lHoriz > 6.0) {
+          const lmYaw = Math.atan2(-lx, -lz);
+          let dyLm = lmYaw - tanYaw;
+          while (dyLm > Math.PI) dyLm -= Math.PI * 2.0;
+          while (dyLm < -Math.PI) dyLm += Math.PI * 2.0;
+          dyLm = Math.max(-0.88, Math.min(0.88, dyLm));
+          const lmPitch = Math.atan2(ly, lHoriz);
+          const dpLm = Math.max(-0.26, Math.min(0.48, lmPitch - tanPitch));
+          const bLm = Math.min(0.84, lookBlend);
+          targetYaw = tanYaw + dyLm * bLm;
+          targetPitch = Math.max(-1.20, Math.min(1.10, tanPitch + dpLm * bLm));
+        }
+      }
+
       let yawDiff = targetYaw - this.yaw;
       while (yawDiff > Math.PI) yawDiff -= Math.PI * 2.0;
       while (yawDiff < -Math.PI) yawDiff += Math.PI * 2.0;
-      const rotAlpha = 1.0 - Math.exp((corrWeight > 0.25 ? -16.0 : -11.5) * clampedDt);
+      const rotAlpha = 1.0 - Math.exp((corrWeight > 0.25 ? -15.5 : -9.5) * clampedDt);
       this.yaw += yawDiff * rotAlpha;
       this._avataYawRateSmooth = (yawDiff * rotAlpha) / clampedDt;
-
-      const horizLen = Math.hypot(tx, tz) || 1.0;
-      const targetPitch = Math.max(-1.25, Math.min(1.15, Math.atan2(ty, horizLen)));
       this.pitch += (targetPitch - this.pitch) * rotAlpha;
 
       const rx = Math.cos(this.yaw);
       const rz = -Math.sin(this.yaw);
       const aDotRight = ax * rx + az * rz;
-      const maxAutoBank = corrType === 1 ? 0.24 : corrType === 2 ? 0.42 : 0.92;
+      const maxAutoBank = corrType === 1 ? 0.20 : corrType === 2 ? 0.34 : 0.72;
       const targetBank = Math.max(
         -maxAutoBank,
-        Math.min(maxAutoBank, -Math.atan2(aDotRight * 1.38, 9.81 + Math.max(-5.5, ay)))
+        Math.min(maxAutoBank, -Math.atan2(aDotRight * 1.25, 9.81 + Math.max(-5.5, ay)))
       );
-      this.roll += (targetBank - this.roll) * (1.0 - Math.exp(-9.0 * clampedDt));
-      const speedBoost = Math.max(0.0, (targetSpeed - 20.5) * 0.045);
-      this._avataThrottle01 = Math.max(0.28, Math.min(0.98, 0.56 + (ty / tLen) * 0.34 + speedBoost));
+      this.roll += (targetBank - this.roll) * (1.0 - Math.exp(-8.5 * clampedDt));
+      const speedBoost = Math.max(0.0, (targetSpeed - 11.5) * 0.065);
+      this._avataThrottle01 = Math.max(0.26, Math.min(0.95, 0.48 + (ty / tLen) * 0.32 + speedBoost));
 
-      // Context-gated Easy-Acro 360° Stunts strictly in high open airspace (Tajug climb & Volcano/Niagara dive!)
+      // Context-gated Pro-Pilot Acro Stunts strictly in designated high-clearance open airspace!
       this._avataAutoRollCooldown = Math.max(0.0, this._avataAutoRollCooldown - clampedDt);
-      const inHighOpenWindow =
+      if (
+        this._avataMeta.allowStunt > 0 &&
         corrWeight < 0.02 &&
-        ((phase > 0.945 && phase < 0.982) || (phase > 0.595 && phase < 0.630));
-      if (inHighOpenWindow && this._avataAutoRollCooldown <= 0.0 && !this._avataStunt.active) {
-        const stunts = ['ROLL_RIGHT', 'ROLL_LEFT', 'SPLIT_S', 'ROLL_RIGHT'];
-        const chosenStunt = stunts[this._avataStuntIndex % stunts.length];
+        this.camera.position.y > 16.0 &&
+        this._avataAutoRollCooldown <= 0.0 &&
+        !this._avataStunt.active
+      ) {
+        const stunts = ['ROLL_RIGHT', 'ROLL_LEFT', 'SPLIT_S'];
+        const chosenStunt = stunts[Math.floor(this._nextAvataRand01() * stunts.length)];
         if (this.triggerAvataStunt(chosenStunt)) {
           this._avataStuntIndex++;
-          this._avataAutoRollCooldown = 12.5;
+          this._avataAutoRollCooldown = 14.5 + this._nextAvataRand01() * 8.0;
         }
       }
     } else {
-      // 100% UNRESTRICTED FREE-FLIGHT FPV ACTION QUAD DYNAMICS + BINOCULAR APAS 360° (Fly Anywhere Across Pulau U & Pulau I!)
-      const stickYawDelta = -this._avataStick.lookX * 2.45 * clampedDt;
-      const stickPitchDelta = this._avataStick.lookY * 1.75 * clampedDt;
+      // 100% UNRESTRICTED FREE-FLIGHT FPV CINEWHOOP DYNAMICS + WHISKER APAS 360° (Controlled Pro Speeds!)
+      const stickYawDelta = -this._avataStick.lookX * 2.25 * clampedDt;
+      const stickPitchDelta = this._avataStick.lookY * 1.65 * clampedDt;
       this.yaw += stickYawDelta;
       this._avataYawRateAccum += stickYawDelta;
-      const maxDownPitch = isAcro ? -1.48 : -1.32;
+      const maxDownPitch = isAcro ? -1.48 : -1.28;
       const maxUpPitch = isAcro ? 1.38 : 1.18;
       this.pitch = Math.max(maxDownPitch, Math.min(maxUpPitch, this.pitch + stickPitchDelta));
 
@@ -2004,18 +2869,19 @@ export class CameraDirector {
       this._forward.set(-Math.sin(this.yaw) * cosP, Math.sin(this.pitch), -Math.cos(this.yaw) * cosP).normalize();
       this._right.set(Math.cos(this.yaw), 0.0, -Math.sin(this.yaw)).normalize();
 
-      const maxSpeed = turbo ? 27.0 : 19.5; // Exact DJI Avata 2 Manual spec: 27 m/s = 97.2 km/h!
-      const surgeAccel = (turbo ? 48.0 : 34.0) * (surge < 0 ? 0.68 : 1.0);
-      const strafeAccel = turbo ? 36.0 : 27.0;
-      const climbAccel = turbo ? 34.0 : 25.0;
+      // Realistic Pro Cinewhoop Speeds: 10.8 m/s (39 km/h) Normal Cruise, 16.8 m/s (60 km/h) Shift/Boost!
+      const maxSpeed = turbo ? 16.8 : 10.8;
+      const surgeAccel = (turbo ? 34.0 : 22.0) * (surge < 0 ? 0.72 : 1.0);
+      const strafeAccel = turbo ? 26.0 : 18.0;
+      const climbAccel = turbo ? 24.0 : 17.0;
 
       this.velocity.addScaledVector(this._forward, surge * surgeAccel * clampedDt);
       this.velocity.addScaledVector(this._right, strafe * strafeAccel * clampedDt);
       this.velocity.y += climb * climbAccel * clampedDt;
 
-      // Authentic FPV aerodynamic drag + responsive air-brake when sticks center (preserves cornering drift!)
+      // Authentic FPV aerodynamic drag + responsive air-brake when sticks center
       const thrustActive = Math.abs(surge) > 0.04 || Math.abs(strafe) > 0.04 || Math.abs(climb) > 0.04;
-      const linDrag = Math.exp(-(thrustActive ? 1.65 : 3.65) * clampedDt);
+      const linDrag = Math.exp(-(thrustActive ? 1.75 : 3.85) * clampedDt);
       this.velocity.multiplyScalar(linDrag);
       const curSpd = this.velocity.length();
       if (curSpd > maxSpeed) {
@@ -2025,7 +2891,7 @@ export class CameraDirector {
       }
 
       const manualCmdSpd = thrustActive ? maxSpeed : 0.0;
-      if (this._applyDroneAPASAvoidance(this.camera.position, this.velocity, clampedDt, 0.42, ctx, manualCmdSpd, true)) {
+      if (this._applyDroneAPASAvoidance(this.camera.position, this.velocity, clampedDt, 0.50, ctx, manualCmdSpd, true)) {
         this._avataApasTimer = 0.32;
       }
 
@@ -2033,18 +2899,17 @@ export class CameraDirector {
 
       // Coordinated Yaw-Roll Banking + Lateral Strafe Bank + Direct Q/E Acro Roll
       const horizSpd = Math.hypot(this.velocity.x, this.velocity.z);
-      const yawBank = Math.atan2(this._avataYawRateSmooth * Math.max(5.5, horizSpd) * 0.92, 9.81);
-      const strafeBank = -strafe * (isAcro ? 0.84 : 0.62);
+      const yawBank = Math.atan2(this._avataYawRateSmooth * Math.max(4.5, horizSpd) * 0.88, 9.81);
+      const strafeBank = -strafe * (isAcro ? 0.78 : 0.56);
 
       if (isAcro && Math.abs(rollCmd) > 0.05) {
-        this.roll += rollCmd * 5.25 * clampedDt;
+        this.roll += rollCmd * 5.15 * clampedDt;
         if (this.roll > Math.PI) this.roll -= Math.PI * 2.0;
         if (this.roll < -Math.PI) this.roll += Math.PI * 2.0;
       } else {
-        const maxBank = isAcro ? 1.28 : 0.92; // ±52.7° Sport, ±73.3° Acro
-        const directBank = rollCmd * 0.92;
+        const maxBank = isAcro ? 1.24 : 0.84;
+        const directBank = rollCmd * 0.84;
         const targetRoll = Math.max(-maxBank, Math.min(maxBank, yawBank + strafeBank + directBank));
-        // Wrap shortest angular distance back to horizon when coming out of an Acro roll
         while (this.roll - targetRoll > Math.PI) this.roll -= Math.PI * 2.0;
         while (this.roll - targetRoll < -Math.PI) this.roll += Math.PI * 2.0;
         this.roll += (targetRoll - this.roll) * (1.0 - Math.exp(-9.5 * clampedDt));
@@ -2053,19 +2918,28 @@ export class CameraDirector {
       const cmdMag = Math.min(1.0, Math.hypot(surge, strafe, climb));
       this._avataThrottle01 = Math.max(
         0.18,
-        Math.min(1.0, 0.22 + cmdMag * (turbo ? 0.78 : 0.58) + (curSpd / 27.0) * 0.2)
+        Math.min(1.0, 0.22 + cmdMag * (turbo ? 0.76 : 0.56) + (curSpd / 16.8) * 0.22)
       );
     }
 
-    // Hard 3D Solid-Body Non-Penetration (0.42m Ducted Cinewhoop Prop-Guard Sphere)
+    // Hard 3D Solid-Body Non-Penetration (0.50m exterior guard / 0.42m inside enclosed hollow bridge & underpass)
     const walkY = floorHeightFn ? floorHeightFn(this.camera.position.x, this.camera.position.z) : 0.0;
     const minAvataY =
-      walkY < -0.5 ? walkY + 0.48 : Math.max(oceanY + 0.48, walkY + 0.48);
+      walkY < -0.5 ? walkY + 0.50 : Math.max(oceanY + 0.50, walkY + 0.50);
+    const inHollowCorridor =
+      (Math.abs(this.camera.position.x - -28.0) < 2.62 &&
+        this.camera.position.z >= 148.5 &&
+        this.camera.position.z <= 342.5) ||
+      (Math.abs(this.camera.position.x - -356.0) < 4.85 &&
+        this.camera.position.z >= 268.0 &&
+        this.camera.position.z <= 674.0 &&
+        this.camera.position.y < 3.0);
+    const avataColRadius = inHollowCorridor ? 0.42 : 0.50;
     resolveSoftSpatialCollision(
       this.camera.position,
       this.velocity,
       this.colliders,
-      0.42,
+      avataColRadius,
       minAvataY,
       clampedDt,
       this._prevCamPos,
@@ -2104,15 +2978,15 @@ export class CameraDirector {
     const rawG = Math.max(0.2, Math.min(6.2, Math.hypot(dvx, dvy, dvz) / 9.81));
     this._avataGForce += (rawG - this._avataGForce) * (1.0 - Math.exp(-8.0 * clampedDt));
 
-    // Speed-Coupled 155° Super-Wide Action FOV (74° hover -> 88° at 97 km/h!) & Razor-Close 0.10m Near Plane
-    const speedNorm = Math.min(1.0, this.velocity.length() / 27.0);
-    const desiredBaseFov = 74.0 + speedNorm * 14.0;
+    // Monumental Cinema FPV Lens (51.5° -> 56.5°): preserves towering architectural & volcanic scale without fisheye miniaturization!
+    const speedNorm = Math.min(1.0, this.velocity.length() / 16.8);
+    const desiredBaseFov = 51.5 + speedNorm * 5.0;
     this._avataCurrentBaseFov += (desiredBaseFov - this._avataCurrentBaseFov) * (1.0 - Math.exp(-7.5 * clampedDt));
     this._applyBaseVerticalFov(this._avataCurrentBaseFov);
 
     if (this.camera && typeof this.camera.updateProjectionMatrix === 'function') {
       const camY = Math.max(0.0, Number(this.camera.position.y) || 0.0);
-      const desiredNear = camY < 32.0 ? 0.1 : Math.min(1.6, 0.1 + (camY - 32.0) * 0.003);
+      const desiredNear = camY < 32.0 ? 0.14 : Math.min(1.6, 0.14 + (camY - 32.0) * 0.003);
       if (Math.abs(this.camera.near - desiredNear) > 0.02) {
         this.camera.near = desiredNear;
         this.camera.updateProjectionMatrix();
@@ -2120,7 +2994,9 @@ export class CameraDirector {
     }
 
     this._prevCamPos.copy(this.camera.position);
-    this._avataEuler.set(this.pitch + stuntPitchAdd, this.yaw, this.roll + stuntRollAdd, 'YXZ');
+    const freeYaw = this.avataAutoFreestyle ? this._avataFreelookYaw : 0.0;
+    const freePitch = this.avataAutoFreestyle ? this._avataFreelookPitch : 0.0;
+    this._avataEuler.set(this.pitch + freePitch + stuntPitchAdd, this.yaw + freeYaw, this.roll + stuntRollAdd, 'YXZ');
     this.camera.quaternion.setFromEuler(this._avataEuler);
     this.camera.up.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
   }

@@ -6625,10 +6625,10 @@ export class SplineCorridorBuilder {
     pushStatic({ id: 'Teksas_WestAbutment', type: 'BOX', minX: bx - 3.4, maxX: bx + 3.4, minY: -3.5, maxY: 2.95, minZ: zW - 2.15, maxZ: zW + 1.45 });
     pushStatic({ id: 'Teksas_EastAbutment', type: 'BOX', minX: bx - 3.4, maxX: bx + 3.4, minY: -3.5, maxY: 2.95, minZ: zE - 1.45, maxZ: zE + 2.15 });
     for (const sx of [-1, 1]) {
-      pushStatic({ id: `Teksas_LinggaLegLo_${sx}`, type: 'CYL', x: bx + sx * 3.82, z: zW, r: 0.55, minY: -2.0, maxY: 5.8 });
-      pushStatic({ id: `Teksas_LinggaLegHi_${sx}`, type: 'CYL', x: bx + sx * 3.12, z: zW - 0.06, r: 0.44, minY: 5.8, maxY: 9.2 });
-      pushStatic({ id: `Teksas_YoniLegLo_${sx}`, type: 'CYL', x: bx + sx * 3.82, z: zE, r: 0.52, minY: -2.0, maxY: 6.2 });
-      pushStatic({ id: `Teksas_YoniHipHi_${sx}`, type: 'CYL', x: bx + sx * 4.35, z: zE + 0.45, r: 0.48, minY: 6.2, maxY: 12.8 });
+      pushStatic({ id: `Teksas_LinggaLegLo_${sx}`, type: 'CYL', x: bx + sx * 3.82, z: zW, r: 0.65, minY: -2.0, maxY: 5.8 });
+      pushStatic({ id: `Teksas_LinggaLegHi_${sx}`, type: 'CYL', x: bx + sx * 3.12, z: zW - 0.06, r: 0.56, minY: 5.8, maxY: 9.2 });
+      pushStatic({ id: `Teksas_YoniLegLo_${sx}`, type: 'CYL', x: bx + sx * 3.82, z: zE, r: 0.62, minY: -2.0, maxY: 6.2 });
+      pushStatic({ id: `Teksas_YoniHipHi_${sx}`, type: 'CYL', x: bx + sx * 4.45, z: zE + 0.45, r: 0.85, minY: 6.2, maxY: 13.0 });
     }
     pushStatic({ id: 'Teksas_LinggaSailMast', type: 'BOX', minX: bx - 0.72, maxX: bx + 1.05, minY: 10.65, maxY: 26.25, minZ: zW - 3.2, maxZ: zW + 2.4 });
     pushStatic({ id: 'Teksas_LinggaCollar', type: 'BOX', minX: bx - 2.35, maxX: bx + 2.35, minY: 9.35, maxY: 9.95, minZ: zW - 0.35, maxZ: zW + 0.25, skipWalk: true });
@@ -6896,7 +6896,7 @@ export class SplineCorridorBuilder {
       const gy = TerrainDEMLoader.sampleGroundHeight(t.x, t.z);
       const sx = t.scale || 1.0;
       const isPalm = t.species === 'PALEM_RAJA';
-      const trunkR = (isPalm ? 0.34 : 0.42) * sx;
+      const trunkR = (isPalm ? 0.46 : t.species === 'TREMBESI' ? 0.56 : 0.46) * sx;
       pushStatic({
         id: `TreeTrunk_${i}_${t.species}`,
         type: 'CYL',
@@ -6904,20 +6904,31 @@ export class SplineCorridorBuilder {
         z: t.z,
         r: trunkR,
         minY: gy - 1.0,
-        maxY: gy + (isPalm ? 8.4 : 5.8) * sx
+        maxY: gy + (isPalm ? 8.6 : t.species === 'CEMARA' ? 12.6 : 6.2) * sx
       });
-      // Solid 3D Botanical Spheroid Dome Canopy Colliders (skipWalk: true so terrestrial walkers/vehicles pass underneath,
-      // while DJI Avata 2, Mavic 3 Pro, & Cinematic Drones smoothly vault/bank around rounded tree crowns without stalling!)
+      // Full Outer-Leaf + Wind-Sway Enveloping 3D Botanical Spheroid Colliders (1.373x 6-harmonic leaf-tuft lobe radius + sway margin;
+      // skipWalk: true so terrestrial walkers/vehicles pass underneath, while ALL drones clear 100% of rendered leaves!)
       if (t.species === 'TREMBESI') {
+        pushStatic({
+          id: `TreeBoughs_${i}_TREMBESI`,
+          type: 'ELLIPSOID',
+          isCanopy: true,
+          x: t.x,
+          cy: gy + 4.75 * sx,
+          z: t.z,
+          rx: 3.45 * sx,
+          ry: 1.60 * sx,
+          skipWalk: true
+        });
         pushStatic({
           id: `TreeCanopy_${i}_TREMBESI`,
           type: 'ELLIPSOID',
           isCanopy: true,
           x: t.x,
-          cy: gy + 6.65 * sx,
+          cy: gy + 6.35 * sx,
           z: t.z,
-          rx: 8.35 * sx,
-          ry: 2.75 * sx,
+          rx: 9.85 * sx,
+          ry: 3.68 * sx,
           skipWalk: true
         });
       } else if (t.species === 'MAHONI') {
@@ -6926,10 +6937,21 @@ export class SplineCorridorBuilder {
           type: 'ELLIPSOID',
           isCanopy: true,
           x: t.x,
-          cy: gy + 8.05 * sx,
+          cy: gy + 6.45 * sx,
           z: t.z,
-          rx: 4.95 * sx,
-          ry: 4.05 * sx,
+          rx: 5.90 * sx,
+          ry: 2.95 * sx,
+          skipWalk: true
+        });
+        pushStatic({
+          id: `TreeCanopyTop_${i}_MAHONI`,
+          type: 'ELLIPSOID',
+          isCanopy: true,
+          x: t.x,
+          cy: gy + 9.40 * sx,
+          z: t.z,
+          rx: 4.65 * sx,
+          ry: 3.35 * sx,
           skipWalk: true
         });
       } else if (t.species === 'CEMARA') {
@@ -6938,10 +6960,21 @@ export class SplineCorridorBuilder {
           type: 'ELLIPSOID',
           isCanopy: true,
           x: t.x,
-          cy: gy + 5.65 * sx,
+          cy: gy + 4.55 * sx,
+          z: t.z,
+          rx: 4.22 * sx,
+          ry: 2.55 * sx,
+          skipWalk: true
+        });
+        pushStatic({
+          id: `TreeCanopy_${i}_CEMARA_MID`,
+          type: 'ELLIPSOID',
+          isCanopy: true,
+          x: t.x,
+          cy: gy + 8.15 * sx,
           z: t.z,
           rx: 3.25 * sx,
-          ry: 3.15 * sx,
+          ry: 2.85 * sx,
           skipWalk: true
         });
         pushStatic({
@@ -6949,10 +6982,10 @@ export class SplineCorridorBuilder {
           type: 'ELLIPSOID',
           isCanopy: true,
           x: t.x,
-          cy: gy + 10.95 * sx,
+          cy: gy + 11.75 * sx,
           z: t.z,
-          rx: 1.95 * sx,
-          ry: 3.25 * sx,
+          rx: 2.15 * sx,
+          ry: 2.92 * sx,
           skipWalk: true
         });
       } else {
@@ -6961,13 +6994,33 @@ export class SplineCorridorBuilder {
           type: 'ELLIPSOID',
           isCanopy: true,
           x: t.x,
-          cy: gy + 8.65 * sx,
+          cy: gy + 8.55 * sx,
           z: t.z,
-          rx: 4.25 * sx,
-          ry: 1.65 * sx,
+          rx: 5.72 * sx,
+          ry: 2.25 * sx,
           skipWalk: true
         });
       }
+    }
+
+    const forestShrubs =
+      biomeGroup && biomeGroup.userData && Array.isArray(biomeGroup.userData.forestShrubs)
+        ? biomeGroup.userData.forestShrubs
+        : [];
+    for (let i = 0; i < forestShrubs.length; i++) {
+      const sh = forestShrubs[i];
+      const sgy = TerrainDEMLoader.sampleGroundHeight(sh.x, sh.z);
+      pushStatic({
+        id: `ForestShrub_${i}`,
+        type: 'ELLIPSOID',
+        isCanopy: true,
+        x: sh.x,
+        cy: sgy + 0.42 * sh.sy,
+        z: sh.z,
+        rx: Math.max(sh.sx, sh.sz) * 1.48,
+        ry: sh.sy * 1.45,
+        skipWalk: true
+      });
     }
 
     const lampCoords =

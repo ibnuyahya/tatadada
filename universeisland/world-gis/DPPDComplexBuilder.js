@@ -2506,8 +2506,54 @@ export class DPPDComplexBuilder {
         z: wp.z,
         r: 2.85 * s,
         minY: baseY,
-        maxY: baseY + 6.2 * s
+        maxY: baseY + 4.4 * s
       });
+      cols.push({
+        id: `DPPD_Courtyard_TreeCanopy_${idx}`,
+        type: 'ELLIPSOID',
+        isCanopy: true,
+        x: wp.x,
+        cy: baseY + 4.85 * s,
+        z: wp.z,
+        rx: 3.45 * s,
+        ry: 2.15 * s,
+        skipWalk: true
+      });
+    });
+
+    // Front Royal Palms (11.4m tall) & Ceremonial Merah-Putih Flagpole flanking Gedung DPPD UI portico
+    [-13.6, 13.6].forEach((lxPalm, pIdx) => {
+      const palmW = DPPDComplexBuilder.localToWorld(lxPalm, 0, 48.0, rotEntrance);
+      cols.push({
+        id: `DPPD_FrontRoyalPalmTrunk_${pIdx}`,
+        type: 'CYL',
+        x: palmW.x,
+        z: palmW.z,
+        r: 0.48 * s,
+        minY: baseY,
+        maxY: baseY + 10.6 * s
+      });
+      cols.push({
+        id: `DPPD_FrontRoyalPalmCanopy_${pIdx}`,
+        type: 'ELLIPSOID',
+        isCanopy: true,
+        x: palmW.x,
+        cy: baseY + 10.75 * s,
+        z: palmW.z,
+        rx: 3.65 * s,
+        ry: 1.65 * s,
+        skipWalk: true
+      });
+    });
+    const flagW = DPPDComplexBuilder.localToWorld(-9.85, 0, 49.6, rotEntrance);
+    cols.push({
+      id: 'DPPD_FrontFlagpole',
+      type: 'CYL',
+      x: flagW.x,
+      z: flagW.z,
+      r: 0.85 * s,
+      minY: baseY,
+      maxY: baseY + 11.9 * s
     });
 
     // 2. Gedung DPPD UI — 2-Story Curved Heritage Nusantara Wing + Front Gable & Portico

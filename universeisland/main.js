@@ -485,11 +485,11 @@ async function bootstrapNexusSimulator() {
   }, { passive: true });
   window.addEventListener('pointermove', (e) => {
     if (document.pointerLockElement === renderer.domElement && camDirector.isAvataFPVMode()) {
-      camDirector.lookDelta(e.movementX || 0, e.movementY || 0, 0.0021);
+      camDirector.lookDelta(e.movementX || 0, e.movementY || 0, 0.0021, true);
       return;
     }
     if (!dragging) return;
-    camDirector.lookDelta(e.clientX - lastPX, e.clientY - lastPY);
+    camDirector.lookDelta(e.clientX - lastPX, e.clientY - lastPY, 0.0024, false);
     lastPX = e.clientX;
     lastPY = e.clientY;
   });
@@ -510,7 +510,7 @@ async function bootstrapNexusSimulator() {
     const h = window.innerHeight;
     renderer.setSize(w, h);
     const rect = drawer.getBoundingClientRect();
-    const baseFov = camDirector.isAvataFPVMode() ? camDirector._avataCurrentBaseFov || 74 : null;
+    const baseFov = camDirector.getActiveBaseVerticalFov();
     applyNonOccludingViewportOffset(
       camera,
       w,
@@ -596,13 +596,13 @@ async function bootstrapNexusSimulator() {
         `translate(0 ${pitchShift.toFixed(1)}) rotate(${(-tel.rollDeg).toFixed(1)} 110 80)`
       );
     }
-    const rushAlpha = Math.max(0, Math.min(0.85, (tel.speedKmh - 52) / 48));
+    const rushAlpha = Math.max(0, Math.min(0.85, (tel.speedKmh - 40) / 28));
     avataHudEl.style.setProperty('--avata-rush', rushAlpha.toFixed(2));
     if (fastFrameOnly) return;
 
     if (avataOsdModeEl) {
       const modeTxt = tel.autoFreestyle
-        ? 'FREESTYLE 5-ACT'
+        ? 'PRO-PILOT AI'
         : tel.profile === 'ACRO'
           ? 'BEBAS · ACRO+'
           : 'BEBAS · SPORT';
@@ -630,7 +630,7 @@ async function bootstrapNexusSimulator() {
     if (avataOsdFovEl) avataOsdFovEl.textContent = `FOV ${tel.fovDeg}°`;
 
     if (avataFreeBtn) {
-      avataFreeBtn.textContent = tel.autoFreestyle ? 'Auto Freestyle' : 'Terbang Bebas';
+      avataFreeBtn.textContent = tel.autoFreestyle ? 'Auto Pro-Pilot' : 'Terbang Bebas';
       avataFreeBtn.classList.toggle('active', tel.autoFreestyle);
       avataFreeBtn.classList.toggle('gold-active', !tel.autoFreestyle);
     }

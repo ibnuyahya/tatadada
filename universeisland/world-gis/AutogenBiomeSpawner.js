@@ -1330,6 +1330,7 @@ export class AutogenBiomeSpawner {
     ).length;
     biomeGroup.userData.pulauIForestCount = validTrees.filter((t) => t.z >= 536.0).length;
     biomeGroup.userData.spawnedTrees = validTrees;
+    biomeGroup.userData.forestShrubs = forestShrubs;
     biomeGroup.userData.lampCoords = lampCoords;
     biomeGroup.updateMatrixWorld(true);
     return biomeGroup;

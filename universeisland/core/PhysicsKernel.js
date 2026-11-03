@@ -772,7 +772,7 @@ export class PhysicsKernel {
     if (Math.max(p.z, refZ) < zRampW0 - radius - 0.5 || Math.min(p.z, refZ) > zRampE1 + radius + 0.5) {
       return false;
     }
-    const outerMaxHW = 2.88;
+    const outerMaxHW = 3.14;
     if (Math.min(Math.abs(p.x - bx), Math.abs(refX - bx)) > outerMaxHW + radius + 1.5) {
       return false;
     }
@@ -789,9 +789,9 @@ export class PhysicsKernel {
       const chordTopY = bDeckY + 1.34 + 2.58 * Math.max(0.0, 1.0 - u * u);
       const hasSunroof = p.z >= 174.5 && p.z <= 316.8;
       const roofInnerY = bDeckY + 2.86;
-      const roofOuterTopY = bDeckY + 3.62;
+      const roofOuterTopY = bDeckY + 3.68;
       const innerHalfW = 2.40;
-      const outerHalfW = 2.86;
+      const outerHalfW = 3.10;
 
       const zRefClamp = Math.max(zPortW, Math.min(zPortE, refZ));
       const refDeckY = bridgeDeckFn(bx, zRefClamp) ?? bDeckY;
@@ -1013,14 +1013,14 @@ export class PhysicsKernel {
     if (bDeckFn && pz >= 149.65 - probeRadius && pz <= 341.65 + probeRadius) {
       const zClamped = Math.max(149.65, Math.min(341.65, pz));
       const bDeckY = bDeckFn(bx, zClamped);
-      if (bDeckY !== null && Math.abs(px - bx) < 2.88 + probeRadius + 0.5) {
+      if (bDeckY !== null && Math.abs(px - bx) < 3.14 + probeRadius + 0.5) {
         if (zClamped >= 171.65 && zClamped <= 319.65) {
           const u = (zClamped - 245.65) / 74.0;
           const bSoffitY = ctx.bridgeSoffitFn ? (ctx.bridgeSoffitFn(zClamped) ?? bDeckY - 1.30) : bDeckY - 1.30;
           const chordTopY = bDeckY + 1.34 + 2.58 * Math.max(0.0, 1.0 - u * u);
           const hasRoof = zClamped >= 174.5 && zClamped <= 316.8;
           const roofInnerY = bDeckY + 2.86;
-          const roofOuterTopY = bDeckY + 3.62;
+          const roofOuterTopY = bDeckY + 3.68;
 
           const refZCl = Math.max(171.65, Math.min(319.65, refZ));
           const refDeck = bDeckFn(bx, refZCl) ?? bDeckY;
@@ -1038,8 +1038,8 @@ export class PhysicsKernel {
           } else {
             const yMaxS = hasRoof ? Math.max(chordTopY, roofOuterTopY) : chordTopY;
             const absDx = Math.abs(px - bx);
-            if (absDx < 2.86 + probeRadius && py + probeRadius > bSoffitY && py - probeRadius < yMaxS) {
-              const pSide = 2.86 + probeRadius - absDx;
+            if (absDx < 3.10 + probeRadius && py + probeRadius > bSoffitY && py - probeRadius < yMaxS) {
+              const pSide = 3.10 + probeRadius - absDx;
               const pDown = py + probeRadius - bSoffitY;
               const pUp = yMaxS - (py - probeRadius);
               if (refY + probeRadius <= bSoffitY + 0.35 && pDown <= pSide + 0.5) {
