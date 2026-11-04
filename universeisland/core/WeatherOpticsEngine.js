@@ -39,6 +39,22 @@ export class WeatherOpticsEngine {
   static MIN_TRANSITION_SEC = 20.0;
   static MAX_TRANSITION_SEC = 45.0;
   static DEFAULT_TRANSITION_SEC = 25.0;
+  static SLIDER_FULL_SPAN_SEC = 45.0;
+  static MAX_SEA_WAVE_M = 3.0;
+  static SEA_STATE_NORM_DIV = 0.854;
+
+  // 8-Component Dispersive Gravity-Swell & Wind-Sea Modes (Time-Invariant k_i & \omega_i = \sqrt{g k_i} -> 0 phase-jump during 45s transitions!)
+  // Modes 1 & 2 (L=82m & L=65.5m crossing at 17 deg) generate natural 5-wave ocean swell groups ("wave sets")!
+  static OCEAN_WAVE_MODES = [
+    { k: 0.076624, w: 0.8670, dx: 0.8660, dz: 0.5000, phase0: 0.00, q: 0.34, L: 82.0 },
+    { k: 0.095926, w: 0.9701, dx: 0.9744, dz: 0.2250, phase0: 1.19, q: 0.33, L: 65.5 },
+    { k: 0.161107, w: 1.2572, dx: 0.5299, dz: 0.8480, phase0: 2.47, q: 0.31, L: 39.0 },
+    { k: 0.237101, w: 1.5251, dx: 0.9613, dz: -0.2756, phase0: 3.83, q: 0.29, L: 26.5 },
+    { k: 0.352988, w: 1.8609, dx: 0.7193, dz: 0.6947, phase0: 5.11, q: 0.27, L: 17.8 },
+    { k: 0.551157, w: 2.3253, dx: 0.8910, dz: -0.4540, phase0: 0.73, q: 0.24, L: 11.4 },
+    { k: 0.884956, w: 2.9464, dx: 0.1908, dz: 0.9816, phase0: 4.29, q: 0.21, L: 7.1 },
+    { k: 1.427997, w: 3.7428, dx: 0.9455, dz: 0.3256, phase0: 2.08, q: 0.18, L: 4.4 }
+  ];
 
   static TOD_PROFILES = {
     DAWN: { id: 'DAWN', labelId: 'Fajar', timeText: '05:45', solarHour: 5.75 },
@@ -65,13 +81,13 @@ export class WeatherOpticsEngine {
   // Continuous [0.00 .. 1.00] Meteorological Spectrum Knots (C1-smooth slider interpolation)
   static WEATHER_SPECTRUM_KNOTS = [
     { u: 0.00, mode: 'CLEAR', labelId: 'Cerah Murni', rain: 0.0, wet: 0.0, cloud: 0.18, storm: 0.0, fog: 0.0, wind: 0.78, waveM: 0.18 },
-    { u: 0.15, mode: 'PARTLY_CLOUDY', labelId: 'Cerah Berawan', rain: 0.0, wet: 0.0, cloud: 0.48, storm: 0.0, fog: 0.0, wind: 1.05, waveM: 0.28 },
-    { u: 0.30, mode: 'OVERCAST', labelId: 'Mendung', rain: 0.0, wet: 0.06, cloud: 0.86, storm: 0.16, fog: 0.14, wind: 1.42, waveM: 0.42 },
+    { u: 0.15, mode: 'PARTLY_CLOUDY', labelId: 'Cerah Berawan', rain: 0.0, wet: 0.0, cloud: 0.48, storm: 0.0, fog: 0.0, wind: 1.05, waveM: 0.30 },
+    { u: 0.30, mode: 'OVERCAST', labelId: 'Mendung', rain: 0.0, wet: 0.06, cloud: 0.86, storm: 0.16, fog: 0.14, wind: 1.42, waveM: 0.48 },
     { u: 0.44, mode: 'FOGGY', labelId: 'Kabut Embun', rain: 0.0, wet: 0.34, cloud: 0.78, storm: 0.04, fog: 0.88, wind: 0.62, waveM: 0.24 },
-    { u: 0.58, mode: 'MIST', labelId: 'Gerimis', rain: 0.34, wet: 0.58, cloud: 0.76, storm: 0.06, fog: 0.16, wind: 1.24, waveM: 0.54 },
-    { u: 0.72, mode: 'SHOWER', labelId: 'Hujan Ringan', rain: 0.68, wet: 0.82, cloud: 0.85, storm: 0.16, fog: 0.08, wind: 1.66, waveM: 0.82 },
-    { u: 0.86, mode: 'RAIN', labelId: 'Hujan Deras', rain: 1.02, wet: 0.96, cloud: 0.93, storm: 0.34, fog: 0.03, wind: 2.18, waveM: 1.22 },
-    { u: 1.00, mode: 'STORM', labelId: 'Badai Petir', rain: 1.42, wet: 1.00, cloud: 1.00, storm: 1.00, fog: 0.00, wind: 3.55, waveM: 1.72 }
+    { u: 0.58, mode: 'MIST', labelId: 'Gerimis', rain: 0.34, wet: 0.58, cloud: 0.76, storm: 0.06, fog: 0.16, wind: 1.24, waveM: 0.64 },
+    { u: 0.72, mode: 'SHOWER', labelId: 'Hujan Ringan', rain: 0.68, wet: 0.82, cloud: 0.85, storm: 0.16, fog: 0.08, wind: 1.66, waveM: 1.04 },
+    { u: 0.86, mode: 'RAIN', labelId: 'Hujan Deras', rain: 1.02, wet: 0.96, cloud: 0.93, storm: 0.34, fog: 0.03, wind: 2.18, waveM: 1.58 },
+    { u: 1.00, mode: 'STORM', labelId: 'Badai Petir', rain: 1.42, wet: 1.00, cloud: 1.00, storm: 1.00, fog: 0.00, wind: 3.55, waveM: 2.35 }
   ];
 
   static weatherModeToSpectrum(mode) {
@@ -134,10 +150,317 @@ export class WeatherOpticsEngine {
   static describeSeaStateLabel(waveHeightM) {
     const h = Math.max(0.0, Number(waveHeightM) || 0.0);
     if (h < 0.08) return 'Laut Tenang';
-    if (h < 0.36) return 'Riak Halus';
-    if (h < 0.85) return 'Ombak Kecil';
-    if (h < 1.45) return 'Ombak Sedang';
-    return 'Ombak Besar';
+    if (h < 0.40) return 'Riak Halus';
+    if (h < 0.95) return 'Ombak Kecil';
+    if (h < 1.65) return 'Ombak Sedang';
+    if (h < 2.35) return 'Ombak Besar';
+    return 'Gelora Besar';
+  }
+
+  /**
+   * Exact C^1 Trapezoidal Cosine-Ramp Proportional Integrator Fraction E(t) in [0, 1]:
+   * - Guarantees E(0) = 0 and E(duration) = 1 (so 0 -> FullSpan takes EXACTLY 45.000s, half-span takes EXACTLY 22.500s!).
+   * - Preserves non-zero cruise velocity across continuous 60 Hz slider drag events via launchRampSec -> 0 once moving!
+   */
+  static _evalProportionalEase(elapsed, duration, launchRampSec = 0.35, landingRampSec = 0.35) {
+    const D = Math.max(1e-5, duration);
+    const t = Math.max(0.0, Math.min(D, elapsed));
+    if (t >= D) return 1.0;
+    if (t <= 0.0) return 0.0;
+    const tL = Math.max(0.0, Math.min(launchRampSec, 0.25 * D));
+    const tR = Math.max(0.0, Math.min(landingRampSec, 0.25 * D));
+    const totalW = Math.max(1e-6, D - 0.5 * tL - 0.5 * tR);
+
+    let area = 0.0;
+    if (t <= tL && tL > 1e-6) {
+      area = 0.5 * (t - (tL / Math.PI) * Math.sin((Math.PI * t) / tL));
+    } else {
+      area += 0.5 * tL;
+      const cEnd = D - tR;
+      const tCruise = Math.min(t, cEnd) - tL;
+      if (tCruise > 0.0) area += tCruise;
+      if (t > cEnd && tR > 1e-6) {
+        const u = t - cEnd;
+        area += 0.5 * (u + (tR / Math.PI) * Math.sin((Math.PI * u) / tR));
+      }
+    }
+    return Math.max(0.0, Math.min(1.0, area / totalW));
+  }
+
+  /**
+   * Computes exact 8-mode Hasselmann (1973) JONSWAP + Phillips/Miche steepness-saturated offshore wave amplitudes
+   * calibrated so Significant Wave Height H_s = 4 * sqrt(m_0) = 4 * sqrt(0.5 * sum(a_i^2)) === waveHeightM in [0..3.0m]!
+   */
+  static computeJonswap8Amplitudes(waveHeightM, outArr8 = null) {
+    const out = outArr8 || new Float32Array(8);
+    const Hs = Math.max(0.0, Math.min(WeatherOpticsEngine.MAX_SEA_WAVE_M, Number(waveHeightM) || 0.0));
+    if (Hs <= 1e-5) {
+      for (let i = 0; i < 8; i++) out[i] = 0.0;
+      return out;
+    }
+
+    const modes = WeatherOpticsEngine.OCEAN_WAVE_MODES;
+    // Peak period T_p shifts from 2.35s (capillary-gravity ripples) -> 7.29s (82m storm rollers at H_s = 3.0m)
+    const Tp = 2.35 + 2.85 * Math.sqrt(Hs);
+    const wp = (2.0 * Math.PI) / Tp;
+
+    let sumSq = 0.0;
+    for (let i = 0; i < 8; i++) {
+      const wi = modes[i].w;
+      const r = wi / wp;
+      const rInv4 = 1.0 / (r * r * r * r);
+      const pm = Math.pow(r, -5.0) * Math.exp(-1.25 * rInv4);
+      const sig = r <= 1.0 ? 0.07 : 0.09;
+      const enh = Math.pow(3.3, Math.exp(-((r - 1.0) * (r - 1.0)) / (2.0 * sig * sig)));
+      // Logarithmic frequency bin width d_omega ~ omega_i -> energy bin S(omega_i) * omega_i
+      const rawA = Math.sqrt(Math.max(1e-12, pm * enh * wi));
+      out[i] = rawA;
+      sumSq += rawA * rawA;
+    }
+
+    // Exact m_0 = 0.5 * sum(a_i^2), H_s = 4 * sqrt(m_0) = 2 * sqrt(2 * sum(a_i^2))
+    const normScale = Hs / (2.0 * Math.sqrt(2.0 * Math.max(1e-12, sumSq)));
+
+    // Apply Phillips equilibrium / Miche breaking steepness cap (k_i * a_i <= 0.135) & redistribute any clipped tail energy
+    let clippedEnergy = 0.0;
+    let freeEnergy = 0.0;
+    for (let i = 0; i < 8; i++) {
+      const aUnclipped = out[i] * normScale;
+      const aMaxMiche = 0.135 / modes[i].k;
+      if (aUnclipped > aMaxMiche) {
+        out[i] = aMaxMiche;
+        clippedEnergy += aUnclipped * aUnclipped - aMaxMiche * aMaxMiche;
+      } else {
+        out[i] = aUnclipped;
+        freeEnergy += aUnclipped * aUnclipped;
+      }
+    }
+    if (clippedEnergy > 1e-8 && freeEnergy > 1e-8) {
+      const boost = Math.sqrt(1.0 + clippedEnergy / freeEnergy);
+      for (let i = 0; i < 8; i++) {
+        const aMaxMiche = 0.135 / modes[i].k;
+        if (out[i] < aMaxMiche - 1e-6) {
+          out[i] = Math.min(aMaxMiche, out[i] * boost);
+        }
+      }
+    }
+    return out;
+  }
+
+  static _islandRadiusAtAngleJS(theta) {
+    const eastCove = -46.0 * Math.pow(0.5 + 0.5 * Math.cos(theta + 0.25), 4.4);
+    const neHeadland = 23.5 * Math.pow(0.5 + 0.5 * Math.cos(theta + 1.04), 8.5);
+    const southRotundaLobe = 15.5 * Math.pow(0.5 + 0.5 * Math.cos(theta - 1.12), 2.3);
+    const swHelipadPeninsula = 20.5 * Math.pow(0.5 + 0.5 * Math.cos(theta - 2.44), 6.5);
+    const organicMeander =
+      2.15 * Math.sin(3.0 * theta + 0.40) +
+      1.20 * Math.cos(5.0 * theta - 0.70) +
+      0.55 * Math.sin(8.0 * theta + 1.10);
+    return 121.0 + eastCove + neHeadland + southRotundaLobe + swHelipadPeninsula + organicMeander;
+  }
+
+  static _evalArchipelagoCoastRawJS(x, z) {
+    let distUCenter;
+    if (x <= -145.0) {
+      distUCenter = Math.abs(Math.hypot(x + 145.0, z - 207.0) - 185.0);
+    } else {
+      const dLegL = Math.hypot(Math.max(0.0, x + 62.0), z - 22.0);
+      const dLegR = Math.hypot(Math.max(0.0, x - 10.0), z - 392.0);
+      distUCenter = Math.min(dLegL, dLegR);
+    }
+    const meanderU = 2.0 * Math.sin(x * 0.035 + z * 0.025) + 1.1 * Math.cos(z * 0.048 - x * 0.031);
+    const dUHorseshoe = distUCenter - 74.0 - meanderU;
+    let dU = dUHorseshoe;
+    if (!(z > 250.0 || x < -195.0)) {
+      const dx = x - -18.0;
+      const dz = z - 34.0;
+      const r = Math.hypot(dx, dz) + 1e-4;
+      const theta = Math.atan2(dz, dx);
+      const r0 = WeatherOpticsEngine._islandRadiusAtAngleJS(theta);
+      const eps = 0.008;
+      const dRdTh =
+        (WeatherOpticsEngine._islandRadiusAtAngleJS(theta + eps) -
+          WeatherOpticsEngine._islandRadiusAtAngleJS(theta - eps)) /
+        (2.0 * eps);
+      const slopeRatio = dRdTh / Math.max(20.0, r0);
+      const dCampusHead = (r - r0) / Math.sqrt(1.0 + slopeRatio * slopeRatio);
+      const h = Math.max(0.0, 28.0 - Math.abs(dCampusHead - dUHorseshoe)) / 28.0;
+      dU = Math.min(dCampusHead, dUHorseshoe) - h * h * 28.0 * 0.25;
+    }
+
+    const qx = Math.abs(x + 160.0) - 188.0;
+    const qz = Math.abs(z - 694.0) - 32.0;
+    const outDist = Math.hypot(Math.max(qx, 0.0), Math.max(qz, 0.0));
+    const inDist = Math.min(Math.max(qx, qz), 0.0);
+    const meanderI = 1.9 * Math.sin(x * 0.039 - z * 0.027) + 1.05 * Math.cos(x * 0.061 + z * 0.033);
+    const dI = outDist + inDist - 56.0 - meanderI;
+    return Math.min(dU, dI);
+  }
+
+  /**
+   * Exact 1:1 CPU Mirror of the GPU 8-Mode JONSWAP + Headland Diffraction + Finite-Depth Shoaling
+   * + Battjes-Janssen Surf Breaking + 2nd-Order Stokes Ocean Hydrodynamics Field.
+   * Used by DynamicTrafficAI (4-point hull buoyancy) and PhysicsKernel (3D wave-crest drone clearance).
+   */
+  static evaluateOceanWaveField(x, z, timeSec, seaWaveHeightM, outObj = null) {
+    const res = outObj || {
+      eta: 0.0,
+      surgeX: 0.0,
+      surgeZ: 0.0,
+      nx: 0.0,
+      ny: 1.0,
+      nz: 0.0,
+      dShore: 100.0,
+      diffractionKd: 1.0,
+      bathymetryH: 22.0,
+      breakingDiss: 0.0
+    };
+    const Hs = Math.max(0.0, Math.min(WeatherOpticsEngine.MAX_SEA_WAVE_M, Number(seaWaveHeightM) || 0.0));
+    const drPerp = WeatherOpticsEngine._evalArchipelagoCoastRawJS(x, z);
+    const dShore = drPerp - 3.52;
+    res.dShore = dShore;
+
+    const sm = WeatherOpticsEngine._smoothstep;
+    // 1. Archipelago Headland Diffraction & Sheltering (Teluk U, Selat UI, Dermaga Piers, & Danau Kenanga Cove)
+    const telukShelter =
+      (1.0 - sm(-45.0, 35.0, x)) *
+      sm(-275.0, -210.0, x) *
+      sm(82.0, 140.0, z) *
+      (1.0 - sm(285.0, 345.0, z));
+    const straitMask =
+      (1.0 - sm(-70.0, 10.0, x)) *
+      sm(-345.0, -265.0, x) *
+      sm(420.0, 465.0, z) *
+      (1.0 - sm(595.0, 640.0, z));
+    const dPierU = Math.hypot(x + 90.0, z - 444.0);
+    const dPierI = Math.hypot(x + 90.0, z - 616.0);
+    const pierLee = Math.max(1.0 - sm(8.0, 34.0, dPierU), 1.0 - sm(8.0, 34.0, dPierI));
+    const coveMask =
+      (1.0 - sm(65.0, 135.0, x)) * sm(20.0, 42.0, x) * (1.0 - sm(42.0, 82.0, Math.abs(z)));
+
+    const Kd =
+      (1.0 - 0.72 * telukShelter) *
+      (1.0 - 0.54 * straitMask) *
+      (1.0 - 0.48 * pierLee) *
+      (1.0 - 0.42 * coveMask);
+    res.diffractionKd = Kd;
+
+    // 2. Shelf Bathymetry & Battjes-Janssen / Miche Depth-Limited Breaking Envelope (H_b <= 0.76 * h)
+    const dPos = Math.max(0.0, dShore);
+    const hBathym = Math.min(22.0, Math.max(0.24, 0.24 + 0.16 * dPos + 0.0042 * dPos * dPos));
+    res.bathymetryH = hBathym;
+
+    if (Hs <= 1e-4) {
+      res.eta = 0.0;
+      res.surgeX = 0.0;
+      res.surgeZ = 0.0;
+      res.nx = 0.0;
+      res.ny = 1.0;
+      res.nz = 0.0;
+      res.breakingDiss = 0.0;
+      return res;
+    }
+
+    const HbreakMax = 0.76 * hBathym;
+    const HsLocal = Math.max(1e-4, Hs * Kd);
+    const rawBreakScale = HbreakMax / Math.sqrt(HbreakMax * HbreakMax + HsLocal * HsLocal);
+    const deepRestore = sm(36.0, 78.0, dShore);
+    const surfBreakScale = rawBreakScale + (1.0 - rawBreakScale) * deepRestore;
+    res.breakingDiss = Math.max(0.0, Math.min(1.0, (1.0 - surfBreakScale) * sm(0.05, 0.65, Hs)));
+
+    if (!WeatherOpticsEngine._cpuAmpScratch8) {
+      WeatherOpticsEngine._cpuAmpScratch8 = new Float32Array(8);
+    }
+    const amps = WeatherOpticsEngine.computeJonswap8Amplitudes(Hs, WeatherOpticsEngine._cpuAmpScratch8);
+    const modes = WeatherOpticsEngine.OCEAN_WAVE_MODES;
+    const t = Number(timeSec) || 0.0;
+
+    let eta = 0.0;
+    let surgeX = 0.0;
+    let surgeZ = 0.0;
+    let negGradX = 0.0;
+    let negGradZ = 0.0;
+    let jacobianY = 1.0;
+
+    for (let i = 0; i < 8; i++) {
+      const m = modes[i];
+      const kh = m.k * hBathym;
+      // Green's Law shoaling amplification peaking at intermediate depth kh ~ 0.85 before surf breaking
+      const shoalBoost = 1.0 + 0.16 * Math.exp(-Math.pow((kh - 0.85) / 0.55, 2.0)) * (1.0 - deepRestore);
+      const ai = amps[i] * Kd * shoalBoost * surfBreakScale;
+      // Stationary nearshore shoaling phase integral (zero time-frequency Doppler shift!)
+      const shoalPhase = (1.0 - sm(0.0, 38.0, dPos)) * m.k * 3.8;
+      const ph = (m.dx * x + m.dz * z) * m.k + shoalPhase - m.w * t + m.phase0;
+      const s = Math.sin(ph);
+      const c = Math.cos(ph);
+      // 2nd-Order Stokes crest sharpening + broad rounded troughs: +0.5 * k * a^2 * cos(2*ph)
+      const stokes2 = 0.5 * m.k * ai * ai;
+      const c2 = c * c - s * s;
+      const s2 = 2.0 * s * c;
+
+      eta += ai * c + stokes2 * c2;
+      surgeX -= m.dx * (m.q * ai * s);
+      surgeZ -= m.dz * (m.q * ai * s);
+      const dEta = m.k * ai * s + 2.0 * m.k * stokes2 * s2;
+      negGradX += m.dx * dEta;
+      negGradZ += m.dz * dEta;
+      jacobianY -= m.q * m.k * ai * c;
+    }
+
+    // 360° Refracted Nearshore Surf Rollers inside dShore < 42m
+    const coastScale = sm(0.0, 0.22, Hs / 0.854);
+    if (dShore < 42.0 && coastScale > 0.002) {
+      const eC = 0.38;
+      const gx =
+        WeatherOpticsEngine._evalArchipelagoCoastRawJS(x + eC, z) -
+        WeatherOpticsEngine._evalArchipelagoCoastRawJS(x - eC, z);
+      const gz =
+        WeatherOpticsEngine._evalArchipelagoCoastRawJS(x, z + eC) -
+        WeatherOpticsEngine._evalArchipelagoCoastRawJS(x, z - eC);
+      const gLen = Math.hypot(gx, gz) || 1.0;
+      const cnx = gx / gLen;
+      const cnz = gz / gLen;
+      const refCx = z > 536.0 ? -160.0 : -155.0;
+      const refCz = z > 536.0 ? 680.0 : 207.0;
+      const thetaIsl = Math.atan2(z - refCz, x - refCx);
+
+      const dClamp = Math.max(-1.8, dShore);
+      const phiShoal = 0.36 * dClamp + 4.9 * Math.log(1.0 + Math.max(0.0, dClamp + 1.8) / 7.5);
+      const kLocal = 0.36 + 4.9 / (7.5 + Math.max(0.0, dClamp + 1.8));
+      const shoalEnv = Math.exp(-Math.max(0.0, dShore - 2.0) * 0.068) * (1.0 - sm(24.0, 42.0, dShore));
+
+      const psi1 = phiShoal + 1.10 * t + 1.7 * Math.sin(thetaIsl - 0.5) + 0.65 * Math.cos(2.0 * thetaIsl + 0.8);
+      const psi2 = phiShoal * 0.74 + 0.79 * t - 1.4 * Math.cos(thetaIsl + 0.4) + 0.55 * Math.sin(3.0 * thetaIsl);
+      const wSurf1 = Math.cos(psi1) + 0.26 * Math.cos(2.0 * psi1);
+      const dSurf1 = Math.sin(psi1) + 0.52 * Math.sin(2.0 * psi1);
+      const wSurf2 = Math.cos(psi2) + 0.22 * Math.cos(2.0 * psi2);
+      const dSurf2 = Math.sin(psi2) + 0.44 * Math.sin(2.0 * psi2);
+
+      const sCoast = Math.min(Hs / 0.854, 1.35) * (0.45 + 0.55 * Kd);
+      const aR1 = (0.036 + 0.095 * sCoast) * coastScale * shoalEnv;
+      const aR2 = (0.024 + 0.062 * sCoast) * coastScale * shoalEnv;
+
+      eta += aR1 * wSurf1 + aR2 * wSurf2;
+      const rSurge = (aR1 * Math.sin(psi1) + aR2 * Math.sin(psi2)) * 0.42;
+      surgeX -= cnx * rSurge;
+      surgeZ -= cnz * rSurge;
+      const rSlope = kLocal * (aR1 * dSurf1 + aR2 * 0.74 * dSurf2);
+      negGradX += cnx * rSlope;
+      negGradZ += cnz * rSlope;
+    }
+
+    const rCenter = Math.hypot(x + 155.0, z - 330.0);
+    const horizonTaper = 1.0 - sm(1150.0, 1630.0, rCenter);
+
+    res.eta = eta * horizonTaper;
+    res.surgeX = surgeX * horizonTaper;
+    res.surgeZ = surgeZ * horizonTaper;
+    const nyRaw = Math.max(0.28, jacobianY);
+    const nLen = Math.hypot(negGradX * horizonTaper, nyRaw, negGradZ * horizonTaper) || 1.0;
+    res.nx = (negGradX * horizonTaper) / nLen;
+    res.ny = nyRaw / nLen;
+    res.nz = (negGradZ * horizonTaper) / nLen;
+    return res;
   }
 
   constructor(scene, options = {}) {
@@ -145,12 +468,16 @@ export class WeatherOpticsEngine {
     this._shadowMapSize = Math.max(1024, Math.min(4096, Number(options.shadowMapSize) || 4096));
     this.timeOfDay = 'DAY'; // 'DAWN' | 'MORNING' | 'DAY' | 'AFTERNOON' | 'DUSK' | 'NIGHT'
     this.weatherMode = 'CLEAR'; // 10 physical regimes in WeatherOpticsEngine.WEATHER_PROFILES
-    this.weatherSpectrum = 0.0; // Continuous [0, 1] weather spectrum coordinate
-    this.manualSeaWaveHeightM = null; // null = weather-coupled auto, or [0.00 .. 2.00] m manual slider override
-    this.seaWaveHeightM = 0.24; // Live significant ocean wave height H_s in meters [0.00 .. 2.00]
+    this.weatherSpectrum = 0.0; // Live continuous [0, 1] weather spectrum coordinate
+    this.targetWeatherSpectrum = 0.0; // Target [0, 1] weather spectrum coordinate
+    this.manualSeaWaveHeightM = null; // null = weather-coupled auto, or [0.00 .. 3.00] m manual slider override
+    this.seaWaveHeightM = 0.24; // Live significant ocean wave height H_s in meters [0.00 .. 3.00]
+    this.currentWindAngleRad = 0.48;
+    this._ampScratch8 = new Float32Array(8);
 
     this.transitionDurationSec = WeatherOpticsEngine.DEFAULT_TRANSITION_SEC;
     this.currentSolarHour = 11.85; // Continuous 24h Kampus UI Depok WIB solar clock [0, 24)
+    this._sliderSolarHour = 11.85; // Linear [0.00 .. 24.00] slider coordinate (preserves 0->24 = 45s full sweep!)
     this.continuousSolarHour = 11.85; // Unwrapped monotonic WIB hours since _baseJD0WIB (0.000° midnight jump!)
     this._baseJD0WIB = computeBaseJD0WIB(new Date());
     this._astroState = null;
@@ -168,8 +495,14 @@ export class WeatherOpticsEngine {
 
     this._weatherTrans = {
       active: false,
+      isSpectrumSweep: false,
       fromMode: 'CLEAR',
       toMode: 'CLEAR',
+      startSpectrum: 0.0,
+      targetSpectrum: 0.0,
+      dir: 0,
+      launchClock: 0.0,
+      launchRampSec: 0.35,
       elapsed: 0.0,
       duration: WeatherOpticsEngine.DEFAULT_TRANSITION_SEC,
       progress: 1.0,
@@ -183,14 +516,32 @@ export class WeatherOpticsEngine {
 
     this._timeTrans = {
       active: false,
+      isProportionalSlider: false,
       fromTod: 'DAY',
       toTod: 'DAY',
+      dir: 0,
+      launchClock: 0.0,
+      launchRampSec: 0.35,
       elapsed: 0.0,
       duration: WeatherOpticsEngine.DEFAULT_TRANSITION_SEC,
       progress: 1.0,
       startHour: 11.85,
+      startSliderHour: 11.85,
+      targetSliderHour: 11.85,
       startContinuousHour: 11.85,
       deltaHour: 0.0
+    };
+
+    this._seaTrans = {
+      active: false,
+      dir: 0,
+      launchClock: 0.0,
+      launchRampSec: 0.35,
+      elapsed: 0.0,
+      duration: 0.0,
+      progress: 1.0,
+      startWaveM: 0.24,
+      targetWaveM: 0.24
     };
 
     // Multi-stroke plasma lightning state (active when uStormFactor > 0.60)
@@ -246,13 +597,24 @@ export class WeatherOpticsEngine {
       uLightningSeed: { value: 17.0 },
       uWindVec: { value: new THREE.Vector3(0.65, 0.0, 0.35) },
       uWindPhase: { value: new THREE.Vector2(0.0, 0.0) },
-      uSeaState: { value: 0.32 },
+      uSeaState: { value: 0.24 / WeatherOpticsEngine.SEA_STATE_NORM_DIV },
+      uWaveAmpA: { value: new THREE.Vector4(0.0, 0.0, 0.0, 0.0) },
+      uWaveAmpB: { value: new THREE.Vector4(0.0, 0.0, 0.0, 0.0) },
+      uVesselWakes: {
+        value: [
+          new THREE.Vector4(0, 0, 0, 0),
+          new THREE.Vector4(0, 0, 0, 0),
+          new THREE.Vector4(0, 0, 0, 0),
+          new THREE.Vector4(0, 0, 0, 0)
+        ]
+      },
       uFireflyIntensity: { value: 0.0 },
       uCollisionMap: { value: fallbackCollisionTex },
       uCollisionHalfExtent: { value: RainCollisionBake.DEFAULT_HALF_EXTENT },
       uHvsParams: hvsUniforms.uHvsParams,
       uHvsGlare: hvsUniforms.uHvsGlare
     };
+    this._syncOceanSpectrumUniforms();
 
     this.hemiLight = null;
     this.sunLight = null;
@@ -277,6 +639,29 @@ export class WeatherOpticsEngine {
     this._initVolcanicSmokePlumeMesh();
     this.setTimeOfDay('DAY', null, { immediate: true });
     this.setWeather('CLEAR', { immediate: true });
+  }
+
+  _syncOceanSpectrumUniforms() {
+    const Hs = Math.max(0.0, Math.min(WeatherOpticsEngine.MAX_SEA_WAVE_M, Number(this.seaWaveHeightM) || 0.0));
+    this.seaWaveHeightM = Hs;
+    this.uniforms.uSeaState.value = Hs / WeatherOpticsEngine.SEA_STATE_NORM_DIV;
+    const amps = WeatherOpticsEngine.computeJonswap8Amplitudes(Hs, this._ampScratch8);
+    this.uniforms.uWaveAmpA.value.set(amps[0], amps[1], amps[2], amps[3]);
+    this.uniforms.uWaveAmpB.value.set(amps[4], amps[5], amps[6], amps[7]);
+  }
+
+  /**
+   * Updates one of the 4 live GPU 19.47-deg Lord Kelvin Ship Wake + Stern Propeller Wash slots (0 GC).
+   * @param {number} slotIdx 0..3
+   * @param {number} worldX
+   * @param {number} worldZ
+   * @param {number} yawRad
+   * @param {number} signedSpeedAndClass >0 for wide catamaran/ship hull, <0 for sleek planing yacht/fishing hull, 0 to disable
+   */
+  setVesselWakeSlot(slotIdx, worldX, worldZ, yawRad, signedSpeedAndClass) {
+    const arr = this.uniforms.uVesselWakes?.value;
+    if (!arr || slotIdx < 0 || slotIdx >= arr.length) return;
+    arr[slotIdx].set(worldX, worldZ, yawRad, signedSpeedAndClass);
   }
 
   _initLighting() {
@@ -2562,13 +2947,14 @@ export class WeatherOpticsEngine {
   }
 
   /**
-   * Hukum Emas 14 (v2.8 Ultra-Realistic Physical Ocean & Island Coastal Hydrodynamics Edition):
-   * Creates the Physical Dielectric Ocean & Lake Water Material (IOR 1.333, F0 = 0.0204) with:
-   * - True 3D Dispersive 6-Train Trochoidal Gerstner Swell Spectrum (\omega_i = \sqrt{g k_i}, 0 backward slosh!)
-   * - 360° Snell's-Law Coastal Wave Refraction, Asymmetric Stokes Shoaling Rollers, & 3D Swash Run-Up on Stone Turap
-   * - Monotonically Integrated Wind Phase (uWindPhase = \int v_wind dt) & Dual Counter-Crossed Capillary Wavelets
-   * - Beer-Lambert Optical Depth Absorption, Wave-Crest Jade Subsurface Scattering (SSS), & Voronoi Focal-Web Caustics
-   * - Porous Cellular Voronoi Swash / Whitecap Sea-Foam & Distance Slope-Variance (LEADR) GGX Sun Glitter
+   * Hukum Emas 14 (v3.8 Ultra-Realistic 0–3.0m Physical Ocean, Kelvin Wake & Spectral Seawater Edition):
+   * Creates the Physical Dielectric Ocean & Lake Water Material (IOR 1.337 Seawater, F0 = 0.0208) with:
+   * - 8-Mode Hasselmann (1973) JONSWAP + Phillips/Miche Steepness-Saturated Swell & Wind-Sea Spectrum (\omega_i = \sqrt{g k_i})
+   * - 2nd-Order Stokes Crest Sharpening, Archipelago Headland/Strait Diffraction (K_d), Green's Shoaling, & Battjes-Janssen Surf Breaking
+   * - Spatial Nyquist Vertex Anti-Aliasing (aRiverDetail.y = gridSpacingM) -> 0 offshore aliasing, 100% crisp per-pixel normals
+   * - 4-Slot Live 19.47° Lord Kelvin Ship V-Wakes + Stern Propeller Wash & Submerged Milky-Aquamarine Bubble Trails
+   * - Jerlov Type IB–II 4-Zone Seawater Volume, Wave-Trough Sky Occlusion (cavityAO), Low-Sun Wave Self-Shadowing, & Thin-Crest Jade SSS
+   * - Ross-Cardone / Bruneton Slope-Variance Fresnel, Anisotropic GGX Sun/Moon Glitter, & 4-Layer Foam + Storm Spindrift Mist (0 Hexagons!)
    */
   createDanauKenangaWaterMaterial() {
     const hydroCommonGLSL = /* glsl */ `
@@ -2583,147 +2969,171 @@ export class WeatherOpticsEngine {
         return normalize(vec2(gx, gz) + vec2(1e-5, 0.0));
       }
 
-      // Evaluates 6 Dispersive Crossing Trochoidal Gerstner Swells (\omega = \sqrt{9.81 * k})
-      // + 360-Degree Snell's-Law Refracted Shoaling Coastal Surf Rollers on BOTH Pulau U & Pulau I!
-      // Supports continuous H_s in [0.00 m .. 2.00 m] via uSeaState = H_s / 0.854 in [0.00 .. 2.342].
+      void accumOceanWaveMode(
+        vec2 baseXZ,
+        float t,
+        vec2 d,
+        float k,
+        float w,
+        float phase0,
+        float q,
+        float L,
+        float ampRaw,
+        float Kd,
+        float hBathym,
+        float deepRestore,
+        float surfBreakScale,
+        float shoalPhaseBase,
+        float gridSpacingM,
+        float crestWeight,
+        inout vec2 horizSurge,
+        inout float eta,
+        inout vec2 negGradEta,
+        inout float jacobianY,
+        inout float crestAccum,
+        inout float troughAccum
+      ) {
+        if (ampRaw <= 1e-5) return;
+        float nyq = gridSpacingM > 0.01 ? (1.0 - smoothstep(0.22 * L, 0.48 * L, gridSpacingM)) : 1.0;
+        if (nyq <= 0.002) return;
+        float kh = k * hBathym;
+        float shoalArg = (kh - 0.85) / 0.55;
+        float shoalBoost = 1.0 + 0.16 * exp(-shoalArg * shoalArg) * (1.0 - deepRestore);
+        float ai = ampRaw * Kd * shoalBoost * surfBreakScale * nyq;
+        float ph = dot(d, baseXZ) * k + shoalPhaseBase * k - w * t + phase0;
+        float s = sin(ph);
+        float c = cos(ph);
+        // 2nd-Order Stokes crest sharpening + broad rounded troughs: +0.5 * k * a^2 * cos(2*ph)
+        float stokes2 = 0.5 * k * ai * ai;
+        float c2 = c * c - s * s;
+        float s2 = 2.0 * s * c;
+
+        eta += ai * c + stokes2 * c2;
+        horizSurge -= d * (q * ai * s);
+        float dEta = k * ai * s + 2.0 * k * stokes2 * s2;
+        negGradEta += d * dEta;
+        jacobianY -= q * k * ai * c;
+        crestAccum += max(0.0, c + 0.25 * c2) * crestWeight;
+        troughAccum += max(0.0, -c) * crestWeight;
+      }
+
+      // Synchronized 1:1 with CPU WeatherOpticsEngine.evaluateOceanWaveField across H_s in [0.00 m .. 3.00 m]!
       void evalGravityHydrodynamics(
         vec2 baseXZ,
         float t,
         float seaState,
+        vec4 ampA,
+        vec4 ampB,
+        float gridSpacingM,
         vec2 coastNormalHint,
         out vec3 dispOut,
         out vec3 gradNormalOut,
         out float dShoreOut,
         out float crestFactorOut,
-        out float rollerSwashOut
+        out float rollerSwashOut,
+        out float hBathymOut,
+        out float surfBreakOut,
+        out float cavityOut
       ) {
         float drPerp = evalArchipelagoCoastRaw(baseXZ);
         // Stone turap boulder berm crosses static water datum y = -1.45m at drPerp = 3.52m
         float dShore = drPerp - 3.52;
         dShoreOut = dShore;
 
-        float S = clamp(seaState, 0.0, 2.35);
-        // Open-sea swell energy smoothly shoals/damps near stone turap so even 2.0m offshore swells never overtop dry island roads!
-        float shoreDamp = mix(0.28, 0.16, clamp((S - 1.0) / 1.35, 0.0, 1.0));
-        float openShoal = mix(shoreDamp, 1.0, smoothstep(-0.6, 26.0, dShore));
+        float S = clamp(seaState, 0.0, 3.55);
+        float Hs = clamp(S * 0.854, 0.0, 3.0);
+
+        // 1. Archipelago Headland Diffraction & Sheltering (Teluk U, Selat UI, Dermaga Piers, & Danau Kenanga Cove)
+        float telukShelter =
+          (1.0 - smoothstep(-45.0, 35.0, baseXZ.x)) *
+          smoothstep(-275.0, -210.0, baseXZ.x) *
+          smoothstep(82.0, 140.0, baseXZ.y) *
+          (1.0 - smoothstep(285.0, 345.0, baseXZ.y));
+        float straitMask =
+          (1.0 - smoothstep(-70.0, 10.0, baseXZ.x)) *
+          smoothstep(-345.0, -265.0, baseXZ.x) *
+          smoothstep(420.0, 465.0, baseXZ.y) *
+          (1.0 - smoothstep(595.0, 640.0, baseXZ.y));
+        float dPierU = length(baseXZ - vec2(-90.0, 444.0));
+        float dPierI = length(baseXZ - vec2(-90.0, 616.0));
+        float pierLee = max(1.0 - smoothstep(8.0, 34.0, dPierU), 1.0 - smoothstep(8.0, 34.0, dPierI));
+        float coveMask =
+          (1.0 - smoothstep(65.0, 135.0, baseXZ.x)) *
+          smoothstep(20.0, 42.0, baseXZ.x) *
+          (1.0 - smoothstep(42.0, 82.0, abs(baseXZ.y)));
+
+        float Kd =
+          (1.0 - 0.72 * telukShelter) *
+          (1.0 - 0.54 * straitMask) *
+          (1.0 - 0.48 * pierLee) *
+          (1.0 - 0.42 * coveMask);
+
+        // 2. Shelf Bathymetry & Battjes-Janssen / Miche Depth-Limited Breaking Envelope (H_b <= 0.76 * h)
+        float dPos = max(0.0, dShore);
+        float hBathym = clamp(0.24 + 0.16 * dPos + 0.0042 * dPos * dPos, 0.24, 22.0);
+        hBathymOut = hBathym;
+
+        float HbreakMax = 0.76 * hBathym;
+        float HsLocal = max(1e-4, Hs * Kd);
+        float rawBreakScale = HbreakMax * inversesqrt(HbreakMax * HbreakMax + HsLocal * HsLocal);
+        float deepRestore = smoothstep(36.0, 78.0, dShore);
+        float surfBreakScale = mix(rawBreakScale, 1.0, deepRestore);
+        surfBreakOut = clamp((1.0 - surfBreakScale) * smoothstep(0.05, 0.65, Hs), 0.0, 1.0);
 
         vec2 horizSurge = vec2(0.0);
         float eta = 0.0;
         vec2 negGradEta = vec2(0.0);
         float jacobianY = 1.0;
         float crestAccum = 0.0;
+        float troughAccum = 0.0;
 
-        // Wave 1: Primary Long Ocean Swell (L = 44.0m, k = 0.1428, w = 1.184 rad/s, T = 5.31s)
-        {
-          vec2 d1 = vec2(0.8480, 0.5300);
-          float k1 = 0.1428; float w1 = 1.184; float a1 = 0.145 * S * openShoal; float q1 = 0.34;
-          float ph1 = dot(d1, baseXZ) * k1 - w1 * t;
-          float s1 = sin(ph1); float c1 = cos(ph1);
-          horizSurge -= d1 * (q1 * a1 * s1);
-          eta += a1 * c1;
-          negGradEta += d1 * (k1 * a1 * s1);
-          jacobianY -= q1 * k1 * a1 * c1;
-          crestAccum += max(0.0, c1) * 0.30;
-        }
-        // Wave 2: Cross Swell -31 deg (L = 29.5m, k = 0.2130, w = 1.445 rad/s, T = 4.35s)
-        {
-          vec2 d2 = vec2(0.9962, -0.0872);
-          float k2 = 0.2130; float w2 = 1.445; float a2 = 0.108 * S * openShoal; float q2 = 0.32;
-          float ph2 = dot(d2, baseXZ) * k2 - w2 * t + 1.37;
-          float s2 = sin(ph2); float c2 = cos(ph2);
-          horizSurge -= d2 * (q2 * a2 * s2);
-          eta += a2 * c2;
-          negGradEta += d2 * (k2 * a2 * s2);
-          jacobianY -= q2 * k2 * a2 * c2;
-          crestAccum += max(0.0, c2) * 0.25;
-        }
-        // Wave 3: Oblique Swell +27 deg (L = 18.8m, k = 0.3342, w = 1.811 rad/s, T = 3.47s)
-        {
-          vec2 d3 = vec2(0.5150, 0.8572);
-          float k3 = 0.3342; float w3 = 1.811; float a3 = 0.076 * S * openShoal; float q3 = 0.30;
-          float ph3 = dot(d3, baseXZ) * k3 - w3 * t + 2.81;
-          float s3 = sin(ph3); float c3 = cos(ph3);
-          horizSurge -= d3 * (q3 * a3 * s3);
-          eta += a3 * c3;
-          negGradEta += d3 * (k3 * a3 * s3);
-          jacobianY -= q3 * k3 * a3 * c3;
-          crestAccum += max(0.0, c3) * 0.20;
-        }
-        // Wave 4: Crossing Wind Sea -52 deg (L = 11.6m, k = 0.5417, w = 2.305 rad/s, T = 2.73s)
-        {
-          vec2 d4 = vec2(0.9272, -0.3746);
-          float k4 = 0.5417; float w4 = 2.305; float a4 = 0.050 * S * openShoal; float q4 = 0.28;
-          float ph4 = dot(d4, baseXZ) * k4 - w4 * t + 4.19;
-          float s4 = sin(ph4); float c4 = cos(ph4);
-          horizSurge -= d4 * (q4 * a4 * s4);
-          eta += a4 * c4;
-          negGradEta += d4 * (k4 * a4 * s4);
-          jacobianY -= q4 * k4 * a4 * c4;
-          crestAccum += max(0.0, c4) * 0.14;
-        }
-        // Wave 5: Short Gravity Chop A +46 deg (L = 7.3m, k = 0.8607, w = 2.906 rad/s, T = 2.16s)
-        {
-          vec2 d5 = vec2(0.2250, 0.9744);
-          float k5 = 0.8607; float w5 = 2.906; float a5 = 0.030 * S * openShoal; float q5 = 0.25;
-          float ph5 = dot(d5, baseXZ) * k5 - w5 * t + 0.93;
-          float s5 = sin(ph5); float c5 = cos(ph5);
-          horizSurge -= d5 * (q5 * a5 * s5);
-          eta += a5 * c5;
-          negGradEta += d5 * (k5 * a5 * s5);
-          jacobianY -= q5 * k5 * a5 * c5;
-          crestAccum += max(0.0, c5) * 0.11;
-        }
-        // Wave 6: Short Gravity Chop B -17 deg (L = 4.6m, k = 1.3659, w = 3.661 rad/s, T = 1.72s)
-        {
-          vec2 d6 = vec2(0.9563, 0.2924);
-          float k6 = 1.3659; float w6 = 3.661; float a6 = 0.018 * S * openShoal; float q6 = 0.22;
-          float ph6 = dot(d6, baseXZ) * k6 - w6 * t + 5.24;
-          float s6 = sin(ph6); float c6 = cos(ph6);
-          horizSurge -= d6 * (q6 * a6 * s6);
-          eta += a6 * c6;
-          negGradEta += d6 * (k6 * a6 * s6);
-          jacobianY -= q6 * k6 * a6 * c6;
-        }
+        float shoalPhaseBase = (1.0 - smoothstep(0.0, 38.0, dPos)) * 3.8;
 
-        // 360-Degree Snell's-Law Refracted Shoaling Coastal Surf Rollers (traveling INWARD toward Pulau U & Pulau I stone turap!)
+        // 8-Mode JONSWAP Swell & Wind-Sea Spectrum (Modes 1 & 2 at L=82m & L=65.5m form natural 5-wave ocean swell sets!)
+        accumOceanWaveMode(baseXZ, t, vec2(0.8660,  0.5000), 0.076624, 0.8670, 0.00, 0.34, 82.0, ampA.x, Kd, hBathym, deepRestore, surfBreakScale, shoalPhaseBase, gridSpacingM, 0.22, horizSurge, eta, negGradEta, jacobianY, crestAccum, troughAccum);
+        accumOceanWaveMode(baseXZ, t, vec2(0.9744,  0.2250), 0.095926, 0.9701, 1.19, 0.33, 65.5, ampA.y, Kd, hBathym, deepRestore, surfBreakScale, shoalPhaseBase, gridSpacingM, 0.20, horizSurge, eta, negGradEta, jacobianY, crestAccum, troughAccum);
+        accumOceanWaveMode(baseXZ, t, vec2(0.5299,  0.8480), 0.161107, 1.2572, 2.47, 0.31, 39.0, ampA.z, Kd, hBathym, deepRestore, surfBreakScale, shoalPhaseBase, gridSpacingM, 0.17, horizSurge, eta, negGradEta, jacobianY, crestAccum, troughAccum);
+        accumOceanWaveMode(baseXZ, t, vec2(0.9613, -0.2756), 0.237101, 1.5251, 3.83, 0.29, 26.5, ampA.w, Kd, hBathym, deepRestore, surfBreakScale, shoalPhaseBase, gridSpacingM, 0.14, horizSurge, eta, negGradEta, jacobianY, crestAccum, troughAccum);
+        accumOceanWaveMode(baseXZ, t, vec2(0.7193,  0.6947), 0.352988, 1.8609, 5.11, 0.27, 17.8, ampB.x, Kd, hBathym, deepRestore, surfBreakScale, shoalPhaseBase, gridSpacingM, 0.11, horizSurge, eta, negGradEta, jacobianY, crestAccum, troughAccum);
+        accumOceanWaveMode(baseXZ, t, vec2(0.8910, -0.4540), 0.551157, 2.3253, 0.73, 0.24, 11.4, ampB.y, Kd, hBathym, deepRestore, surfBreakScale, shoalPhaseBase, gridSpacingM, 0.07, horizSurge, eta, negGradEta, jacobianY, crestAccum, troughAccum);
+        accumOceanWaveMode(baseXZ, t, vec2(0.1908,  0.9816), 0.884956, 2.9464, 4.29, 0.21,  7.1, ampB.z, Kd, hBathym, deepRestore, surfBreakScale, shoalPhaseBase, gridSpacingM, 0.05, horizSurge, eta, negGradEta, jacobianY, crestAccum, troughAccum);
+        accumOceanWaveMode(baseXZ, t, vec2(0.9455,  0.3256), 1.427997, 3.7428, 2.08, 0.18,  4.4, ampB.w, Kd, hBathym, deepRestore, surfBreakScale, shoalPhaseBase, gridSpacingM, 0.04, horizSurge, eta, negGradEta, jacobianY, crestAccum, troughAccum);
+
+        // 3. 360-Degree Snell's-Law Refracted Shoaling Coastal Surf Rollers (Pulau U & Pulau I)
         float swashCrest = 0.0;
         float coastScale = smoothstep(0.0, 0.22, S);
-        if (dShore < 42.0 && coastScale > 0.002) {
+        float nyqRoller = gridSpacingM > 0.01 ? (1.0 - smoothstep(3.8, 9.5, gridSpacingM)) : 1.0;
+        if (dShore < 42.0 && coastScale > 0.002 && nyqRoller > 0.002) {
           vec2 coastN = normalize(coastNormalHint + vec2(1e-5, 0.0));
           vec2 refC = baseXZ.y > 536.0 ? vec2(-160.0, 680.0) : vec2(-155.0, 207.0);
           float thetaIsl = atan(baseXZ.y - refC.y, baseXZ.x - refC.x);
 
           float dClamp = max(-1.8, dShore);
-          // Analytical shoaling phase integral: wavelength compresses & phase speed slows as water shallows
           float phiShoal = 0.36 * dClamp + 4.9 * log(1.0 + max(0.0, dClamp + 1.8) / 7.5);
           float kLocal = 0.36 + 4.9 / (7.5 + max(0.0, dClamp + 1.8));
-          float shoalEnv = exp(-max(0.0, dShore - 2.0) * 0.068) * smoothstep(42.0, 24.0, dShore);
+          float shoalEnv = exp(-max(0.0, dShore - 2.0) * 0.068) * smoothstep(42.0, 24.0, dShore) * nyqRoller;
 
-          // Primary coastal surf roller (T = 5.71s, w = 1.10 rad/s) + secondary wave-group swell (T = 7.95s, w = 0.79 rad/s)
           float psi1 = phiShoal + 1.10 * t + 1.7 * sin(thetaIsl - 0.5) + 0.65 * cos(2.0 * thetaIsl + 0.8);
           float psi2 = phiShoal * 0.74 + 0.79 * t - 1.4 * cos(thetaIsl + 0.4) + 0.55 * sin(3.0 * thetaIsl);
 
-          // Stokes 2nd-harmonic asymmetric wave profile (peaked forward-leaning surf crest, broad gentle trough)
           float wSurf1 = cos(psi1) + 0.26 * cos(2.0 * psi1);
           float dSurf1 = sin(psi1) + 0.52 * sin(2.0 * psi1);
           float wSurf2 = cos(psi2) + 0.22 * cos(2.0 * psi2);
           float dSurf2 = sin(psi2) + 0.44 * sin(2.0 * psi2);
 
-          float S_coast = min(S, 1.15);
+          float S_coast = min(S, 1.35) * (0.45 + 0.55 * Kd);
           float aR1 = (0.036 + 0.095 * S_coast) * coastScale * shoalEnv;
           float aR2 = (0.024 + 0.062 * S_coast) * coastScale * shoalEnv;
 
           eta += aR1 * wSurf1 + aR2 * wSurf2;
-          // Orbital shoreward surge & recede along coast normal
           horizSurge -= coastN * ((aR1 * sin(psi1) + aR2 * sin(psi2)) * 0.42);
           negGradEta += coastN * (kLocal * (aR1 * dSurf1 + aR2 * 0.74 * dSurf2));
           swashCrest = clamp(0.5 + 0.38 * wSurf1 + 0.24 * wSurf2, 0.0, 1.0) * shoalEnv * coastScale;
 
-          // Subtle reflected capillary backwash wave radiating 0..4.5m outward after striking the stone turap
-          if (dShore > -0.6 && dShore < 4.8) {
+          if (dShore > -0.6 && dShore < 4.8 && gridSpacingM < 1.5) {
             float reflEnv = (1.0 - clamp(dShore / 4.8, 0.0, 1.0)) * smoothstep(-0.6, 0.1, dShore);
             float psiRefl = dShore * 3.1 - 1.92 * t + sin(thetaIsl * 6.0) * 1.1;
-            float aRefl = 0.014 * (0.30 + 0.60 * S_coast) * coastScale * reflEnv;
+            float aRefl = 0.015 * (0.30 + 0.65 * S_coast) * coastScale * reflEnv;
             eta += aRefl * cos(psiRefl);
             negGradEta += coastN * (3.1 * aRefl * sin(psiRefl));
           }
@@ -2734,9 +3144,11 @@ export class WeatherOpticsEngine {
         float horizonTaper = 1.0 - smoothstep(1150.0, 1630.0, rCenter);
 
         dispOut = vec3(horizSurge.x, eta, horizSurge.y) * horizonTaper;
-        gradNormalOut = normalize(vec3(negGradEta.x * horizonTaper, max(0.35, jacobianY), negGradEta.y * horizonTaper));
-        crestFactorOut = clamp(crestAccum, 0.0, 1.0) * horizonTaper;
+        gradNormalOut = normalize(vec3(negGradEta.x * horizonTaper, max(0.28, jacobianY), negGradEta.y * horizonTaper));
+        float jacobianPinch = clamp((1.0 - jacobianY) * 1.65, 0.0, 1.0);
+        crestFactorOut = clamp(crestAccum * 0.72 + jacobianPinch * 0.42, 0.0, 1.0) * horizonTaper;
         rollerSwashOut = swashCrest;
+        cavityOut = clamp(troughAccum * clamp(Hs / 1.75, 0.0, 1.18), 0.0, 0.88) * horizonTaper;
       }
     `;
 
@@ -2755,6 +3167,9 @@ export class WeatherOpticsEngine {
         uWindVec: this.uniforms.uWindVec,
         uWindPhase: this.uniforms.uWindPhase,
         uSeaState: this.uniforms.uSeaState,
+        uWaveAmpA: this.uniforms.uWaveAmpA,
+        uWaveAmpB: this.uniforms.uWaveAmpB,
+        uVesselWakes: this.uniforms.uVesselWakes,
         uHvsParams: this.uniforms.uHvsParams,
         uHvsGlare: this.uniforms.uHvsGlare
       },
@@ -2768,6 +3183,8 @@ export class WeatherOpticsEngine {
 
         uniform float uTime;
         uniform float uSeaState;
+        uniform vec4 uWaveAmpA;
+        uniform vec4 uWaveAmpB;
 
         varying vec3 vWorldPos;
         varying vec2 vBaseXZ;
@@ -2797,7 +3214,27 @@ export class WeatherOpticsEngine {
             float dShore;
             float crestF;
             float swashF;
-            evalGravityHydrodynamics(wp.xz, uTime, uSeaState, coastN, disp, gNorm, dShore, crestF, swashF);
+            float hBathymV;
+            float surfBreakV;
+            float cavityV;
+            float gridSp = max(2.4, aRiverDetail.y);
+            evalGravityHydrodynamics(
+              wp.xz,
+              uTime,
+              uSeaState,
+              uWaveAmpA,
+              uWaveAmpB,
+              gridSp,
+              coastN,
+              disp,
+              gNorm,
+              dShore,
+              crestF,
+              swashF,
+              hBathymV,
+              surfBreakV,
+              cavityV
+            );
             wp.xyz += disp;
             vWaveElev = disp.y;
           } else if (aHydroMeta.x < 1.5) {
@@ -2849,6 +3286,9 @@ export class WeatherOpticsEngine {
         uniform vec3 uWindVec;
         uniform vec2 uWindPhase;
         uniform float uSeaState;
+        uniform vec4 uWaveAmpA;
+        uniform vec4 uWaveAmpB;
+        uniform vec4 uVesselWakes[4];
         uniform vec4 uHvsParams;
         uniform vec4 uHvsGlare;
 
@@ -3321,35 +3761,113 @@ export class WeatherOpticsEngine {
             return;
           }
 
-          // 1. EXACT PER-PIXEL GRAVITY-WAVE & SHOALING SURF HYDRODYNAMICS + CROSSED CAPILLARY WAVELETS
+          // 1. EXACT PER-PIXEL 8-MODE JONSWAP GRAVITY HYDRODYNAMICS, KELVIN SHIP WAKES, & SWELL-MODULATED CAPILLARY WAVELETS
           vec3 gDisp;
           vec3 gravNorm;
           float dShore;
           float crestFactor;
           float rollerSwash;
-          evalGravityHydrodynamics(vBaseXZ, uTime, uSeaState, vCoastN, gDisp, gravNorm, dShore, crestFactor, rollerSwash);
+          float hBathym;
+          float surfBreak;
+          float cavityAO;
+          evalGravityHydrodynamics(
+            vBaseXZ,
+            uTime,
+            uSeaState,
+            uWaveAmpA,
+            uWaveAmpB,
+            0.0,
+            vCoastN,
+            gDisp,
+            gravNorm,
+            dShore,
+            crestFactor,
+            rollerSwash,
+            hBathym,
+            surfBreak,
+            cavityAO
+          );
 
-          // Dynamic 3D waterline distance & True Archipelago Bathymetry (0.04m nearshore -> 18.5m pelagic channel):
+          // Live 3D waterline & True Shelf-to-Pelagic Optical Depth (0.04m swash edge -> 22.5m deep strait/pelagic sea)
+          float HsLive = clamp(uSeaState * 0.854, 0.0, 3.0);
           float liveWaterline = max(0.0, dShore + gDisp.y * 1.85);
-          float channelDrop = pow(max(0.0, liveWaterline - 3.2), 1.24) * 0.42;
-          float waterDepth = clamp(0.04 + liveWaterline * 0.46 + channelDrop + max(0.0, gDisp.y) * 0.55, 0.04, 18.5);
+          float waterDepth = clamp(max(0.04, hBathym - 0.18 + gDisp.y * 0.72), 0.04, 22.5);
 
-          // Distance Nyquist band-limiting on fine capillary wavelets (0.0m calm -> glassy lagoon, 2.0m -> rich chop!)
-          float capDetailFade = 1.0 - smoothstep(45.0, 290.0, distCam);
-          float shoalCapDamp = mix(0.45, 1.0, smoothstep(0.0, 3.0, liveWaterline));
-          float calmCap = mix(0.10, 0.72 + 0.58 * min(uSeaState, 2.35), smoothstep(0.0, 0.28, uSeaState));
-          float capGain = calmCap * shoalCapDamp * capDetailFade;
+          // 1B. 4-Slot Live 19.47° Lord Kelvin Ship V-Wakes + Stern Propeller Wash & Submerged Bubble Plumes
+          vec2 wakeNormXZ = vec2(0.0);
+          float wakeFoam = 0.0;
+          float wakeBubble = 0.0;
+          if (distCam < 760.0 && liveWaterline > 0.6) {
+            float wakeDistFade = smoothstep(760.0, 140.0, distCam);
+            for (int wi = 0; wi < 4; wi++) {
+              vec4 wk = uVesselWakes[wi];
+              float wSpd = abs(wk.w);
+              if (wSpd > 0.12) {
+                bool isWideHull = wk.w > 0.0;
+                float halfL = isWideHull ? 8.2 : 5.4;
+                vec2 wFwd = vec2(sin(wk.z), cos(wk.z));
+                vec2 wPerp = vec2(cos(wk.z), -sin(wk.z));
+                vec2 wRel = vWorldPos.xz - wk.xy;
+                float sBehind = halfL - dot(wRel, wFwd);
+                float uCrossSigned = dot(wRel, wPerp);
+                float uCross = abs(uCrossSigned);
+                float spdNorm = clamp(wSpd / 6.2, 0.18, 1.30);
+                float wakeMaxLen = mix(26.0, 78.0, clamp(spdNorm, 0.0, 1.0));
+
+                if (sBehind > -1.4 && sBehind < wakeMaxLen && uCross < 4.8 + 0.44 * max(0.0, sBehind)) {
+                  float sPos = max(0.0, sBehind);
+                  // Exact Lord Kelvin gravity-wave wedge half-angle: tan(19.4712 deg) = 1 / sqrt(8) = 0.353553
+                  float uKelvin = (isWideHull ? 1.55 : 0.90) + 0.353553 * sPos;
+                  float armW = 1.05 + 0.068 * sPos;
+                  float cuspEnv = exp(-pow((uCross - uKelvin) / armW, 2.0))
+                                * smoothstep(-1.0, 2.4, sBehind)
+                                * exp(-sPos / wakeMaxLen);
+                  float phDiv = (uCross - uKelvin) * 2.42 - sPos * 0.66 - uTime * 3.85;
+                  float signSide = uCrossSigned >= 0.0 ? 1.0 : -1.0;
+                  vec2 cuspDir = normalize(wPerp * signSide - wFwd * 0.353553);
+                  float cuspSlope = cos(phDiv) * cuspEnv * 0.25 * spdNorm;
+
+                  float transEnv = smoothstep(uKelvin + 0.6, uKelvin * 0.48, uCross)
+                                 * smoothstep(2.6, 8.8, sBehind)
+                                 * exp(-sPos / (wakeMaxLen * 0.82));
+                  float transSlope = sin(sPos * 1.18 - uTime * 3.2) * transEnv * 0.11 * spdNorm;
+
+                  wakeNormXZ += (cuspDir * cuspSlope + wFwd * transSlope) * wakeDistFade;
+
+                  float sStern = sBehind - 2.0 * halfL;
+                  if (sStern > -2.2) {
+                    float sStPos = max(0.0, sStern);
+                    float propLat = isWideHull ? abs(uCross - 1.52) : uCross;
+                    float washW = (isWideHull ? 1.15 : 0.92) + 0.056 * sStPos;
+                    float washCore = exp(-pow(propLat / washW, 2.0)) * smoothstep(-2.0, 1.4, sStern);
+                    float turbN = vnoise(R * (vWorldPos.xz * 2.75 - wFwd * (uTime * 2.45)));
+                    float spdGain = clamp(spdNorm, 0.24, 1.0);
+                    wakeFoam += washCore * exp(-sStPos / mix(11.0, 25.0, spdGain)) * (0.46 + 0.62 * turbN) * spdGain * wakeDistFade;
+                    wakeBubble += washCore * exp(-sStPos / mix(22.0, 58.0, spdGain)) * (0.54 + 0.46 * turbN) * spdGain * wakeDistFade;
+                  }
+                  wakeFoam += cuspEnv * smoothstep(0.32, 0.96, sin(phDiv)) * 0.26 * clamp(spdNorm - 0.14, 0.0, 1.0) * wakeDistFade;
+                }
+              }
+            }
+          }
+
+          // Swell-modulated capillary-gravity wind wavelets (windward/crest roughness boost + sheltered trough calm!)
+          float capDetailFade = 1.0 - smoothstep(48.0, 320.0, distCam);
+          float shoalCapDamp = mix(0.42, 1.0, smoothstep(0.0, 3.2, liveWaterline));
+          float swellCapMod = (0.72 + 0.46 * crestFactor) * (1.0 - 0.26 * cavityAO);
+          float calmCap = mix(0.08, 0.68 + 0.50 * min(uSeaState, 3.2), smoothstep(0.0, 0.26, uSeaState));
+          float capGain = calmCap * shoalCapDamp * swellCapMod * capDetailFade;
 
           float c0 = 0.0;
-          float capNx = 0.0;
-          float capNz = 0.0;
-          if (capGain > 0.008) {
-            float epsC = mix(0.07, 0.24, smoothstep(15.0, 180.0, distCam));
+          float capNx = wakeNormXZ.x;
+          float capNz = wakeNormXZ.y;
+          if (capGain > 0.006) {
+            float epsC = mix(0.065, 0.25, smoothstep(14.0, 195.0, distCam));
             c0 = evalCrossedWavelets(vWorldPos.xz, uTime, uWindPhase);
             float cx = evalCrossedWavelets(vWorldPos.xz + vec2(epsC, 0.0), uTime, uWindPhase);
             float cz = evalCrossedWavelets(vWorldPos.xz + vec2(0.0, epsC), uTime, uWindPhase);
-            capNx = ((c0 - cx) / epsC) * 0.055 * capGain;
-            capNz = ((c0 - cz) / epsC) * 0.055 * capGain;
+            capNx += ((c0 - cx) / epsC) * 0.056 * capGain;
+            capNz += ((c0 - cz) / epsC) * 0.056 * capGain;
           }
 
           float rainRingFoam = 0.0;
@@ -3382,154 +3900,242 @@ export class WeatherOpticsEngine {
           vec3 sunDir = normalize(uSunDir);
           float sunVis = clamp(1.0 - uRainIntensity * 0.78 - uStormFactor * 0.42 - uCloudCover * 0.22, 0.06, 1.0);
 
-          // 2. BEER-LAMBERT PELAGIC DEPTH ABSORPTION, ORGANIC NEARSHORE SAND/PEBBLE REFRACTION, & CAUSTICS (ZERO VORONOI GRID!)
-          vec2 refrXZ = vWorldPos.xz - normal.xz * min(0.55, waterDepth * 0.42);
+          // Low-sun grazing wave-slope self-shadowing (steep leeward backs of 1.5–3.0m swells cast soft shadow troughs!)
+          float lowSunWeight = 1.0 - smoothstep(0.18, 0.62, sunDir.y);
+          float waveSunNdotL = dot(gravNorm, sunDir);
+          float waveSelfShadow = mix(1.0, smoothstep(-0.14, 0.22, waveSunNdotL), lowSunWeight * smoothstep(0.35, 1.80, HsLive) * 0.72);
+
+          // 2. JERLOV TYPE IB–II 4-ZONE SEAWATER VOLUME, SEABED CAUSTICS, SUBMERGED BUBBLE PLUMES, & THIN-CREST JADE SSS
+          vec2 refrXZ = vWorldPos.xz - normal.xz * min(0.62, waterDepth * 0.40);
           float sandMacro = fbmCloudRefl(refrXZ * 0.65);
           float pebMid = vnoise(R * (refrXZ * 4.4 + sandMacro * 0.8));
           float pebFine = vnoise(R_INV * (refrXZ * 12.5));
           vec3 submergedBed = mix(
-            vec3(0.125, 0.132, 0.118),
-            vec3(0.285, 0.268, 0.222),
+            vec3(0.118, 0.128, 0.116),
+            vec3(0.295, 0.276, 0.228),
             clamp(sandMacro * 0.55 + pebMid * 0.30 + pebFine * 0.15, 0.0, 1.0)
           );
           submergedBed *= mix(1.0, 0.16, uNightFactor);
 
-          if (waterDepth < 2.85 && distCam < 165.0) {
-            vec2 causticUV = refrXZ - sunDir.xz * (waterDepth / max(0.28, sunDir.y)) * 0.38 + normal.xz * 0.22;
-            float caust = evalCaustics(causticUV, uTime) * smoothstep(2.85, 0.10, waterDepth) * smoothstep(165.0, 42.0, distCam);
+          if (waterDepth < 3.15 && distCam < 175.0) {
+            vec2 causticUV = refrXZ - sunDir.xz * (waterDepth / max(0.28, sunDir.y)) * 0.38 + normal.xz * 0.24;
+            float caust = evalCaustics(causticUV, uTime) * smoothstep(3.15, 0.10, waterDepth) * smoothstep(175.0, 42.0, distCam);
             vec3 caustTint = mix(mix(vec3(1.0, 0.95, 0.76), vec3(1.0, 0.62, 0.32), uDuskFactor), vec3(0.22, 0.32, 0.48), uNightFactor);
-            submergedBed += caustTint * caust * sunVis * 0.56;
+            submergedBed += caustTint * caust * sunVis * waveSelfShadow * 0.58;
           }
 
-          vec3 shallowJade = mix(vec3(0.068, 0.245, 0.222), vec3(0.044, 0.138, 0.146), clamp(uRainIntensity * 0.65, 0.0, 1.0));
-          vec3 midLagoon = mix(vec3(0.024, 0.112, 0.145), vec3(0.018, 0.068, 0.092), clamp(uRainIntensity * 0.65, 0.0, 1.0));
-          vec3 deepPelagic = mix(vec3(0.010, 0.048, 0.078), vec3(0.008, 0.032, 0.052), clamp(uRainIntensity * 0.65 + uStormFactor * 0.25, 0.0, 1.0));
-          shallowJade = mix(shallowJade, vec3(0.014, 0.032, 0.050), uNightFactor);
-          midLagoon = mix(midLagoon, vec3(0.008, 0.020, 0.038), uNightFactor);
-          deepPelagic = mix(deepPelagic, vec3(0.004, 0.011, 0.024), uNightFactor);
+          float overcastDesat = clamp(uRainIntensity * 0.65 + uStormFactor * 0.25, 0.0, 1.0);
+          vec3 shallowTurquoise = mix(vec3(0.068, 0.285, 0.262), vec3(0.045, 0.155, 0.162), overcastDesat);
+          vec3 shelfEmerald     = mix(vec3(0.028, 0.152, 0.194), vec3(0.021, 0.088, 0.118), overcastDesat);
+          vec3 straitTeal       = mix(vec3(0.018, 0.094, 0.152), vec3(0.014, 0.058, 0.094), overcastDesat);
+          vec3 deepPelagic      = mix(vec3(0.013, 0.058, 0.114), vec3(0.010, 0.036, 0.072), overcastDesat);
 
-          // Translucent Emerald-Turquoise Subsurface Scattering (SSS) glowing through raised 3D Gerstner wave crests!
+          shallowTurquoise = mix(shallowTurquoise, vec3(0.014, 0.032, 0.050), uNightFactor);
+          shelfEmerald     = mix(shelfEmerald,     vec3(0.009, 0.022, 0.040), uNightFactor);
+          straitTeal       = mix(straitTeal,       vec3(0.006, 0.015, 0.031), uNightFactor);
+          deepPelagic      = mix(deepPelagic,      vec3(0.004, 0.011, 0.025), uNightFactor);
+
+          // Wave-trough cavity occlusion deepens heavy swell troughs smoothly while keeping crests luminous
+          float troughDarken = 1.0 - cavityAO * 0.24;
+
+          // Translucent Backlit Jade-Emerald Subsurface Scattering (SSS) glowing through raised 0.5–3.0m wave crests!
           float waveSlope = clamp(1.0 - gravNorm.y, 0.0, 1.0);
-          float waveCrestH = clamp(gDisp.y * 2.35 + crestFactor * 0.52 + rollerSwash * 0.42, 0.0, 1.65);
-          float sssAlign = pow(max(0.0, dot(-viewDir, normalize(sunDir - normal * 0.42))), 3.0);
-          float crestSSS = waveCrestH * (0.28 + 0.72 * sssAlign) * sunVis * (1.0 - uNightFactor);
-          vec3 sssTint = mix(vec3(0.055, 0.265, 0.215), vec3(0.22, 0.14, 0.06), uDuskFactor);
+          float crestElevNorm = clamp(max(0.0, gDisp.y) / max(0.32, 0.46 * HsLive + 0.12), 0.0, 1.45);
+          float thinCrest = clamp(crestElevNorm * 0.78 + crestFactor * 0.58 + rollerSwash * 0.44 + waveSlope * 0.68, 0.0, 1.95)
+                          * smoothstep(0.08, 0.52, HsLive);
+          float sssForward = pow(max(0.0, dot(-viewDir, normalize(sunDir - normal * 0.52))), 2.4);
+          float sssAmbient = max(0.0, gravNorm.y) * 0.28 + waveSlope * 0.36;
+          float crestSSS = thinCrest * (sssAmbient + 1.05 * sssForward) * sunVis * (1.0 - uNightFactor * 0.88);
+          vec3 sssTint = mix(vec3(0.058, 0.335, 0.275), vec3(0.29, 0.185, 0.078), uDuskFactor);
 
-          // Physical Beer-Lambert spectral attenuation (red absorbs fastest in water; deep pelagic channel absorbs all bed light)
-          vec3 opticalPath = vec3(2.25, 0.84, 0.70) * waterDepth * (1.0 + 0.38 * (1.0 - max(0.22, viewDir.y)));
+          // Submerged Milky-Aquamarine Micro-Bubble Plumes (beneath breaking surf bores, steep crests, & ship wakes!)
+          float bubbleNoise = fbmCloudRefl(vWorldPos.xz * 0.85 - normal.xz * 0.45 + vec2(uTime * 0.11, -uTime * 0.09));
+          float submergedBubble = clamp(
+            wakeBubble * 0.86 +
+            surfBreak * (0.26 + 0.42 * bubbleNoise) * smoothstep(14.0, 0.6, liveWaterline) +
+            crestFactor * waveSlope * smoothstep(1.05, 2.75, HsLive) * bubbleNoise * 0.36,
+            0.0,
+            0.84
+          ) * smoothstep(780.0, 95.0, distCam);
+          vec3 bubbleTint = mix(mix(vec3(0.16, 0.44, 0.45), vec3(0.30, 0.25, 0.21), uDuskFactor), vec3(0.035, 0.075, 0.11), uNightFactor);
+          bubbleTint *= mix(1.0, 0.68, overcastDesat);
+
+          // Beer-Lambert spectral seawater attenuation + upward sky-irradiance volume backscatter across 4 Jerlov zones
+          float volSkyIrrad = mix(mix(1.18, 0.88, uDuskFactor), 0.72, uNightFactor) * mix(1.0, 0.78, overcastDesat);
+          vec3 opticalPath = vec3(2.15, 0.78, 0.62) * waterDepth * (1.0 + 0.38 * (1.0 - max(0.22, viewDir.y)));
           vec3 transmittance = exp(-opticalPath);
-          vec3 waterVolume = mix(deepPelagic, mix(midLagoon, shallowJade, exp(-waterDepth * 0.85)), exp(-waterDepth * 0.16)) + sssTint * crestSSS * 0.46;
+          vec3 midToShallow = mix(shelfEmerald, shallowTurquoise, exp(-waterDepth * 0.72));
+          vec3 deepToMid = mix(deepPelagic, mix(straitTeal, midToShallow, exp(-waterDepth * 0.24)), exp(-waterDepth * 0.095));
+          vec3 waterVolume = deepToMid * volSkyIrrad * troughDarken + sssTint * crestSSS * 0.58;
+          waterVolume = mix(waterVolume, bubbleTint, submergedBubble * 0.58);
           vec3 underwaterCol = mix(waterVolume, submergedBed, transmittance);
 
-          // 3. EXACT DIELECTRIC WATER SCHLICK FRESNEL (IOR 1.333 -> F0 = 0.0204), CLOUD MIRROR, & OVERHEAD BRIDGE SOFFIT REFLECTION
-          float NdotV = max(dot(viewDir, normal), 0.0);
-          float fresnel = 0.0204 + (1.0 - 0.0204) * pow(1.0 - NdotV, 5.0);
-          float reflWeight = clamp(0.07 + fresnel * 0.92, 0.0, 0.96);
+          // 3. ROSS-CARDONE / BRUNETON SLOPE-VARIANCE EFFECTIVE DIELECTRIC FRESNEL (IOR 1.337 -> F0 = 0.0208)
+          // Uses filtered macro+meso wave normal for Fresnel NdotV + sub-pixel facet sky-scatter floor so steep 3m wave
+          // faces never punch dark amoeba holes in sky reflection, while eliminating plastic white horizon glare!
+          float distSlopeSpread = smoothstep(42.0, 360.0, distCam);
+          float roughSigma2 = 0.0015 + 0.024 * clamp(uSeaState, 0.0, 3.55) * (0.34 + 0.66 * distSlopeSpread) + uRainIntensity * 0.008;
+          vec3 fresNormal = normalize(mix(gravNorm, normal, 0.36));
+          float NdotV = max(dot(viewDir, fresNormal), 0.0);
+          float fresnelExp = mix(5.0, 2.65, clamp(roughSigma2 * 18.5, 0.0, 1.0));
+          float fresnelRaw = 0.0208 + (1.0 - 0.0208) * pow(1.0 - NdotV, fresnelExp);
+          float subfacetScatterFloor = 0.042 + 0.115 * clamp(roughSigma2 * 15.0, 0.0, 1.0);
+          float fresnel = max(fresnelRaw, subfacetScatterFloor);
+          float horizonMasking = mix(0.96, 0.76, clamp(roughSigma2 * 16.0, 0.0, 1.0)) * (1.0 - cavityAO * 0.12);
+          float reflWeight = clamp(0.065 + fresnel * 0.90, 0.0, horizonMasking);
 
-          vec3 reflRay = reflect(-viewDir, normal);
-          float reflElev = clamp(reflRay.y, 0.0, 1.0);
+          // Blend reflection ray gently upward on steep wave fronts so grazing waves reflect horizon sky rather than dark void
+          vec3 reflNormal = normalize(mix(gravNorm, normal, 0.62));
+          vec3 reflRay = reflect(-viewDir, reflNormal);
+          float reflElev = clamp(max(reflRay.y, 0.045 + 0.065 * waveSlope), 0.0, 1.0);
           vec3 skyZen = mix(mix(vec3(0.13, 0.37, 0.71), vec3(0.15, 0.18, 0.38), uDuskFactor), vec3(0.015, 0.025, 0.056), uNightFactor);
           vec3 skyHor = mix(mix(vec3(0.57, 0.74, 0.88), vec3(0.86, 0.46, 0.24), uDuskFactor), vec3(0.042, 0.068, 0.126), uNightFactor);
           vec3 skyRefl = mix(skyHor, skyZen, pow(reflElev, 0.58));
 
           // Reflected Cumulonimbus / tropical clouds advected monotonically via uWindPhase
-          vec2 reflCloudUV = (reflRay.xz / (reflElev + 0.22)) * 1.45 + uWindPhase * 0.013;
+          vec2 reflCloudUV = (reflRay.xz / (reflElev + 0.26)) * 1.38 + uWindPhase * 0.013;
           float cField = fbmCloudRefl(reflCloudUV);
           float cThresh = mix(0.56, 0.22, clamp(uCloudCover, 0.0, 1.0));
-          float cMask = smoothstep(cThresh, cThresh + 0.32, cField) * smoothstep(0.0, 0.18, reflElev);
+          float cMask = smoothstep(cThresh, cThresh + 0.34, cField) * smoothstep(0.02, 0.22, reflElev);
           vec3 cloudReflCol = mix(mix(vec3(0.92, 0.95, 0.99), vec3(0.95, 0.56, 0.32), uDuskFactor), vec3(0.07, 0.10, 0.16), uNightFactor);
-          cloudReflCol = mix(cloudReflCol, vec3(0.21, 0.25, 0.30) * mix(1.0, 0.25, uNightFactor), clamp(uRainIntensity * 0.68 + uStormFactor * 0.35, 0.0, 0.92));
-          skyRefl = mix(skyRefl, cloudReflCol, cMask * 0.78);
-          skyRefl = mix(skyRefl, vec3(0.23, 0.27, 0.32) * mix(1.0, 0.22, uNightFactor), clamp(uRainIntensity * 0.62 + uStormFactor * 0.30, 0.0, 0.90));
+          cloudReflCol = mix(cloudReflCol, vec3(0.24, 0.28, 0.34) * mix(1.0, 0.25, uNightFactor), clamp(uRainIntensity * 0.68 + uStormFactor * 0.35, 0.0, 0.92));
+          skyRefl = mix(skyRefl, cloudReflCol, cMask * 0.74);
+          skyRefl = mix(skyRefl, vec3(0.25, 0.29, 0.35) * mix(1.0, 0.22, uNightFactor), clamp(uRainIntensity * 0.62 + uStormFactor * 0.30, 0.0, 0.90));
+          skyRefl *= (1.0 - cavityAO * 0.16);
           skyRefl += vec3(0.76, 0.88, 1.0) * uLightningFlash * 1.15;
 
-          // Physical Overhead Reflection & Ambient Shadow of Jembatan Teksas UI & Ferry Piers on Teluk U / Selat UI Water!
-          if (vWorldPos.z > 168.0 && vWorldPos.z < 323.0 && abs(vWorldPos.x + 28.0) < 16.0) {
+          // Physical Overhead Reflection & Soft Ambient Shadow of Jembatan Teksas UI directly beneath the span!
+          if (vWorldPos.z > 169.0 && vWorldPos.z < 322.0 && abs(vWorldPos.x + 28.0) < 8.5) {
             float uArchB = clamp((vWorldPos.z - 245.65) / 74.0, -1.0, 1.0);
             float bridgeDeckH = 4.15 + 4.95 * max(0.0, 1.0 - uArchB * uArchB) - 1.25;
-            float hitX = vWorldPos.x + reflRay.x * (max(1.5, bridgeDeckH - vWorldPos.y) / max(0.18, reflElev + 0.08));
-            float reflBridgeMask = (1.0 - smoothstep(2.4, 4.2, abs(hitX + 28.0))) * smoothstep(169.0, 174.0, vWorldPos.z) * (1.0 - smoothstep(317.0, 322.0, vWorldPos.z));
-            float underBridgeAO = (1.0 - smoothstep(2.6, 7.2, abs(vWorldPos.x + 28.0))) * smoothstep(170.0, 175.0, vWorldPos.z) * (1.0 - smoothstep(316.0, 321.0, vWorldPos.z));
-            vec3 bridgeSoffitRefl = mix(vec3(0.09, 0.09, 0.10), vec3(0.24, 0.08, 0.07), smoothstep(1.9, 2.7, abs(hitX + 28.0))) * mix(1.0, 0.25, uNightFactor);
+            float dxRefl = clamp(reflRay.x * (max(1.5, bridgeDeckH - vWorldPos.y) / max(0.32, reflElev + 0.22)), -3.6, 3.6);
+            float hitX = vWorldPos.x + dxRefl;
+            float lateralProx = exp(-pow((vWorldPos.x + 28.0) / 4.8, 2.0));
+            float reflBridgeMask = (1.0 - smoothstep(2.2, 3.8, abs(hitX + 28.0))) * lateralProx * smoothstep(170.0, 175.0, vWorldPos.z) * (1.0 - smoothstep(316.0, 321.0, vWorldPos.z));
+            float underBridgeAO = (1.0 - smoothstep(2.4, 6.2, abs(vWorldPos.x + 28.0))) * smoothstep(170.0, 175.0, vWorldPos.z) * (1.0 - smoothstep(316.0, 321.0, vWorldPos.z));
+            vec3 bridgeSoffitRefl = mix(vec3(0.14, 0.16, 0.19), vec3(0.28, 0.11, 0.09), smoothstep(1.8, 2.7, abs(hitX + 28.0))) * mix(1.0, 0.25, uNightFactor);
             if (uNightFactor > 0.12) {
               bridgeSoffitRefl += vec3(0.45, 0.34, 0.16) * uNightFactor * 0.45;
             }
-            skyRefl = mix(skyRefl, bridgeSoffitRefl, reflBridgeMask * 0.76);
-            underwaterCol *= (1.0 - underBridgeAO * 0.34);
+            skyRefl = mix(skyRefl, bridgeSoffitRefl, reflBridgeMask * 0.46);
+            underwaterCol *= (1.0 - underBridgeAO * 0.26);
           }
 
           vec3 col = mix(underwaterCol, skyRefl, reflWeight);
 
-          // 4. DISTANCE SLOPE-VARIANCE (LEADR) GGX MULTI-FACET SUN / MOON GLITTER PATH
+          // 4. ANISOTROPIC WIND-SHEARED DUAL-LOBE GGX MICROFACET SUN / MOON GLITTER PATH
+          vec2 wDir2 = length(uWindVec.xz) > 0.02 ? normalize(uWindVec.xz) : vec2(0.78, 0.62);
+          vec2 wPerp2 = vec2(-wDir2.y, wDir2.x);
           vec3 H = normalize(sunDir + viewDir);
-          float NdotH = max(dot(normal, H), 0.0);
-          float distSlopeSpread = smoothstep(45.0, 320.0, distCam);
-          float tightExp = mix(320.0, 95.0, distSlopeSpread);
-          float broadExp = mix(54.0, 22.0, distSlopeSpread);
-          float specTight = pow(NdotH, tightExp) * mix(1.60, 0.76, distSlopeSpread);
-          float specGlitter = pow(NdotH, broadExp) * mix(0.20, 0.32, distSlopeSpread);
+          // Cox-Munk anisotropic slope distribution: cross-wind variance is narrower than upwind/downwind variance,
+          // naturally stretching solar/lunar glitter into a shimmering path toward the horizon!
+          vec3 T_upwind = normalize(vec3(wDir2.x, -dot(normal.xz, wDir2) / max(0.25, normal.y), wDir2.y));
+          vec3 B_cross  = normalize(cross(normal, T_upwind));
+          float hDotT = dot(H, T_upwind);
+          float hDotB = dot(H, B_cross);
+          float hDotN = max(dot(normal, H), 1e-4);
+          float alphaUp = clamp(0.032 + 0.055 * sqrt(max(0.0, uSeaState)) + 0.085 * distSlopeSpread, 0.03, 0.34);
+          float alphaCr = alphaUp * 0.64;
+          float anisoDenom = (hDotT * hDotT) / (alphaUp * alphaUp) + (hDotB * hDotB) / (alphaCr * alphaCr) + hDotN * hDotN;
+          float ggxGlint = 1.0 / (3.14159265 * alphaUp * alphaCr * anisoDenom * anisoDenom);
+          float specTight = pow(hDotN, mix(360.0, 95.0, distSlopeSpread)) * mix(1.45, 0.62, distSlopeSpread) * waveSelfShadow;
+          float specGlitter = min(2.8, ggxGlint * 0.036) * waveSelfShadow;
           vec3 glitterTint = mix(mix(vec3(1.0, 0.94, 0.80), vec3(1.0, 0.58, 0.26), uDuskFactor), vec3(0.45, 0.56, 0.78), uNightFactor);
           vec3 glitter = glitterTint * (specTight + specGlitter) * sunVis;
           col += glitter / (1.0 + glitter * 0.42);
 
-          // 5. PHOTOGRAPHIC WIND-STREAKED BREAKING SEA FOAM, AERATED FROTH PLUMES, & LANGMUIR STREAKS (ZERO HEXAGONAL VORONOI!)
-          vec2 wDir2 = length(uWindVec.xz) > 0.02 ? normalize(uWindVec.xz) : vec2(0.78, 0.62);
-          vec2 wPerp2 = vec2(-wDir2.y, wDir2.x);
-          float foamBand = 1.0 - smoothstep(140.0, 520.0, distCam);
-          float totalFoam = 0.0;
+          // 5. 4-LAYER PHOTOGRAPHIC SEA FOAM, BREAKING BORES, LANGMUIR WINDROWS, & STORM SPINDRIFT SPRAY (ZERO HEXAGONS!)
+          float foamBand = 1.0 - smoothstep(150.0, 560.0, distCam);
+          float totalFoam = clamp(wakeFoam, 0.0, 0.92);
+          float spindriftMist = 0.0;
 
-          // 5A. Shoreline Swash & Aerated Turap Surf Run-Up
-          if (liveWaterline < 4.2 && distCam < 1350.0) {
-            float swashMacro = fbmCloudRefl(vWorldPos.xz * 0.95 + normal.xz * 0.55 - wDir2 * (uTime * 0.16));
-            float swashMeso = vnoise(R * (vWorldPos.xz * 4.2 + swashMacro * 1.3 + vec2(uTime * 0.24, -uTime * 0.18)));
-            float swashMicro = vnoise(R_INV * (vWorldPos.xz * 13.5 - uTime * 0.35));
-            float frothyLace = mix(0.68, clamp(smoothstep(0.26, 0.74, swashMacro * 0.50 + swashMeso * 0.34 + swashMicro * 0.16) * (0.55 + 0.65 * swashMeso), 0.0, 1.0), foamBand);
-            float contactSwash = smoothstep(1.05 + rollerSwash * 0.85, 0.0, liveWaterline);
-            float rollerRibbon = smoothstep(3.8, 0.35, liveWaterline) * pow(rollerSwash, 1.65) * 0.58;
-            float altFade = smoothstep(1350.0, 380.0, distCam) * 0.65 + 0.35 * smoothstep(1350.0, 900.0, distCam);
-            float seaFoamDrive = smoothstep(0.03, 0.28, uSeaState) * (0.46 + 0.34 * clamp(uSeaState, 0.0, 2.0));
-            totalFoam += clamp(contactSwash * (0.38 + 0.72 * frothyLace) + rollerRibbon * frothyLace, 0.0, 1.0)
-                       * seaFoamDrive * altFade;
+          // 5A. Shoreline Breaking Surf Bore & Receding Aerated Turap Swash Lace
+          if (liveWaterline < 6.4 && distCam < 1380.0) {
+            float alongCoast = dot(vWorldPos.xz, vec2(-vCoastN.y, vCoastN.x));
+            float swashMacro = fbmCloudRefl(vec2(liveWaterline * 0.85 - uTime * 0.18, alongCoast * 0.55) + normal.xz * 0.45);
+            float swashMeso = vnoise(R * (vWorldPos.xz * 4.2 + swashMacro * 1.35 + vec2(uTime * 0.24, -uTime * 0.18)));
+            float swashMicro = vnoise(R_INV * (vWorldPos.xz * 13.8 - uTime * 0.35));
+            float frothyLace = mix(
+              0.66,
+              clamp(smoothstep(0.24, 0.74, swashMacro * 0.48 + swashMeso * 0.35 + swashMicro * 0.17) * (0.52 + 0.68 * swashMeso), 0.0, 1.0),
+              foamBand
+            );
+            float contactSwash = smoothstep(1.15 + rollerSwash * 0.95, 0.0, liveWaterline);
+            float rollerRibbon = smoothstep(5.6, 0.35, liveWaterline) * (pow(rollerSwash, 1.55) * 0.62 + surfBreak * 0.48);
+            float altFade = smoothstep(1380.0, 380.0, distCam) * 0.65 + 0.35 * smoothstep(1380.0, 920.0, distCam);
+            float seaFoamDrive = smoothstep(0.03, 0.28, uSeaState) * (0.44 + 0.30 * clamp(uSeaState, 0.0, 3.0));
+            totalFoam = max(
+              totalFoam,
+              clamp(contactSwash * (0.38 + 0.72 * frothyLace) + rollerRibbon * frothyLace, 0.0, 0.94) * seaFoamDrive * altFade
+            );
           }
 
-          // 5B. Open-Sea Breaking Whitecap Plumes & Wind-Aligned Langmuir Foam Streaks (0.35m .. 2.0m Waves!)
-          if (uSeaState > 0.34 && distCam < 680.0 && liveWaterline > 0.8) {
-            float seaNorm = clamp((uSeaState - 0.34) / 1.66, 0.0, 1.0);
+          // 5B. Monahan Steepness-Driven Open-Sea Plunging/Spilling Whitecaps, Langmuir Windrows, & Leeward Spindrift Mist (0.35m .. 3.00m!)
+          if (HsLive > 0.30 && distCam < 860.0 && liveWaterline > 0.75) {
+            float seaNorm = clamp((HsLive - 0.30) / 2.70, 0.0, 1.0);
             float sAlongW = dot(vWorldPos.xz, wDir2) - length(uWindPhase) * 0.28;
             float sCrossW = dot(vWorldPos.xz, wPerp2);
-            float warpF = fbmCloudRefl(vWorldPos.xz * 0.24 - wDir2 * (uTime * 0.08));
+            float warpF = fbmCloudRefl(vWorldPos.xz * 0.22 - wDir2 * (uTime * 0.08));
 
-            // Organic breaking crest froth (driven by Jacobian crest pinch + local slope steepness + domain-warped FBM!)
-            float breakPatch = fbmCloudRefl(vec2(sAlongW * 0.42 + warpF * 1.6, sCrossW * 0.38 - warpF * 1.2));
-            float frothDetail = vnoise(R * (vWorldPos.xz * 3.6 - wDir2 * (uTime * 0.45) + breakPatch * 1.4));
-            float bubbleGrain = mix(0.65, vnoise(R_INV * (vWorldPos.xz * 11.8 + normal.xz * 1.2)), foamBand);
+            float breakPatch = fbmCloudRefl(vec2(sAlongW * 0.38 + warpF * 1.65, sCrossW * 0.34 - warpF * 1.25));
+            float frothDetail = vnoise(R * (vWorldPos.xz * 3.5 - wDir2 * (uTime * 0.46) + breakPatch * 1.4));
+            float bubbleGrain = mix(0.65, vnoise(R_INV * (vWorldPos.xz * 12.2 + normal.xz * 1.25)), foamBand);
 
-            float steepDrive = crestFactor * (0.62 + 1.85 * waveSlope) * (0.55 + 0.75 * breakPatch);
-            float breakThresh = mix(0.76, 0.24, seaNorm);
+            // Asymmetric spilling crest whitecap + decaying bubble mat on wave back
+            float leeTrail = max(0.0, -dot(gravNorm.xz, wDir2));
+            float steepDrive = (crestFactor * (0.58 + 2.05 * waveSlope) + surfBreak * 0.45 + leeTrail * crestFactor * 0.34)
+                             * (0.52 + 0.78 * breakPatch);
+            float breakThresh = mix(0.78, 0.19, pow(seaNorm, 0.78));
             float crestPlume = smoothstep(breakThresh, breakThresh + 0.30, steepDrive)
-                             * smoothstep(0.24, 0.78, frothDetail * 0.65 + bubbleGrain * 0.35);
+                             * smoothstep(0.22, 0.78, frothDetail * 0.64 + bubbleGrain * 0.36);
 
-            // Trailing Wind-Sheared Langmuir Foam Streaks in choppy/rough seas (uSeaState > 0.75m)
+            // Organic Wind-Aligned Langmuir Bubble Windrows (domain-warped & broken into lacy frothy trails, ZERO ruled lines!)
             float langmuir = 0.0;
-            if (uSeaState > 0.72) {
-              float streakField = vnoise(vec2(sAlongW * 0.18 + warpF * 1.1, sCrossW * 1.65 + (breakPatch - 0.5) * 1.8));
-              float streakFine = vnoise(vec2(sAlongW * 0.65 - uTime * 0.22, sCrossW * 4.8 + warpF * 2.2));
-              langmuir = smoothstep(0.66, 0.90, streakField * 0.62 + streakFine * 0.38)
-                       * smoothstep(0.72, 1.85, uSeaState) * 0.38 * (0.45 + 0.55 * bubbleGrain);
+            if (HsLive > 0.85) {
+              vec2 warpLang = vec2(
+                fbmCloudRefl(vWorldPos.xz * 0.14 + vec2(3.7, 9.1) - wDir2 * (uTime * 0.05)),
+                fbmCloudRefl(R * (vWorldPos.xz * 0.17) + vec2(14.2, 2.8) - wDir2 * (uTime * 0.06))
+              ) - 0.5;
+              float sAlWarp = sAlongW * 0.18 + warpLang.x * 4.2;
+              float sCrWarp = sCrossW * 0.72 + warpLang.y * 5.8 + gDisp.y * 0.65;
+              float rowMacro = fbmCloudRefl(vec2(sAlWarp, sCrWarp));
+              float rowLace = vnoise(R * (vWorldPos.xz * 2.6 - wDir2 * (uTime * 0.32) + warpLang * 3.5));
+              float rowBreakup = smoothstep(0.42, 0.82, breakPatch * 0.58 + frothDetail * 0.42);
+              langmuir = smoothstep(0.66, 0.88, rowMacro)
+                       * smoothstep(0.36, 0.84, rowLace)
+                       * rowBreakup
+                       * (0.35 + 0.65 * crestFactor)
+                       * smoothstep(0.85, 2.75, HsLive) * 0.38;
             }
 
-            float openSeaFade = smoothstep(680.0, 120.0, distCam) * smoothstep(0.8, 3.2, liveWaterline);
-            totalFoam = max(totalFoam, clamp(crestPlume * mix(0.68, 0.92, seaNorm) + langmuir, 0.0, 0.94) * openSeaFade);
+            // High-Energy Storm Spindrift Spray Mist shearing downwind off 1.65m .. 3.00m wave crests!
+            if (HsLive > 1.60) {
+              float spinStreak = vnoise(R * vec2(sAlongW * 0.42 - uTime * 1.85, sCrossW * 1.85 + warpF * 2.4));
+              float spinFine = vnoise(R_INV * vec2(sAlongW * 1.05 - uTime * 3.1, sCrossW * 3.8 + warpF * 1.8));
+              float spinEnv = smoothstep(1.60, 2.95, HsLive) * smoothstep(0.42, 0.94, crestFactor + leeTrail * 0.42);
+              spindriftMist = spinEnv * smoothstep(0.40, 0.86, spinStreak * 0.62 + spinFine * 0.38)
+                            * smoothstep(680.0, 90.0, distCam) * 0.42;
+            }
+
+            float openSeaFade = smoothstep(860.0, 140.0, distCam) * smoothstep(0.75, 3.2, liveWaterline);
+            totalFoam = max(totalFoam, clamp(crestPlume * mix(0.68, 0.95, seaNorm) + langmuir, 0.0, 0.95) * openSeaFade);
           }
 
-          if (totalFoam > 0.005) {
-            // Subtle subsurface turquoise-grey aeration tint in thinner foam edges -> bright sunlit white crest core!
-            float denseCore = smoothstep(0.28, 0.78, totalFoam);
-            vec3 thinFroth = mix(shallowJade * 1.8 + vec3(0.32, 0.40, 0.44), vec3(0.88, 0.92, 0.94), denseCore);
-            vec3 foamCol = mix(mix(thinFroth, vec3(0.90, 0.66, 0.50), uDuskFactor), vec3(0.16, 0.22, 0.31) * (0.55 + 0.45 * denseCore), uNightFactor);
-            foamCol = mix(foamCol, foamCol * 0.74, clamp(uRainIntensity * 0.45 + uStormFactor * 0.25, 0.0, 0.45));
+          if (totalFoam > 0.004) {
+            // Natural pearlescent aerated bubble lace blending smoothly into crisp sunlit white plunging crest core (ZERO neon cyan!)
+            float denseCore = smoothstep(0.18, 0.68, totalFoam);
+            float foamSunLit = mix(0.76, 1.0, waveSelfShadow);
+            vec3 aeratedLace = mix(col * 0.32 + vec3(0.50, 0.58, 0.62), vec3(0.95, 0.97, 0.98), denseCore) * foamSunLit;
+            vec3 foamCol = mix(mix(aeratedLace, vec3(0.94, 0.68, 0.50), uDuskFactor), vec3(0.18, 0.24, 0.33) * (0.55 + 0.45 * denseCore), uNightFactor);
+            foamCol = mix(foamCol, foamCol * 0.76, clamp(uRainIntensity * 0.45 + uStormFactor * 0.25, 0.0, 0.45));
             foamCol += vec3(0.70, 0.82, 1.0) * uLightningFlash * 0.85;
-            col = mix(col, foamCol, clamp(totalFoam, 0.0, 0.90));
+            col = mix(col, foamCol, clamp(totalFoam, 0.0, 0.92));
+          }
+
+          if (spindriftMist > 0.004) {
+            vec3 mistTint = mix(mix(vec3(0.84, 0.91, 0.96), vec3(0.96, 0.68, 0.46), uDuskFactor), vec3(0.14, 0.20, 0.29), uNightFactor);
+            mistTint += vec3(0.72, 0.85, 1.0) * uLightningFlash * 0.90;
+            col = mix(col, mistTint, clamp(spindriftMist, 0.0, 0.55));
           }
 
           col += vec3(0.74, 0.83, 0.92) * rainRingFoam * (0.42 - 0.22 * uNightFactor + 0.55 * uLightningFlash);
@@ -3548,7 +4154,7 @@ export class WeatherOpticsEngine {
 
           // Unify Ocean & Danau Kenanga Cove into True Scene-Referred Linear-HDR -> Boundary-Layer Aerial Perspective -> HVS
           vec3 hdrOcean = nexusSRGBToLinear(max(col, vec3(0.0))) * mix(1.16, 0.74, uNightFactor);
-          hdrOcean += nexusSRGBToLinear(glitterTint) * (specTight * 0.85 + specGlitter * 0.45) * sunVis;
+          hdrOcean += nexusSRGBToLinear(glitterTint) * (specTight * 0.82 + specGlitter * 0.42) * sunVis;
           hdrOcean += vec3(0.75, 0.95, 1.45) * uLightningFlash * 0.55;
 
           hdrOcean = nexusApplyBoundaryLayerAerialPerspective(
@@ -3598,13 +4204,13 @@ export class WeatherOpticsEngine {
     );
     this.transitionDurationSec = clamped;
 
-    // Rescale any in-flight transitions proportionally so current progress p stays 100% jump-free!
-    if (this._weatherTrans.active) {
+    // Rescale non-proportional preset transitions proportionally so current progress p stays 100% jump-free!
+    if (this._weatherTrans.active && !this._weatherTrans.isSpectrumSweep) {
       const p = this._weatherTrans.progress;
       this._weatherTrans.duration = clamped;
       this._weatherTrans.elapsed = p * clamped;
     }
-    if (this._timeTrans.active) {
+    if (this._timeTrans.active && !this._timeTrans.isProportionalSlider) {
       const p = this._timeTrans.progress;
       this._timeTrans.duration = clamped;
       this._timeTrans.elapsed = p * clamped;
@@ -3613,12 +4219,23 @@ export class WeatherOpticsEngine {
   }
 
   getTransitionState() {
+    const seaTarget =
+      this.manualSeaWaveHeightM !== null
+        ? this.manualSeaWaveHeightM
+        : this._seaTrans.active
+          ? this._seaTrans.targetWaveM
+          : this.seaWaveHeightM;
     return {
       durationSec: this.transitionDurationSec,
+      anyActive: Boolean(this._weatherTrans.active || this._timeTrans.active || this._seaTrans.active),
       weather: {
         active: this._weatherTrans.active,
+        isSpectrumSweep: Boolean(this._weatherTrans.isSpectrumSweep),
         fromMode: this._weatherTrans.fromMode,
         toMode: this.weatherMode,
+        liveSpectrum: this.weatherSpectrum,
+        targetSpectrum: this.targetWeatherSpectrum,
+        duration: this._weatherTrans.duration,
         progress: this._weatherTrans.progress,
         remainingSec: this._weatherTrans.active
           ? Math.max(0.0, this._weatherTrans.duration - this._weatherTrans.elapsed)
@@ -3626,14 +4243,30 @@ export class WeatherOpticsEngine {
       },
       time: {
         active: this._timeTrans.active,
+        isProportionalSlider: Boolean(this._timeTrans.isProportionalSlider),
         fromTod: this._timeTrans.fromTod,
         toTod: this.timeOfDay,
+        duration: this._timeTrans.duration,
         progress: this._timeTrans.progress,
         remainingSec: this._timeTrans.active
           ? Math.max(0.0, this._timeTrans.duration - this._timeTrans.elapsed)
           : 0.0,
         solarHour: this.currentSolarHour,
+        sliderHour: this._sliderSolarHour,
+        targetSliderHour: this._timeTrans.active ? this._timeTrans.targetSliderHour : this._sliderSolarHour,
         continuousSolarHour: this.continuousSolarHour
+      },
+      sea: {
+        active: this._seaTrans.active,
+        manualOverride: this.manualSeaWaveHeightM !== null,
+        startWaveM: this._seaTrans.startWaveM,
+        targetWaveM: seaTarget,
+        liveWaveM: this.seaWaveHeightM,
+        duration: this._seaTrans.duration,
+        progress: this._seaTrans.progress,
+        remainingSec: this._seaTrans.active
+          ? Math.max(0.0, this._seaTrans.duration - this._seaTrans.elapsed)
+          : 0.0
       },
       nightIlluminationLevel: this.nightIlluminationLevel,
       streetlampSensorLevel: this.streetlampSensorLevel
@@ -3954,9 +4587,13 @@ export class WeatherOpticsEngine {
         this.continuousSolarHour = dayIndex * 24.0 + normTarget;
       }
       this.currentSolarHour = normTarget;
+      this._sliderSolarHour = normTarget;
       this._timeTrans.active = false;
+      this._timeTrans.isProportionalSlider = false;
       this._timeTrans.fromTod = nextTod;
       this._timeTrans.toTod = nextTod;
+      this._timeTrans.startSliderHour = normTarget;
+      this._timeTrans.targetSliderHour = normTarget;
       this._timeTrans.progress = 1.0;
       this._timeTrans.elapsed = 0.0;
       this._applyContinuousCelestialAndFog(sharedSurfaceUniforms);
@@ -3978,7 +4615,10 @@ export class WeatherOpticsEngine {
     if (Math.abs(delta) < 0.015) {
       this.continuousSolarHour += delta;
       this.currentSolarHour = normTarget;
+      this._sliderSolarHour = normTarget;
       this._timeTrans.active = false;
+      this._timeTrans.isProportionalSlider = false;
+      this._timeTrans.targetSliderHour = normTarget;
       this._timeTrans.progress = 1.0;
       this._applyContinuousCelestialAndFog(sharedSurfaceUniforms);
       if (!options.preserveAdaptation) {
@@ -3989,12 +4629,15 @@ export class WeatherOpticsEngine {
     }
 
     this._timeTrans.active = true;
+    this._timeTrans.isProportionalSlider = false;
     this._timeTrans.fromTod = prevTod;
     this._timeTrans.toTod = nextTod;
     this._timeTrans.elapsed = 0.0;
     this._timeTrans.duration = dur;
     this._timeTrans.progress = 0.0;
     this._timeTrans.startHour = startH;
+    this._timeTrans.startSliderHour = startH;
+    this._timeTrans.targetSliderHour = normTarget;
     this._timeTrans.startContinuousHour = this.continuousSolarHour;
     this._timeTrans.deltaHour = delta;
   }
@@ -4044,37 +4687,127 @@ export class WeatherOpticsEngine {
     };
   }
 
-  /**
-   * Continuous [0.00 .. 24.00] WIB solar/lunar spectrum scrub (zero lag, zero midnight wrap jump).
-   */
-  setContinuousTimeHours(hour24, sharedSurfaceUniforms = null, options = {}) {
-    const clamped = Math.max(0.0, Math.min(24.0, Number(hour24) || 0.0));
-    const normH = clamped >= 24.0 ? 23.998 : clamped;
-    const dayIndex = Math.floor(this.continuousSolarHour / 24.0);
-    this.continuousSolarHour = dayIndex * 24.0 + clamped;
-    this.currentSolarHour = normH;
-    this.timeOfDay = WeatherOpticsEngine._solarHourToTodMode(normH);
-    this._timeTrans.active = false;
-    this._timeTrans.fromTod = this.timeOfDay;
-    this._timeTrans.toTod = this.timeOfDay;
-    this._timeTrans.progress = 1.0;
-    this._timeTrans.elapsed = 0.0;
-    this._applyContinuousCelestialAndFog(sharedSurfaceUniforms);
-    if (options.immediateAdaptation === true) {
-      this._syncHumanEyeHDR(0.0, null, sharedSurfaceUniforms, true);
-    }
-    this._syncParticleVisibility();
-    return this.currentSolarHour;
+  _computeAutoSeaWaveHeightM() {
+    const windChopBoost = Math.max(0.0, this.baseWindSpeed - 1.35) * 0.22;
+    return Math.max(
+      0.0,
+      Math.min(
+        WeatherOpticsEngine.MAX_SEA_WAVE_M,
+        0.18 +
+          this.uniforms.uRainIntensity.value * 0.62 +
+          this.uniforms.uStormFactor.value * 0.88 +
+          windChopBoost
+      )
+    );
   }
 
   /**
-   * Continuous [0.00 .. 1.00] physical weather spectrum scrub (Cerah -> Mendung -> Kabut -> Hujan -> Badai).
+   * Continuous [0.00 .. 24.00] WIB solar/lunar spectrum slider control:
+   * - Default (options.immediate !== false && !options.proportional45s): instant apply (headless snapshot tests).
+   * - Proportional 45s slider mode ({ immediate: false } or { proportional45s: true }):
+   *   Duration T = 45.0 * |targetHour - liveSliderHour| / 24.0 seconds (0->24 = 45.0s, 0->12 = 22.5s),
+   *   preserving cruise velocity across continuous 60 Hz slider drag events!
+   */
+  setContinuousTimeHours(hour24, sharedSurfaceUniforms = null, options = {}) {
+    if (sharedSurfaceUniforms) {
+      this._lastSharedSurfaceUniforms = sharedSurfaceUniforms;
+    }
+    const clamped = Math.max(0.0, Math.min(24.0, Number(hour24) || 0.0));
+    const normTarget = clamped >= 24.0 ? 23.998 : clamped;
+    const useProportional = options.proportional45s === true || options.immediate === false;
+
+    if (!useProportional) {
+      const dayIndex = Math.floor(this.continuousSolarHour / 24.0);
+      this.continuousSolarHour = dayIndex * 24.0 + clamped;
+      this.currentSolarHour = normTarget;
+      this._sliderSolarHour = clamped;
+      this.timeOfDay = WeatherOpticsEngine._solarHourToTodMode(normTarget);
+      this._timeTrans.active = false;
+      this._timeTrans.isProportionalSlider = false;
+      this._timeTrans.fromTod = this.timeOfDay;
+      this._timeTrans.toTod = this.timeOfDay;
+      this._timeTrans.startSliderHour = clamped;
+      this._timeTrans.targetSliderHour = clamped;
+      this._timeTrans.progress = 1.0;
+      this._timeTrans.elapsed = 0.0;
+      this._applyContinuousCelestialAndFog(sharedSurfaceUniforms);
+      if (options.immediateAdaptation === true) {
+        this._syncHumanEyeHDR(0.0, null, sharedSurfaceUniforms, true);
+      }
+      this._syncParticleVisibility();
+      return this.currentSolarHour;
+    }
+
+    const liveSliderH = Number.isFinite(this._sliderSolarHour) ? this._sliderSolarHour : this.currentSolarHour;
+    const delta = clamped - liveSliderH;
+    const dur = WeatherOpticsEngine.SLIDER_FULL_SPAN_SEC * (Math.abs(delta) / 24.0);
+    const nextTod = WeatherOpticsEngine._solarHourToTodMode(normTarget);
+
+    if (Math.abs(delta) < 1e-4 || dur < 0.015) {
+      this.continuousSolarHour += delta;
+      this._sliderSolarHour = clamped;
+      this.currentSolarHour = normTarget;
+      this.timeOfDay = nextTod;
+      this._timeTrans.active = false;
+      this._timeTrans.isProportionalSlider = false;
+      this._timeTrans.fromTod = nextTod;
+      this._timeTrans.toTod = nextTod;
+      this._timeTrans.startSliderHour = clamped;
+      this._timeTrans.targetSliderHour = clamped;
+      this._timeTrans.progress = 1.0;
+      this._timeTrans.elapsed = 0.0;
+      this._applyContinuousCelestialAndFog(sharedSurfaceUniforms);
+      this._syncParticleVisibility();
+      return this.currentSolarHour;
+    }
+
+    const newDir = delta >= 0.0 ? 1 : -1;
+    const keepCruise = this._timeTrans.active && this._timeTrans.dir === newDir;
+    const prevLaunchClock = keepCruise ? this._timeTrans.launchClock : 0.0;
+
+    this._timeTrans.active = true;
+    this._timeTrans.isProportionalSlider = true;
+    this._timeTrans.fromTod = WeatherOpticsEngine._solarHourToTodMode(this.currentSolarHour);
+    this._timeTrans.toTod = nextTod;
+    this.timeOfDay = nextTod;
+    this._timeTrans.dir = newDir;
+    this._timeTrans.launchClock = prevLaunchClock;
+    this._timeTrans.launchRampSec = Math.max(0.0, 0.35 - prevLaunchClock);
+    this._timeTrans.elapsed = 0.0;
+    this._timeTrans.duration = dur;
+    this._timeTrans.progress = 0.0;
+    this._timeTrans.startHour = this.currentSolarHour;
+    this._timeTrans.startSliderHour = liveSliderH;
+    this._timeTrans.targetSliderHour = clamped;
+    this._timeTrans.startContinuousHour = this.continuousSolarHour;
+    this._timeTrans.deltaHour = delta;
+    return this.currentSolarHour;
+  }
+
+  getSliderSolarHour() {
+    return this._sliderSolarHour;
+  }
+
+  getTargetSliderSolarHour() {
+    return this._timeTrans.active ? this._timeTrans.targetSliderHour : this._sliderSolarHour;
+  }
+
+  /**
+   * Continuous [0.00 .. 1.00] physical weather spectrum control (Cerah -> Mendung -> Kabut -> Hujan -> Badai):
+   * - Default (options.immediate !== false && !options.proportional45s): instant apply.
+   * - Proportional 45s slider mode ({ immediate: false } or { proportional45s: true }):
+   *   Duration T = 45.0 * |targetU - liveU| seconds (0% -> 100% = 45.0s, 50% span = 22.5s),
+   *   sweeping smoothly across all intermediate meteorological regimes with zero initial discontinuity!
    */
   setWeatherSpectrum(u01, sharedSurfaceUniforms = null, options = {}) {
+    if (sharedSurfaceUniforms) {
+      this._lastSharedSurfaceUniforms = sharedSurfaceUniforms;
+    }
     const spec = WeatherOpticsEngine.evaluateWeatherSpectrum(u01);
-    this.weatherSpectrum = spec.u;
-    this.weatherMode = spec.mode;
+    const useProportional = options.proportional45s === true || options.immediate === false;
 
+    this.targetWeatherSpectrum = spec.u;
+    this.weatherMode = spec.mode;
     this.targetRainIntensity = spec.rain;
     this.targetWetness = spec.wet;
     this.targetCloudCover = spec.cloud;
@@ -4082,13 +4815,17 @@ export class WeatherOpticsEngine {
     this.targetFogDensity = spec.fog;
     this.targetWindSpeed = spec.wind;
 
-    this._weatherTrans.active = false;
-    this._weatherTrans.fromMode = spec.mode;
-    this._weatherTrans.toMode = spec.mode;
-    this._weatherTrans.progress = 1.0;
-    this._weatherTrans.elapsed = 0.0;
+    if (!useProportional) {
+      this.weatherSpectrum = spec.u;
+      this._weatherTrans.active = false;
+      this._weatherTrans.isSpectrumSweep = false;
+      this._weatherTrans.fromMode = spec.mode;
+      this._weatherTrans.toMode = spec.mode;
+      this._weatherTrans.startSpectrum = spec.u;
+      this._weatherTrans.targetSpectrum = spec.u;
+      this._weatherTrans.progress = 1.0;
+      this._weatherTrans.elapsed = 0.0;
 
-    if (options.immediate !== false) {
       this.uniforms.uRainIntensity.value = spec.rain;
       this.uniforms.uWetness.value = spec.wet;
       this.uniforms.uCloudCover.value = spec.cloud;
@@ -4106,14 +4843,79 @@ export class WeatherOpticsEngine {
       }
       if (this.manualSeaWaveHeightM === null) {
         this.seaWaveHeightM = spec.autoWaveM;
-        this.uniforms.uSeaState.value = spec.autoWaveM / 0.854;
+        this._seaTrans.active = false;
+        this._seaTrans.startWaveM = spec.autoWaveM;
+        this._seaTrans.targetWaveM = spec.autoWaveM;
+        this._syncOceanSpectrumUniforms();
       }
       this._applyContinuousCelestialAndFog(sharedSurfaceUniforms);
       if (options.immediateAdaptation === true) {
         this._syncHumanEyeHDR(0.0, null, sharedSurfaceUniforms, true);
       }
       this._syncParticleVisibility();
+      return spec;
     }
+
+    const liveU = Number.isFinite(this.weatherSpectrum) ? this.weatherSpectrum : 0.0;
+    const deltaU = spec.u - liveU;
+    const dur = WeatherOpticsEngine.SLIDER_FULL_SPAN_SEC * Math.abs(deltaU);
+
+    if (Math.abs(deltaU) < 1e-4 || dur < 0.015) {
+      this.weatherSpectrum = spec.u;
+      this._weatherTrans.active = false;
+      this._weatherTrans.isSpectrumSweep = false;
+      this._weatherTrans.fromMode = spec.mode;
+      this._weatherTrans.toMode = spec.mode;
+      this._weatherTrans.startSpectrum = spec.u;
+      this._weatherTrans.targetSpectrum = spec.u;
+      this._weatherTrans.progress = 1.0;
+      this._weatherTrans.elapsed = 0.0;
+      this.uniforms.uRainIntensity.value = spec.rain;
+      this.uniforms.uWetness.value = spec.wet;
+      this.uniforms.uCloudCover.value = spec.cloud;
+      this.uniforms.uStormFactor.value = spec.storm;
+      this.uniforms.uFogFactor.value = spec.fog;
+      this.baseWindSpeed = spec.wind;
+      if (this.manualSeaWaveHeightM === null && !this._seaTrans.active) {
+        this.seaWaveHeightM = spec.autoWaveM;
+        this._syncOceanSpectrumUniforms();
+      }
+      this._applyContinuousCelestialAndFog(sharedSurfaceUniforms);
+      this._syncParticleVisibility();
+      return spec;
+    }
+
+    const startKnotSpec = WeatherOpticsEngine.evaluateWeatherSpectrum(liveU);
+    const newDir = deltaU >= 0.0 ? 1 : -1;
+    const keepCruise = this._weatherTrans.active && this._weatherTrans.dir === newDir;
+    const prevLaunchClock = keepCruise ? this._weatherTrans.launchClock : 0.0;
+
+    this._weatherTrans.active = true;
+    this._weatherTrans.isSpectrumSweep = true;
+    this._weatherTrans.fromMode = startKnotSpec.mode;
+    this._weatherTrans.toMode = spec.mode;
+    this._weatherTrans.startSpectrum = liveU;
+    this._weatherTrans.targetSpectrum = spec.u;
+    this._weatherTrans.dir = newDir;
+    this._weatherTrans.launchClock = prevLaunchClock;
+    this._weatherTrans.launchRampSec = Math.max(0.0, 0.35 - prevLaunchClock);
+    this._weatherTrans.elapsed = 0.0;
+    this._weatherTrans.duration = dur;
+    this._weatherTrans.progress = 0.0;
+    this._weatherTrans.startRain = this.uniforms.uRainIntensity.value;
+    this._weatherTrans.startWet = this.uniforms.uWetness.value;
+    this._weatherTrans.startCloud = this.uniforms.uCloudCover.value;
+    this._weatherTrans.startStorm = this.uniforms.uStormFactor.value;
+    this._weatherTrans.startFog = this.uniforms.uFogFactor.value;
+    this._weatherTrans.startWind = this.baseWindSpeed;
+    // Residual offsets from knot curve at t=0 ensure 0.000000 jump on mid-flight retargeting AND exact convergence at t=duration!
+    this._weatherTrans.resRain = this.uniforms.uRainIntensity.value - startKnotSpec.rain;
+    this._weatherTrans.resWet = this.uniforms.uWetness.value - startKnotSpec.wet;
+    this._weatherTrans.resCloud = this.uniforms.uCloudCover.value - startKnotSpec.cloud;
+    this._weatherTrans.resStorm = this.uniforms.uStormFactor.value - startKnotSpec.storm;
+    this._weatherTrans.resFog = this.uniforms.uFogFactor.value - startKnotSpec.fog;
+    this._weatherTrans.resWind = this.baseWindSpeed - startKnotSpec.wind;
+    this._weatherTrans.startAutoWaveM = this.seaWaveHeightM;
     return spec;
   }
 
@@ -4121,20 +4923,112 @@ export class WeatherOpticsEngine {
     return this.weatherSpectrum;
   }
 
+  getTargetWeatherSpectrum() {
+    return this._weatherTrans.active && this._weatherTrans.isSpectrumSweep
+      ? this._weatherTrans.targetSpectrum
+      : this.targetWeatherSpectrum;
+  }
+
   /**
-   * Continuous [0.00 .. 2.00] meter ocean wave height slider control (pass null to restore weather-coupled auto).
+   * Continuous [0.00 .. 3.00] meter ocean wave height slider control (pass null or { auto: true } for weather-coupled auto):
+   * - Default (options.immediate !== false && !options.proportional45s): instant apply.
+   * - Proportional 45s slider mode ({ immediate: false } or { proportional45s: true }):
+   *   Duration T = 45.0 * |targetM - liveWaveM| / 3.0 seconds (0.0m -> 3.0m = 45.0s, 0.0m -> 1.5m = 22.5s)!
    */
   setSeaWaveHeightMeters(meters, options = {}) {
-    if (meters === null || meters === undefined || options.auto === true) {
+    const useProportional = options.proportional45s === true || options.immediate === false;
+    const isAutoRequest = meters === null || meters === undefined || options.auto === true;
+
+    if (isAutoRequest) {
       this.manualSeaWaveHeightM = null;
+      const autoTarget = this._weatherTrans.active && this._weatherTrans.isSpectrumSweep
+        ? WeatherOpticsEngine.evaluateWeatherSpectrum(this._weatherTrans.targetSpectrum).autoWaveM
+        : this._computeAutoSeaWaveHeightM();
+
+      if (!useProportional) {
+        this._seaTrans.active = false;
+        this._seaTrans.progress = 1.0;
+        this._seaTrans.elapsed = 0.0;
+        this._seaTrans.startWaveM = autoTarget;
+        this._seaTrans.targetWaveM = autoTarget;
+        if (options.immediate === true) {
+          this.seaWaveHeightM = autoTarget;
+          this._syncOceanSpectrumUniforms();
+        }
+        return this.seaWaveHeightM;
+      }
+
+      const deltaAuto = autoTarget - this.seaWaveHeightM;
+      const durAuto =
+        WeatherOpticsEngine.SLIDER_FULL_SPAN_SEC *
+        (Math.abs(deltaAuto) / WeatherOpticsEngine.MAX_SEA_WAVE_M);
+      if (Math.abs(deltaAuto) < 1e-4 || durAuto < 0.015) {
+        this.seaWaveHeightM = autoTarget;
+        this._seaTrans.active = false;
+        this._seaTrans.progress = 1.0;
+        this._seaTrans.startWaveM = autoTarget;
+        this._seaTrans.targetWaveM = autoTarget;
+        this._syncOceanSpectrumUniforms();
+        return this.seaWaveHeightM;
+      }
+
+      const dirAuto = deltaAuto >= 0.0 ? 1 : -1;
+      const keepCruiseAuto = this._seaTrans.active && this._seaTrans.dir === dirAuto;
+      const prevClockAuto = keepCruiseAuto ? this._seaTrans.launchClock : 0.0;
+      this._seaTrans.active = true;
+      this._seaTrans.dir = dirAuto;
+      this._seaTrans.launchClock = prevClockAuto;
+      this._seaTrans.launchRampSec = Math.max(0.0, 0.35 - prevClockAuto);
+      this._seaTrans.elapsed = 0.0;
+      this._seaTrans.duration = durAuto;
+      this._seaTrans.progress = 0.0;
+      this._seaTrans.startWaveM = this.seaWaveHeightM;
+      this._seaTrans.targetWaveM = autoTarget;
       return this.seaWaveHeightM;
     }
-    const h = Math.max(0.0, Math.min(2.0, Number(meters) || 0.0));
+
+    const h = Math.max(0.0, Math.min(WeatherOpticsEngine.MAX_SEA_WAVE_M, Number(meters) || 0.0));
     this.manualSeaWaveHeightM = h;
-    if (options.immediate !== false) {
+
+    if (!useProportional) {
       this.seaWaveHeightM = h;
-      this.uniforms.uSeaState.value = h / 0.854;
+      this._seaTrans.active = false;
+      this._seaTrans.startWaveM = h;
+      this._seaTrans.targetWaveM = h;
+      this._seaTrans.progress = 1.0;
+      this._seaTrans.elapsed = 0.0;
+      this._syncOceanSpectrumUniforms();
+      return this.seaWaveHeightM;
     }
+
+    const deltaH = h - this.seaWaveHeightM;
+    const dur =
+      WeatherOpticsEngine.SLIDER_FULL_SPAN_SEC *
+      (Math.abs(deltaH) / WeatherOpticsEngine.MAX_SEA_WAVE_M);
+    if (Math.abs(deltaH) < 1e-4 || dur < 0.015) {
+      this.seaWaveHeightM = h;
+      this._seaTrans.active = false;
+      this._seaTrans.startWaveM = h;
+      this._seaTrans.targetWaveM = h;
+      this._seaTrans.progress = 1.0;
+      this._seaTrans.elapsed = 0.0;
+      this._syncOceanSpectrumUniforms();
+      return this.seaWaveHeightM;
+    }
+
+    const newDir = deltaH >= 0.0 ? 1 : -1;
+    const keepCruise = this._seaTrans.active && this._seaTrans.dir === newDir;
+    const prevLaunchClock = keepCruise ? this._seaTrans.launchClock : 0.0;
+
+    this._seaTrans.active = true;
+    this._seaTrans.dir = newDir;
+    this._seaTrans.launchClock = prevLaunchClock;
+    this._seaTrans.launchRampSec = Math.max(0.0, 0.35 - prevLaunchClock);
+    this._seaTrans.elapsed = 0.0;
+    this._seaTrans.duration = dur;
+    this._seaTrans.progress = 0.0;
+    this._seaTrans.startWaveM = this.seaWaveHeightM;
+    this._seaTrans.targetWaveM = h;
     return this.seaWaveHeightM;
   }
 
@@ -4142,8 +5036,55 @@ export class WeatherOpticsEngine {
     return this.seaWaveHeightM;
   }
 
+  getTargetSeaWaveHeightMeters() {
+    if (this.manualSeaWaveHeightM !== null) return this.manualSeaWaveHeightM;
+    if (this._seaTrans.active) return this._seaTrans.targetWaveM;
+    return this.seaWaveHeightM;
+  }
+
   isManualSeaState() {
     return this.manualSeaWaveHeightM !== null;
+  }
+
+  /**
+   * Immediately completes any active Time, Weather, and Sea transitions at their exact user targets.
+   */
+  skipActiveTransitions(sharedSurfaceUniforms = null) {
+    const targetShared = sharedSurfaceUniforms || this._lastSharedSurfaceUniforms;
+    if (this._timeTrans.active) {
+      if (this._timeTrans.isProportionalSlider) {
+        this.setContinuousTimeHours(this._timeTrans.targetSliderHour, targetShared, {
+          immediate: true,
+          immediateAdaptation: true
+        });
+      } else {
+        this.setSolarHour(this._timeTrans.targetSliderHour, targetShared, {
+          immediate: true,
+          todOverride: this.timeOfDay
+        });
+      }
+    }
+    if (this._weatherTrans.active) {
+      if (this._weatherTrans.isSpectrumSweep) {
+        this.setWeatherSpectrum(this._weatherTrans.targetSpectrum, targetShared, {
+          immediate: true,
+          immediateAdaptation: true
+        });
+      } else {
+        this.setWeather(this.weatherMode, { immediate: true });
+      }
+    }
+    if (this._seaTrans.active) {
+      if (this.manualSeaWaveHeightM !== null) {
+        this.setSeaWaveHeightMeters(this.manualSeaWaveHeightM, { immediate: true });
+      } else {
+        this.setSeaWaveHeightMeters(null, { auto: true, immediate: true });
+      }
+    }
+    this._syncOceanSpectrumUniforms();
+    this._applyContinuousCelestialAndFog(targetShared);
+    this._syncHumanEyeHDR(0.0, null, targetShared, true);
+    this._syncParticleVisibility();
   }
 
   /**
@@ -4155,7 +5096,9 @@ export class WeatherOpticsEngine {
   setWeather(weatherMode, options = {}) {
     const prevMode = this.weatherMode;
     this.weatherMode = WeatherOpticsEngine.WEATHER_PROFILES[weatherMode] ? weatherMode : 'CLEAR';
-    this.weatherSpectrum = WeatherOpticsEngine.weatherModeToSpectrum(this.weatherMode);
+    const specU = WeatherOpticsEngine.weatherModeToSpectrum(this.weatherMode);
+    this.weatherSpectrum = specU;
+    this.targetWeatherSpectrum = specU;
     const preset = WeatherOpticsEngine._getWeatherPresetTargets(this.weatherMode, options);
 
     this.targetRainIntensity = preset.rain;
@@ -4167,8 +5110,11 @@ export class WeatherOpticsEngine {
 
     if (options.immediate === true) {
       this._weatherTrans.active = false;
+      this._weatherTrans.isSpectrumSweep = false;
       this._weatherTrans.fromMode = this.weatherMode;
       this._weatherTrans.toMode = this.weatherMode;
+      this._weatherTrans.startSpectrum = specU;
+      this._weatherTrans.targetSpectrum = specU;
       this._weatherTrans.progress = 1.0;
       this._weatherTrans.elapsed = 0.0;
 
@@ -4190,12 +5136,9 @@ export class WeatherOpticsEngine {
         this.lightningClock = -1.0;
       }
       if (this.manualSeaWaveHeightM === null) {
-        const chop = Math.max(0.0, preset.wind - 1.45) * 0.14;
-        this.seaWaveHeightM = Math.max(
-          0.0,
-          Math.min(2.0, 0.22 + preset.rain * 0.44 + preset.storm * 0.68 + chop)
-        );
-        this.uniforms.uSeaState.value = this.seaWaveHeightM / 0.854;
+        this.seaWaveHeightM = this._computeAutoSeaWaveHeightM();
+        this._seaTrans.active = false;
+        this._syncOceanSpectrumUniforms();
       }
       this._applyContinuousCelestialAndFog();
       this._syncHumanEyeHDR(0.0, null, null, true);
@@ -4227,6 +5170,7 @@ export class WeatherOpticsEngine {
     }
 
     this._weatherTrans.active = true;
+    this._weatherTrans.isSpectrumSweep = false;
     this._weatherTrans.fromMode = prevMode;
     this._weatherTrans.toMode = this.weatherMode;
     this._weatherTrans.elapsed = 0.0;
@@ -4274,55 +5218,102 @@ export class WeatherOpticsEngine {
 
   update(dt, camera, sharedSurfaceUniforms = null) {
     const safeDt = Math.min(0.1, Math.max(0.0, dt));
-    const transDt = Math.min(0.5, Math.max(0.0, dt));
+    const transDt = Math.min(2.0, Math.max(0.0, dt));
     this.uniforms.uTime.value += safeDt;
     const t = this.uniforms.uTime.value;
 
-    // 1. Staged 20–45s Physical Meteorological Transition Choreography (ZERO sudden jumps!)
+    // 1. Staged Physical Meteorological Transition OR Proportional 45s Spectrum Sweep (ZERO sudden jumps!)
     if (this._weatherTrans.active) {
-      this._weatherTrans.elapsed += transDt;
-      const p = Math.min(1.0, this._weatherTrans.elapsed / Math.max(1.0, this._weatherTrans.duration));
-      this._weatherTrans.progress = p;
-
       const s = this._weatherTrans;
-      const gettingWetter = this.targetRainIntensity >= s.startRain;
+      s.elapsed += transDt;
+      s.launchClock += transDt;
+      const durW = Math.max(0.015, s.duration);
+      const p = Math.min(1.0, s.elapsed / durW);
+      s.progress = p;
 
-      // Natural atmospheric phase lead/lag:
-      // - Getting wetter: Clouds & breeze gather FIRST (0..58%), Raindrops build SECOND (16..88%), Ground wets & puddles fill THIRD (28..100%)!
-      // - Clearing up: Storm subsides FIRST (0..50%), Rain tapers to drizzle->0 SECOND (0..64%), Clouds part THIRD (18..92%), Wet ground evaporates LAST (30..100%)!
-      const pCloud = gettingWetter
-        ? WeatherOpticsEngine._smootherstep(0.0, 0.58, p)
-        : WeatherOpticsEngine._smootherstep(0.18, 0.92, p);
-      const pWind = WeatherOpticsEngine._smootherstep(0.04, 0.80, p);
-      const pRain = gettingWetter
-        ? WeatherOpticsEngine._smootherstep(0.16, 0.88, p)
-        : WeatherOpticsEngine._smootherstep(0.0, 0.64, p);
-      const pStorm = gettingWetter
-        ? WeatherOpticsEngine._smootherstep(0.22, 0.94, p)
-        : WeatherOpticsEngine._smootherstep(0.0, 0.50, p);
-      const pWet = gettingWetter
-        ? WeatherOpticsEngine._smootherstep(0.28, 1.0, p)
-        : WeatherOpticsEngine._smootherstep(0.30, 1.0, p);
+      if (s.isSpectrumSweep) {
+        const easeW = WeatherOpticsEngine._evalProportionalEase(
+          s.elapsed,
+          durW,
+          s.launchRampSec,
+          0.35
+        );
+        const liveU = s.startSpectrum + (s.targetSpectrum - s.startSpectrum) * easeW;
+        this.weatherSpectrum = liveU;
+        const liveSpec = WeatherOpticsEngine.evaluateWeatherSpectrum(liveU);
+        const decay = 1.0 - easeW;
 
-      const pFog = WeatherOpticsEngine._smootherstep(0.06, 0.86, p);
+        this.uniforms.uCloudCover.value = Math.max(
+          0.0,
+          Math.min(1.0, liveSpec.cloud + (s.resCloud || 0.0) * decay)
+        );
+        this.baseWindSpeed = Math.max(0.2, liveSpec.wind + (s.resWind || 0.0) * decay);
+        const nextRain = Math.max(0.0, liveSpec.rain + (s.resRain || 0.0) * decay);
+        this.uniforms.uRainIntensity.value = nextRain < 0.004 && liveSpec.rain === 0.0 ? 0.0 : nextRain;
+        this.uniforms.uStormFactor.value = Math.max(
+          0.0,
+          Math.min(1.0, liveSpec.storm + (s.resStorm || 0.0) * decay)
+        );
+        this.uniforms.uFogFactor.value = Math.max(
+          0.0,
+          Math.min(1.0, liveSpec.fog + (s.resFog || 0.0) * decay)
+        );
+        this.uniforms.uWetness.value = Math.max(
+          0.0,
+          Math.min(1.0, liveSpec.wet + (s.resWet || 0.0) * decay)
+        );
+        if (this.manualSeaWaveHeightM === null && !this._seaTrans.active) {
+          const resSea = (s.startAutoWaveM ?? liveSpec.autoWaveM) - WeatherOpticsEngine.evaluateWeatherSpectrum(s.startSpectrum).autoWaveM;
+          this.seaWaveHeightM = Math.max(
+            0.0,
+            Math.min(WeatherOpticsEngine.MAX_SEA_WAVE_M, liveSpec.autoWaveM + resSea * decay)
+          );
+        }
+        if (this.scene.fog) {
+          this.scene.fog.density = 0.0;
+        }
+        if (p >= 1.0) {
+          this.weatherSpectrum = s.targetSpectrum;
+          this.weatherMode = liveSpec.mode;
+          s.active = false;
+          s.isSpectrumSweep = false;
+          s.fromMode = this.weatherMode;
+        }
+      } else {
+        const gettingWetter = this.targetRainIntensity >= s.startRain;
+        const pCloud = gettingWetter
+          ? WeatherOpticsEngine._smootherstep(0.0, 0.58, p)
+          : WeatherOpticsEngine._smootherstep(0.18, 0.92, p);
+        const pWind = WeatherOpticsEngine._smootherstep(0.04, 0.80, p);
+        const pRain = gettingWetter
+          ? WeatherOpticsEngine._smootherstep(0.16, 0.88, p)
+          : WeatherOpticsEngine._smootherstep(0.0, 0.64, p);
+        const pStorm = gettingWetter
+          ? WeatherOpticsEngine._smootherstep(0.22, 0.94, p)
+          : WeatherOpticsEngine._smootherstep(0.0, 0.50, p);
+        const pWet = gettingWetter
+          ? WeatherOpticsEngine._smootherstep(0.28, 1.0, p)
+          : WeatherOpticsEngine._smootherstep(0.30, 1.0, p);
+        const pFog = WeatherOpticsEngine._smootherstep(0.06, 0.86, p);
 
-      this.uniforms.uCloudCover.value = s.startCloud + (this.targetCloudCover - s.startCloud) * pCloud;
-      this.baseWindSpeed = s.startWind + (this.targetWindSpeed - s.startWind) * pWind;
-      this.uniforms.uRainIntensity.value = s.startRain + (this.targetRainIntensity - s.startRain) * pRain;
-      if (this.targetRainIntensity === 0.0 && this.uniforms.uRainIntensity.value < 0.004) {
-        this.uniforms.uRainIntensity.value = 0.0;
-      }
-      this.uniforms.uStormFactor.value = s.startStorm + (this.targetStormFactor - s.startStorm) * pStorm;
-      this.uniforms.uFogFactor.value = s.startFog + (this.targetFogDensity - s.startFog) * pFog;
-      this.uniforms.uWetness.value = s.startWet + (this.targetWetness - s.startWet) * pWet;
+        this.uniforms.uCloudCover.value = s.startCloud + (this.targetCloudCover - s.startCloud) * pCloud;
+        this.baseWindSpeed = s.startWind + (this.targetWindSpeed - s.startWind) * pWind;
+        this.uniforms.uRainIntensity.value = s.startRain + (this.targetRainIntensity - s.startRain) * pRain;
+        if (this.targetRainIntensity === 0.0 && this.uniforms.uRainIntensity.value < 0.004) {
+          this.uniforms.uRainIntensity.value = 0.0;
+        }
+        this.uniforms.uStormFactor.value = s.startStorm + (this.targetStormFactor - s.startStorm) * pStorm;
+        this.uniforms.uFogFactor.value = s.startFog + (this.targetFogDensity - s.startFog) * pFog;
+        this.uniforms.uWetness.value = s.startWet + (this.targetWetness - s.startWet) * pWet;
 
-      if (this.scene.fog) {
-        this.scene.fog.density = 0.0;
-      }
+        if (this.scene.fog) {
+          this.scene.fog.density = 0.0;
+        }
 
-      if (p >= 1.0) {
-        this._weatherTrans.active = false;
-        this._weatherTrans.fromMode = this.weatherMode;
+        if (p >= 1.0) {
+          s.active = false;
+          s.fromMode = this.weatherMode;
+        }
       }
     } else {
       // Settled physical maintenance & post-rain evaporation hysteresis
@@ -4349,35 +5340,52 @@ export class WeatherOpticsEngine {
         const wetRate = 1.0 - Math.exp(-safeDt * (0.45 + rainNow * 0.65));
         this.uniforms.uWetness.value += (targetWet - this.uniforms.uWetness.value) * wetRate;
       } else if (this.targetWetness > 0.01) {
-        // Sustained damp/post-rain regimes (POST_RAIN mirror puddles & FOGGY morning dew)
         const wetHoldRate = 1.0 - Math.exp(-safeDt * 0.85);
         this.uniforms.uWetness.value += (this.targetWetness - this.uniforms.uWetness.value) * wetHoldRate;
       } else if (this.uniforms.uWetness.value > 0.0) {
-        // Gradual solar drying proportional to configured transition duration
         const dryPerSec = 1.0 / Math.max(20.0, this.transitionDurationSec * 0.85);
         this.uniforms.uWetness.value = Math.max(0.0, this.uniforms.uWetness.value - safeDt * dryPerSec);
       }
     }
 
-    // 2. Continuous 20–45s Diurnal Solar/Lunar/Sidereal Arc Transition (Unwrapped -> 0.000° midnight jump!)
+    // 2. Continuous Proportional 45s Slider OR 20–45s Preset Diurnal Solar/Lunar/Sidereal Arc Transition
     if (this._timeTrans.active) {
-      this._timeTrans.elapsed += transDt;
-      const pT = Math.min(1.0, this._timeTrans.elapsed / Math.max(1.0, this._timeTrans.duration));
-      this._timeTrans.progress = pT;
-      const easeT = WeatherOpticsEngine._smoothstep(0.0, 1.0, pT);
-      this.continuousSolarHour = this._timeTrans.startContinuousHour + this._timeTrans.deltaHour * easeT;
-      this.currentSolarHour = ((this.continuousSolarHour % 24.0) + 24.0) % 24.0;
+      const sT = this._timeTrans;
+      sT.elapsed += transDt;
+      sT.launchClock += transDt;
+      const durT = Math.max(0.015, sT.duration);
+      const pT = Math.min(1.0, sT.elapsed / durT);
+      sT.progress = pT;
+      const easeT = sT.isProportionalSlider
+        ? WeatherOpticsEngine._evalProportionalEase(sT.elapsed, durT, sT.launchRampSec, 0.35)
+        : WeatherOpticsEngine._smoothstep(0.0, 1.0, pT);
+
+      this.continuousSolarHour = sT.startContinuousHour + sT.deltaHour * easeT;
+      if (sT.isProportionalSlider) {
+        this._sliderSolarHour = sT.startSliderHour + sT.deltaHour * easeT;
+        const normH =
+          this._sliderSolarHour >= 24.0
+            ? 23.998
+            : ((this._sliderSolarHour % 24.0) + 24.0) % 24.0;
+        this.currentSolarHour = normH;
+      } else {
+        this.currentSolarHour = ((this.continuousSolarHour % 24.0) + 24.0) % 24.0;
+        this._sliderSolarHour = this.currentSolarHour;
+      }
+
       if (pT >= 1.0) {
-        this._timeTrans.active = false;
-        this._timeTrans.fromTod = this.timeOfDay;
+        sT.active = false;
+        sT.isProportionalSlider = false;
+        sT.fromTod = this.timeOfDay;
       }
     }
 
-    // 3. Turbulent 3D Wind Vector, Monotonically Integrated Wind Phase, & Ocean Swell Inertia
+    // 3. Turbulent 3D Wind Vector, Monotonically Integrated Wind Phase, & Proportional 45s / Auto Ocean Swell Dynamics
     const gustOsc =
       0.90 + 0.18 * Math.sin(t * 0.34) + 0.11 * Math.cos(t * 0.78) + 0.05 * Math.sin(t * 1.52);
     const windSpeed = this.baseWindSpeed * gustOsc;
     const windDirAngle = 0.48 + 0.14 * Math.sin(t * 0.19);
+    this.currentWindAngleRad = windDirAngle;
     this.uniforms.uWindVec.value.set(
       Math.cos(windDirAngle) * windSpeed,
       0.0,
@@ -4387,25 +5395,35 @@ export class WeatherOpticsEngine {
     this.uniforms.uWindPhase.value.x += this.uniforms.uWindVec.value.x * safeDt;
     this.uniforms.uWindPhase.value.y += this.uniforms.uWindVec.value.z * safeDt;
 
-    // Physical ocean swell momentum: manual [0.00 .. 2.00 m] slider OR weather-coupled auto wave height!
-    const windChopBoost = Math.max(0.0, this.baseWindSpeed - 1.45) * 0.14;
-    const autoWaveM = Math.max(
-      0.0,
-      Math.min(
-        2.0,
-        0.22 +
-          this.uniforms.uRainIntensity.value * 0.44 +
-          this.uniforms.uStormFactor.value * 0.68 +
-          windChopBoost
-      )
-    );
-    const targetWaveM = this.manualSeaWaveHeightM !== null ? this.manualSeaWaveHeightM : autoWaveM;
-    const seaRate =
-      this.manualSeaWaveHeightM !== null
-        ? 1.0 - Math.exp(-safeDt * 8.0)
-        : 1.0 - Math.exp(-safeDt * 0.65);
-    this.seaWaveHeightM += (targetWaveM - this.seaWaveHeightM) * seaRate;
-    this.uniforms.uSeaState.value = this.seaWaveHeightM / 0.854;
+    if (this._seaTrans.active) {
+      const sSea = this._seaTrans;
+      sSea.elapsed += transDt;
+      sSea.launchClock += transDt;
+      const durS = Math.max(0.015, sSea.duration);
+      const pS = Math.min(1.0, sSea.elapsed / durS);
+      sSea.progress = pS;
+      const easeS = WeatherOpticsEngine._evalProportionalEase(
+        sSea.elapsed,
+        durS,
+        sSea.launchRampSec,
+        0.35
+      );
+      const liveSeaTarget =
+        this.manualSeaWaveHeightM !== null ? sSea.targetWaveM : this._computeAutoSeaWaveHeightM();
+      sSea.targetWaveM = liveSeaTarget;
+      this.seaWaveHeightM = sSea.startWaveM + (liveSeaTarget - sSea.startWaveM) * easeS;
+      if (pS >= 1.0) {
+        this.seaWaveHeightM = liveSeaTarget;
+        sSea.active = false;
+      }
+    } else if (this.manualSeaWaveHeightM !== null) {
+      this.seaWaveHeightM = this.manualSeaWaveHeightM;
+    } else if (!this._weatherTrans.isSpectrumSweep) {
+      const autoWaveM = this._computeAutoSeaWaveHeightM();
+      const seaRate = 1.0 - Math.exp(-safeDt * 0.55);
+      this.seaWaveHeightM += (autoWaveM - this.seaWaveHeightM) * seaRate;
+    }
+    this._syncOceanSpectrumUniforms();
 
     this.windGustMultiplier = Math.max(0.75, windSpeed / 0.85);
 

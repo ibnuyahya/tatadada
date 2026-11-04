@@ -427,6 +427,29 @@ async function bootstrapNexusSimulator() {
     return Math.max(-0.2, groundHeightFn(x, z));
   };
 
+  const camOceanWaveScratch = {
+    eta: 0.0,
+    surgeX: 0.0,
+    surgeZ: 0.0,
+    nx: 0.0,
+    ny: 1.0,
+    nz: 0.0,
+    dShore: 100.0,
+    diffractionKd: 1.0,
+    bathymetryH: 22.0,
+    breakingDiss: 0.0
+  };
+  const sampleLiveOceanWaveY = (x, z) => {
+    WeatherOpticsEngine.evaluateOceanWaveField(
+      x,
+      z,
+      weather.uniforms.uTime.value,
+      weather.getSeaWaveHeightMeters(),
+      camOceanWaveScratch
+    );
+    return TerrainDEMLoader.WATER_LEVEL_Y + camOceanWaveScratch.eta;
+  };
+
   const camDirector = new CameraDirector(camera, controls, walkAndDroneColliders);
   camDirector.setSharedUniforms(sharedUniforms);
   camDirector.setFPSAnchorProvider((mode, subjectOffset) => sivitasAI.getFPSAnchor(mode, subjectOffset));
@@ -439,6 +462,7 @@ async function bootstrapNexusSimulator() {
     coastDistFn: TerrainDEMLoader.getIslandCoastDistance,
     waterSurfaceFn: TerrainDEMLoader.sampleWaterSurfaceY,
     oceanWaterY: TerrainDEMLoader.WATER_LEVEL_Y,
+    oceanWaveSurfaceFn: sampleLiveOceanWaveY,
     bridgeDeckFn: TerrainDEMLoader.sampleTeksasBridgeDeckY,
     bridgeSoffitFn: TerrainDEMLoader.sampleTeksasBridgeSoffitY,
     bridgeCenterX: TerrainDEMLoader.TEKSAS_BRIDGE_X,
@@ -1504,52 +1528,60 @@ async function bootstrapNexusSimulator() {
   }
   updateDepokTelemetryDOM();
 
-  // Continuous 24-Hour Solar/Lunar Time Spectrum Slider (00:00 – 24:00 WIB)
+  // Continuous 24-Hour Solar/Lunar Time Spectrum Slider (00:00 – 24:00 WIB, Proportional 45s End-to-End Transition)
   if (sliderTimeSpectrumEl) {
     sliderTimeSpectrumEl.addEventListener('input', () => {
       dismissWelcomeToast();
       isLiveDepok = false;
-      weather.setContinuousTimeHours(Number(sliderTimeSpectrumEl.value), sharedUniforms);
+      weather.setContinuousTimeHours(Number(sliderTimeSpectrumEl.value), sharedUniforms, {
+        immediate: false,
+        proportional45s: true
+      });
       syncTransitionButtonsUI();
     });
     sliderTimeSpectrumEl.addEventListener('change', () => {
+      const tgtH = weather.getTargetSliderSolarHour();
       hwGovernor.logEvent(
         'WAKTU',
-        `${WeatherOpticsEngine.formatSolarHourWIB(weather.currentSolarHour)} WIB`
+        `Target ${WeatherOpticsEngine.formatSolarHourWIB(tgtH)} WIB`
       );
     });
   }
 
-  // Continuous Physical Weather Spectrum Slider (0% Cerah Murni -> 100% Badai Petir)
+  // Continuous Physical Weather Spectrum Slider (0% Cerah Murni -> 100% Badai Petir, Proportional 45s End-to-End Transition)
   if (sliderWeatherSpectrumEl) {
     sliderWeatherSpectrumEl.addEventListener('input', () => {
       dismissWelcomeToast();
       isLiveDepok = false;
       const u01 = Math.max(0.0, Math.min(1.0, Number(sliderWeatherSpectrumEl.value) / 100.0));
-      weather.setWeatherSpectrum(u01, sharedUniforms);
-      sivitasAI.setSeaWaveHeightMeters(weather.getSeaWaveHeightMeters());
+      weather.setWeatherSpectrum(u01, sharedUniforms, {
+        immediate: false,
+        proportional45s: true
+      });
       syncTransitionButtonsUI();
     });
     sliderWeatherSpectrumEl.addEventListener('change', () => {
-      const spec = WeatherOpticsEngine.evaluateWeatherSpectrum(weather.getWeatherSpectrum());
-      hwGovernor.logEvent('CUACA', `${spec.labelId} (${spec.percent}%)`);
+      const spec = WeatherOpticsEngine.evaluateWeatherSpectrum(weather.getTargetWeatherSpectrum());
+      hwGovernor.logEvent('CUACA', `Target ${spec.labelId} (${spec.percent}%)`);
     });
   }
 
-  // Continuous Sea State & Significant Wave Height Slider (0.00 m Laut Tenang -> 2.00 m Ombak Besar)
+  // Continuous Sea State & Significant Wave Height Slider (0.00 m Laut Tenang -> 3.00 m Gelora Besar, Proportional 45s End-to-End Transition)
   if (sliderSeaStateEl) {
     sliderSeaStateEl.addEventListener('input', () => {
       dismissWelcomeToast();
-      const waveM = Math.max(0.0, Math.min(2.0, Number(sliderSeaStateEl.value)));
-      weather.setSeaWaveHeightMeters(waveM);
-      sivitasAI.setSeaWaveHeightMeters(waveM);
+      const waveM = Math.max(0.0, Math.min(3.0, Number(sliderSeaStateEl.value)));
+      weather.setSeaWaveHeightMeters(waveM, {
+        immediate: false,
+        proportional45s: true
+      });
       syncTransitionButtonsUI();
     });
     sliderSeaStateEl.addEventListener('change', () => {
-      const hNow = weather.getSeaWaveHeightMeters();
+      const hTgt = weather.getTargetSeaWaveHeightMeters();
       hwGovernor.logEvent(
         'LAUT',
-        `${WeatherOpticsEngine.describeSeaStateLabel(hNow)} (${hNow.toFixed(2)} m)`
+        `Target ${WeatherOpticsEngine.describeSeaStateLabel(hTgt)} (${hTgt.toFixed(2)} m)`
       );
     });
   }
@@ -1557,13 +1589,11 @@ async function bootstrapNexusSimulator() {
   if (btnSeaAutoEl) {
     btnSeaAutoEl.addEventListener('click', () => {
       dismissWelcomeToast();
-      weather.setSeaWaveHeightMeters(null);
-      if (!weather.getTransitionState().weather.active) {
-        const spec = WeatherOpticsEngine.evaluateWeatherSpectrum(weather.getWeatherSpectrum());
-        weather.seaWaveHeightM = spec.autoWaveM;
-        weather.uniforms.uSeaState.value = spec.autoWaveM / 0.854;
-      }
-      sivitasAI.setSeaWaveHeightMeters(weather.getSeaWaveHeightMeters());
+      weather.setSeaWaveHeightMeters(null, {
+        auto: true,
+        immediate: false,
+        proportional45s: true
+      });
       audioSynth.playUiChime(600);
       hwGovernor.logEvent('LAUT', 'Auto mengikuti cuaca');
       syncTransitionButtonsUI();
@@ -1605,16 +1635,11 @@ async function bootstrapNexusSimulator() {
     });
   });
 
-  // Optional Instant Transition Skip (When User Wants Immediate Live Sync Snap)
+  // Optional Instant Transition Skip (Applies Active Time, Weather, & Sea Wave Transitions Immediately)
   if (skipTransBtn) {
     skipTransBtn.addEventListener('click', () => {
-      const ts = weather.getTransitionState();
-      if (ts.time.active) {
-        weather.setTimeOfDay(ts.time.toTod, sharedUniforms, { immediate: true });
-      }
-      if (ts.weather.active) {
-        weather.setWeather(ts.weather.toMode, { immediate: true });
-      }
+      weather.skipActiveTransitions(sharedUniforms);
+      sivitasAI.syncOceanState(weather.getSeaWaveHeightMeters(), weather.uniforms.uTime.value);
       audioSynth.playUiChime(700);
       syncTransitionButtonsUI();
     });
@@ -1624,7 +1649,11 @@ async function bootstrapNexusSimulator() {
   if (liveBtnEl) {
     liveBtnEl.addEventListener('click', () => {
       isLiveDepok = true;
-      weather.setSeaWaveHeightMeters(null);
+      weather.setSeaWaveHeightMeters(null, {
+        auto: true,
+        immediate: false,
+        proportional45s: true
+      });
       latestDepokClock = DepokLiveWeatherService.getDepokWIBClock();
       updateDepokTelemetryDOM();
       weather.setReferenceAstronomyDate(new Date(), sharedUniforms);
@@ -1702,22 +1731,32 @@ async function bootstrapNexusSimulator() {
     renderAxisButtonStates(weatherButtons, 'weather', ts.weather);
     renderAxisButtonStates(todButtons, 'tod', ts.time);
 
+    // Keep slider thumbs anchored to the user's selected target during proportional transitions (never snap back on blur!)
+    const targetSliderHour = ts.time.active ? ts.time.targetSliderHour : weather.getSliderSolarHour();
     if (sliderTimeSpectrumEl && document.activeElement !== sliderTimeSpectrumEl) {
-      sliderTimeSpectrumEl.value = weather.currentSolarHour.toFixed(2);
+      sliderTimeSpectrumEl.value = targetSliderHour.toFixed(2);
     }
 
-    const liveWeatherSpec01 = ts.weather.active
+    const liveWeatherSpec01 = ts.weather.active && !ts.weather.isSpectrumSweep
       ? (1.0 - ts.weather.progress) * WeatherOpticsEngine.weatherModeToSpectrum(ts.weather.fromMode) +
         ts.weather.progress * WeatherOpticsEngine.weatherModeToSpectrum(ts.weather.toMode)
       : weather.getWeatherSpectrum();
+    const targetWeatherSpec01 = ts.weather.active && !ts.weather.isSpectrumSweep
+      ? WeatherOpticsEngine.weatherModeToSpectrum(ts.weather.toMode)
+      : weather.getTargetWeatherSpectrum();
 
     if (sliderWeatherSpectrumEl && document.activeElement !== sliderWeatherSpectrumEl) {
-      sliderWeatherSpectrumEl.value = (liveWeatherSpec01 * 100.0).toFixed(1);
+      sliderWeatherSpectrumEl.value = (targetWeatherSpec01 * 100.0).toFixed(1);
     }
 
     const seaWaveM = weather.getSeaWaveHeightMeters();
+    const targetSeaWaveM = weather.isManualSeaState()
+      ? weather.getTargetSeaWaveHeightMeters()
+      : ts.sea.active
+        ? ts.sea.targetWaveM
+        : seaWaveM;
     if (sliderSeaStateEl && document.activeElement !== sliderSeaStateEl) {
-      sliderSeaStateEl.value = seaWaveM.toFixed(2);
+      sliderSeaStateEl.value = targetSeaWaveM.toFixed(2);
     }
     if (btnSeaAutoEl) {
       btnSeaAutoEl.classList.toggle('active', !weather.isManualSeaState());
@@ -1725,61 +1764,87 @@ async function bootstrapNexusSimulator() {
 
     if (activeTodPillEl) {
       const simClk = DepokLiveWeatherService.formatSolarHourClock(weather.currentSolarHour);
-      const wibHm = WeatherOpticsEngine.formatSolarHourWIB(weather.currentSolarHour);
+      const liveWibHm = WeatherOpticsEngine.formatSolarHourWIB(weather.getSliderSolarHour());
       if (ts.time.active) {
-        const todLbl = TOD_LABELS[ts.time.toTod] || simClk.periodLabelId;
+        const tgtWibHm = WeatherOpticsEngine.formatSolarHourWIB(ts.time.targetSliderHour);
         const remT = Math.max(1, Math.ceil(ts.time.remainingSec));
-        activeTodPillEl.textContent = `\u2192 ${todLbl} · ${remT}d`;
+        activeTodPillEl.textContent = `${liveWibHm} \u2192 ${tgtWibHm} · ${remT}d`;
       } else {
-        activeTodPillEl.textContent = `${simClk.periodLabelId} · ${wibHm}`;
+        activeTodPillEl.textContent = `${simClk.periodLabelId} · ${liveWibHm}`;
       }
     }
 
     const specEval = WeatherOpticsEngine.evaluateWeatherSpectrum(liveWeatherSpec01);
+    const tgtSpecEval = WeatherOpticsEngine.evaluateWeatherSpectrum(targetWeatherSpec01);
     if (activeWeatherPillEl) {
       if (ts.weather.active) {
-        const wLbl = WEATHER_LABELS[ts.weather.toMode] || specEval.labelId;
+        const wLbl = ts.weather.isSpectrumSweep
+          ? tgtSpecEval.labelId
+          : WEATHER_LABELS[ts.weather.toMode] || tgtSpecEval.labelId;
         const remW = Math.max(1, Math.ceil(ts.weather.remainingSec));
-        activeWeatherPillEl.textContent = `\u2192 ${wLbl} · ${remW}d`;
+        activeWeatherPillEl.textContent = `${specEval.percent}% \u2192 ${wLbl} · ${remW}d`;
       } else {
         activeWeatherPillEl.textContent = `${specEval.labelId} · ${specEval.percent}%`;
       }
     }
 
     if (activeSeaPillEl) {
-      activeSeaPillEl.textContent = `${WeatherOpticsEngine.describeSeaStateLabel(seaWaveM)} · ${seaWaveM.toFixed(2)} m`;
+      if (ts.sea.active) {
+        const remS = Math.max(1, Math.ceil(ts.sea.remainingSec));
+        activeSeaPillEl.textContent = `${seaWaveM.toFixed(2)} \u2192 ${ts.sea.targetWaveM.toFixed(2)}m · ${remS}d`;
+      } else {
+        activeSeaPillEl.textContent = `${WeatherOpticsEngine.describeSeaStateLabel(seaWaveM)} · ${seaWaveM.toFixed(2)} m`;
+      }
     }
 
-    const anyTrans = ts.weather.active || ts.time.active;
+    const anyTrans = ts.weather.active || ts.time.active || ts.sea.active;
     if (skipTransBtn) {
       skipTransBtn.classList.toggle('visible', Boolean(anyTrans));
     }
+
+    const activeAxes = [];
+    if (ts.weather.active) {
+      const wName = ts.weather.isSpectrumSweep
+        ? tgtSpecEval.labelId
+        : WEATHER_LABELS[ts.weather.toMode] || tgtSpecEval.labelId;
+      activeAxes.push({
+        pct: Math.round(ts.weather.progress * 100),
+        rem: Math.max(1, Math.ceil(ts.weather.remainingSec)),
+        rawRem: ts.weather.remainingSec,
+        label: wName
+      });
+    }
+    if (ts.time.active) {
+      const tName = ts.time.isProportionalSlider
+        ? `${WeatherOpticsEngine.formatSolarHourWIB(ts.time.targetSliderHour)} WIB`
+        : TOD_LABELS[ts.time.toTod];
+      activeAxes.push({
+        pct: Math.round(ts.time.progress * 100),
+        rem: Math.max(1, Math.ceil(ts.time.remainingSec)),
+        rawRem: ts.time.remainingSec,
+        label: tName
+      });
+    }
+    if (ts.sea.active) {
+      activeAxes.push({
+        pct: Math.round(ts.sea.progress * 100),
+        rem: Math.max(1, Math.ceil(ts.sea.remainingSec)),
+        rawRem: ts.sea.remainingSec,
+        label: `Ombak ${ts.sea.targetWaveM.toFixed(2)}m`
+      });
+    }
+    activeAxes.sort((a, b) => b.rawRem - a.rawRem);
     const dominantAxis =
-      ts.weather.active && ts.time.active
-        ? ts.weather.remainingSec >= ts.time.remainingSec
-          ? {
-              pct: Math.round(ts.weather.progress * 100),
-              rem: Math.max(1, Math.ceil(ts.weather.remainingSec)),
-              targetLabel: `${WEATHER_LABELS[ts.weather.toMode]} & ${TOD_LABELS[ts.time.toTod]}`
-            }
-          : {
-              pct: Math.round(ts.time.progress * 100),
-              rem: Math.max(1, Math.ceil(ts.time.remainingSec)),
-              targetLabel: `${TOD_LABELS[ts.time.toTod]} & ${WEATHER_LABELS[ts.weather.toMode]}`
-            }
-        : ts.weather.active
-          ? {
-              pct: Math.round(ts.weather.progress * 100),
-              rem: Math.max(1, Math.ceil(ts.weather.remainingSec)),
-              targetLabel: WEATHER_LABELS[ts.weather.toMode]
-            }
-          : ts.time.active
-            ? {
-                pct: Math.round(ts.time.progress * 100),
-                rem: Math.max(1, Math.ceil(ts.time.remainingSec)),
-                targetLabel: TOD_LABELS[ts.time.toTod]
-              }
-            : null;
+      activeAxes.length > 0
+        ? {
+            pct: activeAxes[0].pct,
+            rem: activeAxes[0].rem,
+            targetLabel:
+              activeAxes.length > 1
+                ? `${activeAxes[0].label} + ${activeAxes[1].label}`
+                : activeAxes[0].label
+          }
+        : null;
 
     if (liveCardEl && liveBtnEl) {
       liveCardEl.classList.toggle('is-manual', !isLiveDepok);
@@ -1807,7 +1872,12 @@ async function bootstrapNexusSimulator() {
       } else {
         if (liveBadgeTextEl) liveBadgeTextEl.textContent = 'MODE SPEKTRUM MANUAL';
         if (titleEl) titleEl.textContent = '↻ Kembali ke Waktu & Cuaca Rill Depok';
-        if (subEl) subEl.textContent = `Transisi halus ${Math.round(ts.durationSec)} detik`;
+        if (subEl) {
+          subEl.textContent =
+            anyTrans && dominantAxis
+              ? `Transisi aktif · Sisa ${dominantAxis.rem} dtk (maks 45 dtk)`
+              : 'Transisi proporsional hingga 45 detik';
+        }
         updateDepokTelemetryDOM();
       }
     }
@@ -2316,8 +2386,59 @@ async function bootstrapNexusSimulator() {
       // Continuous C^1 Architectural Window, Garden Lamp, & Helipad Night Illumination + 3D HRTF Physical Acoustic Coupling
       GedungRektoratUIAsset.setNightIllumination(rektoratAsset, weather.nightIlluminationLevel);
 
-      sivitasAI.setSeaWaveHeightMeters(weather.getSeaWaveHeightMeters());
+      sivitasAI.syncOceanState(weather.getSeaWaveHeightMeters(), weather.uniforms.uTime.value);
       sivitasAI.update(dt, elapsed, camera.position);
+
+      // Feed 4 Live GPU 19.47° Lord Kelvin Ship Wake + Stern Propeller Wash Slots (0 GC!)
+      if (sivitasAI.shuttleFerry) {
+        const f = sivitasAI.shuttleFerry;
+        weather.setVesselWakeSlot(0, f.worldX, f.worldZ, f.yaw, +(f.speed || 0.0));
+      } else {
+        weather.setVesselWakeSlot(0, 0, 0, 0, 0);
+      }
+      if (sivitasAI.miniYacht) {
+        const y = sivitasAI.miniYacht;
+        weather.setVesselWakeSlot(1, y.worldX, y.worldZ, y.yaw, -(y.speed || 0.0));
+      } else {
+        weather.setVesselWakeSlot(1, 0, 0, 0, 0);
+      }
+      if (Array.isArray(sivitasAI.marineVessels) && sivitasAI.marineVessels.length > 0) {
+        let bestIdxA = -1;
+        let bestIdxB = -1;
+        let bestDistA = Infinity;
+        let bestDistB = Infinity;
+        const cxCam = camera.position.x;
+        const czCam = camera.position.z;
+        for (let vi = 0; vi < sivitasAI.marineVessels.length; vi++) {
+          const mv = sivitasAI.marineVessels[vi];
+          const dxM = mv.worldX - cxCam;
+          const dzM = mv.worldZ - czCam;
+          const d2 = dxM * dxM + dzM * dzM;
+          if (d2 < bestDistA) {
+            bestDistB = bestDistA;
+            bestIdxB = bestIdxA;
+            bestDistA = d2;
+            bestIdxA = vi;
+          } else if (d2 < bestDistB) {
+            bestDistB = d2;
+            bestIdxB = vi;
+          }
+        }
+        if (bestIdxA >= 0) {
+          const vA = sivitasAI.marineVessels[bestIdxA];
+          const signedSpdA = vA.type === 'SMALL_SHIP' ? +(vA.speed || 0.0) : -(vA.speed || 0.0);
+          weather.setVesselWakeSlot(2, vA.worldX, vA.worldZ, vA.yaw, signedSpdA);
+        } else {
+          weather.setVesselWakeSlot(2, 0, 0, 0, 0);
+        }
+        if (bestIdxB >= 0) {
+          const vB = sivitasAI.marineVessels[bestIdxB];
+          const signedSpdB = vB.type === 'SMALL_SHIP' ? +(vB.speed || 0.0) : -(vB.speed || 0.0);
+          weather.setVesselWakeSlot(3, vB.worldX, vB.worldZ, vB.yaw, signedSpdB);
+        } else {
+          weather.setVesselWakeSlot(3, 0, 0, 0, 0);
+        }
+      }
       camDirector.update(dt, sampleWalkableElevation);
       if (camDirector.isAvataFPVMode()) {
         syncAvataHudDOM(true);

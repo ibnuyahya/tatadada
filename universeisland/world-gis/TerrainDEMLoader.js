@@ -3125,8 +3125,9 @@ export class TerrainDEMLoader {
       return idx;
     };
 
-    const pushWaterVert = (x, z) =>
-      pushCustomWaterVert(x, yWater, z, 0, 1, 0, x * 0.04, z * 0.04, 0.0, 0.0, 0.0, 0.0);
+    const baseStepM = Math.max(stepX, stepZ);
+    const pushWaterVert = (x, z, gridSpacingM = baseStepM) =>
+      pushCustomWaterVert(x, yWater, z, 0, 1, 0, x * 0.04, z * 0.04, 0.0, 0.0, 0.0, 0.0, 2.5, gridSpacingM, 0.0, 0.0);
 
     // Zone 1: Inner Archipelago Surf, Lagoon (Teluk U), & Bridge Strait (Selat UI) Grid
     const stride = nx + 1;
@@ -3135,7 +3136,7 @@ export class TerrainDEMLoader {
       const z = zMin + iz * stepZ;
       for (let ix = 0; ix <= nx; ix++) {
         const x = xMin + ix * stepX;
-        pushWaterVert(x, z);
+        pushWaterVert(x, z, baseStepM);
         coastCache[iz * stride + ix] = TerrainDEMLoader.getIslandCoastDistance(x, z);
       }
     }
@@ -3154,7 +3155,7 @@ export class TerrainDEMLoader {
       }
     }
 
-    // Zone 2: Seamless Crack-Free Outer Ocean Skirt from Inner Grid Perimeter -> R = 1,650m Circle!
+    // Zone 2: Seamless High-Density Outer Ocean Skirt (64 graded rings -> R = 1,650m Circle, +0 Draw Calls!)
     const perimIndices = [];
     for (let ix = 0; ix < nx; ix++) perimIndices.push(nz * stride + ix);
     for (let iz = nz; iz > 0; iz--) perimIndices.push(iz * stride + nx);
@@ -3162,17 +3163,19 @@ export class TerrainDEMLoader {
     for (let iz = 0; iz < nz; iz++) perimIndices.push(iz * stride);
 
     const nPerim = perimIndices.length;
-    const radRings = 28;
+    const radRings = 64;
     const acx = TerrainDEMLoader.ARCHIPELAGO_CX;
     const acz = TerrainDEMLoader.ARCHIPELAGO_CZ;
     const rOuter = TerrainDEMLoader.WATER_OUTER_RADIUS;
 
     let prevRing = perimIndices.slice();
     prevRing.push(perimIndices[0]); // Close seam
+    let prevT = 0.0;
 
     for (let ir = 1; ir <= radRings; ir++) {
       const u = ir / radRings;
-      const t = Math.pow(u, 2.15);
+      const t = Math.pow(u, 1.65);
+      const dtRing = Math.max(1e-4, t - prevT);
       const currRing = [];
 
       for (let ip = 0; ip < nPerim; ip++) {
@@ -3187,7 +3190,10 @@ export class TerrainDEMLoader {
 
         const wx = bx + (ox - bx) * t;
         const wz = bz + (oz - bz) * t;
-        currRing.push(pushWaterVert(wx, wz));
+        const radialSpan = Math.hypot(ox - bx, oz - bz) * dtRing;
+        const circumSpan = (Math.hypot(wx - acx, wz - acz) * Math.PI * 2.0) / nPerim;
+        const localSpacingM = Math.max(baseStepM, radialSpan, circumSpan);
+        currRing.push(pushWaterVert(wx, wz, localSpacingM));
       }
       currRing.push(currRing[0]); // Exact seam closure without duplicate vertex!
 
@@ -3199,6 +3205,7 @@ export class TerrainDEMLoader {
         indices.push(p0, c0, p1, p1, c0, c1);
       }
       prevRing = currRing;
+      prevT = t;
     }
 
     // Helper: Polar Organic Freshwater Disk (+Y Upward Winding: Tangent(+th) x Radial(+r) = +Y!)

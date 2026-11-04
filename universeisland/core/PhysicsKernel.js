@@ -1089,10 +1089,14 @@ export class PhysicsKernel {
       }
     }
 
-    // 5. Terrain Heightfield & Ocean / Freshwater Surface
+    // 5. Terrain Heightfield & Live 3D Ocean Wave / Freshwater Surface
     if (!inSubseaBore && !inOpenRamp) {
       let minSurf = ctx.groundHeightFn ? ctx.groundHeightFn(px, pz) : 0.0;
-      const oceanY = Number.isFinite(ctx.oceanWaterY) ? ctx.oceanWaterY : -1.45;
+      const staticOceanY = Number.isFinite(ctx.oceanWaterY) ? ctx.oceanWaterY : -1.45;
+      const oceanY =
+        typeof ctx.oceanWaveSurfaceFn === 'function'
+          ? ctx.oceanWaveSurfaceFn(px, pz)
+          : staticOceanY;
       if (ctx.coastDistFn) {
         if (ctx.coastDistFn(px, pz) > -0.5) minSurf = Math.max(minSurf, oceanY);
       } else if (minSurf < oceanY) {
@@ -1152,6 +1156,7 @@ export class PhysicsKernel {
       coastDistFn = null,
       waterSurfaceFn = null,
       oceanWaterY = -1.45,
+      oceanWaveSurfaceFn = null,
       underpassConfig = null,
       bridgeSoffitFn = null,
       bridgeDeckFn = null,
@@ -1340,14 +1345,18 @@ export class PhysicsKernel {
                 minSolidSurfaceY = Math.max(minSolidSurfaceY, pierY);
               }
             }
-            // Solid Ocean / Strait / Teluk U Water Surface Barrier (prevents diving underwater!)
+            // Solid Ocean / Strait / Teluk U Live 3D Wave Surface Barrier (prevents clipping into 3m wave crests!)
+            const liveOceanY =
+              typeof oceanWaveSurfaceFn === 'function'
+                ? oceanWaveSurfaceFn(p.x, p.z)
+                : oceanWaterY;
             if (coastDistFn) {
               const dC = coastDistFn(p.x, p.z);
               if (dC > -0.5) {
-                minSolidSurfaceY = Math.max(minSolidSurfaceY, oceanWaterY);
+                minSolidSurfaceY = Math.max(minSolidSurfaceY, liveOceanY);
               }
-            } else if (minSolidSurfaceY < oceanWaterY) {
-              minSolidSurfaceY = oceanWaterY;
+            } else if (minSolidSurfaceY < liveOceanY) {
+              minSolidSurfaceY = liveOceanY;
             }
             // Solid Freshwater Spring / River / Plunge Pool Water Surface Barrier
             if (waterSurfaceFn) {

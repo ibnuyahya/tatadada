@@ -2682,17 +2682,17 @@ export class AudioSynthesizer {
     eWf.bp.frequency.setTargetAtTime(wfCenterHz * clamp(wfMet.doppler, 0.88, 1.14), now, 0.14);
     eWf.gain.gain.setTargetAtTime(wfLevel * wfOcc.gainMult * natM, now, 0.16);
 
-    // 3. Rhythmic Coastal Wave Surf around Pulau U, Pulau I, Teluk U & Selat UI (coupled to [0.00 .. 2.00 m] sea state!)
+    // 3. Rhythmic Coastal Wave Surf around Pulau U, Pulau I, Teluk U & Selat UI (coupled to [0.00 .. 3.00 m] sea state!)
     if (this.surfGain && this.surfFilter) {
-      const waveM = clamp(Number.isFinite(seaWaveHeightM) ? seaWaveHeightM : 0.28, 0.0, 2.0);
-      const waveDrive = 0.04 + 1.82 * Math.pow(waveM / 2.0, 0.86);
-      const shoreNear = Math.abs(coastDist) < 56.0 ? 1.0 - Math.abs(coastDist) / 56.0 : 0.0;
-      const openWaterLow = coastDist > 0.0 && camY > -1.8 && camY < 26.0 ? (26.0 - camY) / 26.0 : 0.0;
-      const altFade = camY > -1.8 ? clamp(1.0 - Math.max(0.0, camY - 6.0) / 40.0, 0.0, 1.0) : 0.0;
-      const waveSurge = 0.68 + 0.32 * Math.sin(this._simClock * 0.88) * Math.cos(this._simClock * 0.37 + 0.8);
+      const waveM = clamp(Number.isFinite(seaWaveHeightM) ? seaWaveHeightM : 0.28, 0.0, 3.0);
+      const waveDrive = 0.04 + 2.35 * Math.pow(waveM / 3.0, 0.84);
+      const shoreNear = Math.abs(coastDist) < 62.0 ? 1.0 - Math.abs(coastDist) / 62.0 : 0.0;
+      const openWaterLow = coastDist > 0.0 && camY > -1.8 && camY < 32.0 ? (32.0 - camY) / 32.0 : 0.0;
+      const altFade = camY > -1.8 ? clamp(1.0 - Math.max(0.0, camY - 6.5) / 44.0, 0.0, 1.0) : 0.0;
+      const waveSurge = 0.66 + 0.34 * Math.sin(this._simClock * 0.86) * Math.cos(this._simClock * 0.35 + 0.8);
       const surfVol =
-        Math.min(0.46, Math.max(shoreNear * 0.26, openWaterLow * 0.22) * altFade * waveSurge * waveDrive) * natM;
-      const surfCutoff = (260 + (1.0 - waveM / 2.6) * 140) + waveSurge * (210 + waveM * 95);
+        Math.min(0.56, Math.max(shoreNear * 0.28, openWaterLow * 0.24) * altFade * waveSurge * waveDrive) * natM;
+      const surfCutoff = (240 + (1.0 - waveM / 3.6) * 145) + waveSurge * (210 + waveM * 105);
       this.surfFilter.frequency.setTargetAtTime(surfCutoff, now, 0.18);
       this.surfGain.gain.setTargetAtTime(surfVol, now, 0.18);
       if (this.surfPan) {
@@ -3642,10 +3642,10 @@ export class AudioSynthesizer {
       }
     }
 
-    // Sea-Wave-Coupled Boat Hull Wave-Slap SFX when seaWaveHeightM >= 0.80 m
+    // Sea-Wave-Coupled Boat Hull Wave-Slap SFX when seaWaveHeightM >= 0.80 m (scales up to 3.00 m!)
     this._sfxTracker.hullSlapCooldown = Math.max(0.0, this._sfxTracker.hullSlapCooldown - dt);
     if (seaWaveM >= 0.80 && closestHullVessel && this._sfxTracker.hullSlapCooldown <= 0.0) {
-      this._sfxTracker.hullSlapCooldown = clamp(3.4 - (seaWaveM - 0.8) * 1.3, 1.4, 3.6);
+      this._sfxTracker.hullSlapCooldown = clamp(3.4 - (seaWaveM - 0.8) * 1.05, 1.05, 3.6);
       this._recordSfxEvent('BOAT_HULL_WAVE_SLAP', 'Hempasan Ombak Lambung Kapal');
       if (sfxLive) {
         this._triggerHullWaveSlap3D(closestHullVessel.x, closestHullVessel.y - 0.4, closestHullVessel.z, seaWaveM);
@@ -4564,7 +4564,7 @@ export class AudioSynthesizer {
     if (!this.ctx || !this._pinkBuffer || this.ctx.state !== 'running') return;
     const t0 = this.ctx.currentTime;
     const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
-    const waveScale = clamp((waveM - 0.65) / 1.35, 0.28, 1.0);
+    const waveScale = clamp((waveM - 0.65) / 2.35, 0.28, 1.25);
     const pan = this.ctx.createPanner();
     pan.panningModel = this.spatialOutputMode === 'SPEAKER' ? 'equalpower' : 'HRTF';
     pan.refDistance = 12.0;

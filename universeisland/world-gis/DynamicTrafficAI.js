@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createSharedSurfaceUniforms } from '../core/ProceduralTextureFactory.js';
 import { PhysicsKernel } from '../core/PhysicsKernel.js';
+import { WeatherOpticsEngine } from '../core/WeatherOpticsEngine.js';
 import { TerrainDEMLoader } from './TerrainDEMLoader.js';
 import { SplineCorridorBuilder } from './SplineCorridorBuilder.js';
 import {
@@ -212,6 +213,26 @@ export class DynamicTrafficAI {
     this.mesh = null;
     this.elapsedTime = 0.0;
     this.seaWaveHeightM = 0.24;
+    this.oceanWaveTimeSec = null;
+    this._waveProbeScratch = {
+      eta: 0.0,
+      surgeX: 0.0,
+      surgeZ: 0.0,
+      nx: 0.0,
+      ny: 1.0,
+      nz: 0.0,
+      dShore: 100.0,
+      diffractionKd: 1.0,
+      bathymetryH: 22.0,
+      breakingDiss: 0.0
+    };
+    this._hullHydroScratch = {
+      etaMean: 0.0,
+      surgeX: 0.0,
+      surgeZ: 0.0,
+      pitch: 0.0,
+      roll: 0.0
+    };
 
     // Precomputed 128-segment constant-speed arc-length LUT for Teluk U EPDM Jogging Oval (rx=15.5, rz=6.8)
     this._telukOvalLUT = DynamicTrafficAI._buildEllipseArcLUT(15.5, 6.8, 128);
@@ -327,7 +348,75 @@ export class DynamicTrafficAI {
   }
 
   setSeaWaveHeightMeters(waveHeightM) {
-    this.seaWaveHeightM = Math.max(0.0, Math.min(2.0, Number(waveHeightM) || 0.0));
+    this.seaWaveHeightM = Math.max(0.0, Math.min(3.0, Number(waveHeightM) || 0.0));
+  }
+
+  syncOceanState(waveHeightM, waveTimeSec = null) {
+    this.seaWaveHeightM = Math.max(0.0, Math.min(3.0, Number(waveHeightM) || 0.0));
+    if (Number.isFinite(waveTimeSec)) {
+      this.oceanWaveTimeSec = waveTimeSec;
+    }
+  }
+
+  /**
+   * 5-Point Strip-Theory Hydrostatic Hull Buoyancy Evaluator (100% 1:1 synchronized with GPU Ocean Shader!).
+   * Samples Center, Bow (+Z), Stern (-Z), Port (+X), and Starboard (-X) on the live 8-mode JONSWAP ocean surface.
+   */
+  _sampleHullHydrostatics(
+    baseX,
+    baseZ,
+    yaw,
+    halfL,
+    halfB,
+    waveTimeSec,
+    waveHeightM,
+    surgeGain = 0.55,
+    rollStability = 1.0
+  ) {
+    const out = this._hullHydroScratch;
+    if (waveHeightM <= 1e-4) {
+      out.etaMean = 0.0;
+      out.surgeX = 0.0;
+      out.surgeZ = 0.0;
+      out.pitch = 0.0;
+      out.roll = 0.0;
+      return out;
+    }
+
+    const p = this._waveProbeScratch;
+    const fx = Math.sin(yaw);
+    const fz = Math.cos(yaw);
+    const px = Math.cos(yaw);
+    const pz = -Math.sin(yaw);
+
+    WeatherOpticsEngine.evaluateOceanWaveField(baseX, baseZ, waveTimeSec, waveHeightM, p);
+    const etaC = p.eta;
+    const sX = p.surgeX * surgeGain;
+    const sZ = p.surgeZ * surgeGain;
+
+    WeatherOpticsEngine.evaluateOceanWaveField(baseX + fx * halfL, baseZ + fz * halfL, waveTimeSec, waveHeightM, p);
+    const etaBow = p.eta;
+
+    WeatherOpticsEngine.evaluateOceanWaveField(baseX - fx * halfL, baseZ - fz * halfL, waveTimeSec, waveHeightM, p);
+    const etaStern = p.eta;
+
+    WeatherOpticsEngine.evaluateOceanWaveField(baseX + px * halfB, baseZ + pz * halfB, waveTimeSec, waveHeightM, p);
+    const etaPort = p.eta;
+
+    WeatherOpticsEngine.evaluateOceanWaveField(baseX - px * halfB, baseZ - pz * halfB, waveTimeSec, waveHeightM, p);
+    const etaStbd = p.eta;
+
+    // Hull-length spatial filtering: weighted 5-point waterline integral
+    out.etaMean = 0.36 * etaC + 0.18 * (etaBow + etaStern) + 0.14 * (etaPort + etaStbd);
+    out.surgeX = sX;
+    out.surgeZ = sZ;
+    // Exact Three.js Euler('YXZ') signs: local Bow (+Z) height = -L*sin(pitch); local Port (+X) height = +B*sin(roll)
+    out.pitch = Math.max(-0.34, Math.min(0.34, -Math.atan2(etaBow - etaStern, 2.0 * halfL)));
+    out.roll = Math.max(
+      -0.42,
+      Math.min(0.42, Math.atan2(etaPort - etaStbd, 2.0 * halfB) * rollStability)
+    );
+    return out;
   }
 
   static _buildEllipseArcLUT(rx, rz, steps = 128) {
@@ -4340,6 +4429,9 @@ export class DynamicTrafficAI {
     // 2. Advance All 12 Distant Offshore Marine Vessels (8 Fishing Boats + 4 Small Coastal Ships)
     const wMats = this._jointWorldMatrices;
     const sMats = this._skinMatrices;
+    const waveTimeNow = Number.isFinite(this.oceanWaveTimeSec) ? this.oceanWaveTimeSec : t;
+    const liveSeaM = Math.max(0.0, Math.min(3.0, this.seaWaveHeightM));
+
     for (let m = 0; m < this.marineVessels.length; m++) {
       const v = this.marineVessels[m];
       const meanR = 0.5 * (v.rx + v.rz);
@@ -4348,27 +4440,34 @@ export class DynamicTrafficAI {
 
       const cosA = Math.cos(v.angle);
       const sinA = Math.sin(v.angle);
-      v.worldX = v.seaCenterX + cosA * v.rx;
-      v.worldZ = v.seaCenterZ + sinA * v.rz;
+      const baseX = v.seaCenterX + cosA * v.rx;
+      const baseZ = v.seaCenterZ + sinA * v.rz;
 
       const tx = -v.dir * sinA * v.rx;
       const tz = v.dir * cosA * v.rz;
       v.yaw = Math.atan2(tx, tz);
 
-      // Realistic open-ocean swell heave, pitch, & roll coupled to live [0.00 .. 2.00 m] sea state!
+      // Exact 1:1 5-Point Strip-Theory Hydrostatic Buoyancy on Live [0.00 .. 3.00 m] JONSWAP Ocean Field!
       const isShip = v.type === 'SMALL_SHIP';
-      const openWaveNorm = Math.max(0.0, Math.min(2.0, this.seaWaveHeightM)) / 2.0;
-      const heaveAmp = (isShip ? 0.42 : 0.62) * openWaveNorm;
-      const rollAmp = (isShip ? 0.095 : 0.21) * Math.pow(openWaveNorm, 0.82);
-      const pitchAmp = (isShip ? 0.062 : 0.13) * Math.pow(openWaveNorm, 0.82);
-      const ph = v.phaseSeed;
+      const halfL = (isShip ? 8.5 : 4.6) * v.scale;
+      const halfB = (isShip ? 2.6 : 1.55) * v.scale;
+      const hydro = this._sampleHullHydrostatics(
+        baseX,
+        baseZ,
+        v.yaw,
+        halfL,
+        halfB,
+        waveTimeNow,
+        liveSeaM,
+        isShip ? 0.52 : 0.68,
+        isShip ? 0.78 : 0.94
+      );
 
-      v.worldY =
-        TerrainDEMLoader.WATER_LEVEL_Y +
-        Math.sin(t * 1.15 + ph) * heaveAmp +
-        Math.cos(t * 0.73 + ph * 1.4) * heaveAmp * 0.45;
-      v.roll = Math.sin(t * 1.05 + ph * 1.3) * rollAmp;
-      v.pitch = Math.cos(t * 1.28 + ph * 0.8) * pitchAmp;
+      v.worldX = baseX + hydro.surgeX;
+      v.worldZ = baseZ + hydro.surgeZ;
+      v.worldY = TerrainDEMLoader.WATER_LEVEL_Y + hydro.etaMean;
+      v.pitch = hydro.pitch;
+      v.roll = hydro.roll;
 
       this._tmpPos.set(v.worldX, v.worldY, v.worldZ);
       this._tmpEuler.set(v.pitch, v.yaw, v.roll, 'YXZ');
@@ -4396,20 +4495,31 @@ export class DynamicTrafficAI {
 
       const c1 = Math.cos(y.angle);
       const s1 = Math.sin(y.angle);
-      y.worldX = y.cx + c1 * y.rx;
-      y.worldZ = y.cz + s1 * y.rz;
+      const baseYX = y.cx + c1 * y.rx;
+      const baseYZ = y.cz + s1 * y.rz;
 
       const tx = -y.dir * s1 * y.rx;
       const tz = y.dir * c1 * y.rz;
       y.yaw = Math.atan2(tx, tz);
 
-      // Sheltered Teluk U lagoon swell heave, roll, & bow trim pitch (shoal-damped under Jembatan Teksas!)
-      const bayWaveScale = Math.min(2.6, Math.max(0.0, this.seaWaveHeightM) / 0.28);
-      y.worldY =
-        TerrainDEMLoader.WATER_LEVEL_Y +
-        (Math.sin(t * 1.32 + 0.7) * 0.042 + Math.cos(t * 0.86 + 1.9) * 0.018) * bayWaveScale;
-      y.roll = Math.sin(t * 1.18 + 0.4) * 0.022 * bayWaveScale;
-      y.pitch = -0.010 * Math.min(1.2, bayWaveScale + 0.2) + Math.cos(t * 1.44 + 1.1) * 0.012 * bayWaveScale;
+      // Sheltered Teluk U diffracted wave buoyancy (100% synchronized with GPU Teluk U diffraction K_d!)
+      const hydroY = this._sampleHullHydrostatics(
+        baseYX,
+        baseYZ,
+        y.yaw,
+        6.4 * y.scale,
+        2.05 * y.scale,
+        waveTimeNow,
+        liveSeaM,
+        0.38,
+        0.76
+      );
+      y.worldX = baseYX + hydroY.surgeX;
+      y.worldZ = baseYZ + hydroY.surgeZ;
+      y.worldY = TerrainDEMLoader.WATER_LEVEL_Y + hydroY.etaMean;
+      y.roll = hydroY.roll;
+      // Subtle dynamic planing bow-up trim (-0.010 rad) + live wave slope pitch
+      y.pitch = -0.010 + hydroY.pitch;
 
       if (Math.abs(y.worldX - TerrainDEMLoader.TEKSAS_BRIDGE_X) <= 8.5) {
         const soffitY = TerrainDEMLoader.sampleTeksasBridgeSoffitY(y.worldZ);
@@ -4474,20 +4584,33 @@ export class DynamicTrafficAI {
 
       f.spline.getPointAt(f.u, this._tmpVecA);
       f.spline.getTangentAt(f.u, this._tmpVecB);
-      f.worldX = this._tmpVecA.x;
-      f.worldZ = this._tmpVecA.z;
+      const baseFX = this._tmpVecA.x;
+      const baseFZ = this._tmpVecA.z;
       const targetYaw = Math.atan2(this._tmpVecB.x, this._tmpVecB.z);
       f.yaw = dampAngle(f.yaw, targetYaw, 6.0, dt);
 
-      // Twin-hull catamaran stability: smooth heave across northern Selat UI coupled to seaWaveHeightM
+      // Twin-hull catamaran buoyancy across Selat UI + mooring-line damping at Dermaga fenders
       const speedRatio = Math.min(1.0, f.speed / f.maxSpeed);
-      const straitWaveScale =
-        Math.min(2.8, Math.max(0.0, this.seaWaveHeightM) / 0.28) * (0.28 + 0.72 * speedRatio);
-      f.worldY =
-        TerrainDEMLoader.WATER_LEVEL_Y +
-        (Math.sin(t * 1.25 + 1.3) * 0.032 + Math.cos(t * 0.82 + 0.6) * 0.014) * straitWaveScale;
-      f.roll = Math.sin(t * 1.10 + 0.9) * (0.008 + 0.010 * speedRatio) * straitWaveScale;
-      f.pitch = -0.006 * speedRatio + Math.cos(t * 1.38 + 0.4) * 0.008 * straitWaveScale;
+      const moorDamp =
+        f.phase === 'DOCKED_DWELL'
+          ? 0.34
+          : 0.34 + 0.66 * Math.min(1.0, Math.max(0.0, distDock) / 14.0);
+      const hydroF = this._sampleHullHydrostatics(
+        baseFX,
+        baseFZ,
+        f.yaw,
+        8.0 * f.scale,
+        3.1 * f.scale,
+        waveTimeNow,
+        liveSeaM,
+        0.28 * moorDamp,
+        0.58 * moorDamp
+      );
+      f.worldX = baseFX + hydroF.surgeX;
+      f.worldZ = baseFZ + hydroF.surgeZ;
+      f.worldY = TerrainDEMLoader.WATER_LEVEL_Y + hydroF.etaMean * (0.48 + 0.52 * moorDamp);
+      f.roll = hydroF.roll;
+      f.pitch = -0.006 * speedRatio + hydroF.pitch * (0.55 + 0.45 * moorDamp);
 
       // Hard marine OBB depenetration against Dermaga T-head decks, landing stages, & mooring dolphins!
       const fOBB = this._ferryOBBScratch;

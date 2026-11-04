@@ -121,6 +121,7 @@ export function resolveSoftSpatialCollision(
     coastDistFn: ctx?.coastDistFn || null,
     waterSurfaceFn: ctx?.waterSurfaceFn || null,
     oceanWaterY: Number.isFinite(ctx?.oceanWaterY) ? ctx.oceanWaterY : -1.45,
+    oceanWaveSurfaceFn: ctx?.oceanWaveSurfaceFn || null,
     underpassConfig: ctx?.underpassConfig || null,
     bridgeSoffitFn: ctx?.bridgeSoffitFn || null,
     bridgeDeckFn: ctx?.bridgeDeckFn || null,
