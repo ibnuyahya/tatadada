@@ -545,12 +545,21 @@ async function bootstrapStudioWorkbench() {
         Math.abs(camera.position.x) <= 18.4 &&
         Math.abs(camera.position.z) <= 18.4 &&
         camera.position.y < 14.0,
+      solarHour: weather.currentSolarHour,
+      temperatureC: latestDepokWeather?.temperatureC,
+      humidityPct: latestDepokWeather?.humidityPct,
       rainIntensity: weather.uniforms.uRainIntensity.value,
       stormFactor: weather.uniforms.uStormFactor.value,
       windSpeed: weather.uniforms.uWindVec.value.length(),
       wetness: weather.uniforms.uWetness.value,
       nightFactor: weather.uniforms.uNightFactor?.value ?? weather.nightIlluminationLevel,
-      lightningDir: weather.uniforms.uLightningDir.value
+      lightningDir: weather.uniforms.uLightningDir.value,
+      avataThrottle01: camDirector._avataThrottle01 || 0.0,
+      avataTurnRate: Math.abs(camDirector._avataYawRateSmooth || 0.0),
+      avataGForce: camDirector._avataGForce || 1.0,
+      avataStuntActive: Boolean(camDirector._avataStunt?.active),
+      avataApasActive: (camDirector._avataApasTimer || 0) > 0.01,
+      mavicFov: camDirector._mavicCinemaFov || 43.0
     });
     GedungRektoratUIAsset.updateKinematics(rektoratAsset, dt, {
       isNight: weather.nightIlluminationLevel > 0.35,

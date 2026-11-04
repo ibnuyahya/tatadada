@@ -1,19 +1,17 @@
 /**
- * NEXUS Omni-Scale Procedural Engine v2.0 (v6.14 — 3D Binaural HRTF Physical Acoustic Engine)
+ * NEXUS Omni-Scale Procedural Engine v2.0 (v6.17 — Iterasi 3: Dynamic World Event SFX, Fleet/NPC/Drone SFX & Sub-Mix)
  * ./core/AudioSynthesizer.js
  *
  * 100% Procedural Web Audio API 3D Spatial & Physical Sound Engine for Kepulauan UI Depok:
  * - Real-time 3D AudioListener pose & orthonormal orientation coupled to Three.js camera
- * - Binaural HRTF PannerNode pool for dynamic vehicles, aircraft, vessels, & hydrological landmarks
- * - Relativistic Acoustic Doppler Shift (c = 343.0 m/s) & ISO 9613-1 Distance Air Absorption
- * - Procedural Stereo Convolution Reverb & Architectural Roof/Tunnel/Cockpit Occlusion:
- *   Subsea Underpass Bore, Jembatan Teksas Steel-Polycarbonate Truss, Sheltered Colonnades, & FPS Cabins
- * - Multi-Emitter Propulsion Synthesis: Bis Kuning (+ pneumatic brake hiss), Mobil Golf PMSM Inverter,
- *   PK-UIE Hexa-Rotor eVTOL BVI thump, Cessna 172 piston prop, Citation Learjet twin-turbofan, & Ferry/Yacht
- * - Dual-Drone Aero-Acoustics: Mavic 3 Pro low-RPM hum vs DJI Avata 2 asymmetric quad + obstacle whoosh
- * - Material-Aware Footsteps (Stone, Asphalt, EPDM Track, Steel/Wood Deck, Concrete Bore, Grass + Wet Splash)
- * - Diurnal Nusantara Bio-Acoustics (Daytime tropical songbirds, Dusk/Night crickets & frogs, Campus Cats)
- * - Directional 3D HRTF Speed-of-Sound Thunder (delta_t = d / 343 m/s + N-wave plasma crack + cloud echoes)
+ * - Binaural HRTF PannerNode pool + Directional Radiation Cones (Exhaust, PA Array, Transit)
+ * - Temperature & Humidity-Coupled Speed of Sound / ISO 9613-1 Air Absorption + 3D Obstacle Occlusion
+ * - Dual-Convolver Reverb (2.35s Concrete Vault IR + 0.68s Metallic Truss/Cabin Early-Reflection IR)
+ * - Roof-Material-Specific Rain Acoustics (Terracotta Clay, Polycarbonate Truss, Cabin Windshield, Canopy)
+ * - 16 Location-Context Micro-Biomes + 6-Phase Diurnal Nusantara Bio-Acoustics
+ * - Real-Time State-Transition World SFX (Bus Door/Spray/Suspension, Golf Courtesy Bell, Ferry Marine Horn,
+ *   Runway Tire Chirp & Thrust Reverser, eVTOL Skid Thud, NPC Camera Shutter & Umbrella Pop, Avata Acro/APAS)
+ * - 3-Mode Acoustic Sub-Mix Profiles ('BALANCED' | 'NATURE' | 'TRANSIT') & 3D HRTF Thunder (delta_t = d / c)
  */
 
 const SPEED_OF_SOUND_MS = 343.0;
@@ -23,15 +21,32 @@ function clamp(val, min, max) {
 }
 
 function smooth01(edge0, edge1, x) {
-  const t = clamp((x - edge0) / Math.max(1e-5, edge1 - edge0), 0.0, 1.0);
+  const span = edge1 - edge0;
+  if (Math.abs(span) < 1e-6) return x >= edge1 ? 1.0 : 0.0;
+  const t = clamp((x - edge0) / span, 0.0, 1.0);
   return t * t * (3.0 - 2.0 * t);
 }
 
 export class AudioSynthesizer {
   static SPEED_OF_SOUND = SPEED_OF_SOUND_MS;
 
+  static MIX_PROFILES = {
+    BALANCED: { id: 'BALANCED', labelId: 'Seimbang', natureMult: 1.0, transitMult: 1.0, sfxMult: 1.0 },
+    NATURE: { id: 'NATURE', labelId: 'Alam & Ruang', natureMult: 1.38, transitMult: 0.44, sfxMult: 0.86 },
+    TRANSIT: { id: 'TRANSIT', labelId: 'Aksi & Armada', natureMult: 0.66, transitMult: 1.32, sfxMult: 1.24 }
+  };
+
   /**
-   * Computes exact acoustic Doppler frequency ratio & ISO 9613-1 distance air-absorption lowpass cutoff.
+   * Computes exact temperature-coupled speed of sound in m/s: c(T) = 331.3 * sqrt(1 + T / 273.15).
+   */
+  static computeSpeedOfSound(tempC = 20.0) {
+    const t = clamp(Number.isFinite(tempC) ? tempC : 20.0, -10.0, 48.0);
+    return 331.3 * Math.sqrt(1.0 + t / 273.15);
+  }
+
+  /**
+   * Computes exact acoustic Doppler frequency ratio & ISO 9613-1 temperature/humidity-coupled
+   * distance air-absorption lowpass cutoff.
    */
   static computeDopplerAndAbsorption(
     srcX,
@@ -45,7 +60,9 @@ export class AudioSynthesizer {
     lisZ,
     lisVx,
     lisVy,
-    lisVz
+    lisVz,
+    tempC = 27.5,
+    humidityPct = 76.0
   ) {
     const dx = lisX - srcX;
     const dy = lisY - srcY;
@@ -56,58 +73,179 @@ export class AudioSynthesizer {
     const uy = dy * invD;
     const uz = dz * invD;
 
+    const cSound = AudioSynthesizer.computeSpeedOfSound(tempC);
+
     // Radial component of source velocity toward listener (+ = approaching)
     const vS = clamp(srcVx * ux + srcVy * uy + srcVz * uz, -118.0, 118.0);
     // Radial component of listener velocity toward source (+ = approaching)
     const vL = clamp(-(lisVx * ux + lisVy * uy + lisVz * uz), -118.0, 118.0);
 
-    const rawDoppler = (SPEED_OF_SOUND_MS + vL) / Math.max(120.0, SPEED_OF_SOUND_MS - vS);
+    const rawDoppler = (cSound + vL) / Math.max(120.0, cSound - vS);
     const doppler = clamp(rawDoppler, 0.64, 1.54);
 
-    // Humid tropical air high-frequency absorption (~28°C, 75% RH Depok atmosphere)
-    const airCutoffHz = clamp(16800.0 / (1.0 + dist / 46.0), 360.0, 16800.0);
+    // ISO 9613-1 molecular O2/N2 relaxation attenuation coupled to temperature & relative humidity
+    const rh = clamp(Number.isFinite(humidityPct) ? humidityPct : 76.0, 25.0, 100.0);
+    const tempFactor = 1.0 + (clamp(tempC, 15.0, 38.0) - 27.5) * 0.008;
+    const rhRelaxFactor = 0.88 + 0.32 * (Math.abs(rh - 74.0) / 50.0);
+    const charDistM = 46.0 / (tempFactor * rhRelaxFactor);
+    const airCutoffHz = clamp(16800.0 / (1.0 + dist / charDistM), 320.0, 16800.0);
 
-    return { dist, doppler, airCutoffHz, radialApproachMs: vS + vL };
+    return { dist, doppler, airCutoffHz, radialApproachMs: vS + vL, speedOfSoundMs: cSound };
   }
 
   /**
-   * Classifies the listener's 3D architectural & environmental acoustic space.
+   * Computes 3D line-of-sight geometric acoustic occlusion & diffraction attenuation across
+   * major Kepulauan UI structures and terrain masses:
+   * - Subsea Underpass Bore rock/seawater isolation (`x = -356, z = 322..628, y < -1.85`)
+   * - Gunung Api Pulau I volcanic cone (`(-32, 0..60, 698)`)
+   * - Menara Gedung Rektorat UI brutalist concrete tower (`(0, 0..44, 0)`)
+   * - Kompleks Bundar DPPD–STP (`(-255, 0..22, 329)`)
+   */
+  static computeGeometricOcclusion(srcX, srcY, srcZ, lisX, lisY, lisZ, out = null) {
+    let gainMult = 1.0;
+    let cutoffMult = 1.0;
+    let occluder = 'NONE';
+
+    const srcInSubsea =
+      Math.abs(srcX - -356.0) <= 6.2 && srcZ >= 322.0 && srcZ <= 628.0 && srcY < -1.85;
+    const lisInSubsea =
+      Math.abs(lisX - -356.0) <= 6.2 && lisZ >= 322.0 && lisZ <= 628.0 && lisY < -1.85;
+
+    // 1. Subsea Tunnel Solid Seabed / Portal Diffraction Isolation
+    if (srcInSubsea !== lisInSubsea) {
+      const inZ = srcInSubsea ? srcZ : lisZ;
+      const outX = srcInSubsea ? lisX : srcX;
+      const outY = srcInSubsea ? lisY : srcY;
+      const outZ = srcInSubsea ? lisZ : srcZ;
+      const outDistS = Math.hypot(
+        outX - -356.0,
+        Math.max(0.0, 270.0 - outZ) + Math.max(0.0, outZ - 323.0)
+      );
+      const outDistN = Math.hypot(
+        outX - -356.0,
+        Math.max(0.0, 627.0 - outZ) + Math.max(0.0, outZ - 675.0)
+      );
+      const leakS = smooth01(42.0, 1.5, Math.abs(inZ - 322.0)) * smooth01(34.0, 4.0, outDistS);
+      const leakN = smooth01(42.0, 1.5, Math.abs(inZ - 628.0)) * smooth01(34.0, 4.0, outDistN);
+      const portalLeak = Math.max(leakS, leakN) * (outY < 12.0 ? 1.0 : 0.45);
+      gainMult *= 0.06 + 0.66 * portalLeak;
+      cutoffMult *= 0.13 + 0.58 * portalLeak;
+      occluder = 'SUBSEA_ROCK';
+    }
+
+    const segDx = lisX - srcX;
+    const segDy = lisY - srcY;
+    const segDz = lisZ - srcZ;
+    const segLenXZ2 = segDx * segDx + segDz * segDz;
+
+    if (segLenXZ2 > 144.0) {
+      // Helper: closest parameter t in [0, 1] in XZ to obstacle center (cx, cz)
+      // 2. Gunung Api Pulau I Basalt Cone (-32, 698, peak ~58m, base R ~64m)
+      const tVol = (( -32.0 - srcX) * segDx + (698.0 - srcZ) * segDz) / segLenXZ2;
+      if (tVol > 0.08 && tVol < 0.92) {
+        const px = srcX + segDx * tVol;
+        const py = srcY + segDy * tVol;
+        const pz = srcZ + segDz * tVol;
+        const rV = Math.hypot(px - -32.0, pz - 698.0);
+        if (rV < 60.0) {
+          const hCone = 58.0 * Math.max(0.0, 1.0 - Math.pow(rV / 65.0, 1.38));
+          if (py < hCone - 2.2) {
+            const depth01 = clamp((hCone - py) / 26.0, 0.0, 1.0);
+            gainMult *= 1.0 - 0.72 * depth01;
+            cutoffMult *= 1.0 - 0.75 * depth01;
+            if (occluder === 'NONE') occluder = 'GUNUNG_API';
+          }
+        }
+      }
+
+      // 3. Menara Gedung Rektorat UI Concrete Tower (0, 0, half-width ~15m, height ~44m)
+      const srcOutsideRekt = Math.max(Math.abs(srcX), Math.abs(srcZ)) > 16.5;
+      const lisOutsideRekt = Math.max(Math.abs(lisX), Math.abs(lisZ)) > 16.5;
+      if (srcOutsideRekt && lisOutsideRekt) {
+        const tRek = ((0.0 - srcX) * segDx + (0.0 - srcZ) * segDz) / segLenXZ2;
+        if (tRek > 0.08 && tRek < 0.92) {
+          const px = srcX + segDx * tRek;
+          const py = srcY + segDy * tRek;
+          const pz = srcZ + segDz * tRek;
+          if (Math.max(Math.abs(px), Math.abs(pz)) < 14.6 && py < 42.0) {
+            const boxDepth = clamp((42.0 - py) / 18.0, 0.25, 1.0);
+            gainMult *= 1.0 - 0.56 * boxDepth;
+            cutoffMult *= 1.0 - 0.60 * boxDepth;
+            if (occluder === 'NONE') occluder = 'GEDUNG_REKTORAT';
+          }
+        }
+      }
+
+      // 4. Kompleks Bundar DPPD–STP (-255, 329, R ~30m, height ~21m)
+      const srcOutsideDppd = Math.hypot(srcX - -255.0, srcZ - 329.0) > 32.0;
+      const lisOutsideDppd = Math.hypot(lisX - -255.0, lisZ - 329.0) > 32.0;
+      if (srcOutsideDppd && lisOutsideDppd) {
+        const tDp = ((-255.0 - srcX) * segDx + (329.0 - srcZ) * segDz) / segLenXZ2;
+        if (tDp > 0.08 && tDp < 0.92) {
+          const px = srcX + segDx * tDp;
+          const py = srcY + segDy * tDp;
+          const pz = srcZ + segDz * tDp;
+          if (Math.hypot(px - -255.0, pz - 329.0) < 28.5 && py < 20.5) {
+            gainMult *= 0.52;
+            cutoffMult *= 0.46;
+            if (occluder === 'NONE') occluder = 'KOMPLEKS_DPPD';
+          }
+        }
+      }
+    }
+
+    const res = out || {};
+    res.occluded = gainMult < 0.94;
+    res.gainMult = clamp(gainMult, 0.04, 1.0);
+    res.cutoffMult = clamp(cutoffMult, 0.10, 1.0);
+    res.occluder = occluder;
+    return res;
+  }
+
+  /**
+   * Classifies the listener's 3D architectural & environmental acoustic space, Dual-IR reverb split
+   * (`cathedralSend` vs `metallicSend`), and overhead roof rain-impact material (`roofMaterial`).
    */
   static classifyAcousticZone(x, y, z, camMode = 'DRONE_6DOF', isRoofSheltered = false) {
     const inUnderpassCorridorX = Math.abs(x - -356.0) <= 5.45;
     const inUnderpassBoreZ = z >= 322.0 && z <= 628.0;
     const inUnderpassRampZ = (z >= 270.0 && z < 322.0) || (z > 628.0 && z <= 672.0);
+    const inTeksasSpan =
+      Math.abs(x - -28.0) <= 2.85 && z >= 168.0 && z <= 323.0 && y >= 3.4 && y <= 12.25;
 
     const isCockpitClosed = camMode === 'FPS_BUS_DRIVER' || camMode === 'FPS_PILOT';
     const isGolfCanopy = camMode === 'FPS_GOLF_DRIVER';
 
     if (inUnderpassCorridorX && inUnderpassBoreZ && y < -1.85) {
+      const rev = isCockpitClosed ? 0.48 : 0.66;
       return {
         zoneId: 'SUBSEA_TUNNEL',
         labelId: isCockpitClosed ? 'Kabin dalam Terowongan Laut' : 'Terowongan Bawah Laut',
-        reverbSend: isCockpitClosed ? 0.48 : 0.64,
-        weatherOcclusionGain: 0.08,
-        weatherLowpassHz: 230.0,
+        reverbSend: rev,
+        cathedralSend: rev * 0.88,
+        metallicSend: rev * (isCockpitClosed ? 0.34 : 0.16),
+        reverbCharacter: 'CONCRETE_VAULT_IR',
+        roofMaterial: 'CONCRETE_VAULT',
+        weatherOcclusionGain: 0.07,
+        weatherLowpassHz: 220.0,
         tunnelHum: 1.0,
         patterBoost: 0.0
       };
     }
 
-    if (
-      Math.abs(x - -28.0) <= 2.85 &&
-      z >= 168.0 &&
-      z <= 323.0 &&
-      y >= 3.4 &&
-      y <= 12.25
-    ) {
+    if (inTeksasSpan) {
       return {
         zoneId: 'TEKSAS_TRUSS',
         labelId: 'Lorong Jembatan Teksas',
-        reverbSend: 0.38,
+        reverbSend: 0.40,
+        cathedralSend: 0.11,
+        metallicSend: 0.36,
+        reverbCharacter: 'STEEL_TRUSS_IR',
+        roofMaterial: 'POLYCARBONATE_TRUSS',
         weatherOcclusionGain: 0.54,
         weatherLowpassHz: 1420.0,
         tunnelHum: 0.0,
-        patterBoost: 1.32
+        patterBoost: 1.36
       };
     }
 
@@ -115,11 +253,15 @@ export class AudioSynthesizer {
       return {
         zoneId: 'COCKPIT_INTERIOR',
         labelId: camMode === 'FPS_PILOT' ? 'Kokpit Kedap Pesawat/eVTOL' : 'Kabin Bis Kuning UI',
-        reverbSend: 0.20,
-        weatherOcclusionGain: 0.26,
-        weatherLowpassHz: 520.0,
+        reverbSend: 0.21,
+        cathedralSend: 0.04,
+        metallicSend: 0.20,
+        reverbCharacter: 'CABIN_EARLY_IR',
+        roofMaterial: 'CABIN_WINDSHIELD',
+        weatherOcclusionGain: 0.25,
+        weatherLowpassHz: 510.0,
         tunnelHum: 0.0,
-        patterBoost: 0.55
+        patterBoost: 0.58
       };
     }
 
@@ -127,11 +269,15 @@ export class AudioSynthesizer {
       return {
         zoneId: 'GOLF_CANOPY',
         labelId: 'Kanopi Mobil Golf UI',
-        reverbSend: 0.16,
+        reverbSend: 0.17,
+        cathedralSend: 0.05,
+        metallicSend: 0.15,
+        reverbCharacter: 'CANOPY_EARLY_IR',
+        roofMaterial: 'CANOPY_FABRIC',
         weatherOcclusionGain: 0.68,
         weatherLowpassHz: 1850.0,
         tunnelHum: 0.0,
-        patterBoost: 1.18
+        patterBoost: 1.20
       };
     }
 
@@ -139,11 +285,15 @@ export class AudioSynthesizer {
       return {
         zoneId: 'UNDERPASS_RAMP',
         labelId: 'Ramp Beton Underpass',
-        reverbSend: 0.34,
+        reverbSend: 0.36,
+        cathedralSend: 0.31,
+        metallicSend: 0.10,
+        reverbCharacter: 'CONCRETE_RAMP_IR',
+        roofMaterial: 'OPEN_FOLIAGE_STONE',
         weatherOcclusionGain: 0.78,
         weatherLowpassHz: 2800.0,
         tunnelHum: 0.35,
-        patterBoost: 0.92
+        patterBoost: 0.94
       };
     }
 
@@ -151,11 +301,15 @@ export class AudioSynthesizer {
       return {
         zoneId: 'ROOF_SHELTERED',
         labelId: 'Kolonade / Selasar Beratap',
-        reverbSend: 0.29,
-        weatherOcclusionGain: 0.45,
+        reverbSend: 0.30,
+        cathedralSend: 0.24,
+        metallicSend: 0.11,
+        reverbCharacter: 'STONE_COLONNADE_IR',
+        roofMaterial: 'TERRACOTTA_CLAY',
+        weatherOcclusionGain: 0.44,
         weatherLowpassHz: 1120.0,
         tunnelHum: 0.0,
-        patterBoost: 1.24
+        patterBoost: 1.28
       };
     }
 
@@ -164,6 +318,10 @@ export class AudioSynthesizer {
         zoneId: 'HIGH_ALTITUDE',
         labelId: 'Udara Terbuka Tinggi',
         reverbSend: 0.04,
+        cathedralSend: 0.03,
+        metallicSend: 0.01,
+        reverbCharacter: 'OPEN_SKY_IR',
+        roofMaterial: 'OPEN_FOLIAGE_STONE',
         weatherOcclusionGain: 0.92,
         weatherLowpassHz: 9600.0,
         tunnelHum: 0.0,
@@ -175,10 +333,372 @@ export class AudioSynthesizer {
       zoneId: 'OPEN_AIR',
       labelId: 'Ruang Terbuka HRTF',
       reverbSend: 0.11,
+      cathedralSend: 0.09,
+      metallicSend: 0.04,
+      reverbCharacter: 'OPEN_COURTYARD_IR',
+      roofMaterial: 'OPEN_FOLIAGE_STONE',
       weatherOcclusionGain: 1.0,
       weatherLowpassHz: 13500.0,
       tunnelHum: 0.0,
       patterBoost: 1.0
+    };
+  }
+
+  /**
+   * Classifies the 6 Diurnal Nusantara Bio-Acoustic Phases aligned 1:1 with the 6 Solar Presets:
+   * - DAWN (04:45–06:30): Fajar (Kokok Ayam Fajar + Perkutut + Morning Dew)
+   * - MORNING (06:30–10:30): Pagi (Lively Kutilang & Tekukur + Campus Awakening)
+   * - DAY (10:30–14:30): Siang (Vibrant Academic Courtyard Murmur + Songbirds)
+   * - AFTERNOON (14:30–17:00): Sore (Forest Tonggeret Cicada Chorus + Warm Breeze)
+   * - DUSK (17:00–18:45): Senja (Golden-Hour Tonggeret + Early Dusk Crickets)
+   * - NIGHT (18:45–04:45): Malam (Stereo Crickets + Lakeside Frogs + Nocturnal Owl/Tokek)
+   */
+  static classifyDiurnalBioPhase(solarHour = 12.0) {
+    const h = (((Number(solarHour) || 0.0) % 24.0) + 24.0) % 24.0;
+    if (h >= 4.75 && h < 6.50) {
+      return {
+        phaseId: 'DAWN',
+        labelId: 'Fajar Nusantara',
+        birdWeight: 0.90,
+        tonggeretWeight: 0.06,
+        cricketWeight: 0.22,
+        socialWeight: 0.16
+      };
+    }
+    if (h >= 6.50 && h < 10.50) {
+      return {
+        phaseId: 'MORNING',
+        labelId: 'Pagi Kampus',
+        birdWeight: 1.0,
+        tonggeretWeight: 0.10,
+        cricketWeight: 0.0,
+        socialWeight: 0.82
+      };
+    }
+    if (h >= 10.50 && h < 14.50) {
+      return {
+        phaseId: 'DAY',
+        labelId: 'Siang Akademik',
+        birdWeight: 0.68,
+        tonggeretWeight: 0.30,
+        cricketWeight: 0.0,
+        socialWeight: 1.0
+      };
+    }
+    if (h >= 14.50 && h < 17.00) {
+      return {
+        phaseId: 'AFTERNOON',
+        labelId: 'Sore Teduh',
+        birdWeight: 0.72,
+        tonggeretWeight: 0.94,
+        cricketWeight: 0.08,
+        socialWeight: 0.88
+      };
+    }
+    if (h >= 17.00 && h < 18.75) {
+      return {
+        phaseId: 'DUSK',
+        labelId: 'Senja Keemasan',
+        birdWeight: 0.36,
+        tonggeretWeight: 1.0,
+        cricketWeight: 0.56,
+        socialWeight: 0.54
+      };
+    }
+    return {
+      phaseId: 'NIGHT',
+      labelId: 'Malam Tropis',
+      birdWeight: 0.0,
+      tonggeretWeight: 0.0,
+      cricketWeight: 1.0,
+      socialWeight: 0.10
+    };
+  }
+
+  /**
+   * Resolves the listener's exact Kepulauan UI Location-Context Micro-Biome (16 Distinct Contexts)
+   * + smooth continuous 3D spatial blend weights for click-free environmental ambience transitions.
+   */
+  static classifyMicroContextBiome(x, y, z, opts = {}) {
+    const coastDist = Number.isFinite(opts.coastDist) ? opts.coastDist : -40.0;
+    const riverZ = opts.riverZ !== undefined ? opts.riverZ : null;
+
+    // Continuous 3D proximity weights (used for seamless audio crossfading across zone borders)
+    const dFlag = Math.hypot(x - -2.5, z - 52.0);
+    const dVideotron = Math.hypot(x - 28.4, z - 78.2);
+    const dRotunda = Math.hypot(x - -2.5, z - 106.5);
+    const dSports = Math.hypot(x - -62.0, z - 136.5);
+    const dDppd = Math.hypot(x - -255.0, z - 329.0);
+    const dDermagaU = Math.hypot(x - -48.0, z - 480.0);
+    const dDermagaI = Math.hypot(x - -98.0, z - 595.0);
+    const dCraterXZ = Math.hypot(x - -32.0, z - 698.0);
+    const dNiagara = Math.hypot(x - -44.0, z - 643.0);
+    const dKiosk = Math.min(
+      Math.hypot(x - -39.5, z - 134.5),
+      Math.hypot(x - -16.5, z - 345.0),
+      Math.hypot(x - -213.0, z - 326.0),
+      Math.hypot(x - -116.5, z - 619.5)
+    );
+    const dSpring = Math.hypot(x - -265.0, z - -95.0);
+    const dRektorat = Math.max(Math.abs(x), Math.abs(z));
+
+    const altGroundFade = clamp(1.0 - Math.max(0.0, y - 10.0) / 36.0, 0.0, 1.0);
+    const flagWeight = smooth01(25.0, 6.0, dFlag) * altGroundFade;
+    const fumaroleWeight =
+      smooth01(48.0, 12.0, dCraterXZ) * smooth01(18.0, 38.0, y) * smooth01(95.0, 68.0, y);
+    const trussSpanWeight =
+      smooth01(9.0, 2.5, Math.abs(x - -28.0)) *
+      smooth01(158.0, 174.0, z) *
+      smooth01(332.0, 316.0, z) *
+      smooth01(24.0, 12.0, y);
+
+    const nearDanauKenanga = x >= 20.0 && x <= 106.0 && Math.abs(z - 10.0) <= 74.0;
+    const nearDanauKecil = Math.hypot(x - -78.0, z - -22.0) <= 40.0;
+    const nearTurapCoast = Math.abs(coastDist) <= 18.0 && y > -1.8;
+    const turapLapWeight =
+      (nearDanauKenanga || nearDanauKecil
+        ? 0.92
+        : nearTurapCoast
+          ? smooth01(18.0, 3.0, Math.abs(coastDist))
+          : 0.0) * altGroundFade;
+
+    const socialProx = Math.max(
+      smooth01(22.0, 5.0, dKiosk) * 1.0,
+      smooth01(32.0, 9.0, dRotunda) * 0.78,
+      smooth01(38.0, 12.0, dRektorat) * 0.72,
+      smooth01(40.0, 14.0, dDppd) * 0.75,
+      smooth01(22.0, 7.0, dVideotron) * 0.65
+    );
+    const socialWeight = socialProx * altGroundFade;
+
+    // 1. Subsea Underpass Bore
+    if (Math.abs(x - -356.0) <= 6.2 && z >= 322.0 && z <= 628.0 && y < -1.85) {
+      return {
+        biomeId: 'SUBSEA_UNDERPASS_BORE',
+        labelId: 'Terowongan Bawah Laut UI',
+        canopyWeight: 0.0,
+        socialWeight: 0.0,
+        flagWeight: 0.0,
+        fumaroleWeight: 0.0,
+        turapLapWeight: 0.0,
+        trussAeolianWeight: 0.0
+      };
+    }
+
+    // 2. Jembatan Teksas Span
+    if (Math.abs(x - -28.0) <= 5.5 && z >= 165.0 && z <= 325.0 && y < 18.5) {
+      return {
+        biomeId: 'TEKSAS_BRIDGE_SPAN',
+        labelId: 'Bentang Jembatan Teksas',
+        canopyWeight: 0.08,
+        socialWeight: 0.22 * altGroundFade,
+        flagWeight: 0.0,
+        fumaroleWeight: 0.0,
+        turapLapWeight: 0.45 * altGroundFade,
+        trussAeolianWeight: Math.max(0.65, trussSpanWeight)
+      };
+    }
+
+    // 3. Kawah Gunung Api Pulau I
+    if (dCraterXZ <= 42.0 && y >= 24.0 && y <= 86.0) {
+      return {
+        biomeId: 'VOLCANO_CRATER_RIM',
+        labelId: 'Kawah Gunung Api Pulau I',
+        canopyWeight: 0.05,
+        socialWeight: 0.0,
+        flagWeight: 0.0,
+        fumaroleWeight: Math.max(0.72, fumaroleWeight),
+        turapLapWeight: 0.0,
+        trussAeolianWeight: 0.0
+      };
+    }
+
+    // 4. Tebing Air Terjun Niagara Pulau I
+    if (dNiagara <= 42.0 && y < 38.0) {
+      return {
+        biomeId: 'NIAGARA_WATERFALL_CLIFF',
+        labelId: 'Tebing Air Terjun Niagara',
+        canopyWeight: 0.55 * altGroundFade,
+        socialWeight: 0.0,
+        flagWeight: 0.0,
+        fumaroleWeight,
+        turapLapWeight: 0.55 * altGroundFade,
+        trussAeolianWeight: 0.0
+      };
+    }
+
+    // 5. Bandara & Menara ATC Pulau I
+    if (x >= -390.0 && x <= -120.0 && z >= 648.0 && z <= 732.0 && y < 38.0) {
+      return {
+        biomeId: 'AIRPORT_ATC_APRON',
+        labelId: 'Apron & Menara ATC Bandara',
+        canopyWeight: 0.14 * altGroundFade,
+        socialWeight: 0.18 * altGroundFade,
+        flagWeight: 0.0,
+        fumaroleWeight: 0.0,
+        turapLapWeight: 0.12 * altGroundFade,
+        trussAeolianWeight: 0.18
+      };
+    }
+
+    // 6. Kios & Taman Bangku Kampus UI (checked before Dermaga/Rotunda so kiosk corners resolve cleanly)
+    if (dKiosk <= 16.5 && y < 10.5) {
+      return {
+        biomeId: 'CAMPUS_KIOSK_BENCH',
+        labelId: 'Kios & Taman Bangku UI',
+        canopyWeight: 0.42 * altGroundFade,
+        socialWeight: Math.max(0.85, socialWeight),
+        flagWeight,
+        fumaroleWeight: 0.0,
+        turapLapWeight,
+        trussAeolianWeight: 0.0
+      };
+    }
+
+    // 7. Dermaga Feri Selat UI (Pulau U & Pulau I Piers)
+    if ((dDermagaU <= 32.0 || dDermagaI <= 32.0) && y < 18.0) {
+      return {
+        biomeId: 'DERMAGA_HARBOUR',
+        labelId: 'Dermaga Feri Selat UI',
+        canopyWeight: 0.12 * altGroundFade,
+        socialWeight: 0.36 * altGroundFade,
+        flagWeight: 0.0,
+        fumaroleWeight: 0.0,
+        turapLapWeight: 0.88 * altGroundFade,
+        trussAeolianWeight: 0.15
+      };
+    }
+
+    // 8. Lapangan 15 Bendera Fakultas
+    if (dFlag <= 18.5 && y < 18.5) {
+      return {
+        biomeId: 'FLAG_CLOISTER',
+        labelId: 'Lapangan 15 Bendera UI',
+        canopyWeight: 0.28 * altGroundFade,
+        socialWeight: Math.max(0.32, socialWeight),
+        flagWeight: Math.max(0.85, flagWeight),
+        fumaroleWeight: 0.0,
+        turapLapWeight: 0.0,
+        trussAeolianWeight: 0.0
+      };
+    }
+
+    // 9. Plaza Videotron UI
+    if (dVideotron <= 20.0 && y < 18.5) {
+      return {
+        biomeId: 'VIDEOTRON_PLAZA',
+        labelId: 'Plaza Videotron UI',
+        canopyWeight: 0.30 * altGroundFade,
+        socialWeight: Math.max(0.55, socialWeight),
+        flagWeight,
+        fumaroleWeight: 0.0,
+        turapLapWeight,
+        trussAeolianWeight: 0.0
+      };
+    }
+
+    // 10. Plaza Air Mancur Rotunda
+    if (dRotunda <= 28.0 && y < 22.0) {
+      return {
+        biomeId: 'ROTUNDA_FOUNTAIN_PLAZA',
+        labelId: 'Plaza Air Mancur Rotunda',
+        canopyWeight: 0.26 * altGroundFade,
+        socialWeight: Math.max(0.68, socialWeight),
+        flagWeight,
+        fumaroleWeight: 0.0,
+        turapLapWeight: 0.35 * altGroundFade,
+        trussAeolianWeight: 0.0
+      };
+    }
+
+    // 11. Lintasan Lari & Kalistenik Teluk U
+    if (dSports <= 24.0 && y < 14.0) {
+      return {
+        biomeId: 'SPORTS_TRACK_TELUK',
+        labelId: 'Lintasan Lari & Kalistenik',
+        canopyWeight: 0.45 * altGroundFade,
+        socialWeight: 0.44 * altGroundFade,
+        flagWeight: 0.0,
+        fumaroleWeight: 0.0,
+        turapLapWeight: Math.max(0.35, turapLapWeight),
+        trussAeolianWeight: 0.0
+      };
+    }
+
+    // 12. Pelataran Gedung Rektorat UI
+    if (dRektorat <= 36.0 && y < 28.0) {
+      return {
+        biomeId: 'REKTORAT_COURTYARD',
+        labelId: 'Pelataran Gedung Rektorat',
+        canopyWeight: 0.24 * altGroundFade,
+        socialWeight: Math.max(0.62, socialWeight),
+        flagWeight,
+        fumaroleWeight: 0.0,
+        turapLapWeight: 0.0,
+        trussAeolianWeight: 0.0
+      };
+    }
+
+    // 13. Kompleks Bundar DPPD–STP
+    if (dDppd <= 38.0 && y < 26.0) {
+      return {
+        biomeId: 'DPPD_STP_ACADEMIC',
+        labelId: 'Kompleks Bundar DPPD–STP',
+        canopyWeight: 0.38 * altGroundFade,
+        socialWeight: Math.max(0.66, socialWeight),
+        flagWeight: 0.0,
+        fumaroleWeight: 0.0,
+        turapLapWeight: 0.0,
+        trussAeolianWeight: 0.0
+      };
+    }
+
+    // 14. Mata Air & Sungai Berbatu Pulau U
+    const onPulauURiver =
+      riverZ !== null &&
+      Number.isFinite(riverZ) &&
+      x >= -295.0 &&
+      x <= -98.0 &&
+      z < 420.0 &&
+      Math.abs(z - riverZ) <= 22.0;
+    if ((dSpring <= 35.0 || onPulauURiver) && y < 20.0) {
+      return {
+        biomeId: 'RIVER_SPRING_RIFFLE',
+        labelId: 'Mata Air & Sungai Pulau U',
+        canopyWeight: 0.78 * altGroundFade,
+        socialWeight: 0.0,
+        flagWeight: 0.0,
+        fumaroleWeight: 0.0,
+        turapLapWeight: 0.48 * altGroundFade,
+        trussAeolianWeight: 0.0
+      };
+    }
+
+    // 15. Tepian Danau Kenanga, Danau Kecil, & Turap Batu Pantai
+    if ((nearDanauKenanga || nearDanauKecil || nearTurapCoast) && y < 16.0) {
+      return {
+        biomeId: 'DANAU_TURAP_PROMENADE',
+        labelId: 'Tepian Danau & Turap Batu',
+        canopyWeight: 0.48 * altGroundFade,
+        socialWeight: 0.25 * altGroundFade,
+        flagWeight: 0.0,
+        fumaroleWeight: 0.0,
+        turapLapWeight: Math.max(0.75, turapLapWeight),
+        trussAeolianWeight: 0.0
+      };
+    }
+
+    // 16. Hutan Kota Tropis UI (South Pulau U Rainforest & Pulau I Green Hills)
+    const overLand = coastDist <= 4.0;
+    return {
+      biomeId: 'TROPICAL_RAINFOREST',
+      labelId: 'Hutan Kota Tropis UI',
+      canopyWeight: (overLand ? 0.92 : 0.15) * altGroundFade,
+      socialWeight,
+      flagWeight,
+      fumaroleWeight,
+      turapLapWeight,
+      trussAeolianWeight: trussSpanWeight
     };
   }
 
@@ -187,15 +707,19 @@ export class AudioSynthesizer {
     this.enabled = false;
     this.masterVolume = 0.80; // 0.0 .. 1.0 user slider
 
-    // Master & Space Routing Nodes
+    // Master & Dual-Convolver Space Routing Nodes
     this.masterGain = null;
     this.masterCompressor = null;
     this.worldSumGain = null;
     this.convolverNode = null;
+    this.convolverCathedral = null;
+    this.convolverMetallic = null;
     this.reverbSendGain = null;
+    this.cathedralSendGain = null;
+    this.metallicSendGain = null;
     this.reverbReturnGain = null;
 
-    // Weather & Environmental Buses
+    // Weather, Roof-Material Resonance & Environmental Buses
     this.weatherOccFilter = null;
     this.weatherOccGain = null;
     this.breezeGain = null;
@@ -204,10 +728,24 @@ export class AudioSynthesizer {
     this.rainRoarFilter = null;
     this.rainPatterGain = null;
     this.rainPatterFilter = null;
+    this.roofResonanceFilter = null;
+    this.roofResonanceGain = null;
     this.surfFilter = null;
     this.surfGain = null;
     this.tunnelHumGain = null;
     this.cricketGain = null;
+
+    // Iterasi 2 Location-Context Micro-Biome Continuous Ambience Buses
+    this.canopyRustleFilter = null;
+    this.canopyRustleGain = null;
+    this.tonggeretGain = null;
+    this.socialMurmurGain = null;
+    this.flagFlutterFilter = null;
+    this.flagFlutterGain = null;
+    this.trussAeolianGain = null;
+    this.fumaroleGain = null;
+    this.turapLapFilter = null;
+    this.turapLapGain = null;
 
     // Dual-Drone Buses (DJI Avata 2 Cinewhoop + DJI Mavic 3 Pro + Obstacle Proximity Whoosh)
     this.avataMotorOscA = null;
@@ -265,26 +803,69 @@ export class AudioSynthesizer {
       windSpeed: 0.85,
       wetness: 0.0,
       nightFactor: 0.0,
+      tempC: 27.5,
+      humidityPct: 76.0,
       lightningDirX: 0.6,
       lightningDirY: 0.34,
       lightningDirZ: 0.7
     };
     this._zoneState = AudioSynthesizer.classifyAcousticZone(0, 22, 100, 'DRONE_6DOF', false);
+    this._biomeState = AudioSynthesizer.classifyMicroContextBiome(0, 22, 100, {});
+    this._diurnalState = AudioSynthesizer.classifyDiurnalBioPhase(11.85);
+    this._occScratch = { occluded: false, gainMult: 1.0, cutoffMult: 1.0, occluder: 'NONE' };
 
     this._entityTracks = {
-      bus: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, init: false, brakeCooldown: 0 },
-      cart: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, init: false },
-      heli: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, init: false },
+      bus: {
+        x: 0,
+        y: 0,
+        z: 0,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        prevSpd: 0,
+        prevPitch: 0,
+        wasMoving: true,
+        init: false,
+        brakeCooldown: 0,
+        doorCooldown: 0,
+        suspCooldown: 0
+      },
+      cart: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, prevPhase: '', init: false, bellCooldown: 0 },
+      heli: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, prevPhase: '', init: false },
       air: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, init: false, id: '' },
       marine: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, init: false, id: '' }
     };
 
-    // Stride & Bio-Acoustic Timers
+    // Iterasi 3: Sub-Mix Profile & Live State-Transition World SFX Tracker
+    this.mixProfile = 'BALANCED';
+    this._mixWeights = AudioSynthesizer.MIX_PROFILES.BALANCED;
+    this._sfxTracker = {
+      cessnaPhase: '',
+      learjetPhase: '',
+      ferryPhase: '',
+      prevRain: 0.0,
+      rainInit: false,
+      prevAvataStunt: false,
+      prevAvataApas: false,
+      apasCooldown: 0.0,
+      prevMavicFov: 43.0,
+      mavicFovInit: false,
+      npcShutterTimer: 5.5,
+      sfxBannerTimer: 0.0
+    };
+
+    // Stride, Diurnal Bio-Acoustic & Micro-Biome Timers
     this._strideAccumM = 0.0;
     this._stepFootSide = 1;
     this._birdTimer = 1.8;
+    this._doveTimer = 4.2;
+    this._roosterTimer = 3.5;
+    this._nightOwlTimer = 6.5;
     this._frogTimer = 2.6;
     this._catMeowTimer = 5.5;
+    this._contextMicroTimer = 2.4;
+    this._atcSquelchTimer = 5.2;
+    this._jogBreathAccum = 0.0;
     this._whooshCooldown = 0.0;
     this._simClock = 0.0;
 
@@ -293,17 +874,52 @@ export class AudioSynthesizer {
       enabled: false,
       masterVolume: 0.80,
       masterVolumePct: 80,
+      mixProfile: 'BALANCED',
+      mixProfileLabel: 'Seimbang',
       zoneId: 'OPEN_AIR',
       zoneLabel: 'Ruang Terbuka HRTF',
       zoneLabelId: 'Ruang Terbuka HRTF',
+      microBiomeId: 'TROPICAL_RAINFOREST',
+      microBiomeLabel: 'Hutan Kota Tropis UI',
+      diurnalPhase: 'DAY',
+      diurnalLabel: 'Siang Akademik',
+      reverbCharacter: 'OPEN_COURTYARD_IR',
+      roofMaterial: 'OPEN_FOLIAGE_STONE',
       reverbSendPct: 11,
       weatherOcclusionPct: 0,
-      active3DSources: 7,
+      active3DSources: 8,
+      occluded3DSources: 0,
       dominantSourceLabel: 'Air Mancur & Alam',
       dominantDoppler: 1.0,
+      lastSfxId: 'NONE',
+      lastSfxLabel: '',
+      activeSfxBanner: '',
+      sfxCount: 0,
       listenerSpeedMs: 0.0,
       surfaceMaterial: 'AIR'
     };
+  }
+
+  setMixProfile(profileId = 'BALANCED') {
+    const key = String(profileId || 'BALANCED').toUpperCase();
+    const prof = AudioSynthesizer.MIX_PROFILES[key] || AudioSynthesizer.MIX_PROFILES.BALANCED;
+    this.mixProfile = prof.id;
+    this._mixWeights = prof;
+    this._telemetry.mixProfile = prof.id;
+    this._telemetry.mixProfileLabel = prof.labelId;
+    return prof.id;
+  }
+
+  getMixProfile() {
+    return this.mixProfile;
+  }
+
+  _recordSfxEvent(sfxId, labelId) {
+    this._telemetry.lastSfxId = sfxId;
+    this._telemetry.lastSfxLabel = labelId;
+    this._telemetry.activeSfxBanner = labelId;
+    this._telemetry.sfxCount = (this._telemetry.sfxCount || 0) + 1;
+    this._sfxTracker.sfxBannerTimer = 4.2;
   }
 
   _targetMasterLinearGain() {
@@ -374,6 +990,22 @@ export class AudioSynthesizer {
     }
   }
 
+  _setPannerOrientation(panner, ox, oy, oz, now, instant = false) {
+    if (!panner || !Number.isFinite(ox) || !Number.isFinite(oy) || !Number.isFinite(oz)) return;
+    const len = Math.hypot(ox, oy, oz);
+    if (len < 1e-4) return;
+    const nx = ox / len;
+    const ny = oy / len;
+    const nz = oz / len;
+    if (panner.orientationX && panner.orientationY && panner.orientationZ) {
+      this._setParam(panner.orientationX, nx, now, 0.04, instant);
+      this._setParam(panner.orientationY, ny, now, 0.04, instant);
+      this._setParam(panner.orientationZ, nz, now, 0.04, instant);
+    } else if (typeof panner.setOrientation === 'function') {
+      panner.setOrientation(nx, ny, nz);
+    }
+  }
+
   _create3DEmitter(opts = {}) {
     const airLP = this.ctx.createBiquadFilter();
     airLP.type = 'lowpass';
@@ -389,8 +1021,9 @@ export class AudioSynthesizer {
     panner.refDistance = opts.refDistance || 9.0;
     panner.maxDistance = opts.maxDistance || 1400.0;
     panner.rolloffFactor = opts.rolloffFactor || 1.05;
-    panner.coneInnerAngle = 360;
-    panner.coneOuterAngle = 360;
+    panner.coneInnerAngle = opts.coneInnerAngle ?? 360;
+    panner.coneOuterAngle = opts.coneOuterAngle ?? 360;
+    panner.coneOuterGain = opts.coneOuterGain ?? 1.0;
 
     const revSend = this.ctx.createGain();
     revSend.gain.value = opts.reverbWeight ?? 0.35;
@@ -405,27 +1038,26 @@ export class AudioSynthesizer {
   }
 
   /**
-   * Builds a physically plausible stereo Impulse Response (early concrete/stone reflections +
-   * exponentially damped diffuse tail) for tunnels, bridge trusses, and colonnades.
+   * IR 1 (2.35s): Long Concrete Bore & Stone Colonnade Cathedral Impulse Response
+   * Models Subsea Underpass 9.5m concrete vault lateral slapbacks + warm progressive HF damping.
    */
-  _buildStereoImpulseResponse(sr) {
-    const durationSec = 1.55;
+  _buildCathedralTunnelIR(sr) {
+    const durationSec = 2.35;
     const len = Math.floor(sr * durationSec);
     const ir = this.ctx.createBuffer(2, len, sr);
     const left = ir.getChannelData(0);
     const right = ir.getChannelData(1);
 
-    // Discrete early wall/vault reflections (11..67 ms) with stereo decorrelation
     const earlyTaps = [
-      { ms: 11.2, gL: 0.52, gR: 0.34 },
-      { ms: 18.7, gL: -0.36, gR: 0.49 },
-      { ms: 28.4, gL: 0.33, gR: -0.38 },
-      { ms: 41.9, gL: -0.26, gR: 0.29 },
-      { ms: 56.5, gL: 0.21, gR: -0.24 },
-      { ms: 73.0, gL: 0.16, gR: 0.18 }
+      { ms: 13.8, gL: 0.54, gR: 0.32 },
+      { ms: 24.5, gL: -0.39, gR: 0.51 },
+      { ms: 38.2, gL: 0.35, gR: -0.37 },
+      { ms: 54.6, gL: -0.27, gR: 0.30 },
+      { ms: 76.4, gL: 0.22, gR: -0.24 },
+      { ms: 104.0, gL: 0.16, gR: 0.18 }
     ];
     for (let t = 0; t < earlyTaps.length; t++) {
-      const idx = Math.min(len - 1, Math.floor((earlyTaps[t].ms * 0.001) * sr));
+      const idx = Math.min(len - 1, Math.floor(earlyTaps[t].ms * 0.001 * sr));
       left[idx] += earlyTaps[t].gL;
       right[idx] += earlyTaps[t].gR;
     }
@@ -434,15 +1066,50 @@ export class AudioSynthesizer {
     let lpR = 0.0;
     for (let i = 0; i < len; i++) {
       const tSec = i / sr;
-      // Progressive HF absorption in concrete/stone enclosure
-      const hfAlpha = clamp(0.46 - tSec * 0.22, 0.12, 0.46);
+      const hfAlpha = clamp(0.42 - tSec * 0.16, 0.09, 0.42);
       const wL = Math.random() * 2.0 - 1.0;
       const wR = Math.random() * 2.0 - 1.0;
       lpL += (wL - lpL) * hfAlpha;
       lpR += (wR - lpR) * hfAlpha;
-      const env = Math.exp(-tSec * 3.85) * (1.0 - Math.exp(-tSec * 45.0));
-      left[i] += lpL * env * 0.26;
-      right[i] += lpR * env * 0.26;
+      const env = Math.exp(-tSec * 2.55) * (1.0 - Math.exp(-tSec * 42.0));
+      left[i] += lpL * env * 0.24;
+      right[i] += lpR * env * 0.24;
+    }
+    return ir;
+  }
+
+  /**
+   * IR 2 (0.68s): Crisp Steel-Arch Truss, Polycarbonate Canopy & Vehicle Cabin Impulse Response
+   * Models tight 4.8..36ms early reflections inside Jembatan Teksas UI, Bus/Pilot cabins, & canopies.
+   */
+  _buildMetallicCanopyIR(sr) {
+    const durationSec = 0.68;
+    const len = Math.floor(sr * durationSec);
+    const ir = this.ctx.createBuffer(2, len, sr);
+    const left = ir.getChannelData(0);
+    const right = ir.getChannelData(1);
+
+    const earlyTaps = [
+      { ms: 4.9, gL: 0.58, gR: 0.42 },
+      { ms: 9.8, gL: -0.44, gR: 0.54 },
+      { ms: 16.2, gL: 0.36, gR: -0.39 },
+      { ms: 24.7, gL: -0.25, gR: 0.28 },
+      { ms: 35.5, gL: 0.18, gR: -0.20 }
+    ];
+    for (let t = 0; t < earlyTaps.length; t++) {
+      const idx = Math.min(len - 1, Math.floor(earlyTaps[t].ms * 0.001 * sr));
+      left[idx] += earlyTaps[t].gL;
+      right[idx] += earlyTaps[t].gR;
+    }
+
+    for (let i = 0; i < len; i++) {
+      const tSec = i / sr;
+      const modalShimmer =
+        0.12 * Math.sin(2.0 * Math.PI * 1180.0 * tSec) +
+        0.08 * Math.sin(2.0 * Math.PI * 1890.0 * tSec);
+      const env = Math.exp(-tSec * 8.4) * (1.0 - Math.exp(-tSec * 90.0));
+      left[i] += ((Math.random() * 2.0 - 1.0) * 0.24 + modalShimmer) * env;
+      right[i] += ((Math.random() * 2.0 - 1.0) * 0.24 - modalShimmer) * env;
     }
     return ir;
   }
@@ -473,18 +1140,32 @@ export class AudioSynthesizer {
     this.masterCompressor.connect(this.masterGain);
     this.masterGain.connect(this.ctx.destination);
 
-    // 0b. Shared Stereo Convolution Reverb Bus (Tunnels, Bridge Trusses, Colonnades, Thunder Echoes)
+    // 0b. Dual-Character Stereo Convolution Reverb Engine (Concrete Vault IR + Metallic Truss/Cabin IR)
     this.reverbSendGain = this.ctx.createGain();
-    this.reverbSendGain.gain.value = 0.11;
+    this.reverbSendGain.gain.value = 1.0;
 
-    this.convolverNode = this.ctx.createConvolver();
-    this.convolverNode.buffer = this._buildStereoImpulseResponse(sr);
+    this.cathedralSendGain = this.ctx.createGain();
+    this.cathedralSendGain.gain.value = 0.09;
+    this.convolverCathedral = this.ctx.createConvolver();
+    this.convolverCathedral.buffer = this._buildCathedralTunnelIR(sr);
+    this.convolverNode = this.convolverCathedral; // Backward-compatible reference
+
+    this.metallicSendGain = this.ctx.createGain();
+    this.metallicSendGain.gain.value = 0.04;
+    this.convolverMetallic = this.ctx.createConvolver();
+    this.convolverMetallic.buffer = this._buildMetallicCanopyIR(sr);
 
     this.reverbReturnGain = this.ctx.createGain();
     this.reverbReturnGain.gain.value = 0.92;
 
-    this.reverbSendGain.connect(this.convolverNode);
-    this.convolverNode.connect(this.reverbReturnGain);
+    this.reverbSendGain.connect(this.cathedralSendGain);
+    this.cathedralSendGain.connect(this.convolverCathedral);
+    this.convolverCathedral.connect(this.reverbReturnGain);
+
+    this.reverbSendGain.connect(this.metallicSendGain);
+    this.metallicSendGain.connect(this.convolverMetallic);
+    this.convolverMetallic.connect(this.reverbReturnGain);
+
     this.reverbReturnGain.connect(this.worldSumGain);
 
     // 1. Procedural 4-Second Seamless Pink-Noise & Micro-Droplet Patter Buffers
@@ -560,7 +1241,7 @@ export class AudioSynthesizer {
     this.rainRoarGain.connect(this.weatherOccFilter);
     roarSrc.start();
 
-    // Bus 3: Crisp Nearby Raindrop Impact & Terracotta / Polycarbonate Eave-Drip Patter
+    // Bus 3: Crisp Nearby Raindrop Impact + Roof-Material Resonance Filter (Terracotta / Polycarbonate / Windshield)
     const patterSrc = this.ctx.createBufferSource();
     patterSrc.buffer = patterBuffer;
     patterSrc.loop = true;
@@ -569,9 +1250,22 @@ export class AudioSynthesizer {
     this.rainPatterFilter.frequency.value = 2100;
     this.rainPatterGain = this.ctx.createGain();
     this.rainPatterGain.gain.value = 0.0;
+
+    this.roofResonanceFilter = this.ctx.createBiquadFilter();
+    this.roofResonanceFilter.type = 'bandpass';
+    this.roofResonanceFilter.frequency.value = 780;
+    this.roofResonanceFilter.Q.value = 2.1;
+    this.roofResonanceGain = this.ctx.createGain();
+    this.roofResonanceGain.gain.value = 0.0;
+
     patterSrc.connect(this.rainPatterFilter);
     this.rainPatterFilter.connect(this.rainPatterGain);
     this.rainPatterGain.connect(this.worldSumGain);
+
+    patterSrc.connect(this.roofResonanceFilter);
+    this.roofResonanceFilter.connect(this.roofResonanceGain);
+    this.roofResonanceGain.connect(this.worldSumGain);
+    this.roofResonanceGain.connect(this.reverbSendGain);
     patterSrc.start();
 
     // Bus 4: 360° Archipelago Shoreline Surf & Low-Skim Sea Swell Wash
@@ -760,7 +1454,166 @@ export class AudioSynthesizer {
     purrBreathLfo.start();
 
     // =========================================================================
-    // 7 DEDICATED 3D BINAURAL HRTF POINT-SOURCE EMITTERS
+    // ITERASI 2: LOCATION-CONTEXT MICRO-BIOME CONTINUOUS AMBIENCE SUB-BUSES
+    // =========================================================================
+
+    // Bus 10: Tropical Rainforest Canopy Leaf-Rustle Wave (South Pulau U & Pulau I Hills)
+    const canopySrc = this.ctx.createBufferSource();
+    canopySrc.buffer = pinkBuffer;
+    canopySrc.loop = true;
+    canopySrc.playbackRate.value = 1.18;
+    this.canopyRustleFilter = this.ctx.createBiquadFilter();
+    this.canopyRustleFilter.type = 'bandpass';
+    this.canopyRustleFilter.frequency.value = 2150;
+    this.canopyRustleFilter.Q.value = 0.85;
+    this.canopyRustleGain = this.ctx.createGain();
+    this.canopyRustleGain.gain.value = 0.0;
+    canopySrc.connect(this.canopyRustleFilter);
+    this.canopyRustleFilter.connect(this.canopyRustleGain);
+    this.canopyRustleGain.connect(this.weatherOccFilter);
+    canopySrc.start();
+
+    // Bus 11: Nusantara Afternoon/Dusk Forest Tonggeret (Cicada) Chorus (3.92 kHz + 24 Hz Tymbal Pulse)
+    const tongOscA = this.ctx.createOscillator();
+    tongOscA.type = 'sawtooth';
+    tongOscA.frequency.value = 3910;
+    const tongOscB = this.ctx.createOscillator();
+    tongOscB.type = 'triangle';
+    tongOscB.frequency.value = 3972;
+    const tongBp = this.ctx.createBiquadFilter();
+    tongBp.type = 'bandpass';
+    tongBp.frequency.value = 3940;
+    tongBp.Q.value = 5.2;
+    const tongGate = this.ctx.createGain();
+    tongGate.gain.value = 0.52;
+    const tongLfo = this.ctx.createOscillator();
+    tongLfo.type = 'sine';
+    tongLfo.frequency.value = 23.5;
+    const tongLfoDepth = this.ctx.createGain();
+    tongLfoDepth.gain.value = 0.44;
+    tongLfo.connect(tongLfoDepth);
+    tongLfoDepth.connect(tongGate.gain);
+    this.tonggeretGain = this.ctx.createGain();
+    this.tonggeretGain.gain.value = 0.0;
+    tongOscA.connect(tongBp);
+    tongOscB.connect(tongBp);
+    tongBp.connect(tongGate);
+    tongGate.connect(this.tonggeretGain);
+    this.tonggeretGain.connect(this.weatherOccFilter);
+    tongOscA.start();
+    tongOscB.start();
+    tongLfo.start();
+
+    // Bus 12: Campus Academic Plaza & Kiosk Conversational Formant Murmur (Dual Vowel Resonator)
+    const socSrc = this.ctx.createBufferSource();
+    socSrc.buffer = pinkBuffer;
+    socSrc.loop = true;
+    socSrc.playbackRate.value = 0.94;
+    const socFormA = this.ctx.createBiquadFilter();
+    socFormA.type = 'bandpass';
+    socFormA.frequency.value = 510;
+    socFormA.Q.value = 2.6;
+    const socFormB = this.ctx.createBiquadFilter();
+    socFormB.type = 'bandpass';
+    socFormB.frequency.value = 1160;
+    socFormB.Q.value = 2.9;
+    const socCadence = this.ctx.createGain();
+    socCadence.gain.value = 0.62;
+    const socLfo = this.ctx.createOscillator();
+    socLfo.type = 'sine';
+    socLfo.frequency.value = 2.7;
+    const socLfoDepth = this.ctx.createGain();
+    socLfoDepth.gain.value = 0.28;
+    socLfo.connect(socLfoDepth);
+    socLfoDepth.connect(socCadence.gain);
+    this.socialMurmurGain = this.ctx.createGain();
+    this.socialMurmurGain.gain.value = 0.0;
+    socSrc.connect(socFormA);
+    socSrc.connect(socFormB);
+    socFormA.connect(socCadence);
+    socFormB.connect(socCadence);
+    socCadence.connect(this.socialMurmurGain);
+    this.socialMurmurGain.connect(this.weatherOccFilter);
+    this.socialMurmurGain.connect(this.reverbSendGain);
+    socSrc.start();
+    socLfo.start();
+
+    // Bus 13: Lapangan 15 Bendera Silk Cloth Flutter + Jembatan Teksas Aeolian Cable/Arch Hum
+    const flagSrc = this.ctx.createBufferSource();
+    flagSrc.buffer = patterBuffer;
+    flagSrc.loop = true;
+    flagSrc.playbackRate.value = 0.72;
+    this.flagFlutterFilter = this.ctx.createBiquadFilter();
+    this.flagFlutterFilter.type = 'bandpass';
+    this.flagFlutterFilter.frequency.value = 340;
+    this.flagFlutterFilter.Q.value = 1.4;
+    this.flagFlutterGain = this.ctx.createGain();
+    this.flagFlutterGain.gain.value = 0.0;
+    flagSrc.connect(this.flagFlutterFilter);
+    this.flagFlutterFilter.connect(this.flagFlutterGain);
+    this.flagFlutterGain.connect(this.weatherOccFilter);
+    flagSrc.start();
+
+    const aeoOscA = this.ctx.createOscillator();
+    aeoOscA.type = 'sine';
+    aeoOscA.frequency.value = 218.0;
+    const aeoOscB = this.ctx.createOscillator();
+    aeoOscB.type = 'triangle';
+    aeoOscB.frequency.value = 327.2;
+    const aeoLp = this.ctx.createBiquadFilter();
+    aeoLp.type = 'lowpass';
+    aeoLp.frequency.value = 460.0;
+    this.trussAeolianGain = this.ctx.createGain();
+    this.trussAeolianGain.gain.value = 0.0;
+    aeoOscA.connect(aeoLp);
+    aeoOscB.connect(aeoLp);
+    aeoLp.connect(this.trussAeolianGain);
+    this.trussAeolianGain.connect(this.worldSumGain);
+    this.trussAeolianGain.connect(this.reverbSendGain);
+    aeoOscA.start();
+    aeoOscB.start();
+
+    // Bus 14: Kawah Gunung Api Pulau I Geothermal Sub-Bass Fumarole & Steam Vent Hiss
+    const fumSubOsc = this.ctx.createOscillator();
+    fumSubOsc.type = 'triangle';
+    fumSubOsc.frequency.value = 46.5;
+    const fumSubGain = this.ctx.createGain();
+    fumSubGain.gain.value = 0.44;
+    const fumSteamSrc = this.ctx.createBufferSource();
+    fumSteamSrc.buffer = pinkBuffer;
+    fumSteamSrc.loop = true;
+    const fumSteamBp = this.ctx.createBiquadFilter();
+    fumSteamBp.type = 'bandpass';
+    fumSteamBp.frequency.value = 1320.0;
+    fumSteamBp.Q.value = 1.15;
+    this.fumaroleGain = this.ctx.createGain();
+    this.fumaroleGain.gain.value = 0.0;
+    fumSubOsc.connect(fumSubGain);
+    fumSubGain.connect(this.fumaroleGain);
+    fumSteamSrc.connect(fumSteamBp);
+    fumSteamBp.connect(this.fumaroleGain);
+    this.fumaroleGain.connect(this.worldSumGain);
+    fumSubOsc.start();
+    fumSteamSrc.start();
+
+    // Bus 15: Tepian Danau Kenanga, Danau Kecil, & Stone Turap Seawall Water-Lapping
+    const lapSrc = this.ctx.createBufferSource();
+    lapSrc.buffer = patterBuffer;
+    lapSrc.loop = true;
+    lapSrc.playbackRate.value = 0.88;
+    this.turapLapFilter = this.ctx.createBiquadFilter();
+    this.turapLapFilter.type = 'bandpass';
+    this.turapLapFilter.frequency.value = 780.0;
+    this.turapLapFilter.Q.value = 1.35;
+    this.turapLapGain = this.ctx.createGain();
+    this.turapLapGain.gain.value = 0.0;
+    lapSrc.connect(this.turapLapFilter);
+    this.turapLapFilter.connect(this.turapLapGain);
+    this.turapLapGain.connect(this.weatherOccFilter);
+    lapSrc.start();
+
+    // =========================================================================
+    // 8 DEDICATED 3D BINAURAL HRTF POINT-SOURCE EMITTERS
     // =========================================================================
     this._emitters = {};
 
@@ -957,7 +1810,14 @@ export class AudioSynthesizer {
     this._emitters.air = eAir;
 
     // E7. Marine Fleet Emitter (Kapal Feri Katamaran Selat UI & Flybridge Mini Yacht Teluk U)
-    const eMarine = this._create3DEmitter({ refDistance: 12.0, rolloffFactor: 1.0, reverbWeight: 0.22 });
+    const eMarine = this._create3DEmitter({
+      refDistance: 12.0,
+      rolloffFactor: 1.0,
+      reverbWeight: 0.22,
+      coneInnerAngle: 150,
+      coneOuterAngle: 300,
+      coneOuterGain: 0.68
+    });
     const marOsc = this.ctx.createOscillator();
     marOsc.type = 'triangle';
     marOsc.frequency.value = 72;
@@ -979,6 +1839,63 @@ export class AudioSynthesizer {
     eMarine.osc = marOsc;
     eMarine.wakeBp = marWakeBp;
     this._emitters.marine = eMarine;
+
+    // E8. Directional Videotron Outdoor Line-Array Speaker & Cabinet Fan Emitter at (28.4, 7.6, 78.2)
+    // Outward normal facing Lapangan Rotunda (-2.5, 106.5): yaw = -0.8293 -> (-0.7374, -0.06, +0.6755)
+    const eVideotron = this._create3DEmitter({
+      refDistance: 8.5,
+      rolloffFactor: 1.15,
+      reverbWeight: 0.24,
+      coneInnerAngle: 78,
+      coneOuterAngle: 196,
+      coneOuterGain: 0.22
+    });
+    const vtOscA = this.ctx.createOscillator();
+    vtOscA.type = 'sine';
+    vtOscA.frequency.value = 196.0;
+    const vtOscB = this.ctx.createOscillator();
+    vtOscB.type = 'triangle';
+    vtOscB.frequency.value = 293.66;
+    const vtPadGain = this.ctx.createGain();
+    vtPadGain.gain.value = 0.20;
+    const vtFanNoise = this.ctx.createBufferSource();
+    vtFanNoise.buffer = pinkBuffer;
+    vtFanNoise.loop = true;
+    const vtFanBp = this.ctx.createBiquadFilter();
+    vtFanBp.type = 'bandpass';
+    vtFanBp.frequency.value = 440.0;
+    vtFanBp.Q.value = 1.4;
+    const vtFanGain = this.ctx.createGain();
+    vtFanGain.gain.value = 0.32;
+    vtOscA.connect(vtPadGain);
+    vtOscB.connect(vtPadGain);
+    vtPadGain.connect(eVideotron.input);
+    vtFanNoise.connect(vtFanBp);
+    vtFanBp.connect(vtFanGain);
+    vtFanGain.connect(eVideotron.input);
+    this._setPannerPosition(eVideotron.panner, 28.4, 7.6, 78.2, this.ctx.currentTime, true);
+    this._setPannerOrientation(eVideotron.panner, -0.7374, -0.06, 0.6755, this.ctx.currentTime, true);
+    vtOscA.start();
+    vtOscB.start();
+    vtFanNoise.start();
+    eVideotron.oscA = vtOscA;
+    eVideotron.oscB = vtOscB;
+    eVideotron.padGain = vtPadGain;
+    eVideotron.fanGain = vtFanGain;
+    this._emitters.videotron = eVideotron;
+
+    // Configure directional radiation cones on Bus, Cart, & Aircraft emitters
+    this._emitters.bus.panner.coneInnerAngle = 135;
+    this._emitters.bus.panner.coneOuterAngle = 285;
+    this._emitters.bus.panner.coneOuterGain = 0.64;
+
+    this._emitters.cart.panner.coneInnerAngle = 140;
+    this._emitters.cart.panner.coneOuterAngle = 290;
+    this._emitters.cart.panner.coneOuterGain = 0.68;
+
+    this._emitters.air.panner.coneInnerAngle = 115;
+    this._emitters.air.panner.coneOuterAngle = 255;
+    this._emitters.air.panner.coneOuterGain = 0.48;
   }
 
   setWeatherAudio(weatherMode) {
@@ -1026,8 +1943,9 @@ export class AudioSynthesizer {
   }
 
   /**
-   * Couples Web Audio wind, downpour roar, and eave-drip patter continuously 1:1
-   * to the live 20–45s meteorological transition state + listener altitude & roof shelter!
+   * Couples Web Audio wind, downpour roar, and roof-material-specific raindrop impact resonance
+   * (`TERRACOTTA_CLAY`, `POLYCARBONATE_TRUSS`, `CABIN_WINDSHIELD`, `CANOPY_FABRIC`, `OPEN_FOLIAGE_STONE`)
+   * continuously 1:1 to the live 20–45s meteorological transition state + listener altitude & shelter!
    */
   syncContinuousWeatherAudio(rainIntensity = 0.0, stormFactor = 0.0, windSpeed = 0.85) {
     this._weatherState.rain = clamp(Number(rainIntensity) || 0.0, 0.0, 1.5);
@@ -1040,23 +1958,74 @@ export class AudioSynthesizer {
     const storm = this._weatherState.storm;
     const wNorm = clamp((this._weatherState.windSpeed - 0.7) / 3.0, 0.0, 1.6);
 
-    // High-altitude aerodynamic wind boost & ground-patter height attenuation
     const altY = Math.max(0.0, this._lis.y);
     const altWindBoost = clamp(altY / 85.0, 0.0, 0.45);
     const altPatterAtten = 1.0 / (1.0 + Math.max(0.0, altY - 12.0) * 0.045);
     const patBoost = this._zoneState ? this._zoneState.patterBoost : 1.0;
+    const roofMat = this._zoneState ? this._zoneState.roofMaterial : 'OPEN_FOLIAGE_STONE';
 
     const roar = Math.min(1.26, Math.pow(rain / 1.42, 1.15) * 1.24);
-    const patter =
+    const basePatter =
       Math.min(0.96, Math.pow(Math.min(1.0, rain * 1.05), 0.85) * (0.70 + 0.22 * storm)) *
       altPatterAtten *
       patBoost;
     const windVol = 0.40 + wNorm * 0.52 + storm * 0.22 + altWindBoost * 0.28;
     const windFreq = 375 + wNorm * 170 + storm * 95 + altWindBoost * 160;
 
-    this.rainRoarGain.gain.setTargetAtTime(roar, now, 0.16);
-    this.rainPatterGain.gain.setTargetAtTime(patter, now, 0.16);
-    this.breezeGain.gain.setTargetAtTime(windVol, now, 0.20);
+    // Roof-material acoustic timbre split (Crisp HF splash vs resonant structural roof drum)
+    let crispHpHz = 2250.0;
+    let crispShare = 0.82;
+    let resHz = 1850.0;
+    let resQ = 0.9;
+    let resShare = 0.18;
+
+    if (roofMat === 'TERRACOTTA_CLAY') {
+      // Warm Nusantara terracotta clay roof tiles + eave drip in Selasar Agung & Walkways
+      crispHpHz = 1850.0;
+      crispShare = 0.52;
+      resHz = 760.0;
+      resQ = 2.15;
+      resShare = 0.68;
+    } else if (roofMat === 'POLYCARBONATE_TRUSS') {
+      // Hollow polycarbonate sunroof & steel arch drum inside Lorong Jembatan Teksas UI
+      crispHpHz = 1650.0;
+      crispShare = 0.48;
+      resHz = 1480.0;
+      resQ = 2.75;
+      resShare = 0.84;
+    } else if (roofMat === 'CABIN_WINDSHIELD') {
+      // Laminated glass windshield & damped metal roof inside Bis Kuning / Aircraft Cockpit
+      crispHpHz = 1280.0;
+      crispShare = 0.26;
+      resHz = 430.0;
+      resQ = 1.65;
+      resShare = 0.72;
+    } else if (roofMat === 'CANOPY_FABRIC') {
+      // Taut fiberglass/canvas canopy on Mobil Golf Listrik UI
+      crispHpHz = 1720.0;
+      crispShare = 0.46;
+      resHz = 960.0;
+      resQ = 1.95;
+      resShare = 0.70;
+    } else if (roofMat === 'CONCRETE_VAULT') {
+      crispShare = 0.0;
+      resShare = 0.0;
+    }
+
+    const natM = this._mixWeights ? this._mixWeights.natureMult : 1.0;
+    this.rainRoarGain.gain.setTargetAtTime(roar * natM, now, 0.16);
+    this.rainPatterFilter.frequency.setTargetAtTime(crispHpHz, now, 0.16);
+    this.rainPatterGain.gain.setTargetAtTime(basePatter * crispShare * natM, now, 0.16);
+    if (this.roofResonanceFilter && this.roofResonanceGain) {
+      this.roofResonanceFilter.frequency.setTargetAtTime(resHz, now, 0.14);
+      this.roofResonanceFilter.Q.setTargetAtTime(resQ, now, 0.14);
+      this.roofResonanceGain.gain.setTargetAtTime(
+        this.enabled ? basePatter * resShare * natM : 0.0,
+        now,
+        0.16
+      );
+    }
+    this.breezeGain.gain.setTargetAtTime(windVol * natM, now, 0.20);
     if (this.breezeFilter) {
       this.breezeFilter.frequency.setTargetAtTime(windFreq, now, 0.20);
     }
@@ -1088,7 +2057,7 @@ export class AudioSynthesizer {
     const turn = clamp(turnRate, 0.0, 5.0);
     const gLoad = clamp((Number(gForce) || 1.0) - 1.0, 0.0, 2.5);
 
-    // Asymmetric motor differential during yaw/roll maneuvers creates signature FPV cinewhoop chord!
+    const trnM = this._mixWeights ? this._mixWeights.transitMult : 1.0;
     const baseHz = 212 + thr * 278 + (spd / 27.0) * 62 + gLoad * 28;
     const asymDetune = 1.0 + turn * 0.032 + gLoad * 0.018;
     this.avataMotorOscA.frequency.setTargetAtTime(baseHz, now, 0.05);
@@ -1097,25 +2066,25 @@ export class AudioSynthesizer {
       this.avataMotorOscC.frequency.setTargetAtTime(baseHz * 1.498 * (2.0 - asymDetune * 0.98), now, 0.05);
     }
     this.avataMotorFilter.frequency.setTargetAtTime(450 + thr * 680 + gLoad * 180, now, 0.07);
-    this.avataMotorGain.gain.setTargetAtTime(0.050 + thr * 0.105 + gLoad * 0.022, now, 0.07);
+    this.avataMotorGain.gain.setTargetAtTime((0.050 + thr * 0.105 + gLoad * 0.022) * trnM, now, 0.07);
 
-    const washGain = 0.036 + (spd / 27.0) * 0.175 + turn * 0.042;
+    const washGain = (0.036 + (spd / 27.0) * 0.175 + turn * 0.042) * trnM;
     this.avataWashFilter.frequency.setTargetAtTime(600 + (spd / 27.0) * 740 + turn * 145, now, 0.07);
-    this.avataWashGain.gain.setTargetAtTime(Math.min(0.30, washGain), now, 0.07);
+    this.avataWashGain.gain.setTargetAtTime(Math.min(0.32, washGain), now, 0.07);
 
-    // Aerodynamic air-compression whoosh when skimming fast past bridge trusses, trees, or canyon walls!
     if (this.proxWhooshGain && this.proxWhooshFilter) {
       const proxFactor =
         spd > 5.0 && obstacleClearanceM < 6.8
           ? smooth01(6.8, 1.4, obstacleClearanceM) * clamp(spd / 20.0, 0.25, 1.15)
           : 0.0;
       this.proxWhooshFilter.frequency.setTargetAtTime(520 + proxFactor * 1150, now, 0.05);
-      this.proxWhooshGain.gain.setTargetAtTime(Math.min(0.28, proxFactor * 0.24), now, 0.05);
+      this.proxWhooshGain.gain.setTargetAtTime(Math.min(0.30, proxFactor * 0.24 * trnM), now, 0.05);
     }
   }
 
   /**
    * 3D Binaural HRTF Rotunda Dancing Fountain, Niagara Waterfall, Pulau U River, & Shoreline Surf
+   * with 3D Geometric Obstacle Occlusion & Temperature/Humidity Air Absorption.
    */
   syncSpatialWaterAudio(camX = 0.0, camY = 20.0, camZ = 100.0, nightShowBlend = 0.0, coastDist = -40.0, riverZ = null) {
     if (!this.ctx || !this._emitters) return;
@@ -1127,17 +2096,25 @@ export class AudioSynthesizer {
       return;
     }
 
-    // 1. 3D HRTF Rotunda Dancing Fountain at (-2.5, 0.9, 106.5)
+    const tempC = this._weatherState.tempC;
+    const rh = this._weatherState.humidityPct;
+
+    // 1. 3D HRTF Rotunda Dancing Fountain at (-2.5, 0.9, 106.5) + Tower/Tunnel Occlusion
     const eFount = this._emitters.fountain;
     const fountMet = AudioSynthesizer.computeDopplerAndAbsorption(
       -2.5, 0.9, 106.5, 0, 0, 0,
-      camX, camY, camZ, this._lis.vx, this._lis.vy, this._lis.vz
+      camX, camY, camZ, this._lis.vx, this._lis.vy, this._lis.vz,
+      tempC, rh
     );
+    const fountOcc = AudioSynthesizer.computeGeometricOcclusion(
+      -2.5, 0.9, 106.5, camX, camY, camZ, this._occScratch
+    );
+    const natM = this._mixWeights ? this._mixWeights.natureMult : 1.0;
     const showBoost = 1.0 + clamp(nightShowBlend, 0.0, 1.0) * 0.38;
     const fountProx = clamp(1.0 - fountMet.dist / 92.0, 0.0, 1.0);
-    eFount.airLP.frequency.setTargetAtTime(fountMet.airCutoffHz, now, 0.12);
+    eFount.airLP.frequency.setTargetAtTime(Math.max(220.0, fountMet.airCutoffHz * fountOcc.cutoffMult), now, 0.12);
     eFount.bp.frequency.setTargetAtTime((1650 + 380 * nightShowBlend) * clamp(fountMet.doppler, 0.88, 1.14), now, 0.12);
-    eFount.gain.gain.setTargetAtTime(fountProx * fountProx * 0.56 * showBoost, now, 0.14);
+    eFount.gain.gain.setTargetAtTime(fountProx * fountProx * 0.56 * showBoost * fountOcc.gainMult * natM, now, 0.14);
 
     // 2. 3D HRTF Pulau I Niagara Waterfall (-44, 9, 643) OR Nearest Pulau U Meandering River Riffle
     const eWf = this._emitters.waterfall;
@@ -1168,12 +2145,16 @@ export class AudioSynthesizer {
 
     const wfMet = AudioSynthesizer.computeDopplerAndAbsorption(
       wfX, wfY, wfZ, 0, 0, 0,
-      camX, camY, camZ, this._lis.vx, this._lis.vy, this._lis.vz
+      camX, camY, camZ, this._lis.vx, this._lis.vy, this._lis.vz,
+      tempC, rh
+    );
+    const wfOcc = AudioSynthesizer.computeGeometricOcclusion(
+      wfX, wfY, wfZ, camX, camY, camZ, this._occScratch
     );
     this._setPannerPosition(eWf.panner, wfX, wfY, wfZ, now, false);
-    eWf.airLP.frequency.setTargetAtTime(wfMet.airCutoffHz, now, 0.14);
+    eWf.airLP.frequency.setTargetAtTime(Math.max(220.0, wfMet.airCutoffHz * wfOcc.cutoffMult), now, 0.14);
     eWf.bp.frequency.setTargetAtTime(wfCenterHz * clamp(wfMet.doppler, 0.88, 1.14), now, 0.14);
-    eWf.gain.gain.setTargetAtTime(wfLevel, now, 0.16);
+    eWf.gain.gain.setTargetAtTime(wfLevel * wfOcc.gainMult * natM, now, 0.16);
 
     // 3. Rhythmic Coastal Wave Surf around Pulau U, Pulau I, Teluk U & Selat UI
     if (this.surfGain && this.surfFilter) {
@@ -1181,7 +2162,7 @@ export class AudioSynthesizer {
       const openWaterLow = coastDist > 0.0 && camY > -1.8 && camY < 22.0 ? (22.0 - camY) / 22.0 : 0.0;
       const altFade = camY > -1.8 ? clamp(1.0 - Math.max(0.0, camY - 6.0) / 36.0, 0.0, 1.0) : 0.0;
       const waveSurge = 0.68 + 0.32 * Math.sin(this._simClock * 0.88) * Math.cos(this._simClock * 0.37 + 0.8);
-      const surfVol = Math.max(shoreNear * 0.24, openWaterLow * 0.20) * altFade * waveSurge;
+      const surfVol = Math.max(shoreNear * 0.24, openWaterLow * 0.20) * altFade * waveSurge * natM;
       this.surfFilter.frequency.setTargetAtTime(360 + waveSurge * 240, now, 0.18);
       this.surfGain.gain.setTargetAtTime(surfVol, now, 0.18);
     }
@@ -1225,9 +2206,6 @@ export class AudioSynthesizer {
 
   /**
    * Master Real-Time 3D Physical Acoustic World Orchestrator (60–120 Hz, Zero GC).
-   * Updates 3D Binaural Listener orientation, Architectural Zone Reverb/Occlusion,
-   * all 7 HRTF 3D Dynamic Vehicle/Aircraft/Marine/Water Emitters with True Doppler,
-   * Mavic/Avata Propulsion, Surface-Aware Footsteps, and Diurnal Tropical Bio-Acoustics.
    */
   updateAcousticWorld(dt, state = {}) {
     const safeDt = clamp(Number(dt) || 0.016, 0.001, 0.1);
@@ -1282,7 +2260,6 @@ export class AudioSynthesizer {
       let ux = e[4];
       let uy = e[5];
       let uz = e[6];
-      // Gram-Schmidt orthogonalization against forward vector for glitch-free HRTF convolution
       const dotFU = fx * ux + fy * uy + fz * uz;
       ux -= dotFU * fx;
       uy -= dotFU * fy;
@@ -1305,7 +2282,7 @@ export class AudioSynthesizer {
       this._lis.upZ = uz;
     }
 
-    // 2. Classify Architectural Space, Roof Shelter, & Enclosed Reverb
+    // 2. Classify Architectural Space, Dual-IR Reverb Split, & Roof Material
     const camMode = state.camMode || 'DRONE_6DOF';
     const isRoofSheltered = Boolean(state.isRoofSheltered);
     const zone = AudioSynthesizer.classifyAcousticZone(camX, camY, camZ, camMode, isRoofSheltered);
@@ -1313,10 +2290,12 @@ export class AudioSynthesizer {
     this._telemetry.zoneId = zone.zoneId;
     this._telemetry.zoneLabel = zone.labelId;
     this._telemetry.zoneLabelId = zone.labelId;
+    this._telemetry.reverbCharacter = zone.reverbCharacter;
+    this._telemetry.roofMaterial = zone.roofMaterial;
     this._telemetry.reverbSendPct = Math.round(zone.reverbSend * 100);
     this._telemetry.weatherOcclusionPct = Math.round((1.0 - zone.weatherOcclusionGain) * 100);
 
-    // Cache meteorological & astronomical state
+    // Cache meteorological & astronomical state (including temperature & relative humidity coupling)
     const rainInt = clamp(Number(state.rainIntensity) || 0.0, 0.0, 1.5);
     const stormFac = clamp(Number(state.stormFactor) || 0.0, 0.0, 1.0);
     const windSpd = Math.max(0.0, Number(state.windSpeed) || 0.85);
@@ -1324,19 +2303,52 @@ export class AudioSynthesizer {
     const nightFac = clamp(Number(state.nightFactor) || 0.0, 0.0, 1.0);
     this._weatherState.wetness = wetness;
     this._weatherState.nightFactor = nightFac;
+    this._weatherState.tempC = Number.isFinite(state.temperatureC)
+      ? clamp(state.temperatureC, 18.0, 38.0)
+      : 30.5 - nightFac * 5.2 - rainInt * 2.4;
+    this._weatherState.humidityPct = Number.isFinite(state.humidityPct)
+      ? clamp(state.humidityPct, 35.0, 100.0)
+      : clamp(68.0 + wetness * 24.0 + rainInt * 10.0, 45.0, 99.0);
     if (state.lightningDir && Number.isFinite(state.lightningDir.x)) {
       this._weatherState.lightningDirX = state.lightningDir.x;
       this._weatherState.lightningDirY = state.lightningDir.y;
       this._weatherState.lightningDirZ = state.lightningDir.z;
     }
 
+    // Classify 6-Phase Diurnal Bio-Acoustic Cycle & 16 Location-Context Micro-Biomes
+    const inferredSolarHour = Number.isFinite(state.solarHour)
+      ? state.solarHour
+      : nightFac > 0.62
+        ? 22.0
+        : nightFac > 0.24
+          ? 17.85
+          : 11.85;
+    const diurnal = AudioSynthesizer.classifyDiurnalBioPhase(inferredSolarHour);
+    const biome = AudioSynthesizer.classifyMicroContextBiome(camX, camY, camZ, {
+      coastDist: Number.isFinite(state.coastDist) ? state.coastDist : -40.0,
+      riverZ: state.riverZ ?? null
+    });
+    this._diurnalState = diurnal;
+    this._biomeState = biome;
+    this._telemetry.diurnalPhase = diurnal.phaseId;
+    this._telemetry.diurnalLabel = diurnal.labelId;
+    this._telemetry.microBiomeId = biome.biomeId;
+    this._telemetry.microBiomeLabel = biome.labelId;
+
     // Resolve surface material for telemetry & footsteps
     const surfMat = this._resolveSurfaceMaterial(camX, camY, camZ, camMode);
     this._telemetry.surfaceMaterial = surfMat;
 
-    // Update 3D Vehicle/Aircraft Kinematics & Compute Dominant Acoustic Source + Live Doppler EVEN before unmuting!
+    // Update 3D Vehicle/Aircraft/Videotron Kinematics, State-Transition SFX, Geometric Occlusion, & Live Doppler
     const sivitasAI = state.sivitasAI || null;
-    this._updateDynamicFleetAcoustics(safeDt, sivitasAI);
+    if (this._sfxTracker.sfxBannerTimer > 0.0) {
+      this._sfxTracker.sfxBannerTimer = Math.max(0.0, this._sfxTracker.sfxBannerTimer - safeDt);
+      if (this._sfxTracker.sfxBannerTimer <= 0.0) {
+        this._telemetry.activeSfxBanner = '';
+      }
+    }
+    this._updateDynamicFleetAcoustics(safeDt, sivitasAI, state);
+    this._updateWorldEventSfx(safeDt, state, sivitasAI, camMode, rainInt);
 
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
@@ -1365,15 +2377,21 @@ export class AudioSynthesizer {
       }
     }
 
-    // Apply Convolution Reverb Send, Architectural Weather Occlusion, & Tunnel Ventilation Hum
-    this.reverbSendGain.gain.setTargetAtTime(zone.reverbSend, now, 0.14);
+    // Apply Dual-Character Convolution Reverb Crossfade, Architectural Weather Occlusion, & Tunnel Hum
+    this.reverbSendGain.gain.setTargetAtTime(1.0, now, 0.08);
+    if (this.cathedralSendGain) {
+      this.cathedralSendGain.gain.setTargetAtTime(zone.cathedralSend, now, 0.14);
+    }
+    if (this.metallicSendGain) {
+      this.metallicSendGain.gain.setTargetAtTime(zone.metallicSend, now, 0.12);
+    }
     this.weatherOccGain.gain.setTargetAtTime(zone.weatherOcclusionGain, now, 0.16);
     this.weatherOccFilter.frequency.setTargetAtTime(zone.weatherLowpassHz, now, 0.16);
     if (this.tunnelHumGain) {
       this.tunnelHumGain.gain.setTargetAtTime(this.enabled ? zone.tunnelHum * 0.24 : 0.0, now, 0.18);
     }
 
-    // Sync Weather, Spatial Water,Surf, & Dual-Drone Propulsion
+    // Sync Weather, Spatial Water, Surf, & Dual-Drone Propulsion
     this.syncContinuousWeatherAudio(rainInt, stormFac, windSpd);
     this.syncSpatialWaterAudio(
       camX,
@@ -1401,23 +2419,86 @@ export class AudioSynthesizer {
 
     if (this.mavicGain) {
       if (isMavic && this.enabled) {
+        const trnM = this._mixWeights ? this._mixWeights.transitMult : 1.0;
         const mavSpd = clamp(this._lis.speedMs / 18.0, 0.0, 1.2);
         const mavHz = 136.0 + mavSpd * 48.0;
         this.mavicOscA.frequency.setTargetAtTime(mavHz, now, 0.09);
         this.mavicOscB.frequency.setTargetAtTime(mavHz * 2.006, now, 0.09);
         this.mavicFilter.frequency.setTargetAtTime(340 + mavSpd * 280, now, 0.10);
-        this.mavicGain.gain.setTargetAtTime(0.022 + mavSpd * 0.028, now, 0.12);
+        this.mavicGain.gain.setTargetAtTime((0.022 + mavSpd * 0.028) * trnM, now, 0.12);
       } else {
         this.mavicGain.gain.setTargetAtTime(0.0, now, 0.10);
       }
     }
 
-    // Nocturnal Cricket Chorus (Dusk/Night outdoor trees & lawns, ducked in heavy storm or deep underground)
+    // Nocturnal Cricket Chorus + Iterasi 2 Location-Context Micro-Biome Ambience Buses
+    const natM = this._mixWeights ? this._mixWeights.natureMult : 1.0;
+    const rainBioDuck = clamp(1.0 - rainInt * 0.85, 0.10, 1.0);
+    const altBioDuck = clamp(1.0 - Math.max(0.0, camY - 8.0) / 34.0, 0.0, 1.0);
+    const windNormBio = clamp((windSpd - 0.5) / 3.2, 0.08, 1.5);
+
     if (this.cricketGain) {
-      const rainDuck = clamp(1.0 - rainInt * 0.85, 0.12, 1.0);
-      const altDuck = clamp(1.0 - Math.max(0.0, camY - 8.0) / 34.0, 0.0, 1.0);
-      const nightActive = smooth01(0.28, 0.65, nightFac) * rainDuck * altDuck;
-      this.cricketGain.gain.setTargetAtTime(this.enabled ? nightActive * 0.016 : 0.0, now, 0.25);
+      const crikLevel =
+        Math.max(smooth01(0.28, 0.65, nightFac), diurnal.cricketWeight) *
+        clamp(0.35 + 0.65 * biome.canopyWeight, 0.0, 1.0) *
+        rainBioDuck *
+        altBioDuck;
+      this.cricketGain.gain.setTargetAtTime(this.enabled ? crikLevel * 0.018 * natM : 0.0, now, 0.25);
+    }
+
+    if (this.canopyRustleGain && this.canopyRustleFilter) {
+      const waveGust = 0.72 + 0.28 * Math.sin(this._simClock * 0.64) * Math.cos(this._simClock * 0.27);
+      const canopyLvl = biome.canopyWeight * (0.28 + 0.72 * windNormBio) * waveGust;
+      this.canopyRustleFilter.frequency.setTargetAtTime(1750 + windNormBio * 760 * waveGust, now, 0.22);
+      this.canopyRustleGain.gain.setTargetAtTime(this.enabled ? canopyLvl * 0.13 * natM : 0.0, now, 0.24);
+    }
+
+    if (this.tonggeretGain) {
+      const phraseSwell = 0.65 + 0.35 * Math.sin(this._simClock * 0.41 + 1.1);
+      const tongLvl =
+        diurnal.tonggeretWeight *
+        smooth01(0.18, 0.65, biome.canopyWeight) *
+        rainBioDuck *
+        altBioDuck *
+        phraseSwell;
+      this.tonggeretGain.gain.setTargetAtTime(this.enabled ? tongLvl * 0.014 * natM : 0.0, now, 0.30);
+    }
+
+    if (this.socialMurmurGain) {
+      const dryCampus = clamp(1.0 - rainInt * 1.35, 0.0, 1.0);
+      const socLvl = biome.socialWeight * diurnal.socialWeight * dryCampus;
+      this.socialMurmurGain.gain.setTargetAtTime(this.enabled ? socLvl * 0.085 * natM : 0.0, now, 0.28);
+    }
+
+    if (this.flagFlutterGain && this.flagFlutterFilter) {
+      const snapMod = 0.70 + 0.30 * Math.sin(this._simClock * 2.9);
+      const flagLvl = biome.flagWeight * (0.30 + 0.85 * windNormBio) * snapMod;
+      this.flagFlutterFilter.frequency.setTargetAtTime(280 + windNormBio * 210, now, 0.16);
+      this.flagFlutterGain.gain.setTargetAtTime(this.enabled ? flagLvl * 0.16 * natM : 0.0, now, 0.20);
+    }
+
+    if (this.trussAeolianGain) {
+      const aeoLvl = biome.trussAeolianWeight * clamp((windSpd - 0.6) / 3.4, 0.05, 1.2);
+      this.trussAeolianGain.gain.setTargetAtTime(this.enabled ? aeoLvl * 0.032 * natM : 0.0, now, 0.24);
+    }
+
+    if (this.fumaroleGain) {
+      const ventPulse = 0.78 + 0.22 * Math.sin(this._simClock * 0.92);
+      this.fumaroleGain.gain.setTargetAtTime(
+        this.enabled ? biome.fumaroleWeight * ventPulse * 0.19 * natM : 0.0,
+        now,
+        0.24
+      );
+    }
+
+    if (this.turapLapGain && this.turapLapFilter) {
+      const lapCycle = 0.62 + 0.38 * Math.sin(this._simClock * 1.45);
+      this.turapLapFilter.frequency.setTargetAtTime(640 + lapCycle * 280, now, 0.18);
+      this.turapLapGain.gain.setTargetAtTime(
+        this.enabled ? biome.turapLapWeight * lapCycle * 0.11 * natM : 0.0,
+        now,
+        0.22
+      );
     }
 
     if (!this.enabled || this.ctx.state !== 'running') return;
@@ -1456,36 +2537,112 @@ export class AudioSynthesizer {
     this._updateBioAcousticMicroEvents(safeDt, now, camMode, sivitasAI, nightFac, rainInt, zone.zoneId);
   }
 
-  _updateDynamicFleetAcoustics(dt, sivitasAI) {
-    if (!sivitasAI) return;
+  _updateDynamicFleetAcoustics(dt, sivitasAI, state = {}) {
     const now = this.ctx ? this.ctx.currentTime : 0.0;
     const audioReady = Boolean(this.ctx && this._emitters && this.enabled);
+    const sfxLive = Boolean(audioReady && this.ctx.state === 'running');
+    const trnM = this._mixWeights ? this._mixWeights.transitMult : 1.0;
     const lx = this._lis.x;
     const ly = this._lis.y;
     const lz = this._lis.z;
     const lvx = this._lis.vx;
     const lvy = this._lis.vy;
     const lvz = this._lis.vz;
+    const tempC = this._weatherState.tempC;
+    const rh = this._weatherState.humidityPct;
+    const wetness = this._weatherState.wetness;
 
     let bestLabel = 'Air Mancur & Alam';
     let bestScore = 0.08;
     let bestDoppler = 1.0;
+    let occludedCount = 0;
 
-    // 1. Bus Kuning Lintas Pulau UI
+    // 0. Directional Videotron Outdoor Speaker Array & Cooling Cabinet at (28.4, 7.6, 78.2)
+    {
+      const vtMet = AudioSynthesizer.computeDopplerAndAbsorption(
+        28.4, 7.6, 78.2, 0, 0, 0, lx, ly, lz, lvx, lvy, lvz, tempC, rh
+      );
+      const vtOcc = AudioSynthesizer.computeGeometricOcclusion(
+        28.4, 7.6, 78.2, lx, ly, lz, this._occScratch
+      );
+      if (vtOcc.occluded) occludedCount++;
+      const vtProx = clamp(1.0 - vtMet.dist / 68.0, 0.0, 1.0);
+      const vtPlaying = state.videotronPlaying !== false;
+      const vtScore = vtProx * (vtPlaying ? 0.55 : 0.25) * vtOcc.gainMult;
+      if (vtScore > bestScore && vtProx > 0.25) {
+        bestScore = vtScore;
+        bestLabel = 'Videotron UI (Array)';
+        bestDoppler = 1.0;
+      }
+      if (audioReady && this._emitters.videotron) {
+        const ev = this._emitters.videotron;
+        const modChord = 1.0 + 0.015 * Math.sin(this._simClock * 0.72);
+        ev.oscA.frequency.setTargetAtTime(196.0 * modChord, now, 0.14);
+        ev.oscB.frequency.setTargetAtTime(293.66 * modChord, now, 0.14);
+        ev.padGain.gain.setTargetAtTime(vtPlaying ? 0.20 : 0.03, now, 0.14);
+        ev.airLP.frequency.setTargetAtTime(Math.max(240.0, vtMet.airCutoffHz * vtOcc.cutoffMult), now, 0.10);
+        ev.gain.gain.setTargetAtTime(vtProx > 0 ? vtProx * vtProx * 0.16 * vtOcc.gainMult * trnM : 0.0, now, 0.12);
+      }
+    }
+
+    if (!sivitasAI) {
+      this._telemetry.occluded3DSources = occludedCount;
+      this._telemetry.dominantSourceLabel = bestLabel;
+      this._telemetry.dominantDoppler = Number(bestDoppler.toFixed(3));
+      return;
+    }
+
+    // 1. Bus Kuning Lintas Pulau UI (+ Door Chime, Wet Asphalt Spray, Ramp Suspension, Air Brake SFX)
     const b = sivitasAI.interIslandBus;
     if (b) {
       const tr = this._entityTracks.bus;
-      const jumped = this._updateTrackVelocity(tr, b.worldX, b.worldY + 1.15, b.worldZ, b.yaw || 0, b.speed || 0, dt);
-      const accel = dt > 1e-4 ? ((b.speed || 0) - tr.prevSpd) / dt : 0.0;
-      tr.prevSpd = b.speed || 0;
+      const yaw = b.yaw || 0.0;
+      const curSpd = b.speed || 0.0;
+      const curPitch = b.pitch || 0.0;
+      const wasInit = tr.init;
+      const prevPitch = tr.prevPitch || 0.0;
+      const jumped = this._updateTrackVelocity(tr, b.worldX, b.worldY + 1.15, b.worldZ, yaw, curSpd, dt);
+      const accel = dt > 1e-4 ? (curSpd - tr.prevSpd) / dt : 0.0;
+      tr.prevSpd = curSpd;
+      tr.prevPitch = curPitch;
       tr.brakeCooldown = Math.max(0.0, tr.brakeCooldown - dt);
+      tr.doorCooldown = Math.max(0.0, tr.doorCooldown - dt);
+      tr.suspCooldown = Math.max(0.0, tr.suspCooldown - dt);
 
       const met = AudioSynthesizer.computeDopplerAndAbsorption(
-        tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz
+        tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz, tempC, rh
       );
+      const occ = AudioSynthesizer.computeGeometricOcclusion(
+        tr.x, tr.y, tr.z, lx, ly, lz, this._occScratch
+      );
+      if (occ.occluded) occludedCount++;
+
+      // State-transition SFX: Bus Stop / Depart Pneumatic Door & 2-Note Campus Chime
+      const isMoving = curSpd >= 0.35;
+      if (wasInit && isMoving !== tr.wasMoving && met.dist < 68.0 && tr.doorCooldown <= 0.0) {
+        tr.doorCooldown = 4.2;
+        this._recordSfxEvent('BUS_DOOR_CHIME', 'Pintu & Chime Bis UI');
+        if (sfxLive) this._triggerBusDoorChime3D(tr.x, tr.y, tr.z, isMoving);
+      }
+      tr.wasMoving = isMoving;
+
+      // State-transition SFX: Underpass Ramp Grade-Change Suspension Thump
+      if (wasInit && Math.abs(curPitch - prevPitch) > 0.036 && curSpd > 1.8 && met.dist < 52.0 && tr.suspCooldown <= 0.0) {
+        tr.suspCooldown = 3.5;
+        this._recordSfxEvent('BUS_SUSPENSION_THUMP', 'Suspensi Ramp Bis UI');
+        if (sfxLive) this._triggerSuspensionThump3D(tr.x, tr.y - 0.65, tr.z);
+      }
+
+      // State-transition SFX: Pneumatic Air-Brake Hiss (during active deceleration while rolling)
+      if (wasInit && curSpd >= 0.40 && accel < -2.6 && met.dist < 58.0 && tr.brakeCooldown <= 0.0) {
+        tr.brakeCooldown = 6.5;
+        this._recordSfxEvent('BUS_AIR_BRAKE', 'Rem Angin Bis UI');
+        if (sfxLive) this._triggerAirBrakeHiss(tr.x, tr.y - 0.5, tr.z);
+      }
+
       const busProx = clamp(1.0 - met.dist / 135.0, 0.0, 1.0);
-      const spdNorm = clamp((b.speed || 0) / 6.5, 0.0, 1.25);
-      const score = busProx * (0.45 + 0.55 * spdNorm);
+      const spdNorm = clamp(curSpd / 6.5, 0.0, 1.25);
+      const score = busProx * (0.45 + 0.55 * spdNorm) * occ.gainMult;
       if (score > bestScore) {
         bestScore = score;
         bestLabel = 'Bis Kuning UI';
@@ -1495,35 +2652,57 @@ export class AudioSynthesizer {
       if (audioReady) {
         const eb = this._emitters.bus;
         this._setPannerPosition(eb.panner, tr.x, tr.y, tr.z, now, jumped);
+        this._setPannerOrientation(eb.panner, Math.sin(yaw), 0.0, Math.cos(yaw), now, jumped);
         const baseHz = (68.0 + spdNorm * 64.0) * met.doppler;
         eb.oscA.frequency.setTargetAtTime(baseHz, now, 0.05);
         eb.oscB.frequency.setTargetAtTime(baseHz * 2.0, now, 0.05);
-        eb.tireBp.frequency.setTargetAtTime((280 + spdNorm * 380) * met.doppler, now, 0.06);
-        eb.tireGain.gain.setTargetAtTime(0.15 + spdNorm * 0.65, now, 0.06);
-        eb.airLP.frequency.setTargetAtTime(met.airCutoffHz, now, 0.08);
-        // Stronger reverberation when the bus itself rolls inside the Subsea Underpass!
-        const busInTunnel = b.worldY < -2.2 ? 0.85 : 0.35;
+        // Wet-asphalt hydro-spray hiss shifts tire spectrum upward on wet outdoor roads
+        const wetSpray = b.worldY > -1.8 ? smooth01(0.22, 0.85, wetness) : 0.0;
+        eb.tireBp.frequency.setTargetAtTime((280 + spdNorm * 380 + wetSpray * 820) * met.doppler, now, 0.06);
+        eb.tireGain.gain.setTargetAtTime(0.15 + spdNorm * (0.65 + wetSpray * 0.42), now, 0.06);
+        eb.airLP.frequency.setTargetAtTime(Math.max(220.0, met.airCutoffHz * occ.cutoffMult), now, 0.08);
+        const busInTunnel = b.worldY < -2.2 ? 0.88 : 0.35;
         eb.revSend.gain.setTargetAtTime(busInTunnel, now, 0.12);
-        eb.gain.gain.setTargetAtTime(busProx > 0 ? 0.08 + spdNorm * 0.28 : 0.0, now, 0.08);
-
-        if (accel < -2.6 && met.dist < 58.0 && tr.brakeCooldown <= 0.0 && this.ctx.state === 'running') {
-          tr.brakeCooldown = 6.5;
-          this._triggerAirBrakeHiss(tr.x, tr.y - 0.5, tr.z);
-        }
+        eb.gain.gain.setTargetAtTime(
+          busProx > 0 ? (0.08 + spdNorm * 0.28) * occ.gainMult * trnM : 0.0,
+          now,
+          0.08
+        );
       }
     }
 
-    // 2. Mobil Golf Listrik UI
+    // 2. Mobil Golf Listrik UI (+ Brass Double Courtesy Bell on Stop/Start & Pedestrian Yield)
     const c = sivitasAI.golfCart;
     if (c) {
       const tr = this._entityTracks.cart;
-      const jumped = this._updateTrackVelocity(tr, c.worldX, c.worldY + 0.85, c.worldZ, c.yaw || 0, c.speed || 0, dt);
+      const yaw = c.yaw || 0.0;
+      const curSpd = c.speed || 0.0;
+      const wasInit = tr.init;
+      const jumped = this._updateTrackVelocity(tr, c.worldX, c.worldY + 0.85, c.worldZ, yaw, curSpd, dt);
+      const accel = dt > 1e-4 ? (curSpd - tr.prevSpd) / dt : 0.0;
+      tr.prevSpd = curSpd;
+      tr.bellCooldown = Math.max(0.0, tr.bellCooldown - dt);
+
       const met = AudioSynthesizer.computeDopplerAndAbsorption(
-        tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz
+        tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz, tempC, rh
       );
+      const occ = AudioSynthesizer.computeGeometricOcclusion(
+        tr.x, tr.y, tr.z, lx, ly, lz, this._occScratch
+      );
+      if (occ.occluded) occludedCount++;
+
+      const curPhase = c.phase || 'CRUISE';
+      const phaseChanged = wasInit && tr.prevPhase && tr.prevPhase !== curPhase;
+      tr.prevPhase = curPhase;
+      if ((phaseChanged || (wasInit && accel < -1.55)) && met.dist < 58.0 && tr.bellCooldown <= 0.0) {
+        tr.bellCooldown = 4.0;
+        this._recordSfxEvent('CART_COURTESY_BELL', 'Bel Mobil Golf UI');
+        if (sfxLive) this._triggerCourtesyBell3D(tr.x, tr.y + 0.25, tr.z);
+      }
+
       const cartProx = clamp(1.0 - met.dist / 78.0, 0.0, 1.0);
-      const spdNorm = clamp((c.speed || 0) / 2.7, 0.0, 1.2);
-      const score = cartProx * (0.35 + 0.65 * spdNorm);
+      const spdNorm = clamp(curSpd / 2.7, 0.0, 1.2);
+      const score = cartProx * (0.35 + 0.65 * spdNorm) * occ.gainMult;
       if (score > bestScore) {
         bestScore = score;
         bestLabel = 'Mobil Golf Listrik';
@@ -1533,28 +2712,52 @@ export class AudioSynthesizer {
       if (audioReady) {
         const ec = this._emitters.cart;
         this._setPannerPosition(ec.panner, tr.x, tr.y, tr.z, now, jumped);
+        this._setPannerOrientation(ec.panner, Math.sin(yaw), 0.0, Math.cos(yaw), now, jumped);
         const invHz = (175.0 + spdNorm * 295.0) * met.doppler;
         ec.oscA.frequency.setTargetAtTime(invHz, now, 0.05);
         ec.oscB.frequency.setTargetAtTime(invHz * 2.005, now, 0.05);
         ec.rollBp.frequency.setTargetAtTime((360 + spdNorm * 320) * met.doppler, now, 0.06);
-        ec.airLP.frequency.setTargetAtTime(met.airCutoffHz, now, 0.08);
-        ec.gain.gain.setTargetAtTime(cartProx > 0 ? spdNorm * 0.22 + 0.015 : 0.0, now, 0.08);
+        ec.airLP.frequency.setTargetAtTime(Math.max(220.0, met.airCutoffHz * occ.cutoffMult), now, 0.08);
+        ec.gain.gain.setTargetAtTime(
+          cartProx > 0 ? (spdNorm * 0.22 + 0.015) * occ.gainMult * trnM : 0.0,
+          now,
+          0.08
+        );
       }
     }
 
-    // 3. Taxi Helicopter Listrik eVTOL (PK-UIE)
+    // 3. Taxi Helicopter Listrik eVTOL (PK-UIE + Helipad Skid Touchdown Thump)
     const h = sivitasAI.heliTaxi;
     if (h) {
       const tr = this._entityTracks.heli;
+      const wasInit = tr.init;
       const jumped = this._updateTrackVelocity(tr, h.worldX, h.worldY + 1.35, h.worldZ, h.yaw || 0, h.speed || 0, dt);
       const met = AudioSynthesizer.computeDopplerAndAbsorption(
-        tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz
+        tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz, tempC, rh
       );
+      const occ = AudioSynthesizer.computeGeometricOcclusion(
+        tr.x, tr.y, tr.z, lx, ly, lz, this._occScratch
+      );
+      if (occ.occluded) occludedCount++;
+
+      const curHeliPhase = h.phase || '';
+      if (
+        wasInit &&
+        tr.prevPhase &&
+        tr.prevPhase.startsWith('LANDING_') &&
+        curHeliPhase.startsWith('DWELL_') &&
+        met.dist < 175.0
+      ) {
+        this._recordSfxEvent('EVTOL_SKID_TOUCHDOWN', 'Touchdown Helipad eVTOL');
+        if (sfxLive) this._triggerHeliSkidTouchdown3D(h.worldX, h.worldY + 0.15, h.worldZ);
+      }
+      tr.prevPhase = curHeliPhase;
+
       const heliProx = clamp(1.0 - met.dist / 240.0, 0.0, 1.0);
       const omegaNorm = clamp((h.rotorOmega || 20.0) / 62.0, 0.2, 1.15);
       const vtolLoad =
-        h.phase && (h.phase.startsWith('TAKEOFF') || h.phase.startsWith('LANDING')) ? 1.25 : 1.0;
-      const score = heliProx * omegaNorm * 0.95;
+        curHeliPhase && (curHeliPhase.startsWith('TAKEOFF') || curHeliPhase.startsWith('LANDING')) ? 1.25 : 1.0;
+      const score = heliProx * omegaNorm * 0.95 * occ.gainMult;
       if (score > bestScore) {
         bestScore = score;
         bestLabel = 'Taxi Heli eVTOL';
@@ -1566,15 +2769,49 @@ export class AudioSynthesizer {
         this._setPannerPosition(eh.panner, tr.x, tr.y, tr.z, now, jumped);
         eh.bladeLfo.frequency.setTargetAtTime(clamp((12.0 + omegaNorm * 13.5) * met.doppler, 8.0, 34.0), now, 0.06);
         eh.turbineOsc.frequency.setTargetAtTime((340.0 + omegaNorm * 390.0) * met.doppler, now, 0.06);
-        eh.airLP.frequency.setTargetAtTime(met.airCutoffHz, now, 0.08);
-        const hGain = heliProx > 0 ? (0.04 + omegaNorm * 0.34) * vtolLoad : 0.0;
+        eh.airLP.frequency.setTargetAtTime(Math.max(220.0, met.airCutoffHz * occ.cutoffMult), now, 0.08);
+        const hGain = heliProx > 0 ? (0.04 + omegaNorm * 0.34) * vtolLoad * occ.gainMult * trnM : 0.0;
         eh.gain.gain.setTargetAtTime(hGain, now, 0.09);
       }
     }
 
-    // 4. Fixed-Wing Campus Fleet: Cessna 172 Skyhawk (PK-UIA) & Citation Learjet (PK-UIB)
+    // 4. Fixed-Wing Campus Fleet: Cessna 172 (PK-UIA) & Citation Learjet (PK-UIB) + Runway Touchdown & Reverser SFX
     const cessna = sivitasAI.cessnaAircraft;
     const learjet = sivitasAI.learjetAircraft;
+    if (cessna) {
+      const prevP = this._sfxTracker.cessnaPhase;
+      const curP = cessna.phase || '';
+      if (prevP && prevP !== curP) {
+        const dC = Math.hypot(lx - cessna.worldX, ly - cessna.worldY, lz - cessna.worldZ);
+        if (prevP === 'FINAL_APPROACH' && curP === 'LANDING_ROLLOUT' && dC < 460.0) {
+          this._recordSfxEvent('AIRCRAFT_TOUCHDOWN', 'Touchdown Roda Cessna');
+          if (sfxLive) this._triggerRunwayTouchdownChirp3D(cessna.worldX, cessna.worldY + 0.2, cessna.worldZ, false);
+        } else if (prevP === 'LINEUP_RWY27' && curP === 'TAKEOFF_CLIMB' && dC < 460.0) {
+          this._recordSfxEvent('AIRCRAFT_TAKEOFF_SPOOL', 'Spool Lepas Landas Cessna');
+          if (sfxLive) this._triggerTakeoffSpoolSurge3D(cessna.worldX, cessna.worldY + 1.0, cessna.worldZ, false);
+        }
+      }
+      this._sfxTracker.cessnaPhase = curP;
+    }
+    if (learjet) {
+      const prevP = this._sfxTracker.learjetPhase;
+      const curP = learjet.phase || '';
+      if (prevP && prevP !== curP) {
+        const dL = Math.hypot(lx - learjet.worldX, ly - learjet.worldY, lz - learjet.worldZ);
+        if (prevP === 'FINAL_APPROACH' && curP === 'LANDING_ROLLOUT' && dL < 520.0) {
+          this._recordSfxEvent('JET_THRUST_REVERSER', 'Touchdown & Reverser Learjet');
+          if (sfxLive) {
+            this._triggerRunwayTouchdownChirp3D(learjet.worldX, learjet.worldY + 0.25, learjet.worldZ, true);
+            this._triggerThrustReverserDeploy3D(learjet.worldX, learjet.worldY + 1.4, learjet.worldZ);
+          }
+        } else if (prevP === 'LINEUP_RWY27' && curP === 'TAKEOFF_CLIMB' && dL < 520.0) {
+          this._recordSfxEvent('AIRCRAFT_TAKEOFF_SPOOL', 'Spool Lepas Landas Learjet');
+          if (sfxLive) this._triggerTakeoffSpoolSurge3D(learjet.worldX, learjet.worldY + 1.4, learjet.worldZ, true);
+        }
+      }
+      this._sfxTracker.learjetPhase = curP;
+    }
+
     let activeAc = null;
     let isJet = false;
     if (learjet && learjet.phase !== 'APRON_PARKED') {
@@ -1595,23 +2832,31 @@ export class AudioSynthesizer {
       const switched = tr.id !== activeAc.registration;
       tr.id = activeAc.registration;
       if (switched) tr.init = false;
+      const yaw = activeAc.yaw || 0.0;
       const jumped = this._updateTrackVelocity(
         tr,
         activeAc.worldX,
         activeAc.worldY + 1.5,
         activeAc.worldZ,
-        activeAc.yaw || 0,
+        yaw,
         activeAc.speed || 0,
         dt
       );
       const met = AudioSynthesizer.computeDopplerAndAbsorption(
-        tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz
+        tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz, tempC, rh
       );
+      const occ = AudioSynthesizer.computeGeometricOcclusion(
+        tr.x, tr.y, tr.z, lx, ly, lz, this._occScratch
+      );
+      if (occ.occluded) occludedCount++;
+
       const maxHear = isJet ? 560.0 : 380.0;
       const acProx = clamp(1.0 - met.dist / maxHear, 0.0, 1.0);
       const parked = activeAc.phase === 'APRON_PARKED';
       const propNorm = parked ? 0.0 : clamp((activeAc.propOmega || 0.0) / 76.0, 0.0, 1.15);
-      const score = acProx * propNorm * 1.15;
+      const reverserActive = isJet && activeAc.phase === 'LANDING_ROLLOUT' && (activeAc.speed || 0) > 16.0;
+      const revBoost = reverserActive ? 1.38 : 1.0;
+      const score = acProx * propNorm * 1.15 * revBoost * occ.gainMult;
       if (score > bestScore) {
         bestScore = score;
         bestLabel = isJet ? 'Citation Learjet' : 'Cessna 172';
@@ -1621,19 +2866,20 @@ export class AudioSynthesizer {
       if (audioReady) {
         const ea = this._emitters.air;
         this._setPannerPosition(ea.panner, tr.x, tr.y, tr.z, now, jumped || switched);
-        ea.airLP.frequency.setTargetAtTime(met.airCutoffHz, now, 0.08);
+        // Jet exhaust radiates rearward (-yaw), EXCEPT during clamshell thrust-reverser rollout (+yaw)!
+        const coneSign = isJet && !reverserActive ? -1.0 : 1.0;
+        this._setPannerOrientation(ea.panner, coneSign * Math.sin(yaw), 0.0, coneSign * Math.cos(yaw), now, jumped || switched);
+        ea.airLP.frequency.setTargetAtTime(Math.max(240.0, met.airCutoffHz * occ.cutoffMult), now, 0.08);
         if (parked || acProx <= 0.0) {
           ea.gain.gain.setTargetAtTime(0.0, now, 0.12);
         } else if (isJet) {
-          // Twin-Turbofan Bypass Whine + Jet Core Exhaust Roar with 343 m/s Doppler!
           ea.propGain.gain.setTargetAtTime(0.0, now, 0.08);
           ea.jetWhine.frequency.setTargetAtTime((780 + propNorm * 1120) * met.doppler, now, 0.05);
           ea.jetWhineGain.gain.setTargetAtTime(0.18 + propNorm * 0.24, now, 0.08);
-          ea.roarBp.frequency.setTargetAtTime((310 + propNorm * 520) * met.doppler, now, 0.06);
-          ea.roarGain.gain.setTargetAtTime(0.45 + propNorm * 0.65, now, 0.08);
-          ea.gain.gain.setTargetAtTime(0.12 + propNorm * 0.56, now, 0.08);
+          ea.roarBp.frequency.setTargetAtTime((310 + propNorm * 520 + (reverserActive ? 220 : 0)) * met.doppler, now, 0.06);
+          ea.roarGain.gain.setTargetAtTime((0.45 + propNorm * 0.65) * revBoost, now, 0.08);
+          ea.gain.gain.setTargetAtTime((0.12 + propNorm * 0.56) * revBoost * occ.gainMult * trnM, now, 0.08);
         } else {
-          // Lycoming IO-360 4-Cylinder Piston & 2-Blade Prop Harmonic with 343 m/s Doppler!
           const pHz = (68.0 + propNorm * 74.0) * met.doppler;
           ea.propOscA.frequency.setTargetAtTime(pHz, now, 0.05);
           ea.propOscB.frequency.setTargetAtTime(pHz * 2.0, now, 0.05);
@@ -1641,13 +2887,26 @@ export class AudioSynthesizer {
           ea.jetWhineGain.gain.setTargetAtTime(0.0, now, 0.08);
           ea.roarBp.frequency.setTargetAtTime((240 + propNorm * 280) * met.doppler, now, 0.06);
           ea.roarGain.gain.setTargetAtTime(0.18 + propNorm * 0.26, now, 0.08);
-          ea.gain.gain.setTargetAtTime(0.08 + propNorm * 0.42, now, 0.08);
+          ea.gain.gain.setTargetAtTime((0.08 + propNorm * 0.42) * occ.gainMult * trnM, now, 0.08);
         }
       }
     }
 
-    // 5. Marine Fleet: Northern Selat UI Shuttle Ferry vs Teluk U Flybridge Mini Yacht
+    // 5. Marine Fleet: Northern Selat UI Shuttle Ferry (+ Twin-Tone Foghorn on Dock/Depart) & Mini Yacht
     const ferry = sivitasAI.shuttleFerry;
+    if (ferry) {
+      const prevFP = this._sfxTracker.ferryPhase;
+      const curFP = ferry.phase || '';
+      if (prevFP && prevFP !== curFP) {
+        const dF = Math.hypot(lx - ferry.worldX, ly - ferry.worldY, lz - ferry.worldZ);
+        if (dF < 280.0) {
+          this._recordSfxEvent('FERRY_MARINE_HORN', 'Klakson Feri Selat UI');
+          if (sfxLive) this._triggerMarineHorn3D(ferry.worldX, ferry.worldY + 3.2, ferry.worldZ, curFP === 'CRUISE');
+        }
+      }
+      this._sfxTracker.ferryPhase = curFP;
+    }
+
     const yacht = sivitasAI.miniYacht;
     let vessel = null;
     let vesselId = '';
@@ -1671,21 +2930,27 @@ export class AudioSynthesizer {
       const switched = tr.id !== vesselId;
       tr.id = vesselId;
       if (switched) tr.init = false;
+      const yaw = vessel.yaw || 0.0;
       const jumped = this._updateTrackVelocity(
         tr,
         vessel.worldX,
         vessel.worldY + 1.0,
         vessel.worldZ,
-        vessel.yaw || 0,
+        yaw,
         vessel.speed || 0,
         dt
       );
       const met = AudioSynthesizer.computeDopplerAndAbsorption(
-        tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz
+        tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz, tempC, rh
       );
+      const occ = AudioSynthesizer.computeGeometricOcclusion(
+        tr.x, tr.y, tr.z, lx, ly, lz, this._occScratch
+      );
+      if (occ.occluded) occludedCount++;
+
       const mProx = clamp(1.0 - met.dist / 135.0, 0.0, 1.0);
       const mSpd = clamp((vessel.speed || 0) / 3.4, 0.0, 1.15);
-      const score = mProx * (0.28 + 0.55 * mSpd);
+      const score = mProx * (0.28 + 0.55 * mSpd) * occ.gainMult;
       if (score > bestScore) {
         bestScore = score;
         bestLabel = vesselId;
@@ -1695,15 +2960,111 @@ export class AudioSynthesizer {
       if (audioReady) {
         const em = this._emitters.marine;
         this._setPannerPosition(em.panner, tr.x, tr.y, tr.z, now, jumped || switched);
+        this._setPannerOrientation(em.panner, -Math.sin(yaw), 0.0, -Math.cos(yaw), now, jumped || switched);
         em.osc.frequency.setTargetAtTime((54.0 + mSpd * 38.0) * met.doppler, now, 0.07);
         em.wakeBp.frequency.setTargetAtTime((380.0 + mSpd * 340.0) * met.doppler, now, 0.08);
-        em.airLP.frequency.setTargetAtTime(met.airCutoffHz, now, 0.09);
-        em.gain.gain.setTargetAtTime(mProx > 0 ? 0.03 + mSpd * 0.24 : 0.0, now, 0.10);
+        em.airLP.frequency.setTargetAtTime(Math.max(220.0, met.airCutoffHz * occ.cutoffMult), now, 0.09);
+        em.gain.gain.setTargetAtTime(mProx > 0 ? (0.03 + mSpd * 0.24) * occ.gainMult * trnM : 0.0, now, 0.10);
       }
     }
 
+    this._telemetry.occluded3DSources = occludedCount;
     this._telemetry.dominantSourceLabel = bestLabel;
     this._telemetry.dominantDoppler = Number(bestDoppler.toFixed(3));
+  }
+
+  /**
+   * Iterasi 3: Real-Time World Event SFX Tracker for Sivitas NPCs (Umbrella Pop, Camera Shutter),
+   * DJI Avata 2 FPV (Acro High-G Air-Rip, APAS Radar Tick), & DJI Mavic 3 Pro (Optical Zoom Servo).
+   */
+  _updateWorldEventSfx(dt, state = {}, sivitasAI = null, camMode = 'DRONE_6DOF', rainInt = 0.0) {
+    const trk = this._sfxTracker;
+    const sfxLive = Boolean(this.ctx && this.enabled && this.ctx.state === 'running');
+    const lx = this._lis.x;
+    const ly = this._lis.y;
+    const lz = this._lis.z;
+
+    trk.apasCooldown = Math.max(0.0, trk.apasCooldown - dt);
+
+    // 1. DJI Avata 2 Acro Barrel-Roll / Split-S High-G Air-Rip & APAS Proximity Radar Tick
+    const stuntNow = Boolean(state.avataStuntActive) && camMode === 'DRONE_AVATA2_FPV';
+    if (stuntNow && !trk.prevAvataStunt) {
+      this._recordSfxEvent('AVATA_ACRO_RIP', 'Manuver Acro Avata 2');
+      if (sfxLive) this._triggerAvataAcroRip();
+    }
+    trk.prevAvataStunt = stuntNow;
+
+    const apasNow = Boolean(state.avataApasActive) && camMode === 'DRONE_AVATA2_FPV';
+    if (apasNow && !trk.prevAvataApas && trk.apasCooldown <= 0.0) {
+      trk.apasCooldown = 3.6;
+      this._recordSfxEvent('AVATA_APAS_TICK', 'Sensor APAS Avata 2');
+      if (sfxLive) this._triggerApasRadarTick();
+    }
+    trk.prevAvataApas = apasNow;
+
+    // 2. DJI Mavic 3 Pro Hasselblad Optical Zoom Servo Whisper
+    if ((camMode === 'DRONE_6DOF' || camMode === 'AUTO_CINEMATIC') && Number.isFinite(state.mavicFov)) {
+      const fov = Number(state.mavicFov);
+      if (!trk.mavicFovInit) {
+        trk.prevMavicFov = fov;
+        trk.mavicFovInit = true;
+      } else if (Math.abs(fov - trk.prevMavicFov) > 2.2) {
+        const zoomIn = fov < trk.prevMavicFov;
+        trk.prevMavicFov = fov;
+        this._recordSfxEvent('MAVIC_ZOOM_SERVO', 'Servo Lensa Mavic');
+        if (sfxLive) this._triggerMavicZoomWhisper(zoomIn);
+      }
+    }
+
+    // 3. Sivitas Akademika NPCs: Rain Onset Umbrella Canopy Pop-Open & Landmark Camera Shutter Click
+    if (sivitasAI && Array.isArray(sivitasAI.npcs) && sivitasAI.npcs.length > 0) {
+      if (!trk.rainInit) {
+        trk.prevRain = rainInt;
+        trk.rainInit = true;
+      } else {
+        if (trk.prevRain < 0.15 && rainInt >= 0.15 && ly < 24.0) {
+          let bestNpc = null;
+          let bestD = 26.0;
+          for (let i = 0; i < sivitasAI.npcs.length; i++) {
+            const npc = sivitasAI.npcs[i];
+            const d = Math.hypot(lx - npc.worldX, ly - (npc.worldY || 0), lz - npc.worldZ);
+            if (d < bestD) {
+              bestD = d;
+              bestNpc = npc;
+            }
+          }
+          if (bestNpc) {
+            this._recordSfxEvent('NPC_UMBRELLA_OPEN', 'Buka Payung Sivitas');
+            if (sfxLive) this._triggerUmbrellaOpen3D(bestNpc.worldX, (bestNpc.worldY || 0) + 1.65, bestNpc.worldZ);
+          }
+        }
+        trk.prevRain = rainInt;
+      }
+
+      if (rainInt < 0.18 && ly < 16.0) {
+        trk.npcShutterTimer -= dt;
+        if (trk.npcShutterTimer <= 0.0) {
+          trk.npcShutterTimer = 6.5 + Math.random() * 8.5;
+          let photoNpc = null;
+          let bestPhotoD = 16.5;
+          for (let i = 0; i < sivitasAI.npcs.length; i++) {
+            const npc = sivitasAI.npcs[i];
+            if (npc.behavior !== 'PHOTO_LANDMARK') continue;
+            const d = Math.hypot(lx - npc.worldX, ly - (npc.worldY || 0), lz - npc.worldZ);
+            if (d < bestPhotoD) {
+              bestPhotoD = d;
+              photoNpc = npc;
+            }
+          }
+          if (photoNpc) {
+            this._recordSfxEvent('NPC_CAMERA_SHUTTER', 'Klik Kamera Sivitas');
+            if (sfxLive) {
+              this._triggerCameraShutter3D(photoNpc.worldX, (photoNpc.worldY || 0) + 1.48, photoNpc.worldZ);
+            }
+          }
+        }
+      }
+    }
   }
 
   _resolveSurfaceMaterial(x, y, z, camMode) {
@@ -1881,9 +3242,10 @@ export class AudioSynthesizer {
     hp.frequency.setValueAtTime(3400, t0);
     hp.Q.setValueAtTime(1.1, t0);
 
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(0.001, t0);
-    g.gain.linearRampToValueAtTime(0.22, t0 + 0.03);
+    g.gain.linearRampToValueAtTime(0.22 * sfxM, t0 + 0.03);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.42);
 
     const pan = this.ctx.createPanner();
@@ -1904,6 +3266,466 @@ export class AudioSynthesizer {
     };
     src.start(t0);
     src.stop(t0 + 0.44);
+  }
+
+  _triggerBusDoorChime3D(bx, by, bz, departing = false) {
+    if (!this.ctx || !this._pinkBuffer || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 6.5;
+    this._setPannerPosition(pan, bx, by, bz, t0, true);
+    pan.connect(this.worldSumGain);
+    pan.connect(this.reverbSendGain);
+
+    // Pneumatic door cylinder hiss + 2-note campus transit chime (E5->G#5 on depart, G#5->E5 on stop)
+    const hiss = this.ctx.createBufferSource();
+    hiss.buffer = this._pinkBuffer;
+    hiss.playbackRate.value = 1.95;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(2850, t0);
+    bp.Q.setValueAtTime(1.4, t0);
+    const hg = this.ctx.createGain();
+    hg.gain.setValueAtTime(0.0008, t0);
+    hg.gain.linearRampToValueAtTime(0.11 * sfxM, t0 + 0.025);
+    hg.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.28);
+    hiss.connect(bp);
+    bp.connect(hg);
+    hg.connect(pan);
+    hiss.start(t0);
+    hiss.stop(t0 + 0.30);
+
+    const freqs = departing ? [659.25, 830.61] : [830.61, 659.25];
+    for (let i = 0; i < 2; i++) {
+      const dt = 0.04 + i * 0.14;
+      const osc = this.ctx.createOscillator();
+      const cg = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freqs[i], t0 + dt);
+      cg.gain.setValueAtTime(0.0005, t0 + dt);
+      cg.gain.linearRampToValueAtTime(0.085 * sfxM, t0 + dt + 0.012);
+      cg.gain.exponentialRampToValueAtTime(0.0005, t0 + dt + 0.24);
+      osc.connect(cg);
+      cg.connect(pan);
+      osc.start(t0 + dt);
+      osc.stop(t0 + dt + 0.26);
+      if (i === 1) {
+        osc.onended = () => {
+          try {
+            pan.disconnect();
+          } catch (_e) {}
+        };
+      }
+    }
+  }
+
+  _triggerSuspensionThump3D(sx, sy, sz) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 6.0;
+    this._setPannerPosition(pan, sx, sy, sz, t0, true);
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(92, t0);
+    osc.frequency.exponentialRampToValueAtTime(42, t0 + 0.14);
+    g.gain.setValueAtTime(0.001, t0);
+    g.gain.linearRampToValueAtTime(0.16 * sfxM, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.16);
+    osc.connect(g);
+    g.connect(pan);
+    pan.connect(this.worldSumGain);
+    pan.connect(this.reverbSendGain);
+    osc.onended = () => {
+      try {
+        pan.disconnect();
+      } catch (_e) {}
+    };
+    osc.start(t0);
+    osc.stop(t0 + 0.18);
+  }
+
+  _triggerCourtesyBell3D(cx, cy, cz) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 5.5;
+    this._setPannerPosition(pan, cx, cy, cz, t0, true);
+    pan.connect(this.worldSumGain);
+    pan.connect(this.reverbSendGain);
+
+    // Friendly brass double courtesy bell ("ting-ting", fundamental + inharmonic bell partial)
+    for (let k = 0; k < 2; k++) {
+      const dt = k * 0.135;
+      const osc1 = this.ctx.createOscillator();
+      const osc2 = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc1.type = 'sine';
+      osc2.type = 'sine';
+      osc1.frequency.setValueAtTime(1760, t0 + dt);
+      osc2.frequency.setValueAtTime(1760 * 2.42, t0 + dt);
+      g.gain.setValueAtTime(0.0005, t0 + dt);
+      g.gain.linearRampToValueAtTime(0.075 * sfxM, t0 + dt + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0005, t0 + dt + 0.22);
+      osc1.connect(g);
+      osc2.connect(g);
+      g.connect(pan);
+      osc1.start(t0 + dt);
+      osc2.start(t0 + dt);
+      osc1.stop(t0 + dt + 0.24);
+      osc2.stop(t0 + dt + 0.24);
+      if (k === 1) {
+        osc2.onended = () => {
+          try {
+            pan.disconnect();
+          } catch (_e) {}
+        };
+      }
+    }
+  }
+
+  _triggerMarineHorn3D(mx, my, mz, isDeparture = true) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 22.0;
+    pan.rolloffFactor = 0.85;
+    this._setPannerPosition(pan, mx, my, mz, t0, true);
+    pan.connect(this.worldSumGain);
+    pan.connect(this.reverbSendGain);
+
+    // Deep twin-tone marine catamaran horn (C#3 138.6 Hz + F3 174.6 Hz)
+    const dur = isDeparture ? 1.15 : 0.78;
+    const oscA = this.ctx.createOscillator();
+    const oscB = this.ctx.createOscillator();
+    const lp = this.ctx.createBiquadFilter();
+    const g = this.ctx.createGain();
+    oscA.type = 'sawtooth';
+    oscB.type = 'sawtooth';
+    oscA.frequency.setValueAtTime(138.59, t0);
+    oscB.frequency.setValueAtTime(174.61, t0);
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(520, t0);
+    g.gain.setValueAtTime(0.0008, t0);
+    g.gain.linearRampToValueAtTime(0.16 * sfxM, t0 + 0.08);
+    g.gain.setValueAtTime(0.15 * sfxM, t0 + dur - 0.16);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
+    oscA.connect(lp);
+    oscB.connect(lp);
+    lp.connect(g);
+    g.connect(pan);
+    oscA.onended = () => {
+      try {
+        pan.disconnect();
+      } catch (_e) {}
+    };
+    oscA.start(t0);
+    oscB.start(t0);
+    oscA.stop(t0 + dur + 0.03);
+    oscB.stop(t0 + dur + 0.03);
+  }
+
+  _triggerRunwayTouchdownChirp3D(ax, ay, az, isJet = false) {
+    if (!this.ctx || !this._pinkBuffer || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 24.0;
+    pan.rolloffFactor = 0.85;
+    this._setPannerPosition(pan, ax, ay, az, t0, true);
+    pan.connect(this.worldSumGain);
+    pan.connect(this.reverbSendGain);
+
+    // Rubber tire spin-up chirp + oleo strut touchdown thump
+    const chirpOsc = this.ctx.createOscillator();
+    const cg = this.ctx.createGain();
+    chirpOsc.type = 'sawtooth';
+    const fStart = isJet ? 1420 : 1180;
+    chirpOsc.frequency.setValueAtTime(fStart, t0);
+    chirpOsc.frequency.exponentialRampToValueAtTime(fStart * 0.52, t0 + 0.15);
+    cg.gain.setValueAtTime(0.001, t0);
+    cg.gain.linearRampToValueAtTime((isJet ? 0.18 : 0.13) * sfxM, t0 + 0.015);
+    cg.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.17);
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = this._pinkBuffer;
+    noise.playbackRate.value = 1.75;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(1650, t0);
+    bp.Q.setValueAtTime(2.2, t0);
+    const ng = this.ctx.createGain();
+    ng.gain.setValueAtTime(0.001, t0);
+    ng.gain.linearRampToValueAtTime(0.19 * sfxM, t0 + 0.012);
+    ng.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.19);
+
+    chirpOsc.connect(bp);
+    noise.connect(bp);
+    bp.connect(ng);
+    chirpOsc.connect(cg);
+    cg.connect(pan);
+    ng.connect(pan);
+    noise.onended = () => {
+      try {
+        pan.disconnect();
+      } catch (_e) {}
+    };
+    chirpOsc.start(t0);
+    chirpOsc.stop(t0 + 0.18);
+    noise.start(t0);
+    noise.stop(t0 + 0.21);
+  }
+
+  _triggerThrustReverserDeploy3D(jx, jy, jz) {
+    if (!this.ctx || !this._pinkBuffer || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 28.0;
+    pan.rolloffFactor = 0.80;
+    this._setPannerPosition(pan, jx, jy, jz, t0, true);
+    pan.connect(this.worldSumGain);
+    pan.connect(this.reverbSendGain);
+
+    const src = this.ctx.createBufferSource();
+    src.buffer = this._pinkBuffer;
+    src.playbackRate.value = 0.92;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(280, t0);
+    bp.frequency.linearRampToValueAtTime(720, t0 + 0.35);
+    bp.frequency.exponentialRampToValueAtTime(340, t0 + 1.45);
+    bp.Q.setValueAtTime(0.75, t0);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.001, t0);
+    g.gain.linearRampToValueAtTime(0.28 * sfxM, t0 + 0.22);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 1.55);
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(pan);
+    src.onended = () => {
+      try {
+        pan.disconnect();
+      } catch (_e) {}
+    };
+    src.start(t0);
+    src.stop(t0 + 1.60);
+  }
+
+  _triggerTakeoffSpoolSurge3D(ax, ay, az, isJet = false) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 24.0;
+    pan.rolloffFactor = 0.82;
+    this._setPannerPosition(pan, ax, ay, az, t0, true);
+    pan.connect(this.worldSumGain);
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = isJet ? 'sine' : 'sawtooth';
+    osc.frequency.setValueAtTime(isJet ? 620 : 84, t0);
+    osc.frequency.exponentialRampToValueAtTime(isJet ? 1540 : 148, t0 + 0.85);
+    g.gain.setValueAtTime(0.001, t0);
+    g.gain.linearRampToValueAtTime(0.14 * sfxM, t0 + 0.25);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.95);
+    osc.connect(g);
+    g.connect(pan);
+    osc.onended = () => {
+      try {
+        pan.disconnect();
+      } catch (_e) {}
+    };
+    osc.start(t0);
+    osc.stop(t0 + 0.98);
+  }
+
+  _triggerHeliSkidTouchdown3D(hx, hy, hz) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 10.0;
+    this._setPannerPosition(pan, hx, hy, hz, t0, true);
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(124, t0);
+    osc.frequency.exponentialRampToValueAtTime(48, t0 + 0.13);
+    g.gain.setValueAtTime(0.001, t0);
+    g.gain.linearRampToValueAtTime(0.16 * sfxM, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.15);
+    osc.connect(g);
+    g.connect(pan);
+    pan.connect(this.worldSumGain);
+    osc.onended = () => {
+      try {
+        pan.disconnect();
+      } catch (_e) {}
+    };
+    osc.start(t0);
+    osc.stop(t0 + 0.17);
+  }
+
+  _triggerCameraShutter3D(px, py, pz) {
+    if (!this.ctx || !this._patterBuffer || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 4.0;
+    this._setPannerPosition(pan, px, py, pz, t0, true);
+    pan.connect(this.weatherOccFilter);
+
+    // Crisp mechanical double-curtain shutter click ("k-chik")
+    for (let k = 0; k < 2; k++) {
+      const dt = k * 0.038;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(k === 0 ? 3200 : 4150, t0 + dt);
+      g.gain.setValueAtTime(0.0005, t0 + dt);
+      g.gain.linearRampToValueAtTime(0.042 * sfxM, t0 + dt + 0.003);
+      g.gain.exponentialRampToValueAtTime(0.0005, t0 + dt + 0.028);
+      osc.connect(g);
+      g.connect(pan);
+      osc.start(t0 + dt);
+      osc.stop(t0 + dt + 0.034);
+      if (k === 1) {
+        osc.onended = () => {
+          try {
+            pan.disconnect();
+          } catch (_e) {}
+        };
+      }
+    }
+  }
+
+  _triggerUmbrellaOpen3D(ux, uy, uz) {
+    if (!this.ctx || !this._pinkBuffer || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 5.5;
+    this._setPannerPosition(pan, ux, uy, uz, t0, true);
+    pan.connect(this.weatherOccFilter);
+
+    // Taut nylon canopy pop-open whoosh + latch click
+    const src = this.ctx.createBufferSource();
+    src.buffer = this._pinkBuffer;
+    src.playbackRate.value = 1.65;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(680, t0);
+    bp.frequency.exponentialRampToValueAtTime(2200, t0 + 0.14);
+    bp.Q.setValueAtTime(1.5, t0);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0008, t0);
+    g.gain.linearRampToValueAtTime(0.095 * sfxM, t0 + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.19);
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(pan);
+    src.onended = () => {
+      try {
+        pan.disconnect();
+      } catch (_e) {}
+    };
+    src.start(t0);
+    src.stop(t0 + 0.21);
+  }
+
+  _triggerAvataAcroRip() {
+    if (!this.ctx || !this._pinkBuffer || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+
+    // High-G 5-blade prop-vortex rip + motor surge during Barrel Roll / Split-S
+    const src = this.ctx.createBufferSource();
+    src.buffer = this._pinkBuffer;
+    src.playbackRate.value = 1.55;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(740, t0);
+    bp.frequency.exponentialRampToValueAtTime(1950, t0 + 0.22);
+    bp.frequency.exponentialRampToValueAtTime(620, t0 + 0.58);
+    bp.Q.setValueAtTime(1.85, t0);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.001, t0);
+    g.gain.linearRampToValueAtTime(0.18 * sfxM, t0 + 0.12);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.62);
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(this.worldSumGain);
+    g.connect(this.reverbSendGain);
+    src.onended = () => {
+      try {
+        g.disconnect();
+      } catch (_e) {}
+    };
+    src.start(t0);
+    src.stop(t0 + 0.65);
+  }
+
+  _triggerApasRadarTick() {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1920, t0);
+    osc.frequency.exponentialRampToValueAtTime(2360, t0 + 0.045);
+    g.gain.setValueAtTime(0.0005, t0);
+    g.gain.linearRampToValueAtTime(0.036 * sfxM, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.065);
+    osc.connect(g);
+    g.connect(this.worldSumGain);
+    osc.onended = () => {
+      try {
+        g.disconnect();
+      } catch (_e) {}
+    };
+    osc.start(t0);
+    osc.stop(t0 + 0.075);
+  }
+
+  _triggerMavicZoomWhisper(zoomIn = true) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(zoomIn ? 880 : 1180, t0);
+    osc.frequency.exponentialRampToValueAtTime(zoomIn ? 1240 : 840, t0 + 0.09);
+    g.gain.setValueAtTime(0.0005, t0);
+    g.gain.linearRampToValueAtTime(0.024 * sfxM, t0 + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.10);
+    osc.connect(g);
+    g.connect(this.worldSumGain);
+    osc.onended = () => {
+      try {
+        g.disconnect();
+      } catch (_e) {}
+    };
+    osc.start(t0);
+    osc.stop(t0 + 0.11);
   }
 
   _updateBioAcousticMicroEvents(dt, now, camMode, sivitasAI, nightFac, rainInt, zoneId) {
@@ -1947,25 +3769,73 @@ export class AudioSynthesizer {
     }
 
     // Suppress outdoor wildlife chirps inside Subsea Tunnel or at high drone altitude
-    if (zoneId === 'SUBSEA_TUNNEL' || ly > 36.0) return;
+    if (zoneId === 'SUBSEA_TUNNEL' || ly > 42.0) return;
 
-    // B. Daytime Tropical Kampus UI Songbirds (Kutilang / Pipit FM Syrinx Chirps)
-    if (nightFac < 0.42 && rainInt < 0.45) {
-      this._birdTimer -= dt;
+    const phaseId = this._diurnalState ? this._diurnalState.phaseId : 'DAY';
+    const biomeId = this._biomeState ? this._biomeState.biomeId : 'TROPICAL_RAINFOREST';
+
+    // B1. DAWN (Fajar): Distant Nusantara Rooster Crow (Kokok Ayam Fajar) + Perkutut Wood-Dove
+    if (phaseId === 'DAWN' && rainInt < 0.45) {
+      this._roosterTimer -= dt;
+      if (this._roosterTimer <= 0.0) {
+        this._roosterTimer = 9.5 + Math.random() * 12.0;
+        const az = Math.random() * Math.PI * 2.0;
+        const r = 22.0 + Math.random() * 24.0;
+        this._triggerDawnRooster3D(lx + Math.cos(az) * r, Math.max(1.2, ly), lz + Math.sin(az) * r);
+      }
+    }
+
+    // B2. Daytime / Morning / Afternoon Tropical Songbirds (Kutilang FM Syrinx + Perkutut/Tekukur Coo)
+    if (phaseId !== 'NIGHT' && rainInt < 0.45) {
+      const birdRate = this._diurnalState ? this._diurnalState.birdWeight : 0.7;
+      this._birdTimer -= dt * (0.55 + 0.75 * birdRate);
       if (this._birdTimer <= 0.0) {
-        this._birdTimer = 2.4 + Math.random() * 4.6;
+        this._birdTimer = 2.6 + Math.random() * 4.8;
         const az = Math.random() * Math.PI * 2.0;
         const r = 11.0 + Math.random() * 20.0;
-        this._triggerSongbirdChirp3D(lx + Math.cos(az) * r, Math.max(3.5, ly + 2.5 + Math.random() * 6.0), lz + Math.sin(az) * r);
+        this._triggerSongbirdChirp3D(
+          lx + Math.cos(az) * r,
+          Math.max(3.5, ly + 2.5 + Math.random() * 6.0),
+          lz + Math.sin(az) * r
+        );
+      }
+
+      this._doveTimer -= dt * (0.45 + 0.65 * birdRate);
+      if (this._doveTimer <= 0.0) {
+        this._doveTimer = 6.8 + Math.random() * 9.5;
+        const az = Math.random() * Math.PI * 2.0;
+        const r = 13.0 + Math.random() * 22.0;
+        this._triggerDoveCoo3D(
+          lx + Math.cos(az) * r,
+          Math.max(4.0, ly + 3.0 + Math.random() * 5.0),
+          lz + Math.sin(az) * r
+        );
+      }
+    }
+
+    // B3. NIGHT (Malam): Nocturnal Burung Hantu (Owl) Hoot & Tokek Canopy Call
+    if (phaseId === 'NIGHT' && rainInt < 0.55) {
+      this._nightOwlTimer -= dt;
+      if (this._nightOwlTimer <= 0.0) {
+        this._nightOwlTimer = 8.5 + Math.random() * 13.0;
+        const az = Math.random() * Math.PI * 2.0;
+        const r = 15.0 + Math.random() * 24.0;
+        this._triggerNightOwlOrTokek3D(
+          lx + Math.cos(az) * r,
+          Math.max(4.5, ly + 3.5 + Math.random() * 5.5),
+          lz + Math.sin(az) * r
+        );
       }
     }
 
     // C. Dusk / Night Lakeside Frogs near Danau Kenanga, Danau Kecil, or Pulau U River
-    if (nightFac > 0.48 && rainInt < 0.95) {
+    if ((phaseId === 'NIGHT' || phaseId === 'DUSK' || nightFac > 0.45) && rainInt < 0.95) {
       this._frogTimer -= dt;
       if (this._frogTimer <= 0.0) {
         this._frogTimer = 3.2 + Math.random() * 5.4;
         const nearLake =
+          biomeId === 'DANAU_TURAP_PROMENADE' ||
+          biomeId === 'RIVER_SPRING_RIFFLE' ||
           (lx > 18.0 && Math.abs(lz) < 85.0) ||
           Math.hypot(lx - -78.0, lz - -22.0) < 48.0 ||
           (lx < -105.0 && lx > -295.0 && Math.abs(lz - 55.0) < 65.0);
@@ -1973,6 +3843,48 @@ export class AudioSynthesizer {
           const az = Math.random() * Math.PI * 2.0;
           const r = 8.0 + Math.random() * 16.0;
           this._triggerFrogCroak3D(lx + Math.cos(az) * r, 0.2, lz + Math.sin(az) * r);
+        }
+      }
+    }
+
+    // D. Location-Context Micro-Biome Signature Events (Flag Halyard, Dermaga Fender, Gym Bar, Kiosk Cup, ATC VHF)
+    this._contextMicroTimer -= dt;
+    if (this._contextMicroTimer <= 0.0) {
+      this._contextMicroTimer = 4.2 + Math.random() * 5.8;
+      if (biomeId === 'FLAG_CLOISTER') {
+        const fx = -2.5 + (Math.random() * 2.0 - 1.0) * 8.0;
+        const fz = 52.0 + (Math.random() * 2.0 - 1.0) * 6.0;
+        this._triggerFlagHalyardClink3D(fx, 4.8, fz);
+      } else if (biomeId === 'DERMAGA_HARBOUR') {
+        const isNorthPier = Math.hypot(lx - -98.0, lz - 595.0) < Math.hypot(lx - -48.0, lz - 480.0);
+        this._triggerHarbourFenderCreak3D(isNorthPier ? -98.0 : -48.0, 0.3, isNorthPier ? 582.0 : 492.0);
+      } else if (biomeId === 'SPORTS_TRACK_TELUK' && phaseId !== 'NIGHT' && rainInt < 0.35) {
+        this._triggerGymBarClink3D(-62.0 + (Math.random() - 0.5) * 8.0, 1.9, 136.5 + (Math.random() - 0.5) * 5.0);
+      } else if (biomeId === 'CAMPUS_KIOSK_BENCH' && phaseId !== 'NIGHT' && rainInt < 0.45) {
+        this._triggerKioskCupClink3D(lx + (Math.random() - 0.5) * 5.0, 1.2, lz + (Math.random() - 0.5) * 5.0);
+      }
+    }
+
+    // E. Bandara Pulau I ATC VHF Radio Squelch Burst (Near ATC Tower/Apron or inside FPS_PILOT)
+    if (biomeId === 'AIRPORT_ATC_APRON' || camMode === 'FPS_PILOT') {
+      this._atcSquelchTimer -= dt;
+      if (this._atcSquelchTimer <= 0.0) {
+        this._atcSquelchTimer = 7.5 + Math.random() * 9.5;
+        const rx = camMode === 'FPS_PILOT' ? lx + this._lis.fwdX * 0.8 : -222.5;
+        const ry = camMode === 'FPS_PILOT' ? ly - 0.15 : 13.5;
+        const rz = camMode === 'FPS_PILOT' ? lz + this._lis.fwdZ * 0.8 : 665.5;
+        this._triggerAtcRadioSquelch3D(rx, ry, rz, camMode === 'FPS_PILOT');
+      }
+    }
+
+    // F. Athletic Breathing Cadence during Active Jogging in FPS_JOGGER
+    if (camMode === 'FPS_JOGGER') {
+      const runSpd = Math.hypot(this._lis.vx, this._lis.vz);
+      if (runSpd > 2.3) {
+        this._jogBreathAccum += dt * clamp(runSpd / 3.4, 0.75, 1.35);
+        if (this._jogBreathAccum >= 1.85) {
+          this._jogBreathAccum = 0.0;
+          this._triggerJoggerBreathGrain(clamp(runSpd / 4.8, 0.4, 1.0));
         }
       }
     }
@@ -2096,6 +4008,329 @@ export class AudioSynthesizer {
     };
     osc.start(t0);
     osc.stop(t0 + 0.38);
+  }
+
+  _triggerDoveCoo3D(dx, dy, dz) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 7.5;
+    this._setPannerPosition(pan, dx, dy, dz, t0, true);
+    pan.connect(this.weatherOccFilter);
+    pan.connect(this.reverbSendGain);
+
+    // Warm Perkutut / Tekukur 3-note hollow coo ("kur-ru-kuk")
+    const notes = [
+      { dt: 0.0, dur: 0.13, f0: 560, f1: 635 },
+      { dt: 0.17, dur: 0.11, f0: 615, f1: 545 },
+      { dt: 0.32, dur: 0.22, f0: 585, f1: 495 }
+    ];
+    for (let i = 0; i < notes.length; i++) {
+      const n = notes[i];
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(n.f0, t0 + n.dt);
+      osc.frequency.exponentialRampToValueAtTime(n.f1, t0 + n.dt + n.dur);
+      g.gain.setValueAtTime(0.0005, t0 + n.dt);
+      g.gain.linearRampToValueAtTime(0.048, t0 + n.dt + 0.025);
+      g.gain.exponentialRampToValueAtTime(0.0005, t0 + n.dt + n.dur);
+      osc.connect(g);
+      g.connect(pan);
+      osc.start(t0 + n.dt);
+      osc.stop(t0 + n.dt + n.dur + 0.015);
+      if (i === notes.length - 1) {
+        osc.onended = () => {
+          try {
+            pan.disconnect();
+          } catch (_e) {}
+        };
+      }
+    }
+  }
+
+  _triggerDawnRooster3D(rx, ry, rz) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 12.0;
+    pan.rolloffFactor = 1.1;
+    this._setPannerPosition(pan, rx, ry, rz, t0, true);
+    pan.connect(this.weatherOccFilter);
+    pan.connect(this.reverbSendGain);
+
+    // Distant Nusantara "ku-ku-ru-yuuk" 4-syllable formant melody
+    const syl = [
+      { dt: 0.0, dur: 0.10, f0: 660, f1: 720 },
+      { dt: 0.13, dur: 0.10, f0: 710, f1: 780 },
+      { dt: 0.26, dur: 0.12, f0: 770, f1: 880 },
+      { dt: 0.41, dur: 0.46, f0: 870, f1: 590 }
+    ];
+    for (let i = 0; i < syl.length; i++) {
+      const s = syl[i];
+      const osc = this.ctx.createOscillator();
+      const bp = this.ctx.createBiquadFilter();
+      const g = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(s.f0, t0 + s.dt);
+      osc.frequency.exponentialRampToValueAtTime(s.f1, t0 + s.dt + s.dur);
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(1320, t0 + s.dt);
+      bp.Q.setValueAtTime(2.8, t0 + s.dt);
+      g.gain.setValueAtTime(0.0005, t0 + s.dt);
+      g.gain.linearRampToValueAtTime(0.042, t0 + s.dt + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0005, t0 + s.dt + s.dur);
+      osc.connect(bp);
+      bp.connect(g);
+      g.connect(pan);
+      osc.start(t0 + s.dt);
+      osc.stop(t0 + s.dt + s.dur + 0.02);
+      if (i === syl.length - 1) {
+        osc.onended = () => {
+          try {
+            pan.disconnect();
+          } catch (_e) {}
+        };
+      }
+    }
+  }
+
+  _triggerNightOwlOrTokek3D(ox, oy, oz) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 9.0;
+    this._setPannerPosition(pan, ox, oy, oz, t0, true);
+    pan.connect(this.weatherOccFilter);
+    pan.connect(this.reverbSendGain);
+
+    // Hollow tropical owl double-hoot ("hoo... hoo-oo")
+    const hoots = [
+      { dt: 0.0, dur: 0.24, f0: 410, f1: 375 },
+      { dt: 0.36, dur: 0.34, f0: 392, f1: 342 }
+    ];
+    for (let i = 0; i < hoots.length; i++) {
+      const h = hoots[i];
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(h.f0, t0 + h.dt);
+      osc.frequency.exponentialRampToValueAtTime(h.f1, t0 + h.dt + h.dur);
+      g.gain.setValueAtTime(0.0005, t0 + h.dt);
+      g.gain.linearRampToValueAtTime(0.045, t0 + h.dt + 0.035);
+      g.gain.exponentialRampToValueAtTime(0.0005, t0 + h.dt + h.dur);
+      osc.connect(g);
+      g.connect(pan);
+      osc.start(t0 + h.dt);
+      osc.stop(t0 + h.dt + h.dur + 0.02);
+      if (i === hoots.length - 1) {
+        osc.onended = () => {
+          try {
+            pan.disconnect();
+          } catch (_e) {}
+        };
+      }
+    }
+  }
+
+  _triggerFlagHalyardClink3D(fx, fy, fz) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 5.0;
+    this._setPannerPosition(pan, fx, fy, fz, t0, true);
+    pan.connect(this.weatherOccFilter);
+
+    // Metallic bronze halyard clip tapping hollow aluminum flagpole (two quick taps)
+    for (let k = 0; k < 2; k++) {
+      const dt = k * (0.11 + Math.random() * 0.06);
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(2480 + k * 340 + Math.random() * 180, t0 + dt);
+      g.gain.setValueAtTime(0.0005, t0 + dt);
+      g.gain.linearRampToValueAtTime(0.038, t0 + dt + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0005, t0 + dt + 0.085);
+      osc.connect(g);
+      g.connect(pan);
+      osc.start(t0 + dt);
+      osc.stop(t0 + dt + 0.095);
+      if (k === 1) {
+        osc.onended = () => {
+          try {
+            pan.disconnect();
+          } catch (_e) {}
+        };
+      }
+    }
+  }
+
+  _triggerHarbourFenderCreak3D(hx, hy, hz) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const bp = this.ctx.createBiquadFilter();
+    const g = this.ctx.createGain();
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 7.5;
+    this._setPannerPosition(pan, hx, hy, hz, t0, true);
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(118, t0);
+    osc.frequency.linearRampToValueAtTime(164, t0 + 0.22);
+    osc.frequency.linearRampToValueAtTime(104, t0 + 0.48);
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(420, t0);
+    bp.Q.setValueAtTime(3.6, t0);
+    g.gain.setValueAtTime(0.0008, t0);
+    g.gain.linearRampToValueAtTime(0.055, t0 + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.50);
+
+    osc.connect(bp);
+    bp.connect(g);
+    g.connect(pan);
+    pan.connect(this.weatherOccFilter);
+    osc.onended = () => {
+      try {
+        pan.disconnect();
+      } catch (_e) {}
+    };
+    osc.start(t0);
+    osc.stop(t0 + 0.52);
+  }
+
+  _triggerGymBarClink3D(gx, gy, gz) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 5.5;
+    this._setPannerPosition(pan, gx, gy, gz, t0, true);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1680 + Math.random() * 220, t0);
+    g.gain.setValueAtTime(0.0005, t0);
+    g.gain.linearRampToValueAtTime(0.036, t0 + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.14);
+    osc.connect(g);
+    g.connect(pan);
+    pan.connect(this.weatherOccFilter);
+    osc.onended = () => {
+      try {
+        pan.disconnect();
+      } catch (_e) {}
+    };
+    osc.start(t0);
+    osc.stop(t0 + 0.15);
+  }
+
+  _triggerKioskCupClink3D(kx, ky, kz) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = 4.5;
+    this._setPannerPosition(pan, kx, ky, kz, t0, true);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(2940 + Math.random() * 380, t0);
+    g.gain.setValueAtTime(0.0005, t0);
+    g.gain.linearRampToValueAtTime(0.032, t0 + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.075);
+    osc.connect(g);
+    g.connect(pan);
+    pan.connect(this.weatherOccFilter);
+    osc.onended = () => {
+      try {
+        pan.disconnect();
+      } catch (_e) {}
+    };
+    osc.start(t0);
+    osc.stop(t0 + 0.085);
+  }
+
+  _triggerAtcRadioSquelch3D(rx, ry, rz, inCockpit = false) {
+    if (!this.ctx || !this._pinkBuffer || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.refDistance = inCockpit ? 2.0 : 12.0;
+    this._setPannerPosition(pan, rx, ry, rz, t0, true);
+    pan.connect(this.worldSumGain);
+
+    // VHF Aviation band-limited (350–2600 Hz) short ATC carrier + crisp squelch tail
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = this._pinkBuffer;
+    noise.playbackRate.value = 1.6;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(1420, t0);
+    bp.Q.setValueAtTime(1.8, t0);
+    const g = this.ctx.createGain();
+    const lvl = inCockpit ? 0.055 : 0.038;
+    g.gain.setValueAtTime(0.0005, t0);
+    g.gain.linearRampToValueAtTime(lvl * 0.65, t0 + 0.015);
+    g.gain.linearRampToValueAtTime(lvl * 0.38, t0 + 0.24);
+    g.gain.linearRampToValueAtTime(lvl, t0 + 0.27);
+    g.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.34);
+
+    const tone = this.ctx.createOscillator();
+    const tg = this.ctx.createGain();
+    tone.type = 'sawtooth';
+    tone.frequency.setValueAtTime(195, t0 + 0.03);
+    tone.frequency.linearRampToValueAtTime(225, t0 + 0.14);
+    tone.frequency.linearRampToValueAtTime(178, t0 + 0.24);
+    tg.gain.setValueAtTime(0.0005, t0 + 0.03);
+    tg.gain.linearRampToValueAtTime(lvl * 0.42, t0 + 0.06);
+    tg.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.25);
+
+    noise.connect(bp);
+    tone.connect(tg);
+    tg.connect(bp);
+    bp.connect(g);
+    g.connect(pan);
+    noise.onended = () => {
+      try {
+        pan.disconnect();
+      } catch (_e) {}
+    };
+    noise.start(t0);
+    noise.stop(t0 + 0.36);
+    tone.start(t0 + 0.03);
+    tone.stop(t0 + 0.26);
+  }
+
+  _triggerJoggerBreathGrain(intensity01 = 0.6) {
+    if (!this.ctx || !this._pinkBuffer || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this._pinkBuffer;
+    src.playbackRate.value = 1.25;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(1150, t0);
+    bp.Q.setValueAtTime(1.5, t0);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0005, t0);
+    g.gain.linearRampToValueAtTime(0.028 * intensity01, t0 + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.24);
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(this.worldSumGain);
+    src.onended = () => {
+      try {
+        g.disconnect();
+      } catch (_e) {}
+    };
+    src.start(t0);
+    src.stop(t0 + 0.26);
   }
 
   /**

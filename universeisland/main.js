@@ -1759,13 +1759,19 @@ async function bootstrapNexusSimulator() {
   const audioVolSlider = document.getElementById('slider-audio-vol');
   const audioVolLabel = document.getElementById('label-audio-vol');
   const acousticStatusEl = document.getElementById('ui-acoustic-status');
+  const audioMixBtns = Array.from(document.querySelectorAll('[data-audiomix]'));
 
   function updateAcousticWorldNow(dtStep) {
     camera.updateMatrixWorld();
+    const apasActive = (camDirector._avataApasTimer || 0) > 0.01;
+    const inCorridor = (camDirector._avataMeta?.corridorWeight || 0) > 0.35;
     audioSynth.updateAcousticWorld(dtStep, {
       camera,
       camMode: camDirector.mode,
       isRoofSheltered: DynamicTrafficAI._isShelteredByRoof(camera.position.x, camera.position.z),
+      solarHour: weather.currentSolarHour,
+      temperatureC: latestDepokWeather?.temperatureC,
+      humidityPct: latestDepokWeather?.humidityPct,
       rainIntensity: weather.uniforms.uRainIntensity.value,
       stormFactor: weather.uniforms.uStormFactor.value,
       windSpeed: weather.uniforms.uWindVec.value.length(),
@@ -1775,13 +1781,15 @@ async function bootstrapNexusSimulator() {
       fountainNightBlend: rotundaFountain.nightBlend || 0.0,
       coastDist: TerrainDEMLoader.getIslandCoastDistance(camera.position.x, camera.position.z),
       riverZ: TerrainDEMLoader.evalPulauURiverCenterZ(camera.position.x),
+      videotronPlaying: Boolean(videotron && !videotron.isMuted && videotron.isPlaying),
       sivitasAI,
       avataThrottle01: camDirector._avataThrottle01 || 0.0,
-      avataTurnRate:
-        Math.abs(camDirector._avataYawRateSmooth || 0.0) +
-        Math.abs(camDirector._avataRollRate || 0.0) * 0.35,
-      avataGForce: camDirector._avataGForceSmooth || 1.0,
-      obstacleClearanceM: camDirector._avataApasActive ? 3.0 : 99.0
+      avataTurnRate: Math.abs(camDirector._avataYawRateSmooth || 0.0),
+      avataGForce: camDirector._avataGForce || 1.0,
+      avataStuntActive: Boolean(camDirector._avataStunt?.active),
+      avataApasActive: apasActive,
+      obstacleClearanceM: apasActive ? 2.2 : inCorridor ? 2.8 : 99.0,
+      mavicFov: camDirector._mavicCinemaFov || 43.0
     });
   }
 
@@ -1800,6 +1808,10 @@ async function bootstrapNexusSimulator() {
       avataAudioBtn.textContent = active ? '\u{1F50A} ON' : '\u{1F508} Suara';
       avataAudioBtn.classList.toggle('active', active);
     }
+    const curMix = audioSynth.getMixProfile ? audioSynth.getMixProfile() : 'BALANCED';
+    audioMixBtns.forEach((b) => {
+      b.classList.toggle('active', b.dataset.audiomix === curMix);
+    });
   }
 
   function syncAcousticTelemetryDOM() {
@@ -1812,15 +1824,22 @@ async function bootstrapNexusSimulator() {
       audioVolSlider.value = String(volPct);
     }
     if (acousticStatusEl) {
+      const contextLabel =
+        tel.zoneId === 'OPEN_AIR' || tel.zoneId === 'HIGH_ALTITUDE'
+          ? tel.microBiomeLabel || tel.zoneLabel
+          : tel.zoneLabel;
       if (tel.enabled) {
         const doppTxt =
           Math.abs(tel.dominantDoppler - 1.0) >= 0.008
             ? ` (${tel.dominantDoppler.toFixed(2)}\u00D7)`
             : '';
-        acousticStatusEl.textContent = `HRTF 3D \u00B7 ${tel.zoneLabel} \u00B7 Gema ${tel.reverbSendPct}% \u00B7 ${tel.dominantSourceLabel}${doppTxt}`;
+        const focusTxt = tel.activeSfxBanner
+          ? `SFX: ${tel.activeSfxBanner}`
+          : `${tel.dominantSourceLabel}${doppTxt}`;
+        acousticStatusEl.textContent = `${contextLabel} \u00B7 Gema ${tel.reverbSendPct}% \u00B7 ${focusTxt}`;
         acousticStatusEl.style.color = 'var(--ok-green)';
       } else {
-        acousticStatusEl.textContent = `HRTF 3D \u00B7 ${tel.zoneLabel} \u00B7 Klik Suara / G`;
+        acousticStatusEl.textContent = `HRTF 3D \u00B7 ${contextLabel} \u00B7 Klik Suara / G`;
         acousticStatusEl.style.color = 'var(--text-muted)';
       }
     }
@@ -1857,6 +1876,20 @@ async function bootstrapNexusSimulator() {
       syncAcousticTelemetryDOM();
     });
   }
+
+  audioMixBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      dismissWelcomeToast();
+      audioSynth.setMixProfile(btn.dataset.audiomix);
+      if (!audioSynth.enabled) {
+        audioSynth.toggle(true);
+      }
+      updateAcousticWorldNow(0.016);
+      audioSynth.playUiChime(btn.dataset.audiomix === 'NATURE' ? 528 : btn.dataset.audiomix === 'TRANSIT' ? 740 : 640);
+      syncAudioButtonsDOM();
+      syncAcousticTelemetryDOM();
+    });
+  });
 
   if (audioBtn) audioBtn.addEventListener('click', toggleMasterAudio);
   if (qdockAudioBtn) qdockAudioBtn.addEventListener('click', toggleMasterAudio);
