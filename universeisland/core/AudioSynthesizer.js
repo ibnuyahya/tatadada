@@ -23,6 +23,10 @@ export class AudioSynthesizer {
     this.avataMotorGain = null;
     this.avataWashFilter = null;
     this.avataWashGain = null;
+    this.fountainFilter = null;
+    this.fountainGain = null;
+    this.waterfallFilter = null;
+    this.waterfallGain = null;
     this._pinkBuffer = null;
     this._thunderTimers = [];
   }
@@ -172,6 +176,42 @@ export class AudioSynthesizer {
     this.avataWashFilter.connect(this.avataWashGain);
     this.avataWashGain.connect(this.masterGain);
     washSrc.start();
+
+    // Bus 6: Spatial Rotunda Dancing Fountain Shimmer & Pulau I Niagara Waterfall / Shoreline Surf Bus
+    const fountainSrc = this.ctx.createBufferSource();
+    fountainSrc.buffer = patterBuffer;
+    fountainSrc.loop = true;
+    fountainSrc.playbackRate.value = 1.24;
+
+    this.fountainFilter = this.ctx.createBiquadFilter();
+    this.fountainFilter.type = 'bandpass';
+    this.fountainFilter.frequency.value = 1850;
+    this.fountainFilter.Q.value = 0.85;
+
+    this.fountainGain = this.ctx.createGain();
+    this.fountainGain.gain.value = 0.0;
+
+    fountainSrc.connect(this.fountainFilter);
+    this.fountainFilter.connect(this.fountainGain);
+    this.fountainGain.connect(this.masterGain);
+    fountainSrc.start();
+
+    const waterfallSrc = this.ctx.createBufferSource();
+    waterfallSrc.buffer = pinkBuffer;
+    waterfallSrc.loop = true;
+
+    this.waterfallFilter = this.ctx.createBiquadFilter();
+    this.waterfallFilter.type = 'bandpass';
+    this.waterfallFilter.frequency.value = 640;
+    this.waterfallFilter.Q.value = 0.55;
+
+    this.waterfallGain = this.ctx.createGain();
+    this.waterfallGain.gain.value = 0.0;
+
+    waterfallSrc.connect(this.waterfallFilter);
+    this.waterfallFilter.connect(this.waterfallGain);
+    this.waterfallGain.connect(this.masterGain);
+    waterfallSrc.start();
   }
 
   setWeatherAudio(weatherMode) {
@@ -256,6 +296,52 @@ export class AudioSynthesizer {
     const washGain = 0.04 + (spd / 27.0) * 0.18 + turn * 0.045;
     this.avataWashFilter.frequency.setTargetAtTime(620 + (spd / 27.0) * 740 + turn * 140, now, 0.08);
     this.avataWashGain.gain.setTargetAtTime(Math.min(0.32, washGain), now, 0.08);
+  }
+
+  /**
+   * 3D Proximity-Attenuated Rotunda Dancing Fountain, Niagara Waterfall, & Low-Altitude Coastal Waves
+   */
+  syncSpatialWaterAudio(camX = 0.0, camY = 20.0, camZ = 100.0) {
+    if (!this.ctx || !this.fountainGain || !this.waterfallGain) return;
+    const now = this.ctx.currentTime;
+    if (!this.enabled) {
+      this.fountainGain.gain.setTargetAtTime(0.0, now, 0.15);
+      this.waterfallGain.gain.setTargetAtTime(0.0, now, 0.15);
+      return;
+    }
+
+    // Rotunda Dancing Fountain at (-2.5, 0.3, 106.5)
+    const dFount = Math.hypot(camX - -2.5, camY - 2.0, camZ - 106.5);
+    const fountProx = Math.max(0.0, 1.0 - dFount / 72.0);
+    this.fountainGain.gain.setTargetAtTime(fountProx * fountProx * 0.42, now, 0.16);
+
+    // Pulau I Niagara Waterfall (-44, 9, 643) + Low-Skim Teluk/Selat Wave Wash
+    const dNiagara = Math.hypot(camX - -44.0, camY - 9.0, camZ - 643.0);
+    const niagProx = Math.max(0.0, 1.0 - dNiagara / 115.0);
+    const lowSeaProx = camY > -2.2 && camY < 11.5 ? Math.max(0.0, (11.5 - camY) / 11.5) * 0.16 : 0.0;
+    const surfLevel = Math.min(0.62, niagProx * niagProx * 0.56 + lowSeaProx);
+    this.waterfallFilter.frequency.setTargetAtTime(480 + niagProx * 420, now, 0.18);
+    this.waterfallGain.gain.setTargetAtTime(surfLevel, now, 0.18);
+  }
+
+  /**
+   * Soft subtle harmonic tactile chime for stunt/zone confirmation when audio is enabled
+   */
+  playUiChime(freqHz = 580) {
+    if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freqHz, t0);
+    osc.frequency.exponentialRampToValueAtTime(freqHz * 1.26, t0 + 0.09);
+    g.gain.setValueAtTime(0.001, t0);
+    g.gain.linearRampToValueAtTime(0.08, t0 + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.13);
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start(t0);
+    osc.stop(t0 + 0.14);
   }
 
   /**

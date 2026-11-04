@@ -201,6 +201,10 @@ export class CameraDirector {
     this._droneManualEngaged = false;
     this._mavicGimbalYaw = 0.0;
     this._mavicGimbalPitch = 0.0;
+    this._mavicGimbalIdle = 0.0;
+    this._mavicCinemaFov = 43.0;
+    this._exploreStick = { moveX: 0, moveY: 0, climbY: 0, boost: false };
+    this._avataZoneJumpFlip = 0;
     this._mavicSeedPhase = ((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0) % 1000 * 0.00628318;
     this.cinematicAngle = 1.88 + (this._mavicSeedPhase % 0.16);
 
@@ -648,9 +652,106 @@ export class CameraDirector {
       return Number.isFinite(this._avataCurrentBaseFov) ? this._avataCurrentBaseFov : 51.5;
     }
     if (mode === 'DRONE_6DOF' || mode === 'AUTO_CINEMATIC') {
-      return 43.0;
+      return Number.isFinite(this._mavicCinemaFov) ? this._mavicCinemaFov : 43.0;
     }
     return 48.0;
+  }
+
+  adjustMavicCinemaZoom(deltaDeg = 0.0) {
+    const next = Math.max(28.0, Math.min(54.0, (Number(this._mavicCinemaFov) || 43.0) + (Number(deltaDeg) || 0.0)));
+    this._mavicCinemaFov = next;
+    if (this.mode === 'DRONE_6DOF' || this.mode === 'AUTO_CINEMATIC') {
+      this._applyBaseVerticalFov(next);
+    }
+    return next;
+  }
+
+  resetMavicGimbalAndZoom() {
+    this._mavicGimbalYaw = 0.0;
+    this._mavicGimbalPitch = 0.0;
+    this._mavicGimbalIdle = 0.0;
+    this._mavicCinemaFov = 43.0;
+    if (this.mode === 'DRONE_6DOF' || this.mode === 'AUTO_CINEMATIC') {
+      this._applyBaseVerticalFov(43.0);
+    }
+  }
+
+  resumeMavicIslandTour() {
+    if (this.mode !== 'DRONE_6DOF') {
+      this.setMode('DRONE_6DOF', { startIslandTour: true });
+      return;
+    }
+    let bestAng = this.cinematicAngle;
+    let bestD2 = Infinity;
+    const steps = 72;
+    for (let i = 0; i < steps; i++) {
+      const a = (Math.PI * 2.0 * i) / steps;
+      this._evalMavicIslandOrbit(a, null, this._avataTmpP0, this._avataTmpP1);
+      const d2 = this._avataTmpP0.distanceToSquared(this.camera.position);
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        bestAng = a;
+      }
+    }
+    this.cinematicAngle = bestAng;
+    this._droneManualEngaged = false;
+    this._exploreStick.moveX = 0;
+    this._exploreStick.moveY = 0;
+    this._exploreStick.climbY = 0;
+    this._exploreStick.boost = false;
+    this.velocity.set(0, 0, 0);
+    this._mavicGimbalYaw = 0.0;
+    this._mavicGimbalPitch = 0.0;
+    this._mavicGimbalIdle = 0.0;
+  }
+
+  setExploreStickInput(partial = {}) {
+    if (!partial || typeof partial !== 'object') return;
+    if (Number.isFinite(partial.moveX)) this._exploreStick.moveX = Math.max(-1, Math.min(1, partial.moveX));
+    if (Number.isFinite(partial.moveY)) this._exploreStick.moveY = Math.max(-1, Math.min(1, partial.moveY));
+    if (Number.isFinite(partial.climbY)) this._exploreStick.climbY = Math.max(-1, Math.min(1, partial.climbY));
+    if (typeof partial.boost === 'boolean') this._exploreStick.boost = partial.boost;
+  }
+
+  jumpAvataToZone(zoneKey = 'RANDOM') {
+    if (!this._avataZoneJumpCounts) this._avataZoneJumpCounts = {};
+    const idx = this._avataZoneJumpCounts[zoneKey] || 0;
+    this._avataZoneJumpCounts[zoneKey] = idx + 1;
+    const zoneMap = {
+      REKTORAT: [
+        { startManeuver: 'M21_REKTORAT_LOW_PLAZA_AWE_CLIMB', cursorOffset: 1.15 },
+        { startManeuver: 'M22_REKTORAT_CROWN_SPLIT_S_DIVE', cursorOffset: 1.15 }
+      ],
+      LORONG_TEKSAS: [
+        { startManeuver: 'M01_LORONG_TEKSAS_NORTH', cursorOffset: 2.85 },
+        { startManeuver: 'M18_LORONG_TEKSAS_SOUTHBOUND', cursorOffset: 1.85 }
+      ],
+      KOLONG_TEKSAS: [
+        { startManeuver: 'M16_KOLONG_TEKSAS_WESTBOUND', cursorOffset: 1.15 },
+        { startManeuver: 'M09B_WEST_BAY_KOLONG_TEKSAS_EASTBOUND', cursorOffset: 1.15 },
+        { startManeuver: 'M02_KOLONG_TEKSAS_EASTBOUND', cursorOffset: 1.85 }
+      ],
+      DPPD_CANYON: [
+        { startManeuver: 'M04_DPPD_CANYON_GAP_LINE', cursorOffset: 2.15 },
+        { startManeuver: 'M07_WEST_BAY_TO_DPPD_CANYON', cursorOffset: 2.15 }
+      ],
+      UNDERPASS: [
+        { startManeuver: 'M10_SUBSEA_UNDERPASS_NORTHBOUND', cursorOffset: 2.85 },
+        { startManeuver: 'M15_REVERSE_SUBSEA_SOUTHBOUND', cursorOffset: 5.85 }
+      ],
+      GUNUNG_NIAGARA: [
+        { startManeuver: 'M12_NIAGARA_WATERFALL_ASCENT_TO_CRATER', cursorOffset: 2.05 },
+        { startManeuver: 'M11_GUNUNG_API_CRATER_AND_NIAGARA_PLUNGE', cursorOffset: 2.35 }
+      ]
+    };
+    const variants = zoneMap[zoneKey];
+    if (!variants) {
+      this.setMode('DRONE_AVATA2_FPV', {});
+      return this._avataActiveManeuverId;
+    }
+    const chosen = variants[idx % variants.length];
+    this.setMode('DRONE_AVATA2_FPV', chosen);
+    return this._avataActiveManeuverId;
   }
 
   _nextAvataRand01() {
@@ -1771,6 +1872,13 @@ export class CameraDirector {
       this.camera.getWorldDirection(this._flightLookTmp);
     }
 
+    if (prevMode !== newMode) {
+      this._exploreStick.moveX = 0;
+      this._exploreStick.moveY = 0;
+      this._exploreStick.climbY = 0;
+      this._exploreStick.boost = false;
+    }
+
     if (prevMode === 'DRONE_AVATA2_FPV' && newMode !== 'DRONE_AVATA2_FPV') {
       this._avataStick.moveX = 0;
       this._avataStick.moveY = 0;
@@ -1871,6 +1979,11 @@ export class CameraDirector {
       this._droneManualEngaged = false;
       this._mavicGimbalYaw = 0.0;
       this._mavicGimbalPitch = 0.0;
+      this._mavicGimbalIdle = 0.0;
+      if (options.startIslandTour === true) {
+        this._mavicCinemaFov = 43.0;
+        this._applyBaseVerticalFov(43.0);
+      }
     } else if (newMode === 'DRONE_AVATA2_FPV') {
       if (this.controls) this.controls.enabled = false;
       this._avataYawRateAccum = 0.0;
@@ -2037,6 +2150,7 @@ export class CameraDirector {
     if (this.mode === 'DRONE_6DOF' && !this._droneManualEngaged) {
       this._mavicGimbalYaw = Math.max(-2.6, Math.min(2.6, this._mavicGimbalYaw - dx * sensitivity));
       this._mavicGimbalPitch = Math.max(-0.95, Math.min(0.85, this._mavicGimbalPitch - dy * sensitivity));
+      this._mavicGimbalIdle = 0.0;
       return;
     }
     this.yaw -= dx * sensitivity;
@@ -2402,38 +2516,49 @@ export class CameraDirector {
     }
     const isWalk = this.mode === 'WALK_SIVITAS';
     const mavicBoost =
-      !isWalk && (this.keyState.has('ShiftLeft') || this.keyState.has('ShiftRight'));
-    const maxSpeed = isWalk ? 6.2 : mavicBoost ? 17.5 : 11.5;
+      !isWalk &&
+      (this.keyState.has('ShiftLeft') || this.keyState.has('ShiftRight') || Boolean(this._exploreStick.boost));
+    const maxSpeed = isWalk ? (this._exploreStick.boost ? 8.8 : 6.2) : mavicBoost ? 17.5 : 11.5;
     const accel = isWalk ? 32.0 : mavicBoost ? 88.0 : 58.0;
 
     this._forward.set(-Math.sin(this.yaw), isWalk ? 0 : Math.sin(this.pitch), -Math.cos(this.yaw)).normalize();
     this._right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw)).normalize();
 
-    let moveF = 0;
-    let moveR = 0;
-    let moveU = 0;
-    if (this.keyState.has('KeyW') || this.keyState.has('ArrowUp')) moveF += 1;
-    if (this.keyState.has('KeyS') || this.keyState.has('ArrowDown')) moveF -= 1;
-    if (this.keyState.has('KeyD') || this.keyState.has('ArrowRight')) moveR += 1;
-    if (this.keyState.has('KeyA') || this.keyState.has('ArrowLeft')) moveR -= 1;
+    let keyF = 0;
+    let keyR = 0;
+    let keyU = 0;
+    if (this.keyState.has('KeyW') || this.keyState.has('ArrowUp')) keyF += 1;
+    if (this.keyState.has('KeyS') || this.keyState.has('ArrowDown')) keyF -= 1;
+    if (this.keyState.has('KeyD') || this.keyState.has('ArrowRight')) keyR += 1;
+    if (this.keyState.has('KeyA') || this.keyState.has('ArrowLeft')) keyR -= 1;
     if (!isWalk) {
-      if (this.keyState.has('KeyE') || this.keyState.has('Space')) moveU += 1;
+      if (this.keyState.has('KeyE') || this.keyState.has('Space')) keyU += 1;
       if (
         this.keyState.has('KeyQ') ||
         this.keyState.has('KeyC') ||
         this.keyState.has('ControlLeft') ||
         this.keyState.has('ControlRight')
       ) {
-        moveU -= 1;
+        keyU -= 1;
       }
     }
 
-    // Mavic 3 Pro Cinema Island-Circling Tour in DRONE_6DOF before manual drone keys are engaged
-    const hasManualInput = moveF !== 0 || moveR !== 0 || moveU !== 0;
+    const moveF = Math.max(-1, Math.min(1, keyF + this._exploreStick.moveY));
+    const moveR = Math.max(-1, Math.min(1, keyR + this._exploreStick.moveX));
+    const moveU = isWalk ? 0 : Math.max(-1, Math.min(1, keyU + this._exploreStick.climbY));
+
+    // Mavic 3 Pro Cinema Island-Circling Tour in DRONE_6DOF before manual drone keys/sticks are engaged
+    const hasManualInput = Math.abs(moveF) > 0.04 || Math.abs(moveR) > 0.04 || Math.abs(moveU) > 0.04;
     if (hasManualInput) {
       this._droneManualEngaged = true;
     }
     if (!isWalk && !hasManualInput && !this._droneManualEngaged && this.camera.position.y > 2.0) {
+      this._mavicGimbalIdle += clampedDt;
+      if (this._mavicGimbalIdle > 4.2) {
+        const gDecay = Math.exp(-1.4 * clampedDt);
+        this._mavicGimbalYaw *= gDecay;
+        this._mavicGimbalPitch *= gDecay;
+      }
       this.velocity.set(0, 0, 0);
       this.cinematicAngle += clampedDt * 0.042;
       this._evalMavicIslandOrbit(this.cinematicAngle, floorHeightFn, this.goalPos, this.goalTarget);
