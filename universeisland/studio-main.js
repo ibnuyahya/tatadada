@@ -138,7 +138,7 @@ async function bootstrapStudioWorkbench() {
     sharedUniforms
   );
   weather.onThunder = (distanceMeters, intensity) => {
-    audioSynth.triggerThunder(distanceMeters, intensity);
+    audioSynth.triggerThunder(distanceMeters, intensity, weather.uniforms.uLightningDir.value);
   };
 
   // Boot into Real-Time Kampus UI Depok WIB Clock & Live Weather by Default
@@ -535,13 +535,23 @@ async function bootstrapStudioWorkbench() {
     sharedUniforms.uTime.value += dt;
     weather.update(dt, camera, sharedUniforms);
     GedungRektoratUIAsset.setNightIllumination(rektoratAsset, weather.nightIlluminationLevel);
-    audioSynth.syncContinuousWeatherAudio(
-      weather.uniforms.uRainIntensity.value,
-      weather.uniforms.uStormFactor.value,
-      weather.uniforms.uWindVec.value.length()
-    );
 
     camDirector.update(dt, studioGroundFn);
+    camera.updateMatrixWorld();
+    audioSynth.updateAcousticWorld(dt, {
+      camera,
+      camMode: camDirector.mode,
+      isRoofSheltered:
+        Math.abs(camera.position.x) <= 18.4 &&
+        Math.abs(camera.position.z) <= 18.4 &&
+        camera.position.y < 14.0,
+      rainIntensity: weather.uniforms.uRainIntensity.value,
+      stormFactor: weather.uniforms.uStormFactor.value,
+      windSpeed: weather.uniforms.uWindVec.value.length(),
+      wetness: weather.uniforms.uWetness.value,
+      nightFactor: weather.uniforms.uNightFactor?.value ?? weather.nightIlluminationLevel,
+      lightningDir: weather.uniforms.uLightningDir.value
+    });
     GedungRektoratUIAsset.updateKinematics(rektoratAsset, dt, {
       isNight: weather.nightIlluminationLevel > 0.35,
       nightLevel: weather.nightIlluminationLevel,
@@ -581,6 +591,7 @@ async function bootstrapStudioWorkbench() {
       camera,
       renderer,
       weather,
+      audioSynth,
       camDirector,
       studioSolidColliders,
       rektoratAsset,

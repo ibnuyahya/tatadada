@@ -336,7 +336,7 @@ async function bootstrapNexusSimulator() {
   worldRoot.add(terrainGroup, corridorGroup, rotundaFountain.mesh, biomeGroup, rektoratAsset, sivitasGroup);
 
   weather.onThunder = (distanceMeters, intensity) => {
-    audioSynth.triggerThunder(distanceMeters, intensity);
+    audioSynth.triggerThunder(distanceMeters, intensity, weather.uniforms.uLightningDir.value);
   };
 
   // Stage 8: Apply Depok WIB Clock & Real-Time Ephemeris Immediately & Compile Specialized GPU Shaders Asynchronously
@@ -1752,10 +1752,38 @@ async function bootstrapNexusSimulator() {
     });
   });
 
-  // Web Audio Soundscape (Unified Across Drawer, Quick Dock, & Avata 2 HUD + Spatial Water Bus)
+  // 3D Binaural HRTF & Physical Acoustic Engine (Unified Across Drawer, Quick Dock, & Avata 2 HUD)
   const audioBtn = document.getElementById('btn-audio');
   const qdockAudioBtn = document.getElementById('btn-qdock-audio');
   const avataAudioBtn = document.getElementById('btn-avata-audio');
+  const audioVolSlider = document.getElementById('slider-audio-vol');
+  const audioVolLabel = document.getElementById('label-audio-vol');
+  const acousticStatusEl = document.getElementById('ui-acoustic-status');
+
+  function updateAcousticWorldNow(dtStep) {
+    camera.updateMatrixWorld();
+    audioSynth.updateAcousticWorld(dtStep, {
+      camera,
+      camMode: camDirector.mode,
+      isRoofSheltered: DynamicTrafficAI._isShelteredByRoof(camera.position.x, camera.position.z),
+      rainIntensity: weather.uniforms.uRainIntensity.value,
+      stormFactor: weather.uniforms.uStormFactor.value,
+      windSpeed: weather.uniforms.uWindVec.value.length(),
+      wetness: weather.uniforms.uWetness.value,
+      nightFactor: weather.uniforms.uNightFactor?.value ?? weather.nightIlluminationLevel,
+      lightningDir: weather.uniforms.uLightningDir.value,
+      fountainNightBlend: rotundaFountain.nightBlend || 0.0,
+      coastDist: TerrainDEMLoader.getIslandCoastDistance(camera.position.x, camera.position.z),
+      riverZ: TerrainDEMLoader.evalPulauURiverCenterZ(camera.position.x),
+      sivitasAI,
+      avataThrottle01: camDirector._avataThrottle01 || 0.0,
+      avataTurnRate:
+        Math.abs(camDirector._avataYawRateSmooth || 0.0) +
+        Math.abs(camDirector._avataRollRate || 0.0) * 0.35,
+      avataGForce: camDirector._avataGForceSmooth || 1.0,
+      obstacleClearanceM: camDirector._avataApasActive ? 3.0 : 99.0
+    });
+  }
 
   function syncAudioButtonsDOM() {
     const active = Boolean(audioSynth.enabled);
@@ -1774,23 +1802,68 @@ async function bootstrapNexusSimulator() {
     }
   }
 
+  function syncAcousticTelemetryDOM() {
+    const tel = audioSynth.getAcousticTelemetry();
+    const volPct = Math.round(tel.masterVolume * 100);
+    if (audioVolLabel) {
+      audioVolLabel.textContent = `${volPct}%`;
+    }
+    if (audioVolSlider && document.activeElement !== audioVolSlider) {
+      audioVolSlider.value = String(volPct);
+    }
+    if (acousticStatusEl) {
+      if (tel.enabled) {
+        const doppTxt =
+          Math.abs(tel.dominantDoppler - 1.0) >= 0.008
+            ? ` (${tel.dominantDoppler.toFixed(2)}\u00D7)`
+            : '';
+        acousticStatusEl.textContent = `HRTF 3D \u00B7 ${tel.zoneLabel} \u00B7 Gema ${tel.reverbSendPct}% \u00B7 ${tel.dominantSourceLabel}${doppTxt}`;
+        acousticStatusEl.style.color = 'var(--ok-green)';
+      } else {
+        acousticStatusEl.textContent = `HRTF 3D \u00B7 ${tel.zoneLabel} \u00B7 Klik Suara / G`;
+        acousticStatusEl.style.color = 'var(--text-muted)';
+      }
+    }
+  }
+
   function toggleMasterAudio() {
     dismissWelcomeToast();
+    if (!audioSynth.enabled && audioSynth.getMasterVolume() < 0.05) {
+      audioSynth.setMasterVolume(0.8);
+      if (audioVolSlider) audioVolSlider.value = '80';
+    }
     const active = audioSynth.toggle();
+    updateAcousticWorldNow(0.016);
     if (active) audioSynth.playUiChime(640);
-    audioSynth.syncContinuousWeatherAudio(
-      weather.uniforms.uRainIntensity.value,
-      weather.uniforms.uStormFactor.value,
-      weather.uniforms.uWindVec.value.length()
-    );
-    audioSynth.syncSpatialWaterAudio(camera.position.x, camera.position.y, camera.position.z);
     syncAudioButtonsDOM();
+    syncAcousticTelemetryDOM();
+  }
+
+  if (audioVolSlider) {
+    audioVolSlider.addEventListener('input', () => {
+      dismissWelcomeToast();
+      const vol01 = Math.max(0.0, Math.min(1.0, Number(audioVolSlider.value) / 100.0));
+      if (vol01 <= 0.005) {
+        audioSynth.setMasterVolume(0.0);
+        if (audioSynth.enabled) audioSynth.toggle(false);
+      } else {
+        audioSynth.setMasterVolume(vol01);
+        if (!audioSynth.enabled) {
+          audioSynth.toggle(true);
+          updateAcousticWorldNow(0.016);
+        }
+      }
+      syncAudioButtonsDOM();
+      syncAcousticTelemetryDOM();
+    });
   }
 
   if (audioBtn) audioBtn.addEventListener('click', toggleMasterAudio);
   if (qdockAudioBtn) qdockAudioBtn.addEventListener('click', toggleMasterAudio);
   if (avataAudioBtn) avataAudioBtn.addEventListener('click', toggleMasterAudio);
+  updateAcousticWorldNow(0.016);
   syncAudioButtonsDOM();
+  syncAcousticTelemetryDOM();
 
   // Global Quick Keyboard Shortcuts (Non-Intrusive When Typing in Inputs)
   const QUICK_VIEW_CYCLE = ['DRONE_6DOF', 'DRONE_AVATA2_FPV', 'ORBIT', 'WALK_SIVITAS', 'FPS_CYCLE'];
@@ -1960,28 +2033,15 @@ async function bootstrapNexusSimulator() {
         Math.PI;
       rotundaFountain.update(elapsed, liveSunElevDeg, sharedUniforms, weather.uniforms.uSunDir.value);
 
-      // Continuous C^1 Architectural Window, Garden Lamp, & Helipad Night Illumination + Live Audio Coupling
+      // Continuous C^1 Architectural Window, Garden Lamp, & Helipad Night Illumination + 3D HRTF Physical Acoustic Coupling
       GedungRektoratUIAsset.setNightIllumination(rektoratAsset, weather.nightIlluminationLevel);
-      audioSynth.syncContinuousWeatherAudio(
-        weather.uniforms.uRainIntensity.value,
-        weather.uniforms.uStormFactor.value,
-        weather.uniforms.uWindVec.value.length()
-      );
-      audioSynth.syncSpatialWaterAudio(camera.position.x, camera.position.y, camera.position.z);
 
       sivitasAI.update(dt, elapsed, camera.position);
       camDirector.update(dt, sampleWalkableElevation);
       if (camDirector.isAvataFPVMode()) {
         syncAvataHudDOM(true);
-        audioSynth.syncAvataDroneAudio(
-          true,
-          camDirector._avataThrottle01,
-          camDirector.velocity.length(),
-          Math.abs(camDirector._avataYawRateSmooth)
-        );
-      } else {
-        audioSynth.syncAvataDroneAudio(false, 0, 0, 0);
       }
+      updateAcousticWorldNow(dt);
       GedungRektoratUIAsset.updateKinematics(rektoratAsset, dt, {
         isNight: weather.nightIlluminationLevel > 0.35,
         nightLevel: weather.nightIlluminationLevel,
@@ -1998,6 +2058,7 @@ async function bootstrapNexusSimulator() {
         uiTransAccum = 0.0;
         syncTransitionButtonsUI();
         syncFPSStatusDOM();
+        syncAcousticTelemetryDOM();
       }
 
       frameCount++;
@@ -2034,6 +2095,7 @@ async function bootstrapNexusSimulator() {
       camera,
       renderer,
       weather,
+      audioSynth,
       videotron,
       rotundaFountain,
       hwGovernor,
@@ -2045,6 +2107,7 @@ async function bootstrapNexusSimulator() {
       presets,
       syncTransitionButtonsUI,
       syncFPSStatusDOM,
+      syncAcousticTelemetryDOM,
       syncHardwareTelemetryDOM,
       updateDepokTelemetryDOM,
       setLiveDepok(flag) {
