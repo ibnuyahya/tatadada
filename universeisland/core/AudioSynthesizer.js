@@ -2086,7 +2086,15 @@ export class AudioSynthesizer {
    * 3D Binaural HRTF Rotunda Dancing Fountain, Niagara Waterfall, Pulau U River, & Shoreline Surf
    * with 3D Geometric Obstacle Occlusion & Temperature/Humidity Air Absorption.
    */
-  syncSpatialWaterAudio(camX = 0.0, camY = 20.0, camZ = 100.0, nightShowBlend = 0.0, coastDist = -40.0, riverZ = null) {
+  syncSpatialWaterAudio(
+    camX = 0.0,
+    camY = 20.0,
+    camZ = 100.0,
+    nightShowBlend = 0.0,
+    coastDist = -40.0,
+    riverZ = null,
+    seaWaveHeightM = 0.28
+  ) {
     if (!this.ctx || !this._emitters) return;
     const now = this.ctx.currentTime;
     if (!this.enabled) {
@@ -2156,14 +2164,18 @@ export class AudioSynthesizer {
     eWf.bp.frequency.setTargetAtTime(wfCenterHz * clamp(wfMet.doppler, 0.88, 1.14), now, 0.14);
     eWf.gain.gain.setTargetAtTime(wfLevel * wfOcc.gainMult * natM, now, 0.16);
 
-    // 3. Rhythmic Coastal Wave Surf around Pulau U, Pulau I, Teluk U & Selat UI
+    // 3. Rhythmic Coastal Wave Surf around Pulau U, Pulau I, Teluk U & Selat UI (coupled to [0.00 .. 2.00 m] sea state!)
     if (this.surfGain && this.surfFilter) {
-      const shoreNear = Math.abs(coastDist) < 48.0 ? 1.0 - Math.abs(coastDist) / 48.0 : 0.0;
-      const openWaterLow = coastDist > 0.0 && camY > -1.8 && camY < 22.0 ? (22.0 - camY) / 22.0 : 0.0;
-      const altFade = camY > -1.8 ? clamp(1.0 - Math.max(0.0, camY - 6.0) / 36.0, 0.0, 1.0) : 0.0;
+      const waveM = clamp(Number.isFinite(seaWaveHeightM) ? seaWaveHeightM : 0.28, 0.0, 2.0);
+      const waveDrive = 0.04 + 1.82 * Math.pow(waveM / 2.0, 0.86);
+      const shoreNear = Math.abs(coastDist) < 56.0 ? 1.0 - Math.abs(coastDist) / 56.0 : 0.0;
+      const openWaterLow = coastDist > 0.0 && camY > -1.8 && camY < 26.0 ? (26.0 - camY) / 26.0 : 0.0;
+      const altFade = camY > -1.8 ? clamp(1.0 - Math.max(0.0, camY - 6.0) / 40.0, 0.0, 1.0) : 0.0;
       const waveSurge = 0.68 + 0.32 * Math.sin(this._simClock * 0.88) * Math.cos(this._simClock * 0.37 + 0.8);
-      const surfVol = Math.max(shoreNear * 0.24, openWaterLow * 0.20) * altFade * waveSurge * natM;
-      this.surfFilter.frequency.setTargetAtTime(360 + waveSurge * 240, now, 0.18);
+      const surfVol =
+        Math.min(0.46, Math.max(shoreNear * 0.26, openWaterLow * 0.22) * altFade * waveSurge * waveDrive) * natM;
+      const surfCutoff = (260 + (1.0 - waveM / 2.6) * 140) + waveSurge * (210 + waveM * 95);
+      this.surfFilter.frequency.setTargetAtTime(surfCutoff, now, 0.18);
       this.surfGain.gain.setTargetAtTime(surfVol, now, 0.18);
     }
   }
@@ -2399,7 +2411,8 @@ export class AudioSynthesizer {
       camZ,
       Number(state.fountainNightBlend) || 0.0,
       Number.isFinite(state.coastDist) ? state.coastDist : -40.0,
-      state.riverZ ?? null
+      state.riverZ ?? null,
+      Number.isFinite(state.seaWaveHeightM) ? state.seaWaveHeightM : 0.28
     );
 
     const isAvata = camMode === 'DRONE_AVATA2_FPV';

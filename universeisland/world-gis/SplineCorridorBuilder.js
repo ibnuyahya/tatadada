@@ -2023,8 +2023,25 @@ export class SplineCorridorBuilder {
       }
     };
 
-    // Double-sided / thickened quad helper with exact analytic face normal
-    const pushQuadH = (ax, ay, az, bx0, by0, bz0, cx, cy, cz, dx0, dy0, dz0, col) => {
+    // Outward-verified quad helper with exact analytic face normal (auto-orients CCW front-face toward aimN!)
+    const pushQuadH = (
+      ax,
+      ay,
+      az,
+      bx0,
+      by0,
+      bz0,
+      cx,
+      cy,
+      cz,
+      dx0,
+      dy0,
+      dz0,
+      col,
+      aimNx = null,
+      aimNy = null,
+      aimNz = null
+    ) => {
       const ux = bx0 - ax;
       const uy = by0 - ay;
       const uz = bz0 - az;
@@ -2038,11 +2055,24 @@ export class SplineCorridorBuilder {
       nx /= nl;
       ny /= nl;
       nz /= nl;
+      let flip = false;
+      if (aimNx !== null && aimNy !== null && aimNz !== null) {
+        if (nx * aimNx + ny * aimNy + nz * aimNz < 0.0) {
+          nx = -nx;
+          ny = -ny;
+          nz = -nz;
+          flip = true;
+        }
+      }
       const i0 = pushVert(hPos, hNorm, hUv, hCol, ax, ay, az, nx, ny, nz, col);
       const i1 = pushVert(hPos, hNorm, hUv, hCol, bx0, by0, bz0, nx, ny, nz, col);
       const i2 = pushVert(hPos, hNorm, hUv, hCol, cx, cy, cz, nx, ny, nz, col);
       const i3 = pushVert(hPos, hNorm, hUv, hCol, dx0, dy0, dz0, nx, ny, nz, col);
-      hIdx.push(i0, i1, i2, i0, i2, i3);
+      if (flip) {
+        hIdx.push(i0, i2, i1, i0, i3, i2);
+      } else {
+        hIdx.push(i0, i1, i2, i0, i2, i3);
+      }
     };
 
     const bx = TerrainDEMLoader.TEKSAS_BRIDGE_X; // -28.0
@@ -2255,94 +2285,97 @@ export class SplineCorridorBuilder {
     const botGirderHalfW = 1.46;
 
     // Lofted Parabolic Trapezoidal BTKC Weathering-Steel Box Girder (soffit strictly at y_deck - 1.30m!)
+    // Every quad explicitly aimed outward (aimNx, aimNy, aimNz) -> 100% solid watertight soffit from below!
     for (let i = 0; i < archSegs; i++) {
       const z0 = zW + (i / archSegs) * spanLen;
       const z1 = zW + ((i + 1) / archSegs) * spanLen;
       const yD0 = evalArchDeckY(z0);
       const yD1 = evalArchDeckY(z1);
-      const yTop0 = yD0 - 0.07;
-      const yTop1 = yD1 - 0.07;
+      const yTop0 = yD0 - 0.065;
+      const yTop1 = yD1 - 0.065;
       const yBot0 = yD0 - girderDepth;
       const yBot1 = yD1 - girderDepth;
 
-      // Bottom soffit plate (facing -Y downward toward Mini Yacht!)
+      // Full-width continuous under-deck structural steel pan (seals 100% of deck underside from fascia to fascia!)
       pushQuadH(
+        bx - deckHalfW - 0.14,
+        yTop0,
+        z0,
+        bx + deckHalfW + 0.14,
+        yTop0,
+        z0,
+        bx + deckHalfW + 0.14,
+        yTop1,
+        z1,
+        bx - deckHalfW - 0.14,
+        yTop1,
+        z1,
+        btkcFlangeSteel,
+        0.0,
+        -1.0,
+        0.0
+      );
+
+      // Bottom soffit plate (strictly facing -Y downward toward Teluk U & Mini Yacht!)
+      pushQuadH(
+        bx - botGirderHalfW,
+        yBot0,
+        z0,
+        bx + botGirderHalfW,
+        yBot0,
+        z0,
+        bx + botGirderHalfW,
+        yBot1,
+        z1,
+        bx - botGirderHalfW,
+        yBot1,
+        z1,
+        btkcCharcoal,
+        0.0,
+        -1.0,
+        0.0
+      );
+
+      // Central longitudinal bottom stiffener keel rib along soffit centerline
+      pushTubeH(bx, yBot0 - 0.045, z0, bx, yBot1 - 0.045, z1, 0.065, 0.065, 6, btkcFlangeSteel);
+
+      // North (+X) inclined box-girder web (strictly facing +X / -Y outward!)
+      pushQuadH(
+        bx + botGirderHalfW,
+        yBot0,
+        z0,
+        bx + topGirderHalfW,
+        yTop0,
+        z0,
+        bx + topGirderHalfW,
+        yTop1,
+        z1,
+        bx + botGirderHalfW,
+        yBot1,
+        z1,
+        btkcCharcoal,
+        1.0,
+        -0.5,
+        0.0
+      );
+      // South (-X) inclined box-girder web (strictly facing -X / -Y outward!)
+      pushQuadH(
+        bx - topGirderHalfW,
+        yTop0,
+        z0,
         bx - botGirderHalfW,
         yBot0,
         z0,
         bx - botGirderHalfW,
         yBot1,
         z1,
-        bx + botGirderHalfW,
-        yBot1,
-        z1,
-        bx + botGirderHalfW,
-        yBot0,
-        z0,
-        btkcCharcoal
-      );
-      // North (+X) inclined box-girder web
-      pushQuadH(
-        bx + botGirderHalfW,
-        yBot0,
-        z0,
-        bx + botGirderHalfW,
-        yBot1,
-        z1,
-        bx + topGirderHalfW,
-        yTop1,
-        z1,
-        bx + topGirderHalfW,
-        yTop0,
-        z0,
-        btkcCharcoal
-      );
-      // South (-X) inclined box-girder web
-      pushQuadH(
-        bx - topGirderHalfW,
-        yTop0,
-        z0,
         bx - topGirderHalfW,
         yTop1,
         z1,
-        bx - botGirderHalfW,
-        yBot1,
-        z1,
-        bx - botGirderHalfW,
-        yBot0,
-        z0,
-        btkcCharcoal
-      );
-      // Under-deck cantilever soffit wings (facing -Y downward, connecting top of box girder out to crimson fascia girders)
-      pushQuadH(
-        bx + topGirderHalfW,
-        yTop0,
-        z0,
-        bx + deckHalfW + 0.10,
-        yTop0,
-        z0,
-        bx + deckHalfW + 0.10,
-        yTop1,
-        z1,
-        bx + topGirderHalfW,
-        yTop1,
-        z1,
-        btkcFlangeSteel
-      );
-      pushQuadH(
-        bx - deckHalfW - 0.10,
-        yTop0,
-        z0,
-        bx - topGirderHalfW,
-        yTop0,
-        z0,
-        bx - topGirderHalfW,
-        yTop1,
-        z1,
-        bx - deckHalfW - 0.10,
-        yTop1,
-        z1,
-        btkcFlangeSteel
+        btkcCharcoal,
+        -1.0,
+        -0.5,
+        0.0
       );
 
       // Parabolic Cambered Pedestrian & Bicycle Deck Surface (5.20m clear width, +Y upward normals!)
@@ -2370,12 +2403,15 @@ export class SplineCorridorBuilder {
           bx + st.xB,
           yD0 + cB,
           z0,
-          st.col
+          st.col,
+          0.0,
+          1.0,
+          0.0
         );
       }
 
-      // Twin Krakatau Steel Crimson-Red Outer Edge Fascia I-Girders (x = bx +/- 2.68m)
-      const fIn = deckHalfW + 0.02;
+      // Twin Krakatau Steel Crimson-Red Outer Edge Fascia I-Girders (x = bx +/- 2.68m, all 4 faces aimed outward!)
+      const fIn = deckHalfW - 0.01;
       const fOut = deckHalfW + 0.16;
       const fTop0 = yD0 + 0.16;
       const fTop1 = yD1 + 0.16;
@@ -2384,17 +2420,45 @@ export class SplineCorridorBuilder {
       for (const sx of [-1, 1]) {
         const xOuter = bx + sx * fOut;
         const xInner = bx + sx * fIn;
-        if (sx > 0) {
-          pushQuadH(xOuter, fBot0, z0, xOuter, fBot1, z1, xOuter, fTop1, z1, xOuter, fTop0, z0, krakatauRed);
-          pushQuadH(xInner, fTop0, z0, xOuter, fTop0, z0, xOuter, fTop1, z1, xInner, fTop1, z1, krakatauRed);
-          pushQuadH(xInner, fBot0, z0, xInner, fTop0, z0, xInner, fTop1, z1, xInner, fBot1, z1, krakatauRedDark);
-          pushQuadH(xOuter, fBot0, z0, xInner, fBot0, z0, xInner, fBot1, z1, xOuter, fBot1, z1, krakatauRedDark);
-        } else {
-          pushQuadH(xOuter, fTop0, z0, xOuter, fTop1, z1, xOuter, fBot1, z1, xOuter, fBot0, z0, krakatauRed);
-          pushQuadH(xOuter, fTop0, z0, xInner, fTop0, z0, xInner, fTop1, z1, xOuter, fTop1, z1, krakatauRed);
-          pushQuadH(xInner, fTop0, z0, xInner, fBot0, z0, xInner, fBot1, z1, xInner, fTop1, z1, krakatauRedDark);
-          pushQuadH(xInner, fBot0, z0, xOuter, fBot0, z0, xOuter, fBot1, z1, xInner, fBot1, z1, krakatauRedDark);
-        }
+        // Outer vertical face (aimed sx along X)
+        pushQuadH(xOuter, fBot0, z0, xOuter, fBot1, z1, xOuter, fTop1, z1, xOuter, fTop0, z0, krakatauRed, sx, 0.0, 0.0);
+        // Top horizontal flange (aimed +Y)
+        pushQuadH(xInner, fTop0, z0, xOuter, fTop0, z0, xOuter, fTop1, z1, xInner, fTop1, z1, krakatauRed, 0.0, 1.0, 0.0);
+        // Inner vertical face (aimed -sx along X)
+        pushQuadH(xInner, fBot0, z0, xInner, fTop0, z0, xInner, fTop1, z1, xInner, fBot1, z1, krakatauRedDark, -sx, 0.0, 0.0);
+        // Bottom soffit flange (aimed -Y)
+        pushQuadH(xOuter, fBot0, z0, xInner, fBot0, z0, xInner, fBot1, z1, xOuter, fBot1, z1, krakatauRedDark, 0.0, -1.0, 0.0);
+      }
+    }
+
+    // Watertight West (zW) & East (zE) Trapezoidal Box-Girder End Diaphragm Bulkheads + Elastomeric Abutment Bearings
+    for (const [zEnd, aimZ] of [
+      [zW, -1.0],
+      [zE, 1.0]
+    ]) {
+      const yDE = evalArchDeckY(zEnd);
+      pushQuadH(
+        bx - botGirderHalfW,
+        yDE - girderDepth,
+        zEnd,
+        bx + botGirderHalfW,
+        yDE - girderDepth,
+        zEnd,
+        bx + topGirderHalfW,
+        yDE - 0.065,
+        zEnd,
+        bx - topGirderHalfW,
+        yDE - 0.065,
+        zEnd,
+        btkcFlangeSteel,
+        0.0,
+        0.0,
+        aimZ
+      );
+      for (const sx of [-1, 1]) {
+        const bearingShoe = new THREE.BoxGeometry(0.68, 0.26, 0.68);
+        bearingShoe.translate(bx + sx * 1.02, yDE - girderDepth - 0.08, zEnd - aimZ * 0.12);
+        appendPart(hPos, hNorm, hUv, hCol, hIdx, bearingShoe, btkcFlangeSteel);
       }
     }
 
@@ -2424,20 +2488,29 @@ export class SplineCorridorBuilder {
       }
     }
 
-    // 28 Transverse Under-Deck Cantilever Outrigger Brackets
+    // 28 Transverse Under-Deck Steel Floor Cross-Beams & Diagonal Cantilever Outrigger Brackets
     for (let b = 0; b <= 28; b++) {
       const zB = zW + (b / 28) * spanLen;
       const yDB = evalArchDeckY(zB);
+      const slopeB = evalArchSlope(zB);
+      const pitchB = -Math.atan2(slopeB, 1.0);
+
+      // Full-width transverse steel I-beam rib under the deck pan
+      const floorRib = new THREE.BoxGeometry(deckHalfW * 2.0 + 0.14, 0.20, 0.14);
+      floorRib.rotateX(pitchB);
+      floorRib.translate(bx, yDB - 0.17, zB);
+      appendPart(hPos, hNorm, hUv, hCol, hIdx, floorRib, btkcFlangeSteel);
+
       for (const sx of [-1, 1]) {
         pushTubeH(
-          bx + sx * (botGirderHalfW + 0.15),
-          yDB - 0.72,
+          bx + sx * (botGirderHalfW + 0.12),
+          yDB - 0.78,
           zB,
-          bx + sx * (deckHalfW + 0.08),
+          bx + sx * (deckHalfW - 0.02),
           yDB - 0.22,
           zB,
           0.075,
-          0.065,
+          0.062,
           6,
           btkcFlangeSteel
         );

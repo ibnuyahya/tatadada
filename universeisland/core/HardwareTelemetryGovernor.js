@@ -87,6 +87,19 @@ export class HardwareTelemetryGovernor {
     this.gpuModel = 'WebGL2 Hardware GPU';
     this.gpuVendor = 'Generic';
     this.gpuClass = 'GAMING_DGPU';
+    this.gpuCaps = {
+      rawRenderer: 'WebGL2 Hardware GPU',
+      rawVendor: 'Generic',
+      glVersion: 'WebGL 2.0',
+      glslVersion: 'WebGL GLSL ES 3.00',
+      maxTextureSize: 8192,
+      maxCubeMapSize: 8192,
+      maxVertexTexUnits: 16,
+      maxCombinedTexUnits: 32,
+      maxSamplesMSAA: 4,
+      maxAnisotropy: 16,
+      colorBufferFloat: true
+    };
     this.cpuCores =
       typeof navigator !== 'undefined' && Number.isFinite(navigator.hardwareConcurrency)
         ? navigator.hardwareConcurrency
@@ -102,16 +115,49 @@ export class HardwareTelemetryGovernor {
     this._warmupSamplesMs = [];
     this.warmupAvgFrameMs = 4.8;
     this.emaFrameMs = 6.2;
+    this.emaCpuMs = 1.6;
     this.emaFps = 120.0;
     this.livePixelRatio = 1.0;
 
     this._frameCounter = 0;
     this._governorTimer = 0.0;
+    this._overloadStreak = 0;
+    this._headroomStreak = 0;
+    this._uptimeSec = 0.0;
+
+    // Zero-GC 60-Second (1 Hz × 60 slots = 1.68 KB) Engine Forensic Ring Buffer
+    this._ringCap = 60;
+    this._ringHead = 0;
+    this._ringCount = 0;
+    this._ringTimeSec = new Float32Array(60);
+    this._ringFps = new Float32Array(60);
+    this._ringAvgMs = new Float32Array(60);
+    this._ringPeakMs = new Float32Array(60);
+    this._ringCpuMs = new Float32Array(60);
+    this._ringCalls = new Uint16Array(60);
+    this._ringDpr = new Float32Array(60);
+    this._sortScratch = new Float32Array(60);
+
+    // Per-second O(1) frame accumulator
+    this._secWallAccum = 0.0;
+    this._secFrames = 0;
+    this._secSumMs = 0.0;
+    this._secPeakMs = 0.0;
+    this._secSumCpuMs = 0.0;
+    this._secMaxCalls = 0;
+    this._lastSpikeLogSec = -10.0;
+
+    // Bounded 24-entry Circular Forensic Event Log
+    this._eventCap = 24;
+    this._eventRing = new Array(24);
+    this._eventHead = 0;
+    this._eventCount = 0;
+
     this._lastShadowSnapX = NaN;
-    this._lastShadowSnapZ = NaN;
     this._lastSunDirX = NaN;
     this._lastSunDirY = NaN;
     this._lastSunDirZ = NaN;
+    this._lastShadowSnapZ = NaN;
     this._tmpFocus = new THREE.Vector3();
 
     if (renderer) {
@@ -236,7 +282,23 @@ export class HardwareTelemetryGovernor {
   }
 
   /**
-   * Probes WebGL2 context parameters & classifies initial hardware tier.
+   * Appends a lightweight timestamped forensic event into the 24-slot circular ring (zero bloat).
+   */
+  logEvent(tag = 'INFO', detail = '') {
+    const sec = Math.max(0.0, this._uptimeSec || 0.0);
+    const entry = {
+      tSec: +sec.toFixed(1),
+      tag: String(tag).toUpperCase(),
+      msg: String(detail)
+    };
+    this._eventRing[this._eventHead] = entry;
+    this._eventHead = (this._eventHead + 1) % this._eventCap;
+    if (this._eventCount < this._eventCap) this._eventCount++;
+    return entry;
+  }
+
+  /**
+   * Probes WebGL2 context parameters & classifies initial hardware tier (one-time GL query at boot).
    */
   probeHardware(renderer) {
     this.renderer = renderer || this.renderer;
@@ -256,6 +318,19 @@ export class HardwareTelemetryGovernor {
         }
         const maxVertTex = gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) || 0;
         this.supportsVertexFloatTex = maxVertTex >= 1;
+        this.gpuCaps = {
+          rawRenderer: rawRenderer || 'WebGL2 Masked Renderer',
+          rawVendor: rawVendor || 'WebGL2 Vendor',
+          glVersion: String(gl.getParameter(gl.VERSION) || 'WebGL 2.0'),
+          glslVersion: String(gl.getParameter(gl.SHADING_LANGUAGE_VERSION) || 'GLSL ES 3.00'),
+          maxTextureSize: Number(gl.getParameter(gl.MAX_TEXTURE_SIZE)) || 8192,
+          maxCubeMapSize: Number(gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE)) || 8192,
+          maxVertexTexUnits: Number(maxVertTex) || 16,
+          maxCombinedTexUnits: Number(gl.getParameter(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS)) || 32,
+          maxSamplesMSAA: Number(gl.getParameter(gl.MAX_SAMPLES ?? 0x8d57)) || 4,
+          maxAnisotropy: Number(this.renderer?.capabilities?.getMaxAnisotropy?.()) || 1,
+          colorBufferFloat: Boolean(gl.getExtension('EXT_color_buffer_float'))
+        };
       }
     } catch (_e) {
       // Safe fallback in headless Node mock
@@ -278,6 +353,10 @@ export class HardwareTelemetryGovernor {
       this.activeTierId = this.detectedTierId;
     }
     this._applyTierPresetToEngine(this.activeTierId, true);
+    this.logEvent(
+      'BOOT',
+      `${this.gpuModel} (${this.activeTierId}, DPR ${this.livePixelRatio.toFixed(2)}×, MaxTex ${this.gpuCaps.maxTextureSize})`
+    );
     return this.getTelemetryState();
   }
 
@@ -323,7 +402,10 @@ export class HardwareTelemetryGovernor {
       this.mode = norm;
       this.activeTierId = norm;
     }
+    this._overloadStreak = 0;
+    this._headroomStreak = 0;
     this._applyTierPresetToEngine(this.activeTierId, true);
+    this.logEvent('TIER', `Mode ${this.mode} -> ${this.activeTierId} (DPR ${this.livePixelRatio.toFixed(2)}×)`);
     return this.getTelemetryState();
   }
 
@@ -368,17 +450,74 @@ export class HardwareTelemetryGovernor {
   }
 
   /**
-   * Updates camera-centered texel-snapped shadow frustum & adaptive shadow refresh cadence,
-   * and regulates High-DPI pixel ratio smoothly without visual downgrade.
+   * Updates camera-centered texel-snapped shadow frustum, adaptive shadow refresh cadence,
+   * High-DPI pixel ratio, & 60-second O(1) forensic ring buffer.
    */
-  update(dt, camera = null, focusTarget = null, weather = null) {
+  update(dt, camera = null, focusTarget = null, weather = null, perfSample = null) {
     this._frameCounter++;
-    const safeDt = Number.isFinite(dt) && dt > 0.0005 && dt < 0.25 ? dt : 0.00833;
-    const frameMs = safeDt * 1000.0;
+    const rawSec =
+      perfSample && Number.isFinite(perfSample.rawDt) && perfSample.rawDt > 0.0004
+        ? Math.min(1.0, perfSample.rawDt)
+        : Number.isFinite(dt) && dt > 0.0005 && dt < 1.0
+          ? dt
+          : 0.00833;
+    const cpuMs =
+      perfSample && Number.isFinite(perfSample.cpuMs) && perfSample.cpuMs >= 0.0
+        ? perfSample.cpuMs
+        : rawSec * 220.0;
+    const drawCalls =
+      perfSample && Number.isFinite(perfSample.calls)
+        ? perfSample.calls
+        : this.renderer?.info?.render?.calls || 0;
 
-    // Exponential moving average of frame time & FPS
-    this.emaFrameMs = this.emaFrameMs * 0.92 + frameMs * 0.08;
+    const frameMs = rawSec * 1000.0;
+    this._uptimeSec += rawSec;
+
+    // Exponential moving average of TRUE wall-clock frame time, CPU JS time, & FPS
+    this.emaFrameMs = this.emaFrameMs * 0.90 + frameMs * 0.10;
+    this.emaCpuMs = this.emaCpuMs * 0.90 + cpuMs * 0.10;
     this.emaFps = Math.min(240.0, 1000.0 / Math.max(2.0, this.emaFrameMs));
+
+    // O(1) 1-Hz Forensic Ring Buffer Accumulation (60 slots = exact last 60 seconds, zero allocations!)
+    this._secWallAccum += rawSec;
+    this._secFrames++;
+    this._secSumMs += frameMs;
+    this._secSumCpuMs += cpuMs;
+    if (frameMs > this._secPeakMs) this._secPeakMs = frameMs;
+    if (drawCalls > this._secMaxCalls) this._secMaxCalls = drawCalls;
+
+    if (
+      frameMs > 48.0 &&
+      this._uptimeSec > 2.5 &&
+      this._uptimeSec - this._lastSpikeLogSec >= 4.5
+    ) {
+      this._lastSpikeLogSec = this._uptimeSec;
+      this.logEvent(
+        'SPIKE',
+        `${frameMs.toFixed(1)}ms (CPU ${cpuMs.toFixed(1)}ms, Calls ${drawCalls}, DPR ${this.livePixelRatio.toFixed(2)}×)`
+      );
+    }
+
+    if (this._secWallAccum >= 1.0) {
+      const n = Math.max(1, this._secFrames);
+      const idx = this._ringHead;
+      this._ringTimeSec[idx] = this._uptimeSec;
+      this._ringFps[idx] = n / this._secWallAccum;
+      this._ringAvgMs[idx] = this._secSumMs / n;
+      this._ringPeakMs[idx] = this._secPeakMs;
+      this._ringCpuMs[idx] = this._secSumCpuMs / n;
+      this._ringCalls[idx] = Math.min(65535, this._secMaxCalls);
+      this._ringDpr[idx] = this.livePixelRatio;
+      this._ringHead = (idx + 1) % this._ringCap;
+      if (this._ringCount < this._ringCap) this._ringCount++;
+
+      this._secWallAccum = 0.0;
+      this._secFrames = 0;
+      this._secSumMs = 0.0;
+      this._secPeakMs = 0.0;
+      this._secSumCpuMs = 0.0;
+      this._secMaxCalls = 0;
+    }
 
     const cfg = this.getActiveTierConfig();
 
@@ -393,7 +532,7 @@ export class HardwareTelemetryGovernor {
         shCam.right = halfExt;
         shCam.top = halfExt;
         shCam.bottom = -halfExt;
-        shCam.updateProjectionMatrix();
+        shCam.updateProjectionMatrix?.();
       }
 
       // Compute focus center (OrbitControls target when enabled, or camera forward ground projection in Mavic/FPS/Walk)
@@ -441,10 +580,10 @@ export class HardwareTelemetryGovernor {
 
       if (sun.target) {
         sun.target.position.set(snapX, 0.0, snapZ);
-        sun.target.updateMatrixWorld();
+        sun.target.updateMatrixWorld?.();
       }
       sun.position.set(snapX + sdx * 135.0, sdy * 135.0, snapZ + sdz * 135.0);
-      sun.updateMatrixWorld();
+      sun.updateMatrixWorld?.();
 
       if (this.renderer && this.renderer.shadowMap) {
         this.renderer.shadowMap.autoUpdate = false;
@@ -460,26 +599,55 @@ export class HardwareTelemetryGovernor {
       }
     }
 
-    // 2. Closed-Loop Hysteresis Governor (every 0.75s) for High-DPI Pixel Ratio fine-tuning on Desktop
-    //    (Locked on Mobile so Android/iOS WebGL drawingBuffer is never reallocated mid-flight alongside YouTube iframe!)
+    // 2. Closed-Loop Hysteresis Governor (every 0.75s) for High-DPI Pixel Ratio & AUTO Tier step-down
+    //    (DPR locked on Mobile so Android/iOS WebGL drawingBuffer is never reallocated mid-flight alongside YouTube iframe!)
     if (!this.isMobileDevice) {
-      this._governorTimer += safeDt;
+      this._governorTimer += rawSec;
       if (this._governorTimer >= 0.75) {
         this._governorTimer = 0.0;
+        const tierOrder = ['TIER_S', 'TIER_A', 'TIER_B', 'TIER_C'];
+        if (this.mode === 'AUTO') {
+          const curIdx = tierOrder.indexOf(this.activeTierId);
+          const detIdx = Math.max(0, tierOrder.indexOf(this.detectedTierId));
+          if (this.emaFrameMs > 27.5 && curIdx >= 0 && curIdx < tierOrder.length - 1) {
+            this._overloadStreak++;
+            this._headroomStreak = 0;
+            if (this._overloadStreak >= 2) {
+              this._overloadStreak = 0;
+              this.activeTierId = tierOrder[curIdx + 1];
+              this._applyTierPresetToEngine(this.activeTierId, false);
+              this.logEvent('GOV', `Auto step-down -> ${this.activeTierId} (${this.emaFrameMs.toFixed(1)}ms)`);
+            }
+          } else if (this.emaFrameMs < 9.5 && curIdx > detIdx) {
+            this._headroomStreak++;
+            this._overloadStreak = 0;
+            if (this._headroomStreak >= 4) {
+              this._headroomStreak = 0;
+              this.activeTierId = tierOrder[curIdx - 1];
+              this._applyTierPresetToEngine(this.activeTierId, false);
+              this.logEvent('GOV', `Auto step-up -> ${this.activeTierId} (${this.emaFrameMs.toFixed(1)}ms)`);
+            }
+          } else {
+            this._overloadStreak = 0;
+            this._headroomStreak = 0;
+          }
+        }
+
+        const liveCfg = this.getActiveTierConfig();
         const nativeDpr =
           typeof window !== 'undefined' && Number.isFinite(window.devicePixelRatio)
             ? window.devicePixelRatio
             : 1.0;
-        const maxAllowed = Math.min(cfg.maxPixelRatio, Math.max(1.0, nativeDpr));
-        const minAllowed = cfg.minPixelRatio;
+        const maxAllowed = Math.min(liveCfg.maxPixelRatio, Math.max(1.0, nativeDpr));
+        const minAllowed = liveCfg.minPixelRatio;
 
-        if (this.emaFrameMs > cfg.targetFrameMs * 1.18 && this.livePixelRatio > minAllowed + 0.04) {
+        if (this.emaFrameMs > liveCfg.targetFrameMs * 1.18 && this.livePixelRatio > minAllowed + 0.04) {
           this.livePixelRatio = +Math.max(minAllowed, this.livePixelRatio - 0.1).toFixed(2);
           if (this.renderer && typeof this.renderer.setPixelRatio === 'function') {
             this.renderer.setPixelRatio(this.livePixelRatio);
           }
         } else if (
-          this.emaFrameMs < cfg.targetFrameMs * 0.72 &&
+          this.emaFrameMs < liveCfg.targetFrameMs * 0.72 &&
           this.livePixelRatio < maxAllowed - 0.04
         ) {
           this.livePixelRatio = +Math.min(maxAllowed, this.livePixelRatio + 0.05).toFixed(2);
@@ -489,6 +657,180 @@ export class HardwareTelemetryGovernor {
         }
       }
     }
+  }
+
+  /**
+   * Computes a lightweight, zero-bloat snapshot of GPU Info + Last 60 Seconds (1 Minute) Engine Forensics.
+   */
+  getForensicSnapshot(renderer = null, extra = {}) {
+    const r = renderer || this.renderer;
+    const cfg = this.getActiveTierConfig();
+    const n = this._ringCount;
+
+    let sumFps = 0.0;
+    let minFps = Infinity;
+    let sumMs = 0.0;
+    let peakMs = 0.0;
+    let sumCpuMs = 0.0;
+    let maxCalls = 0;
+
+    // Sparkline characters (8 levels)
+    const bars = '▁▂▃▄▅▆▇█';
+    let spark = '';
+    const startOff = (this._ringHead - n + this._ringCap) % this._ringCap;
+
+    for (let i = 0; i < n; i++) {
+      const idx = (startOff + i) % this._ringCap;
+      const fps = this._ringFps[idx];
+      const ms = this._ringAvgMs[idx];
+      const pk = this._ringPeakMs[idx];
+      const cpu = this._ringCpuMs[idx];
+      const calls = this._ringCalls[idx];
+      sumFps += fps;
+      if (fps < minFps) minFps = fps;
+      sumMs += ms;
+      if (pk > peakMs) peakMs = pk;
+      sumCpuMs += cpu;
+      if (calls > maxCalls) maxCalls = calls;
+      this._sortScratch[i] = ms;
+
+      // Sparkline encodes FPS stability across the last <= 30 samples (2s stride when n > 30)
+      if (n <= 30 || i % 2 === n % 2) {
+        const normBar = Math.max(0, Math.min(7, Math.round((Math.min(120.0, fps) / 120.0) * 7)));
+        spark += bars[normBar];
+      }
+    }
+
+    let avgFps = Math.round(this.emaFps);
+    let avgMs = +this.emaFrameMs.toFixed(2);
+    let p95Ms = avgMs;
+    let low5Fps = avgFps;
+    let avgCpuMs = +this.emaCpuMs.toFixed(2);
+
+    if (n > 0) {
+      avgFps = Math.round(sumFps / n);
+      avgMs = +(sumMs / n).toFixed(2);
+      avgCpuMs = +(sumCpuMs / n).toFixed(2);
+      const sub = this._sortScratch.subarray(0, n);
+      sub.sort();
+      const p95Idx = Math.min(n - 1, Math.floor(n * 0.95));
+      p95Ms = +sub[p95Idx].toFixed(2);
+      low5Fps = Math.max(1, Math.round(1000.0 / Math.max(2.0, p95Ms)));
+    } else {
+      minFps = avgFps;
+      peakMs = avgMs;
+      spark = '▅▅▅';
+    }
+
+    // Diagnose primary frame bottleneck cleanly from CPU JS time vs total wall-clock frame interval
+    let bottleneck = 'Optimal / VSync';
+    if (avgMs > 18.5) {
+      bottleneck = avgCpuMs > avgMs * 0.58 ? 'CPU JS / Simulasi' : 'GPU Fillrate / Shader';
+    }
+
+    const domEl = r?.domElement;
+    const bufW = domEl?.width || (typeof window !== 'undefined' ? window.innerWidth : 1440);
+    const bufH = domEl?.height || (typeof window !== 'undefined' ? window.innerHeight : 900);
+    const renderInfo = r?.info?.render || {};
+    const memInfo = r?.info?.memory || {};
+    const progCount = Array.isArray(r?.info?.programs) ? r.info.programs.length : 0;
+
+    let jsHeapMB = null;
+    if (typeof performance !== 'undefined' && performance.memory && performance.memory.usedJSHeapSize) {
+      jsHeapMB = +(performance.memory.usedJSHeapSize / 1048576.0).toFixed(1);
+    }
+
+    const events = [];
+    const evStart = (this._eventHead - this._eventCount + this._eventCap) % this._eventCap;
+    for (let i = 0; i < this._eventCount; i++) {
+      events.push(this._eventRing[(evStart + i) % this._eventCap]);
+    }
+
+    return {
+      uptimeSec: +this._uptimeSec.toFixed(1),
+      gpu: {
+        cleanName: this.gpuModel,
+        rawRenderer: this.gpuCaps.rawRenderer,
+        rawVendor: this.gpuCaps.rawVendor,
+        gpuClass: this.gpuClass,
+        glVersion: this.gpuCaps.glVersion,
+        glslVersion: this.gpuCaps.glslVersion,
+        maxTextureSize: this.gpuCaps.maxTextureSize,
+        maxSamplesMSAA: this.gpuCaps.maxSamplesMSAA,
+        maxAnisotropy: this.gpuCaps.maxAnisotropy,
+        maxVertexTexUnits: this.gpuCaps.maxVertexTexUnits,
+        colorBufferFloat: this.gpuCaps.colorBufferFloat,
+        cpuCores: this.cpuCores,
+        deviceMemoryGB: this.deviceMemoryGB,
+        drawingBuffer: `${bufW}×${bufH}`,
+        pixelRatio: +this.livePixelRatio.toFixed(2),
+        mode: this.mode,
+        activeTierId: this.activeTierId,
+        shadowMapSize: cfg.shadowMapSize,
+        shadowRefreshStride: cfg.shadowRefreshStride
+      },
+      window60s: {
+        samplesSec: n,
+        avgFps,
+        minFps: Number.isFinite(minFps) ? Math.round(minFps) : avgFps,
+        low5Fps,
+        avgFrameMs: avgMs,
+        p95FrameMs: p95Ms,
+        peakFrameMs: +peakMs.toFixed(1),
+        avgCpuMs,
+        bottleneck,
+        maxDrawCalls: maxCalls || renderInfo.calls || 0,
+        liveDrawCalls: renderInfo.calls || 0,
+        triangles: renderInfo.triangles || 0,
+        geometries: memInfo.geometries || 0,
+        textures: memInfo.textures || 0,
+        programs: progCount,
+        jsHeapMB,
+        sparkline: spark
+      },
+      context: extra,
+      events
+    };
+  }
+
+  /**
+   * Exports compact JSON forensic dump (GPU + 60s summary + compact 1Hz 60s series + event ring, < 3.5 KB).
+   */
+  exportForensicLogJSON(renderer = null, extra = {}) {
+    const snap = this.getForensicSnapshot(renderer, extra);
+    const n = this._ringCount;
+    const startOff = (this._ringHead - n + this._ringCap) % this._ringCap;
+    const series60s = [];
+    for (let i = 0; i < n; i++) {
+      const idx = (startOff + i) % this._ringCap;
+      series60s.push([
+        +this._ringTimeSec[idx].toFixed(0),
+        +this._ringFps[idx].toFixed(1),
+        +this._ringAvgMs[idx].toFixed(1),
+        +this._ringPeakMs[idx].toFixed(1),
+        +this._ringCpuMs[idx].toFixed(1),
+        this._ringCalls[idx],
+        +this._ringDpr[idx].toFixed(2)
+      ]);
+    }
+    const pretty = JSON.stringify(
+      {
+        engine: 'NEXUS Kepulauan UI v618 Forensic',
+        capturedAtISO: new Date().toISOString(),
+        uptimeSec: snap.uptimeSec,
+        gpu: snap.gpu,
+        last60s: snap.window60s,
+        context: snap.context,
+        seriesColumns: ['tSec', 'fps', 'avgMs', 'peakMs', 'cpuMs', 'calls', 'dpr'],
+        series60s,
+        events: snap.events
+      },
+      null,
+      2
+    );
+    return pretty.replace(/\[\n\s+(-?\d[\s\S]*?)\n\s+\]/g, (_m, inner) => {
+      return '[' + inner.replace(/\s*\n\s*/g, ' ') + ']';
+    });
   }
 
   getTelemetryState() {

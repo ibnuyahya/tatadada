@@ -211,6 +211,7 @@ export class DynamicTrafficAI {
     this._totalJointCount = 0;
     this.mesh = null;
     this.elapsedTime = 0.0;
+    this.seaWaveHeightM = 0.24;
 
     // Precomputed 128-segment constant-speed arc-length LUT for Teluk U EPDM Jogging Oval (rx=15.5, rz=6.8)
     this._telukOvalLUT = DynamicTrafficAI._buildEllipseArcLUT(15.5, 6.8, 128);
@@ -323,6 +324,10 @@ export class DynamicTrafficAI {
       minY: 0.0,
       maxY: 4.30
     };
+  }
+
+  setSeaWaveHeightMeters(waveHeightM) {
+    this.seaWaveHeightM = Math.max(0.0, Math.min(2.0, Number(waveHeightM) || 0.0));
   }
 
   static _buildEllipseArcLUT(rx, rz, steps = 128) {
@@ -4350,11 +4355,12 @@ export class DynamicTrafficAI {
       const tz = v.dir * cosA * v.rz;
       v.yaw = Math.atan2(tx, tz);
 
-      // Realistic open-ocean swell heave, pitch, & roll (smaller fishing boats roll more than steel ships!)
+      // Realistic open-ocean swell heave, pitch, & roll coupled to live [0.00 .. 2.00 m] sea state!
       const isShip = v.type === 'SMALL_SHIP';
-      const heaveAmp = isShip ? 0.08 : 0.13;
-      const rollAmp = isShip ? 0.032 : 0.075;
-      const pitchAmp = isShip ? 0.020 : 0.045;
+      const openWaveNorm = Math.max(0.0, Math.min(2.0, this.seaWaveHeightM)) / 2.0;
+      const heaveAmp = (isShip ? 0.42 : 0.62) * openWaveNorm;
+      const rollAmp = (isShip ? 0.095 : 0.21) * Math.pow(openWaveNorm, 0.82);
+      const pitchAmp = (isShip ? 0.062 : 0.13) * Math.pow(openWaveNorm, 0.82);
       const ph = v.phaseSeed;
 
       v.worldY =
@@ -4397,13 +4403,13 @@ export class DynamicTrafficAI {
       const tz = y.dir * c1 * y.rz;
       y.yaw = Math.atan2(tx, tz);
 
-      // Gentle sheltered Teluk U lagoon swell heave, roll, & bow trim pitch
+      // Sheltered Teluk U lagoon swell heave, roll, & bow trim pitch (shoal-damped under Jembatan Teksas!)
+      const bayWaveScale = Math.min(2.6, Math.max(0.0, this.seaWaveHeightM) / 0.28);
       y.worldY =
         TerrainDEMLoader.WATER_LEVEL_Y +
-        Math.sin(t * 1.32 + 0.7) * 0.042 +
-        Math.cos(t * 0.86 + 1.9) * 0.018;
-      y.roll = Math.sin(t * 1.18 + 0.4) * 0.022;
-      y.pitch = -0.012 + Math.cos(t * 1.44 + 1.1) * 0.012;
+        (Math.sin(t * 1.32 + 0.7) * 0.042 + Math.cos(t * 0.86 + 1.9) * 0.018) * bayWaveScale;
+      y.roll = Math.sin(t * 1.18 + 0.4) * 0.022 * bayWaveScale;
+      y.pitch = -0.010 * Math.min(1.2, bayWaveScale + 0.2) + Math.cos(t * 1.44 + 1.1) * 0.012 * bayWaveScale;
 
       if (Math.abs(y.worldX - TerrainDEMLoader.TEKSAS_BRIDGE_X) <= 8.5) {
         const soffitY = TerrainDEMLoader.sampleTeksasBridgeSoffitY(y.worldZ);
@@ -4473,14 +4479,15 @@ export class DynamicTrafficAI {
       const targetYaw = Math.atan2(this._tmpVecB.x, this._tmpVecB.z);
       f.yaw = dampAngle(f.yaw, targetYaw, 6.0, dt);
 
-      // Twin-hull catamaran stability: ultra-smooth low-roll heave across northern Selat UI
+      // Twin-hull catamaran stability: smooth heave across northern Selat UI coupled to seaWaveHeightM
       const speedRatio = Math.min(1.0, f.speed / f.maxSpeed);
+      const straitWaveScale =
+        Math.min(2.8, Math.max(0.0, this.seaWaveHeightM) / 0.28) * (0.28 + 0.72 * speedRatio);
       f.worldY =
         TerrainDEMLoader.WATER_LEVEL_Y +
-        Math.sin(t * 1.25 + 1.3) * 0.032 +
-        Math.cos(t * 0.82 + 0.6) * 0.014;
-      f.roll = Math.sin(t * 1.10 + 0.9) * (0.008 + 0.010 * speedRatio);
-      f.pitch = -0.006 * speedRatio + Math.cos(t * 1.38 + 0.4) * 0.008;
+        (Math.sin(t * 1.25 + 1.3) * 0.032 + Math.cos(t * 0.82 + 0.6) * 0.014) * straitWaveScale;
+      f.roll = Math.sin(t * 1.10 + 0.9) * (0.008 + 0.010 * speedRatio) * straitWaveScale;
+      f.pitch = -0.006 * speedRatio + Math.cos(t * 1.38 + 0.4) * 0.008 * straitWaveScale;
 
       // Hard marine OBB depenetration against Dermaga T-head decks, landing stages, & mooring dolphins!
       const fOBB = this._ferryOBBScratch;

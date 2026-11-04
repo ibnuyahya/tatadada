@@ -62,11 +62,92 @@ export class WeatherOpticsEngine {
     STORM: { id: 'STORM', labelId: 'Badai Petir', rain: 1.42, wet: 1.0, cloud: 1.0, storm: 1.0, fog: 0.0, wind: 3.55 }
   };
 
+  // Continuous [0.00 .. 1.00] Meteorological Spectrum Knots (C1-smooth slider interpolation)
+  static WEATHER_SPECTRUM_KNOTS = [
+    { u: 0.00, mode: 'CLEAR', labelId: 'Cerah Murni', rain: 0.0, wet: 0.0, cloud: 0.18, storm: 0.0, fog: 0.0, wind: 0.78, waveM: 0.18 },
+    { u: 0.15, mode: 'PARTLY_CLOUDY', labelId: 'Cerah Berawan', rain: 0.0, wet: 0.0, cloud: 0.48, storm: 0.0, fog: 0.0, wind: 1.05, waveM: 0.28 },
+    { u: 0.30, mode: 'OVERCAST', labelId: 'Mendung', rain: 0.0, wet: 0.06, cloud: 0.86, storm: 0.16, fog: 0.14, wind: 1.42, waveM: 0.42 },
+    { u: 0.44, mode: 'FOGGY', labelId: 'Kabut Embun', rain: 0.0, wet: 0.34, cloud: 0.78, storm: 0.04, fog: 0.88, wind: 0.62, waveM: 0.24 },
+    { u: 0.58, mode: 'MIST', labelId: 'Gerimis', rain: 0.34, wet: 0.58, cloud: 0.76, storm: 0.06, fog: 0.16, wind: 1.24, waveM: 0.54 },
+    { u: 0.72, mode: 'SHOWER', labelId: 'Hujan Ringan', rain: 0.68, wet: 0.82, cloud: 0.85, storm: 0.16, fog: 0.08, wind: 1.66, waveM: 0.82 },
+    { u: 0.86, mode: 'RAIN', labelId: 'Hujan Deras', rain: 1.02, wet: 0.96, cloud: 0.93, storm: 0.34, fog: 0.03, wind: 2.18, waveM: 1.22 },
+    { u: 1.00, mode: 'STORM', labelId: 'Badai Petir', rain: 1.42, wet: 1.00, cloud: 1.00, storm: 1.00, fog: 0.00, wind: 3.55, waveM: 1.72 }
+  ];
+
+  static weatherModeToSpectrum(mode) {
+    switch (mode) {
+      case 'CLEAR': return 0.00;
+      case 'PARTLY_CLOUDY': return 0.15;
+      case 'POST_RAIN': return 0.24;
+      case 'OVERCAST': return 0.30;
+      case 'WINDY': return 0.36;
+      case 'FOGGY': return 0.44;
+      case 'MIST': return 0.58;
+      case 'SHOWER': return 0.72;
+      case 'RAIN': return 0.86;
+      case 'STORM': return 1.00;
+      default: return 0.00;
+    }
+  }
+
+  static evaluateWeatherSpectrum(u01) {
+    const u = Math.max(0.0, Math.min(1.0, Number(u01) || 0.0));
+    const knots = WeatherOpticsEngine.WEATHER_SPECTRUM_KNOTS;
+    let k0 = knots[0];
+    let k1 = knots[knots.length - 1];
+    for (let i = 0; i < knots.length - 1; i++) {
+      if (u >= knots[i].u && u <= knots[i + 1].u) {
+        k0 = knots[i];
+        k1 = knots[i + 1];
+        break;
+      }
+    }
+    const span = Math.max(1e-5, k1.u - k0.u);
+    const linT = Math.max(0.0, Math.min(1.0, (u - k0.u) / span));
+    const s = linT * linT * (3.0 - 2.0 * linT);
+    const near = linT < 0.5 ? k0 : k1;
+    return {
+      u,
+      percent: Math.round(u * 100.0),
+      mode: near.mode,
+      labelId: near.labelId,
+      rain: k0.rain + (k1.rain - k0.rain) * s,
+      wet: k0.wet + (k1.wet - k0.wet) * s,
+      cloud: k0.cloud + (k1.cloud - k0.cloud) * s,
+      storm: k0.storm + (k1.storm - k0.storm) * s,
+      fog: k0.fog + (k1.fog - k0.fog) * s,
+      wind: k0.wind + (k1.wind - k0.wind) * s,
+      autoWaveM: k0.waveM + (k1.waveM - k0.waveM) * s
+    };
+  }
+
+  static formatSolarHourWIB(hour24) {
+    const raw = Math.max(0.0, Math.min(24.0, Number(hour24) || 0.0));
+    if (raw >= 23.992) return '24:00';
+    const wrapped = ((raw % 24.0) + 24.0) % 24.0;
+    const totalMin = Math.round(wrapped * 60.0) % 1440;
+    const hh = String(Math.floor(totalMin / 60)).padStart(2, '0');
+    const mm = String(totalMin % 60).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+
+  static describeSeaStateLabel(waveHeightM) {
+    const h = Math.max(0.0, Number(waveHeightM) || 0.0);
+    if (h < 0.08) return 'Laut Tenang';
+    if (h < 0.36) return 'Riak Halus';
+    if (h < 0.85) return 'Ombak Kecil';
+    if (h < 1.45) return 'Ombak Sedang';
+    return 'Ombak Besar';
+  }
+
   constructor(scene, options = {}) {
     this.scene = scene;
     this._shadowMapSize = Math.max(1024, Math.min(4096, Number(options.shadowMapSize) || 4096));
     this.timeOfDay = 'DAY'; // 'DAWN' | 'MORNING' | 'DAY' | 'AFTERNOON' | 'DUSK' | 'NIGHT'
     this.weatherMode = 'CLEAR'; // 10 physical regimes in WeatherOpticsEngine.WEATHER_PROFILES
+    this.weatherSpectrum = 0.0; // Continuous [0, 1] weather spectrum coordinate
+    this.manualSeaWaveHeightM = null; // null = weather-coupled auto, or [0.00 .. 2.00] m manual slider override
+    this.seaWaveHeightM = 0.24; // Live significant ocean wave height H_s in meters [0.00 .. 2.00]
 
     this.transitionDurationSec = WeatherOpticsEngine.DEFAULT_TRANSITION_SEC;
     this.currentSolarHour = 11.85; // Continuous 24h Kampus UI Depok WIB solar clock [0, 24)
@@ -2465,13 +2546,23 @@ export class WeatherOpticsEngine {
     const hydroCommonGLSL = /* glsl */ `
       ${WeatherOpticsEngine._getArchipelagoSdfGLSL()}
 
+      // Evaluates 360-degree coastline outward unit normal once per ocean vertex (eliminates 4x per-pixel SDF finite diffs!)
+      vec2 evalCoastNormalVertex(vec2 baseXZ, float dShore) {
+        if (dShore >= 46.0) return vec2(1.0, 0.0);
+        float eC = 0.38;
+        float gx = evalArchipelagoCoastRaw(baseXZ + vec2(eC, 0.0)) - evalArchipelagoCoastRaw(baseXZ - vec2(eC, 0.0));
+        float gz = evalArchipelagoCoastRaw(baseXZ + vec2(0.0, eC)) - evalArchipelagoCoastRaw(baseXZ - vec2(0.0, eC));
+        return normalize(vec2(gx, gz) + vec2(1e-5, 0.0));
+      }
+
       // Evaluates 6 Dispersive Crossing Trochoidal Gerstner Swells (\omega = \sqrt{9.81 * k})
       // + 360-Degree Snell's-Law Refracted Shoaling Coastal Surf Rollers on BOTH Pulau U & Pulau I!
-      // Strict monotonic phase (-w * t for open sea, +w * t for inward coastal rollers): ZERO 1-second sloshing!
+      // Supports continuous H_s in [0.00 m .. 2.00 m] via uSeaState = H_s / 0.854 in [0.00 .. 2.342].
       void evalGravityHydrodynamics(
         vec2 baseXZ,
         float t,
         float seaState,
+        vec2 coastNormalHint,
         out vec3 dispOut,
         out vec3 gradNormalOut,
         out float dShoreOut,
@@ -2483,9 +2574,10 @@ export class WeatherOpticsEngine {
         float dShore = drPerp - 3.52;
         dShoreOut = dShore;
 
-        float S = clamp(seaState, 0.24, 1.18);
-        // Open-sea swell energy smoothly shoals/damps as it converts into coast-normal rollers near the stone turap
-        float openShoal = mix(0.28, 1.0, smoothstep(-0.6, 18.0, dShore));
+        float S = clamp(seaState, 0.0, 2.35);
+        // Open-sea swell energy smoothly shoals/damps near stone turap so even 2.0m offshore swells never overtop dry island roads!
+        float shoreDamp = mix(0.28, 0.16, clamp((S - 1.0) / 1.35, 0.0, 1.0));
+        float openShoal = mix(shoreDamp, 1.0, smoothstep(-0.6, 26.0, dShore));
 
         vec2 horizSurge = vec2(0.0);
         float eta = 0.0;
@@ -2567,11 +2659,9 @@ export class WeatherOpticsEngine {
 
         // 360-Degree Snell's-Law Refracted Shoaling Coastal Surf Rollers (traveling INWARD toward Pulau U & Pulau I stone turap!)
         float swashCrest = 0.0;
-        if (dShore < 42.0) {
-          float eC = 0.35;
-          float gx = evalArchipelagoCoastRaw(baseXZ + vec2(eC, 0.0)) - evalArchipelagoCoastRaw(baseXZ - vec2(eC, 0.0));
-          float gz = evalArchipelagoCoastRaw(baseXZ + vec2(0.0, eC)) - evalArchipelagoCoastRaw(baseXZ - vec2(0.0, eC));
-          vec2 coastN = normalize(vec2(gx, gz) + vec2(1e-5, 0.0));
+        float coastScale = smoothstep(0.0, 0.22, S);
+        if (dShore < 42.0 && coastScale > 0.002) {
+          vec2 coastN = normalize(coastNormalHint + vec2(1e-5, 0.0));
           vec2 refC = baseXZ.y > 536.0 ? vec2(-160.0, 680.0) : vec2(-155.0, 207.0);
           float thetaIsl = atan(baseXZ.y - refC.y, baseXZ.x - refC.x);
 
@@ -2591,20 +2681,21 @@ export class WeatherOpticsEngine {
           float wSurf2 = cos(psi2) + 0.22 * cos(2.0 * psi2);
           float dSurf2 = sin(psi2) + 0.44 * sin(2.0 * psi2);
 
-          float aR1 = (0.052 + 0.095 * S) * shoalEnv;
-          float aR2 = (0.034 + 0.062 * S) * shoalEnv;
+          float S_coast = min(S, 1.15);
+          float aR1 = (0.036 + 0.095 * S_coast) * coastScale * shoalEnv;
+          float aR2 = (0.024 + 0.062 * S_coast) * coastScale * shoalEnv;
 
           eta += aR1 * wSurf1 + aR2 * wSurf2;
           // Orbital shoreward surge & recede along coast normal
           horizSurge -= coastN * ((aR1 * sin(psi1) + aR2 * sin(psi2)) * 0.42);
           negGradEta += coastN * (kLocal * (aR1 * dSurf1 + aR2 * 0.74 * dSurf2));
-          swashCrest = clamp(0.5 + 0.38 * wSurf1 + 0.24 * wSurf2, 0.0, 1.0) * shoalEnv;
+          swashCrest = clamp(0.5 + 0.38 * wSurf1 + 0.24 * wSurf2, 0.0, 1.0) * shoalEnv * coastScale;
 
           // Subtle reflected capillary backwash wave radiating 0..4.5m outward after striking the stone turap
           if (dShore > -0.6 && dShore < 4.8) {
             float reflEnv = (1.0 - clamp(dShore / 4.8, 0.0, 1.0)) * smoothstep(-0.6, 0.1, dShore);
             float psiRefl = dShore * 3.1 - 1.92 * t + sin(thetaIsl * 6.0) * 1.1;
-            float aRefl = 0.014 * (0.45 + 0.55 * S) * reflEnv;
+            float aRefl = 0.014 * (0.30 + 0.60 * S_coast) * coastScale * reflEnv;
             eta += aRefl * cos(psiRefl);
             negGradEta += coastN * (3.1 * aRefl * sin(psiRefl));
           }
@@ -2657,6 +2748,7 @@ export class WeatherOpticsEngine {
         varying vec4 vRiverDetail;
         varying vec2 vFlowDir;
         varying vec3 vGeomNormal;
+        varying vec2 vCoastN;
 
         ${hydroCommonGLSL}
 
@@ -2669,15 +2761,19 @@ export class WeatherOpticsEngine {
           vGeomNormal = normalize(mat3(modelMatrix) * normal);
 
           if (aHydroMeta.x < 0.5) {
+            float dShoreVert = evalArchipelagoCoastRaw(wp.xz) - 3.52;
+            vec2 coastN = evalCoastNormalVertex(wp.xz, dShoreVert);
+            vCoastN = coastN;
             vec3 disp;
             vec3 gNorm;
             float dShore;
             float crestF;
             float swashF;
-            evalGravityHydrodynamics(wp.xz, uTime, uSeaState, disp, gNorm, dShore, crestF, swashF);
+            evalGravityHydrodynamics(wp.xz, uTime, uSeaState, coastN, disp, gNorm, dShore, crestF, swashF);
             wp.xyz += disp;
             vWaveElev = disp.y;
           } else if (aHydroMeta.x < 1.5) {
+            vCoastN = vec2(1.0, 0.0);
             // Natural Fluvial Stream, Artesian Spring, Small Lake, & Plunge Pool:
             // Depth-locked at 0.00m shoreline contact + subtle standing bow-swell over emergent 3D boulders!
             float depthLock = smoothstep(0.0, 0.24, max(0.0, aRiverDetail.x));
@@ -2689,6 +2785,7 @@ export class WeatherOpticsEngine {
             wp.y += dyFresh;
             vWaveElev = dyFresh;
           } else {
+            vCoastN = vec2(1.0, 0.0);
             // Mini-Niagara 3D Curved Horseshoe Falling Cataract Curtain: hydraulic sheet flutter, seam-locked at 0 & 1!
             float tDrop = aHydroMeta.w;
             float seamEnv = sin(3.14159265 * clamp(tDrop, 0.0, 1.0));
@@ -2709,6 +2806,7 @@ export class WeatherOpticsEngine {
         varying vec4 vRiverDetail;
         varying vec2 vFlowDir;
         varying vec3 vGeomNormal;
+        varying vec2 vCoastN;
 
         uniform float uTime;
         uniform vec3 uSunDir;
@@ -3201,17 +3299,18 @@ export class WeatherOpticsEngine {
           float dShore;
           float crestFactor;
           float rollerSwash;
-          evalGravityHydrodynamics(vBaseXZ, uTime, uSeaState, gDisp, gravNorm, dShore, crestFactor, rollerSwash);
+          evalGravityHydrodynamics(vBaseXZ, uTime, uSeaState, vCoastN, gDisp, gravNorm, dShore, crestFactor, rollerSwash);
 
           // Dynamic 3D waterline distance: as wave elevation gDisp.y rises up the 1:1.85 sloped stone turap,
           // the live wet shoreline moves inward (dShore + gDisp.y * 1.85 -> 0 at the exact 3D stone-water contact!)
           float liveWaterline = max(0.0, dShore + gDisp.y * 1.85);
           float waterDepth = clamp(0.03 + liveWaterline * 0.42 + max(0.0, gDisp.y) * 0.5, 0.03, 2.75);
 
-          // Distance Nyquist band-limiting on fine capillary wavelets (converted into GGX slope roughness at horizon!)
+          // Distance Nyquist band-limiting on fine capillary wavelets (0.0m calm -> glassy lagoon, 2.0m -> rich chop!)
           float capDetailFade = 1.0 - smoothstep(45.0, 290.0, distCam);
           float shoalCapDamp = mix(0.45, 1.0, smoothstep(0.0, 3.0, liveWaterline));
-          float capGain = (0.72 + 0.65 * clamp(uSeaState, 0.25, 1.15)) * shoalCapDamp * capDetailFade;
+          float calmCap = mix(0.10, 0.72 + 0.58 * min(uSeaState, 2.35), smoothstep(0.0, 0.28, uSeaState));
+          float capGain = calmCap * shoalCapDamp * capDetailFade;
 
           float c0 = 0.0;
           float capNx = 0.0;
@@ -3275,7 +3374,7 @@ export class WeatherOpticsEngine {
           deepTeal = mix(deepTeal, vec3(0.008, 0.020, 0.040), uNightFactor);
 
           // Translucent Emerald-Turquoise Subsurface Scattering (SSS) glowing through raised 3D Gerstner wave crests!
-          float waveCrestH = clamp(gDisp.y * 3.8 + crestFactor * 0.55 + rollerSwash * 0.45, 0.0, 1.35);
+          float waveCrestH = clamp(gDisp.y * 2.45 + crestFactor * 0.55 + rollerSwash * 0.45, 0.0, 1.65);
           float sssAlign = pow(max(0.0, dot(-viewDir, normalize(sunDir - normal * 0.42))), 3.2);
           float crestSSS = waveCrestH * (0.32 + 0.68 * sssAlign) * sunVis * (1.0 - uNightFactor);
           vec3 sssTint = mix(vec3(0.06, 0.28, 0.22), vec3(0.22, 0.14, 0.06), uDuskFactor);
@@ -3339,17 +3438,18 @@ export class WeatherOpticsEngine {
             float contactSwash = smoothstep(1.15 + rollerSwash * 0.90, 0.0, liveWaterline);
             float rollerRibbon = smoothstep(3.6, 0.4, liveWaterline) * pow(rollerSwash, 1.7) * 0.55;
             float altFade = smoothstep(1350.0, 380.0, distCam) * 0.65 + 0.35 * smoothstep(1350.0, 900.0, distCam);
+            float seaFoamDrive = smoothstep(0.03, 0.28, uSeaState) * (0.48 + 0.32 * clamp(uSeaState, 0.0, 2.0));
             totalFoam += clamp((contactSwash * (0.45 + 0.75 * lacyWeb) + rollerRibbon * lacyWeb), 0.0, 1.0)
-                       * (0.52 + 0.34 * clamp(uSeaState, 0.25, 1.15)) * altFade;
+                       * seaFoamDrive * altFade;
           }
 
-          // Offshore wind-blown whitecaps on steep interfering Gerstner wave crests during brisk wind / Rain / Storm
-          float whitecapThresh = mix(0.76, 0.42, clamp((uSeaState - 0.34) * 1.35, 0.0, 1.0));
-          if (crestFactor > whitecapThresh && distCam < 480.0) {
+          // Offshore wind-blown whitecaps on steep interfering Gerstner wave crests (0.4m .. 2.0m swells!)
+          float whitecapThresh = mix(0.84, 0.28, clamp((uSeaState - 0.36) / 1.85, 0.0, 1.0));
+          if (uSeaState > 0.32 && crestFactor > whitecapThresh && distCam < 560.0) {
             vec2 wcVor = voronoiCell(vWorldPos.xz * 1.45 - uWindPhase * 0.16);
             float wcLace = smoothstep(0.28, 0.03, wcVor.x) * (0.55 + 0.45 * vnoise(vWorldPos.xz * 3.8 - uWindPhase * 0.22));
-            float wcMask = smoothstep(whitecapThresh, whitecapThresh + 0.26, crestFactor) * wcLace * smoothstep(480.0, 110.0, distCam);
-            totalFoam = max(totalFoam, wcMask * 0.78);
+            float wcMask = smoothstep(whitecapThresh, whitecapThresh + 0.26, crestFactor) * wcLace * smoothstep(560.0, 110.0, distCam);
+            totalFoam = max(totalFoam, wcMask * mix(0.74, 0.92, clamp((uSeaState - 1.0) / 1.2, 0.0, 1.0)));
           }
 
           if (totalFoam > 0.005) {
@@ -3871,6 +3971,108 @@ export class WeatherOpticsEngine {
   }
 
   /**
+   * Continuous [0.00 .. 24.00] WIB solar/lunar spectrum scrub (zero lag, zero midnight wrap jump).
+   */
+  setContinuousTimeHours(hour24, sharedSurfaceUniforms = null, options = {}) {
+    const clamped = Math.max(0.0, Math.min(24.0, Number(hour24) || 0.0));
+    const normH = clamped >= 24.0 ? 23.998 : clamped;
+    const dayIndex = Math.floor(this.continuousSolarHour / 24.0);
+    this.continuousSolarHour = dayIndex * 24.0 + clamped;
+    this.currentSolarHour = normH;
+    this.timeOfDay = WeatherOpticsEngine._solarHourToTodMode(normH);
+    this._timeTrans.active = false;
+    this._timeTrans.fromTod = this.timeOfDay;
+    this._timeTrans.toTod = this.timeOfDay;
+    this._timeTrans.progress = 1.0;
+    this._timeTrans.elapsed = 0.0;
+    this._applyContinuousCelestialAndFog(sharedSurfaceUniforms);
+    if (options.immediateAdaptation === true) {
+      this._syncHumanEyeHDR(0.0, null, sharedSurfaceUniforms, true);
+    }
+    this._syncParticleVisibility();
+    return this.currentSolarHour;
+  }
+
+  /**
+   * Continuous [0.00 .. 1.00] physical weather spectrum scrub (Cerah -> Mendung -> Kabut -> Hujan -> Badai).
+   */
+  setWeatherSpectrum(u01, sharedSurfaceUniforms = null, options = {}) {
+    const spec = WeatherOpticsEngine.evaluateWeatherSpectrum(u01);
+    this.weatherSpectrum = spec.u;
+    this.weatherMode = spec.mode;
+
+    this.targetRainIntensity = spec.rain;
+    this.targetWetness = spec.wet;
+    this.targetCloudCover = spec.cloud;
+    this.targetStormFactor = spec.storm;
+    this.targetFogDensity = spec.fog;
+    this.targetWindSpeed = spec.wind;
+
+    this._weatherTrans.active = false;
+    this._weatherTrans.fromMode = spec.mode;
+    this._weatherTrans.toMode = spec.mode;
+    this._weatherTrans.progress = 1.0;
+    this._weatherTrans.elapsed = 0.0;
+
+    if (options.immediate !== false) {
+      this.uniforms.uRainIntensity.value = spec.rain;
+      this.uniforms.uWetness.value = spec.wet;
+      this.uniforms.uCloudCover.value = spec.cloud;
+      this.uniforms.uStormFactor.value = spec.storm;
+      this.uniforms.uFogFactor.value = spec.fog;
+      this.baseWindSpeed = spec.wind;
+      if (this.scene.fog) {
+        this.scene.fog.density = 0.0;
+      }
+      if (spec.storm > 0.62) {
+        this.nextLightningTimer = Math.min(this.nextLightningTimer, 0.85);
+      } else {
+        this.uniforms.uLightningFlash.value = 0.0;
+        this.lightningClock = -1.0;
+      }
+      if (this.manualSeaWaveHeightM === null) {
+        this.seaWaveHeightM = spec.autoWaveM;
+        this.uniforms.uSeaState.value = spec.autoWaveM / 0.854;
+      }
+      this._applyContinuousCelestialAndFog(sharedSurfaceUniforms);
+      if (options.immediateAdaptation === true) {
+        this._syncHumanEyeHDR(0.0, null, sharedSurfaceUniforms, true);
+      }
+      this._syncParticleVisibility();
+    }
+    return spec;
+  }
+
+  getWeatherSpectrum() {
+    return this.weatherSpectrum;
+  }
+
+  /**
+   * Continuous [0.00 .. 2.00] meter ocean wave height slider control (pass null to restore weather-coupled auto).
+   */
+  setSeaWaveHeightMeters(meters, options = {}) {
+    if (meters === null || meters === undefined || options.auto === true) {
+      this.manualSeaWaveHeightM = null;
+      return this.seaWaveHeightM;
+    }
+    const h = Math.max(0.0, Math.min(2.0, Number(meters) || 0.0));
+    this.manualSeaWaveHeightM = h;
+    if (options.immediate !== false) {
+      this.seaWaveHeightM = h;
+      this.uniforms.uSeaState.value = h / 0.854;
+    }
+    return this.seaWaveHeightM;
+  }
+
+  getSeaWaveHeightMeters() {
+    return this.seaWaveHeightM;
+  }
+
+  isManualSeaState() {
+    return this.manualSeaWaveHeightM !== null;
+  }
+
+  /**
    * Switches active meteorological regime with mandatory 20–45s staged physical transition by default!
    * - Clouds, fog & wind lead precipitation onset; ground wetness builds only as raindrops fall;
    * - When clearing, rain tapers gradually to drizzle -> 0, then wet ground evaporates slowly;
@@ -3879,6 +4081,7 @@ export class WeatherOpticsEngine {
   setWeather(weatherMode, options = {}) {
     const prevMode = this.weatherMode;
     this.weatherMode = WeatherOpticsEngine.WEATHER_PROFILES[weatherMode] ? weatherMode : 'CLEAR';
+    this.weatherSpectrum = WeatherOpticsEngine.weatherModeToSpectrum(this.weatherMode);
     const preset = WeatherOpticsEngine._getWeatherPresetTargets(this.weatherMode, options);
 
     this.targetRainIntensity = preset.rain;
@@ -3911,6 +4114,14 @@ export class WeatherOpticsEngine {
       } else {
         this.uniforms.uLightningFlash.value = 0.0;
         this.lightningClock = -1.0;
+      }
+      if (this.manualSeaWaveHeightM === null) {
+        const chop = Math.max(0.0, preset.wind - 1.45) * 0.14;
+        this.seaWaveHeightM = Math.max(
+          0.0,
+          Math.min(2.0, 0.22 + preset.rain * 0.44 + preset.storm * 0.68 + chop)
+        );
+        this.uniforms.uSeaState.value = this.seaWaveHeightM / 0.854;
       }
       this._applyContinuousCelestialAndFog();
       this._syncHumanEyeHDR(0.0, null, null, true);
@@ -4102,15 +4313,25 @@ export class WeatherOpticsEngine {
     this.uniforms.uWindPhase.value.x += this.uniforms.uWindVec.value.x * safeDt;
     this.uniforms.uWindPhase.value.y += this.uniforms.uWindVec.value.z * safeDt;
 
-    // Physical ocean swell momentum coupled to LIVE rainIntensity, stormFactor, & high wind chop!
-    const windChopBoost = Math.max(0.0, this.baseWindSpeed - 1.45) * 0.15;
-    const liveSeaTarget =
-      0.32 +
-      this.uniforms.uRainIntensity.value * 0.30 +
-      this.uniforms.uStormFactor.value * 0.34 +
-      windChopBoost;
-    const seaRate = 1.0 - Math.exp(-safeDt * 0.65);
-    this.uniforms.uSeaState.value += (liveSeaTarget - this.uniforms.uSeaState.value) * seaRate;
+    // Physical ocean swell momentum: manual [0.00 .. 2.00 m] slider OR weather-coupled auto wave height!
+    const windChopBoost = Math.max(0.0, this.baseWindSpeed - 1.45) * 0.14;
+    const autoWaveM = Math.max(
+      0.0,
+      Math.min(
+        2.0,
+        0.22 +
+          this.uniforms.uRainIntensity.value * 0.44 +
+          this.uniforms.uStormFactor.value * 0.68 +
+          windChopBoost
+      )
+    );
+    const targetWaveM = this.manualSeaWaveHeightM !== null ? this.manualSeaWaveHeightM : autoWaveM;
+    const seaRate =
+      this.manualSeaWaveHeightM !== null
+        ? 1.0 - Math.exp(-safeDt * 8.0)
+        : 1.0 - Math.exp(-safeDt * 0.65);
+    this.seaWaveHeightM += (targetWaveM - this.seaWaveHeightM) * seaRate;
+    this.uniforms.uSeaState.value = this.seaWaveHeightM / 0.854;
 
     this.windGustMultiplier = Math.max(0.75, windSpeed / 0.85);
 
