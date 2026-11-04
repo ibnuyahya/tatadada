@@ -284,6 +284,45 @@ export function injectOmniScaleSurfaceShader(
       '  float shelter = smoothstep(0.55, 1.65, yTop - wp.y);',
       '  return mix(1.0, isCanopyAbove * 0.28, shelter);',
       '}',
+      'float omniEvalWorldOverhangAO(vec3 wp, vec3 wn) {',
+      '  float aoOut = 1.0;',
+      '  float upWeight = clamp(wn.y * 0.65 + 0.35, 0.0, 1.0);',
+      '  // 1. Soft 5-tap Canopy & Building Overhang Ambient Contact Shadow from uCollisionMap',
+      '  if (uCollisionReady > 0.5 && upWeight > 0.08) {',
+      '    vec2 cuv0 = (wp.xz + 185.0) / 370.0;',
+      '    if (cuv0.x > 0.006 && cuv0.x < 0.994 && cuv0.y > 0.006 && cuv0.y < 0.994) {',
+      '      float dUV = 1.65 / 370.0;',
+      '      float occSum = 0.0;',
+      '      vec2 offs[5];',
+      '      offs[0] = vec2(0.0, 0.0);',
+      '      offs[1] = vec2(dUV, 0.0);',
+      '      offs[2] = vec2(-dUV, 0.0);',
+      '      offs[3] = vec2(0.0, dUV);',
+      '      offs[4] = vec2(0.0, -dUV);',
+      '      for (int k = 0; k < 5; k++) {',
+      '        vec4 ct = texture2D(uCollisionMap, cuv0 + offs[k]);',
+      '        float yT = -6.0 + ((ct.r * 255.0 * 256.0 + ct.g * 255.0) / 65535.0) * 60.0;',
+      '        float dh = yT - wp.y;',
+      '        float isLeaf = step(0.98, ct.a);',
+      '        float sh = smoothstep(0.55, 2.40, dh) * (1.0 - smoothstep(14.0, 30.0, dh));',
+      '        occSum += sh * mix(0.36, 0.24, isLeaf);',
+      '      }',
+      '      float dapple = 0.88 + 0.12 * omniNoise(wp.xz * 0.85);',
+      '      aoOut *= 1.0 - (occSum * 0.20) * upWeight * dapple;',
+      '    }',
+      '  }',
+      '  // 2. Analytical Soft Ground/Approach Contact Shadow beneath Jembatan Teksas UI Deck & Girders',
+      '  if (wp.z > 149.0 && wp.z < 342.0 && abs(wp.x + 28.0) < 5.2) {',
+      '    float uBr = clamp((wp.z - 245.65) / 74.0, -1.3, 1.3);',
+      '    float deckYEst = 4.15 + 4.95 * max(0.0, 1.0 - uBr * uBr);',
+      '    if (wp.y < deckYEst - 1.45) {',
+      '      float latMask = 1.0 - smoothstep(2.2, 4.8, abs(wp.x + 28.0));',
+      '      float hFade = 1.0 - smoothstep(2.0, 10.5, deckYEst - wp.y);',
+      '      aoOut *= 1.0 - 0.34 * latMask * (0.45 + 0.55 * hFade) * upWeight;',
+      '    }',
+      '  }',
+      '  return clamp(aoOut, 0.52, 1.0);',
+      '}',
       // =========================================================================
       // O(1) ANALYTIC PHOTOCELL STREETLAMP SENSOR & 40-LAMP GROUND LIGHT POOL KERNEL
       // =========================================================================
@@ -544,15 +583,15 @@ export function injectOmniScaleSurfaceShader(
       '',
       '#elif OMNI_PROFILE == 9',
       '    // PROFILE 9: VELVET CAMPUS GREEN LAWNS + RIPARIAN PEBBLE/MOSS BANKS + VOLCANIC BASALT CRAGS + 360-DEG VORONOI TURAP MASONRY',
-      '    float macroClover = omniFbm3BL(wp, 0.45, pxSize);',
-      '    float midHumus = omniFbm3BL(wp, 2.35, pxSize);',
+      '    float macroClover = omniFbm3BL(wp, 0.38, pxSize);',
+      '    float midHumus = omniFbm3BL(wp, 1.85, pxSize);',
       '    float softTurf = omniFbm3BL(wp, 6.8, pxSize);',
       '    float greenDominance = baseCol.g - max(baseCol.r, baseCol.b);',
       '    float isEarthyOrCobble = 1.0 - smoothstep(-0.015, 0.065, greenDominance);',
-      '    h = softTurf * 0.00085 + midHumus * 0.00055;',
-      '    alb = 1.0 + macroClover * 0.058 + midHumus * 0.032 + softTurf * 0.026;',
-      '    rDelta = -softTurf * 0.02;',
-      '    ao = 0.97 + 0.03 * softTurf;',
+      '    h = midHumus * 0.0042 + softTurf * 0.0022;',
+      '    alb = 1.0 + macroClover * 0.115 + midHumus * 0.068 + softTurf * 0.046;',
+      '    rDelta = -softTurf * 0.035;',
+      '    ao = 0.935 + 0.065 * smoothstep(-0.35, 0.35, midHumus + softTurf * 0.6);',
       '    float isTurapMasonry = 1.0 - smoothstep(0.62, 0.86, wn.y);',
       '    float isCoastalStoneTint = 1.0 - smoothstep(0.025, 0.075, baseCol.g - baseCol.r);',
       '    if (wp.y < 0.58 && isTurapMasonry > 0.20 && isCoastalStoneTint > 0.25 && length(wp.xz - vec2(-18.0, 34.0)) > 62.0) {',
@@ -577,14 +616,18 @@ export function injectOmniScaleSurfaceShader(
       '      float volcanoProx = smoothstep(134.0, 66.0, length(wp.xz - vec2(-32.0, 698.0)));',
       '      float rockMask = clamp(max(smoothstep(12.5, 22.0, wp.y) * (0.35 + 0.65 * volcanoProx), smoothstep(0.78, 0.46, wn.y) * isEarthyOrCobble), 0.0, 1.0);',
       '      if (rockMask > 0.01) {',
-      '        float cragMacro = omniFbm3BL(vec3(wp.x * 0.78, wp.y * 1.35, wp.z * 0.78), 1.25, pxSize);',
-      '        float cragRidge = omniFbm3BL(vec3(wp.x * 1.65 + cragMacro * 0.9, wp.y * 2.4, wp.z * 1.65), 1.9, pxSize);',
+      '        vec2 vOff = wp.xz - vec2(-32.0, 698.0);',
+      '        float vAng = atan(vOff.y, vOff.x);',
+      '        float gully = omniFbm2(vec2(vAng * 7.5, wp.y * 0.095)) - 0.5;',
+      '        float cragMacro = omniFbm3BL(vec3(wp.x * 0.52, wp.y * 0.88, wp.z * 0.52), 1.0, pxSize);',
+      '        float cragRidge = omniFbm3BL(vec3(wp.x * 1.55 + cragMacro * 0.85, wp.y * 1.95, wp.z * 1.55), 1.8, pxSize);',
+      '        float strataBand = omniFbm3BL(vec3(wp.x * 0.28, wp.y * 1.45 + cragMacro * 2.2, wp.z * 0.28), 1.0, pxSize) * (1.0 - smoothstep(0.52, 0.82, wn.y));',
       '        float vesicular = omniFbm3BL(wp, 5.6, pxSize);',
-      '        float crevice = smoothstep(-0.34, 0.18, cragRidge);',
-      '        float hRock = cragMacro * 0.0075 + cragRidge * 0.0042 + vesicular * 0.0014;',
-      '        float albRock = mix(0.83, 1.06, crevice) + cragMacro * 0.055 + vesicular * 0.028;',
-      '        float rRock = 0.05 + (1.0 - crevice) * 0.05;',
-      '        float aoRock = mix(0.80, 1.0, crevice) * (0.94 + 0.06 * cragMacro);',
+      '        float crevice = smoothstep(-0.32, 0.22, cragRidge + gully * 0.45 + strataBand * 0.35);',
+      '        float hRock = cragMacro * 0.022 + cragRidge * 0.013 + gully * 0.010 + strataBand * 0.008 + vesicular * 0.003;',
+      '        float albRock = mix(0.76, 1.12, crevice) + cragMacro * 0.072 + strataBand * 0.045 + vesicular * 0.032;',
+      '        float rRock = 0.05 + (1.0 - crevice) * 0.07;',
+      '        float aoRock = mix(0.72, 1.0, crevice) * (0.91 + 0.09 * cragMacro);',
       '        h = mix(h, hRock, rockMask);',
       '        alb = mix(alb, albRock, rockMask);',
       '        rDelta = mix(rDelta, rRock, rockMask);',
@@ -605,49 +648,85 @@ export function injectOmniScaleSurfaceShader(
       '    }',
       '',
       '#elif OMNI_PROFILE == 10',
-      '    // PROFILE 10: SMOOTH 3D VERTICAL TREE BARK, TEAK BENCH GRAIN, ROLLED ASPHALT, VIDEOTRON LED MATRIX, & JEMBATAN TEKSAS UI STEEL/SUNROOF',
+      '    // PROFILE 10: 3D BARK & RINGED PALMS, TEAK GRAIN, TIRE-WORN ROLLED ASPHALT, VIDEOTRON, & JEMBATAN TEKSAS UI STEEL/SKYLIGHTS',
       '    if (vOmniUV.y < -1000.0) {',
       '      return vec4(0.0, 1.0, -0.45, 1.0);',
       '    }',
       '    bool inTeksasZone = (wp.z > 147.0 && wp.z < 349.0 && abs(wp.x + 28.0) < 12.0 && wp.y > 0.25);',
-      '    if (inTeksasZone && baseCol.b > baseCol.r * 1.8 && baseCol.b > 0.45) {',
+      '    if (inTeksasZone && baseCol.b > baseCol.r * 1.65 && baseCol.b > 0.28) {',
+      '      // Multi-wall architectural polycarbonate skylight micro-flutes + wave surface sheen',
+      '      float fluteBand = omniBand(pxSize, 24.0);',
+      '      float fluteRib = sin(wp.x * 150.0) * 0.5 * fluteBand;',
       '      float polyWave = omniFbm3BL(vec3(wp.x * 4.0, wp.y * 4.0, wp.z * 8.0), 1.0, pxSize * 2.0);',
-      '      h = polyWave * 0.00018;',
-      '      alb = 1.0 + polyWave * 0.015;',
-      '      rDelta = -0.58;',
-      '      ao = 0.99;',
-      '    } else if (inTeksasZone && (max(baseCol.r, baseCol.g) > baseCol.b * 1.35 || (baseCol.r < 0.22 && baseCol.b < 0.24 && wp.y > 1.2))) {',
-      '      float steelBrush = omniFbm3BL(vec3(wp.x * 6.0, wp.y * 6.0, wp.z * 14.0), 1.0, pxSize * 2.5);',
-      '      h = steelBrush * 0.00025;',
-      '      alb = 1.0 + steelBrush * 0.022;',
-      '      rDelta = -0.36;',
-      '      ao = 0.98;',
+      '      h = polyWave * 0.00020 + fluteRib * 0.00018;',
+      '      alb = 1.0 + polyWave * 0.016 + fluteRib * 0.022;',
+      '      rDelta = -0.56;',
+      '      ao = 0.985 + 0.015 * fluteRib;',
+      '    } else if (inTeksasZone && (max(baseCol.r, baseCol.g) > baseCol.b * 1.28 || (baseCol.r < 0.30 && baseCol.b < 0.32 && wp.y > 0.30))) {',
+      '      // Weathered Krakatau BTKC Structural Steel: welded plate seams, brushed mill scale & subtle rain-runoff patina',
+      '      float bWeld = omniBand(pxSize, 1.2);',
+      '      float weldZ = mix(1.0, omniJoint1D(wp.z, 2.64, 0.016), bWeld);',
+      '      float steelBrush = omniFbm3BL(vec3(wp.x * 6.5, wp.y * 6.5, wp.z * 13.0), 1.0, pxSize * 2.0);',
+      '      float rainPatina = omniFbm3BL(vec3(wp.x * 4.2, wp.y * 1.15, wp.z * 4.2), 1.0, pxSize);',
+      '      h = -(1.0 - weldZ) * 0.0014 + steelBrush * 0.00028;',
+      '      alb = (0.985 + 0.015 * weldZ) + steelBrush * 0.024 + rainPatina * 0.032;',
+      '      rDelta = -0.20 + (1.0 - weldZ) * 0.08 - rainPatina * 0.03;',
+      '      ao = mix(0.90, 0.99, weldZ);',
+      '    } else if (vOmniUV.y > -422.0 && vOmniUV.y < -418.0) {',
+      '      // Hot-Mix Rolled Asphalt Roadway: crushed basalt/quartz aggregate micro-relief + twin polished wheel-track lanes',
+      '      float roadF = clamp(vOmniUV.y + 420.0, -1.0, 1.0);',
+      '      float absRF = abs(roadF);',
+      '      float wheelWear = exp(-pow((absRF - 0.38) * 6.6, 2.0)) + exp(-pow((absRF - 0.68) * 6.6, 2.0));',
+      '      float gutterDust = smoothstep(0.84, 0.99, absRF);',
+      '      float aggCoarse = omniFbm3BL(wp, 9.5, pxSize);',
+      '      float aggFine = omniFbm3BL(wp, 24.0, pxSize);',
+      '      float macroPatch = omniFbm3BL(wp, 0.55, pxSize);',
+      '      h = (aggCoarse * 0.00068 + aggFine * 0.00032) * (1.0 - 0.35 * wheelWear);',
+      '      alb = (1.0 - 0.055 * wheelWear + 0.065 * gutterDust) + macroPatch * 0.045 + aggCoarse * 0.042 + aggFine * 0.028;',
+      '      rDelta = -0.14 * wheelWear + 0.06 * gutterDust - aggFine * 0.03;',
+      '      ao = 0.95 + 0.05 * smoothstep(-0.35, 0.35, aggCoarse);',
       '    } else {',
       '      float isVerticalBark = 1.0 - smoothstep(0.35, 0.72, aw.y);',
       '      if (isVerticalBark > 0.5) {',
-      '        float barkRidge = omniFbm3BL(vec3(wp.x * 3.8, wp.y * 0.85, wp.z * 3.8), 1.0, pxSize);',
-      '        float barkClose = omniFbm3BL(vec3(wp.x * 9.5, wp.y * 2.2, wp.z * 9.5), 1.0, pxSize * 3.5);',
-      '        h = barkRidge * 0.0028 + barkClose * 0.0006;',
-      '        alb = 1.0 + barkRidge * 0.065 + barkClose * 0.025;',
-      '        ao = 0.95 + 0.05 * barkRidge;',
+      '        float isPalmTrunk = smoothstep(0.46, 0.58, baseCol.r) * (1.0 - smoothstep(0.06, 0.14, abs(baseCol.r - baseCol.b)));',
+      '        if (isPalmTrunk > 0.5) {',
+      '          float bRing = omniBand(pxSize, 4.2);',
+      '          float palmRing = mix(1.0, omniJoint1D(wp.y, 0.24, 0.10), bRing);',
+      '          float palmFib = omniFbm3BL(vec3(wp.x * 6.0, wp.y * 1.8, wp.z * 6.0), 1.0, pxSize * 2.0);',
+      '          h = -(1.0 - palmRing) * 0.0018 + palmFib * 0.0005;',
+      '          alb = mix(0.88, 1.03, palmRing) + palmFib * 0.035;',
+      '          rDelta = (1.0 - palmRing) * 0.05;',
+      '          ao = mix(0.88, 1.0, palmRing);',
+      '        } else {',
+      '          float barkRidge = omniFbm3BL(vec3(wp.x * 4.2, wp.y * 0.82, wp.z * 4.2), 1.0, pxSize);',
+      '          float barkClose = omniFbm3BL(vec3(wp.x * 11.0, wp.y * 2.4, wp.z * 11.0), 1.0, pxSize * 3.0);',
+      '          float baseMoss = smoothstep(2.4, 0.25, wp.y) * smoothstep(0.15, 0.55, barkRidge + 0.35);',
+      '          h = barkRidge * 0.0034 + barkClose * 0.00075;',
+      '          alb = (1.0 - baseMoss * 0.08) + barkRidge * 0.082 + barkClose * 0.032;',
+      '          rDelta = 0.03 - baseMoss * 0.05;',
+      '          ao = 0.92 + 0.08 * smoothstep(-0.35, 0.35, barkRidge);',
+      '        }',
       '      } else {',
       '        float isTeak = smoothstep(0.14, 0.28, baseCol.r - baseCol.b);',
       '        float teakGrain = omniFbm3BL(vec3(wp.x * 2.2, wp.y * 12.0, wp.z * 12.0), 1.0, pxSize * 3.0);',
-      '        float asphaltSoft = omniFbm3BL(wp, 9.0, pxSize);',
-      '        h = mix(asphaltSoft * 0.0005, teakGrain * 0.0004, isTeak);',
-      '        alb = 1.0 + mix(asphaltSoft * 0.028, teakGrain * 0.038, isTeak);',
-      '        rDelta = mix(-asphaltSoft * 0.03, -0.10, isTeak);',
+      '        float asphaltSoft = omniFbm3BL(wp, 10.5, pxSize);',
+      '        float asphaltMacro = omniFbm3BL(wp, 0.85, pxSize);',
+      '        h = mix(asphaltSoft * 0.00058, teakGrain * 0.00045, isTeak);',
+      '        alb = 1.0 + mix(asphaltSoft * 0.036 + asphaltMacro * 0.035, teakGrain * 0.042, isTeak);',
+      '        rDelta = mix(-asphaltSoft * 0.03, -0.12, isTeak);',
       '      }',
       '    }',
       '',
       '#elif OMNI_PROFILE == 11',
-      '    // PROFILE 11: LUSH VELVET BOTANICAL FOLIAGE CANOPY (Soft 3D leaf cushions, zero harsh grain!)',
-      '    float softBough = omniFbm3BL(wp, 1.4, pxSize);',
-      '    float softLeaf = omniFbm3BL(wp, 4.4, pxSize);',
-      '    h = softBough * 0.0021 + softLeaf * 0.00075;',
-      '    alb = 1.0 + softBough * 0.054 + softLeaf * 0.026;',
-      '    rDelta = -0.045 - softLeaf * 0.022;',
-      '    ao = 0.955 + 0.045 * softBough;',
+      '    // PROFILE 11: MULTI-SPECIES BOTANICAL FOLIAGE CANOPY (Crisp 3D leaf-cluster relief, deep inter-bough crevices & cuticle sheen)',
+      '    float softBough = omniFbm3BL(wp, 1.15, pxSize);',
+      '    float midCluster = omniFbm3BL(wp, 3.35, pxSize);',
+      '    float fineLeaf = omniFbm3BL(wp, 8.8, pxSize);',
+      '    float leafPocket = smoothstep(-0.34, 0.28, softBough * 0.65 + midCluster * 0.55);',
+      '    h = softBough * 0.022 + midCluster * 0.0095 + fineLeaf * 0.0034;',
+      '    alb = mix(0.76, 1.16, leafPocket) + midCluster * 0.095 + fineLeaf * 0.058;',
+      '    rDelta = -0.075 - fineLeaf * 0.045;',
+      '    ao = mix(0.68, 1.0, leafPocket) * (0.92 + 0.08 * smoothstep(-0.3, 0.3, fineLeaf));',
       '',
       '#else',
       '    float g1 = omniFbm3BL(wp, 5.0, pxSize);',
@@ -725,21 +804,26 @@ export function injectOmniScaleSurfaceShader(
       '    trofferGlow = clamp(ledPanel, 0.0, 1.0);',
       '    surfCol = vec3(0.58, 0.56, 0.52) * (0.82 + 0.18 * tBar);',
       '  } else if (tVert <= tBack && tVert <= tSide && dU <= 0.0) {',
-      '    // 3D Interior Office Floor + Desk Silhouette',
+      '    // 3D Interior Office Floor + Teak Desk + Computer Monitor Silhouette',
       '    float desk = step(0.35, hit.z) * step(hit.z, 0.82) * step(0.18, hit.x) * step(hit.x, 0.82);',
+      '    float plant = step(0.24, hit.z) * step(hit.z, 0.44) * step(0.83, hit.x) * step(hit.x, 0.95) * step(0.45, fract(rSeed * 9.1));',
       '    surfCol = mix(vec3(0.26, 0.25, 0.24), vec3(0.38, 0.25, 0.15), desk);',
+      '    surfCol = mix(surfCol, vec3(0.16, 0.34, 0.14), plant);',
       '  } else if (tBack <= tSide) {',
-      '    // 3D Back Wall: Warm Cream Wall + Teak Academic Bookshelves / Credenza!',
+      '    // 3D Back Wall: Warm Cream Wall + Teak Academic Bookshelves / Credenza + Glowing Workstation Monitor!',
       '    float isShelf = step(hit.y, 0.56) * step(0.12, hit.x) * step(hit.x, 0.88);',
       '    float shelfRow = fract(hit.y * 7.0);',
       '    float books = fract(hit.x * 18.0 + floor(hit.y * 7.0) * 3.1);',
       '    vec3 bookTint = mix(vec3(0.34, 0.20, 0.12), vec3(0.56, 0.44, 0.30), step(0.45, books));',
       '    bookTint *= smoothstep(0.0, 0.14, shelfRow);',
       '    vec3 wallPaint = mix(vec3(0.62, 0.59, 0.53), vec3(0.54, 0.56, 0.58), fract(rSeed * 5.1));',
-      '    // Subtle framed certificate/painting on upper back wall',
       '    float frame = step(0.64, hit.y) * step(hit.y, 0.86) * step(0.34, hit.x) * step(hit.x, 0.66);',
       '    wallPaint = mix(wallPaint, vec3(0.38, 0.32, 0.24), frame * 0.55);',
       '    surfCol = mix(wallPaint, bookTint, isShelf);',
+      '    float hasMon = step(0.35, fract(rSeed * 17.3)) * (1.0 - isAtrium);',
+      '    float monMask = hasMon * step(0.30, hit.y) * step(hit.y, 0.45) * step(0.40, hit.x) * step(hit.x, 0.62);',
+      '    trofferGlow += monMask * 0.42;',
+      '    surfCol = mix(surfCol, vec3(0.52, 0.72, 0.94), monMask * 0.75);',
       '  } else {',
       '    // 3D Left / Right Partition Wall with Doorway Frame!',
       '    float door = step(hit.y, 0.74) * step(0.55, hit.z) * step(hit.z, 0.92);',
@@ -775,7 +859,7 @@ export function injectOmniScaleSurfaceShader(
           '#if OMNI_PROFILE != 4 && OMNI_PROFILE != 5',
           'if (uShaderQuality > 0.5 && uZebraInspectMode < 0.5) {',
           '  omniSurfDetail = omniEvalSurfaceDetail(uSurfaceProfile, vOmniWorldPos, normalize(vOmniWorldNormal), diffuseColor.rgb, omniPxSize);',
-          '  diffuseColor.rgb *= clamp(omniSurfDetail.y, 0.84, 1.16) * omniSurfDetail.w;',
+          '  diffuseColor.rgb *= clamp(omniSurfDetail.y, 0.64, 1.26) * omniSurfDetail.w;',
           '}',
           '#endif'
         ].join('\n')
@@ -817,18 +901,18 @@ export function injectOmniScaleSurfaceShader(
           'vec3 omniDPdy = dFdy(vViewPosition);',
           'if (uShaderQuality > 0.5 && uZebraInspectMode < 0.5 && uBumpScale > 0.01) {',
           '  float camDist = length(vViewPosition);',
-          '  float bumpFade = (1.0 - smoothstep(26.0, 82.0, camDist)) * (1.0 - omniPuddleMask * 0.88);',
+          '  float bumpFade = (1.0 - smoothstep(75.0, 240.0, camDist)) * (1.0 - omniPuddleMask * 0.88);',
           '  if (bumpFade > 0.005) {',
           '    if (camDist < uCloseDerivativeDist) {',
           '      vec3 wN = normalize(vOmniWorldNormal);',
           '      vec3 upRef = abs(wN.y) < 0.92 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);',
           '      vec3 tU = normalize(cross(upRef, wN));',
           '      vec3 tV = cross(wN, tU);',
-          '      float eps = clamp(omniPxSize * 1.65, 0.004, 0.09);',
+          '      float eps = clamp(omniPxSize * 1.65, 0.004, 0.14);',
           '      float hU = omniEvalSurfaceDetail(uSurfaceProfile, vOmniWorldPos + tU * eps, wN, diffuseColor.rgb, omniPxSize).x;',
           '      float hV = omniEvalSurfaceDetail(uSurfaceProfile, vOmniWorldPos + tV * eps, wN, diffuseColor.rgb, omniPxSize).x;',
-          '      float slopeU = clamp(((hU - omniSurfDetail.x) / eps) * uBumpScale * bumpFade, -0.11, 0.11);',
-          '      float slopeV = clamp(((hV - omniSurfDetail.x) / eps) * uBumpScale * bumpFade, -0.11, 0.11);',
+          '      float slopeU = clamp(((hU - omniSurfDetail.x) / eps) * uBumpScale * bumpFade, -0.34, 0.34);',
+          '      float slopeV = clamp(((hV - omniSurfDetail.x) / eps) * uBumpScale * bumpFade, -0.34, 0.34);',
           '      vec3 worldGrad = slopeU * tU + slopeV * tV;',
           '      vec3 viewGrad = (viewMatrix * vec4(worldGrad, 0.0)).xyz;',
           '      normal = normalize(normal - viewGrad);',
@@ -837,7 +921,7 @@ export function injectOmniScaleSurfaceShader(
           '      vec3 r2 = cross(normal, omniDPdx);',
           '      float det = dot(omniDPdx, r1);',
           '      vec3 surfGrad = sign(det) * (omniDHdx * r1 + omniDHdy * r2) / max(abs(det), 1e-6);',
-          '      normal = normalize(normal - clamp(surfGrad * (uBumpScale * 0.65 * bumpFade), vec3(-0.10), vec3(0.10)));',
+          '      normal = normalize(normal - clamp(surfGrad * (uBumpScale * 0.78 * bumpFade), vec3(-0.28), vec3(0.28)));',
           '    }',
           '  }',
           '}',
@@ -903,15 +987,18 @@ export function injectOmniScaleSurfaceShader(
           '  }',
           '#endif',
           '',
-          '  // D. ANALYTICAL ARCHITECTURAL EAVE & GROUND CONTACT AO',
+          '  // D. ANALYTICAL ARCHITECTURAL EAVE, CANOPY OVERHANG & JEMBATAN TEKSAS GROUND CONTACT AO',
           '  float contactAO = 1.0;',
           '  if (vOmniWorldPos.y > uYSegStart && vOmniWorldPos.y < uYSegStart + uSegStepH * uSegCount && abs(wNorm.y) < 0.7) {',
           '    float phase = fract((vOmniWorldPos.y - uYSegStart) / uSegStepH);',
-          '    contactAO *= mix(0.48, 1.0, smoothstep(0.98, 0.54, phase));',
+          '    contactAO *= mix(0.46, 1.0, smoothstep(0.98, 0.52, phase));',
           '  }',
           '  if (vOmniWorldPos.y > 0.01 && vOmniWorldPos.y < 1.8) {',
           '    contactAO *= mix(0.70, 1.0, smoothstep(0.0, 1.8, vOmniWorldPos.y));',
           '  }',
+          '#if OMNI_PROFILE != 11 && OMNI_PROFILE != 4 && OMNI_PROFILE != 5',
+          '  contactAO *= omniEvalWorldOverhangAO(vOmniWorldPos, wNorm);',
+          '#endif',
           '',
           '#if OMNI_PROFILE == 9',
           '  // D2. 360-DEGREE COASTAL STONE TURAP WAVE-SPLASH & SWASH WET BOULDER BAND (PULAU U & PULAU I)',
@@ -1182,13 +1269,20 @@ export function injectOmniScaleSurfaceShader(
           '      gl_FragColor.rgb += vec3(2.45, 1.95, 1.18) * uStreetlampPower;',
           '    }',
           '  }',
-          '  // E2. JEMBATAN TEKSAS UI TRANSLUCENT WAVE SUNROOF OPTICS, PHOTOCELL ARCH/PORTAL/PIER LIGHTING, & MARITIME/ICAO BEACONS',
-          '  if (vOmniWorldPos.z > 170.0 && vOmniWorldPos.z < 321.0 && abs(vOmniWorldPos.x + 28.0) < 4.5 && diffuseColor.b > diffuseColor.r * 1.8 && diffuseColor.b > 0.45) {',
-          '    float sunTrans = (0.20 + 0.34 * max(0.0, sunL.y)) * sunVisUltra;',
-          '    float fresRoof = pow(1.0 - NdotV, 3.4);',
-          '    vec3 skyTintRoof = mix(vec3(0.32, 0.66, 0.98), vec3(0.86, 0.50, 0.28), uDuskFactor);',
-          '    skyTintRoof = mix(skyTintRoof, vec3(0.04, 0.10, 0.22), uIsNight);',
-          '    gl_FragColor.rgb += vec3(0.07, 0.32, 0.70) * sunTrans + skyTintRoof * (0.10 + 0.34 * fresRoof);',
+          '  // E2. JEMBATAN TEKSAS UI SMOKED-CERULEAN WAVE SKYLIGHT FRESNEL/SKY OPTICS, PHOTOCELL ARCH LIGHTING, & BEACONS',
+          '  if (vOmniWorldPos.z > 170.0 && vOmniWorldPos.z < 321.0 && abs(vOmniWorldPos.x + 28.0) < 4.5 && diffuseColor.b > diffuseColor.r * 1.65 && diffuseColor.b > 0.28) {',
+          '    vec3 reflRoof = reflect(-viewDirW, wNorm);',
+          '    float fresRoof = 0.06 + 0.88 * pow(1.0 - NdotV, 4.0);',
+          '    vec3 roofHoriz = mix(vec3(0.52, 0.68, 0.84), vec3(0.88, 0.48, 0.26), uDuskFactor);',
+          '    vec3 roofZen = mix(vec3(0.15, 0.36, 0.66), vec3(0.16, 0.20, 0.38), uDuskFactor);',
+          '    vec3 roofSky = mix(roofHoriz, roofZen, clamp(abs(reflRoof.y), 0.0, 1.0));',
+          '    float cldRoof = smoothstep(0.44, 0.82, omniFbm2(reflRoof.xz / max(0.20, abs(reflRoof.y) + 0.16) * 1.25));',
+          '    roofSky = mix(roofSky, mix(vec3(0.86, 0.90, 0.95), vec3(0.94, 0.60, 0.38), uDuskFactor), cldRoof * (1.0 - uRainIntensity * 0.65));',
+          '    roofSky = mix(roofSky * (1.0 - uRainIntensity * 0.35), vec3(0.03, 0.06, 0.12), uIsNight);',
+          '    float roofSunSpec = pow(max(dot(reflRoof, sunL), 0.0), 140.0) * sunVisUltra * 1.65;',
+          '    float backTrans = (0.14 + 0.26 * max(0.0, sunL.y)) * sunVisUltra * (wNorm.y < 0.0 ? 1.25 : 0.65);',
+          '    float purlinBar = 0.86 + 0.14 * smoothstep(0.08, 0.32, abs(fract((vOmniWorldPos.z - 175.05) / 4.707) - 0.5));',
+          '    gl_FragColor.rgb = mix(gl_FragColor.rgb * purlinBar + vec3(0.05, 0.19, 0.34) * backTrans, roofSky, fresRoof * 0.62) + uSunColor * roofSunSpec;',
           '  }',
           '  if (uStreetlampPower > 0.002 && vOmniWorldPos.z > 148.0 && vOmniWorldPos.z < 344.0 && abs(vOmniWorldPos.x + 28.0) < 9.5) {',
           '    if (diffuseColor.r > 0.92 && diffuseColor.g > 0.85 && diffuseColor.b > 0.68 && vOmniWorldPos.y > 1.0) {',
@@ -1394,6 +1488,17 @@ export function createPrecastConcreteTexture() {
           ctx.fillRect(x0 + 2, y0 + 2, cw - 4, 2);
           ctx.fillRect(x0 + 2, y0 + 2, 2, ch - 4);
 
+          // Subtle tropical rain-runoff weathering drip streaks below upper reveal joint
+          for (let ds = 0; ds < 3; ds++) {
+            const dx = x0 + 14 + (((c * 53 + r * 29 + ds * 41) % Math.max(12, Math.floor(cw - 28))));
+            const dLen = ch * (0.22 + ((c + r + ds) % 4) * 0.11);
+            const dripG = ctx.createLinearGradient(0, y0 + 2, 0, y0 + 2 + dLen);
+            dripG.addColorStop(0.0, 'rgba(118, 112, 98, 0.16)');
+            dripG.addColorStop(1.0, 'rgba(118, 112, 98, 0.0)');
+            ctx.fillStyle = dripG;
+            ctx.fillRect(dx, y0 + 2, 3.5 + (ds % 2) * 2.0, dLen);
+          }
+
           // Formwork tie-rod plugged cone dimples at 4 corners of each precast slab!
           for (const tx of [x0 + 18, x0 + cw - 18]) {
             for (const ty of [y0 + 18, y0 + ch - 18]) {
@@ -1441,46 +1546,46 @@ export function createPrecastConcreteTexture() {
 }
 
 /**
- * 2. 1024x1024 Weathered Tropical Flat Concrete Roof Deck Slab
+ * 2. 2048x2048 Weathered Tropical Flat Concrete Roof Deck Slab
  */
 export function createWeatheredFlatRoofTexture() {
   return makeProceduralCanvasTexture(
-    1024,
-    1024,
+    2048,
+    2048,
     (ctx, w, h) => {
       ctx.fillStyle = '#8b8f92';
       ctx.fillRect(0, 0, w, h);
 
-      const grid = 12;
+      const grid = 16;
       const cell = w / grid;
       for (let y = 0; y < grid; y++) {
         for (let x = 0; x < grid; x++) {
           const v = 132 + (((x * 29 + y * 43) % 23) - 11);
           ctx.fillStyle = `rgb(${v}, ${v + 3}, ${v + 5})`;
-          ctx.fillRect(x * cell + 2.5, y * cell + 2.5, cell - 5, cell - 5);
-          ctx.strokeStyle = 'rgba(72, 76, 78, 0.55)';
-          ctx.lineWidth = 2;
+          ctx.fillRect(x * cell + 3, y * cell + 3, cell - 6, cell - 6);
+          ctx.strokeStyle = 'rgba(68, 72, 74, 0.58)';
+          ctx.lineWidth = 2.5;
           ctx.strokeRect(x * cell + 1.5, y * cell + 1.5, cell - 3, cell - 3);
         }
       }
 
-      for (let i = 0; i < 36; i++) {
+      for (let i = 0; i < 56; i++) {
         const px = ((i * 97) % 100) * 0.01 * w;
         const py = ((i * 53) % 100) * 0.01 * h;
-        const rad = 36 + (i % 6) * 24;
-        const g = ctx.createRadialGradient(px, py, 3, px, py, rad);
-        g.addColorStop(0, 'rgba(62, 66, 63, 0.36)');
-        g.addColorStop(1, 'rgba(62, 66, 63, 0.0)');
+        const rad = 52 + (i % 7) * 34;
+        const g = ctx.createRadialGradient(px, py, 4, px, py, rad);
+        g.addColorStop(0, 'rgba(56, 62, 57, 0.34)');
+        g.addColorStop(1, 'rgba(56, 62, 57, 0.0)');
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.arc(px, py, rad, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      for (let i = 0; i < 3200; i++) {
+      for (let i = 0; i < 7200; i++) {
         const px = (i * 4999) % w;
         const py = (i * 3571) % h;
-        ctx.fillStyle = i % 2 === 0 ? 'rgba(55,58,60,0.22)' : 'rgba(205,210,212,0.18)';
+        ctx.fillStyle = i % 2 === 0 ? 'rgba(52,55,58,0.22)' : 'rgba(208,212,214,0.18)';
         ctx.fillRect(px, py, 2, 2);
       }
     },
@@ -1564,11 +1669,15 @@ export function createJavaneseClayTileTexture() {
           ctx.fillStyle = grad;
           ctx.fillRect(x0, y0, tw - 0.8, th - 2.5);
 
-          // Upper interlocking nib highlight & deep lower course overlap drop-shadow!
+          // Upper interlocking nib highlight, subtle tropical lichen/moss valley patina, & course overlap shadow!
+          if (((r * 17 + c * 31) % 9) < 2) {
+            ctx.fillStyle = 'rgba(58, 66, 42, 0.24)';
+            ctx.fillRect(x0 + 1, y0 + th - 8.5, tw * 0.34, 5.0);
+          }
           ctx.fillStyle = 'rgba(235, 148, 120, 0.22)';
           ctx.fillRect(x0 + tw * 0.18, y0 + th - 6.0, tw * 0.55, 2.2);
-          ctx.fillStyle = 'rgba(34, 10, 7, 0.62)';
-          ctx.fillRect(x0, y0 + th - 3.6, tw, 3.6);
+          ctx.fillStyle = 'rgba(34, 10, 7, 0.66)';
+          ctx.fillRect(x0, y0 + th - 3.8, tw, 3.8);
         }
       }
     },
@@ -1952,7 +2061,7 @@ export function createMakaraEmblemTextures() {
     ctx.stroke();
   };
 
-  const map = makeProceduralCanvasTexture(1024, 1024, (ctx, w, h) => drawMakaraMotif(ctx, w, h, false), 1, 1);
-  const emissiveMap = makeProceduralCanvasTexture(1024, 1024, (ctx, w, h) => drawMakaraMotif(ctx, w, h, true), 1, 1);
+  const map = makeProceduralCanvasTexture(2048, 2048, (ctx, w, h) => drawMakaraMotif(ctx, w, h, false), 1, 1);
+  const emissiveMap = makeProceduralCanvasTexture(2048, 2048, (ctx, w, h) => drawMakaraMotif(ctx, w, h, true), 1, 1);
   return { map, emissiveMap };
 }

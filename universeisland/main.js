@@ -1875,6 +1875,10 @@ async function bootstrapNexusSimulator() {
   const audioVolLabel = document.getElementById('label-audio-vol');
   const acousticStatusEl = document.getElementById('ui-acoustic-status');
   const audioMixBtns = Array.from(document.querySelectorAll('[data-audiomix]'));
+  const spatialModeBtn = document.getElementById('btn-spatial-mode');
+  const bellAuditionBtn = document.getElementById('btn-bell-audition');
+  const spectrumBarEls = Array.from(document.querySelectorAll('#acoustic-spectrum-bars > i'));
+  const spectrumScratch8 = new Uint8Array(8);
 
   function updateAcousticWorldNow(dtStep) {
     camera.updateMatrixWorld();
@@ -1901,6 +1905,7 @@ async function bootstrapNexusSimulator() {
       sivitasAI,
       avataThrottle01: camDirector._avataThrottle01 || 0.0,
       avataTurnRate: Math.abs(camDirector._avataYawRateSmooth || 0.0),
+      avataSignedYawRate: camDirector._avataYawRateSmooth || 0.0,
       avataGForce: camDirector._avataGForce || 1.0,
       avataStuntActive: Boolean(camDirector._avataStunt?.active),
       avataApasActive: apasActive,
@@ -1928,6 +1933,11 @@ async function bootstrapNexusSimulator() {
     audioMixBtns.forEach((b) => {
       b.classList.toggle('active', b.dataset.audiomix === curMix);
     });
+    if (spatialModeBtn) {
+      const spMode = audioSynth.getSpatialOutputMode ? audioSynth.getSpatialOutputMode() : 'BINAURAL';
+      spatialModeBtn.textContent = spMode === 'SPEAKER' ? 'Speaker' : 'HRTF';
+      spatialModeBtn.classList.toggle('active', spMode !== 'SPEAKER');
+    }
   }
 
   function syncAcousticTelemetryDOM() {
@@ -1938,6 +1948,15 @@ async function bootstrapNexusSimulator() {
     }
     if (audioVolSlider && document.activeElement !== audioVolSlider) {
       audioVolSlider.value = String(volPct);
+    }
+    if (spectrumBarEls.length === 8 && audioSynth.sampleSpectrum8Bars) {
+      audioSynth.sampleSpectrum8Bars(spectrumScratch8);
+      for (let i = 0; i < 8; i++) {
+        const v01 = tel.enabled ? spectrumScratch8[i] / 255.0 : 0.0;
+        const hPx = tel.enabled ? Math.max(2, Math.round(2 + v01 * 8)) : 2;
+        spectrumBarEls[i].style.height = `${hPx}px`;
+        spectrumBarEls[i].style.opacity = tel.enabled ? String((0.42 + v01 * 0.58).toFixed(2)) : '0.32';
+      }
     }
     if (acousticStatusEl) {
       const contextLabel =
@@ -2006,6 +2025,35 @@ async function bootstrapNexusSimulator() {
       syncAcousticTelemetryDOM();
     });
   });
+
+  if (spatialModeBtn) {
+    spatialModeBtn.addEventListener('click', () => {
+      dismissWelcomeToast();
+      const cur = audioSynth.getSpatialOutputMode ? audioSynth.getSpatialOutputMode() : 'BINAURAL';
+      const next = cur === 'BINAURAL' ? 'SPEAKER' : 'BINAURAL';
+      if (audioSynth.setSpatialOutputMode) audioSynth.setSpatialOutputMode(next);
+      if (audioSynth.enabled) audioSynth.playUiChime(next === 'BINAURAL' ? 680 : 540);
+      syncAudioButtonsDOM();
+      syncAcousticTelemetryDOM();
+    });
+  }
+
+  if (bellAuditionBtn) {
+    bellAuditionBtn.addEventListener('click', () => {
+      dismissWelcomeToast();
+      if (!audioSynth.enabled) {
+        if (audioSynth.getMasterVolume() < 0.05) {
+          audioSynth.setMasterVolume(0.8);
+          if (audioVolSlider) audioVolSlider.value = '80';
+        }
+        audioSynth.toggle(true);
+      }
+      updateAcousticWorldNow(0.016);
+      if (audioSynth.triggerCampusBell) audioSynth.triggerCampusBell(4);
+      syncAudioButtonsDOM();
+      syncAcousticTelemetryDOM();
+    });
+  }
 
   if (audioBtn) audioBtn.addEventListener('click', toggleMasterAudio);
   if (qdockAudioBtn) qdockAudioBtn.addEventListener('click', toggleMasterAudio);

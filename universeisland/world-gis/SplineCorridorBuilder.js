@@ -157,11 +157,12 @@ export class SplineCorridorBuilder {
     const cCol = [];
     const cIdx = [];
 
-    const pushD = (x, y, z, nx, ny, nz, col = deckColor) => {
+    const isVehicularAsphalt = halfWidth >= 2.8 && deckColor[0] < 0.32 && Math.abs(deckColor[0] - deckColor[2]) < 0.08;
+    const pushD = (x, y, z, nx, ny, nz, col = deckColor, latFrac = 0.0) => {
       const idx = dPos.length / 3;
       dPos.push(x, y, z);
       dNorm.push(nx, ny, nz);
-      dUv.push(x * 0.2, z * 0.2);
+      dUv.push(x * 0.2, isVehicularAsphalt ? -420.0 + latFrac : z * 0.2);
       dCol.push(col[0], col[1], col[2]);
       return idx;
     };
@@ -213,8 +214,10 @@ export class SplineCorridorBuilder {
 
     const curbU = (arc) => (zebraCurbs ? arc * activeZebraFreq : 0.055);
 
-    // 1. 4-Strip Cambered Horizontal Road/Walkway Deck (subtle 1.6cm drainage crown + gutter AO!)
-    const lateralFracs = [-1.0, -0.55, 0.0, 0.55, 1.0];
+    // 1. 6-Strip Cambered Horizontal Road/Walkway Deck (1.6cm drainage crown, twin tire-wear tracks & gutter AO!)
+    const lateralFracs = isVehicularAsphalt
+      ? [-1.0, -0.68, -0.38, 0.0, 0.38, 0.68, 1.0]
+      : [-1.0, -0.55, 0.0, 0.55, 1.0];
     const deckRows = [];
     for (let i = 0; i <= segments; i++) {
       const { pos, side } = frames[i];
@@ -222,7 +225,11 @@ export class SplineCorridorBuilder {
       for (let k = 0; k < lateralFracs.length; k++) {
         const f = lateralFracs[k];
         const camber = (1.0 - f * f) * 0.016;
-        const gutterShade = 1.0 - 0.14 * Math.pow(Math.abs(f), 3.0);
+        const absF = Math.abs(f);
+        const tireWear = isVehicularAsphalt
+          ? 0.075 * (Math.exp(-Math.pow((absF - 0.38) / 0.15, 2.0)) + Math.exp(-Math.pow((absF - 0.68) / 0.15, 2.0)))
+          : 0.0;
+        const gutterShade = 1.0 - 0.14 * Math.pow(absF, 3.0) - tireWear;
         const slopeX = (-2.0 * f * 0.016) / Math.max(0.5, halfWidth);
         const nx = side.x * slopeX;
         const nz = side.z * slopeX;
@@ -235,7 +242,8 @@ export class SplineCorridorBuilder {
             nx * invN,
             invN,
             nz * invN,
-            [deckColor[0] * gutterShade, deckColor[1] * gutterShade, deckColor[2] * gutterShade]
+            [deckColor[0] * gutterShade, deckColor[1] * gutterShade, deckColor[2] * gutterShade],
+            f
           )
         );
       }
@@ -2089,21 +2097,22 @@ export class SplineCorridorBuilder {
     const zRampE1 = TerrainDEMLoader.TEKSAS_EAST_RAMP_END_Z; // 341.65
     const eastPlazaY = TerrainDEMLoader.TEKSAS_EAST_PLAZA_Y; // 0.34
 
-    // Authentic Jembatan Teksas UI Palette (PT Krakatau Steel BTKC + UI Identity)
-    const krakatauRed = [0.68, 0.11, 0.09];
-    const krakatauRedDark = [0.54, 0.08, 0.07];
-    const btkcCharcoal = [0.15, 0.16, 0.18];
-    const btkcFlangeSteel = [0.25, 0.27, 0.30];
-    const uiGoldenYellow = [0.92, 0.68, 0.07];
-    const uiYellowDeep = [0.80, 0.56, 0.05];
-    const stayCableSteel = [0.62, 0.65, 0.70];
-    const deckPaverGrey = [0.35, 0.36, 0.39];
-    const bikeLaneBrick = [0.47, 0.32, 0.25];
-    const sunroofBlue = [0.10, 0.46, 0.88];
-    const sunroofBlueUnderside = [0.15, 0.52, 0.92];
+    // Authentic Photorealistic Jembatan Teksas UI Palette (Weathered Krakatau Steel BTKC + UI Identity + Smoked Cerulean Skylights)
+    const krakatauRed = [0.51, 0.115, 0.096];
+    const krakatauRedDark = [0.37, 0.082, 0.070];
+    const btkcCharcoal = [0.135, 0.148, 0.165];
+    const btkcFlangeSteel = [0.235, 0.255, 0.282];
+    const uiGoldenYellow = [0.85, 0.62, 0.09];
+    const uiYellowDeep = [0.72, 0.50, 0.07];
+    const stayCableSteel = [0.58, 0.62, 0.67];
+    const deckPaverGrey = [0.33, 0.34, 0.36];
+    const bikeLaneBrick = [0.43, 0.28, 0.22];
+    const sunroofBlue = [0.12, 0.33, 0.54];
+    const sunroofBlueUnderside = [0.15, 0.39, 0.61];
+    const sunroofMullionAlum = [0.64, 0.67, 0.71];
     const warmLedStrip = [0.96, 0.90, 0.74];
-    const concreteWarm = [0.91, 0.89, 0.85];
-    const concreteStep = [0.86, 0.84, 0.80];
+    const concreteWarm = [0.85, 0.83, 0.78];
+    const concreteStep = [0.80, 0.78, 0.74];
 
     const evalArchDeckY = (z) => {
       const u = (z - zC) / halfSpan;
@@ -2336,8 +2345,29 @@ export class SplineCorridorBuilder {
         0.0
       );
 
-      // Central longitudinal bottom stiffener keel rib along soffit centerline
+      // Central + twin lateral longitudinal bottom T-stiffener ribs along soffit underside
       pushTubeH(bx, yBot0 - 0.045, z0, bx, yBot1 - 0.045, z1, 0.065, 0.065, 6, btkcFlangeSteel);
+      for (const sRib of [-0.88, 0.88]) {
+        pushTubeH(bx + sRib, yBot0 - 0.032, z0, bx + sRib, yBot1 - 0.032, z1, 0.042, 0.042, 6, btkcFlangeSteel);
+      }
+      if (i % 6 === 3) {
+        const zScup = 0.5 * (z0 + z1);
+        const yScup = 0.5 * (yD0 + yD1);
+        for (const sx of [-1, 1]) {
+          pushTubeH(
+            bx + sx * (deckHalfW + 0.04),
+            yScup - 0.18,
+            zScup,
+            bx + sx * (deckHalfW + 0.20),
+            yScup - 0.44,
+            zScup,
+            0.034,
+            0.030,
+            6,
+            btkcFlangeSteel
+          );
+        }
+      }
 
       // North (+X) inclined box-girder web (strictly facing +X / -Y outward!)
       pushQuadH(
@@ -2545,6 +2575,15 @@ export class SplineCorridorBuilder {
         // Vertical Steel Truss Hanger Post at z0
         pushTubeH(xt, yD0 + 0.08, z0, xt, yC0, z0, 0.085, 0.085, 8, krakatauRed);
 
+        // Bolted Structural Steel Gusset Node Plates at Upper Chord & Lower Fascia Joints
+        const upperGusset = new THREE.BoxGeometry(0.052, 0.34, 0.42);
+        upperGusset.translate(xt, yC0 - 0.10, z0);
+        appendPart(hPos, hNorm, hUv, hCol, hIdx, upperGusset, krakatauRedDark);
+
+        const lowerGusset = new THREE.BoxGeometry(0.056, 0.30, 0.40);
+        lowerGusset.translate(xt, yD0 + 0.22, z0);
+        appendPart(hPos, hNorm, hUv, hCol, hIdx, lowerGusset, krakatauRedDark);
+
         // Alternating Warren Diagonal Web Strut
         if (k % 2 === 0) {
           pushTubeH(xt, yD0 + 0.12, z0, xt, yC1 - 0.04, z1, 0.068, 0.068, 8, krakatauRedDark);
@@ -2661,6 +2700,23 @@ export class SplineCorridorBuilder {
             zB,
             sunroofBlueUnderside
           );
+
+          // 3D Extruded Anodized-Aluminum Perimeter Clamping Mullions & Center Spine Cap
+          if (iv === 0) {
+            pushTubeH(xA, y00 + 0.012, zA, xB, y10 + 0.012, zA, 0.026, 0.026, 6, sunroofMullionAlum);
+          }
+          if (iv === gridV - 1) {
+            pushTubeH(xA, y01 + 0.012, zB, xB, y11 + 0.012, zB, 0.026, 0.026, 6, sunroofMullionAlum);
+          }
+          if (iu === 0) {
+            pushTubeH(xA, y00 + 0.012, zA, xA, y01 + 0.012, zB, 0.028, 0.028, 6, sunroofMullionAlum);
+          }
+          if (iu === gridU - 1) {
+            pushTubeH(xB, y10 + 0.012, zA, xB, y11 + 0.012, zB, 0.028, 0.028, 6, sunroofMullionAlum);
+          }
+          if (iu === gridU / 2) {
+            pushTubeH(xA, y00 + 0.016, zA, xA, y01 + 0.016, zB, 0.022, 0.022, 6, sunroofMullionAlum);
+          }
         }
       }
     }
@@ -5937,15 +5993,15 @@ export class SplineCorridorBuilder {
       name: 'CampusAsphaltBrickAndWalkwayRoofMat',
       color: 0xffffff,
       vertexColors: true,
-      roughness: 0.84,
-      metalness: 0.03,
-      envMapIntensity: 0.11
+      roughness: 0.80,
+      metalness: 0.04,
+      envMapIntensity: 0.28
     });
     injectOmniScaleSurfaceShader(matDeckAndRoof, {
       ySegmentStart: 120.0,
       segmentCount: 0.0,
       surfaceProfile: SURFACE_PROFILE.ASPHALT_TEAK_BARK,
-      bumpScale: 0.65,
+      bumpScale: 0.68,
       sharedUniforms: uniforms
     });
 
@@ -5955,9 +6011,9 @@ export class SplineCorridorBuilder {
       map: createZebraCurbTexture(),
       color: 0xffffff,
       vertexColors: true,
-      roughness: 0.82,
+      roughness: 0.78,
       metalness: 0.03,
-      envMapIntensity: 0.11
+      envMapIntensity: 0.24
     });
     injectOmniScaleSurfaceShader(matZebraCurbAndConcrete, {
       ySegmentStart: 120.0,

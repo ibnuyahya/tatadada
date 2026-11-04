@@ -42,9 +42,9 @@ export class HumanEyeHDROptics {
   static createUniforms() {
     return {
       // x: eyeGain, y: huntChroma, z: stevensContrast (n), w: purkinjeMix
-      uHvsParams: { value: new THREE.Vector4(1.06, 1.18, 1.12, 0.0) },
+      uHvsParams: { value: new THREE.Vector4(1.04, 1.045, 1.14, 0.0) },
       // x: sunGlareStrength, y: lightningVeil, z: shadowToeLift, w: whitePoint
-      uHvsGlare: { value: new THREE.Vector4(0.82, 0.0, 0.022, 4.2) }
+      uHvsGlare: { value: new THREE.Vector4(0.76, 0.0, 0.018, 4.6) }
     };
   }
 
@@ -130,30 +130,31 @@ export class HumanEyeHDROptics {
       Math.min(1.66, 1.045 * Math.pow(0.96 / L, 0.215))
     );
 
-    // B. Hunt Effect (Colorfulness rises with photopic luminance, gently relaxes in storm/scotopic regimes)
-    const overcastDesat = Math.min(0.11, rainF * 0.065 + stormF * 0.045);
+    // B. Hasselblad Natural Color Science (HNCS) & Macbeth ColorChecker Photopic Calibration:
+    //    Eliminates CG/gamey neon oversaturation (previously 1.19) while keeping natural lushness
+    const overcastDesat = Math.min(0.105, rainF * 0.062 + stormF * 0.043 + cloudF * 0.018);
     const huntChroma =
-      1.19 -
+      1.048 -
       overcastDesat -
-      duskF * 0.02 * (1.0 - sunVis) -
-      nightF * 0.21;
+      duskF * 0.018 * (1.0 - sunVis) -
+      nightF * 0.165;
 
-    // C. Stevens Effect (Apparent contrast slope n increases in bright photopic sun, softens in mist/rain/night)
+    // C. Stevens Effect & Photographic Micro-Contrast Slope (crisp 3D separation even in storm/overcast)
     const stevensContrast =
-      1.015 +
-      0.115 * Math.pow(photopicNorm, 0.75) * (1.0 - rainF * 0.34 - stormF * 0.28);
+      1.055 +
+      0.115 * Math.pow(photopicNorm, 0.72) * (1.0 - rainF * 0.24 - stormF * 0.20);
 
     // D. Purkinje Rod-Cone Spectral Shift (507nm blue-cyan rod takeover in low-luminance mesopic/scotopic shadows)
     const purkinjeMix = Math.max(
       0.0,
-      Math.min(0.42, nightF * 0.38 + duskF * 0.08 * (1.0 - photopicNorm))
+      Math.min(0.40, nightF * 0.36 + duskF * 0.07 * (1.0 - photopicNorm))
     );
 
-    // E. Spencer-Shirley Intraocular Ciliary Glare & Zero-Preserving Bipolar Shadow-Toe Micro-Lift
-    const sunGlareStrength = sunVis * (0.72 + 0.38 * duskF);
-    const lightningVeil = Math.min(0.32, flashF * 0.16);
-    const shadowToeLift = (0.022 + 0.008 * rainF + 0.006 * stormF) * (1.0 - nightF * 0.86);
-    const whitePoint = 4.25 - 0.35 * nightF;
+    // E. Spencer-Shirley Intraocular Ciliary Glare & Natural Filmic Shadow-Toe Micro-Lift
+    const sunGlareStrength = sunVis * (0.68 + 0.36 * duskF);
+    const lightningVeil = Math.min(0.30, flashF * 0.15);
+    const shadowToeLift = (0.016 + 0.006 * rainF + 0.005 * stormF) * (1.0 - nightF * 0.88);
+    const whitePoint = 4.65 - 0.40 * nightF;
 
     this._writeToBag(
       targetUniformsA,
@@ -392,23 +393,42 @@ export class HumanEyeHDROptics {
         float ciliaryScatter = (pow(cosSun, 5.0) * 0.026 + pow(cosSun, 24.0) * 0.062) * sunGlareVis;
         c += sunColor * ciliaryScatter + vec3(0.62, 0.76, 1.0) * lightningVeil * 0.075;
 
-        // 3. Normalized Naka-Rushton Cone/Rod Photoreceptor Response with Stevens Contrast (nSlope)
-        float sigma = 0.60;
+        // 3. AgX-Inspired Cross-Talk Inset + Normalized Naka-Rushton Photoreceptor Response
+        //    Prevents pure RGB primaries (red bridge steel, yellow transit, blue glass, emerald grass)
+        //    from clipping into synthetic CG neon, rolling highlights smoothly into natural warm white!
+        const mat3 AGX_INSET = mat3(
+          0.895, 0.052, 0.036,
+          0.068, 0.908, 0.044,
+          0.037, 0.040, 0.920
+        );
+        const mat3 AGX_OUTSET = mat3(
+           1.126, -0.064, -0.041,
+          -0.084,  1.109, -0.050,
+          -0.042, -0.045,  1.091
+        );
+        vec3 cInset = AGX_INSET * c;
+
+        float sigma = 0.57;
         float sigmaPow = pow(sigma, nSlope);
         float normScale = (pow(whitePt, nSlope) + sigmaPow) / pow(whitePt, nSlope);
 
-        float lumIn = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        float lumIn = dot(cInset, vec3(0.2126, 0.7152, 0.0722));
         float lumNR = nexusNakaRushtonScalar(lumIn, nSlope, sigmaPow, normScale);
-        vec3 cHuePreserved = c * (lumNR / max(lumIn, 1e-5));
-        vec3 cConeBleach = nexusNakaRushtonVec3(c, nSlope, sigmaPow, normScale);
+        vec3 cHuePreserved = cInset * (lumNR / max(lumIn, 1e-5));
+        vec3 cConeBleach = nexusNakaRushtonVec3(cInset, nSlope, sigmaPow, normScale);
 
-        // Preserve 100% pure spectral hue in shadows/midtones; smoothly bleach intense HDR highlights > 0.40
-        float bleachT = smoothstep(0.38, 1.85, lumIn) * 0.68;
-        vec3 mapped = mix(cHuePreserved, cConeBleach, bleachT);
+        // Smooth filmic highlight shoulder desaturation above Y > 0.30
+        float bleachT = smoothstep(0.28, 1.65, lumIn) * 0.78;
+        vec3 mappedInset = mix(cHuePreserved, cConeBleach, bleachT);
+        vec3 mapped = max(vec3(0.0), mix(AGX_OUTSET * mappedInset, mappedInset, smoothstep(0.45, 0.96, lumNR) * 0.72));
 
-        // 4. Hunt Effect (Photopic Colorfulness) with Architectural White & Highlight Protection
+        // 4. Hunt Effect (Photopic Colorfulness) with Macbeth Neutral & Highlight Gamut Guard
         float lumOut = dot(mapped, vec3(0.2126, 0.7152, 0.0722));
-        float chromaGuard = 1.0 - 0.56 * smoothstep(0.64, 0.97, lumOut);
+        float maxCh = max(mapped.r, max(mapped.g, mapped.b));
+        float minCh = min(mapped.r, min(mapped.g, mapped.b));
+        float satEst = (maxCh - minCh) / max(maxCh, 1e-4);
+        // Protect already-saturated pigments from over-boosting while keeping subtle mineral/earth nuances rich
+        float chromaGuard = (1.0 - 0.68 * smoothstep(0.58, 0.96, lumOut)) * (1.0 - 0.32 * smoothstep(0.55, 0.92, satEst));
         float effChroma = mix(1.0, huntChroma, chromaGuard);
         mapped = max(vec3(0.0), vec3(lumOut) + (mapped - vec3(lumOut)) * effChroma);
 

@@ -1009,43 +1009,48 @@ export class TerrainDEMLoader {
         const alpha = Math.atan2(dxW, dzW);
         const absAlpha = Math.abs(alpha);
 
-        // North & South upper basalt canyon rim walls (guarantees upper river y = 18.80m is 100% rock-contained,
-        // while outer grassy volcano shoulders taper gently across 39m via C^1 geotechnical ramp!)
-        const upperRimGuard =
-          PhysicsKernel.smootherstep(1.04, 1.20, absAlpha) *
-          (1.0 - TerrainDEMLoader._geotechRamp01(1.26, 1.98, absAlpha)) *
-          PhysicsKernel.smootherstep(13.8, 15.8, rW) *
-          (1.0 - TerrainDEMLoader._geotechRamp01(29.8, 68.0, rW)) *
-          TerrainDEMLoader._geotechRamp01(-124.0, -85.0, x) *
+        // Solid upper basalt plateau & canyon rim walls (guarantees upper river y = 18.80m is 100% rock-cradled
+        // on North, South & Upstream rims at >= 20.65m, tapering gently across 37m via C^1 geotechnical ramp!)
+        const upperMesaAng = 1.0 - TerrainDEMLoader._geotechRamp01(1.22, 1.88, absAlpha);
+        const upperMesaRad =
+          PhysicsKernel.smootherstep(13.4, 15.2, rW) *
+          (1.0 - TerrainDEMLoader._geotechRamp01(27.8, 62.0, rW)) *
+          TerrainDEMLoader._geotechRamp01(-92.0, -61.5, x) *
           TerrainDEMLoader._geotechRamp01(-2.0, -24.0, dI);
-        if (upperRimGuard > 0.001) {
-          yI = yI * (1.0 - upperRimGuard) + Math.max(yI, 20.75 * coastCollar) * upperRimGuard;
+        const upperMesaMask = upperMesaAng * upperMesaRad;
+        if (upperMesaMask > 0.001) {
+          const rimCrownY = (20.65 + 0.32 * Math.sin(x * 0.24 + z * 0.21)) * coastCollar;
+          yI = yI * (1.0 - upperMesaMask) + Math.max(yI, rimCrownY) * upperMesaMask;
         }
 
-        // Upper basalt feeding river shelf (bed ~17.65m under y_water = 18.80m, emerging from volcanic spring gorge)
-        const upperAngMask = 1.0 - PhysicsKernel.smootherstep(1.02, 1.28, absAlpha);
+        // Upper basalt feeding river shelf (bed ~17.65m under y_water = 18.80m, aligned with Gunung Api radial spring gorge)
+        const uChan = Math.max(0.0, Math.min(1.0, (25.0 - rW) / (25.0 - 15.52)));
+        const chanCenterAlpha = 0.18 - 0.01 * uChan;
+        const chanHalfSpan = 0.56 + 0.35 * PhysicsKernel.smootherstep(0.0, 0.90, uChan);
+        const dAlphaChan = Math.abs(alpha - chanCenterAlpha) / chanHalfSpan;
+        const upperAngMask = 1.0 - PhysicsKernel.smootherstep(0.84, 1.10, dAlphaChan);
         const upperRadMask =
-          PhysicsKernel.smootherstep(14.8, 16.1, rW) *
-          (1.0 - PhysicsKernel.smootherstep(28.5, 33.8, rW));
+          PhysicsKernel.smootherstep(12.6, 14.4, rW) *
+          (1.0 - PhysicsKernel.smootherstep(25.2, 34.5, rW));
         const upperMask = upperAngMask * upperRadMask;
         if (upperMask > 0.001) {
           const upperBedY =
             (17.65 +
-              0.38 * PhysicsKernel.smootherstep(16.0, 29.5, rW) +
+              0.38 * PhysicsKernel.smootherstep(16.0, 25.5, rW) +
               0.10 * Math.sin(x * 0.58) * Math.cos(z * 0.62)) *
             coastCollar;
           yI = yI * (1.0 - upperMask) + Math.min(yI, upperBedY) * upperMask;
         }
 
-        // 2 Natural Dark-Basalt Crest-Splitter Islets ("Goat Island" boulders) splitting the 36.8m horseshoe brink
-        for (const spAlpha of [-0.62, 0.54]) {
-          const sx = TerrainDEMLoader.NIAGARA_CX + Math.sin(spAlpha) * 15.9;
-          const sz = TerrainDEMLoader.NIAGARA_CZ + Math.cos(spAlpha) * 15.9;
+        // 2 Natural Dark-Basalt Crest-Splitter Islets ("Goat Island" low rounded river boulders) splitting the horseshoe brink
+        for (const spAlpha of [-0.28, 0.58]) {
+          const sx = TerrainDEMLoader.NIAGARA_CX + Math.sin(spAlpha) * 16.4;
+          const sz = TerrainDEMLoader.NIAGARA_CZ + Math.cos(spAlpha) * 16.4;
           const dSp = Math.hypot(x - sx, z - sz);
-          if (dSp < 3.4) {
+          if (dSp < 3.8) {
             const rockH =
-              (20.25 - 0.34 * dSp + 0.16 * Math.sin(x * 1.8 - z * 1.6)) * coastCollar;
-            const spT = 1.0 - PhysicsKernel.smootherstep(1.05, 3.3, dSp);
+              (19.28 - 0.28 * dSp + 0.08 * Math.sin(x * 1.4 - z * 1.3)) * coastCollar;
+            const spT = 1.0 - PhysicsKernel.smootherstep(1.4, 3.7, dSp);
             yI = yI * (1.0 - spT) + Math.max(yI, rockH) * spT;
           }
         }
@@ -1066,9 +1071,11 @@ export class TerrainDEMLoader {
           TerrainDEMLoader.NIAGARA_LIP_R +
           0.28 * Math.sin(alpha * 9.0) +
           0.16 * Math.cos(alpha * 15.0);
-        const effLipR = absAlpha <= 1.24 ? lipFlute : 14.5;
-        if (rW < effLipR + 0.6) {
-          const poolCarveT = 1.0 - PhysicsKernel.smootherstep(effLipR - 2.0, effLipR + 0.3, rW);
+        const inBrinkArc = alpha >= -0.78 && alpha <= 1.12;
+        const effLipR = inBrinkArc ? lipFlute : 14.5;
+        const cliffRampIn = inBrinkArc ? 2.0 : 4.2;
+        if (rW < effLipR + 0.8) {
+          const poolCarveT = 1.0 - PhysicsKernel.smootherstep(effLipR - cliffRampIn, effLipR + 0.5, rW);
           const poolBedY =
             (0.18 + 0.10 * Math.sin(x * 0.45) * Math.cos(z * 0.45)) * coastCollar;
           yI = yI * (1.0 - poolCarveT) + poolBedY * poolCarveT;
@@ -2082,19 +2089,21 @@ export class TerrainDEMLoader {
         } else {
           const dappleMacro = 0.5 + 0.5 * Math.sin(x * 0.09 + 1.1) * Math.cos(z * 0.08 - 0.7);
           const turfMicro = 0.5 + 0.5 * Math.sin(x * 0.42 - z * 0.37) * Math.cos(x * 0.29 + z * 0.51);
+          const dryBlade = 0.5 + 0.5 * Math.sin(x * 0.16 + z * 0.22) * Math.cos(z * 0.14 - x * 0.19);
           const moundTint = Math.max(0.0, Math.min(1.0, y / 1.8));
-          r = 0.105 + 0.042 * dappleMacro + 0.015 * turfMicro + 0.024 * moundTint;
-          g = 0.285 + 0.075 * dappleMacro + 0.026 * turfMicro + 0.035 * moundTint;
-          b = 0.056 + 0.022 * dappleMacro + 0.010 * turfMicro + 0.014 * moundTint;
+          // Natural tropical Zoysia/Axonopus campus lawn reflectance (warm sunlit olive-emerald + dry-thatch variation, zero neon green)
+          r = 0.118 + 0.044 * dappleMacro + 0.022 * dryBlade + 0.015 * turfMicro + 0.022 * moundTint;
+          g = 0.268 + 0.068 * dappleMacro + 0.016 * dryBlade + 0.024 * turfMicro + 0.030 * moundTint;
+          b = 0.066 + 0.020 * dappleMacro + 0.012 * dryBlade + 0.010 * turfMicro + 0.012 * moundTint;
 
           if (z < 536.0 && y > 2.2) {
-            // Pulau U Rolling Tropical Hills: sunlit golden-emerald hill crests & rich forest soil slope variation
+            // Pulau U Rolling Tropical Hills: sunlit golden-emerald hill crests & Depok reddish-brown laterite soil on steep banks
             const hillElevT = PhysicsKernel.smootherstep(2.2, 16.5, y);
-            const steepnessT = 1.0 - PhysicsKernel.smootherstep(0.70, 0.93, nTmp.y);
+            const steepnessT = 1.0 - PhysicsKernel.smootherstep(0.68, 0.93, nTmp.y);
             const humusPatch = 0.5 + 0.5 * Math.sin(x * 0.21 + z * 0.17) * Math.cos(z * 0.26 - x * 0.15);
-            r = r * (1.0 - hillElevT * 0.20) + (0.145 + 0.055 * dappleMacro) * (hillElevT * 0.20) + steepnessT * (0.038 + 0.028 * humusPatch);
-            g = g * (1.0 - hillElevT * 0.18) + (0.345 + 0.055 * dappleMacro) * (hillElevT * 0.18) - steepnessT * (0.042 - 0.018 * humusPatch);
-            b = b * (1.0 - hillElevT * 0.14) + 0.075 * (hillElevT * 0.14) - steepnessT * 0.008;
+            r = r * (1.0 - hillElevT * 0.20) + (0.155 + 0.052 * dappleMacro) * (hillElevT * 0.20) + steepnessT * (0.062 + 0.038 * humusPatch);
+            g = g * (1.0 - hillElevT * 0.18) + (0.315 + 0.050 * dappleMacro) * (hillElevT * 0.18) - steepnessT * (0.048 - 0.016 * humusPatch);
+            b = b * (1.0 - hillElevT * 0.14) + 0.078 * (hillElevT * 0.14) - steepnessT * 0.006;
           } else if (z >= 536.0) {
             // Pulau I — Gunung Gede Bogor Tropical Montane Ecological & Geological Zonations:
             // (Lush Cibodas Montane Cloud-Forest -> Suryakencana Sub-Alpine Meadow Bench -> Grey-Andesite Kawah Ratu Rim & Mineral Crater!)
@@ -3390,22 +3399,27 @@ export class TerrainDEMLoader {
       -0.39
     );
 
-    // Zone 4A: Pulau "I" Mini-Niagara Upper Basalt River Shelf (rW: 29.8m -> 15.52m, y = +18.80m -> +18.66m brink)
+    // Zone 4A: Pulau "I" Mini-Niagara Upper Basalt River Shelf (rW: 25.0m -> 15.52m, aligned on Gunung Api radial gorge)
     const upRSteps = 14;
     const upASteps = 48;
-    const halfAng = TerrainDEMLoader.NIAGARA_HALF_ANGLE;
+    const brinkCenterAlpha = 0.17;
+    const brinkHalfSpan = 0.91;
     let prevUpRow = null;
     for (let ir = 0; ir <= upRSteps; ir++) {
       const uR = ir / upRSteps;
-      const rW = 29.8 + (15.52 - 29.8) * uR;
+      const rW = 25.0 + (15.52 - 25.0) * uR;
       const brinkDrawdown = 0.14 * Math.pow(PhysicsKernel.smootherstep(0.68, 1.0, uR), 1.6);
-      const wy = TerrainDEMLoader.NIAGARA_UPPER_WATER_Y - brinkDrawdown;
-      const flowArc = 30.0 - rW;
+      const backTuck = 0.42 * (1.0 - PhysicsKernel.smootherstep(0.0, 0.18, uR));
+      const chanCenterAlpha = 0.18 + (brinkCenterAlpha - 0.18) * uR;
+      const chanHalfSpan = 0.56 + (brinkHalfSpan - 0.56) * PhysicsKernel.smootherstep(0.0, 0.90, uR);
+      const flowArc = 25.6 - rW;
       const spdUp = 1.45 + 0.55 * uR;
       const row = [];
       for (let ia = 0; ia <= upASteps; ia++) {
         const alphaNorm = -1.0 + (2.0 * ia) / upASteps;
-        const alpha = alphaNorm * (halfAng * 0.985);
+        const alpha = chanCenterAlpha + alphaNorm * chanHalfSpan;
+        const sideTuck = 0.34 * PhysicsKernel.smootherstep(0.84, 1.0, Math.abs(alphaNorm)) * (1.0 - uR * 0.72);
+        const wy = TerrainDEMLoader.NIAGARA_UPPER_WATER_Y - brinkDrawdown - backTuck - sideTuck;
         const sA = Math.sin(alpha);
         const cA = Math.cos(alpha);
         const px = TerrainDEMLoader.NIAGARA_CX + sA * rW;
@@ -3445,7 +3459,7 @@ export class TerrainDEMLoader {
       prevUpRow = row;
     }
 
-    // Zone 4B: Pulau "I" Mini-Niagara 3D Parabolic Concave Horseshoe Falling Water Curtain (~36.8m wide x 17.0m tall!)
+    // Zone 4B: Pulau "I" Mini-Niagara 3D Parabolic Concave Horseshoe Falling Water Curtain (aligned with Zone 4A brink!)
     const fallASteps = 72;
     const fallTSteps = 26;
     let prevFallRow = null;
@@ -3462,7 +3476,7 @@ export class TerrainDEMLoader {
       const row = [];
       for (let ia = 0; ia <= fallASteps; ia++) {
         const alphaNorm = -1.0 + (2.0 * ia) / fallASteps;
-        const alpha = alphaNorm * (halfAng * 0.985);
+        const alpha = brinkCenterAlpha + alphaNorm * brinkHalfSpan;
         const lipFlute =
           (0.24 * Math.sin(alpha * 9.0) + 0.14 * Math.cos(alpha * 15.0)) * (1.0 - 0.65 * tDrop);
         const rCur = 15.52 - 3.12 * Math.pow(tDrop, 0.74) + lipFlute;
@@ -3473,7 +3487,7 @@ export class TerrainDEMLoader {
         const nxV = -sA * nInMag * nInv;
         const nyV = nUpMag * nInv;
         const nzV = -cA * nInMag * nInv;
-        const arcMeters = (alpha + halfAng) * TerrainDEMLoader.NIAGARA_LIP_R;
+        const arcMeters = (alpha - (brinkCenterAlpha - brinkHalfSpan)) * TerrainDEMLoader.NIAGARA_LIP_R;
 
         row.push(
           pushCustomWaterVert(
@@ -3595,15 +3609,15 @@ export class TerrainDEMLoader {
       name: 'CampusTerrainAndTurapMat',
       color: 0xffffff,
       vertexColors: true,
-      roughness: 0.90,
+      roughness: 0.88,
       metalness: 0.02,
-      envMapIntensity: 0.10
+      envMapIntensity: 0.22
     });
     injectOmniScaleSurfaceShader(terrainAndTurapMat, {
       ySegmentStart: 120.0,
       segmentCount: 0.0,
       surfaceProfile: SURFACE_PROFILE.TERRAIN_AND_TURAP,
-      bumpScale: 0.78,
+      bumpScale: 0.84,
       sharedUniforms: uniforms
     });
 

@@ -947,7 +947,9 @@ export class AutogenBiomeSpawner {
     const validTrees = baseValidTrees.concat(extraTrees);
 
     const trunkMatrices = [];
+    const trunkColors = [];
     const canopyMatrices = [];
+    const canopyColors = [];
 
     const pos = new THREE.Vector3();
     const euler = new THREE.Euler();
@@ -955,13 +957,16 @@ export class AutogenBiomeSpawner {
     const scl = new THREE.Vector3();
     const mat = new THREE.Matrix4();
 
-    const pushTransform = (targetList, px, py, pz, rx, ry, rz, sx, sy, sz) => {
+    const pushTransform = (targetList, px, py, pz, rx, ry, rz, sx, sy, sz, colorList = null, cr = 1.0, cg = 1.0, cb = 1.0) => {
       pos.set(px, py, pz);
       euler.set(rx, ry, rz);
       quat.setFromEuler(euler);
       scl.set(sx, sy, sz);
       const m = new THREE.Matrix4().compose(pos, quat, scl);
       targetList.push(m);
+      if (colorList) {
+        colorList.push(cr, cg, cb);
+      }
     };
 
     for (let i = 0; i < validTrees.length; i++) {
@@ -969,8 +974,10 @@ export class AutogenBiomeSpawner {
       const gy = groundHeightFn(tree.x, tree.z);
       const s = tree.scale || 1.0;
       const yaw = tree.yaw || 0.0;
+      const bioVar = Math.sin(tree.x * 0.37 + tree.z * 0.53) * 0.5;
 
       if (tree.species === 'TREMBESI') {
+        const tb = 1.0 + bioVar * 0.10;
         pushTransform(
           trunkMatrices,
           tree.x,
@@ -981,7 +988,11 @@ export class AutogenBiomeSpawner {
           0.02 * Math.cos(yaw),
           1.32 * s,
           1.06 * s,
-          1.32 * s
+          1.32 * s,
+          trunkColors,
+          1.12 * tb,
+          1.14 * tb,
+          1.22 * tb
         );
 
         pushTransform(
@@ -994,7 +1005,11 @@ export class AutogenBiomeSpawner {
           0.0,
           4.55 * s,
           1.85 * s,
-          4.55 * s
+          4.55 * s,
+          canopyColors,
+          1.10 + bioVar * 0.09,
+          1.06 + bioVar * 0.07,
+          0.90 + bioVar * 0.05
         );
 
         for (let k = 0; k < 6; k++) {
@@ -1003,6 +1018,7 @@ export class AutogenBiomeSpawner {
           const hOff = (5.55 + (k % 2) * 0.55) * s;
           const rxPad = (3.05 + (k % 3) * 0.25) * s;
           const ryPad = (1.32 + (k % 2) * 0.18) * s;
+          const subLit = 0.80 + (k % 2) * 0.12 + bioVar * 0.06;
           pushTransform(
             canopyMatrices,
             tree.x + Math.cos(az) * dist,
@@ -1013,10 +1029,15 @@ export class AutogenBiomeSpawner {
             0.05 * Math.cos(az),
             rxPad,
             ryPad,
-            rxPad * 0.92
+            rxPad * 0.92,
+            canopyColors,
+            0.94 * subLit,
+            0.98 * subLit,
+            0.90 * subLit
           );
         }
       } else if (tree.species === 'MAHONI') {
+        const mb = 1.0 + bioVar * 0.10;
         pushTransform(
           trunkMatrices,
           tree.x,
@@ -1027,7 +1048,11 @@ export class AutogenBiomeSpawner {
           -0.02 * Math.sin(yaw),
           0.94 * s,
           1.26 * s,
-          0.94 * s
+          0.94 * s,
+          trunkColors,
+          1.28 * mb,
+          0.92 * mb,
+          0.78 * mb
         );
 
         for (let k = 0; k < 3; k++) {
@@ -1042,7 +1067,11 @@ export class AutogenBiomeSpawner {
             0.0,
             2.65 * s,
             2.15 * s,
-            2.45 * s
+            2.45 * s,
+            canopyColors,
+            0.76 + bioVar * 0.06,
+            0.80 + bioVar * 0.06,
+            0.76
           );
         }
         for (let k = 0; k < 2; k++) {
@@ -1057,7 +1086,11 @@ export class AutogenBiomeSpawner {
             0.0,
             2.35 * s,
             2.05 * s,
-            2.25 * s
+            2.25 * s,
+            canopyColors,
+            0.96 + bioVar * 0.08,
+            0.92 + bioVar * 0.06,
+            0.82
           );
         }
         pushTransform(
@@ -1070,9 +1103,14 @@ export class AutogenBiomeSpawner {
           0.0,
           2.05 * s,
           1.95 * s,
-          2.05 * s
+          2.05 * s,
+          canopyColors,
+          1.20 + bioVar * 0.10,
+          0.96 + bioVar * 0.06,
+          0.78
         );
       } else if (tree.species === 'CEMARA') {
+        const cb = 1.0 + bioVar * 0.08;
         pushTransform(
           trunkMatrices,
           tree.x,
@@ -1083,13 +1121,18 @@ export class AutogenBiomeSpawner {
           0.0,
           0.52 * s,
           1.72 * s,
-          0.52 * s
+          0.52 * s,
+          trunkColors,
+          0.82 * cb,
+          0.84 * cb,
+          0.96 * cb
         );
         for (let tier = 0; tier < 6; tier++) {
           const frac = tier / 5.0;
           const tierY = gy + (3.1 + tier * 1.95) * s;
           const tierR = 2.65 * (1.0 - frac * 0.72) * s;
           const tierH = 1.35 * (1.0 - frac * 0.35) * s;
+          const tierAO = 0.72 + 0.32 * frac;
           pushTransform(
             canopyMatrices,
             tree.x,
@@ -1100,7 +1143,11 @@ export class AutogenBiomeSpawner {
             0.0,
             tierR,
             tierH,
-            tierR
+            tierR,
+            canopyColors,
+            0.84 * tierAO,
+            0.92 * tierAO,
+            1.14 * tierAO
           );
         }
       } else {
@@ -1108,6 +1155,7 @@ export class AutogenBiomeSpawner {
         const leanX = Math.sin(yaw) * leanAngle;
         const leanZ = -Math.cos(yaw) * leanAngle;
         const trunkSy = 1.48 * s;
+        const pb = 1.0 + bioVar * 0.08;
 
         pushTransform(
           trunkMatrices,
@@ -1119,7 +1167,11 @@ export class AutogenBiomeSpawner {
           leanZ,
           0.35 * s,
           trunkSy,
-          0.35 * s
+          0.35 * s,
+          trunkColors,
+          3.08 * pb,
+          3.84 * pb,
+          5.18 * pb
         );
 
         const palmTopH = 5.75 * trunkSy;
@@ -1139,7 +1191,11 @@ export class AutogenBiomeSpawner {
           leanZ,
           0.52 * s,
           1.15 * s,
-          0.52 * s
+          0.52 * s,
+          canopyColors,
+          0.94,
+          1.10,
+          0.84
         );
 
         for (let f = 0; f < 6; f++) {
@@ -1149,6 +1205,7 @@ export class AutogenBiomeSpawner {
           const fx = topVec.x + Math.sin(frondYaw) * radialOut;
           const fz = topVec.z + Math.cos(frondYaw) * radialOut;
           const fy = topVec.y + (0.28 - (f % 2) * 0.18) * s;
+          const frondAge = f % 2 === 0 ? 1.06 : 0.92;
 
           pushTransform(
             canopyMatrices,
@@ -1160,7 +1217,11 @@ export class AutogenBiomeSpawner {
             0.0,
             0.62 * s,
             0.26 * s,
-            2.35 * s
+            2.35 * s,
+            canopyColors,
+            1.14 * frondAge,
+            1.05 * frondAge,
+            0.80 * frondAge
           );
         }
       }
@@ -1173,6 +1234,7 @@ export class AutogenBiomeSpawner {
         for (let b = 0; b < 6; b++) {
           const offset = 3.95 + b * 2.04;
           const ph = b * 0.85 + sx * 0.4 + sz * 0.7;
+          const hv = 0.96 + (b % 3) * 0.05;
           // Z-facing planter trough (x = sx * offset, z = sz * 15.15)
           pushTransform(
             canopyMatrices,
@@ -1184,7 +1246,11 @@ export class AutogenBiomeSpawner {
             0.0,
             0.96,
             0.34,
-            0.36
+            0.36,
+            canopyColors,
+            1.08 * hv,
+            0.98 * hv,
+            0.82 * hv
           );
           // X-facing planter trough (x = sx * 15.15, z = sz * offset)
           pushTransform(
@@ -1197,7 +1263,11 @@ export class AutogenBiomeSpawner {
             0.0,
             0.36,
             0.34,
-            0.96
+            0.96,
+            canopyColors,
+            1.04 * hv,
+            1.00 * hv,
+            0.84 * hv
           );
         }
       }
@@ -1208,6 +1278,7 @@ export class AutogenBiomeSpawner {
     for (let i = 0; i < forestShrubs.length; i++) {
       const sh = forestShrubs[i];
       const sgy = groundHeightFn(sh.x, sh.z);
+      const fv = 0.88 + 0.22 * (0.5 + 0.5 * Math.sin(sh.x * 0.41 - sh.z * 0.33));
       pushTransform(
         canopyMatrices,
         sh.x,
@@ -1218,25 +1289,29 @@ export class AutogenBiomeSpawner {
         0.0,
         sh.sx,
         sh.sy,
-        sh.sz
+        sh.sz,
+        canopyColors,
+        0.84 * fv,
+        0.95 * fv,
+        0.88 * fv
       );
     }
 
-    // Draw Call #1: All Multi-Branch Organic Tree Trunks
+    // Draw Call #1: All Multi-Branch Organic Tree Trunks & Ringed Royal Palms
     const trunkMat = new THREE.MeshStandardMaterial({
       name: 'CampusOrganicBarkMat',
       color: 0xffffff,
       vertexColors: true,
-      roughness: 0.92,
+      roughness: 0.90,
       metalness: 0.02,
-      envMapIntensity: 0.09
+      envMapIntensity: 0.20
     });
     injectOmniScaleSurfaceShader(trunkMat, {
       ySegmentStart: 120.0,
       segmentCount: 0.0,
       enableWindSway: true,
       surfaceProfile: SURFACE_PROFILE.ASPHALT_TEAK_BARK,
-      bumpScale: 0.68,
+      bumpScale: 0.74,
       sharedUniforms: uniforms
     });
 
@@ -1245,11 +1320,17 @@ export class AutogenBiomeSpawner {
     trunkInstanced.name = 'KampusUITreeTrunksInstanced';
     trunkInstanced.castShadow = true;
     trunkInstanced.receiveShadow = true;
+    const tmpCol = new THREE.Color();
     for (let i = 0; i < trunkMatrices.length; i++) {
       trunkInstanced.setMatrixAt(i, trunkMatrices[i]);
+      tmpCol.setRGB(trunkColors[i * 3], trunkColors[i * 3 + 1], trunkColors[i * 3 + 2], THREE.LinearSRGBColorSpace);
+      trunkInstanced.setColorAt(i, tmpCol);
     }
     if (trunkInstanced.instanceMatrix) {
       trunkInstanced.instanceMatrix.needsUpdate = true;
+    }
+    if (trunkInstanced.instanceColor) {
+      trunkInstanced.instanceColor.needsUpdate = true;
     }
 
     // Draw Call #2: All Multi-Species Organic Foliage Canopy Clouds + Courtyard Planter Shrubs
@@ -1257,16 +1338,16 @@ export class AutogenBiomeSpawner {
       name: 'CampusOrganicCanopyMat',
       color: 0xffffff,
       vertexColors: true,
-      roughness: 0.85,
+      roughness: 0.82,
       metalness: 0.02,
-      envMapIntensity: 0.11
+      envMapIntensity: 0.24
     });
     injectOmniScaleSurfaceShader(canopyMat, {
       ySegmentStart: 120.0,
       segmentCount: 0.0,
       enableWindSway: true,
       surfaceProfile: SURFACE_PROFILE.FOLIAGE_CANOPY,
-      bumpScale: 0.30,
+      bumpScale: 0.92,
       sharedUniforms: uniforms
     });
 
@@ -1277,9 +1358,14 @@ export class AutogenBiomeSpawner {
     canopyInstanced.receiveShadow = true;
     for (let i = 0; i < canopyMatrices.length; i++) {
       canopyInstanced.setMatrixAt(i, canopyMatrices[i]);
+      tmpCol.setRGB(canopyColors[i * 3], canopyColors[i * 3 + 1], canopyColors[i * 3 + 2], THREE.LinearSRGBColorSpace);
+      canopyInstanced.setColorAt(i, tmpCol);
     }
     if (canopyInstanced.instanceMatrix) {
       canopyInstanced.instanceMatrix.needsUpdate = true;
+    }
+    if (canopyInstanced.instanceColor) {
+      canopyInstanced.instanceColor.needsUpdate = true;
     }
 
     // Draw Call #3: 64 Photocell-Equipped Fluted Nusantara Campus Streetlamps (+0 Draw Calls!)
@@ -1289,9 +1375,9 @@ export class AutogenBiomeSpawner {
       name: 'CampusGardenLampMat',
       color: 0xffffff,
       vertexColors: true,
-      roughness: 0.55,
-      metalness: 0.35,
-      envMapIntensity: 0.14
+      roughness: 0.50,
+      metalness: 0.38,
+      envMapIntensity: 0.36
     });
     injectOmniScaleSurfaceShader(lampMat, {
       ySegmentStart: 120.0,

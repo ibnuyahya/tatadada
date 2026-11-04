@@ -45,6 +45,40 @@ export class AudioSynthesizer {
   }
 
   /**
+   * Computes 2-tap specular topographic & monumental early-reflection echoes off:
+   *  1) Gunung Api Pulau I volcanic flank (-32, 42, 698)
+   *  2) Menara Gedung Rektorat UI concrete tower (0, 28, 0)
+   */
+  static computeMultiPathEchoes(srcX, srcY, srcZ, lisX, lisY, lisZ, tempC = 27.5) {
+    const cSound = AudioSynthesizer.computeSpeedOfSound(tempC);
+    const dDirect = Math.max(1.0, Math.hypot(lisX - srcX, lisY - srcY, lisZ - srcZ));
+    const reflectors = [
+      { id: 'GUNUNG_API_PULAU_I', rx: -32.0, ry: 42.0, rz: 698.0, reflCoeff: 0.42, baseCutoff: 420.0 },
+      { id: 'MENARA_REKTORAT_UI', rx: 0.0, ry: 28.0, rz: 0.0, reflCoeff: 0.36, baseCutoff: 560.0 }
+    ];
+    const echoes = [];
+    for (let i = 0; i < reflectors.length; i++) {
+      const ref = reflectors[i];
+      const d1 = Math.hypot(ref.rx - srcX, ref.ry - srcY, ref.rz - srcZ);
+      const d2 = Math.hypot(lisX - ref.rx, lisY - ref.ry, lisZ - ref.rz);
+      if (d2 > 1150.0) continue;
+      const extraPathM = Math.max(28.0, d1 + d2 - dDirect);
+      const extraDelaySec = clamp(extraPathM / cSound, 0.09, 3.6);
+      const spreadAtten = clamp(320.0 / Math.max(120.0, d2), 0.14, 0.88);
+      echoes.push({
+        id: ref.id,
+        rx: ref.rx,
+        ry: ref.ry,
+        rz: ref.rz,
+        extraDelaySec,
+        gainMult: Number((ref.reflCoeff * spreadAtten).toFixed(4)),
+        cutoffHz: Math.round(clamp(ref.baseCutoff * spreadAtten + 140.0, 180.0, 680.0))
+      });
+    }
+    return echoes;
+  }
+
+  /**
    * Computes exact acoustic Doppler frequency ratio & ISO 9613-1 temperature/humidity-coupled
    * distance air-absorption lowpass cutoff.
    */
@@ -91,6 +125,62 @@ export class AudioSynthesizer {
     const airCutoffHz = clamp(16800.0 / (1.0 + dist / charDistM), 320.0, 16800.0);
 
     return { dist, doppler, airCutoffHz, radialApproachMs: vS + vL, speedOfSoundMs: cSound };
+  }
+
+  /**
+   * Computes physical ground/water-surface specular reflection interference (Lloyd's Mirror Effect):
+   * Path difference delta_R = sqrt(d_xz^2 + (h_s + h_L)^2) - sqrt(d_xz^2 + (h_s - h_L)^2),
+   * first destructive comb notch f_0 = c(T) / (2 * delta_R), and surface-dependent notch depth.
+   */
+  static computeGroundReflectionEffect(
+    srcX,
+    srcY,
+    srcZ,
+    lisX,
+    lisY,
+    lisZ,
+    groundY = 0.0,
+    surfaceRefl = 0.82,
+    tempC = 27.5,
+    out = null
+  ) {
+    const dx = lisX - srcX;
+    const dz = lisZ - srcZ;
+    const dXZ2 = dx * dx + dz * dz;
+    const hS = Math.max(0.25, srcY - groundY);
+    const hL = Math.max(0.25, lisY - groundY);
+    const rDirect = Math.sqrt(dXZ2 + (hS - hL) * (hS - hL));
+    const rReflected = Math.sqrt(dXZ2 + (hS + hL) * (hS + hL));
+    const deltaPathM = Math.max(0.018, rReflected - rDirect);
+    const cSound = AudioSynthesizer.computeSpeedOfSound(tempC);
+    const rawNotchHz = cSound / (2.0 * deltaPathM);
+    const combNotchHz = clamp(rawNotchHz, 48.0, 9200.0);
+
+    const refl = clamp(Number.isFinite(surfaceRefl) ? surfaceRefl : 0.82, 0.0, 0.98);
+    const spreadRatio = rDirect / Math.max(0.5, rReflected);
+    const bandWeight = smooth01(42.0, 95.0, rawNotchHz) * smooth01(7600.0, 3800.0, rawNotchHz);
+    const combGainDb = -clamp(spreadRatio * refl * bandWeight * 9.2, 0.0, 8.8);
+
+    const res = out || {};
+    res.deltaPathM = deltaPathM;
+    res.combNotchHz = combNotchHz;
+    res.combGainDb = combGainDb;
+    res.surfaceRefl = refl;
+    return res;
+  }
+
+  /**
+   * Computes ISO 226 Fletcher-Munson dynamic equal-loudness shelf compensation so low-volume
+   * listening preserves warm sub-bass body (95 Hz) and crisp Nusantara air sparkle (6.8 kHz).
+   */
+  static computeEqualLoudnessCompensation(volume01 = 0.80) {
+    const v = clamp(Number.isFinite(volume01) ? volume01 : 0.80, 0.0, 1.0);
+    const quietness = clamp((0.82 - Math.max(0.05, v)) / 0.77, 0.0, 1.0);
+    return {
+      lowShelfGainDb: +(quietness * 5.8).toFixed(3),
+      highShelfGainDb: +(quietness * 3.6).toFixed(3),
+      quietness: +quietness.toFixed(3)
+    };
   }
 
   /**
@@ -189,6 +279,57 @@ export class AudioSynthesizer {
             gainMult *= 0.52;
             cutoffMult *= 0.46;
             if (occluder === 'NONE') occluder = 'KOMPLEKS_DPPD';
+          }
+        }
+      }
+
+      // 5. Bukit Hutan Selatan Pulau U Terrain Ridge (-135, -118, R ~56m, crest ~15.8m)
+      const srcOutsideHill = Math.hypot(srcX - -135.0, srcZ - -118.0) > 54.0;
+      const lisOutsideHill = Math.hypot(lisX - -135.0, lisZ - -118.0) > 54.0;
+      if (srcOutsideHill && lisOutsideHill) {
+        const tHill = ((-135.0 - srcX) * segDx + (-118.0 - srcZ) * segDz) / segLenXZ2;
+        if (tHill > 0.08 && tHill < 0.92) {
+          const px = srcX + segDx * tHill;
+          const py = srcY + segDy * tHill;
+          const pz = srcZ + segDz * tHill;
+          const rH = Math.hypot(px - -135.0, pz - -118.0);
+          if (rH < 52.0) {
+            const hRidge = 15.8 * Math.max(0.0, 1.0 - Math.pow(rH / 56.0, 1.6));
+            if (py < hRidge - 1.6) {
+              const depth01 = clamp((hRidge - py) / 11.0, 0.2, 1.0);
+              gainMult *= 1.0 - 0.54 * depth01;
+              cutoffMult *= 1.0 - 0.58 * depth01;
+              if (occluder === 'NONE') occluder = 'BUKIT_PULAU_U';
+            }
+          }
+        }
+      }
+    }
+
+    // 6. Jembatan Teksas Solid Steel Box-Girder Deck & Arch Soffit Occlusion (x in [-30.8, -25.2], z in [171.65, 319.65])
+    if (Math.abs(segDx) > 0.5 || Math.abs(segDy) > 1.2) {
+      const belowDeckSrc = srcY < 4.35;
+      const belowDeckLis = lisY < 4.35;
+      const aboveDeckSrc = srcY > 6.65;
+      const aboveDeckLis = lisY > 6.65;
+      if ((belowDeckSrc && aboveDeckLis) || (aboveDeckSrc && belowDeckLis)) {
+        const tDeck = clamp((5.5 - srcY) / (segDy || 1e-4), 0.0, 1.0);
+        const ix = srcX + segDx * tDeck;
+        const iz = srcZ + segDz * tDeck;
+        if (ix >= -31.0 && ix <= -25.0 && iz >= 171.5 && iz <= 319.8) {
+          gainMult *= 0.56;
+          cutoffMult *= 0.48;
+          if (occluder === 'NONE') occluder = 'JEMBATAN_TEKSAS';
+        }
+      } else if (Math.abs(segDx) > 6.0 && (srcX - -28.0) * (lisX - -28.0) < 0.0) {
+        const tSpan = (-28.0 - srcX) / segDx;
+        if (tSpan > 0.08 && tSpan < 0.92) {
+          const py = srcY + segDy * tSpan;
+          const pz = srcZ + segDz * tSpan;
+          if (pz >= 172.0 && pz <= 319.5 && py >= 4.4 && py <= 7.6) {
+            gainMult *= 0.62;
+            cutoffMult *= 0.54;
+            if (occluder === 'NONE') occluder = 'JEMBATAN_TEKSAS';
           }
         }
       }
@@ -707,9 +848,13 @@ export class AudioSynthesizer {
     this.enabled = false;
     this.masterVolume = 0.80; // 0.0 .. 1.0 user slider
 
-    // Master & Dual-Convolver Space Routing Nodes
+    // Master, ISO 226 Equal-Loudness, Priority Ducking, & Dual-Convolver Space Routing Nodes
     this.masterGain = null;
     this.masterCompressor = null;
+    this.subsonicFilter = null;
+    this.isoLowShelf = null;
+    this.isoHighShelf = null;
+    this.ambientDuckGain = null;
     this.worldSumGain = null;
     this.convolverNode = null;
     this.convolverCathedral = null;
@@ -718,6 +863,12 @@ export class AudioSynthesizer {
     this.cathedralSendGain = null;
     this.metallicSendGain = null;
     this.reverbReturnGain = null;
+
+    // Binaural Stereo Drift Panners for Wide 360° Outdoor Envelopment
+    this.surfPan = null;
+    this.canopyPan = null;
+    this.cricketPan = null;
+    this.tonggeretPan = null;
 
     // Weather, Roof-Material Resonance & Environmental Buses
     this.weatherOccFilter = null;
@@ -747,16 +898,20 @@ export class AudioSynthesizer {
     this.turapLapFilter = null;
     this.turapLapGain = null;
 
-    // Dual-Drone Buses (DJI Avata 2 Cinewhoop + DJI Mavic 3 Pro + Obstacle Proximity Whoosh)
+    // Dual-Drone Buses (DJI Avata 2 Cinewhoop + Stereo Roll Pan + Duct Resonance + DJI Mavic 3 Pro)
     this.avataMotorOscA = null;
     this.avataMotorOscB = null;
     this.avataMotorOscC = null;
     this.avataMotorFilter = null;
     this.avataMotorGain = null;
+    this.avataDuctFilter = null;
+    this.avataDuctGain = null;
+    this.avataPan = null;
     this.avataWashFilter = null;
     this.avataWashGain = null;
     this.proxWhooshFilter = null;
     this.proxWhooshGain = null;
+    this._warmShaperCurve = null;
 
     this.mavicOscA = null;
     this.mavicOscB = null;
@@ -794,6 +949,7 @@ export class AudioSynthesizer {
       upX: 0.0,
       upY: 1.0,
       upZ: 0.0,
+      rollRad: 0.0,
       speedMs: 0.0,
       init: false
     };
@@ -813,6 +969,9 @@ export class AudioSynthesizer {
     this._biomeState = AudioSynthesizer.classifyMicroContextBiome(0, 22, 100, {});
     this._diurnalState = AudioSynthesizer.classifyDiurnalBioPhase(11.85);
     this._occScratch = { occluded: false, gainMult: 1.0, cutoffMult: 1.0, occluder: 'NONE' };
+    this._combScratch = { deltaPathM: 1.0, combNotchHz: 1200.0, combGainDb: 0.0, surfaceRefl: 0.8 };
+    this._thunderDuckTimer = 0.0;
+    this._foregroundPressure01 = 0.0;
 
     this._entityTracks = {
       bus: {
@@ -832,13 +991,18 @@ export class AudioSynthesizer {
       },
       cart: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, prevPhase: '', init: false, bellCooldown: 0 },
       heli: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, prevPhase: '', init: false },
-      air: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, init: false, id: '' },
-      marine: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, init: false, id: '' }
+      cessna: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, init: false },
+      learjet: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, init: false },
+      ferry: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, init: false },
+      yacht: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, init: false },
+      coastalBoat: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, prevSpd: 0, init: false, idx: -1 }
     };
 
-    // Iterasi 3: Sub-Mix Profile & Live State-Transition World SFX Tracker
+    // Iterasi 3: Sub-Mix Profile, Spatial Output Mode & Live State-Transition World SFX Tracker
     this.mixProfile = 'BALANCED';
     this._mixWeights = AudioSynthesizer.MIX_PROFILES.BALANCED;
+    this.spatialOutputMode = 'BINAURAL'; // 'BINAURAL' | 'SPEAKER'
+    this._spectrumBins = new Uint8Array(32);
     this._sfxTracker = {
       cessnaPhase: '',
       learjetPhase: '',
@@ -851,7 +1015,13 @@ export class AudioSynthesizer {
       prevMavicFov: 43.0,
       mavicFovInit: false,
       npcShutterTimer: 5.5,
-      sfxBannerTimer: 0.0
+      sfxBannerTimer: 0.0,
+      prevBellSlot: null,
+      bellCooldown: 0.0,
+      eaveDripCooldown: 1.4,
+      hullSlapCooldown: 1.8,
+      prevZoneId: '',
+      portalCooldown: 0.0
     };
 
     // Stride, Diurnal Bio-Acoustic & Micro-Biome Timers
@@ -887,7 +1057,7 @@ export class AudioSynthesizer {
       roofMaterial: 'OPEN_FOLIAGE_STONE',
       reverbSendPct: 11,
       weatherOcclusionPct: 0,
-      active3DSources: 8,
+      active3DSources: 11,
       occluded3DSources: 0,
       dominantSourceLabel: 'Air Mancur & Alam',
       dominantDoppler: 1.0,
@@ -914,6 +1084,60 @@ export class AudioSynthesizer {
     return this.mixProfile;
   }
 
+  setSpatialOutputMode(mode = 'BINAURAL') {
+    const raw = String(mode || 'BINAURAL').toUpperCase();
+    const m = raw === 'SPEAKER' || raw === 'STEREO' ? 'SPEAKER' : 'BINAURAL';
+    this.spatialOutputMode = m;
+    this._telemetry.spatialOutputMode = m;
+    if (this._emitters) {
+      const model = m === 'SPEAKER' ? 'equalpower' : 'HRTF';
+      for (const key of Object.keys(this._emitters)) {
+        const em = this._emitters[key];
+        if (em && em.panner) {
+          em.panner.panningModel = model;
+        }
+      }
+    }
+    return m;
+  }
+
+  getSpatialOutputMode() {
+    return this.spatialOutputMode;
+  }
+
+  /**
+   * Zero-allocation 8-band octave spectrum sampler from master AnalyserNode (0..255 per bar).
+   */
+  sampleSpectrum8Bars(out8) {
+    const target = out8 && out8.length >= 8 ? out8 : new Uint8Array(8);
+    if (!this.enabled || !this.ctx || !this.masterAnalyser || this.ctx.state !== 'running') {
+      for (let i = 0; i < 8; i++) target[i] = 0;
+      return target;
+    }
+    this.masterAnalyser.getByteFrequencyData(this._spectrumBins);
+    const bandSpans = [
+      [0, 1],
+      [1, 2],
+      [2, 4],
+      [4, 6],
+      [6, 9],
+      [9, 13],
+      [13, 19],
+      [19, 28]
+    ];
+    for (let b = 0; b < 8; b++) {
+      const [i0, i1] = bandSpans[b];
+      let sum = 0;
+      let cnt = 0;
+      for (let k = i0; k < i1 && k < this._spectrumBins.length; k++) {
+        sum += this._spectrumBins[k];
+        cnt++;
+      }
+      target[b] = cnt > 0 ? Math.min(255, Math.round((sum / cnt) * 1.18)) : 0;
+    }
+    return target;
+  }
+
   _recordSfxEvent(sfxId, labelId) {
     this._telemetry.lastSfxId = sfxId;
     this._telemetry.lastSfxLabel = labelId;
@@ -929,10 +1153,22 @@ export class AudioSynthesizer {
     return Math.pow(v, 1.35) * 0.44;
   }
 
+  _applyEqualLoudnessContour(now) {
+    const eq = AudioSynthesizer.computeEqualLoudnessCompensation(this.masterVolume);
+    this._telemetry.isoLoudnessLowDb = eq.lowShelfGainDb;
+    this._telemetry.isoLoudnessHighDb = eq.highShelfGainDb;
+    if (this.ctx && this.isoLowShelf && this.isoHighShelf) {
+      const t = Number.isFinite(now) ? now : this.ctx.currentTime;
+      this.isoLowShelf.gain.setTargetAtTime(eq.lowShelfGainDb, t, 0.08);
+      this.isoHighShelf.gain.setTargetAtTime(eq.highShelfGainDb, t, 0.08);
+    }
+  }
+
   setMasterVolume(vol01) {
     this.masterVolume = clamp(Number(vol01) || 0.0, 0.0, 1.0);
     this._telemetry.masterVolume = this.masterVolume;
     this._telemetry.masterVolumePct = Math.round(this.masterVolume * 100);
+    this._applyEqualLoudnessContour();
     if (this.ctx && this.masterGain) {
       this.masterGain.gain.setTargetAtTime(this._targetMasterLinearGain(), this.ctx.currentTime, 0.06);
     }
@@ -1006,17 +1242,52 @@ export class AudioSynthesizer {
     }
   }
 
+  _createStereoPannerSafe(initialPan = 0.0) {
+    if (!this.ctx || typeof this.ctx.createStereoPanner !== 'function') return null;
+    const sp = this.ctx.createStereoPanner();
+    sp.pan.value = clamp(initialPan, -1.0, 1.0);
+    return sp;
+  }
+
+  _createWarmWaveshaper(drive = 1.9) {
+    if (!this.ctx || typeof this.ctx.createWaveShaper !== 'function') return null;
+    if (!this._warmShaperCurve) {
+      const n = 257;
+      const curve = new Float32Array(n);
+      const norm = Math.tanh(drive) || 1.0;
+      for (let i = 0; i < n; i++) {
+        const x = (i * 2.0) / (n - 1) - 1.0;
+        curve[i] = Math.tanh(x * drive) / norm;
+      }
+      this._warmShaperCurve = curve;
+    }
+    const ws = this.ctx.createWaveShaper();
+    ws.curve = this._warmShaperCurve;
+    ws.oversample = 'none';
+    return ws;
+  }
+
   _create3DEmitter(opts = {}) {
     const airLP = this.ctx.createBiquadFilter();
     airLP.type = 'lowpass';
     airLP.frequency.value = opts.initCutoff || 8500;
     airLP.Q.value = 0.5;
 
+    let groundComb = null;
+    if (opts.enableGroundComb) {
+      groundComb = this.ctx.createBiquadFilter();
+      groundComb.type = 'peaking';
+      groundComb.frequency.value = 850;
+      groundComb.Q.value = 2.35;
+      groundComb.gain.value = 0.0;
+      groundComb.connect(airLP);
+    }
+
     const gain = this.ctx.createGain();
     gain.gain.value = 0.0;
 
     const panner = this.ctx.createPanner();
-    panner.panningModel = 'HRTF';
+    panner.panningModel = this.spatialOutputMode === 'SPEAKER' ? 'equalpower' : 'HRTF';
     panner.distanceModel = 'inverse';
     panner.refDistance = opts.refDistance || 9.0;
     panner.maxDistance = opts.maxDistance || 1400.0;
@@ -1034,7 +1305,7 @@ export class AudioSynthesizer {
     panner.connect(revSend);
     revSend.connect(this.reverbSendGain);
 
-    return { input: airLP, airLP, gain, panner, revSend };
+    return { input: groundComb || airLP, groundComb, airLP, gain, panner, revSend };
   }
 
   /**
@@ -1122,9 +1393,25 @@ export class AudioSynthesizer {
     this.ctx = new AudioCtx();
     const sr = this.ctx.sampleRate;
 
-    // 0. Master Safety Mastering Compressor -> Master Volume Gain -> Destination
+    // 0. Master Subsonic Guard (24 Hz) -> ISO 226 Fletcher-Munson Equal-Loudness -> Safety Compressor -> Destination
     this.worldSumGain = this.ctx.createGain();
     this.worldSumGain.gain.value = 1.0;
+
+    this.subsonicFilter = this.ctx.createBiquadFilter();
+    this.subsonicFilter.type = 'highpass';
+    this.subsonicFilter.frequency.value = 24.0;
+    this.subsonicFilter.Q.value = 0.707;
+
+    this.isoLowShelf = this.ctx.createBiquadFilter();
+    this.isoLowShelf.type = 'lowshelf';
+    this.isoLowShelf.frequency.value = 95.0;
+    this.isoLowShelf.gain.value = 0.0;
+
+    this.isoHighShelf = this.ctx.createBiquadFilter();
+    this.isoHighShelf.type = 'highshelf';
+    this.isoHighShelf.frequency.value = 6800.0;
+    this.isoHighShelf.gain.value = 0.0;
+    this._applyEqualLoudnessContour(this.ctx.currentTime);
 
     this.masterCompressor = this.ctx.createDynamicsCompressor();
     this.masterCompressor.threshold.value = -9.0;
@@ -1136,9 +1423,20 @@ export class AudioSynthesizer {
     this.masterGain = this.ctx.createGain();
     this.masterGain.gain.value = 0.0;
 
-    this.worldSumGain.connect(this.masterCompressor);
+    this.worldSumGain.connect(this.subsonicFilter);
+    this.subsonicFilter.connect(this.isoLowShelf);
+    this.isoLowShelf.connect(this.isoHighShelf);
+    this.isoHighShelf.connect(this.masterCompressor);
     this.masterCompressor.connect(this.masterGain);
-    this.masterGain.connect(this.ctx.destination);
+    if (typeof this.ctx.createAnalyser === 'function') {
+      this.masterAnalyser = this.ctx.createAnalyser();
+      this.masterAnalyser.fftSize = 64;
+      this.masterAnalyser.smoothingTimeConstant = 0.78;
+      this.masterGain.connect(this.masterAnalyser);
+      this.masterAnalyser.connect(this.ctx.destination);
+    } else {
+      this.masterGain.connect(this.ctx.destination);
+    }
 
     // 0b. Dual-Character Stereo Convolution Reverb Engine (Concrete Vault IR + Metallic Truss/Cabin IR)
     this.reverbSendGain = this.ctx.createGain();
@@ -1168,46 +1466,58 @@ export class AudioSynthesizer {
 
     this.reverbReturnGain.connect(this.worldSumGain);
 
-    // 1. Procedural 4-Second Seamless Pink-Noise & Micro-Droplet Patter Buffers
+    // 1. Procedural 4-Second Seamless Binaural Stereo-Decorrelated Pink-Noise & Droplet Patter Buffers
     const bufferSize = sr * 4;
-    const pinkBuffer = this.ctx.createBuffer(1, bufferSize, sr);
-    const pinkOut = pinkBuffer.getChannelData(0);
-    let b0 = 0.0;
-    let b1 = 0.0;
-    let b2 = 0.0;
-    for (let i = 0; i < bufferSize; i++) {
-      const white = Math.random() * 2.0 - 1.0;
-      b0 = 0.99765 * b0 + white * 0.099046;
-      b1 = 0.963 * b1 + white * 0.2965164;
-      b2 = 0.57 * b2 + white * 1.0526913;
-      pinkOut[i] = (b0 + b1 + b2 + white * 0.1848) * 0.075;
-    }
-    // Crossfade final 512 samples for zero loop-seam click
-    for (let k = 0; k < 512; k++) {
-      const a = k / 512;
-      pinkOut[bufferSize - 512 + k] = pinkOut[bufferSize - 512 + k] * (1.0 - a) + pinkOut[k] * a;
+    const pinkBuffer = this.ctx.createBuffer(2, bufferSize, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const pinkOut = pinkBuffer.getChannelData(ch);
+      let b0 = 0.0;
+      let b1 = 0.0;
+      let b2 = 0.0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2.0 - 1.0;
+        b0 = 0.99765 * b0 + white * 0.099046;
+        b1 = 0.963 * b1 + white * 0.2965164;
+        b2 = 0.57 * b2 + white * 1.0526913;
+        pinkOut[i] = (b0 + b1 + b2 + white * 0.1848) * 0.075;
+      }
+      // Crossfade final 512 samples per channel for zero loop-seam click
+      for (let k = 0; k < 512; k++) {
+        const a = k / 512;
+        pinkOut[bufferSize - 512 + k] = pinkOut[bufferSize - 512 + k] * (1.0 - a) + pinkOut[k] * a;
+      }
     }
     this._pinkBuffer = pinkBuffer;
 
-    const patterBuffer = this.ctx.createBuffer(1, bufferSize, sr);
-    const patterOut = patterBuffer.getChannelData(0);
-    let env = 0.0;
-    for (let i = 0; i < bufferSize; i++) {
-      if (Math.random() < 0.0042) {
-        env = Math.min(1.0, env + 0.35 + Math.random() * 0.65);
+    const patterBuffer = this.ctx.createBuffer(2, bufferSize, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const patterOut = patterBuffer.getChannelData(ch);
+      let env = 0.0;
+      for (let i = 0; i < bufferSize; i++) {
+        if (Math.random() < 0.0042) {
+          env = Math.min(1.0, env + 0.35 + Math.random() * 0.65);
+        }
+        env *= 0.965;
+        patterOut[i] = (Math.random() * 2.0 - 1.0) * env * 0.26;
       }
-      env *= 0.965;
-      patterOut[i] = (Math.random() * 2.0 - 1.0) * env * 0.26;
+      for (let k = 0; k < 256; k++) {
+        const a = k / 256;
+        patterOut[bufferSize - 256 + k] = patterOut[bufferSize - 256 + k] * (1.0 - a) + patterOut[k] * a;
+      }
     }
     this._patterBuffer = patterBuffer;
 
-    // 2. Architectural Weather Occlusion Sub-Bus (Muffles outdoor wind/rain inside tunnels & cockpits!)
+    // 2. Architectural Weather Occlusion + Priority Sidechain Ducking Sub-Bus
     this.weatherOccFilter = this.ctx.createBiquadFilter();
     this.weatherOccFilter.type = 'lowpass';
     this.weatherOccFilter.frequency.value = 13500;
 
     this.weatherOccGain = this.ctx.createGain();
     this.weatherOccGain.gain.value = 1.0;
+
+    this.ambientDuckGain = this.ctx.createGain();
+    this.ambientDuckGain.gain.value = 1.0;
+    this.ambientDuckGain.connect(this.weatherOccFilter);
 
     this.weatherOccFilter.connect(this.weatherOccGain);
     this.weatherOccGain.connect(this.worldSumGain);
@@ -1279,9 +1589,15 @@ export class AudioSynthesizer {
     this.surfFilter.Q.value = 0.55;
     this.surfGain = this.ctx.createGain();
     this.surfGain.gain.value = 0.0;
+    this.surfPan = this._createStereoPannerSafe(0.0);
     surfSrc.connect(this.surfFilter);
     this.surfFilter.connect(this.surfGain);
-    this.surfGain.connect(this.weatherOccFilter);
+    if (this.surfPan) {
+      this.surfGain.connect(this.surfPan);
+      this.surfPan.connect(this.weatherOccFilter);
+    } else {
+      this.surfGain.connect(this.weatherOccFilter);
+    }
     surfSrc.start();
 
     // Bus 5: Subsea Underpass Jet-Fan Ventilation & Hydrostatic Bore Ambiance
@@ -1330,15 +1646,21 @@ export class AudioSynthesizer {
     crikLfoDepth.connect(crikPulse.gain);
     this.cricketGain = this.ctx.createGain();
     this.cricketGain.gain.value = 0.0;
+    this.cricketPan = this._createStereoPannerSafe(-0.24);
     crikOscA.connect(crikPulse);
     crikOscB.connect(crikPulse);
     crikPulse.connect(this.cricketGain);
-    this.cricketGain.connect(this.weatherOccFilter);
+    if (this.cricketPan) {
+      this.cricketGain.connect(this.cricketPan);
+      this.cricketPan.connect(this.ambientDuckGain);
+    } else {
+      this.cricketGain.connect(this.ambientDuckGain);
+    }
     crikOscA.start();
     crikOscB.start();
     crikLfo.start();
 
-    // Bus 7: DJI Avata 2 5-Blade Ducted Cinewhoop Asymmetric Motor Bank + Prop-Wash + Proximity Aero-Whoosh
+    // Bus 7: DJI Avata 2 5-Blade Ducted Cinewhoop Asymmetric Motor Bank + Warm Shaper + Duct Helmholtz + Stereo Roll Pan
     this.avataMotorOscA = this.ctx.createOscillator();
     this.avataMotorOscA.type = 'sawtooth';
     this.avataMotorOscA.frequency.value = 235;
@@ -1359,16 +1681,40 @@ export class AudioSynthesizer {
     this.avataMotorFilter.frequency.value = 540;
     this.avataMotorFilter.Q.value = 1.55;
 
+    this.avataDuctFilter = this.ctx.createBiquadFilter();
+    this.avataDuctFilter.type = 'bandpass';
+    this.avataDuctFilter.frequency.value = 1180;
+    this.avataDuctFilter.Q.value = 3.1;
+    this.avataDuctGain = this.ctx.createGain();
+    this.avataDuctGain.gain.value = 0.28;
+
+    const avataShaper = this._createWarmWaveshaper(1.85);
     this.avataMotorGain = this.ctx.createGain();
     this.avataMotorGain.gain.value = 0.0;
+    this.avataPan = this._createStereoPannerSafe(0.0);
 
     this.avataMotorOscA.connect(this.avataMotorFilter);
     this.avataMotorOscB.connect(this.avataMotorFilter);
     this.avataMotorOscC.connect(avataOscCGain);
     avataOscCGain.connect(this.avataMotorFilter);
-    this.avataMotorFilter.connect(this.avataMotorGain);
-    this.avataMotorGain.connect(this.worldSumGain);
-    this.avataMotorGain.connect(this.reverbSendGain);
+    this.avataMotorOscA.connect(this.avataDuctFilter);
+    this.avataDuctFilter.connect(this.avataDuctGain);
+    if (avataShaper) {
+      this.avataMotorFilter.connect(avataShaper);
+      this.avataDuctGain.connect(avataShaper);
+      avataShaper.connect(this.avataMotorGain);
+    } else {
+      this.avataMotorFilter.connect(this.avataMotorGain);
+      this.avataDuctGain.connect(this.avataMotorGain);
+    }
+    if (this.avataPan) {
+      this.avataMotorGain.connect(this.avataPan);
+      this.avataPan.connect(this.worldSumGain);
+      this.avataPan.connect(this.reverbSendGain);
+    } else {
+      this.avataMotorGain.connect(this.worldSumGain);
+      this.avataMotorGain.connect(this.reverbSendGain);
+    }
     this.avataMotorOscA.start();
     this.avataMotorOscB.start();
     this.avataMotorOscC.start();
@@ -1468,9 +1814,15 @@ export class AudioSynthesizer {
     this.canopyRustleFilter.Q.value = 0.85;
     this.canopyRustleGain = this.ctx.createGain();
     this.canopyRustleGain.gain.value = 0.0;
+    this.canopyPan = this._createStereoPannerSafe(0.18);
     canopySrc.connect(this.canopyRustleFilter);
     this.canopyRustleFilter.connect(this.canopyRustleGain);
-    this.canopyRustleGain.connect(this.weatherOccFilter);
+    if (this.canopyPan) {
+      this.canopyRustleGain.connect(this.canopyPan);
+      this.canopyPan.connect(this.ambientDuckGain);
+    } else {
+      this.canopyRustleGain.connect(this.ambientDuckGain);
+    }
     canopySrc.start();
 
     // Bus 11: Nusantara Afternoon/Dusk Forest Tonggeret (Cicada) Chorus (3.92 kHz + 24 Hz Tymbal Pulse)
@@ -1495,11 +1847,17 @@ export class AudioSynthesizer {
     tongLfoDepth.connect(tongGate.gain);
     this.tonggeretGain = this.ctx.createGain();
     this.tonggeretGain.gain.value = 0.0;
+    this.tonggeretPan = this._createStereoPannerSafe(0.28);
     tongOscA.connect(tongBp);
     tongOscB.connect(tongBp);
     tongBp.connect(tongGate);
     tongGate.connect(this.tonggeretGain);
-    this.tonggeretGain.connect(this.weatherOccFilter);
+    if (this.tonggeretPan) {
+      this.tonggeretGain.connect(this.tonggeretPan);
+      this.tonggeretPan.connect(this.ambientDuckGain);
+    } else {
+      this.tonggeretGain.connect(this.ambientDuckGain);
+    }
     tongOscA.start();
     tongOscB.start();
     tongLfo.start();
@@ -1533,7 +1891,7 @@ export class AudioSynthesizer {
     socFormA.connect(socCadence);
     socFormB.connect(socCadence);
     socCadence.connect(this.socialMurmurGain);
-    this.socialMurmurGain.connect(this.weatherOccFilter);
+    this.socialMurmurGain.connect(this.ambientDuckGain);
     this.socialMurmurGain.connect(this.reverbSendGain);
     socSrc.start();
     socLfo.start();
@@ -1613,7 +1971,7 @@ export class AudioSynthesizer {
     lapSrc.start();
 
     // =========================================================================
-    // 8 DEDICATED 3D BINAURAL HRTF POINT-SOURCE EMITTERS
+    // 11 DEDICATED SIMULTANEOUS 3D BINAURAL HRTF POINT-SOURCE EMITTERS
     // =========================================================================
     this._emitters = {};
 
@@ -1660,14 +2018,15 @@ export class AudioSynthesizer {
     this.waterfallGain = eWaterfall.gain;
     this._emitters.waterfall = eWaterfall;
 
-    // E3. Bus Kuning Lintas Pulau UI (Hybrid/EV Traction Hum + Asphalt Tire Roll + Tunnel Reverb)
-    const eBus = this._create3DEmitter({ refDistance: 7.5, rolloffFactor: 1.05, reverbWeight: 0.55 });
+    // E3. Bus Kuning Lintas Pulau UI (Warm Soft-Saturated Traction Hum + Asphalt Tire Roll + Ground Comb)
+    const eBus = this._create3DEmitter({ refDistance: 7.5, rolloffFactor: 1.05, reverbWeight: 0.55, enableGroundComb: true });
     const busOscA = this.ctx.createOscillator();
     busOscA.type = 'sawtooth';
     busOscA.frequency.value = 88;
     const busOscB = this.ctx.createOscillator();
     busOscB.type = 'triangle';
     busOscB.frequency.value = 176;
+    const busShaper = this._createWarmWaveshaper(2.1);
     const busToneLp = this.ctx.createBiquadFilter();
     busToneLp.type = 'lowpass';
     busToneLp.frequency.value = 310;
@@ -1680,8 +2039,14 @@ export class AudioSynthesizer {
     busTireBp.Q.value = 0.9;
     const busTireGain = this.ctx.createGain();
     busTireGain.gain.value = 0.55;
-    busOscA.connect(busToneLp);
-    busOscB.connect(busToneLp);
+    if (busShaper) {
+      busOscA.connect(busShaper);
+      busOscB.connect(busShaper);
+      busShaper.connect(busToneLp);
+    } else {
+      busOscA.connect(busToneLp);
+      busOscB.connect(busToneLp);
+    }
     busToneLp.connect(eBus.input);
     busTire.connect(busTireBp);
     busTireBp.connect(busTireGain);
@@ -1725,8 +2090,8 @@ export class AudioSynthesizer {
     eCart.rollBp = cartRollBp;
     this._emitters.cart = eCart;
 
-    // E5. Taxi Helicopter Listrik eVTOL (PK-UIE Hexa-Rotor BVI Blade Thump + Coaxial Turbine Whine)
-    const eHeli = this._create3DEmitter({ refDistance: 13.0, rolloffFactor: 0.92, reverbWeight: 0.28 });
+    // E5. Taxi Helicopter Listrik eVTOL (PK-UIE Hexa-Rotor BVI Blade Thump + Coaxial Turbine Whine + Ground Comb)
+    const eHeli = this._create3DEmitter({ refDistance: 13.0, rolloffFactor: 0.92, reverbWeight: 0.28, enableGroundComb: true });
     const heliNoise = this.ctx.createBufferSource();
     heliNoise.buffer = pinkBuffer;
     heliNoise.loop = true;
@@ -1737,7 +2102,7 @@ export class AudioSynthesizer {
     heliThumpGate.gain.value = 0.55;
     const heliBladeLfo = this.ctx.createOscillator();
     heliBladeLfo.type = 'sine';
-    heliBladeLfo.frequency.value = 21.0; // Blade-passage frequency!
+    heliBladeLfo.frequency.value = 21.0;
     const heliLfoDepth = this.ctx.createGain();
     heliLfoDepth.gain.value = 0.44;
     heliBladeLfo.connect(heliLfoDepth);
@@ -1761,86 +2126,233 @@ export class AudioSynthesizer {
     eHeli.turbineOsc = heliTurbine;
     this._emitters.heli = eHeli;
 
-    // E6. Active Fixed-Wing Aviation Emitter (Cessna 172 Piston Prop vs Citation Learjet Twin-Turbofan)
-    const eAir = this._create3DEmitter({ refDistance: 22.0, rolloffFactor: 0.82, maxDistance: 2200.0, reverbWeight: 0.30 });
-    const airPropOscA = this.ctx.createOscillator();
-    airPropOscA.type = 'sawtooth';
-    airPropOscA.frequency.value = 104;
-    const airPropOscB = this.ctx.createOscillator();
-    airPropOscB.type = 'triangle';
-    airPropOscB.frequency.value = 208;
-    const airPropGain = this.ctx.createGain();
-    airPropGain.gain.value = 0.55;
+    // E6. Dedicated Cessna 172 Skyhawk (PK-UIA) Lycoming 4-Cylinder Piston Prop + Exhaust Formant + Ground Comb
+    const eCessna = this._create3DEmitter({
+      refDistance: 20.0,
+      rolloffFactor: 0.84,
+      maxDistance: 1800.0,
+      reverbWeight: 0.28,
+      coneInnerAngle: 130,
+      coneOuterAngle: 275,
+      coneOuterGain: 0.58,
+      enableGroundComb: true
+    });
+    const cesOscA = this.ctx.createOscillator();
+    cesOscA.type = 'sawtooth';
+    cesOscA.frequency.value = 96;
+    const cesOscB = this.ctx.createOscillator();
+    cesOscB.type = 'triangle';
+    cesOscB.frequency.value = 192;
+    const cesShaper = this._createWarmWaveshaper(2.2);
+    const cesFormant = this.ctx.createBiquadFilter();
+    cesFormant.type = 'lowpass';
+    cesFormant.frequency.value = 560;
+    const cesPropGain = this.ctx.createGain();
+    cesPropGain.gain.value = 0.52;
+    const cesWash = this.ctx.createBufferSource();
+    cesWash.buffer = pinkBuffer;
+    cesWash.loop = true;
+    const cesWashBp = this.ctx.createBiquadFilter();
+    cesWashBp.type = 'bandpass';
+    cesWashBp.frequency.value = 340;
+    cesWashBp.Q.value = 0.8;
+    const cesWashGain = this.ctx.createGain();
+    cesWashGain.gain.value = 0.28;
+    if (cesShaper) {
+      cesOscA.connect(cesShaper);
+      cesOscB.connect(cesShaper);
+      cesShaper.connect(cesFormant);
+    } else {
+      cesOscA.connect(cesFormant);
+      cesOscB.connect(cesFormant);
+    }
+    cesFormant.connect(cesPropGain);
+    cesPropGain.connect(eCessna.input);
+    cesWash.connect(cesWashBp);
+    cesWashBp.connect(cesWashGain);
+    cesWashGain.connect(eCessna.input);
+    cesOscA.start();
+    cesOscB.start();
+    cesWash.start();
+    eCessna.propOscA = cesOscA;
+    eCessna.propOscB = cesOscB;
+    eCessna.formant = cesFormant;
+    eCessna.propGain = cesPropGain;
+    eCessna.roarBp = cesWashBp;
+    eCessna.roarGain = cesWashGain;
+    this._emitters.cessna = eCessna;
 
-    const airJetWhine = this.ctx.createOscillator();
-    airJetWhine.type = 'sine';
-    airJetWhine.frequency.value = 1280;
-    const airJetWhineGain = this.ctx.createGain();
-    airJetWhineGain.gain.value = 0.0;
+    // E7. Dedicated Citation Learjet (PK-UIB) Twin-Turbofan N1 Whine + Jet Core Roar + Ground Comb
+    const eLearjet = this._create3DEmitter({
+      refDistance: 24.0,
+      rolloffFactor: 0.80,
+      maxDistance: 2400.0,
+      reverbWeight: 0.32,
+      coneInnerAngle: 112,
+      coneOuterAngle: 252,
+      coneOuterGain: 0.45,
+      enableGroundComb: true
+    });
+    const jetWhineA = this.ctx.createOscillator();
+    jetWhineA.type = 'sine';
+    jetWhineA.frequency.value = 1280;
+    const jetWhineB = this.ctx.createOscillator();
+    jetWhineB.type = 'triangle';
+    jetWhineB.frequency.value = 1924;
+    const jetWhineGain = this.ctx.createGain();
+    jetWhineGain.gain.value = 0.22;
+    const jetRoar = this.ctx.createBufferSource();
+    jetRoar.buffer = pinkBuffer;
+    jetRoar.loop = true;
+    const jetRoarBp = this.ctx.createBiquadFilter();
+    jetRoarBp.type = 'bandpass';
+    jetRoarBp.frequency.value = 540;
+    jetRoarBp.Q.value = 0.62;
+    const jetRoarGain = this.ctx.createGain();
+    jetRoarGain.gain.value = 0.55;
+    jetWhineA.connect(jetWhineGain);
+    jetWhineB.connect(jetWhineGain);
+    jetWhineGain.connect(eLearjet.input);
+    jetRoar.connect(jetRoarBp);
+    jetRoarBp.connect(jetRoarGain);
+    jetRoarGain.connect(eLearjet.input);
+    jetWhineA.start();
+    jetWhineB.start();
+    jetRoar.start();
+    eLearjet.jetWhine = jetWhineA;
+    eLearjet.jetWhineB = jetWhineB;
+    eLearjet.jetWhineGain = jetWhineGain;
+    eLearjet.roarBp = jetRoarBp;
+    eLearjet.roarGain = jetRoarGain;
+    this._emitters.learjet = eLearjet;
 
-    const airJetRoar = this.ctx.createBufferSource();
-    airJetRoar.buffer = pinkBuffer;
-    airJetRoar.loop = true;
-    const airRoarBp = this.ctx.createBiquadFilter();
-    airRoarBp.type = 'bandpass';
-    airRoarBp.frequency.value = 520;
-    airRoarBp.Q.value = 0.65;
-    const airRoarGain = this.ctx.createGain();
-    airRoarGain.gain.value = 0.45;
-
-    airPropOscA.connect(airPropGain);
-    airPropOscB.connect(airPropGain);
-    airPropGain.connect(eAir.input);
-    airJetWhine.connect(airJetWhineGain);
-    airJetWhineGain.connect(eAir.input);
-    airJetRoar.connect(airRoarBp);
-    airRoarBp.connect(airRoarGain);
-    airRoarGain.connect(eAir.input);
-    airPropOscA.start();
-    airPropOscB.start();
-    airJetWhine.start();
-    airJetRoar.start();
-    eAir.propOscA = airPropOscA;
-    eAir.propOscB = airPropOscB;
-    eAir.propGain = airPropGain;
-    eAir.jetWhine = airJetWhine;
-    eAir.jetWhineGain = airJetWhineGain;
-    eAir.roarBp = airRoarBp;
-    eAir.roarGain = airRoarGain;
-    this._emitters.air = eAir;
-
-    // E7. Marine Fleet Emitter (Kapal Feri Katamaran Selat UI & Flybridge Mini Yacht Teluk U)
-    const eMarine = this._create3DEmitter({
-      refDistance: 12.0,
-      rolloffFactor: 1.0,
+    // E8. Dedicated Kapal Feri Katamaran Selat UI (Twin Marine Diesel + Deep Catamaran Wake)
+    const eFerry = this._create3DEmitter({
+      refDistance: 13.5,
+      rolloffFactor: 0.96,
       reverbWeight: 0.22,
       coneInnerAngle: 150,
       coneOuterAngle: 300,
       coneOuterGain: 0.68
     });
-    const marOsc = this.ctx.createOscillator();
-    marOsc.type = 'triangle';
-    marOsc.frequency.value = 72;
-    const marOscGain = this.ctx.createGain();
-    marOscGain.gain.value = 0.35;
-    const marWake = this.ctx.createBufferSource();
-    marWake.buffer = pinkBuffer;
-    marWake.loop = true;
-    const marWakeBp = this.ctx.createBiquadFilter();
-    marWakeBp.type = 'bandpass';
-    marWakeBp.frequency.value = 540;
-    marWakeBp.Q.value = 0.8;
-    marOsc.connect(marOscGain);
-    marOscGain.connect(eMarine.input);
-    marWake.connect(marWakeBp);
-    marWakeBp.connect(eMarine.input);
-    marOsc.start();
-    marWake.start();
-    eMarine.osc = marOsc;
-    eMarine.wakeBp = marWakeBp;
-    this._emitters.marine = eMarine;
+    const ferOscA = this.ctx.createOscillator();
+    ferOscA.type = 'triangle';
+    ferOscA.frequency.value = 62;
+    const ferOscB = this.ctx.createOscillator();
+    ferOscB.type = 'sawtooth';
+    ferOscB.frequency.value = 124;
+    const ferLp = this.ctx.createBiquadFilter();
+    ferLp.type = 'lowpass';
+    ferLp.frequency.value = 260;
+    const ferOscGain = this.ctx.createGain();
+    ferOscGain.gain.value = 0.36;
+    const ferWake = this.ctx.createBufferSource();
+    ferWake.buffer = pinkBuffer;
+    ferWake.loop = true;
+    const ferWakeBp = this.ctx.createBiquadFilter();
+    ferWakeBp.type = 'bandpass';
+    ferWakeBp.frequency.value = 480;
+    ferWakeBp.Q.value = 0.78;
+    ferOscA.connect(ferLp);
+    ferOscB.connect(ferLp);
+    ferLp.connect(ferOscGain);
+    ferOscGain.connect(eFerry.input);
+    ferWake.connect(ferWakeBp);
+    ferWakeBp.connect(eFerry.input);
+    ferOscA.start();
+    ferOscB.start();
+    ferWake.start();
+    eFerry.osc = ferOscA;
+    eFerry.oscB = ferOscB;
+    eFerry.wakeBp = ferWakeBp;
+    this._emitters.ferry = eFerry;
 
-    // E8. Directional Videotron Outdoor Line-Array Speaker & Cabinet Fan Emitter at (28.4, 7.6, 78.2)
+    // E9. Dedicated Flybridge Mini Yacht Teluk U (Smooth Twin-Inboard Purr + Crisp Planing Spray)
+    const eYacht = this._create3DEmitter({
+      refDistance: 10.5,
+      rolloffFactor: 1.04,
+      reverbWeight: 0.20,
+      coneInnerAngle: 155,
+      coneOuterAngle: 305,
+      coneOuterGain: 0.70
+    });
+    const yacOsc = this.ctx.createOscillator();
+    yacOsc.type = 'triangle';
+    yacOsc.frequency.value = 84;
+    const yacOscGain = this.ctx.createGain();
+    yacOscGain.gain.value = 0.28;
+    const yacWake = this.ctx.createBufferSource();
+    yacWake.buffer = pinkBuffer;
+    yacWake.loop = true;
+    const yacWakeBp = this.ctx.createBiquadFilter();
+    yacWakeBp.type = 'bandpass';
+    yacWakeBp.frequency.value = 680;
+    yacWakeBp.Q.value = 0.85;
+    yacOsc.connect(yacOscGain);
+    yacOscGain.connect(eYacht.input);
+    yacWake.connect(yacWakeBp);
+    yacWakeBp.connect(eYacht.input);
+    yacOsc.start();
+    yacWake.start();
+    eYacht.osc = yacOsc;
+    eYacht.wakeBp = yacWakeBp;
+    this._emitters.yacht = eYacht;
+
+    // E10. Dedicated Active Coastal Vessel Emitter (SMALL_SHIP Diesel Chug vs FISHING_BOAT Outboard Put-Put)
+    const eCoastal = this._create3DEmitter({
+      refDistance: 9.5,
+      rolloffFactor: 1.08,
+      reverbWeight: 0.18,
+      coneInnerAngle: 160,
+      coneOuterAngle: 310,
+      coneOuterGain: 0.72
+    });
+    const cbOsc = this.ctx.createOscillator();
+    cbOsc.type = 'sawtooth';
+    cbOsc.frequency.value = 58;
+    const cbChugGate = this.ctx.createGain();
+    cbChugGate.gain.value = 0.55;
+    const cbChugLfo = this.ctx.createOscillator();
+    cbChugLfo.type = 'sine';
+    cbChugLfo.frequency.value = 8.5;
+    const cbChugDepth = this.ctx.createGain();
+    cbChugDepth.gain.value = 0.40;
+    cbChugLfo.connect(cbChugDepth);
+    cbChugDepth.connect(cbChugGate.gain);
+    const cbShaper = this._createWarmWaveshaper(2.0);
+    const cbLp = this.ctx.createBiquadFilter();
+    cbLp.type = 'lowpass';
+    cbLp.frequency.value = 390;
+    const cbWake = this.ctx.createBufferSource();
+    cbWake.buffer = pinkBuffer;
+    cbWake.loop = true;
+    const cbWakeBp = this.ctx.createBiquadFilter();
+    cbWakeBp.type = 'bandpass';
+    cbWakeBp.frequency.value = 620;
+    cbWakeBp.Q.value = 0.9;
+    const cbWakeGain = this.ctx.createGain();
+    cbWakeGain.gain.value = 0.34;
+    cbOsc.connect(cbChugGate);
+    if (cbShaper) {
+      cbChugGate.connect(cbShaper);
+      cbShaper.connect(cbLp);
+    } else {
+      cbChugGate.connect(cbLp);
+    }
+    cbLp.connect(eCoastal.input);
+    cbWake.connect(cbWakeBp);
+    cbWakeBp.connect(cbWakeGain);
+    cbWakeGain.connect(eCoastal.input);
+    cbOsc.start();
+    cbChugLfo.start();
+    cbWake.start();
+    eCoastal.osc = cbOsc;
+    eCoastal.chugLfo = cbChugLfo;
+    eCoastal.lp = cbLp;
+    eCoastal.wakeBp = cbWakeBp;
+    this._emitters.coastalBoat = eCoastal;
+
+    // E11. Directional Videotron Outdoor Line-Array Speaker & Cabinet Fan Emitter at (28.4, 7.6, 78.2)
     // Outward normal facing Lapangan Rotunda (-2.5, 106.5): yaw = -0.8293 -> (-0.7374, -0.06, +0.6755)
     const eVideotron = this._create3DEmitter({
       refDistance: 8.5,
@@ -1884,7 +2396,7 @@ export class AudioSynthesizer {
     eVideotron.fanGain = vtFanGain;
     this._emitters.videotron = eVideotron;
 
-    // Configure directional radiation cones on Bus, Cart, & Aircraft emitters
+    // Configure directional radiation cones on Bus & Cart emitters
     this._emitters.bus.panner.coneInnerAngle = 135;
     this._emitters.bus.panner.coneOuterAngle = 285;
     this._emitters.bus.panner.coneOuterGain = 0.64;
@@ -1892,10 +2404,6 @@ export class AudioSynthesizer {
     this._emitters.cart.panner.coneInnerAngle = 140;
     this._emitters.cart.panner.coneOuterAngle = 290;
     this._emitters.cart.panner.coneOuterGain = 0.68;
-
-    this._emitters.air.panner.coneInnerAngle = 115;
-    this._emitters.air.panner.coneOuterAngle = 255;
-    this._emitters.air.panner.coneOuterGain = 0.48;
   }
 
   setWeatherAudio(weatherMode) {
@@ -2041,7 +2549,9 @@ export class AudioSynthesizer {
     speedMs = 0.0,
     turnRate = 0.0,
     gForce = 1.0,
-    obstacleClearanceM = 99.0
+    obstacleClearanceM = 99.0,
+    rollRad = 0.0,
+    signedYawRate = 0.0
   ) {
     if (!this.ctx || !this.avataMotorGain || !this.avataWashGain) return;
     const now = this.ctx.currentTime;
@@ -2066,6 +2576,14 @@ export class AudioSynthesizer {
       this.avataMotorOscC.frequency.setTargetAtTime(baseHz * 1.498 * (2.0 - asymDetune * 0.98), now, 0.05);
     }
     this.avataMotorFilter.frequency.setTargetAtTime(450 + thr * 680 + gLoad * 180, now, 0.07);
+    if (this.avataDuctFilter && this.avataDuctGain) {
+      this.avataDuctFilter.frequency.setTargetAtTime(1060 + thr * 340 + gLoad * 95, now, 0.06);
+      this.avataDuctGain.gain.setTargetAtTime(0.14 + thr * 0.24 + gLoad * 0.08, now, 0.07);
+    }
+    if (this.avataPan) {
+      const bankPan = clamp(-rollRad * 0.52 + signedYawRate * 0.12, -0.55, 0.55);
+      this.avataPan.pan.setTargetAtTime(bankPan, now, 0.06);
+    }
     this.avataMotorGain.gain.setTargetAtTime((0.050 + thr * 0.105 + gLoad * 0.022) * trnM, now, 0.07);
 
     const washGain = (0.036 + (spd / 27.0) * 0.175 + turn * 0.042) * trnM;
@@ -2177,6 +2695,9 @@ export class AudioSynthesizer {
       const surfCutoff = (260 + (1.0 - waveM / 2.6) * 140) + waveSurge * (210 + waveM * 95);
       this.surfFilter.frequency.setTargetAtTime(surfCutoff, now, 0.18);
       this.surfGain.gain.setTargetAtTime(surfVol, now, 0.18);
+      if (this.surfPan) {
+        this.surfPan.pan.setTargetAtTime(0.34 * Math.sin(this._simClock * 0.31 + 0.4), now, 0.25);
+      }
     }
   }
 
@@ -2292,6 +2813,8 @@ export class AudioSynthesizer {
       this._lis.upX = ux;
       this._lis.upY = uy;
       this._lis.upZ = uz;
+      // Camera right-axis Y component e[1] vs up-axis Y component e[5] yields roll tilt in radians
+      this._lis.rollRad = Math.atan2(Number(e[1]) || 0.0, Math.max(0.15, Math.abs(Number(e[5]) || 1.0)));
     }
 
     // 2. Classify Architectural Space, Dual-IR Reverb Split, & Roof Material
@@ -2424,10 +2947,12 @@ export class AudioSynthesizer {
         this._lis.speedMs,
         Number(state.avataTurnRate) || 0.0,
         Number(state.avataGForce) || 1.0,
-        Number.isFinite(state.obstacleClearanceM) ? state.obstacleClearanceM : 99.0
+        Number.isFinite(state.obstacleClearanceM) ? state.obstacleClearanceM : 99.0,
+        Number.isFinite(state.avataRollRad) ? state.avataRollRad : this._lis.rollRad,
+        Number(state.avataSignedYawRate) || 0.0
       );
     } else {
-      this.syncAvataDroneAudio(false, 0, 0, 0, 1.0, 99.0);
+      this.syncAvataDroneAudio(false, 0, 0, 0, 1.0, 99.0, 0.0, 0.0);
     }
 
     if (this.mavicGain) {
@@ -2442,6 +2967,25 @@ export class AudioSynthesizer {
       } else {
         this.mavicGain.gain.setTargetAtTime(0.0, now, 0.10);
       }
+    }
+
+    // Smart Priority Sidechain Ducking + Binaural Stereo Drift across Outdoor Bio/Canopy Beds
+    if (this._thunderDuckTimer > 0.0) {
+      this._thunderDuckTimer = Math.max(0.0, this._thunderDuckTimer - safeDt);
+    }
+    if (this.ambientDuckGain) {
+      const thunderDuck = this._thunderDuckTimer > 0.0 ? 0.48 * clamp(this._thunderDuckTimer / 1.8, 0.0, 1.0) : 0.0;
+      const fgDuck = clamp(this._foregroundPressure01 * 0.42 + thunderDuck, 0.0, 0.62);
+      this.ambientDuckGain.gain.setTargetAtTime(1.0 - fgDuck, now, 0.16);
+    }
+    if (this.cricketPan) {
+      this.cricketPan.pan.setTargetAtTime(-0.26 + 0.22 * Math.sin(this._simClock * 0.23), now, 0.30);
+    }
+    if (this.canopyPan) {
+      this.canopyPan.pan.setTargetAtTime(0.28 * Math.sin(this._simClock * 0.39 + 1.2), now, 0.28);
+    }
+    if (this.tonggeretPan) {
+      this.tonggeretPan.pan.setTargetAtTime(0.28 + 0.20 * Math.cos(this._simClock * 0.19), now, 0.32);
     }
 
     // Nocturnal Cricket Chorus + Iterasi 2 Location-Context Micro-Biome Ambience Buses
@@ -2673,6 +3217,13 @@ export class AudioSynthesizer {
         const wetSpray = b.worldY > -1.8 ? smooth01(0.22, 0.85, wetness) : 0.0;
         eb.tireBp.frequency.setTargetAtTime((280 + spdNorm * 380 + wetSpray * 820) * met.doppler, now, 0.06);
         eb.tireGain.gain.setTargetAtTime(0.15 + spdNorm * (0.65 + wetSpray * 0.42), now, 0.06);
+        if (eb.groundComb) {
+          const gComb = AudioSynthesizer.computeGroundReflectionEffect(
+            tr.x, tr.y, tr.z, lx, ly, lz, b.worldY, 0.84, tempC, this._combScratch
+          );
+          eb.groundComb.frequency.setTargetAtTime(gComb.combNotchHz, now, 0.07);
+          eb.groundComb.gain.setTargetAtTime(b.worldY < -2.2 ? 0.0 : gComb.combGainDb * 0.65, now, 0.09);
+        }
         eb.airLP.frequency.setTargetAtTime(Math.max(220.0, met.airCutoffHz * occ.cutoffMult), now, 0.08);
         const busInTunnel = b.worldY < -2.2 ? 0.88 : 0.35;
         eb.revSend.gain.setTargetAtTime(busInTunnel, now, 0.12);
@@ -2782,15 +3333,22 @@ export class AudioSynthesizer {
         this._setPannerPosition(eh.panner, tr.x, tr.y, tr.z, now, jumped);
         eh.bladeLfo.frequency.setTargetAtTime(clamp((12.0 + omegaNorm * 13.5) * met.doppler, 8.0, 34.0), now, 0.06);
         eh.turbineOsc.frequency.setTargetAtTime((340.0 + omegaNorm * 390.0) * met.doppler, now, 0.06);
+        if (eh.groundComb) {
+          const overSea = tr.z > 430.0 && tr.z < 610.0;
+          const gComb = AudioSynthesizer.computeGroundReflectionEffect(
+            tr.x, tr.y, tr.z, lx, ly, lz, overSea ? -1.42 : 0.0, overSea ? 0.94 : 0.78, tempC, this._combScratch
+          );
+          eh.groundComb.frequency.setTargetAtTime(gComb.combNotchHz, now, 0.07);
+          eh.groundComb.gain.setTargetAtTime(gComb.combGainDb, now, 0.09);
+        }
         eh.airLP.frequency.setTargetAtTime(Math.max(220.0, met.airCutoffHz * occ.cutoffMult), now, 0.08);
         const hGain = heliProx > 0 ? (0.04 + omegaNorm * 0.34) * vtolLoad * occ.gainMult * trnM : 0.0;
         eh.gain.gain.setTargetAtTime(hGain, now, 0.09);
       }
     }
 
-    // 4. Fixed-Wing Campus Fleet: Cessna 172 (PK-UIA) & Citation Learjet (PK-UIB) + Runway Touchdown & Reverser SFX
+    // 4. Simultaneous Fixed-Wing Campus Fleet: Cessna 172 (PK-UIA) & Citation Learjet (PK-UIB)
     const cessna = sivitasAI.cessnaAircraft;
-    const learjet = sivitasAI.learjetAircraft;
     if (cessna) {
       const prevP = this._sfxTracker.cessnaPhase;
       const curP = cessna.phase || '';
@@ -2805,7 +3363,57 @@ export class AudioSynthesizer {
         }
       }
       this._sfxTracker.cessnaPhase = curP;
+
+      const tr = this._entityTracks.cessna;
+      const yaw = cessna.yaw || 0.0;
+      const jumped = this._updateTrackVelocity(tr, cessna.worldX, cessna.worldY + 1.4, cessna.worldZ, yaw, cessna.speed || 0, dt);
+      const met = AudioSynthesizer.computeDopplerAndAbsorption(
+        tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz, tempC, rh
+      );
+      const occ = AudioSynthesizer.computeGeometricOcclusion(
+        tr.x, tr.y, tr.z, lx, ly, lz, this._occScratch
+      );
+      if (occ.occluded) occludedCount++;
+
+      const acProx = clamp(1.0 - met.dist / 390.0, 0.0, 1.0);
+      const parked = curP === 'APRON_PARKED';
+      const propNorm = parked ? 0.0 : clamp((cessna.propOmega || 0.0) / 74.0, 0.0, 1.15);
+      const score = acProx * propNorm * 1.12 * occ.gainMult;
+      if (score > bestScore) {
+        bestScore = score;
+        bestLabel = 'Cessna 172 Skyhawk';
+        bestDoppler = met.doppler;
+      }
+
+      if (audioReady && this._emitters.cessna) {
+        const ec = this._emitters.cessna;
+        this._setPannerPosition(ec.panner, tr.x, tr.y, tr.z, now, jumped);
+        this._setPannerOrientation(ec.panner, Math.sin(yaw), 0.0, Math.cos(yaw), now, jumped);
+        if (ec.groundComb) {
+          const overRunway = tr.z >= 648.0 && tr.z <= 732.0 && tr.x >= -390.0 && tr.x <= -120.0;
+          const gComb = AudioSynthesizer.computeGroundReflectionEffect(
+            tr.x, tr.y, tr.z, lx, ly, lz, overRunway ? 0.6 : -1.42, overRunway ? 0.85 : 0.94, tempC, this._combScratch
+          );
+          ec.groundComb.frequency.setTargetAtTime(gComb.combNotchHz, now, 0.07);
+          ec.groundComb.gain.setTargetAtTime(gComb.combGainDb, now, 0.09);
+        }
+        ec.airLP.frequency.setTargetAtTime(Math.max(240.0, met.airCutoffHz * occ.cutoffMult), now, 0.08);
+        if (parked || acProx <= 0.0) {
+          ec.gain.gain.setTargetAtTime(0.0, now, 0.12);
+        } else {
+          const pHz = (68.0 + propNorm * 74.0) * met.doppler;
+          ec.propOscA.frequency.setTargetAtTime(pHz, now, 0.05);
+          ec.propOscB.frequency.setTargetAtTime(pHz * 2.0, now, 0.05);
+          ec.formant.frequency.setTargetAtTime(380 + propNorm * 340, now, 0.07);
+          ec.propGain.gain.setTargetAtTime(0.42 + propNorm * 0.34, now, 0.08);
+          ec.roarBp.frequency.setTargetAtTime((240 + propNorm * 280) * met.doppler, now, 0.06);
+          ec.roarGain.gain.setTargetAtTime(0.18 + propNorm * 0.25, now, 0.08);
+          ec.gain.gain.setTargetAtTime((0.08 + propNorm * 0.40) * occ.gainMult * trnM, now, 0.08);
+        }
+      }
     }
+
+    const learjet = sivitasAI.learjetAircraft;
     if (learjet) {
       const prevP = this._sfxTracker.learjetPhase;
       const curP = learjet.phase || '';
@@ -2823,38 +3431,10 @@ export class AudioSynthesizer {
         }
       }
       this._sfxTracker.learjetPhase = curP;
-    }
 
-    let activeAc = null;
-    let isJet = false;
-    if (learjet && learjet.phase !== 'APRON_PARKED') {
-      activeAc = learjet;
-      isJet = true;
-    } else if (cessna && cessna.phase !== 'APRON_PARKED') {
-      activeAc = cessna;
-      isJet = false;
-    } else if (learjet && cessna) {
-      const dC = Math.hypot(lx - cessna.worldX, ly - cessna.worldY, lz - cessna.worldZ);
-      const dL = Math.hypot(lx - learjet.worldX, ly - learjet.worldY, lz - learjet.worldZ);
-      activeAc = dL < dC ? learjet : cessna;
-      isJet = activeAc === learjet;
-    }
-
-    if (activeAc) {
-      const tr = this._entityTracks.air;
-      const switched = tr.id !== activeAc.registration;
-      tr.id = activeAc.registration;
-      if (switched) tr.init = false;
-      const yaw = activeAc.yaw || 0.0;
-      const jumped = this._updateTrackVelocity(
-        tr,
-        activeAc.worldX,
-        activeAc.worldY + 1.5,
-        activeAc.worldZ,
-        yaw,
-        activeAc.speed || 0,
-        dt
-      );
+      const tr = this._entityTracks.learjet;
+      const yaw = learjet.yaw || 0.0;
+      const jumped = this._updateTrackVelocity(tr, learjet.worldX, learjet.worldY + 1.5, learjet.worldZ, yaw, learjet.speed || 0, dt);
       const met = AudioSynthesizer.computeDopplerAndAbsorption(
         tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz, tempC, rh
       );
@@ -2863,49 +3443,51 @@ export class AudioSynthesizer {
       );
       if (occ.occluded) occludedCount++;
 
-      const maxHear = isJet ? 560.0 : 380.0;
-      const acProx = clamp(1.0 - met.dist / maxHear, 0.0, 1.0);
-      const parked = activeAc.phase === 'APRON_PARKED';
-      const propNorm = parked ? 0.0 : clamp((activeAc.propOmega || 0.0) / 76.0, 0.0, 1.15);
-      const reverserActive = isJet && activeAc.phase === 'LANDING_ROLLOUT' && (activeAc.speed || 0) > 16.0;
+      const acProx = clamp(1.0 - met.dist / 580.0, 0.0, 1.0);
+      const parked = curP === 'APRON_PARKED';
+      const propNorm = parked ? 0.0 : clamp((learjet.propOmega || 0.0) / 76.0, 0.0, 1.15);
+      const reverserActive = curP === 'LANDING_ROLLOUT' && (learjet.speed || 0) > 16.0;
       const revBoost = reverserActive ? 1.38 : 1.0;
-      const score = acProx * propNorm * 1.15 * revBoost * occ.gainMult;
+      const score = acProx * propNorm * 1.18 * revBoost * occ.gainMult;
       if (score > bestScore) {
         bestScore = score;
-        bestLabel = isJet ? 'Citation Learjet' : 'Cessna 172';
+        bestLabel = 'Citation Learjet';
         bestDoppler = met.doppler;
       }
 
-      if (audioReady) {
-        const ea = this._emitters.air;
-        this._setPannerPosition(ea.panner, tr.x, tr.y, tr.z, now, jumped || switched);
-        // Jet exhaust radiates rearward (-yaw), EXCEPT during clamshell thrust-reverser rollout (+yaw)!
-        const coneSign = isJet && !reverserActive ? -1.0 : 1.0;
-        this._setPannerOrientation(ea.panner, coneSign * Math.sin(yaw), 0.0, coneSign * Math.cos(yaw), now, jumped || switched);
-        ea.airLP.frequency.setTargetAtTime(Math.max(240.0, met.airCutoffHz * occ.cutoffMult), now, 0.08);
+      if (audioReady && this._emitters.learjet) {
+        const el = this._emitters.learjet;
+        this._setPannerPosition(el.panner, tr.x, tr.y, tr.z, now, jumped);
+        const coneSign = !reverserActive ? -1.0 : 1.0;
+        this._setPannerOrientation(el.panner, coneSign * Math.sin(yaw), 0.0, coneSign * Math.cos(yaw), now, jumped);
+        if (el.groundComb) {
+          const overRunway = tr.z >= 648.0 && tr.z <= 732.0 && tr.x >= -390.0 && tr.x <= -120.0;
+          const gComb = AudioSynthesizer.computeGroundReflectionEffect(
+            tr.x, tr.y, tr.z, lx, ly, lz, overRunway ? 0.6 : -1.42, overRunway ? 0.85 : 0.94, tempC, this._combScratch
+          );
+          el.groundComb.frequency.setTargetAtTime(gComb.combNotchHz, now, 0.07);
+          el.groundComb.gain.setTargetAtTime(gComb.combGainDb, now, 0.09);
+        }
+        el.airLP.frequency.setTargetAtTime(Math.max(240.0, met.airCutoffHz * occ.cutoffMult), now, 0.08);
         if (parked || acProx <= 0.0) {
-          ea.gain.gain.setTargetAtTime(0.0, now, 0.12);
-        } else if (isJet) {
-          ea.propGain.gain.setTargetAtTime(0.0, now, 0.08);
-          ea.jetWhine.frequency.setTargetAtTime((780 + propNorm * 1120) * met.doppler, now, 0.05);
-          ea.jetWhineGain.gain.setTargetAtTime(0.18 + propNorm * 0.24, now, 0.08);
-          ea.roarBp.frequency.setTargetAtTime((310 + propNorm * 520 + (reverserActive ? 220 : 0)) * met.doppler, now, 0.06);
-          ea.roarGain.gain.setTargetAtTime((0.45 + propNorm * 0.65) * revBoost, now, 0.08);
-          ea.gain.gain.setTargetAtTime((0.12 + propNorm * 0.56) * revBoost * occ.gainMult * trnM, now, 0.08);
+          el.gain.gain.setTargetAtTime(0.0, now, 0.12);
         } else {
-          const pHz = (68.0 + propNorm * 74.0) * met.doppler;
-          ea.propOscA.frequency.setTargetAtTime(pHz, now, 0.05);
-          ea.propOscB.frequency.setTargetAtTime(pHz * 2.0, now, 0.05);
-          ea.propGain.gain.setTargetAtTime(0.42 + propNorm * 0.35, now, 0.08);
-          ea.jetWhineGain.gain.setTargetAtTime(0.0, now, 0.08);
-          ea.roarBp.frequency.setTargetAtTime((240 + propNorm * 280) * met.doppler, now, 0.06);
-          ea.roarGain.gain.setTargetAtTime(0.18 + propNorm * 0.26, now, 0.08);
-          ea.gain.gain.setTargetAtTime((0.08 + propNorm * 0.42) * occ.gainMult * trnM, now, 0.08);
+          const n1Hz = (780 + propNorm * 1120) * met.doppler;
+          el.jetWhine.frequency.setTargetAtTime(n1Hz, now, 0.05);
+          el.jetWhineB.frequency.setTargetAtTime(n1Hz * 1.503, now, 0.05);
+          el.jetWhineGain.gain.setTargetAtTime(0.16 + propNorm * 0.22, now, 0.08);
+          el.roarBp.frequency.setTargetAtTime((310 + propNorm * 520 + (reverserActive ? 220 : 0)) * met.doppler, now, 0.06);
+          el.roarGain.gain.setTargetAtTime((0.45 + propNorm * 0.65) * revBoost, now, 0.08);
+          el.gain.gain.setTargetAtTime((0.12 + propNorm * 0.56) * revBoost * occ.gainMult * trnM, now, 0.08);
         }
       }
     }
 
-    // 5. Marine Fleet: Northern Selat UI Shuttle Ferry (+ Twin-Tone Foghorn on Dock/Depart) & Mini Yacht
+    // 5. Simultaneous Marine Fleet: Shuttle Ferry + Mini Yacht + Nearest Active Coastal Boat + Wave Hull Slap!
+    const seaWaveM = Number.isFinite(state.seaWaveHeightM) ? state.seaWaveHeightM : 0.28;
+    let closestHullVessel = null;
+    let closestHullDist = 85.0;
+
     const ferry = sivitasAI.shuttleFerry;
     if (ferry) {
       const prevFP = this._sfxTracker.ferryPhase;
@@ -2918,41 +3500,10 @@ export class AudioSynthesizer {
         }
       }
       this._sfxTracker.ferryPhase = curFP;
-    }
 
-    const yacht = sivitasAI.miniYacht;
-    let vessel = null;
-    let vesselId = '';
-    if (ferry && yacht) {
-      const dF = Math.hypot(lx - ferry.worldX, ly - ferry.worldY, lz - ferry.worldZ);
-      const dY = Math.hypot(lx - yacht.worldX, ly - yacht.worldY, lz - yacht.worldZ);
-      if (dY < dF) {
-        vessel = yacht;
-        vesselId = 'Mini Yacht Teluk U';
-      } else {
-        vessel = ferry;
-        vesselId = 'Feri Katamaran UI';
-      }
-    } else {
-      vessel = ferry || yacht;
-      vesselId = ferry ? 'Feri Katamaran UI' : 'Mini Yacht Teluk U';
-    }
-
-    if (vessel) {
-      const tr = this._entityTracks.marine;
-      const switched = tr.id !== vesselId;
-      tr.id = vesselId;
-      if (switched) tr.init = false;
-      const yaw = vessel.yaw || 0.0;
-      const jumped = this._updateTrackVelocity(
-        tr,
-        vessel.worldX,
-        vessel.worldY + 1.0,
-        vessel.worldZ,
-        yaw,
-        vessel.speed || 0,
-        dt
-      );
+      const tr = this._entityTracks.ferry;
+      const yaw = ferry.yaw || 0.0;
+      const jumped = this._updateTrackVelocity(tr, ferry.worldX, ferry.worldY + 1.0, ferry.worldZ, yaw, ferry.speed || 0, dt);
       const met = AudioSynthesizer.computeDopplerAndAbsorption(
         tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz, tempC, rh
       );
@@ -2960,27 +3511,148 @@ export class AudioSynthesizer {
         tr.x, tr.y, tr.z, lx, ly, lz, this._occScratch
       );
       if (occ.occluded) occludedCount++;
-
-      const mProx = clamp(1.0 - met.dist / 135.0, 0.0, 1.0);
-      const mSpd = clamp((vessel.speed || 0) / 3.4, 0.0, 1.15);
-      const score = mProx * (0.28 + 0.55 * mSpd) * occ.gainMult;
-      if (score > bestScore) {
-        bestScore = score;
-        bestLabel = vesselId;
-        bestDoppler = met.doppler;
+      if (met.dist < closestHullDist) {
+        closestHullDist = met.dist;
+        closestHullVessel = tr;
       }
 
-      if (audioReady) {
-        const em = this._emitters.marine;
-        this._setPannerPosition(em.panner, tr.x, tr.y, tr.z, now, jumped || switched);
-        this._setPannerOrientation(em.panner, -Math.sin(yaw), 0.0, -Math.cos(yaw), now, jumped || switched);
-        em.osc.frequency.setTargetAtTime((54.0 + mSpd * 38.0) * met.doppler, now, 0.07);
-        em.wakeBp.frequency.setTargetAtTime((380.0 + mSpd * 340.0) * met.doppler, now, 0.08);
-        em.airLP.frequency.setTargetAtTime(Math.max(220.0, met.airCutoffHz * occ.cutoffMult), now, 0.09);
-        em.gain.gain.setTargetAtTime(mProx > 0 ? (0.03 + mSpd * 0.24) * occ.gainMult * trnM : 0.0, now, 0.10);
+      const fProx = clamp(1.0 - met.dist / 155.0, 0.0, 1.0);
+      const fSpd = clamp((ferry.speed || 0) / 3.4, 0.0, 1.15);
+      const score = fProx * (0.28 + 0.56 * fSpd) * occ.gainMult;
+      if (score > bestScore) {
+        bestScore = score;
+        bestLabel = 'Feri Katamaran UI';
+        bestDoppler = met.doppler;
+      }
+      if (audioReady && this._emitters.ferry) {
+        const ef = this._emitters.ferry;
+        this._setPannerPosition(ef.panner, tr.x, tr.y, tr.z, now, jumped);
+        this._setPannerOrientation(ef.panner, -Math.sin(yaw), 0.0, -Math.cos(yaw), now, jumped);
+        const fHz = (52.0 + fSpd * 36.0) * met.doppler;
+        ef.osc.frequency.setTargetAtTime(fHz, now, 0.07);
+        ef.oscB.frequency.setTargetAtTime(fHz * 2.0, now, 0.07);
+        ef.wakeBp.frequency.setTargetAtTime((360.0 + fSpd * 330.0 + seaWaveM * 85.0) * met.doppler, now, 0.08);
+        ef.airLP.frequency.setTargetAtTime(Math.max(220.0, met.airCutoffHz * occ.cutoffMult), now, 0.09);
+        ef.gain.gain.setTargetAtTime(fProx > 0 ? (0.035 + fSpd * 0.24) * occ.gainMult * trnM : 0.0, now, 0.10);
       }
     }
 
+    const yacht = sivitasAI.miniYacht;
+    if (yacht) {
+      const tr = this._entityTracks.yacht;
+      const yaw = yacht.yaw || 0.0;
+      const jumped = this._updateTrackVelocity(tr, yacht.worldX, yacht.worldY + 0.9, yacht.worldZ, yaw, yacht.speed || 0, dt);
+      const met = AudioSynthesizer.computeDopplerAndAbsorption(
+        tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz, tempC, rh
+      );
+      const occ = AudioSynthesizer.computeGeometricOcclusion(
+        tr.x, tr.y, tr.z, lx, ly, lz, this._occScratch
+      );
+      if (occ.occluded) occludedCount++;
+      if (met.dist < closestHullDist) {
+        closestHullDist = met.dist;
+        closestHullVessel = tr;
+      }
+
+      const yProx = clamp(1.0 - met.dist / 120.0, 0.0, 1.0);
+      const ySpd = clamp((yacht.speed || 0) / 3.2, 0.0, 1.15);
+      const score = yProx * (0.25 + 0.54 * ySpd) * occ.gainMult;
+      if (score > bestScore) {
+        bestScore = score;
+        bestLabel = 'Mini Yacht Teluk U';
+        bestDoppler = met.doppler;
+      }
+      if (audioReady && this._emitters.yacht) {
+        const ey = this._emitters.yacht;
+        this._setPannerPosition(ey.panner, tr.x, tr.y, tr.z, now, jumped);
+        this._setPannerOrientation(ey.panner, -Math.sin(yaw), 0.0, -Math.cos(yaw), now, jumped);
+        ey.osc.frequency.setTargetAtTime((72.0 + ySpd * 48.0) * met.doppler, now, 0.07);
+        ey.wakeBp.frequency.setTargetAtTime((520.0 + ySpd * 380.0 + seaWaveM * 95.0) * met.doppler, now, 0.08);
+        ey.airLP.frequency.setTargetAtTime(Math.max(220.0, met.airCutoffHz * occ.cutoffMult), now, 0.09);
+        ey.gain.gain.setTargetAtTime(yProx > 0 ? (0.025 + ySpd * 0.21) * occ.gainMult * trnM : 0.0, now, 0.10);
+      }
+    }
+
+    // Nearest Coastal Archipelago Boat (`sivitasAI.marineVessels`: `SMALL_SHIP` Diesel Chug vs `FISHING_BOAT` Outboard)
+    if (Array.isArray(sivitasAI.marineVessels) && sivitasAI.marineVessels.length > 0) {
+      let nearestBoat = null;
+      let nearestIdx = -1;
+      let nearestD = 165.0;
+      for (let i = 0; i < sivitasAI.marineVessels.length; i++) {
+        const mv = sivitasAI.marineVessels[i];
+        const d = Math.hypot(lx - mv.worldX, ly - (mv.worldY || -1.4), lz - mv.worldZ);
+        if (d < nearestD) {
+          nearestD = d;
+          nearestBoat = mv;
+          nearestIdx = i;
+        }
+      }
+      if (nearestBoat) {
+        const tr = this._entityTracks.coastalBoat;
+        const switched = tr.idx !== nearestIdx;
+        tr.idx = nearestIdx;
+        if (switched) tr.init = false;
+        const yaw = nearestBoat.yaw || 0.0;
+        const jumped = this._updateTrackVelocity(
+          tr,
+          nearestBoat.worldX,
+          (nearestBoat.worldY || -1.4) + 0.65,
+          nearestBoat.worldZ,
+          yaw,
+          nearestBoat.speed || 0,
+          dt
+        );
+        const met = AudioSynthesizer.computeDopplerAndAbsorption(
+          tr.x, tr.y, tr.z, tr.vx, tr.vy, tr.vz, lx, ly, lz, lvx, lvy, lvz, tempC, rh
+        );
+        const occ = AudioSynthesizer.computeGeometricOcclusion(
+          tr.x, tr.y, tr.z, lx, ly, lz, this._occScratch
+        );
+        if (occ.occluded) occludedCount++;
+        if (met.dist < closestHullDist) {
+          closestHullDist = met.dist;
+          closestHullVessel = tr;
+        }
+
+        const isFishing =
+          nearestBoat.type === 'FISHING_BOAT' || nearestBoat.kind === 'FISHING_BOAT';
+        const cbProx = clamp(1.0 - met.dist / 135.0, 0.0, 1.0);
+        const cbSpd = clamp((nearestBoat.speed || 0) / 3.5, 0.1, 1.2);
+        const score = cbProx * (0.26 + 0.52 * cbSpd) * occ.gainMult;
+        if (score > bestScore) {
+          bestScore = score;
+          bestLabel = isFishing ? 'Perahu Nelayan UI' : 'Kapal Patroli Pesisir';
+          bestDoppler = met.doppler;
+        }
+        if (audioReady && this._emitters.coastalBoat) {
+          const ecb = this._emitters.coastalBoat;
+          this._setPannerPosition(ecb.panner, tr.x, tr.y, tr.z, now, jumped || switched);
+          this._setPannerOrientation(ecb.panner, -Math.sin(yaw), 0.0, -Math.cos(yaw), now, jumped || switched);
+          const motorHz = (isFishing ? 86.0 + cbSpd * 58.0 : 44.0 + cbSpd * 28.0) * met.doppler;
+          const chugRate = clamp((isFishing ? 13.5 + cbSpd * 8.5 : 6.8 + cbSpd * 4.8) * met.doppler, 4.0, 28.0);
+          ecb.osc.frequency.setTargetAtTime(motorHz, now, 0.06);
+          ecb.chugLfo.frequency.setTargetAtTime(chugRate, now, 0.06);
+          ecb.lp.frequency.setTargetAtTime(isFishing ? 640 : 320, now, 0.08);
+          ecb.wakeBp.frequency.setTargetAtTime((440 + cbSpd * 320 + seaWaveM * 90) * met.doppler, now, 0.08);
+          ecb.airLP.frequency.setTargetAtTime(Math.max(220.0, met.airCutoffHz * occ.cutoffMult), now, 0.09);
+          ecb.gain.gain.setTargetAtTime((0.025 + cbSpd * 0.19) * cbProx * occ.gainMult * trnM, now, 0.09);
+        }
+      } else if (audioReady && this._emitters.coastalBoat) {
+        this._emitters.coastalBoat.gain.gain.setTargetAtTime(0.0, now, 0.12);
+      }
+    }
+
+    // Sea-Wave-Coupled Boat Hull Wave-Slap SFX when seaWaveHeightM >= 0.80 m
+    this._sfxTracker.hullSlapCooldown = Math.max(0.0, this._sfxTracker.hullSlapCooldown - dt);
+    if (seaWaveM >= 0.80 && closestHullVessel && this._sfxTracker.hullSlapCooldown <= 0.0) {
+      this._sfxTracker.hullSlapCooldown = clamp(3.4 - (seaWaveM - 0.8) * 1.3, 1.4, 3.6);
+      this._recordSfxEvent('BOAT_HULL_WAVE_SLAP', 'Hempasan Ombak Lambung Kapal');
+      if (sfxLive) {
+        this._triggerHullWaveSlap3D(closestHullVessel.x, closestHullVessel.y - 0.4, closestHullVessel.z, seaWaveM);
+      }
+    }
+
+    this._foregroundPressure01 = clamp((bestScore - 0.32) * 1.35, 0.0, 1.0);
     this._telemetry.occluded3DSources = occludedCount;
     this._telemetry.dominantSourceLabel = bestLabel;
     this._telemetry.dominantDoppler = Number(bestDoppler.toFixed(3));
@@ -3078,6 +3750,94 @@ export class AudioSynthesizer {
         }
       }
     }
+
+    // 4. Menara Gedung Rektorat UI Bronze Carillon Bell on Half-Hour / Full-Hour Solar Clock Crossings (06:00..21:00 WIB)
+    trk.bellCooldown = Math.max(0.0, trk.bellCooldown - dt);
+    if (Number.isFinite(state.solarHour)) {
+      const h = (((Number(state.solarHour) % 24.0) + 24.0) % 24.0);
+      const halfSlot = Math.floor(h * 2.0);
+      if (trk.prevBellSlot === null) {
+        trk.prevBellSlot = halfSlot;
+        trk.prevSolarHourVal = h;
+      } else {
+        const hourJump = Math.abs(h - (trk.prevSolarHourVal ?? h));
+        trk.prevSolarHourVal = h;
+        if (halfSlot !== trk.prevBellSlot) {
+          trk.prevBellSlot = halfSlot;
+          const dTower = Math.hypot(lx, lz);
+          if (hourJump < 0.60 && h >= 6.0 && h <= 21.5 && dTower < 680.0 && trk.bellCooldown <= 0.0) {
+            trk.bellCooldown = 8.0;
+            const isFullHour = halfSlot % 2 === 0;
+            this.triggerCampusBell(isFullHour ? 3 : 1);
+          }
+        }
+      }
+    }
+
+    // 5. Post-Rain Eave & Canopy Water Droplet Plink when Rain Clears Over Wet Campus Surfaces
+    trk.eaveDripCooldown = Math.max(0.0, trk.eaveDripCooldown - dt);
+    const wetness = this._weatherState.wetness;
+    if (
+      rainInt < 0.08 &&
+      wetness > 0.28 &&
+      ly > -1.2 &&
+      ly < 14.0 &&
+      trk.eaveDripCooldown <= 0.0 &&
+      (Boolean(state.isRoofSheltered) || (this._biomeState && this._biomeState.canopyWeight > 0.32))
+    ) {
+      trk.eaveDripCooldown = 1.6 + Math.random() * 2.4;
+      this._recordSfxEvent('POST_RAIN_EAVE_DRIP', 'Tetesan Embun Atap/Tajuk');
+      if (sfxLive) {
+        const az = Math.random() * Math.PI * 2.0;
+        const r = 1.8 + Math.random() * 3.8;
+        this._triggerPostRainEaveDrip3D(lx + Math.cos(az) * r, Math.max(0.15, ly - 0.8), lz + Math.sin(az) * r);
+      }
+    }
+
+    // 6. Subsea Underpass Portal Aerodynamic Pressure Whoomp on SUBSEA_TUNNEL Entry / Exit
+    trk.portalCooldown = Math.max(0.0, trk.portalCooldown - dt);
+    const curZoneId = this._zoneState ? this._zoneState.zoneId : 'OPEN_AIR';
+    if (!trk.prevZoneId) {
+      trk.prevZoneId = curZoneId;
+    } else if (curZoneId !== trk.prevZoneId) {
+      const enteringTunnel = curZoneId === 'SUBSEA_TUNNEL' && trk.prevZoneId !== 'SUBSEA_TUNNEL';
+      const exitingTunnel = trk.prevZoneId === 'SUBSEA_TUNNEL' && curZoneId !== 'SUBSEA_TUNNEL';
+      trk.prevZoneId = curZoneId;
+      if ((enteringTunnel || exitingTunnel) && trk.portalCooldown <= 0.0) {
+        trk.portalCooldown = 1.5;
+        this._recordSfxEvent('PORTAL_PRESSURE_WHOOMP', enteringTunnel ? 'Masuk Portal Terowongan' : 'Keluar Portal Terowongan');
+        if (sfxLive) this._triggerPortalPressureWhoomp(enteringTunnel);
+      }
+    }
+  }
+
+  _triggerPortalPressureWhoomp(entering = true) {
+    if (!this.ctx || !this._pinkBuffer || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this._pinkBuffer;
+    src.playbackRate.value = entering ? 0.82 : 1.08;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(entering ? 320 : 185, t0);
+    bp.frequency.exponentialRampToValueAtTime(entering ? 115 : 420, t0 + 0.36);
+    bp.Q.setValueAtTime(1.35, t0);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0008, t0);
+    g.gain.linearRampToValueAtTime(0.16 * sfxM, t0 + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.0006, t0 + 0.42);
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(this.worldSumGain);
+    g.connect(this.reverbSendGain);
+    src.onended = () => {
+      try {
+        g.disconnect();
+      } catch (_e) {}
+    };
+    src.start(t0);
+    src.stop(t0 + 0.45);
   }
 
   _resolveSurfaceMaterial(x, y, z, camMode) {
@@ -3185,13 +3945,19 @@ export class AudioSynthesizer {
 
     src.connect(bp);
     bp.connect(env);
-    env.connect(this.worldSumGain);
+    const stepStereo = this._createStereoPannerSafe((this._stepFootSide > 0 ? 1 : -1) * (isCatPaw ? 0.09 : 0.14));
+    const stepOut = stepStereo || env;
+    if (stepStereo) {
+      env.connect(stepStereo);
+    }
+    stepOut.connect(this.worldSumGain);
     if (surfaceMat === 'TUNNEL_CONCRETE' || surfaceMat === 'BRIDGE_STEEL_WOOD') {
-      env.connect(this.reverbSendGain);
+      stepOut.connect(this.reverbSendGain);
     }
     src.onended = () => {
       try {
-        env.disconnect();
+        stepOut.disconnect();
+        if (stepStereo) env.disconnect();
       } catch (_e) {}
     };
     src.start(t0);
@@ -3663,6 +4429,189 @@ export class AudioSynthesizer {
     src.stop(t0 + 0.21);
   }
 
+  /**
+   * Public & automatic trigger for Menara Gedung Rektorat UI Bronze Carillon Bell at (0, 34, 0)
+   */
+  triggerCampusBell(noteCount = 2) {
+    const count = clamp(Math.round(Number(noteCount) || 2), 1, 4);
+    this._recordSfxEvent('REKTORAT_CARILLON_BELL', 'Lonceng Menara Rektorat UI');
+    if (this.enabled && this.ctx && this.ctx.state === 'running') {
+      this._triggerRektoratCarillon3D(count);
+    }
+  }
+
+  _triggerRektoratCarillon3D(noteCount = 2) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const bx = 0.0;
+    const by = 34.0;
+    const bz = 0.0;
+    const occ = AudioSynthesizer.computeGeometricOcclusion(
+      bx,
+      by,
+      bz,
+      this._lis.x,
+      this._lis.y,
+      this._lis.z
+    );
+    const doppAbs = AudioSynthesizer.computeDopplerAndAbsorption(
+      bx,
+      by,
+      bz,
+      0.0,
+      0.0,
+      0.0,
+      this._lis.x,
+      this._lis.y,
+      this._lis.z,
+      this._lis.vx,
+      this._lis.vy,
+      this._lis.vz,
+      this._weatherState.tempC,
+      this._weatherState.humidityPct
+    );
+
+    const pan = this.ctx.createPanner();
+    pan.panningModel = this.spatialOutputMode === 'SPEAKER' ? 'equalpower' : 'HRTF';
+    pan.distanceModel = 'inverse';
+    pan.refDistance = 42.0;
+    pan.maxDistance = 1400.0;
+    pan.rolloffFactor = 0.72;
+    this._setPannerPosition(pan, bx, by, bz, t0, true);
+
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(clamp(doppAbs.airCutoffHz * occ.cutoffMult, 240.0, 16000.0), t0);
+    lp.connect(pan);
+    pan.connect(this.worldSumGain);
+    pan.connect(this.reverbSendGain);
+
+    // Nusantara Bronze Carillon Motif (E4 - G4 - B4 - E5) with authentic cast-bronze partials (1 : 1.518 : 2.414 : 3.86)
+    const motifHz = [329.63, 392.0, 493.88, 659.25];
+    const partials = [
+      { ratio: 1.0, amp: 1.0, decay: 2.35 },
+      { ratio: 1.518, amp: 0.56, decay: 1.85 },
+      { ratio: 2.004, amp: 0.42, decay: 1.55 },
+      { ratio: 2.414, amp: 0.28, decay: 1.15 },
+      { ratio: 3.86, amp: 0.16, decay: 0.68 }
+    ];
+    const totalNotes = clamp(noteCount, 1, 4);
+    for (let n = 0; n < totalNotes; n++) {
+      const noteStart = t0 + n * 0.62;
+      const f0 = motifHz[n % motifHz.length];
+      const basePeak = 0.088 * sfxM * occ.gainMult;
+
+      for (let p = 0; p < partials.length; p++) {
+        const pt = partials[p];
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = p === 0 ? 'triangle' : 'sine';
+        osc.frequency.setValueAtTime(f0 * pt.ratio, noteStart);
+        g.gain.setValueAtTime(0.0004, noteStart);
+        g.gain.linearRampToValueAtTime(basePeak * pt.amp, noteStart + 0.008);
+        g.gain.exponentialRampToValueAtTime(0.0004, noteStart + pt.decay);
+        osc.connect(g);
+        g.connect(lp);
+        osc.start(noteStart);
+        osc.stop(noteStart + pt.decay + 0.04);
+        if (n === totalNotes - 1 && p === 0) {
+          osc.onended = () => {
+            try {
+              lp.disconnect();
+              pan.disconnect();
+            } catch (_e) {}
+          };
+        }
+      }
+    }
+  }
+
+  _triggerPostRainEaveDrip3D(dx, dy, dz) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const pan = this.ctx.createPanner();
+    pan.panningModel = this.spatialOutputMode === 'SPEAKER' ? 'equalpower' : 'HRTF';
+    pan.refDistance = 3.2;
+    pan.rolloffFactor = 1.15;
+    this._setPannerPosition(pan, dx, dy, dz, t0, true);
+    pan.connect(this.weatherOccFilter);
+    pan.connect(this.reverbSendGain);
+
+    // Minnaert air-cavity water droplet upward pitch-sweep plink (f0 = 1580..1950 Hz -> 1.48x in 34 ms)
+    const fStart = 1580 + Math.random() * 380;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(fStart, t0);
+    osc.frequency.exponentialRampToValueAtTime(fStart * 1.48, t0 + 0.036);
+    g.gain.setValueAtTime(0.0004, t0);
+    g.gain.linearRampToValueAtTime(0.052 * sfxM, t0 + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0004, t0 + 0.046);
+    osc.connect(g);
+    g.connect(pan);
+    osc.onended = () => {
+      try {
+        pan.disconnect();
+      } catch (_e) {}
+    };
+    osc.start(t0);
+    osc.stop(t0 + 0.055);
+  }
+
+  _triggerHullWaveSlap3D(bx, by, bz, waveM = 1.0) {
+    if (!this.ctx || !this._pinkBuffer || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime;
+    const sfxM = this._mixWeights ? this._mixWeights.sfxMult : 1.0;
+    const waveScale = clamp((waveM - 0.65) / 1.35, 0.28, 1.0);
+    const pan = this.ctx.createPanner();
+    pan.panningModel = this.spatialOutputMode === 'SPEAKER' ? 'equalpower' : 'HRTF';
+    pan.refDistance = 12.0;
+    pan.rolloffFactor = 0.95;
+    this._setPannerPosition(pan, bx, by, bz, t0, true);
+    pan.connect(this.weatherOccFilter);
+    pan.connect(this.reverbSendGain);
+
+    // 1. Hollow hull-chine impact thump (96 Hz -> 48 Hz)
+    const thud = this.ctx.createOscillator();
+    const tg = this.ctx.createGain();
+    thud.type = 'triangle';
+    thud.frequency.setValueAtTime(96, t0);
+    thud.frequency.exponentialRampToValueAtTime(48, t0 + 0.16);
+    tg.gain.setValueAtTime(0.0008, t0);
+    tg.gain.linearRampToValueAtTime(0.14 * waveScale * sfxM, t0 + 0.014);
+    tg.gain.exponentialRampToValueAtTime(0.0006, t0 + 0.19);
+    thud.connect(tg);
+    tg.connect(pan);
+    thud.start(t0);
+    thud.stop(t0 + 0.21);
+
+    // 2. Whitecap spray splash burst (bandpass 680 -> 260 Hz)
+    const spray = this.ctx.createBufferSource();
+    spray.buffer = this._patterBuffer || this._pinkBuffer;
+    spray.playbackRate.value = 1.18 + Math.random() * 0.22;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(680, t0);
+    bp.frequency.exponentialRampToValueAtTime(260, t0 + 0.34);
+    bp.Q.setValueAtTime(1.15, t0);
+    const sg = this.ctx.createGain();
+    sg.gain.setValueAtTime(0.0008, t0);
+    sg.gain.linearRampToValueAtTime(0.11 * waveScale * sfxM, t0 + 0.028);
+    sg.gain.exponentialRampToValueAtTime(0.0006, t0 + 0.38);
+    spray.connect(bp);
+    bp.connect(sg);
+    sg.connect(pan);
+    spray.onended = () => {
+      try {
+        pan.disconnect();
+      } catch (_e) {}
+    };
+    spray.start(t0);
+    spray.stop(t0 + 0.41);
+  }
+
   _triggerAvataAcroRip() {
     if (!this.ctx || !this._pinkBuffer || this.ctx.state !== 'running') return;
     const t0 = this.ctx.currentTime;
@@ -4110,15 +5059,70 @@ export class AudioSynthesizer {
     }
   }
 
-  _triggerNightOwlOrTokek3D(ox, oy, oz) {
+  _triggerNightOwlOrTokek3D(ox, oy, oz, forceTokek = undefined) {
     if (!this.ctx || this.ctx.state !== 'running') return;
     const t0 = this.ctx.currentTime;
     const pan = this.ctx.createPanner();
-    pan.panningModel = 'HRTF';
-    pan.refDistance = 9.0;
+    pan.panningModel = this.spatialOutputMode === 'SPEAKER' ? 'equalpower' : 'HRTF';
+    pan.refDistance = 9.5;
     this._setPannerPosition(pan, ox, oy, oz, t0, true);
     pan.connect(this.weatherOccFilter);
     pan.connect(this.reverbSendGain);
+
+    const useTokek =
+      forceTokek !== undefined ? Boolean(forceTokek) : (this._tokekToggle = !this._tokekToggle);
+
+    if (useTokek) {
+      // Authentic Nusantara Tokek ("tok-keee-ek!") 2-syllable vocal call repeated twice
+      const reps = 2;
+      for (let r = 0; r < reps; r++) {
+        const baseT = t0 + r * 0.56;
+        const atten = r === 0 ? 1.0 : 0.76;
+
+        // Syllable 1: Crisp glottal click "tok"
+        const clickOsc = this.ctx.createOscillator();
+        const clickGain = this.ctx.createGain();
+        clickOsc.type = 'triangle';
+        clickOsc.frequency.setValueAtTime(980, baseT);
+        clickOsc.frequency.exponentialRampToValueAtTime(520, baseT + 0.042);
+        clickGain.gain.setValueAtTime(0.0005, baseT);
+        clickGain.gain.linearRampToValueAtTime(0.046 * atten, baseT + 0.006);
+        clickGain.gain.exponentialRampToValueAtTime(0.0005, baseT + 0.048);
+        clickOsc.connect(clickGain);
+        clickGain.connect(pan);
+        clickOsc.start(baseT);
+        clickOsc.stop(baseT + 0.055);
+
+        // Syllable 2: Nasal formant bark "keee-ek"
+        const barkT = baseT + 0.11;
+        const barkOsc = this.ctx.createOscillator();
+        const barkBp = this.ctx.createBiquadFilter();
+        const barkGain = this.ctx.createGain();
+        barkOsc.type = 'sawtooth';
+        barkOsc.frequency.setValueAtTime(610, barkT);
+        barkOsc.frequency.exponentialRampToValueAtTime(435, barkT + 0.22);
+        barkBp.type = 'bandpass';
+        barkBp.frequency.setValueAtTime(1480, barkT);
+        barkBp.frequency.exponentialRampToValueAtTime(980, barkT + 0.22);
+        barkBp.Q.setValueAtTime(2.6, barkT);
+        barkGain.gain.setValueAtTime(0.0005, barkT);
+        barkGain.gain.linearRampToValueAtTime(0.052 * atten, barkT + 0.024);
+        barkGain.gain.exponentialRampToValueAtTime(0.0005, barkT + 0.24);
+        barkOsc.connect(barkBp);
+        barkBp.connect(barkGain);
+        barkGain.connect(pan);
+        barkOsc.start(barkT);
+        barkOsc.stop(barkT + 0.26);
+        if (r === reps - 1) {
+          barkOsc.onended = () => {
+            try {
+              pan.disconnect();
+            } catch (_e) {}
+          };
+        }
+      }
+      return;
+    }
 
     // Hollow tropical owl double-hoot ("hoo... hoo-oo")
     const hoots = [
@@ -4389,6 +5393,7 @@ export class AudioSynthesizer {
       const occMult = this._zoneState ? clamp(0.28 + 0.72 * this._zoneState.weatherOcclusionGain, 0.28, 1.0) : 1.0;
       const distAtten = clamp(740.0 / Math.max(250.0, distanceMeters), 0.28, 1.20);
       const peakGain = Math.min(1.75, intensity * distAtten * 1.42) * occMult;
+      this._thunderDuckTimer = Math.max(this._thunderDuckTimer, clamp(2.4 * distAtten, 0.8, 2.6));
 
       // 3D HRTF Strike Origin in Sky Dome
       const pan = this.ctx.createPanner();
@@ -4473,6 +5478,52 @@ export class AudioSynthesizer {
       };
       osc.start(t0);
       osc.stop(t0 + 1.62);
+
+      // 3. Iterasi 3: Multi-Path Topographic & Monumental 3D HRTF Thunder Echoes
+      //    (Gunung Api Pulau I flank & Menara Gedung Rektorat UI concrete spire)
+      const echoes = AudioSynthesizer.computeMultiPathEchoes(
+        strikeX,
+        strikeY,
+        strikeZ,
+        this._lis.x,
+        this._lis.y,
+        this._lis.z,
+        this._weatherState.tempC
+      );
+      for (let eIdx = 0; eIdx < echoes.length; eIdx++) {
+        const ec = echoes[eIdx];
+        const te = t0 + ec.extraDelaySec;
+        const ePan = this.ctx.createPanner();
+        ePan.panningModel = this.spatialOutputMode === 'SPEAKER' ? 'equalpower' : 'HRTF';
+        ePan.distanceModel = 'inverse';
+        ePan.refDistance = 140.0;
+        ePan.rolloffFactor = 0.32;
+        this._setPannerPosition(ePan, ec.rx, ec.ry, ec.rz, te, true);
+        ePan.connect(this.worldSumGain);
+
+        const eSrc = this.ctx.createBufferSource();
+        eSrc.buffer = this._pinkBuffer;
+        eSrc.playbackRate.value = 0.48 + eIdx * 0.08;
+        const eLp = this.ctx.createBiquadFilter();
+        eLp.type = 'lowpass';
+        eLp.frequency.setValueAtTime(ec.cutoffHz * occMult, te);
+        eLp.frequency.exponentialRampToValueAtTime(82, te + 2.1);
+        const eGain = this.ctx.createGain();
+        const ePeak = peakGain * ec.gainMult * 0.55;
+        eGain.gain.setValueAtTime(0.0005, te);
+        eGain.gain.linearRampToValueAtTime(Math.max(0.002, ePeak), te + 0.14);
+        eGain.gain.exponentialRampToValueAtTime(0.0005, te + 2.25);
+        eSrc.connect(eLp);
+        eLp.connect(eGain);
+        eGain.connect(ePan);
+        eSrc.onended = () => {
+          try {
+            ePan.disconnect();
+          } catch (_e) {}
+        };
+        eSrc.start(te);
+        eSrc.stop(te + 2.32);
+      }
     }, delaySec * 1000);
 
     this._thunderTimers.push(timerId);

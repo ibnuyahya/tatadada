@@ -291,14 +291,14 @@ export class WeatherOpticsEngine {
     this.sunLight.shadow.mapSize.height = this._shadowMapSize || 4096;
     this.sunLight.shadow.camera.near = 10;
     this.sunLight.shadow.camera.far = 260;
-    const d = 88;
+    const d = 104;
     this.sunLight.shadow.camera.left = -d;
     this.sunLight.shadow.camera.right = d;
     this.sunLight.shadow.camera.top = d;
     this.sunLight.shadow.camera.bottom = -d;
-    this.sunLight.shadow.bias = -0.00022;
-    this.sunLight.shadow.normalBias = 0.018;
-    this.sunLight.shadow.radius = 2.1;
+    this.sunLight.shadow.bias = -0.00018;
+    this.sunLight.shadow.normalBias = 0.016;
+    this.sunLight.shadow.radius = 1.85;
     this.scene.add(this.sunLight);
     if (this.sunLight.target) {
       this.scene.add(this.sunLight.target);
@@ -383,19 +383,38 @@ export class WeatherOpticsEngine {
         return pmrem.fromScene(envScene, 0.025).texture;
       };
 
-      // Single continuous broadband sky + campus-bounce PMREM cubemap (ZERO discrete texture swaps at dusk/night!)
-      const broadbandTex = bakeRegime(
-        0x3664a8,
-        0xa8c6e0,
-        0x354330,
-        0x784a3c,
-        new THREE.Vector3(0.18, 0.88, 0.42),
-        [3.6, 3.4, 3.1]
+      // 3 Pre-Convolved Physical Sky + Campus-Bounce PMREM Regimes (DAY, DUSK, STORM_NIGHT — 0 runtime baking!)
+      const dayTex = bakeRegime(
+        0x2e5fa8,
+        0xa6c6e2,
+        0x34422e,
+        0x7d4c3c,
+        new THREE.Vector3(0.24, 0.86, 0.44),
+        [4.2, 3.9, 3.4]
+      );
+      const duskTex = bakeRegime(
+        0x26325e,
+        0xd87d46,
+        0x282924,
+        0x703c2a,
+        new THREE.Vector3(-0.78, 0.22, 0.58),
+        [4.6, 2.25, 0.96]
+      );
+      const stormNightTex = bakeRegime(
+        0x1c283a,
+        0x4a596c,
+        0x1d2321,
+        0x2e2726,
+        new THREE.Vector3(-0.35, 0.65, -0.52),
+        [1.05, 1.22, 1.48]
       );
       this._envMaps = {
-        BROADBAND: broadbandTex
+        BROADBAND: dayTex,
+        DAY: dayTex,
+        DUSK: duskTex,
+        STORM_NIGHT: stormNightTex
       };
-      this.scene.environment = broadbandTex;
+      this.scene.environment = dayTex;
 
       envGeo.dispose();
       envMat.dispose();
@@ -409,25 +428,32 @@ export class WeatherOpticsEngine {
 
   _applyEnvironmentIBL(lightningFlash = 0.0) {
     if (!this._envMaps || !this.scene) return;
-    if (this.scene.environment !== this._envMaps.BROADBAND) {
-      this.scene.environment = this._envMaps.BROADBAND;
-    }
     const nightF = this.uniforms.uNightFactor.value;
     const duskF = this.uniforms.uDuskFactor.value;
     const cloudF = this.uniforms.uCloudCover.value;
+    const rainF = this.uniforms.uRainIntensity.value;
+    const stormF = this.uniforms.uStormFactor.value;
+
+    let targetEnv = this._envMaps.DAY;
+    if (nightF > 0.56 || stormF > 0.64 || rainF > 0.68) {
+      targetEnv = this._envMaps.STORM_NIGHT || this._envMaps.DAY;
+    } else if (duskF > 0.42) {
+      targetEnv = this._envMaps.DUSK || this._envMaps.DAY;
+    }
+    if (this.scene.environment !== targetEnv) {
+      this.scene.environment = targetEnv;
+    }
+
     const overcastDim =
       1.0 -
       Math.min(
-        0.56,
-        cloudF * 0.14 +
-          this.uniforms.uRainIntensity.value * 0.28 +
-          this.uniforms.uStormFactor.value * 0.18
+        0.48,
+        cloudF * 0.12 + rainF * 0.22 + stormF * 0.16
       );
-    // C-infinity continuous IBL intensity curve across 24h Day -> Dusk -> Night (0 cubemap swap pops!)
     const baseEnvInt =
-      0.90 * (1.0 - duskF * 0.22) * (1.0 - nightF) + 0.16 * nightF;
+      0.96 * (1.0 - duskF * 0.16) * (1.0 - nightF) + 0.24 * nightF;
     if ('environmentIntensity' in this.scene) {
-      this.scene.environmentIntensity = baseEnvInt * overcastDim + lightningFlash * 0.65;
+      this.scene.environmentIntensity = baseEnvInt * overcastDim + lightningFlash * 0.68;
     }
   }
 
@@ -1158,20 +1184,22 @@ export class WeatherOpticsEngine {
             float horizonFade = smoothstep(0.005, 0.16, dir.y);
             skyCol = mix(skyCol, mix(cirrusDay, cirrusNight, uNightFactor), dCirrus * 0.28 * horizonFade * (1.0 - dLow));
 
-            // Directional Beer-Lambert optical thickness toward sun/moon
+            // Directional Beer-Lambert optical thickness + Schneider Powder-Sugar Multiple Scattering
             vec2 sunStep = normalize(celestialDir.xz + vec2(1e-4, 0.0)) * 0.14;
             float fShadow = fbmCloud6(projLow + sunStep);
-            float selfLit = clamp(1.0 - max(0.0, fShadow - fLow) * 3.4 - dLow * (0.35 + 0.42 * uStormFactor), 0.08, 1.0);
-            float forwardScatter = pow(max(cosTheta, 0.0), 8.0) * 0.35 * (1.0 - dLow * 0.7);
+            float selfLit = clamp(1.0 - max(0.0, fShadow - fLow) * 3.2 - dLow * (0.32 + 0.40 * uStormFactor), 0.10, 1.0);
+            float powderEffect = 1.0 - exp(-cloudDensityTotal * 3.1 * (1.0 - uStormFactor * 0.45));
+            float multiScatter = 0.18 * powderEffect * (0.38 + 0.62 * selfLit) * (1.0 - uStormFactor * 0.55);
+            float forwardScatter = pow(max(cosTheta, 0.0), 8.0) * 0.34 * (1.0 - dLow * 0.68);
             // Silver-lining cloud-edge diffraction rim toward sun/moon!
-            float silverEdge = pow(max(cosTheta, 0.0), 16.0) * smoothstep(0.05, 0.38, cloudDensityTotal) * exp(-cloudDensityTotal * 2.2) * 0.65;
+            float silverEdge = pow(max(cosTheta, 0.0), 16.0) * smoothstep(0.05, 0.38, cloudDensityTotal) * exp(-cloudDensityTotal * 2.2) * 0.68;
 
-            vec3 litCloudDay = mix(vec3(0.97, 0.98, 1.0), vec3(0.98, 0.58, 0.34), uDuskFactor);
-            vec3 darkBaseDay = mix(vec3(0.46, 0.51, 0.58), vec3(0.11, 0.14, 0.19), clamp(uRainIntensity * 0.65 + uStormFactor * 0.55, 0.0, 1.0));
-            darkBaseDay = mix(darkBaseDay, vec3(0.32, 0.22, 0.26), uDuskFactor * (1.0 - uStormFactor * 0.6));
+            vec3 litCloudDay = mix(vec3(0.97, 0.98, 1.0), vec3(0.98, 0.60, 0.36), uDuskFactor);
+            vec3 darkBaseDay = mix(vec3(0.49, 0.54, 0.61), vec3(0.13, 0.16, 0.22), clamp(uRainIntensity * 0.65 + uStormFactor * 0.55, 0.0, 1.0));
+            darkBaseDay = mix(darkBaseDay, vec3(0.36, 0.23, 0.27), uDuskFactor * (1.0 - uStormFactor * 0.6));
 
-            vec3 scatterTint = mix(vec3(1.0, 0.94, 0.80), vec3(1.0, 0.62, 0.30), uDuskFactor);
-            vec3 cloudColDay = mix(darkBaseDay, litCloudDay, selfLit) + scatterTint * (forwardScatter + silverEdge);
+            vec3 scatterTint = mix(vec3(1.0, 0.95, 0.84), vec3(1.0, 0.64, 0.32), uDuskFactor);
+            vec3 cloudColDay = mix(darkBaseDay, litCloudDay, clamp(selfLit + multiScatter, 0.0, 1.0)) + scatterTint * (forwardScatter + silverEdge);
             float moonCloudLit = 0.20 + 0.80 * lunarSkyScatter;
             vec3 cloudColNight = mix(vec3(0.010, 0.015, 0.027), vec3(0.068, 0.096, 0.155) * moonCloudLit, selfLit)
                                + vec3(0.20, 0.28, 0.42) * silverEdge * 0.48 * moonCloudLit;
@@ -2954,12 +2982,12 @@ export class WeatherOpticsEngine {
             vec3 sunDirF = normalize(uSunDir);
             float sunVisF = clamp(1.0 - uRainIntensity * 0.72 - uStormFactor * 0.40 - uCloudCover * 0.20, 0.08, 1.0);
 
-            // Accelerating gravitational free-fall coordinate (v = sqrt(2 g h)) -> ZERO static texture slide!
+            // Accelerating gravitational free-fall coordinate (v = sqrt(2 g h)) -> ZERO static texture slide, ZERO Voronoi grid!
             float fallV = pow(tDrop, 0.68) * 11.5 - uTime * 6.8;
             float chuteA = vnoise(vec2(arcM * 1.45, fallV * 0.82));
             float chuteB = vnoise(vec2(arcM * 3.85 + 13.7, fallV * 1.65 - uTime * 2.5));
-            vec2 fallVor = voronoiCell(vec2(arcM * 1.15, fallV * 0.92));
-            float vorWeb = smoothstep(0.28, 0.03, fallVor.x);
+            float chuteMicro = vnoise(R * vec2(arcM * 9.2 + chuteA * 1.8, fallV * 3.4 - uTime * 4.2));
+            float sprayPlume = smoothstep(0.32, 0.82, chuteA * 0.45 + chuteB * 0.35 + chuteMicro * 0.20);
 
             // Turbulent white-water splitter wakes streaming below the 2 basalt "Goat Island" lip boulders!
             float splitWake1 = exp(-pow((alphaNorm + 0.532) / 0.095, 2.0));
@@ -2971,17 +2999,17 @@ export class WeatherOpticsEngine {
             jadeBrink = mix(jadeBrink, vec3(0.018, 0.045, 0.068), uNightFactor);
 
             float aeration = clamp(
-              smoothstep(0.04, 0.42, tDrop) * (0.44 + 0.36 * chuteA + 0.28 * chuteB) +
-              vorWeb * 0.42 * smoothstep(0.06, 0.35, tDrop) +
-              (splitWake1 + splitWake2) * 0.62 +
+              smoothstep(0.04, 0.42, tDrop) * (0.42 + 0.34 * chuteA + 0.28 * chuteB) +
+              sprayPlume * 0.44 * smoothstep(0.06, 0.38, tDrop) +
+              (splitWake1 + splitWake2) * 0.64 +
               hornEdgeFoam +
-              smoothstep(0.70, 0.98, tDrop) * 0.52,
+              smoothstep(0.68, 0.98, tDrop) * 0.56,
               0.0,
               1.0
             );
 
             vec3 baseNormF = gl_FrontFacing ? normalize(vGeomNormal) : -normalize(vGeomNormal);
-            vec3 pertNormF = normalize(baseNormF + vec3((chuteB - 0.5) * 0.32, (chuteA - 0.5) * 0.22, (vorWeb - 0.5) * 0.28));
+            vec3 pertNormF = normalize(baseNormF + vec3((chuteB - 0.5) * 0.32, (chuteA - 0.5) * 0.22, (chuteMicro - 0.5) * 0.28));
             float sunDiffF = clamp(dot(pertNormF, sunDirF) * 0.5 + 0.5, 0.14, 1.0);
 
             vec3 whiteDay = mix(vec3(0.64, 0.77, 0.84), vec3(0.97, 0.99, 1.0), sunDiffF);
@@ -3301,10 +3329,10 @@ export class WeatherOpticsEngine {
           float rollerSwash;
           evalGravityHydrodynamics(vBaseXZ, uTime, uSeaState, vCoastN, gDisp, gravNorm, dShore, crestFactor, rollerSwash);
 
-          // Dynamic 3D waterline distance: as wave elevation gDisp.y rises up the 1:1.85 sloped stone turap,
-          // the live wet shoreline moves inward (dShore + gDisp.y * 1.85 -> 0 at the exact 3D stone-water contact!)
+          // Dynamic 3D waterline distance & True Archipelago Bathymetry (0.04m nearshore -> 18.5m pelagic channel):
           float liveWaterline = max(0.0, dShore + gDisp.y * 1.85);
-          float waterDepth = clamp(0.03 + liveWaterline * 0.42 + max(0.0, gDisp.y) * 0.5, 0.03, 2.75);
+          float channelDrop = pow(max(0.0, liveWaterline - 3.2), 1.24) * 0.42;
+          float waterDepth = clamp(0.04 + liveWaterline * 0.46 + channelDrop + max(0.0, gDisp.y) * 0.55, 0.04, 18.5);
 
           // Distance Nyquist band-limiting on fine capillary wavelets (0.0m calm -> glassy lagoon, 2.0m -> rich chop!)
           float capDetailFade = 1.0 - smoothstep(45.0, 290.0, distCam);
@@ -3354,108 +3382,154 @@ export class WeatherOpticsEngine {
           vec3 sunDir = normalize(uSunDir);
           float sunVis = clamp(1.0 - uRainIntensity * 0.78 - uStormFactor * 0.42 - uCloudCover * 0.22, 0.06, 1.0);
 
-          // 2. BEER-LAMBERT DEPTH ABSORPTION, SUBMERGED BOULDER REFRACTION, & VORONOI FOCAL CAUSTICS
-          vec2 refrXZ = vWorldPos.xz - normal.xz * min(0.62, waterDepth * 0.52);
-          vec2 subVor = voronoiCell(refrXZ * 1.85);
-          float cobbleDetail = vnoise(R * refrXZ * 5.2);
-          vec3 submergedBed = mix(vec3(0.14, 0.15, 0.13), vec3(0.31, 0.29, 0.24), smoothstep(0.04, 0.28, subVor.x) * (0.65 + 0.35 * cobbleDetail));
+          // 2. BEER-LAMBERT PELAGIC DEPTH ABSORPTION, ORGANIC NEARSHORE SAND/PEBBLE REFRACTION, & CAUSTICS (ZERO VORONOI GRID!)
+          vec2 refrXZ = vWorldPos.xz - normal.xz * min(0.55, waterDepth * 0.42);
+          float sandMacro = fbmCloudRefl(refrXZ * 0.65);
+          float pebMid = vnoise(R * (refrXZ * 4.4 + sandMacro * 0.8));
+          float pebFine = vnoise(R_INV * (refrXZ * 12.5));
+          vec3 submergedBed = mix(
+            vec3(0.125, 0.132, 0.118),
+            vec3(0.285, 0.268, 0.222),
+            clamp(sandMacro * 0.55 + pebMid * 0.30 + pebFine * 0.15, 0.0, 1.0)
+          );
           submergedBed *= mix(1.0, 0.16, uNightFactor);
 
-          if (waterDepth < 2.15 && distCam < 165.0) {
+          if (waterDepth < 2.85 && distCam < 165.0) {
             vec2 causticUV = refrXZ - sunDir.xz * (waterDepth / max(0.28, sunDir.y)) * 0.38 + normal.xz * 0.22;
-            float caust = evalCaustics(causticUV, uTime) * smoothstep(2.15, 0.10, waterDepth) * smoothstep(165.0, 42.0, distCam);
+            float caust = evalCaustics(causticUV, uTime) * smoothstep(2.85, 0.10, waterDepth) * smoothstep(165.0, 42.0, distCam);
             vec3 caustTint = mix(mix(vec3(1.0, 0.95, 0.76), vec3(1.0, 0.62, 0.32), uDuskFactor), vec3(0.22, 0.32, 0.48), uNightFactor);
-            submergedBed += caustTint * caust * sunVis * 0.58;
+            submergedBed += caustTint * caust * sunVis * 0.56;
           }
 
-          vec3 shallowJade = mix(vec3(0.075, 0.275, 0.240), vec3(0.050, 0.158, 0.160), clamp(uRainIntensity * 0.65, 0.0, 1.0));
-          vec3 deepTeal = mix(vec3(0.026, 0.118, 0.148), vec3(0.018, 0.068, 0.092), clamp(uRainIntensity * 0.65, 0.0, 1.0));
-          shallowJade = mix(shallowJade, vec3(0.016, 0.036, 0.056), uNightFactor);
-          deepTeal = mix(deepTeal, vec3(0.008, 0.020, 0.040), uNightFactor);
+          vec3 shallowJade = mix(vec3(0.068, 0.245, 0.222), vec3(0.044, 0.138, 0.146), clamp(uRainIntensity * 0.65, 0.0, 1.0));
+          vec3 midLagoon = mix(vec3(0.024, 0.112, 0.145), vec3(0.018, 0.068, 0.092), clamp(uRainIntensity * 0.65, 0.0, 1.0));
+          vec3 deepPelagic = mix(vec3(0.010, 0.048, 0.078), vec3(0.008, 0.032, 0.052), clamp(uRainIntensity * 0.65 + uStormFactor * 0.25, 0.0, 1.0));
+          shallowJade = mix(shallowJade, vec3(0.014, 0.032, 0.050), uNightFactor);
+          midLagoon = mix(midLagoon, vec3(0.008, 0.020, 0.038), uNightFactor);
+          deepPelagic = mix(deepPelagic, vec3(0.004, 0.011, 0.024), uNightFactor);
 
           // Translucent Emerald-Turquoise Subsurface Scattering (SSS) glowing through raised 3D Gerstner wave crests!
-          float waveCrestH = clamp(gDisp.y * 2.45 + crestFactor * 0.55 + rollerSwash * 0.45, 0.0, 1.65);
-          float sssAlign = pow(max(0.0, dot(-viewDir, normalize(sunDir - normal * 0.42))), 3.2);
-          float crestSSS = waveCrestH * (0.32 + 0.68 * sssAlign) * sunVis * (1.0 - uNightFactor);
-          vec3 sssTint = mix(vec3(0.06, 0.28, 0.22), vec3(0.22, 0.14, 0.06), uDuskFactor);
+          float waveSlope = clamp(1.0 - gravNorm.y, 0.0, 1.0);
+          float waveCrestH = clamp(gDisp.y * 2.35 + crestFactor * 0.52 + rollerSwash * 0.42, 0.0, 1.65);
+          float sssAlign = pow(max(0.0, dot(-viewDir, normalize(sunDir - normal * 0.42))), 3.0);
+          float crestSSS = waveCrestH * (0.28 + 0.72 * sssAlign) * sunVis * (1.0 - uNightFactor);
+          vec3 sssTint = mix(vec3(0.055, 0.265, 0.215), vec3(0.22, 0.14, 0.06), uDuskFactor);
 
-          // Physical Beer-Lambert spectral attenuation (red absorbs fastest in water)
-          vec3 opticalPath = vec3(2.15, 0.80, 0.68) * waterDepth * (1.0 + 0.38 * (1.0 - max(0.22, viewDir.y)));
+          // Physical Beer-Lambert spectral attenuation (red absorbs fastest in water; deep pelagic channel absorbs all bed light)
+          vec3 opticalPath = vec3(2.25, 0.84, 0.70) * waterDepth * (1.0 + 0.38 * (1.0 - max(0.22, viewDir.y)));
           vec3 transmittance = exp(-opticalPath);
-          vec3 waterVolume = mix(deepTeal, shallowJade, exp(-waterDepth * 0.78)) + sssTint * crestSSS * 0.48;
+          vec3 waterVolume = mix(deepPelagic, mix(midLagoon, shallowJade, exp(-waterDepth * 0.85)), exp(-waterDepth * 0.16)) + sssTint * crestSSS * 0.46;
           vec3 underwaterCol = mix(waterVolume, submergedBed, transmittance);
 
-          // 3. EXACT DIELECTRIC WATER SCHLICK FRESNEL (IOR 1.333 -> F0 = 0.0204) & MONOTONIC CLOUD REFLECTION
+          // 3. EXACT DIELECTRIC WATER SCHLICK FRESNEL (IOR 1.333 -> F0 = 0.0204), CLOUD MIRROR, & OVERHEAD BRIDGE SOFFIT REFLECTION
           float NdotV = max(dot(viewDir, normal), 0.0);
           float fresnel = 0.0204 + (1.0 - 0.0204) * pow(1.0 - NdotV, 5.0);
-          float reflWeight = clamp(0.08 + fresnel * 0.91, 0.0, 0.96);
+          float reflWeight = clamp(0.07 + fresnel * 0.92, 0.0, 0.96);
 
           vec3 reflRay = reflect(-viewDir, normal);
           float reflElev = clamp(reflRay.y, 0.0, 1.0);
-          vec3 skyZen = mix(mix(vec3(0.14, 0.38, 0.72), vec3(0.16, 0.18, 0.38), uDuskFactor), vec3(0.016, 0.026, 0.058), uNightFactor);
-          vec3 skyHor = mix(mix(vec3(0.56, 0.74, 0.88), vec3(0.86, 0.46, 0.24), uDuskFactor), vec3(0.045, 0.070, 0.130), uNightFactor);
+          vec3 skyZen = mix(mix(vec3(0.13, 0.37, 0.71), vec3(0.15, 0.18, 0.38), uDuskFactor), vec3(0.015, 0.025, 0.056), uNightFactor);
+          vec3 skyHor = mix(mix(vec3(0.57, 0.74, 0.88), vec3(0.86, 0.46, 0.24), uDuskFactor), vec3(0.042, 0.068, 0.126), uNightFactor);
           vec3 skyRefl = mix(skyHor, skyZen, pow(reflElev, 0.58));
 
-          // Reflected Cumulonimbus / tropical clouds advected monotonically via uWindPhase (ZERO backward slosh!)
+          // Reflected Cumulonimbus / tropical clouds advected monotonically via uWindPhase
           vec2 reflCloudUV = (reflRay.xz / (reflElev + 0.22)) * 1.45 + uWindPhase * 0.013;
           float cField = fbmCloudRefl(reflCloudUV);
           float cThresh = mix(0.56, 0.22, clamp(uCloudCover, 0.0, 1.0));
           float cMask = smoothstep(cThresh, cThresh + 0.32, cField) * smoothstep(0.0, 0.18, reflElev);
           vec3 cloudReflCol = mix(mix(vec3(0.92, 0.95, 0.99), vec3(0.95, 0.56, 0.32), uDuskFactor), vec3(0.07, 0.10, 0.16), uNightFactor);
-          cloudReflCol = mix(cloudReflCol, vec3(0.20, 0.24, 0.29) * mix(1.0, 0.25, uNightFactor), clamp(uRainIntensity * 0.68 + uStormFactor * 0.35, 0.0, 0.92));
+          cloudReflCol = mix(cloudReflCol, vec3(0.21, 0.25, 0.30) * mix(1.0, 0.25, uNightFactor), clamp(uRainIntensity * 0.68 + uStormFactor * 0.35, 0.0, 0.92));
           skyRefl = mix(skyRefl, cloudReflCol, cMask * 0.78);
-          skyRefl = mix(skyRefl, vec3(0.22, 0.26, 0.31) * mix(1.0, 0.22, uNightFactor), clamp(uRainIntensity * 0.62 + uStormFactor * 0.30, 0.0, 0.90));
+          skyRefl = mix(skyRefl, vec3(0.23, 0.27, 0.32) * mix(1.0, 0.22, uNightFactor), clamp(uRainIntensity * 0.62 + uStormFactor * 0.30, 0.0, 0.90));
           skyRefl += vec3(0.76, 0.88, 1.0) * uLightningFlash * 1.15;
+
+          // Physical Overhead Reflection & Ambient Shadow of Jembatan Teksas UI & Ferry Piers on Teluk U / Selat UI Water!
+          if (vWorldPos.z > 168.0 && vWorldPos.z < 323.0 && abs(vWorldPos.x + 28.0) < 16.0) {
+            float uArchB = clamp((vWorldPos.z - 245.65) / 74.0, -1.0, 1.0);
+            float bridgeDeckH = 4.15 + 4.95 * max(0.0, 1.0 - uArchB * uArchB) - 1.25;
+            float hitX = vWorldPos.x + reflRay.x * (max(1.5, bridgeDeckH - vWorldPos.y) / max(0.18, reflElev + 0.08));
+            float reflBridgeMask = (1.0 - smoothstep(2.4, 4.2, abs(hitX + 28.0))) * smoothstep(169.0, 174.0, vWorldPos.z) * (1.0 - smoothstep(317.0, 322.0, vWorldPos.z));
+            float underBridgeAO = (1.0 - smoothstep(2.6, 7.2, abs(vWorldPos.x + 28.0))) * smoothstep(170.0, 175.0, vWorldPos.z) * (1.0 - smoothstep(316.0, 321.0, vWorldPos.z));
+            vec3 bridgeSoffitRefl = mix(vec3(0.09, 0.09, 0.10), vec3(0.24, 0.08, 0.07), smoothstep(1.9, 2.7, abs(hitX + 28.0))) * mix(1.0, 0.25, uNightFactor);
+            if (uNightFactor > 0.12) {
+              bridgeSoffitRefl += vec3(0.45, 0.34, 0.16) * uNightFactor * 0.45;
+            }
+            skyRefl = mix(skyRefl, bridgeSoffitRefl, reflBridgeMask * 0.76);
+            underwaterCol *= (1.0 - underBridgeAO * 0.34);
+          }
 
           vec3 col = mix(underwaterCol, skyRefl, reflWeight);
 
           // 4. DISTANCE SLOPE-VARIANCE (LEADR) GGX MULTI-FACET SUN / MOON GLITTER PATH
-          // Converts filtered distant sub-pixel wavelets into broader GGX microfacet sun-track shimmer at horizon
           vec3 H = normalize(sunDir + viewDir);
           float NdotH = max(dot(normal, H), 0.0);
           float distSlopeSpread = smoothstep(45.0, 320.0, distCam);
-          float tightExp = mix(310.0, 95.0, distSlopeSpread);
-          float broadExp = mix(52.0, 22.0, distSlopeSpread);
-          float specTight = pow(NdotH, tightExp) * mix(1.65, 0.78, distSlopeSpread);
-          float specGlitter = pow(NdotH, broadExp) * mix(0.22, 0.34, distSlopeSpread);
+          float tightExp = mix(320.0, 95.0, distSlopeSpread);
+          float broadExp = mix(54.0, 22.0, distSlopeSpread);
+          float specTight = pow(NdotH, tightExp) * mix(1.60, 0.76, distSlopeSpread);
+          float specGlitter = pow(NdotH, broadExp) * mix(0.20, 0.32, distSlopeSpread);
           vec3 glitterTint = mix(mix(vec3(1.0, 0.94, 0.80), vec3(1.0, 0.58, 0.26), uDuskFactor), vec3(0.45, 0.56, 0.78), uNightFactor);
           vec3 glitter = glitterTint * (specTight + specGlitter) * sunVis;
-          col += glitter / (1.0 + glitter * 0.40);
+          col += glitter / (1.0 + glitter * 0.42);
 
-          // 5. POROUS CELLULAR VORONOI SWASH SEA-FOAM ON 3D STONE TURAP (PULAU U & PULAU I) & OPEN-SEA WHITECAPS
+          // 5. PHOTOGRAPHIC WIND-STREAKED BREAKING SEA FOAM, AERATED FROTH PLUMES, & LANGMUIR STREAKS (ZERO HEXAGONAL VORONOI!)
+          vec2 wDir2 = length(uWindVec.xz) > 0.02 ? normalize(uWindVec.xz) : vec2(0.78, 0.62);
+          vec2 wPerp2 = vec2(-wDir2.y, wDir2.x);
+          float foamBand = 1.0 - smoothstep(140.0, 520.0, distCam);
           float totalFoam = 0.0;
-          if (liveWaterline < 3.8 && distCam < 1350.0) {
-            float nearFoam = 1.0 - smoothstep(180.0, 520.0, distCam);
-            float lacyWeb = 0.72;
-            if (nearFoam > 0.02) {
-              vec2 foamUV = vWorldPos.xz * 2.6 + normal.xz * 0.45;
-              vec2 fVor1 = voronoiCell(foamUV + vec2(uTime * 0.14, -uTime * 0.11));
-              vec2 fVor2 = voronoiCell(R * (foamUV * 2.35) - vec2(uTime * 0.19, uTime * 0.13));
-              // Porous lacy bubble web (cell walls bright, bubble interiors translucent!)
-              float vorWeb = smoothstep(0.24, 0.03, fVor1.x) * 0.68 + smoothstep(0.20, 0.02, fVor2.x) * 0.46;
-              lacyWeb = mix(0.72, vorWeb, nearFoam);
-            }
-            float contactSwash = smoothstep(1.15 + rollerSwash * 0.90, 0.0, liveWaterline);
-            float rollerRibbon = smoothstep(3.6, 0.4, liveWaterline) * pow(rollerSwash, 1.7) * 0.55;
+
+          // 5A. Shoreline Swash & Aerated Turap Surf Run-Up
+          if (liveWaterline < 4.2 && distCam < 1350.0) {
+            float swashMacro = fbmCloudRefl(vWorldPos.xz * 0.95 + normal.xz * 0.55 - wDir2 * (uTime * 0.16));
+            float swashMeso = vnoise(R * (vWorldPos.xz * 4.2 + swashMacro * 1.3 + vec2(uTime * 0.24, -uTime * 0.18)));
+            float swashMicro = vnoise(R_INV * (vWorldPos.xz * 13.5 - uTime * 0.35));
+            float frothyLace = mix(0.68, clamp(smoothstep(0.26, 0.74, swashMacro * 0.50 + swashMeso * 0.34 + swashMicro * 0.16) * (0.55 + 0.65 * swashMeso), 0.0, 1.0), foamBand);
+            float contactSwash = smoothstep(1.05 + rollerSwash * 0.85, 0.0, liveWaterline);
+            float rollerRibbon = smoothstep(3.8, 0.35, liveWaterline) * pow(rollerSwash, 1.65) * 0.58;
             float altFade = smoothstep(1350.0, 380.0, distCam) * 0.65 + 0.35 * smoothstep(1350.0, 900.0, distCam);
-            float seaFoamDrive = smoothstep(0.03, 0.28, uSeaState) * (0.48 + 0.32 * clamp(uSeaState, 0.0, 2.0));
-            totalFoam += clamp((contactSwash * (0.45 + 0.75 * lacyWeb) + rollerRibbon * lacyWeb), 0.0, 1.0)
+            float seaFoamDrive = smoothstep(0.03, 0.28, uSeaState) * (0.46 + 0.34 * clamp(uSeaState, 0.0, 2.0));
+            totalFoam += clamp(contactSwash * (0.38 + 0.72 * frothyLace) + rollerRibbon * frothyLace, 0.0, 1.0)
                        * seaFoamDrive * altFade;
           }
 
-          // Offshore wind-blown whitecaps on steep interfering Gerstner wave crests (0.4m .. 2.0m swells!)
-          float whitecapThresh = mix(0.84, 0.28, clamp((uSeaState - 0.36) / 1.85, 0.0, 1.0));
-          if (uSeaState > 0.32 && crestFactor > whitecapThresh && distCam < 560.0) {
-            vec2 wcVor = voronoiCell(vWorldPos.xz * 1.45 - uWindPhase * 0.16);
-            float wcLace = smoothstep(0.28, 0.03, wcVor.x) * (0.55 + 0.45 * vnoise(vWorldPos.xz * 3.8 - uWindPhase * 0.22));
-            float wcMask = smoothstep(whitecapThresh, whitecapThresh + 0.26, crestFactor) * wcLace * smoothstep(560.0, 110.0, distCam);
-            totalFoam = max(totalFoam, wcMask * mix(0.74, 0.92, clamp((uSeaState - 1.0) / 1.2, 0.0, 1.0)));
+          // 5B. Open-Sea Breaking Whitecap Plumes & Wind-Aligned Langmuir Foam Streaks (0.35m .. 2.0m Waves!)
+          if (uSeaState > 0.34 && distCam < 680.0 && liveWaterline > 0.8) {
+            float seaNorm = clamp((uSeaState - 0.34) / 1.66, 0.0, 1.0);
+            float sAlongW = dot(vWorldPos.xz, wDir2) - length(uWindPhase) * 0.28;
+            float sCrossW = dot(vWorldPos.xz, wPerp2);
+            float warpF = fbmCloudRefl(vWorldPos.xz * 0.24 - wDir2 * (uTime * 0.08));
+
+            // Organic breaking crest froth (driven by Jacobian crest pinch + local slope steepness + domain-warped FBM!)
+            float breakPatch = fbmCloudRefl(vec2(sAlongW * 0.42 + warpF * 1.6, sCrossW * 0.38 - warpF * 1.2));
+            float frothDetail = vnoise(R * (vWorldPos.xz * 3.6 - wDir2 * (uTime * 0.45) + breakPatch * 1.4));
+            float bubbleGrain = mix(0.65, vnoise(R_INV * (vWorldPos.xz * 11.8 + normal.xz * 1.2)), foamBand);
+
+            float steepDrive = crestFactor * (0.62 + 1.85 * waveSlope) * (0.55 + 0.75 * breakPatch);
+            float breakThresh = mix(0.76, 0.24, seaNorm);
+            float crestPlume = smoothstep(breakThresh, breakThresh + 0.30, steepDrive)
+                             * smoothstep(0.24, 0.78, frothDetail * 0.65 + bubbleGrain * 0.35);
+
+            // Trailing Wind-Sheared Langmuir Foam Streaks in choppy/rough seas (uSeaState > 0.75m)
+            float langmuir = 0.0;
+            if (uSeaState > 0.72) {
+              float streakField = vnoise(vec2(sAlongW * 0.18 + warpF * 1.1, sCrossW * 1.65 + (breakPatch - 0.5) * 1.8));
+              float streakFine = vnoise(vec2(sAlongW * 0.65 - uTime * 0.22, sCrossW * 4.8 + warpF * 2.2));
+              langmuir = smoothstep(0.66, 0.90, streakField * 0.62 + streakFine * 0.38)
+                       * smoothstep(0.72, 1.85, uSeaState) * 0.38 * (0.45 + 0.55 * bubbleGrain);
+            }
+
+            float openSeaFade = smoothstep(680.0, 120.0, distCam) * smoothstep(0.8, 3.2, liveWaterline);
+            totalFoam = max(totalFoam, clamp(crestPlume * mix(0.68, 0.92, seaNorm) + langmuir, 0.0, 0.94) * openSeaFade);
           }
 
           if (totalFoam > 0.005) {
-            vec3 foamCol = mix(mix(vec3(0.86, 0.91, 0.93), vec3(0.90, 0.66, 0.50), uDuskFactor), vec3(0.18, 0.24, 0.33), uNightFactor);
+            // Subtle subsurface turquoise-grey aeration tint in thinner foam edges -> bright sunlit white crest core!
+            float denseCore = smoothstep(0.28, 0.78, totalFoam);
+            vec3 thinFroth = mix(shallowJade * 1.8 + vec3(0.32, 0.40, 0.44), vec3(0.88, 0.92, 0.94), denseCore);
+            vec3 foamCol = mix(mix(thinFroth, vec3(0.90, 0.66, 0.50), uDuskFactor), vec3(0.16, 0.22, 0.31) * (0.55 + 0.45 * denseCore), uNightFactor);
+            foamCol = mix(foamCol, foamCol * 0.74, clamp(uRainIntensity * 0.45 + uStormFactor * 0.25, 0.0, 0.45));
             foamCol += vec3(0.70, 0.82, 1.0) * uLightningFlash * 0.85;
-            col = mix(col, foamCol, clamp(totalFoam, 0.0, 0.88));
+            col = mix(col, foamCol, clamp(totalFoam, 0.0, 0.90));
           }
 
           col += vec3(0.74, 0.83, 0.92) * rainRingFoam * (0.42 - 0.22 * uNightFactor + 0.55 * uLightningFlash);

@@ -49,11 +49,11 @@ export class MaterialShaderBank {
         color: 0xb2b6b8,
         vertexColors: true,
         map: flatRoofTex,
-        roughness: 0.91,
+        roughness: 0.89,
         metalness: 0.02,
-        envMapIntensity: 0.09
+        envMapIntensity: 0.20
       }),
-      { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.WEATHERED_FLAT_ROOF, bumpScale: 0.72 }
+      { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.WEATHERED_FLAT_ROOF, bumpScale: 0.76 }
     );
     const foundationConcrete = flatRoofSlab;
 
@@ -61,52 +61,52 @@ export class MaterialShaderBank {
     const precastConcrete = injectOmniScaleSurfaceShader(
       new THREE.MeshStandardMaterial({
         name: 'PrecastConcrete',
-        color: 0xf4f0e8,
+        color: 0xf1ece2,
         map: concreteTex,
-        roughness: 0.82,
+        roughness: 0.79,
         metalness: 0.03,
-        envMapIntensity: 0.12
+        envMapIntensity: 0.25
       }),
-      { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.PRECAST_CONCRETE, bumpScale: 0.72 }
+      { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.PRECAST_CONCRETE, bumpScale: 0.78 }
     );
 
     // 4. Warm Terracotta Trim / Ridge & Brick Accent
     const terracottaBrick = injectOmniScaleSurfaceShader(
       new THREE.MeshStandardMaterial({
         name: 'TerracottaBrick',
-        color: 0xba6654,
+        color: 0xb46250,
         map: brickTex,
-        roughness: 0.82,
+        roughness: 0.80,
         metalness: 0.03,
-        envMapIntensity: 0.1
+        envMapIntensity: 0.22
       }),
-      { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.TERRACOTTA_MASONRY, bumpScale: 0.75 }
+      { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.TERRACOTTA_MASONRY, bumpScale: 0.78 }
     );
 
     // 5. Authentic Weathered Javanese Terracotta Red Clay Roof Tiles (Mavic Photos #1–#5)
     const terracottaTile = injectOmniScaleSurfaceShader(
       new THREE.MeshStandardMaterial({
         name: 'JavaneseClayTile',
-        color: 0xc9624f,
+        color: 0xc25d4a,
         map: clayTileTex,
-        roughness: 0.75,
+        roughness: 0.72,
         metalness: 0.03,
-        envMapIntensity: 0.13
+        envMapIntensity: 0.26
       }),
-      { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.JAVANESE_CLAY_TILE, bumpScale: 0.85 }
+      { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.JAVANESE_CLAY_TILE, bumpScale: 0.88 }
     );
 
     // 6. Signature Rektorat UI Courtyard Stone Pavers (Grey-Olive Grid + White Diamond ◇◇◇)
     const horizontalPlazaStone = injectOmniScaleSurfaceShader(
       new THREE.MeshStandardMaterial({
         name: 'HorizontalPlazaStone',
-        color: 0xc8c6be,
+        color: 0xc6c3ba,
         map: plazaStoneTex,
-        roughness: 0.84,
+        roughness: 0.81,
         metalness: 0.03,
-        envMapIntensity: 0.11
+        envMapIntensity: 0.24
       }),
-      { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.UI_DIAMOND_PLAZA, bumpScale: 0.75 }
+      { ...shaderCfg, surfaceProfile: SURFACE_PROFILE.UI_DIAMOND_PLAZA, bumpScale: 0.78 }
     );
 
     // 7. 6-Bay White-Mullioned Dark Horizontal Ribbon Glass + 3D Ray-Box Parallax Interior Office Rooms
