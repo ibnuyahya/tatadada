@@ -45,7 +45,7 @@ if (typeof window !== 'undefined') {
   }
 }
 
-const TOTAL_EXPECTED_TRIS = 4469864;
+const TOTAL_EXPECTED_TRIS = 4599740;
 
 function yieldToBrowserFrame() {
   return new Promise((resolve) => {
@@ -191,10 +191,12 @@ async function bootstrapNexusSimulator() {
     { VideotronYouTubeEngine },
     { RotundaDancingFountain },
     { HardwareTelemetryGovernor },
+    { CinematicPostFX },
     { FloatingOriginManager },
     { TerrainDEMLoader },
     { SplineCorridorBuilder },
     { AutogenBiomeSpawner },
+    { TropicalGrassField },
     { DynamicTrafficAI },
     { GedungRektoratUIAsset }
   ] = await Promise.all([
@@ -205,10 +207,12 @@ async function bootstrapNexusSimulator() {
     import('./core/VideotronYouTubeEngine.js'),
     import('./core/RotundaDancingFountain.js'),
     import('./core/HardwareTelemetryGovernor.js'),
+    import('./core/CinematicPostFX.js'),
     import('./world-gis/FloatingOriginManager.js'),
     import('./world-gis/TerrainDEMLoader.js'),
     import('./world-gis/SplineCorridorBuilder.js'),
     import('./world-gis/AutogenBiomeSpawner.js'),
+    import('./world-gis/TropicalGrassField.js'),
     import('./world-gis/DynamicTrafficAI.js'),
     import('./library/landmark/Gedung_Rektorat_UI/index.js')
   ]);
@@ -286,7 +290,7 @@ async function bootstrapNexusSimulator() {
     }
   });
 
-  const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.18, 4200);
+  const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.18, 5600);
   const presets = GedungRektoratUIAsset.meta.orthoValidationPresets;
   camera.position.set(presets.oblique45.pos.x, presets.oblique45.pos.y, presets.oblique45.pos.z);
 
@@ -296,7 +300,7 @@ async function bootstrapNexusSimulator() {
   // Allow tilting upward into the night sky (Moon, Milky Way, Constellations); CameraDirector soft floor prevents underground clip!
   controls.maxPolarAngle = Math.PI * 0.86;
   controls.minDistance = 0.55;
-  controls.maxDistance = 1550;
+  controls.maxDistance = 2150;
   controls.target.set(presets.oblique45.target.x, presets.oblique45.target.y, presets.oblique45.target.z);
   controls.update();
 
@@ -338,6 +342,21 @@ async function bootstrapNexusSimulator() {
   const sivitasGroup = sivitasAI.build();
 
   worldRoot.add(terrainGroup, corridorGroup, rotundaFountain.mesh, biomeGroup, rektoratAsset, sivitasGroup);
+
+  // Companion 1-Draw-Call 3D Tropical Grass & Wildflower Field + View-Aware Dual-Perspective PostFX
+  const oceanWaterMesh = terrainGroup.children.find((c) => c && c.material === waterMaterial) || null;
+  const planarReflHiddenList = oceanWaterMesh ? [oceanWaterMesh] : [];
+  const initTierName = hwGovernor.activeTier || 'TIER_S';
+  const grassField = new TropicalGrassField({
+    bladeCount: hwGovernor.isMobileDevice ? 9000 : initTierName === 'TIER_S' ? 28000 : 18000
+  });
+  const drawBufSize = new THREE.Vector2();
+  renderer.getDrawingBufferSize(drawBufSize);
+  const postFX = new CinematicPostFX(renderer, drawBufSize.x, drawBufSize.y, {
+    msaaSamples: hwGovernor.isMobileDevice ? 0 : 4,
+    planarReflSize: hwGovernor.isMobileDevice ? 384 : initTierName === 'TIER_S' ? 768 : 512,
+    planarEnabled: !hwGovernor.isMobileDevice
+  });
 
   weather.onThunder = (distanceMeters, intensity) => {
     audioSynth.triggerThunder(distanceMeters, intensity, weather.uniforms.uLightningDir.value);
@@ -489,9 +508,26 @@ async function bootstrapNexusSimulator() {
   } else if (typeof renderer.compile === 'function') {
     renderer.compile(scene, camera);
   }
+  const isDroneCinemaView = () =>
+    camDirector.mode !== 'WALK_SIVITAS' &&
+    !camDirector.isFPSMode() &&
+    !String(camDirector.mode || '').startsWith('FPS_');
+
   videotron.update(camera, window.innerWidth, window.innerHeight, sharedUniforms);
+  grassField.update(camera, { windVec: weather.uniforms.uWindVec.value }, sharedUniforms);
+  postFX.updateMode(10.0, isDroneCinemaView(), {
+    duskFactor: weather.uniforms.uDuskFactor.value,
+    nightFactor: weather.uniforms.uNightFactor.value
+  });
   const tWarm0 = performance.now();
-  renderer.render(scene, camera);
+  postFX.renderPlanarWaterReflection(
+    scene,
+    camera,
+    weather,
+    TerrainDEMLoader.WATER_LEVEL_Y,
+    planarReflHiddenList
+  );
+  postFX.render(scene, camera, grassField.scene);
   hwGovernor.recordWarmupSample(performance.now() - tWarm0);
   await preloader.advance(8, 100, 'Selamat Datang di Kepulauan Universitas Indonesia (Pulau U & I), Depok.', TOTAL_EXPECTED_TRIS);
   preloader.dismiss();
@@ -626,6 +662,8 @@ async function bootstrapNexusSimulator() {
     const w = window.innerWidth;
     const h = window.innerHeight;
     renderer.setSize(w, h);
+    renderer.getDrawingBufferSize(drawBufSize);
+    postFX.setSize(drawBufSize.x, drawBufSize.y);
     const rect = drawer.getBoundingClientRect();
     const baseFov = camDirector.getActiveBaseVerticalFov();
     applyNonOccludingViewportOffset(
@@ -1208,10 +1246,12 @@ async function bootstrapNexusSimulator() {
     }
   });
 
-  // Live FPS Telemetry Status Card & Subject Cycle Controls
+  // Live FPS Telemetry Status Card & Subject Cycle Controls (+ 6-Chip Cockpit/Bridge Quick-Picker)
   const fpsLiveCardEl = document.getElementById('fps-live-card');
   const fpsLiveTitleEl = document.getElementById('fps-live-title');
   const fpsLiveSubEl = document.getElementById('fps-live-sub');
+  const fpsPilotPickerEl = document.getElementById('fps-pilot-picker');
+  const fpsPilotChipEls = Array.from(document.querySelectorAll('[data-pilot-slot]'));
   const fpsPrevBtn = document.getElementById('btn-fps-prev-subject');
   const fpsNextBtn = document.getElementById('btn-fps-next-subject');
   const fpsResetBtn = document.getElementById('btn-fps-reset-look');
@@ -1222,7 +1262,22 @@ async function bootstrapNexusSimulator() {
     if (!fpsLiveCardEl) return;
     const active = camDirector.isFPSMode();
     fpsLiveCardEl.style.display = active ? 'flex' : 'none';
-    if (!active) return;
+    if (!active) {
+      if (fpsPilotPickerEl) fpsPilotPickerEl.style.display = 'none';
+      return;
+    }
+    const isPilotMode = camDirector.mode === 'FPS_PILOT';
+    if (fpsPilotPickerEl) {
+      fpsPilotPickerEl.style.display = isPilotMode ? 'grid' : 'none';
+    }
+    if (isPilotMode && fpsPilotChipEls.length > 0) {
+      const activeSlot = ((camDirector.fpsSubjectOffset % 6) + 6) % 6;
+      for (let i = 0; i < fpsPilotChipEls.length; i++) {
+        const chip = fpsPilotChipEls[i];
+        const slot = Number(chip.getAttribute('data-pilot-slot'));
+        chip.classList.toggle('active', slot === activeSlot);
+      }
+    }
     const st = camDirector.lastFPSStatus || sivitasAI.getFPSAnchor(camDirector.mode, camDirector.fpsSubjectOffset);
     if (st) {
       if (fpsLiveTitleEl) fpsLiveTitleEl.textContent = st.label || camDirector.mode;
@@ -1230,6 +1285,19 @@ async function bootstrapNexusSimulator() {
     }
   }
   syncFPSStatusDOM();
+
+  for (let i = 0; i < fpsPilotChipEls.length; i++) {
+    const chip = fpsPilotChipEls[i];
+    chip.addEventListener('click', () => {
+      const slot = Number(chip.getAttribute('data-pilot-slot')) || 0;
+      if (camDirector.mode !== 'FPS_PILOT') {
+        camDirector.setMode('FPS_PILOT', { subjectOffset: slot });
+      } else {
+        camDirector.setFPSSubjectOffset(slot);
+      }
+      syncFPSStatusDOM();
+    });
+  }
 
   if (fpsPrevBtn) {
     fpsPrevBtn.addEventListener('click', () => {
@@ -1979,6 +2047,7 @@ async function bootstrapNexusSimulator() {
     audioSynth.updateAcousticWorld(dtStep, {
       camera,
       camMode: camDirector.mode,
+      fpsSubjectKind: camDirector.lastFPSSubjectKind || undefined,
       isRoofSheltered: DynamicTrafficAI._isShelteredByRoof(cx, cz),
       solarHour: weather.currentSolarHour,
       temperatureC: latestDepokWeather?.temperatureC,
@@ -2617,7 +2686,32 @@ async function bootstrapNexusSimulator() {
         calls: lastDrawCalls
       });
       videotron.update(camera, window.innerWidth, window.innerHeight, sharedUniforms);
-      renderer.render(scene, camera);
+      grassField.update(camera, { windVec: weather.uniforms.uWindVec.value }, sharedUniforms);
+      postFX.updateMode(dt, isDroneCinemaView(), {
+        duskFactor: weather.uniforms.uDuskFactor.value,
+        nightFactor: weather.uniforms.uNightFactor.value
+      });
+      renderer.getDrawingBufferSize(drawBufSize);
+      if (drawBufSize.x !== postFX.width || drawBufSize.y !== postFX.height) {
+        postFX.setSize(drawBufSize.x, drawBufSize.y);
+      }
+      const savedPortalAlpha = sharedUniforms.uVideotronPortalAlpha
+        ? sharedUniforms.uVideotronPortalAlpha.value
+        : 0.0;
+      if (sharedUniforms.uVideotronPortalAlpha) {
+        sharedUniforms.uVideotronPortalAlpha.value = 0.0;
+      }
+      postFX.renderPlanarWaterReflection(
+        scene,
+        camera,
+        weather,
+        TerrainDEMLoader.WATER_LEVEL_Y,
+        planarReflHiddenList
+      );
+      if (sharedUniforms.uVideotronPortalAlpha) {
+        sharedUniforms.uVideotronPortalAlpha.value = savedPortalAlpha;
+      }
+      postFX.render(scene, camera, grassField.scene);
       lastCpuMs = performance.now() - tCpuStart;
       lastDrawCalls = renderer.info.render.calls;
 
@@ -2672,6 +2766,8 @@ async function bootstrapNexusSimulator() {
       scene,
       camera,
       renderer,
+      postFX,
+      grassField,
       weather,
       audioSynth,
       videotron,

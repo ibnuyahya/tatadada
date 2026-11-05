@@ -573,6 +573,10 @@ export class WeatherOpticsEngine {
     this._lastSharedSurfaceUniforms = null;
     const hvsUniforms = HumanEyeHDROptics.createUniforms();
 
+    const fallbackPlanarData = new Uint8Array([140, 178, 218, 255, 140, 178, 218, 255, 140, 178, 218, 255, 140, 178, 218, 255]);
+    const fallbackPlanarTex = new THREE.DataTexture(fallbackPlanarData, 2, 2, THREE.RGBAFormat);
+    fallbackPlanarTex.needsUpdate = true;
+
     this.uniforms = {
       uTime: { value: 0.0 },
       uCamPos: { value: new THREE.Vector3() },
@@ -611,8 +615,25 @@ export class WeatherOpticsEngine {
       uFireflyIntensity: { value: 0.0 },
       uCollisionMap: { value: fallbackCollisionTex },
       uCollisionHalfExtent: { value: RainCollisionBake.DEFAULT_HALF_EXTENT },
+      uCollisionBounds: {
+        value: new THREE.Vector4(
+          RainCollisionBake.DEFAULT_MIN_X,
+          RainCollisionBake.DEFAULT_MIN_Z,
+          RainCollisionBake.DEFAULT_MAX_X - RainCollisionBake.DEFAULT_MIN_X,
+          RainCollisionBake.DEFAULT_MAX_Z - RainCollisionBake.DEFAULT_MIN_Z
+        )
+      },
+      uCollisionHeightRange: {
+        value: new THREE.Vector2(
+          RainCollisionBake.HEIGHT_MIN_Y,
+          RainCollisionBake.HEIGHT_MAX_Y - RainCollisionBake.HEIGHT_MIN_Y
+        )
+      },
       uHvsParams: hvsUniforms.uHvsParams,
-      uHvsGlare: hvsUniforms.uHvsGlare
+      uHvsGlare: hvsUniforms.uHvsGlare,
+      uPlanarReflTex: { value: fallbackPlanarTex },
+      uPlanarReflMatrix: { value: new THREE.Matrix4() },
+      uPlanarReflActive: { value: 0.0 }
     };
     this._syncOceanSpectrumUniforms();
 
@@ -873,10 +894,27 @@ export class WeatherOpticsEngine {
   _applyCollisionBakeResult(bake, sharedSurfaceUniforms = null) {
     this.uniforms.uCollisionMap.value = bake.texture;
     this.uniforms.uCollisionHalfExtent.value = bake.halfExtent;
+    const minX = bake.minX !== undefined ? bake.minX : -bake.halfExtent;
+    const minZ = bake.minZ !== undefined ? bake.minZ : -bake.halfExtent;
+    const spanX = bake.spanX !== undefined ? bake.spanX : bake.halfExtent * 2.0;
+    const spanZ = bake.spanZ !== undefined ? bake.spanZ : bake.halfExtent * 2.0;
+    const minY = bake.minY !== undefined ? bake.minY : RainCollisionBake.HEIGHT_MIN_Y;
+    const spanY =
+      bake.spanY !== undefined
+        ? bake.spanY
+        : RainCollisionBake.HEIGHT_MAX_Y - RainCollisionBake.HEIGHT_MIN_Y;
+    this.uniforms.uCollisionBounds.value.set(minX, minZ, spanX, spanZ);
+    this.uniforms.uCollisionHeightRange.value.set(minY, spanY);
 
     if (sharedSurfaceUniforms) {
       if (sharedSurfaceUniforms.uCollisionMap) {
         sharedSurfaceUniforms.uCollisionMap.value = bake.texture;
+      }
+      if (sharedSurfaceUniforms.uCollisionBounds) {
+        sharedSurfaceUniforms.uCollisionBounds.value.set(minX, minZ, spanX, spanZ);
+      }
+      if (sharedSurfaceUniforms.uCollisionHeightRange) {
+        sharedSurfaceUniforms.uCollisionHeightRange.value.set(minY, spanY);
       }
       if (sharedSurfaceUniforms.uCollisionReady) {
         sharedSurfaceUniforms.uCollisionReady.value = 1.0;
@@ -1046,7 +1084,7 @@ export class WeatherOpticsEngine {
    * 2-Layer 6-Octave Rotated FBM Cumulonimbus Storm Clouds + Forked Plasma Lightning
    */
   _initAnalyticalSkyDome() {
-    const skyGeo = new THREE.SphereGeometry(3400, 56, 32);
+    const skyGeo = new THREE.SphereGeometry(4200, 64, 36);
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
@@ -1554,14 +1592,17 @@ export class WeatherOpticsEngine {
             vec2 projLow = (dir.xz / (dir.y + 0.16)) * 1.85 + windAdv * 1.35 + vec2(5.7, -3.4);
 
             float fHigh = fbmCloud6(projHigh);
-            float fLow = fbmCloud6(projLow);
+            float fLowBase = fbmCloud6(projLow);
+            // Sculpted convective cauliflower turret billows along cumulus crowns
+            float fTurret = fbmGal4(projLow * 3.65 - windAdv * 0.62 + vec2(4.1, 8.7));
+            float fLow = clamp(fLowBase * 0.84 + (fTurret - 0.36) * 0.26, 0.0, 1.0);
 
             // Tropical clear nights naturally dissipate daytime convective cumulus, opening wide starry island skies!
             float dryNightClearBias = 0.085 * uNightFactor * (1.0 - clamp(uRainIntensity * 2.5 + uStormFactor, 0.0, 1.0));
             float thresh = mix(0.58, 0.20, clamp(uCloudCover, 0.0, 1.0)) + dryNightClearBias;
-            float dHigh = smoothstep(thresh, thresh + 0.36, fHigh);
-            float dLow = smoothstep(thresh - 0.04, thresh + 0.30, fLow) * (0.45 + 0.55 * uCloudCover);
-            cloudDensityTotal = clamp(dCirrus * 0.22 + dHigh * 0.58 + dLow * 0.78, 0.0, 1.0);
+            float dHigh = smoothstep(thresh, thresh + 0.34, fHigh);
+            float dLow = smoothstep(thresh - 0.04, thresh + 0.26, fLow) * (0.48 + 0.52 * uCloudCover);
+            cloudDensityTotal = clamp(dCirrus * 0.22 + dHigh * 0.58 + dLow * 0.82, 0.0, 1.0);
 
             // High cirrus catches upper-stratosphere sunset light slightly longer than low cumulus
             vec3 cirrusDay = mix(vec3(0.96, 0.98, 1.0), vec3(1.0, 0.54, 0.30), clamp(uDuskFactor * 1.25, 0.0, 1.0));
@@ -1572,36 +1613,50 @@ export class WeatherOpticsEngine {
             // Directional Beer-Lambert optical thickness + Schneider Powder-Sugar Multiple Scattering
             vec2 sunStep = normalize(celestialDir.xz + vec2(1e-4, 0.0)) * 0.14;
             float fShadow = fbmCloud6(projLow + sunStep);
-            float selfLit = clamp(1.0 - max(0.0, fShadow - fLow) * 3.2 - dLow * (0.32 + 0.40 * uStormFactor), 0.10, 1.0);
-            float powderEffect = 1.0 - exp(-cloudDensityTotal * 3.1 * (1.0 - uStormFactor * 0.45));
-            float multiScatter = 0.18 * powderEffect * (0.38 + 0.62 * selfLit) * (1.0 - uStormFactor * 0.55);
-            float forwardScatter = pow(max(cosTheta, 0.0), 8.0) * 0.34 * (1.0 - dLow * 0.68);
-            // Silver-lining cloud-edge diffraction rim toward sun/moon!
-            float silverEdge = pow(max(cosTheta, 0.0), 16.0) * smoothstep(0.05, 0.38, cloudDensityTotal) * exp(-cloudDensityTotal * 2.2) * 0.68;
+            float fShadow2 = fbmGal4((projLow + sunStep * 2.1) * 1.85);
+            float selfLit = clamp(
+              1.0 - max(0.0, fShadow - fLowBase) * 3.35 - max(0.0, fShadow2 - fLow) * 1.15 - dLow * (0.30 + 0.40 * uStormFactor),
+              0.10,
+              1.0
+            );
+            float powderEffect = 1.0 - exp(-cloudDensityTotal * 3.4 * (1.0 - uStormFactor * 0.45));
+            float multiScatter = 0.21 * powderEffect * (0.38 + 0.62 * selfLit) * (1.0 - uStormFactor * 0.55);
+            float forwardScatter = pow(max(cosTheta, 0.0), 8.0) * 0.38 * (1.0 - dLow * 0.66);
+            // Crisp diffraction silver-lining rim around sunlit cauliflower cumulus edges!
+            float silverEdge = pow(max(cosTheta, 0.0), 14.0) * smoothstep(0.04, 0.34, cloudDensityTotal) * exp(-cloudDensityTotal * 2.35) * 0.84;
 
-            vec3 litCloudDay = mix(vec3(0.97, 0.98, 1.0), vec3(0.98, 0.60, 0.36), uDuskFactor);
-            vec3 darkBaseDay = mix(vec3(0.49, 0.54, 0.61), vec3(0.13, 0.16, 0.22), clamp(uRainIntensity * 0.65 + uStormFactor * 0.55, 0.0, 1.0));
+            vec3 litCloudDay = mix(vec3(0.98, 0.99, 1.0), vec3(0.99, 0.62, 0.36), uDuskFactor);
+            vec3 darkBaseDay = mix(vec3(0.47, 0.53, 0.61), vec3(0.13, 0.16, 0.22), clamp(uRainIntensity * 0.65 + uStormFactor * 0.55, 0.0, 1.0));
             darkBaseDay = mix(darkBaseDay, vec3(0.36, 0.23, 0.27), uDuskFactor * (1.0 - uStormFactor * 0.6));
 
-            vec3 scatterTint = mix(vec3(1.0, 0.95, 0.84), vec3(1.0, 0.64, 0.32), uDuskFactor);
+            vec3 scatterTint = mix(vec3(1.0, 0.96, 0.86), vec3(1.0, 0.64, 0.32), uDuskFactor);
             vec3 cloudColDay = mix(darkBaseDay, litCloudDay, clamp(selfLit + multiScatter, 0.0, 1.0)) + scatterTint * (forwardScatter + silverEdge);
             float moonCloudLit = 0.20 + 0.80 * lunarSkyScatter;
             vec3 cloudColNight = mix(vec3(0.010, 0.015, 0.027), vec3(0.068, 0.096, 0.155) * moonCloudLit, selfLit)
                                + vec3(0.20, 0.28, 0.42) * silverEdge * 0.48 * moonCloudLit;
             vec3 cloudCol = mix(cloudColDay, cloudColNight, uNightFactor);
 
-            float mainCloudDens = clamp(dHigh * 0.58 + dLow * 0.78, 0.0, 1.0);
+            float mainCloudDens = clamp(dHigh * 0.58 + dLow * 0.80, 0.0, 1.0);
             cloudCoverMask = clamp(mainCloudDens * horizonFade * (0.68 + 0.30 * uCloudCover), 0.0, 0.985);
             skyCol = mix(skyCol, cloudCol, cloudCoverMask);
 
-            // Crepuscular Atmospheric Sunburst Shafts (Sky God-Rays streaming past broken clouds!)
-            if (cosSun > 0.15 && solarHaloVis > 0.01 && uRainIntensity < 0.75) {
-              vec3 rayCross = cross(dir, trueSunDir);
-              float rayAz = atan(rayCross.y, rayCross.x + rayCross.z + 1e-4);
-              float rayPattern = 0.5 + 0.5 * sin(rayAz * 11.0 + uTime * 0.12) * cos(rayAz * 19.0 - uTime * 0.08);
-              float godRay = pow(cosSun, 6.0) * rayPattern * (1.0 - cloudDensityTotal * 0.72) * smoothstep(0.04, 0.55, uCloudCover);
-              vec3 rayCol = mix(vec3(0.42, 0.36, 0.22), vec3(0.88, 0.44, 0.18), uDuskFactor);
-              skyCol += rayCol * godRay * solarHaloVis * (1.0 - uRainIntensity) * 0.24;
+            // True Cloud-Gap-Occluded Radial Crepuscular God-Rays (5-tap volumetric march toward the Sun!)
+            if (cosSun > 0.12 && solarHaloVis > 0.01 && uRainIntensity < 0.78 && uNightFactor < 0.85) {
+              float shaftTrans = 0.0;
+              for (int gi = 1; gi <= 5; gi++) {
+                float gFrac = float(gi) * 0.175;
+                vec3 sampleRay = normalize(mix(dir, trueSunDir, gFrac));
+                if (sampleRay.y > 0.015) {
+                  vec2 pGap = (sampleRay.xz / (sampleRay.y + 0.16)) * 1.85 + windAdv * 1.35 + vec2(5.7, -3.4);
+                  float cGap = fbmGal4(pGap * 1.02);
+                  float gapOpen = 1.0 - smoothstep(thresh - 0.06, thresh + 0.22, cGap);
+                  shaftTrans += gapOpen * 0.20;
+                }
+              }
+              float shaftContrast = smoothstep(0.18, 0.82, shaftTrans) * (1.0 - cloudDensityTotal * 0.58);
+              float godRay = pow(max(0.0, cosSun), 4.8) * shaftContrast * smoothstep(0.03, 0.48, uCloudCover);
+              vec3 rayCol = mix(vec3(0.48, 0.42, 0.26), vec3(0.96, 0.50, 0.20), uDuskFactor);
+              skyCol += rayCol * godRay * solarHaloVis * (1.0 - uRainIntensity) * (1.0 - uNightFactor) * 0.34;
             }
           }
 
@@ -1656,6 +1711,87 @@ export class WeatherOpticsEngine {
             }
           }
 
+          // 5. SAYUP-SAYUP DARATAN PESISIR UTARA PULAU JAWA (TELUK JAKARTA) & SILUET GUNUNG SALAK + GEDE-PANGRANGO
+          //    Looking South (-X, azSouth = atan(dir.z, -dir.x) around 0.0):
+          //    - SSW (azSouth < 0): Gunung Halimun & Twin-Peaked Gunung Salak (2,211 mdpl)
+          //    - SSE (azSouth > 0): Conical Gunung Pangrango (3,019 mdpl) + Gunung Gede (2,958 mdpl) + Pegunungan Jonggol
+          //    Rendered via Koschmieder Rayleigh-Mie tropical marine aerial extinction (~84-92% veiled in atmospheric haze!)
+          float javaSolidMask = 0.0;
+          if (dir.x < -0.02 && dir.y > -0.12 && dir.y < 0.058) {
+            float azSouth = atan(dir.z, -dir.x); // 0 = True South (-X), - = SSW/West, + = SSE/East
+            float coastArcEnv = 1.0 - smoothstep(0.64, 1.08, abs(azSouth));
+            if (coastArcEnv > 0.002) {
+              float marineClarity = clamp(1.0 - uRainIntensity * 0.88 - uFogFactor * 0.90 - uStormFactor * 0.55, 0.06, 1.0);
+              float ridgeMicro = (noise2(vec2(azSouth * 42.0, 3.7)) - 0.5) * 0.0016
+                               + (noise2(vec2(azSouth * 115.0, 9.1)) - 0.5) * 0.0006;
+
+              // A. Distant Volcanic Arc (~72-85 km South across Teluk Jakarta -> Bogor, Cianjur & Sukabumi)
+              //    Use explicit multiplication (u * u) and abs() so HLSL/D3D11 never evaluates log2(negative) inside pow()!
+              float uHal   = (azSouth + 0.430) / 0.135;
+              float uSal2  = (azSouth + 0.272) / 0.050;
+              float uSal1  = (azSouth + 0.218) / 0.052;
+              float uSalB  = (azSouth + 0.248) / 0.155;
+              float uPang  = abs(azSouth - 0.156) / 0.046;
+              float uGede  = (azSouth - 0.224) / 0.056;
+              float uGedeB = (azSouth - 0.192) / 0.165;
+              float uJong  = (azSouth - 0.455) / 0.145;
+
+              float hHalimun   = 0.0195 * exp(-(uHal * uHal));
+              float hSalakII   = 0.0278 * exp(-(uSal2 * uSal2));
+              float hSalakI    = 0.0315 * exp(-(uSal1 * uSal1));
+              float hSalakBase = 0.0155 * exp(-(uSalB * uSalB));
+              float hPangrango = 0.0398 * exp(-pow(uPang, 1.85));
+              float hGede      = 0.0368 * exp(-(uGede * uGede));
+              float hGedeBase  = 0.0175 * exp(-(uGedeB * uGedeB));
+              float hJonggol   = 0.0172 * exp(-(uJong * uJong));
+
+              float hVolcArc = (max(max(hHalimun, max(hSalakI, hSalakII) + hSalakBase * 0.36), max(max(hPangrango, hGede) + hGedeBase * 0.34, hJonggol)) + ridgeMicro) * coastArcEnv;
+
+              // B. Intermediate Sentul-Hambalang-Parungpanjang Foothills (~52 km) & Low North Java Coastline (~26 km)
+              float hFoothill = (0.0108 + 0.0034 * sin(azSouth * 7.5 + 0.8) + ridgeMicro * 0.65) * (1.0 - smoothstep(0.50, 0.90, abs(azSouth)));
+              float hJavaCoast = (0.0042 + 0.0011 * cos(azSouth * 11.0 - 0.4)) * coastArcEnv;
+
+              // Rise cleanly out of the marine horizon (dir.y >= 0) with zero below-horizon dark band!
+              float baseSeat = smoothstep(-0.006, 0.0012, dir.y);
+              float mVolc = smoothstep(hVolcArc + 0.0015, hVolcArc - 0.0012, dir.y) * baseSeat;
+              float mFoot = smoothstep(hFoothill + 0.0012, hFoothill - 0.0010, dir.y) * baseSeat;
+              float mCoast = smoothstep(hJavaCoast + 0.0009, hJavaCoast - 0.0008, dir.y) * baseSeat;
+
+              // Koschmieder Aerial Perspective: ~76%-82% atmospheric Rayleigh-Mie veil ("sayup-sayup Pulau Jawa"!)
+              vec3 javaBodyDay = vec3(0.20, 0.32, 0.50);
+              vec3 javaBodyDusk = vec3(0.28, 0.20, 0.34);
+              vec3 javaBodyNight = vec3(0.005, 0.009, 0.018);
+              vec3 javaIntrinsic = mix(mix(javaBodyDay, javaBodyDusk, uDuskFactor), javaBodyNight, uNightFactor);
+
+              if (mVolc > 0.002) {
+                vec3 volcApparent = mix(javaIntrinsic, skyCol, 0.815);
+                skyCol = mix(skyCol, volcApparent, mVolc * marineClarity);
+              }
+              if (mFoot > 0.002) {
+                vec3 footApparent = mix(javaIntrinsic * 0.90, skyCol, 0.775);
+                skyCol = mix(skyCol, footApparent, mFoot * marineClarity);
+              }
+              if (mCoast > 0.002) {
+                vec3 coastApparent = mix(javaIntrinsic * 0.82, skyCol, 0.740);
+                skyCol = mix(skyCol, coastApparent, mCoast * marineClarity);
+              }
+              javaSolidMask = clamp(max(mVolc, max(mFoot, mCoast)) * marineClarity, 0.0, 1.0);
+
+              // Whisper-faint warm Teluk Jakarta / North Java coastal horizon glow at Dusk & Night
+              float jakartaSpan = exp(-pow(azSouth / 0.36, 2.0));
+              float nightGlowPwr = clamp(uNightFactor * 0.95 + uDuskFactor * 0.42, 0.0, 1.0) * marineClarity;
+              if (nightGlowPwr > 0.01 && dir.y > -0.002 && dir.y < 0.032) {
+                float domeH = exp(-max(0.0, dir.y) / 0.0095) * jakartaSpan;
+                skyCol += vec3(0.055, 0.034, 0.014) * domeH * nightGlowPwr;
+                // Subtle distant coastal harbor lights twinkling right along the North Java waterline
+                if (dir.y > 0.0002 && dir.y < 0.0038) {
+                  float citySpark = smoothstep(0.68, 0.95, noise2(vec2(azSouth * 420.0, dir.y * 900.0)));
+                  skyCol += vec3(0.11, 0.075, 0.032) * citySpark * jakartaSpan * nightGlowPwr;
+                }
+              }
+            }
+          }
+
           // Convert base sky & cloud scattering into True Scene-Referred Linear-HDR Radiance,
           // then composite Linear-HDR Cosmos (Milky Way + 208 J2000 Constellations), Moon, & Sun occluded by clouds!
           float horizonFogBand = clamp(uFogFactor, 0.0, 1.0) * (1.0 - smoothstep(-0.04, 0.28, dir.y));
@@ -1666,8 +1802,8 @@ export class WeatherOpticsEngine {
           float cloudTrans = (1.0 - cloudCoverMask) * (1.0 - horizonFogBand * 0.78);
           vec3 hdrSky = nexusSRGBToLinear(max(skyCol, vec3(0.0))) * mix(1.16, 0.76, uNightFactor);
 
-          // Linear-HDR Cosmos (occulted by solid Moon sphere and foreground clouds!)
-          hdrSky += hdrCosmos * (1.0 - moonOccultMask) * (cloudTrans * cloudTrans);
+          // Linear-HDR Cosmos (occulted by solid Moon sphere, distant Java mountains, and foreground clouds!)
+          hdrSky += hdrCosmos * (1.0 - moonOccultMask) * (1.0 - javaSolidMask) * (cloudTrans * cloudTrans);
 
           if (cosSun > 0.0 && rNormSun < 1.0 && sunVis > 0.005) {
             float zSphS = sqrt(max(0.0, 1.0 - rNormSun * rNormSun));
@@ -1828,7 +1964,9 @@ export class WeatherOpticsEngine {
         uWindVec: this.uniforms.uWindVec,
         uWindPhase: this.uniforms.uWindPhase,
         uCollisionMap: this.uniforms.uCollisionMap,
-        uCollisionHalfExtent: this.uniforms.uCollisionHalfExtent
+        uCollisionHalfExtent: this.uniforms.uCollisionHalfExtent,
+        uCollisionBounds: this.uniforms.uCollisionBounds,
+        uCollisionHeightRange: this.uniforms.uCollisionHeightRange
       },
       vertexShader: /* glsl */ `
         attribute float aKind;
@@ -1846,6 +1984,8 @@ export class WeatherOpticsEngine {
         uniform vec2 uWindPhase;
         uniform sampler2D uCollisionMap;
         uniform float uCollisionHalfExtent;
+        uniform vec4 uCollisionBounds;
+        uniform vec2 uCollisionHeightRange;
 
         varying vec2 vUv;
         varying float vAlpha;
@@ -1855,13 +1995,13 @@ export class WeatherOpticsEngine {
 
         float decodeCollisionHeight(vec2 xz) {
           float hOut = 0.0;
-          vec2 cuv = (xz + uCollisionHalfExtent) / (uCollisionHalfExtent * 2.0);
+          vec2 cuv = (xz - uCollisionBounds.xy) / uCollisionBounds.zw;
           if (cuv.x < 0.001 || cuv.x > 0.999 || cuv.y < 0.001 || cuv.y > 0.999) {
             float dCoast = evalArchipelagoCoastRaw(xz);
             hOut = evalArchipelagoAnalyticalHeight(xz, dCoast);
           } else {
             vec4 cTex = texture2D(uCollisionMap, cuv);
-            hOut = -6.0 + ((cTex.r * 255.0 * 256.0 + cTex.g * 255.0) / 65535.0) * 60.0;
+            hOut = uCollisionHeightRange.x + ((cTex.r * 255.0 * 256.0 + cTex.g * 255.0) / 65535.0) * uCollisionHeightRange.y;
           }
           return hOut;
         }
@@ -2238,7 +2378,9 @@ export class WeatherOpticsEngine {
         uLightningFlash: this.uniforms.uLightningFlash,
         uWindVec: this.uniforms.uWindVec,
         uCollisionMap: this.uniforms.uCollisionMap,
-        uCollisionHalfExtent: this.uniforms.uCollisionHalfExtent
+        uCollisionHalfExtent: this.uniforms.uCollisionHalfExtent,
+        uCollisionBounds: this.uniforms.uCollisionBounds,
+        uCollisionHeightRange: this.uniforms.uCollisionHeightRange
       },
       vertexShader: /* glsl */ `
         attribute vec4 aSplashMeta;
@@ -2250,6 +2392,8 @@ export class WeatherOpticsEngine {
         uniform vec3 uWindVec;
         uniform sampler2D uCollisionMap;
         uniform float uCollisionHalfExtent;
+        uniform vec4 uCollisionBounds;
+        uniform vec2 uCollisionHeightRange;
 
         varying vec2 vUv;
         varying float vType;
@@ -2261,7 +2405,7 @@ export class WeatherOpticsEngine {
 
         // Decodes yHit, exact 3D surface normal N_hit, and surfaceClass (0=Water, 1=FlatHard, 2=SlopedRoof, 3=Canopy)
         void sampleCollisionSurface(vec2 xz, out float yHit, out vec3 nHit, out float surfClass) {
-          vec2 cuv = (xz + uCollisionHalfExtent) / (uCollisionHalfExtent * 2.0);
+          vec2 cuv = (xz - uCollisionBounds.xy) / uCollisionBounds.zw;
           if (cuv.x < 0.001 || cuv.x > 0.999 || cuv.y < 0.001 || cuv.y > 0.999) {
             float dCoast = evalArchipelagoCoastRaw(xz);
             if (dCoast > 3.52) {
@@ -2279,7 +2423,7 @@ export class WeatherOpticsEngine {
             return;
           }
           vec4 cTex = texture2D(uCollisionMap, cuv);
-          yHit = -6.0 + ((cTex.r * 255.0 * 256.0 + cTex.g * 255.0) / 65535.0) * 60.0;
+          yHit = uCollisionHeightRange.x + ((cTex.r * 255.0 * 256.0 + cTex.g * 255.0) / 65535.0) * uCollisionHeightRange.y;
           float aByte = cTex.a * 255.0;
           if (aByte < 5.0) {
             surfClass = 0.0; // Danau Kenanga Water
@@ -3139,9 +3283,30 @@ export class WeatherOpticsEngine {
           }
         }
 
-        // Smoothly taper 3D vertex displacement at outer 1650m archipelago ocean horizon so sky-sea horizon stays razor-level
+        // Smoothly taper 3D vertex displacement at outer 2680m Kepulauan Seribu ocean horizon + calm coral reef lagoons!
         float rCenter = length(baseXZ - ARCHIPELAGO_CENTER);
-        float horizonTaper = 1.0 - smoothstep(1150.0, 1630.0, rCenter);
+        float seribuCalm = 0.0;
+        if (rCenter > 880.0) {
+          // 12 Kepulauan Seribu Coral Cay Reef Lagoons (cx, cz, innerCalmR, outerReefR)
+          vec4 cays[12];
+          cays[0]  = vec4( 1120.0,  295.0, 118.0, 215.0);
+          cays[1]  = vec4(  995.0,  520.0,  96.0, 168.0);
+          cays[2]  = vec4( 1040.0, -260.0, 128.0, 235.0);
+          cays[3]  = vec4( 1480.0,  -40.0,  98.0, 195.0);
+          cays[4]  = vec4( 1185.0,  920.0, 152.0, 260.0);
+          cays[5]  = vec4( 1660.0,  580.0, 158.0, 245.0);
+          cays[6]  = vec4(  640.0, -760.0, 108.0, 205.0);
+          cays[7]  = vec4(  180.0, -960.0,  92.0, 175.0);
+          cays[8]  = vec4( -110.0, 1540.0, 108.0, 215.0);
+          cays[9]  = vec4( -540.0, -860.0,  94.0, 185.0);
+          cays[10] = vec4( -980.0, -690.0,  88.0, 180.0);
+          cays[11] = vec4( -920.0, 1280.0, 106.0, 205.0);
+          for (int ci = 0; ci < 12; ci++) {
+            float dCay = length(baseXZ - cays[ci].xy);
+            seribuCalm = max(seribuCalm, 1.0 - smoothstep(cays[ci].z, cays[ci].w, dCay));
+          }
+        }
+        float horizonTaper = (1.0 - smoothstep(1880.0, 2655.0, rCenter)) * (1.0 - 0.94 * seribuCalm);
 
         dispOut = vec3(horizSurge.x, eta, horizSurge.y) * horizonTaper;
         gradNormalOut = normalize(vec3(negGradEta.x * horizonTaper, max(0.28, jacobianY), negGradEta.y * horizonTaper));
@@ -3149,6 +3314,50 @@ export class WeatherOpticsEngine {
         crestFactorOut = clamp(crestAccum * 0.72 + jacobianPinch * 0.42, 0.0, 1.0) * horizonTaper;
         rollerSwashOut = swashCrest;
         cavityOut = clamp(troughAccum * clamp(Hs / 1.75, 0.0, 1.18), 0.0, 0.88) * horizonTaper;
+      }
+
+      // Evaluates Kepulauan Seribu Coral Patch-Reef Lagoon Mask (x) & Windward Reef-Edge Surf Arcs (y)
+      vec2 evalKepulauanSeribuReef(vec2 xz) {
+        float rArch = length(xz - ARCHIPELAGO_CENTER);
+        if (rArch < 880.0) return vec2(0.0);
+        vec4 caysR[12];
+        caysR[0]  = vec4( 1120.0,  295.0, 108.0, 215.0);
+        caysR[1]  = vec4(  995.0,  520.0,  88.0, 168.0);
+        caysR[2]  = vec4( 1040.0, -260.0, 118.0, 235.0);
+        caysR[3]  = vec4( 1480.0,  -40.0,  88.0, 195.0);
+        caysR[4]  = vec4( 1185.0,  920.0, 146.0, 260.0);
+        caysR[5]  = vec4( 1660.0,  580.0, 152.0, 245.0);
+        caysR[6]  = vec4(  640.0, -760.0,  98.0, 205.0);
+        caysR[7]  = vec4(  180.0, -960.0,  84.0, 175.0);
+        caysR[8]  = vec4( -110.0, 1540.0,  98.0, 215.0);
+        caysR[9]  = vec4( -540.0, -860.0,  84.0, 185.0);
+        caysR[10] = vec4( -980.0, -690.0,  80.0, 180.0);
+        caysR[11] = vec4( -920.0, 1280.0,  96.0, 205.0);
+        float lagoon = 0.0;
+        float reefSurf = 0.0;
+        for (int ci = 0; ci < 12; ci++) {
+          vec2 dv = xz - caysR[ci].xy;
+          float dRaw = length(dv);
+          float rOut = caysR[ci].w;
+          if (dRaw < rOut * 1.48) {
+            float ang = atan(dv.y, dv.x);
+            float sd = float(ci) * 2.17 + 0.6;
+            // Organic multi-lobed coral flat contour aligned with elongated E-W / NE-SW cay orientation (ZERO bullseye rings!)
+            float lobe = 1.0
+                       + 0.24 * cos(2.0 * (ang - 1.42 - sin(sd) * 0.38))
+                       + 0.14 * sin(3.0 * ang + sd)
+                       + 0.09 * cos(5.0 * ang - sd * 1.7)
+                       + 0.06 * sin(8.0 * ang + sd * 2.3);
+            float dEff = dRaw / max(0.55, lobe);
+            lagoon = max(lagoon, 1.0 - smoothstep(caysR[ci].z * 0.72, rOut * 1.04, dEff));
+            // Broken windward coral-crest surf arcs (strongest facing North-East Java Sea swell, zero closed circle!)
+            float windwardArc = smoothstep(-0.15, 0.72, cos(ang - 0.32))
+                              * smoothstep(0.36, 0.84, 0.5 + 0.5 * sin(6.0 * ang + sd * 3.1));
+            float uEdge = (dEff - (rOut - 14.0)) / 13.0;
+            reefSurf = max(reefSurf, exp(-(uEdge * uEdge)) * windwardArc);
+          }
+        }
+        return vec2(lagoon, reefSurf);
       }
     `;
 
@@ -3171,7 +3380,10 @@ export class WeatherOpticsEngine {
         uWaveAmpB: this.uniforms.uWaveAmpB,
         uVesselWakes: this.uniforms.uVesselWakes,
         uHvsParams: this.uniforms.uHvsParams,
-        uHvsGlare: this.uniforms.uHvsGlare
+        uHvsGlare: this.uniforms.uHvsGlare,
+        uPlanarReflTex: this.uniforms.uPlanarReflTex,
+        uPlanarReflMatrix: this.uniforms.uPlanarReflMatrix,
+        uPlanarReflActive: this.uniforms.uPlanarReflActive
       },
       side: THREE.DoubleSide,
       polygonOffset: true,
@@ -3291,6 +3503,9 @@ export class WeatherOpticsEngine {
         uniform vec4 uVesselWakes[4];
         uniform vec4 uHvsParams;
         uniform vec4 uHvsGlare;
+        uniform sampler2D uPlanarReflTex;
+        uniform mat4 uPlanarReflMatrix;
+        uniform float uPlanarReflActive;
 
         ${HumanEyeHDROptics.getGLSLKernel()}
 
@@ -3770,13 +3985,14 @@ export class WeatherOpticsEngine {
           float hBathym;
           float surfBreak;
           float cavityAO;
+          float pxFootprintM = clamp(max(length(dFdx(vBaseXZ)), length(dFdy(vBaseXZ))) * 1.65, 0.0, 48.0);
           evalGravityHydrodynamics(
             vBaseXZ,
             uTime,
             uSeaState,
             uWaveAmpA,
             uWaveAmpB,
-            0.0,
+            pxFootprintM,
             vCoastN,
             gDisp,
             gravNorm,
@@ -3900,6 +4116,22 @@ export class WeatherOpticsEngine {
           vec3 sunDir = normalize(uSunDir);
           float sunVis = clamp(1.0 - uRainIntensity * 0.78 - uStormFactor * 0.42 - uCloudCover * 0.22, 0.06, 1.0);
 
+          // Moving Cumulus Cloud Shadows across Ocean, Teluk U, & Kepulauan Seribu Lagoons
+          vec2 oceanCloudPos = (vWorldPos.xz - sunDir.xz * (340.0 / max(0.20, sunDir.y))) * 0.0036 + uWindPhase * 0.0085;
+          float oceanCloudField = fbmCloudRefl(oceanCloudPos * 1.45);
+          float oceanCloudThresh = mix(0.60, 0.26, clamp(uCloudCover, 0.0, 1.0));
+          float oceanCloudShadow = 1.0 - smoothstep(oceanCloudThresh, oceanCloudThresh + 0.26, oceanCloudField)
+                                       * clamp(uCloudCover * 0.85, 0.0, 0.52)
+                                       * smoothstep(0.06, 0.24, sunDir.y)
+                                       * (1.0 - uNightFactor * 0.85);
+          sunVis *= mix(1.0, oceanCloudShadow, 0.85);
+
+          // Kepulauan Seribu Shallow Biogenic Coral-Sand Patch-Reef Lagoon Bathymetry
+          vec2 seribuReef = evalKepulauanSeribuReef(vBaseXZ);
+          if (seribuReef.x > 0.004) {
+            waterDepth = mix(waterDepth, mix(2.10, 0.42, seribuReef.x), seribuReef.x * 0.94);
+          }
+
           // Low-sun grazing wave-slope self-shadowing (steep leeward backs of 1.5–3.0m swells cast soft shadow troughs!)
           float lowSunWeight = 1.0 - smoothstep(0.18, 0.62, sunDir.y);
           float waveSunNdotL = dot(gravNorm, sunDir);
@@ -3915,17 +4147,26 @@ export class WeatherOpticsEngine {
             vec3(0.295, 0.276, 0.228),
             clamp(sandMacro * 0.55 + pebMid * 0.30 + pebFine * 0.15, 0.0, 1.0)
           );
+          if (seribuReef.x > 0.004) {
+            float coralPatch = smoothstep(0.28, 0.72, fbmCloudRefl(refrXZ * 0.22 + vec2(7.3, 13.1)));
+            vec3 coralSandBed = mix(vec3(0.18, 0.28, 0.25), vec3(0.82, 0.80, 0.71), coralPatch);
+            submergedBed = mix(submergedBed, coralSandBed, seribuReef.x * 0.92);
+          }
           submergedBed *= mix(1.0, 0.16, uNightFactor);
 
-          if (waterDepth < 3.15 && distCam < 175.0) {
+          if (waterDepth < 3.15 && distCam < 220.0) {
             vec2 causticUV = refrXZ - sunDir.xz * (waterDepth / max(0.28, sunDir.y)) * 0.38 + normal.xz * 0.24;
-            float caust = evalCaustics(causticUV, uTime) * smoothstep(3.15, 0.10, waterDepth) * smoothstep(175.0, 42.0, distCam);
+            float caust = evalCaustics(causticUV, uTime) * smoothstep(3.15, 0.10, waterDepth) * smoothstep(220.0, 48.0, distCam);
             vec3 caustTint = mix(mix(vec3(1.0, 0.95, 0.76), vec3(1.0, 0.62, 0.32), uDuskFactor), vec3(0.22, 0.32, 0.48), uNightFactor);
             submergedBed += caustTint * caust * sunVis * waveSelfShadow * 0.58;
           }
 
           float overcastDesat = clamp(uRainIntensity * 0.65 + uStormFactor * 0.25, 0.0, 1.0);
           vec3 shallowTurquoise = mix(vec3(0.068, 0.285, 0.262), vec3(0.045, 0.155, 0.162), overcastDesat);
+          if (seribuReef.x > 0.004) {
+            vec3 reefTurquoise = mix(vec3(0.078, 0.415, 0.388), vec3(0.048, 0.215, 0.218), overcastDesat);
+            shallowTurquoise = mix(shallowTurquoise, reefTurquoise, seribuReef.x * 0.88);
+          }
           vec3 shelfEmerald     = mix(vec3(0.028, 0.152, 0.194), vec3(0.021, 0.088, 0.118), overcastDesat);
           vec3 straitTeal       = mix(vec3(0.018, 0.094, 0.152), vec3(0.014, 0.058, 0.094), overcastDesat);
           vec3 deepPelagic      = mix(vec3(0.013, 0.058, 0.114), vec3(0.010, 0.036, 0.072), overcastDesat);
@@ -3961,7 +4202,7 @@ export class WeatherOpticsEngine {
           bubbleTint *= mix(1.0, 0.68, overcastDesat);
 
           // Beer-Lambert spectral seawater attenuation + upward sky-irradiance volume backscatter across 4 Jerlov zones
-          float volSkyIrrad = mix(mix(1.18, 0.88, uDuskFactor), 0.72, uNightFactor) * mix(1.0, 0.78, overcastDesat);
+          float volSkyIrrad = mix(mix(1.18, 0.88, uDuskFactor), 0.72, uNightFactor) * mix(1.0, 0.78, overcastDesat) * mix(1.0, oceanCloudShadow, 0.34);
           vec3 opticalPath = vec3(2.15, 0.78, 0.62) * waterDepth * (1.0 + 0.38 * (1.0 - max(0.22, viewDir.y)));
           vec3 transmittance = exp(-opticalPath);
           vec3 midToShallow = mix(shelfEmerald, shallowTurquoise, exp(-waterDepth * 0.72));
@@ -4003,6 +4244,26 @@ export class WeatherOpticsEngine {
           skyRefl = mix(skyRefl, vec3(0.25, 0.29, 0.35) * mix(1.0, 0.22, uNightFactor), clamp(uRainIntensity * 0.62 + uStormFactor * 0.30, 0.0, 0.90));
           skyRefl *= (1.0 - cavityAO * 0.16);
           skyRefl += vec3(0.76, 0.88, 1.0) * uLightningFlash * 1.15;
+
+          // 3B. REAL PLANAR MIRROR REFLECTION (Gedung Rektorat UI, Trees, Jembatan Teksas UI, Volcano, & Sky!)
+          if (uPlanarReflActive > 0.5) {
+            vec4 reflClip = uPlanarReflMatrix * vec4(vWorldPos.x, -1.45, vWorldPos.z, 1.0);
+            if (reflClip.w > 0.05) {
+              vec2 reflBaseUV = reflClip.xy / reflClip.w;
+              vec2 edgeDist = min(reflBaseUV, 1.0 - reflBaseUV);
+              float edgeFeather = smoothstep(0.005, 0.085, min(edgeDist.x, edgeDist.y))
+                                * smoothstep(1850.0, 420.0, distCam);
+              if (edgeFeather > 0.004) {
+                vec2 waveDistort = reflNormal.xz
+                                 * mix(0.036, 0.009, smoothstep(16.0, 320.0, distCam))
+                                 * clamp(0.28 + HsLive * 0.42, 0.22, 1.18);
+                vec2 sampleReflUV = clamp(reflBaseUV + waveDistort, vec2(0.004), vec2(0.996));
+                vec4 planarSample = texture2D(uPlanarReflTex, sampleReflUV);
+                float planarClarity = (1.0 - clamp(roughSigma2 * 8.5, 0.0, 0.32)) * (1.0 - cavityAO * 0.14);
+                skyRefl = mix(skyRefl, planarSample.rgb * planarClarity, edgeFeather * planarSample.a * 0.92);
+              }
+            }
+          }
 
           // Physical Overhead Reflection & Soft Ambient Shadow of Jembatan Teksas UI directly beneath the span!
           if (vWorldPos.z > 169.0 && vWorldPos.z < 322.0 && abs(vWorldPos.x + 28.0) < 8.5) {
@@ -4048,6 +4309,15 @@ export class WeatherOpticsEngine {
           float foamBand = 1.0 - smoothstep(150.0, 560.0, distCam);
           float totalFoam = clamp(wakeFoam, 0.0, 0.92);
           float spindriftMist = 0.0;
+
+          // Kepulauan Seribu Fringing Reef Outer Breaking Surf Ring
+          if (seribuReef.y > 0.004 && distCam < 2350.0) {
+            float reefLace = vnoise(R * (vWorldPos.xz * 1.65 - uWindPhase * 0.22));
+            totalFoam = max(
+              totalFoam,
+              seribuReef.y * (0.42 + 0.52 * reefLace) * smoothstep(2350.0, 620.0, distCam) * 0.82
+            );
+          }
 
           // 5A. Shoreline Breaking Surf Bore & Receding Aerated Turap Swash Lace
           if (liveWaterline < 6.4 && distCam < 1380.0) {
@@ -4148,9 +4418,13 @@ export class WeatherOpticsEngine {
             col += vec3(0.96, 0.70, 0.30) * (towerAlign + annexAlign) * rippleShimmer * uNightFactor * 0.32;
           }
 
-          // Subtle outer sea-rim horizon blend complementing 3D boundary-layer aerial perspective
-          float horMist = smoothstep(1180.0, 1642.0, length(vBaseXZ - ARCHIPELAGO_CENTER));
-          col = mix(col, skyHor, horMist * 0.18);
+          // Subtle outer sea-rim horizon blend complementing 3D boundary-layer aerial perspective (2,680m Kepulauan Seribu rim)
+          if (seribuReef.y > 0.01) {
+            float surfN = 0.45 + 0.55 * vnoise(R * (vWorldPos.xz * 0.42 - uWindPhase * 0.08));
+            totalFoam = max(totalFoam, seribuReef.y * surfN * 0.44 * smoothstep(2450.0, 520.0, distCam));
+          }
+          float horMist = smoothstep(1680.0, 2665.0, length(vBaseXZ - ARCHIPELAGO_CENTER));
+          col = mix(col, skyHor, horMist * 0.78);
 
           // Unify Ocean & Danau Kenanga Cove into True Scene-Referred Linear-HDR -> Boundary-Layer Aerial Perspective -> HVS
           vec3 hdrOcean = nexusSRGBToLinear(max(col, vec3(0.0))) * mix(1.16, 0.74, uNightFactor);
@@ -4350,7 +4624,8 @@ export class WeatherOpticsEngine {
    */
   _applyContinuousCelestialAndFog(sharedSurfaceUniforms = null) {
     const h = ((this.currentSolarHour % 24.0) + 24.0) % 24.0;
-    // Depok Sunrise ~05:55 WIB (+X East over Danau Kenanga), Zenith ~11:58 WIB, Sunset ~18:00 WIB (-X West over Helipad)
+    // Kepulauan UI / Kepulauan Seribu True-North Compass (+X = North, -X = South/Jawa, +Z = East Sunrise, -Z = West Sunset):
+    // Sunrise ~05:55 WIB (+Z East over Pulau I), Zenith ~11:58 WIB, Sunset ~18:00 WIB (-Z West over Pulau U & Kepulauan Seribu Barat)
     const sunPhase = ((h - 5.92) / 12.08) * Math.PI;
     const sunElev = Math.sin(sunPhase);
     const sunEastWest = Math.cos(sunPhase);
@@ -4363,15 +4638,15 @@ export class WeatherOpticsEngine {
     this.uniforms.uNightFactor.value = nightF;
     this.uniforms.uDuskFactor.value = duskF;
 
-    // Continuous 24h True Sun Vector & Lunar Vector (independent sky-dome discs -> zero sun teleport!)
-    const trueSx = sunEastWest * 0.86;
+    // Continuous 24h True Sun Vector & Lunar Vector (+Z = East, -Z = West, +X = North equatorial declination)
+    const trueSx = 0.34;
     const trueSy = sunElev * 0.86;
-    const trueSz = 0.45;
+    const trueSz = sunEastWest * 0.86;
     this.uniforms.uTrueSunDir.value.set(trueSx, trueSy, trueSz).normalize();
 
-    const sx = sunEastWest * 0.86;
+    const sx = 0.34;
     const sy = Math.max(0.04, sunElev * 0.86);
-    const sz = 0.45;
+    const sz = sunEastWest * 0.86;
     const sLen = Math.hypot(sx, sy, sz) || 1.0;
 
     // v3.7 Real-Time Jean Meeus Depok Lunar Ephemeris & Unwrapped Sidereal Sky Matrix (0.000° midnight jump!)
@@ -5493,6 +5768,9 @@ export class WeatherOpticsEngine {
       }
       if (sharedSurfaceUniforms.uWindVec) {
         sharedSurfaceUniforms.uWindVec.value.copy(this.uniforms.uWindVec.value);
+      }
+      if (sharedSurfaceUniforms.uCloudShadowPhase) {
+        sharedSurfaceUniforms.uCloudShadowPhase.value.copy(this.uniforms.uWindPhase.value);
       }
     }
 

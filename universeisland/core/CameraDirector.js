@@ -1192,6 +1192,13 @@ export class CameraDirector {
     this._fpsPoseInitialized = false;
   }
 
+  setFPSSubjectOffset(offset = 0) {
+    this.fpsSubjectOffset = Math.max(0, Math.floor(Number(offset) || 0)) % 240;
+    this.fpsYawOffset = 0.0;
+    this.fpsPitchOffset = 0.0;
+    this._fpsPoseInitialized = false;
+  }
+
   resetFPSHeadLook() {
     this.fpsYawOffset = 0.0;
     this.fpsPitchOffset = 0.0;
@@ -1898,9 +1905,11 @@ export class CameraDirector {
         this.sharedUniforms.uCockpitGlassCutRadius.value = 0.0;
       }
       this.lastFPSStatus = null;
+      this.lastFPSSubjectKind = null;
       this._fpsPoseInitialized = false;
     } else if (prevMode !== newMode) {
       this.lastFPSStatus = null;
+      this.lastFPSSubjectKind = null;
     }
 
     this.mode = newMode;
@@ -2289,6 +2298,7 @@ export class CameraDirector {
           this._fpsSmoothPos.z + this._fpsSmoothFwd.z * 10.0
         );
         this.lastFPSStatus = anchor;
+        this.lastFPSSubjectKind = anchor.subjectKind || null;
       }
       this._prevCamPos.copy(this.camera.position);
       return;

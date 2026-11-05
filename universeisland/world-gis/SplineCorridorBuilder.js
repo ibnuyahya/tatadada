@@ -2142,23 +2142,61 @@ export class SplineCorridorBuilder {
     eastAbut.translate(bx, portalDeckY - girderDepth - eastAbutH * 0.5 + 0.06, zE + 0.35);
     appendPart(vPos, vNorm, vUv, vCol, vIdx, eastAbut, concreteWarm, whiteUV);
 
-    // Pilon Lingga & Pilon Yoni Flared Concrete Anchor Pedestals (straddling walkway wide clear at x = bx +/- 3.85m)
+    // Pilon Lingga & Pilon Yoni Monumental Flared Marine Pile-Cap Caisson Pedestals (straddling walkway clear at x = bx +/- 4.15m)
     for (const sx of [-1, 1]) {
-      const pedW = new THREE.CylinderGeometry(0.95, 1.25, 3.85, 12, 1);
-      pedW.translate(bx + sx * 3.85, 0.35 - 3.85 * 0.5, zW);
+      const caissonW = new THREE.BoxGeometry(2.65, 2.85, 3.40);
+      caissonW.translate(bx + sx * 4.15, -1.22, zW);
+      appendPart(vPos, vNorm, vUv, vCol, vIdx, caissonW, concreteStep, whiteUV);
+
+      const pedW = new THREE.CylinderGeometry(1.18, 1.52, 4.15, 12, 1);
+      pedW.translate(bx + sx * 4.15, 0.42 - 4.15 * 0.5, zW);
       appendPart(vPos, vNorm, vUv, vCol, vIdx, pedW, concreteWarm, whiteUV);
 
-      const capW = new THREE.CylinderGeometry(1.02, 1.02, 0.18, 12, 1);
-      capW.translate(bx + sx * 3.85, 0.35, zW);
+      const capW = new THREE.CylinderGeometry(1.26, 1.26, 0.24, 12, 1);
+      capW.translate(bx + sx * 4.15, 0.42, zW);
       appendPart(hPos, hNorm, hUv, hCol, hIdx, capW, btkcFlangeSteel);
 
-      const pedE = new THREE.CylinderGeometry(0.88, 1.18, 3.95, 12, 1);
-      pedE.translate(bx + sx * 3.85, 0.44 - 3.95 * 0.5, zE);
+      const caissonE = new THREE.BoxGeometry(2.50, 2.85, 3.20);
+      caissonE.translate(bx + sx * 4.15, -1.18, zE);
+      appendPart(vPos, vNorm, vUv, vCol, vIdx, caissonE, concreteStep, whiteUV);
+
+      const pedE = new THREE.CylinderGeometry(1.08, 1.42, 4.15, 12, 1);
+      pedE.translate(bx + sx * 4.15, 0.48 - 4.15 * 0.5, zE);
       appendPart(vPos, vNorm, vUv, vCol, vIdx, pedE, concreteWarm, whiteUV);
 
-      const capE = new THREE.CylinderGeometry(0.95, 0.95, 0.18, 12, 1);
-      capE.translate(bx + sx * 3.85, 0.44, zE);
+      const capE = new THREE.CylinderGeometry(1.16, 1.16, 0.22, 12, 1);
+      capE.translate(bx + sx * 4.15, 0.48, zE);
       appendPart(hPos, hNorm, hUv, hCol, hIdx, capE, btkcFlangeSteel);
+
+      // Massive Reinforced-Concrete Stepped Gravity Deadman Backstay Anchor Blocks ("Blok Angkur Kabel")
+      // Flanking West Ramp (z in [148.2, 159.4]) & East Ramp (z in [332.0, 341.8]) at x = bx +/- 3.72m
+      const westDeadmanBase = new THREE.BoxGeometry(1.48, 3.25, 11.4);
+      westDeadmanBase.translate(bx + sx * 3.72, -0.52, 153.8);
+      appendPart(vPos, vNorm, vUv, vCol, vIdx, westDeadmanBase, concreteWarm, whiteUV);
+
+      const westDeadmanCrown = new THREE.BoxGeometry(1.24, 1.15, 10.2);
+      westDeadmanCrown.rotateX(0.14);
+      westDeadmanCrown.translate(bx + sx * 3.72, 1.32, 153.9);
+      appendPart(vPos, vNorm, vUv, vCol, vIdx, westDeadmanCrown, concreteStep, whiteUV);
+
+      const westAnchorPlate = new THREE.BoxGeometry(0.96, 0.22, 9.4);
+      westAnchorPlate.rotateX(0.14);
+      westAnchorPlate.translate(bx + sx * 3.72, 1.92, 154.0);
+      appendPart(hPos, hNorm, hUv, hCol, hIdx, westAnchorPlate, btkcFlangeSteel);
+
+      const eastDeadmanBase = new THREE.BoxGeometry(1.44, 3.20, 9.8);
+      eastDeadmanBase.translate(bx + sx * 3.72, -0.32, 336.9);
+      appendPart(vPos, vNorm, vUv, vCol, vIdx, eastDeadmanBase, concreteWarm, whiteUV);
+
+      const eastDeadmanCrown = new THREE.BoxGeometry(1.20, 1.08, 8.8);
+      eastDeadmanCrown.rotateX(-0.14);
+      eastDeadmanCrown.translate(bx + sx * 3.72, 1.48, 336.8);
+      appendPart(vPos, vNorm, vUv, vCol, vIdx, eastDeadmanCrown, concreteStep, whiteUV);
+
+      const eastAnchorPlate = new THREE.BoxGeometry(0.92, 0.20, 8.0);
+      eastAnchorPlate.rotateX(-0.14);
+      eastAnchorPlate.translate(bx + sx * 3.72, 2.04, 336.7);
+      appendPart(hPos, hNorm, hUv, hCol, hIdx, eastAnchorPlate, btkcFlangeSteel);
     }
 
     // West Forecourt Entry Plaza (FT / Rotunda Side: x in [-34.6, -21.4], z in [144.2, 150.4])
@@ -2722,46 +2760,162 @@ export class SplineCorridorBuilder {
     }
 
     // =========================================================================
-    // 6. WEST PORTAL — "PILON LINGGA" (25.0m UI GOLDEN-YELLOW CURVED SHIP'S SAIL / LAYAR KAPAL)
-    //    Wide-bowed portal arch (5.50m clear entrance headroom!) -> Masthead apex y = +25.35m
+    // 6. FULL-SPAN CANTILEVERED UNDER-DECK STAY-ANCHOR OUTRIGGER CROSS-GIRDERS
+    //    (16 Structural Stations supporting 100% of the 148.0m Span including Mid-Span!)
     // =========================================================================
-    const linggaMergeY = 11.15;
-    const linggaTopY = 25.35;
+    const xOutrigger = 3.36; // 0.64m clear outside xTruss (2.72m) & 0.88m clear outside sunroof (2.48m)!
+    const zForeLingga = [180.65, 189.15, 197.65, 206.15, 214.65, 223.15, 231.65, 240.15, 248.65];
+    const zForeYoni = [257.65, 266.25, 274.85, 283.45, 292.05, 300.65, 309.25];
+    const allStayDeckStations = [...zForeLingga, ...zForeYoni];
 
-    // 6A. Sculpted Wide-Bowed Twin Straddling Portal Legs framing the entire 5.20m walkway & blue canopy entrance!
-    const legSteps = 14;
-    const evalLinggaLegHalfX = (s) => 3.85 * Math.cos(Math.pow(s, 1.85) * Math.PI * 0.5);
-    for (const sx of [-1, 1]) {
-      for (let i = 0; i < legSteps; i++) {
-        const s0 = i / legSteps;
-        const s1 = (i + 1) / legSteps;
-        const x0 = bx + sx * evalLinggaLegHalfX(s0);
-        const x1 = bx + sx * evalLinggaLegHalfX(s1);
-        const y0 = 0.35 + s0 * (linggaMergeY - 0.35);
-        const y1 = 0.35 + s1 * (linggaMergeY - 0.35);
-        const zL0 = zW - 0.12 * s0;
-        const zL1 = zW - 0.12 * s1;
-        const r0 = 0.46 - 0.11 * s0;
-        const r1 = 0.46 - 0.11 * s1;
-        pushTubeH(x0, y0, zL0, x1, y1, zL1, r0, r1, 10, uiGoldenYellow, i === legSteps - 1);
+    for (let stIdx = 0; stIdx < allStayDeckStations.length; stIdx++) {
+      const zSt = allStayDeckStations[stIdx];
+      const yDeckSt = evalArchDeckY(zSt);
+      // Heavy transverse under-deck steel box cross-girder + inclined Krakatau-Red outrigger struts
+      // (y >= yDeckSt - 0.94 >= 4.30m across the entire Teluk U navigation channel -> full yacht air-draft!)
+      pushTubeH(
+        bx - (xOutrigger + 0.14),
+        yDeckSt - 0.14,
+        zSt,
+        bx + (xOutrigger + 0.14),
+        yDeckSt - 0.14,
+        zSt,
+        0.105,
+        0.105,
+        8,
+        btkcFlangeSteel,
+        true
+      );
+      for (const sx of [-1, 1]) {
+        // Tapered steel outrigger strut from bottom BTKC box-girder flange out to stay blister pod
+        pushTubeH(
+          bx + sx * 1.62,
+          yDeckSt - 0.92,
+          zSt,
+          bx + sx * (xOutrigger + 0.08),
+          yDeckSt - 0.12,
+          zSt,
+          0.125,
+          0.095,
+          8,
+          krakatauRed,
+          true
+        );
+        // Welded steel stay-cable anchor blister socket on outrigger tip
+        const blister = new THREE.BoxGeometry(0.32, 0.34, 0.56);
+        blister.translate(bx + sx * xOutrigger, yDeckSt - 0.04, zSt);
+        appendPart(hPos, hNorm, hUv, hCol, hIdx, blister, krakatauRedDark);
       }
     }
-    // Portal cross-tie beam under deck & high overhead arch collar at y = 9.65m (5.50m clear headroom above deck!)
-    pushTubeH(bx - 3.55, portalDeckY - 0.55, zW, bx + 3.55, portalDeckY - 0.55, zW, 0.28, 0.28, 8, uiYellowDeep);
-    const sCollar = (9.65 - 0.35) / (linggaMergeY - 0.35);
-    const collarHalfX = evalLinggaLegHalfX(sCollar) + 0.35;
-    pushTubeH(bx - collarHalfX, 9.65, zW - 0.10, bx + collarHalfX, 9.65, zW - 0.10, 0.20, 0.20, 8, uiYellowDeep);
 
-    // 6B. Towering 3D Curved Ship's Sail Mast & Billowing Golden-Yellow Steel Sail Fin (y = 10.65m .. 25.35m)
-    const sailSegs = 22;
+    // Helper: Renders a high-tensile PE-sheathed multi-strand steel stay cable + lower hydraulic vibration damper sleeve!
+    const pushStayCableWithDamper = (ax, ay, az, dx, dy, dz, rCable = 0.044) => {
+      pushTubeH(ax, ay, az, dx, dy, dz, rCable * 0.94, rCable, 8, stayCableSteel);
+      const vx = ax - dx;
+      const vy = ay - dy;
+      const vz = az - dz;
+      const vLen = Math.hypot(vx, vy, vz) || 1.0;
+      const ux = vx / vLen;
+      const uy = vy / vLen;
+      const uz = vz / vLen;
+      // Lower 2.35m cylindrical elastomeric stay-cable damper boot & steel anchorage trumpet
+      const sLen = Math.min(2.35, vLen * 0.18);
+      pushTubeH(
+        dx,
+        dy,
+        dz,
+        dx + ux * sLen,
+        dy + uy * sLen,
+        dz + uz * sLen,
+        0.092,
+        0.072,
+        8,
+        krakatauRedDark,
+        true
+      );
+      // Upper 1.15m pylon saddle socket collar
+      const uLen = Math.min(1.15, vLen * 0.09);
+      pushTubeH(
+        ax,
+        ay,
+        az,
+        ax - ux * uLen,
+        ay - uy * uLen,
+        az - uz * uLen,
+        0.084,
+        0.064,
+        8,
+        btkcFlangeSteel,
+        true
+      );
+    };
+
+    // =========================================================================
+    // 7. WEST PORTAL — MONUMENTAL "PILON LINGGA" (38.65m TWIN-MAST PORTAL + UI GOLDEN SHIP'S SAIL)
+    //    Engineered for a 148m cable-stayed span (H/L = 0.26): Twin inclined box-portal saddle masts
+    //    (x = bx +/- 2.88m, zero canopy collision!) framing the 38m UI Golden-Yellow Layar Kapal!
+    // =========================================================================
+    const linggaPortalKneeY = 12.60;
+    const linggaSaddleTopY = 35.90;
+    const linggaTopY = 38.65;
+
+    const evalLinggaMastLeg = (yVal, sx) => {
+      if (yVal <= linggaPortalKneeY) {
+        const u = (yVal - 0.42) / (linggaPortalKneeY - 0.42);
+        const halfX = 4.15 + (2.94 - 4.15) * smoother01(u);
+        const zPos = zW - 0.18 * u;
+        const r = 0.62 - 0.10 * u;
+        return { x: bx + sx * halfX, y: yVal, z: zPos, r };
+      }
+      if (yVal <= linggaSaddleTopY) {
+        const u = (yVal - linggaPortalKneeY) / (linggaSaddleTopY - linggaPortalKneeY);
+        const halfX = 2.94 - 0.08 * u; // Stays >= 2.86m across entire stay-cable saddle zone!
+        const zPos = zW - 0.18 + 0.55 * Math.sin(u * 1.25);
+        const r = 0.52 - 0.11 * u;
+        return { x: bx + sx * halfX, y: yVal, z: zPos, r };
+      }
+      const uTop = (yVal - linggaSaddleTopY) / (linggaTopY - linggaSaddleTopY);
+      const halfX = 2.86 * Math.cos(uTop * Math.PI * 0.5);
+      const zPos = zW + 0.34 + 1.15 * uTop;
+      const r = 0.41 - 0.13 * uTop;
+      return { x: bx + sx * halfX, y: yVal, z: zPos, r };
+    };
+
+    // 7A. Twin Monumental Golden-Steel Stay-Saddle Portal Masts & Vierendeel Cross-Portal Ties
+    const mastLevels = 26;
+    for (const sx of [-1, 1]) {
+      for (let i = 0; i < mastLevels; i++) {
+        const y0 = 0.42 + (i / mastLevels) * (linggaTopY - 0.42);
+        const y1 = 0.42 + ((i + 1) / mastLevels) * (linggaTopY - 0.42);
+        const p0 = evalLinggaMastLeg(y0, sx);
+        const p1 = evalLinggaMastLeg(y1, sx);
+        // Coupled front & rear structural box-mast chords
+        pushTubeH(p0.x, p0.y, p0.z + 0.36, p1.x, p1.y, p1.z + 0.36, p0.r * 0.78, p1.r * 0.78, 10, uiGoldenYellow, i === mastLevels - 1);
+        pushTubeH(p0.x, p0.y, p0.z - 0.36, p1.x, p1.y, p1.z - 0.36, p0.r * 0.76, p1.r * 0.76, 10, uiYellowDeep, i === mastLevels - 1);
+        if (i % 2 === 0 && y0 < linggaSaddleTopY) {
+          pushTubeH(p0.x, p0.y, p0.z - 0.36, p0.x, p0.y, p0.z + 0.36, 0.20, 0.20, 8, btkcFlangeSteel);
+        }
+      }
+    }
+
+    // Under-deck portal pier cross-girder + overhead Vierendeel portal tie beams (9.85m clear entrance -> 5.7m headroom!)
+    pushTubeH(bx - 3.95, portalDeckY - 0.62, zW, bx + 3.95, portalDeckY - 0.62, zW, 0.36, 0.36, 10, uiYellowDeep);
+    for (const yTie of [9.95, 13.20, 18.80, 24.60, 30.40, 35.60]) {
+      const pL = evalLinggaMastLeg(yTie, -1);
+      const pR = evalLinggaMastLeg(yTie, 1);
+      const rTie = yTie < 14.0 ? 0.30 : 0.22;
+      pushTubeH(pL.x, yTie, pL.z, pR.x, yTie, pR.z, rTie, rTie, 8, uiYellowDeep);
+    }
+
+    // 7B. Towering 38.65m Sculpted UI Golden-Yellow Ship's Sail ("Layar Kapal") rising proudly between the twin masts!
+    const sailSegs = 26;
     const evalLinggaMast = (s) => {
-      const y = 10.65 + s * (linggaTopY - 10.65);
-      // Graceful forward nautical curve toward Teluk U (+Z) peaking mid-mast then sweeping to apex
-      const zLead = zW + 2.25 * Math.sin(s * 1.32);
-      const chord = 3.95 * Math.sin(Math.PI * Math.pow(Math.max(0.001, s), 0.68)) * (1.0 - 0.28 * s) + 0.28 * (1.0 - s);
+      const y = 10.35 + s * (linggaTopY - 10.35);
+      const zLead = zW + 3.35 * Math.sin(s * 1.28);
+      const chord = 5.45 * Math.sin(Math.PI * Math.pow(Math.max(0.001, s), 0.66)) * (1.0 - 0.24 * s) + 0.42 * (1.0 - s);
       const zTrail = zLead - chord;
-      const camberX = 0.34 * Math.sin(Math.PI * s);
-      const halfThick = 0.26 * (1.0 - 0.62 * s) + 0.06;
+      const camberX = 0.44 * Math.sin(Math.PI * s);
+      const halfThick = 0.34 * (1.0 - 0.58 * s) + 0.08;
       return { y, zLead, zTrail, chord, camberX, halfThick };
     };
 
@@ -2771,7 +2925,6 @@ export class SplineCorridorBuilder {
       const m0 = evalLinggaMast(s0);
       const m1 = evalLinggaMast(s1);
 
-      // Leading curved tubular steel sail mast (+Z edge facing Teluk U)
       pushTubeH(
         bx,
         m0.y,
@@ -2779,13 +2932,12 @@ export class SplineCorridorBuilder {
         bx,
         m1.y,
         m1.zLead,
-        0.36 * (1.0 - 0.58 * s0),
-        0.36 * (1.0 - 0.58 * s1),
+        0.46 * (1.0 - 0.54 * s0),
+        0.46 * (1.0 - 0.54 * s1),
         12,
         uiGoldenYellow,
         i === sailSegs - 1
       );
-      // Trailing curved leech edge tube (-Z edge facing Rotunda/FT)
       pushTubeH(
         bx,
         m0.y,
@@ -2793,14 +2945,13 @@ export class SplineCorridorBuilder {
         bx,
         m1.y,
         m1.zTrail,
-        0.15 * (1.0 - 0.45 * s0),
-        0.15 * (1.0 - 0.45 * s1),
+        0.20 * (1.0 - 0.42 * s0),
+        0.20 * (1.0 - 0.42 * s1),
         10,
         uiYellowDeep,
         i === sailSegs - 1
       );
 
-      // Sculpted 3D Cambered Billowing Steel Sail Web (4 chord strips across Z on both +X & -X faces!)
       const chordSteps = 4;
       for (let c = 0; c < chordSteps; c++) {
         const uA = c / chordSteps;
@@ -2823,79 +2974,79 @@ export class SplineCorridorBuilder {
         const xNegA1 = bx + m1.camberX * profileA0 - m1.halfThick * (0.35 + 0.65 * profileA0);
         const xNegB1 = bx + m1.camberX * profileB0 - m1.halfThick * (0.35 + 0.65 * profileB0);
 
-        // North (+X) billowing sail face
         pushQuadH(xPosA0, m0.y, zA0, xPosB0, m0.y, zB0, xPosB1, m1.y, zB1, xPosA1, m1.y, zA1, uiGoldenYellow);
-        // South (-X) billowing sail face
         pushQuadH(xNegA0, m0.y, zA0, xNegA1, m1.y, zA1, xNegB1, m1.y, zB1, xNegB0, m0.y, zB0, uiGoldenYellow);
       }
 
-      // Horizontal Nautical Sail Batten Ribs every 3 stations
       if (i > 1 && i < sailSegs - 1 && i % 3 === 0) {
         for (const sx of [-1, 1]) {
-          const xRib = bx + m0.camberX * 0.6 + sx * (m0.halfThick + 0.045);
-          pushTubeH(xRib, m0.y, m0.zLead - 0.1, xRib, m0.y, m0.zTrail + 0.1, 0.055, 0.045, 6, uiYellowDeep);
+          const xRib = bx + m0.camberX * 0.6 + sx * (m0.halfThick + 0.055);
+          pushTubeH(xRib, m0.y, m0.zLead - 0.12, xRib, m0.y, m0.zTrail + 0.12, 0.068, 0.055, 6, uiYellowDeep);
         }
       }
     }
 
-    // 3 Sculpted Circular Wind-Relief Sail Oculi Rings + Flashing Red Aviation/Marine Masthead Beacon (y = 25.52m)
-    for (const sOculus of [0.30, 0.50, 0.68]) {
+    for (const sOculus of [0.24, 0.42, 0.60, 0.76]) {
       const mO = evalLinggaMast(sOculus);
-      const rOc = 0.46 * (1.0 - 0.35 * sOculus);
-      const oculus = new THREE.TorusGeometry(rOc, 0.085, 8, 18);
+      const rOc = 0.58 * (1.0 - 0.32 * sOculus);
+      const oculus = new THREE.TorusGeometry(rOc, 0.095, 8, 18);
       oculus.rotateY(Math.PI * 0.5);
-      oculus.scale(1.8, 1.0, 1.0);
+      oculus.scale(1.85, 1.0, 1.0);
       oculus.translate(bx + mO.camberX * 0.85, mO.y, 0.5 * (mO.zLead + mO.zTrail));
       appendPart(hPos, hNorm, hUv, hCol, hIdx, oculus, btkcFlangeSteel);
     }
 
     const topMast = evalLinggaMast(1.0);
-    const linggaSpire = new THREE.ConeGeometry(0.16, 0.85, 10, 1);
-    linggaSpire.translate(bx, topMast.y + 0.40, topMast.zLead);
+    const linggaSpire = new THREE.ConeGeometry(0.20, 1.05, 10, 1);
+    linggaSpire.translate(bx, topMast.y + 0.48, topMast.zLead);
     appendPart(hPos, hNorm, hUv, hCol, hIdx, linggaSpire, uiGoldenYellow);
 
-    const linggaBeacon = new THREE.SphereGeometry(0.17, 12, 8);
-    linggaBeacon.translate(bx, topMast.y + 0.90, topMast.zLead);
+    const linggaBeacon = new THREE.SphereGeometry(0.20, 12, 8);
+    linggaBeacon.translate(bx, topMast.y + 1.08, topMast.zLead);
     appendPart(hPos, hNorm, hUv, hCol, hIdx, linggaBeacon, [0.96, 0.08, 0.06]);
 
-    // 10 Tensioned Steel Fan Stay Cables from Pilon Lingga (6 forestays to Teluk U arch + 4 backstays to West anchorages)
-    const linggaStayHeights = [0.46, 0.64, 0.82];
-    for (let c = 0; c < linggaStayHeights.length; c++) {
-      const mS = evalLinggaMast(linggaStayHeights[c]);
-      const zFore = zW + 13.5 + c * 14.5; // 185.15, 199.65, 214.15
-      const yFore = evalArchDeckY(zFore) + 0.18;
+    // 7C. 18 Semi-Fan Forestay Cables (9 pairs supporting West -> Mid-Span z = 180.65..248.65m!)
+    //     + 14 Harp Backstay Cables (7 pairs anchored into West Concrete Gravity Deadman Blocks!)
+    for (let c = 0; c < zForeLingga.length; c++) {
+      const uSaddle = c / (zForeLingga.length - 1);
+      const ySaddle = 19.20 + uSaddle * (35.50 - 19.20);
+      const zFore = zForeLingga[c];
+      const yFore = evalArchDeckY(zFore) + 0.08;
       for (const sx of [-1, 1]) {
-        pushTubeH(bx, mS.y, mS.zLead - 0.12, bx + sx * xTruss, yFore, zFore, 0.036, 0.036, 6, stayCableSteel);
+        const pSad = evalLinggaMastLeg(ySaddle, sx);
+        pushStayCableWithDamper(pSad.x, pSad.y, pSad.z + 0.38, bx + sx * xOutrigger, yFore, zFore, 0.045);
       }
-      if (c >= 1) {
-        const zBack = 152.0 + (c - 1) * 5.2;
-        const yBack = TerrainDEMLoader.sampleTeksasBridgeDeckY(bx, zBack) || 0.25;
+      // 7 Balanced Harp Backstay Pairs anchored into the West Stepped Concrete Deadman Blocks (z = 149.4..158.4)
+      if (c >= 2) {
+        const bIdx = c - 2; // 0..6
+        const zBack = 158.4 - bIdx * 1.48;
+        const yBack = 1.98 - (bIdx / 6.0) * 1.18;
         for (const sx of [-1, 1]) {
-          pushTubeH(bx, mS.y, mS.zTrail + 0.12, bx + sx * 2.75, yBack + 0.15, zBack, 0.038, 0.038, 6, stayCableSteel);
+          const pSad = evalLinggaMastLeg(ySaddle, sx);
+          pushStayCableWithDamper(pSad.x, pSad.y, pSad.z - 0.38, bx + sx * 3.72, yBack, zBack, 0.048);
         }
       }
     }
 
     // =========================================================================
-    // 7. EAST PORTAL — "PILON YONI" (15.0m UI GOLDEN-YELLOW CURVILINEAR CURVED HIP ARCH)
-    //    ("melengkung menyerupai pinggul": slender waist -> flared rounded hip curves -> united crown at y = +15.38m)
+    // 8. EAST PORTAL — MONUMENTAL "PILON YONI" (27.80m CURVILINEAR TWIN-RIBBED BOX-ARCH)
+    //    ("melengkung menyerupai pinggul": slender clear waist -> dramatic 5.35m rounded hip flare ->
+    //     strong stay-cable saddle shoulders -> united golden crown arch at y = +27.80m!)
     // =========================================================================
-    const yoniBaseY = 0.44;
-    const yoniCrownY = 15.38; // ~15.0m above East pedestal!
-    const yoniSegs = 28;
+    const yoniBaseY = 0.48;
+    const yoniCrownY = 27.80;
+    const yoniSegs = 34;
 
-    // Smooth analytic half-arch curve (s in [0, 1] from pedestal base -> waist -> flared hip -> top crown apex)
     const evalYoniHalfCurve = (s, sx) => {
       const y = yoniBaseY + (yoniCrownY - yoniBaseY) * Math.sin(s * Math.PI * 0.5);
-      // Base = 3.85m -> clear waist (~3.35m at s = 0.24, keeping 5.2m deck & railings 100% unobstructed!) ->
-      // wide rounded hip flare (~4.82m at s = 0.58, y ~ 12.2m) -> smooth rounded crown apex (0.0m at s = 1.0)!
-      const waistDip = -0.35 * Math.exp(-Math.pow((s - 0.23) / 0.12, 2.0));
-      const hipFlare = 1.88 * Math.exp(-Math.pow((s - 0.57) / 0.21, 2.0));
-      const baseTaper = 3.85 * Math.cos(s * Math.PI * 0.5);
-      const halfX = Math.max(0.0, (baseTaper + waistDip + hipFlare) * (1.0 - Math.pow(s, 6.0)));
-      // Subtle graceful longitudinal hip lean (+0.68m curvature in Z)
-      const zLean = zE + 0.68 * Math.sin(s * Math.PI);
-      const radius = 0.42 - 0.10 * s + 0.06 * Math.sin(s * Math.PI);
+      // Base = 4.15m -> slender waist (~3.48m at s=0.20, 100% clear of 5.2m deck & canopy!) ->
+      // wide sculptural hip flare (~5.35m at s=0.52, y ~ 20.2m) -> stay-saddle shoulder (>= 2.90m up to s=0.84) -> crown apex!
+      const waistDip = -0.42 * Math.exp(-Math.pow((s - 0.20) / 0.11, 2.0));
+      const hipFlare = 2.55 * Math.exp(-Math.pow((s - 0.54) / 0.22, 2.0));
+      const baseTaper = 4.15 * Math.cos(s * Math.PI * 0.5);
+      const halfX = Math.max(0.0, (baseTaper + waistDip + hipFlare) * (1.0 - Math.pow(s, 7.0)));
+      const zLean = zE + 0.92 * Math.sin(s * Math.PI);
+      const radius = 0.58 - 0.14 * s + 0.08 * Math.sin(s * Math.PI);
       return { x: bx + sx * halfX, y, z: zLean, radius };
     };
 
@@ -2906,36 +3057,58 @@ export class SplineCorridorBuilder {
         const p0 = evalYoniHalfCurve(s0, sx);
         const p1 = evalYoniHalfCurve(s1, sx);
 
-        // Twin coupled curvilinear steel hip-arch ribs (West-facing & East-facing flanges tied into a sculpted box-arch!)
-        pushTubeH(p0.x, p0.y, p0.z - 0.34, p1.x, p1.y, p1.z - 0.34, p0.radius * 0.72, p1.radius * 0.72, 10, uiGoldenYellow, true);
-        pushTubeH(p0.x, p0.y, p0.z + 0.34, p1.x, p1.y, p1.z + 0.34, p0.radius * 0.72, p1.radius * 0.72, 10, uiGoldenYellow, true);
+        // Heavy twin coupled curvilinear steel box-arch ribs (West-facing & East-facing flanges)
+        pushTubeH(p0.x, p0.y, p0.z - 0.48, p1.x, p1.y, p1.z - 0.48, p0.radius * 0.78, p1.radius * 0.78, 10, uiGoldenYellow, true);
+        pushTubeH(p0.x, p0.y, p0.z + 0.48, p1.x, p1.y, p1.z + 0.48, p0.radius * 0.78, p1.radius * 0.78, 10, uiGoldenYellow, true);
 
-        // Connecting golden-yellow web struts between the twin curvilinear ribs
+        // Vierendeel & diagonal golden-steel web struts tying the twin Yoni arch flanges into a rigid box-arch!
         if (i % 2 === 0) {
-          pushTubeH(p0.x, p0.y, p0.z - 0.34, p0.x, p0.y, p0.z + 0.34, 0.16, 0.16, 8, uiYellowDeep);
+          pushTubeH(p0.x, p0.y, p0.z - 0.48, p0.x, p0.y, p0.z + 0.48, 0.20, 0.20, 8, uiYellowDeep);
+          pushTubeH(p0.x, p0.y, p0.z - 0.46, p1.x, p1.y, p1.z + 0.46, 0.12, 0.12, 6, btkcFlangeSteel);
         }
       }
     }
 
-    // Portal under-deck cross-beam & upper crown medallion ring on Pilon Yoni
-    pushTubeH(bx - 3.15, portalDeckY - 0.55, zE, bx + 3.15, portalDeckY - 0.55, zE, 0.26, 0.26, 8, uiYellowDeep);
-    const yoniCrownRing = new THREE.TorusGeometry(0.62, 0.13, 10, 20);
+    // Under-deck East pier tie-girder, high portal sway tie (y = 10.2m, clear above canopy!), & Sculpted Yoni Crown Medallion
+    pushTubeH(bx - 3.95, portalDeckY - 0.62, zE, bx + 3.95, portalDeckY - 0.62, zE, 0.34, 0.34, 10, uiYellowDeep);
+    const sPortalYoni = 0.235;
+    const pYL = evalYoniHalfCurve(sPortalYoni, -1);
+    const pYR = evalYoniHalfCurve(sPortalYoni, 1);
+    pushTubeH(pYL.x, pYL.y, pYL.z, pYR.x, pYR.y, pYR.z, 0.26, 0.26, 8, uiYellowDeep);
+
+    const sUpperYoni = 0.78;
+    const pUYL = evalYoniHalfCurve(sUpperYoni, -1);
+    const pUYR = evalYoniHalfCurve(sUpperYoni, 1);
+    pushTubeH(pUYL.x, pUYL.y, pUYL.z, pUYR.x, pUYR.y, pUYR.z, 0.22, 0.22, 8, uiYellowDeep);
+
+    const yoniCrownRing = new THREE.TorusGeometry(0.95, 0.18, 10, 22);
     yoniCrownRing.rotateY(Math.PI * 0.5);
-    yoniCrownRing.translate(bx, yoniCrownY - 1.15, zE + 0.18);
+    yoniCrownRing.translate(bx, yoniCrownY - 1.65, zE + 0.26);
     appendPart(hPos, hNorm, hUv, hCol, hIdx, yoniCrownRing, uiYellowDeep);
 
-    // 8 Tensioned Steel Fan Stay Cables from Pilon Yoni's Upper Hip Crown (4 forestays to Teluk U arch + 4 backstays)
-    for (let c = 0; c < 2; c++) {
-      const sAttach = 0.68 + c * 0.15;
+    const yoniBeacon = new THREE.SphereGeometry(0.18, 12, 8);
+    yoniBeacon.translate(bx, yoniCrownY + 0.52, zE + 0.08);
+    appendPart(hPos, hNorm, hUv, hCol, hIdx, yoniBeacon, [0.96, 0.08, 0.06]);
+
+    // 8B. 14 Semi-Fan Forestay Cables from Pilon Yoni (7 pairs supporting Mid-Span -> East z = 257.65..309.25m!)
+    //     + 10 Harp Backstay Cables (5 pairs anchored into East Concrete Gravity Deadman Blocks!)
+    //     Note: c = 0 is z = 257.65 (longest mid-span stay -> highest saddle s = 0.81), c = 6 is z = 309.25 (lowest saddle s = 0.46)!
+    for (let c = 0; c < zForeYoni.length; c++) {
+      const uRev = 1.0 - c / (zForeYoni.length - 1); // 1.0 at mid-span (257.65), 0.0 near East portal (309.25)
+      const sAttach = 0.46 + uRev * (0.81 - 0.46);   // halfX in [2.95m, 5.25m] -> 100% clear outside canopy!
+      const zFore = zForeYoni[c];
+      const yFore = evalArchDeckY(zFore) + 0.08;
       for (const sx of [-1, 1]) {
         const pA = evalYoniHalfCurve(sAttach, sx);
-        const zFore = zE - (13.0 + c * 15.0); // 306.65, 291.65
-        const yFore = evalArchDeckY(zFore) + 0.18;
-        pushTubeH(pA.x, pA.y, pA.z - 0.30, bx + sx * xTruss, yFore, zFore, 0.036, 0.036, 6, stayCableSteel);
-
-        const zBack = 334.0 + c * 5.2;
-        const yBack = TerrainDEMLoader.sampleTeksasBridgeDeckY(bx, zBack) || eastPlazaY;
-        pushTubeH(pA.x, pA.y, pA.z + 0.30, bx + sx * 2.75, yBack + 0.15, zBack, 0.036, 0.036, 6, stayCableSteel);
+        pushStayCableWithDamper(pA.x, pA.y, pA.z - 0.50, bx + sx * xOutrigger, yFore, zFore, 0.044);
+      }
+      if (c <= 4) {
+        const zBack = 340.4 - c * 1.75; // 340.4 down to 333.4 on East Deadman Block
+        const yBack = 1.25 + (c / 4.0) * 0.92;
+        for (const sx of [-1, 1]) {
+          const pA = evalYoniHalfCurve(sAttach, sx);
+          pushStayCableWithDamper(pA.x, pA.y, pA.z + 0.50, bx + sx * 3.72, yBack, zBack, 0.046);
+        }
       }
     }
 

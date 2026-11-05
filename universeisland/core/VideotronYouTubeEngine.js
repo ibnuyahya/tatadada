@@ -492,6 +492,7 @@ export class VideotronYouTubeEngine {
     this.frontLayerEl = null;
     this.frontIframe = null;
     this.backIframe = null;
+    this.iframeReady = false;
 
     this._lastPerspStr = '';
     this._lastViewOffsetStr = '';
@@ -675,6 +676,8 @@ export class VideotronYouTubeEngine {
 
     const surfaceEl = document.createElement('div');
     surfaceEl.className = 'vt-screen-surface';
+    surfaceEl.style.background =
+      'radial-gradient(circle at 50% 48%, #163b73 0%, #091836 68%, #050c1d 100%)';
 
     // Layer 1: Full-Width Blurred Back Layer (activated automatically for vertical Shorts!)
     const backBlurLayerEl = document.createElement('div');
@@ -811,6 +814,7 @@ export class VideotronYouTubeEngine {
     this._frontCurrentTime = parsed.startSec || 0;
     this._backCurrentTime = parsed.startSec || 0;
     this.isPlaying = true;
+    this.iframeReady = false;
 
     if (this.frontLayerEl) {
       this.frontLayerEl.innerHTML = '';
@@ -942,6 +946,11 @@ export class VideotronYouTubeEngine {
       return;
     }
     if (!payload || typeof payload !== 'object') return;
+
+    if (fromFront && !this.iframeReady) {
+      this.iframeReady = true;
+      this._emitState();
+    }
 
     const info = payload.info;
     if (!info || typeof info !== 'object') return;
@@ -1103,7 +1112,8 @@ export class VideotronYouTubeEngine {
 
     if (sharedUniforms) {
       if (sharedUniforms.uVideotronPortalAlpha) {
-        sharedUniforms.uVideotronPortalAlpha.value = inFrustum && this.rootEl ? 1.0 : 0.0;
+        sharedUniforms.uVideotronPortalAlpha.value =
+          inFrustum && this.rootEl && (this.iframeReady || this.interactiveScreenClick) ? 1.0 : 0.0;
       }
       if (sharedUniforms.uVideotronShortMode) {
         sharedUniforms.uVideotronShortMode.value = this.activeLayout === 'SHORT_2LAYER_BLUR' ? 1.0 : 0.0;

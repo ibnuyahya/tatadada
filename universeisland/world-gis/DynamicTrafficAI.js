@@ -80,9 +80,14 @@ import {
   BUS_J_WHEEL_RL,
   BUS_J_WHEEL_RR,
   BUS_J_STEER_WHEEL,
+  BUS_J_DOOR,
   BUS_WHEEL_RADIUS,
   BUS_WHEELBASE,
   BUS_BIND_PIVOTS,
+  FERRY_JOINTS_PER_VESSEL,
+  FERRY_J_HULL,
+  FERRY_J_RADAR,
+  FERRY_BIND_PIVOTS,
   EVTOL_JOINTS_PER_VEHICLE,
   EVTOL_J_FUSELAGE,
   EVTOL_BIND_PIVOTS,
@@ -94,6 +99,9 @@ import {
   LEARJET_J_AIRFRAME,
   LEARJET_J_FAN_L,
   LEARJET_J_FAN_R,
+  LEARJET_J_GEAR_NOSE,
+  LEARJET_J_GEAR_MAIN_L,
+  LEARJET_J_GEAR_MAIN_R,
   LEARJET_BIND_PIVOTS
 } from './CampusTransitAndMarineBuilder.js';
 
@@ -487,7 +495,7 @@ export class DynamicTrafficAI {
       return;
     }
     const cellSize = 20.0;
-    const pad = 1.50;
+    const pad = 4.50;
     for (let k = 0; k < staticCols.length; k++) {
       const sc = staticCols[k];
       if (!sc || sc.type === 'ISLAND_PERIMETER') continue;
@@ -870,6 +878,7 @@ export class DynamicTrafficAI {
             roll: a.roll,
             speed: a.speed,
             phase: a.phase,
+            gearDeploy: a.gearDeploy ?? 1.0,
             activeSortie: a.phase !== 'APRON_PARKED'
           }
         : null;
@@ -973,6 +982,13 @@ export class DynamicTrafficAI {
       }
       applyErgonomicGlancePitch(fr, -0.105);
       const inTunnel = TerrainDEMLoader.isInsideEnclosedUnderpass(b.worldX, b.worldY + 1.5, b.worldZ);
+      const busStopName = b.stops?.[b.targetStopIdx]?.name || 'Halte Dermaga UI';
+      const busSub =
+        b.phase === 'DWELL'
+          ? `Berhenti di ${busStopName} (Pintu Lipat Terbuka)`
+          : inTunnel
+            ? 'Melintasi Underpass Bawah Laut U–I (-8.2m)'
+            : 'Rute Lintas Pulau U ↔ Pulau I';
       return {
         mode,
         ...fr,
@@ -980,10 +996,11 @@ export class DynamicTrafficAI {
         pitch: b.pitch,
         roll: b.roll,
         isVehicleCockpit: true,
+        subjectKind: 'bus',
         subjectIndex: 0,
         subjectCount: 1,
         label: 'FPS: Supir Bis Kuning Listrik UI',
-        subLabel: inTunnel ? 'Melintasi Underpass Bawah Laut U–I (-8.2m)' : 'Rute Lintas Pulau U ↔ Pulau I'
+        subLabel: busSub
       };
     }
 
@@ -1001,6 +1018,7 @@ export class DynamicTrafficAI {
         pitch: c.pitch,
         roll: c.roll,
         isVehicleCockpit: true,
+        subjectKind: 'golf_cart',
         subjectIndex: 0,
         subjectCount: 1,
         label: 'FPS: Supir Mobil Golf Listrik UI',
@@ -1008,10 +1026,70 @@ export class DynamicTrafficAI {
       };
     }
 
-    if (mode === 'FPS_PILOT' && (this.cessnaAircraft || this.learjetAircraft)) {
+    if (
+      mode === 'FPS_PILOT' &&
+      (this.cessnaAircraft || this.learjetAircraft || this.heliTaxi || this.shuttleFerry || this.miniYacht)
+    ) {
       const av = this.getAviationFleetStatus();
-      // Subject 0: Auto-follow whichever aircraft is actively flying/taxiing; Subject 1: Cessna 172; Subject 2: Citation Learjet
-      const slotSel = safeIdx % 3;
+      // 6 Direct Cockpit/Bridge Perspectives:
+      // 0 = Auto Aktif (Pesawat Aktif), 1 = Cessna 172, 2 = Citation Learjet, 3 = Taxi Heli eVTOL, 4 = Feri Katamaran, 5 = Mini-Yacht
+      const slotSel = safeIdx % 6;
+      if (slotSel === 3 && this.heliTaxi) {
+        const h = this.heliTaxi;
+        const fr = extractMatrixFrame(this._heliTaxiJointBase + EVTOL_J_FUSELAGE, 0.37, 1.30, 0.20);
+        applyErgonomicGlancePitch(fr, -0.115);
+        return {
+          mode,
+          ...fr,
+          yaw: h.yaw,
+          pitch: h.pitch,
+          roll: h.roll,
+          isVehicleCockpit: true,
+          subjectKind: 'evtol',
+          subjectIndex: slotSel,
+          subjectCount: 6,
+          label: `FPS: Pilot Taxi Heli eVTOL UI (${h.registration})`,
+          subLabel: `Kokpit 3/5 • Shuttle VIP Pulau U ↔ Pulau I • Fase: ${h.phase}`
+        };
+      }
+      if (slotSel === 4 && this.shuttleFerry) {
+        const f = this.shuttleFerry;
+        const fr = extractMatrixFrame(this._shuttleFerryJointIndex + FERRY_J_HULL, 0.0, 3.64, 3.68);
+        applyErgonomicGlancePitch(fr, -0.095);
+        const fPhase = f.phase === 'DOCKED_DWELL' ? 'Sandar Dermaga' : 'Berlayar Lintas Selat UI';
+        return {
+          mode,
+          ...fr,
+          yaw: f.yaw,
+          pitch: f.pitch,
+          roll: f.roll,
+          isVehicleCockpit: false,
+          subjectKind: 'ferry',
+          subjectIndex: slotSel,
+          subjectCount: 6,
+          label: 'FPS: Kapten Feri Katamaran Listrik UI',
+          subLabel: `Anjungan 4/5 • Dermaga U ↔ Dermaga I • ${fPhase}`
+        };
+      }
+      if (slotSel === 5 && this.miniYacht) {
+        const y = this.miniYacht;
+        const fr = extractMatrixFrame(this._miniYachtJointIndex, -0.46, 3.92, -0.06);
+        applyErgonomicGlancePitch(fr, -0.105);
+        return {
+          mode,
+          ...fr,
+          yaw: y.yaw,
+          pitch: y.pitch,
+          roll: y.roll,
+          isVehicleCockpit: true,
+          subjectKind: 'yacht',
+          subjectIndex: slotSel,
+          subjectCount: 6,
+          label: 'FPS: Nakhoda Flybridge Mini-Yacht UI',
+          subLabel: 'Flybridge 5/5 • Pelayaran Teluk U & Jembatan Teksas'
+        };
+      }
+
       let useLearjet = false;
       if (slotSel === 0) {
         useLearjet =
@@ -1026,7 +1104,7 @@ export class DynamicTrafficAI {
         ? extractMatrixFrame(this._learjetJointBase + LEARJET_J_AIRFRAME, 0.32, 1.77, 3.72)
         : extractMatrixFrame(this._cessnaJointBase + CESSNA_J_AIRFRAME, 0.27, 1.54, 0.25);
       applyErgonomicGlancePitch(fr, -0.145);
-      const modePrefix = slotSel === 0 ? 'Auto Aktif' : `Kokpit ${slotSel}/2`;
+      const modePrefix = slotSel === 0 ? 'Auto Aktif' : `Kokpit ${slotSel}/5`;
       return {
         mode,
         ...fr,
@@ -1034,8 +1112,9 @@ export class DynamicTrafficAI {
         pitch: ac.pitch,
         roll: ac.roll,
         isVehicleCockpit: true,
+        subjectKind: useLearjet ? 'learjet' : 'cessna',
         subjectIndex: slotSel,
-        subjectCount: 3,
+        subjectCount: 6,
         label: `FPS: Pilot ${ac.modelName} (${ac.registration})`,
         subLabel: `${modePrefix} • ${av.activeSlotLabel} • Fase: ${ac.phaseLabel || ac.phase}`
       };
@@ -1580,11 +1659,23 @@ export class DynamicTrafficAI {
     busSpline.arcLengthDivisions = 2400;
     const busTotalLen = busSpline.getLength();
     const busInitU = findClosestSplineU(busSpline, -354.55, 306.0, 1600); // Descending West Open-Cut Ramp into Underpass!
+    const busStopU0 = findClosestSplineU(busSpline, -98.0, 627.6, 1600);   // Halte Dermaga Pulau I
+    const busStopU1 = findClosestSplineU(busSpline, -48.0, 449.35, 1600);  // Halte Dermaga Pulau U
     const bPos0 = busSpline.getPointAt(busInitU);
     const bTan0 = busSpline.getTangentAt(busInitU);
     this.interIslandBus = {
       spline: busSpline,
       totalLength: busTotalLen,
+      stops: [
+        { u: busStopU0, name: 'Halte Dermaga Pulau I' },
+        { u: busStopU1, name: 'Halte Dermaga Pulau U' }
+      ],
+      targetStopIdx: 0,
+      phase: 'CRUISE',
+      dwellTimer: 0.0,
+      dwellDuration: 3.8,
+      doorOpen01: 0.0,
+      brakeIntensity: 0.0,
       u: busInitU,
       speed: 6.4,
       maxSpeed: 6.4,
@@ -1738,7 +1829,8 @@ export class DynamicTrafficAI {
       roll: 0.0,
       speed: 0.0,
       propOmega: 16.0,
-      propSpinRad: 0.0
+      propSpinRad: 0.0,
+      gearDeploy: 1.0
     };
 
     const learjetFlight = buildArchipelagoFlightSpline(92.0);
@@ -1767,7 +1859,8 @@ export class DynamicTrafficAI {
       roll: 0.0,
       speed: 0.0,
       propOmega: 22.0,
-      propSpinRad: 0.0
+      propSpinRad: 0.0,
+      gearDeploy: 1.0
     };
   }
 
@@ -3818,7 +3911,7 @@ export class DynamicTrafficAI {
     this._shuttleFerryJointIndex = this._busJointBase + BUS_JOINTS_PER_VEHICLE;
     appendBundle(ferryBundle, this._shuttleFerryJointIndex);
 
-    this._heliTaxiJointBase = this._shuttleFerryJointIndex + 1;
+    this._heliTaxiJointBase = this._shuttleFerryJointIndex + FERRY_JOINTS_PER_VESSEL;
     appendBundle(evtolBundle, this._heliTaxiJointBase);
 
     this._cessnaJointBase = this._heliTaxiJointBase + EVTOL_JOINTS_PER_VEHICLE;
@@ -4170,6 +4263,7 @@ export class DynamicTrafficAI {
 
     const cart = this.golfCart;
     if (cart) {
+      const prevCartSpd = cart.speed;
       const stop = cart.stops[cart.targetStopIdx];
       let duToStop = stop.u - cart.u;
       if (duToStop < -0.5) duToStop += 1.0;
@@ -4343,7 +4437,11 @@ export class DynamicTrafficAI {
       cart.worldZ = midZ;
       cart.yaw = dampAngle(cart.yaw, targetYaw, 14.0, dt);
 
-      // Hard solid-body OBB depenetration against all static world colliders
+      const cartDecel = dt > 1e-4 ? Math.max(0.0, (prevCartSpd - cart.speed) / dt) : 0.0;
+      const wantCartBrake = cart.phase === 'DWELL' || cartDecel > 0.22 ? 1.0 : 0.0;
+      cart.brakeIntensity = dampScalar(cart.brakeIntensity || 0.0, wantCartBrake, 14.0, dt);
+
+      // Hard solid-body OBB depenetration against local static world colliders (O(1) spatial cell query!)
       const cOBB = this._cartOBBScratch;
       cOBB.cx = cart.worldX;
       cOBB.cz = cart.worldZ;
@@ -4351,7 +4449,12 @@ export class DynamicTrafficAI {
       const prelimRoadY = this._sampleAsphaltRoadY(cOBB.cx, cOBB.cz);
       cOBB.minY = prelimRoadY + 0.05;
       cOBB.maxY = prelimRoadY + 2.08;
-      if (staticCols) {
+      const cartBucket = this._queryStaticColliderCell(cOBB.cx, cOBB.cz);
+      if (cartBucket) {
+        for (let i = 0; i < cartBucket.length; i++) {
+          PhysicsKernel.depenetrateOBB2DVsCollider(cOBB, cartBucket[i]);
+        }
+      } else if (staticCols && !this._staticColliderGrid) {
         for (let i = 0; i < staticCols.length; i++) {
           const sc = staticCols[i];
           if (sc.type === 'ISLAND_PERIMETER') continue;
@@ -4642,33 +4745,95 @@ export class DynamicTrafficAI {
         wMats[fOff + k] = eF[k];
         sMats[fOff + k] = eF[k];
       }
+
+      // Articulated child Joint 1 (FERRY_J_RADAR): continuous 25-RPM open-array marine X-band radar sweep!
+      const bpRadar = FERRY_BIND_PIVOTS[FERRY_J_RADAR];
+      f.radarSpinRad = (t * 2.62) % (Math.PI * 2.0);
+      this._tmpQuat.setFromAxisAngle(this._tmpAxisY, f.radarSpinRad);
+      this._writeGenericRigJoint(
+        this._shuttleFerryJointIndex,
+        FERRY_BIND_PIVOTS,
+        FERRY_J_RADAR,
+        FERRY_J_HULL,
+        bpRadar[0],
+        bpRadar[1],
+        bpRadar[2],
+        this._tmpQuat
+      );
     }
 
-    // 5. Advance 5-Joint Inter-Island Electric Campus Bus ("Bus Kuning Listrik Lintas Pulau UI")
-    //    across Pulau U Roads, down through the -8.20m Subsea Underpass Bawah Laut, & onto Pulau I!
+    // 5. Advance 7-Joint Inter-Island Electric Campus Bus ("Bus Kuning Listrik Lintas Pulau UI")
+    //    across Pulau U Roads, down through the -8.20m Subsea Underpass Bawah Laut, & onto Pulau I,
+    //    with Halte Dermaga stops, articulated pneumatic folding door (`BUS_J_DOOR`), & deceleration brake lights!
     if (this.interIslandBus) {
       const b = this.interIslandBus;
+      const prevBusSpd = b.speed;
       const busMaxSpd = b.maxSpeed || 6.4;
-      const busObsLimit = this._computeVehicleObstacleSpeedLimit(
-        b.worldX,
-        b.worldY,
-        b.worldZ,
-        b.yaw,
-        1.44,
-        4.00,
-        busMaxSpd,
-        true,
-        cameraPos
-      );
-      if (b.speed < busObsLimit) {
-        b.speed = Math.min(busObsLimit, b.speed + 2.0 * dt);
-      } else {
-        b.speed = Math.max(busObsLimit, b.speed - 6.2 * dt);
+      const bStop = b.stops?.[b.targetStopIdx ?? 0];
+      let distBusStop = 999.0;
+      if (bStop) {
+        let duStop = bStop.u - b.u;
+        if (duStop < -0.5) duStop += 1.0;
+        else if (duStop < 0.0 && duStop > -0.015) duStop = 0.0;
+        else if (duStop < 0.0) duStop += 1.0;
+        distBusStop = duStop * b.totalLength;
       }
 
-      const ds = b.speed * dt;
-      b.u = (b.u + ds / b.totalLength) % 1.0;
+      if (b.phase === 'DWELL') {
+        b.speed = 0.0;
+        b.dwellTimer = (b.dwellTimer || 0.0) + dt;
+        const rem = (b.dwellDuration || 3.8) - b.dwellTimer;
+        const wantDoor = rem > 0.85 ? 1.0 : 0.0;
+        b.doorOpen01 = dampScalar(b.doorOpen01 || 0.0, wantDoor, 6.5, dt);
+        if (b.dwellTimer >= (b.dwellDuration || 3.8)) {
+          b.phase = 'CRUISE';
+          b.dwellTimer = 0.0;
+          b.doorOpen01 = 0.0;
+          if (b.stops && b.stops.length > 0) {
+            b.targetStopIdx = ((b.targetStopIdx || 0) + 1) % b.stops.length;
+          }
+        }
+      } else {
+        b.doorOpen01 = dampScalar(b.doorOpen01 || 0.0, 0.0, 7.5, dt);
+        let wantBusSpd = busMaxSpd;
+        if (distBusStop < 15.0) {
+          wantBusSpd = Math.min(busMaxSpd, Math.max(0.45, Math.sqrt(2.0 * 1.35 * Math.max(0.0, distBusStop))));
+        }
+        const busObsLimit = this._computeVehicleObstacleSpeedLimit(
+          b.worldX,
+          b.worldY,
+          b.worldZ,
+          b.yaw,
+          1.44,
+          4.00,
+          busMaxSpd,
+          true,
+          cameraPos
+        );
+        const blockedBus = busObsLimit < wantBusSpd - 0.05;
+        wantBusSpd = Math.min(wantBusSpd, busObsLimit);
+        if (b.speed < wantBusSpd) {
+          b.speed = Math.min(wantBusSpd, b.speed + 2.0 * dt);
+        } else {
+          b.speed = Math.max(wantBusSpd, b.speed - (blockedBus ? 6.2 : 2.2) * dt);
+        }
 
+        const dsStep = b.speed * dt;
+        if (!blockedBus && bStop && distBusStop <= Math.max(0.18, dsStep * 1.20)) {
+          b.u = bStop.u;
+          b.speed = 0.0;
+          b.phase = 'DWELL';
+          b.dwellTimer = 0.0;
+        } else {
+          b.u = (b.u + dsStep / b.totalLength) % 1.0;
+        }
+      }
+
+      const busDecel = dt > 1e-4 ? Math.max(0.0, (prevBusSpd - b.speed) / dt) : 0.0;
+      const wantBusBrake = b.phase === 'DWELL' || busDecel > 0.30 ? 1.0 : 0.0;
+      b.brakeIntensity = dampScalar(b.brakeIntensity || 0.0, wantBusBrake, 14.0, dt);
+
+      const ds = b.speed * dt;
       const uAhead = (b.u + 3.6 / b.totalLength) % 1.0;
       const uBehind = (b.u - 2.1 / b.totalLength + 1.0) % 1.0;
       b.spline.getPointAt(b.u, this._tmpVecA);
@@ -4685,7 +4850,7 @@ export class DynamicTrafficAI {
       const yawDiff = wrapAngle(desiredYaw - b.yaw);
       b.yaw = dampAngle(b.yaw, desiredYaw, 8.5, dt);
 
-      // Hard solid-body OBB depenetration against all static world colliders & Golf Cart OBB
+      // Hard solid-body OBB depenetration against local static world colliders (O(1) spatial cell query!) & Golf Cart OBB
       const bOBB = this._busOBBScratch;
       bOBB.cx = b.worldX;
       bOBB.cz = b.worldZ;
@@ -4693,7 +4858,12 @@ export class DynamicTrafficAI {
       const prelimBusY = this._sampleInterIslandBusRoadY(bOBB.cx, bOBB.cz);
       bOBB.minY = prelimBusY + 0.05;
       bOBB.maxY = prelimBusY + 2.98;
-      if (staticCols) {
+      const busBucket = this._queryStaticColliderCell(bOBB.cx, bOBB.cz);
+      if (busBucket) {
+        for (let i = 0; i < busBucket.length; i++) {
+          PhysicsKernel.depenetrateOBB2DVsCollider(bOBB, busBucket[i]);
+        }
+      } else if (staticCols && !this._staticColliderGrid) {
         for (let i = 0; i < staticCols.length; i++) {
           const sc = staticCols[i];
           if (sc.type === 'ISLAND_PERIMETER') continue;
@@ -4746,6 +4916,27 @@ export class DynamicTrafficAI {
         bpBusSteer[1],
         bpBusSteer[2],
         this._tmpQuat
+      );
+
+      // Write BUS_J_DOOR (joint 6 — Curbside +X articulated pneumatic folding boarding door!)
+      const bpBusDoor = BUS_BIND_PIVOTS[BUS_J_DOOR];
+      this._tmpQuat.setFromAxisAngle(this._tmpAxisY, (b.doorOpen01 || 0.0) * 1.18);
+      this._writeInterIslandBusJoint(
+        BUS_J_DOOR,
+        BUS_J_CHASSIS,
+        bpBusDoor[0],
+        bpBusDoor[1],
+        bpBusDoor[2],
+        this._tmpQuat
+      );
+    }
+
+    if (this.sharedUniforms?.uFleetKinematics?.value) {
+      this.sharedUniforms.uFleetKinematics.value.set(
+        this.interIslandBus?.brakeIntensity || 0.0,
+        cart?.brakeIntensity || 0.0,
+        this.interIslandBus?.doorOpen01 || 0.0,
+        0.0
       );
     }
 
@@ -4990,12 +5181,21 @@ export class DynamicTrafficAI {
       let targetPitch = 0.0;
       let targetRoll = 0.0;
       let wantPropOmega = isJet ? 8.0 : 0.0;
-      let instantPose = false;
+      let wantGearDeploy = 1.0;
+      let forceGearDown = true;
+      const prevWave = ac._lastWaveSec;
+      ac._lastWaveSec = waveSec;
+      const waveJump =
+        prevWave !== undefined &&
+        Math.min(Math.abs(waveSec - prevWave), 180.0 - Math.abs(waveSec - prevWave)) > 3.0;
+      let instantPose = waveJump;
 
       if (!isActive) {
         ac.phase = 'APRON_PARKED';
         ac.phaseLabel = 'Parkir Apron Barat';
         ac.speed = 0.0;
+        wantGearDeploy = 1.0;
+        forceGearDown = true;
         instantPose = !ac._poseInit;
       } else {
         const u = localSec / activeDurSec;
@@ -5006,6 +5206,8 @@ export class DynamicTrafficAI {
           const f = u / 0.06;
           wantPropOmega = isJet ? 12.0 + 46.0 * smooth01(0.0, 1.0, f) : 14.0 + 44.0 * smooth01(0.0, 1.0, f);
           ac.speed = 0.0;
+          wantGearDeploy = 1.0;
+          forceGearDown = true;
         } else if (u < 0.18) {
           // 2. TAXI_OUT: Smooth nosewheel taxi from Apron Stand to RWY 27 Threshold (-154.0, 708.0)
           ac.phase = 'TAXI_OUT';
@@ -5019,6 +5221,8 @@ export class DynamicTrafficAI {
           targetYaw = Math.atan2(this._tmpVecB.x, this._tmpVecB.z);
           wantPropOmega = 42.0;
           ac.speed = 7.5;
+          wantGearDeploy = 1.0;
+          forceGearDown = true;
         } else if (u < 0.21) {
           // 3. LINEUP_RWY27: Holding aligned on RWY 27 centerline awaiting ATC takeoff clearance
           ac.phase = 'LINEUP_RWY27';
@@ -5029,6 +5233,8 @@ export class DynamicTrafficAI {
           targetYaw = -Math.PI * 0.5;
           wantPropOmega = 64.0;
           ac.speed = 0.5;
+          wantGearDeploy = 1.0;
+          forceGearDown = true;
         } else if (u < 0.31) {
           // 4. TAKEOFF_CLIMB: Full-thrust acceleration along RWY 27 (-X), V_R rotation, & climb-out over open sea!
           ac.phase = 'TAKEOFF_CLIMB';
@@ -5044,6 +5250,9 @@ export class DynamicTrafficAI {
           targetPitch = -(isJet ? 0.185 : 0.155) * smooth01(0.40, 0.70, f);
           wantPropOmega = 78.0;
           ac.speed = ac.cruiseSpeed * Math.min(1.0, 0.2 + f * 0.9);
+          // Positive-rate climb gear retraction after liftoff (f >= 0.56)
+          wantGearDeploy = isJet ? 1.0 - smooth01(0.56, 0.88, f) : 1.0;
+          forceGearDown = f < 0.52;
         } else if (u < 0.75) {
           // 5. CRUISE_CIRCUIT: Wide scenic banked archipelago circuit over Pulau U, DPPD, Rektorat, & Selat UI
           ac.phase = 'CRUISE_CIRCUIT';
@@ -5076,6 +5285,8 @@ export class DynamicTrafficAI {
           targetRoll = Math.max(-ac.maxBankRad, Math.min(ac.maxBankRad, coordBank));
           wantPropOmega = 72.0;
           ac.speed = ac.cruiseSpeed;
+          wantGearDeploy = isJet ? 0.0 : 1.0;
+          forceGearDown = false;
           void prevYaw;
         } else if (u < 0.85) {
           // 6. FINAL_APPROACH: Stabilized 3-deg ILS glideslope onto RWY 09 (+X along z = 708.0) + Landing Flare!
@@ -5093,6 +5304,9 @@ export class DynamicTrafficAI {
           targetRoll = Math.sin(t * 2.4) * 0.015 * (1.0 - flare);
           wantPropOmega = 50.0 - 14.0 * flare;
           ac.speed = ac.cruiseSpeed * (0.78 - 0.22 * f);
+          // Hydraulic landing gear extension early on final glideslope, down-and-locked well before flare!
+          wantGearDeploy = isJet ? smooth01(0.04, 0.36, f) : 1.0;
+          forceGearDown = f >= 0.45;
         } else if (u < 0.92) {
           // 7. LANDING_ROLLOUT: Main-gear touchdown, nosewheel lowering, & smooth aerodynamic braking on RWY 09
           ac.phase = 'LANDING_ROLLOUT';
@@ -5106,6 +5320,8 @@ export class DynamicTrafficAI {
           targetPitch = -0.088 * (1.0 - smooth01(0.0, 0.38, f));
           wantPropOmega = 38.0;
           ac.speed = ac.cruiseSpeed * 0.52 * (1.0 - 0.82 * f);
+          wantGearDeploy = 1.0;
+          forceGearDown = true;
         } else {
           // 8. TAXI_IN: Exiting runway onto West Apron & parking cleanly on stand facing +Z
           ac.phase = 'TAXI_IN';
@@ -5119,6 +5335,8 @@ export class DynamicTrafficAI {
           targetYaw = f > 0.95 ? 0.0 : Math.atan2(this._tmpVecB.x, this._tmpVecB.z);
           wantPropOmega = 32.0 * (1.0 - 0.65 * smooth01(0.82, 1.0, f));
           ac.speed = 6.2 * (1.0 - smooth01(0.85, 1.0, f));
+          wantGearDeploy = 1.0;
+          forceGearDown = true;
         }
       }
 
@@ -5129,6 +5347,7 @@ export class DynamicTrafficAI {
         ac.yaw = targetYaw;
         ac.pitch = targetPitch;
         ac.roll = targetRoll;
+        ac.gearDeploy = wantGearDeploy;
         ac._poseInit = true;
       } else {
         ac.worldX = targetX;
@@ -5137,7 +5356,11 @@ export class DynamicTrafficAI {
         ac.yaw = dampAngle(ac.yaw, targetYaw, 6.5, dt);
         ac.pitch = dampScalar(ac.pitch, targetPitch, 5.5, dt);
         ac.roll = dampScalar(ac.roll, targetRoll, 4.8, dt);
+        ac.gearDeploy = forceGearDown
+          ? 1.0
+          : dampScalar(ac.gearDeploy ?? 1.0, wantGearDeploy, 5.2, dt);
       }
+      if (dt > 0.25) ac.gearDeploy = wantGearDeploy;
 
       ac.propOmega = dampScalar(ac.propOmega, wantPropOmega, 3.8, dt);
       ac.propSpinRad = (ac.propSpinRad + ac.propOmega * dt) % (Math.PI * 2.0);
@@ -5185,6 +5408,48 @@ export class DynamicTrafficAI {
           bpR[0],
           bpR[1],
           bpR[2],
+          this._tmpQuat
+        );
+
+        // Retractable hydraulic tricycle landing gear (Nose folds forward +Z into nose bay; Mains fold inward into wing-root bays!)
+        const retractFrac = Math.max(0.0, Math.min(1.0, 1.0 - (ac.gearDeploy ?? 1.0)));
+        const bpGN = bindPivots[LEARJET_J_GEAR_NOSE];
+        const bpGML = bindPivots[LEARJET_J_GEAR_MAIN_L];
+        const bpGMR = bindPivots[LEARJET_J_GEAR_MAIN_R];
+
+        this._tmpQuat.setFromAxisAngle(this._tmpAxisX, retractFrac * 1.57);
+        this._writeGenericRigJoint(
+          jointBase,
+          bindPivots,
+          LEARJET_J_GEAR_NOSE,
+          LEARJET_J_AIRFRAME,
+          bpGN[0],
+          bpGN[1],
+          bpGN[2],
+          this._tmpQuat
+        );
+
+        this._tmpQuat.setFromAxisAngle(this._tmpAxisZ, -retractFrac * 1.57);
+        this._writeGenericRigJoint(
+          jointBase,
+          bindPivots,
+          LEARJET_J_GEAR_MAIN_L,
+          LEARJET_J_AIRFRAME,
+          bpGML[0],
+          bpGML[1],
+          bpGML[2],
+          this._tmpQuat
+        );
+
+        this._tmpQuat.setFromAxisAngle(this._tmpAxisZ, retractFrac * 1.57);
+        this._writeGenericRigJoint(
+          jointBase,
+          bindPivots,
+          LEARJET_J_GEAR_MAIN_R,
+          LEARJET_J_AIRFRAME,
+          bpGMR[0],
+          bpGMR[1],
+          bpGMR[2],
           this._tmpQuat
         );
       } else {
@@ -7297,102 +7562,144 @@ export class DynamicTrafficAI {
       (npc.behavior === 'GOLF_CART_SHUTTLE_RIDER' &&
         (npc.shuttleState === 'ONBOARD' || npc.seatedBlend > 0.02));
 
+    // Zero-GC 4.0m Flat Spatial Hash Grid for Agent-vs-Agent Capsule Separation (replaces 20,358 O(N^2) checks -> < 180!)
+    const totalAgents = npcCount + catCount;
+    if (!this._agentHashHead || this._agentCellGX.length < totalAgents) {
+      this._agentHashHead = new Int16Array(256);
+      this._agentHashStamp = new Int32Array(256);
+      this._agentHashCurStamp = 1;
+      this._agentHashNext = new Int16Array(Math.max(256, totalAgents + 16));
+      this._agentCellGX = new Int16Array(Math.max(256, totalAgents + 16));
+      this._agentCellGZ = new Int16Array(Math.max(256, totalAgents + 16));
+    }
+    const hHead = this._agentHashHead;
+    const hStamp = this._agentHashStamp;
+    const hNext = this._agentHashNext;
+    const cellGX = this._agentCellGX;
+    const cellGZ = this._agentCellGZ;
+
     for (let iter = 0; iter < 3; iter++) {
-      // 1. Pairwise NPC-vs-NPC Capsule Separation (rA = 0.25, rB = 0.25 -> minDist = 0.502m)
-      for (let i = 0; i < npcCount; i++) {
-        const a = npcs[i];
-        if (isNpcOnboardCart(a)) continue;
-        const invA = a.behavior === 'BENCH_SEATED' ? 0.0 : 1.0;
-        for (let j = i + 1; j < npcCount; j++) {
-          const b = npcs[j];
-          if (isNpcOnboardCart(b)) continue;
-          if (Math.abs(a.worldY - b.worldY) > 1.55) continue;
-          const invB = b.behavior === 'BENCH_SEATED' ? 0.0 : 1.0;
-          const invSum = invA + invB;
-          if (invSum <= 0.0) continue;
+      const stamp = (this._agentHashCurStamp = (this._agentHashCurStamp + 1) & 0x3fffffff || 1);
 
-          const dx = b.worldX - a.worldX;
-          const dz = b.worldZ - a.worldZ;
-          const minR = 0.504;
-          const dSq = dx * dx + dz * dz;
-          if (dSq < minR * minR) {
-            const d = Math.sqrt(dSq);
-            const nx = d > 1e-5 ? dx / d : 1.0;
-            const nz = d > 1e-5 ? dz / d : 0.0;
-            const pen = minR - d;
-            const wA = invA / invSum;
-            const wB = invB / invSum;
-            a.worldX -= nx * pen * wA;
-            a.worldZ -= nz * pen * wA;
-            b.worldX += nx * pen * wB;
-            b.worldZ += nz * pen * wB;
+      // 1-3. Unified Spatial-Hash Pairwise Capsule Separation (NPC-NPC, Cat-NPC, & Cat-Cat in O(N)!)
+      for (let aIdx = 0; aIdx < totalAgents; aIdx++) {
+        const aIsNpc = aIdx < npcCount;
+        const aObj = aIsNpc ? npcs[aIdx] : cats[aIdx - npcCount];
+        if (aIsNpc && isNpcOnboardCart(aObj)) continue;
+
+        let ax = aObj.worldX;
+        let az = aObj.worldZ;
+        const ay = aObj.worldY;
+        const invA = aIsNpc
+          ? (aObj.behavior === 'BENCH_SEATED' ? 0.0 : 1.0)
+          : (aObj.perchY !== undefined ? 0.0 : 1.0);
+
+        const qMinX = Math.floor((ax - 0.52) * 0.25);
+        const qMaxX = Math.floor((ax + 0.52) * 0.25);
+        const qMinZ = Math.floor((az - 0.52) * 0.25);
+        const qMaxZ = Math.floor((az + 0.52) * 0.25);
+
+        for (let qx = qMinX; qx <= qMaxX; qx++) {
+          for (let qz = qMinZ; qz <= qMaxZ; qz++) {
+            const hKey = ((qx * 73856093) ^ (qz * 19349663)) & 255;
+            if (hStamp[hKey] !== stamp) continue;
+            let bIdx = hHead[hKey];
+            while (bIdx >= 0) {
+              if (cellGX[bIdx] === qx && cellGZ[bIdx] === qz) {
+                const bIsNpc = bIdx < npcCount;
+                const bObj = bIsNpc ? npcs[bIdx] : cats[bIdx - npcCount];
+                const by = bObj.worldY;
+                if (aIsNpc && bIsNpc) {
+                  if (Math.abs(ay - by) <= 1.55) {
+                    const invB = bObj.behavior === 'BENCH_SEATED' ? 0.0 : 1.0;
+                    const invSum = invA + invB;
+                    if (invSum > 0.0) {
+                      const dx = ax - bObj.worldX;
+                      const dz = az - bObj.worldZ;
+                      const dSq = dx * dx + dz * dz;
+                      if (dSq < 0.504 * 0.504) {
+                        const d = Math.sqrt(dSq);
+                        const nx = d > 1e-5 ? dx / d : 1.0;
+                        const nz = d > 1e-5 ? dz / d : 0.0;
+                        const pen = 0.504 - d;
+                        const wA = invA / invSum;
+                        const wB = invB / invSum;
+                        ax += nx * pen * wA;
+                        az += nz * pen * wA;
+                        bObj.worldX -= nx * pen * wB;
+                        bObj.worldZ -= nz * pen * wB;
+                      }
+                    }
+                  }
+                } else if (!aIsNpc && !bIsNpc) {
+                  if (Math.abs(ay - by) <= 0.42) {
+                    const invB = bObj.perchY !== undefined ? 0.0 : 1.0;
+                    const invSum = invA + invB;
+                    if (invSum > 0.0) {
+                      const dx = ax - bObj.worldX;
+                      const dz = az - bObj.worldZ;
+                      const dSq = dx * dx + dz * dz;
+                      if (dSq < 0.304 * 0.304) {
+                        const d = Math.sqrt(dSq);
+                        const nx = d > 1e-5 ? dx / d : 1.0;
+                        const nz = d > 1e-5 ? dz / d : 0.0;
+                        const pen = 0.304 - d;
+                        const wA = invA / invSum;
+                        const wB = invB / invSum;
+                        ax += nx * pen * wA;
+                        az += nz * pen * wA;
+                        bObj.worldX -= nx * pen * wB;
+                        bObj.worldZ -= nz * pen * wB;
+                      }
+                    }
+                  }
+                } else {
+                  // Cat (aObj) vs NPC (bObj)
+                  const catY = aIsNpc ? by : ay;
+                  const npcY = aIsNpc ? ay : by;
+                  if (catY + 0.42 > npcY && catY < npcY + 1.72) {
+                    const invC = aIsNpc ? (bObj.perchY !== undefined ? 0.0 : 1.0) : invA;
+                    const invN = aIsNpc ? (aObj.behavior === 'BENCH_SEATED' ? 0.0 : 0.25) : (bObj.behavior === 'BENCH_SEATED' ? 0.0 : 0.25);
+                    const invSum = invC + invN;
+                    if (invSum > 0.0) {
+                      const dx = ax - bObj.worldX;
+                      const dz = az - bObj.worldZ;
+                      const dSq = dx * dx + dz * dz;
+                      if (dSq < 0.404 * 0.404) {
+                        const d = Math.sqrt(dSq);
+                        const nx = d > 1e-5 ? dx / d : 1.0;
+                        const nz = d > 1e-5 ? dz / d : 0.0;
+                        const pen = 0.404 - d;
+                        const wA = (aIsNpc ? invN : invC) / invSum;
+                        const wB = (aIsNpc ? invC : invN) / invSum;
+                        ax += nx * pen * wA;
+                        az += nz * pen * wA;
+                        bObj.worldX -= nx * pen * wB;
+                        bObj.worldZ -= nz * pen * wB;
+                      }
+                    }
+                  }
+                }
+              }
+              bIdx = hNext[bIdx];
+            }
           }
         }
-      }
 
-      // 2. Pairwise Cat-vs-NPC Capsule Separation (rCat = 0.15, rNpc = 0.25 -> minDist = 0.402m)
-      for (let c = 0; c < catCount; c++) {
-        const cat = cats[c];
-        const invC = cat.perchY !== undefined ? 0.0 : 1.0;
-        const catMinY = cat.worldY;
-        const catMaxY = cat.worldY + 0.42;
-        for (let n = 0; n < npcCount; n++) {
-          const npc = npcs[n];
-          if (isNpcOnboardCart(npc)) continue;
-          const npcMinY = npc.worldY;
-          const npcMaxY = npc.worldY + 1.72;
-          if (catMaxY <= npcMinY || catMinY >= npcMaxY) continue;
-          const invN = npc.behavior === 'BENCH_SEATED' ? 0.0 : 0.25;
-          const invSum = invC + invN;
-          if (invSum <= 0.0) continue;
-
-          const dx = cat.worldX - npc.worldX;
-          const dz = cat.worldZ - npc.worldZ;
-          const minR = 0.404;
-          const dSq = dx * dx + dz * dz;
-          if (dSq < minR * minR) {
-            const d = Math.sqrt(dSq);
-            const nx = d > 1e-5 ? dx / d : 1.0;
-            const nz = d > 1e-5 ? dz / d : 0.0;
-            const pen = minR - d;
-            const wC = invC / invSum;
-            const wN = invN / invSum;
-            cat.worldX += nx * pen * wC;
-            cat.worldZ += nz * pen * wC;
-            npc.worldX -= nx * pen * wN;
-            npc.worldZ -= nz * pen * wN;
-          }
+        aObj.worldX = ax;
+        aObj.worldZ = az;
+        const gx = Math.floor(ax * 0.25);
+        const gz = Math.floor(az * 0.25);
+        cellGX[aIdx] = gx;
+        cellGZ[aIdx] = gz;
+        const insKey = ((gx * 73856093) ^ (gz * 19349663)) & 255;
+        if (hStamp[insKey] !== stamp) {
+          hStamp[insKey] = stamp;
+          hNext[aIdx] = -1;
+        } else {
+          hNext[aIdx] = hHead[insKey];
         }
-      }
-
-      // 3. Pairwise Cat-vs-Cat Capsule Separation (rA = 0.15, rB = 0.15 -> minDist = 0.302m)
-      for (let i = 0; i < catCount; i++) {
-        const a = cats[i];
-        const invA = a.perchY !== undefined ? 0.0 : 1.0;
-        for (let j = i + 1; j < catCount; j++) {
-          const b = cats[j];
-          if (Math.abs(a.worldY - b.worldY) > 0.42) continue;
-          const invB = b.perchY !== undefined ? 0.0 : 1.0;
-          const invSum = invA + invB;
-          if (invSum <= 0.0) continue;
-
-          const dx = b.worldX - a.worldX;
-          const dz = b.worldZ - a.worldZ;
-          const minR = 0.304;
-          const dSq = dx * dx + dz * dz;
-          if (dSq < minR * minR) {
-            const d = Math.sqrt(dSq);
-            const nx = d > 1e-5 ? dx / d : 1.0;
-            const nz = d > 1e-5 ? dz / d : 0.0;
-            const pen = minR - d;
-            const wA = invA / invSum;
-            const wB = invB / invSum;
-            a.worldX -= nx * pen * wA;
-            a.worldZ -= nz * pen * wA;
-            b.worldX += nx * pen * wB;
-            b.worldZ += nz * pen * wB;
-          }
-        }
+        hHead[insKey] = aIdx;
       }
 
       // 4. Terrestrial NPCs vs Dynamic Vehicle OBBs, Static World Colliders, Bridge & Underpass Walls
@@ -7622,12 +7929,37 @@ export class DynamicTrafficAI {
     this._resolveAllSolidBodyCollisions();
 
     // 2. Solve Full 22-Joint Biomechanics for All Humans + 18-Joint Biomechanics for All Cats
+    //    (4-phase temporal staggering beyond uAiFarStaggerDist cuts distant rig trigonometry ~60% with zero pose freeze!)
+    const doStagger = Boolean(this._initialBioSolved && cameraPos && Number.isFinite(cameraPos.x));
+    const stagDist = this.sharedUniforms?.uAiFarStaggerDist?.value ?? 155.0;
+    const stagSq = stagDist * stagDist;
+    const phase = (this._staggerPhase = ((this._staggerPhase || 0) + 1) & 3);
     for (let n = 0; n < npcCount; n++) {
-      this._solveNPCBiomechanics(this.npcs[n], t, safeDt, cameraPos);
+      const npc = this.npcs[n];
+      if (!doStagger || npc.behavior === 'GOLF_CART_DRIVER' || (npc.seatedBlend || 0) > 0.01) {
+        this._solveNPCBiomechanics(npc, t, safeDt, cameraPos);
+      } else {
+        const dx = npc.worldX - cameraPos.x;
+        const dz = npc.worldZ - cameraPos.z;
+        const far = dx * dx + dz * dz > stagSq;
+        if (!far || ((n + phase) & 3) === 0) {
+          this._solveNPCBiomechanics(npc, t, far ? safeDt * 4.0 : safeDt, cameraPos);
+        }
+      }
     }
     for (let c = 0; c < catCount; c++) {
-      this._solveCatBiomechanics(this.cats[c], t, cameraPos);
+      const cat = this.cats[c];
+      if (!doStagger) {
+        this._solveCatBiomechanics(cat, t, cameraPos);
+      } else {
+        const dx = cat.worldX - cameraPos.x;
+        const dz = cat.worldZ - cameraPos.z;
+        if (dx * dx + dz * dz <= stagSq || ((c + phase) & 3) === 0) {
+          this._solveCatBiomechanics(cat, t, cameraPos);
+        }
+      }
     }
+    this._initialBioSolved = true;
 
     // 3. Pack all live 4x3 affine joint matrices into the 256x64 RGBA32F GPU Bone-Matrix Texture (0 CPU Vertex Loop!)
     const sMats = this._skinMatrices;

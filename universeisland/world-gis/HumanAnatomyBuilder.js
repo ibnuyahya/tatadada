@@ -1659,11 +1659,14 @@ export class HumanAnatomyBuilder {
 
     // 4G. HEADWEAR: DOUBLE-WALLED LBS HIJAB SHAWL (J_HEAD -> J_NECK -> J_CHEST!) OR 3D LAYERED HAIRSTYLES!
     if (isHijab) {
-      // Inner forehead 'ciput' underscarf band peeking subtly above brow
+      // Inner forehead 'ciput' underscarf cap extending seamlessly under upper hijab crown (zero bare forehead hairline gap!)
+      const ciputTone = lerp3(HUMAN_PALETTE.CIPUT_DARK, headwearColor, 0.28);
       builder.addThickOpenGarmentShell(
         [
-          { y: 1.682, cz: 0.004, rx: 0.082, rz: 0.094, thStart: -0.58, thEnd: 0.58, color: HUMAN_PALETTE.CIPUT_DARK },
-          { y: 1.704, cz: 0.002, rx: 0.079, rz: 0.091, thStart: -0.62, thEnd: 0.62, color: HUMAN_PALETTE.CIPUT_DARK }
+          { y: 1.682, cz: 0.004, rx: 0.082, rz: 0.094, thStart: -0.58, thEnd: 0.58, color: ciputTone, ao: 0.92 },
+          { y: 1.704, cz: 0.002, rx: 0.079, rz: 0.091, thStart: -0.64, thEnd: 0.64, color: ciputTone, ao: 0.93 },
+          { y: 1.722, cz: 0.000, rx: 0.075, rz: 0.088, thStart: -0.66, thEnd: 0.66, color: ciputTone, ao: 0.94 },
+          { y: 1.736, cz: -0.002, rx: 0.070, rz: 0.084, thStart: -0.56, thEnd: 0.56, color: ciputTone, ao: 0.95 }
         ],
         12,
         {

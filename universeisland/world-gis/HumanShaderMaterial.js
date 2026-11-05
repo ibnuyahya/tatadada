@@ -193,6 +193,12 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
     shader.uniforms.uCollisionMap =
       uniforms.uCollisionMap || { value: RainCollisionBake.createFallbackTexture() };
     shader.uniforms.uCollisionReady = uniforms.uCollisionReady || { value: 0.0 };
+    shader.uniforms.uCollisionBounds =
+      uniforms.uCollisionBounds || { value: new THREE.Vector4(-422.5, -135.27, 563.2, 921.6) };
+    shader.uniforms.uCollisionHeightRange =
+      uniforms.uCollisionHeightRange || { value: new THREE.Vector2(-9.0, 75.0) };
+    shader.uniforms.uFleetKinematics =
+      uniforms.uFleetKinematics || { value: new THREE.Vector4(0.0, 0.0, 0.0, 0.0) };
     shader.uniforms.uHvsParams = uniforms.uHvsParams || hvsFallback.uHvsParams;
     shader.uniforms.uHvsGlare = uniforms.uHvsGlare || hvsFallback.uHvsGlare;
 
@@ -303,6 +309,9 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
       'uniform float uStreetlampPower;',
       'uniform sampler2D uCollisionMap;',
       'uniform float uCollisionReady;',
+      'uniform vec4 uCollisionBounds;',
+      'uniform vec2 uCollisionHeightRange;',
+      'uniform vec4 uFleetKinematics;',
       'uniform float uCockpitGlassCutRadius;',
       'uniform vec4 uHvsParams;',
       'uniform vec4 uHvsGlare;',
@@ -313,12 +322,46 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
       '  return mix(mix(humanHash(i), humanHash(i + vec2(1.0, 0.0)), u.x),',
       '             mix(humanHash(i + vec2(0.0, 1.0)), humanHash(i + vec2(1.0, 1.0)), u.x), u.y);',
       '}',
+      'float humanLedGlyph5x7(int ch, int cx, int cy) {',
+      '  if (cx < 0 || cx > 4 || cy < 0 || cy > 6 || ch <= 0) return 0.0;',
+      '  vec2 bits = vec2(0.0);',
+      '  if (ch == 1) bits = vec2(17966.0, 575025.0);',      // U
+      '  else if (ch == 2) bits = vec2(4238.0, 462980.0);',  // I
+      '  else if (ch == 3) bits = vec2(17982.0, 1001022.0);',// B
+      '  else if (ch == 4) bits = vec2(21073.0, 576152.0);', // K
+      '  else if (ch == 5) bits = vec2(17969.0, 583347.0);', // N
+      '  else if (ch == 6) bits = vec2(0.0, 14.0);',         // -
+      '  else if (ch == 7) bits = vec2(16912.0, 1001022.0);',// P
+      '  else if (ch == 8) bits = vec2(16927.0, 541200.0);', // L
+      '  else if (ch == 9) bits = vec2(17969.0, 476735.0);', // A
+      '  float word = (cy < 3) ? bits.x : bits.y;',
+      '  int bIdx = ((cy < 3) ? cy : (cy - 3)) * 5 + (4 - cx);',
+      '  return mod(floor(word / exp2(float(bIdx)) + 0.001), 2.0);',
+      '}',
+      'int humanBikunRouteChar(int slot) {',
+      '  if (slot == 0) return 3;',  // B
+      '  if (slot == 1) return 2;',  // I
+      '  if (slot == 2) return 4;',  // K
+      '  if (slot == 3) return 1;',  // U
+      '  if (slot == 4) return 5;',  // N
+      '  if (slot == 5) return 0;',  // space
+      '  if (slot == 6) return 6;',  // -
+      '  if (slot == 7) return 0;',  // space
+      '  if (slot == 8) return 7;',  // P
+      '  if (slot == 9) return 1;',  // U
+      '  if (slot == 10) return 8;', // L
+      '  if (slot == 11) return 9;', // A
+      '  if (slot == 12) return 1;', // U
+      '  if (slot == 13) return 0;', // space
+      '  if (slot == 14) return 2;', // I
+      '  return 0;',
+      '}',
       'float humanSkyExposure(vec3 wp) {',
       '  if (uCollisionReady < 0.5) return 1.0;',
-      '  vec2 cuv = (wp.xz + 185.0) / 370.0;',
+      '  vec2 cuv = (wp.xz - uCollisionBounds.xy) / max(vec2(1.0), uCollisionBounds.zw);',
       '  if (cuv.x < 0.002 || cuv.x > 0.998 || cuv.y < 0.002 || cuv.y > 0.998) return 1.0;',
       '  vec4 cTex = texture2D(uCollisionMap, cuv);',
-      '  float yTop = -6.0 + ((cTex.r * 255.0 * 256.0 + cTex.g * 255.0) / 65535.0) * 60.0;',
+      '  float yTop = uCollisionHeightRange.x + ((cTex.r * 255.0 * 256.0 + cTex.g * 255.0) / 65535.0) * uCollisionHeightRange.y;',
       '  float isCanopyAbove = step(0.98, cTex.a);',
       '  float shelter = smoothstep(0.65, 1.85, yTop - wp.y);',
       '  return mix(1.0, isCanopyAbove * 0.25, shelter);',
@@ -543,6 +586,18 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
           '    float pupilMask = 1.0 - smoothstep(0.84, 1.02, slitDist);',
           '    vec3 irisCol = diffuseColor.rgb * stroma * (0.42 + 0.68 * limbal);',
           '    diffuseColor.rgb = mix(irisCol, vec3(0.015, 0.015, 0.022), pupilMask);',
+          '  } else if (abs(mCls - 0.80) < 0.03 && vHumanMeta.z > 1.5) {',
+          '    // Anti-Aliased Vessel-Local Caulked Marine Teak Deck Planking (Sikaflex dark seams + quarter-sawn teak grain, 0 Moire!)',
+          '    float plankCoord = vHumanUV.x * 28.0;',
+          '    float fwPlank = fwidth(plankCoord);',
+          '    float seamFade = 1.0 - smoothstep(0.18, 0.55, fwPlank);',
+          '    float seamDist = abs(fract(plankCoord) - 0.5);',
+          '    float rawSeam = 1.0 - smoothstep(0.42 - fwPlank * 0.5, 0.48 + fwPlank * 0.5, seamDist);',
+          '    float caulkMask = mix(1.0, rawSeam, seamFade * 0.88);',
+          '    float teakFiber = (humanNoise(vec2(vHumanUV.x * 95.0, vHumanUV.y * 24.0)) - 0.5) * 0.13;',
+          '    float plankVar = (humanNoise(vec2(floor(plankCoord) * 3.7, floor(vHumanUV.y * 6.0) * 2.3)) - 0.5) * 0.09;',
+          '    vec3 teakCol = clamp(diffuseColor.rgb * (1.0 + teakFiber + plankVar), vec3(0.08), vec3(0.85));',
+          '    diffuseColor.rgb = mix(vec3(0.055, 0.048, 0.042), teakCol, caulkMask);',
           '  } else if (abs(mCls - 1.50) < 0.04) {',
           '    // Automotive / Aviation / Marine Metallic Mica-Flake Basecoat & Natural Paint Gamut Calibration',
           '    float paintLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));',
@@ -550,10 +605,13 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
           '    float flake = (humanNoise(vHumanWorldPos.xz * 72.0 + vHumanWorldPos.y * 58.0) - 0.5) * 0.042;',
           '    diffuseColor.rgb = clamp(diffuseColor.rgb * (1.0 + flake), vec3(0.015), vec3(0.96));',
           '  } else if (abs(mCls - 1.90) < 0.03) {',
-          '    // Vulcanized Treaded Rubber Tire Micro-Grain & Subtle Sidewall Road Dust',
+          '    // Vulcanized Treaded Rubber Tire Micro-Grain, Sidewall Road Dust, & World-Space Ground-Contact Micro-AO!',
           '    float treadRib = sin(vHumanUV.x * 94.2 + vHumanUV.y * 18.0) * 0.045;',
           '    float rubberGrain = (humanNoise(vHumanUV * 56.0) - 0.5) * 0.065;',
+          '    cavAO *= mix(0.46, 1.0, smoothstep(-0.96, -0.22, vHumanWorldNorm.y));',
           '    diffuseColor.rgb = clamp(diffuseColor.rgb * (1.04 + treadRib + rubberGrain) + vec3(0.012, 0.011, 0.010), vec3(0.02), vec3(0.35));',
+          '  } else if (abs(mCls - 0.80) < 0.03 && vHumanMeta.z < 1.5) {',
+          '    cavAO *= mix(0.64, 1.0, smoothstep(-0.95, -0.35, vHumanWorldNorm.y));',
           '  }',
           '  diffuseColor.rgb *= cavAO;',
           '}'
@@ -689,22 +747,114 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
           '    float daySpecVis = (1.0 - uNightFactor * 0.82) * (1.0 - uRainIntensity * 0.45);',
           '    float baseFlakeLobe = pow(max(dot(Rv, L), 0.0), 26.0) * 0.22 * (1.0 - isGlass) * daySpecVis;',
           '    float clearCoatLobe = pow(max(dot(Rv, L), 0.0), mix(145.0, 240.0, isGlass)) * daySpecVis * mix(1.05, 2.25, isGlass);',
-          '    gl_FragColor.rgb = mix(gl_FragColor.rgb + diffuseColor.rgb * uSunColor * baseFlakeLobe, skyR, fresV * 0.60) + uSunColor * clearCoatLobe;',
+          '    vec3 glassBase = gl_FragColor.rgb + diffuseColor.rgb * uSunColor * baseFlakeLobe;',
+          '    if (isGlass > 0.5) {',
+          '      // 3D Ray-Parallax Cabin Interior Depth Silhouette behind Dielectric Fresnel Glazing (+0 Draw Calls!)',
+          '      vec3 viewRayG = normalize(vHumanWorldPos - cameraPosition);',
+          '      vec3 intP = vHumanWorldPos + viewRayG * 0.58;',
+          '      float rowCadence = smoothstep(0.28, 0.62, abs(fract(intP.z * 1.18) - 0.5) * 2.0);',
+          '      float headrestBand = smoothstep(0.18, 0.72, fract(intP.y * 1.35));',
+          '      float cabinSilhouette = clamp(rowCadence * 0.62 + headrestBand * 0.38, 0.0, 1.0);',
+          '      float cabinWarmOn = max(uStreetlampPower, uIsNight);',
+          '      vec3 cabinDepthCol = mix(vec3(0.022, 0.032, 0.052), vec3(0.065, 0.095, 0.145), cabinSilhouette);',
+          '      cabinDepthCol += vec3(0.26, 0.19, 0.10) * cabinWarmOn * (0.35 + 0.45 * (1.0 - cabinSilhouette));',
+          '      glassBase = mix(glassBase * 0.56, cabinDepthCol, 0.52 * NdotV);',
+          '    }',
+          '    gl_FragColor.rgb = mix(glassBase, skyR, fresV * 0.60) + uSunColor * clearCoatLobe;',
           '  } else if (abs(mClsP - 1.70) < 0.04) {',
-          '    // Electric Golf Cart Photocell-Coupled LED Headlights & EV Dashboard Display (0.0 daytime emissive!)',
+          '    // Photocell-Coupled Exterior LED Headlights (metaZ < 0.5 -> strictly 0.0 daytime emissive!)',
+          '    // & Backlit Cockpit Glass Avionics / EV OLED / Bus LED Route Displays (metaZ >= 0.5)',
           '    float lampOn = max(uStreetlampPower, uIsNight);',
-          '    if (lampOn > 0.002) {',
-          '      if (vHumanMeta.z > 0.5) {',
+          '    if (vHumanMeta.z < 0.5) {',
+          '      if (lampOn > 0.002) {',
+          '        gl_FragColor.rgb += vec3(5.4, 5.5, 5.8) * lampOn;',
+          '      }',
+          '    } else {',
+          '      vec2 dispUV2 = clamp(vHumanUV, 0.0, 1.0);',
+          '      float dMode = vHumanMeta.z;',
+          '      float dispPow = mix(0.88, 1.25, lampOn);',
+          '      if (abs(dMode - 2.0) < 0.06) {',
+          '        // Crisp 5x7 Bitmap Amber LED Dot-Matrix Bus Route Header ("UI BIKUN - PULAU I")',
+          '        vec2 ledGrid = vec2(dispUV2.x * 112.0, dispUV2.y * 9.0);',
+          '        vec2 ledCell2 = fract(ledGrid) - 0.5;',
+          '        float dotMask = 1.0 - smoothstep(0.22, 0.42, length(ledCell2));',
+          '        int gx = int(floor(ledGrid.x));',
+          '        int gy = int(floor(ledGrid.y)) - 1;',
+          '        float glyphOn = 0.0;',
+          '        float badgeLeft = step(float(gx), 15.5) * step(0.0, float(gy)) * step(float(gy), 6.0);',
+          '        if (gy >= 0 && gy <= 6) {',
+          '          if (gx >= 2 && gx <= 6) {',
+          '            glyphOn = humanLedGlyph5x7(1, gx - 2, gy);', // U
+          '          } else if (gx >= 8 && gx <= 12) {',
+          '            glyphOn = humanLedGlyph5x7(2, gx - 8, gy);', // I
+          '          } else if (gx == 15) {',
+          '            glyphOn = 0.85;', // Vertical separator bar
+          '          } else if (gx >= 19 && gx < 109) {',
+          '            int relX = gx - 19;',
+          '            int cSlot = relX / 6;',
+          '            int cx = relX - cSlot * 6;',
+          '            if (cx < 5) glyphOn = humanLedGlyph5x7(humanBikunRouteChar(cSlot), cx, gy);',
+          '          }',
+          '        }',
+          '        vec3 ledBg = mix(vec3(0.016, 0.014, 0.012), vec3(0.032, 0.024, 0.008), badgeLeft);',
+          '        vec3 ledLit = mix(vec3(2.05, 1.12, 0.10), vec3(2.35, 1.78, 0.22), badgeLeft) * dotMask * glyphOn;',
+          '        gl_FragColor.rgb = mix(gl_FragColor.rgb * 0.16, ledBg + ledLit * dispPow, 0.95);',
+          '      } else if (abs(dMode - 2.1) < 0.06) {',
+          '        // EV Digital Instrument Cluster (Speedometer Arc + kW Regen Ring + SOC Battery Bar)',
+          '        vec2 gC2 = (dispUV2 - vec2(0.50, 0.44)) * vec2(1.75, 1.0);',
+          '        float gR = length(gC2);',
+          '        float arcRing = smoothstep(0.34, 0.31, abs(gR - 0.32) + 0.28) * step(-0.18, gC2.y);',
+          '        float socBar = step(0.12, dispUV2.x) * step(dispUV2.x, 0.84) * step(0.10, dispUV2.y) * step(dispUV2.y, 0.18);',
+          '        float gridTicks = step(0.82, sin(atan(gC2.y, gC2.x) * 18.0)) * arcRing;',
+          '        vec3 oledCol = vec3(0.015, 0.026, 0.042)',
+          '                     + vec3(0.14, 0.86, 1.05) * arcRing * 0.92',
+          '                     + vec3(0.95, 0.98, 1.0) * gridTicks * 0.65',
+          '                     + vec3(0.16, 0.94, 0.46) * socBar;',
+          '        gl_FragColor.rgb = mix(gl_FragColor.rgb * 0.15, oledCol * dispPow, 0.92);',
+          '      } else if (abs(dMode - 2.2) < 0.06) {',
+          '        // Avionics / Marine Moving-Map MFD & EICAS Engine Telemetry Screen',
+          '        float mapLand = smoothstep(0.46, 0.54, humanNoise(dispUV2 * 5.2 + vec2(1.7, uTime * 0.03)));',
+          '        vec2 rose2 = dispUV2 - vec2(0.58, 0.50);',
+          '        float compRing = 1.0 - smoothstep(0.008, 0.020, abs(length(rose2) - 0.28));',
+          '        float courseLine = (1.0 - smoothstep(0.006, 0.016, abs(rose2.x * 0.78 - rose2.y * 0.62))) * step(length(rose2), 0.28);',
+          '        float eisCol = step(dispUV2.x, 0.24);',
+          '        float eisBars = eisCol * step(0.35, fract(dispUV2.y * 6.0)) * step(0.04, dispUV2.x) * step(dispUV2.x, 0.20);',
+          '        vec3 mfdCol = mix(vec3(0.02, 0.07, 0.15), vec3(0.08, 0.30, 0.18), mapLand * (1.0 - eisCol));',
+          '        mfdCol = mix(mfdCol, vec3(0.02, 0.03, 0.05), eisCol);',
+          '        mfdCol += vec3(0.75, 0.88, 0.96) * compRing * 0.75 + vec3(1.15, 0.22, 0.95) * courseLine + vec3(0.18, 0.92, 0.52) * eisBars;',
+          '        gl_FragColor.rgb = mix(gl_FragColor.rgb * 0.15, mfdCol * dispPow, 0.92);',
+          '      } else if (abs(dMode - 2.3) < 0.06) {',
+          '        // Primary Flight Display (Garmin G1000 / Collins Pro Line Artificial Horizon + Tapes!)',
+          '        float skyMask = smoothstep(-0.012, 0.012, dispUV2.y - 0.52);',
+          '        vec3 attBall = mix(vec3(0.38, 0.22, 0.09), vec3(0.08, 0.44, 0.86), skyMask);',
+          '        float horizLine = 1.0 - smoothstep(0.005, 0.014, abs(dispUV2.y - 0.52));',
+          '        float pitchLad = (1.0 - smoothstep(0.004, 0.011, abs(fract((dispUV2.y - 0.52) * 9.0) - 0.5) - 0.46))',
+          '                       * step(abs(dispUV2.x - 0.5), 0.12);',
+          '        float vBarSym = (1.0 - smoothstep(0.006, 0.015, abs(dispUV2.y - 0.515)))',
+          '                      * step(0.03, abs(dispUV2.x - 0.5)) * step(abs(dispUV2.x - 0.5), 0.15);',
+          '        float sideTapes = step(dispUV2.x, 0.17) + step(0.83, dispUV2.x);',
+          '        float tapeTicks = sideTapes * step(0.72, fract(dispUV2.y * 14.0));',
+          '        vec3 pfdCol = mix(attBall, vec3(0.03, 0.04, 0.06), sideTapes * 0.76);',
+          '        pfdCol += vec3(0.96, 0.98, 1.0) * (horizLine + pitchLad * 0.8 + tapeTicks * 0.65) + vec3(1.15, 0.88, 0.10) * vBarSym;',
+          '        gl_FragColor.rgb = mix(gl_FragColor.rgb * 0.14, pfdCol * dispPow, 0.93);',
+          '      } else if (lampOn > 0.002) {',
           '        gl_FragColor.rgb += vec3(0.18, 0.78, 0.92) * (1.15 * lampOn);',
           '      } else {',
-          '        gl_FragColor.rgb += vec3(5.4, 5.5, 5.8) * lampOn;',
+          '        gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.12, 0.58, 0.76), 0.55);',
           '      }',
           '    }',
           '  } else if (abs(mClsP - 1.80) < 0.04) {',
-          '    // Electric Golf Cart Ruby LED Tail/Position Lights (0.0 in bright clear daytime!)',
+          '    // Electric Golf Cart & Bus Kuning Ruby LED Tail/Position + Deceleration Brake Flare',
+          '    // (Strictly 0.0 emissive in bright clear daytime when cruising/parked without braking!)',
           '    float tailOn = max(uStreetlampPower, uIsNight);',
-          '    if (tailOn > 0.002) {',
-          '      gl_FragColor.rgb += vec3(4.2, 0.22, 0.14) * tailOn;',
+          '    float vTag = vHumanMeta.z;',
+          '    float brakeAmt = (abs(vTag - 1.0) < 0.25) ? uFleetKinematics.x',
+          '                   : ((abs(vTag - 2.0) < 0.25) ? uFleetKinematics.y : 0.0);',
+          '    float totalTail = max(tailOn, brakeAmt);',
+          '    if (totalTail > 0.002) {',
+          '      vec3 rubyTail = vec3(4.2, 0.22, 0.14) * tailOn;',
+          '      vec3 rubyBrake = vec3(7.4, 0.28, 0.12) * clamp(brakeAmt, 0.0, 1.0);',
+          '      gl_FragColor.rgb += max(rubyTail, rubyBrake);',
           '    }',
           '  } else if (abs(mClsP - 1.95) < 0.03) {',
           '    // Distant Nusantara Fishing Boat Lanterns (2500K) & Small Coastal Ship COLREGs Navigation Lights',

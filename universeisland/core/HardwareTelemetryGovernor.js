@@ -29,7 +29,7 @@ export const HARDWARE_TIERS = {
     shadowFrustumHalf: 112.0,
     shadowRefreshStride: 1,
     closeDerivativeDistM: 22.0,
-    aiFarStaggerDistM: 185.0
+    aiFarStaggerDistM: 9999.0
   },
   TIER_A: {
     id: 'TIER_A',
@@ -43,7 +43,7 @@ export const HARDWARE_TIERS = {
     shadowFrustumHalf: 108.0,
     shadowRefreshStride: 2,
     closeDerivativeDistM: 18.0,
-    aiFarStaggerDistM: 150.0
+    aiFarStaggerDistM: 9999.0
   },
   TIER_B: {
     id: 'TIER_B',
@@ -440,6 +440,9 @@ export class HardwareTelemetryGovernor {
       if (this.sharedUniforms.uCloseDerivativeDist) {
         this.sharedUniforms.uCloseDerivativeDist.value = cfg.closeDerivativeDistM;
       }
+      if (this.sharedUniforms.uAiFarStaggerDist) {
+        this.sharedUniforms.uAiFarStaggerDist.value = cfg.aiFarStaggerDistM;
+      }
       if (this.sharedUniforms.uShaderQuality) {
         this.sharedUniforms.uShaderQuality.value = 1.0; // Never downgrade surface shader quality!
       }
@@ -815,7 +818,7 @@ export class HardwareTelemetryGovernor {
     }
     const pretty = JSON.stringify(
       {
-        engine: 'NEXUS Kepulauan UI v633 Forensic',
+        engine: 'NEXUS Kepulauan UI v636 Forensic',
         capturedAtISO: new Date().toISOString(),
         uptimeSec: snap.uptimeSec,
         gpu: snap.gpu,

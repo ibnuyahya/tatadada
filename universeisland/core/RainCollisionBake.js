@@ -18,10 +18,14 @@ import * as THREE from 'three';
  *   gravity-accelerated roof-tile & foliage drip curtains (y(t) = y_0 - 0.5 * g * t^2).
  */
 export class RainCollisionBake {
-  static DEFAULT_SIZE = 512;
+  static DEFAULT_SIZE = 2048;
   static DEFAULT_HALF_EXTENT = 185.0;
-  static HEIGHT_MIN_Y = -6.0;
-  static HEIGHT_MAX_Y = 54.0;
+  static DEFAULT_MIN_X = -422.50;
+  static DEFAULT_MAX_X = 140.70; // Exact 563.20m span -> 0.275m/texel at 2048 POT
+  static DEFAULT_MIN_Z = -135.27;
+  static DEFAULT_MAX_Z = 786.33; // Exact 921.60m span -> 0.45m/texel at 2048 POT (covers Pulau U + Selat UI + Pulau I!)
+  static HEIGHT_MIN_Y = -9.0;
+  static HEIGHT_MAX_Y = 66.0;
 
   /**
    * Creates a 4x4 fallback flat-ground collision texture before a full scene bake is called.
@@ -89,9 +93,36 @@ export class RainCollisionBake {
     let sliceStart = nowFn();
 
     const size = options.size || RainCollisionBake.DEFAULT_SIZE;
-    const halfExtent = options.halfExtent || RainCollisionBake.DEFAULT_HALF_EXTENT;
-    const worldSpan = halfExtent * 2.0;
-    const cellSize = worldSpan / size;
+    const hasExplicitHalfExtent = options.halfExtent !== undefined && options.halfExtent !== null;
+    const halfExtent = hasExplicitHalfExtent
+      ? Number(options.halfExtent)
+      : RainCollisionBake.DEFAULT_HALF_EXTENT;
+    const minXBound = hasExplicitHalfExtent
+      ? -halfExtent
+      : options.minX !== undefined
+        ? Number(options.minX)
+        : RainCollisionBake.DEFAULT_MIN_X;
+    const maxXBound = hasExplicitHalfExtent
+      ? halfExtent
+      : options.maxX !== undefined
+        ? Number(options.maxX)
+        : RainCollisionBake.DEFAULT_MAX_X;
+    const minZBound = hasExplicitHalfExtent
+      ? -halfExtent
+      : options.minZ !== undefined
+        ? Number(options.minZ)
+        : RainCollisionBake.DEFAULT_MIN_Z;
+    const maxZBound = hasExplicitHalfExtent
+      ? halfExtent
+      : options.maxZ !== undefined
+        ? Number(options.maxZ)
+        : RainCollisionBake.DEFAULT_MAX_Z;
+
+    const worldSpanX = Math.max(1.0, maxXBound - minXBound);
+    const worldSpanZ = Math.max(1.0, maxZBound - minZBound);
+    const cellSizeX = worldSpanX / size;
+    const cellSizeZ = worldSpanZ / size;
+    const avgCellSize = 0.5 * (cellSizeX + cellSizeZ);
     const minY = RainCollisionBake.HEIGHT_MIN_Y;
     const maxY = RainCollisionBake.HEIGHT_MAX_Y;
     const spanY = maxY - minY;
@@ -113,23 +144,73 @@ export class RainCollisionBake {
     // Surface class: 0 = Water, 1 = Horizontal Hard Surface, 2 = Sloped Hard Roof/Batter, 3 = Tree Canopy
     const classBuf = new Uint8Array(totalCells);
 
-    // 1. Initialize Base Island DEM & 360-Degree Surrounding Water Surface (2-Pass Grid Finite-Difference: 6x Faster!)
+    // 1. Initialize Dual-Island DEM & 360-Degree Surrounding Ocean Surface (with O(1) Open-Sea AABB & SDF Early-Out!)
     const rawGroundBuf = new Float32Array(totalCells);
     for (let iz = 0; iz < size; iz++) {
       if (useSlicing && (iz & 15) === 0 && nowFn() - sliceStart >= sliceBudgetMs) {
         yield;
         sliceStart = nowFn();
       }
-      const wz = -halfExtent + (iz + 0.5) * cellSize;
+      const wz = minZBound + (iz + 0.5) * cellSizeZ;
       const shoreX = !islandCoastDistanceFn && shorelineXFn ? shorelineXFn(wz) : Infinity;
       const rowOffset = iz * size;
+      // Exact Z-band open-sea check when using full archipelago coast SDF
+      const zMaybePulauU = wz >= -96.0 && wz <= 474.0;
+      const zMaybePulauI = wz >= 599.0 && wz <= 788.0;
+      const zGuaranteedOpenSea = Boolean(islandCoastDistanceFn) && !zMaybePulauU && !zMaybePulauI;
 
       for (let ix = 0; ix < size; ix++) {
-        const wx = -halfExtent + (ix + 0.5) * cellSize;
+        const wx = minXBound + (ix + 0.5) * cellSizeX;
         const idx = rowOffset + ix;
+
+        if (islandCoastDistanceFn) {
+          const xOutsideIslands =
+            zGuaranteedOpenSea ||
+            (zMaybePulauU && (wx < -375.0 || wx > 108.0)) ||
+            (zMaybePulauI && (wx < -410.0 || wx > 90.0));
+          if (xOutsideIslands) {
+            rawGroundBuf[idx] = -3.85;
+            heightBuf[idx] = waterLevelY;
+            nxBuf[idx] = 0.0;
+            nyBuf[idx] = 1.0;
+            nzBuf[idx] = 0.0;
+            classBuf[idx] = 0;
+            continue;
+          }
+          const dCoast = islandCoastDistanceFn(wx, wz);
+          if (dCoast > 3.55) {
+            rawGroundBuf[idx] = -3.85;
+            heightBuf[idx] = waterLevelY;
+            nxBuf[idx] = 0.0;
+            nyBuf[idx] = 1.0;
+            nzBuf[idx] = 0.0;
+            classBuf[idx] = 0;
+            continue;
+          }
+          const gh = groundHeightFn(wx, wz);
+          rawGroundBuf[idx] = gh;
+          const fwY = dCoast < -4.0 && freshwaterSurfaceYFn ? freshwaterSurfaceYFn(wx, wz) : null;
+          if (fwY !== null && Number.isFinite(fwY)) {
+            heightBuf[idx] = fwY;
+            nxBuf[idx] = 0.0;
+            nyBuf[idx] = 1.0;
+            nzBuf[idx] = 0.0;
+            classBuf[idx] = 0;
+          } else if (gh <= waterLevelY + 0.06 && dCoast > 3.45) {
+            heightBuf[idx] = waterLevelY;
+            nxBuf[idx] = 0.0;
+            nyBuf[idx] = 1.0;
+            nzBuf[idx] = 0.0;
+            classBuf[idx] = 0;
+          } else {
+            heightBuf[idx] = gh;
+            classBuf[idx] = 1;
+          }
+          continue;
+        }
+
         const gh = groundHeightFn(wx, wz);
         rawGroundBuf[idx] = gh;
-
         const fwY = freshwaterSurfaceYFn ? freshwaterSurfaceYFn(wx, wz) : null;
         if (fwY !== null && Number.isFinite(fwY)) {
           heightBuf[idx] = fwY;
@@ -138,17 +219,7 @@ export class RainCollisionBake {
           nzBuf[idx] = 0.0;
           classBuf[idx] = 0;
         } else {
-          let isWater;
-          if (islandCoastDistanceFn) {
-            if (gh > waterLevelY + 0.06) {
-              isWater = false;
-            } else {
-              isWater = islandCoastDistanceFn(wx, wz) > 3.45;
-            }
-          } else {
-            isWater = wx > shoreX + 3.45 || gh <= waterLevelY - 0.02;
-          }
-
+          const isWater = wx > shoreX + 3.45 || gh <= waterLevelY - 0.02;
           if (isWater) {
             heightBuf[idx] = waterLevelY;
             nxBuf[idx] = 0.0;
@@ -167,7 +238,7 @@ export class RainCollisionBake {
       const rowOffset = iz * size;
       const izD = iz > 0 ? iz - 1 : 0;
       const izU = iz < size - 1 ? iz + 1 : size - 1;
-      const spanZ = (izU - izD || 1) * cellSize;
+      const spanZ = (izU - izD || 1) * cellSizeZ;
 
       for (let ix = 0; ix < size; ix++) {
         const idx = rowOffset + ix;
@@ -175,7 +246,7 @@ export class RainCollisionBake {
 
         const ixL = ix > 0 ? ix - 1 : 0;
         const ixR = ix < size - 1 ? ix + 1 : size - 1;
-        const spanX = (ixR - ixL || 1) * cellSize;
+        const spanX = (ixR - ixL || 1) * cellSizeX;
 
         const gx = (rawGroundBuf[rowOffset + ixL] - rawGroundBuf[rowOffset + ixR]) / spanX;
         const gz = (rawGroundBuf[izD * size + ix] - rawGroundBuf[izU * size + ix]) / spanZ;
@@ -254,24 +325,24 @@ export class RainCollisionBake {
         const minZ = Math.min(az, bz, cz);
         const maxZ = Math.max(az, bz, cz);
 
-        if (maxX < -halfExtent || minX > halfExtent || maxZ < -halfExtent || minZ > halfExtent) {
+        if (maxX < minXBound || minX > maxXBound || maxZ < minZBound || minZ > maxZBound) {
           continue;
         }
 
-        const ixMin = Math.max(0, Math.floor((minX + halfExtent) / cellSize));
-        const ixMax = Math.min(size - 1, Math.floor((maxX + halfExtent) / cellSize));
-        const izMin = Math.max(0, Math.floor((minZ + halfExtent) / cellSize));
-        const izMax = Math.min(size - 1, Math.floor((maxZ + halfExtent) / cellSize));
+        const ixMin = Math.max(0, Math.floor((minX - minXBound) / cellSizeX));
+        const ixMax = Math.min(size - 1, Math.floor((maxX - minXBound) / cellSizeX));
+        const izMin = Math.max(0, Math.floor((minZ - minZBound) / cellSizeZ));
+        const izMax = Math.min(size - 1, Math.floor((maxZ - minZBound) / cellSizeZ));
 
         const det = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
         if (Math.abs(det) < 1e-6) continue;
         const invDet = 1.0 / det;
 
         for (let iz = izMin; iz <= izMax; iz++) {
-          const pz = -halfExtent + (iz + 0.5) * cellSize;
+          const pz = minZBound + (iz + 0.5) * cellSizeZ;
           const rowOffset = iz * size;
           for (let ix = ixMin; ix <= ixMax; ix++) {
-            const px = -halfExtent + (ix + 0.5) * cellSize;
+            const px = minXBound + (ix + 0.5) * cellSizeX;
             const dpx = px - cx;
             const dpz = pz - cz;
             const w0 = ((bz - cz) * dpx + (cx - bx) * dpz) * invDet;
@@ -320,17 +391,20 @@ export class RainCollisionBake {
         const rz = rx;
         const ry = Math.max(0.35, sy * 1.02);
 
-        const ixMin = Math.max(0, Math.floor((cx - rx + halfExtent) / cellSize));
-        const ixMax = Math.min(size - 1, Math.floor((cx + rx + halfExtent) / cellSize));
-        const izMin = Math.max(0, Math.floor((cz - rz + halfExtent) / cellSize));
-        const izMax = Math.min(size - 1, Math.floor((cz + rz + halfExtent) / cellSize));
+        if (cx + rx < minXBound || cx - rx > maxXBound || cz + rz < minZBound || cz - rz > maxZBound) {
+          continue;
+        }
+        const ixMin = Math.max(0, Math.floor((cx - rx - minXBound) / cellSizeX));
+        const ixMax = Math.min(size - 1, Math.floor((cx + rx - minXBound) / cellSizeX));
+        const izMin = Math.max(0, Math.floor((cz - rz - minZBound) / cellSizeZ));
+        const izMax = Math.min(size - 1, Math.floor((cz + rz - minZBound) / cellSizeZ));
 
         for (let iz = izMin; iz <= izMax; iz++) {
-          const pz = -halfExtent + (iz + 0.5) * cellSize;
+          const pz = minZBound + (iz + 0.5) * cellSizeZ;
           const dz = (pz - cz) / rz;
           const rowOffset = iz * size;
           for (let ix = ixMin; ix <= ixMax; ix++) {
-            const px = -halfExtent + (ix + 0.5) * cellSize;
+            const px = minXBound + (ix + 0.5) * cellSizeX;
             const dx = (px - cx) / rx;
             const r2 = dx * dx + dz * dz;
             if (r2 > 1.0) continue;
@@ -371,6 +445,8 @@ export class RainCollisionBake {
         nm === 'NexusAnalyticalSkyDome' ||
         nm === 'DanauKenangaWaterSurface' ||
         nm === 'KampusUITerrainAndDanau' ||
+        nm === 'KampusUITerrainAndDanauKenanga' ||
+        nm === 'NexusBatched_CampusTerrainAndTurapMat' ||
         nm === 'NexusVolcanicSmokePlume' ||
         nm === 'NexusPhysicalRainAndDrips' ||
         nm === 'NexusPhysicalSplashAndMist' ||
@@ -443,7 +519,7 @@ export class RainCollisionBake {
     ];
 
     for (let iz = 2; iz < size - 2; iz++) {
-      const wz = -halfExtent + (iz + 0.5) * cellSize;
+      const wz = minZBound + (iz + 0.5) * cellSizeZ;
       const rowOffset = iz * size;
       for (let ix = 2; ix < size - 2; ix++) {
         const idx = rowOffset + ix;
@@ -470,14 +546,14 @@ export class RainCollisionBake {
         }
 
         if (bestDrop > 1.85) {
-          const wx = -halfExtent + (ix + 0.5) * cellSize;
+          const wx = minXBound + (ix + 0.5) * cellSizeX;
           const cls = classBuf[idx];
           const outLen = Math.hypot(bestOx, bestOz) || 1.0;
           rawCandidates.push({
             // Nudge 0.56 texel outward past the overhang lip so drips & genting runoff fall unobstructed
-            x: wx + bestOx * cellSize * 0.56,
+            x: wx + bestOx * cellSizeX * 0.56,
             y: h - (cls === 3 ? 0.34 : 0.07),
-            z: wz + bestOz * cellSize * 0.56,
+            z: wz + bestOz * cellSizeZ * 0.56,
             landingY: bestLandingY,
             isCanopy: cls === 3 ? 1.0 : 0.0,
             outX: bestOx / outLen,
@@ -497,7 +573,7 @@ export class RainCollisionBake {
       for (let i = 0; i < maxDrips; i++) {
         const src = rawCandidates[((i * prime) % n + n) % n];
         // Tiny sub-texel jitter along tangent edge (perpendicular to outward eave normal!)
-        const jitter = (((i * 37) % 100) / 100 - 0.5) * cellSize * 0.42;
+        const jitter = (((i * 37) % 100) / 100 - 0.5) * avgCellSize * 0.42;
         const tanX = -src.outZ;
         const tanZ = src.outX;
         dripAnchors.push({
@@ -565,8 +641,8 @@ export class RainCollisionBake {
     texture.needsUpdate = true;
 
     const sampleHeightAt = (x, z) => {
-      const ix = Math.max(0, Math.min(size - 1, Math.floor((x + halfExtent) / cellSize)));
-      const iz = Math.max(0, Math.min(size - 1, Math.floor((z + halfExtent) / cellSize)));
+      const ix = Math.max(0, Math.min(size - 1, Math.floor((x - minXBound) / cellSizeX)));
+      const iz = Math.max(0, Math.min(size - 1, Math.floor((z - minZBound) / cellSizeZ)));
       return heightBuf[iz * size + ix];
     };
 
@@ -574,6 +650,15 @@ export class RainCollisionBake {
       texture,
       size,
       halfExtent,
+      minX: minXBound,
+      maxX: maxXBound,
+      minZ: minZBound,
+      maxZ: maxZBound,
+      spanX: worldSpanX,
+      spanZ: worldSpanZ,
+      minY,
+      maxY,
+      spanY,
       dripAnchors,
       rawDripCandidateCount: rawCandidates.length,
       sampleHeightAt

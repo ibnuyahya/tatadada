@@ -736,72 +736,127 @@ export class AutogenBiomeSpawner {
   }
 
   /**
-   * Builds a 10x High-Detail 6-harmonic botanical leaf-cluster foliage cloud geometry
-   * (38 x 26 = 1,976 tris/cloud, ZERO cones!) with natural tropical AO & sunlit leaf-tip shading.
+   * Builds a Multi-Lobed Phyllotaxis Botanical Leaf-Cluster Foliage Cloud Geometry (~1,864 tris/cloud, +0 Draw Calls!):
+   * Combines a shaded interior umbrella core + 6 overlapping peripheral bough leaf-tuft pads + 2 sunlit apical shoot puffs
+   * with deep inter-lobe pocket AO and young-leaf chlorophyll tip highlights.
    */
   static _buildOrganicFoliageCloudGeometry() {
-    const uSegs = 26;
-    const vSegs = 18;
     const positions = [];
     const normals = [];
     const uvs = [];
     const colors = [];
     const indices = [];
 
-    for (let iv = 0; iv <= vSegs; iv++) {
-      const v = iv / vSegs;
-      const phi = v * Math.PI;
-      const sinPhi = Math.sin(phi);
-      const cosPhi = Math.cos(phi);
+    const appendLeafSubTuft = (cx, cy, cz, rx, ry, rz, phase, aoMult, shootBoost, uSegs, vSegs) => {
+      const baseIdx = positions.length / 3;
+      for (let iv = 0; iv <= vSegs; iv++) {
+        const v = iv / vSegs;
+        const phi = v * Math.PI;
+        const sinPhi = Math.sin(phi);
+        const cosPhi = Math.cos(phi);
 
-      for (let iu = 0; iu <= uSegs; iu++) {
-        const u = iu / uSegs;
-        const th = u * Math.PI * 2.0;
+        for (let iu = 0; iu <= uSegs; iu++) {
+          const u = iu / uSegs;
+          const th = u * Math.PI * 2.0 + phase;
 
-        const nx = -Math.cos(th) * sinPhi;
-        const ny = cosPhi;
-        const nz = Math.sin(th) * sinPhi;
+          const nx = -Math.cos(th) * sinPhi;
+          const ny = cosPhi;
+          const nz = Math.sin(th) * sinPhi;
 
-        // 6-Harmonic Multi-Scale Organic Leaf-Cluster Relief (macro bough lobes + micro leaf tufts!)
-        const lobeA = 0.135 * Math.sin(3.0 * th + 0.5) * sinPhi * sinPhi;
-        const lobeB = 0.085 * Math.cos(5.0 * th - 2.0 * phi);
-        const lobeC = 0.065 * Math.sin(4.0 * phi + 2.0 * th);
-        const tuftD = 0.042 * Math.sin(9.0 * th + 5.0 * phi) * sinPhi;
-        const tuftE = 0.028 * Math.cos(14.0 * th - 7.0 * phi) * sinPhi;
-        const tuftF = 0.018 * Math.sin(8.0 * phi - 6.0 * th);
+          // Deep scalloped tropical leaflet cluster harmonics
+          const lobeA = 0.145 * Math.sin(3.0 * th + 0.5) * sinPhi * sinPhi;
+          const lobeB = 0.095 * Math.cos(5.0 * th - 2.0 * phi);
+          const lobeC = 0.072 * Math.sin(4.0 * phi + 2.0 * th);
+          const tuftD = 0.052 * Math.sin(9.0 * th + 5.0 * phi) * sinPhi;
+          const tuftE = 0.034 * Math.cos(13.0 * th - 7.0 * phi) * sinPhi;
 
-        const bottomFlatten = ny < 0.0 ? 0.78 : 1.0;
-        const r = 1.0 + lobeA + lobeB + lobeC + tuftD + tuftE + tuftF;
+          const bottomFlatten = ny < 0.0 ? 0.74 : 1.0;
+          const r = 1.0 + lobeA + lobeB + lobeC + tuftD + tuftE;
 
-        const px = nx * r;
-        const py = ny * r * bottomFlatten;
-        const pz = nz * r;
+          const px = cx + nx * r * rx;
+          const py = cy + ny * r * ry * bottomFlatten;
+          const pz = cz + nz * r * rz;
 
-        // Botanical AO, inner bough shadow, & sunlit young-shoot leaf tips
-        const sunGrad = Math.max(0.0, Math.min(1.0, (ny + 0.85) / 1.85));
-        const clumpVar = 0.5 + 0.5 * Math.sin(3.0 * th + phi * 2.0);
-        const shootTip = Math.max(0.0, tuftD + tuftE) * 6.5 * sunGrad;
+          // Outward radial + local sub-tuft normal blend for crisp leaf-clump self-shading
+          const outLen = Math.hypot(px, py * 1.15, pz) || 1.0;
+          const bNx = nx * 0.68 + (px / outLen) * 0.32;
+          const bNy = ny * 0.68 + ((py * 1.15) / outLen) * 0.32;
+          const bNz = nz * 0.68 + (pz / outLen) * 0.32;
+          const nInv = 1.0 / (Math.hypot(bNx, bNy, bNz) || 1.0);
 
-        const colR = 0.038 + 0.102 * sunGrad + 0.022 * clumpVar + 0.038 * shootTip;
-        const colG = 0.128 + 0.238 * sunGrad + 0.035 * clumpVar + 0.068 * shootTip;
-        const colB = 0.026 + 0.054 * sunGrad + 0.012 * clumpVar + 0.014 * shootTip;
+          // Deep interior bough pocket AO + sunlit young-shoot leaf tips
+          const radialExp = Math.min(1.0, Math.hypot(px, Math.max(0.0, py) * 1.1, pz) / 1.06);
+          const sunGrad = Math.max(0.0, Math.min(1.0, (ny + 0.78) / 1.78));
+          const pocketAO = (0.56 + 0.44 * radialExp) * aoMult;
+          const clumpVar = 0.5 + 0.5 * Math.sin(3.0 * th + phi * 2.0 + phase);
+          const shootTip = Math.max(0.0, tuftD + tuftE) * 6.8 * sunGrad * shootBoost;
 
-        positions.push(px, py, pz);
-        normals.push(nx, ny, nz);
-        uvs.push(u, 1.0 - v);
-        colors.push(colR, colG, colB);
+          const colR = (0.034 + 0.104 * sunGrad + 0.022 * clumpVar) * pocketAO + 0.042 * shootTip;
+          const colG = (0.118 + 0.246 * sunGrad + 0.038 * clumpVar) * pocketAO + 0.074 * shootTip;
+          const colB = (0.024 + 0.052 * sunGrad + 0.012 * clumpVar) * pocketAO + 0.015 * shootTip;
+
+          positions.push(px, py, pz);
+          normals.push(bNx * nInv, bNy * nInv, bNz * nInv);
+          uvs.push(u, 1.0 - v);
+          colors.push(colR, colG, colB);
+        }
       }
+
+      const stride = uSegs + 1;
+      for (let iv = 0; iv < vSegs; iv++) {
+        for (let iu = 0; iu < uSegs; iu++) {
+          const a = baseIdx + iv * stride + iu;
+          const b = a + 1;
+          const c = a + stride + 1;
+          const d = a + stride;
+          indices.push(a, d, b, b, d, c);
+        }
+      }
+    };
+
+    // 1. Shaded Interior Umbrella Core
+    appendLeafSubTuft(0.0, -0.02, 0.0, 0.76, 0.76, 0.76, 0.0, 0.78, 0.65, 18, 12);
+
+    // 2. Six Overlapping Phyllotaxis Peripheral Bough Leaf-Cluster Pads
+    for (let k = 0; k < 6; k++) {
+      const az = k * 2.3999632 + 0.25;
+      const dist = 0.42 + (k % 2) * 0.07;
+      const cy = -0.08 + (k % 3) * 0.10;
+      const rx = 0.55 + (k % 2) * 0.04;
+      const ry = 0.54 + ((k + 1) % 2) * 0.05;
+      const rz = 0.53 + (k % 3) * 0.03;
+      const ao = 0.90 + (k % 3) * 0.06;
+      appendLeafSubTuft(
+        Math.cos(az) * dist,
+        cy,
+        Math.sin(az) * dist,
+        rx,
+        ry,
+        rz,
+        az * 0.7,
+        ao,
+        1.05,
+        12,
+        8
+      );
     }
 
-    const stride = uSegs + 1;
-    for (let iv = 0; iv < vSegs; iv++) {
-      for (let iu = 0; iu < uSegs; iu++) {
-        const a = iv * stride + iu;
-        const b = a + 1;
-        const c = a + stride + 1;
-        const d = a + stride;
-        indices.push(a, d, b, b, d, c);
-      }
+    // 3. Two Sunlit Apical Shoot Crownlets
+    for (let k = 0; k < 2; k++) {
+      const az = k * Math.PI + 0.85;
+      appendLeafSubTuft(
+        Math.cos(az) * 0.24,
+        0.34 + k * 0.05,
+        Math.sin(az) * 0.24,
+        0.48,
+        0.46,
+        0.48,
+        az,
+        1.06,
+        1.30,
+        10,
+        7
+      );
     }
 
     const geo = new THREE.BufferGeometry();
@@ -1181,48 +1236,80 @@ export class AutogenBiomeSpawner {
         mat.compose(new THREE.Vector3(tree.x, gy, tree.z), quat, new THREE.Vector3(1, 1, 1));
         topVec.applyMatrix4(mat);
 
+        // Smooth emerald-green Roystonea regia crownshaft ("pelepah hijau mulus") + apical spear heart
         pushTransform(
           canopyMatrices,
           topVec.x,
-          topVec.y + 0.15 * s,
+          topVec.y - 0.18 * s,
           topVec.z,
           leanX,
           yaw,
           leanZ,
-          0.52 * s,
-          1.15 * s,
-          0.52 * s,
+          0.24 * s,
+          0.92 * s,
+          0.24 * s,
           canopyColors,
-          0.94,
-          1.10,
-          0.84
+          0.82,
+          1.16,
+          0.72
+        );
+        pushTransform(
+          canopyMatrices,
+          topVec.x,
+          topVec.y + 0.52 * s,
+          topVec.z,
+          leanX,
+          yaw,
+          leanZ,
+          0.16 * s,
+          0.62 * s,
+          0.16 * s,
+          canopyColors,
+          0.96,
+          1.22,
+          0.78
         );
 
-        for (let f = 0; f < 6; f++) {
-          const frondYaw = yaw + (f / 6) * Math.PI * 2.0;
-          const droopPitch = 0.42 + (f % 2) * 0.16;
-          const radialOut = 1.65 * s;
-          const fx = topVec.x + Math.sin(frondYaw) * radialOut;
-          const fz = topVec.z + Math.cos(frondYaw) * radialOut;
-          const fy = topVec.y + (0.28 - (f % 2) * 0.18) * s;
-          const frondAge = f % 2 === 0 ? 1.06 : 0.92;
-
-          pushTransform(
-            canopyMatrices,
-            fx,
-            fy,
-            fz,
-            droopPitch,
-            frondYaw,
-            0.0,
-            0.62 * s,
-            0.26 * s,
-            2.35 * s,
-            canopyColors,
-            1.14 * frondAge,
-            1.05 * frondAge,
-            0.80 * frondAge
-          );
+        // 10 Parabolic-Arching 3-Segment Pinnate Royal Palm Fronds (2 phyllotaxis whorls, +0 Draw Calls!)
+        for (let f = 0; f < 10; f++) {
+          const isUpperWhorl = f < 5;
+          const whorlIdx = f % 5;
+          const frondYaw = yaw + (whorlIdx / 5) * Math.PI * 2.0 + (isUpperWhorl ? 0.31 : 0.0);
+          const sinY = Math.sin(frondYaw);
+          const cosY = Math.cos(frondYaw);
+          const baseY = topVec.y + (isUpperWhorl ? 0.34 : 0.14) * s;
+          const frondAge = isUpperWhorl ? 1.08 : 0.94;
+          const segSpecs = isUpperWhorl
+            ? [
+                { r: 0.72, dy: 0.34, pitch: -0.34, sx: 0.34, sy: 0.14, sz: 0.95 },
+                { r: 1.68, dy: 0.38, pitch: 0.22, sx: 0.54, sy: 0.17, sz: 1.24 },
+                { r: 2.62, dy: -0.06, pitch: 0.74, sx: 0.42, sy: 0.14, sz: 1.08 }
+              ]
+            : [
+                { r: 0.78, dy: 0.14, pitch: -0.08, sx: 0.38, sy: 0.15, sz: 1.02 },
+                { r: 1.82, dy: -0.08, pitch: 0.46, sx: 0.58, sy: 0.18, sz: 1.32 },
+                { r: 2.78, dy: -0.68, pitch: 0.98, sx: 0.44, sy: 0.14, sz: 1.12 }
+              ];
+          for (let sg = 0; sg < 3; sg++) {
+            const sp = segSpecs[sg];
+            const tipTint = 1.0 - sg * 0.04;
+            pushTransform(
+              canopyMatrices,
+              topVec.x + sinY * sp.r * s,
+              baseY + sp.dy * s,
+              topVec.z + cosY * sp.r * s,
+              sp.pitch,
+              frondYaw,
+              0.0,
+              sp.sx * s,
+              sp.sy * s,
+              sp.sz * s,
+              canopyColors,
+              1.08 * frondAge * tipTint,
+              1.06 * frondAge,
+              0.78 * frondAge * tipTint
+            );
+          }
         }
       }
     }

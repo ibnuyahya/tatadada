@@ -24,10 +24,27 @@ export class TerrainDEMLoader {
   static GRID_HALF_SPAN = 166.0;
   static TERRAIN_HALF_SIZE = 166.0;
 
-  // Archipelago Center & 3.3 km Ocean Horizon Radius
+  // Archipelago Center & 5.36 km Kepulauan Seribu Ocean Horizon Radius (+X = True North, -X = South -> Pulau Jawa)
   static ARCHIPELAGO_CX = -155.0;
   static ARCHIPELAGO_CZ = 330.0;
-  static WATER_OUTER_RADIUS = 1650.0;
+  static WATER_OUTER_RADIUS = 2680.0;
+
+  // Gugusan Kepulauan Seribu Coral Cays, White Coral-Sand Spits (Gosong Pasir), & Reef Lagoons
+  // Oriented with +X = True North (towards Kepulauan Seribu Tengah/Utara) and -X = South (open Teluk Jakarta towards Pulau Jawa!)
+  static KEPULAUAN_SERIBU_CAYS = [
+    { name: 'Pulau_Karya_Utara', cx: 1120.0, cz: 295.0, rx: 68.0, rz: 110.0, rot: 0.28, hLand: 2.35, hCanopy: 9.6, spit: 0.34, reefR: 215.0 },
+    { name: 'Gosong_Pasir_Pramuka', cx: 995.0, cz: 520.0, rx: 26.0, rz: 94.0, rot: -0.42, hLand: 0.92, hCanopy: 0.0, spit: 0.45, reefR: 168.0 },
+    { name: 'Pulau_Panggang_Barat', cx: 1040.0, cz: -260.0, rx: 74.0, rz: 118.0, rot: -0.35, hLand: 2.65, hCanopy: 10.6, spit: 0.28, reefR: 235.0 },
+    { name: 'Pulau_Semak_Daun', cx: 1480.0, cz: -40.0, rx: 58.0, rz: 88.0, rot: 0.18, hLand: 2.15, hCanopy: 9.0, spit: 0.30, reefR: 195.0 },
+    { name: 'Pulau_Pari_Timur', cx: 1185.0, cz: 920.0, rx: 82.0, rz: 146.0, rot: 0.48, hLand: 2.75, hCanopy: 10.8, spit: 0.36, reefR: 260.0 },
+    { name: 'Pulau_Tidung_Kecil', cx: 1660.0, cz: 580.0, rx: 62.0, rz: 158.0, rot: -0.24, hLand: 2.45, hCanopy: 9.8, spit: 0.40, reefR: 245.0 },
+    { name: 'Pulau_Payung', cx: 640.0, cz: -760.0, rx: 64.0, rz: 96.0, rot: 0.52, hLand: 2.50, hCanopy: 9.8, spit: 0.26, reefR: 205.0 },
+    { name: 'Gosong_Karang_Barat', cx: 180.0, cz: -960.0, rx: 28.0, rz: 86.0, rot: 0.22, hLand: 0.86, hCanopy: 0.0, spit: 0.42, reefR: 175.0 },
+    { name: 'Pulau_Ayer', cx: -110.0, cz: 1540.0, rx: 66.0, rz: 98.0, rot: -0.38, hLand: 2.40, hCanopy: 9.5, spit: 0.25, reefR: 215.0 },
+    { name: 'Pulau_Bidadari', cx: -540.0, cz: -860.0, rx: 56.0, rz: 82.0, rot: -0.44, hLand: 2.25, hCanopy: 9.2, spit: 0.22, reefR: 185.0 },
+    { name: 'Pulau_Onrust', cx: -980.0, cz: -690.0, rx: 54.0, rz: 76.0, rot: 0.31, hLand: 2.20, hCanopy: 8.8, spit: 0.20, reefR: 180.0 },
+    { name: 'Pulau_Damar_Besar', cx: -920.0, cz: 1280.0, rx: 64.0, rz: 94.0, rot: 0.26, hLand: 2.45, hCanopy: 9.6, spit: 0.24, reefR: 205.0 }
+  ];
 
   static SUB_TERRAIN_SKIRT_Y = -18.0;
   static WATER_LEVEL_Y = -1.45;
@@ -683,7 +700,8 @@ export class TerrainDEMLoader {
       const baseHw = TerrainDEMLoader.evalPulauURiverHalfWidth(sc);
       const scSin1 = 0.24 * Math.sin(sc * 0.43 + 0.65) + 0.15 * Math.cos(sc * 0.94 - 0.45);
       const scCos0 = 0.09 * Math.cos(sc * 0.76);
-      stations[k] = { sc, zc, mc, invT, baseHw, scSin1, scCos0 };
+      const maxHw = Math.max(3.40, baseHw + Math.abs(scSin1) + Math.abs(scCos0));
+      stations[k] = { sc, zc, mc, invT, baseHw, scSin1, scCos0, maxHw };
     }
     TerrainDEMLoader._cachedPulauURiverStations = stations;
     return stations;
@@ -695,7 +713,7 @@ export class TerrainDEMLoader {
    * so concave meander pockets and upstream/downstream normal lines never form gradient discontinuities!
    */
   static evalPulauUHydrology(x, z) {
-    if (x < -356.0 || x >= -68.0 || z < -120.0 || z > 142.0) return null;
+    if (x < -356.0 || x >= -68.0 || z < -86.0 || z > 104.0) return null;
 
     // Uniform 5.2m physical outer-bank scale unit across Spring, River, & Small Lake so w = 5.85 is always ~25m outside shore!
     const bankUnitM = 5.2;
@@ -711,18 +729,57 @@ export class TerrainDEMLoader {
         ? distS / Math.max(1.0, rSpringShore)
         : 1.0 + (distS - rSpringShore) / bankUnitM;
 
-    // 2. Meandering Northbound River (84 fixed global stations + C^inf log-sum-exp non-expansive SDF)
+    // 3. Scenic Small Lake beside Gedung Rektorat UI ("Danau Kecil Rektorat") at (-82.5, -22.0) — evaluated early for fast far-field culling
+    const dxL = x - TerrainDEMLoader.LAKE_U_CX;
+    const dzL = z - TerrainDEMLoader.LAKE_U_CZ;
+    const thL = Math.atan2(dzL, dxL);
+    const modL = TerrainDEMLoader.evalPulauULakeRadiusMod(thL);
+    const rxL = TerrainDEMLoader.LAKE_U_RX * modL;
+    const rzL = TerrainDEMLoader.LAKE_U_RZ * modL;
+    const wLakeRaw = Math.hypot(dxL / rxL, dzL / rzL);
+    const avgRL = 0.5 * (TerrainDEMLoader.LAKE_U_RX + TerrainDEMLoader.LAKE_U_RZ);
+    const wLake =
+      wLakeRaw <= 1.0
+        ? wLakeRaw
+        : 1.0 + ((wLakeRaw - 1.0) * avgRL) / bankUnitM;
+
+    // 2. Meandering Northbound River (84 fixed global stations + C^inf log-sum-exp non-expansive SDF with exact station wMin pruning)
     const stations = TerrainDEMLoader._getPulauURiverStations();
     const nSt = stations.length;
     const wcs = TerrainDEMLoader._riverWcScratch || (TerrainDEMLoader._riverWcScratch = new Float64Array(nSt));
     const crossArr = TerrainDEMLoader._riverCrScratch || (TerrainDEMLoader._riverCrScratch = new Float64Array(nSt));
     const hwArr = TerrainDEMLoader._riverHwScratch || (TerrainDEMLoader._riverHwScratch = new Float64Array(nSt));
 
+    // Seed wMin from the X-nearest station first so distant stations with dw > 3.2 are pruned without hypot/tanh!
+    const xStart = TerrainDEMLoader.RIVER_U_X_START;
+    const xSpan = TerrainDEMLoader.RIVER_U_X_END - xStart;
+    const kSeed = Math.max(0, Math.min(nSt - 1, Math.round(((x - xStart) / xSpan) * (nSt - 1))));
     let wMin = 1e6;
+    {
+      const st0 = stations[kSeed];
+      const dx0 = x - st0.sc;
+      const dz0 = z - st0.zc;
+      const latD0 = dx0 * (-st0.mc * st0.invT) + dz0 * st0.invT;
+      const hw0 = Math.max(3.40, st0.baseHw + Math.tanh(latD0 * 0.42) * st0.scSin1 + st0.scCos0);
+      const distC0 = Math.hypot(dx0, dz0);
+      const wc0 = distC0 <= hw0 ? distC0 / hw0 : 1.0 + (distC0 - hw0) / bankUnitM;
+      wcs[kSeed] = wc0;
+      crossArr[kSeed] = latD0 / hw0;
+      hwArr[kSeed] = hw0;
+      wMin = wc0;
+    }
+
     for (let k = 0; k < nSt; k++) {
+      if (k === kSeed) continue;
       const st = stations[k];
       const dx = x - st.sc;
       const dz = z - st.zc;
+      const maxAbs = Math.abs(dx) > Math.abs(dz) ? Math.abs(dx) : Math.abs(dz);
+      const pruneDist = st.maxHw + Math.max(0.0, wMin + 2.205) * bankUnitM;
+      if (maxAbs > pruneDist) {
+        wcs[k] = 1e6;
+        continue;
+      }
       const latD = dx * (-st.mc * st.invT) + dz * st.invT;
       const sideBlend = Math.tanh(latD * 0.42);
       const hwShore = Math.max(3.40, st.baseHw + sideBlend * st.scSin1 + st.scCos0);
@@ -736,6 +793,9 @@ export class TerrainDEMLoader {
       hwArr[k] = hwShore;
       if (wc < wMin) wMin = wc;
     }
+
+    // Exact far-field cull before exp() loop: wRiver >= wMin - ln(84)/11.5 + 0.032 >= wMin - 0.354
+    if (wSpring >= 7.05 && wLake >= 7.05 && wMin >= 7.45) return null;
 
     const betaLse = 11.5;
     let sumLse = 0.0;
@@ -759,20 +819,6 @@ export class TerrainDEMLoader {
     const s = sumS * invSumW;
     const effHalfW = sumHalfW * invSumW;
     const signedCross = sumSignedCross * invSumW;
-
-    // 3. Scenic Small Lake beside Gedung Rektorat UI ("Danau Kecil Rektorat") at (-82.5, -22.0)
-    const dxL = x - TerrainDEMLoader.LAKE_U_CX;
-    const dzL = z - TerrainDEMLoader.LAKE_U_CZ;
-    const thL = Math.atan2(dzL, dxL);
-    const modL = TerrainDEMLoader.evalPulauULakeRadiusMod(thL);
-    const rxL = TerrainDEMLoader.LAKE_U_RX * modL;
-    const rzL = TerrainDEMLoader.LAKE_U_RZ * modL;
-    const wLakeRaw = Math.hypot(dxL / rxL, dzL / rzL);
-    const avgRL = 0.5 * (TerrainDEMLoader.LAKE_U_RX + TerrainDEMLoader.LAKE_U_RZ);
-    const wLake =
-      wLakeRaw <= 1.0
-        ? wLakeRaw
-        : 1.0 + ((wLakeRaw - 1.0) * avgRL) / bankUnitM;
 
     const wSR = TerrainDEMLoader._smin(wSpring, wRiver, 0.28);
     const w = Math.max(0.0, TerrainDEMLoader._smin(wSR, wLake, 0.30));
@@ -1627,7 +1673,51 @@ export class TerrainDEMLoader {
       corr.endSegIdx = segments.length;
     }
 
-    TerrainDEMLoader._cachedRoadNetwork3D = { corridors, segments };
+    // Build flat 24.0m 2D spatial lookup grid across [-465..+130] x [-20..+775] for O(1) DEM grading & biome exclusion
+    const gridCellSize = 24.0;
+    const gridInvCell = 1.0 / gridCellSize;
+    const gridMinCX = Math.floor(-465.0 * gridInvCell);
+    const gridMaxCX = Math.floor(130.0 * gridInvCell);
+    const gridMinCZ = Math.floor(-20.0 * gridInvCell);
+    const gridMaxCZ = Math.floor(775.0 * gridInvCell);
+    const gridW = gridMaxCX - gridMinCX + 1;
+    const gridH = gridMaxCZ - gridMinCZ + 1;
+    const tempBuckets = new Array(gridW * gridH);
+
+    for (let sIdx = 0; sIdx < segments.length; sIdx++) {
+      const s = segments[sIdx];
+      const cx0 = Math.max(gridMinCX, Math.floor(s.minX * gridInvCell));
+      const cx1 = Math.min(gridMaxCX, Math.floor(s.maxX * gridInvCell));
+      const cz0 = Math.max(gridMinCZ, Math.floor(s.minZ * gridInvCell));
+      const cz1 = Math.min(gridMaxCZ, Math.floor(s.maxZ * gridInvCell));
+      for (let cz = cz0; cz <= cz1; cz++) {
+        const rowOff = (cz - gridMinCZ) * gridW;
+        for (let cx = cx0; cx <= cx1; cx++) {
+          const idx = rowOff + (cx - gridMinCX);
+          if (!tempBuckets[idx]) tempBuckets[idx] = [];
+          tempBuckets[idx].push(sIdx);
+        }
+      }
+    }
+
+    const segGrid = new Array(gridW * gridH);
+    for (let i = 0; i < tempBuckets.length; i++) {
+      segGrid[i] = tempBuckets[i] ? new Int16Array(tempBuckets[i]) : null;
+    }
+
+    TerrainDEMLoader._cachedRoadNetwork3D = {
+      corridors,
+      segments,
+      segGrid,
+      gridInvCell,
+      gridMinCX,
+      gridMaxCX,
+      gridMinCZ,
+      gridMaxCZ,
+      gridW,
+      corrBestD2: new Float64Array(corridors.length),
+      corrBestY: new Float64Array(corridors.length)
+    };
     return TerrainDEMLoader._cachedRoadNetwork3D;
   }
 
@@ -1639,45 +1729,56 @@ export class TerrainDEMLoader {
     if (x > 80.0 || x < -416.0 || z < 28.0 || (z > 498.0 && z < 574.0) || z > 728.0) {
       return null;
     }
-    const { corridors, segments } = TerrainDEMLoader.getRoadNetwork3DCorridors();
+    const net = TerrainDEMLoader.getRoadNetwork3DCorridors();
+    const cx = Math.floor(x * net.gridInvCell);
+    const cz = Math.floor(z * net.gridInvCell);
+    if (cx < net.gridMinCX || cx > net.gridMaxCX || cz < net.gridMinCZ || cz > net.gridMaxCZ) {
+      return null;
+    }
+    const cellSegs = net.segGrid[(cz - net.gridMinCZ) * net.gridW + (cx - net.gridMinCX)];
+    if (!cellSegs) return null;
+
+    const { corridors, segments, corrBestD2, corrBestY } = net;
     const maxD2 = 46.0 * 46.0;
+    let corrHitMask = 0;
+
+    for (let k = 0; k < cellSegs.length; k++) {
+      const s = segments[cellSegs[k]];
+      if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ) continue;
+      let t = ((x - s.ax) * s.dx + (z - s.az) * s.dz) * s.invLen2;
+      if (t < 0.0) t = 0.0;
+      else if (t > 1.0) t = 1.0;
+      const px = s.ax + s.dx * t;
+      const pz = s.az + s.dz * t;
+      const d2 = (x - px) * (x - px) + (z - pz) * (z - pz);
+      if (d2 < maxD2) {
+        const c = s.cIdx;
+        const bit = 1 << c;
+        if ((corrHitMask & bit) === 0 || d2 < corrBestD2[c]) {
+          corrBestD2[c] = d2;
+          corrBestY[c] = s.ay + (s.by - s.ay) * t;
+          corrHitMask |= bit;
+        }
+      }
+    }
+
+    if (corrHitMask === 0) return null;
+
     let minD2 = maxD2;
     let sumWY = 0.0;
     let sumW = 0.0;
-    let hit = false;
-
     for (let c = 0; c < corridors.length; c++) {
-      const corr = corridors[c];
-      if (x < corr.minX || x > corr.maxX || z < corr.minZ || z > corr.maxZ) continue;
-      let cBestD2 = maxD2;
-      let cBestY = 0.0;
-      let cHit = false;
-      for (let i = corr.startSegIdx; i < corr.endSegIdx; i++) {
-        const s = segments[i];
-        if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ) continue;
-        let t = ((x - s.ax) * s.dx + (z - s.az) * s.dz) * s.invLen2;
-        if (t < 0.0) t = 0.0;
-        else if (t > 1.0) t = 1.0;
-        const px = s.ax + s.dx * t;
-        const pz = s.az + s.dz * t;
-        const d2 = (x - px) * (x - px) + (z - pz) * (z - pz);
-        if (d2 < cBestD2) {
-          cBestD2 = d2;
-          cBestY = s.ay + (s.by - s.ay) * t;
-          cHit = true;
-        }
-      }
-      if (cHit) {
-        hit = true;
+      if ((corrHitMask & (1 << c)) !== 0) {
+        const cBestD2 = corrBestD2[c];
         if (cBestD2 < minD2) minD2 = cBestD2;
         // Smooth inverse-distance corridor weight eliminates Voronoi height jumps across T-junctions!
         const w = 1.0 / ((cBestD2 + 0.45) * (cBestD2 + 0.45) * (cBestD2 + 0.45));
-        sumWY += w * cBestY;
+        sumWY += w * corrBestY[c];
         sumW += w;
       }
     }
 
-    if (!hit || sumW <= 0.0) return null;
+    if (sumW <= 0.0) return null;
     const dist = Math.sqrt(minD2);
     const targetY = sumWY / sumW;
     const flatHalfW = 5.35; // Covers 3.75m half-road + 0.46m curb + 1.14m DEM grid margin
@@ -1737,21 +1838,45 @@ export class TerrainDEMLoader {
       return true;
     }
 
-    // 3. Integrated Pulau U & Pulau I Road Network Corridors
+    // 3. Integrated Pulau U & Pulau I Road Network Corridors (via O(1) 24m spatial grid when within 46m reach)
     const maxDist = 4.35 + marginMeters;
     if (x <= 64.0 && x >= -400.0 && z >= 45.0 && z <= 712.0) {
-      const { segments } = TerrainDEMLoader.getRoadNetwork3DCorridors();
+      const net = TerrainDEMLoader.getRoadNetwork3DCorridors();
       const maxD2 = maxDist * maxDist;
-      for (let i = 0; i < segments.length; i++) {
-        const s = segments[i];
-        if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ) continue;
-        let t = ((x - s.ax) * s.dx + (z - s.az) * s.dz) * s.invLen2;
-        if (t < 0.0) t = 0.0;
-        else if (t > 1.0) t = 1.0;
-        const px = s.ax + s.dx * t;
-        const pz = s.az + s.dz * t;
-        if ((x - px) * (x - px) + (z - pz) * (z - pz) < maxD2) {
-          return true;
+      if (maxDist <= 46.0) {
+        const cx = Math.floor(x * net.gridInvCell);
+        const cz = Math.floor(z * net.gridInvCell);
+        if (cx >= net.gridMinCX && cx <= net.gridMaxCX && cz >= net.gridMinCZ && cz <= net.gridMaxCZ) {
+          const cellSegs = net.segGrid[(cz - net.gridMinCZ) * net.gridW + (cx - net.gridMinCX)];
+          if (cellSegs) {
+            const segments = net.segments;
+            for (let k = 0; k < cellSegs.length; k++) {
+              const s = segments[cellSegs[k]];
+              if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ) continue;
+              let t = ((x - s.ax) * s.dx + (z - s.az) * s.dz) * s.invLen2;
+              if (t < 0.0) t = 0.0;
+              else if (t > 1.0) t = 1.0;
+              const px = s.ax + s.dx * t;
+              const pz = s.az + s.dz * t;
+              if ((x - px) * (x - px) + (z - pz) * (z - pz) < maxD2) {
+                return true;
+              }
+            }
+          }
+        }
+      } else {
+        const segments = net.segments;
+        for (let i = 0; i < segments.length; i++) {
+          const s = segments[i];
+          if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ) continue;
+          let t = ((x - s.ax) * s.dx + (z - s.az) * s.dz) * s.invLen2;
+          if (t < 0.0) t = 0.0;
+          else if (t > 1.0) t = 1.0;
+          const px = s.ax + s.dx * t;
+          const pz = s.az + s.dz * t;
+          if ((x - px) * (x - px) + (z - pz) * (z - pz) < maxD2) {
+            return true;
+          }
         }
       }
     }
@@ -2062,12 +2187,33 @@ export class TerrainDEMLoader {
     };
 
     const stride = segsX + 1;
+    const gridY = new Float64Array(stride * (segsZ + 1));
+
+    // Pass 1: Sample ground height exactly once per grid vertex (eliminates 4x redundant sampleGroundNormal height calls!)
     for (let iz = 0; iz <= segsZ; iz++) {
       const z = zCoords[iz];
+      const rowOff = iz * stride;
+      for (let ix = 0; ix <= segsX; ix++) {
+        gridY[rowOff + ix] = TerrainDEMLoader.sampleGroundHeight(xCoords[ix], z);
+      }
+    }
+
+    // Pass 2: Central-difference grid normals for interior vertices + boundary sampleGroundNormal + biome vertex colors
+    for (let iz = 0; iz <= segsZ; iz++) {
+      const z = zCoords[iz];
+      const rowOff = iz * stride;
+      const isEdgeZ = iz === 0 || iz === segsZ;
       for (let ix = 0; ix <= segsX; ix++) {
         const x = xCoords[ix];
-        const y = TerrainDEMLoader.sampleGroundHeight(x, z);
-        TerrainDEMLoader.sampleGroundNormal(x, z, nTmp);
+        const y = gridY[rowOff + ix];
+        if (!isEdgeZ && ix > 0 && ix < segsX && y <= 1.8) {
+          const dhdx = (gridY[rowOff + ix + 1] - gridY[rowOff + ix - 1]) / (xCoords[ix + 1] - xCoords[ix - 1]);
+          const dhdz = (gridY[rowOff + stride + ix] - gridY[rowOff - stride + ix]) / (zCoords[iz + 1] - zCoords[iz - 1]);
+          const invLen = 1.0 / Math.hypot(dhdx, 1.0, dhdz);
+          nTmp.set(-dhdx * invLen, invLen, -dhdz * invLen);
+        } else {
+          TerrainDEMLoader.sampleGroundNormal(x, z, nTmp);
+        }
 
         let r = 0.145;
         let g = 0.345;
@@ -2335,15 +2481,14 @@ export class TerrainDEMLoader {
       }
     }
 
-    // Watertight 4-sided Submerged Seabed Skirt down to y = -18.0m (Hukum Emas 5)
+    // Watertight 4-sided Submerged Seabed Skirt down to y = -18.0m (Hukum Emas 5) — reuses gridY for bitwise seam match
     const skirtY = TerrainDEMLoader.SUB_TERRAIN_SKIRT_Y;
     const addSkirtSide = (edgeSegs, sampleCoordFn, nx, ny, nz) => {
       const topRow = new Uint32Array(edgeSegs + 1);
       const botRow = new Uint32Array(edgeSegs + 1);
       for (let i = 0; i <= edgeSegs; i++) {
         const t = i / edgeSegs;
-        const { x, z, arcU } = sampleCoordFn(i, t);
-        const yTop = TerrainDEMLoader.sampleGroundHeight(x, z);
+        const { x, z, yTop, arcU } = sampleCoordFn(i, t);
         topRow[i] = writeVert(x, yTop, z, nx, ny, nz, arcU * 0.06, 1.0, 0.16, 0.17, 0.15);
         botRow[i] = writeVert(x, skirtY, z, nx, ny, nz, arcU * 0.06, 0.0, 0.10, 0.11, 0.10);
       }
@@ -2361,10 +2506,10 @@ export class TerrainDEMLoader {
       }
     };
 
-    addSkirtSide(segsX, (i, t) => ({ x: xCoords[i], z: zMax, arcU: t * spanX }), 0, 0, 1);
-    addSkirtSide(segsZ, (i, t) => ({ x: xMax, z: zCoords[segsZ - i], arcU: t * spanZ }), 1, 0, 0);
-    addSkirtSide(segsX, (i, t) => ({ x: xCoords[segsX - i], z: zMin, arcU: t * spanX }), 0, 0, -1);
-    addSkirtSide(segsZ, (i, t) => ({ x: xMin, z: zCoords[i], arcU: t * spanZ }), -1, 0, 0);
+    addSkirtSide(segsX, (i, t) => ({ x: xCoords[i], z: zMax, yTop: gridY[segsZ * stride + i], arcU: t * spanX }), 0, 0, 1);
+    addSkirtSide(segsZ, (i, t) => ({ x: xMax, z: zCoords[segsZ - i], yTop: gridY[(segsZ - i) * stride + segsX], arcU: t * spanZ }), 1, 0, 0);
+    addSkirtSide(segsX, (i, t) => ({ x: xCoords[segsX - i], z: zMin, yTop: gridY[segsX - i], arcU: t * spanX }), 0, 0, -1);
+    addSkirtSide(segsZ, (i, t) => ({ x: xMin, z: zCoords[i], yTop: gridY[i * stride], arcU: t * spanZ }), -1, 0, 0);
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -3466,27 +3611,38 @@ export class TerrainDEMLoader {
       prevUpRow = row;
     }
 
-    // Zone 4B: Pulau "I" Mini-Niagara 3D Parabolic Concave Horseshoe Falling Water Curtain (aligned with Zone 4A brink!)
+    // Zone 4B: Pulau "I" Mini-Niagara 3D Parabolic Convex-Rollover Horseshoe Falling Water Curtain
+    // Crest-clustered parameterization + exact r = 15.52m / sideTuck watertight join at tDrop = 0 + smooth projectile nappe normal!
     const fallASteps = 72;
-    const fallTSteps = 26;
+    const fallTSteps = 32;
     let prevFallRow = null;
     for (let it = 0; it <= fallTSteps; it++) {
-      const tDrop = it / fallTSteps;
-      const yCur =
-        18.66 - 17.06 * (0.14 * tDrop + 0.86 * tDrop * tDrop);
-      const dyDt = -17.06 * (0.14 + 1.72 * tDrop);
-      const drDt = -3.12 * 0.74 * Math.pow(Math.max(0.015, tDrop), -0.26);
+      const uStep = it / fallTSteps;
+      const tDrop = 0.42 * uStep * uStep + 0.58 * uStep;
+      const dyDt = -17.06 * (0.045 + 1.91 * tDrop);
+      const dsDt = 3.14 * (0.82 + 0.36 * tDrop);
       const nInMag = Math.abs(dyDt);
-      const nUpMag = Math.abs(drDt);
+      const nUpMag = dsDt;
       const nInv = 1.0 / Math.hypot(nInMag, nUpMag);
+      const fluteEnv = PhysicsKernel.smootherstep(0.0, 0.16, tDrop) * (1.0 - 0.55 * tDrop);
+      const sideTuckFade = 1.0 - PhysicsKernel.smootherstep(0.0, 0.22, tDrop);
+      const crestAeration =
+        0.58 * (1.0 - PhysicsKernel.smootherstep(0.0, 0.28, tDrop)) +
+        0.68 * PhysicsKernel.smootherstep(0.70, 1.0, tDrop);
+      const sheetSpd = 2.0 + 5.6 * tDrop;
 
       const row = [];
       for (let ia = 0; ia <= fallASteps; ia++) {
         const alphaNorm = -1.0 + (2.0 * ia) / fallASteps;
         const alpha = brinkCenterAlpha + alphaNorm * brinkHalfSpan;
+        const sideTuckBrink =
+          0.34 * PhysicsKernel.smootherstep(0.84, 1.0, Math.abs(alphaNorm)) * 0.28 * sideTuckFade;
+        const yCur =
+          18.66 - sideTuckBrink - 17.06 * (0.045 * tDrop + 0.955 * tDrop * tDrop);
         const lipFlute =
-          (0.24 * Math.sin(alpha * 9.0) + 0.14 * Math.cos(alpha * 15.0)) * (1.0 - 0.65 * tDrop);
-        const rCur = 15.52 - 3.12 * Math.pow(tDrop, 0.74) + lipFlute;
+          (0.22 * Math.sin(alpha * 9.0) + 0.13 * Math.cos(alpha * 15.0) + 0.07 * Math.sin(alpha * 23.0 + 0.6)) *
+          fluteEnv;
+        const rCur = 15.52 - 3.14 * (0.82 * tDrop + 0.18 * tDrop * tDrop) + lipFlute;
         const sA = Math.sin(alpha);
         const cA = Math.cos(alpha);
         const px = TerrainDEMLoader.NIAGARA_CX + sA * rCur;
@@ -3509,7 +3665,11 @@ export class TerrainDEMLoader {
             2.0,
             alphaNorm,
             arcMeters,
-            tDrop
+            tDrop,
+            1.25,
+            sheetSpd,
+            crestAeration,
+            0.0
           )
         );
       }
@@ -3602,6 +3762,231 @@ export class TerrainDEMLoader {
   }
 
   /**
+   * Builds 12 authentic Kepulauan Seribu low-lying coral cays (pulau karang), white biogenic coral-sand spits
+   * (gosong pasir putih), submerged coral reef aprons, and lush multi-dome coastal casuarina/coconut forests (+0 Draw Calls!).
+   */
+  static _buildKepulauanSeribuCaysGeometry() {
+    const positions = [];
+    const normals = [];
+    const uvs = [];
+    const colors = [];
+    const indices = [];
+
+    const pushVert = (px, py, pz, nx, ny, nz, u, v, cr, cg, cb) => {
+      const idx = positions.length / 3;
+      const nLen = Math.hypot(nx, ny, nz) || 1.0;
+      positions.push(px, py, pz);
+      normals.push(nx / nLen, ny / nLen, nz / nLen);
+      uvs.push(u, v);
+      colors.push(cr, cg, cb);
+      return idx;
+    };
+
+    const waterY = TerrainDEMLoader.WATER_LEVEL_Y;
+    const cays = TerrainDEMLoader.KEPULAUAN_SERIBU_CAYS;
+
+    for (let ic = 0; ic < cays.length; ic++) {
+      const cay = cays[ic];
+      const cosR = Math.cos(cay.rot);
+      const sinR = Math.sin(cay.rot);
+      const phase = ic * 1.73 + 0.42;
+      const isSandbarOnly = cay.hCanopy <= 0.05;
+
+      const evalCayShapeMod = (th) => {
+        const spitLobe = cay.spit * Math.pow(Math.max(0.0, Math.cos(th - 0.35)), 3.0);
+        const spitTail = cay.spit * 0.55 * Math.pow(Math.max(0.0, -Math.cos(th + 0.22)), 4.0);
+        return (
+          1.0 +
+          0.11 * Math.sin(2.0 * th + phase) +
+          0.06 * Math.cos(3.0 * th - phase * 0.7) +
+          spitLobe +
+          spitTail
+        );
+      };
+
+      const evalCayHeight = (rNorm) => {
+        // rNorm = 0..0.72 dry cay & coral-sand beach -> rNorm = 0.78 waterline (-1.45m) -> rNorm = 1.45 (-4.6m reef apron)
+        if (rNorm <= 0.78) {
+          const uDry = 1.0 - rNorm / 0.78;
+          const dome = Math.pow(Math.max(0.0, uDry), isSandbarOnly ? 0.78 : 0.62);
+          return waterY + (cay.hLand - waterY) * dome;
+        }
+        const uSub = Math.min(1.0, (rNorm - 0.78) / 0.67);
+        const sSub = uSub * uSub * (3.0 - 2.0 * uSub);
+        return waterY - 3.25 * sSub;
+      };
+
+      const rings = [0.16, 0.36, 0.56, 0.70, 0.78, 0.92, 1.15, 1.45];
+      const angSegs = 36;
+
+      // Center vertex of coral cay
+      const centerColor = isSandbarOnly
+        ? [0.85, 0.81, 0.70]
+        : [0.145, 0.335, 0.088];
+      const centerIdx = pushVert(
+        cay.cx,
+        cay.hLand,
+        cay.cz,
+        0.0,
+        1.0,
+        0.0,
+        0.5,
+        0.5,
+        centerColor[0],
+        centerColor[1],
+        centerColor[2]
+      );
+
+      let prevRing = null;
+      for (let ir = 0; ir < rings.length; ir++) {
+        const rN = rings[ir];
+        const yVal = evalCayHeight(rN);
+        const yPlus = evalCayHeight(rN + 0.03);
+        const yMinus = evalCayHeight(Math.max(0.0, rN - 0.03));
+        const dyDrN = (yPlus - yMinus) / 0.06;
+        const row = [];
+
+        for (let ia = 0; ia <= angSegs; ia++) {
+          const th = (ia / angSegs) * Math.PI * 2.0;
+          const mod = evalCayShapeMod(th);
+          const lx = cay.rx * mod * rN * Math.cos(th);
+          const lz = cay.rz * mod * rN * Math.sin(th);
+          const px = cay.cx + cosR * lx - sinR * lz;
+          const pz = cay.cz + sinR * lx + cosR * lz;
+
+          const effRad = Math.max(8.0, 0.5 * (cay.rx + cay.rz) * mod);
+          const slopeR = -dyDrN / effRad;
+          const lnx = Math.cos(th) * slopeR;
+          const lnz = Math.sin(th) * slopeR;
+          const wnx = cosR * lnx - sinR * lnz;
+          const wnz = sinR * lnx + cosR * lnz;
+
+          // Authentic Kepulauan Seribu coral-sand -> littoral turf -> turquoise submerged limestone reef palette
+          let cr = 0.84;
+          let cg = 0.80;
+          let cb = 0.69;
+          if (!isSandbarOnly && rN < 0.58) {
+            const beachMix = PhysicsKernel.smootherstep(0.34, 0.58, rN);
+            cr = 0.142 * (1.0 - beachMix) + 0.84 * beachMix;
+            cg = 0.332 * (1.0 - beachMix) + 0.80 * beachMix;
+            cb = 0.086 * (1.0 - beachMix) + 0.69 * beachMix;
+          } else if (rN > 0.78) {
+            const subMix = PhysicsKernel.smootherstep(0.78, 1.38, rN);
+            cr = 0.78 * (1.0 - subMix) + 0.36 * subMix;
+            cg = 0.76 * (1.0 - subMix) + 0.50 * subMix;
+            cb = 0.66 * (1.0 - subMix) + 0.45 * subMix;
+          }
+
+          row.push(pushVert(px, yVal, pz, wnx, 1.0, wnz, px * 0.08, pz * 0.08, cr, cg, cb));
+        }
+
+        if (ir === 0) {
+          for (let ia = 0; ia < angSegs; ia++) {
+            indices.push(centerIdx, row[ia + 1], row[ia]);
+          }
+        } else if (prevRing) {
+          for (let ia = 0; ia < angSegs; ia++) {
+            const p00 = prevRing[ia];
+            const p01 = prevRing[ia + 1];
+            const p10 = row[ia];
+            const p11 = row[ia + 1];
+            indices.push(p00, p01, p10, p01, p11, p10);
+          }
+        }
+        prevRing = row;
+      }
+
+      // Lush Tropical Coastal Casuarina (Cemara Laut) & Coconut Canopy Cluster on Wooded Coral Cays
+      if (!isSandbarOnly) {
+        const domeCount = 14;
+        for (let id = 0; id < domeCount; id++) {
+          const frac = id / domeCount;
+          const dAng = id * 2.399963 + phase; // Golden-angle phyllotaxis packing!
+          const dRadNorm = id === 0 ? 0.0 : 0.12 + 0.36 * Math.sqrt(frac);
+          const modD = evalCayShapeMod(dAng);
+          const dlx = cay.rx * modD * dRadNorm * Math.cos(dAng);
+          const dlz = cay.rz * modD * dRadNorm * Math.sin(dAng);
+          const dcx = cay.cx + cosR * dlx - sinR * dlz;
+          const dcz = cay.cz + sinR * dlx + cosR * dlz;
+          const baseGroundY = evalCayHeight(dRadNorm);
+
+          const crownR = (0.20 + 0.11 * ((id * 7) % 5) / 4.0) * Math.min(cay.rx, cay.rz);
+          const crownH = cay.hCanopy * (0.76 + 0.28 * (1.0 - dRadNorm) + 0.10 * Math.sin(id * 3.1));
+          const yBase = baseGroundY - 0.35;
+          const yApex = baseGroundY + crownH;
+
+          const speciesTint = ((id * 11 + ic * 3) % 7) / 6.0;
+          const topR = 0.095 + 0.055 * speciesTint;
+          const topG = 0.255 + 0.095 * speciesTint;
+          const topB = 0.062 + 0.032 * speciesTint;
+
+          const apexIdx = pushVert(dcx, yApex, dcz, 0.0, 1.0, 0.0, dcx * 0.1, dcz * 0.1, topR * 1.12, topG * 1.12, topB * 1.08);
+          const domeBands = [
+            { uY: 0.78, rScale: 0.56, shade: 1.04, ny: 0.76 },
+            { uY: 0.44, rScale: 0.96, shade: 0.88, ny: 0.28 },
+            { uY: 0.0, rScale: 0.82, shade: 0.62, ny: -0.18 }
+          ];
+          const dSegs = 12;
+          let prevBand = null;
+          for (let ib = 0; ib < domeBands.length; ib++) {
+            const bSpec = domeBands[ib];
+            const by = yBase + (yApex - yBase) * bSpec.uY;
+            const bRow = [];
+            for (let is = 0; is <= dSegs; is++) {
+              const thB = (is / dSegs) * Math.PI * 2.0;
+              const lobe = 1.0 + 0.12 * Math.sin(3.0 * thB + id * 1.7) + 0.08 * Math.cos(5.0 * thB - id);
+              const br = crownR * bSpec.rScale * lobe;
+              const vx = dcx + br * Math.cos(thB);
+              const vz = dcz + br * Math.sin(thB);
+              const nx = Math.cos(thB);
+              const nz = Math.sin(thB);
+              bRow.push(
+                pushVert(
+                  vx,
+                  by,
+                  vz,
+                  nx,
+                  bSpec.ny,
+                  nz,
+                  vx * 0.1,
+                  vz * 0.1,
+                  topR * bSpec.shade,
+                  topG * bSpec.shade,
+                  topB * bSpec.shade
+                )
+              );
+            }
+            if (ib === 0) {
+              for (let is = 0; is < dSegs; is++) {
+                indices.push(apexIdx, bRow[is + 1], bRow[is]);
+              }
+            } else if (prevBand) {
+              for (let is = 0; is < dSegs; is++) {
+                const a0 = prevBand[is];
+                const a1 = prevBand[is + 1];
+                const b0 = bRow[is];
+                const b1 = bRow[is + 1];
+                indices.push(a0, a1, b0, a1, b1, b0);
+              }
+            }
+            prevBand = bRow;
+          }
+        }
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2));
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+    geo.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
+    return geo;
+  }
+
+  /**
    * Constructs the complete Kepulauan UI ("Pulau U" & "Pulau I") Terrain, Dual -18.0m Submerged Skirts,
    * Dual Closed 360° Perimeter Stone Turap Walls, Sculpted 3D Mossy River Boulders,
    * Freshwater Spring-River-Lake, Mini-Niagara Waterfall, & 3.3 km Surrounding Ocean Expanse.
@@ -3673,8 +4058,17 @@ export class TerrainDEMLoader {
     riverBouldersMesh.castShadow = true;
     riverBouldersMesh.receiveShadow = true;
 
-    group.add(pulauUMesh, pulauIMesh, turapMesh, riverBouldersMesh);
-    // Merges pulauUMesh + pulauIMesh + turapMesh + riverBouldersMesh into STRICTLY 1 SINGLE DRAW CALL!
+    // 1E. Gugusan Kepulauan Seribu Coral Cays, White Coral-Sand Spits (Gosong Pasir), & Coastal Forests (+0 Draw Calls after batch merge!)
+    const kepulauanSeribuMesh = new THREE.Mesh(
+      TerrainDEMLoader._buildKepulauanSeribuCaysGeometry(),
+      terrainAndTurapMat
+    );
+    kepulauanSeribuMesh.name = 'Gugusan_Kepulauan_Seribu_CoralCays';
+    kepulauanSeribuMesh.castShadow = false;
+    kepulauanSeribuMesh.receiveShadow = true;
+
+    group.add(pulauUMesh, pulauIMesh, turapMesh, riverBouldersMesh, kepulauanSeribuMesh);
+    // Merges pulauUMesh + pulauIMesh + turapMesh + riverBouldersMesh + kepulauanSeribuMesh into STRICTLY 1 SINGLE DRAW CALL!
     NexusBatchOptimizer.optimizeHierarchy(group);
 
     const activeWaterMat =

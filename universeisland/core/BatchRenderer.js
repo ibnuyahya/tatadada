@@ -77,7 +77,8 @@ export class NexusBatchOptimizer {
       }
     }
 
-    // 2. Merge all static Meshes sharing the same Material into 1 BufferGeometry per Material
+    // 2. Merge all static Meshes sharing the same Material into 1 Indexed BufferGeometry per Material
+    //    Preserves shared vertex deduplication (Uint16/Uint32 index buffer) instead of 6x toNonIndexed() bloat!
     meshesByMaterial.forEach((meshList, mat) => {
       if (meshList.length <= 1) return;
 
@@ -85,54 +86,83 @@ export class NexusBatchOptimizer {
       const normChunks = [];
       const uvChunks = [];
       const colorChunks = [];
+      const indexChunks = [];
+      const vertCounts = [];
       let hasAnyColor = false;
       let totalVerts = 0;
+      let totalIndices = 0;
 
       meshList.forEach((m) => {
         if (m.geometry.attributes.color) hasAnyColor = true;
       });
 
       meshList.forEach((m) => {
-        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
-        g.applyMatrix4(m.matrixWorld);
+        const g = m.geometry.clone();
         const pos = g.attributes.position;
-        if (!pos) return;
+        if (!pos || pos.count === 0) return;
         if (!g.attributes.normal) g.computeVertexNormals();
+        g.applyMatrix4(m.matrixWorld);
 
-        posChunks.push(pos.array);
+        const vCount = pos.count;
+        posChunks.push(g.attributes.position.array);
         normChunks.push(g.attributes.normal.array);
-        uvChunks.push(g.attributes.uv ? g.attributes.uv.array : new Float32Array(pos.count * 2));
+        uvChunks.push(g.attributes.uv ? g.attributes.uv.array : new Float32Array(vCount * 2));
 
         if (hasAnyColor) {
           if (g.attributes.color) {
             colorChunks.push(g.attributes.color.array);
           } else {
-            const white = new Float32Array(pos.count * 3);
+            const white = new Float32Array(vCount * 3);
             white.fill(1.0);
             colorChunks.push(white);
           }
         }
 
-        totalVerts += pos.count;
+        const idxAttr = g.index;
+        indexChunks.push(idxAttr ? idxAttr.array : null);
+        vertCounts.push(vCount);
+        totalVerts += vCount;
+        totalIndices += idxAttr ? idxAttr.count : vCount;
         meshesToRemove.push(m);
       });
 
-      if (totalVerts === 0) return;
+      if (totalVerts === 0 || totalIndices === 0) return;
 
       const mergedPos = new Float32Array(totalVerts * 3);
       const mergedNorm = new Float32Array(totalVerts * 3);
       const mergedUv = new Float32Array(totalVerts * 2);
       const mergedColor = hasAnyColor ? new Float32Array(totalVerts * 3) : null;
+      const mergedIndex =
+        totalVerts > 65535 ? new Uint32Array(totalIndices) : new Uint16Array(totalIndices);
 
       let pOff = 0;
       let uOff = 0;
+      let vOff = 0;
+      let iOff = 0;
       for (let i = 0; i < posChunks.length; i++) {
+        const vCount = vertCounts[i];
         mergedPos.set(posChunks[i], pOff);
         mergedNorm.set(normChunks[i], pOff);
         mergedUv.set(uvChunks[i], uOff);
         if (mergedColor) mergedColor.set(colorChunks[i], pOff);
+
+        const srcIdx = indexChunks[i];
+        if (srcIdx) {
+          const iLen = srcIdx.length;
+          for (let k = 0; k < iLen; k++) {
+            mergedIndex[iOff + k] = vOff + srcIdx[k];
+          }
+          iOff += iLen;
+        } else {
+          for (let k = 0; k < vCount; k++) {
+            mergedIndex[iOff + k] = vOff + k;
+          }
+          iOff += vCount;
+        }
+
         pOff += posChunks[i].length;
         uOff += uvChunks[i].length;
+        vOff += vCount;
       }
 
       const batchedGeo = new THREE.BufferGeometry();
@@ -142,6 +172,7 @@ export class NexusBatchOptimizer {
       if (mergedColor) {
         batchedGeo.setAttribute('color', new THREE.BufferAttribute(mergedColor, 3));
       }
+      batchedGeo.setIndex(new THREE.BufferAttribute(mergedIndex, 1));
       batchedGeo.computeBoundingBox();
       batchedGeo.computeBoundingSphere();
 

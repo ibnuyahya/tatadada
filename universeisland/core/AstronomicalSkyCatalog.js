@@ -324,36 +324,36 @@ export function evaluateDepokAstronomy(
   const cosLST = Math.cos(lstRad);
   const sinLST = Math.sin(lstRad);
 
-  // J2000 Equatorial unit basis vectors for Depok World Frame:
-  // +X_world = East, +Y_world = Up (Zenith), +Z_world = South (det = +1)
-  const eastEqX = -sinLST;
-  const eastEqY = cosLST;
-  const eastEqZ = 0.0;
+  // J2000 Equatorial unit basis vectors for Kepulauan UI / Kepulauan Seribu World Frame:
+  // +X_world = North (Utara), +Y_world = Up (Zenith), +Z_world = East (Timur), -X_world = South (Pulau Jawa) (det = +1)
+  const northEqX = -sinLat * cosLST;
+  const northEqY = -sinLat * sinLST;
+  const northEqZ = cosLat;
 
   const upEqX = cosLat * cosLST;
   const upEqY = cosLat * sinLST;
   const upEqZ = sinLat;
 
-  const southEqX = sinLat * cosLST;
-  const southEqY = sinLat * sinLST;
-  const southEqZ = -cosLat;
+  const eastEqX = -sinLST;
+  const eastEqY = cosLST;
+  const eastEqZ = 0.0;
 
   // World -> Equatorial 3x3 matrix: eqVec = M * worldVec
-  // Column 0 = EastEq, Column 1 = UpEq, Column 2 = SouthEq
+  // Column 0 = NorthEq, Column 1 = UpEq, Column 2 = EastEq
   // THREE.Matrix3.set(...) takes ROW-major arguments:
   if (outWorldToEqMat3) {
     outWorldToEqMat3.set(
-      eastEqX, upEqX, southEqX,
-      eastEqY, upEqY, southEqY,
-      eastEqZ, upEqZ, southEqZ
+      northEqX, upEqX, eastEqX,
+      northEqY, upEqY, eastEqY,
+      northEqZ, upEqZ, eastEqZ
     );
   }
 
-  // Helper: project any J2000 Equatorial unit vector into Depok World (East=+X, Up=+Y, South=+Z)
+  // Helper: project any J2000 Equatorial unit vector into Kepulauan UI World (North=+X, Up=+Y, East=+Z)
   const eqToWorld = (ex, ey, ez, outVec) => {
-    const wx = ex * eastEqX + ey * eastEqY + ez * eastEqZ;
+    const wx = ex * northEqX + ey * northEqY + ez * northEqZ;
     const wy = ex * upEqX + ey * upEqY + ez * upEqZ;
-    const wz = ex * southEqX + ey * southEqY + ez * southEqZ;
+    const wz = ex * eastEqX + ey * eastEqY + ez * eastEqZ;
     if (outVec) outVec.set(wx, wy, wz).normalize();
     return { x: wx, y: wy, z: wz };
   };
