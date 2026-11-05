@@ -1949,28 +1949,55 @@ async function bootstrapNexusSimulator() {
   const bellAuditionBtn = document.getElementById('btn-bell-audition');
   const spectrumBarEls = Array.from(document.querySelectorAll('#acoustic-spectrum-bars > i'));
   const spectrumScratch8 = new Uint8Array(8);
+  const atmosRadarCanvas = document.getElementById('atmos-radar-canvas');
+  const atmosRadarCtx = atmosRadarCanvas ? atmosRadarCanvas.getContext('2d') : null;
+  const atmosBadgeEl = document.getElementById('ui-atmos-badge');
+  const atmosPerspEl = document.getElementById('ui-atmos-perspective');
+  const barAtmosEar = document.getElementById('bar-atmos-ear');
+  const barAtmosHeight = document.getElementById('bar-atmos-height');
+  const barAtmosLfe = document.getElementById('bar-atmos-lfe');
+  const valAtmosEar = document.getElementById('val-atmos-ear');
+  const valAtmosHeight = document.getElementById('val-atmos-height');
+  const valAtmosLfe = document.getElementById('val-atmos-lfe');
 
   function updateAcousticWorldNow(dtStep) {
     camera.updateMatrixWorld();
+    const cx = camera.position.x;
+    const cz = camera.position.z;
+    const coastDist = TerrainDEMLoader.getIslandCoastDistance(cx, cz);
+    const seaDirX =
+      TerrainDEMLoader.getIslandCoastDistance(cx + 4.0, cz) -
+      TerrainDEMLoader.getIslandCoastDistance(cx - 4.0, cz);
+    const seaDirZ =
+      TerrainDEMLoader.getIslandCoastDistance(cx, cz + 4.0) -
+      TerrainDEMLoader.getIslandCoastDistance(cx, cz - 4.0);
+    const wVec = weather.uniforms.uWindVec.value;
+    const windSpeed = wVec.length();
+    const wzComp = Number.isFinite(wVec.z) && Math.abs(wVec.z) > 1e-5 ? wVec.z : wVec.y;
     const apasActive = (camDirector._avataApasTimer || 0) > 0.01;
     const inCorridor = (camDirector._avataMeta?.corridorWeight || 0) > 0.35;
     audioSynth.updateAcousticWorld(dtStep, {
       camera,
       camMode: camDirector.mode,
-      isRoofSheltered: DynamicTrafficAI._isShelteredByRoof(camera.position.x, camera.position.z),
+      isRoofSheltered: DynamicTrafficAI._isShelteredByRoof(cx, cz),
       solarHour: weather.currentSolarHour,
       temperatureC: latestDepokWeather?.temperatureC,
       humidityPct: latestDepokWeather?.humidityPct,
       rainIntensity: weather.uniforms.uRainIntensity.value,
       stormFactor: weather.uniforms.uStormFactor.value,
-      windSpeed: weather.uniforms.uWindVec.value.length(),
+      windSpeed,
+      windDirX: windSpeed > 1e-3 ? wVec.x / windSpeed : 0.78,
+      windDirZ: windSpeed > 1e-3 ? wzComp / windSpeed : 0.62,
       wetness: weather.uniforms.uWetness.value,
       seaWaveHeightM: weather.getSeaWaveHeightMeters(),
       nightFactor: weather.uniforms.uNightFactor?.value ?? weather.nightIlluminationLevel,
       lightningDir: weather.uniforms.uLightningDir.value,
       fountainNightBlend: rotundaFountain.nightBlend || 0.0,
-      coastDist: TerrainDEMLoader.getIslandCoastDistance(camera.position.x, camera.position.z),
-      riverZ: TerrainDEMLoader.evalPulauURiverCenterZ(camera.position.x),
+      coastDist,
+      seaDirX,
+      seaDirZ,
+      groundY: groundHeightFn(cx, cz),
+      riverZ: TerrainDEMLoader.evalPulauURiverCenterZ(cx),
       videotronPlaying: Boolean(videotron && !videotron.isMuted && videotron.isPlaying),
       sivitasAI,
       avataThrottle01: camDirector._avataThrottle01 || 0.0,
@@ -2005,9 +2032,120 @@ async function bootstrapNexusSimulator() {
     });
     if (spatialModeBtn) {
       const spMode = audioSynth.getSpatialOutputMode ? audioSynth.getSpatialOutputMode() : 'BINAURAL';
-      spatialModeBtn.textContent = spMode === 'SPEAKER' ? 'Speaker' : 'HRTF';
+      spatialModeBtn.textContent = spMode === 'SPEAKER' ? 'Speaker' : 'Atmos 3D';
       spatialModeBtn.classList.toggle('active', spMode !== 'SPEAKER');
     }
+  }
+
+  function renderAtmos714Radar(stage, isAudioLive) {
+    if (!atmosRadarCtx || !atmosRadarCanvas || !stage) return;
+    const w = atmosRadarCanvas.width;
+    const h = atmosRadarCanvas.height;
+    const cx = w * 0.5;
+    const cy = h * 0.5;
+    const rOuter = w * 0.44;
+    const rHeight = w * 0.23;
+    const ctx2d = atmosRadarCtx;
+
+    ctx2d.clearRect(0, 0, w, h);
+
+    // Background acoustic sphere
+    ctx2d.beginPath();
+    ctx2d.arc(cx, cy, rOuter + 2, 0, Math.PI * 2);
+    ctx2d.fillStyle = isAudioLive ? 'rgba(10, 20, 36, 0.92)' : 'rgba(10, 16, 26, 0.78)';
+    ctx2d.fill();
+
+    // Outer 7.0 Ear-Level Ring
+    ctx2d.beginPath();
+    ctx2d.arc(cx, cy, rOuter, 0, Math.PI * 2);
+    ctx2d.strokeStyle = isAudioLive ? 'rgba(56, 217, 150, 0.34)' : 'rgba(148, 163, 184, 0.22)';
+    ctx2d.lineWidth = 1.3;
+    ctx2d.stroke();
+
+    // Inner .4 Overhead Height Dome Ring
+    ctx2d.save();
+    ctx2d.setLineDash([2.5, 2.5]);
+    ctx2d.beginPath();
+    ctx2d.arc(cx, cy, rHeight, 0, Math.PI * 2);
+    ctx2d.strokeStyle = 'rgba(56, 189, 248, 0.36)';
+    ctx2d.lineWidth = 1.1;
+    ctx2d.stroke();
+    ctx2d.restore();
+
+    // Crosshairs + Forward Nose Heading Pointer (0 deg Azimuth at Top)
+    ctx2d.beginPath();
+    ctx2d.moveTo(cx, cy - rOuter);
+    ctx2d.lineTo(cx, cy + rOuter);
+    ctx2d.moveTo(cx - rOuter, cy);
+    ctx2d.lineTo(cx + rOuter, cy);
+    ctx2d.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+    ctx2d.lineWidth = 1;
+    ctx2d.stroke();
+
+    // 12 Dolby Atmos 7.1.4 Virtual Speaker Nodes
+    const layout = AudioSynthesizer.ATMOS_SPEAKER_LAYOUT_7_1_4;
+    const beds = stage.bedLevels12;
+    if (layout && beds) {
+      const deg = Math.PI / 180.0;
+      for (let s = 0; s < layout.length; s++) {
+        const sp = layout[s];
+        if (sp.layer === 'LFE') continue;
+        const az = sp.az * deg;
+        const rr = sp.layer === 'HEIGHT' ? rHeight : rOuter;
+        const sx = cx + Math.sin(az) * rr;
+        const sy = cy - Math.cos(az) * rr;
+        const lv = beds[s] || 0.0;
+        ctx2d.beginPath();
+        ctx2d.arc(sx, sy, 1.5 + lv * 2.1, 0, Math.PI * 2);
+        ctx2d.fillStyle =
+          sp.layer === 'HEIGHT'
+            ? `rgba(56, 189, 248, ${(0.28 + lv * 0.68).toFixed(2)})`
+            : `rgba(56, 217, 150, ${(0.25 + lv * 0.68).toFixed(2)})`;
+        ctx2d.fill();
+      }
+    }
+
+    // Active 3D Point-of-View Spatial Sound Objects (Azimuth + Elevation + Volumetric Spread)
+    const objs = stage.activeObjects || [];
+    const deg = Math.PI / 180.0;
+    for (let i = objs.length - 1; i >= 0; i--) {
+      const o = objs[i];
+      const az = (o.azDeg || 0) * deg;
+      const el = o.elDeg || 0;
+      const rad =
+        el > 0
+          ? rOuter * (1.0 - Math.min(0.75, el / 90.0) * 0.56)
+          : rOuter * (0.86 + Math.min(1.0, -el / 90.0) * 0.11);
+      const px = cx + Math.sin(az) * rad;
+      const py = cy - Math.cos(az) * rad;
+      const g = Math.max(0.08, Math.min(1.0, o.gain01 || 0.1));
+      const colorRgb =
+        o.kind === 'VOICE'
+          ? '56, 217, 150'
+          : el >= 16.0
+            ? '56, 189, 248'
+            : '242, 194, 48';
+
+      if ((o.spread01 || 0) > 0.18) {
+        ctx2d.beginPath();
+        ctx2d.arc(px, py, 3.2 + o.spread01 * 7.5, 0, Math.PI * 2);
+        ctx2d.fillStyle = `rgba(${colorRgb}, ${(0.08 + g * 0.18).toFixed(2)})`;
+        ctx2d.fill();
+      }
+      ctx2d.beginPath();
+      ctx2d.arc(px, py, 2.1 + g * 2.6, 0, Math.PI * 2);
+      ctx2d.fillStyle = `rgba(${colorRgb}, ${(0.48 + g * 0.50).toFixed(2)})`;
+      ctx2d.fill();
+    }
+
+    // Listener Head Nose Triangle at Center
+    ctx2d.beginPath();
+    ctx2d.moveTo(cx, cy - 4.2);
+    ctx2d.lineTo(cx - 3.0, cy + 3.0);
+    ctx2d.lineTo(cx + 3.0, cy + 3.0);
+    ctx2d.closePath();
+    ctx2d.fillStyle = '#f8fafc';
+    ctx2d.fill();
   }
 
   function syncAcousticTelemetryDOM() {
@@ -2028,6 +2166,25 @@ async function bootstrapNexusSimulator() {
         spectrumBarEls[i].style.opacity = tel.enabled ? String((0.42 + v01 * 0.58).toFixed(2)) : '0.32';
       }
     }
+    if (audioSynth.getAtmosStageSnapshot) {
+      const stage = audioSynth.getAtmosStageSnapshot();
+      if (atmosBadgeEl) {
+        atmosBadgeEl.textContent = stage.spatialMode === 'SPEAKER' ? '7.1.4 SPK' : 'ATMOS 7.1.4';
+      }
+      if (atmosPerspEl) {
+        atmosPerspEl.textContent = stage.perspectiveLabel || tel.perspectiveLabel || 'Titik Kamera 3D';
+      }
+      const earPct = Math.round((stage.earEnergy01 || 0) * 100);
+      const hgtPct = Math.round((stage.heightEnergy01 || 0) * 100);
+      const lfePct = Math.round((stage.lfeEnergy01 || 0) * 100);
+      if (barAtmosEar) barAtmosEar.style.width = `${Math.max(4, earPct)}%`;
+      if (barAtmosHeight) barAtmosHeight.style.width = `${Math.max(4, hgtPct)}%`;
+      if (barAtmosLfe) barAtmosLfe.style.width = `${Math.max(3, lfePct)}%`;
+      if (valAtmosEar) valAtmosEar.textContent = `${earPct}%`;
+      if (valAtmosHeight) valAtmosHeight.textContent = `${hgtPct}%`;
+      if (valAtmosLfe) valAtmosLfe.textContent = `${lfePct}%`;
+      renderAtmos714Radar(stage, Boolean(tel.enabled));
+    }
     if (acousticStatusEl) {
       const contextLabel =
         tel.zoneId === 'OPEN_AIR' || tel.zoneId === 'HIGH_ALTITUDE'
@@ -2038,13 +2195,14 @@ async function bootstrapNexusSimulator() {
           Math.abs(tel.dominantDoppler - 1.0) >= 0.008
             ? ` (${tel.dominantDoppler.toFixed(2)}\u00D7)`
             : '';
+        const azTxt = `Az ${tel.dominantAzDeg >= 0 ? '+' : ''}${tel.dominantAzDeg}\u00B0`;
         const focusTxt = tel.activeSfxBanner
           ? `SFX: ${tel.activeSfxBanner}`
-          : `${tel.dominantSourceLabel}${doppTxt}`;
+          : `${tel.dominantSourceLabel}${doppTxt} \u00B7 ${azTxt}`;
         acousticStatusEl.textContent = `${contextLabel} \u00B7 Gema ${tel.reverbSendPct}% \u00B7 ${focusTxt}`;
         acousticStatusEl.style.color = 'var(--ok-green)';
       } else {
-        acousticStatusEl.textContent = `HRTF 3D \u00B7 ${contextLabel} \u00B7 Klik Suara / G`;
+        acousticStatusEl.textContent = `Atmos 7.1.4 \u00B7 ${tel.perspectiveLabel || contextLabel} \u00B7 Klik Suara / G`;
         acousticStatusEl.style.color = 'var(--text-muted)';
       }
     }
@@ -2232,8 +2390,11 @@ async function bootstrapNexusSimulator() {
   const btnCopyForensic = document.getElementById('btn-copy-forensic');
 
   function buildForensicContext() {
+    const acTel = audioSynth.getAcousticTelemetry();
     return {
       camMode: camDirector.mode,
+      atmosLayout: acTel.atmosLayout || '7.1.4',
+      atmosPerspective: acTel.perspectiveId || 'MAVIC_AERIAL',
       solarHourWIB: +weather.currentSolarHour.toFixed(2),
       weatherSpectrumPct: Math.round(weather.getWeatherSpectrum() * 100),
       seaWaveHeightM: +weather.getSeaWaveHeightMeters().toFixed(2),
