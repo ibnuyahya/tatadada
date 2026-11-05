@@ -343,13 +343,15 @@ async function bootstrapNexusSimulator() {
 
   worldRoot.add(terrainGroup, corridorGroup, rotundaFountain.mesh, biomeGroup, rektoratAsset, sivitasGroup);
 
-  // Companion 1-Draw-Call 3D Tropical Grass & Wildflower Field + View-Aware Dual-Perspective PostFX
+  // Seamless 1-Draw-Call PBR + Shadow-Mapped Manicured Tropical Campus Turf + View-Aware Dual-Perspective PostFX
   const oceanWaterMesh = terrainGroup.children.find((c) => c && c.material === waterMaterial) || null;
-  const planarReflHiddenList = oceanWaterMesh ? [oceanWaterMesh] : [];
-  const initTierName = hwGovernor.activeTier || 'TIER_S';
+  const initTierName = hwGovernor.activeTierId || hwGovernor.activeTier || 'TIER_S';
   const grassField = new TropicalGrassField({
-    bladeCount: hwGovernor.isMobileDevice ? 9000 : initTierName === 'TIER_S' ? 28000 : 18000
+    bladeCount: hwGovernor.isMobileDevice ? 16000 : initTierName === 'TIER_S' ? 68000 : 42000,
+    sharedUniforms
   });
+  scene.add(grassField.mesh);
+  const planarReflHiddenList = [oceanWaterMesh, grassField.mesh].filter(Boolean);
   const drawBufSize = new THREE.Vector2();
   renderer.getDrawingBufferSize(drawBufSize);
   const postFX = new CinematicPostFX(renderer, drawBufSize.x, drawBufSize.y, {
@@ -431,6 +433,23 @@ async function bootstrapNexusSimulator() {
     }
     if (Math.abs(x + 84.8) <= 2.55 && Math.abs(z - 118.2) <= 2.55) {
       return 0.30;
+    }
+    // Lapangan Rotunda UI (-2.5, 106.5): exact circular zebra curbs, cambered asphalt, & EPDM jogging track
+    const rRotW = Math.hypot(x - -2.5, z - 106.5);
+    if (rRotW >= 23.34 && rRotW <= 38.36) {
+      if ((rRotW >= 23.34 && rRotW <= 23.91) || (rRotW >= 33.69 && rRotW <= 34.26)) {
+        const cutW = Math.hypot(x - -36.45, z - 106.5) < 5.2;
+        const cutT = Math.hypot(x - -20.6, z - 135.2) < 2.9;
+        const cutS = Math.hypot(x - -2.5, z - 72.55) < 2.5;
+        if (!cutW && !cutT && !cutS) return 0.186;
+      }
+      if (rRotW > 23.91 && rRotW < 33.69) {
+        const fR = (rRotW - 28.8) / 4.9;
+        return 0.035 + Math.max(0.0, 1.0 - fR * fR) * 0.016;
+      }
+      if (rRotW >= 35.95 && rRotW <= 38.36) {
+        return 0.038;
+      }
     }
     // Pulau I Straight ICAO Runway RWY 36/18, Blast Pads, Stub Taxiways & West Aircraft Parking Apron
     if (x >= -382.6 && x <= -127.4 && Math.abs(z - TerrainDEMLoader.RUNWAY_CZ) <= 12.5) {
@@ -2711,7 +2730,7 @@ async function bootstrapNexusSimulator() {
       if (sharedUniforms.uVideotronPortalAlpha) {
         sharedUniforms.uVideotronPortalAlpha.value = savedPortalAlpha;
       }
-      postFX.render(scene, camera, grassField.scene);
+      postFX.render(scene, camera);
       lastCpuMs = performance.now() - tCpuStart;
       lastDrawCalls = renderer.info.render.calls;
 

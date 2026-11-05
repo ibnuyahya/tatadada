@@ -1,23 +1,30 @@
 import * as THREE from 'three';
 import { TerrainDEMLoader } from './TerrainDEMLoader.js';
 import { SplineCorridorBuilder } from './SplineCorridorBuilder.js';
-import { HumanEyeHDROptics } from '../core/HumanEyeHDROptics.js';
+import {
+  SURFACE_PROFILE,
+  createSharedSurfaceUniforms,
+  injectOmniScaleSurfaceShader
+} from '../core/ProceduralTextureFactory.js';
 
 /**
- * NEXUS Omni-Scale Procedural Engine v6.36
+ * NEXUS Omni-Scale Procedural Engine v6.37
  * ./world-gis/TropicalGrassField.js
  *
- * 1-Draw-Call GPU-Wrapped 3D Tropical Lawn Grass & Wildflower Field
- * (Axonopus compressus "Rumput Gajah Mini" + Arachis pintoi Golden Campus Blossoms).
+ * 1-Draw-Call Seamless PBR + Shadow-Mapped Manicured Tropical Campus Turf
+ * (Axonopus compressus "Rumput Gajah Mini" — 4.5 cm to 9.2 cm manicured UI park turf).
  *
  * Architecture:
- * - Pre-bakes a 384x512 RGBA8 terrain & lawn-mask DataTexture once at startup (~15 ms)
- *   directly from TerrainDEMLoader SSoST height & exclusion functions (16-bit elevation = <1mm precision,
- *   ZERO grass blades on ocean, rivers, lakes, stone turap, roads, plazas, buildings, bridges, helipad, or runway!).
- * - Wraps up to 28,000 3D curved 4-segment blades toroidally around uCamPos.xz (92m x 92m active field)
- *   entirely in the GPU vertex shader (0.0 ms/frame CPU instancing cost!).
- * - Rendered in a companion 1-mesh scene into the active MSAA render target so main scene hierarchy
- *   draw calls remain strictly within Gate 4's <= 25 draw-call budget.
+ * - Pre-bakes an 896x1344 RGBA8 terrain & eroded zero-bleed lawn-mask DataTexture at startup
+ *   directly from TerrainDEMLoader & SplineCorridorBuilder SSoST geometry (16-bit elevation = <1mm
+ *   precision; morphological 3x3 erosion + GPU minCorner guard + exact float32 analytic circular
+ *   Rotunda curb trimming = 0.000% grass bleed onto curbs, asphalt roads, walkways, plazas, or water).
+ * - Forward-biased world-fixed toroidal modulo window (76m x 76m, reaching 59m ahead of camera)
+ *   renders up to 52,000 3-blade crossed V-tufts (156,000 curved 3D blades) in 1 single draw call.
+ * - Uses the exact same MeshStandardMaterial + SURFACE_PROFILE.TERRAIN_AND_TURAP PBR pipeline,
+ *   4096x4096 DirectionalLight shadow map (receiveShadow = true), HemisphereLight, PMREM sky IBL,
+ *   cloud shadows, and exact TerrainDEMLoader vertex-albedo formula so 3D turf blends into the
+ *   distant ground mesh with 0.00% color/brightness cutoff seam.
  */
 export class TropicalGrassField {
   static BAKE_MIN_X = -412.0;
@@ -26,15 +33,19 @@ export class TropicalGrassField {
   static BAKE_MAX_Z = 786.0;
   static HEIGHT_MIN_Y = -4.0;
   static HEIGHT_MAX_Y = 60.0;
-  static FIELD_SPAN_M = 40.0;
+  static FIELD_SPAN_M = 56.0;
+  static FOCUS_AHEAD_M = 16.5;
 
   constructor(options = {}) {
-    this.bladeCount = options.bladeCount || 28000;
-    this.bakeCols = options.bakeCols || 384;
-    this.bakeRows = options.bakeRows || 512;
+    this.bladeCount = options.bladeCount || 68000;
+    this.bakeCols = options.bakeCols || 896;
+    this.bakeRows = options.bakeRows || 1344;
+    this.sharedUniforms = options.sharedUniforms || createSharedSurfaceUniforms();
 
     this.scene = new THREE.Scene();
     this.scene.name = 'TropicalGrassCompanionScene';
+
+    this._camDirScratch = new THREE.Vector3(0, 0, -1);
 
     this.bakeTexture = this._buildTerrainLawnBakeTexture(this.bakeCols, this.bakeRows);
     this.uniforms = {
@@ -49,31 +60,18 @@ export class TropicalGrassField {
       },
       uBakeTexSize: { value: new THREE.Vector2(this.bakeCols, this.bakeRows) },
       uCamPos: { value: new THREE.Vector3(0, 2, 85) },
-      uTime: { value: 0.0 },
-      uWindVec: { value: new THREE.Vector3(2.2, 0.0, 1.4) },
-      uSunDir: { value: new THREE.Vector3(0.45, 0.78, 0.42).normalize() },
-      uSunColor: { value: new THREE.Color(1.0, 0.96, 0.88) },
-      uDuskFactor: { value: 0.0 },
-      uNightFactor: { value: 0.0 },
-      uCloudCover: { value: 0.24 },
-      uRainIntensity: { value: 0.0 },
-      uStormFactor: { value: 0.0 },
-      uLightningFlash: { value: 0.0 },
-      uFogFactor: { value: 0.0 },
-      uCloudShadowPhase: { value: new THREE.Vector2(0, 0) },
-      uHvsParams: { value: new THREE.Vector4(1.04, 1.045, 1.14, 0.0) },
-      uHvsGlare: { value: new THREE.Vector4(0.76, 0.0, 0.018, 4.6) }
+      uGrassFocusXZ: { value: new THREE.Vector2(-2.5, 106.0) }
     };
 
     const bladeGeo = TropicalGrassField._buildCurvedBladeGeometry();
     this._populateInstanceAttributes(bladeGeo, this.bladeCount);
-    this.material = this._createGrassMaterial();
+    this.material = this._createGrassMaterial(this.sharedUniforms);
 
     this.mesh = new THREE.InstancedMesh(bladeGeo, this.material, this.bladeCount);
     this.mesh.name = 'TropicalGrassBladesInstanced';
     this.mesh.frustumCulled = false;
     this.mesh.castShadow = false;
-    this.mesh.receiveShadow = false;
+    this.mesh.receiveShadow = true;
 
     const idMat = new THREE.Matrix4();
     for (let i = 0; i < this.bladeCount; i++) {
@@ -83,13 +81,22 @@ export class TropicalGrassField {
     this.scene.add(this.mesh);
   }
 
+  static _distToSegment2D(px, pz, ax, az, bx, bz) {
+    const dx = bx - ax;
+    const dz = bz - az;
+    const len2 = dx * dx + dz * dz;
+    if (len2 <= 1e-8) return Math.hypot(px - ax, pz - az);
+    const t = Math.max(0.0, Math.min(1.0, ((px - ax) * dx + (pz - az) * dz) / len2));
+    return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
+  }
+
   static _isLawnGrassAllowed(x, z, gy) {
     // 1. Must be dry inland above coastal stone turap (flat campus datum is gy = 0.00m; water is -1.45m)
     const dCoast = TerrainDEMLoader.getIslandCoastDistance(x, z);
-    if (dCoast > -2.35 || gy < -0.04 || gy > 27.5) return 0.0;
+    if (dCoast > -2.45 || gy < -0.04 || gy > 27.5) return 0.0;
 
     // 2. Freshwater spring, meandering river, lakes, & Mini-Niagara gorge exclusion
-    if (TerrainDEMLoader.isFreshwaterExclusion(x, z, 0.95)) return 0.0;
+    if (TerrainDEMLoader.isFreshwaterExclusion(x, z, 1.05)) return 0.0;
 
     // 3. Steep cliff / rocky volcanic scree exclusion
     const eps = 0.85;
@@ -97,52 +104,78 @@ export class TropicalGrassField {
     const gz = Math.abs(TerrainDEMLoader.sampleGroundHeight(x, z + eps) - gy) / eps;
     if (Math.hypot(gx, gz) > 0.56) return 0.0;
 
-    // 4. Gedung Rektorat UI, Ceremonial Plaza, Approach, Turnaround, & Lakeside Promenade
-    if (x > -55.4 && x < 54.8 && z > -36.8 && z < 40.8) return 0.0;
-    if (x > -21.4 && x < 16.4 && z >= 38.0 && z <= 73.2) return 0.0;
-    if (x > -5.5 && x < 50.5 && z > -54.0 && z <= -34.0) return 0.0;
-    if (z >= -56.0 && z <= 52.0 && x > TerrainDEMLoader.getShorelinePromenadeX(z) - 4.2) return 0.0;
-    if (Math.hypot(x - 29.5, z - 29.5) < 8.8) return 0.0;
-    if (Math.hypot(x - 28.4, z - 78.2) < 5.2) return 0.0;
+    // 4. Gedung Rektorat UI, Ceremonial Plaza, Approach, East Brick Turnaround, & Lakeside Promenade
+    if (x > -55.8 && x < 55.2 && z > -37.2 && z < 41.2) return 0.0;
+    if (x > -21.8 && x < 16.8 && z >= 38.0 && z <= 73.6) return 0.0;
+    if (x > -6.0 && x < 51.0 && z > -54.5 && z <= -33.5) return 0.0;
+    if (z >= -67.5 && z <= 55.5 && x > TerrainDEMLoader.getShorelinePromenadeX(z) - 3.95) return 0.0;
+    if (Math.hypot(x - 29.5, z - 29.5) < 9.0) return 0.0;
+    if (Math.hypot(x - 28.4, z - 78.2) < 5.6) return 0.0;
 
-    // 5. SE Covered Walkway, West Shuttle Boulevard, & West Helipad Boulevard
-    if (z >= 33.0 && z <= 130.0) {
-      const walkwayX = 34.2 + ((z - 35.5) / 92.5) * 9.6;
-      if (Math.abs(x - walkwayX) < 3.6) return 0.0;
+    // East Lakeside Brick Turnaround spline ((18,-39)->(31,-40.5)->(44.5,-36.5)->(48.5,-25.5), halfW=4.6 + curb=0.38)
+    if (x >= 11.5 && x <= 55.5 && z >= -47.0 && z <= -19.0) {
+      if (
+        TropicalGrassField._distToSegment2D(x, z, 18.0, -39.0, 31.0, -40.5) < 5.65 ||
+        TropicalGrassField._distToSegment2D(x, z, 31.0, -40.5, 44.5, -36.5) < 5.65 ||
+        TropicalGrassField._distToSegment2D(x, z, 44.5, -36.5, 48.5, -25.5) < 5.65
+      ) {
+        return 0.0;
+      }
     }
-    if (x > -69.2 && x < -54.8 && z > -36.2 && z < 104.0) return 0.0;
-    if (x > -89.0 && x < -31.5 && z > 99.6 && z < 113.4) return 0.0;
 
-    // 6. Lapangan Rotunda UI: exclude center Fountain (r < 6.3m) & circular asphalt boulevard (24.6m..38.5m),
-    //    while keeping the inner botanical Rotunda lawn (6.6m..24.2m) lush green!
-    const rRot = Math.hypot(x - SplineCorridorBuilder.ROTUNDA_CX, z - SplineCorridorBuilder.ROTUNDA_CZ);
-    if (rRot < 6.35 || (rRot > 24.4 && rRot < 38.6)) return 0.0;
+    // 5. SE Covered Walkway ((34.2,35.5)->(43.8,128.0)), West Parking Lane, & West Helipad Boulevard
+    if (z >= 33.2 && z <= 130.2) {
+      const walkwayX = 34.2 + ((z - 35.5) / 92.5) * 9.6;
+      if (Math.abs(x - walkwayX) < 3.05) return 0.0;
+    }
+    if (x > -69.5 && x < -55.5 && z > -36.4 && z < 104.2) return 0.0;
+    if (x > -89.5 && x < -31.5 && z > 100.6 && z < 112.4) return 0.0;
 
-    // 7. Helipad concrete deck, Transit Pavilion, Jembatan Teksas plazas/ramps, Calisthenics EPDM, Kiosks, & Muster pads
-    if (Math.hypot(x - TerrainDEMLoader.HELIPAD_CX, z - TerrainDEMLoader.HELIPAD_CZ) < 17.4) return 0.0;
-    if (Math.hypot(x + 84.8, z - 118.2) < 6.2 || Math.hypot(x + 87.2, z - 92.8) < 4.2) return 0.0;
-    if (Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) < 9.6 && z > 132.0 && z < 349.0) return 0.0;
-    if (Math.hypot((x + 62.0) / 16.8, (z - 136.5) / 8.2) < 1.0) return 0.0;
+    // 6. Lapangan Rotunda UI (-2.5, 106.5):
+    //    - Fountain stone planter curb is R = 5.52m -> exclude rRot < 5.85m
+    //    - Inner zebra curb is R = 23.35..23.90m, Asphalt is 23.90..33.70m, Outer zebra curb is 33.70..34.25m,
+    //      Outer lamp/bench strip + EPDM Jogging Track is 34.90..38.35m -> exclude 22.95m..38.95m!
+    const rRot = Math.hypot(
+      x - SplineCorridorBuilder.ROTUNDA_CX,
+      z - SplineCorridorBuilder.ROTUNDA_CZ
+    );
+    if (rRot < 5.85 || (rRot > 22.95 && rRot < 38.95)) return 0.0;
+
+    // Rotunda <-> Jembatan Teksas UI West Forecourt Promenade Connector ((-20.65,135.30)->(-24.6,140.8)->(-28.0,146.8))
+    if (x >= -34.0 && x <= -16.5 && z >= 132.5 && z <= 149.5) {
+      if (
+        TropicalGrassField._distToSegment2D(x, z, -20.65, 135.3, -24.6, 140.8) < 3.35 ||
+        TropicalGrassField._distToSegment2D(x, z, -24.6, 140.8, -28.0, 146.8) < 3.35
+      ) {
+        return 0.0;
+      }
+    }
+
+    // 7. Helipad concrete deck, Transit Pavilion, Jembatan Teksas plazas/ramps, Calisthenics EPDM Oval, Kiosks, & Muster pads
+    if (Math.hypot(x - TerrainDEMLoader.HELIPAD_CX, z - TerrainDEMLoader.HELIPAD_CZ) < 17.6) return 0.0;
+    if (Math.hypot(x + 84.8, z - 118.2) < 6.4 || Math.hypot(x + 87.2, z - 92.8) < 4.4) return 0.0;
+    if (Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) < 10.2 && z > 132.0 && z < 351.0) return 0.0;
+    if (Math.hypot((x + 62.0) / 17.6, (z - 136.5) / 8.9) < 1.0) return 0.0;
 
     for (const ks of SplineCorridorBuilder.KIOSK_SPECS) {
-      if (Math.hypot(x - ks.x, z - ks.z) < 4.8) return 0.0;
+      if (Math.hypot(x - ks.x, z - ks.z) < 4.9) return 0.0;
     }
     for (const mp of SplineCorridorBuilder.MUSTER_POINTS) {
-      if (Math.hypot(x - mp.x, z - mp.z) < 3.6) return 0.0;
+      if (Math.hypot(x - mp.x, z - mp.z) < 3.8) return 0.0;
     }
 
     // 8. Road corridors, Underpass open-cut ramps, Ferry forecourts, DPPD complex, & ATC tower
-    if (TerrainDEMLoader.isTransitInfrastructureExclusion(x, z, 1.35)) return 0.0;
+    if (TerrainDEMLoader.isTransitInfrastructureExclusion(x, z, 1.55)) return 0.0;
 
-    // 9. Pulau I ICAO Runway RWY 36/18, Taxiway, Aircraft Apron, & Volcano Upper Cone
+    // 9. Pulau I ICAO Runway RWY 36/18, Taxiway, Aircraft Apron, Volcano Upper Cone, & Mini-Niagara Gorge
     if (z >= 536.0) {
-      if (x >= -382.0 && x <= -130.0 && z >= 654.0 && z <= 724.0) return 0.0;
-      if (Math.hypot(x - TerrainDEMLoader.VOLCANO_CX, z - TerrainDEMLoader.VOLCANO_CZ) < 36.0) return 0.0;
-      if (Math.hypot(x - TerrainDEMLoader.NIAGARA_CX, z - TerrainDEMLoader.NIAGARA_CZ) < 21.0) return 0.0;
+      if (x >= -383.0 && x <= -129.0 && z >= 653.0 && z <= 725.0) return 0.0;
+      if (Math.hypot(x - TerrainDEMLoader.VOLCANO_CX, z - TerrainDEMLoader.VOLCANO_CZ) < 36.5) return 0.0;
+      if (Math.hypot(x - TerrainDEMLoader.NIAGARA_CX, z - TerrainDEMLoader.NIAGARA_CZ) < 22.0) return 0.0;
     }
 
     // Edge feather near coast & higher elevations
-    const coastFeather = Math.min(1.0, Math.max(0.0, (-2.35 - dCoast) / 2.8));
+    const coastFeather = Math.min(1.0, Math.max(0.0, (-2.45 - dCoast) / 2.8));
     const altFeather = gy > 20.0 ? Math.max(0.0, 1.0 - (gy - 20.0) / 7.5) : 1.0;
     return coastFeather * altFeather;
   }
@@ -172,8 +205,7 @@ export class TropicalGrassField {
         data[o] = (q >> 8) & 255;
         data[o + 1] = q & 255;
 
-        const mask = TropicalGrassField._isLawnGrassAllowed(wx, wz, gy);
-        rawMask[idx] = mask;
+        rawMask[idx] = TropicalGrassField._isLawnGrassAllowed(wx, wz, gy);
 
         const meadowPatch =
           0.5 +
@@ -183,7 +215,9 @@ export class TropicalGrassField {
       }
     }
 
-    // 3x3 minimum-biased soft lawn border feather so blades never overhang curbs or paths
+    // Strict 3x3 morphological border erosion + soft inward taper:
+    // Any texel touching a hard-surface exclusion (minN <= 0.001) is strictly zeroed so bilinear
+    // lookup can NEVER bleed grass onto curbs, roads, plazas, or water!
     for (let iz = 0; iz < rows; iz++) {
       for (let ix = 0; ix < cols; ix++) {
         const idx = iz * cols + ix;
@@ -203,8 +237,11 @@ export class TropicalGrassField {
             if (m < minN) minN = m;
           }
         }
-        const feathered = minN <= 0.0 ? (sum / 9.0) * 0.45 : sum / 9.0;
-        data[idx * 4 + 2] = Math.max(0, Math.min(255, Math.round(feathered * 255.0)));
+        if (minN <= 0.001) {
+          data[idx * 4 + 2] = 0;
+        } else {
+          data[idx * 4 + 2] = Math.max(0, Math.min(255, Math.round((sum / 9.0) * 255.0)));
+        }
       }
     }
 
@@ -219,64 +256,56 @@ export class TropicalGrassField {
   }
 
   static _buildCurvedBladeGeometry() {
-    // 3-Blade Crossed Botanical V-Tuft (27 vertices, 21 triangles per tuft -> 84,000 visible curved blades in 1 draw call!)
+    // 6-Shoot Stoloniferous Sward Patch (Axonopus compressus "Rumput Gajah Mini"):
+    // 6 broadleaf curved shoots distributed across a 20 cm Phyllotaxis stolon runner (42 verts, 30 tris per patch)
+    // -> 68,000 patches = 408,000 continuous overlapping 3D blades in 1 single draw call with ZERO polka-dot gaps!
+    // Physical-meter Axonopus compressus broadleaf blade (nominal 9.5 cm tall, 2.7 cm wide at base, 2.3 cm arch)
     const basePos = [
-      -0.025, 0.00, 0.000,
-       0.025, 0.00, 0.000,
-      -0.021, 0.30, 0.022,
-       0.021, 0.30, 0.022,
-      -0.015, 0.62, 0.068,
-       0.015, 0.62, 0.068,
-      -0.008, 0.86, 0.132,
-       0.008, 0.86, 0.132,
-       0.000, 1.00, 0.192
+      -0.0135, 0.000, 0.000,
+       0.0135, 0.000, 0.000,
+      -0.0110, 0.035, 0.004,
+       0.0110, 0.035, 0.004,
+      -0.0068, 0.069, 0.012,
+       0.0068, 0.069, 0.012,
+       0.0000, 0.095, 0.023
     ];
-    const baseUv = [
-      0.0, 0.00,
-      1.0, 0.00,
-      0.0, 0.30,
-      1.0, 0.30,
-      0.0, 0.62,
-      1.0, 0.62,
-      0.0, 0.86,
-      1.0, 0.86,
-      0.5, 1.00
-    ];
+    const baseV = [0.00, 0.00, 0.36, 0.36, 0.72, 0.72, 1.00];
     const baseNorm = [
-      -0.18, 0.35, 0.92,
-       0.18, 0.35, 0.92,
-      -0.18, 0.45, 0.87,
-       0.18, 0.45, 0.87,
-      -0.16, 0.58, 0.80,
-       0.16, 0.58, 0.80,
-      -0.14, 0.70, 0.70,
-       0.14, 0.70, 0.70,
-       0.00, 0.80, 0.60
+      -0.14, 0.58, 0.80,
+       0.14, 0.58, 0.80,
+      -0.13, 0.69, 0.71,
+       0.13, 0.69, 0.71,
+      -0.10, 0.81, 0.58,
+       0.10, 0.81, 0.58,
+       0.00, 0.90, 0.44
     ];
     const baseIdx = [
       0, 1, 2,  1, 3, 2,
       2, 3, 4,  3, 5, 4,
-      4, 5, 6,  5, 7, 6,
-      6, 7, 8
+      4, 5, 6
     ];
 
     const subSpecs = [
-      { yaw: 0.0, hScale: 1.00, splay: 1.00, ox: 0.000, oz: 0.000 },
-      { yaw: 2.12, hScale: 0.86, splay: 1.18, ox: 0.032, oz: -0.024 },
-      { yaw: -2.06, hScale: 0.78, splay: 1.24, ox: -0.028, oz: -0.028 }
+      { yaw: 0.15, hScale: 1.00, splay: 1.02, ox:  0.000, oz:  0.000, tintId: 0.08 },
+      { yaw: 2.55, hScale: 0.92, splay: 1.15, ox:  0.066, oz:  0.024, tintId: 0.25 },
+      { yaw: 4.95, hScale: 0.85, splay: 1.22, ox: -0.046, oz:  0.060, tintId: 0.42 },
+      { yaw: 1.06, hScale: 0.96, splay: 1.10, ox: -0.070, oz: -0.042, tintId: 0.58 },
+      { yaw: 3.46, hScale: 0.81, splay: 1.26, ox:  0.034, oz: -0.080, tintId: 0.75 },
+      { yaw: 5.86, hScale: 0.89, splay: 1.14, ox:  0.092, oz: -0.020, tintId: 0.92 }
     ];
 
-    const positions = new Float32Array(9 * 3 * 3);
-    const normals = new Float32Array(9 * 3 * 3);
-    const uvs = new Float32Array(9 * 2 * 3);
-    const indices = new Uint16Array(21 * 3);
+    const shootCount = subSpecs.length;
+    const positions = new Float32Array(7 * 3 * shootCount);
+    const normals = new Float32Array(7 * 3 * shootCount);
+    const uvs = new Float32Array(7 * 2 * shootCount);
+    const indices = new Uint16Array(15 * shootCount);
 
-    for (let s = 0; s < 3; s++) {
+    for (let s = 0; s < shootCount; s++) {
       const sp = subSpecs[s];
       const cy = Math.cos(sp.yaw);
       const sy = Math.sin(sp.yaw);
-      const vOff = s * 9;
-      for (let v = 0; v < 9; v++) {
+      const vOff = s * 7;
+      for (let v = 0; v < 7; v++) {
         const px = basePos[v * 3];
         const py = basePos[v * 3 + 1] * sp.hScale;
         const pz = basePos[v * 3 + 2] * sp.splay;
@@ -293,11 +322,12 @@ export class TropicalGrassField {
         normals[(vOff + v) * 3 + 1] = ny;
         normals[(vOff + v) * 3 + 2] = -nx * sy + nz * cy;
 
-        uvs[(vOff + v) * 2] = baseUv[v * 2];
-        uvs[(vOff + v) * 2 + 1] = baseUv[v * 2 + 1];
+        // uv.x stores per-shoot botanical micro-seed; uv.y stores normalized root-to-tip height [0..1]
+        uvs[(vOff + v) * 2] = sp.tintId;
+        uvs[(vOff + v) * 2 + 1] = baseV[v];
       }
-      for (let k = 0; k < 21; k++) {
-        indices[s * 21 + k] = baseIdx[k] + vOff;
+      for (let k = 0; k < 15; k++) {
+        indices[s * 15 + k] = baseIdx[k] + vOff;
       }
     }
 
@@ -319,7 +349,7 @@ export class TropicalGrassField {
     const fract = (v) => v - Math.floor(v);
 
     for (let i = 0; i < count; i++) {
-      // Stratified jittered Poisson-like cell distribution (100% uniform coverage, ZERO diagonal Kronecker lattice rows!)
+      // Stratified jittered cell distribution (100% uniform turf coverage, ZERO lattice rows!)
       const ix = i % cols;
       const iz = Math.floor(i / cols);
       const jx = fract(Math.sin(i * 127.1 + 311.7) * 43758.5453);
@@ -338,275 +368,266 @@ export class TropicalGrassField {
     geo.setAttribute('aBladeData', new THREE.InstancedBufferAttribute(bladeData, 4));
   }
 
-  _createGrassMaterial() {
-    const hvsGLSL = HumanEyeHDROptics.getGLSLKernel();
-    return new THREE.ShaderMaterial({
-      uniforms: this.uniforms,
-      side: THREE.DoubleSide,
-      depthTest: true,
-      depthWrite: true,
-      transparent: false,
-      vertexShader: /* glsl */ `
-        attribute vec4 aBladeData;
-
-        uniform sampler2D uGrassBakeTex;
-        uniform vec4 uBakeBounds;
-        uniform vec2 uBakeTexSize;
-        uniform vec3 uCamPos;
-        uniform float uTime;
-        uniform vec3 uWindVec;
-
-        varying vec3 vWorldPos;
-        varying vec3 vNormalW;
-        varying vec2 vBladeUV;
-        varying float vSeed;
-        varying float vLush;
-        varying float vGust;
-
-        const float FIELD_SPAN = 40.0;
-        const float HALF_SPAN = 20.0;
-        const float H_MIN = -4.0;
-        const float H_SPAN = 64.0;
-
-        vec3 sampleBakedLawnBilinear(vec2 wxz) {
-          vec2 uv01 = (wxz - uBakeBounds.xy) / uBakeBounds.zw;
-          if (uv01.x <= 0.002 || uv01.x >= 0.998 || uv01.y <= 0.002 || uv01.y >= 0.998) {
-            return vec3(-10.0, 0.0, 0.5);
-          }
-          vec2 gridCoord = uv01 * (uBakeTexSize - 1.0);
-          vec2 i0 = floor(gridCoord);
-          vec2 f = gridCoord - i0;
-          vec2 i1 = min(uBakeTexSize - 1.0, i0 + 1.0);
-
-          vec4 t00 = texture2D(uGrassBakeTex, (i0 + 0.5) / uBakeTexSize);
-          vec4 t10 = texture2D(uGrassBakeTex, (vec2(i1.x, i0.y) + 0.5) / uBakeTexSize);
-          vec4 t01 = texture2D(uGrassBakeTex, (vec2(i0.x, i1.y) + 0.5) / uBakeTexSize);
-          vec4 t11 = texture2D(uGrassBakeTex, (i1 + 0.5) / uBakeTexSize);
-
-          float h00 = H_MIN + ((t00.r * 255.0 * 256.0 + t00.g * 255.0) / 65535.0) * H_SPAN;
-          float h10 = H_MIN + ((t10.r * 255.0 * 256.0 + t10.g * 255.0) / 65535.0) * H_SPAN;
-          float h01 = H_MIN + ((t01.r * 255.0 * 256.0 + t01.g * 255.0) / 65535.0) * H_SPAN;
-          float h11 = H_MIN + ((t11.r * 255.0 * 256.0 + t11.g * 255.0) / 65535.0) * H_SPAN;
-
-          float h = mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y);
-          float mask = mix(mix(t00.b, t10.b, f.x), mix(t01.b, t11.b, f.x), f.y);
-          float lush = mix(mix(t00.a, t10.a, f.x), mix(t01.a, t11.a, f.x), f.y);
-          return vec3(h, mask, lush);
-        }
-
-        void main() {
-          // Toroidal world-fixed modulo wrap around camera XZ (blades stay anchored in world space!)
-          vec2 rel = mod(aBladeData.xy - uCamPos.xz + HALF_SPAN, FIELD_SPAN) - HALF_SPAN;
-          vec2 bladeRootXZ = uCamPos.xz + rel;
-
-          vec3 lawn = sampleBakedLawnBilinear(bladeRootXZ);
-          float groundY = lawn.x;
-          float grassMask = lawn.y;
-          vLush = lawn.z;
-          vSeed = aBladeData.w;
-          vBladeUV = uv;
-
-          float distXZ = length(rel);
-          float altAboveGround = max(0.0, uCamPos.y - groundY);
-          float distFade = 1.0 - smoothstep(13.5, 19.6, distXZ);
-          float altFade = 1.0 - smoothstep(26.0, 42.0, altAboveGround);
-          float visScale = smoothstep(0.08, 0.42, grassMask) * distFade * altFade;
-
-          if (visScale <= 0.002) {
-            gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-            vWorldPos = vec3(bladeRootXZ.x, groundY, bladeRootXZ.y);
-            vNormalW = vec3(0.0, 1.0, 0.0);
-            vGust = 0.0;
-            return;
-          }
-
-          bool isFlower = vSeed > 0.942;
-          float baseH = mix(0.14, 0.34, fract(vSeed * 7.13)) * (0.78 + 0.42 * vLush) * visScale;
-          float widthScale = mix(0.95, 1.45, fract(vSeed * 13.7)) * (isFlower && uv.y > 0.72 ? 2.25 : 1.0);
-
-          float cY = cos(aBladeData.z);
-          float sY = sin(aBladeData.z);
-          vec3 localP = vec3(position.x * widthScale, position.y * baseH, position.z * baseH);
-          vec3 rotP = vec3(
-            localP.x * cY + localP.z * sY,
-            localP.y,
-            -localP.x * sY + localP.z * cY
-          );
-
-          // Traveling tropical wind-gust ripples across campus lawns
-          float windSpd = length(uWindVec.xz);
-          vec2 windDir = windSpd > 0.02 ? uWindVec.xz / windSpd : vec2(0.8, 0.6);
-          float gustPhase = dot(bladeRootXZ, windDir) * 0.24 - uTime * (1.55 + windSpd * 0.28);
-          float gustWave = 0.55 + 0.45 * sin(gustPhase + sin(bladeRootXZ.x * 0.17 - bladeRootXZ.y * 0.21) * 1.6);
-          float flutter = sin(uTime * 4.2 + vSeed * 31.4) * 0.025;
-          float bendAmt = (0.045 + min(0.22, windSpd * 0.024) * gustWave + flutter) * uv.y * uv.y * visScale;
-          vGust = gustWave;
-
-          rotP.xz += windDir * bendAmt;
-          rotP.y *= (1.0 - min(0.32, bendAmt * 0.85));
-
-          vec3 worldPos = vec3(bladeRootXZ.x + rotP.x, groundY - 0.012 + rotP.y, bladeRootXZ.y + rotP.z);
-          vWorldPos = worldPos;
-
-          vec3 rotN = normalize(vec3(
-            normal.x * cY + normal.z * sY,
-            normal.y,
-            -normal.x * sY + normal.z * cY
-          ));
-          vNormalW = normalize(mix(rotN, vec3(0.0, 1.0, 0.0), 0.48));
-
-          gl_Position = projectionMatrix * viewMatrix * vec4(worldPos, 1.0);
-        }
-      `,
-      fragmentShader: /* glsl */ `
-        uniform vec3 uCamPos;
-        uniform vec3 uSunDir;
-        uniform vec3 uSunColor;
-        uniform float uDuskFactor;
-        uniform float uNightFactor;
-        uniform float uCloudCover;
-        uniform float uRainIntensity;
-        uniform float uStormFactor;
-        uniform float uLightningFlash;
-        uniform float uFogFactor;
-        uniform vec2 uCloudShadowPhase;
-        uniform vec4 uHvsParams;
-        uniform vec4 uHvsGlare;
-
-        varying vec3 vWorldPos;
-        varying vec3 vNormalW;
-        varying vec2 vBladeUV;
-        varying float vSeed;
-        varying float vLush;
-        varying float vGust;
-
-        ${hvsGLSL}
-
-        float grassHash21(vec2 p) {
-          p = fract(p * vec2(127.1, 311.7));
-          p += dot(p, p + 45.32);
-          return fract(p.x * p.y);
-        }
-
-        float grassNoise2D(vec2 p) {
-          vec2 i = floor(p);
-          vec2 f = fract(p);
-          vec2 u = f * f * (3.0 - 2.0 * f);
-          return mix(
-            mix(grassHash21(i), grassHash21(i + vec2(1.0, 0.0)), u.x),
-            mix(grassHash21(i + vec2(0.0, 1.0)), grassHash21(i + vec2(1.0, 1.0)), u.x),
-            u.y
-          );
-        }
-
-        float evalGrassCloudShadow(vec3 wp, vec3 sDir) {
-          if (uCloudCover <= 0.02 || uNightFactor >= 0.92) return 1.0;
-          vec2 proj = (wp.xz - sDir.xz * (320.0 / max(0.20, sDir.y))) * 0.0036 + uCloudShadowPhase;
-          float n = 0.58 * grassNoise2D(proj * 1.45) + 0.30 * grassNoise2D(proj * 3.1 + 11.7) + 0.12 * grassNoise2D(proj * 6.4);
-          float thr = mix(0.60, 0.26, clamp(uCloudCover, 0.0, 1.0));
-          float cMask = smoothstep(thr, thr + 0.26, n);
-          float strength = clamp(uCloudCover * 0.85, 0.0, 0.56) * smoothstep(0.06, 0.24, sDir.y) * (1.0 - uNightFactor * 0.90);
-          return 1.0 - cMask * strength;
-        }
-
-        void main() {
-          vec3 sunDir = normalize(uSunDir);
-          vec3 viewDir = normalize(uCamPos - vWorldPos);
-          vec3 N = normalize(vNormalW);
-
-          // Root-to-tip botanical chlorophyll pigment & soil-root ambient occlusion
-          float h = clamp(vBladeUV.y, 0.0, 1.0);
-          float rootAO = mix(0.38, 1.0, pow(h, 0.62));
-          vec3 rootCol = vec3(0.042, 0.115, 0.026);
-          vec3 midBlade = mix(vec3(0.078, 0.235, 0.044), vec3(0.112, 0.278, 0.052), vLush);
-          vec3 tipCol = mix(vec3(0.145, 0.345, 0.065), vec3(0.205, 0.385, 0.078), fract(vSeed * 5.3));
-          vec3 albedo = mix(rootCol, mix(midBlade, tipCol, smoothstep(0.35, 0.98, h)), smoothstep(0.0, 0.45, h));
-
-          // Delicate Arachis pintoi golden blossoms & white tropical clover heads on ~5.8% of blades
-          if (vSeed > 0.942 && h > 0.74) {
-            bool isGolden = vSeed < 0.978;
-            vec3 petalCol = isGolden ? vec3(0.86, 0.66, 0.08) : vec3(0.84, 0.85, 0.78);
-            albedo = mix(albedo, petalCol, smoothstep(0.74, 0.86, h));
-          }
-
-          // Wet rain darkening & specular sheen
-          albedo *= mix(1.0, 0.78, clamp(uRainIntensity * 0.7, 0.0, 0.7));
-
-          float cloudShadow = evalGrassCloudShadow(vWorldPos, sunDir);
-          float sunVis = clamp(1.0 - uRainIntensity * 0.72 - uStormFactor * 0.40 - uCloudCover * 0.20, 0.08, 1.0) * cloudShadow;
-
-          float NdotL = max(0.0, dot(N, sunDir) * 0.65 + 0.35);
-          float backSSS = pow(max(0.0, dot(-viewDir, sunDir)), 2.6) * (0.25 + 0.75 * h) * sunVis;
-
-          vec3 skyIrrad = mix(
-            mix(vec3(0.30, 0.40, 0.52), vec3(0.32, 0.24, 0.22), uDuskFactor),
-            vec3(0.028, 0.042, 0.072),
-            uNightFactor
-          );
-          vec3 directSun = uSunColor * mix(mix(2.35, 1.55, uDuskFactor), 0.14, uNightFactor) * sunVis;
-
-          vec3 hdrLin = albedo * rootAO * (skyIrrad + directSun * NdotL)
-                      + albedo * vec3(0.55, 0.82, 0.24) * directSun * backSSS * 0.52;
-
-          // Subtle wind-gust sun sheen across bending blade backs
-          vec3 H = normalize(sunDir + viewDir);
-          float sheen = pow(max(0.0, dot(N, H)), mix(18.0, 42.0, clamp(uRainIntensity, 0.0, 1.0))) * h * (0.06 + 0.06 * vGust + 0.10 * uRainIntensity);
-          hdrLin += directSun * sheen;
-          hdrLin += vec3(0.65, 0.82, 1.15) * albedo * uLightningFlash * 0.85;
-
-          hdrLin = nexusApplyBoundaryLayerAerialPerspective(
-            hdrLin,
-            uCamPos,
-            vWorldPos,
-            sunDir,
-            uDuskFactor,
-            uNightFactor,
-            uCloudCover,
-            uRainIntensity,
-            uLightningFlash,
-            uFogFactor
-          );
-
-          vec3 hvsLin = nexusApplyHumanEyeHDR(
-            hdrLin,
-            normalize(vWorldPos - uCamPos),
-            sunDir,
-            uSunColor,
-            uHvsParams,
-            uHvsGlare
-          );
-
-          gl_FragColor = vec4(nexusLinearToSRGB(hvsLin), 1.0);
-        }
-      `
+  _createGrassMaterial(sharedUniforms) {
+    const mat = new THREE.MeshStandardMaterial({
+      name: 'TropicalCampusTurfMat',
+      color: 0xffffff,
+      roughness: 0.88,
+      metalness: 0.02,
+      envMapIntensity: 0.22,
+      side: THREE.DoubleSide
     });
+
+    // Share the exact same Omni-Scale Terrain PBR + Cloud Shadow + Overhang AO + Night Lamp + HVS pipeline
+    // as TerrainDEMLoader (bumpScale: 0.0 avoids screen-space derivative artifacts on thin 2cm blades)
+    injectOmniScaleSurfaceShader(mat, {
+      ySegmentStart: 120.0,
+      segmentCount: 0.0,
+      surfaceProfile: SURFACE_PROFILE.TERRAIN_AND_TURAP,
+      bumpScale: 0.0,
+      sharedUniforms
+    });
+
+    const prevOnBeforeCompile = mat.onBeforeCompile;
+    const grassUniforms = this.uniforms;
+
+    mat.customProgramCacheKey = () => 'nexus_tropical_turf_pbr_v637';
+    mat.onBeforeCompile = (shader, renderer) => {
+      if (prevOnBeforeCompile) {
+        prevOnBeforeCompile(shader, renderer);
+      }
+
+      shader.uniforms.uGrassBakeTex = grassUniforms.uGrassBakeTex;
+      shader.uniforms.uBakeBounds = grassUniforms.uBakeBounds;
+      shader.uniforms.uBakeTexSize = grassUniforms.uBakeTexSize;
+      shader.uniforms.uCamPos = grassUniforms.uCamPos;
+      shader.uniforms.uGrassFocusXZ = grassUniforms.uGrassFocusXZ;
+
+      shader.vertexShader = [
+        'attribute vec4 aBladeData;',
+        'uniform sampler2D uGrassBakeTex;',
+        'uniform vec4 uBakeBounds;',
+        'uniform vec2 uBakeTexSize;',
+        'uniform vec3 uCamPos;',
+        'uniform vec2 uGrassFocusXZ;',
+        'varying vec3 vTgfAlbedo;',
+        'const float TGF_FIELD_SPAN = 56.0;',
+        'const float TGF_HALF_SPAN = 28.0;',
+        'const float TGF_H_MIN = -4.0;',
+        'const float TGF_H_SPAN = 64.0;',
+        'float tgfSmootherstep(float e0, float e1, float x) {',
+        '  float u = clamp((x - e0) / max(1e-5, e1 - e0), 0.0, 1.0);',
+        '  return u * u * u * (u * (u * 6.0 - 15.0) + 10.0);',
+        '}',
+        'vec3 tgfSampleBakedLawn(vec2 wxz) {',
+        '  vec2 uv01 = (wxz - uBakeBounds.xy) / uBakeBounds.zw;',
+        '  if (uv01.x <= 0.002 || uv01.x >= 0.998 || uv01.y <= 0.002 || uv01.y >= 0.998) {',
+        '    return vec3(-10.0, 0.0, 0.5);',
+        '  }',
+        '  vec2 gridCoord = uv01 * (uBakeTexSize - 1.0);',
+        '  vec2 i0 = floor(gridCoord);',
+        '  vec2 f = gridCoord - i0;',
+        '  vec2 i1 = min(uBakeTexSize - 1.0, i0 + 1.0);',
+        '  vec4 t00 = texture2D(uGrassBakeTex, (i0 + 0.5) / uBakeTexSize);',
+        '  vec4 t10 = texture2D(uGrassBakeTex, (vec2(i1.x, i0.y) + 0.5) / uBakeTexSize);',
+        '  vec4 t01 = texture2D(uGrassBakeTex, (vec2(i0.x, i1.y) + 0.5) / uBakeTexSize);',
+        '  vec4 t11 = texture2D(uGrassBakeTex, (i1 + 0.5) / uBakeTexSize);',
+        '  float h00 = TGF_H_MIN + ((t00.r * 255.0 * 256.0 + t00.g * 255.0) / 65535.0) * TGF_H_SPAN;',
+        '  float h10 = TGF_H_MIN + ((t10.r * 255.0 * 256.0 + t10.g * 255.0) / 65535.0) * TGF_H_SPAN;',
+        '  float h01 = TGF_H_MIN + ((t01.r * 255.0 * 256.0 + t01.g * 255.0) / 65535.0) * TGF_H_SPAN;',
+        '  float h11 = TGF_H_MIN + ((t11.r * 255.0 * 256.0 + t11.g * 255.0) / 65535.0) * TGF_H_SPAN;',
+        '  float h = mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y);',
+        '  float minCorner = min(min(t00.b, t10.b), min(t01.b, t11.b));',
+        '  float mask = mix(mix(t00.b, t10.b, f.x), mix(t01.b, t11.b, f.x), f.y) * smoothstep(0.0, 0.16, minCorner);',
+        '  float lush = mix(mix(t00.a, t10.a, f.x), mix(t01.a, t11.a, f.x), f.y);',
+        '  return vec3(h, mask, lush);',
+        '}',
+        'vec3 tgfEvalTerrainAlbedo(float wx, float wz, float gy) {',
+        '  float dappleMacro = 0.5 + 0.5 * sin(wx * 0.09 + 1.1) * cos(wz * 0.08 - 0.7);',
+        '  float turfMicro = 0.5 + 0.5 * sin(wx * 0.42 - wz * 0.37) * cos(wx * 0.29 + wz * 0.51);',
+        '  float dryBlade = 0.5 + 0.5 * sin(wx * 0.16 + wz * 0.22) * cos(wz * 0.14 - wx * 0.19);',
+        '  float moundTint = clamp(gy / 1.8, 0.0, 1.0);',
+        '  vec3 col = vec3(',
+        '    0.118 + 0.044 * dappleMacro + 0.022 * dryBlade + 0.015 * turfMicro + 0.022 * moundTint,',
+        '    0.268 + 0.068 * dappleMacro + 0.016 * dryBlade + 0.024 * turfMicro + 0.030 * moundTint,',
+        '    0.066 + 0.020 * dappleMacro + 0.012 * dryBlade + 0.010 * turfMicro + 0.012 * moundTint',
+        '  );',
+        '  if (wz < 536.0 && gy > 2.2) {',
+        '    float hillT = tgfSmootherstep(2.2, 16.5, gy);',
+        '    col.r = mix(col.r, 0.155 + 0.052 * dappleMacro, hillT * 0.20);',
+        '    col.g = mix(col.g, 0.315 + 0.050 * dappleMacro, hillT * 0.18);',
+        '    col.b = mix(col.b, 0.078, hillT * 0.14);',
+        '  } else if (wz >= 536.0 && gy > 2.5) {',
+        '    float montT = tgfSmootherstep(2.5, 11.0, gy) * (1.0 - tgfSmootherstep(43.5, 52.5, gy)) * 0.86;',
+        '    vec2 dV = vec2(wx + 32.0, wz - 698.0);',
+        '    float thV = atan(dV.y, dV.x);',
+        '    float ridgeCrest = 0.5 + 0.5 * cos(8.0 * thV + 0.55 * sin(2.0 * thV));',
+        '    float canopyTex = 0.5 + 0.5 * sin(wx * 0.19 - wz * 0.16) * cos(wz * 0.23 + wx * 0.14);',
+        '    vec3 mCol = vec3(',
+        '      0.088 + 0.048 * ridgeCrest + 0.024 * canopyTex,',
+        '      0.245 + 0.088 * ridgeCrest + 0.036 * dappleMacro,',
+        '      0.072 + 0.022 * canopyTex',
+        '    );',
+        '    col = mix(col, mCol, montT);',
+        '  }',
+        '  return col;',
+        '}',
+        shader.vertexShader
+      ]
+        .join('\n')
+        .replace(
+          '#include <beginnormal_vertex>',
+          [
+            '#include <beginnormal_vertex>',
+            'vec2 tgfRelFocus = mod(aBladeData.xy - uGrassFocusXZ + TGF_HALF_SPAN, TGF_FIELD_SPAN) - TGF_HALF_SPAN;',
+            'vec2 tgfRootXZ = uGrassFocusXZ + tgfRelFocus;',
+            'vec3 tgfLawn = tgfSampleBakedLawn(tgfRootXZ);',
+            'float tgfGroundY = tgfLawn.x;',
+            'float tgfMask = tgfLawn.y;',
+            'float tgfLush = tgfLawn.z;',
+            'float tgfSeed = aBladeData.w;',
+            '',
+            '// Exact float32 analytic circular lawn trimming at Lapangan Rotunda UI (-2.5, 106.5):',
+            '// Inner zebra curb starts at R = 23.35m -> trim cleanly at R = 23.02m (33cm > 9.6cm stolon radius = 0.000% curb bleed!)',
+            'float tgfRotR = length(tgfRootXZ - vec2(-2.5, 106.5));',
+            'if (tgfRotR < 39.20) {',
+            '  float tgfInnerRot = smoothstep(5.82, 6.18, tgfRotR) * (1.0 - smoothstep(22.62, 23.02, tgfRotR));',
+            '  float tgfOuterRot = smoothstep(38.80, 39.20, tgfRotR);',
+            '  tgfMask *= max(tgfInnerRot, tgfOuterRot);',
+            '}',
+            '',
+            'float tgfCamDistXZ = length(tgfRootXZ - uCamPos.xz);',
+            'float tgfFocusEdge = max(abs(tgfRelFocus.x), abs(tgfRelFocus.y));',
+            'float tgfAltAbove = max(0.0, uCamPos.y - tgfGroundY);',
+            'float tgfBoxFade = 1.0 - smoothstep(TGF_HALF_SPAN - 8.5, TGF_HALF_SPAN - 0.6, tgfFocusEdge);',
+            'float tgfDistFade = 1.0 - smoothstep(28.0, 43.5, tgfCamDistXZ);',
+            'float tgfAltFade = 1.0 - smoothstep(22.0, 40.0, tgfAltAbove);',
+            'float tgfVisScale = smoothstep(0.24, 0.60, tgfMask) * tgfBoxFade * tgfDistFade * tgfAltFade;',
+            'bool tgfHidden = (tgfVisScale <= 0.003);',
+            '',
+            'vec3 tgfBaseTurf = tgfEvalTerrainAlbedo(tgfRootXZ.x, tgfRootXZ.y, tgfGroundY);',
+            'vec3 tgfWorldPos = vec3(tgfRootXZ.x, tgfGroundY, tgfRootXZ.y);',
+            'vec3 tgfWorldNorm = vec3(0.0, 1.0, 0.0);',
+            'vTgfAlbedo = tgfBaseTurf;',
+            '',
+            'if (!tgfHidden) {',
+            '  // Continuous Velvety Rumput Gajah Mini (Axonopus compressus): 6.8 cm - 12.2 cm manicured UI park turf',
+            '  float tgfShootSeed = fract(tgfSeed * 11.73 + uv.x * 3.17);',
+            '  float tgfHScale = mix(0.72, 1.28, tgfShootSeed) * (0.88 + 0.24 * tgfLush) * tgfVisScale;',
+            '  float tgfBaseH = 0.095 * tgfHScale;',
+            '  float tgfFootprintS = min(1.0, tgfVisScale * 1.35);',
+            '  float tgfCY = cos(aBladeData.z);',
+            '  float tgfSY = sin(aBladeData.z);',
+            '  vec3 tgfLocal = vec3(position.x * tgfFootprintS, position.y * tgfHScale, position.z * tgfFootprintS);',
+            '  vec3 tgfRotP = vec3(',
+            '    tgfLocal.x * tgfCY + tgfLocal.z * tgfSY,',
+            '    tgfLocal.y,',
+            '    -tgfLocal.x * tgfSY + tgfLocal.z * tgfCY',
+            '  );',
+            '  float tgfWindSpd = length(uWindVec.xz);',
+            '  vec2 tgfWindDir = tgfWindSpd > 0.02 ? (uWindVec.xz / tgfWindSpd) : vec2(0.8, 0.6);',
+            '  float tgfGustPhase = dot(tgfRootXZ, tgfWindDir) * 0.26 - uTime * (1.45 + tgfWindSpd * 0.25);',
+            '  float tgfGust = 0.55 + 0.45 * sin(tgfGustPhase + sin(tgfRootXZ.x * 0.17 - tgfRootXZ.y * 0.21) * 1.5);',
+            '  float tgfFlutter = sin(uTime * 3.8 + tgfShootSeed * 31.4) * 0.004;',
+            '  float tgfBend = (tgfBaseH * (0.14 + min(0.26, tgfWindSpd * 0.045) * tgfGust) + tgfFlutter) * uv.y * uv.y;',
+            '  tgfRotP.xz += tgfWindDir * tgfBend;',
+            '  tgfRotP.y *= (1.0 - min(0.22, tgfBend * 1.35));',
+            '  tgfWorldPos = vec3(tgfRootXZ.x + tgfRotP.x, tgfGroundY - 0.005 + tgfRotP.y, tgfRootXZ.y + tgfRotP.z);',
+            '',
+            '  // Balanced velvety turf micro-relief (0.74 root -> 1.17 tip = ZERO dark polka-dots & ZERO mid-lawn seam!)',
+            '  float tgfClose = (1.0 - smoothstep(14.0, 29.5, tgfCamDistXZ))',
+            '                 * (1.0 - smoothstep(TGF_HALF_SPAN - 10.5, TGF_HALF_SPAN - 1.2, tgfFocusEdge))',
+            '                 * (1.0 - smoothstep(14.0, 30.0, tgfAltAbove));',
+            '  float tgfH = clamp(uv.y, 0.0, 1.0);',
+            '  vec3 tgfThatchRoot = tgfBaseTurf * vec3(0.72, 0.76, 0.72);',
+            '  vec3 tgfSunlitTip = tgfBaseTurf * vec3(1.16, 1.15, 1.06) + vec3(0.010, 0.015, 0.002);',
+            '  vec3 tgfGradCol = tgfH < 0.48',
+            '    ? mix(tgfThatchRoot, tgfBaseTurf, tgfH / 0.48)',
+            '    : mix(tgfBaseTurf, tgfSunlitTip, pow((tgfH - 0.48) / 0.52, 0.85));',
+            '  vec3 tgfTuftTint = mix(vec3(0.93, 0.96, 0.92), vec3(1.07, 1.04, 1.05), tgfShootSeed);',
+            '  vec3 tgfCloseCol = tgfGradCol * tgfTuftTint;',
+            '  // Sparse (< 0.8%) tiny low Arachis pintoi / white clover pinpoint blossoms on single shoot at foot-level (< 12m)',
+            '  if (tgfSeed > 0.992 && uv.x < 0.20 && tgfH > 0.80 && tgfCamDistXZ < 12.0) {',
+            '    vec3 tgfPetal = tgfSeed < 0.996 ? vec3(0.46, 0.37, 0.06) : vec3(0.42, 0.44, 0.39);',
+            '    tgfCloseCol = mix(tgfCloseCol, tgfPetal, smoothstep(0.80, 0.94, tgfH) * (1.0 - smoothstep(7.0, 12.0, tgfCamDistXZ)) * 0.75);',
+            '  }',
+            '  vTgfAlbedo = mix(tgfBaseTurf, tgfCloseCol, tgfClose);',
+            '',
+            '  vec3 tgfBladeN = normalize(vec3(',
+            '    normal.x * tgfCY + normal.z * tgfSY,',
+            '    normal.y,',
+            '    -normal.x * tgfSY + normal.z * tgfCY',
+            '  ));',
+            '  tgfWorldNorm = normalize(mix(vec3(0.0, 1.0, 0.0), tgfBladeN, tgfClose * 0.42));',
+            '}',
+            'objectNormal = tgfWorldNorm;'
+          ].join('\n')
+        )
+        .replace(
+          '#include <begin_vertex>',
+          [
+            '#include <begin_vertex>',
+            'transformed = tgfWorldPos;'
+          ].join('\n')
+        )
+        .replace(
+          '#include <project_vertex>',
+          [
+            '#include <project_vertex>',
+            'if (tgfHidden) {',
+            '  gl_Position = vec4(2.0, 2.0, 2.0, 1.0);',
+            '}'
+          ].join('\n')
+        );
+
+      shader.fragmentShader = ['varying vec3 vTgfAlbedo;', shader.fragmentShader]
+        .join('\n')
+        .replace(
+          '#include <color_fragment>',
+          [
+            '#include <color_fragment>',
+            'diffuseColor.rgb *= vTgfAlbedo;'
+          ].join('\n')
+        )
+        .replace(
+          '#include <normal_fragment_begin>',
+          [
+            '#include <normal_fragment_begin>',
+            '// Canopy non-flipping turf normal: prevents DoubleSide backfaces from pointing into underground (-Y)!',
+            'vec3 tgfFragWN = normalize(vOmniWorldNormal);',
+            'if (!gl_FrontFacing) {',
+            '  tgfFragWN = normalize(vec3(-tgfFragWN.x * 0.35, abs(tgfFragWN.y), -tgfFragWN.z * 0.35));',
+            '}',
+            'normal = normalize((viewMatrix * vec4(tgfFragWN, 0.0)).xyz);'
+          ].join('\n')
+        );
+    };
+
+    return mat;
   }
 
-  update(camera, weatherState, sharedSurfaceUniforms) {
+  update(camera, _weatherState = null, _sharedSurfaceUniforms = null) {
     if (!camera || !this.uniforms) return;
+    if (this.mesh) {
+      this.mesh.visible = camera.position.y < 44.0;
+    }
+    if (camera.position.y >= 44.0) return;
     this.uniforms.uCamPos.value.copy(camera.position);
 
-    if (sharedSurfaceUniforms) {
-      if (sharedSurfaceUniforms.uTime) this.uniforms.uTime.value = sharedSurfaceUniforms.uTime.value;
-      if (sharedSurfaceUniforms.uSunDir) this.uniforms.uSunDir.value.copy(sharedSurfaceUniforms.uSunDir.value);
-      if (sharedSurfaceUniforms.uSunColor) this.uniforms.uSunColor.value.copy(sharedSurfaceUniforms.uSunColor.value);
-      if (sharedSurfaceUniforms.uDuskFactor) this.uniforms.uDuskFactor.value = sharedSurfaceUniforms.uDuskFactor.value;
-      if (sharedSurfaceUniforms.uNightFactor) this.uniforms.uNightFactor.value = sharedSurfaceUniforms.uNightFactor.value;
-      if (sharedSurfaceUniforms.uCloudCover) this.uniforms.uCloudCover.value = sharedSurfaceUniforms.uCloudCover.value;
-      if (sharedSurfaceUniforms.uRainIntensity) this.uniforms.uRainIntensity.value = sharedSurfaceUniforms.uRainIntensity.value;
-      if (sharedSurfaceUniforms.uStormFactor) this.uniforms.uStormFactor.value = sharedSurfaceUniforms.uStormFactor.value;
-      if (sharedSurfaceUniforms.uLightningFlash) this.uniforms.uLightningFlash.value = sharedSurfaceUniforms.uLightningFlash.value;
-      if (sharedSurfaceUniforms.uFogFactor) this.uniforms.uFogFactor.value = sharedSurfaceUniforms.uFogFactor.value;
-      if (sharedSurfaceUniforms.uCloudShadowPhase) {
-        this.uniforms.uCloudShadowPhase.value.copy(sharedSurfaceUniforms.uCloudShadowPhase.value);
-      }
-      if (sharedSurfaceUniforms.uHvsParams) this.uniforms.uHvsParams.value.copy(sharedSurfaceUniforms.uHvsParams.value);
-      if (sharedSurfaceUniforms.uHvsGlare) this.uniforms.uHvsGlare.value.copy(sharedSurfaceUniforms.uHvsGlare.value);
-    }
+    camera.getWorldDirection(this._camDirScratch);
+    const fx = this._camDirScratch.x;
+    const fz = this._camDirScratch.z;
+    const horizLen = Math.hypot(fx, fz);
+    // Smoothly attenuate forward offset when looking steeply down (nadir) so field centers right under camera
+    const aheadDist =
+      horizLen > 1e-3 ? TropicalGrassField.FOCUS_AHEAD_M * Math.min(1.0, horizLen * 1.15) : 0.0;
+    const dirX = horizLen > 1e-3 ? fx / horizLen : 0.0;
+    const dirZ = horizLen > 1e-3 ? fz / horizLen : 0.0;
 
-    if (weatherState && weatherState.windVec) {
-      this.uniforms.uWindVec.value.copy(weatherState.windVec);
-    }
+    this.uniforms.uGrassFocusXZ.value.set(
+      camera.position.x + dirX * aheadDist,
+      camera.position.z + dirZ * aheadDist
+    );
   }
 
   dispose() {

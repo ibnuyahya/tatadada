@@ -818,7 +818,7 @@ export class HardwareTelemetryGovernor {
     }
     const pretty = JSON.stringify(
       {
-        engine: 'NEXUS Kepulauan UI v636 Forensic',
+        engine: 'NEXUS Kepulauan UI v637 Forensic',
         capturedAtISO: new Date().toISOString(),
         uptimeSec: snap.uptimeSec,
         gpu: snap.gpu,

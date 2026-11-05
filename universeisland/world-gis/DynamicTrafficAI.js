@@ -1933,6 +1933,23 @@ export class DynamicTrafficAI {
       const wx = 34.2 + tW * (43.8 - 34.2);
       if (Math.abs(x - wx) < 1.95) return 0.055;
     }
+    // Lapangan Rotunda UI (-2.5, 106.5): exact circular zebra curbs, cambered asphalt, & EPDM jogging track
+    const rRot = Math.hypot(x - -2.5, z - 106.5);
+    if (rRot >= 23.34 && rRot <= 38.36) {
+      if ((rRot >= 23.34 && rRot <= 23.91) || (rRot >= 33.69 && rRot <= 34.26)) {
+        const cutW = Math.hypot(x - -36.45, z - 106.5) < 5.2;
+        const cutT = Math.hypot(x - -20.6, z - 135.2) < 2.9;
+        const cutS = Math.hypot(x - -2.5, z - 72.55) < 2.5;
+        if (!cutW && !cutT && !cutS) return 0.186 + 0.025;
+      }
+      if (rRot > 23.91 && rRot < 33.69) {
+        const f = (rRot - 28.8) / 4.9;
+        return 0.035 + Math.max(0.0, 1.0 - f * f) * 0.016 + 0.025;
+      }
+      if (rRot >= 35.95 && rRot <= 38.36) {
+        return 0.038 + 0.025;
+      }
+    }
     return Math.max(-0.15, this.groundHeightFn(x, z) + 0.032);
   }
 
@@ -2030,14 +2047,15 @@ export class DynamicTrafficAI {
 
     const rosterSpecs = [
       // === A. 3 SOCIAL WALKING & CHATTING PAIRS (6 NPCs walking side-by-side in lively conversation!) ===
-      // Pair 1: Walking & conversing around Lapangan Rotunda UI circular promenade
+      // Pair 1: Walking & conversing across Lapangan Rotunda UI manicured park lawn (cleanly inside 23.35m zebra curb!)
       {
         behavior: 'PAIR_ROTUNDA',
         pairId: 1,
         pairSide: -1,
         archetype: 'MAHASISWA_JAKUN',
         hairStyle: 'HAIR_WAVY',
-        radius: 23.3,
+        radius: 19.55,
+        pairRadius: 19.92,
         angle0: 0.35,
         dir: 1.0,
         baseSpeed: 1.16,
@@ -2053,7 +2071,8 @@ export class DynamicTrafficAI {
         pairSide: 1,
         archetype: 'MAHASISWI_HIJAB_JAKUN',
         hijabCol: HUMAN_PALETTE.HIJAB_CREAM,
-        radius: 24.15,
+        radius: 20.30,
+        pairRadius: 19.92,
         angle0: 0.35,
         dir: 1.0,
         baseSpeed: 1.16,
@@ -2091,7 +2110,7 @@ export class DynamicTrafficAI {
         hasUmbrella: true,
         hasLanyard: true
       },
-      // Pair 3: Lecturer & Graduate Student strolling across Rotunda North-West Arc
+      // Pair 3: Lecturer & Graduate Student strolling along scenic inner fountain lawn of Lapangan Rotunda UI
       {
         behavior: 'PAIR_ROTUNDA',
         pairId: 3,
@@ -2099,7 +2118,8 @@ export class DynamicTrafficAI {
         archetype: 'DOSEN_BATIK_INDIGO',
         hairStyle: 'HAIR_PARTED',
         hasGlasses: true,
-        radius: 33.1,
+        radius: 14.85,
+        pairRadius: 15.22,
         angle0: 2.55,
         dir: -1.0,
         baseSpeed: 1.08,
@@ -2115,7 +2135,8 @@ export class DynamicTrafficAI {
         archetype: 'MAHASISWA_JAKUN',
         hairStyle: 'HAIR_PARTED',
         hasGlasses: true,
-        radius: 33.95,
+        radius: 15.60,
+        pairRadius: 15.22,
         angle0: 2.55,
         dir: -1.0,
         baseSpeed: 1.08,
@@ -2869,8 +2890,8 @@ export class DynamicTrafficAI {
       {
         behavior: 'JOGGER_LOOP',
         jogTrack: 'ROTUNDA_OUTER',
-        radius: 37.8,
-        angle0: 2.15,
+        radius: 37.15,
+        angle0: 0.32,
         dir: 1.0,
         baseSpeed: 2.38,
         archetype: 'SPORT_JOGGER',
@@ -5744,7 +5765,26 @@ export class DynamicTrafficAI {
         }
       } else if (npc.behavior === 'JOGGER_LOOP') {
         const jogSpeed = npc.baseSpeed * (1.0 + 0.15 * npc.rainHurryBlend);
-        if (npc.jogTrack === 'ROTUNDA_OUTER' || npc.jogTrack === 'ROTUNDA_INNER') {
+        if (npc.jogTrack === 'ROTUNDA_OUTER') {
+          // Dedicated East-North EPDM Rubberized Jogging Track Arc at R = 37.15m (-68° .. +104°, zero road/curb crossing!)
+          const thMin = -1.18;
+          const thMax = 1.82;
+          const arcSpan = thMax - thMin;
+          const arcLen = arcSpan * npc.radius;
+          const halfPeriod = arcLen / jogSpeed;
+          const uLap = (((t / (2.0 * halfPeriod) + 0.18) % 1.0) + 1.0) % 1.0;
+          const goingFwd = uLap < 0.5;
+          const s = goingFwd ? uLap * 2.0 : 2.0 - uLap * 2.0;
+          const theta = thMin + s * arcSpan;
+          const dirSign = goingFwd ? 1.0 : -1.0;
+          const tx = -2.5 + Math.cos(theta) * npc.radius;
+          const tz = 106.5 + Math.sin(theta) * npc.radius;
+          const targetYaw = Math.atan2(-dirSign * Math.sin(theta), dirSign * Math.cos(theta));
+          npc.worldX = tx;
+          npc.worldZ = tz;
+          npc.yaw = !npc.initializedPos ? targetYaw : dampAngle(npc.yaw, targetYaw, 10.0, dt);
+          npc.initializedPos = true;
+        } else if (npc.jogTrack === 'ROTUNDA_INNER') {
           const omega = (npc.dir * jogSpeed) / npc.radius;
           const theta = npc.angle0 + omega * t;
           const tx = -2.5 + Math.cos(theta) * npc.radius;
@@ -5857,7 +5897,7 @@ export class DynamicTrafficAI {
         npc.initializedPos = true;
       } else if (npc.behavior === 'PAIR_ROTUNDA') {
         const speed = npc.baseSpeed * speedMult;
-        const omega = (npc.dir * speed) / 23.7;
+        const omega = (npc.dir * speed) / (npc.pairRadius || npc.radius || 19.92);
         const theta = npc.angle0 + omega * t;
         const tx = -2.5 + Math.cos(theta) * npc.radius;
         const tz = 106.5 + Math.sin(theta) * npc.radius;

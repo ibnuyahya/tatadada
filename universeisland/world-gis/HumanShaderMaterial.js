@@ -923,6 +923,11 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
           '}'
         ].join('\n')
       )
+      // 4B. CONSISTENT IEC sRGB OUTPUT ACROSS DIRECT CANVAS, 4x MSAA POSTFX TARGET, & PLANAR WATER REFLECTION TARGET
+      .replace(
+        '#include <colorspace_fragment>',
+        'gl_FragColor.rgb = nexusLinearToSRGB(gl_FragColor.rgb);'
+      )
       // 5. STUDIO ZEBRA / CLAY DIAGNOSTIC OVERRIDE
       .replace(
         '#include <dithering_fragment>',

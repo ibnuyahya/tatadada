@@ -1054,9 +1054,11 @@ export function injectOmniScaleSurfaceShader(
           '    float phase = fract((vOmniWorldPos.y - uYSegStart) / uSegStepH);',
           '    contactAO *= mix(0.46, 1.0, smoothstep(0.98, 0.52, phase));',
           '  }',
-          '  if (vOmniWorldPos.y > 0.01 && vOmniWorldPos.y < 1.8) {',
+          '#if OMNI_PROFILE != 9',
+          '  if (vOmniWorldPos.y > 0.01 && vOmniWorldPos.y < 1.8 && abs(wNorm.y) < 0.78) {',
           '    contactAO *= mix(0.70, 1.0, smoothstep(0.0, 1.8, vOmniWorldPos.y));',
           '  }',
+          '#endif',
           '#if OMNI_PROFILE != 11 && OMNI_PROFILE != 4 && OMNI_PROFILE != 5',
           '  contactAO *= omniEvalWorldOverhangAO(vOmniWorldPos, wNorm);',
           '#endif',
@@ -1410,6 +1412,11 @@ export function injectOmniScaleSurfaceShader(
           '  gl_FragColor.rgb = nexusApplyHumanEyeHDR(gl_FragColor.rgb, hvsRayW, hvsSunL, uSunColor, uHvsParams, uHvsGlare);',
           '}'
         ].join('\n')
+      )
+      // 4B. CONSISTENT IEC sRGB OUTPUT ACROSS DIRECT CANVAS, 4x MSAA POSTFX TARGET, & PLANAR WATER REFLECTION TARGET
+      .replace(
+        '#include <colorspace_fragment>',
+        'gl_FragColor.rgb = nexusLinearToSRGB(gl_FragColor.rgb);'
       )
       // 5. STUDIO ZEBRA / CLAY DIAGNOSTIC OVERRIDE (POST-TONEMAPPING)
       .replace(
