@@ -148,6 +148,7 @@
         .wm-item {
             position: absolute; background-size: contain; background-position: center; background-repeat: no-repeat;
             display: flex; align-items: center; justify-content: center; pointer-events: auto; cursor: grab;
+            transition: opacity 0.12s ease;
         }
         .wm-item:active { cursor: grabbing; }
         .wm-item.active { border: 2px dashed #10b981; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); }
@@ -409,31 +410,108 @@
                     </div>
                 </div>
                 
-                <div class="p-3 flex flex-col gap-3 overflow-y-auto max-h-[40vh] custom-scrollbar">
+                <div class="p-3 flex flex-col gap-3 overflow-y-auto max-h-[44vh] custom-scrollbar">
                     
                     <div class="grid grid-cols-2 gap-3">
-                        <div class="bg-theme-bg border border-theme-border rounded p-2 flex flex-col gap-2 shadow-sm">
-                            <div class="text-[11px] font-semibold text-theme-muted flex justify-between"><span data-i18n="slot">Slot</span> 1</div>
+                        <!-- SLOT 1 -->
+                        <div class="bg-theme-bg border border-theme-border rounded p-2 flex flex-col gap-2 shadow-sm" onmouseenter="setForcePreviewWm('wm1')" onmouseleave="setForcePreviewWm(null)">
+                            <div class="text-[11px] font-semibold text-theme-muted flex justify-between items-center">
+                                <span><span data-i18n="slot">Slot</span> 1</span>
+                                <span id="wm1-time-badge" class="hidden text-[9px] font-mono px-1.5 py-0.2 rounded bg-theme-accent/15 text-theme-accent font-bold">Selalu</span>
+                            </div>
                             <div class="flex gap-1">
                                 <button class="btn flex-1 !px-2 !py-1 text-xs" onclick="document.getElementById('wm1-input').click()"><i data-lucide="image" class="w-3.5 h-3.5"></i> <span data-i18n="import">Impor</span></button>
                                 <button class="btn btn-danger !px-1.5 !py-1" id="clear-wm1" disabled><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
                             </div>
                             <input type="file" id="wm1-input" class="hide-native" accept="image/png, image/webp">
-                            <div id="wm1-controls" class="hidden items-center justify-between gap-1 pt-1 border-t border-theme-border/50 mt-1">
-                                <label class="text-[10px] text-theme-muted" data-i18n="opacity">Opasitas</label>
-                                <input type="number" id="wm1-op" class="w-14 bg-theme-panel border border-theme-border rounded px-1.5 py-0.5 text-[11px] text-theme-text text-center" step="0.1" min="0" max="1" value="0.9">
+                            
+                            <div id="wm1-controls" class="hidden flex-col gap-2 pt-1.5 border-t border-theme-border/60 mt-0.5">
+                                <div class="flex items-center justify-between gap-1">
+                                    <label class="text-[10px] text-theme-muted" data-i18n="opacity">Opasitas</label>
+                                    <input type="number" id="wm1-op" class="w-14 bg-theme-panel border border-theme-border rounded px-1.5 py-0.5 text-[11px] text-theme-text text-center font-mono" step="0.1" min="0" max="1" value="0.9">
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[10px] text-theme-muted flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3"></i> <span data-i18n="wm_timing">Mode Waktu</span></label>
+                                    <select id="wm1-time-mode" class="w-full bg-theme-panel border border-theme-border rounded px-1.5 py-1 text-[11px] font-semibold text-theme-text outline-none focus:border-theme-accent cursor-pointer">
+                                        <option value="always" data-i18n="wm_always">Selalu Tampil</option>
+                                        <option value="cycle" data-i18n="wm_cycle">Siklus (Muncul/Hilang)</option>
+                                        <option value="ranges" data-i18n="wm_ranges">Rentang Waktu</option>
+                                    </select>
+                                </div>
+                                <!-- Siklus Berkala Controls -->
+                                <div id="wm1-cycle-box" class="hidden flex-col gap-1 bg-theme-panel/70 p-1.5 rounded border border-theme-border/60">
+                                    <div class="grid grid-cols-3 gap-1 text-center">
+                                        <div>
+                                            <div class="text-[9px] text-theme-muted" data-i18n="wm_on">Muncul</div>
+                                            <input type="number" id="wm1-cycle-on" class="w-full bg-theme-bg border border-theme-border rounded px-1 py-0.5 text-[10px] font-mono text-center" value="10" min="0.5" step="0.5" title="Durasi watermark muncul (detik)">
+                                        </div>
+                                        <div>
+                                            <div class="text-[9px] text-theme-muted" data-i18n="wm_off">Hilang</div>
+                                            <input type="number" id="wm1-cycle-off" class="w-full bg-theme-bg border border-theme-border rounded px-1 py-0.5 text-[10px] font-mono text-center" value="20" min="0.5" step="0.5" title="Durasi watermark sembunyi (detik)">
+                                        </div>
+                                        <div>
+                                            <div class="text-[9px] text-theme-muted" data-i18n="wm_delay">Mulai</div>
+                                            <input type="number" id="wm1-cycle-offset" class="w-full bg-theme-bg border border-theme-border rounded px-1 py-0.5 text-[10px] font-mono text-center" value="0" min="0" step="0.5" title="Tunda kemunculan pertama pada detik ke-X">
+                                        </div>
+                                    </div>
+                                    <div class="text-[9px] text-theme-muted leading-tight text-center font-mono">satuan: detik (s)</div>
+                                </div>
+                                <!-- Rentang Waktu Controls -->
+                                <div id="wm1-ranges-box" class="hidden flex-col gap-1 bg-theme-panel/70 p-1.5 rounded border border-theme-border/60">
+                                    <input type="text" id="wm1-range-str" class="w-full bg-theme-bg border border-theme-border rounded px-1.5 py-1 text-[10px] font-mono text-theme-text outline-none focus:border-theme-accent" placeholder="5-15, 30-45, 01:10-01:30" value="5-15, 30-45">
+                                    <div class="text-[9px] text-theme-muted leading-tight" data-i18n="wm_range_hint">Contoh: <code>5-15, 30-45</code> atau <code>01:00-01:20</code></div>
+                                </div>
                             </div>
                         </div>
-                        <div class="bg-theme-bg border border-theme-border rounded p-2 flex flex-col gap-2 shadow-sm">
-                            <div class="text-[11px] font-semibold text-theme-muted flex justify-between"><span data-i18n="slot">Slot</span> 2</div>
+
+                        <!-- SLOT 2 -->
+                        <div class="bg-theme-bg border border-theme-border rounded p-2 flex flex-col gap-2 shadow-sm" onmouseenter="setForcePreviewWm('wm2')" onmouseleave="setForcePreviewWm(null)">
+                            <div class="text-[11px] font-semibold text-theme-muted flex justify-between items-center">
+                                <span><span data-i18n="slot">Slot</span> 2</span>
+                                <span id="wm2-time-badge" class="hidden text-[9px] font-mono px-1.5 py-0.2 rounded bg-theme-accent/15 text-theme-accent font-bold">Selalu</span>
+                            </div>
                             <div class="flex gap-1">
                                 <button class="btn flex-1 !px-2 !py-1 text-xs" onclick="document.getElementById('wm2-input').click()"><i data-lucide="image" class="w-3.5 h-3.5"></i> <span data-i18n="import">Impor</span></button>
                                 <button class="btn btn-danger !px-1.5 !py-1" id="clear-wm2" disabled><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
                             </div>
                             <input type="file" id="wm2-input" class="hide-native" accept="image/png, image/webp">
-                            <div id="wm2-controls" class="hidden items-center justify-between gap-1 pt-1 border-t border-theme-border/50 mt-1">
-                                <label class="text-[10px] text-theme-muted" data-i18n="opacity">Opasitas</label>
-                                <input type="number" id="wm2-op" class="w-14 bg-theme-panel border border-theme-border rounded px-1.5 py-0.5 text-[11px] text-theme-text text-center" step="0.1" min="0" max="1" value="0.9">
+                            
+                            <div id="wm2-controls" class="hidden flex-col gap-2 pt-1.5 border-t border-theme-border/60 mt-0.5">
+                                <div class="flex items-center justify-between gap-1">
+                                    <label class="text-[10px] text-theme-muted" data-i18n="opacity">Opasitas</label>
+                                    <input type="number" id="wm2-op" class="w-14 bg-theme-panel border border-theme-border rounded px-1.5 py-0.5 text-[11px] text-theme-text text-center font-mono" step="0.1" min="0" max="1" value="0.9">
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[10px] text-theme-muted flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3"></i> <span data-i18n="wm_timing">Mode Waktu</span></label>
+                                    <select id="wm2-time-mode" class="w-full bg-theme-panel border border-theme-border rounded px-1.5 py-1 text-[11px] font-semibold text-theme-text outline-none focus:border-theme-accent cursor-pointer">
+                                        <option value="always" data-i18n="wm_always">Selalu Tampil</option>
+                                        <option value="cycle" data-i18n="wm_cycle">Siklus (Muncul/Hilang)</option>
+                                        <option value="ranges" data-i18n="wm_ranges">Rentang Waktu</option>
+                                    </select>
+                                </div>
+                                <!-- Siklus Berkala Controls -->
+                                <div id="wm2-cycle-box" class="hidden flex-col gap-1 bg-theme-panel/70 p-1.5 rounded border border-theme-border/60">
+                                    <div class="grid grid-cols-3 gap-1 text-center">
+                                        <div>
+                                            <div class="text-[9px] text-theme-muted" data-i18n="wm_on">Muncul</div>
+                                            <input type="number" id="wm2-cycle-on" class="w-full bg-theme-bg border border-theme-border rounded px-1 py-0.5 text-[10px] font-mono text-center" value="10" min="0.5" step="0.5" title="Durasi watermark muncul (detik)">
+                                        </div>
+                                        <div>
+                                            <div class="text-[9px] text-theme-muted" data-i18n="wm_off">Hilang</div>
+                                            <input type="number" id="wm2-cycle-off" class="w-full bg-theme-bg border border-theme-border rounded px-1 py-0.5 text-[10px] font-mono text-center" value="20" min="0.5" step="0.5" title="Durasi watermark sembunyi (detik)">
+                                        </div>
+                                        <div>
+                                            <div class="text-[9px] text-theme-muted" data-i18n="wm_delay">Mulai</div>
+                                            <input type="number" id="wm2-cycle-offset" class="w-full bg-theme-bg border border-theme-border rounded px-1 py-0.5 text-[10px] font-mono text-center" value="0" min="0" step="0.5" title="Tunda kemunculan pertama pada detik ke-X">
+                                        </div>
+                                    </div>
+                                    <div class="text-[9px] text-theme-muted leading-tight text-center font-mono">satuan: detik (s)</div>
+                                </div>
+                                <!-- Rentang Waktu Controls -->
+                                <div id="wm2-ranges-box" class="hidden flex-col gap-1 bg-theme-panel/70 p-1.5 rounded border border-theme-border/60">
+                                    <input type="text" id="wm2-range-str" class="w-full bg-theme-bg border border-theme-border rounded px-1.5 py-1 text-[10px] font-mono text-theme-text outline-none focus:border-theme-accent" placeholder="5-15, 30-45, 01:10-01:30" value="5-15, 30-45">
+                                    <div class="text-[9px] text-theme-muted leading-tight" data-i18n="wm_range_hint">Contoh: <code>5-15, 30-45</code> atau <code>01:00-01:20</code></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -499,11 +577,11 @@
                 <i data-lucide="shield-check" class="w-5 h-5 text-theme-accent"></i> Terms of Use / Disclaimer
             </h3>
             <div class="space-y-4 text-sm text-theme-muted mb-6 selectable max-h-[50vh] overflow-y-auto custom-scrollbar pr-3 leading-relaxed">
-                <p><strong class="text-theme-text font-bold">Klausul Aplikasi (Smart Context):</strong> OlahVideo BULK PRO beroperasi sepenuhnya secara lokal di dalam peramban (browser) Anda menggunakan teknologi HyperStream WebCodecs API v14.6 (Zero-COW Ring-Pool & YouTube Mastering). File video target dan aset watermark/bumper yang Anda masukkan tidak pernah diunggah ke server manapun, menjamin privasi absolut dan kecepatan pemrosesan maksimal yang bergantung penuh pada spesifikasi perangkat keras (GPU/CPU) Anda.</p>
+                <p><strong class="text-theme-text font-bold">Klausul Aplikasi (Smart Context):</strong> OlahVideo BULK PRO beroperasi sepenuhnya secara lokal di dalam peramban (browser) Anda menggunakan teknologi HyperStream WebCodecs API v14.6 (Zero-COW Ring-Pool &amp; YouTube Mastering). File video target dan aset watermark/bumper yang Anda masukkan tidak pernah diunggah ke server manapun, menjamin privasi absolut dan kecepatan pemrosesan maksimal yang bergantung penuh pada spesifikasi perangkat keras (GPU/CPU) Anda.</p>
                 <p><strong class="text-theme-text font-bold">Klausul Legal:</strong> Tidak ada paksaan dalam menggunakan aplikasi ini. Aplikasi ini disediakan 'as-is' (sebagaimana adanya) dan akurasi hasil tidak dijamin. Pembuatan aplikasi ini dibantu oleh AI tools. Aplikasi ini menggunakan Google Analytics dan Histats untuk mengumpulkan data statistik kunjungan dan penggunaan anonim guna pengembangan fitur, tanpa merekam identitas pribadi. Pembuat dibebaskan dari segala bentuk konsekuensi, kerugian, atau tuntutan apapun yang timbul dari penggunaan aplikasi ini. Penggunaan aplikasi berarti Anda menyetujui ketentuan ini sepenuhnya.</p>
                 <p><strong class="text-theme-text font-bold">Legal Clause:</strong> There is no coercion to use this app. This app is provided 'as-is' and the accuracy of results is not guaranteed. The development of this app was assisted by AI tools. This app uses Google Analytics and Histats to collect anonymous visit and usage statistics for feature improvement, without recording personal identity. The creator is absolved from any consequences, damages, or claims arising from the use of this app. Use of this app constitutes full agreement to these terms.</p>
             </div>
-            <button onclick="document.getElementById('terms-modal').style.display='none'" class="btn btn-primary w-full !py-2.5 shadow-md shadow-theme-accent/20" data-i18n="finish_close">Saya Mengerti & Setuju</button>
+            <button onclick="document.getElementById('terms-modal').style.display='none'" class="btn btn-primary w-full !py-2.5 shadow-md shadow-theme-accent/20" data-i18n="finish_close">Saya Mengerti &amp; Setuju</button>
         </div>
     </div>
 
@@ -515,8 +593,8 @@
             </h3>
             <ul class="space-y-2 text-xs text-theme-muted mb-5 list-disc pl-4 leading-relaxed">
                 <li><strong class="text-theme-text">Checklist YT MAX:</strong> Saat dicentang, mesin mengaktifkan <em>Extreme Bitrate</em>, kerapatan <em>Keyframe</em> tertinggi (GOP 1 detik), dan <em>Anti-Banding IGN Dither</em> agar kualitas video tetap tajam dan bebas pecah saat dikompres ulang oleh YouTube.</li>
+                <li><strong class="text-theme-text">Mode Waktu Watermark:</strong> Setiap slot watermark kini bisa diatur untuk <strong>Selalu Tampil</strong>, <strong>Siklus (Muncul X detik, Hilang Y detik, Mulai detik ke-Z)</strong>, atau <strong>Rentang Waktu Tertentu</strong> (misal: <code>5-15, 30-45</code> atau <code>01:00-01:25</code>).</li>
                 <li><strong class="text-theme-text">Resolusi 1440p (2K VP9 ★):</strong> Pilih resolusi <code>1440p (2K VP9 ★)</code> untuk memaksa server YouTube menggunakan encoder premium <strong>vp09 (VP9)</strong> sehingga video tidak buram di YouTube.</li>
-                <li><strong class="text-theme-text">Zero-COW Multi-Surface Ring-Pool:</strong> Menyesuaikan jumlah kanvas di memori secara otomatis antara <strong>Discrete GPU (RTX/NVENC)</strong> dan <strong>Integrated GPU (UMA Iris Xe/AMD)</strong> agar render berjalan secepat kilat.</li>
                 <li><strong class="text-theme-text">Urutan Klip &amp; BGM:</strong> <code>Intro &rarr; Video Utama (+BGM) &rarr; Credit Title &rarr; Outro</code>.</li>
             </ul>
             <button onclick="document.getElementById('help-modal').style.display='none'" class="btn btn-primary w-full !py-2">Tutup Panduan</button>
@@ -670,6 +748,83 @@
         }
 
         // =========================================================================
+        // 1B. WATERMARK TIME SCHEDULE PARSER & EVALUATOR (O(1) ZERO-ALLOCATION)
+        // =========================================================================
+        function parseSingleTimeToken(token) {
+            if (!token) return NaN;
+            const s = token.trim();
+            if (!s) return NaN;
+            if (s.includes(':')) {
+                const parts = s.split(':').map(Number);
+                if (parts.some(isNaN)) return NaN;
+                if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+                if (parts.length === 2) return parts[0] * 60 + parts[1];
+            }
+            const val = parseFloat(s);
+            return isFinite(val) ? val : NaN;
+        }
+
+        function parseTimeRanges(rangeStr) {
+            if (!rangeStr || typeof rangeStr !== 'string') return [];
+            const segments = rangeStr.split(/[,;]+/);
+            const out = [];
+            for (const seg of segments) {
+                const trimmed = seg.trim();
+                if (!trimmed) continue;
+                const dashParts = trimmed.split('-');
+                if (dashParts.length === 2) {
+                    const start = parseSingleTimeToken(dashParts[0]);
+                    const end = parseSingleTimeToken(dashParts[1]);
+                    if (!isNaN(start) && !isNaN(end) && end >= start) {
+                        out.push({ start: Math.max(0, start), end: Math.max(0, end) });
+                    }
+                } else if (dashParts.length === 1) {
+                    const start = parseSingleTimeToken(dashParts[0]);
+                    if (!isNaN(start) && start >= 0) {
+                        out.push({ start, end: start + 5 });
+                    }
+                }
+            }
+            return out;
+        }
+
+        function isWatermarkVisibleAtTime(wmCfg, timeSec) {
+            if (!wmCfg) return false;
+            const mode = wmCfg.timeMode || 'always';
+            if (mode === 'always') return true;
+            const t = Math.max(0, timeSec || 0);
+
+            if (mode === 'cycle') {
+                const onDur = Math.max(0.2, parseFloat(wmCfg.cycleOn) || 10);
+                const offDur = Math.max(0.2, parseFloat(wmCfg.cycleOff) || 20);
+                const offset = Math.max(0, parseFloat(wmCfg.cycleOffset) || 0);
+                if (t < offset) return false;
+                const period = onDur + offDur;
+                const posInCycle = (t - offset) % period;
+                return posInCycle < onDur;
+            }
+
+            if (mode === 'ranges') {
+                const ranges = wmCfg.parsedRanges || parseTimeRanges(wmCfg.rangeStr || '');
+                if (ranges.length === 0) return true;
+                for (let i = 0; i < ranges.length; i++) {
+                    if (t >= ranges[i].start && t <= ranges[i].end) return true;
+                }
+                return false;
+            }
+            return true;
+        }
+
+        function describeWatermarkSchedule(wm) {
+            if (!wm) return null;
+            const mode = wm.timeMode || 'always';
+            if (mode === 'always') return 'Always On';
+            if (mode === 'cycle') return `Cycle (On:${wm.cycleOn}s, Off:${wm.cycleOff}s, Delay:${wm.cycleOffset}s)`;
+            if (mode === 'ranges') return `Ranges [${wm.rangeStr || 'all'}]`;
+            return 'Always On';
+        }
+
+        // =========================================================================
         // 2. FORENSIC TELEMETRY & ZERO-REFLOW MICRO-PROFILER (HUKUM 6)
         // =========================================================================
         class ForensicTelemetryLogger {
@@ -796,6 +951,9 @@
                 bumper: "Bumper", intro: "Intro", credit: "Credit", outro: "Outro", bgm: "Musik",
                 preview: "Preview", preview_area: "Area Preview",
                 watermark: "Watermark", slot: "Slot", import: "Impor", opacity: "Opasitas",
+                wm_timing: "Mode Waktu", wm_always: "Selalu Tampil", wm_cycle: "Siklus (Muncul/Hilang)", wm_ranges: "Rentang Waktu",
+                wm_on: "Muncul", wm_off: "Hilang", wm_delay: "Mulai",
+                wm_range_hint: "Contoh: <code>5-15, 30-45</code> atau <code>01:00-01:20</code>",
                 main_only: "(Hanya di video utama)",
                 batch_queue: "Antrean Batch", add_target: "Tambah Video Target",
                 no_target: "Belum ada video target.<br>Klik tombol tambah di atas.",
@@ -809,6 +967,9 @@
                 bumper: "Bumper", intro: "Intro", credit: "Credit", outro: "Outro", bgm: "Music",
                 preview: "Preview", preview_area: "Preview Area",
                 watermark: "Watermark", slot: "Slot", import: "Import", opacity: "Opacity",
+                wm_timing: "Time Mode", wm_always: "Always On", wm_cycle: "Cycle (Show/Hide)", wm_ranges: "Time Ranges",
+                wm_on: "Show", wm_off: "Hide", wm_delay: "Delay",
+                wm_range_hint: "Ex: <code>5-15, 30-45</code> or <code>01:00-01:20</code>",
                 main_only: "(Main video only)",
                 batch_queue: "Batch Queue", add_target: "Add Target Video",
                 no_target: "No target video yet.<br>Click the add button above.",
@@ -839,6 +1000,8 @@
             if(config.credit) document.getElementById('credit-lbl').innerText = config.credit.file.name;
             if(config.outro) document.getElementById('outro-lbl').innerText = config.outro.file.name;
             if(config.bgm) document.getElementById('bgm-lbl').innerText = config.bgm.file.name;
+            syncWatermarkControlPanels('wm1');
+            syncWatermarkControlPanels('wm2');
         });
 
         // ================= INDEXED DB (AUTO-SAVE) =================
@@ -881,12 +1044,18 @@
         let batchList = []; 
         let batchIdCounter = 0;
         let activePreviewId = null; 
+        let forcePreviewWmId = null;
         
         let isProcessing = false;
         let isCanceled = false;
         let isPaused = false;
         let pauseResolver = null;
         let totalSuccessRender = 0;
+
+        window.setForcePreviewWm = (id) => {
+            forcePreviewWmId = id;
+            updatePreviewWatermarksTimeVisibility();
+        };
 
         // Preview BGM Audio Element
         const previewBgmAudio = new Audio();
@@ -914,6 +1083,20 @@
         let historyStack = [];
         let historyIndex = -1;
 
+        function serializeWMState(wm) {
+            if (!wm) return null;
+            return {
+                file: wm.file,
+                x: wm.x, y: wm.y, w: wm.w, h: wm.h,
+                opacity: wm.opacity,
+                timeMode: wm.timeMode || 'always',
+                cycleOn: wm.cycleOn ?? 10,
+                cycleOff: wm.cycleOff ?? 20,
+                cycleOffset: wm.cycleOffset ?? 0,
+                rangeStr: wm.rangeStr ?? '5-15, 30-45'
+            };
+        }
+
         function getStateSnapshot() {
             return {
                 config: {
@@ -923,8 +1106,8 @@
                     bgm: config.bgm ? { file: config.bgm.file } : null,
                     bgmVolume: parseFloat(document.getElementById('bgm-vol').value) ?? 0.25,
                     creditDurInput: parseFloat(document.getElementById('credit-dur').value) || 3,
-                    wm1: config.wm1 ? { file: config.wm1.file, x: config.wm1.x, y: config.wm1.y, w: config.wm1.w, h: config.wm1.h, opacity: config.wm1.opacity } : null,
-                    wm2: config.wm2 ? { file: config.wm2.file, x: config.wm2.x, y: config.wm2.y, w: config.wm2.w, h: config.wm2.h, opacity: config.wm2.opacity } : null,
+                    wm1: serializeWMState(config.wm1),
+                    wm2: serializeWMState(config.wm2),
                     ratio: document.getElementById('canvas-ratio').value,
                     fitMode: document.getElementById('video-fit-mode').value,
                     resolution: document.getElementById('render-resolution').value,
@@ -934,6 +1117,45 @@
                 },
                 batch: batchList.map(b => ({ file: b.file, duration: b.duration, thumbnail: b.thumbnail, status: b.status }))
             };
+        }
+
+        function syncWatermarkControlPanels(id) {
+            const wm = config[id];
+            const badge = document.getElementById(`${id}-time-badge`);
+            const cycleBox = document.getElementById(`${id}-cycle-box`);
+            const rangesBox = document.getElementById(`${id}-ranges-box`);
+            if (!wm) {
+                if (badge) badge.classList.add('hidden');
+                if (cycleBox) { cycleBox.classList.add('hidden'); cycleBox.classList.remove('flex'); }
+                if (rangesBox) { rangesBox.classList.add('hidden'); rangesBox.classList.remove('flex'); }
+                return;
+            }
+
+            const mode = wm.timeMode || 'always';
+            document.getElementById(`${id}-op`).value = wm.opacity ?? 0.9;
+            document.getElementById(`${id}-time-mode`).value = mode;
+            document.getElementById(`${id}-cycle-on`).value = wm.cycleOn ?? 10;
+            document.getElementById(`${id}-cycle-off`).value = wm.cycleOff ?? 20;
+            document.getElementById(`${id}-cycle-offset`).value = wm.cycleOffset ?? 0;
+            document.getElementById(`${id}-range-str`).value = wm.rangeStr ?? '5-15, 30-45';
+
+            if (badge) {
+                badge.classList.remove('hidden');
+                if (mode === 'always') badge.textContent = currentLang === 'id' ? 'Selalu' : 'Always';
+                else if (mode === 'cycle') badge.textContent = `${wm.cycleOn}s/${wm.cycleOff}s`;
+                else badge.textContent = currentLang === 'id' ? 'Rentang' : 'Ranges';
+            }
+
+            if (mode === 'cycle') {
+                cycleBox.classList.remove('hidden'); cycleBox.classList.add('flex');
+                rangesBox.classList.add('hidden'); rangesBox.classList.remove('flex');
+            } else if (mode === 'ranges') {
+                rangesBox.classList.remove('hidden'); rangesBox.classList.add('flex');
+                cycleBox.classList.add('hidden'); cycleBox.classList.remove('flex');
+            } else {
+                cycleBox.classList.add('hidden'); cycleBox.classList.remove('flex');
+                rangesBox.classList.add('hidden'); rangesBox.classList.remove('flex');
+            }
         }
 
         async function applyState(state) {
@@ -1030,17 +1252,29 @@
                     document.getElementById(`clear-${id}`).disabled = true;
                     document.getElementById(`${id}-controls`).classList.add('hidden');
                     document.getElementById(`${id}-controls`).classList.remove('flex');
+                    syncWatermarkControlPanels(id);
                     return;
                 }
                 const url = URL.createObjectURL(stateWM.file);
                 const img = new Image();
                 img.src = url;
                 await new Promise(r => { img.onload = r; img.onerror = r; });
-                config[id] = { id, file: stateWM.file, url, htmlImg: img, x: stateWM.x, y: stateWM.y, w: stateWM.w, h: stateWM.h, opacity: stateWM.opacity };
+                const rangeStr = stateWM.rangeStr ?? '5-15, 30-45';
+                config[id] = {
+                    id, file: stateWM.file, url, htmlImg: img,
+                    x: stateWM.x, y: stateWM.y, w: stateWM.w, h: stateWM.h,
+                    opacity: stateWM.opacity ?? 0.9,
+                    timeMode: stateWM.timeMode || 'always',
+                    cycleOn: stateWM.cycleOn ?? 10,
+                    cycleOff: stateWM.cycleOff ?? 20,
+                    cycleOffset: stateWM.cycleOffset ?? 0,
+                    rangeStr: rangeStr,
+                    parsedRanges: parseTimeRanges(rangeStr)
+                };
                 document.getElementById(`clear-${id}`).disabled = false;
                 document.getElementById(`${id}-controls`).classList.remove('hidden');
                 document.getElementById(`${id}-controls`).classList.add('flex');
-                document.getElementById(`${id}-op`).value = stateWM.opacity;
+                syncWatermarkControlPanels(id);
             };
 
             await loadWM('wm1', state.config.wm1);
@@ -1267,10 +1501,21 @@
             await new Promise(r => { img.onload = r; img.onerror = r; });
             
             const initialX = id === 'wm1' ? 5 : 75;
-            config[id] = { id, file, url, htmlImg: img, x: initialX, y: 5, w: 20, h: 20, opacity: 0.9 };
+            const defaultRange = '5-15, 30-45';
+            config[id] = {
+                id, file, url, htmlImg: img,
+                x: initialX, y: 5, w: 20, h: 20, opacity: 0.9,
+                timeMode: 'always',
+                cycleOn: 10,
+                cycleOff: 20,
+                cycleOffset: 0,
+                rangeStr: defaultRange,
+                parsedRanges: parseTimeRanges(defaultRange)
+            };
             document.getElementById(`clear-${id}`).disabled = false;
             document.getElementById(`${id}-controls`).classList.remove('hidden');
             document.getElementById(`${id}-controls`).classList.add('flex');
+            syncWatermarkControlPanels(id);
             
             updateWatermarks();
             saveState();
@@ -1283,16 +1528,53 @@
             document.getElementById(`clear-${id}`).disabled=true; 
             document.getElementById(`${id}-controls`).classList.add('hidden');
             document.getElementById(`${id}-controls`).classList.remove('flex');
+            syncWatermarkControlPanels(id);
             updateWatermarks();
             saveState();
         };
         document.getElementById('clear-wm1').addEventListener('click', clearWM('wm1'));
         document.getElementById('clear-wm2').addEventListener('click', clearWM('wm2'));
 
+        // Watermark Opacity & Timing Listeners (Slot 1 & Slot 2)
         ['wm1', 'wm2'].forEach(id => {
             document.getElementById(`${id}-op`).addEventListener('input', e => {
-                if(config[id]) { config[id].opacity = parseFloat(e.target.value); updateWatermarks(); saveState(); }
+                if(config[id]) {
+                    config[id].opacity = Math.min(1, Math.max(0, parseFloat(e.target.value) || 0));
+                    updateWatermarks();
+                    saveState();
+                }
             });
+
+            document.getElementById(`${id}-time-mode`).addEventListener('change', e => {
+                if (config[id]) {
+                    config[id].timeMode = e.target.value;
+                    syncWatermarkControlPanels(id);
+                    updatePreviewWatermarksTimeVisibility();
+                    saveState();
+                }
+            });
+
+            ['cycle-on', 'cycle-off', 'cycle-offset'].forEach(field => {
+                document.getElementById(`${id}-${field}`).addEventListener('input', e => {
+                    if (!config[id]) return;
+                    const val = parseFloat(e.target.value);
+                    if (field === 'cycle-on') config[id].cycleOn = Math.max(0.5, isNaN(val) ? 10 : val);
+                    if (field === 'cycle-off') config[id].cycleOff = Math.max(0.5, isNaN(val) ? 20 : val);
+                    if (field === 'cycle-offset') config[id].cycleOffset = Math.max(0, isNaN(val) ? 0 : val);
+                    syncWatermarkControlPanels(id);
+                    updatePreviewWatermarksTimeVisibility();
+                });
+                document.getElementById(`${id}-${field}`).addEventListener('change', () => saveState());
+            });
+
+            document.getElementById(`${id}-range-str`).addEventListener('input', e => {
+                if (!config[id]) return;
+                config[id].rangeStr = e.target.value;
+                config[id].parsedRanges = parseTimeRanges(e.target.value);
+                syncWatermarkControlPanels(id);
+                updatePreviewWatermarksTimeVisibility();
+            });
+            document.getElementById(`${id}-range-str`).addEventListener('change', () => saveState());
         });
 
         document.getElementById('yt-max-mode').addEventListener('change', () => { saveState(); });
@@ -1382,6 +1664,7 @@
                     seekBar.value = (globalTime / totalSequenceDuration) * 1000;
                     document.getElementById('time-current').innerText = formatTime(globalTime);
                 }
+                updatePreviewWatermarksTimeVisibility();
 
                 if (virtualImageTime >= clip.duration) {
                     stopImagePlaybackLoop();
@@ -1522,6 +1805,7 @@
                         previewVideo.currentTime = localTime;
                         previewVideo.onloadedmetadata = null;
                         syncPreviewBgm();
+                        updatePreviewWatermarksTimeVisibility();
                     };
                 } else {
                     previewVideo.currentTime = localTime;
@@ -1535,6 +1819,41 @@
             syncPreviewBgm();
         }
 
+        function updatePreviewWatermarksTimeVisibility() {
+            if (previewSequence.length === 0) return;
+            const clip = previewSequence[previewIndex];
+            if (!clip) return;
+            const wmMainOnly = document.getElementById('wm-main-only').checked;
+            const localNow = clip.isImage ? virtualImageTime : (previewVideo.currentTime || 0);
+            const globalNow = clip.start + localNow;
+            const refTimeSec = wmMainOnly ? localNow : globalNow;
+
+            ['wm1', 'wm2'].forEach(id => {
+                const wm = config[id];
+                const el = document.getElementById(`preview-wm-${id}`);
+                if (!wm || !el) return;
+
+                if (dragCtx && dragCtx.id === id) {
+                    el.style.opacity = wm.opacity;
+                    el.style.pointerEvents = 'auto';
+                    return;
+                }
+
+                const visibleBySchedule = isWatermarkVisibleAtTime(wm, refTimeSec);
+                if (visibleBySchedule) {
+                    el.style.opacity = wm.opacity;
+                    el.style.pointerEvents = 'auto';
+                } else if (forcePreviewWmId === id) {
+                    // Ghost preview saat kursor berada di atas panel pengaturan slot agar tetap mudah diatur posisinya
+                    el.style.opacity = Math.min(0.35, wm.opacity * 0.5);
+                    el.style.pointerEvents = 'auto';
+                } else {
+                    el.style.opacity = '0';
+                    el.style.pointerEvents = 'none';
+                }
+            });
+        }
+
         function applyWatermarkVisibility() {
             if(previewSequence.length === 0) return;
             const clip = previewSequence[previewIndex];
@@ -1543,6 +1862,7 @@
             if (clip && (clip.type === 'main' || !wmMainOnly)) {
                 overlayStage.style.opacity = '1';
                 overlayStage.style.pointerEvents = 'auto';
+                updatePreviewWatermarksTimeVisibility();
             } else {
                 overlayStage.style.opacity = '0';
                 overlayStage.style.pointerEvents = 'none';
@@ -1557,6 +1877,7 @@
                 if (!wm) return;
                 
                 const el = document.createElement('div');
+                el.id = `preview-wm-${id}`;
                 el.className = `wm-item`;
                 el.style.left = `${wm.x}%`; el.style.top = `${wm.y}%`; el.style.width = `${wm.w}%`; el.style.height = `${wm.h}%`;
                 el.style.opacity = wm.opacity;
@@ -1604,7 +1925,12 @@
         });
 
         window.addEventListener('mouseup', () => {
-            if (dragCtx) { dragCtx.el.classList.remove('active'); dragCtx = null; saveState(); }
+            if (dragCtx) {
+                dragCtx.el.classList.remove('active');
+                dragCtx = null;
+                updatePreviewWatermarksTimeVisibility();
+                saveState();
+            }
         });
 
         // ================= PLAYER CONTROLS (ANTI-FIGHT SCRUBBING) =================
@@ -1646,6 +1972,7 @@
             seekBar.value = pct;
             document.getElementById('time-current').innerText = formatTime(globalTime);
             syncPreviewBgm();
+            updatePreviewWatermarksTimeVisibility();
         });
 
         previewVideo.addEventListener('ended', () => {
@@ -1678,6 +2005,7 @@
                     previewVideo.currentTime = localTime;
                 }
                 syncPreviewBgm();
+                updatePreviewWatermarksTimeVisibility();
             }
             document.getElementById('time-current').innerText = formatTime(globalTime);
         }
@@ -2115,7 +2443,6 @@
                 { c: 'avc1.4D002A', desc: 'H.264 Main L4.2 Compat' }
             ];
 
-            // Hukum 12: Pada dGPU YT_PRO, prioritaskan CBR (constant) untuk menaikkan kepadatan IDR Keyframe 3x lipat, lalu fallback ke VBR
             const modes = [];
             if ((renderProfile === 'YT_PRO' || renderProfile === 'STUDIO_MAX') && !isUMA && !isHiRes) {
                 modes.push({ fps: fps, mode: 'constant', lat: 'realtime' });
@@ -2173,17 +2500,13 @@
             };
         }
 
-        // HUKUM 4 & 7: Pre-Baking Layer Statis Watermark & Cropped Overlay Bounding-Box
-        function bakeWatermarkOverlay(tW, tH) {
+        // HUKUM 4 & 7: Pre-Baking Setiap Slot Watermark ke Cropped Surface Independen (Mendukung Jadwal Waktu Dinamis Zero-COW!)
+        function bakeIndividualWatermarks(tW, tH) {
             const activeWms = ['wm1', 'wm2'].map(id => config[id]).filter(wm => wm && wm.htmlImg);
-            if (activeWms.length === 0) return null;
+            if (activeWms.length === 0) return [];
 
-            const fullOverlay = createRenderSurface(tW, tH);
-            const oCtx = fullOverlay.getContext('2d');
-            let minX = tW, minY = tH, maxX = 0, maxY = 0;
-
+            const bakedList = [];
             for (const wm of activeWms) {
-                oCtx.globalAlpha = wm.opacity;
                 const oPx = (wm.x / 100) * tW;
                 const oPy = (wm.y / 100) * tH;
                 const oPw = (wm.w / 100) * tW;
@@ -2201,30 +2524,36 @@
                     drawX = oPx + (oPw - drawW) / 2;
                     drawY = oPy + (oPh - drawH) / 2;
                 }
-                oCtx.drawImage(wm.htmlImg, drawX, drawY, drawW, drawH);
-                oCtx.globalAlpha = 1.0;
 
-                minX = Math.min(minX, Math.floor(drawX));
-                minY = Math.min(minY, Math.floor(drawY));
-                maxX = Math.max(maxX, Math.ceil(drawX + drawW));
-                maxY = Math.max(maxY, Math.ceil(drawY + drawH));
+                const minX = Math.max(0, Math.floor(drawX));
+                const minY = Math.max(0, Math.floor(drawY));
+                const maxX = Math.min(tW, Math.ceil(drawX + drawW));
+                const maxY = Math.min(tH, Math.ceil(drawY + drawH));
+                const cropW = Math.max(1, maxX - minX);
+                const cropH = Math.max(1, maxY - minY);
+
+                const croppedSurface = createRenderSurface(cropW, cropH);
+                const cCtx = croppedSurface.getContext('2d');
+                cCtx.globalAlpha = wm.opacity ?? 0.9;
+                cCtx.drawImage(wm.htmlImg, drawX - minX, drawY - minY, drawW, drawH);
+                cCtx.globalAlpha = 1.0;
+
+                bakedList.push({
+                    id: wm.id,
+                    surface: croppedSurface,
+                    x: minX,
+                    y: minY,
+                    w: cropW,
+                    h: cropH,
+                    timeMode: wm.timeMode || 'always',
+                    cycleOn: wm.cycleOn ?? 10,
+                    cycleOff: wm.cycleOff ?? 20,
+                    cycleOffset: wm.cycleOffset ?? 0,
+                    rangeStr: wm.rangeStr || '',
+                    parsedRanges: parseTimeRanges(wm.rangeStr || '')
+                });
             }
-
-            minX = Math.max(0, minX);
-            minY = Math.max(0, minY);
-            maxX = Math.min(tW, maxX);
-            maxY = Math.min(tH, maxY);
-            const cropW = Math.max(1, maxX - minX);
-            const cropH = Math.max(1, maxY - minY);
-
-            const croppedSurface = createRenderSurface(cropW, cropH);
-            const cCtx = croppedSurface.getContext('2d');
-            cCtx.drawImage(fullOverlay, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
-
-            fullOverlay.width = 1;
-            fullOverlay.height = 1;
-
-            return { surface: croppedSurface, x: minX, y: minY, w: cropW, h: cropH };
+            return bakedList;
         }
 
         // HUKUM 12: Pre-Bake Full-Screen Anti-Banding IGN Dither Pattern untuk Letterbox & Credit Statis
@@ -2242,8 +2571,8 @@
             return bgSurf;
         }
 
-        // HUKUM 2 & 4: Per-Surface Stateful Compositor pada Ring-Pool Surface
-        function drawCompositedFrameZeroCOW(targetSurface, bgSource, tW, tH, fitMode, isMainVideo, bakedOverlay, logoMainOnly, ditherBgSurface) {
+        // HUKUM 2 & 4: Per-Surface Stateful Compositor pada Ring-Pool Surface + Dynamic Watermark Schedule
+        function drawCompositedFrameZeroCOW(targetSurface, bgSource, tW, tH, fitMode, isMainVideo, bakedWatermarks, logoMainOnly, ditherBgSurface, refTimeSec) {
             const ctx = targetSurface._ctx;
             if (!bgSource) {
                 ctx.drawImage(ditherBgSurface, 0, 0);
@@ -2260,8 +2589,19 @@
             const dx = Math.round((tW - dw) / 2);
             const dy = Math.round((tH - dh) / 2);
 
-            const geomSig = `${dx},${dy},${dw},${dh}`;
-            // Hanya bersihkan area letterbox pada permukaan Ring-Pool ini jika geometri video berubah!
+            // Evaluasi bitmask visibilitas masing-masing watermark pada waktu frame ini
+            let wmMask = 0;
+            const allowWmHere = bakedWatermarks && bakedWatermarks.length > 0 && (!logoMainOnly || isMainVideo);
+            if (allowWmHere) {
+                for (let i = 0; i < bakedWatermarks.length; i++) {
+                    if (isWatermarkVisibleAtTime(bakedWatermarks[i], refTimeSec)) {
+                        wmMask |= (1 << i);
+                    }
+                }
+            }
+
+            const geomSig = `${dx},${dy},${dw},${dh}|${wmMask}`;
+            // Bersihkan area letterbox/pillarbox jika geometri video atau status watermark berubah pada surface ini
             if ((dx > 0 || dy > 0) && targetSurface._geomSig !== geomSig) {
                 ctx.drawImage(ditherBgSurface, 0, 0);
                 targetSurface._geomSig = geomSig;
@@ -2269,8 +2609,13 @@
 
             ctx.drawImage(bgSource, dx, dy, dw, dh);
 
-            if (bakedOverlay && (!logoMainOnly || isMainVideo)) {
-                ctx.drawImage(bakedOverlay.surface, bakedOverlay.x, bakedOverlay.y);
+            if (allowWmHere && wmMask > 0) {
+                for (let i = 0; i < bakedWatermarks.length; i++) {
+                    if (wmMask & (1 << i)) {
+                        const bwm = bakedWatermarks[i];
+                        ctx.drawImage(bwm.surface, bwm.x, bwm.y);
+                    }
+                }
             }
         }
 
@@ -2655,6 +3000,8 @@
                     aspectRatio: ratioStr,
                     fitMode: globalFitMode,
                     watermarkMainOnly: logoMainOnly,
+                    wm1Schedule: describeWatermarkSchedule(config.wm1),
+                    wm2Schedule: describeWatermarkSchedule(config.wm2),
                     hasIntro: !!config.intro,
                     hasCredit: config.credit ? (config.credit.isImage ? `Static Image (${sequence.find(s=>s.role==='credit')?.duration}s - Pre-Baked)` : 'Video MP4') : false,
                     hasOutro: !!config.outro,
@@ -2730,9 +3077,13 @@
                 modalCanvas.height = targetHeight;
 
                 const ditherBgSurface = bakeFullDitherBackground(targetWidth, targetHeight);
-                const bakedOverlay = bakeWatermarkOverlay(targetWidth, targetHeight);
-                if (bakedOverlay) {
-                    forensicLogger.info("OVERLAY-BAKE", `Watermark dipanggang ke Cropped Surface Bounding-Box: [${bakedOverlay.x}, ${bakedOverlay.y}, ${bakedOverlay.w}x${bakedOverlay.h}]`);
+                const bakedWatermarks = bakeIndividualWatermarks(targetWidth, targetHeight);
+                if (bakedWatermarks.length > 0) {
+                    forensicLogger.info(
+                        "OVERLAY-BAKE",
+                        `Watermark dipanggang ke ${bakedWatermarks.length} Cropped Surface Independen: ` +
+                        bakedWatermarks.map(b => `${b.id}[${b.x},${b.y},${b.w}x${b.h} | ${b.timeMode}]`).join(', ')
+                    );
                 }
 
                 const muxerOptions = {
@@ -2834,18 +3185,18 @@
 
                     forensicLogger.step("CLIP-START", `Memproses Klip [${sIdx+1}/${sequence.length}] (${clip.role.toUpperCase()}): ${clip.file.name}`);
 
-                    // JIKA KLIP ADALAH GAMBAR STATIS (CREDIT TITLE IMAGE): Pre-Bake 1x ke Static Master Surface!
+                    // JIKA KLIP ADALAH GAMBAR STATIS (CREDIT TITLE IMAGE)
                     if (clip.isImage) {
                         let imgBitmap = clip.htmlImg;
                         if (!imgBitmap && typeof createImageBitmap !== 'undefined') {
                             try { imgBitmap = await createImageBitmap(clip.file); } catch (_) {}
                         }
 
-                        // Pre-Bake gambar Credit Title + IGN Dither + Watermark 1 kali saja sebelum loop frame
+                        // Pre-Bake gambar Credit Title + IGN Dither 1 kali saja sebelum loop frame
                         const bakedCreditSurface = createRenderSurface(targetWidth, targetHeight);
                         bakedCreditSurface._ctx = bakedCreditSurface.getContext('2d', { alpha: false });
                         bakedCreditSurface._geomSig = '';
-                        drawCompositedFrameZeroCOW(bakedCreditSurface, imgBitmap, targetWidth, targetHeight, globalFitMode, false, bakedOverlay, logoMainOnly, ditherBgSurface);
+                        drawCompositedFrameZeroCOW(bakedCreditSurface, imgBitmap, targetWidth, targetHeight, globalFitMode, false, [], true, ditherBgSurface, 0);
 
                         const clipEndUs = clipStartUs + clip.durationUs;
                         let lastYieldImg = performance.now();
@@ -2866,11 +3217,21 @@
                             const tDraw0 = performance.now();
                             const targetSurface = surfacePool[targetFramesGenerated % poolSize];
                             targetSurface._ctx.drawImage(bakedCreditSurface, 0, 0);
+
+                            const syntheticTs = Math.round(targetFramesGenerated * targetFrameDurationUs);
+                            if (!logoMainOnly && bakedWatermarks.length > 0) {
+                                const globalTimeSec = syntheticTs / 1_000_000;
+                                for (let wIdx = 0; wIdx < bakedWatermarks.length; wIdx++) {
+                                    const bwm = bakedWatermarks[wIdx];
+                                    if (isWatermarkVisibleAtTime(bwm, globalTimeSec)) {
+                                        targetSurface._ctx.drawImage(bwm.surface, bwm.x, bwm.y);
+                                    }
+                                }
+                            }
                             targetSurface._geomSig = 'credit_static';
                             const tDraw1 = performance.now();
                             accDrawMs += (tDraw1 - tDraw0);
 
-                            const syntheticTs = Math.round(targetFramesGenerated * targetFrameDurationUs);
                             const nextTs = Math.round((targetFramesGenerated + 1) * targetFrameDurationUs);
                             const newFrame = new VideoFrame(targetSurface, { timestamp: syntheticTs, duration: nextTs - syntheticTs });
                             try {
@@ -2949,13 +3310,16 @@
 
                                         // HUKUM 2: Ambil permukaan gilir berikutnya dari Zero-COW Ring-Pool
                                         const targetSurface = surfacePool[targetFramesGenerated % poolSize];
+                                        const syntheticTs = Math.round(targetFramesGenerated * targetFrameDurationUs);
+                                        const globalTimeSec = syntheticTs / 1_000_000;
+                                        const clipLocalTimeSec = Math.max(0, (syntheticTs - clipStartUs) / 1_000_000);
+                                        const refTimeSec = logoMainOnly ? clipLocalTimeSec : globalTimeSec;
 
                                         const tDraw0 = performance.now();
-                                        drawCompositedFrameZeroCOW(targetSurface, frame, targetWidth, targetHeight, globalFitMode, isMainVideoClip, bakedOverlay, logoMainOnly, ditherBgSurface);
+                                        drawCompositedFrameZeroCOW(targetSurface, frame, targetWidth, targetHeight, globalFitMode, isMainVideoClip, bakedWatermarks, logoMainOnly, ditherBgSurface, refTimeSec);
                                         const tDraw1 = performance.now();
                                         accDrawMs += (tDraw1 - tDraw0);
 
-                                        const syntheticTs = Math.round(targetFramesGenerated * targetFrameDurationUs);
                                         const nextTs = Math.round((targetFramesGenerated + 1) * targetFrameDurationUs);
                                         const newFrame = new VideoFrame(targetSurface, { timestamp: syntheticTs, duration: nextTs - syntheticTs });
                                         try {
@@ -3228,9 +3592,8 @@
                 const releaseAllSurfaces = () => {
                     for (const s of surfacePool) { s.width = 1; s.height = 1; }
                     if (ditherBgSurface) { ditherBgSurface.width = 1; ditherBgSurface.height = 1; }
-                    if (bakedOverlay && bakedOverlay.surface) {
-                        bakedOverlay.surface.width = 1;
-                        bakedOverlay.surface.height = 1;
+                    for (const bwm of bakedWatermarks) {
+                        if (bwm.surface) { bwm.surface.width = 1; bwm.surface.height = 1; }
                     }
                 };
 
