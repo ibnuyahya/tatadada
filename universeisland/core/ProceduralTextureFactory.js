@@ -80,6 +80,7 @@ export function createSharedSurfaceUniforms() {
     uCockpitGlassCutRadius: { value: 0.0 },
     uCloseDerivativeDist: { value: 22.0 },
     uCloudShadowPhase: { value: new THREE.Vector2(0.0, 0.0) },
+    uSolarDirectTrans: { value: 1.0 },
     uBoneMatrixTex: { value: null },
     uGpuSkinningEnabled: { value: 1.0 },
     uHvsParams: hvsUniforms.uHvsParams,
@@ -113,7 +114,7 @@ export function injectOmniScaleSurfaceShader(
   const profId = Math.max(0, Math.min(11, Math.round(Number(surfaceProfile) || 0)));
   const hvsFallback = HumanEyeHDROptics.createUniforms();
   material.customProgramCacheKey = () =>
-    `nexus-omni-v50-p${profId}-${enableWindSway ? 'sway' : 'static'}`;
+    `nexus-omni-v51-p${profId}-${enableWindSway ? 'sway' : 'static'}`;
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uYSegStart = { value: ySegmentStart };
@@ -165,6 +166,7 @@ export function injectOmniScaleSurfaceShader(
       sharedUniforms.uFountainNightGlow || { value: new THREE.Vector4(0.0, 0.0, 0.0, 0.0) };
     shader.uniforms.uCloudShadowPhase =
       sharedUniforms.uCloudShadowPhase || { value: new THREE.Vector2(0.0, 0.0) };
+    shader.uniforms.uSolarDirectTrans = sharedUniforms.uSolarDirectTrans || { value: 1.0 };
     shader.uniforms.uHvsParams = sharedUniforms.uHvsParams || hvsFallback.uHvsParams;
     shader.uniforms.uHvsGlare = sharedUniforms.uHvsGlare || hvsFallback.uHvsGlare;
 
@@ -254,6 +256,7 @@ export function injectOmniScaleSurfaceShader(
       'uniform float uVideotronShortMode;',
       'uniform vec4 uFountainNightGlow;',
       'uniform vec2 uCloudShadowPhase;',
+      'uniform float uSolarDirectTrans;',
       'uniform vec4 uHvsParams;',
       'uniform vec4 uHvsGlare;',
       HumanEyeHDROptics.getGLSLKernel(),
@@ -336,29 +339,28 @@ export function injectOmniScaleSurfaceShader(
       '  float shelter = smoothstep(0.55, 1.65, yTop - wp.y);',
       '  return mix(1.0, isCanopyAbove * 0.28, shelter);',
       '}',
+      '#if OMNI_PROFILE != 4 && OMNI_PROFILE != 5 && OMNI_PROFILE != 11',
+      'float omniSampleOverhangTap(vec2 uvTap, float wpY) {',
+      '  vec4 ct = texture2D(uCollisionMap, uvTap);',
+      '  float yT = uCollisionHeightRange.x + ((ct.r * 255.0 * 256.0 + ct.g * 255.0) / 65535.0) * uCollisionHeightRange.y;',
+      '  float dh = yT - wpY;',
+      '  float isLeaf = step(0.98, ct.a);',
+      '  float sh = smoothstep(0.55, 2.40, dh) * (1.0 - smoothstep(14.0, 30.0, dh));',
+      '  return sh * mix(0.36, 0.24, isLeaf);',
+      '}',
       'float omniEvalWorldOverhangAO(vec3 wp, vec3 wn) {',
       '  float aoOut = 1.0;',
       '  float upWeight = clamp(wn.y * 0.65 + 0.35, 0.0, 1.0);',
-      '  // 1. Soft 5-tap Canopy & Building Overhang Ambient Contact Shadow from Dual-Island uCollisionMap',
+      '  // 1. Soft 5-tap Canopy & Building Overhang Ambient Contact Shadow (zero mutable array for fast D3D11 fxc!)',
       '  if (uCollisionReady > 0.5 && upWeight > 0.08) {',
       '    vec2 cuv0 = (wp.xz - uCollisionBounds.xy) / uCollisionBounds.zw;',
       '    if (cuv0.x > 0.004 && cuv0.x < 0.996 && cuv0.y > 0.004 && cuv0.y < 0.996) {',
       '      vec2 dUV = vec2(1.65) / uCollisionBounds.zw;',
-      '      float occSum = 0.0;',
-      '      vec2 offs[5];',
-      '      offs[0] = vec2(0.0, 0.0);',
-      '      offs[1] = vec2(dUV.x, 0.0);',
-      '      offs[2] = vec2(-dUV.x, 0.0);',
-      '      offs[3] = vec2(0.0, dUV.y);',
-      '      offs[4] = vec2(0.0, -dUV.y);',
-      '      for (int k = 0; k < 5; k++) {',
-      '        vec4 ct = texture2D(uCollisionMap, cuv0 + offs[k]);',
-      '        float yT = uCollisionHeightRange.x + ((ct.r * 255.0 * 256.0 + ct.g * 255.0) / 65535.0) * uCollisionHeightRange.y;',
-      '        float dh = yT - wp.y;',
-      '        float isLeaf = step(0.98, ct.a);',
-      '        float sh = smoothstep(0.55, 2.40, dh) * (1.0 - smoothstep(14.0, 30.0, dh));',
-      '        occSum += sh * mix(0.36, 0.24, isLeaf);',
-      '      }',
+      '      float occSum = omniSampleOverhangTap(cuv0, wp.y)',
+      '                   + omniSampleOverhangTap(cuv0 + vec2(dUV.x, 0.0), wp.y)',
+      '                   + omniSampleOverhangTap(cuv0 - vec2(dUV.x, 0.0), wp.y)',
+      '                   + omniSampleOverhangTap(cuv0 + vec2(0.0, dUV.y), wp.y)',
+      '                   + omniSampleOverhangTap(cuv0 - vec2(0.0, dUV.y), wp.y);',
       '      float dapple = 0.88 + 0.12 * omniNoise(wp.xz * 0.85);',
       '      aoOut *= 1.0 - (occSum * 0.20) * upWeight * dapple;',
       '    }',
@@ -375,6 +377,7 @@ export function injectOmniScaleSurfaceShader(
       '  }',
       '  return clamp(aoOut, 0.52, 1.0);',
       '}',
+      '#endif',
       // =========================================================================
       // O(1) ANALYTIC PHOTOCELL STREETLAMP SENSOR & 40-LAMP GROUND LIGHT POOL KERNEL
       // =========================================================================
@@ -956,26 +959,12 @@ export function injectOmniScaleSurfaceShader(
           '  float camDist = length(vViewPosition);',
           '  float bumpFade = (1.0 - smoothstep(75.0, 240.0, camDist)) * (1.0 - omniPuddleMask * 0.88);',
           '  if (bumpFade > 0.005) {',
-          '    if (camDist < uCloseDerivativeDist) {',
-          '      vec3 wN = normalize(vOmniWorldNormal);',
-          '      vec3 upRef = abs(wN.y) < 0.92 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);',
-          '      vec3 tU = normalize(cross(upRef, wN));',
-          '      vec3 tV = cross(wN, tU);',
-          '      float eps = clamp(omniPxSize * 1.65, 0.004, 0.14);',
-          '      float hU = omniEvalSurfaceDetail(uSurfaceProfile, vOmniWorldPos + tU * eps, wN, diffuseColor.rgb, omniPxSize).x;',
-          '      float hV = omniEvalSurfaceDetail(uSurfaceProfile, vOmniWorldPos + tV * eps, wN, diffuseColor.rgb, omniPxSize).x;',
-          '      float slopeU = clamp(((hU - omniSurfDetail.x) / eps) * uBumpScale * bumpFade, -0.34, 0.34);',
-          '      float slopeV = clamp(((hV - omniSurfDetail.x) / eps) * uBumpScale * bumpFade, -0.34, 0.34);',
-          '      vec3 worldGrad = slopeU * tU + slopeV * tV;',
-          '      vec3 viewGrad = (viewMatrix * vec4(worldGrad, 0.0)).xyz;',
-          '      normal = normalize(normal - viewGrad);',
-          '    } else {',
-          '      vec3 r1 = cross(omniDPdy, normal);',
-          '      vec3 r2 = cross(normal, omniDPdx);',
-          '      float det = dot(omniDPdx, r1);',
-          '      vec3 surfGrad = sign(det) * (omniDHdx * r1 + omniDHdy * r2) / max(abs(det), 1e-6);',
-          '      normal = normalize(normal - clamp(surfGrad * (uBumpScale * 0.78 * bumpFade), vec3(-0.28), vec3(0.28)));',
-          '    }',
+          '    float closeBoost = mix(1.06, 0.78, smoothstep(uCloseDerivativeDist * 0.45, uCloseDerivativeDist, camDist));',
+          '    vec3 r1 = cross(omniDPdy, normal);',
+          '    vec3 r2 = cross(normal, omniDPdx);',
+          '    float det = dot(omniDPdx, r1);',
+          '    vec3 surfGrad = sign(det) * (omniDHdx * r1 + omniDHdy * r2) / max(abs(det), 1e-6);',
+          '    normal = normalize(normal - clamp(surfGrad * (uBumpScale * closeBoost * bumpFade), vec3(-0.32), vec3(0.32)));',
           '  }',
           '}',
           '#endif'
@@ -993,7 +982,7 @@ export function injectOmniScaleSurfaceShader(
           '  float NdotV = max(dot(wNorm, viewDirW), 0.0);',
           '  float NdotL = max(dot(wNorm, sunL), 0.0);',
           '  float worldCloudTrans = omniEvalCloudShadow(vOmniWorldPos, sunL);',
-          '  float sunVisUltra = clamp(1.0 - uCloudCover * 0.55 - uRainIntensity * 0.48, 0.10, 1.0) * (1.0 - uIsNight * 0.84) * worldCloudTrans;',
+          '  float sunVisUltra = clamp(1.0 - uCloudCover * 0.55 - uRainIntensity * 0.48, 0.04, 1.0) * (1.0 - uIsNight * 0.84) * worldCloudTrans * clamp(uSolarDirectTrans, 0.0, 1.0);',
           '  #if OMNI_PROFILE != 4 && OMNI_PROFILE != 5',
           '  if (vOmniWorldPos.y > -3.5) {',
           '    float sunWeight = mix(0.32, 0.88, NdotL);',

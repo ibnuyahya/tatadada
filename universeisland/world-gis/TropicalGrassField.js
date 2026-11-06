@@ -47,7 +47,8 @@ export class TropicalGrassField {
 
     this._camDirScratch = new THREE.Vector3(0, 0, -1);
 
-    this.bakeTexture = this._buildTerrainLawnBakeTexture(this.bakeCols, this.bakeRows);
+    this.bakeTexture =
+      options.prebakedTexture || this._buildTerrainLawnBakeTexture(this.bakeCols, this.bakeRows);
     this.uniforms = {
       uGrassBakeTex: { value: this.bakeTexture },
       uBakeBounds: {
@@ -79,6 +80,104 @@ export class TropicalGrassField {
     }
     this.mesh.instanceMatrix.needsUpdate = true;
     this.scene.add(this.mesh);
+  }
+
+  /**
+   * Frame-yielded asynchronous factory: bakes the 896x1344 (1.2M texel) terrain & eroded lawn-mask
+   * DataTexture in ~16ms row slices so startup never blocks the browser main thread!
+   */
+  static async createAsync(options = {}, yieldFn = null) {
+    const cols = options.bakeCols || 896;
+    const rows = options.bakeRows || 1344;
+    const prebakedTexture = await TropicalGrassField._buildTerrainLawnBakeTextureAsync(
+      cols,
+      rows,
+      yieldFn
+    );
+    if (typeof yieldFn === 'function') {
+      await yieldFn();
+    }
+    return new TropicalGrassField({ ...options, prebakedTexture });
+  }
+
+  static async _buildTerrainLawnBakeTextureAsync(cols, rows, yieldFn = null) {
+    const minX = TropicalGrassField.BAKE_MIN_X;
+    const minZ = TropicalGrassField.BAKE_MIN_Z;
+    const spanX = TropicalGrassField.BAKE_MAX_X - minX;
+    const spanZ = TropicalGrassField.BAKE_MAX_Z - minZ;
+    const minY = TropicalGrassField.HEIGHT_MIN_Y;
+    const spanY = TropicalGrassField.HEIGHT_MAX_Y - minY;
+
+    const rawMask = new Float32Array(cols * rows);
+    const data = new Uint8Array(cols * rows * 4);
+    let sliceT0 = typeof performance !== 'undefined' ? performance.now() : 0;
+
+    for (let iz = 0; iz < rows; iz++) {
+      const v = iz / (rows - 1);
+      const wz = minZ + v * spanZ;
+      for (let ix = 0; ix < cols; ix++) {
+        const u = ix / (cols - 1);
+        const wx = minX + u * spanX;
+        const idx = iz * cols + ix;
+
+        const gy = TerrainDEMLoader.sampleGroundHeight(wx, wz);
+        const q = Math.max(0, Math.min(65535, Math.round(((gy - minY) / spanY) * 65535.0)));
+        const o = idx * 4;
+        data[o] = (q >> 8) & 255;
+        data[o + 1] = q & 255;
+
+        rawMask[idx] = TropicalGrassField._isLawnGrassAllowed(wx, wz, gy);
+
+        const meadowPatch =
+          0.5 +
+          0.32 * Math.sin(wx * 0.11 + wz * 0.09) +
+          0.18 * Math.cos(wx * 0.23 - wz * 0.19);
+        data[o + 3] = Math.max(0, Math.min(255, Math.round(meadowPatch * 255.0)));
+      }
+      if (typeof yieldFn === 'function' && (iz & 15) === 15) {
+        const now = typeof performance !== 'undefined' ? performance.now() : sliceT0 + 20;
+        if (now - sliceT0 >= 12.0) {
+          await yieldFn();
+          sliceT0 = typeof performance !== 'undefined' ? performance.now() : 0;
+        }
+      }
+    }
+
+    for (let iz = 0; iz < rows; iz++) {
+      for (let ix = 0; ix < cols; ix++) {
+        const idx = iz * cols + ix;
+        const center = rawMask[idx];
+        if (center <= 0.001) {
+          data[idx * 4 + 2] = 0;
+          continue;
+        }
+        let sum = 0.0;
+        let minN = center;
+        for (let dz = -1; dz <= 1; dz++) {
+          const jz = Math.max(0, Math.min(rows - 1, iz + dz));
+          for (let dx = -1; dx <= 1; dx++) {
+            const jx = Math.max(0, Math.min(cols - 1, ix + dx));
+            const m = rawMask[jz * cols + jx];
+            sum += m;
+            if (m < minN) minN = m;
+          }
+        }
+        if (minN <= 0.001) {
+          data[idx * 4 + 2] = 0;
+        } else {
+          data[idx * 4 + 2] = Math.max(0, Math.min(255, Math.round((sum / 9.0) * 255.0)));
+        }
+      }
+    }
+
+    const tex = new THREE.DataTexture(data, cols, rows, THREE.RGBAFormat, THREE.UnsignedByteType);
+    tex.minFilter = THREE.NearestFilter;
+    tex.magFilter = THREE.NearestFilter;
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.generateMipmaps = false;
+    tex.needsUpdate = true;
+    return tex;
   }
 
   static _distToSegment2D(px, pz, ax, az, bx, bz) {

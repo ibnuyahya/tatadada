@@ -298,8 +298,13 @@ export class HumanEyeHDROptics {
         float tauAir = effDist * (sigmaBL * clamp(meanBL, 0.0, 1.0) + 0.000038 + 0.00012 * fogC);
         float hazeFactor = clamp(1.0 - exp(-tauAir), 0.0, mix(0.86, 0.88, fogC));
 
+        vec3 rayDir = rayVec / max(dist, 1e-4);
+        float cosAzSun = dot(
+          normalize(rayDir.xz + vec2(1e-5, 0.0)),
+          normalize(sunDir.xz + vec2(1e-5, 0.0))
+        );
         vec3 dayHorS = vec3(0.60, 0.77, 0.91);
-        vec3 duskHorS = vec3(0.88, 0.47, 0.23);
+        vec3 duskHorS = mix(vec3(0.52, 0.56, 0.68), vec3(0.94, 0.47, 0.20), smoothstep(-0.35, 0.85, cosAzSun));
         vec3 nightHorS = vec3(0.044, 0.068, 0.125);
         vec3 horBaseS = mix(mix(dayHorS, duskHorS, duskC), nightHorS, nightC);
 
@@ -311,7 +316,6 @@ export class HumanEyeHDROptics {
         vec3 hazeSRGB = mix(horBaseS, stormHorS, clamp(rainC * 0.72 + cloudC * 0.16 * (1.0 - fogC * 0.65), 0.0, 0.90));
         vec3 hazeHDR = nexusSRGBToLinear(hazeSRGB) * mix(1.14, 0.72, nightC);
 
-        vec3 rayDir = rayVec / max(dist, 1e-4);
         float mieFwd = pow(max(dot(rayDir, sunDir), 0.0), 5.0)
                      * (1.0 - nightC * 0.85)
                      * (1.0 - clamp(rainC, 0.0, 1.0) * 0.68);

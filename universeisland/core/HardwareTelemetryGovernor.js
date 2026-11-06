@@ -361,21 +361,23 @@ export class HardwareTelemetryGovernor {
   }
 
   /**
-   * Records a real pre-warm frame sample (in ms) during Preloader Stage 9 and refines AUTO tier.
+   * Records a real steady-state frame sample (in ms) after incremental shader pre-warm completes.
+   * Rejects synchronous shader/pipeline link outliers (> 40ms) so D3D11/ANGLE compilation stalls
+   * can never poison steady-state EMA or falsely downgrade discrete GPUs (e.g. RTX 2060).
    */
   recordWarmupSample(frameMs) {
-    if (!Number.isFinite(frameMs) || frameMs <= 0.0) return;
+    if (!Number.isFinite(frameMs) || frameMs <= 0.0 || frameMs > 40.0) return;
     this._warmupSamplesMs.push(frameMs);
     const sum = this._warmupSamplesMs.reduce((a, b) => a + b, 0.0);
     this.warmupAvgFrameMs = sum / this._warmupSamplesMs.length;
-    this.emaFrameMs = this.warmupAvgFrameMs;
-    this.emaFps = Math.min(240.0, 1000.0 / Math.max(2.0, this.warmupAvgFrameMs));
+    this.emaFrameMs = Math.min(this.warmupAvgFrameMs, 18.0);
+    this.emaFps = Math.min(240.0, 1000.0 / Math.max(2.0, this.emaFrameMs));
 
-    // Only downgrade from static GPU classification if actual warmup is severely bottlenecked
+    // Only downgrade from static GPU classification if actual steady-state frame is severely bottlenecked
     // (e.g., 4K 200% scaling or laptop unplugged on battery saver)
     if (this.mode === 'AUTO' && this._warmupSamplesMs.length >= 3) {
       if (this.gpuClass === 'GAMING_DGPU') {
-        this.detectedTierId = this.warmupAvgFrameMs <= 11.5 ? 'TIER_S' : 'TIER_A';
+        this.detectedTierId = this.warmupAvgFrameMs <= 14.5 ? 'TIER_S' : 'TIER_A';
       } else if (this.warmupAvgFrameMs <= 6.8) {
         this.detectedTierId = 'TIER_S';
       } else if (this.warmupAvgFrameMs <= 11.5) {
@@ -477,7 +479,9 @@ export class HardwareTelemetryGovernor {
     this._uptimeSec += rawSec;
 
     // Exponential moving average of TRUE wall-clock frame time, CPU JS time, & FPS
-    this.emaFrameMs = this.emaFrameMs * 0.90 + frameMs * 0.10;
+    // Clamp initial 15 frames so post-boot GPU driver paging never poisons steady-state EMA!
+    const emaSampleMs = this._frameCounter <= 15 ? Math.min(frameMs, 20.0) : frameMs;
+    this.emaFrameMs = this.emaFrameMs * 0.90 + emaSampleMs * 0.10;
     this.emaCpuMs = this.emaCpuMs * 0.90 + cpuMs * 0.10;
     this.emaFps = Math.min(240.0, 1000.0 / Math.max(2.0, this.emaFrameMs));
 
@@ -491,7 +495,8 @@ export class HardwareTelemetryGovernor {
 
     if (
       frameMs > 48.0 &&
-      this._uptimeSec > 2.5 &&
+      this._uptimeSec >= 5.0 &&
+      this._frameCounter >= 90 &&
       this._uptimeSec - this._lastSpikeLogSec >= 4.5
     ) {
       this._lastSpikeLogSec = this._uptimeSec;
@@ -609,10 +614,11 @@ export class HardwareTelemetryGovernor {
       if (this._governorTimer >= 0.75) {
         this._governorTimer = 0.0;
         const tierOrder = ['TIER_S', 'TIER_A', 'TIER_B', 'TIER_C'];
-        if (this.mode === 'AUTO') {
+        if (this.mode === 'AUTO' && this._uptimeSec >= 5.0 && this._frameCounter >= 90) {
           const curIdx = tierOrder.indexOf(this.activeTierId);
           const detIdx = Math.max(0, tierOrder.indexOf(this.detectedTierId));
-          if (this.emaFrameMs > 27.5 && curIdx >= 0 && curIdx < tierOrder.length - 1) {
+          const minAllowedIdx = this.gpuClass === 'GAMING_DGPU' ? 1 : tierOrder.length - 1;
+          if (this.emaFrameMs > 27.5 && curIdx >= 0 && curIdx < minAllowedIdx) {
             this._overloadStreak++;
             this._headroomStreak = 0;
             if (this._overloadStreak >= 2) {

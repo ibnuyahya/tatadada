@@ -156,7 +156,7 @@ function createPreloaderController() {
 
 async function bootstrapNexusSimulator() {
   if (typeof window !== 'undefined' && window.NexusForensic) {
-    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.38');
+    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.39');
   }
   const preloader = createPreloaderController();
 
@@ -371,12 +371,16 @@ async function bootstrapNexusSimulator() {
   worldRoot.add(terrainGroup, corridorGroup, rotundaFountain.mesh, biomeGroup, rektoratAsset, sivitasGroup);
 
   // Seamless 1-Draw-Call PBR + Shadow-Mapped Manicured Tropical Campus Turf + View-Aware Dual-Perspective PostFX
+  await preloader.advance(7, 91, 'Menumbuhkan 408.000 Helai Rumput Gajah Mini & Masking Presisi...', TOTAL_EXPECTED_TRIS);
   const oceanWaterMesh = terrainGroup.children.find((c) => c && c.material === waterMaterial) || null;
   const initTierName = hwGovernor.activeTierId || hwGovernor.activeTier || 'TIER_S';
-  const grassField = new TropicalGrassField({
-    bladeCount: hwGovernor.isMobileDevice ? 16000 : initTierName === 'TIER_S' ? 68000 : 42000,
-    sharedUniforms
-  });
+  const grassField = await TropicalGrassField.createAsync(
+    {
+      bladeCount: hwGovernor.isMobileDevice ? 16000 : initTierName === 'TIER_S' ? 68000 : 42000,
+      sharedUniforms
+    },
+    () => new Promise((resolve) => setTimeout(resolve, 0))
+  );
   scene.add(grassField.mesh);
   const planarReflHiddenList = [oceanWaterMesh, grassField.mesh].filter(Boolean);
   const drawBufSize = new THREE.Vector2();
@@ -392,7 +396,7 @@ async function bootstrapNexusSimulator() {
   };
 
   // Stage 8: Apply Depok WIB Clock & Real-Time Ephemeris Immediately & Compile Specialized GPU Shaders Asynchronously
-  await preloader.advance(8, 97, 'Kompilasi Paralel Shader GPU & Membuka Kepulauan UI...', TOTAL_EXPECTED_TRIS);
+  await preloader.advance(8, 93, 'Kompilasi Inkremental Shader GPU & Membuka Kepulauan UI...', TOTAL_EXPECTED_TRIS);
 
   let isLiveDepok = true;
   latestDepokClock = DepokLiveWeatherService.getDepokWIBClock();
@@ -544,16 +548,118 @@ async function bootstrapNexusSimulator() {
   camDirector.setMode('DRONE_6DOF', { startIslandTour: true });
   camDirector.syncPreviousCameraPosition();
 
-  // Non-blocking Parallel GPU Shader Pre-Compilation (KHR_parallel_shader_compile on Desktop; deterministic synchronous compile on Mobile)
-  await yieldToBrowserFrame();
-  if (!hwGovernor.isMobileDevice && typeof renderer.compileAsync === 'function') {
-    await Promise.race([
-      renderer.compileAsync(scene, camera).catch(() => {}),
-      new Promise((resolve) => setTimeout(resolve, 2500))
-    ]);
-  } else if (typeof renderer.compile === 'function') {
-    renderer.compile(scene, camera);
+  // Frame-Yielded Incremental Parallel GPU Shader Pre-Compilation (2 objects/slice + rAF yield -> ZERO multi-tab GPU hang!)
+  weather.uniforms.uCamPos.value.copy(camera.position);
+  if (weather.skyMesh) {
+    weather.skyMesh.position.copy(camera.position);
   }
+  await yieldToBrowserFrame();
+
+  const tWarm0 = performance.now();
+  // Bind the EXACT target WebGLRenderTarget during compileAsync so Three.js WebGLPrograms
+  // compiles the true runtime NoColorSpace/MSAA shader key (prevents double-compiling 30+ shaders synchronously on first render!)
+  const compileAsyncSlice = async (targetScene, targetCam, targetRT = null) => {
+    const prevRT = renderer.getRenderTarget();
+    renderer.setRenderTarget(targetRT);
+    try {
+      if (!hwGovernor.isMobileDevice && typeof renderer.compileAsync === 'function') {
+        await Promise.race([
+          renderer.compileAsync(targetScene, targetCam).catch(() => {}),
+          new Promise((resolve) => setTimeout(resolve, 6000))
+        ]);
+      } else if (typeof renderer.compile === 'function') {
+        renderer.compile(targetScene, targetCam);
+      }
+    } finally {
+      renderer.setRenderTarget(prevRT);
+    }
+  };
+
+  // Collect only renderables whose entire ancestor chain is currently visible (skips hidden rain/fireflies on sunny startup!)
+  // and deduplicate by material+geometry archetype so each unique GPU program compiles once in incremental KHR_parallel slices!
+  const visibleRenderables = [];
+  const uniqueWarmRenderables = [];
+  const seenWarmKeys = new Set();
+  const collectVisibleRenderables = (node) => {
+    if (!node || node.visible === false) return;
+    if (node.isMesh || node.isPoints || node.isLine) {
+      visibleRenderables.push(node);
+      const mats = Array.isArray(node.material) ? node.material : [node.material];
+      const matKey = mats.map((m) => (m ? m.uuid : '')).join('|');
+      const instKey = node.isInstancedMesh ? 'I' : 'M';
+      const vColKey = node.geometry?.attributes?.color ? 'C' : 'N';
+      const key = `${matKey}:${instKey}:${vColKey}`;
+      if (!seenWarmKeys.has(key)) {
+        seenWarmKeys.add(key);
+        uniqueWarmRenderables.push(node);
+      }
+    }
+    const ch = node.children;
+    if (Array.isArray(ch)) {
+      for (let i = 0; i < ch.length; i++) {
+        collectVisibleRenderables(ch[i]);
+      }
+    }
+  };
+  collectVisibleRenderables(scene);
+
+  const mainSceneRT = postFX && postFX.msaaTarget ? postFX.msaaTarget : null;
+  if (visibleRenderables.length > 0) {
+    for (let i = 0; i < visibleRenderables.length; i++) {
+      visibleRenderables[i].visible = false;
+    }
+    const SLICE_SIZE = hwGovernor.isMobileDevice ? 4 : 8;
+    const totalSlices = Math.ceil(uniqueWarmRenderables.length / SLICE_SIZE);
+    for (let sIdx = 0; sIdx < totalSlices; sIdx++) {
+      const startI = sIdx * SLICE_SIZE;
+      const endI = Math.min(uniqueWarmRenderables.length, startI + SLICE_SIZE);
+      for (let i = startI; i < endI; i++) {
+        uniqueWarmRenderables[i].visible = true;
+      }
+      const pct = Math.min(99, 93 + Math.floor(((sIdx + 1) / Math.max(1, totalSlices)) * 6));
+      await preloader.advance(
+        8,
+        pct,
+        `Kompilasi Inkremental Shader GPU (${endI}/${uniqueWarmRenderables.length})...`,
+        TOTAL_EXPECTED_TRIS
+      );
+      await compileAsyncSlice(scene, camera, mainSceneRT);
+      for (let i = startI; i < endI; i++) {
+        uniqueWarmRenderables[i].visible = false;
+      }
+      await yieldToBrowserFrame();
+    }
+    for (let i = 0; i < visibleRenderables.length; i++) {
+      visibleRenderables[i].visible = true;
+    }
+  } else {
+    await compileAsyncSlice(scene, camera, mainSceneRT);
+  }
+
+  // Pre-warm instanced 3D grass field & fullscreen PostFX quad programs with exact runtime RenderTargets
+  if (grassField && grassField.scene) {
+    await compileAsyncSlice(grassField.scene, camera, mainSceneRT);
+    await yieldToBrowserFrame();
+  }
+  if (postFX && postFX._fsScene && postFX._fsCam && postFX._fsQuad) {
+    const bloomRT = postFX.bloomHalfA || null;
+    if (postFX._bloomDownMat) {
+      postFX._fsQuad.material = postFX._bloomDownMat;
+      await compileAsyncSlice(postFX._fsScene, postFX._fsCam, bloomRT);
+      await yieldToBrowserFrame();
+    }
+    if (postFX._bloomUpMat) {
+      postFX._fsQuad.material = postFX._bloomUpMat;
+      await compileAsyncSlice(postFX._fsScene, postFX._fsCam, bloomRT);
+      await yieldToBrowserFrame();
+    }
+    if (postFX._compositeMat) {
+      postFX._fsQuad.material = postFX._compositeMat;
+      await compileAsyncSlice(postFX._fsScene, postFX._fsCam, null);
+      await yieldToBrowserFrame();
+    }
+  }
+
   const isDroneCinemaView = () =>
     camDirector.mode !== 'WALK_SIVITAS' &&
     !camDirector.isFPSMode() &&
@@ -565,7 +671,6 @@ async function bootstrapNexusSimulator() {
     duskFactor: weather.uniforms.uDuskFactor.value,
     nightFactor: weather.uniforms.uNightFactor.value
   });
-  const tWarm0 = performance.now();
   postFX.renderPlanarWaterReflection(
     scene,
     camera,
@@ -573,9 +678,20 @@ async function bootstrapNexusSimulator() {
     TerrainDEMLoader.WATER_LEVEL_Y,
     planarReflHiddenList
   );
+  await yieldToBrowserFrame();
+  postFX.render(scene, camera, null);
+  await yieldToBrowserFrame();
   postFX.render(scene, camera, grassField.scene);
+  await yieldToBrowserFrame();
+
+  // Measure a true steady-state post-compile frame (never feed one-time shader compile time into hwGovernor!)
+  const tSteady0 = performance.now();
+  postFX.render(scene, camera, grassField.scene);
+  const steadyFrameMs = performance.now() - tSteady0;
+  if (steadyFrameMs <= 35.0) {
+    hwGovernor.recordWarmupSample(steadyFrameMs);
+  }
   const warmupMs = performance.now() - tWarm0;
-  hwGovernor.recordWarmupSample(warmupMs);
 
   const liveForensicProbe = createForensicReadOnlyProbe({
     recorder: forensicRecorder,
@@ -2704,7 +2820,7 @@ async function bootstrapNexusSimulator() {
   const elCalls = document.getElementById('sim-calls');
   const elTris = document.getElementById('sim-tris');
 
-  let prevTime = performance.now();
+  let prevTime = 0.0;
   let elapsed = 0.0;
   let frameCount = 0;
   let statTimer = 0.0;
@@ -2718,6 +2834,7 @@ async function bootstrapNexusSimulator() {
   function renderLoop(now) {
     requestAnimationFrame(renderLoop);
     if (webglContextLost) return;
+    if (prevTime <= 0.0) prevTime = now - 16.667;
     const rawWallSec = (now - prevTime) * 0.001;
     const rawDt =
       typeof document !== 'undefined' && document.hidden
