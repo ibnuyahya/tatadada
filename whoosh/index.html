@@ -5,6 +5,620 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>KCIC Whoosh 350 km/h HSR Simulator • Rute Aktual Halim – Tegalluar 142,3 km</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f172a'/%3E%3Cpath d='M8 38 C18 22, 38 18, 56 26 L56 42 L8 42 Z' fill='%23dc2626'/%3E%3Cpath d='M16 34 C26 26, 40 24, 52 28 L50 33 L14 36 Z' fill='%23f8fafc'/%3E%3C/svg%3E" />
+<script>
+(function initWhooshForensicEarlyBoot() {
+const BOOT_PERF_T0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+const BOOT_ISO = new Date().toISOString();
+const MAX_RING = 80;
+const MAX_BREADCRUMBS = 120;
+const state = {
+schema: 'whoosh-forensic-v2.3',
+app: 'KCIC Whoosh 350/1000 km/h HSR 3D Simulator',
+bootIso: BOOT_ISO,
+compactJson: false,
+modalOpen: false,
+webglContextLostCount: 0,
+webglContextRestoredCount: 0,
+milestones: [{ stage: 'forensic_early_hook_installed', tMs: 0 }],
+errors: [],
+rejections: [],
+resourceFailures: [],
+consoleErrors: [],
+consoleWarnings: [],
+longTasks: [],
+breadcrumbs: []
+};
+let engineProbeFn = null;
+function elapsedMs() {
+const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+return Math.round((now - BOOT_PERF_T0) * 10) / 10;
+}
+function pushBounded(arr, item, maxLen) {
+if (arr.length >= (maxLen || MAX_RING)) arr.shift();
+arr.push(item);
+}
+function safeStr(val, maxChars) {
+const limit = maxChars || 520;
+if (val === undefined) return 'undefined';
+if (val === null) return 'null';
+if (val instanceof Error) {
+const stk = val.stack ? (' | ' + String(val.stack).split('\n').slice(0, 4).join(' <- ')) : '';
+return (String(val.name || 'Error') + ': ' + String(val.message || '') + stk).slice(0, limit);
+}
+if (typeof val === 'object') {
+try {
+return JSON.stringify(val).slice(0, limit);
+} catch (_e) {
+return Object.prototype.toString.call(val);
+}
+}
+return String(val).slice(0, limit);
+}
+function updateBadgeUI() {
+const dot = document.getElementById('forensic-status-dot');
+const cntEl = document.getElementById('forensic-err-badge');
+const bootCntEl = document.getElementById('boot-forensic-badge');
+const critCount = state.errors.length + state.rejections.length + state.resourceFailures.length + state.webglContextLostCount;
+const warnCount = state.consoleErrors.length + state.consoleWarnings.length;
+const total = critCount + state.consoleErrors.length;
+if (dot) {
+if (critCount > 0) {
+dot.className = 'w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e] animate-pulse';
+} else if (warnCount > 0) {
+dot.className = 'w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24]';
+} else {
+dot.className = 'w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]';
+}
+}
+if (cntEl) {
+if (total > 0) {
+cntEl.textContent = total > 99 ? '99+' : String(total);
+cntEl.classList.remove('hidden');
+} else {
+cntEl.textContent = '0';
+cntEl.classList.add('hidden');
+}
+}
+if (bootCntEl) {
+bootCntEl.textContent = total > 0 ? (' • ' + total + ' EROR') : '';
+}
+}
+function markMilestone(stage, detail) {
+const entry = { stage: String(stage), tMs: elapsedMs() };
+if (detail !== undefined) entry.detail = safeStr(detail, 220);
+pushBounded(state.milestones, entry, 64);
+}
+function logBreadcrumb(category, message, extra) {
+const entry = { tMs: elapsedMs(), cat: String(category), msg: safeStr(message, 220) };
+if (extra !== undefined) entry.data = extra;
+pushBounded(state.breadcrumbs, entry, MAX_BREADCRUMBS);
+}
+window.addEventListener('error', function (ev) {
+const t = ev && ev.target;
+if (t && t !== window && (t.tagName === 'SCRIPT' || t.tagName === 'LINK' || t.tagName === 'IMG')) {
+pushBounded(state.resourceFailures, {
+tMs: elapsedMs(),
+tag: t.tagName,
+url: t.src || t.href || '(inline)',
+id: t.id || undefined
+}, 40);
+updateBadgeUI();
+return;
+}
+pushBounded(state.errors, {
+tMs: elapsedMs(),
+message: safeStr(ev && ev.message ? ev.message : 'Runtime error', 340),
+source: ev && ev.filename ? String(ev.filename).split('/').slice(-2).join('/') : 'inline',
+line: ev && ev.lineno ? ev.lineno : 0,
+col: ev && ev.colno ? ev.colno : 0,
+stack: ev && ev.error && ev.error.stack ? String(ev.error.stack).split('\n').slice(0, 5).join(' | ') : undefined
+}, MAX_RING);
+updateBadgeUI();
+}, true);
+window.addEventListener('unhandledrejection', function (ev) {
+pushBounded(state.rejections, {
+tMs: elapsedMs(),
+reason: safeStr(ev ? ev.reason : 'Unhandled rejection', 440)
+}, MAX_RING);
+updateBadgeUI();
+});
+const origConsoleError = console.error ? console.error.bind(console) : function () {};
+const origConsoleWarn = console.warn ? console.warn.bind(console) : function () {};
+console.error = function () {
+try {
+const msg = Array.prototype.map.call(arguments, function (a) { return safeStr(a, 280); }).join(' ');
+pushBounded(state.consoleErrors, { tMs: elapsedMs(), msg: msg.slice(0, 540) }, MAX_RING);
+updateBadgeUI();
+} catch (_e) {}
+return origConsoleError.apply(console, arguments);
+};
+console.warn = function () {
+try {
+const msg = Array.prototype.map.call(arguments, function (a) { return safeStr(a, 240); }).join(' ');
+pushBounded(state.consoleWarnings, { tMs: elapsedMs(), msg: msg.slice(0, 420) }, 60);
+updateBadgeUI();
+} catch (_e) {}
+return origConsoleWarn.apply(console, arguments);
+};
+if (typeof PerformanceObserver !== 'undefined') {
+try {
+const ltObs = new PerformanceObserver(function (list) {
+const entries = list.getEntries();
+for (let i = 0; i < entries.length; i++) {
+const e = entries[i];
+if (e.duration >= 75) {
+pushBounded(state.longTasks, {
+tMs: Math.round(e.startTime),
+durMs: Math.round(e.duration * 10) / 10
+}, 48);
+}
+}
+});
+ltObs.observe({ entryTypes: ['longtask'] });
+} catch (_e) {}
+}
+function collectResourceTimingSummary() {
+if (typeof performance === 'undefined' || !performance.getEntriesByType) return [];
+try {
+const res = performance.getEntriesByType('resource') || [];
+const picked = [];
+for (let i = 0; i < res.length; i++) {
+const r = res[i];
+if (r.initiatorType === 'script' || r.initiatorType === 'link' || r.initiatorType === 'fetch' ||
+/three|tailwind|phosphor|wasm|whoosh\.bin|bundle/i.test(r.name)) {
+picked.push({
+name: String(r.name).split('?')[0].split('/').slice(-2).join('/'),
+type: r.initiatorType,
+durMs: Math.round(r.duration),
+transferBytes: r.transferSize || 0
+});
+}
+}
+return picked.slice(-24);
+} catch (_e) {
+return [];
+}
+}
+function collectStorageState() {
+const info = { sessionSaved: false, sessionBytes: 0, qualityPref: null };
+try {
+const rawSes = localStorage.getItem('whoosh_sim_session_v1');
+if (rawSes) {
+info.sessionSaved = true;
+info.sessionBytes = rawSes.length;
+}
+info.qualityPref = localStorage.getItem('whoosh_quality_mode') || null;
+} catch (_e) {
+info.storageBlocked = true;
+}
+return info;
+}
+function buildReport(triggerReason) {
+let engineSnap = { probeRegistered: false };
+if (typeof engineProbeFn === 'function') {
+try {
+engineSnap = engineProbeFn({}) || { probeRegistered: true };
+} catch (probeErr) {
+engineSnap = { probeError: safeStr(probeErr, 360) };
+}
+}
+let jsHeapMB = null;
+if (typeof performance !== 'undefined' && performance.memory) {
+jsHeapMB = {
+usedMB: Math.round((performance.memory.usedJSHeapSize / 1048576) * 10) / 10,
+totalMB: Math.round((performance.memory.totalJSHeapSize / 1048576) * 10) / 10,
+limitMB: Math.round(performance.memory.jsHeapSizeLimit / 1048576)
+};
+}
+const r3m = engineSnap.rolling3m || null;
+const r3mOvr = r3m && r3m.forensicSynthesis ? r3m.forensicSynthesis.overall3m : null;
+const wheelAudit = engineSnap.worldLogicalAudit ? engineSnap.worldLogicalAudit.wheelRailSeatingAudit : null;
+const criticalCDNFailed = state.resourceFailures.some(function (r) {
+return /three|bundle|wasm|whoosh\.bin/i.test(r.url || '');
+});
+let healthVerdict = 'HEALTHY';
+if (
+state.errors.length > 0 ||
+state.rejections.length > 0 ||
+criticalCDNFailed ||
+(typeof engineProbeFn === 'function' && engineSnap.threeLoaded === false) ||
+(engineSnap.webgl && engineSnap.webgl.contextAvailable === false) ||
+(engineSnap.webgl && engineSnap.webgl.renderErrorCount > 0) ||
+(wheelAudit && wheelAudit.floatingWheels > 0)
+) {
+healthVerdict = 'CRITICAL_ERROR';
+} else if (
+state.consoleErrors.length > 0 ||
+state.resourceFailures.length > 0 ||
+(engineSnap.worldLogicalAudit && engineSnap.worldLogicalAudit.auditPassed === false) ||
+(engineSnap.performance && engineSnap.performance.totalFramesRendered > 30 && engineSnap.performance.avgFps < 28) ||
+(r3mOvr && r3mOvr.totalFrames >= 60 && (r3mOvr.avgFps < 34 || r3mOvr.stallsOver50ms >= 8))
+) {
+healthVerdict = 'DEGRADED_WARNING';
+}
+const bootLoaderEl = document.getElementById('boot-loader');
+return {
+schema: state.schema,
+app: state.app,
+healthVerdict: healthVerdict,
+generatedAtIso: new Date().toISOString(),
+uptimeSec: Math.round((elapsedMs() / 1000) * 100) / 100,
+trigger: triggerReason || 'manual_inspect',
+environment: {
+locationProtocol: location.protocol,
+host: location.host || 'local',
+userAgent: navigator.userAgent,
+language: navigator.language,
+hardwareConcurrency: navigator.hardwareConcurrency || null,
+deviceMemoryGB: navigator.deviceMemory || null,
+viewport: {
+w: window.innerWidth,
+h: window.innerHeight,
+dpr: Math.round((window.devicePixelRatio || 1) * 100) / 100
+},
+online: navigator.onLine,
+visibilityState: document.visibilityState,
+jsHeapMB: jsHeapMB,
+storage: collectStorageState()
+},
+dependenciesAndDom: {
+importMapPresent: Boolean(document.querySelector('script[type="importmap"]')),
+threeLoaded: Boolean(engineSnap.threeLoaded),
+threeRevision: engineSnap.threeRevision || null,
+tailwindReady: Boolean(window.tailwind || document.querySelector('script[src*="tailwind"]')),
+canvasPresent: Boolean(document.getElementById('webgl-viewport')),
+bootLoaderVisible: Boolean(bootLoaderEl && getComputedStyle(bootLoaderEl).opacity !== '0'),
+wasmVaultReady: Boolean(engineSnap.worldLogicalAudit && engineSnap.worldLogicalAudit.wasmVaultReady),
+buildHash: (engineSnap.worldLogicalAudit && engineSnap.worldLogicalAudit.buildHash) || (globalThis.__WHOOSH_BUILD_HASH__ || 'dev-src')
+},
+diagnostics: {
+counts: {
+runtimeErrors: state.errors.length,
+unhandledRejections: state.rejections.length,
+resourceFailures: state.resourceFailures.length,
+consoleErrors: state.consoleErrors.length,
+consoleWarnings: state.consoleWarnings.length,
+longTasksOver75ms: state.longTasks.length,
+webglContextLost: state.webglContextLostCount,
+webglContextRestored: state.webglContextRestoredCount
+},
+errors: state.errors.slice(),
+unhandledRejections: state.rejections.slice(),
+resourceFailures: state.resourceFailures.slice(),
+consoleErrors: state.consoleErrors.slice(),
+consoleWarnings: state.consoleWarnings.slice(-25),
+longTasks: state.longTasks.slice(-24),
+networkResources: collectResourceTimingSummary()
+},
+bootTimeline: state.milestones.slice(),
+rolling3MinuteForensics: engineSnap.rolling3m || null,
+webglAndGpu: engineSnap.webgl || null,
+performance: engineSnap.performance || null,
+worldLogicalAudit: engineSnap.worldLogicalAudit || null,
+engineAndTrainState: engineSnap.engineAndTrain || null,
+recentBreadcrumbs: state.breadcrumbs.slice(-45)
+};
+}
+function formatReportJson(report, compact) {
+return compact ? JSON.stringify(report) : JSON.stringify(report, null, 2);
+}
+function renderModalContent(runProbe) {
+const modal = document.getElementById('forensic-modal');
+if (!modal) return null;
+const report = buildReport('ui_modal_refresh', runProbe !== false);
+const jsonStr = formatReportJson(report, state.compactJson);
+const preEl = document.getElementById('forensic-json-output');
+if (preEl) preEl.textContent = jsonStr;
+const pill = document.getElementById('forensic-health-pill');
+if (pill) {
+if (report.healthVerdict === 'HEALTHY') {
+pill.textContent = 'SEHAT • 0 EROR';
+pill.className = 'px-2.5 py-1 rounded-full text-[10px] font-mono-tech font-extrabold tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/50';
+} else if (report.healthVerdict === 'DEGRADED_WARNING') {
+pill.textContent = 'PERINGATAN PERFORMA';
+pill.className = 'px-2.5 py-1 rounded-full text-[10px] font-mono-tech font-extrabold tracking-wider bg-amber-500/20 text-amber-300 border border-amber-400/50';
+} else {
+pill.textContent = 'KRITIS • PERLU DICEK';
+pill.className = 'px-2.5 py-1 rounded-full text-[10px] font-mono-tech font-extrabold tracking-wider bg-rose-500/25 text-rose-300 border border-rose-400/60 animate-pulse';
+}
+}
+const setTxt = function (id, txt) {
+const el = document.getElementById(id);
+if (el) el.textContent = txt;
+};
+const c = report.diagnostics.counts;
+const totalErr = c.runtimeErrors + c.unhandledRejections + c.resourceFailures + c.consoleErrors;
+setTxt('fkpi-errors', totalErr + ' Eror / ' + c.consoleWarnings + ' Warn');
+const perf = report.performance;
+const r3m = report.rolling3MinuteForensics;
+const ovr = r3m && r3m.forensicSynthesis ? r3m.forensicSynthesis.overall3m : null;
+setTxt('fkpi-fps', perf
+? (perf.avgFps + ' FPS (P95 ' + perf.p95FrameMs + 'ms • ' + perf.activeQualityTier + ')')
+: 'Memuat...');
+const wgl = report.webglAndGpu;
+setTxt('fkpi-gpu', wgl && wgl.renderStats
+? ((wgl.msaaSamples || 0) + 'x MSAA • ' + wgl.renderStats.calls + ' DC • ' + Math.round((wgl.renderStats.triangles || 0) / 1000) + 'k Tris')
+: 'Menunggu GPU');
+const dBuf = wgl && wgl.drawingBufferSize;
+setTxt('fkpi-canvas', wgl
+? (wgl.passiveRenderHealthy
+? ('PASIF OK (' + (dBuf ? (dBuf.w + 'x' + dBuf.h) : '-') + ' • 0 Err)')
+: ('MENUNGGU FRAME (' + (wgl.renderErrorCount || 0) + ' Err)'))
+: 'Menunggu Kanvas');
+const wa = report.worldLogicalAudit && report.worldLogicalAudit.wheelRailSeatingAudit;
+const cs = report.worldLogicalAudit && report.worldLogicalAudit.corridorStreaming;
+setTxt('fkpi-wheels', wa
+? (wa.totalWheels + ' Roda • ' + wa.floatingWheels + ' Lepas • ' + (cs ? cs.activeChunks : 0) + ' Chunk')
+: 'Menunggu Audit');
+const et = report.engineAndTrainState;
+setTxt('fkpi-train', et && et.routePosition && et.tractionAndCtcs3
+? (et.routePosition.dkLabel + ' • ' + et.tractionAndCtcs3.speedKmh + ' km/h')
+: 'Pra-Simulasi');
+if (r3m && r3m.forensicSynthesis) {
+const syn = r3m.forensicSynthesis;
+const byCam = syn.byCameraMode || {};
+const byDrv = syn.byDriveMode || {};
+const activeCamKey = et && et.cameraAndWeather ? et.cameraAndWeather.cameraModeKey : '';
+setTxt(
+'f3m-span-pill',
+r3m.capturedSpanSec + 'd / 180d (3m) • ' +
+ovr.totalFrames + ' frame • Rata2 ' + ovr.avgFps + ' FPS • Puncak ' + ovr.peakSpeedKmh + ' km/h • ' + ovr.distanceTraveledKm + ' km'
+);
+const camCards = [
+['cab_3d', '1 CAB 3D'],
+['orbit', '2 ORBIT'],
+['fly_by', '3 FLY-BY'],
+['bogie', '4 BOGIE'],
+['coach', '5 COACH'],
+['walk', '6 WALK'],
+['drone', '7 DRONE'],
+['spotter', '8 SPOTTER'],
+['mobil_mbz', '9 MBZ']
+];
+for (let i = 0; i < camCards.length; i++) {
+const key = camCards[i][0];
+const cm = byCam[key];
+const cardEl = document.getElementById('f3m-card-' + key);
+if (cm && cm.frames > 0) {
+setTxt('f3m-val-' + key, cm.avgFps + ' FPS • ' + cm.avgFrameMs + 'ms');
+setTxt('f3m-sub-' + key, cm.avgMainCalls + ' DC • ' + cm.buckets1s + 'd');
+if (cardEl) {
+cardEl.className = 'rounded-lg px-2 py-1.5 border transition ' + (activeCamKey === key
+? 'bg-emerald-950/60 border-emerald-400/60'
+: 'bg-slate-900/90 border-slate-700/80');
+}
+} else {
+setTxt('f3m-val-' + key, 'Belum aktif');
+setTxt('f3m-sub-' + key, '0d direkam');
+if (cardEl) {
+cardEl.className = 'rounded-lg px-2 py-1.5 border bg-slate-950/60 border-slate-800/70 opacity-65';
+}
+}
+}
+const drvLabels = [
+['normal_350', 'Normal 350'],
+['maglev_550', 'Maglev 550'],
+['super_maglev_650', 'Plaid 650'],
+['super_rocket_1000', 'Rocket 1000']
+];
+const activeDrvParts = [];
+for (let d = 0; d < drvLabels.length; d++) {
+const dm = byDrv[drvLabels[d][0]];
+if (dm && dm.frames > 0) {
+activeDrvParts.push(drvLabels[d][1] + ': ' + dm.avgFps + ' FPS (' + dm.buckets1s + 'd, max ' + dm.peakSpeedKmh + ' km/h)');
+}
+}
+setTxt('f3m-drive-summary', activeDrvParts.length > 0 ? activeDrvParts.join(' • ') : 'Menunggu sampel traksi...');
+const findEl = document.getElementById('f3m-findings-box');
+if (findEl) {
+const fList = syn.bottleneckFindings || [];
+const oppList = syn.improvementOpportunities || [];
+findEl.textContent = fList.join(' | ') + (oppList.length ? (' -> Saran: ' + oppList[0]) : '');
+}
+const evBox = document.getElementById('f3m-events-box');
+if (evBox) {
+const evs = (r3m.substantiveEvents || []).slice(-6);
+if (evs.length === 0) {
+evBox.textContent = '0 spike / anomali (Hitch >25ms: ' + ovr.hitchesOver25ms + ' • Stall >50ms: ' + ovr.stallsOver50ms + ' • Shader baru: ' + ovr.runtimeShaderCompiles + ')';
+} else {
+evBox.textContent = evs.map(function (e) {
+if (e.kind === 'camera_switch') return '[' + e.tRelSec + 'd] Cam ' + e.from + '->' + e.to + ' (' + e.switchFrameMs + 'ms)';
+if (e.kind === 'frame_spike') return '[' + e.tRelSec + 'd] Spike ' + e.frameMs + 'ms @' + e.cam + ' (' + e.probableCause + ')';
+if (e.kind === 'shader_compile') return '[' + e.tRelSec + 'd] +' + e.addedPrograms + ' Shader (' + e.frameMs + 'ms)';
+return '[' + e.tRelSec + 'd] ' + (e.detail || e.kind);
+}).join(' • ');
+}
+}
+}
+const compactBtn = document.getElementById('forensic-compact-btn');
+if (compactBtn) {
+compactBtn.textContent = state.compactJson ? 'Format: 1-Baris (Hemat Token)' : 'Format: Rapi (Terbaca)';
+}
+updateBadgeUI();
+return jsonStr;
+}
+async function copyJsonToClipboard(forceCompact) {
+const useCompact = typeof forceCompact === 'boolean' ? forceCompact : state.compactJson;
+const report = buildReport('clipboard_copy', true);
+const text = formatReportJson(report, useCompact);
+const preEl = document.getElementById('forensic-json-output');
+if (preEl && state.modalOpen) preEl.textContent = text;
+let ok = false;
+if (navigator.clipboard && navigator.clipboard.writeText) {
+try {
+await navigator.clipboard.writeText(text);
+ok = true;
+} catch (_e) {
+ok = false;
+}
+}
+if (!ok) {
+try {
+const ta = document.createElement('textarea');
+ta.value = text;
+ta.setAttribute('readonly', '');
+ta.style.position = 'fixed';
+ta.style.opacity = '0';
+ta.style.left = '-9999px';
+document.body.appendChild(ta);
+ta.select();
+ok = document.execCommand('copy');
+document.body.removeChild(ta);
+} catch (_e2) {
+ok = false;
+}
+}
+const toast = document.getElementById('forensic-copy-toast');
+if (toast) {
+const kb = (text.length / 1024).toFixed(1);
+toast.textContent = ok
+? ('Tersalin (' + kb + ' KB • Blackbox 3 Menit)! Siap ditempel ke chat.')
+: 'Clipboard diblokir browser — blok teks JSON di bawah lalu tekan Ctrl+C.';
+toast.style.opacity = '1';
+clearTimeout(toast._hideTimer);
+toast._hideTimer = setTimeout(function () { toast.style.opacity = '0'; }, 3600);
+}
+return { copied: ok, bytes: text.length, report: report };
+}
+function downloadJsonFile() {
+const report = buildReport('file_download', true);
+const text = formatReportJson(report, false);
+const dkSlug = (report.engineAndTrainState && report.engineAndTrainState.routePosition)
+? String(report.engineAndTrainState.routePosition.dkLabel).replace(/[^A-Za-z0-9]+/g, '_')
+: 'Halim';
+const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = 'Whoosh_Forensic_3m_' + dkSlug + '_' + stamp + '.json';
+document.body.appendChild(a);
+a.click();
+setTimeout(function () {
+document.body.removeChild(a);
+URL.revokeObjectURL(url);
+}, 250);
+}
+function openModal() {
+const modal = document.getElementById('forensic-modal');
+if (!modal) return;
+state.modalOpen = true;
+modal.classList.remove('hidden');
+modal.classList.add('flex');
+renderModalContent(true);
+}
+function closeModal() {
+const modal = document.getElementById('forensic-modal');
+if (!modal) return;
+state.modalOpen = false;
+modal.classList.add('hidden');
+modal.classList.remove('flex');
+}
+function toggleModal() {
+if (state.modalOpen) closeModal();
+else openModal();
+}
+function toggleCompactMode() {
+state.compactJson = !state.compactJson;
+if (state.modalOpen) renderModalContent(false);
+}
+function clearLogs() {
+state.errors.length = 0;
+state.rejections.length = 0;
+state.resourceFailures.length = 0;
+state.consoleErrors.length = 0;
+state.consoleWarnings.length = 0;
+state.longTasks.length = 0;
+state.breadcrumbs.length = 0;
+if (typeof engineProbeFn === 'function') {
+try { engineProbeFn({ clearRolling: true }); } catch (_e) {}
+}
+logBreadcrumb('forensic', 'Log & blackbox 3 menit dibersihkan manual oleh pengguna');
+updateBadgeUI();
+if (state.modalOpen) renderModalContent(false);
+}
+window.WhooshForensic = {
+markMilestone: markMilestone,
+logBreadcrumb: logBreadcrumb,
+recordCustomError: function (kind, errObj, context) {
+pushBounded(state.errors, {
+tMs: elapsedMs(),
+kind: kind || 'handled_exception',
+message: safeStr(errObj, 420),
+context: context ? safeStr(context, 220) : undefined
+}, MAX_RING);
+updateBadgeUI();
+},
+recordWebGLContextEvent: function (lost) {
+if (lost) state.webglContextLostCount++;
+else state.webglContextRestoredCount++;
+logBreadcrumb('webgl', lost ? 'webglcontextlost' : 'webglcontextrestored');
+updateBadgeUI();
+},
+registerEngineProbe: function (fn) {
+engineProbeFn = fn;
+markMilestone('engine_forensic_probe_bound');
+updateBadgeUI();
+},
+buildReport: buildReport,
+toJSON: function (compact, reason) {
+return formatReportJson(buildReport(reason || 'console_api', true), Boolean(compact));
+},
+copyJSON: copyJsonToClipboard,
+downloadJSON: downloadJsonFile,
+openModal: openModal,
+closeModal: closeModal,
+toggleModal: toggleModal,
+toggleCompactMode: toggleCompactMode,
+clearLogs: clearLogs,
+isModalOpen: function () { return state.modalOpen; }
+};
+document.addEventListener('DOMContentLoaded', function () {
+markMilestone('dom_content_loaded');
+updateBadgeUI();
+const bindClick = function (id, fn) {
+const el = document.getElementById(id);
+if (el) el.addEventListener('click', fn);
+};
+bindClick('forensic-open-btn', openModal);
+bindClick('boot-forensic-btn', openModal);
+bindClick('boot-retry-forensic-btn', openModal);
+bindClick('btn-open-forensic-hangar', function () {
+const mHangar = document.getElementById('modal-hangar');
+if (mHangar) {
+mHangar.classList.add('hidden');
+mHangar.classList.remove('flex');
+}
+openModal();
+});
+bindClick('forensic-close-btn', closeModal);
+bindClick('forensic-copy-btn', function () { copyJsonToClipboard(); });
+bindClick('forensic-download-btn', downloadJsonFile);
+bindClick('forensic-refresh-btn', function () { renderModalContent(true); });
+bindClick('forensic-compact-btn', toggleCompactMode);
+bindClick('forensic-clear-btn', clearLogs);
+const modalEl = document.getElementById('forensic-modal');
+if (modalEl) {
+modalEl.addEventListener('click', function (ev) {
+if (ev.target === modalEl) closeModal();
+});
+}
+});
+window.addEventListener('keydown', function (ev) {
+if (ev.key === 'F9') {
+ev.preventDefault();
+ev.stopPropagation();
+toggleModal();
+} else if (ev.key === 'Escape' && state.modalOpen) {
+ev.preventDefault();
+ev.stopPropagation();
+closeModal();
+} else if (state.modalOpen && (ev.ctrlKey || ev.metaKey)) {
+ev.stopPropagation();
+}
+}, true);
+})();
+</script>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -29,6 +643,15 @@
 box-sizing: border-box;
 user-select: none;
 -webkit-user-select: none;
+}
+#forensic-modal,
+#forensic-json-output {
+user-select: text !important;
+-webkit-user-select: text !important;
+}
+#forensic-modal button {
+user-select: none !important;
+-webkit-user-select: none !important;
 }
 html, body {
 margin: 0;
@@ -242,11 +865,16 @@ DK 0+398 • STASIUN HALIM
 </div>
 </div>
 <div style="background:linear-gradient(135deg,rgba(30,41,59,0.72),rgba(15,23,42,0.88));border:1px solid rgba(148,163,184,0.22);border-radius:14px;padding:9px 12px;text-align:left;">
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:6px;">
 <span class="font-mono-tech" style="font-size:9px;font-weight:800;color:#fbbf24;letter-spacing:0.08em;" id="boot-fact-title">WAWASAN WHOOSH #1 • UJI KOIN 350 KM/H</span>
+<div style="display:flex;align-items:center;gap:6px;">
+<button id="boot-forensic-btn" type="button" class="font-mono-tech" style="background:rgba(16,185,129,0.15);border:1px solid rgba(52,211,153,0.42);color:#6ee7b7;border-radius:8px;padding:2px 8px;font-size:9px;font-weight:800;cursor:pointer;" title="Buka Log Forensik &amp; Telemetri JSON [F9]">
+Log Forensik [F9]<span id="boot-forensic-badge"></span>
+</button>
 <button id="boot-next-fact" type="button" class="font-mono-tech" style="background:rgba(56,189,248,0.14);border:1px solid rgba(56,189,248,0.38);color:#7dd3fc;border-radius:8px;padding:2px 8px;font-size:9px;font-weight:800;cursor:pointer;">
 Info Berikutnya ➔
 </button>
+</div>
 </div>
 <p id="boot-fact-body" style="margin:0;font-size:11px;line-height:1.45;color:#cbd5e1;">
 Rel tanpa sambungan <strong>CRTS III Slab Track</strong> menjaga indeks getaran Sperling di bawah 1,5 sehingga koin Rp 1.000 tetap berdiri tegak di ambang jendela pada kecepatan 350 km/h (coba di <strong>CAM 5: Kabin [/]</strong>).
@@ -254,9 +882,14 @@ Rel tanpa sambungan <strong>CRTS III Slab Track</strong> menjaga indeks getaran 
 </div>
 <div id="boot-retry-wrap" class="hidden" style="margin-top:10px;display:none;align-items:center;justify-content:space-between;gap:8px;background:rgba(127,29,29,0.45);border:1px solid rgba(248,113,113,0.45);border-radius:12px;padding:8px 11px;font-size:11px;color:#fecaca;">
 <span id="boot-retry-msg" style="text-align:left;">Jaringan CDN lambat atau cache lama terdeteksi.</span>
+<div style="display:flex;align-items:center;gap:6px;">
+<button id="boot-retry-forensic-btn" type="button" class="font-mono-tech" style="background:rgba(15,23,42,0.9);color:#6ee7b7;border:1px solid rgba(52,211,153,0.55);border-radius:8px;padding:5px 9px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">
+Salin Log JSON
+</button>
 <button id="boot-retry-btn" type="button" class="font-mono-tech" style="background:#e11d48;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">
 Muat Ulang Segar
 </button>
+</div>
 </div>
 <div id="boot-file-warning" class="hidden mt-3 text-left bg-amber-950/80 border border-amber-500/50 rounded-xl p-3 text-[11px] text-amber-200 leading-relaxed">
 <div class="font-extrabold text-amber-300 mb-1">Mode WASM &amp; Web Worker Membutuhkan HTTP Server</div>
@@ -377,6 +1010,12 @@ PAPASAN
 </button>
 <button id="btn-open-manual" title="Buku Pedoman Masinis KCIC Whoosh" class="glass-btn w-8 h-8 rounded-xl flex items-center justify-center text-slate-200 hover:text-amber-300">
 <i class="ph-bold ph-book-open-text text-base"></i>
+</button>
+<button id="forensic-open-btn" title="Buka Log Forensik &amp; Rekaman Blackbox 3 Menit (Salin JSON ke Chat) [F9]" class="glass-btn px-2.5 h-8 rounded-xl flex items-center gap-1.5 text-[10px] font-mono-tech font-extrabold text-emerald-300 hover:text-white border border-emerald-500/40 relative">
+<span id="forensic-status-dot" class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
+<i class="ph-bold ph-terminal-window text-sm"></i>
+<span class="hidden sm:inline">Forensik</span>
+<span id="forensic-err-badge" class="hidden px-1 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-extrabold leading-tight">0</span>
 </button>
 </div>
 </header>
@@ -875,10 +1514,16 @@ Berangkat Cepat
 </div>
 </div>
 <div class="mt-5 flex flex-wrap items-center justify-between gap-2">
+<div class="flex flex-wrap items-center gap-2">
 <button id="btn-clear-session-hangar" class="px-4 py-2.5 rounded-xl glass-btn border border-rose-500/50 text-rose-300 hover:text-white font-extrabold text-xs flex items-center gap-1.5" title="Hapus data sesi tersimpan &amp; kembalikan kereta ke Stasiun Halim DK 0+398">
 <i class="ph-bold ph-trash text-sm"></i>
 <span>HAPUS SESI &amp; RESET AWAL</span>
 </button>
+<button id="btn-open-forensic-hangar" type="button" class="px-3.5 py-2.5 rounded-xl glass-btn border border-emerald-500/50 text-emerald-300 hover:text-white font-extrabold text-xs flex items-center gap-1.5" title="Buka Log Forensik &amp; Rekaman Blackbox 3 Menit [F9]">
+<i class="ph-bold ph-terminal-window text-sm"></i>
+<span>LOG FORENSIK 3M [F9]</span>
+</button>
+</div>
 <button id="btn-apply-hangar" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-cyan-600 text-white font-extrabold text-xs shadow-lg">
 TERAPKAN &amp; KEMBALI KE KABIN
 </button>
@@ -931,11 +1576,149 @@ TERAPKAN &amp; KEMBALI KE KABIN
 <li><span class="text-white font-bold">[Shift+P / `]</span> : Jeda / Lanjutkan Simulasi (Kamera Aktif)</li>
 <li><span class="text-white font-bold">[Alt + P]</span> : Jendela Melayang PiP (Hover Tab Lain)</li>
 <li><span class="text-fuchsia-300 font-bold">[Shift + M]</span> : Maglev 550 &amp; Super Maglev 650 km/h (Ludicrous)</li>
+<li><span class="text-orange-300 font-bold">[Shift + R]</span> : Super Rocket 1000 km/h &amp; Retro-Braking</li>
+<li><span class="text-emerald-300 font-bold">[F9]</span> : Log Forensik &amp; Blackbox 3 Menit (JSON)</li>
 </ul>
 </div>
 </div>
 <div class="mt-5 flex justify-end">
 <button id="btn-ok-manual" class="px-5 py-2 rounded-xl bg-cyan-500 text-slate-950 font-extrabold text-xs">SIAP BERANGKAT!</button>
+</div>
+</div>
+</div>
+<div id="forensic-modal" class="fixed inset-0 z-[120] bg-slate-950/85 backdrop-blur-md hidden items-center justify-center p-3 sm:p-5">
+<div class="glass-panel rounded-3xl w-full max-w-5xl max-h-[93vh] flex flex-col overflow-hidden border border-emerald-500/40 shadow-2xl">
+<div class="px-4 sm:px-5 py-3 border-b border-slate-800/90 bg-slate-900/75 flex flex-wrap items-center justify-between gap-2">
+<div class="flex items-center gap-2.5">
+<div class="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
+<i class="ph-fill ph-terminal-window text-xl"></i>
+</div>
+<div>
+<h2 class="text-sm sm:text-base font-black text-white tracking-wide flex items-center gap-2">
+<span>LOG FORENSIK &amp; TELEMETRI DIAGNOSTIK (JSON)</span>
+</h2>
+<p class="text-[11px] text-slate-400">KCIC Whoosh 350/1000 km/h • Blackbox Substansial 3 Menit (180 Detik) • Tekan <strong class="text-emerald-300 font-mono-tech">[F9]</strong> kapan saja</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span id="forensic-health-pill" class="px-2.5 py-1 rounded-full text-[10px] font-mono-tech font-extrabold tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/50">SEHAT • 0 EROR</span>
+<button id="forensic-close-btn" type="button" class="glass-btn px-2.5 h-8 rounded-xl text-xs font-bold text-slate-200 hover:text-white flex items-center gap-1" title="Tutup Modal [Esc]">
+<i class="ph-bold ph-x text-sm"></i>
+<span>Tutup [Esc]</span>
+</button>
+</div>
+</div>
+<div class="px-4 sm:px-5 py-2.5 border-b border-slate-800/90 bg-slate-950/70 flex flex-wrap items-center gap-2">
+<button id="forensic-copy-btn" type="button" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-xs shadow-lg flex items-center gap-1.5 cursor-pointer">
+<i class="ph-bold ph-copy text-sm"></i>
+<span>Salin JSON ke Clipboard</span>
+</button>
+<button id="forensic-download-btn" type="button" class="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-cyan-300 border border-cyan-500/40 flex items-center gap-1.5 cursor-pointer">
+<i class="ph-bold ph-download-simple text-sm"></i>
+<span>Unduh .JSON</span>
+</button>
+<button id="forensic-refresh-btn" type="button" class="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-1.5 cursor-pointer">
+<i class="ph-bold ph-arrows-clockwise text-sm"></i>
+<span>Segarkan Snapshot</span>
+</button>
+<button id="forensic-compact-btn" type="button" class="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-amber-200 border border-amber-500/35 cursor-pointer">
+Format: Rapi (Terbaca)
+</button>
+<button id="forensic-clear-btn" type="button" class="glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-rose-300 border border-rose-500/35 flex items-center gap-1 cursor-pointer">
+<i class="ph-bold ph-trash text-sm"></i>
+<span>Hapus Log</span>
+</button>
+<span id="forensic-copy-toast" class="text-[11px] font-mono-tech font-bold text-emerald-300 opacity-0 transition-opacity duration-200 ml-auto"></span>
+</div>
+<div class="px-4 sm:px-5 py-2.5 border-b border-slate-800/80 bg-slate-900/50 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-[11px]">
+<div class="bg-slate-950/85 border border-slate-800 rounded-xl px-2.5 py-1.5">
+<div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Eror &amp; Jaringan</div>
+<div id="fkpi-errors" class="font-mono-tech font-extrabold text-emerald-300 mt-0.5 truncate">0 Eror / 0 Warn</div>
+</div>
+<div class="bg-slate-950/85 border border-slate-800 rounded-xl px-2.5 py-1.5">
+<div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Performa FPS</div>
+<div id="fkpi-fps" class="font-mono-tech font-extrabold text-cyan-300 mt-0.5 truncate">-</div>
+</div>
+<div class="bg-slate-950/85 border border-slate-800 rounded-xl px-2.5 py-1.5">
+<div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">GPU &amp; Pipeline</div>
+<div id="fkpi-gpu" class="font-mono-tech font-extrabold text-sky-300 mt-0.5 truncate">-</div>
+</div>
+<div class="bg-slate-950/85 border border-slate-800 rounded-xl px-2.5 py-1.5">
+<div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Status Render Pasif</div>
+<div id="fkpi-canvas" class="font-mono-tech font-extrabold text-emerald-300 mt-0.5 truncate">-</div>
+</div>
+<div class="bg-slate-950/85 border border-slate-800 rounded-xl px-2.5 py-1.5">
+<div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Audit Roda &amp; Rute</div>
+<div id="fkpi-wheels" class="font-mono-tech font-extrabold text-amber-300 mt-0.5 truncate">-</div>
+</div>
+<div class="bg-slate-950/85 border border-slate-800 rounded-xl px-2.5 py-1.5">
+<div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Posisi DK &amp; Laju</div>
+<div id="fkpi-train" class="font-mono-tech font-extrabold text-rose-300 mt-0.5 truncate">-</div>
+</div>
+</div>
+<div id="forensic-3m-panel" class="px-4 sm:px-5 py-2.5 border-b border-slate-800/80 bg-slate-950/75 space-y-2 text-[11px]">
+<div class="flex flex-wrap items-center justify-between gap-2">
+<span class="text-[10px] font-mono-tech font-extrabold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+<i class="ph-fill ph-record text-rose-400"></i>
+REKAMAN FORENSIK SUBSTANSIAL 3 MENIT (180 DETIK TERAKHIR • 0-GC RING BUFFER)
+</span>
+<span id="f3m-span-pill" class="font-mono-tech text-[10px] font-bold text-cyan-300 bg-cyan-950/50 border border-cyan-500/35 px-2 py-0.5 rounded-full">0d / 180d (3m) • 0 frame</span>
+</div>
+<div class="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-1.5 font-mono-tech text-[10px]">
+<div id="f3m-card-cab_3d" class="rounded-lg px-2 py-1.5 border bg-slate-950/60 border-slate-800/70">
+<div class="text-[9px] text-cyan-300 font-extrabold">1 CAB 3D</div>
+<div id="f3m-val-cab_3d" class="font-bold text-white truncate">-</div>
+<div id="f3m-sub-cab_3d" class="text-[9px] text-slate-400 truncate">-</div>
+</div>
+<div id="f3m-card-orbit" class="rounded-lg px-2 py-1.5 border bg-slate-950/60 border-slate-800/70">
+<div class="text-[9px] text-cyan-300 font-extrabold">2 ORBIT</div>
+<div id="f3m-val-orbit" class="font-bold text-white truncate">-</div>
+<div id="f3m-sub-orbit" class="text-[9px] text-slate-400 truncate">-</div>
+</div>
+<div id="f3m-card-fly_by" class="rounded-lg px-2 py-1.5 border bg-slate-950/60 border-slate-800/70">
+<div class="text-[9px] text-cyan-300 font-extrabold">3 FLY-BY</div>
+<div id="f3m-val-fly_by" class="font-bold text-white truncate">-</div>
+<div id="f3m-sub-fly_by" class="text-[9px] text-slate-400 truncate">-</div>
+</div>
+<div id="f3m-card-bogie" class="rounded-lg px-2 py-1.5 border bg-slate-950/60 border-slate-800/70">
+<div class="text-[9px] text-cyan-300 font-extrabold">4 BOGIE</div>
+<div id="f3m-val-bogie" class="font-bold text-white truncate">-</div>
+<div id="f3m-sub-bogie" class="text-[9px] text-slate-400 truncate">-</div>
+</div>
+<div id="f3m-card-coach" class="rounded-lg px-2 py-1.5 border bg-slate-950/60 border-slate-800/70">
+<div class="text-[9px] text-cyan-300 font-extrabold">5 COACH</div>
+<div id="f3m-val-coach" class="font-bold text-white truncate">-</div>
+<div id="f3m-sub-coach" class="text-[9px] text-slate-400 truncate">-</div>
+</div>
+<div id="f3m-card-walk" class="rounded-lg px-2 py-1.5 border bg-slate-950/60 border-slate-800/70">
+<div class="text-[9px] text-cyan-300 font-extrabold">6 WALK</div>
+<div id="f3m-val-walk" class="font-bold text-white truncate">-</div>
+<div id="f3m-sub-walk" class="text-[9px] text-slate-400 truncate">-</div>
+</div>
+<div id="f3m-card-drone" class="rounded-lg px-2 py-1.5 border bg-slate-950/60 border-slate-800/70">
+<div class="text-[9px] text-cyan-300 font-extrabold">7 DRONE</div>
+<div id="f3m-val-drone" class="font-bold text-white truncate">-</div>
+<div id="f3m-sub-drone" class="text-[9px] text-slate-400 truncate">-</div>
+</div>
+<div id="f3m-card-spotter" class="rounded-lg px-2 py-1.5 border bg-slate-950/60 border-slate-800/70">
+<div class="text-[9px] text-cyan-300 font-extrabold">8 SPOTTER</div>
+<div id="f3m-val-spotter" class="font-bold text-white truncate">-</div>
+<div id="f3m-sub-spotter" class="text-[9px] text-slate-400 truncate">-</div>
+</div>
+<div id="f3m-card-mobil_mbz" class="rounded-lg px-2 py-1.5 border bg-slate-950/60 border-slate-800/70">
+<div class="text-[9px] text-cyan-300 font-extrabold">9 MBZ</div>
+<div id="f3m-val-mobil_mbz" class="font-bold text-white truncate">-</div>
+<div id="f3m-sub-mobil_mbz" class="text-[9px] text-slate-400 truncate">-</div>
+</div>
+</div>
+<div class="bg-slate-900/80 border border-slate-800 rounded-xl px-3 py-2 space-y-1 text-[11px] leading-snug">
+<div class="text-slate-300"><strong class="text-fuchsia-300 font-mono-tech">Mode Traksi (3m):</strong> <span id="f3m-drive-summary" class="font-mono-tech text-slate-200">Menunggu sampel traksi...</span></div>
+<div class="text-slate-300"><strong class="text-amber-300 font-mono-tech">Diagnosis 3m:</strong> <span id="f3m-findings-box" class="text-emerald-200">Menganalisis pipeline 3D...</span></div>
+<div class="text-slate-300"><strong class="text-sky-300 font-mono-tech">Transisi &amp; Anomali:</strong> <span id="f3m-events-box" class="font-mono-tech text-[10.5px] text-slate-300">Belum ada spike / transisi.</span></div>
+</div>
+</div>
+<div class="flex-1 min-h-[180px] overflow-auto bg-[#020611] px-4 sm:px-5 py-3">
+<pre id="forensic-json-output" class="m-0 font-mono-tech text-[11.5px] leading-relaxed text-slate-200 whitespace-pre-wrap break-words">{ "status": "Tekan Segarkan Snapshot untuk memuat laporan JSON..." }</pre>
 </div>
 </div>
 </div>
@@ -1311,6 +2094,6 @@ delete globalThis._wBoot;
 })();
 </script>
 <script>document.addEventListener('contextmenu',(e)=>{if(e.target&&e.target.tagName==='CANVAS')e.preventDefault();});</script>
-<script type="module" src="./app.bundle.js?v=699d29a57f"></script>
+<script type="module" src="./app.bundle.js?v=dbeecc62fb"></script>
 </body>
 </html>
