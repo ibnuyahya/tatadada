@@ -826,6 +826,19 @@ animation: bootShimmer 1.35s infinite linear;
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
 ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.6); border-radius: 9999px; }
+#bottom-console-shell {
+transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#bottom-console-shell #bottom-console-body {
+transition: opacity 0.22s ease;
+}
+#bottom-console-shell.console-slid-down {
+transform: translateY(calc(100% - 22px));
+}
+#bottom-console-shell.console-slid-down #bottom-console-body {
+opacity: 0;
+pointer-events: none;
+}
 </style>
 </head>
 <body class="relative select-none overflow-hidden">
@@ -964,7 +977,7 @@ PAPASAN
 </select>
 </div>
 </div>
-<div class="glass-panel rounded-2xl px-2.5 py-1.5 flex items-center gap-1.5 pointer-events-auto whitespace-nowrap">
+<div class="relative glass-panel rounded-2xl px-2.5 py-1.5 flex items-center gap-1.5 pointer-events-auto whitespace-nowrap">
 <div class="text-right">
 <div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">DRIVER SCORE</div>
 <div class="flex items-center justify-end gap-1">
@@ -990,17 +1003,10 @@ PAPASAN
 <i id="icon-pause-sim" class="ph-fill ph-pause text-sm"></i>
 <span id="lbl-pause-sim" class="hidden sm:inline">Jeda</span>
 </button>
-<button id="btn-pip" title="Mode Picture-in-Picture Melayang (Muncul Otomatis Saat Pindah Tab) [Alt+P]" class="glass-btn px-2 h-8 rounded-xl flex items-center gap-1 text-[10px] font-bold text-cyan-300 hover:text-white border border-cyan-500/40">
-<i id="icon-pip" class="ph-bold ph-picture-in-picture text-sm"></i>
-<span id="lbl-pip" class="hidden sm:inline">PiP</span>
-</button>
-<button id="btn-clear-session" title="Hapus Sesi Tersimpan &amp; Ulangi dari Awal (Stasiun Halim DK 0+398)" class="glass-btn px-2 h-8 rounded-xl flex items-center gap-1 text-[10px] font-bold text-rose-300 hover:text-rose-100 border border-rose-500/40">
-<i class="ph-bold ph-arrow-counter-clockwise text-sm"></i>
-<span class="hidden 2xl:inline">Reset Sesi</span>
-<span class="hidden sm:inline 2xl:hidden">Reset</span>
-</button>
-<button id="btn-toggle-hud" title="Sembunyikan/Tampilkan Panel Kontrol Bawah [Tab]" class="glass-btn active w-8 h-8 rounded-xl flex items-center justify-center text-cyan-300">
-<i id="icon-toggle-hud" class="ph-bold ph-eye text-base"></i>
+<button id="btn-env-popover" title="Pengaturan Kontinu Jam WIB, Cuaca Hujan &amp; Angin Lintang" class="glass-btn px-2.5 h-8 rounded-xl flex items-center gap-1 text-[10px] font-bold text-sky-300 hover:text-white border border-sky-500/40">
+<i class="ph-fill ph-cloud-sun text-sm text-amber-300"></i>
+<span class="hidden md:inline">Cuaca &amp; Jam</span>
+<i class="ph-bold ph-caret-down text-[10px]"></i>
 </button>
 <button id="btn-open-hangar" title="Konfigurasi Armada KCIC400AF, Jadwal &amp; Segmen DK" class="glass-btn w-8 h-8 rounded-xl flex items-center justify-center text-slate-200 hover:text-cyan-300">
 <i class="ph-bold ph-sliders-horizontal text-base"></i>
@@ -1008,15 +1014,74 @@ PAPASAN
 <button id="btn-toggle-audio" title="Mesin Suara Fisik CR400AF VVVF &amp; Terowongan" class="glass-btn active w-8 h-8 rounded-xl flex items-center justify-center text-cyan-300">
 <i id="icon-audio" class="ph-fill ph-speaker-high text-base"></i>
 </button>
-<button id="btn-open-manual" title="Buku Pedoman Masinis KCIC Whoosh" class="glass-btn w-8 h-8 rounded-xl flex items-center justify-center text-slate-200 hover:text-amber-300">
-<i class="ph-bold ph-book-open-text text-base"></i>
-</button>
-<button id="forensic-open-btn" title="Buka Log Forensik &amp; Rekaman Blackbox 3 Menit (Salin JSON ke Chat) [F9]" class="glass-btn px-2.5 h-8 rounded-xl flex items-center gap-1.5 text-[10px] font-mono-tech font-extrabold text-emerald-300 hover:text-white border border-emerald-500/40 relative">
+<button id="forensic-open-btn" title="Buka Log Forensik &amp; Rekaman Blackbox 3 Menit (Salin JSON ke Chat) [F9]" class="glass-btn px-2 h-8 rounded-xl flex items-center gap-1 text-[10px] font-mono-tech font-extrabold text-emerald-300 hover:text-white border border-emerald-500/40 relative">
 <span id="forensic-status-dot" class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
 <i class="ph-bold ph-terminal-window text-sm"></i>
-<span class="hidden sm:inline">Forensik</span>
+<span class="hidden xl:inline">Forensik</span>
 <span id="forensic-err-badge" class="hidden px-1 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-extrabold leading-tight">0</span>
 </button>
+<button id="btn-more-menu" title="Menu Lainnya (PiP, Sembunyikan HUD, Panduan Masinis, Reset Sesi)" class="glass-btn w-8 h-8 rounded-xl flex items-center justify-center text-slate-200 hover:text-white border border-slate-700/70">
+<i class="ph-bold ph-dots-three-outline text-base"></i>
+</button>
+<div id="env-popover-panel" class="hidden absolute top-full right-8 mt-2 w-80 glass-panel rounded-2xl p-3.5 border border-sky-500/40 shadow-2xl z-40 whitespace-normal">
+<div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-2.5">
+<span class="text-[10px] font-extrabold uppercase tracking-wider text-sky-300 flex items-center gap-1.5">
+<i class="ph-fill ph-sun-horizon text-amber-300 text-sm"></i> ATMOSFER &amp; WAKTU KONTINU
+</span>
+<label class="flex items-center gap-1 text-[9.5px] text-slate-300 cursor-pointer select-none" title="Interpolasi halus 30 detik saat geser waktu/cuaca">
+<input id="chk-smooth-time" type="checkbox" class="accent-cyan-400 rounded cursor-pointer" />
+<span>Transisi 30 dtk</span>
+</label>
+</div>
+<div class="space-y-2.5 text-[10px]">
+<div>
+<div class="flex items-center justify-between mb-1">
+<span class="text-slate-300 font-bold">Waktu Lokal (00:00 – 23:59)</span>
+<span id="lbl-time-wib" class="font-mono-tech font-extrabold text-amber-300">07:30 WIB</span>
+</div>
+<input id="slider-time-wib" type="range" min="0" max="1439" step="1" value="450" class="w-full accent-amber-400 cursor-pointer" />
+<div class="grid grid-cols-5 gap-1 mt-1">
+<button type="button" data-quick-wib="360" class="quick-wib-btn glass-btn py-0.5 rounded text-[9px] font-mono-tech text-sky-200">06:00</button>
+<button type="button" data-quick-wib="450" class="quick-wib-btn glass-btn py-0.5 rounded text-[9px] font-mono-tech text-cyan-200">07:30</button>
+<button type="button" data-quick-wib="735" class="quick-wib-btn glass-btn py-0.5 rounded text-[9px] font-mono-tech text-amber-200">12:15</button>
+<button type="button" data-quick-wib="1065" class="quick-wib-btn glass-btn py-0.5 rounded text-[9px] font-mono-tech text-orange-300">17:45</button>
+<button type="button" data-quick-wib="1265" class="quick-wib-btn glass-btn py-0.5 rounded text-[9px] font-mono-tech text-indigo-300">21:05</button>
+</div>
+</div>
+<div>
+<div class="flex items-center justify-between mb-1">
+<span class="text-slate-300 font-bold">Curah Hujan &amp; Badai Tropis</span>
+<span id="lbl-weather-rain" class="font-mono-tech font-extrabold text-cyan-300">Cerah (0%)</span>
+</div>
+<input id="slider-weather-rain" type="range" min="0" max="100" step="1" value="0" class="w-full accent-cyan-400 cursor-pointer" />
+</div>
+<div>
+<div class="flex items-center justify-between mb-1">
+<span class="text-slate-300 font-bold">Angin Lintang Viaduk</span>
+<span id="lbl-wind-shear" class="font-mono-tech font-extrabold text-emerald-300">Normal (20%)</span>
+</div>
+<input id="slider-wind-shear" type="range" min="0" max="100" step="1" value="20" class="w-full accent-emerald-400 cursor-pointer" />
+</div>
+</div>
+</div>
+<div id="more-popover-panel" class="hidden absolute top-full right-0 mt-2 w-56 glass-panel rounded-2xl p-2 border border-slate-700/80 shadow-2xl z-40 flex-col gap-1.5 whitespace-normal">
+<button id="btn-pip" title="Mode Picture-in-Picture Melayang (Muncul Otomatis Saat Pindah Tab) [Alt+P]" class="glass-btn w-full px-3 h-8 rounded-xl flex items-center justify-between text-[10px] font-bold text-cyan-300 hover:text-white border border-cyan-500/35">
+<span class="flex items-center gap-2"><i id="icon-pip" class="ph-bold ph-picture-in-picture text-sm"></i> <span id="lbl-pip">Layar Melayang PiP</span></span>
+<span class="font-mono-tech text-[9px] text-slate-400">Alt+P</span>
+</button>
+<button id="btn-toggle-hud" title="Sembunyikan/Tampilkan Seluruh HUD &amp; Kamera [Tab]" class="glass-btn active w-full px-3 h-8 rounded-xl flex items-center justify-between text-[10px] font-bold text-cyan-300">
+<span class="flex items-center gap-2"><i id="icon-toggle-hud" class="ph-bold ph-eye text-sm"></i> <span>Tampilkan HUD</span></span>
+<span class="font-mono-tech text-[9px] text-slate-400">Tab</span>
+</button>
+<button id="btn-open-manual" title="Buku Pedoman Masinis KCIC Whoosh" class="glass-btn w-full px-3 h-8 rounded-xl flex items-center justify-between text-[10px] font-bold text-amber-200 hover:text-amber-100">
+<span class="flex items-center gap-2"><i class="ph-bold ph-book-open-text text-sm"></i> <span>Pedoman Masinis</span></span>
+<i class="ph-bold ph-caret-right text-xs text-slate-400"></i>
+</button>
+<button id="btn-clear-session" title="Hapus Sesi Tersimpan &amp; Ulangi dari Awal (Stasiun Halim DK 0+398)" class="glass-btn w-full px-3 h-8 rounded-xl flex items-center justify-between text-[10px] font-bold text-rose-300 hover:text-rose-100 border border-rose-500/35">
+<span class="flex items-center gap-2"><i class="ph-bold ph-arrow-counter-clockwise text-sm"></i> <span>Reset Sesi Awal</span></span>
+<span class="font-mono-tech text-[9px] text-rose-300/80">DK 0</span>
+</button>
+</div>
 </div>
 </header>
 <div class="fixed top-16 left-2.5 right-2.5 z-20 flex xl:hidden justify-between items-center glass-panel rounded-xl px-3 py-1.5 text-xs pointer-events-none">
@@ -1118,6 +1183,20 @@ PAPASAN
 <button id="btn-spotter-relocate" class="glass-btn px-2.5 py-1 rounded-xl text-[10px] font-bold text-amber-300" title="Pindah Spot / Sambut Whoosh Berikutnya">Spot Berikutnya</button>
 <button id="btn-spotter-shutter" class="glass-btn px-2.5 py-1 rounded-xl text-[10px] font-bold text-emerald-300 flex items-center gap-1" title="Jepret Foto Railfan [C]"><i class="ph-bold ph-aperture"></i> Jepret [C]</button>
 </div>
+<div id="station-cam-hud" class="fixed bottom-36 left-1/2 -translate-x-1/2 z-20 hidden items-center justify-center gap-1.5 glass-panel px-3.5 py-1.5 rounded-2xl border-teal-500/45 pointer-events-auto whitespace-nowrap max-w-[95vw] overflow-x-auto">
+<span class="flex items-center gap-1 text-[9.5px] font-mono-tech uppercase text-teal-300 font-extrabold mr-1">
+<i class="ph-fill ph-buildings text-xs"></i> STASIUN LIVE:
+</span>
+<button type="button" data-st-cam="0" class="st-cam-btn glass-btn active px-2.5 py-1 rounded-xl text-[10px] font-bold text-teal-200">Halim (DK 0+350)</button>
+<button type="button" data-st-cam="1" class="st-cam-btn glass-btn px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-200">Karawang (DK 41+010)</button>
+<button type="button" data-st-cam="2" class="st-cam-btn glass-btn px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-200">Padalarang (DK 109+100)</button>
+<button type="button" data-st-cam="3" class="st-cam-btn glass-btn px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-200">Tegalluar (DK 142+300)</button>
+<div class="h-4 w-[1px] bg-slate-700 mx-0.5"></div>
+<button type="button" data-st-angle="PLATFORM" class="st-angle-btn glass-btn active px-2 py-1 rounded-xl text-[10px] font-bold text-cyan-200" title="Sudut Peron &amp; Kanopi (Geser Mouse untuk Orbit 360°)">Peron</button>
+<button type="button" data-st-angle="FACADE" class="st-angle-btn glass-btn px-2 py-1 rounded-xl text-[10px] font-bold text-amber-200" title="Sudut Fasad Eksterior &amp; Drop-Off Stasiun">Fasad</button>
+<button type="button" data-st-angle="AERIAL" class="st-angle-btn glass-btn px-2 py-1 rounded-xl text-[10px] font-bold text-sky-200" title="Sudut Udara Arsitektur Atap &amp; Emplasemen">Udara</button>
+<span id="station-cam-live-info" class="text-[9.5px] font-mono-tech font-bold text-emerald-300 ml-1">REAL-TIME • WHOOSH DI PERON</span>
+</div>
 <div class="fixed top-44 xl:top-40 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none w-full max-w-lg px-4">
 <div id="pa-broadcast-banner" class="hidden glass-panel border-cyan-400/55 bg-slate-950/90 text-cyan-100 px-3.5 py-1.5 rounded-xl items-center gap-2 shadow-xl max-w-full">
 <i class="ph-fill ph-speaker-high text-sm text-amber-400 shrink-0"></i>
@@ -1210,10 +1289,19 @@ Berangkat Cepat
 <i class="ph-fill ph-car-profile text-xs"></i>
 <span>MOBIL MBZ</span>
 </button>
+<button data-cam="9" class="cam-btn glass-btn w-11 h-7 rounded-xl flex flex-col items-center justify-center text-[7.5px] font-bold text-teal-300" title="Kamera 10: Inspeksi Real-Time 4 Stasiun KCIC (Halim, Karawang, Padalarang, Tegalluar) [0]">
+<i class="ph-fill ph-buildings text-xs"></i>
+<span>STASIUN</span>
+</button>
 </div>
 </aside>
 <footer id="bottom-control-dock" class="fixed bottom-2 left-2.5 right-2.5 lg:right-40 z-20 flex items-end justify-center pointer-events-none transition-all duration-200">
-<div class="glass-panel rounded-2xl px-3 py-2 w-full max-w-5xl flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 pointer-events-auto">
+<div id="bottom-console-shell" class="w-full max-w-5xl flex flex-col items-center">
+<button id="btn-toggle-console" type="button" title="Geser Turun / Tampilkan Konsol Kemudi Bawah [Alt+H]" class="glass-panel pointer-events-auto h-5.5 px-3.5 py-0.5 rounded-t-xl border-b-0 flex items-center gap-1.5 text-[9.5px] font-mono-tech font-extrabold text-cyan-300 hover:text-white shadow-lg cursor-pointer transition">
+<i id="icon-toggle-console" class="ph-bold ph-caret-down text-xs"></i>
+<span id="lbl-toggle-console">Sembunyikan Konsol</span>
+</button>
+<div id="bottom-console-body" class="glass-panel rounded-2xl px-3 py-2 w-full flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 pointer-events-auto">
 <div class="flex items-center gap-2.5 flex-1 min-w-[240px]">
 <div class="flex flex-col gap-0.5 bg-slate-950/90 p-1 rounded-xl border border-slate-800">
 <button id="btn-rev-f" class="px-2 py-0.5 rounded text-[10px] font-mono-tech font-bold bg-emerald-500/30 text-emerald-300 border border-emerald-400/50">FWD</button>
@@ -1264,11 +1352,13 @@ Berangkat Cepat
 <i id="icon-pause-dock" class="ph-fill ph-pause text-sm"></i>
 <span id="lbl-pause-dock" class="text-[6.5px] font-extrabold leading-none mt-0.5">JEDA</span>
 </button>
-<button id="btn-maglev" title="Siklus Mode Ludicrous: Klik 1x Maglev 550 • Klik 2x Super Maglev 650 • Klik 3x Super Rocket 1000 • Klik 4x Normal [Shift+M]" class="glass-btn w-10 h-9 rounded-xl flex flex-col items-center justify-center text-fuchsia-300 hover:text-white border border-fuchsia-500/35">
+<button id="btn-maglev" title="Fitur Premium Terkunci: Mode Maglev 550 &amp; Super Maglev 650 km/h [Shift+M]" class="relative glass-btn w-10 h-9 rounded-xl flex flex-col items-center justify-center text-fuchsia-300/75 hover:text-white border border-fuchsia-500/30">
+<span id="lock-badge-maglev" class="absolute -top-1.5 -right-1.5 text-[8px] leading-none bg-slate-950/95 border border-amber-400/60 text-amber-300 rounded-full px-1 py-0.5 shadow">🔒</span>
 <i id="icon-maglev" class="ph-fill ph-magnet text-sm"></i>
 <span id="lbl-maglev" class="text-[6px] font-extrabold leading-none mt-0.5 tracking-tight">MAGLEV</span>
 </button>
-<button id="btn-rocket" title="Aktifkan Langsung Mode SUPER ROCKET (Hardcap 1000 km/h • Mach 0.80 Transonik • Twin Afterburner) [Shift+R]" class="glass-btn w-10 h-9 rounded-xl flex flex-col items-center justify-center text-orange-300 hover:text-white border border-orange-500/45">
+<button id="btn-rocket" title="Fitur Premium Terkunci: Mode Super Rocket 1000 km/h • Twin Raptor &amp; Retro-Rocket [Shift+R]" class="relative glass-btn w-10 h-9 rounded-xl flex flex-col items-center justify-center text-orange-300/75 hover:text-white border border-orange-500/35">
+<span id="lock-badge-rocket" class="absolute -top-1.5 -right-1.5 text-[8px] leading-none bg-slate-950/95 border border-amber-400/60 text-amber-300 rounded-full px-1 py-0.5 shadow">🔒</span>
 <i id="icon-rocket" class="ph-fill ph-rocket-launch text-sm"></i>
 <span id="lbl-rocket" class="text-[6px] font-extrabold leading-none mt-0.5 tracking-tight">ROCKET</span>
 </button>
@@ -1339,6 +1429,7 @@ Berangkat Cepat
 <i class="ph-fill ph-octagon text-base"></i>
 <span class="text-[7px] font-black uppercase">EB</span>
 </button>
+</div>
 </div>
 </div>
 </footer>
@@ -2094,6 +2185,6 @@ delete globalThis._wBoot;
 })();
 </script>
 <script>document.addEventListener('contextmenu',(e)=>{if(e.target&&e.target.tagName==='CANVAS')e.preventDefault();});</script>
-<script type="module" src="./app.bundle.js?v=dbeecc62fb"></script>
+<script type="module" src="./app.bundle.js?v=c17d252260"></script>
 </body>
 </html>
