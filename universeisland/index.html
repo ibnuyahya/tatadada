@@ -6,46 +6,699 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Gedung Rektorat UI Kampus Depok — NEXUS Omni-Scale 3D Simulator</title>
   <meta name="description" content="Simulasi 3D Prosedural Kelas-A Gedung Pusat Administrasi / Rektorat Universitas Indonesia Depok, Pulau 360°, Danau Kenanga, Helipad VIP & Cuaca Rill Kota Depok." />
+  <script>
+    /* ============================================================================
+     * KEPULAUAN UI DEPOK — EARLY-BOOT FORENSIC TELEMETRY COLLECTOR (t = 0ms)
+     * Captures pre-module script/CSS failures, WebGL2 context loss, runtime errors,
+     * unhandled rejections, console errors/warnings, boot milestones, & 30s blackbox.
+     * Shortcut: [F9] or Quick-Dock 🔬 button opens the Forensic JSON Console.
+     * ============================================================================ */
+    (function initNexusForensicEarlyBoot() {
+      var bootPerfNow = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+      var bootEpochMs = Date.now();
+      var bootISO = new Date(bootEpochMs).toISOString();
+      var sessionId = 'UI-' + bootISO.slice(11, 19).replace(/:/g, '') + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+
+      var MAX_ERRORS = 80;
+      var MAX_BREADCRUMBS = 90;
+      var MAX_MILESTONES = 40;
+
+      var errorLog = [];
+      var breadcrumbs = [];
+      var milestones = [];
+      var counts = {
+        runtimeErrors: 0,
+        unhandledRejections: 0,
+        resourceFailures: 0,
+        consoleErrors: 0,
+        consoleWarnings: 0,
+        webglContextLost: 0,
+        webglContextRestored: 0
+      };
+      var compactJsonMode = false;
+      var engineProbeFn = null;
+      var toastTimer = 0;
+
+      function relMs() {
+        var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : (Date.now() - bootEpochMs);
+        return Math.round((now - bootPerfNow) * 10) / 10;
+      }
+
+      function safeStr(val, maxLen) {
+        var limit = maxLen || 700;
+        if (val === undefined) return 'undefined';
+        if (val === null) return 'null';
+        if (typeof val === 'string') return val.length > limit ? val.slice(0, limit) + '…' : val;
+        if (val instanceof Error) {
+          var s = (val.name || 'Error') + ': ' + (val.message || '');
+          if (val.stack) s += '\n' + String(val.stack);
+          return s.length > limit ? s.slice(0, limit) + '…' : s;
+        }
+        try {
+          var j = JSON.stringify(val);
+          if (typeof j === 'string') return j.length > limit ? j.slice(0, limit) + '…' : j;
+        } catch (_e) {}
+        var f = String(val);
+        return f.length > limit ? f.slice(0, limit) + '…' : f;
+      }
+
+      function pushErrorEntry(entry) {
+        entry.tMs = relMs();
+        entry.iso = new Date().toISOString();
+        if (errorLog.length >= MAX_ERRORS) errorLog.shift();
+        errorLog.push(entry);
+        syncHeaderIndicator();
+      }
+
+      function markMilestone(stage, detail) {
+        if (milestones.length >= MAX_MILESTONES) milestones.shift();
+        milestones.push({
+          tMs: relMs(),
+          stage: String(stage),
+          detail: detail !== undefined ? safeStr(detail, 240) : null
+        });
+      }
+
+      function logBreadcrumb(action, detail) {
+        if (breadcrumbs.length >= MAX_BREADCRUMBS) breadcrumbs.shift();
+        breadcrumbs.push({
+          tMs: relMs(),
+          action: String(action),
+          detail: detail !== undefined ? safeStr(detail, 220) : undefined
+        });
+      }
+
+      markMilestone('forensic_collector_init', 'Collector early-boot aktif sebelum importmap & Three.js');
+
+      // 1. Capture-phase listener catches both <script>/<link>/<img> load failures & JS runtime errors
+      window.addEventListener('error', function (ev) {
+        var tgt = ev && ev.target;
+        if (tgt && tgt !== window && (tgt.tagName === 'SCRIPT' || tgt.tagName === 'LINK' || tgt.tagName === 'IMG')) {
+          var url = String(tgt.src || tgt.href || '(unknown)');
+          var isOptionalExternal =
+            url.indexOf('youtube.com') !== -1 ||
+            url.indexOf('ytimg.com') !== -1 ||
+            url.indexOf('googlevideo.com') !== -1 ||
+            url.indexOf('fonts.g') !== -1 ||
+            url.indexOf('favicon.ico') !== -1;
+          if (isOptionalExternal) {
+            logBreadcrumb('optional_external_skipped', tgt.tagName + ' ' + url);
+            return;
+          }
+          counts.resourceFailures++;
+          pushErrorEntry({
+            kind: 'resource_load_error',
+            tag: tgt.tagName,
+            url: safeStr(url, 360),
+            message: 'Gagal memuat aset ' + tgt.tagName + ': ' + safeStr(url, 220)
+          });
+          return;
+        }
+        counts.runtimeErrors++;
+        pushErrorEntry({
+          kind: 'runtime_error',
+          message: safeStr(ev && ev.message ? ev.message : 'Unknown runtime error', 500),
+          source: safeStr(ev && ev.filename ? ev.filename : '', 280),
+          line: ev && ev.lineno ? ev.lineno : 0,
+          col: ev && ev.colno ? ev.colno : 0,
+          stack: ev && ev.error && ev.error.stack ? safeStr(ev.error.stack, 1000) : null
+        });
+      }, true);
+
+      // 2. Unhandled Promise Rejections
+      window.addEventListener('unhandledrejection', function (ev) {
+        counts.unhandledRejections++;
+        var reason = ev ? ev.reason : 'Unknown rejection';
+        pushErrorEntry({
+          kind: 'unhandled_rejection',
+          message: safeStr(reason, 650),
+          stack: reason && reason.stack ? safeStr(reason.stack, 1000) : null
+        });
+      });
+
+      // 3. Non-destructive console.error & console.warn wrappers
+      var origError = console.error ? console.error.bind(console) : function () {};
+      var origWarn = console.warn ? console.warn.bind(console) : function () {};
+
+      console.error = function () {
+        var parts = [];
+        for (var i = 0; i < arguments.length; i++) parts.push(safeStr(arguments[i], 450));
+        var joined = parts.join(' ');
+        counts.consoleErrors++;
+        pushErrorEntry({
+          kind: 'console_error',
+          message: safeStr(joined, 850)
+        });
+        return origError.apply(console, arguments);
+      };
+
+      console.warn = function () {
+        var parts = [];
+        for (var i = 0; i < arguments.length; i++) parts.push(safeStr(arguments[i], 380));
+        var joined = parts.join(' ');
+        counts.consoleWarnings++;
+        pushErrorEntry({
+          kind: 'console_warn',
+          message: safeStr(joined, 650)
+        });
+        return origWarn.apply(console, arguments);
+      };
+
+      function syncHeaderIndicator() {
+        var dot = document.getElementById('forensic-status-dot');
+        var tabDot = document.getElementById('forensic-tab-dot');
+        var badge = document.getElementById('forensic-err-badge');
+        var totalSevere = counts.runtimeErrors + counts.unhandledRejections + counts.resourceFailures + counts.consoleErrors + counts.webglContextLost;
+        var stateCls = totalSevere > 0 ? 'error' : (counts.consoleWarnings > 0 ? 'warn' : 'healthy');
+        if (dot) dot.className = 'forensic-dot ' + stateCls;
+        if (tabDot) tabDot.className = 'forensic-dot ' + stateCls;
+        if (badge) {
+          if (totalSevere > 0) {
+            badge.textContent = totalSevere > 99 ? '99+' : String(totalSevere);
+            badge.classList.add('visible');
+          } else {
+            badge.textContent = '0';
+            badge.classList.remove('visible');
+          }
+        }
+      }
+
+      function buildReport(trigger, runPixelProbe) {
+        var engineData = null;
+        if (typeof engineProbeFn === 'function') {
+          try {
+            engineData = engineProbeFn({ trigger: trigger || 'manual', runPixelProbe: runPixelProbe !== false });
+          } catch (probeErr) {
+            engineData = { probeException: safeStr(probeErr, 500) };
+          }
+        }
+
+        var severeCount =
+          counts.runtimeErrors +
+          counts.unhandledRejections +
+          counts.resourceFailures +
+          counts.webglContextLost;
+        var verdict = 'HEALTHY';
+        var verdictReasons = [];
+
+        if (counts.webglContextLost > counts.webglContextRestored) {
+          verdict = 'CRITICAL_ERROR';
+          verdictReasons.push('WebGL2 context lost belum pulih');
+        }
+        if (counts.runtimeErrors > 0 || counts.unhandledRejections > 0) {
+          verdict = 'CRITICAL_ERROR';
+          verdictReasons.push((counts.runtimeErrors + counts.unhandledRejections) + ' runtime exception / unhandled rejection');
+        }
+        if (counts.resourceFailures > 0) {
+          verdict = 'CRITICAL_ERROR';
+          verdictReasons.push(counts.resourceFailures + ' kegagalan muat script/link/aset penting');
+        }
+        if (engineData && engineData.webgl) {
+          if (!engineData.webgl.contextAvailable) {
+            verdict = 'CRITICAL_ERROR';
+            verdictReasons.push('Konteks WebGL2 tidak tersedia');
+          }
+          if (engineData.webgl.glError && engineData.webgl.glError.indexOf('NO_ERROR') !== 0) {
+            if (verdict === 'HEALTHY') verdict = 'DEGRADED';
+            verdictReasons.push('Status gl.getError: ' + engineData.webgl.glError);
+          }
+          if (engineData.webgl.canvasPixelProbe && engineData.webgl.canvasPixelProbe.sampled && engineData.webgl.canvasPixelProbe.allBlack) {
+            verdict = 'CRITICAL_ERROR';
+            verdictReasons.push('5 sampel piksel framebuffer kanvas hitam pekat (indikasi gagal render)');
+          }
+        }
+        if (engineData && engineData.worldLogicalAudit && !engineData.worldLogicalAudit.auditPassed) {
+          if (verdict === 'HEALTHY') verdict = 'DEGRADED';
+          verdictReasons.push('Audit 4-Gate / batas <= 25 draw calls memerlukan perhatian');
+        }
+        var r30Overall =
+          engineData &&
+          engineData.rolling30s &&
+          engineData.rolling30s.forensicSynthesis &&
+          engineData.rolling30s.forensicSynthesis.overall30s;
+        if (r30Overall) {
+          if (r30Overall.sustainedLowFpsSeconds >= 3) {
+            if (verdict === 'HEALTHY') verdict = 'DEGRADED';
+            verdictReasons.push(r30Overall.sustainedLowFpsSeconds + ' detik FPS rendah (<38 FPS) dalam jendela 30d');
+          } else if (r30Overall.stallsOver50ms >= 3 && r30Overall.worstFrameMs > 95) {
+            if (verdict === 'HEALTHY') verdict = 'DEGRADED';
+            verdictReasons.push(r30Overall.stallsOver50ms + ' frame stall >50ms (puncak ' + r30Overall.worstFrameMs + 'ms)');
+          }
+        }
+        if (counts.consoleErrors > 0 && verdict === 'HEALTHY') {
+          verdict = 'DEGRADED';
+          verdictReasons.push(counts.consoleErrors + ' console.error tercatat');
+        }
+        if (verdictReasons.length === 0) {
+          verdictReasons.push('0 error runtime, WebGL2 sehat, 4-Gate (<= 25 draw calls) lulus, & blackbox 30d optimal');
+        }
+
+        var nav = typeof navigator !== 'undefined' ? navigator : {};
+        return {
+          schemaVersion: 'nexus-kepulauan-ui-forensic-v2.2',
+          simulator: 'Kepulauan Universitas Indonesia Depok (Pulau U & I) — v6.38',
+          generatedAtISO: new Date().toISOString(),
+          uptimeSec: Math.round((relMs() / 1000) * 100) / 100,
+          trigger: trigger || 'manual',
+          meta: {
+            sessionId: sessionId,
+            bootISO: bootISO,
+            healthVerdict: verdict,
+            healthReasons: verdictReasons,
+            url: String(window.location ? window.location.href : ''),
+            protocol: String(window.location ? window.location.protocol : ''),
+            userAgent: String(nav.userAgent || ''),
+            platform: String(nav.platform || ''),
+            language: String(nav.language || ''),
+            hardwareConcurrency: nav.hardwareConcurrency || null,
+            deviceMemoryGB: nav.deviceMemory || null,
+            viewport: {
+              innerWidth: window.innerWidth || 0,
+              innerHeight: window.innerHeight || 0,
+              devicePixelRatio: window.devicePixelRatio || 1
+            },
+            screen: window.screen
+              ? {
+                  width: window.screen.width,
+                  height: window.screen.height,
+                  colorDepth: window.screen.colorDepth
+                }
+              : null,
+            visibilityState: document.visibilityState || 'unknown',
+            online: typeof nav.onLine === 'boolean' ? nav.onLine : null
+          },
+          summaryCounts: {
+            totalCapturedIssues: severeCount + counts.consoleErrors + counts.consoleWarnings,
+            runtimeErrors: counts.runtimeErrors,
+            unhandledRejections: counts.unhandledRejections,
+            resourceFailures: counts.resourceFailures,
+            consoleErrors: counts.consoleErrors,
+            consoleWarnings: counts.consoleWarnings,
+            webglContextLostCount: counts.webglContextLost,
+            webglContextRestoredCount: counts.webglContextRestored
+          },
+          bootMilestones: milestones.slice(),
+          rolling30s: engineData && engineData.rolling30s ? engineData.rolling30s : null,
+          webgl: engineData && engineData.webgl ? engineData.webgl : { note: 'Engine WebGL2 belum terdaftar saat laporan dibuat' },
+          performance: engineData && engineData.performance ? engineData.performance : null,
+          worldLogicalAudit: engineData && engineData.worldLogicalAudit ? engineData.worldLogicalAudit : null,
+          engineAndWorld: engineData && engineData.engineAndWorld ? engineData.engineAndWorld : null,
+          governor60sRing: engineData && engineData.governor60sRing ? engineData.governor60sRing : null,
+          errorsAndWarnings: errorLog.slice(),
+          breadcrumbs: breadcrumbs.slice()
+        };
+      }
+
+      function formatReportJSON(compact, trigger, runPixelProbe) {
+        var rep = buildReport(trigger || 'ui_export', runPixelProbe !== false);
+        return {
+          report: rep,
+          json: compact ? JSON.stringify(rep) : JSON.stringify(rep, null, 2)
+        };
+      }
+
+      function showBannerToast(msg, isErr) {
+        var b = document.getElementById('forensic-toast-banner');
+        if (!b) return;
+        if (toastTimer) clearTimeout(toastTimer);
+        b.textContent = msg;
+        b.className = 'forensic-toast visible ' + (isErr ? 'err' : 'ok');
+        toastTimer = setTimeout(function () {
+          b.classList.remove('visible');
+        }, 3800);
+      }
+
+      function renderModalSnapshot(trigger) {
+        var pack = formatReportJSON(compactJsonMode, trigger || 'modal_open', true);
+        var rep = pack.report;
+        var out = document.getElementById('forensic-json-output');
+        if (out) out.value = pack.json;
+
+        var vBadge = document.getElementById('forensic-verdict-badge');
+        if (vBadge) {
+          vBadge.textContent = rep.meta.healthVerdict;
+          var vCls =
+            rep.meta.healthVerdict === 'HEALTHY'
+              ? 'healthy'
+              : rep.meta.healthVerdict === 'DEGRADED'
+                ? 'degraded'
+                : 'critical';
+          vBadge.className = 'forensic-verdict-pill ' + vCls;
+        }
+
+        var kErr = document.getElementById('fkpi-err');
+        var kFps = document.getElementById('fkpi-fps');
+        var kGpu = document.getElementById('fkpi-gpu');
+        var kPix = document.getElementById('fkpi-canvas');
+        var kAud = document.getElementById('fkpi-audit');
+        var kCam = document.getElementById('fkpi-cam');
+
+        var severe =
+          rep.summaryCounts.runtimeErrors +
+          rep.summaryCounts.unhandledRejections +
+          rep.summaryCounts.resourceFailures +
+          rep.summaryCounts.consoleErrors;
+        if (kErr) {
+          kErr.textContent = severe + ' err / ' + rep.summaryCounts.consoleWarnings + ' warn';
+          kErr.style.color = severe > 0 ? '#ff7b72' : (rep.summaryCounts.consoleWarnings > 0 ? '#f2c230' : '#38d996');
+        }
+        if (kFps) {
+          if (rep.performance) {
+            kFps.textContent = rep.performance.avgFps + ' fps (P95 ' + rep.performance.p95FrameMs + 'ms)';
+            kFps.style.color = rep.performance.avgFps >= 45 ? '#38d996' : '#f2c230';
+          } else {
+            kFps.textContent = 'n/a';
+          }
+        }
+        if (kGpu) {
+          var gpuName = rep.webgl && rep.webgl.unmaskedRenderer ? rep.webgl.unmaskedRenderer : (rep.webgl && rep.webgl.glError ? rep.webgl.glError : 'n/a');
+          kGpu.textContent = gpuName.length > 26 ? gpuName.slice(0, 26) + '…' : gpuName;
+          kGpu.title = gpuName;
+        }
+        if (kPix) {
+          if (rep.webgl && rep.webgl.contextAvailable === false) {
+            kPix.textContent = 'CONTEXT LOST';
+            kPix.style.color = '#ff7b72';
+          } else if (rep.webgl && rep.webgl.drawingBuffer) {
+            kPix.textContent = 'OK (' + rep.webgl.drawingBuffer + ')';
+            kPix.style.color = '#38d996';
+          } else {
+            kPix.textContent = 'Siap';
+          }
+        }
+        if (kAud) {
+          var wa = rep.worldLogicalAudit;
+          if (wa && wa.gates) {
+            kAud.textContent = (wa.auditPassed ? 'PASS' : 'WARN') + ' (' + wa.gates.liveWorldDrawCalls + '/25 calls)';
+            kAud.style.color = wa.auditPassed ? '#38d996' : '#f2c230';
+          } else {
+            kAud.textContent = 'n/a';
+          }
+        }
+        if (kCam) {
+          var co = rep.engineAndWorld && rep.engineAndWorld.cameraAndOptics;
+          if (co) {
+            var optShort = co.dualOpticsMode === 'HUMAN_EYE_TRUE_COLOR' ? 'Human-Eye' : 'Cinema';
+            kCam.textContent = co.camMode + ' · ' + optShort;
+          } else {
+            kCam.textContent = 'n/a';
+          }
+        }
+
+        // Render 30-second substantive blackbox summary
+        var r30 = rep.rolling30s;
+        var syn = r30 && r30.forensicSynthesis ? r30.forensicSynthesis : null;
+        var winBadge = document.getElementById('f30s-window-badge');
+        var elMavic = document.getElementById('f30s-cam-mavic');
+        var elAvata = document.getElementById('f30s-cam-avata');
+        var elEye = document.getElementById('f30s-cam-eye');
+        var elOrbit = document.getElementById('f30s-cam-orbit');
+        var elInsight = document.getElementById('f30s-insight-line');
+        var elEvents = document.getElementById('f30s-events-line');
+
+        function renderGroupCard(el, label, st) {
+          if (!el) return;
+          if (!st || !st.frames) {
+            el.textContent = label + ': belum aktif';
+            el.className = 'f30s-cam-pill';
+            return;
+          }
+          el.textContent = label + ': ' + st.avgFps + 'fps · ' + st.avgMainCalls + 'c · pk ' + st.maxFrameMs + 'ms';
+          el.className = 'f30s-cam-pill active ' + (st.avgFps >= 45 ? 'ok' : 'warn');
+        }
+
+        if (syn) {
+          var ov = syn.overall30s;
+          var pe = syn.pipelineEfficiency;
+          if (winBadge) {
+            winBadge.textContent =
+              (r30.capturedSpanSec || 0) + 'd / 30d · ' +
+              ov.totalFrames + ' frm · Avg ' + ov.avgFps + ' FPS · Main ' +
+              pe.avgMainDrawCalls + '/25c · Refl ' + pe.planarReflPassActivePct + '%';
+          }
+          renderGroupCard(elMavic, 'Mavic Udara', syn.byCameraGroup && syn.byCameraGroup.mavic_aerial);
+          renderGroupCard(elAvata, 'Avata 2 FPV', syn.byCameraGroup && syn.byCameraGroup.avata2_fpv);
+          renderGroupCard(elEye, 'Mata Sivi/FPS', syn.byCameraGroup && syn.byCameraGroup.human_eye_fps);
+          renderGroupCard(elOrbit, 'Orbit / Tur', syn.byCameraGroup && syn.byCameraGroup.orbit_cinema);
+
+          if (elInsight) {
+            var findingTxt = (syn.bottleneckFindings && syn.bottleneckFindings.length)
+              ? syn.bottleneckFindings.join(' | ')
+              : '0 bottleneck terdeteksi.';
+            var oppTxt = (syn.improvementOpportunities && syn.improvementOpportunities[0])
+              ? ' — Saran: ' + syn.improvementOpportunities[0]
+              : '';
+            elInsight.textContent = 'Diagnosis 30d: ' + findingTxt + oppTxt;
+            elInsight.style.color = (ov.sustainedLowFpsSeconds >= 2 || ov.stallsOver50ms >= 2) ? '#f2c230' : '#b7f5d8';
+          }
+          if (elEvents) {
+            var evArr = r30.substantiveEvents || [];
+            if (evArr.length === 0) {
+              elEvents.textContent =
+                'Event Substantif (0): transisi mulus · ' + ov.hitchesOver25ms + ' hitch >25ms · ' +
+                ov.stallsOver50ms + ' stall >50ms · ' + ov.runtimeShaderCompiles + ' shader compile runtime';
+            } else {
+              var tail = evArr.slice(-4).map(function (e) {
+                if (e.kind === 'camera_switch') {
+                  return '[' + e.tRelSec + 'd] CAM ' + e.from + '→' + e.to + ' (' + e.switchFrameMs + 'ms, ' + e.callsAfter + 'c)';
+                }
+                if (e.kind === 'frame_spike') {
+                  return '[' + e.tRelSec + 'd] SPIKE ' + e.frameMs + 'ms (' + e.probableCause + ')';
+                }
+                if (e.kind === 'shader_compile') {
+                  return '[' + e.tRelSec + 'd] SHADER +' + e.addedPrograms + ' (' + e.frameMs + 'ms)';
+                }
+                if (e.kind === 'sustained_heavy_load') {
+                  return '[' + e.tRelSec + 'd] BEBAN ' + e.avgFps + 'fps (' + e.bottleneckHint + ')';
+                }
+                return '[' + e.tRelSec + 'd] ' + (e.detail || e.kind);
+              });
+              elEvents.textContent = 'Event Substantif (' + evArr.length + '): ' + tail.join(' · ');
+            }
+          }
+        }
+
+        var szLabel = document.getElementById('forensic-size-meta');
+        if (szLabel) {
+          var kb = Math.round((pack.json.length / 1024) * 10) / 10;
+          szLabel.textContent =
+            'Session ' + rep.meta.sessionId + ' · Uptime ' + rep.uptimeSec + 'd · Payload ' + kb +
+            ' KB (' + (compactJsonMode ? '1-baris kompak' : 'rapi 2-spasi') + ')';
+        }
+        syncHeaderIndicator();
+        return pack;
+      }
+
+      function copyForensicJSON(fromDrawerBtn) {
+        var modalEl = document.getElementById('forensic-modal');
+        var isModalOpen = modalEl && modalEl.classList.contains('open');
+        var pack = isModalOpen
+          ? renderModalSnapshot('copy_clipboard_modal')
+          : formatReportJSON(compactJsonMode, 'copy_clipboard', !fromDrawerBtn);
+        var txt = pack.json;
+        var out = document.getElementById('forensic-json-output');
+
+        function fallbackCopy() {
+          try {
+            if (isModalOpen && out) {
+              out.focus();
+              out.select();
+              out.setSelectionRange(0, txt.length);
+            }
+            var ta = document.createElement('textarea');
+            ta.value = txt;
+            ta.setAttribute('readonly', '');
+            ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (ok) {
+              showBannerToast('Log JSON Forensik (' + Math.round(txt.length / 1024) + ' KB) berhasil disalin ke clipboard.', false);
+            } else {
+              showBannerToast('Teks JSON telah diblok otomatis — tekan Ctrl+C / Cmd+C untuk menyalin.', true);
+            }
+          } catch (_e) {
+            showBannerToast('Silakan klik kotak teks JSON di bawah lalu tekan Ctrl+C.', true);
+          }
+        }
+
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          return navigator.clipboard.writeText(txt).then(function () {
+            showBannerToast('Log JSON Forensik (' + Math.round(txt.length / 1024) + ' KB) berhasil disalin — siap ditempel (Ctrl+V)!', false);
+            return true;
+          }).catch(function () {
+            fallbackCopy();
+            return false;
+          });
+        }
+        fallbackCopy();
+        return Promise.resolve(true);
+      }
+
+      function downloadForensicJSON() {
+        var pack = formatReportJSON(false, 'download_file', true);
+        var camTag =
+          (pack.report.engineAndWorld &&
+            pack.report.engineAndWorld.cameraAndOptics &&
+            pack.report.engineAndWorld.cameraAndOptics.camMode) ||
+          'SIM';
+        var blob = new Blob([pack.json], { type: 'application/json;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        var stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        a.href = url;
+        a.download = 'KepulauanUI_Forensic_' + camTag + '_' + stamp + '.json';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 250);
+        showBannerToast('Berkas ' + a.download + ' berhasil diunduh.', false);
+      }
+
+      function openForensicModal() {
+        var modal = document.getElementById('forensic-modal');
+        if (!modal) return;
+        logBreadcrumb('forensic_modal_opened', 'Konsol Forensik JSON dibuka');
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
+        if (document.pointerLockElement && document.exitPointerLock) {
+          try { document.exitPointerLock(); } catch (_e) {}
+        }
+        renderModalSnapshot('modal_open');
+      }
+
+      function closeForensicModal() {
+        var modal = document.getElementById('forensic-modal');
+        if (!modal) return;
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+      }
+
+      function toggleForensicModal() {
+        var modal = document.getElementById('forensic-modal');
+        if (!modal) return;
+        if (modal.classList.contains('open')) closeForensicModal();
+        else openForensicModal();
+      }
+
+      window.NexusForensic = {
+        sessionId: sessionId,
+        markMilestone: markMilestone,
+        recordMilestone: markMilestone,
+        logBreadcrumb: logBreadcrumb,
+        recordCustomError: function (kind, msg, extra) {
+          counts.runtimeErrors++;
+          pushErrorEntry({
+            kind: kind || 'custom_error',
+            message: safeStr(msg, 650),
+            extra: extra ? safeStr(extra, 650) : null
+          });
+        },
+        recordWebGLContextEvent: function (isLost) {
+          if (isLost) counts.webglContextLost++;
+          else counts.webglContextRestored++;
+          pushErrorEntry({
+            kind: isLost ? 'webgl_context_lost' : 'webgl_context_restored',
+            message: isLost ? 'WebGL2 context lost pada kanvas utama' : 'WebGL2 context restored pada kanvas utama'
+          });
+        },
+        registerEngineProbe: function (fn) {
+          engineProbeFn = fn;
+          syncHeaderIndicator();
+        },
+        buildReport: function (trigger, runPixelProbe) {
+          return buildReport(trigger || 'api_call', runPixelProbe !== false);
+        },
+        toJSON: function (compact, trigger) {
+          return formatReportJSON(Boolean(compact), trigger || 'to_json', true).json;
+        },
+        copyJSON: copyForensicJSON,
+        downloadJSON: downloadForensicJSON,
+        openModal: openForensicModal,
+        closeModal: closeForensicModal,
+        toggleModal: toggleForensicModal,
+        refreshModal: function () {
+          renderModalSnapshot('manual_refresh');
+          showBannerToast('Snapshot telemetri GPU, 5-point pixel probe, & blackbox 30d diperbarui.', false);
+        },
+        toggleCompactMode: function () {
+          compactJsonMode = !compactJsonMode;
+          var btn = document.getElementById('forensic-compact-btn');
+          if (btn) btn.textContent = compactJsonMode ? '1-Baris: ON' : '1-Baris: OFF';
+          renderModalSnapshot('toggle_compact');
+        },
+        clearLogs: function () {
+          errorLog.length = 0;
+          breadcrumbs.length = 0;
+          counts.runtimeErrors = 0;
+          counts.unhandledRejections = 0;
+          counts.resourceFailures = 0;
+          counts.consoleErrors = 0;
+          counts.consoleWarnings = 0;
+          logBreadcrumb('logs_cleared', 'Riwayat error/warn dibersihkan manual oleh pengguna');
+          renderModalSnapshot('after_clear');
+          showBannerToast('Riwayat error & warning berhasil dibersihkan.', false);
+        },
+        syncHeaderIndicator: syncHeaderIndicator
+      };
+      window.KepulauanUIForensic = window.NexusForensic;
+
+      // Global boot error hook used by module bootstrap fallback
+      window.__showNexusBootError = function (err) {
+        window.NexusForensic.recordCustomError('boot_fatal_error', err);
+        var msg = err && err.message ? err.message : String(err);
+        var stageEl = document.getElementById('loader-stage-text');
+        if (stageEl) {
+          stageEl.textContent = 'Diagnostik Boot: ' + msg + ' (Tekan F9 untuk Log Forensik JSON)';
+          stageEl.style.color = '#ff7b72';
+        }
+      };
+    })();
+  </script>
   <script type="importmap">
     {
       "imports": {
         "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
         "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-        "./main.js": "./main.js?v=637",
-        "./core/AstronomicalSkyCatalog.js": "./core/AstronomicalSkyCatalog.js?v=637",
-        "./core/AudioSynthesizer.js": "./core/AudioSynthesizer.js?v=637",
-        "./core/BatchRenderer.js": "./core/BatchRenderer.js?v=637",
-        "./core/CameraDirector.js": "./core/CameraDirector.js?v=637",
-        "./core/CinematicPostFX.js": "./core/CinematicPostFX.js?v=637",
-        "./core/DepokLiveWeatherService.js": "./core/DepokLiveWeatherService.js?v=637",
-        "./core/GateVerifier.js": "./core/GateVerifier.js?v=637",
-        "./core/HardwareTelemetryGovernor.js": "./core/HardwareTelemetryGovernor.js?v=637",
-        "./core/HumanEyeHDROptics.js": "./core/HumanEyeHDROptics.js?v=637",
-        "./core/MasterSurfaceBuilder.js": "./core/MasterSurfaceBuilder.js?v=637",
-        "./core/PhysicsKernel.js": "./core/PhysicsKernel.js?v=637",
-        "./core/ProceduralTextureFactory.js": "./core/ProceduralTextureFactory.js?v=637",
-        "./core/RainCollisionBake.js": "./core/RainCollisionBake.js?v=637",
-        "./core/RotundaDancingFountain.js": "./core/RotundaDancingFountain.js?v=637",
-        "./core/VideotronYouTubeEngine.js": "./core/VideotronYouTubeEngine.js?v=637",
-        "./core/WeatherOpticsEngine.js": "./core/WeatherOpticsEngine.js?v=637",
-        "./library/landmark/Gedung_Rektorat_UI/AssetMetaAndEnvelope.js": "./library/landmark/Gedung_Rektorat_UI/AssetMetaAndEnvelope.js?v=637",
-        "./library/landmark/Gedung_Rektorat_UI/index.js": "./library/landmark/Gedung_Rektorat_UI/index.js?v=637",
-        "./library/landmark/Gedung_Rektorat_UI/KinematicRig.js": "./library/landmark/Gedung_Rektorat_UI/KinematicRig.js?v=637",
-        "./library/landmark/Gedung_Rektorat_UI/MasterSurfaceKernel.js": "./library/landmark/Gedung_Rektorat_UI/MasterSurfaceKernel.js?v=637",
-        "./library/landmark/Gedung_Rektorat_UI/MaterialShaderBank.js": "./library/landmark/Gedung_Rektorat_UI/MaterialShaderBank.js?v=637",
-        "./library/landmark/Gedung_Rektorat_UI/PrimaryStructure.js": "./library/landmark/Gedung_Rektorat_UI/PrimaryStructure.js?v=637",
-        "./library/landmark/Gedung_Rektorat_UI/SecondarySubdomains.js": "./library/landmark/Gedung_Rektorat_UI/SecondarySubdomains.js?v=637",
-        "./world-gis/AutogenBiomeSpawner.js": "./world-gis/AutogenBiomeSpawner.js?v=637",
-        "./world-gis/CampusTransitAndMarineBuilder.js": "./world-gis/CampusTransitAndMarineBuilder.js?v=637",
-        "./world-gis/DPPDComplexBuilder.js": "./world-gis/DPPDComplexBuilder.js?v=637",
-        "./world-gis/DynamicTrafficAI.js": "./world-gis/DynamicTrafficAI.js?v=637",
-        "./world-gis/FelineAnatomyBuilder.js": "./world-gis/FelineAnatomyBuilder.js?v=637",
-        "./world-gis/FloatingOriginManager.js": "./world-gis/FloatingOriginManager.js?v=637",
-        "./world-gis/HumanAnatomyBuilder.js": "./world-gis/HumanAnatomyBuilder.js?v=637",
-        "./world-gis/HumanShaderMaterial.js": "./world-gis/HumanShaderMaterial.js?v=637",
-        "./world-gis/SplineCorridorBuilder.js": "./world-gis/SplineCorridorBuilder.js?v=637",
-        "./world-gis/TerrainDEMLoader.js": "./world-gis/TerrainDEMLoader.js?v=637",
-        "./world-gis/TropicalGrassField.js": "./world-gis/TropicalGrassField.js?v=637"
+        "./main.js": "./main.js?v=638",
+        "./core/AstronomicalSkyCatalog.js": "./core/AstronomicalSkyCatalog.js?v=638",
+        "./core/AudioSynthesizer.js": "./core/AudioSynthesizer.js?v=638",
+        "./core/BatchRenderer.js": "./core/BatchRenderer.js?v=638",
+        "./core/CameraDirector.js": "./core/CameraDirector.js?v=638",
+        "./core/CinematicPostFX.js": "./core/CinematicPostFX.js?v=638",
+        "./core/DepokLiveWeatherService.js": "./core/DepokLiveWeatherService.js?v=638",
+        "./core/GateVerifier.js": "./core/GateVerifier.js?v=638",
+        "./core/HardwareTelemetryGovernor.js": "./core/HardwareTelemetryGovernor.js?v=638",
+        "./core/HumanEyeHDROptics.js": "./core/HumanEyeHDROptics.js?v=638",
+        "./core/MasterSurfaceBuilder.js": "./core/MasterSurfaceBuilder.js?v=638",
+        "./core/ForensicLogSystem.js": "./core/ForensicLogSystem.js?v=638",
+        "./core/PhysicsKernel.js": "./core/PhysicsKernel.js?v=638",
+        "./core/ProceduralTextureFactory.js": "./core/ProceduralTextureFactory.js?v=638",
+        "./core/RainCollisionBake.js": "./core/RainCollisionBake.js?v=638",
+        "./core/RotundaDancingFountain.js": "./core/RotundaDancingFountain.js?v=638",
+        "./core/VideotronYouTubeEngine.js": "./core/VideotronYouTubeEngine.js?v=638",
+        "./core/WeatherOpticsEngine.js": "./core/WeatherOpticsEngine.js?v=638",
+        "./library/landmark/Gedung_Rektorat_UI/AssetMetaAndEnvelope.js": "./library/landmark/Gedung_Rektorat_UI/AssetMetaAndEnvelope.js?v=638",
+        "./library/landmark/Gedung_Rektorat_UI/index.js": "./library/landmark/Gedung_Rektorat_UI/index.js?v=638",
+        "./library/landmark/Gedung_Rektorat_UI/KinematicRig.js": "./library/landmark/Gedung_Rektorat_UI/KinematicRig.js?v=638",
+        "./library/landmark/Gedung_Rektorat_UI/MasterSurfaceKernel.js": "./library/landmark/Gedung_Rektorat_UI/MasterSurfaceKernel.js?v=638",
+        "./library/landmark/Gedung_Rektorat_UI/MaterialShaderBank.js": "./library/landmark/Gedung_Rektorat_UI/MaterialShaderBank.js?v=638",
+        "./library/landmark/Gedung_Rektorat_UI/PrimaryStructure.js": "./library/landmark/Gedung_Rektorat_UI/PrimaryStructure.js?v=638",
+        "./library/landmark/Gedung_Rektorat_UI/SecondarySubdomains.js": "./library/landmark/Gedung_Rektorat_UI/SecondarySubdomains.js?v=638",
+        "./world-gis/AutogenBiomeSpawner.js": "./world-gis/AutogenBiomeSpawner.js?v=638",
+        "./world-gis/CampusTransitAndMarineBuilder.js": "./world-gis/CampusTransitAndMarineBuilder.js?v=638",
+        "./world-gis/DPPDComplexBuilder.js": "./world-gis/DPPDComplexBuilder.js?v=638",
+        "./world-gis/DynamicTrafficAI.js": "./world-gis/DynamicTrafficAI.js?v=638",
+        "./world-gis/FelineAnatomyBuilder.js": "./world-gis/FelineAnatomyBuilder.js?v=638",
+        "./world-gis/FloatingOriginManager.js": "./world-gis/FloatingOriginManager.js?v=638",
+        "./world-gis/HumanAnatomyBuilder.js": "./world-gis/HumanAnatomyBuilder.js?v=638",
+        "./world-gis/HumanShaderMaterial.js": "./world-gis/HumanShaderMaterial.js?v=638",
+        "./world-gis/SplineCorridorBuilder.js": "./world-gis/SplineCorridorBuilder.js?v=638",
+        "./world-gis/TerrainDEMLoader.js": "./world-gis/TerrainDEMLoader.js?v=638",
+        "./world-gis/TropicalGrassField.js": "./world-gis/TropicalGrassField.js?v=638"
       }
     }
   </script>
@@ -1460,6 +2113,415 @@
       border-radius: 4px;
     }
 
+    /* Live Forensic Status Dot, Error Pill, Drawer 30s Box, & [F9] Full Forensic Modal */
+    .forensic-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ok-green);
+      box-shadow: 0 0 7px rgba(56, 217, 150, 0.72);
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+
+    .forensic-dot.warn {
+      background: var(--ui-gold);
+      box-shadow: 0 0 7px rgba(242, 194, 48, 0.78);
+    }
+
+    .forensic-dot.error {
+      background: #ff5f56;
+      box-shadow: 0 0 9px rgba(255, 95, 86, 0.92);
+      animation: nexusPulse 1.1s ease-in-out infinite;
+    }
+
+    .forensic-err-badge {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      min-width: 15px;
+      height: 15px;
+      padding: 0 4px;
+      border-radius: 999px;
+      background: #e5484d;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 800;
+      line-height: 1;
+      margin-left: 3px;
+    }
+
+    .forensic-err-badge.visible {
+      display: inline-flex;
+    }
+
+    .qdock-forensic-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      position: relative;
+    }
+
+    .forensic-drawer-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .forensic-copy-btn.gold {
+      background: rgba(242, 194, 48, 0.16);
+      border-color: rgba(242, 194, 48, 0.52);
+      color: var(--ui-gold);
+    }
+
+    .forensic-copy-btn.gold:hover {
+      background: rgba(242, 194, 48, 0.28);
+      border-color: var(--ui-gold);
+      color: #fff8dc;
+    }
+
+    .forensic-30s-mini {
+      background: rgba(56, 217, 150, 0.07);
+      border: 1px solid rgba(56, 217, 150, 0.24);
+      border-radius: 6px;
+      padding: 4px 6px;
+      font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+      font-size: 9px;
+      line-height: 1.35;
+      color: #c5f3dd;
+    }
+
+    #forensic-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9500;
+      background: rgba(4, 8, 15, 0.78);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      align-items: center;
+      justify-content: center;
+      padding: 14px;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    #forensic-modal.open {
+      display: flex;
+    }
+
+    .forensic-modal-dialog {
+      width: 100%;
+      max-width: 920px;
+      max-height: 90vh;
+      background: rgba(9, 14, 24, 0.96);
+      border: 1px solid rgba(242, 194, 48, 0.34);
+      border-radius: 16px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.75);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      color: var(--text-main);
+    }
+
+    .forensic-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 11px 15px;
+      background: rgba(15, 22, 36, 0.92);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+    }
+
+    .forensic-modal-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .forensic-modal-title {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      color: var(--ui-gold);
+    }
+
+    .forensic-verdict-pill {
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      border: 1px solid rgba(56, 217, 150, 0.55);
+      background: rgba(56, 217, 150, 0.16);
+      color: var(--ok-green);
+    }
+
+    .forensic-verdict-pill.degraded {
+      border-color: rgba(242, 194, 48, 0.65);
+      background: rgba(242, 194, 48, 0.18);
+      color: var(--ui-gold);
+    }
+
+    .forensic-verdict-pill.critical {
+      border-color: rgba(255, 95, 86, 0.75);
+      background: rgba(255, 95, 86, 0.22);
+      color: #ff8f88;
+    }
+
+    .forensic-modal-sub {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .forensic-btn-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .fmodal-btn {
+      appearance: none;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(24, 34, 52, 0.85);
+      color: #e8eef8;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .fmodal-btn:hover {
+      border-color: rgba(242, 194, 48, 0.55);
+      background: rgba(36, 50, 74, 0.95);
+    }
+
+    .fmodal-btn.primary {
+      background: rgba(56, 217, 150, 0.20);
+      border-color: rgba(56, 217, 150, 0.62);
+      color: #d6ffec;
+    }
+
+    .fmodal-btn.primary:hover {
+      background: rgba(56, 217, 150, 0.32);
+    }
+
+    .fmodal-btn.gold {
+      background: rgba(242, 194, 48, 0.18);
+      border-color: rgba(242, 194, 48, 0.62);
+      color: #fff2be;
+    }
+
+    .fmodal-btn.gold:hover {
+      background: rgba(242, 194, 48, 0.30);
+    }
+
+    .fmodal-btn.danger:hover {
+      border-color: rgba(255, 95, 86, 0.72);
+      color: #ffb3ad;
+    }
+
+    .forensic-toast {
+      display: none;
+      padding: 6px 15px;
+      font-size: 11px;
+      font-weight: 600;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .forensic-toast.visible {
+      display: block;
+    }
+
+    .forensic-toast.ok {
+      background: rgba(20, 72, 52, 0.78);
+      color: #c8ffdf;
+    }
+
+    .forensic-toast.err {
+      background: rgba(92, 58, 14, 0.82);
+      color: #ffe8b3;
+    }
+
+    .forensic-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 6px;
+      padding: 9px 15px;
+      background: rgba(6, 10, 18, 0.75);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 10.5px;
+    }
+
+    .forensic-kpi-box {
+      background: rgba(18, 26, 40, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 8px;
+      padding: 5px 8px;
+      min-width: 0;
+    }
+
+    .forensic-kpi-lbl {
+      font-size: 9.2px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .forensic-kpi-val {
+      font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #eef4fc;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .forensic-30s-panel {
+      padding: 8px 15px;
+      background: rgba(8, 14, 24, 0.88);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .f30s-head-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .f30s-head-title {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--ok-green);
+    }
+
+    .f30s-head-meta {
+      font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+      font-size: 10px;
+      color: #9fb0c7;
+    }
+
+    .f30s-cam-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .f30s-cam-pill {
+      background: rgba(15, 22, 34, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 7px;
+      padding: 4px 7px;
+      font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+      font-size: 9.8px;
+      color: #7d8da3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .f30s-cam-pill.active.ok {
+      background: rgba(24, 58, 46, 0.42);
+      border-color: rgba(56, 217, 150, 0.42);
+      color: #d6ffea;
+    }
+
+    .f30s-cam-pill.active.warn {
+      background: rgba(68, 52, 18, 0.48);
+      border-color: rgba(242, 194, 48, 0.52);
+      color: #ffe9a8;
+    }
+
+    .f30s-diag-line {
+      font-size: 10.5px;
+      color: #b7f5d8;
+      line-height: 1.35;
+    }
+
+    .f30s-events-line {
+      font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+      font-size: 9.6px;
+      color: #9eb0c8;
+      line-height: 1.35;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .forensic-json-body {
+      padding: 10px 15px 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .forensic-json-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .forensic-json-textarea {
+      width: 100%;
+      height: 300px;
+      min-height: 170px;
+      flex: 1;
+      resize: vertical;
+      background: #04070d;
+      color: #7ef2b8;
+      border: 1px solid rgba(86, 204, 242, 0.25);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.42;
+      outline: none;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    .forensic-json-textarea:focus {
+      border-color: var(--ui-gold);
+      box-shadow: 0 0 0 2px rgba(242, 194, 48, 0.18);
+    }
+
+    @media (max-width: 820px) {
+      .forensic-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .f30s-cam-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .forensic-json-textarea {
+        height: 210px;
+      }
+    }
+
     .gate-card {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -2736,6 +3798,11 @@
     <button class="qdock-btn qdock-icon-btn" id="btn-qdock-audio" type="button" title="Hidupkan Suara Alam, Air Mancur, Hujan &amp; Drone (G)">&#128264;</button>
     <button class="qdock-btn qdock-icon-btn" id="btn-qdock-clean" type="button" title="Mode Layar Bersih / Foto Tanpa UI (H)">&#128247;</button>
     <button class="qdock-btn qdock-icon-btn" id="btn-qdock-fullscreen" type="button" title="Layar Penuh">&#9974;</button>
+    <button class="qdock-btn qdock-forensic-btn" id="btn-qdock-forensic" type="button" title="Buka Konsol Log Forensik JSON — Salin &amp; Unduh Log (F9)">
+      <span class="forensic-dot healthy" id="forensic-status-dot"></span>
+      <span>Forensik</span>
+      <span class="forensic-err-badge" id="forensic-err-badge">0</span>
+    </button>
     <button class="qdock-btn qdock-icon-btn" id="btn-qdock-help" type="button" title="Panduan Kontrol &amp; Pintasan Keyboard (?)">?</button>
   </nav>
 
@@ -2753,6 +3820,7 @@
     <div class="help-row"><span>Akrobatik Avata (Roll / Split-S)</span><span class="help-kbd">1 · 2 · 3 · F · M</span></div>
     <div class="help-row"><span>Suara Alam &amp; Mesin Drone</span><span class="help-kbd">G</span></div>
     <div class="help-row"><span>Mode Foto Bersih / Buka Panel</span><span class="help-kbd">H / Tab</span></div>
+    <div class="help-row"><span>Konsol Log Forensik JSON (30d)</span><span class="help-kbd">F9</span></div>
   </div>
 
   <!-- Restore UI Button when Clean Cinema Mode (H) is Active -->
@@ -2781,7 +3849,7 @@
       <button class="tab-btn active" data-tab="explore" type="button">Eksplor</button>
       <button class="tab-btn" data-tab="videotron" type="button">Videotron</button>
       <button class="tab-btn" data-tab="atmos" type="button">Atmosfer</button>
-      <button class="tab-btn" data-tab="audit" type="button">Forensik</button>
+      <button class="tab-btn" data-tab="audit" type="button"><span class="forensic-dot healthy" id="forensic-tab-dot" style="margin-right:4px;"></span>Forensik</button>
     </div>
 
     <div class="drawer-body">
@@ -3067,7 +4135,7 @@
         </div>
       </div>
 
-      <!-- TAB 4: LIGHTWEIGHT ENGINE FORENSIC LOG (GPU + 60s RING BUFFER) & 4-GATE -->
+      <!-- TAB 4: SUBSTANTIVE 30s BLACKBOX + 60s RING BUFFER FORENSIC TELEMETRY & 4-GATE -->
       <div class="tab-pane" id="tab-audit">
         <div class="gate-card">
           <div class="gate-row"><span>Frame Rate</span><strong id="sim-fps">-- FPS</strong></div>
@@ -3079,15 +4147,27 @@
         </div>
         <div class="forensic-card" id="forensic-card">
           <div class="forensic-head-row">
-            <span class="forensic-head-title">Log Forensik GPU (1 Menit)</span>
-            <button id="btn-copy-forensic" class="forensic-copy-btn" type="button" title="Salin ringkasan JSON forensik GPU &amp; 60 detik terakhir">Salin JSON</button>
+            <span class="forensic-head-title">Log Forensik 30d &amp; GPU</span>
+            <span class="forensic-verdict-pill healthy" id="drawer-forensic-verdict" style="font-size:8.5px;padding:1px 6px;">HEALTHY</span>
           </div>
+          <div class="btn-grid-2" style="margin: 2px 0;">
+            <button id="btn-copy-forensic" class="ctrl-btn active" type="button" title="Salin laporan JSON forensik lengkap ke Clipboard">
+              <span class="btn-title" id="btn-copy-forensic-label">&#128203; Salin JSON</span>
+            </button>
+            <button id="btn-download-forensic-drawer" class="ctrl-btn" type="button" title="Unduh berkas .JSON laporan forensik lengkap">
+              <span class="btn-title" id="btn-download-forensic-label">&#128190; Unduh .JSON</span>
+            </button>
+          </div>
+          <button id="btn-open-forensic-modal" class="ctrl-btn" type="button" style="border-color: rgba(242, 194, 48, 0.52); background: rgba(242, 194, 48, 0.14);" title="Buka Konsol Log Forensik JSON Penuh &amp; Probe Piksel (F9)">
+            <span class="btn-title" style="color: var(--ui-gold);">&#128300; Buka Konsol Log Forensik (F9)</span>
+          </button>
           <div class="forensic-mono-meta" id="forensic-gpu-meta">Mendeteksi kapabilitas WebGL2 GPU...</div>
           <div class="forensic-spark-row">
             <span id="forensic-60s-summary">60d: -- FPS</span>
             <span class="forensic-spark" id="forensic-sparkline">&#9605;&#9605;&#9605;&#9605;&#9605;&#9605;</span>
           </div>
           <div class="forensic-mono-meta" id="forensic-60s-detail">Frame -- ms &middot; CPU -- ms &middot; Program --</div>
+          <div class="forensic-30s-mini" id="drawer-forensic-30s-diag">Blackbox 30d: merekam bucket 1 detik &amp; transisi substantif...</div>
           <div class="forensic-log-box" id="forensic-event-log">[00:00] BOOT · Inisialisasi mesin WebGL2...</div>
         </div>
         <div class="ctrl-group">
@@ -3109,6 +4189,153 @@
       </div>
     </div>
   </aside>
+
+  <!-- [F9] Interactive Forensic Telemetry & 30s Rolling Blackbox JSON Console -->
+  <div id="forensic-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="forensic-modal-heading">
+    <div class="forensic-modal-dialog">
+      <div class="forensic-modal-header">
+        <div>
+          <div class="forensic-modal-title-row">
+            <span class="forensic-modal-title" id="forensic-modal-heading">&#128300; FORENSIC TELEMETRY &amp; BLACKBOX LOG (JSON)</span>
+            <span class="forensic-verdict-pill healthy" id="forensic-verdict-badge">HEALTHY</span>
+          </div>
+          <div class="forensic-modal-sub">Diagnostik lengkap WebGL2, 5-Point Pixel Probe, Blackbox 30d (Zero-GC), Dual-Optics, 4-Gate &amp; Atmos 7.1.4 &mdash; salin untuk dianalisis.</div>
+        </div>
+        <div class="forensic-btn-row">
+          <button id="forensic-copy-btn" class="fmodal-btn primary" type="button">&#128203; Salin JSON</button>
+          <button id="forensic-download-btn" class="fmodal-btn gold" type="button">&#128190; Unduh .JSON</button>
+          <button id="forensic-refresh-btn" class="fmodal-btn" type="button">&#128260; Segarkan</button>
+          <button id="forensic-compact-btn" class="fmodal-btn" type="button" title="Ubah ke JSON 1-baris kompak untuk chat">1-Baris: OFF</button>
+          <button id="forensic-clear-btn" class="fmodal-btn danger" type="button" title="Bersihkan riwayat error/warning">Bersihkan</button>
+          <button id="forensic-close-btn" class="fmodal-btn" type="button" aria-label="Tutup Konsol Forensik">&#10005;</button>
+        </div>
+      </div>
+
+      <div id="forensic-toast-banner" class="forensic-toast"></div>
+
+      <div class="forensic-kpi-grid">
+        <div class="forensic-kpi-box">
+          <div class="forensic-kpi-lbl">Error / Warning</div>
+          <div class="forensic-kpi-val" id="fkpi-err">0 err / 0 warn</div>
+        </div>
+        <div class="forensic-kpi-box">
+          <div class="forensic-kpi-lbl">FPS &amp; P95 Frame</div>
+          <div class="forensic-kpi-val" id="fkpi-fps">--</div>
+        </div>
+        <div class="forensic-kpi-box">
+          <div class="forensic-kpi-lbl">WebGL2 / GPU</div>
+          <div class="forensic-kpi-val" id="fkpi-gpu">--</div>
+        </div>
+        <div class="forensic-kpi-box">
+          <div class="forensic-kpi-lbl">Uji Piksel Kanvas</div>
+          <div class="forensic-kpi-val" id="fkpi-canvas">--</div>
+        </div>
+        <div class="forensic-kpi-box">
+          <div class="forensic-kpi-lbl">Audit 4-Gate</div>
+          <div class="forensic-kpi-val" id="fkpi-audit">--</div>
+        </div>
+        <div class="forensic-kpi-box">
+          <div class="forensic-kpi-lbl">Kamera &amp; Optik</div>
+          <div class="forensic-kpi-val" id="fkpi-cam">--</div>
+        </div>
+      </div>
+
+      <div class="forensic-30s-panel">
+        <div class="f30s-head-row">
+          <span class="f30s-head-title">&#9201; Rekaman Bergulir 30 Detik Terakhir (Substantive Blackbox)</span>
+          <span class="f30s-head-meta" id="f30s-window-badge">Merekam 0d / 30d...</span>
+        </div>
+        <div class="f30s-cam-grid">
+          <div class="f30s-cam-pill" id="f30s-cam-mavic">Mavic Udara: --</div>
+          <div class="f30s-cam-pill" id="f30s-cam-avata">Avata 2 FPV: --</div>
+          <div class="f30s-cam-pill" id="f30s-cam-eye">Mata Sivi/FPS: --</div>
+          <div class="f30s-cam-pill" id="f30s-cam-orbit">Orbit / Tur: --</div>
+        </div>
+        <div class="f30s-diag-line" id="f30s-insight-line">Diagnosis 30d: menunggu sampel frame...</div>
+        <div class="f30s-events-line" id="f30s-events-line">Event Substantif: belum ada anomali atau transisi tercatat</div>
+      </div>
+
+      <div class="forensic-json-body">
+        <div class="forensic-json-meta-row">
+          <span id="forensic-size-meta">Session --</span>
+          <span>Pintasan: <strong>F9</strong> buka/tutup &middot; Klik teks JSON untuk blok penuh otomatis</span>
+        </div>
+        <textarea id="forensic-json-output" class="forensic-json-textarea" readonly spellcheck="false"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function bindForensicModalEarlyControls() {
+      if (!window.NexusForensic) return;
+      window.NexusForensic.syncHeaderIndicator();
+      var qBtn = document.getElementById('btn-qdock-forensic');
+      var dOpenBtn = document.getElementById('btn-open-forensic-modal');
+      var dDlBtn = document.getElementById('btn-download-forensic-drawer');
+      var mEl = document.getElementById('forensic-modal');
+      var cBtn = document.getElementById('forensic-close-btn');
+      var cpBtn = document.getElementById('forensic-copy-btn');
+      var dlBtn = document.getElementById('forensic-download-btn');
+      var rfBtn = document.getElementById('forensic-refresh-btn');
+      var cmBtn = document.getElementById('forensic-compact-btn');
+      var clBtn = document.getElementById('forensic-clear-btn');
+      var outTa = document.getElementById('forensic-json-output');
+
+      if (qBtn) qBtn.addEventListener('click', function () { window.NexusForensic.openModal(); });
+      if (dOpenBtn) dOpenBtn.addEventListener('click', function () { window.NexusForensic.openModal(); });
+      if (dDlBtn) {
+        dDlBtn.addEventListener('click', function () {
+          window.NexusForensic.downloadJSON();
+          var dlLbl = document.getElementById('btn-download-forensic-label') || dDlBtn;
+          dlLbl.textContent = '✓ Diunduh!';
+          setTimeout(function () {
+            dlLbl.textContent = '💾 Unduh .JSON';
+          }, 1800);
+        });
+      }
+      if (cBtn) cBtn.addEventListener('click', function () { window.NexusForensic.closeModal(); });
+      if (cpBtn) {
+        cpBtn.addEventListener('click', function () {
+          window.NexusForensic.copyJSON(false).then(function () {
+            cpBtn.textContent = '✓ Tersalin!';
+            setTimeout(function () {
+              cpBtn.textContent = '📋 Salin JSON';
+            }, 1800);
+          });
+        });
+      }
+      if (dlBtn) {
+        dlBtn.addEventListener('click', function () {
+          window.NexusForensic.downloadJSON();
+          dlBtn.textContent = '✓ Diunduh!';
+          setTimeout(function () {
+            dlBtn.textContent = '💾 Unduh .JSON';
+          }, 1800);
+        });
+      }
+      if (rfBtn) rfBtn.addEventListener('click', function () { window.NexusForensic.refreshModal(); });
+      if (cmBtn) cmBtn.addEventListener('click', function () { window.NexusForensic.toggleCompactMode(); });
+      if (clBtn) clBtn.addEventListener('click', function () { window.NexusForensic.clearLogs(); });
+      if (outTa) {
+        outTa.addEventListener('click', function () {
+          outTa.select();
+        });
+      }
+      if (mEl) {
+        mEl.addEventListener('click', function (ev) {
+          if (ev.target === mEl) window.NexusForensic.closeModal();
+        });
+      }
+      window.addEventListener('keydown', function (ev) {
+        if (ev.key === 'F9') {
+          ev.preventDefault();
+          window.NexusForensic.toggleModal();
+        } else if (ev.key === 'Escape' && mEl && mEl.classList.contains('open')) {
+          window.NexusForensic.closeModal();
+        }
+      });
+    })();
+  </script>
 
   <!-- Zero-Latency Inline Preloader Interactivity (Runs Immediately Before Three.js CDN Finishes) -->
   <script>

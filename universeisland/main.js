@@ -155,6 +155,9 @@ function createPreloaderController() {
 }
 
 async function bootstrapNexusSimulator() {
+  if (typeof window !== 'undefined' && window.NexusForensic) {
+    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.38');
+  }
   const preloader = createPreloaderController();
 
   // Stage 0: Instant Local Depok WIB Clock + Fire 100% Asynchronous Open-Meteo Telemetry (0ms Blocking Wait!)
@@ -192,6 +195,7 @@ async function bootstrapNexusSimulator() {
     { RotundaDancingFountain },
     { HardwareTelemetryGovernor },
     { CinematicPostFX },
+    { NexusRolling30sRecorder, createForensicReadOnlyProbe },
     { FloatingOriginManager },
     { TerrainDEMLoader },
     { SplineCorridorBuilder },
@@ -208,6 +212,7 @@ async function bootstrapNexusSimulator() {
     import('./core/RotundaDancingFountain.js'),
     import('./core/HardwareTelemetryGovernor.js'),
     import('./core/CinematicPostFX.js'),
+    import('./core/ForensicLogSystem.js'),
     import('./world-gis/FloatingOriginManager.js'),
     import('./world-gis/TerrainDEMLoader.js'),
     import('./world-gis/SplineCorridorBuilder.js'),
@@ -244,6 +249,9 @@ async function bootstrapNexusSimulator() {
       e.preventDefault();
       webglContextLost = true;
       hwGovernorRef?.logEvent('WEBGL', 'Context lost');
+      if (typeof window !== 'undefined' && window.NexusForensic) {
+        window.NexusForensic.recordWebGLContextEvent(true);
+      }
     },
     false
   );
@@ -253,6 +261,9 @@ async function bootstrapNexusSimulator() {
       webglContextLost = false;
       renderer.shadowMap.needsUpdate = true;
       hwGovernorRef?.logEvent('WEBGL', 'Context restored');
+      if (typeof window !== 'undefined' && window.NexusForensic) {
+        window.NexusForensic.recordWebGLContextEvent(false);
+      }
     },
     false
   );
@@ -307,6 +318,13 @@ async function bootstrapNexusSimulator() {
   const sharedUniforms = createSharedSurfaceUniforms();
   const hwGovernor = new HardwareTelemetryGovernor(renderer, sharedUniforms);
   hwGovernorRef = hwGovernor;
+  const forensicRecorder = new NexusRolling30sRecorder();
+  if (typeof window !== 'undefined' && window.NexusForensic) {
+    window.NexusForensic.markMilestone(
+      'webgl2_renderer_ready',
+      `${hwGovernor.gpuCleanName || 'WebGL2'} · ${hwGovernor.activeTierId || 'TIER_S'}`
+    );
+  }
   const weather = new WeatherOpticsEngine(scene, {
     shadowMapSize: hwGovernor.getActiveTierConfig().shadowMapSize
   });
@@ -317,6 +335,9 @@ async function bootstrapNexusSimulator() {
   // Stage 3: Build Gedung Rektorat UI Class-A Monument (8-Sided Tower + 3-Tier Tajug Pagoda)
   await preloader.advance(3, 44, 'Menyusun Menara Segi-8 & Atap Tajug 3-Tumpang Rektorat UI...', 377118);
   const rektoratAsset = GedungRektoratUIAsset.build({ sharedUniforms });
+  if (typeof window !== 'undefined' && window.NexusForensic) {
+    window.NexusForensic.markMilestone('rektorat_4gates_built', 'Menara Segi-8 & Tajug 3-Tumpang selesai');
+  }
 
   // Stage 4: Build Kepulauan UI (Mata Air, Sungai Berkelok, Danau Kecil, & Air Terjun Niagara Mini)
   await preloader.advance(4, 58, 'Membentuk Mata Air, Sungai Berkelok Pulau U & Air Terjun Niagara Mini Pulau I...', 1002000);
@@ -340,6 +361,12 @@ async function bootstrapNexusSimulator() {
   const sivitasAI = new DynamicTrafficAI(groundHeightFn, sharedUniforms);
   sivitasAI.setSolidWorld(solidWorld);
   const sivitasGroup = sivitasAI.build();
+  if (typeof window !== 'undefined' && window.NexusForensic) {
+    window.NexusForensic.markMilestone(
+      'archipelago_and_sivitas_built',
+      `${sivitasAI.npcs.length} sivitas, ${sivitasAI.cats.length} kucing, armada darat/laut/udara siap`
+    );
+  }
 
   worldRoot.add(terrainGroup, corridorGroup, rotundaFountain.mesh, biomeGroup, rektoratAsset, sivitasGroup);
 
@@ -547,7 +574,36 @@ async function bootstrapNexusSimulator() {
     planarReflHiddenList
   );
   postFX.render(scene, camera, grassField.scene);
-  hwGovernor.recordWarmupSample(performance.now() - tWarm0);
+  const warmupMs = performance.now() - tWarm0;
+  hwGovernor.recordWarmupSample(warmupMs);
+
+  const liveForensicProbe = createForensicReadOnlyProbe({
+    recorder: forensicRecorder,
+    renderer,
+    camera,
+    postFX,
+    grassField,
+    weather,
+    audioSynth,
+    videotron,
+    rotundaFountain,
+    hwGovernor,
+    camDirector,
+    sivitasAI,
+    rektoratAsset,
+    getWebglContextLost: () => webglContextLost,
+    getIsLiveDepok: () => isLiveDepok,
+    getLatestDepokWeather: () => latestDepokWeather,
+    getLatestDepokClock: () => latestDepokClock,
+    isDroneCinemaViewFn: isDroneCinemaView
+  });
+  if (typeof window !== 'undefined' && window.NexusForensic) {
+    window.NexusForensic.registerEngineProbe(liveForensicProbe);
+    window.NexusForensic.markMilestone(
+      'shaders_prewarmed_ready',
+      `Warmup ${warmupMs.toFixed(1)}ms · Programs ${Array.isArray(renderer.info?.programs) ? renderer.info.programs.length : 0}`
+    );
+  }
   await preloader.advance(8, 100, 'Selamat Datang di Kepulauan Universitas Indonesia (Pulau U & I), Depok.', TOTAL_EXPECTED_TRIS);
   preloader.dismiss();
 
@@ -1128,6 +1184,7 @@ async function bootstrapNexusSimulator() {
       if (idx >= 0) lastFpsRoleIdx = idx;
     }
 
+    const prevCamMode = camDirector.mode;
     if (camDirector.mode === targetMode && camDirector.isFPSMode(targetMode) && !opts.forceReset) {
       camDirector.cycleFPSSubject(1);
     } else if (camDirector.mode === 'DRONE_AVATA2_FPV' && targetMode === 'DRONE_AVATA2_FPV' && !opts.fromQuickDock) {
@@ -1138,6 +1195,10 @@ async function bootstrapNexusSimulator() {
       camDirector.setMode(targetMode, opts);
     }
 
+    if (prevCamMode !== camDirector.mode) {
+      forensicRecorder.onCameraSwitch(prevCamMode, camDirector.mode);
+      window.NexusForensic?.logBreadcrumb('camera_switch', `${prevCamMode} -> ${camDirector.mode}`);
+    }
     hwGovernor.logEvent('CAM', camDirector.mode);
     audioSynth.playUiChime(590);
     syncFPSStatusDOM();
@@ -1309,11 +1370,14 @@ async function bootstrapNexusSimulator() {
     const chip = fpsPilotChipEls[i];
     chip.addEventListener('click', () => {
       const slot = Number(chip.getAttribute('data-pilot-slot')) || 0;
+      const prevCam = camDirector.mode;
       if (camDirector.mode !== 'FPS_PILOT') {
         camDirector.setMode('FPS_PILOT', { subjectOffset: slot });
+        forensicRecorder.onCameraSwitch(prevCam, 'FPS_PILOT');
       } else {
         camDirector.setFPSSubjectOffset(slot);
       }
+      window.NexusForensic?.logBreadcrumb('pilot_slot', `Slot ${slot} (${chip.textContent || ''})`);
       syncFPSStatusDOM();
     });
   }
@@ -1360,8 +1424,15 @@ async function bootstrapNexusSimulator() {
     btn.addEventListener('click', () => {
       dismissWelcomeToast();
       arrivalActive = false;
+      const prevCam = camDirector.mode;
       presetBtns.forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
+      const notePresetSwitch = () => {
+        if (prevCam !== camDirector.mode) {
+          forensicRecorder.onCameraSwitch(prevCam, camDirector.mode);
+        }
+        window.NexusForensic?.logBreadcrumb('spot_preset', btn.dataset.preset);
+      };
       if (btn.dataset.preset === 'mobilGolfUI') {
         const cartPose = sivitasAI.getGolfCartPose();
         if (cartPose) {
@@ -1380,6 +1451,7 @@ async function bootstrapNexusSimulator() {
             }
           };
           camDirector.applyOrthoPreset('mobilGolfUI', { ...presets, mobilGolfUI: liveCartPreset });
+          notePresetSwitch();
           syncFPSStatusDOM();
           requestAnimationFrame(syncViewport);
           return;
@@ -1403,6 +1475,7 @@ async function bootstrapNexusSimulator() {
             }
           };
           camDirector.applyOrthoPreset('taxiHeliListrik', { ...presets, taxiHeliListrik: liveHeliPreset });
+          notePresetSwitch();
           syncFPSStatusDOM();
           requestAnimationFrame(syncViewport);
           return;
@@ -1410,11 +1483,13 @@ async function bootstrapNexusSimulator() {
       }
       if (btn.dataset.preset === 'underpassBawahLautInterior' && camera.position.y > -2.0) {
         camDirector.applyOrthoPreset(btn.dataset.preset, presets, { immediate: true });
+        notePresetSwitch();
         syncFPSStatusDOM();
         requestAnimationFrame(syncViewport);
         return;
       }
       camDirector.applyOrthoPreset(btn.dataset.preset, presets);
+      notePresetSwitch();
       syncFPSStatusDOM();
       requestAnimationFrame(syncViewport);
     });
@@ -1650,6 +1725,7 @@ async function bootstrapNexusSimulator() {
     sliderWeatherSpectrumEl.addEventListener('change', () => {
       const spec = WeatherOpticsEngine.evaluateWeatherSpectrum(weather.getTargetWeatherSpectrum());
       hwGovernor.logEvent('CUACA', `Target ${spec.labelId} (${spec.percent}%)`);
+      forensicRecorder.recordSubstantiveEvent('state_change', `Cuaca → ${spec.labelId} (${spec.percent}%)`);
     });
   }
 
@@ -1670,6 +1746,7 @@ async function bootstrapNexusSimulator() {
         'LAUT',
         `Target ${WeatherOpticsEngine.describeSeaStateLabel(hTgt)} (${hTgt.toFixed(2)} m)`
       );
+      forensicRecorder.recordSubstantiveEvent('state_change', `Ombak → ${hTgt.toFixed(2)} m`);
     });
   }
 
@@ -2466,7 +2543,7 @@ async function bootstrapNexusSimulator() {
     }
   });
 
-  // Hardware Profiler, Lightweight 60s Forensic Log, & Adaptive 120-FPS Governor Controls
+  // Hardware Profiler, Substantive 30s Forensic Blackbox, 60s Ring Buffer, & Adaptive 120-FPS Governor Controls
   const elHwTier = document.getElementById('sim-hw-tier');
   const elHwDetail = document.getElementById('sim-hw-detail');
   const elHwGpuName = document.getElementById('sim-hw-gpu-name');
@@ -2474,6 +2551,8 @@ async function bootstrapNexusSimulator() {
   const elForensicSummary = document.getElementById('forensic-60s-summary');
   const elForensicSpark = document.getElementById('forensic-sparkline');
   const elForensicDetail = document.getElementById('forensic-60s-detail');
+  const elForensic30sDiag = document.getElementById('drawer-forensic-30s-diag');
+  const elForensicVerdict = document.getElementById('drawer-forensic-verdict');
   const elForensicEventLog = document.getElementById('forensic-event-log');
   const btnCopyForensic = document.getElementById('btn-copy-forensic');
 
@@ -2513,34 +2592,80 @@ async function bootstrapNexusSimulator() {
         `Frame ${w.avgFrameMs}ms (P95 ${w.p95FrameMs}ms, Peak ${w.peakFrameMs}ms) · CPU ${w.avgCpuMs}ms · ` +
         `${w.bottleneck} · Prog ${w.programs} · Tex ${w.textures}${heapTxt}`;
     }
-    if (elForensicEventLog && snap.events && snap.events.length > 0) {
+
+    const r30 = forensicRecorder.buildRolling30sSnapshot();
+    const syn = r30.forensicSynthesis;
+    if (elForensic30sDiag && syn) {
+      const ov = syn.overall30s;
+      const pe = syn.pipelineEfficiency;
+      const diag0 = syn.bottleneckFindings && syn.bottleneckFindings[0] ? syn.bottleneckFindings[0] : 'Optimal';
+      elForensic30sDiag.textContent =
+        `30d (${r30.capturedSpanSec}d): ${ov.avgFps} FPS · Calls ${pe.avgMainDrawCalls}/25 · Refl ${pe.planarReflPassActivePct}% · ${diag0}`;
+    }
+    if (elForensicVerdict && typeof window !== 'undefined' && window.NexusForensic) {
+      const repLite = window.NexusForensic.buildReport('drawer_poll', false);
+      const verd = repLite.meta.healthVerdict;
+      elForensicVerdict.textContent = verd;
+      elForensicVerdict.className =
+        'forensic-verdict-pill ' +
+        (verd === 'HEALTHY' ? 'healthy' : verd === 'DEGRADED' ? 'degraded' : 'critical');
+    }
+
+    if (elForensicEventLog) {
       const lines = [];
-      const startIdx = Math.max(0, snap.events.length - 12);
-      for (let i = snap.events.length - 1; i >= startIdx; i--) {
-        const ev = snap.events[i];
-        const sec = Math.max(0, Math.floor(ev.tSec || 0));
-        const mm = String(Math.floor(sec / 60)).padStart(2, '0');
-        const ss = String(sec % 60).padStart(2, '0');
-        lines.push(`[${mm}:${ss}] ${ev.tag} · ${ev.msg}`);
+      const subEv = r30.substantiveEvents || [];
+      for (let i = subEv.length - 1; i >= Math.max(0, subEv.length - 6); i--) {
+        const se = subEv[i];
+        if (se.kind === 'camera_switch') {
+          lines.push(`[${se.tRelSec}d] CAM · ${se.from} → ${se.to} (${se.switchFrameMs}ms, ${se.callsAfter}c)`);
+        } else if (se.kind === 'frame_spike') {
+          lines.push(`[${se.tRelSec}d] SPIKE · ${se.frameMs}ms (${se.probableCause})`);
+        } else if (se.kind === 'shader_compile') {
+          lines.push(`[${se.tRelSec}d] SHADER · +${se.addedPrograms} prog (${se.frameMs}ms)`);
+        } else {
+          lines.push(`[${se.tRelSec}d] ${se.detail || se.kind}`);
+        }
       }
-      elForensicEventLog.textContent = lines.join('\n');
+      if (snap.events && snap.events.length > 0) {
+        const startIdx = Math.max(0, snap.events.length - 8);
+        for (let i = snap.events.length - 1; i >= startIdx; i--) {
+          const ev = snap.events[i];
+          const sec = Math.max(0, Math.floor(ev.tSec || 0));
+          const mm = String(Math.floor(sec / 60)).padStart(2, '0');
+          const ss = String(sec % 60).padStart(2, '0');
+          lines.push(`[${mm}:${ss}] ${ev.tag} · ${ev.msg}`);
+        }
+      }
+      if (lines.length > 0) {
+        elForensicEventLog.textContent = lines.slice(0, 12).join('\n');
+      }
     }
   }
   syncForensicDOMHook = syncForensicDOM;
 
   if (btnCopyForensic) {
     btnCopyForensic.addEventListener('click', () => {
-      const jsonStr = hwGovernor.exportForensicLogJSON(renderer, buildForensicContext());
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-        navigator.clipboard
-          .writeText(jsonStr)
-          .then(() => {
-            btnCopyForensic.textContent = 'Tersalin ✓';
-            setTimeout(() => {
-              btnCopyForensic.textContent = 'Salin JSON';
-            }, 1600);
-          })
-          .catch(() => {});
+      const lbl = document.getElementById('btn-copy-forensic-label') || btnCopyForensic;
+      if (typeof window !== 'undefined' && window.NexusForensic) {
+        window.NexusForensic.copyJSON(true).then(() => {
+          lbl.textContent = '✓ Tersalin!';
+          setTimeout(() => {
+            lbl.textContent = '📋 Salin JSON';
+          }, 1800);
+        });
+      } else {
+        const jsonStr = hwGovernor.exportForensicLogJSON(renderer, buildForensicContext());
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          navigator.clipboard
+            .writeText(jsonStr)
+            .then(() => {
+              lbl.textContent = '✓ Tersalin!';
+              setTimeout(() => {
+                lbl.textContent = '📋 Salin JSON';
+              }, 1800);
+            })
+            .catch(() => {});
+        }
       }
       audioSynth.playUiChime(680);
     });
@@ -2568,6 +2693,7 @@ async function bootstrapNexusSimulator() {
       document.querySelectorAll('[data-hwmode]').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       hwGovernor.setMode(btn.dataset.hwmode);
+      forensicRecorder.recordSubstantiveEvent('state_change', `Governor → ${btn.dataset.hwmode}`);
       syncHardwareTelemetryDOM();
       syncForensicDOM();
     });
@@ -2587,6 +2713,7 @@ async function bootstrapNexusSimulator() {
   let forensicUiAccum = 0.0;
   let lastCpuMs = 2.0;
   let lastDrawCalls = 18;
+  let firstFrameMarked = false;
 
   function renderLoop(now) {
     requestAnimationFrame(renderLoop);
@@ -2706,7 +2833,8 @@ async function bootstrapNexusSimulator() {
       });
       videotron.update(camera, window.innerWidth, window.innerHeight, sharedUniforms);
       grassField.update(camera, { windVec: weather.uniforms.uWindVec.value }, sharedUniforms);
-      postFX.updateMode(dt, isDroneCinemaView(), {
+      const droneCinemaNow = isDroneCinemaView();
+      postFX.updateMode(dt, droneCinemaNow, {
         duskFactor: weather.uniforms.uDuskFactor.value,
         nightFactor: weather.uniforms.uNightFactor.value
       });
@@ -2714,6 +2842,7 @@ async function bootstrapNexusSimulator() {
       if (drawBufSize.x !== postFX.width || drawBufSize.y !== postFX.height) {
         postFX.setSize(drawBufSize.x, drawBufSize.y);
       }
+      const shadowRefreshedThisFrame = Boolean(renderer.shadowMap && renderer.shadowMap.needsUpdate);
       const savedPortalAlpha = sharedUniforms.uVideotronPortalAlpha
         ? sharedUniforms.uVideotronPortalAlpha.value
         : 0.0;
@@ -2727,12 +2856,45 @@ async function bootstrapNexusSimulator() {
         TerrainDEMLoader.WATER_LEVEL_Y,
         planarReflHiddenList
       );
+      const reflRanThisFrame = Number(weather.uniforms?.uPlanarReflActive?.value || 0) > 0.5;
+      const reflCallsThisFrame = reflRanThisFrame ? renderer.info.render.calls || 0 : 0;
       if (sharedUniforms.uVideotronPortalAlpha) {
         sharedUniforms.uVideotronPortalAlpha.value = savedPortalAlpha;
       }
       postFX.render(scene, camera);
       lastCpuMs = performance.now() - tCpuStart;
       lastDrawCalls = renderer.info.render.calls;
+
+      if (!firstFrameMarked) {
+        firstFrameMarked = true;
+        if (typeof window !== 'undefined' && window.NexusForensic) {
+          window.NexusForensic.markMilestone(
+            'first_frame_rendered',
+            `${lastDrawCalls} draw calls · ${renderer.info.render.triangles.toLocaleString('id-ID')} tris`
+          );
+        }
+      }
+
+      // Zero-GC 30-second rolling forensic blackbox sample
+      forensicRecorder.recordRenderedFrame({
+        frameMs: Math.max(0.5, rawWallSec * 1000.0),
+        cpuMs: lastCpuMs,
+        mainCalls: postFX.lastWorldDrawCalls || lastDrawCalls,
+        mainTris: postFX.lastWorldTriangles || renderer.info.render.triangles,
+        reflRan: reflRanThisFrame,
+        reflCalls: reflCallsThisFrame,
+        grassVisible: Boolean(grassField.mesh && grassField.mesh.visible),
+        shadowUpdated: shadowRefreshedThisFrame,
+        programsCount: Array.isArray(renderer.info?.programs) ? renderer.info.programs.length : 0,
+        camMode: camDirector.mode,
+        pilotKind: camDirector.lastFPSStatus?.vehicleKind || '',
+        isDroneCinema: droneCinemaNow,
+        posX: camera.position.x,
+        posY: camera.position.y,
+        posZ: camera.position.z,
+        speedMS: Number(camDirector.lastSpeedMS || camDirector._avataSpeed || 0),
+        dpr: hwGovernor.livePixelRatio || renderer.getPixelRatio()
+      });
 
       // Smooth ~12 Hz UI slider & status refresh
       uiTransAccum += dt;
@@ -2743,7 +2905,7 @@ async function bootstrapNexusSimulator() {
         syncAcousticTelemetryDOM();
       }
 
-      // Strictly 1 Hz Forensic GPU + 60s Ring Buffer DOM update ONLY when Forensik tab is open (Zero Bloat!)
+      // Strictly 1 Hz Forensic GPU + 30s/60s Ring Buffer DOM update ONLY when Forensik tab is open (Zero Bloat!)
       forensicUiAccum += rawDt;
       if (forensicUiAccum >= 1.0) {
         forensicUiAccum = 0.0;
@@ -2792,6 +2954,8 @@ async function bootstrapNexusSimulator() {
       videotron,
       rotundaFountain,
       hwGovernor,
+      forensicRecorder,
+      forensic: window.NexusForensic || null,
       camDirector,
       sivitasAI,
       solidWorld,
@@ -2837,7 +3001,7 @@ async function bootstrapNexusSimulator() {
 
   // 2. Stream & Bake 512x512 3D Rain Roof/Canopy Collision Z-Buffer & 1,600 Drip Anchors Asynchronously (< 6ms/frame slices!)
   scheduleAsyncBackgroundTask(() => {
-    weather.bakeSceneCollisionFieldAsync(
+    const pBake = weather.bakeSceneCollisionFieldAsync(
       [worldRoot],
       {
         groundHeightFn,
@@ -2848,6 +3012,13 @@ async function bootstrapNexusSimulator() {
       },
       sharedUniforms
     );
+    if (pBake && typeof pBake.then === 'function') {
+      pBake.then(() => {
+        if (typeof window !== 'undefined' && window.NexusForensic) {
+          window.NexusForensic.markMilestone('rain_collision_zbuffer_baked', '512x512 Z-buffer atap & kanopi siap');
+        }
+      });
+    }
   }, 45);
 }
 
