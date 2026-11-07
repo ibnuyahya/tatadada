@@ -156,7 +156,7 @@ function createPreloaderController() {
 
 async function bootstrapNexusSimulator() {
   if (typeof window !== 'undefined' && window.NexusForensic) {
-    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.40');
+    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.41');
   }
   const preloader = createPreloaderController();
 
@@ -331,6 +331,7 @@ async function bootstrapNexusSimulator() {
   weather.attachRenderer(renderer);
   const waterMaterial = weather.createDanauKenangaWaterMaterial();
   const audioSynth = new AudioSynthesizer();
+  forensicRecorder.attachAudioForensics(audioSynth, hwGovernor);
 
   // Stage 3: Build Gedung Rektorat UI Class-A Monument (8-Sided Tower + 3-Tier Tajug Pagoda)
   await preloader.advance(3, 44, 'Menyusun Menara Segi-8 & Atap Tajug 3-Tumpang Rektorat UI...', 377118);
@@ -2693,6 +2694,7 @@ async function bootstrapNexusSimulator() {
   const elForensicSummary = document.getElementById('forensic-60s-summary');
   const elForensicSpark = document.getElementById('forensic-sparkline');
   const elForensicDetail = document.getElementById('forensic-60s-detail');
+  const elForensicSoundV24 = document.getElementById('forensic-sound-v24');
   const elForensic30sDiag = document.getElementById('drawer-forensic-30s-diag');
   const elForensicVerdict = document.getElementById('drawer-forensic-verdict');
   const elForensicEventLog = document.getElementById('forensic-event-log');
@@ -2733,6 +2735,17 @@ async function bootstrapNexusSimulator() {
       elForensicDetail.textContent =
         `Frame ${w.avgFrameMs}ms (P95 ${w.p95FrameMs}ms, Peak ${w.peakFrameMs}ms) · CPU ${w.avgCpuMs}ms · ` +
         `${w.bottleneck} · Prog ${w.programs} · Tex ${w.textures}${heapTxt}`;
+    }
+    if (elForensicSoundV24 && typeof audioSynth.getForensicSnapshot === 'function') {
+      const sf = audioSynth.getForensicSnapshot(hwGovernor);
+      const hc = sf.hardwareAndContext;
+      const dg = sf.dspGraphInventory;
+      const rh = sf.realtimeHealth;
+      const srTxt = hc.initialized ? `${hc.sampleRateHz}Hz` : 'Siaga';
+      elForensicSoundV24.textContent =
+        `Sound v2.4 [${sf.verdict}] · ${srTxt} · DSP ${dg.totalPersistentNodes}n ` +
+        `(${dg.activeAudibleSubBuses} aktif / ${dg.silentRunningSubBuses} diam, ${dg.uncleanedTransientAuxNodes} aux) · ` +
+        `CPU ${rh.emaUpdateUs}µs · Drift ${rh.lastClockDriftMs}ms (Und ${rh.underrunSuspectCount}) · Lim ${rh.currentLimiterReductionDb}dB`;
     }
 
     const r30 = forensicRecorder.buildRolling30sSnapshot();

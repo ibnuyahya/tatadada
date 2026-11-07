@@ -1666,6 +1666,65 @@ export class AudioSynthesizer {
       listenerSpeedMs: 0.0,
       surfaceMaterial: 'AIR'
     };
+
+    // Zero-GC Sound Engine & Web Audio DSP Forensic Blackbox State (Tahap 1 v2.4 — Strictly Passive)
+    this._forensic = {
+      initAttempts: 0,
+      initDurationMs: 0.0,
+      initErrors: [],
+      resumeAttempts: 0,
+      resumeFailures: 0,
+      stateTransitionsCount: 0,
+      lastStateChange: 'uninitialized',
+      unlockedMilestoneSent: false,
+      requestedLatencyHint: 'default_implicit',
+      lastSimPaused: false,
+      _inGraphBuild: false,
+      nodes: {
+        persistentTotal: 0,
+        oscillators: 0,
+        loopBufferSources: 0,
+        biquadFilters: 0,
+        gainNodes: 0,
+        panners3D: 0,
+        stereoPanners: 0,
+        delayLines: 0,
+        convolvers: 0,
+        waveShapers: 0,
+        compressors: 0,
+        analysers: 0,
+        channelMergers: 0,
+        audioBuffersCount: 0,
+        audioBufferBytes: 0,
+        transientSourceSpawns: 0,
+        liveTransientSources: 0,
+        transientAuxCreated: 0,
+        transientAuxDisconnected: 0
+      },
+      perf: {
+        updateCalls: 0,
+        emaUpdateMs: 0.0,
+        maxUpdateMs: 0.0,
+        overBudgetFrames: 0,
+        updateErrorsCount: 0,
+        lastUpdateError: ''
+      },
+      clock: {
+        accumSec: 0.0,
+        prevPerfMs: 0.0,
+        prevCtxSec: -1.0,
+        checksCount: 0,
+        lastDriftMs: 0.0,
+        maxLagMs: 0.0,
+        underrunSuspectCount: 0,
+        lastUnderrunLagMs: 0.0
+      },
+      limiter: {
+        currentReductionDb: 0.0,
+        peakReductionDb: 0.0,
+        heavyLimitingEvents: 0
+      }
+    };
   }
 
   getAtmosStageSnapshot() {
@@ -1825,6 +1884,118 @@ export class AudioSynthesizer {
     return this._telemetry;
   }
 
+  _markUnlockedMilestoneIfRunning() {
+    const f = this._forensic;
+    if (this.ctx && this.ctx.state === 'running' && !f.unlockedMilestoneSent) {
+      f.unlockedMilestoneSent = true;
+      if (
+        typeof window !== 'undefined' &&
+        window.NexusForensic &&
+        typeof window.NexusForensic.markMilestone === 'function'
+      ) {
+        window.NexusForensic.markMilestone(
+          'web_audio_unlocked',
+          `${this.ctx.sampleRate || 0}Hz · ${f.nodes.persistentTotal} DSP nodes · Atmos 7.1.4`
+        );
+      }
+    }
+  }
+
+  _installForensicNodeCounters(ctx) {
+    if (!ctx || ctx.__nexusSoundForensicWrapped) return;
+    ctx.__nexusSoundForensicWrapped = true;
+    const f = this._forensic;
+    const ns = f.nodes;
+
+    const wrapGainParamPassive = (gainParam) => {
+      if (!gainParam || gainParam.__nexusForensicWrapped) return;
+      gainParam.__nexusForensicWrapped = true;
+      if (typeof gainParam.setTargetAtTime === 'function') {
+        const origTgt = gainParam.setTargetAtTime.bind(gainParam);
+        gainParam.setTargetAtTime = (target, startTime, timeConstant) => {
+          gainParam._lastTgt = target;
+          return origTgt(target, startTime, timeConstant);
+        };
+      }
+      if (typeof gainParam.setValueAtTime === 'function') {
+        const origVal = gainParam.setValueAtTime.bind(gainParam);
+        gainParam.setValueAtTime = (value, startTime) => {
+          gainParam._lastTgt = value;
+          return origVal(value, startTime);
+        };
+      }
+    };
+
+    const wrapFactory = (methodName, persistentKey, kind) => {
+      if (typeof ctx[methodName] !== 'function') return;
+      const orig = ctx[methodName].bind(ctx);
+      ctx[methodName] = (...args) => {
+        const node = orig(...args);
+        if (f._inGraphBuild) {
+          ns.persistentTotal++;
+          if (persistentKey && ns[persistentKey] !== undefined) ns[persistentKey]++;
+          if (methodName === 'createGain' && node && node.gain) {
+            wrapGainParamPassive(node.gain);
+          }
+        } else if (kind === 'source') {
+          ns.transientSourceSpawns++;
+          ns.liveTransientSources++;
+          if (node) {
+            let decremented = false;
+            const onSourceEnded = () => {
+              if (!decremented) {
+                decremented = true;
+                if (ns.liveTransientSources > 0) ns.liveTransientSources--;
+              }
+            };
+            if (typeof node.addEventListener === 'function') {
+              node.addEventListener('ended', onSourceEnded, { once: true });
+            } else {
+              node._forensicOnEnded = onSourceEnded;
+            }
+          }
+        } else if (kind === 'aux') {
+          ns.transientAuxCreated++;
+          if (node && typeof node.disconnect === 'function') {
+            const origDisc = node.disconnect.bind(node);
+            let countedDisc = false;
+            node.disconnect = (...dArgs) => {
+              if (!countedDisc) {
+                countedDisc = true;
+                ns.transientAuxDisconnected++;
+              }
+              return origDisc(...dArgs);
+            };
+          }
+        }
+        return node;
+      };
+    };
+
+    wrapFactory('createOscillator', 'oscillators', 'source');
+    wrapFactory('createBufferSource', 'loopBufferSources', 'source');
+    wrapFactory('createBiquadFilter', 'biquadFilters', 'aux');
+    wrapFactory('createGain', 'gainNodes', 'aux');
+    wrapFactory('createPanner', 'panners3D', 'aux');
+    wrapFactory('createStereoPanner', 'stereoPanners', 'aux');
+    wrapFactory('createDelay', 'delayLines', 'aux');
+    wrapFactory('createWaveShaper', 'waveShapers', 'aux');
+    wrapFactory('createDynamicsCompressor', 'compressors', 'aux');
+    wrapFactory('createConvolver', 'convolvers', 'aux');
+    wrapFactory('createAnalyser', 'analysers', 'aux');
+    wrapFactory('createChannelMerger', 'channelMergers', 'aux');
+
+    if (typeof ctx.createBuffer === 'function') {
+      const origBuf = ctx.createBuffer.bind(ctx);
+      ctx.createBuffer = (numChannels, length, sampleRate) => {
+        const buf = origBuf(numChannels, length, sampleRate);
+        ns.audioBuffersCount++;
+        ns.audioBufferBytes += Math.max(0, (Number(numChannels) || 1) * (Number(length) || 0) * 4);
+        return buf;
+      };
+    }
+  }
+
   toggle(forceState = undefined) {
     if (!this.ctx) {
       this._initContext();
@@ -1835,7 +2006,23 @@ export class AudioSynthesizer {
     this._telemetry.enabled = this.enabled;
 
     if (this.enabled && this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
+      this._forensic.resumeAttempts++;
+      try {
+        const p = this.ctx.resume();
+        if (p && typeof p.then === 'function') {
+          p.then(() => {
+            this._markUnlockedMilestoneIfRunning();
+          }).catch((err) => {
+            this._forensic.resumeFailures++;
+            this.recordExternalError(err, 'ctx.resume');
+          });
+        }
+      } catch (err) {
+        this._forensic.resumeFailures++;
+        this.recordExternalError(err, 'ctx.resume');
+      }
+    } else if (this.enabled && this.ctx.state === 'running') {
+      this._markUnlockedMilestoneIfRunning();
     }
     const target = this._targetMasterLinearGain();
     this.masterGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.14);
@@ -2123,12 +2310,66 @@ export class AudioSynthesizer {
   }
 
   _initContext() {
-    if (typeof window === 'undefined') return;
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
+    const f = this._forensic;
+    const hostObj =
+      typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+    const AudioCtx = hostObj ? hostObj.AudioContext || hostObj.webkitAudioContext : null;
+    if (!AudioCtx) {
+      if (typeof window !== 'undefined' && f.initErrors.length < 8) {
+        f.initErrors.push('Web Audio API (AudioContext) tidak didukung browser');
+      }
+      return;
+    }
 
-    this.ctx = new AudioCtx();
-    const sr = this.ctx.sampleRate;
+    f.initAttempts++;
+    const tInit0 = typeof performance !== 'undefined' && performance.now ? performance.now() : 0.0;
+    try {
+      this.ctx = new AudioCtx();
+    } catch (ctxErr) {
+      const msg = String(ctxErr && ctxErr.message ? ctxErr.message : ctxErr).slice(0, 220);
+      if (f.initErrors.length < 8) f.initErrors.push(msg);
+      if (
+        typeof window !== 'undefined' &&
+        window.NexusForensic &&
+        typeof window.NexusForensic.recordCustomError === 'function'
+      ) {
+        window.NexusForensic.recordCustomError('webaudio_init_error', msg, 'AudioSynthesizer._initContext');
+      }
+      return;
+    }
+
+    this._installForensicNodeCounters(this.ctx);
+    f.lastStateChange = this.ctx.state || 'suspended';
+    if (typeof this.ctx.addEventListener === 'function') {
+      this.ctx.addEventListener('statechange', () => {
+        if (!this.ctx) return;
+        const st = this.ctx.state || 'unknown';
+        f.stateTransitionsCount++;
+        f.lastStateChange = st;
+        f.clock.prevPerfMs = 0.0;
+        f.clock.prevCtxSec = 0.0;
+        if (st === 'running') {
+          this._markUnlockedMilestoneIfRunning();
+        }
+      });
+    }
+
+    f._inGraphBuild = true;
+    try {
+      this._buildPersistentGraph(this.ctx.sampleRate || 48000);
+    } catch (graphErr) {
+      const msg = String(graphErr && graphErr.message ? graphErr.message : graphErr).slice(0, 220);
+      if (f.initErrors.length < 8) f.initErrors.push(`graph_build: ${msg}`);
+      this.recordExternalError(graphErr, '_buildPersistentGraph');
+    } finally {
+      f._inGraphBuild = false;
+      const tInit1 = typeof performance !== 'undefined' && performance.now ? performance.now() : tInit0;
+      f.initDurationMs = Math.max(0.0, +(tInit1 - tInit0).toFixed(2));
+      this._markUnlockedMilestoneIfRunning();
+    }
+  }
+
+  _buildPersistentGraph(sr) {
 
     // 0. Master Subsonic Guard (24 Hz) -> ISO 226 Fletcher-Munson Equal-Loudness -> Safety Compressor -> Destination
     this.worldSumGain = this.ctx.createGain();
@@ -3726,7 +3967,30 @@ export class AudioSynthesizer {
    * Master Real-Time 3D Physical Acoustic World Orchestrator (60–120 Hz, Zero GC).
    */
   updateAcousticWorld(dt, state = {}) {
+    const _tUpd0 = typeof performance !== 'undefined' && performance.now ? performance.now() : 0.0;
     const safeDt = clamp(Number(dt) || 0.016, 0.001, 0.1);
+    const simPaused = Boolean(state && state.simPaused);
+    this._forensic.lastSimPaused = simPaused;
+
+    try {
+      this._updateAcousticWorldCore(safeDt, state);
+    } catch (err) {
+      this.recordExternalError(err, 'updateAcousticWorld');
+    }
+
+    const _tUpd1 = typeof performance !== 'undefined' && performance.now ? performance.now() : _tUpd0;
+    const _updMs = Math.max(0.0, _tUpd1 - _tUpd0);
+    const fp = this._forensic.perf;
+    fp.updateCalls++;
+    fp.emaUpdateMs = fp.updateCalls === 1 ? _updMs : fp.emaUpdateMs * 0.92 + _updMs * 0.08;
+    if (_updMs > fp.maxUpdateMs) fp.maxUpdateMs = _updMs;
+    if (_updMs > 1.5) fp.overBudgetFrames++;
+
+    const ctxNowSec = this.ctx ? Number(this.ctx.currentTime) || 0.0 : 0.0;
+    this._samplePassiveClockAndLimiter(safeDt, ctxNowSec, _tUpd1, simPaused);
+  }
+
+  _updateAcousticWorldCore(safeDt, state = {}) {
     this._simClock += safeDt;
 
     const camera = state.camera || null;
@@ -4206,6 +4470,358 @@ export class AudioSynthesizer {
 
     // 4. Campus Feline Purr & Proximity 3D HRTF Meow + Diurnal Songbirds & Lakeside Frogs
     this._updateBioAcousticMicroEvents(safeDt, now, camMode, sivitasAI, nightFac, rainInt, zone.zoneId);
+  }
+
+  _samplePassiveClockAndLimiter(safeDt, ctxNowSec, perfNowMs, simPaused = false) {
+    const f = this._forensic;
+    const ck = f.clock;
+    ck.accumSec += safeDt;
+    if (ck.accumSec < 1.0) return;
+    ck.accumSec = 0.0;
+
+    // 1. Passively sample native Web Audio DynamicsCompressorNode gain reduction (dB, <= 0)
+    const comp = this.masterCompressor;
+    if (comp && typeof comp.reduction === 'number' && Number.isFinite(comp.reduction)) {
+      const redDb = comp.reduction;
+      f.limiter.currentReductionDb = +redDb.toFixed(2);
+      if (redDb < f.limiter.peakReductionDb) {
+        f.limiter.peakReductionDb = +redDb.toFixed(2);
+      }
+      if (redDb < -6.0) {
+        f.limiter.heavyLimitingEvents++;
+      }
+    }
+
+    // 2. Compare AudioContext hardware render clock vs wall-clock ONLY when actively running & tab visible
+    const isRunning = Boolean(this.ctx && this.ctx.state === 'running' && this.enabled && !simPaused);
+    const isTabVisible = typeof document === 'undefined' || !document.hidden;
+    if (!isRunning || !isTabVisible || perfNowMs <= 0.0) {
+      ck.prevPerfMs = 0.0;
+      ck.prevCtxSec = -1.0;
+      return;
+    }
+
+    if (ck.prevPerfMs > 0.0 && ck.prevCtxSec >= 0.0) {
+      const wallDtSec = (perfNowMs - ck.prevPerfMs) * 0.001;
+      const ctxDtSec = ctxNowSec - ck.prevCtxSec;
+      if (wallDtSec >= 0.75 && wallDtSec <= 2.2 && ctxDtSec >= 0.0) {
+        ck.checksCount++;
+        const lagMs = (wallDtSec - ctxDtSec) * 1000.0;
+        ck.lastDriftMs = +lagMs.toFixed(2);
+        if (lagMs > ck.maxLagMs) {
+          ck.maxLagMs = +lagMs.toFixed(2);
+        }
+        // >24ms audio render-clock stall over 1s foreground playback indicates OS audio callback starvation / underrun
+        if (lagMs > 24.0) {
+          ck.underrunSuspectCount++;
+          ck.lastUnderrunLagMs = +lagMs.toFixed(2);
+        }
+      }
+    }
+    ck.prevPerfMs = perfNowMs;
+    ck.prevCtxSec = ctxNowSec;
+  }
+
+  recordExternalError(err, where = 'audio_runtime') {
+    const fp = this._forensic.perf;
+    fp.updateErrorsCount++;
+    const msg = String(err && err.message ? err.message : err).slice(0, 220);
+    fp.lastUpdateError = `${where}: ${msg}`;
+  }
+
+  resetRollingForensics() {
+    const f = this._forensic;
+    f.perf.updateCalls = 0;
+    f.perf.emaUpdateMs = 0.0;
+    f.perf.maxUpdateMs = 0.0;
+    f.perf.overBudgetFrames = 0;
+    f.perf.updateErrorsCount = 0;
+    f.perf.lastUpdateError = '';
+    f.clock.accumSec = 0.0;
+    f.clock.prevPerfMs = 0.0;
+    f.clock.prevCtxSec = -1.0;
+    f.clock.checksCount = 0;
+    f.clock.lastDriftMs = 0.0;
+    f.clock.maxLagMs = 0.0;
+    f.clock.underrunSuspectCount = 0;
+    f.clock.lastUnderrunLagMs = 0.0;
+    f.limiter.peakReductionDb = f.limiter.currentReductionDb || 0.0;
+    f.limiter.heavyLimitingEvents = 0;
+  }
+
+  getForensicSnapshot(hwGovernor = null) {
+    const f = this._forensic;
+    const ns = f.nodes;
+    const ctx = this.ctx;
+    const hostObj =
+      typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+    const webAudioSupported = Boolean(hostObj && (hostObj.AudioContext || hostObj.webkitAudioContext));
+    const initialized = Boolean(ctx);
+    const ctxState = ctx && ctx.state ? String(ctx.state) : 'uninitialized';
+    const muted = !this.enabled;
+
+    let baseLatencyMs = null;
+    let outputLatencyMs = null;
+    let outputTimestampGapMs = null;
+    let maxChannelCount = null;
+    let channelCount = null;
+    let channelInterp = null;
+
+    if (ctx) {
+      if (typeof ctx.baseLatency === 'number' && Number.isFinite(ctx.baseLatency)) {
+        baseLatencyMs = +(ctx.baseLatency * 1000.0).toFixed(2);
+      }
+      if (typeof ctx.outputLatency === 'number' && Number.isFinite(ctx.outputLatency)) {
+        outputLatencyMs = +(ctx.outputLatency * 1000.0).toFixed(2);
+      }
+      if (typeof ctx.getOutputTimestamp === 'function' && ctxState === 'running') {
+        try {
+          const ts = ctx.getOutputTimestamp();
+          const pNow = typeof performance !== 'undefined' && performance.now ? performance.now() : 0;
+          if (ts && typeof ts.performanceTime === 'number' && ts.performanceTime > 0 && pNow >= ts.performanceTime) {
+            outputTimestampGapMs = +(pNow - ts.performanceTime).toFixed(2);
+          }
+        } catch (_e) {}
+      }
+      if (ctx.destination) {
+        maxChannelCount = ctx.destination.maxChannelCount || 2;
+        channelCount = ctx.destination.channelCount || 2;
+        channelInterp = ctx.destination.channelInterpretation || 'speakers';
+      }
+    }
+
+    // Inspect all 33 persistent DSP sub-buses (21 continuous beds/propulsion + 12 3D Binaural HRTF/Atmos emitters)
+    const em = this._emitters || {};
+    const envBusEntries = [
+      ['campus_breeze', this.breezeGain],
+      ['tropical_rain_roar', this.rainRoarGain],
+      ['raindrop_patter', this.rainPatterGain],
+      ['roof_rain_resonance', this.roofResonanceGain],
+      ['archipelago_surf', this.surfGain],
+      ['subsea_tunnel_hum', this.tunnelHumGain],
+      ['nocturnal_cricket', this.cricketGain],
+      ['avata2_cinewhoop_motor', this.avataMotorGain],
+      ['avata2_prop_wash', this.avataWashGain],
+      ['avata2_prox_whoosh', this.proxWhooshGain],
+      ['mavic3_aerial_hum', this.mavicGain],
+      ['feline_purr_resonator', this.catPurrGain],
+      ['rainforest_canopy_rustle', this.canopyRustleGain],
+      ['afternoon_tonggeret', this.tonggeretGain],
+      ['campus_social_murmur', this.socialMurmurGain],
+      ['rotunda_flag_flutter', this.flagFlutterGain],
+      ['teksas_truss_aeolian', this.trussAeolianGain],
+      ['volcano_fumarole_vent', this.fumaroleGain],
+      ['danau_turap_lapping', this.turapLapGain],
+      ['cockpit_windshield_air', this.cockpitAirGain],
+      ['cockpit_400hz_avionics', this.cockpitAvionicsGain]
+    ];
+    const emitterBusEntries = [
+      ['3d_rotunda_fountain', em.fountain ? em.fountain.gain : null],
+      ['3d_niagara_waterfall', em.waterfall ? em.waterfall.gain : null],
+      ['3d_bikun_yellow_bus', em.bus ? em.bus.gain : null],
+      ['3d_golf_cart_ev', em.cart ? em.cart.gain : null],
+      ['3d_heli_evtol_pkuie', em.heli ? em.heli.gain : null],
+      ['3d_cessna_172_pkuia', em.cessna ? em.cessna.gain : null],
+      ['3d_citation_learjet_pkuib', em.learjet ? em.learjet.gain : null],
+      ['3d_catamaran_ferry', em.ferry ? em.ferry.gain : null],
+      ['3d_flybridge_yacht', em.yacht ? em.yacht.gain : null],
+      ['3d_coastal_vessel', em.coastalBoat ? em.coastalBoat.gain : null],
+      ['3d_videotron_line_array', em.videotron ? em.videotron.gain : null],
+      ['3d_sivitas_npc_voice', em.npcVoice ? em.npcVoice.gain : null]
+    ];
+
+    let activeEnvSubBuses = 0;
+    let silentEnvSubBuses = 0;
+    let active3DEmitterBuses = 0;
+    let silent3DEmitterBuses = 0;
+    const activeBusTop = [];
+    const silentBusSample = [];
+
+    if (initialized) {
+      for (let i = 0; i < envBusEntries.length; i++) {
+        const [name, gNode] = envBusEntries[i];
+        if (!gNode || !gNode.gain) continue;
+        const rawVal = gNode.gain._lastTgt !== undefined ? gNode.gain._lastTgt : gNode.gain.value;
+        if (this.enabled && Number.isFinite(rawVal) && rawVal > 0.0005) {
+          activeEnvSubBuses++;
+          if (activeBusTop.length < 10) activeBusTop.push(`${name}:${rawVal.toFixed(3)}`);
+        } else {
+          silentEnvSubBuses++;
+          if (silentBusSample.length < 10) silentBusSample.push(name);
+        }
+      }
+      for (let i = 0; i < emitterBusEntries.length; i++) {
+        const [name, gNode] = emitterBusEntries[i];
+        if (!gNode || !gNode.gain) continue;
+        const rawVal = gNode.gain._lastTgt !== undefined ? gNode.gain._lastTgt : gNode.gain.value;
+        if (this.enabled && Number.isFinite(rawVal) && rawVal > 0.0005) {
+          active3DEmitterBuses++;
+          if (activeBusTop.length < 10) activeBusTop.push(`${name}:${rawVal.toFixed(3)}`);
+        } else {
+          silent3DEmitterBuses++;
+          if (silentBusSample.length < 10) silentBusSample.push(name);
+        }
+      }
+    }
+
+    const activeAudibleSubBuses = activeEnvSubBuses + active3DEmitterBuses;
+    const silentRunningSubBuses = silentEnvSubBuses + silent3DEmitterBuses;
+    const uncleanedAux = Math.max(0, ns.transientAuxCreated - ns.transientAuxDisconnected);
+
+    const gClass = String(hwGovernor?.gpuClass || '');
+    const aTier = String(hwGovernor?.activeTierId || '');
+    const isLowPowerDevice = Boolean(
+      hwGovernor && (hwGovernor.isMobileDevice || aTier === 'TIER_C' || /INTEGRATED|MOBILE|SOFTWARE/i.test(gClass))
+    );
+
+    let verdict = 'UNINITIALIZED_AWAITING_GESTURE';
+    let advisory = 'Klik tombol Suara di dock bawah untuk mengaktifkan mesin audio Web Audio API & Dolby Atmos 7.1.4.';
+
+    if (
+      (typeof window !== 'undefined' && !webAudioSupported) ||
+      f.initErrors.length > 0 ||
+      f.perf.updateErrorsCount > 0 ||
+      (initialized && ctxState === 'closed')
+    ) {
+      verdict = 'CRITICAL_AUDIO_ERROR';
+      advisory = f.initErrors[0] || f.perf.lastUpdateError || 'Konteks Web Audio tertutup atau gagal diinisialisasi.';
+    } else if (!initialized) {
+      verdict = 'UNINITIALIZED_AWAITING_GESTURE';
+    } else if (muted) {
+      verdict = 'MUTED_BY_USER';
+      advisory = `Audio dibisukan pengguna (graf monolitik ${ns.persistentTotal} node & ${silentRunningSubBuses} sub-bus tetap berputar di audio thread).`;
+    } else if (ctxState === 'suspended' || ctxState === 'interrupted') {
+      verdict = 'AUTOPLAY_SUSPENDED';
+      advisory = 'Konteks Web Audio tertahan kebijakan Autoplay browser — klik kontrol/kanvas sekali untuk membuka kunci suara.';
+    } else if (f.clock.underrunSuspectCount >= 2 || f.perf.emaUpdateMs > 1.8) {
+      verdict = 'AUDIO_UNDERRUN_OR_OVERLOAD';
+      advisory = `Terdeteksi ${f.clock.underrunSuspectCount} gejala audio clock lag/underrun (maks ${f.clock.maxLagMs}ms) dengan ${ns.persistentTotal} node monolitik aktif — kandidat kuat optimasi Tier Audio (Tahap 2).`;
+    } else if (isLowPowerDevice && silentRunningSubBuses >= 15) {
+      verdict = 'MONOLITHIC_DSP_UNOPTIMIZED_FOR_DEVICE';
+      advisory = `Audio berjalan lancar, namun ${silentRunningSubBuses} dari ${activeAudibleSubBuses + silentRunningSubBuses} sub-bus DSP diam masih berputar di perangkat hemat daya (${ns.persistentTotal} node kontinu, ${uncleanedAux} aux transien belum diputus).`;
+    } else {
+      verdict = 'OPTIMAL_AUDIO_RUNNING';
+      advisory = `Web Audio berjalan sehat (${ctx ? ctx.sampleRate : 0}Hz, update ${Math.round(f.perf.emaUpdateMs * 1000)}µs, ${activeAudibleSubBuses} bus berbunyi / ${silentRunningSubBuses} bus diam berputar, ${uncleanedAux} aux transien tersisa).`;
+    }
+
+    const acTel = this.getAcousticTelemetry();
+    const atmosStage = this.getAtmosStageSnapshot();
+
+    return {
+      forensicVersion: 'v2.4',
+      stage: 'STAGE_1_PASSIVE_AUDIT_ZERO_ROUTING_CHANGE',
+      verdict,
+      tierProfile: {
+        tierSystemImplemented: false,
+        activeSoundTier: 'MONOLITHIC_SINGLE_TIER',
+        mixProfile: this.mixProfile,
+        spatialOutputMode: this.spatialOutputMode,
+        panningModel: this.spatialOutputMode === 'SPEAKER' ? 'equalpower' : 'HRTF',
+        atmosLayout: '7.1.4',
+        requestedLatencyHint: f.requestedLatencyHint,
+        recommendedDeviceSoundTier: hwGovernor
+          ? isLowPowerDevice
+            ? 'ECO_OR_BALANCED'
+            : aTier === 'TIER_S'
+              ? 'ULTRA_ATMOS_HRTF'
+              : 'HIGH_SPATIAL'
+          : 'AUTO'
+      },
+      hardwareAndContext: {
+        webAudioSupported,
+        initialized,
+        muted,
+        simPaused: Boolean(f.lastSimPaused),
+        contextState: ctxState,
+        currentTimeSec: ctx ? +ctx.currentTime.toFixed(2) : 0,
+        sampleRateHz: ctx ? ctx.sampleRate || 0 : 0,
+        baseLatencyMs,
+        outputLatencyMs,
+        outputTimestampGapMs,
+        maxChannelCount,
+        channelCount,
+        channelInterpretation: channelInterp,
+        initDurationMs: f.initDurationMs,
+        initAttempts: f.initAttempts,
+        initErrors: f.initErrors.slice(),
+        resumeAttempts: f.resumeAttempts,
+        resumeFailures: f.resumeFailures,
+        stateTransitionsCount: f.stateTransitionsCount,
+        lastStateChange: f.lastStateChange
+      },
+      dspGraphInventory: {
+        totalPersistentNodes: ns.persistentTotal,
+        oscillators: ns.oscillators,
+        loopBufferSources: ns.loopBufferSources,
+        biquadFilters: ns.biquadFilters,
+        gainNodes: ns.gainNodes,
+        panners3D: ns.panners3D,
+        stereoPanners: ns.stereoPanners,
+        delayLines: ns.delayLines,
+        convolvers: ns.convolvers,
+        waveShapers: ns.waveShapers,
+        compressors: ns.compressors,
+        analysers: ns.analysers,
+        channelMergers: ns.channelMergers,
+        proceduralAudioBuffers: ns.audioBuffersCount,
+        proceduralBufferMemoryKB: +(ns.audioBufferBytes / 1024).toFixed(1),
+        totalSubBuses: activeAudibleSubBuses + silentRunningSubBuses,
+        activeAudibleSubBuses,
+        silentRunningSubBuses,
+        activeEnvSubBuses,
+        silentEnvSubBuses,
+        active3DEmitterBuses,
+        silent3DEmitterBuses,
+        activeSubBusSample: activeBusTop,
+        silentSubBusSample: silentBusSample,
+        transientSourceSpawns: ns.transientSourceSpawns,
+        liveTransientSources: ns.liveTransientSources,
+        transientAuxCreated: ns.transientAuxCreated,
+        transientAuxDisconnected: ns.transientAuxDisconnected,
+        uncleanedTransientAuxNodes: uncleanedAux
+      },
+      realtimeHealth: {
+        updateCalls: f.perf.updateCalls,
+        emaUpdateUs: Math.round(f.perf.emaUpdateMs * 1000.0),
+        emaUpdateMs: +f.perf.emaUpdateMs.toFixed(3),
+        maxUpdateMs: +f.perf.maxUpdateMs.toFixed(3),
+        overBudgetFramesOver1p5ms: f.perf.overBudgetFrames,
+        updateErrorsCount: f.perf.updateErrorsCount,
+        lastUpdateError: f.perf.lastUpdateError || null,
+        clockChecks1s: f.clock.checksCount,
+        lastClockDriftMs: f.clock.lastDriftMs,
+        maxClockLagMs: f.clock.maxLagMs,
+        underrunSuspectCount: f.clock.underrunSuspectCount,
+        lastUnderrunLagMs: f.clock.lastUnderrunLagMs,
+        masterVolumePct: Math.round(this.masterVolume * 100),
+        masterGainTarget: +this._targetMasterLinearGain().toFixed(3),
+        currentLimiterReductionDb: f.limiter.currentReductionDb,
+        peakLimiterReductionDb: f.limiter.peakReductionDb,
+        heavyLimitingEvents: f.limiter.heavyLimitingEvents
+      },
+      spatialAtmos: {
+        layout: atmosStage.layout || '7.1.4',
+        spatialMode: atmosStage.spatialMode || this.spatialOutputMode,
+        perspectiveId: acTel.perspectiveId,
+        perspectiveLabel: acTel.perspectiveLabel,
+        zoneId: acTel.zoneId,
+        microBiomeId: acTel.microBiomeId,
+        diurnalPhase: acTel.diurnalPhase,
+        reverbCharacter: acTel.reverbCharacter,
+        reverbSendPct: acTel.reverbSendPct,
+        weatherOcclusionPct: acTel.weatherOcclusionPct,
+        activeAtmosObjects: atmosStage.objectCount || 0,
+        occluded3DSources: acTel.occluded3DSources || 0,
+        dominantSource: acTel.dominantSourceLabel,
+        dominantDoppler: acTel.dominantDoppler,
+        earBedPct: Math.round((atmosStage.earEnergy01 || 0) * 100),
+        heightDomePct: Math.round((atmosStage.heightEnergy01 || 0) * 100),
+        subLfePct: Math.round((atmosStage.lfeEnergy01 || 0) * 100),
+        sfxTriggeredCount: acTel.sfxCount || 0,
+        lastSfxId: acTel.lastSfxId || 'NONE'
+      },
+      advisory
+    };
   }
 
   _updateDynamicFleetAcoustics(dt, sivitasAI, state = {}) {

@@ -245,18 +245,34 @@
             verdictReasons.push(r30Overall.stallsOver50ms + ' frame stall >50ms (puncak ' + r30Overall.worstFrameMs + 'ms)');
           }
         }
+        var sfRep = engineData && engineData.soundForensics ? engineData.soundForensics : null;
+        if (sfRep) {
+          if (sfRep.verdict === 'CRITICAL_AUDIO_ERROR') {
+            if (verdict === 'HEALTHY') verdict = 'DEGRADED';
+            verdictReasons.push('Sound Forensics v2.4: ' + (sfRep.advisory || 'Eror Web Audio'));
+          } else if (sfRep.realtimeHealth && sfRep.realtimeHealth.underrunSuspectCount >= 3) {
+            if (verdict === 'HEALTHY') verdict = 'DEGRADED';
+            verdictReasons.push(
+              'Sound Forensics v2.4: ' +
+                sfRep.realtimeHealth.underrunSuspectCount +
+                ' gejala audio clock lag/underrun (maks ' +
+                sfRep.realtimeHealth.maxClockLagMs +
+                'ms)'
+            );
+          }
+        }
         if (counts.consoleErrors > 0 && verdict === 'HEALTHY') {
           verdict = 'DEGRADED';
           verdictReasons.push(counts.consoleErrors + ' console.error tercatat');
         }
         if (verdictReasons.length === 0) {
-          verdictReasons.push('0 error runtime, WebGL2 sehat, 4-Gate (<= 25 draw calls) lulus, & blackbox 30d optimal');
+          verdictReasons.push('0 error runtime, WebGL2 sehat, 4-Gate (<= 25 draw calls) lulus, Blackbox 30d & Sound v2.4 optimal');
         }
 
         var nav = typeof navigator !== 'undefined' ? navigator : {};
         return {
-          schemaVersion: 'nexus-kepulauan-ui-forensic-v2.2',
-          simulator: 'Kepulauan Universitas Indonesia Depok (Pulau U & I) — v6.40',
+          schemaVersion: 'nexus-kepulauan-ui-forensic-v2.4',
+          simulator: 'Kepulauan Universitas Indonesia Depok (Pulau U & I) — v6.41',
           generatedAtISO: new Date().toISOString(),
           uptimeSec: Math.round((relMs() / 1000) * 100) / 100,
           trigger: trigger || 'manual',
@@ -299,6 +315,7 @@
           },
           bootMilestones: milestones.slice(),
           rolling30s: engineData && engineData.rolling30s ? engineData.rolling30s : null,
+          soundForensics: sfRep,
           webgl: engineData && engineData.webgl ? engineData.webgl : { note: 'Engine WebGL2 belum terdaftar saat laporan dibuat' },
           performance: engineData && engineData.performance ? engineData.performance : null,
           worldLogicalAudit: engineData && engineData.worldLogicalAudit ? engineData.worldLogicalAudit : null,
@@ -352,6 +369,7 @@
         var kPix = document.getElementById('fkpi-canvas');
         var kAud = document.getElementById('fkpi-audit');
         var kCam = document.getElementById('fkpi-cam');
+        var kSnd = document.getElementById('fkpi-sound');
 
         var severe =
           rep.summaryCounts.runtimeErrors +
@@ -402,6 +420,46 @@
             kCam.textContent = co.camMode + ' · ' + optShort;
           } else {
             kCam.textContent = 'n/a';
+          }
+        }
+        if (kSnd) {
+          var sf = rep.soundForensics;
+          if (sf && sf.dspGraphInventory && sf.hardwareAndContext) {
+            var hc = sf.hardwareAndContext;
+            var dg = sf.dspGraphInventory;
+            var rh = sf.realtimeHealth || {};
+            if (!hc.initialized) {
+              kSnd.textContent = 'Siaga · ' + (rh.emaUpdateUs || 0) + 'µs';
+              kSnd.style.color = '#9eb0c8';
+            } else if (hc.muted) {
+              kSnd.textContent = 'Mute · ' + dg.totalPersistentNodes + 'n';
+              kSnd.style.color = '#f2c230';
+            } else {
+              kSnd.textContent = dg.activeAudibleSubBuses + '/' + dg.totalSubBuses + ' bus · ' + dg.totalPersistentNodes + 'n';
+              kSnd.style.color = (sf.verdict === 'CRITICAL_AUDIO_ERROR' || (rh.underrunSuspectCount || 0) > 0) ? '#ff7b72' : '#38d996';
+            }
+            kSnd.title = sf.advisory || sf.verdict;
+          } else {
+            kSnd.textContent = 'n/a';
+          }
+        }
+
+        var elSoundLine = document.getElementById('f30s-sound-line');
+        if (elSoundLine) {
+          var sf2 = rep.soundForensics;
+          if (sf2 && sf2.dspGraphInventory && sf2.realtimeHealth && sf2.hardwareAndContext) {
+            var dg2 = sf2.dspGraphInventory;
+            var rh2 = sf2.realtimeHealth;
+            var hc2 = sf2.hardwareAndContext;
+            elSoundLine.textContent =
+              'Sound v2.4 [' + sf2.verdict + '] · ' +
+              (hc2.initialized ? (hc2.sampleRateHz + 'Hz · ') : 'Belum init · ') +
+              'DSP ' + dg2.totalPersistentNodes + ' node (' + dg2.activeAudibleSubBuses + ' aktif / ' + dg2.silentRunningSubBuses + ' diam, ' +
+              dg2.uncleanedTransientAuxNodes + ' aux sisa) · CPU ' + rh2.emaUpdateUs + 'µs · ' +
+              'Drift ' + rh2.lastClockDriftMs + 'ms (Underrun ' + rh2.underrunSuspectCount + ') · ' +
+              'Limiter ' + rh2.currentLimiterReductionDb + 'dB (pk ' + rh2.peakLimiterReductionDb + 'dB)';
+          } else {
+            elSoundLine.textContent = 'Sound v2.4: menunggu telemetri mesin audio...';
           }
         }
 
@@ -638,7 +696,10 @@
           counts.resourceFailures = 0;
           counts.consoleErrors = 0;
           counts.consoleWarnings = 0;
-          logBreadcrumb('logs_cleared', 'Riwayat error/warn dibersihkan manual oleh pengguna');
+          if (engineProbeFn) {
+            try { engineProbeFn({ clearRolling: true }); } catch (_e) {}
+          }
+          logBreadcrumb('logs_cleared', 'Riwayat error/warn & metrik bergulir dibersihkan manual oleh pengguna');
           renderModalSnapshot('after_clear');
           showBannerToast('Riwayat error & warning berhasil dibersihkan.', false);
         },
@@ -663,42 +724,42 @@
       "imports": {
         "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
         "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-        "./main.js": "./main.js?v=640",
-        "./core/AstronomicalSkyCatalog.js": "./core/AstronomicalSkyCatalog.js?v=640",
-        "./core/AudioSynthesizer.js": "./core/AudioSynthesizer.js?v=640",
-        "./core/BatchRenderer.js": "./core/BatchRenderer.js?v=640",
-        "./core/CameraDirector.js": "./core/CameraDirector.js?v=640",
-        "./core/CinematicPostFX.js": "./core/CinematicPostFX.js?v=640",
-        "./core/DepokLiveWeatherService.js": "./core/DepokLiveWeatherService.js?v=640",
-        "./core/GateVerifier.js": "./core/GateVerifier.js?v=640",
-        "./core/HardwareTelemetryGovernor.js": "./core/HardwareTelemetryGovernor.js?v=640",
-        "./core/HumanEyeHDROptics.js": "./core/HumanEyeHDROptics.js?v=640",
-        "./core/MasterSurfaceBuilder.js": "./core/MasterSurfaceBuilder.js?v=640",
-        "./core/ForensicLogSystem.js": "./core/ForensicLogSystem.js?v=640",
-        "./core/PhysicsKernel.js": "./core/PhysicsKernel.js?v=640",
-        "./core/ProceduralTextureFactory.js": "./core/ProceduralTextureFactory.js?v=640",
-        "./core/RainCollisionBake.js": "./core/RainCollisionBake.js?v=640",
-        "./core/RotundaDancingFountain.js": "./core/RotundaDancingFountain.js?v=640",
-        "./core/VideotronYouTubeEngine.js": "./core/VideotronYouTubeEngine.js?v=640",
-        "./core/WeatherOpticsEngine.js": "./core/WeatherOpticsEngine.js?v=640",
-        "./library/landmark/Gedung_Rektorat_UI/AssetMetaAndEnvelope.js": "./library/landmark/Gedung_Rektorat_UI/AssetMetaAndEnvelope.js?v=640",
-        "./library/landmark/Gedung_Rektorat_UI/index.js": "./library/landmark/Gedung_Rektorat_UI/index.js?v=640",
-        "./library/landmark/Gedung_Rektorat_UI/KinematicRig.js": "./library/landmark/Gedung_Rektorat_UI/KinematicRig.js?v=640",
-        "./library/landmark/Gedung_Rektorat_UI/MasterSurfaceKernel.js": "./library/landmark/Gedung_Rektorat_UI/MasterSurfaceKernel.js?v=640",
-        "./library/landmark/Gedung_Rektorat_UI/MaterialShaderBank.js": "./library/landmark/Gedung_Rektorat_UI/MaterialShaderBank.js?v=640",
-        "./library/landmark/Gedung_Rektorat_UI/PrimaryStructure.js": "./library/landmark/Gedung_Rektorat_UI/PrimaryStructure.js?v=640",
-        "./library/landmark/Gedung_Rektorat_UI/SecondarySubdomains.js": "./library/landmark/Gedung_Rektorat_UI/SecondarySubdomains.js?v=640",
-        "./world-gis/AutogenBiomeSpawner.js": "./world-gis/AutogenBiomeSpawner.js?v=640",
-        "./world-gis/CampusTransitAndMarineBuilder.js": "./world-gis/CampusTransitAndMarineBuilder.js?v=640",
-        "./world-gis/DPPDComplexBuilder.js": "./world-gis/DPPDComplexBuilder.js?v=640",
-        "./world-gis/DynamicTrafficAI.js": "./world-gis/DynamicTrafficAI.js?v=640",
-        "./world-gis/FelineAnatomyBuilder.js": "./world-gis/FelineAnatomyBuilder.js?v=640",
-        "./world-gis/FloatingOriginManager.js": "./world-gis/FloatingOriginManager.js?v=640",
-        "./world-gis/HumanAnatomyBuilder.js": "./world-gis/HumanAnatomyBuilder.js?v=640",
-        "./world-gis/HumanShaderMaterial.js": "./world-gis/HumanShaderMaterial.js?v=640",
-        "./world-gis/SplineCorridorBuilder.js": "./world-gis/SplineCorridorBuilder.js?v=640",
-        "./world-gis/TerrainDEMLoader.js": "./world-gis/TerrainDEMLoader.js?v=640",
-        "./world-gis/TropicalGrassField.js": "./world-gis/TropicalGrassField.js?v=640"
+        "./main.js": "./main.js?v=641",
+        "./core/AstronomicalSkyCatalog.js": "./core/AstronomicalSkyCatalog.js?v=641",
+        "./core/AudioSynthesizer.js": "./core/AudioSynthesizer.js?v=641",
+        "./core/BatchRenderer.js": "./core/BatchRenderer.js?v=641",
+        "./core/CameraDirector.js": "./core/CameraDirector.js?v=641",
+        "./core/CinematicPostFX.js": "./core/CinematicPostFX.js?v=641",
+        "./core/DepokLiveWeatherService.js": "./core/DepokLiveWeatherService.js?v=641",
+        "./core/GateVerifier.js": "./core/GateVerifier.js?v=641",
+        "./core/HardwareTelemetryGovernor.js": "./core/HardwareTelemetryGovernor.js?v=641",
+        "./core/HumanEyeHDROptics.js": "./core/HumanEyeHDROptics.js?v=641",
+        "./core/MasterSurfaceBuilder.js": "./core/MasterSurfaceBuilder.js?v=641",
+        "./core/ForensicLogSystem.js": "./core/ForensicLogSystem.js?v=641",
+        "./core/PhysicsKernel.js": "./core/PhysicsKernel.js?v=641",
+        "./core/ProceduralTextureFactory.js": "./core/ProceduralTextureFactory.js?v=641",
+        "./core/RainCollisionBake.js": "./core/RainCollisionBake.js?v=641",
+        "./core/RotundaDancingFountain.js": "./core/RotundaDancingFountain.js?v=641",
+        "./core/VideotronYouTubeEngine.js": "./core/VideotronYouTubeEngine.js?v=641",
+        "./core/WeatherOpticsEngine.js": "./core/WeatherOpticsEngine.js?v=641",
+        "./library/landmark/Gedung_Rektorat_UI/AssetMetaAndEnvelope.js": "./library/landmark/Gedung_Rektorat_UI/AssetMetaAndEnvelope.js?v=641",
+        "./library/landmark/Gedung_Rektorat_UI/index.js": "./library/landmark/Gedung_Rektorat_UI/index.js?v=641",
+        "./library/landmark/Gedung_Rektorat_UI/KinematicRig.js": "./library/landmark/Gedung_Rektorat_UI/KinematicRig.js?v=641",
+        "./library/landmark/Gedung_Rektorat_UI/MasterSurfaceKernel.js": "./library/landmark/Gedung_Rektorat_UI/MasterSurfaceKernel.js?v=641",
+        "./library/landmark/Gedung_Rektorat_UI/MaterialShaderBank.js": "./library/landmark/Gedung_Rektorat_UI/MaterialShaderBank.js?v=641",
+        "./library/landmark/Gedung_Rektorat_UI/PrimaryStructure.js": "./library/landmark/Gedung_Rektorat_UI/PrimaryStructure.js?v=641",
+        "./library/landmark/Gedung_Rektorat_UI/SecondarySubdomains.js": "./library/landmark/Gedung_Rektorat_UI/SecondarySubdomains.js?v=641",
+        "./world-gis/AutogenBiomeSpawner.js": "./world-gis/AutogenBiomeSpawner.js?v=641",
+        "./world-gis/CampusTransitAndMarineBuilder.js": "./world-gis/CampusTransitAndMarineBuilder.js?v=641",
+        "./world-gis/DPPDComplexBuilder.js": "./world-gis/DPPDComplexBuilder.js?v=641",
+        "./world-gis/DynamicTrafficAI.js": "./world-gis/DynamicTrafficAI.js?v=641",
+        "./world-gis/FelineAnatomyBuilder.js": "./world-gis/FelineAnatomyBuilder.js?v=641",
+        "./world-gis/FloatingOriginManager.js": "./world-gis/FloatingOriginManager.js?v=641",
+        "./world-gis/HumanAnatomyBuilder.js": "./world-gis/HumanAnatomyBuilder.js?v=641",
+        "./world-gis/HumanShaderMaterial.js": "./world-gis/HumanShaderMaterial.js?v=641",
+        "./world-gis/SplineCorridorBuilder.js": "./world-gis/SplineCorridorBuilder.js?v=641",
+        "./world-gis/TerrainDEMLoader.js": "./world-gis/TerrainDEMLoader.js?v=641",
+        "./world-gis/TropicalGrassField.js": "./world-gis/TropicalGrassField.js?v=641"
       }
     }
   </script>
@@ -2354,7 +2415,7 @@
 
     .forensic-kpi-grid {
       display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
+      grid-template-columns: repeat(7, minmax(0, 1fr));
       gap: 6px;
       padding: 9px 15px;
       background: rgba(6, 10, 18, 0.75);
@@ -4167,6 +4228,7 @@
             <span class="forensic-spark" id="forensic-sparkline">&#9605;&#9605;&#9605;&#9605;&#9605;&#9605;</span>
           </div>
           <div class="forensic-mono-meta" id="forensic-60s-detail">Frame -- ms &middot; CPU -- ms &middot; Program --</div>
+          <div class="forensic-mono-meta" id="forensic-sound-v24">Sound v2.4: menunggu audit graf DSP Web Audio...</div>
           <div class="forensic-30s-mini" id="drawer-forensic-30s-diag">Blackbox 30d: merekam bucket 1 detik &amp; transisi substantif...</div>
           <div class="forensic-log-box" id="forensic-event-log">[00:00] BOOT · Inisialisasi mesin WebGL2...</div>
         </div>
@@ -4199,7 +4261,7 @@
             <span class="forensic-modal-title" id="forensic-modal-heading">&#128300; FORENSIC TELEMETRY &amp; BLACKBOX LOG (JSON)</span>
             <span class="forensic-verdict-pill healthy" id="forensic-verdict-badge">HEALTHY</span>
           </div>
-          <div class="forensic-modal-sub">Diagnostik lengkap WebGL2, 5-Point Pixel Probe, Blackbox 30d (Zero-GC), Dual-Optics, 4-Gate &amp; Atmos 7.1.4 &mdash; salin untuk dianalisis.</div>
+          <div class="forensic-modal-sub">Diagnostik lengkap WebGL2, 5-Point Pixel Probe, Blackbox 30d (Zero-GC), Forensik Sound v2.4 (DSP &amp; Atmos 7.1.4), Dual-Optics &amp; 4-Gate &mdash; salin untuk dianalisis.</div>
         </div>
         <div class="forensic-btn-row">
           <button id="forensic-copy-btn" class="fmodal-btn primary" type="button">&#128203; Salin JSON</button>
@@ -4238,6 +4300,10 @@
           <div class="forensic-kpi-lbl">Kamera &amp; Optik</div>
           <div class="forensic-kpi-val" id="fkpi-cam">--</div>
         </div>
+        <div class="forensic-kpi-box">
+          <div class="forensic-kpi-lbl">Sound DSP v2.4</div>
+          <div class="forensic-kpi-val" id="fkpi-sound">--</div>
+        </div>
       </div>
 
       <div class="forensic-30s-panel">
@@ -4252,6 +4318,7 @@
           <div class="f30s-cam-pill" id="f30s-cam-orbit">Orbit / Tur: --</div>
         </div>
         <div class="f30s-diag-line" id="f30s-insight-line">Diagnosis 30d: menunggu sampel frame...</div>
+        <div class="f30s-events-line" id="f30s-sound-line">Sound v2.4: menunggu telemetri mesin audio...</div>
         <div class="f30s-events-line" id="f30s-events-line">Event Substantif: belum ada anomali atau transisi tercatat</div>
       </div>
 

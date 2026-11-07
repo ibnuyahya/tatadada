@@ -175,6 +175,15 @@ export class NexusRolling30sRecorder {
       typeof performance !== 'undefined' && performance.now ? performance.now() : 0.0;
     this._virtualClockSec = 0.0;
 
+    // Forensik Sound v2.4 (Tahap 1) 1Hz Passive Audio Blackbox Trackers
+    this.audioSynth = options.audioSynth || null;
+    this.hwGovernor = options.hwGovernor || null;
+    this.lastAudioCtxState = 'uninitialized';
+    this.lastAudioMuted = true;
+    this.lastAudioUnderruns = 0;
+    this.lastAudioHeavyLimits = 0;
+    this.lastAudioErrors = 0;
+
     if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('blur', () => {
         this.windowUnfocused = true;
@@ -219,6 +228,46 @@ export class NexusRolling30sRecorder {
     this.pendingCamTo = toMode || 'DRONE_6DOF';
     this.pendingCamCallsBefore = this.lastMainCalls;
     this.pendingCamProgsBefore = this.lastKnownPrograms >= 0 ? this.lastKnownPrograms : 0;
+  }
+
+  attachAudioForensics(audioSynth, hwGovernor = null) {
+    if (audioSynth) {
+      this.audioSynth = audioSynth;
+      this.lastAudioCtxState =
+        audioSynth.ctx && audioSynth.ctx.state ? String(audioSynth.ctx.state) : 'uninitialized';
+      this.lastAudioMuted = !Boolean(audioSynth.enabled);
+    }
+    if (hwGovernor) {
+      this.hwGovernor = hwGovernor;
+    }
+  }
+
+  clearRollingHistory() {
+    this.bHead = 0;
+    this.bFilled = 0;
+    this.evHead = 0;
+    this.evFilled = 0;
+    this.accFrames = 0;
+    this.accMsSum = 0.0;
+    this.accMaxMs = 0.0;
+    this.accCpuSum = 0.0;
+    this.accHitch25 = 0;
+    this.accStall50 = 0;
+    this.accMainCallsSum = 0;
+    this.accMainTrisSum = 0;
+    this.accReflRuns = 0;
+    this.accReflCallsSum = 0;
+    this.accGrassRuns = 0;
+    this.accShadowRuns = 0;
+    this.dtRing.fill(0);
+    this.dtCursor = 0;
+    this.totalFrames = 0;
+    this.lastAudioUnderruns = 0;
+    this.lastAudioHeavyLimits = 0;
+    this.lastAudioErrors = 0;
+    if (this.audioSynth && typeof this.audioSynth.resetRollingForensics === 'function') {
+      this.audioSynth.resetRollingForensics();
+    }
   }
 
   recordSubstantiveEvent(kind, detail, extra = null) {
@@ -284,6 +333,61 @@ export class NexusRolling30sRecorder {
         reflCalls: avgReflCalls,
         bottleneckHint: hint
       });
+    }
+
+    // Passive 1Hz Sound Forensics v2.4 Event Audit (Zero audio-graph mutation)
+    if (this.audioSynth && this.audioSynth._forensic) {
+      const af = this.audioSynth._forensic;
+      const curAudState =
+        this.audioSynth.ctx && this.audioSynth.ctx.state
+          ? String(this.audioSynth.ctx.state)
+          : 'uninitialized';
+      const curAudMuted = !Boolean(this.audioSynth.enabled);
+      if (curAudState !== this.lastAudioCtxState) {
+        this._pushEventObj({
+          tSec: nowSec,
+          kind: 'audio_state_change',
+          detail: `Web Audio context ${this.lastAudioCtxState} → ${curAudState}`,
+          from: this.lastAudioCtxState,
+          to: curAudState
+        });
+        this.lastAudioCtxState = curAudState;
+      }
+      if (curAudMuted !== this.lastAudioMuted) {
+        this.lastAudioMuted = curAudMuted;
+        this._pushEventObj({
+          tSec: nowSec,
+          kind: 'audio_state_change',
+          detail: curAudMuted ? 'Audio dibisukan pengguna (mute)' : 'Audio diaktifkan pengguna (unmute)'
+        });
+      }
+      if (af.clock && af.clock.underrunSuspectCount > this.lastAudioUnderruns) {
+        this.lastAudioUnderruns = af.clock.underrunSuspectCount;
+        this._pushEventObj({
+          tSec: nowSec,
+          kind: 'audio_underrun_lag',
+          lagMs: af.clock.lastUnderrunLagMs,
+          count: this.lastAudioUnderruns,
+          detail: `Lag clock Web Audio ${af.clock.lastUnderrunLagMs}ms (>24ms gejala underrun ke-${this.lastAudioUnderruns})`
+        });
+      }
+      if (af.limiter && af.limiter.heavyLimitingEvents > this.lastAudioHeavyLimits) {
+        this.lastAudioHeavyLimits = af.limiter.heavyLimitingEvents;
+        this._pushEventObj({
+          tSec: nowSec,
+          kind: 'audio_limiter_overload',
+          reductionDb: af.limiter.currentReductionDb,
+          detail: `Master compressor/limiter kompresi berat (${af.limiter.currentReductionDb} dB)`
+        });
+      }
+      if (af.perf && af.perf.updateErrorsCount > this.lastAudioErrors) {
+        this.lastAudioErrors = af.perf.updateErrorsCount;
+        this._pushEventObj({
+          tSec: nowSec,
+          kind: 'audio_error',
+          detail: `Eror runtime audio: ${af.perf.lastUpdateError}`
+        });
+      }
     }
 
     this.curWindowStartSec = nowSec;
@@ -737,12 +841,42 @@ export class NexusRolling30sRecorder {
         'Gunakan Penakar Hardware Otomatis / Tier B untuk menyesuaikan DPR & frekuensi bayangan.'
       );
     }
+    const audSnap30s =
+      this.audioSynth && typeof this.audioSynth.getForensicSnapshot === 'function'
+        ? this.audioSynth.getForensicSnapshot(this.hwGovernor || null)
+        : null;
+    if (audSnap30s) {
+      if (audSnap30s.verdict === 'CRITICAL_AUDIO_ERROR') {
+        bottleneckFindings.push(`Mesin Web Audio mengalami eror: ${audSnap30s.advisory}`);
+      } else if (audSnap30s.realtimeHealth.underrunSuspectCount > 0) {
+        bottleneckFindings.push(
+          `Terdeteksi ${audSnap30s.realtimeHealth.underrunSuspectCount} gejala audio clock lag/underrun (maks ${audSnap30s.realtimeHealth.maxClockLagMs}ms) dengan ${audSnap30s.dspGraphInventory.totalPersistentNodes} node DSP kontinu.`
+        );
+        improvementOpportunities.push(
+          `Kandidat optimasi Tahap 2: sistem Tier Audio adaptif & pemutusan ${audSnap30s.dspGraphInventory.silentRunningSubBuses} sub-bus DSP diam.`
+        );
+      } else if (audSnap30s.realtimeHealth.emaUpdateMs > 1.5) {
+        bottleneckFindings.push(
+          `Update parameter audio main-thread tinggi (${audSnap30s.realtimeHealth.emaUpdateMs}ms rata-rata, maks ${audSnap30s.realtimeHealth.maxUpdateMs}ms).`
+        );
+      }
+    }
     if (bottleneckFindings.length === 0) {
       bottleneckFindings.push(
         `0 bottleneck terdeteksi: pagu Gate-4 terjaga (${avgMainCalls30s}/25 calls), shader pre-warm stabil, dan pipa optik berjalan mulus.`
       );
       improvementOpportunities.push(
         'Pipeline optimal (Single-Pass Batching + Toroidal 3D Grass Culling + Planar Mirror Reflection + Adaptive Governor aktif).'
+      );
+    }
+    if (
+      audSnap30s &&
+      audSnap30s.hardwareAndContext.initialized &&
+      audSnap30s.dspGraphInventory.silentRunningSubBuses >= 15 &&
+      audSnap30s.realtimeHealth.underrunSuspectCount === 0
+    ) {
+      improvementOpportunities.push(
+        `Profil DSP Audio (Tahap 1 v2.4): ${audSnap30s.dspGraphInventory.totalPersistentNodes} node kontinu aktif (${audSnap30s.dspGraphInventory.activeAudibleSubBuses} bus berbunyi, ${audSnap30s.dspGraphInventory.silentRunningSubBuses} bus diam berputar, ${audSnap30s.dspGraphInventory.uncleanedTransientAuxNodes} aux transien tersisa) — siap dihemat pada Tier Audio Tahap 2.`
       );
     }
 
@@ -782,6 +916,23 @@ export class NexusRolling30sRecorder {
           shadowMapRefreshPct: shadowUpdatePct,
           activeShaderPrograms: this.lastKnownPrograms >= 0 ? this.lastKnownPrograms : 0
         },
+        audioEfficiency: audSnap30s
+          ? {
+              verdict: audSnap30s.verdict,
+              initialized: audSnap30s.hardwareAndContext.initialized,
+              muted: audSnap30s.hardwareAndContext.muted,
+              contextState: audSnap30s.hardwareAndContext.contextState,
+              sampleRateHz: audSnap30s.hardwareAndContext.sampleRateHz,
+              emaUpdateUs: audSnap30s.realtimeHealth.emaUpdateUs,
+              maxUpdateMs: audSnap30s.realtimeHealth.maxUpdateMs,
+              persistentNodes: audSnap30s.dspGraphInventory.totalPersistentNodes,
+              activeAudibleSubBuses: audSnap30s.dspGraphInventory.activeAudibleSubBuses,
+              silentRunningSubBuses: audSnap30s.dspGraphInventory.silentRunningSubBuses,
+              uncleanedTransientAuxNodes: audSnap30s.dspGraphInventory.uncleanedTransientAuxNodes,
+              underrunSuspects: audSnap30s.realtimeHealth.underrunSuspectCount,
+              peakLimiterReductionDb: audSnap30s.realtimeHealth.peakLimiterReductionDb
+            }
+          : null,
         bottleneckFindings,
         improvementOpportunities
       },
@@ -816,7 +967,15 @@ export function createForensicReadOnlyProbe(deps) {
     isDroneCinemaViewFn
   } = deps;
 
-  return function readOnlyForensicSnapshot() {
+  if (recorder && typeof recorder.attachAudioForensics === 'function' && !recorder.audioSynth && audioSynth) {
+    recorder.attachAudioForensics(audioSynth, hwGovernor || null);
+  }
+
+  return function readOnlyForensicSnapshot(opts = null) {
+    if (opts && opts.clearRolling && recorder && typeof recorder.clearRollingHistory === 'function') {
+      recorder.clearRollingHistory();
+      return { cleared: true };
+    }
     const contextLost = typeof getWebglContextLost === 'function' ? Boolean(getWebglContextLost()) : false;
     const perfNow = recorder.getInstantPerformanceStats();
     const hwSnap = hwGovernor ? hwGovernor.getForensicSnapshot(renderer, {}) : null;
@@ -882,6 +1041,10 @@ export function createForensicReadOnlyProbe(deps) {
     const atmosStage = audioSynth && typeof audioSynth.getAtmosStageSnapshot === 'function'
       ? audioSynth.getAtmosStageSnapshot()
       : null;
+    const soundForensics =
+      audioSynth && typeof audioSynth.getForensicSnapshot === 'function'
+        ? audioSynth.getForensicSnapshot(hwGovernor || null)
+        : null;
 
     const sunDirY = weather?.uniforms?.uTrueSunDir?.value?.y ?? 0;
     const sunElevDeg = +((Math.asin(Math.max(-1, Math.min(1, sunDirY))) * 180) / Math.PI).toFixed(2);
@@ -893,6 +1056,7 @@ export function createForensicReadOnlyProbe(deps) {
 
     return {
       rolling30s: recorder.buildRolling30sSnapshot(),
+      soundForensics,
       webgl: {
         contextAvailable: !contextLost,
         isWebGL2: Boolean(renderer?.capabilities?.isWebGL2 ?? true),
