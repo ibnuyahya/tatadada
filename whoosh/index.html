@@ -19,6 +19,7 @@ compactJson: false,
 modalOpen: false,
 webglContextLostCount: 0,
 webglContextRestoredCount: 0,
+webglCreationErrors: [],
 milestones: [{ stage: 'forensic_early_hook_installed', tMs: 0 }],
 errors: [],
 rejections: [],
@@ -58,7 +59,7 @@ function updateBadgeUI() {
 const dot = document.getElementById('forensic-status-dot');
 const cntEl = document.getElementById('forensic-err-badge');
 const bootCntEl = document.getElementById('boot-forensic-badge');
-const critCount = state.errors.length + state.rejections.length + state.resourceFailures.length + state.webglContextLostCount;
+const critCount = state.errors.length + state.rejections.length + state.resourceFailures.length + state.webglContextLostCount + state.webglCreationErrors.length;
 const warnCount = state.consoleErrors.length + state.consoleWarnings.length;
 const total = critCount + state.consoleErrors.length;
 if (dot) {
@@ -213,6 +214,7 @@ limitMB: Math.round(performance.memory.jsHeapSizeLimit / 1048576)
 const r3m = engineSnap.rolling3m || null;
 const r3mOvr = r3m && r3m.forensicSynthesis ? r3m.forensicSynthesis.overall3m : null;
 const wheelAudit = engineSnap.worldLogicalAudit ? engineSnap.worldLogicalAudit.wheelRailSeatingAudit : null;
+const gpuOpt = engineSnap.webgl && engineSnap.webgl.gpuOptimality ? engineSnap.webgl.gpuOptimality : null;
 const criticalCDNFailed = state.resourceFailures.some(function (r) {
 return /three|bundle|wasm|whoosh\.bin/i.test(r.url || '');
 });
@@ -224,12 +226,15 @@ criticalCDNFailed ||
 (typeof engineProbeFn === 'function' && engineSnap.threeLoaded === false) ||
 (engineSnap.webgl && engineSnap.webgl.contextAvailable === false) ||
 (engineSnap.webgl && engineSnap.webgl.renderErrorCount > 0) ||
+(gpuOpt && gpuOpt.verdict === 'CRITICAL_CONTEXT_UNHEALTHY') ||
 (wheelAudit && wheelAudit.floatingWheels > 0)
 ) {
 healthVerdict = 'CRITICAL_ERROR';
 } else if (
 state.consoleErrors.length > 0 ||
 state.resourceFailures.length > 0 ||
+state.webglCreationErrors.length > 0 ||
+(gpuOpt && (gpuOpt.verdict === 'SUBOPTIMAL_SOFTWARE_FALLBACK' || gpuOpt.verdict === 'CONTEXT_FALLBACK_RECOVERED')) ||
 (engineSnap.worldLogicalAudit && engineSnap.worldLogicalAudit.auditPassed === false) ||
 (engineSnap.performance && engineSnap.performance.totalFramesRendered > 30 && engineSnap.performance.avgFps < 28) ||
 (r3mOvr && r3mOvr.totalFrames >= 60 && (r3mOvr.avgFps < 34 || r3mOvr.stallsOver50ms >= 8))
@@ -280,11 +285,13 @@ consoleErrors: state.consoleErrors.length,
 consoleWarnings: state.consoleWarnings.length,
 longTasksOver75ms: state.longTasks.length,
 webglContextLost: state.webglContextLostCount,
-webglContextRestored: state.webglContextRestoredCount
+webglContextRestored: state.webglContextRestoredCount,
+webglCreationErrors: state.webglCreationErrors.length
 },
 errors: state.errors.slice(),
 unhandledRejections: state.rejections.slice(),
 resourceFailures: state.resourceFailures.slice(),
+webglCreationErrors: state.webglCreationErrors.slice(),
 consoleErrors: state.consoleErrors.slice(),
 consoleWarnings: state.consoleWarnings.slice(-25),
 longTasks: state.longTasks.slice(-24),
@@ -336,8 +343,14 @@ setTxt('fkpi-fps', perf
 ? (perf.avgFps + ' FPS (P95 ' + perf.p95FrameMs + 'ms • ' + perf.activeQualityTier + ')')
 : 'Memuat...');
 const wgl = report.webglAndGpu;
+const gOpt = wgl && wgl.gpuOptimality ? wgl.gpuOptimality : null;
+const gTag = gOpt
+? (gOpt.verdict === 'SUBOPTIMAL_SOFTWARE_FALLBACK'
+? 'SW-CPU'
+: (gOpt.gpuClass === 'TIER_C_WORK_IGPU' ? 'iGPU-OPT' : (gOpt.supersamplingActive ? 'SSAA-OPT' : 'HW-OPT')))
+: 'GPU';
 setTxt('fkpi-gpu', wgl && wgl.renderStats
-? ((wgl.msaaSamples || 0) + 'x MSAA • ' + wgl.renderStats.calls + ' DC • ' + Math.round((wgl.renderStats.triangles || 0) / 1000) + 'k Tris')
+? (gTag + ' • ' + (wgl.msaaSamples || 0) + 'x MSAA • DPR ' + (wgl.pixelRatio || 1) + 'x • ' + wgl.renderStats.calls + ' DC')
 : 'Menunggu GPU');
 const dBuf = wgl && wgl.drawingBufferSize;
 setTxt('fkpi-canvas', wgl
@@ -529,6 +542,7 @@ state.resourceFailures.length = 0;
 state.consoleErrors.length = 0;
 state.consoleWarnings.length = 0;
 state.longTasks.length = 0;
+state.webglCreationErrors.length = 0;
 state.breadcrumbs.length = 0;
 if (typeof engineProbeFn === 'function') {
 try { engineProbeFn({ clearRolling: true }); } catch (_e) {}
@@ -553,6 +567,15 @@ recordWebGLContextEvent: function (lost) {
 if (lost) state.webglContextLostCount++;
 else state.webglContextRestoredCount++;
 logBreadcrumb('webgl', lost ? 'webglcontextlost' : 'webglcontextrestored');
+updateBadgeUI();
+},
+recordWebGLCreationError: function (msg, context) {
+pushBounded(state.webglCreationErrors, {
+tMs: elapsedMs(),
+message: safeStr(msg || 'WebGL context creation error', 340),
+context: context ? safeStr(context, 140) : undefined
+}, 20);
+logBreadcrumb('webgl', 'webglcontextcreationerror: ' + safeStr(msg, 140));
 updateBadgeUI();
 },
 registerEngineProbe: function (fn) {
@@ -2186,6 +2209,6 @@ delete globalThis._wBoot;
 })();
 </script>
 <script>document.addEventListener('contextmenu',(e)=>{if(e.target&&e.target.tagName==='CANVAS')e.preventDefault();});</script>
-<script type="module" src="./app.bundle.js?v=001f3050ac"></script>
+<script type="module" src="./app.bundle.js?v=1e229d314b"></script>
 </body>
 </html>
