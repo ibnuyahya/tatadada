@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { NexusSSoSTKernel } from '../core/MasterSurfaceKernels.js';
+import { ProceduralTextureFactory } from '../core/ProceduralTextureFactory.js';
 import { UI_DPPD_MASTER_PLAN } from './MasterPlanConfig.js';
 
 const DEG = Math.PI / 180;
@@ -166,6 +167,41 @@ export class BundaranSiteBuilder {
     westDriveMesh.receiveShadow = true;
     group.add(westDriveMesh);
 
+    // West 9:00 Driveway Splitter Island Signage: Black/Yellow "➔ ENTRANCE" Totem + Blue "➔ MASUK" Sign (ref_203)
+    {
+      const totBase = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.26, 0.48), materials.architecturalWhite);
+      totBase.position.set(-67.8, 0.25, -4.6);
+      totBase.rotation.y = -Math.PI * 0.42;
+      group.add(totBase);
+
+      const totBody = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.85, 0.24), materials.darkMetal);
+      totBody.position.set(-67.8, 1.30, -4.6);
+      totBody.rotation.y = -Math.PI * 0.42;
+      totBody.castShadow = true;
+      group.add(totBody);
+
+      const totSign = new THREE.Mesh(
+        ProceduralTextureFactory.createAtlasSignPlane(0.88, 1.75, 0, 528, 340, 496),
+        materials.signAtlasMat
+      );
+      totSign.position.set(-67.93, 1.30, -4.56);
+      totSign.rotation.y = -Math.PI * 0.42;
+      group.add(totSign);
+
+      // Blue "➔ MASUK" directional sign on white post (ref_203)
+      const mskPost = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 1.75, 8), materials.architecturalWhite);
+      mskPost.position.set(-65.2, 0.98, -5.6);
+      group.add(mskPost);
+
+      const mskSign = new THREE.Mesh(
+        ProceduralTextureFactory.createAtlasBox(0.76, 0.54, 0.06, 938, 716, 86, 60),
+        materials.signAtlasMat
+      );
+      mskSign.position.set(-65.2, 1.68, -5.6);
+      mskSign.rotation.y = -Math.PI * 0.42;
+      group.add(mskSign);
+    }
+
     // Paved West Forecourt Plaza in front of ITTC Perpustakaan Lama
     const westCourtGeo = new THREE.BoxGeometry(15.5, 0.09, 26.0);
     westCourtGeo.translate(-31.5, 0.145, 1.5);
@@ -218,22 +254,31 @@ export class BundaranSiteBuilder {
   }
 
   static _buildCuratedTropicalFlora(parent, materials) {
-    // A. Broadleaf Tropical Tree Placements (carefully keeping key architectural sightlines clear!)
+    // A. Broadleaf Tropical Tree Placements (keeping r <= 82.4m so max crown extent stays strictly inside r = 88.0m!)
     const treeSpecs = [
-      // Outer woodland ring framing the roundabout naturally
-      { r: 84.2, deg: -165, s: 1.25, col: 0x3b682c },
-      { r: 84.8, deg: -135, s: 1.10, col: 0x467633 },
-      { r: 84.5, deg: -22,  s: 1.18, col: 0x3d6b2e },
-      { r: 84.5, deg: 18,   s: 1.22, col: 0x4b7837 },
-      { r: 84.8, deg: 54,   s: 1.30, col: 0x366128 },
-      { r: 84.2, deg: 74,   s: 1.20, col: 0x437031 },
-      { r: 84.6, deg: 102,  s: 1.26, col: 0x3a662b },
-      { r: 84.4, deg: 158,  s: 1.18, col: 0x487735 },
+      // Outer woodland ring framing the roundabout naturally (16 trees, r = 81.6..82.4m -> exact 176.00m envelope!)
+      { r: 82.2, deg: -165, s: 1.08, col: 0x3b682c },
+      { r: 82.0, deg: -152, s: 0.96, col: 0x4b7735 },
+      { r: 82.2, deg: -132, s: 1.04, col: 0x467633 },
+      { r: 82.0, deg: -116, s: 0.98, col: 0x3c6a2d },
+      { r: 82.2, deg: -62,  s: 1.02, col: 0x487634 },
+      { r: 82.2, deg: -24,  s: 1.08, col: 0x3d6b2e },
+      { r: 81.8, deg: -6,   s: 0.95, col: 0x517c39 },
+      { r: 82.2, deg: 18,   s: 1.08, col: 0x4b7837 },
+      { r: 82.0, deg: 35,   s: 0.96, col: 0x3f6d2f },
+      { r: 82.2, deg: 54,   s: 1.10, col: 0x366128 },
+      { r: 82.0, deg: 74,   s: 1.06, col: 0x437031 },
+      { r: 82.0, deg: 94,   s: 1.02, col: 0x4a7634 },
+      { r: 82.2, deg: 106,  s: 1.08, col: 0x3a662b },
+      { r: 82.0, deg: 124,  s: 0.96, col: 0x4e7936 },
+      { r: 82.2, deg: 156,  s: 1.05, col: 0x487735 },
+      { r: 81.8, deg: 168,  s: 0.95, col: 0x3d692c },
 
       // West Entrance Courtyard Ketapang Kencana shade trees (ref_201-205)
       { x: -56.0, z: -9.5,  s: 1.05, col: 0x5c7d38 },
       { x: -42.0, z: -10.5, s: 1.12, col: 0x4e7433 },
       { x: -34.0, z: 13.5,  s: 0.96, col: 0x557b39 },
+      { x: -51.5, z: 6.2,   s: 0.88, col: 0x4a7332 },
 
       // Inner Green Courtyard Ring (between ITTC Perpustakaan Lama and STP-UI / ILRC / DPPD, ref_174)
       { x: -15.0, z: -25.5, s: 1.08, col: 0x447130 },
@@ -248,11 +293,12 @@ export class BundaranSiteBuilder {
       { r: 65.4, deg: -2,   s: 0.95, col: 0x4b7434 },
       { r: 65.2, deg: 19,   s: 0.94, col: 0x5a7838 },
 
-      // South ILRC Bamboo-Staked Leaf Mound Crest Trees (ref_028, ref_033-050)
+      // South ILRC Bamboo-Staked Leaf Mound Crest Trees & Brick Tower Shrubs (ref_028, ref_033-050, ref_076)
       { r: 64.5, deg: 49,   s: 0.92, col: 0x3d6a2c, yBase: 1.35 },
       { r: 64.5, deg: 57,   s: 0.98, col: 0x487433, yBase: 1.40 },
       { r: 64.5, deg: 65,   s: 0.94, col: 0x3a6529, yBase: 1.35 },
-      { r: 64.5, deg: 72,   s: 0.88, col: 0x4d7836, yBase: 1.20 }
+      { r: 64.5, deg: 72,   s: 0.88, col: 0x4d7836, yBase: 1.20 },
+      { r: 63.0, deg: 80.5, s: 0.62, col: 0x4f7b38, yBase: 0.35 }
     ];
 
     // Static tree trunks (merged into bambooWood material -> +0 extra draw calls!)
@@ -348,12 +394,17 @@ export class BundaranSiteBuilder {
   }
 
   static _createMultiLobeCrownGeometry() {
+    // 9-Lobe Tiered Tropical Broadleaf Crown (Ketapang Kencana & Tanjung layered sub-canopies)
     const lobes = [
-      { x: 0.0,  y: 0.7,  z: 0.0,  rx: 3.1, ry: 2.3, rz: 3.1 },
-      { x: 1.7,  y: -0.1, z: 0.9,  rx: 2.3, ry: 1.8, rz: 2.2 },
-      { x: -1.6, y: 0.0,  z: 1.0,  rx: 2.2, ry: 1.7, rz: 2.3 },
-      { x: 0.3,  y: -0.2, z: -1.7, rx: 2.4, ry: 1.8, rz: 2.2 },
-      { x: -1.1, y: 0.2,  z: -1.2, rx: 2.1, ry: 1.7, rz: 2.1 }
+      { x: 0.0,  y: 1.05, z: 0.0,  rx: 2.6, ry: 1.75, rz: 2.6 },
+      { x: 1.55, y: 0.15, z: 0.85, rx: 2.15, ry: 1.45, rz: 2.05 },
+      { x: -1.5, y: 0.20, z: 0.95, rx: 2.10, ry: 1.40, rz: 2.15 },
+      { x: 0.25, y: 0.10, z: -1.6, rx: 2.20, ry: 1.45, rz: 2.05 },
+      { x: -1.1, y: 0.35, z: -1.1, rx: 1.95, ry: 1.38, rz: 1.95 },
+      { x: 1.25, y: 0.55, z: -1.0, rx: 1.80, ry: 1.30, rz: 1.85 },
+      { x: -0.3, y: -0.45, z: 1.65, rx: 1.95, ry: 1.25, rz: 1.85 },
+      { x: 1.85, y: -0.35, z: -0.2, rx: 1.75, ry: 1.20, rz: 1.75 },
+      { x: -1.8, y: -0.30, z: -0.1, rx: 1.75, ry: 1.22, rz: 1.75 }
     ];
     const posArr = [];
     const normArr = [];

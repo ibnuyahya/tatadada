@@ -133,6 +133,40 @@ export class GedungILRCBuilder {
     // Cantilevered 3-Sided White-Framed Upper Glass Observation Box at L4–L5 (+6.2°..+10.8°, ref_009, ref_010)
     GedungILRCBuilder._buildCantileveredGlassBox(group, materials, 8.5 * DEG, rOut);
 
+    // East Wing Roundabout Traffic Sign & Twin-Arm V-Post Garden Lamp (+9.2°..+11.5°, ref_009)
+    {
+      const sr = 11.5 * DEG;
+      const signPost = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 2.35, 8), materials.darkMetal);
+      signPost.position.set(68.8 * Math.cos(sr), 1.25, 68.8 * Math.sin(sr));
+      group.add(signPost);
+
+      const signBoard = new THREE.Mesh(
+        ProceduralTextureFactory.createAtlasBox(0.72, 0.72, 0.06, 938, 716, 86, 60),
+        materials.signAtlasMat
+      );
+      signBoard.position.set(68.8 * Math.cos(sr), 2.28, 68.8 * Math.sin(sr));
+      signBoard.rotation.y = -sr + Math.PI * 0.35;
+      group.add(signBoard);
+
+      // Twin-arm V-post garden lamp near East Portico lawn (+9.2°, r = 64.2m, ref_009)
+      const lr = 9.2 * DEG;
+      const lx = 64.2 * Math.cos(lr);
+      const lz = 64.2 * Math.sin(lr);
+      const vPost = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3.4, 8), materials.darkMetal);
+      vPost.position.set(lx, 1.8, lz);
+      group.add(vPost);
+      for (const sgn of [-1, 1]) {
+        const vArm = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.06, 0.06), materials.darkMetal);
+        vArm.position.set(lx - Math.sin(lr) * sgn * 0.36, 3.65, lz + Math.cos(lr) * sgn * 0.36);
+        vArm.rotation.y = -lr;
+        vArm.rotation.z = sgn * 0.42;
+        group.add(vArm);
+        const vHead = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.10, 0.22), materials.architecturalWhite);
+        vHead.position.set(lx - Math.sin(lr) * sgn * 0.72, 3.82, lz + Math.cos(lr) * sgn * 0.72);
+        group.add(vHead);
+      }
+    }
+
     // Grey Masonry Gardu Utility Box at Mouth of STP–ILRC Seismic Gap (-32.4°, r = 60.4m, ref_116)
     {
       const gr = -32.4 * DEG;
@@ -162,6 +196,24 @@ export class GedungILRCBuilder {
         { bottom: false, uvMetersPerTile: 3.0 }
       );
     }
+
+    // Recessed Curved Inner Atrium Rear Gallery Wall (L2–L5 above the L1 ground portal opening, ref_024, ref_029)
+    // Prevents seeing ITTC's red roof through the upper corridor bridges!
+    NexusSSoSTKernel.addCurvedPolarBand(
+      group, materials.architecturalWhite, thEastEnd - 0.3 * DEG, thAtriumEnd + 0.3 * DEG, rInS + 1.8, rInS + 6.8, 4.85, corniceY - 0.75, 10,
+      { bottom: true, uvMetersPerTile: 3.8 }
+    );
+    for (const gy of [6.15, 10.15, 14.15, 18.05]) {
+      NexusSSoSTKernel.addCurvedPolarBand(
+        group, materials.windowGlass, thEastEnd + 0.4 * DEG, thAtriumEnd - 0.4 * DEG, rInS + 6.6, rInS + 7.05, gy, gy + 2.25, 8,
+        { top: false, bottom: false, uvMetersPerTile: 2.5 }
+      );
+    }
+    // Atrium ground floor paved lobby slab (r = rInS .. rOut, th = 36°..46°)
+    NexusSSoSTKernel.addCurvedPolarBand(
+      group, materials.pavingBlock, thEastEnd - 0.5 * DEG, thAtriumEnd + 0.5 * DEG, rInS, rOut - 0.2, 0.12, 0.22, 8,
+      { bottom: false, uvMetersPerTile: 3.0 }
+    );
 
     // L1 Main White Horizontal Portal Beam + Exact ILRC Signage (Makara + KAN + 2-Line Title, ref_024, ref_029)
     const thAtriumMid = 0.5 * (thEastEnd + thAtriumEnd); // +41.0°
@@ -213,8 +265,13 @@ export class GedungILRCBuilder {
       koralRamp.receiveShadow = true;
       portalGroup.add(koralRamp);
 
-      const adaBay = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.04, 2.4), materials.adaBlueBay);
-      adaBay.position.set(0, 0.25, 2.6);
+      // Sky-Blue ADA Wheelchair Parking Stall w/ White Diagonal Hatching (Tile 6C, ref_029)
+      const adaBay = new THREE.Mesh(
+        ProceduralTextureFactory.createAtlasBox(3.4, 0.05, 2.6, 852, 652, 86, 124),
+        materials.signAtlasMat
+      );
+      adaBay.position.set(0, 0.25, 2.8);
+      adaBay.receiveShadow = true;
       portalGroup.add(adaBay);
 
       for (const bx of [-3.25, 3.25]) {
@@ -225,6 +282,19 @@ export class GedungILRCBuilder {
         const bollard = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.85, 8), materials.architecturalWhite);
         bollard.position.set(bx * 0.88, 0.55, 3.2);
         portalGroup.add(bollard);
+
+        // Low black iron picket railing along both sides of the Koral-Sikat ramp bridge (ref_024, ref_029)
+        const sideRailTop = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 7.6), materials.darkMetal);
+        sideRailTop.position.set(bx, 0.92, 6.4);
+        portalGroup.add(sideRailTop);
+        const sideRailBot = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 7.6), materials.darkMetal);
+        sideRailBot.position.set(bx, 0.42, 6.4);
+        portalGroup.add(sideRailBot);
+        for (let rz = 2.8; rz <= 10.0; rz += 0.9) {
+          const rPost = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.68, 0.04), materials.darkMetal);
+          rPost.position.set(bx, 0.62, rz);
+          portalGroup.add(rPost);
+        }
       }
     }
     // Open Black Picket Iron Gate at Entrance of Koral-Sikat Ramp (ref_023-025)
@@ -249,7 +319,7 @@ export class GedungILRCBuilder {
     for (const banDeg of [53.5, 61.5]) {
       const br = banDeg * DEG;
       const ban = new THREE.Mesh(
-        ProceduralTextureFactory.createAtlasSignPlane(0.95, 2.15, 864, 776, 160, 248),
+        ProceduralTextureFactory.createAtlasSignPlane(0.95, 2.15, 864, 776, 96, 248),
         materials.signAtlasMat
       );
       NexusSSoSTKernel.placeOnPolarCylinder(ban, rOut - 0.95, br, 2.55, 0.05, true);
@@ -322,13 +392,23 @@ export class GedungILRCBuilder {
       group, materials.terracottaBrick, thSouthEnd + 1.8 * DEG, thTowerEnd - 1.2 * DEG, rInS + 4.5, rOut - 3.2, cfg.towerTopY - 0.1, cfg.penthouseTopY, 4,
       { bottom: false, uvMetersPerTile: 3.0 }
     );
+    // White parapet coping strip at top of Brick Tower (y = 25.05..25.25m, ref_076)
+    NexusSSoSTKernel.addCurvedPolarBand(
+      group, materials.architecturalWhite, thSouthEnd - 0.1 * DEG, thTowerEnd + 0.1 * DEG, rInS + 0.9, rOut + 0.35, cfg.towerTopY - 0.18, cfg.towerTopY + 0.05, 8,
+      { uvMetersPerTile: 3.0 }
+    );
 
-    // Angled Cantilevered Grey/White Floor-Slab Sunshade Fins on Outer SE Profile (visible behind DPPD roof in ref_084!)
+    // Angled Cantilevered Grey/White Floor-Slab Sunshade Fins & Shadow Grooves on Outer SE Profile (ref_084, ref_076!)
     for (let fl = 1; fl <= 5; fl++) {
       const yf = 4.2 + fl * 3.8;
       NexusSSoSTKernel.addCurvedPolarBand(
         group, materials.architecturalWhite, thSouthEnd, thTowerEnd - 0.5 * DEG, rOut + 0.1, rOut + 1.35, yf - 0.14, yf + 0.14, 6,
         { uvMetersPerTile: 3.0 }
+      );
+      // Recessed dark window slot bands between sunshade fins on SE outer face
+      NexusSSoSTKernel.addCurvedPolarBand(
+        group, materials.windowGlass, thSouthEnd + 0.8 * DEG, thTowerEnd - 1.2 * DEG, rOut + 0.12, rOut + 0.34, yf - 2.3, yf - 0.7, 4,
+        { top: false, bottom: false, uvMetersPerTile: 2.2 }
       );
     }
 

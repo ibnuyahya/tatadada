@@ -1,36 +1,37 @@
 import * as THREE from 'three';
 
 /**
- * NEXUS Omni-Scale Procedural Engine v2.0
+ * NEXUS Omni-Scale Procedural Engine v2.0 (True-Color Photo-Realistic Edition)
  * ./core/WeatherOpticsEngine.js
  *
  * Calibrated 14:00 WIB (2:00 PM) UI Depok Tropical Daylight & Night GI Illumination Controller:
- * - Default: Bright, balanced 14:00 WIB afternoon light without harsh glare or crushed black shadows
+ * - Default: Equirectangular afternoon sky dome with soft cumulus clouds & horizon haze
+ * - Warm tropical sun + turf-to-sky hemisphere bounce + opposite sky fill (zero black coal shadows)
  * - Night GI Toggle: Smoothly transitions sky, hemisphere bounce, and passive #000000 window emissiveMap
- * - 100% GPU Vertex-Animated Atmospheric Motes (1 single Points draw call)
  */
 export class WeatherOpticsEngine {
   constructor(scene, renderer, materialBank) {
     this.scene = scene;
     this.renderer = renderer;
     this.materials = materialBank;
-    this.mode = 'afternoon_1400'; // 'afternoon_1400' | 'night_gi'
+    this.mode = 'afternoon_1400';
 
-    this.bgAfternoon = new THREE.Color(0xd6e6f7);
-    this.bgNight = new THREE.Color(0x0b1324);
+    this.bgAfternoonColor = new THREE.Color(0xdbe7f4);
+    this.bgNightColor = new THREE.Color(0x0b1324);
+    this.skyTexture = scene.environment?.userData?.skyBackgroundTexture || null;
 
-    this.scene.background = this.bgAfternoon.clone();
-    this.scene.fog = new THREE.FogExp2(0xd6e6f7, 0.0014);
-    this.renderer.toneMappingExposure = 1.02;
+    this.scene.background = this.skyTexture || this.bgAfternoonColor.clone();
+    this.scene.fog = new THREE.FogExp2(0xdce6f2, 0.00115);
+    this.renderer.toneMappingExposure = 1.04;
 
-    // 1. Hemisphere Sky-to-Turf Bounce Light (eliminates pitch-black underexposed loggias!)
-    this.hemiLight = new THREE.HemisphereLight(0xf0f7ff, 0x7c876b, 1.34);
+    // 1. Hemisphere Sky-to-Turf Bounce Light (eliminates pitch-black underexposed loggias)
+    this.hemiLight = new THREE.HemisphereLight(0xf2f7ff, 0x6f7c5c, 1.38);
     this.hemiLight.position.set(0, 120, 0);
     this.scene.add(this.hemiLight);
 
     // 2. 14:00 WIB Sun (slightly WNW of zenith, casting natural 2 PM Depok shadows)
-    this.sunLight = new THREE.DirectionalLight(0xfff9ed, 1.48);
-    this.sunLight.position.set(-62, 138, 32);
+    this.sunLight = new THREE.DirectionalLight(0xfff7e6, 1.56);
+    this.sunLight.position.set(-64, 136, 36);
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.set(2048, 2048);
     this.sunLight.shadow.camera.near = 20;
@@ -40,12 +41,12 @@ export class WeatherOpticsEngine {
     this.sunLight.shadow.camera.right = d;
     this.sunLight.shadow.camera.top = d;
     this.sunLight.shadow.camera.bottom = -d;
-    this.sunLight.shadow.bias = -0.00035;
-    this.sunLight.shadow.normalBias = 0.022;
+    this.sunLight.shadow.bias = -0.00032;
+    this.sunLight.shadow.normalBias = 0.02;
     this.scene.add(this.sunLight);
 
     // 3. Soft Opposite Sky Fill Light (prevents black coal shadows on East/SE walls)
-    this.skyFillLight = new THREE.DirectionalLight(0xdbeafe, 0.56);
+    this.skyFillLight = new THREE.DirectionalLight(0xdbeafe, 0.62);
     this.skyFillLight.position.set(78, 84, -58);
     this.scene.add(this.skyFillLight);
 
@@ -71,7 +72,7 @@ export class WeatherOpticsEngine {
 
     this.moteUniforms = {
       uTime: { value: 0 },
-      uOpacity: { value: 0.22 }
+      uOpacity: { value: 0.18 }
     };
 
     const mat = new THREE.ShaderMaterial({
@@ -87,7 +88,7 @@ export class WeatherOpticsEngine {
           p.y += cos(uTime * 0.28 + aSeed * 12.0) * 0.6;
           p.z += cos(uTime * 0.31 + aSeed * 22.0) * 1.4;
           vec4 mv = modelViewMatrix * vec4(p, 1.0);
-          gl_PointSize = clamp(18.0 / max(1.0, -mv.z), 1.2, 3.5);
+          gl_PointSize = clamp(16.0 / max(1.0, -mv.z), 1.1, 3.0);
           gl_Position = projectionMatrix * mv;
         }
       `,
@@ -111,8 +112,8 @@ export class WeatherOpticsEngine {
   setLightingMode(mode) {
     this.mode = mode;
     if (mode === 'night_gi') {
-      this.scene.background.copy(this.bgNight);
-      this.scene.fog.color.copy(this.bgNight);
+      this.scene.background = this.bgNightColor.clone();
+      this.scene.fog.color.copy(this.bgNightColor);
       this.scene.fog.density = 0.0022;
       this.hemiLight.color.setHex(0x3b5998);
       this.hemiLight.groundColor.setHex(0x18221e);
@@ -128,23 +129,22 @@ export class WeatherOpticsEngine {
       }
       if (this.moteUniforms) this.moteUniforms.uOpacity.value = 0.14;
     } else {
-      // Calibrated 14:00 WIB UI Depok Afternoon
-      this.scene.background.copy(this.bgAfternoon);
-      this.scene.fog.color.copy(this.bgAfternoon);
-      this.scene.fog.density = 0.0014;
-      this.hemiLight.color.setHex(0xf0f7ff);
-      this.hemiLight.groundColor.setHex(0x7c876b);
-      this.hemiLight.intensity = 1.34;
-      this.sunLight.color.setHex(0xfff9ed);
-      this.sunLight.intensity = 1.48;
-      this.sunLight.position.set(-62, 138, 32);
-      this.skyFillLight.intensity = 0.56;
-      this.renderer.toneMappingExposure = 1.02;
+      this.scene.background = this.skyTexture || this.bgAfternoonColor.clone();
+      this.scene.fog.color.setHex(0xdce6f2);
+      this.scene.fog.density = 0.00115;
+      this.hemiLight.color.setHex(0xf2f7ff);
+      this.hemiLight.groundColor.setHex(0x6f7c5c);
+      this.hemiLight.intensity = 1.38;
+      this.sunLight.color.setHex(0xfff7e6);
+      this.sunLight.intensity = 1.56;
+      this.sunLight.position.set(-64, 136, 36);
+      this.skyFillLight.intensity = 0.62;
+      this.renderer.toneMappingExposure = 1.04;
       if (this.materials?.windowGlass) {
         this.materials.windowGlass.emissiveIntensity = 0.0;
-        this.materials.windowGlass.envMapIntensity = 1.35;
+        this.materials.windowGlass.envMapIntensity = 1.55;
       }
-      if (this.moteUniforms) this.moteUniforms.uOpacity.value = 0.22;
+      if (this.moteUniforms) this.moteUniforms.uOpacity.value = 0.18;
     }
   }
 

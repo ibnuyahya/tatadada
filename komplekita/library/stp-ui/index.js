@@ -168,11 +168,15 @@ export class GedungSTPUIBuilder {
         mL3.castShadow = true;
         group.add(mL3);
       } else {
-        // Vertical Copper-Tube Fin Louver Bay (6 slender vertical tubes spanning L2-L3, ref_111, ref_153)
-        for (let f = 1; f <= 6; f++) {
-          const tf = b0 + (f / 7) * (b1 - b0);
+        // Vertical Copper-Tube Fin Louver Bay (8 slender vertical tubes spanning L2-L3 + dark window backing, ref_111, ref_164)
+        NexusSSoSTKernel.addCurvedPolarBand(
+          group, materials.windowGlass, b0 + 0.3 * DEG, b1 - 0.3 * DEG, rOut - 0.36, rOut - 0.20, cfg.l1TopY + 0.55, cfg.l3TopY - 0.45, 2,
+          { top: false, bottom: false }
+        );
+        for (let f = 1; f <= 8; f++) {
+          const tf = b0 + (f / 9) * (b1 - b0);
           const fin = new THREE.Mesh(
-            new THREE.BoxGeometry(0.11, cfg.l3TopY - cfg.l1TopY - 0.28, 0.16),
+            new THREE.BoxGeometry(0.085, cfg.l3TopY - cfg.l1TopY - 0.24, 0.16),
             materials.copperACP
           );
           fin.position.set(
@@ -194,35 +198,50 @@ export class GedungSTPUIBuilder {
       { bottom: false, inner: false, uvMetersPerTile: 4.0 }
     );
 
-    // L4 Continuous Multi-Pane Dark Ribbon Window Band (y = 11.28 .. 13.80m, ref_111, ref_156)
+    // L4 Continuous Multi-Pane Dark Ribbon Window Band w/ Vertical Mullion Piers (y = 11.28 .. 13.80m, ref_111, ref_164)
     NexusSSoSTKernel.addCurvedPolarBand(
-      group, materials.windowGlass, thBody0 + 3.5 * DEG, thBody1 - 3.5 * DEG, rOut - 0.42, rOut - 0.26, 11.32, 13.78, 42,
-      { top: false, bottom: false, uvMetersPerTile: 3.0 }
+      group, materials.windowGlass, thBody0 + 3.8 * DEG, thBody1 - 3.8 * DEG, rOut - 0.42, rOut - 0.22, 11.32, 13.78, 44,
+      { top: false, bottom: false, uvMetersPerTile: 2.6 }
     );
+    for (let deg = -142.0; deg <= -42.0; deg += 4.5) {
+      const mr = deg * DEG;
+      const mul = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.52, 0.28), materials.architecturalWhite);
+      mul.position.set((rOut - 0.24) * Math.cos(mr), 12.55, (rOut - 0.24) * Math.sin(mr));
+      mul.rotation.y = -mr;
+      group.add(mul);
+    }
 
-    // 5 Continuous Deep Curved White Sunshade Ledges (above L4, L5, L6, L7, & L8 Roof Cornice, ref_111, ref_148)
+    // 5 Continuous Deep Curved Light-Silver/White Sunshade Ledges (above L4, L5, L6, L7, & L8 Roof Cornice, ref_111, ref_148)
     const ledgeYs = [13.95, 16.80, 19.65, 22.50, cfg.roofSlabY];
     for (let li = 0; li < ledgeYs.length; li++) {
       const ly = ledgeYs[li];
-      const overhang = li === 4 ? 1.05 : 0.78;
-      const thick = li === 4 ? 0.38 : 0.24;
+      const overhang = li === 4 ? 1.08 : 0.82;
+      const thick = li === 4 ? 0.36 : 0.22;
       NexusSSoSTKernel.addCurvedPolarBand(
         group, materials.architecturalWhite, thBody0, thBody1, rOut - 0.45, rOut + overhang, ly - thick * 0.5, ly + thick * 0.5, 52,
         { uvMetersPerTile: 4.0 }
       );
     }
 
-    // Stacked Copper AC Louver Cages in Outermost Bay 1 adjacent to SW & NE Copper Piers (L4-L7, ref_111, ref_148)
-    for (const [c0, c1] of [[thBody0 + 0.3 * DEG, thBody0 + 3.4 * DEG], [thBody1 - 3.4 * DEG, thBody1 - 0.3 * DEG]]) {
-      for (const yFloor of [11.15, 14.05, 16.90, 19.75]) {
-        NexusSSoSTKernel.addCurvedPolarBand(
-          group, materials.copperACP, c0, c1, rOut - 0.4, rOut + 0.18, yFloor + 0.1, yFloor + 2.55, 3,
-          { uvMetersPerTile: 2.0 }
-        );
+    // Open Vertical Copper-Tube Fin Louver Screens in Outermost Bay 1 adjacent to SW & NE Copper Blades (L4-L8, ref_111, ref_148!)
+    for (const [c0, c1] of [[thBody0 + 0.3 * DEG, thBody0 + 3.8 * DEG], [thBody1 - 3.8 * DEG, thBody1 - 0.3 * DEG]]) {
+      // Dark recessed shadow backing
+      NexusSSoSTKernel.addCurvedPolarBand(
+        group, materials.darkMetal, c0, c1, rOut - 0.55, rOut - 0.28, 11.15, 25.15, 3,
+        { bottom: false }
+      );
+      // 7 vertical copper louver fins spanning L4-L8
+      for (let f = 1; f <= 7; f++) {
+        const tf = c0 + (f / 8) * (c1 - c0);
+        const fin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 14.0, 0.22), materials.copperACP);
+        fin.position.set((rOut + 0.06) * Math.cos(tf), 18.15, (rOut + 0.06) * Math.sin(tf));
+        fin.rotation.y = -tf;
+        fin.castShadow = true;
+        group.add(fin);
       }
     }
 
-    // Rhythmic Punched Windows w/ Protruding 3D White Box Surrounds across L5, L6, L7, & NW L8 (ref_111, ref_148, ref_150)
+    // Authentic L5, L6, L7 & NW L8 Window Rhythm (High Horizontal Vents near SW/NE ends + Wide 4-Pane & Paired Vertical Windows, ref_111, ref_148, ref_164)
     const upperFloors = [
       { y0: 14.15, y1: 16.55, isL8: false },
       { y0: 17.00, y1: 19.40, isL8: false },
@@ -231,25 +250,43 @@ export class GedungSTPUIBuilder {
     ];
     for (let fi = 0; fi < upperFloors.length; fi++) {
       const fl = upperFloors[fi];
-      const endLimitDeg = fl.isL8 ? -61.0 : -41.5; // Leave NE L8 (-60°..-36.5°) clear for Gold Makara + 3D Channel Letters!
-      for (let deg = -142.0 + (fi % 2) * 1.8; deg <= endLimitDeg; deg += 5.4) {
+      // High horizontal transom slot vents near SW (-141°..-134°) & NE (-46°..-40°) ends (ref_111, ref_148)
+      const ventAngles = fl.isL8 ? [-140.5, -136.5] : [-140.5, -136.5, -45.5, -41.5];
+      for (const vDeg of ventAngles) {
+        const rad = vDeg * DEG;
+        const c = Math.cos(rad), s = Math.sin(rad);
+        const yaw = Math.atan2(c, s);
+        const vy = fl.y1 - 0.55;
+        const vBox = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.56, 0.28), materials.architecturalWhite);
+        vBox.position.set((rOut - 0.26) * c, vy, (rOut - 0.26) * s);
+        vBox.rotation.y = yaw;
+        group.add(vBox);
+        const vGlass = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.38, 0.32), materials.windowGlass);
+        vGlass.position.set((rOut - 0.25) * c, vy, (rOut - 0.25) * s);
+        vGlass.rotation.y = yaw;
+        group.add(vGlass);
+      }
+
+      // Main punched windows across central arc (-131° .. -50°)
+      const endLimitDeg = fl.isL8 ? -61.5 : -49.5;
+      for (let idx = 0, deg = -131.0; deg <= endLimitDeg; idx++, deg += 4.6) {
         const rad = deg * DEG;
         const yc = 0.5 * (fl.y0 + fl.y1);
-        const wh = fl.y1 - fl.y0 - 0.35;
-        const ww = (deg > -80 && !fl.isL8 && fi % 2 === 0) ? 2.65 : 1.45;
+        const wh = fl.y1 - fl.y0 - 0.36;
+        const isWide = (idx % 3 === 1) && !fl.isL8;
+        const ww = isWide ? 2.85 : 1.18;
 
         const c = Math.cos(rad);
         const s = Math.sin(rad);
         const yaw = Math.atan2(c, s);
 
-        // Protruding 3D White Box Frame Surround (projecting 22cm proud of curved wall, ref_148)
-        const surround = new THREE.Mesh(new THREE.BoxGeometry(ww + 0.34, wh + 0.32, 0.32), materials.architecturalWhite);
+        const surround = new THREE.Mesh(new THREE.BoxGeometry(ww + 0.30, wh + 0.28, 0.30), materials.architecturalWhite);
         surround.position.set((rOut - 0.25) * c, yc, (rOut - 0.25) * s);
         surround.rotation.y = yaw;
         surround.castShadow = true;
         group.add(surround);
 
-        const pane = new THREE.Mesh(new THREE.BoxGeometry(ww, wh, 0.36), materials.windowGlass);
+        const pane = new THREE.Mesh(new THREE.BoxGeometry(ww, wh, 0.34), materials.windowGlass);
         pane.position.set((rOut - 0.24) * c, yc, (rOut - 0.24) * s);
         pane.rotation.y = yaw;
         group.add(pane);
@@ -303,10 +340,11 @@ export class GedungSTPUIBuilder {
     );
 
     // 18 Radial Rooftop Solar PV Panel Strips along Western-to-Central Roof Arc (-140° .. -66°, ref_174)
+    const pvGeo = ProceduralTextureFactory.createAtlasBox(11.6, 0.14, 1.95, 938, 652, 86, 64);
     for (let i = 0; i < 18; i++) {
       const rad = (-140.0 + i * 4.2) * DEG;
       const rMid = 0.5 * (rIn + rOut);
-      const pv = new THREE.Mesh(new THREE.BoxGeometry(11.6, 0.14, 1.95), materials.solarPV);
+      const pv = new THREE.Mesh(pvGeo, materials.signAtlasMat);
       pv.position.set(rMid * Math.cos(rad), cfg.roofSlabY + 0.48, rMid * Math.sin(rad));
       pv.rotation.y = -rad;
       pv.rotation.z = 0.12;
@@ -331,16 +369,15 @@ export class GedungSTPUIBuilder {
     const c = Math.cos(thPortico);
     const s = Math.sin(thPortico);
     portGroup.position.set(rOut * c, 0, rOut * s);
-    // Outward normal (c, 0, s) = local +Z => rotation.y = atan2(c, s)
     portGroup.rotation.y = Math.atan2(c, s);
     parent.add(portGroup);
 
-    const canW = 13.8;
-    const canD = 6.6;
-    const canY = l1TopY + 0.18;
+    const canW = 14.2;
+    const canD = 5.4;
+    const canY = l1TopY + 0.12;
 
-    // Silver-white ACP flat-fascia canopy + warm wood/taupe underside soffit
-    const canopy = new THREE.Mesh(new THREE.BoxGeometry(canW, 0.62, canD), materials.architecturalWhite);
+    // Silver-white ACP flat-fascia canopy + warm underside soffit w/ recessed downlights (ref_164)
+    const canopy = new THREE.Mesh(new THREE.BoxGeometry(canW, 0.64, canD), materials.architecturalWhite);
     canopy.position.set(0, canY, canD * 0.5 - 0.4);
     canopy.castShadow = true;
     canopy.receiveShadow = true;
@@ -350,19 +387,30 @@ export class GedungSTPUIBuilder {
     soffit.position.set(0, canY - 0.30, canD * 0.5 - 0.4);
     portGroup.add(soffit);
 
+    for (const lx of [-4.2, -1.4, 1.4, 4.2]) {
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.06, 10), materials.goldAccent);
+      lamp.position.set(lx, canY - 0.33, canD * 0.5 - 0.2);
+      portGroup.add(lamp);
+    }
+
     // Crisp Front Fascia Lettering: "SCIENCE TECHNO PARK UNIVERSITAS INDONESIA" (Tile 1 in Atlas!)
     const fasciaSign = new THREE.Mesh(
-      ProceduralTextureFactory.createAtlasSignPlane(canW - 0.6, 0.54, 0, 160, 1024, 112),
+      ProceduralTextureFactory.createAtlasSignPlane(canW - 0.6, 0.56, 0, 160, 1024, 112),
       materials.signAtlasMat
     );
-    fasciaSign.position.set(0, canY, canD - 0.4 + 0.325);
+    fasciaSign.position.set(0, canY, canD - 0.4 + 0.33);
     portGroup.add(fasciaSign);
 
-    // Characteristic Angled 'V'-Shaped Composite Columns at Left & Right Outer Corners (ref_094, ref_156, ref_164)
-    for (const sx of [-5.2, 5.2]) {
-      for (const tiltZ of [-0.20, 0.20]) {
-        const vLeg = new THREE.Mesh(new THREE.BoxGeometry(0.38, canY - 0.2, 0.38), materials.architecturalWhite);
-        vLeg.position.set(sx, 0.15 + (canY - 0.2) * 0.5, canD - 1.35 + tiltZ * 1.8);
+    // Large White Cylindrical Piloti Columns + Angled V-Strut Supports at Outer Corners (ref_164)
+    for (const sx of [-5.5, 5.5]) {
+      const mainCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, canY - 0.2, 14), materials.architecturalWhite);
+      mainCyl.position.set(sx * 0.72, 0.15 + (canY - 0.2) * 0.5, canD - 1.6);
+      mainCyl.castShadow = true;
+      portGroup.add(mainCyl);
+
+      for (const tiltZ of [-0.18, 0.18]) {
+        const vLeg = new THREE.Mesh(new THREE.BoxGeometry(0.32, canY - 0.2, 0.32), materials.architecturalWhite);
+        vLeg.position.set(sx, 0.15 + (canY - 0.2) * 0.5, canD - 1.2 + tiltZ * 1.5);
         vLeg.rotation.x = -tiltZ;
         vLeg.castShadow = true;
         portGroup.add(vLeg);
@@ -371,28 +419,45 @@ export class GedungSTPUIBuilder {
   }
 
   static _buildNorthLandscapeProps(parent, materials, thPortico) {
-    // A. Sloped White Concrete Wedge Planter w/ "STP-UI" Topiary Badge directly in front of North Portico (ref_156, ref_164)
-    const c = Math.cos(thPortico);
-    const s = Math.sin(thPortico);
+    // A. Sloped White Concrete Wedge Planter w/ "STP-UI" Topiary Mound & Pedestrian Ramp Bridge (ref_164!)
+    const thPlanter = thPortico - 3.5 * DEG; // Slightly left/west of portico center as seen in ref_164!
+    const c = Math.cos(thPlanter);
+    const s = Math.sin(thPlanter);
     const yaw = Math.atan2(c, s);
 
     const planterGroup = new THREE.Group();
-    planterGroup.position.set(66.9 * c, 0.15, 66.9 * s);
+    planterGroup.position.set(65.6 * c, 0.15, 65.6 * s);
     planterGroup.rotation.y = yaw;
     parent.add(planterGroup);
 
-    const wedgeBase = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.72, 2.2), materials.architecturalWhite);
-    wedgeBase.position.set(0, 0.36, 0);
+    // White concrete sloped retaining walls framing the "STP-UI" hedge mound (ref_164)
+    const wedgeBase = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.62, 3.2), materials.architecturalWhite);
+    wedgeBase.position.set(0, 0.31, 0);
     wedgeBase.castShadow = true;
     planterGroup.add(wedgeBase);
 
+    const mound = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.54, 2.6), materials.lushGrass);
+    mound.position.set(0, 0.56, 0.08);
+    mound.rotation.x = 0.22;
+    planterGroup.add(mound);
+
     const turfFace = new THREE.Mesh(
-      ProceduralTextureFactory.createAtlasSignPlane(5.8, 1.85, 852, 528, 172, 248),
+      ProceduralTextureFactory.createAtlasSignPlane(5.6, 1.45, 852, 528, 172, 124),
       materials.signAtlasMat
     );
-    turfFace.position.set(0, 0.76, 0.05);
-    turfFace.rotation.x = -Math.PI * 0.36; // tilted 32° toward North Ring Road!
+    turfFace.position.set(0, 0.88, 0.32);
+    turfFace.rotation.x = -Math.PI * 0.35;
     planterGroup.add(turfFace);
+
+    // Sloped White Concrete Walkway & Black Steel Grate Bridge right next to the planter (ref_164 foreground!)
+    const walkRamp = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.22, 3.4), materials.pavingBlock);
+    walkRamp.position.set(-4.6, 0.22, 1.2);
+    walkRamp.rotation.y = -0.35;
+    planterGroup.add(walkRamp);
+
+    const steelBridge = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.14, 1.8), materials.darkMetal);
+    steelBridge.position.set(-5.2, 0.18, 2.8);
+    planterGroup.add(steelBridge);
 
     // B. Tall Matte-Black & Yellow STP Directory Totem just East of Portico (th = -75.5°, r = 67.2m, ref_105, ref_156)
     const thTot = -75.5 * DEG;

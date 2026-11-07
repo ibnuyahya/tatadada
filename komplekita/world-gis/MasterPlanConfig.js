@@ -157,12 +157,12 @@ export const BUNDARAN_CAMERA_PRESETS = {
   sv_west_ittc: {
     label: 'SV-05 • Pintu Masuk Barat → ITTC Perpustakaan Lama (ref_203)',
     sector: 'ittc',
-    fov: 56,
-    pos: [-75.5, 2.5, -2.0],
-    target: [-18.0, 8.0, 1.5]
+    fov: 62,
+    pos: [-76.8, 2.3, -2.8],
+    target: [-24.0, 6.8, -0.5]
   },
   sv_stp_sw_core: polarPreset('SV-06 • Sudut SW Tembaga & Tangga STP-UI (ref_148)', 'stp', 77.5, -146.0, 2.6, 54.0, -135.0, 13.0, 64),
-  sv_stp_portico: polarPreset('SV-07 • Portico Utara & Planter STP-UI (ref_164)', 'stp', 77.0, -90.0, 2.5, 55.0, -88.0, 9.5, 64),
+  sv_stp_portico: polarPreset('SV-07 • Portico Utara & Planter STP-UI (ref_164)', 'stp', 78.5, -90.5, 2.2, 56.0, -89.0, 7.8, 68),
   sv_stp_ne_makara: polarPreset('SV-08 • Puncak Makara Emas & Sirip NE STP-UI (ref_111)', 'stp', 77.5, -40.0, 2.6, 54.0, -52.0, 15.0, 68),
   sv_ilrc_east_box: polarPreset('SV-09 • Sayap Louver Timur & Kotak Kaca ILRC (ref_009)', 'ilrc', 77.0, 6.0, 2.4, 55.0, 8.0, 9.8, 60),
   sv_ilrc_drpm_gate: polarPreset('SV-10 • Gerbang Parkir Pimpinan & DRPM (ref_012)', 'ilrc', 77.0, 28.0, 2.3, 55.0, 30.0, 7.5, 60),

@@ -466,15 +466,28 @@ export class DPPDPrimaryStructure {
       soffit.castShadow = true;
       parent.add(soffit);
 
-      // Crisp warm-cream front bargeboard fascia (ref_084)
+      // Crisp dark terracotta-brown front bargeboard fascia + terracotta verge cap (ref_084, ref_184)
       const barge = new THREE.Mesh(
-        new THREE.BoxGeometry(slopeLen + 0.12, 0.30, 0.14),
-        materials.creamStucco
+        new THREE.BoxGeometry(slopeLen + 0.14, 0.26, 0.16),
+        materials.darkMetal
       );
-      barge.position.set(0.5 * (xa + xb), 0.5 * (ya + yb) - 0.04, zFront + 0.02);
+      barge.position.set(0.5 * (xa + xb), 0.5 * (ya + yb) - 0.03, zFront + 0.02);
       barge.rotation.z = ang;
       parent.add(barge);
+
+      const vergeCap = new THREE.Mesh(
+        new THREE.BoxGeometry(slopeLen + 0.18, 0.11, 0.24),
+        materials.terracottaRoof
+      );
+      vergeCap.position.set(0.5 * (xa + xb), 0.5 * (ya + yb) + 0.12, zFront + 0.01);
+      vergeCap.rotation.z = ang;
+      parent.add(vergeCap);
     }
+
+    // Recessed Apex Soffit Fixture inside the Gable Peak (ref_184)
+    const apexLamp = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.08, 12), materials.goldAccent);
+    apexLamp.position.set(0, gablePeakY - 1.38, tympZ + 0.48);
+    parent.add(apexLamp);
 
     // Lightning Arrestor Spires (Apex + 4 Wing Ridge vertices, ref_077, ref_084)
     const apexSpire = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.04, 1.85, 6), materials.darkMetal);
