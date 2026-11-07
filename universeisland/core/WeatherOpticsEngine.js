@@ -639,7 +639,8 @@ export class WeatherOpticsEngine {
       uHvsGlare: hvsUniforms.uHvsGlare,
       uPlanarReflTex: { value: fallbackPlanarTex },
       uPlanarReflMatrix: { value: new THREE.Matrix4() },
-      uPlanarReflActive: { value: 0.0 }
+      uPlanarReflActive: { value: 0.0 },
+      uRenderingPlanarRefl: { value: 0.0 }
     };
     this._syncOceanSpectrumUniforms();
 
@@ -886,13 +887,15 @@ export class WeatherOpticsEngine {
    * Streams reference collision data in the background while the 3D world runs interactively at 60-120 FPS!
    */
   async bakeSceneCollisionFieldAsync(roots, options = {}, sharedSurfaceUniforms = null) {
+    const budgetMs =
+      options && options.sliceBudgetMs !== undefined ? Number(options.sliceBudgetMs) : 1.5;
     const bake = await RainCollisionBake.bakeFromHierarchyAsync(
       roots,
       {
         ...options,
         maxDrips: WeatherOpticsEngine.EAVE_DRIP_COUNT
       },
-      3.5
+      budgetMs
     );
     return this._applyCollisionBakeResult(bake, sharedSurfaceUniforms);
   }
@@ -1150,17 +1153,23 @@ export class WeatherOpticsEngine {
         float fresnelExpS = mix(4.6, 2.7, roughSpread);
         float fresSea = clamp(0.036 + 0.88 * pow(1.0 - nDotVSea, fresnelExpS), 0.045, 0.88);
 
-        // Azimuth-matched horizon & zenith sky reflection (matches skyMesh duskHorizon 1:1!)
+        // Azimuth-matched horizon & zenith sky reflection (unified via nexusEvalHorizonSkySRGB -> 0.000 horizon seam!)
+        float lunarSeaScatter = clamp(moonDir.y, 0.0, 1.0) * 0.55 * (1.0 - clamp(cloudCover * 0.5 + rainIntensity * 0.5, 0.0, 1.0));
         vec3 sZen = mix(
-          mix(vec3(0.13, 0.37, 0.71), vec3(0.13, 0.17, 0.38), duskFactor),
-          vec3(0.014, 0.024, 0.054),
+          mix(vec3(0.13, 0.37, 0.71), vec3(0.11, 0.16, 0.38), duskFactor),
+          vec3(0.056, 0.086, 0.145) + vec3(0.038, 0.058, 0.098) * lunarSeaScatter,
           nightFactor
         );
-        vec3 duskHorAz = mix(vec3(0.52, 0.56, 0.68), vec3(0.94, 0.47, 0.20), smoothstep(-0.35, 0.85, cosSunAz));
-        vec3 sHor = mix(
-          mix(vec3(0.58, 0.75, 0.89), duskHorAz, duskFactor),
-          vec3(0.038, 0.062, 0.118),
-          nightFactor
+        vec3 sHor = nexusEvalHorizonSkySRGB(
+          vec3(dir.x, 0.0, dir.z),
+          trueSunDir,
+          duskFactor,
+          nightFactor,
+          cloudCover,
+          rainIntensity,
+          stormFactor,
+          fogFactor,
+          lunarSeaScatter
         );
         float reflEl = clamp(nDotVSea * 0.85 + 0.052, 0.02, 1.0);
         vec3 seaSkyRefl = mix(sHor, sZen, pow(reflEl, 0.58));
@@ -1172,7 +1181,7 @@ export class WeatherOpticsEngine {
         float cMsk = smoothstep(cThr, cThr + 0.34, cVal) * smoothstep(0.015, 0.20, reflEl);
         vec3 cReflCol = mix(
           mix(vec3(0.92, 0.95, 0.99), vec3(0.95, 0.56, 0.32), duskFactor),
-          vec3(0.07, 0.10, 0.16),
+          vec3(0.075, 0.105, 0.168),
           nightFactor
         );
         float stormGrey = clamp(rainIntensity * 0.65 + stormFactor * 0.35, 0.0, 0.90);
@@ -1184,14 +1193,14 @@ export class WeatherOpticsEngine {
         // Deep Pelagic Jerlov IB Java Sea volume + subtle wind-swell mottling before horizon extinction
         float overcastDesatS = clamp(rainIntensity * 0.65 + stormFactor * 0.25, 0.0, 1.0);
         vec3 pelagicDay = mix(vec3(0.015, 0.064, 0.118), vec3(0.011, 0.038, 0.075), overcastDesatS);
-        vec3 pelagicCol = mix(pelagicDay, vec3(0.004, 0.011, 0.025), nightFactor);
+        vec3 pelagicCol = mix(pelagicDay, vec3(0.010, 0.020, 0.042), nightFactor);
         vec2 worldSeaXZ = dirXZ * dSeaM;
         float swellTex = (farSeaFbm3(worldSeaXZ * 0.0045 - windPhase * 0.025) - 0.5)
-                       * (1.0 - smoothstep(3500.0, 26000.0, dSeaM));
-        pelagicCol *= (1.0 + swellTex * 0.18) * mix(mix(1.16, 0.88, duskFactor), 0.72, nightFactor);
+                       * (1.0 - smoothstep(3500.0, 24000.0, dSeaM));
+        pelagicCol *= (1.0 + swellTex * 0.18) * mix(mix(1.16, 0.88, duskFactor), 0.76, nightFactor);
 
         vec3 farColSRGB = mix(pelagicCol, seaSkyRefl, fresSea);
-        vec3 hdrSea = nexusSRGBToLinear(max(farColSRGB, vec3(0.0))) * mix(1.16, 0.74, nightFactor);
+        vec3 hdrSea = nexusSRGBToLinear(max(farColSRGB, vec3(0.0))) * mix(1.16, 0.76, nightFactor);
 
         // Physically occluded wind-sheared far-sea solar / lunar horizon shimmer
         float sunAboveS = smoothstep(-0.024, 0.026, trueSunDir.y) * clamp(solarDirectTrans, 0.0, 1.0);
@@ -1202,23 +1211,24 @@ export class WeatherOpticsEngine {
         vec3 hMoonS = normalize(moonDir + viewToCam);
         float specMoonS = pow(max(hMoonS.y, 0.0), 48.0)
                         * smoothstep(0.20, 0.96, dot(dirXZ, normalize(moonDir.xz + vec2(1e-5, 0.0))))
-                        * moonAboveS * 0.28;
-        float specDistAtten = 1.0 - smoothstep(9000.0, 68000.0, dSeaM);
+                        * moonAboveS * 0.12;
+        float specDistAtten = 1.0 - smoothstep(9000.0, 56000.0, dSeaM);
         vec3 glitColS = nexusSRGBToLinear(
           mix(mix(vec3(1.0, 0.94, 0.80), vec3(1.0, 0.58, 0.26), duskFactor), vec3(0.45, 0.56, 0.78), nightFactor)
         );
-        hdrSea += glitColS * (specSunS * 0.26 + specMoonS) * specDistAtten;
+        hdrSea += glitColS * (specSunS * 0.24 + specMoonS) * specDistAtten;
         hdrSea += vec3(0.75, 0.95, 1.45) * lightningFlash * 0.55;
 
-        // Exact Boundary-Layer Aerial Perspective matching oceanMesh at r = 2,660m + long-range marine horizon veil
+        // Exact Boundary-Layer Aerial Perspective matching oceanMesh at r = 2,660m + unified horizon merger
         float rayDist3D = dSeaM / max(0.08, length(dir.xz));
         vec3 virtCam = vec3(0.0, Hcam - 1.45, 0.0);
         vec3 virtPos = virtCam + dir * rayDist3D;
+        vec3 hazeSunDir = normalize(mix(trueSunDir, activeSunDir, smoothstep(0.65, 0.96, nightFactor)));
         hdrSea = nexusApplyBoundaryLayerAerialPerspective(
           hdrSea,
           virtCam,
           virtPos,
-          activeSunDir,
+          hazeSunDir,
           duskFactor,
           nightFactor,
           cloudCover,
@@ -1227,18 +1237,11 @@ export class WeatherOpticsEngine {
           fogFactor
         );
 
-        // Long-range spherical marine tropospheric extinction (8 km -> 98 km horizon merger)
-        float longMarineMask = smoothstep(5200.0, 78000.0, dSeaM);
+        // Long-range spherical marine tropospheric extinction (4.2 km -> 46 km seamless horizon merger)
+        float longMarineMask = smoothstep(4200.0, 46000.0, dSeaM);
         if (longMarineMask > 0.001) {
-          vec3 horMarineSRGB = sHor;
-          vec3 fogDewM = mix(
-            mix(vec3(0.79, 0.85, 0.90), vec3(0.90, 0.66, 0.48), duskFactor),
-            vec3(0.085, 0.115, 0.175),
-            nightFactor
-          );
-          horMarineSRGB = mix(horMarineSRGB, fogDewM, clamp(fogFactor, 0.0, 1.0) * 0.80);
-          vec3 hdrHorMarine = nexusSRGBToLinear(max(horMarineSRGB, vec3(0.0))) * mix(1.15, 0.75, nightFactor);
-          hdrSea = mix(hdrSea, hdrHorMarine, longMarineMask * 0.88);
+          vec3 hdrHorMarine = nexusSRGBToLinear(max(sHor, vec3(0.0))) * mix(1.16, 0.76, nightFactor);
+          hdrSea = mix(hdrSea, hdrHorMarine, longMarineMask * 0.92);
         }
         return hdrSea;
       }
@@ -1398,7 +1401,11 @@ export class WeatherOpticsEngine {
             if (pM.y < 54.0) {
               vec2 cuv = (pM.xz - uCollisionBounds.xy) / uCollisionBounds.zw;
               if (cuv.x > 0.002 && cuv.x < 0.998 && cuv.y > 0.002 && cuv.y < 0.998) {
+#if __VERSION__ == 300
+                vec4 cTex = textureLod(uCollisionMap, cuv, 0.0);
+#else
                 vec4 cTex = texture2D(uCollisionMap, cuv);
+#endif
                 float yCol = uCollisionHeightRange.x + ((cTex.r * 255.0 * 256.0 + cTex.g * 255.0) / 65535.0) * uCollisionHeightRange.y;
                 if (yCol > -0.6) {
                   float penM = 0.32 + 0.016 * tM;
@@ -1450,7 +1457,8 @@ export class WeatherOpticsEngine {
         uWindVec: this.uniforms.uWindVec,
         uWindPhase: this.uniforms.uWindPhase,
         uHvsParams: this.uniforms.uHvsParams,
-        uHvsGlare: this.uniforms.uHvsGlare
+        uHvsGlare: this.uniforms.uHvsGlare,
+        uRenderingPlanarRefl: this.uniforms.uRenderingPlanarRefl
       },
       vertexShader: /* glsl */ `
         varying vec3 vWorldDir;
@@ -1485,6 +1493,7 @@ export class WeatherOpticsEngine {
         uniform vec2 uWindPhase;
         uniform vec4 uHvsParams;
         uniform vec4 uHvsGlare;
+        uniform float uRenderingPlanarRefl;
 
         ${HumanEyeHDROptics.getGLSLKernel()}
         ${WeatherOpticsEngine._getSphericalFarSeaGLSL()}
@@ -1539,10 +1548,27 @@ export class WeatherOpticsEngine {
           return v;
         }
 
+        // Fast 3-Octave & 2-Octave Cloud Shadow / Crepuscular Shaft Evaluators (saves 22 noise2 octaves/pixel & halves D3D11 fxc unroll!)
+        float fbmCloud3(vec2 p) {
+          float v = 0.52 * noise2(p);
+          p = ROT_FBM * p * 2.04 + vec2(17.1, 31.7);
+          v += 0.26 * noise2(p);
+          p = ROT_FBM * p * 2.04 + vec2(17.1, 31.7);
+          v += 0.13 * noise2(p);
+          return v * 1.08;
+        }
+
+        float fbmCloud2(vec2 p) {
+          float v = 0.58 * noise2(p);
+          p = ROT_FBM * p * 2.09 + vec2(13.7, 27.3);
+          v += 0.32 * noise2(p);
+          return v * 1.06;
+        }
+
         float fbmBolt4(vec2 p) {
           float v = 0.0;
           float a = 0.55;
-          for (int i = 0; i < 4; i++) {
+          for (int i = 0; i < 3; i++) {
             v += a * (noise2(p) - 0.5);
             p = ROT_FBM * p * 2.35 + vec2(9.3, 21.4);
             a *= 0.5;
@@ -1628,9 +1654,9 @@ export class WeatherOpticsEngine {
           vec3 duskHorizon = mix(vec3(0.52, 0.56, 0.68), vec3(0.94, 0.47, 0.20), smoothstep(-0.35, 0.85, cosSun));
 
           float lunarSkyScatter = clamp(moonDir.y, 0.0, 1.0) * uMoonIllumFraction * (1.0 - overcast * 0.75);
-          vec3 bortle1Zenith = vec3(0.0038, 0.0062, 0.0145) + vec3(0.007, 0.012, 0.026) * lunarSkyScatter;
-          // Subtle natural 557.7nm island airglow + marine horizon scatter (minimal light pollution!)
-          vec3 bortle1Horizon = vec3(0.0105, 0.0170, 0.0290) + vec3(0.016, 0.024, 0.045) * lunarSkyScatter;
+          // Calibrated IEC-sRGB tropical midnight sapphire-navy sky (maps through sRGB->Linear->HVS to natural deep navy #111A2A, NEVER pitch-black (0,0,0)!)
+          vec3 bortle1Zenith = vec3(0.056, 0.086, 0.145) + vec3(0.038, 0.058, 0.098) * lunarSkyScatter;
+          vec3 bortle1Horizon = vec3(0.084, 0.122, 0.192) + vec3(0.042, 0.062, 0.104) * lunarSkyScatter;
 
           vec3 zenith = mix(mix(dayZenith, duskZenith, uDuskFactor), bortle1Zenith, uNightFactor);
           vec3 horizon = mix(mix(dayHorizon, duskHorizon, uDuskFactor), bortle1Horizon, uNightFactor);
@@ -1644,7 +1670,7 @@ export class WeatherOpticsEngine {
             float shadowTop = clamp(0.03 + max(0.0, -trueSunDir.y) * 0.55, 0.02, 0.14);
             float earthShadow = (1.0 - smoothstep(shadowTop * 0.45, shadowTop + 0.05, h)) * pow(antiSun, 1.4);
             float beltOfVenus = exp(-pow((h - (shadowTop + 0.055)) / 0.068, 2.0)) * pow(antiSun, 1.25);
-            float clearTwilight = uDuskFactor * (1.0 - overcast * 0.85);
+            float clearTwilight = uDuskFactor * (1.0 - overcast * 0.85) * (1.0 - uNightFactor * 0.85);
             skyCol = mix(skyCol, vec3(0.11, 0.14, 0.25), earthShadow * clearTwilight * 0.62);
             skyCol += vec3(0.42, 0.20, 0.26) * beltOfVenus * clearTwilight * 0.55;
           }
@@ -1653,190 +1679,173 @@ export class WeatherOpticsEngine {
           vec3 stormHorizonDay = mix(vec3(0.35, 0.39, 0.44), vec3(0.18, 0.21, 0.26), uStormFactor);
           vec3 stormZenithDay = mix(vec3(0.20, 0.24, 0.29), vec3(0.09, 0.11, 0.15), uStormFactor);
           vec3 stormBase = mix(stormHorizonDay, stormZenithDay, pow(h, 0.55));
-          stormBase *= mix(1.0, 0.16, uNightFactor);
-          skyCol = mix(skyCol, stormBase, clamp(uRainIntensity * 0.76 + uStormFactor * 0.35, 0.0, 0.94));
+          stormBase *= mix(1.0, 0.22, uNightFactor);
+          skyCol = mix(skyCol, stormBase, clamp(uRainIntensity * 0.74 + uStormFactor * 0.34, 0.0, 0.92));
 
-          // 2. BORTLE CLASS 1-2 GALACTIC MILKY WAY ("BIMASAKTI"), GREAT RIFT DUST LANES, LMC/SMC,
-          //    FAINT GALACTIC STARFIELD, & 208 NOTABLE REAL J2000 CONSTELLATION STARS (TRUE LINEAR-HDR!)
-          //    Accumulated directly in Scene-Referred Linear-HDR (hdrCosmos) so gamma^2.2 never crushes stars,
-          //    and occluded spatially ONLY where foreground clouds or the solid lunar sphere actually pass!
+          // 2. NATURAL PHOTOGRAPHIC MILKY WAY ("BIMASAKTI"), GREAT RIFT DUST LANES,
+          //    CRISP 1-PIXEL PINPOINT CONSTELLATION STARS, & PLANAR-REFLECTION FAST-PATH
           vec3 eqDir = normalize(uWorldToEqMat * dir);
           vec3 galDir = GAL_FROM_EQ * eqDir;
           float starClearVis = smoothstep(0.12, 0.84, uNightFactor)
                              * clamp(1.0 - uRainIntensity * 1.12 - uStormFactor * 0.68, 0.0, 1.0);
           vec3 hdrCosmos = vec3(0.0);
 
-          // Zodiacal Light Cone ("Cahaya Zodiak" — interplanetary dust glow in low-pollution island post-dusk/pre-dawn)
+          // Zodiacal Light Cone ("Cahaya Zodiak" — subtle interplanetary dust glow in post-dusk/pre-dawn)
           if (uNightFactor > 0.30 && trueSunDir.y < -0.08 && trueSunDir.y > -0.54 && dir.y > 0.0) {
             float zodAlong = max(0.0, dot(normalize(dir.xz + vec2(1e-5, 0.0)), normalize(trueSunDir.xz + vec2(1e-5, 0.0))));
             float zodCone = pow(zodAlong, 5.2) * exp(-h * 2.6) * smoothstep(-0.54, -0.14, trueSunDir.y);
-            hdrCosmos += vec3(0.0085, 0.0095, 0.0125) * zodCone * uNightFactor * (1.0 - overcast) * (1.0 - lunarSkyScatter * 0.65);
+            hdrCosmos += vec3(0.0018, 0.0022, 0.0030) * zodCone * uNightFactor * (1.0 - overcast) * (1.0 - lunarSkyScatter * 0.65);
           }
 
           if (starClearVis > 0.005 && dir.y > -0.01) {
-            // Bortle 1-2 low-pollution marine island clarity right down to ~3.8° above the sea horizon!
-            float horizonExtinction = smoothstep(-0.005, 0.068, dir.y);
-            float moonGlareWash = 1.0 - 0.24 * lunarSkyScatter - 0.52 * pow(max(cosMoon, 0.0), 18.0) * lunarSkyScatter;
-            float darkSkyVis = starClearVis * horizonExtinction * clamp(moonGlareWash, 0.30, 1.0);
+            float horizonExtinction = smoothstep(-0.005, 0.085, dir.y);
+            float moonGlareWash = 1.0 - 0.32 * lunarSkyScatter - 0.56 * pow(max(cosMoon, 0.0), 18.0) * lunarSkyScatter;
+            float darkSkyVis = starClearVis * horizonExtinction * clamp(moonGlareWash, 0.28, 1.0);
 
-            // 2A. True J2000 Galactic Milky Way Band, Sagittarius-Scorpius Core Bulge, & Great Rift Dust Absorption
-            //     Evaluated directly from 3D unit vector galDir (ZERO atan +-pi branch-cut seam anywhere across 360°!)
+            // 2A. Delicate True J2000 Galactic Milky Way Band & Great Rift Dust Lanes (calibrated linear radiance!)
             float sinB = galDir.z;
             float coreProximity = clamp(galDir.x * 0.5 + 0.5, 0.0, 1.0);
-            float bulgeWidth = mix(0.110, 0.225, pow(coreProximity, 3.0));
+            float bulgeWidth = mix(0.105, 0.215, pow(coreProximity, 3.0));
             float mwWarp = (fbmGal4(galDir.xy * 2.4 + vec2(sinB * 3.8, -sinB * 3.4)) - 0.5) * 0.065;
             float mwProfile = exp(-pow((sinB + mwWarp) / bulgeWidth, 2.0));
 
             float starCloudTex = fbmGal4(galDir.xy * 5.2 + vec2(sinB * 10.2 + 2.1, -sinB * 9.6 - 1.3));
-            float fineCloudTex = fbmGal4(galDir.xy * 13.5 + vec2(-sinB * 21.0 - 4.7, sinB * 20.0 + 3.8));
-            float mwLuminance = mwProfile * (0.48 + 0.84 * starCloudTex + 0.38 * fineCloudTex);
-            mwLuminance *= mix(0.68, 1.62, pow(coreProximity, 2.0));
+            float fineCloudTex = uRenderingPlanarRefl < 0.5
+              ? fbmGal4(galDir.xy * 13.5 + vec2(-sinB * 21.0 - 4.7, sinB * 20.0 + 3.8))
+              : 0.45;
+            float mwLuminance = mwProfile * (0.42 + 0.78 * starCloudTex + 0.34 * fineCloudTex);
+            mwLuminance *= mix(0.62, 1.48, pow(coreProximity, 2.0));
 
-            // Great Rift ("Celah Besar") & Southern Cross Coalsack ("Kantung Arang") Dark Molecular Dust Lanes!
+            // Great Rift ("Celah Besar") & Southern Cross Coalsack ("Kantung Arang") Dark Molecular Dust Lanes
             float riftNoise = fbmGal4(galDir.xy * 6.8 + vec2(sinB * 17.5 + 9.4, -sinB * 16.4 + 2.2));
             float riftBand = exp(-pow((sinB - 0.012 + (riftNoise - 0.5) * 0.055) / 0.044, 2.0));
             float riftStrength = smoothstep(0.34, 0.72, riftNoise) * smoothstep(-0.35, 0.55, galDir.x);
-            // Coalsack Dark Nebula right beside Crux (Galactic l ~ -57° = -1.00 rad, b ~ -1.5° -> 3D chord distance)
             float dCoalsack = length(galDir - vec3(0.54012, -0.84118, -0.02600));
-            float coalsack = exp(-(dCoalsack * dCoalsack) / 0.0068) * 0.84;
-            float dustTransmittance = clamp(1.0 - riftBand * riftStrength * 0.82 - coalsack, 0.11, 1.0);
+            float coalsack = exp(-(dCoalsack * dCoalsack) / 0.0068) * 0.80;
+            float dustTransmittance = clamp(1.0 - riftBand * riftStrength * 0.78 - coalsack, 0.16, 1.0);
 
-            vec3 mwOuterLin = vec3(0.0185, 0.0265, 0.0440);
-            vec3 mwCoreLin = vec3(0.0520, 0.0430, 0.0365);
+            vec3 mwOuterLin = vec3(0.0062, 0.0092, 0.0150);
+            vec3 mwCoreLin = vec3(0.0180, 0.0156, 0.0130);
             vec3 mwColorLin = mix(mwOuterLin, mwCoreLin, pow(coreProximity, 2.0) * (0.55 + 0.45 * starCloudTex));
             hdrCosmos += mwColorLin * mwLuminance * dustTransmittance * darkSkyVis;
 
-            // Southern Hemisphere Gems: Large & Small Magellanic Clouds (LMC & SMC) + M42 Orion Nebula!
-            vec3 lmcEq = vec3(0.0549, 0.3416, -0.9382); // RA 5.39h, Dec -69.76°
-            vec3 smcEq = vec3(0.2878, 0.0674, -0.9553); // RA 0.88h, Dec -72.80°
-            vec3 m42Eq = vec3(0.1066, 0.9898, -0.0940); // RA 5.59h, Dec -5.39° (Orion's Sword)
-            float dLMC = length(eqDir - lmcEq);
-            float dSMC = length(eqDir - smcEq);
-            float dM42 = length(eqDir - m42Eq);
-            if (dLMC < 0.16) {
-              float lmcTex = 0.52 + 0.48 * fbmGal4(eqDir.xy * 42.0);
-              hdrCosmos += vec3(0.015, 0.021, 0.035) * exp(-pow(dLMC / 0.054, 2.0)) * lmcTex * darkSkyVis;
-            }
-            if (dSMC < 0.10) {
-              hdrCosmos += vec3(0.012, 0.017, 0.029) * exp(-pow(dSMC / 0.030, 2.0)) * darkSkyVis;
-            }
-            if (dM42 < 0.038) {
-              float m42Glow = exp(-pow(dM42 / 0.0090, 2.0));
-              hdrCosmos += vec3(0.095, 0.052, 0.110) * m42Glow * darkSkyVis;
-            }
+            // Skip sub-arcminute pinpoint stars, nebulae, & meteors inside low-res planar water reflection
+            // (eliminates white star-blob/speckle artifacts on dark ocean waves AND makes planar sky 3x faster!)
+            if (uRenderingPlanarRefl < 0.5) {
+              // Subtle Southern Deep-Sky Wisps (whisper-faint naked-eye realistic surface brightness, zero blobs!)
+              vec3 lmcEq = vec3(0.0549, 0.3416, -0.9382);
+              vec3 smcEq = vec3(0.2878, 0.0674, -0.9553);
+              vec3 m42Eq = vec3(0.1066, 0.9898, -0.0940);
+              float dLMC = length(eqDir - lmcEq);
+              float dSMC = length(eqDir - smcEq);
+              float dM42 = length(eqDir - m42Eq);
+              if (dLMC < 0.075) {
+                float lmcTex = 0.52 + 0.48 * fbmGal4(eqDir.xy * 42.0);
+                hdrCosmos += vec3(0.00065, 0.00092, 0.00145) * exp(-pow(dLMC / 0.024, 2.0)) * lmcTex * darkSkyVis;
+              }
+              if (dSMC < 0.055) {
+                hdrCosmos += vec3(0.00048, 0.00068, 0.00110) * exp(-pow(dSMC / 0.016, 2.0)) * darkSkyVis;
+              }
+              if (dM42 < 0.0075) {
+                hdrCosmos += vec3(0.0020, 0.0026, 0.0036) * exp(-pow(dM42 / 0.0016, 2.0)) * darkSkyVis;
+              }
 
-            // 2B. Tier-A Faint Equatorial-Locked Galactic Pinpoint Background Stars (~4,900 Bortle 1-2 naked-eye stars)
-            //     3D Spherical-Shell 2x2x2 Voxel Lattice on eqDir: ZERO atan +-pi seam, ZERO pole pinching, ZERO clipping!
-            vec3 bP3 = eqDir * 104.0;
-            vec3 bBase = floor(bP3 - 0.5);
-            float galStarThresh = mix(0.85, 0.58, exp(-abs(sinB) * 6.5));
-            for (int oz = 0; oz < 2; oz++) {
-              for (int oy = 0; oy < 2; oy++) {
-                for (int ox = 0; ox < 2; ox++) {
-                  vec3 bCell = bBase + vec3(float(ox), float(oy), float(oz));
-                  float h0 = fract(sin(dot(bCell, vec3(127.1, 311.7, 74.7))) * 43758.5453);
-                  if (h0 > galStarThresh) {
-                    float h1 = fract(sin(dot(bCell, vec3(269.5, 183.3, 246.1))) * 43758.5453);
-                    float h2 = fract(sin(dot(bCell, vec3(113.5, 271.9, 124.6))) * 43758.5453);
-                    float h3 = fract(sin(dot(bCell, vec3(419.2, 371.9, 168.3))) * 43758.5453);
-                    vec3 bStarPos = bCell + vec3(0.05 + 0.90 * h1, 0.05 + 0.90 * h2, 0.05 + 0.90 * h3);
-                    if (abs(length(bStarPos) - 104.0) < 0.165) {
-                      vec3 bStarDir = normalize(bStarPos);
-                      float dAng = length(eqDir - bStarDir);
-                      float rAng = max(skyPxRad * 1.05, mix(0.00085, 0.00145, h2));
-                      if (dAng < rAng) {
-                        float twkBg = 0.82 + 0.18 * sin(uTime * (1.8 + h3 * 2.5) + h0 * 50.0);
-                        float mBg = smoothstep(rAng, 0.0, dAng) * mix(0.022, 0.058, h3 * h3);
-                        vec3 cBg = evalPlanckStellarColor(mix(-0.15, 1.45, fract((h1 + h2) * 7.3)));
-                        hdrCosmos += cBg * mBg * twkBg * darkSkyVis;
+              // 2B. Tier-A Faint Equatorial-Locked Galactic Pinpoint Background Stars (~4,200 fine 1px Bortle stars)
+              vec3 bP3 = eqDir * 104.0;
+              vec3 bBase = floor(bP3 - 0.5);
+              float galStarThresh = mix(0.87, 0.62, exp(-abs(sinB) * 6.5));
+              for (int oz = 0; oz < 2; oz++) {
+                for (int oy = 0; oy < 2; oy++) {
+                  for (int ox = 0; ox < 2; ox++) {
+                    vec3 bCell = bBase + vec3(float(ox), float(oy), float(oz));
+                    float h0 = fract(sin(dot(bCell, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+                    if (h0 > galStarThresh) {
+                      float h1 = fract(sin(dot(bCell, vec3(269.5, 183.3, 246.1))) * 43758.5453);
+                      float h2 = fract(sin(dot(bCell, vec3(113.5, 271.9, 124.6))) * 43758.5453);
+                      float h3 = fract(sin(dot(bCell, vec3(419.2, 371.9, 168.3))) * 43758.5453);
+                      vec3 bStarPos = bCell + vec3(0.05 + 0.90 * h1, 0.05 + 0.90 * h2, 0.05 + 0.90 * h3);
+                      if (abs(length(bStarPos) - 104.0) < 0.165) {
+                        vec3 bStarDir = normalize(bStarPos);
+                        float dAng = length(eqDir - bStarDir);
+                        float rAng = max(skyPxRad * 0.78, mix(0.00055, 0.00092, h2));
+                        if (dAng < rAng) {
+                          float twkBg = 0.84 + 0.16 * sin(uTime * (1.8 + h3 * 2.5) + h0 * 50.0);
+                          float mBg = smoothstep(rAng, 0.0, dAng) * mix(0.018, 0.062, h3 * h3);
+                          vec3 cBg = evalPlanckStellarColor(mix(-0.15, 1.45, fract((h1 + h2) * 7.3)));
+                          hdrCosmos += cBg * mBg * twkBg * darkSkyVis;
+                        }
                       }
                     }
                   }
                 }
               }
-            }
 
-            // 2C. Tier-B O(1) REAL J2000 CONSTELLATION STAR CATALOG (212 Navigational & Constellation Stars in 512x64 POT Grid!)
-            //     Orion, Crux/Pari, Alpha/Beta Centauri, Scorpius, Sagittarius, Sirius/Canis Major, Canopus,
-            //     Taurus + Pleiades, Gemini, Leo, Virgo, Lyra, Cygnus, Aquila, Cassiopeia, Pegasus, Ursa Major!
-            float eqRA = atan(eqDir.y, eqDir.x); // [-pi, pi]
-            float eqDec = asin(clamp(eqDir.z, -1.0, 1.0)); // [-pi/2, pi/2]
-            float raPos = mod(eqRA + 6.28318530718, 6.28318530718);
-            float cx = clamp(floor((raPos / 6.28318530718) * 128.0), 0.0, 127.0);
-            float cy = clamp(floor((eqDec / 3.14159265359 + 0.5) * 64.0), 0.0, 63.0);
+              // 2C. Tier-B O(1) REAL J2000 CONSTELLATION STAR CATALOG (212 Crisp 1px Diamond Pinpoint Stars!)
+              float eqRA = atan(eqDir.y, eqDir.x);
+              float eqDec = asin(clamp(eqDir.z, -1.0, 1.0));
+              float raPos = mod(eqRA + 6.28318530718, 6.28318530718);
+              float cx = clamp(floor((raPos / 6.28318530718) * 128.0), 0.0, 127.0);
+              float cy = clamp(floor((eqDec / 3.14159265359 + 0.5) * 64.0), 0.0, 63.0);
 
-            for (int slot = 0; slot < 4; slot++) {
-              vec2 sTexUV = vec2((cx * 4.0 + float(slot) + 0.5) / 512.0, (cy + 0.5) / 64.0);
-              vec4 stData = texture2D(uStarGridTex, sTexUV);
-              if (stData.w > 0.0) {
-                vec3 stEq = normalize(stData.xyz);
-                float theta = length(eqDir - stEq); // Exact chord angle (rad)
-                if (theta < 0.0185) {
-                  float magCode = floor(stData.w);
-                  float vmag = magCode * 0.01 - 2.0;
-                  float bv = fract(stData.w) * 2.6 - 0.4;
-                  vec3 starRGB = evalPlanckStellarColor(bv);
+              for (int slot = 0; slot < 4; slot++) {
+                vec2 sTexUV = vec2((cx * 4.0 + float(slot) + 0.5) / 512.0, (cy + 0.5) / 64.0);
+#if __VERSION__ == 300
+                vec4 stData = textureLod(uStarGridTex, sTexUV, 0.0);
+#else
+                vec4 stData = texture2D(uStarGridTex, sTexUV);
+#endif
+                if (stData.w > 0.0) {
+                  vec3 stEq = normalize(stData.xyz);
+                  float theta = length(eqDir - stEq);
+                  if (theta < 0.0044) {
+                    float magCode = floor(stData.w);
+                    float vmag = magCode * 0.01 - 2.0;
+                    float bv = fract(stData.w) * 2.6 - 0.4;
+                    vec3 starRGB = evalPlanckStellarColor(bv);
 
-                  // Smooth C^2 radial zero-taper window eliminating any outer halo boundary ring!
-                  float radialWindow = pow(clamp(1.0 - theta / 0.0185, 0.0, 1.0), 3.0);
+                    float radialWindow = pow(clamp(1.0 - theta / 0.0044, 0.0, 1.0), 2.5);
+                    // Strictly sub-bloom-threshold (< 0.65 < 0.77) linear flux -> razor-sharp 1px diamond stars, ZERO 16px bloom golf-balls!
+                    float rawFlux = pow(2.05, 2.65 - vmag);
+                    float coreFlux = clamp((0.26 * rawFlux) / (1.0 + 0.36 * rawFlux), 0.0, 0.64);
+                    float haloFlux = clamp((0.045 * rawFlux) / (1.0 + 0.52 * rawFlux), 0.0, 0.082);
 
-                  // Calibrated Linear-HDR Pogson prominence so 1st..3rd magnitude constellation patterns stand out unmistakably!
-                  float rawFlux = pow(2.12, 2.85 - vmag);
-                  float coreFlux = (0.42 * rawFlux) / (1.0 + 0.085 * rawFlux);
-                  float haloFlux = (0.15 * rawFlux) / (1.0 + 0.28 * rawFlux);
+                    float starSeed = fract(magCode * 0.173 + stEq.x * 13.7 + stEq.y * 29.1);
+                    float lowAltScint = mix(0.24, 0.05, smoothstep(0.05, 0.55, h));
+                    float twinkle = 1.0 + lowAltScint * sin(uTime * (3.6 + starSeed * 4.2) + starSeed * 62.8)
+                                        * cos(uTime * (2.1 + starSeed * 2.9) - starSeed * 19.4);
 
-                  // Altitude-dependent Kolmogorov atmospheric scintillation (stronger near horizon, calm at zenith)
-                  float starSeed = fract(magCode * 0.173 + stEq.x * 13.7 + stEq.y * 29.1);
-                  float lowAltScint = mix(0.30, 0.06, smoothstep(0.05, 0.55, h));
-                  float twinkle = 1.0 + lowAltScint * sin(uTime * (3.6 + starSeed * 4.2) + starSeed * 62.8)
-                                      * cos(uTime * (2.1 + starSeed * 2.9) - starSeed * 19.4);
+                    float magProm = clamp((3.9 - vmag) / 5.2, 0.0, 1.0);
+                    float coreRad = max(skyPxRad * mix(0.54, 0.82, magProm), mix(0.00038, 0.00068, magProm));
+                    float airyCore = exp(-pow(theta / coreRad, 2.0));
+                    float innerAureole = exp(-theta / max(coreRad * 2.1, 0.0011)) * 0.18;
 
-                  // Crisp jewel-like anti-aliased Airy pinpoint core + tight colored B-V aureole (NEVER giant bubbles!)
-                  float magProm = clamp((3.9 - vmag) / 5.2, 0.0, 1.0);
-                  float coreRad = max(skyPxRad * mix(0.95, 1.65, magProm), mix(0.00105, 0.00220, magProm));
-                  float airyCore = exp(-pow(theta / coreRad, 2.0));
-                  float innerAureole = exp(-theta / max(coreRad * 2.25, 0.0026)) * 0.48;
-                  float tightCiliary = exp(-theta * 260.0) * 0.14 * smoothstep(2.6, -0.8, vmag);
-
-                  // Delicate 1-px 4-point human-eye crystalline-lens suture glint on 1st/2nd magnitude showpiece stars!
-                  float glintSpikes = 0.0;
-                  if (vmag < 1.95 && theta < 0.0155) {
-                    vec3 stWorld = normalize(stEq * uWorldToEqMat);
-                    vec3 stRight = normalize(cross(vec3(0.0, 1.0, 0.0), stWorld) + vec3(1e-5, 0.0, 0.0));
-                    vec3 stUp = cross(stWorld, stRight);
-                    vec2 dLocal = vec2(dot(dir - stWorld, stRight), dot(dir - stWorld, stUp));
-                    float spikeW = max(skyPxRad * 0.72, 0.00055);
-                    float spikeH = exp(-abs(dLocal.y) / spikeW) * exp(-abs(dLocal.x) * 240.0);
-                    float spikeV = exp(-abs(dLocal.x) / spikeW) * exp(-abs(dLocal.y) * 240.0);
-                    glintSpikes = (spikeH + spikeV) * 0.55 * smoothstep(1.95, -0.9, vmag);
+                    vec3 coreCol = mix(starRGB, vec3(1.0), 0.42 * airyCore);
+                    vec3 sContrib = (coreCol * airyCore * coreFlux + starRGB * innerAureole * haloFlux)
+                                  * radialWindow * twinkle * darkSkyVis;
+                    hdrCosmos += sContrib;
                   }
-
-                  vec3 coreCol = mix(starRGB, vec3(1.0), 0.38 * airyCore);
-                  vec3 sContrib = (coreCol * airyCore * coreFlux + starRGB * (innerAureole + tightCiliary + glintSpikes) * haloFlux)
-                                * radialWindow * twinkle * darkSkyVis;
-                  hdrCosmos += sContrib;
                 }
               }
-            }
 
-            // 2D. Occasional Subtle Tropical Island Shooting Star / Meteor ("Bintang Jatuh" every ~13s in clear dark skies)
-            if (h > 0.16 && overcast < 0.42) {
-              float mCycle = floor(uTime / 13.0);
-              float mPhase = fract(uTime / 13.0);
-              if (mPhase < 0.055) {
-                float pNorm = mPhase / 0.055; // 0..1 over ~0.71s streak
-                float mAz = hash21(vec2(mCycle, 3.7)) * 6.2831853;
-                float mEl = 0.34 + 0.36 * hash21(vec2(mCycle, 9.1));
-                vec3 mStart = normalize(vec3(cos(mAz) * cos(mEl), sin(mEl), sin(mAz) * cos(mEl)));
-                vec3 mVel = normalize(vec3(-sin(mAz) * 0.72, -0.52, cos(mAz) * 0.45));
-                vec3 mHead = normalize(mStart + mVel * (pNorm * 0.22));
-                vec3 mTail = normalize(mStart + mVel * (max(0.0, pNorm - 0.34) * 0.22));
-                vec3 seg = mHead - mTail;
-                float segLen2 = max(1e-6, dot(seg, seg));
-                float tProj = clamp(dot(dir - mTail, seg) / segLen2, 0.0, 1.0);
-                float dSeg = length((mTail + seg * tProj) - dir);
-                float meteor = exp(-dSeg * 1250.0) * tProj * sin(pNorm * 3.14159265) * darkSkyVis;
-                hdrCosmos += vec3(0.75, 0.88, 1.0) * meteor * 0.85;
+              // 2D. Occasional Subtle Tropical Island Shooting Star / Meteor ("Bintang Jatuh" every ~15s)
+              if (h > 0.18 && overcast < 0.42) {
+                float mCycle = floor(uTime / 15.0);
+                float mPhase = fract(uTime / 15.0);
+                if (mPhase < 0.048) {
+                  float pNorm = mPhase / 0.048;
+                  float mAz = hash21(vec2(mCycle, 3.7)) * 6.2831853;
+                  float mEl = 0.34 + 0.36 * hash21(vec2(mCycle, 9.1));
+                  vec3 mStart = normalize(vec3(cos(mAz) * cos(mEl), sin(mEl), sin(mAz) * cos(mEl)));
+                  vec3 mVel = normalize(vec3(-sin(mAz) * 0.72, -0.52, cos(mAz) * 0.45));
+                  vec3 mHead = normalize(mStart + mVel * (pNorm * 0.20));
+                  vec3 mTail = normalize(mStart + mVel * (max(0.0, pNorm - 0.32) * 0.20));
+                  vec3 seg = mHead - mTail;
+                  float segLen2 = max(1e-6, dot(seg, seg));
+                  float tProj = clamp(dot(dir - mTail, seg) / segLen2, 0.0, 1.0);
+                  float dSeg = length((mTail + seg * tProj) - dir);
+                  float meteor = exp(-dSeg * 1450.0) * tProj * sin(pNorm * 3.14159265) * darkSkyVis;
+                  hdrCosmos += vec3(0.70, 0.84, 1.0) * meteor * 0.36;
+                }
               }
             }
           }
@@ -1948,14 +1957,14 @@ export class WeatherOpticsEngine {
 
             // High cirrus catches upper-stratosphere sunset light slightly longer than low cumulus
             vec3 cirrusDay = mix(vec3(0.96, 0.98, 1.0), vec3(1.0, 0.54, 0.30), clamp(uDuskFactor * 1.25, 0.0, 1.0));
-            vec3 cirrusNight = vec3(0.026, 0.038, 0.066) * (0.30 + 0.70 * lunarSkyScatter);
+            vec3 cirrusNight = vec3(0.052, 0.078, 0.132) * (0.65 + 0.55 * lunarSkyScatter);
             float horizonFade = smoothstep(0.005, 0.16, dir.y);
             skyCol = mix(skyCol, mix(cirrusDay, cirrusNight, uNightFactor), dCirrus * 0.28 * horizonFade * (1.0 - dLow));
 
             // Directional Beer-Lambert optical thickness + Schneider Powder-Sugar Multiple Scattering
             vec2 sunStep = normalize(celestialDir.xz + vec2(1e-4, 0.0)) * 0.14;
-            float fShadow = fbmCloud6(projLow + sunStep);
-            float fShadow2 = fbmGal4((projLow + sunStep * 2.1) * 1.85);
+            float fShadow = fbmCloud3(projLow + sunStep);
+            float fShadow2 = fbmCloud2((projLow + sunStep * 2.1) * 1.85);
             float selfLit = clamp(
               1.0 - max(0.0, fShadow - fLowBase) * 3.35 - max(0.0, fShadow2 - fLow) * 1.15 - dLow * (0.30 + 0.40 * uStormFactor),
               0.10,
@@ -1974,7 +1983,9 @@ export class WeatherOpticsEngine {
             vec3 scatterTint = mix(vec3(1.0, 0.96, 0.86), vec3(1.0, 0.64, 0.32), uDuskFactor);
             vec3 cloudColDay = mix(darkBaseDay, litCloudDay, clamp(selfLit + multiScatter, 0.0, 1.0)) + scatterTint * (forwardScatter + silverEdge);
             float moonCloudLit = 0.20 + 0.80 * lunarSkyScatter;
-            vec3 cloudColNight = mix(vec3(0.010, 0.015, 0.027), vec3(0.068, 0.096, 0.155) * moonCloudLit, selfLit)
+            vec3 nightCloudDark = vec3(0.046, 0.070, 0.122) + vec3(0.022, 0.034, 0.058) * lunarSkyScatter;
+            vec3 nightCloudLit = vec3(0.064, 0.094, 0.158) + vec3(0.085, 0.125, 0.195) * lunarSkyScatter;
+            vec3 cloudColNight = mix(nightCloudDark, nightCloudLit, selfLit)
                                + vec3(0.20, 0.28, 0.42) * silverEdge * 0.48 * moonCloudLit;
             vec3 cloudCol = mix(cloudColDay, cloudColNight, uNightFactor);
 
@@ -1982,17 +1993,17 @@ export class WeatherOpticsEngine {
             cloudCoverMask = clamp(mainCloudDens * horizonFade * (0.68 + 0.30 * uCloudCover), 0.0, 0.985);
             skyCol = mix(skyCol, cloudCol, cloudCoverMask);
 
-            // True Cloud-Gap-Occluded Radial Crepuscular God-Rays (5-tap volumetric march toward the Sun!)
-            if (cosSun > 0.12 && solarHaloVis > 0.01 && uRainIntensity < 0.78 && uNightFactor < 0.85) {
+            // True Cloud-Gap-Occluded Radial Crepuscular God-Rays (3-tap volumetric march toward the Sun; skipped in planar refl!)
+            if (uRenderingPlanarRefl < 0.5 && cosSun > 0.12 && solarHaloVis > 0.01 && uRainIntensity < 0.78 && uNightFactor < 0.85) {
               float shaftTrans = 0.0;
-              for (int gi = 1; gi <= 5; gi++) {
-                float gFrac = float(gi) * 0.175;
+              for (int gi = 1; gi <= 3; gi++) {
+                float gFrac = float(gi) * 0.28;
                 vec3 sampleRay = normalize(mix(dir, trueSunDir, gFrac));
                 if (sampleRay.y > 0.015) {
                   vec2 pGap = (sampleRay.xz / (sampleRay.y + 0.16)) * 1.85 + windAdv * 1.35 + vec2(5.7, -3.4);
-                  float cGap = fbmGal4(pGap * 1.02);
+                  float cGap = fbmCloud3(pGap * 1.02);
                   float gapOpen = 1.0 - smoothstep(thresh - 0.06, thresh + 0.22, cGap);
-                  shaftTrans += gapOpen * 0.20;
+                  shaftTrans += gapOpen * 0.3333;
                 }
               }
               float shaftContrast = smoothstep(0.18, 0.82, shaftTrans) * (1.0 - cloudDensityTotal * 0.58);
@@ -2082,11 +2093,11 @@ export class WeatherOpticsEngine {
             hdrTropoSky += vec3(0.75, 0.95, 1.55) * boltBoost * uLightningFlash * 1.35;
           }
 
-          // 5A. Boundless Spherical Java Sea below slopeHor (matches oceanMesh r = 2,680m rim 1:1!)
-          float seaSolidMask = smoothstep(slopeHor + 0.00045, slopeHor - 0.00085, raySlope);
+          // 5A. Boundless Spherical Java Sea below slopeHor (matches oceanMesh r = 2,680m rim 1:1 & merges seamlessly into hdrTropoSky!)
+          float seaSolidMask = smoothstep(slopeHor + 0.00055, slopeHor - 0.00110, raySlope);
           float pSea = max(-slopeHor + 1e-6, -raySlope);
           float dSeaM = (2.0 * Hcam) / (pSea + sqrt(max(0.0, pSea * pSea - slopeHor * slopeHor)));
-          vec3 hdrSeaLayer = vec3(0.0);
+          vec3 hdrSeaLayer = hdrTropoSky;
           if (seaSolidMask > 0.001) {
             hdrSeaLayer = evalSphericalFarSeaHDR(
               dir,
@@ -2105,59 +2116,79 @@ export class WeatherOpticsEngine {
               uWindPhase,
               uSolarDirectTrans
             );
+            // Exact C^1-smooth radiative convergence to hdrTropoSky at the spherical horizon dHorM (0.000000 horizon seam!)
+            float horMerge = smoothstep(dHorM * 0.42, dHorM * 0.995, dSeaM);
+            hdrSeaLayer = mix(hdrSeaLayer, hdrTropoSky, horMerge * 0.96);
           }
 
           // 5B. Geodetically Grounded 3-Tier Pulau Jawa Mainland & Ridged Stratovolcano Cordillera
+          //     Placed at true Southern Kepulauan Seribu <-> Pantai Utara Jawa distance (~11.5-18.5 km),
+          //     so the curved North Java coastline, Tanjung Pasir/Kait & Tanjung Priok capes, Teluk Jakarta bay,
+          //     littoral shoals, and coastal surf sit VISIBLY IN FRONT OF the spherical sea horizon (dCoastM < dHorM)!
           float javaSolidMask = 0.0;
           vec3 hdrJavaLayer = hdrTropoSky;
-          if (dir.x < -0.015 && raySlope > -0.085 && raySlope < 0.072) {
+          if (dir.x < -0.015 && raySlope > -0.095 && raySlope < 0.085) {
             float azSouth = atan(dir.z, -dir.x); // 0 = South (-X), - = SSW/Banten-Salak, + = SSE/Gede-Jonggol
             float absAz = abs(azSouth);
             float islandEnv = 1.0 - smoothstep(0.68, 1.02, absAz);
             if (islandEnv > 0.001) {
               float marineClarity = clamp(1.0 - uRainIntensity * 0.86 - uFogFactor * 0.88 - uStormFactor * 0.52, 0.05, 1.0);
 
-              // Curved 3D North Java Coastline Planform Distance from Kepulauan Seribu (~41-48 km):
-              // Concave Teluk Jakarta bay (~47 km), advancing Tanjung Kait (-0.25) & Muara Gembong (+0.27) capes (~39 km),
-              // curving smoothly inland along West Banten & Karawang-Subang wings out beyond the horizon!
-              float bayRecess = 5200.0 * exp(-pow(azSouth / 0.195, 2.0));
-              float capeKait  = -3800.0 * exp(-pow((azSouth + 0.255) / 0.098, 2.0));
-              float capeGemb  = -3400.0 * exp(-pow((azSouth - 0.275) / 0.108, 2.0));
-              float coastIrr  = (noise2(vec2(azSouth * 13.5, 2.3)) - 0.5) * 2400.0
-                              + (noise2(vec2(azSouth * 37.0, 7.1)) - 0.5) * 950.0;
-              float wingCurve = 78000.0 * pow(smoothstep(0.28, 0.88, absAz), 1.85);
-              float dCoastM = max(36000.0, 42500.0 + bayRecess + capeKait + capeGemb + coastIrr + wingCurve);
+              // Curved 3D Pantai Utara Jawa Planform Distance from Southern Kepulauan Seribu (~11.5 - 18.8 km):
+              // Advancing Tanjung Pasir / Kait (-0.255, ~11.8 km) & Tanjung Priok / Muara Gembong (+0.275, ~12.2 km) capes,
+              // concave Teluk Jakarta bay (~17.5 km), curving smoothly back along Banten & Karawang wings toward the horizon!
+              float bayRecess =  2900.0 * exp(-pow(azSouth / 0.195, 2.0));
+              float capeKait  = -2800.0 * exp(-pow((azSouth + 0.255) / 0.098, 2.0));
+              float capeGemb  = -2400.0 * exp(-pow((azSouth - 0.275) / 0.108, 2.0));
+              float coastIrr  = (noise2(vec2(azSouth * 14.5, 2.3)) - 0.5) * 1450.0
+                              + (noise2(vec2(azSouth * 39.0, 7.1)) - 0.5) * 580.0;
+              float wingCurve = 46000.0 * pow(smoothstep(0.28, 0.88, absAz), 1.85);
+              float dCoastM = max(11200.0, 14600.0 + bayRecess + capeKait + capeGemb + coastIrr + wingCurve);
 
               float slopeCoast = (-Hcam / dCoastM) - (dCoastM / 12742000.0);
-              // Exact C^1-continuous horizon tangency: visible shoreline sits gently on the sea at slopeCoast when in front of dHorM,
-              // and gets naturally occluded behind the curved Java Sea at slopeHor when dCoastM >= dHorM!
               float visCoastSlope = (dCoastM < dHorM) ? slopeCoast : slopeHor;
 
-              //Multi-scale ridged multifractal harmonics for dissected tropical mountain arêtes & barrancos
+              // Shallow North Java Littoral Shelf & Subtle Breaking Coastal Surf Line in the Java Sea right along Pantai Utara Jawa!
+              if (seaSolidMask > 0.01 && dCoastM < dHorM * 0.97) {
+                float seaBelowCoast = visCoastSlope - raySlope;
+                if (seaBelowCoast > -0.0006 && seaBelowCoast < 0.0032) {
+                  float coastHazeS = clamp(1.0 - exp(-dCoastM * 0.000028), 0.30, 0.82);
+                  float shoalBand = exp(-max(0.0, seaBelowCoast) / 0.00125) * smoothstep(-0.0005, 0.0001, seaBelowCoast);
+                  vec3 shoalTintS = mix(mix(vec3(0.045, 0.165, 0.175), vec3(0.18, 0.13, 0.12), uDuskFactor), vec3(0.012, 0.025, 0.042), uNightFactor);
+                  vec3 shoalHDR = mix(nexusSRGBToLinear(shoalTintS) * mix(1.12, 0.74, uNightFactor), hdrTropoSky, coastHazeS);
+                  hdrSeaLayer = mix(hdrSeaLayer, shoalHDR, shoalBand * marineClarity * 0.55);
+
+                  float surfNoiseJ = 0.45 + 0.55 * noise2(vec2(azSouth * 165.0, uTime * 0.35));
+                  float surfLine = exp(-pow(abs(seaBelowCoast - 0.00014) / 0.00016, 2.0)) * surfNoiseJ;
+                  vec3 surfTintS = mix(mix(vec3(0.76, 0.83, 0.88), vec3(0.84, 0.58, 0.42), uDuskFactor), vec3(0.09, 0.13, 0.20), uNightFactor);
+                  vec3 surfHDR = mix(nexusSRGBToLinear(surfTintS), hdrTropoSky, coastHazeS);
+                  hdrSeaLayer = mix(hdrSeaLayer, surfHDR, surfLine * marineClarity * 0.42);
+                }
+              }
+
+              // Multi-scale ridged multifractal harmonics for dissected tropical mountain arêtes & barrancos
               float rN1 = 1.0 - abs(noise2(vec2(azSouth * 24.0, 4.1)) * 2.0 - 1.0);
               float rN2 = 1.0 - abs(noise2(vec2(azSouth * 58.0 + 3.7, 8.9)) * 2.0 - 1.0);
               float rN3 = 1.0 - abs(noise2(vec2(azSouth * 136.0 - 5.2, 13.4)) * 2.0 - 1.0);
               float ridgeCrestDetail = (rN1 * 0.56 + rN2 * rN1 * 0.30 + rN3 * rN2 * 0.14 - 0.42);
-              // Domain-warped azimuthal coordinate so stratovolcano flanks are organically asymmetric rather than geometric cones!
               float azWarped = azSouth + (noise2(vec2(azSouth * 17.5, 6.3)) - 0.5) * 0.026
                                        + (rN2 - 0.5) * 0.011;
 
-              // Tier 1: North Java Coastal Lowland & Jabodetabek Alluvial Plain (D = dCoastM -> dFootM)
-              // By spherical geometry, a continuous mainland (h >= 0) starting at dCoastM < dHorM always reaches at least slopeHor at d = dHorM!
-              float dFootM = dCoastM + 21500.0;
-              float hJavaCoast = (185.0 + 55.0 * noise2(vec2(azSouth * 9.5, 1.7)) + 32.0 * rN1) * islandEnv;
+              // Tier 1: North Java Coastal Mangrove/Alluvial Lowland & Jabodetabek Plain (D = dCoastM -> dFootM ~ 34 km)
+              float dFootM = dCoastM + 19500.0;
+              float hJavaCoast = (155.0 + 48.0 * noise2(vec2(azSouth * 9.5, 1.7)) + 28.0 * rN1) * islandEnv;
               float rawPlainTop = ((hJavaCoast - Hcam) / dFootM) - (dFootM / 12742000.0);
-              float slopePlainTop = (dCoastM < dHorM) ? max(rawPlainTop, slopeHor + 0.00035 * islandEnv) : rawPlainTop;
+              float slopePlainTop = (dCoastM < dHorM) ? max(rawPlainTop, slopeHor + 0.00045 * islandEnv) : rawPlainTop;
 
-              // Tier 2: Folded Bogor-Sentul-Hambalang-Cigudeg Foothill Belt (~64 km, 460-960 mdpl)
+              // Tier 2: Folded Bogor-Sentul-Hambalang-Cigudeg Foothill Belt (~34-42 km, 460-960 mdpl)
               float footEnv = (1.0 - smoothstep(0.46, 0.86, absAz)) * islandEnv;
-              float sentulMass = 560.0 * pow(clamp(1.0 - abs(azWarped - 0.08) / 0.35, 0.0, 1.0), 1.35);
-              float cigudegMass = 520.0 * pow(clamp(1.0 - abs(azWarped + 0.31) / 0.30, 0.0, 1.0), 1.40);
-              float hFootMeters = (280.0 + max(sentulMass, cigudegMass) + 255.0 * rN1 * rN1 + 105.0 * rN2) * footEnv;
+              float sentulMass = 540.0 * pow(clamp(1.0 - abs(azWarped - 0.08) / 0.35, 0.0, 1.0), 1.35);
+              float cigudegMass = 500.0 * pow(clamp(1.0 - abs(azWarped + 0.31) / 0.30, 0.0, 1.0), 1.40);
+              float hFootMeters = (265.0 + max(sentulMass, cigudegMass) + 235.0 * rN1 * rN1 + 95.0 * rN2) * footEnv;
               float slopeFootTop = ((hFootMeters - Hcam) / dFootM) - (dFootM / 12742000.0);
 
-              // Tier 3: West Java Volcanic Cordillera (~84-96 km: Halimun-Salak & Pangrango-Gede-Jonggol)
-              float dVolcM = 83500.0 + 5500.0 * smoothstep(-0.15, 0.25, azSouth) + 22000.0 * pow(smoothstep(0.38, 0.92, absAz), 1.6);
+              // Tier 3: West Java Volcanic Cordillera (~62-72 km: Halimun-Salak & Pangrango-Gede-Jonggol)
+              float dVolcM = 62500.0 + 4800.0 * smoothstep(-0.15, 0.25, azSouth) + 18000.0 * pow(smoothstep(0.38, 0.92, absAz), 1.6);
 
               // SSW: Pegunungan Halimun-Kendeng (-0.45) & Broad Dissected Gunung Salak Massif (Salak I 2,211m & Salak II 2,180m)
               float qHal1  = clamp(1.0 - sqrt(pow((azWarped + 0.465) / 0.165, 2.0) + 0.018), 0.0, 1.0);
@@ -2244,33 +2275,30 @@ export class WeatherOpticsEngine {
                 vec3 intrinsicVolcHDR = nexusSRGBToLinear(mix(mix(dayFlankS, duskFlankS, uDuskFactor), forestNight, uNightFactor));
 
                 // Koschmieder Rayleigh-Mie Tropospheric Extinction T(D) = exp(-sigma_eff * D)
-                // Clear tropical visibility ~85-110 km -> Coast (~26 km) ~66% veiled, Foothills (~50 km) ~78% veiled, Volcanoes (~75 km) ~84% veiled!
+                // Grounded depth layering: Coast (12-18 km) ~38-52% veiled, Foothills (34 km) ~64-74% veiled, Volcanoes (64 km) ~76-88% veiled!
                 float sigmaTropo = 0.0000245 + 0.000028 * clamp(uFogFactor * 1.4 + uRainIntensity * 1.1 + uCloudCover * 0.25, 0.0, 1.5);
 
-                // Composite Back-to-Front inside unified landmass silhouette (zero pale horizon rim!):
-                // 1) Volcanic Cordillera -> 2) Bogor Valley Mist & Foothills -> 3) North Java Coastal Plain!
                 float altClear = 1.0 - 0.16 * smoothstep(0.35, 0.95, vVolc);
-                float hazeVolc = clamp(1.0 - exp(-dVolcM * sigmaTropo * altClear), 0.72, 0.95);
+                float hazeVolc = clamp(1.0 - exp(-dVolcM * sigmaTropo * altClear), 0.72, 0.92);
                 vec3 javaInteriorHDR = mix(intrinsicVolcHDR, hdrTropoSky, hazeVolc);
 
                 if (wFootLayer > 0.001) {
                   float vFoot = clamp((raySlope - visCoastSlope) / max(0.002, slopeFootTop - visCoastSlope), 0.0, 1.0);
-                  float valleyMist = exp(-pow(max(0.0, 1.0 - vFoot) * 2.2, 2.0)) * 0.07 * (1.0 - uNightFactor * 0.75);
+                  float valleyMist = exp(-pow(max(0.0, 1.0 - vFoot) * 2.2, 2.0)) * 0.06 * (1.0 - uNightFactor * 0.75);
                   float footFacet = 0.85 + 0.30 * rN2;
-                  float hazeFoot = clamp(1.0 - exp(-dFootM * sigmaTropo * 1.04), 0.64, 0.93);
-                  vec3 footHDR = mix(intrinsicVolcHDR * (0.86 * footFacet), hdrTropoSky * (1.0 + valleyMist), hazeFoot);
+                  float hazeFoot = clamp(1.0 - exp(-dFootM * sigmaTropo * 1.02), 0.56, 0.88);
+                  vec3 footHDR = mix(intrinsicVolcHDR * (0.88 * footFacet), hdrTropoSky * (1.0 + valleyMist), hazeFoot);
                   javaInteriorHDR = mix(javaInteriorHDR, footHDR, wFootLayer);
                 }
 
                 if (wPlainLayer > 0.001) {
                   float uPlain = clamp((raySlope - visCoastSlope) / max(0.0012, slopePlainTop - visCoastSlope), 0.0, 1.0);
                   float dPlainRay = mix(dCoastM, dFootM, uPlain);
-                  float plainTex = 0.86 + 0.28 * noise2(vec2(azSouth * 58.0, uPlain * 14.0));
-                  vec3 coastDayS = mix(vec3(0.048, 0.110, 0.094), vec3(0.068, 0.132, 0.105), plainTex * 0.5);
-                  vec3 coastDuskS = mix(vec3(0.058, 0.055, 0.088), vec3(0.180, 0.102, 0.076), directBeamM * 0.65 + 0.2);
-                  vec3 plainIntrinsicHDR = nexusSRGBToLinear(mix(mix(coastDayS, coastDuskS, uDuskFactor), forestNight * 0.9, uNightFactor));
-                  // Grazing sightline across 42-64 km humid Teluk Jakarta marine boundary layer is heavily veiled into horizon sky!
-                  float hazePlain = clamp(1.0 - exp(-dPlainRay * sigmaTropo * 1.58), 0.82, 0.96);
+                  float plainTex = 0.84 + 0.32 * noise2(vec2(azSouth * 58.0, uPlain * 14.0));
+                  vec3 coastDayS = mix(vec3(0.044, 0.106, 0.088), vec3(0.068, 0.135, 0.098), plainTex * 0.6);
+                  vec3 coastDuskS = mix(vec3(0.052, 0.054, 0.082), vec3(0.185, 0.108, 0.072), directBeamM * 0.65 + 0.22);
+                  vec3 plainIntrinsicHDR = nexusSRGBToLinear(mix(mix(coastDayS, coastDuskS, uDuskFactor), forestNight * 0.92, uNightFactor));
+                  float hazePlain = clamp(1.0 - exp(-dPlainRay * sigmaTropo * 1.15), 0.38, 0.82);
                   vec3 plainHDR = mix(plainIntrinsicHDR, hdrTropoSky, hazePlain);
                   javaInteriorHDR = mix(javaInteriorHDR, plainHDR, wPlainLayer);
                 }
@@ -2280,7 +2308,7 @@ export class WeatherOpticsEngine {
               }
 
               // Subtle Dusk & Night Teluk Jakarta / Pantai Utara Jawa coastal glow & harbor lights anchored at visCoastSlope!
-              float jakartaSpan = exp(-pow(azSouth / 0.34, 2.0)) * (1.0 - smoothstep(34000.0, 62000.0, dCoastM));
+              float jakartaSpan = exp(-pow(azSouth / 0.34, 2.0)) * (1.0 - smoothstep(22000.0, 48000.0, dCoastM));
               float nightGlowPwr = clamp(uNightFactor * 0.95 + uDuskFactor * 0.38, 0.0, 1.0) * marineClarity;
               float relAboveCoast = raySlope - visCoastSlope;
               if (nightGlowPwr > 0.01 && relAboveCoast > -0.0015 && relAboveCoast < 0.030) {
@@ -3855,6 +3883,7 @@ export class WeatherOpticsEngine {
         uTrueSunDir: this.uniforms.uTrueSunDir,
         uSolarDirectTrans: this.uniforms.uSolarDirectTrans,
         uMoonDir: this.uniforms.uMoonDir,
+        uMoonIllumFraction: this.uniforms.uMoonIllumFraction,
         uSunColor: this.uniforms.uSunColor,
         uNightFactor: this.uniforms.uNightFactor,
         uDuskFactor: this.uniforms.uDuskFactor,
@@ -3984,6 +4013,7 @@ export class WeatherOpticsEngine {
         uniform vec3 uTrueSunDir;
         uniform float uSolarDirectTrans;
         uniform vec3 uMoonDir;
+        uniform float uMoonIllumFraction;
         uniform vec3 uSunColor;
         uniform float uNightFactor;
         uniform float uDuskFactor;
@@ -4654,6 +4684,7 @@ export class WeatherOpticsEngine {
           float celAtmWeightO = useMoonCelO > 0.5
             ? clamp(1.0 - uRainIntensity * 0.88 - uStormFactor * 0.65 - uCloudCover * 0.45, 0.0, 1.0)
               * smoothstep(0.22, 0.82, uNightFactor)
+              * (0.025 + 0.32 * clamp(uMoonIllumFraction, 0.0, 1.0))
             : clamp(uSolarDirectTrans, 0.0, 1.0) * (1.0 - smoothstep(0.50, 0.88, uNightFactor));
           float directCelVisO = rawCelVisO * celAtmWeightO * mix(1.0, oceanCloudShadow, 0.88);
 
@@ -4669,21 +4700,26 @@ export class WeatherOpticsEngine {
           float waveSelfShadow = mix(1.0, smoothstep(-0.14, 0.22, waveSunNdotL), lowSunWeight * smoothstep(0.35, 1.80, HsLive) * 0.72);
 
           // 2. JERLOV TYPE IB–II 4-ZONE SEAWATER VOLUME, SEABED CAUSTICS, SUBMERGED BUBBLE PLUMES, & THIN-CREST JADE SSS
+          //    Fast-path: skip 3-layer seabed pebble noise in deep pelagic water (waterDepth >= 8.5m -> >99.6% opaque!)
           vec2 refrXZ = vWorldPos.xz - normal.xz * min(0.62, waterDepth * 0.40);
-          float sandMacro = fbmCloudRefl(refrXZ * 0.65);
-          float pebMid = vnoise(R * (refrXZ * 4.4 + sandMacro * 0.8));
-          float pebFine = vnoise(R_INV * (refrXZ * 12.5));
-          vec3 submergedBed = mix(
-            vec3(0.118, 0.128, 0.116),
-            vec3(0.295, 0.276, 0.228),
-            clamp(sandMacro * 0.55 + pebMid * 0.30 + pebFine * 0.15, 0.0, 1.0)
-          );
-          if (seribuReef.x > 0.004) {
-            float coralPatch = smoothstep(0.28, 0.72, fbmCloudRefl(refrXZ * 0.22 + vec2(7.3, 13.1)));
-            vec3 coralSandBed = mix(vec3(0.18, 0.28, 0.25), vec3(0.82, 0.80, 0.71), coralPatch);
-            submergedBed = mix(submergedBed, coralSandBed, seribuReef.x * 0.92);
+          vec3 submergedBed = vec3(0.165, 0.168, 0.148);
+          if (waterDepth < 8.5) {
+            float sandMacro = fbmCloudRefl(refrXZ * 0.65);
+            float pebMid = vnoise(R * (refrXZ * 4.4 + sandMacro * 0.8));
+            float pebFine = vnoise(R_INV * (refrXZ * 12.5));
+            submergedBed = mix(
+              vec3(0.118, 0.128, 0.116),
+              vec3(0.295, 0.276, 0.228),
+              clamp(sandMacro * 0.55 + pebMid * 0.30 + pebFine * 0.15, 0.0, 1.0)
+            );
+            if (seribuReef.x > 0.004) {
+              float coralPatch = smoothstep(0.28, 0.72, fbmCloudRefl(refrXZ * 0.22 + vec2(7.3, 13.1)));
+              vec3 coralSandBed = mix(vec3(0.18, 0.28, 0.25), vec3(0.82, 0.80, 0.71), coralPatch);
+              submergedBed = mix(submergedBed, coralSandBed, seribuReef.x * 0.92);
+            }
           }
-          submergedBed *= mix(1.0, 0.16, uNightFactor);
+          float nightBedScale = 0.012 + 0.072 * clamp(moonDirO.y, 0.0, 1.0) * clamp(uMoonIllumFraction, 0.0, 1.0);
+          submergedBed *= mix(1.0, nightBedScale, uNightFactor);
 
           if (waterDepth < 3.15 && distCam < 220.0 && directCelVisO > 0.005) {
             vec2 causticUV = refrXZ - specLightDirO.xz * (waterDepth / max(0.28, specLightDirO.y)) * 0.38 + normal.xz * 0.24;
@@ -4702,10 +4738,10 @@ export class WeatherOpticsEngine {
           vec3 straitTeal       = mix(vec3(0.018, 0.094, 0.152), vec3(0.014, 0.058, 0.094), overcastDesat);
           vec3 deepPelagic      = mix(vec3(0.013, 0.058, 0.114), vec3(0.010, 0.036, 0.072), overcastDesat);
 
-          shallowTurquoise = mix(shallowTurquoise, vec3(0.014, 0.032, 0.050), uNightFactor);
-          shelfEmerald     = mix(shelfEmerald,     vec3(0.009, 0.022, 0.040), uNightFactor);
-          straitTeal       = mix(straitTeal,       vec3(0.006, 0.015, 0.031), uNightFactor);
-          deepPelagic      = mix(deepPelagic,      vec3(0.004, 0.011, 0.025), uNightFactor);
+          shallowTurquoise = mix(shallowTurquoise, vec3(0.015, 0.030, 0.052), uNightFactor);
+          shelfEmerald     = mix(shelfEmerald,     vec3(0.012, 0.024, 0.046), uNightFactor);
+          straitTeal       = mix(straitTeal,       vec3(0.011, 0.021, 0.043), uNightFactor);
+          deepPelagic      = mix(deepPelagic,      vec3(0.010, 0.020, 0.042), uNightFactor);
 
           // Wave-trough cavity occlusion deepens heavy swell troughs smoothly while keeping crests luminous
           float troughDarken = 1.0 - cavityAO * 0.24;
@@ -4720,20 +4756,23 @@ export class WeatherOpticsEngine {
           float crestSSS = thinCrest * (sssAmbient + 1.05 * sssForward) * (1.0 - uNightFactor * 0.88);
           vec3 sssTint = mix(vec3(0.058, 0.335, 0.275), vec3(0.29, 0.185, 0.078), uDuskFactor);
 
-          // Submerged Milky-Aquamarine Micro-Bubble Plumes (beneath breaking surf bores, steep crests, & ship wakes!)
-          float bubbleNoise = fbmCloudRefl(vWorldPos.xz * 0.85 - normal.xz * 0.45 + vec2(uTime * 0.11, -uTime * 0.09));
-          float submergedBubble = clamp(
-            wakeBubble * 0.86 +
-            surfBreak * (0.26 + 0.42 * bubbleNoise) * smoothstep(14.0, 0.6, liveWaterline) +
-            crestFactor * waveSlope * smoothstep(1.05, 2.75, HsLive) * bubbleNoise * 0.36,
-            0.0,
-            0.84
-          ) * smoothstep(780.0, 95.0, distCam);
+          // Submerged Milky-Aquamarine Micro-Bubble Plumes (fast-path gated to wakes, nearshore surf, & heavy >1.05m swells!)
+          float submergedBubble = 0.0;
+          if (distCam < 780.0 && (wakeBubble > 0.004 || (surfBreak > 0.004 && liveWaterline < 14.0) || HsLive > 1.05)) {
+            float bubbleNoise = fbmCloudRefl(vWorldPos.xz * 0.85 - normal.xz * 0.45 + vec2(uTime * 0.11, -uTime * 0.09));
+            submergedBubble = clamp(
+              wakeBubble * 0.86 +
+              surfBreak * (0.26 + 0.42 * bubbleNoise) * smoothstep(14.0, 0.6, liveWaterline) +
+              crestFactor * waveSlope * smoothstep(1.05, 2.75, HsLive) * bubbleNoise * 0.36,
+              0.0,
+              0.84
+            ) * smoothstep(780.0, 95.0, distCam);
+          }
           vec3 bubbleTint = mix(mix(vec3(0.16, 0.44, 0.45), vec3(0.30, 0.25, 0.21), uDuskFactor), vec3(0.035, 0.075, 0.11), uNightFactor);
           bubbleTint *= mix(1.0, 0.68, overcastDesat);
 
           // Beer-Lambert spectral seawater attenuation + upward sky-irradiance volume backscatter across 4 Jerlov zones
-          float volSkyIrrad = mix(mix(1.18, 0.88, uDuskFactor), 0.72, uNightFactor) * mix(1.0, 0.78, overcastDesat) * mix(1.0, oceanCloudShadow, 0.34);
+          float volSkyIrrad = mix(mix(1.18, 0.88, uDuskFactor), 0.76, uNightFactor) * mix(1.0, 0.78, overcastDesat) * mix(1.0, oceanCloudShadow, 0.34);
           vec3 opticalPath = vec3(2.15, 0.78, 0.62) * waterDepth * (1.0 + 0.38 * (1.0 - max(0.22, viewDir.y)));
           vec3 transmittance = exp(-opticalPath);
           vec3 midToShallow = mix(shelfEmerald, shallowTurquoise, exp(-waterDepth * 0.72));
@@ -4743,8 +4782,6 @@ export class WeatherOpticsEngine {
           vec3 underwaterCol = mix(waterVolume, submergedBed, transmittance);
 
           // 3. ROSS-CARDONE / BRUNETON SLOPE-VARIANCE EFFECTIVE DIELECTRIC FRESNEL (IOR 1.337 -> F0 = 0.0208)
-          // Uses filtered macro+meso wave normal for Fresnel NdotV + sub-pixel facet sky-scatter floor so steep 3m wave
-          // faces never punch dark amoeba holes in sky reflection, while eliminating plastic white horizon glare!
           float distSlopeSpread = smoothstep(42.0, 360.0, distCam);
           float roughSigma2 = 0.0015 + 0.024 * clamp(uSeaState, 0.0, 3.55) * (0.34 + 0.66 * distSlopeSpread) + uRainIntensity * 0.008;
           vec3 fresNormal = normalize(mix(gravNorm, normal, 0.36));
@@ -4756,14 +4793,27 @@ export class WeatherOpticsEngine {
           float horizonMasking = mix(0.96, 0.76, clamp(roughSigma2 * 16.0, 0.0, 1.0)) * (1.0 - cavityAO * 0.12);
           float reflWeight = clamp(0.065 + fresnel * 0.90, 0.0, horizonMasking);
 
-          // Blend reflection ray gently upward on steep wave fronts so grazing waves reflect horizon sky rather than dark void
+          // Unified sky reflection matching skyMesh & evalSphericalFarSeaHDR 1:1 via nexusEvalHorizonSkySRGB!
           vec3 reflNormal = normalize(mix(gravNorm, normal, 0.62));
           vec3 reflRay = reflect(-viewDir, reflNormal);
           float reflElev = clamp(max(reflRay.y, 0.045 + 0.065 * waveSlope), 0.0, 1.0);
-          float cosReflAz = dot(normalize(reflRay.xz + vec2(1e-5, 0.0)), normalize(trueSunO.xz + vec2(1e-5, 0.0)));
-          vec3 duskHorO = mix(vec3(0.52, 0.56, 0.68), vec3(0.94, 0.47, 0.20), smoothstep(-0.35, 0.85, cosReflAz));
-          vec3 skyZen = mix(mix(vec3(0.13, 0.37, 0.71), vec3(0.13, 0.17, 0.38), uDuskFactor), vec3(0.014, 0.024, 0.054), uNightFactor);
-          vec3 skyHor = mix(mix(vec3(0.58, 0.75, 0.89), duskHorO, uDuskFactor), vec3(0.038, 0.062, 0.118), uNightFactor);
+          float lunarOceanScatter = clamp(moonDirO.y, 0.0, 1.0) * clamp(uMoonIllumFraction, 0.0, 1.0) * (1.0 - overcastDesat * 0.75);
+          vec3 skyZen = mix(
+            mix(vec3(0.13, 0.37, 0.71), vec3(0.11, 0.16, 0.38), uDuskFactor),
+            vec3(0.056, 0.086, 0.145) + vec3(0.038, 0.058, 0.098) * lunarOceanScatter,
+            uNightFactor
+          );
+          vec3 skyHor = nexusEvalHorizonSkySRGB(
+            vec3(reflRay.x, 0.0, reflRay.z),
+            trueSunO,
+            uDuskFactor,
+            uNightFactor,
+            uCloudCover,
+            uRainIntensity,
+            uStormFactor,
+            uFogFactor,
+            lunarOceanScatter
+          );
           vec3 skyRefl = mix(skyHor, skyZen, pow(reflElev, 0.58));
 
           // Reflected Cumulonimbus / tropical clouds advected monotonically via uWindPhase
@@ -4771,29 +4821,32 @@ export class WeatherOpticsEngine {
           float cField = fbmCloudRefl(reflCloudUV);
           float cThresh = mix(0.56, 0.22, clamp(uCloudCover, 0.0, 1.0));
           float cMask = smoothstep(cThresh, cThresh + 0.34, cField) * smoothstep(0.02, 0.22, reflElev);
-          vec3 cloudReflCol = mix(mix(vec3(0.92, 0.95, 0.99), vec3(0.95, 0.56, 0.32), uDuskFactor), vec3(0.07, 0.10, 0.16), uNightFactor);
+          vec3 cloudReflCol = mix(mix(vec3(0.92, 0.95, 0.99), vec3(0.95, 0.56, 0.32), uDuskFactor), vec3(0.075, 0.105, 0.168), uNightFactor);
           cloudReflCol = mix(cloudReflCol, vec3(0.24, 0.28, 0.34) * mix(1.0, 0.25, uNightFactor), clamp(uRainIntensity * 0.68 + uStormFactor * 0.35, 0.0, 0.92));
           skyRefl = mix(skyRefl, cloudReflCol, cMask * 0.74);
           skyRefl = mix(skyRefl, vec3(0.25, 0.29, 0.35) * mix(1.0, 0.22, uNightFactor), clamp(uRainIntensity * 0.62 + uStormFactor * 0.30, 0.0, 0.90));
           skyRefl *= (1.0 - cavityAO * 0.16);
           skyRefl += vec3(0.76, 0.88, 1.0) * uLightningFlash * 1.15;
 
-          // 3B. REAL PLANAR MIRROR REFLECTION (Gedung Rektorat UI, Trees, Jembatan Teksas UI, Volcano, & Sky!)
-          if (uPlanarReflActive > 0.5) {
+          // 3B. REAL PLANAR MIRROR REFLECTION (Gedung Rektorat UI, Trees, Jembatan Teksas UI, & Islands within 680m!)
+          //     Scoped to 220-680m so open-ocean sky reflection beyond the islands is NEVER double-tonemapped!
+          if (uPlanarReflActive > 0.5 && distCam < 685.0) {
             vec4 reflClip = uPlanarReflMatrix * vec4(vWorldPos.x, -1.45, vWorldPos.z, 1.0);
             if (reflClip.w > 0.05) {
               vec2 reflBaseUV = reflClip.xy / reflClip.w;
               vec2 edgeDist = min(reflBaseUV, 1.0 - reflBaseUV);
-              float edgeFeather = smoothstep(0.005, 0.085, min(edgeDist.x, edgeDist.y))
-                                * smoothstep(1850.0, 420.0, distCam);
+              float edgeFeather = smoothstep(0.008, 0.095, min(edgeDist.x, edgeDist.y))
+                                * smoothstep(680.0, 220.0, distCam);
               if (edgeFeather > 0.004) {
                 vec2 waveDistort = reflNormal.xz
-                                 * mix(0.036, 0.009, smoothstep(16.0, 320.0, distCam))
-                                 * clamp(0.28 + HsLive * 0.42, 0.22, 1.18);
+                                 * mix(0.032, 0.009, smoothstep(16.0, 320.0, distCam))
+                                 * clamp(0.26 + HsLive * 0.40, 0.20, 1.12)
+                                 * mix(1.0, 0.76, uNightFactor);
                 vec2 sampleReflUV = clamp(reflBaseUV + waveDistort, vec2(0.004), vec2(0.996));
                 vec4 planarSample = texture2D(uPlanarReflTex, sampleReflUV);
+                vec3 planarRGB = mix(planarSample.rgb, min(planarSample.rgb, vec3(0.62)), uNightFactor * 0.85);
                 float planarClarity = (1.0 - clamp(roughSigma2 * 8.5, 0.0, 0.32)) * (1.0 - cavityAO * 0.14);
-                skyRefl = mix(skyRefl, planarSample.rgb * planarClarity, edgeFeather * planarSample.a * 0.92);
+                skyRefl = mix(skyRefl, planarRGB * planarClarity, edgeFeather * planarSample.a * 0.90);
               }
             }
           }
@@ -4943,12 +4996,18 @@ export class WeatherOpticsEngine {
 
           col += vec3(0.74, 0.83, 0.92) * rainRingFoam * (0.42 - 0.22 * uNightFactor + 0.55 * uLightningFlash);
 
-          // 6. MULTI-TIER GOLDEN NIGHTTIME ARCHITECTURAL REFLECTION OF GEDUNG REKTORAT UI (EAST DANAU KENANGA COVE)
-          if (uNightFactor > 0.08 && vWorldPos.x > 38.0) {
-            float towerAlign = exp(-pow(vWorldPos.z / 22.0, 2.0)) * smoothstep(132.0, 56.0, vWorldPos.x);
-            float annexAlign = exp(-pow((vWorldPos.z - 8.0) / 44.0, 2.0)) * smoothstep(104.0, 56.0, vWorldPos.x) * 0.55;
-            float rippleShimmer = 0.52 + 0.48 * sin((c0 + normal.x * 0.45) * 24.0 - uTime * 2.6);
-            col += vec3(0.96, 0.70, 0.30) * (towerAlign + annexAlign) * rippleShimmer * uNightFactor * 0.32;
+          // 6. SUBTLE SHORELINE PROMENADE LAMP GLINT (when uPlanarReflActive > 0.5, Gedung Rektorat UI reflects physically via uPlanarReflTex;
+          //    eliminates the static cellular c0 brown-yellow oil-slick stain across East Danau Kenanga Cove!)
+          if (uNightFactor > 0.08) {
+            if (liveWaterline < 9.5 && vWorldPos.x > 36.0 && vWorldPos.z > -62.0 && vWorldPos.z < 56.0) {
+              float lampShimmer = 0.65 + 0.35 * sin(normal.x * 16.0 + normal.z * 14.0 - uTime * 2.2);
+              float shoreProx = exp(-liveWaterline * 0.38);
+              col += vec3(0.88, 0.58, 0.24) * shoreProx * lampShimmer * uNightFactor * 0.14;
+            } else if (uPlanarReflActive < 0.5 && vWorldPos.x > 38.0) {
+              float towerAlign = exp(-pow(vWorldPos.z / 20.0, 2.0)) * smoothstep(115.0, 56.0, vWorldPos.x);
+              float waveShimmer = 0.68 + 0.32 * sin(normal.x * 18.0 - uTime * 2.4);
+              col += vec3(0.88, 0.60, 0.26) * towerAlign * waveShimmer * uNightFactor * 0.16;
+            }
           }
 
           // Subtle outer sea-rim horizon blend complementing 3D boundary-layer aerial perspective (2,680m Kepulauan Seribu rim)
@@ -4957,16 +5016,17 @@ export class WeatherOpticsEngine {
             totalFoam = max(totalFoam, seribuReef.y * surfN * 0.44 * smoothstep(2450.0, 520.0, distCam));
           }
           // Unify Ocean & Danau Kenanga Cove into True Scene-Referred Linear-HDR -> Boundary-Layer Aerial Perspective
-          // -> 0.000-Seam Spherical Far-Sea Rim Merger (r: 1,920m -> 2,655m) -> HVS!
-          vec3 hdrOcean = nexusSRGBToLinear(max(col, vec3(0.0))) * mix(1.16, 0.74, uNightFactor);
+          // -> 0.000-Seam Spherical Far-Sea Rim Merger (r: 1,250m -> 2,640m) -> HVS!
+          vec3 hdrOcean = nexusSRGBToLinear(max(col, vec3(0.0))) * mix(1.16, 0.76, uNightFactor);
           hdrOcean += nexusSRGBToLinear(glitterTint) * (specTight * 0.82 + specGlitter * 0.42) * directCelVisO;
           hdrOcean += vec3(0.75, 0.95, 1.45) * uLightningFlash * 0.55;
 
+          vec3 oceanHazeSun = normalize(mix(trueSunO, sunDir, smoothstep(0.65, 0.96, uNightFactor)));
           hdrOcean = nexusApplyBoundaryLayerAerialPerspective(
             hdrOcean,
             cameraPosition,
             vWorldPos,
-            sunDir,
+            oceanHazeSun,
             uDuskFactor,
             uNightFactor,
             uCloudCover,
@@ -4975,7 +5035,7 @@ export class WeatherOpticsEngine {
             uFogFactor
           );
 
-          float farRimBlend = smoothstep(1920.0, 2655.0, length(vBaseXZ - ARCHIPELAGO_CENTER));
+          float farRimBlend = smoothstep(1250.0, 2640.0, length(vBaseXZ - ARCHIPELAGO_CENTER));
           if (farRimBlend > 0.001) {
             vec3 rayDirO = normalize(vWorldPos - cameraPosition);
             float HcamO = max(1.2, cameraPosition.y + 1.45);
@@ -5144,6 +5204,7 @@ export class WeatherOpticsEngine {
 
     if (this.rainAndDripMesh) this.rainAndDripMesh.visible = raining;
     if (this.splashAndMistMesh) this.splashAndMistMesh.visible = raining;
+    if (this.volcanicPlumeMesh) this.volcanicPlumeMesh.visible = !raining;
 
     // Strict mutual exclusion (!raining) guarantees total scene draw calls <= 24 <= 25 at EVERY transition millisecond!
     const twilightGlow = Math.max(

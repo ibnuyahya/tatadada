@@ -603,8 +603,8 @@ export class AutogenBiomeSpawner {
       }
     };
 
-    // 1. Main Organic Fluted Trunk + -3.60m Subterranean Root Skirt (26 radial x 28 axial = 1,456 tris)
-    addLoftedLimb(26, 28, (t) => {
+    // 1. Main Organic Fluted Trunk + -3.60m Subterranean Root Skirt (18 radial x 18 axial = 666 tris)
+    addLoftedLimb(18, 18, (t) => {
       const y = AutogenBiomeSpawner.ROOT_SKIRT_DEPTH_Y + t * (4.15 - AutogenBiomeSpawner.ROOT_SKIRT_DEPTH_Y);
       const isRoot = y < 0.55;
       const rootFlare = y < 0.7 ? Math.pow(Math.max(0.0, (0.7 - y) / 4.3), 1.35) * 0.44 : 0.0;
@@ -631,14 +631,14 @@ export class AutogenBiomeSpawner {
       };
     });
 
-    // 2. Five Sculpted Surface Buttress Root Spurs anchoring trunk into soil (5 x 8 x 6)
+    // 2. Five Sculpted Surface Buttress Root Spurs anchoring trunk into soil (5 x 6 x 5)
     for (let r = 0; r < 5; r++) {
       const az = (r / 5) * Math.PI * 2.0 + 0.22;
       const dx = Math.cos(az);
       const dz = Math.sin(az);
       addLoftedLimb(
-        8,
         6,
+        5,
         (t) => {
           // Lofts upward from buried root tip (-1.85m, out 0.95m) into trunk collar (+0.48m, out 0.28m)
           const invT = 1.0 - t;
@@ -679,7 +679,7 @@ export class AutogenBiomeSpawner {
         };
       };
 
-      addLoftedLimb(14, 11, (t) => {
+      addLoftedLimb(10, 8, (t) => {
         const p = samplePrimary(t);
         return {
           cx: p.cx,
@@ -704,7 +704,7 @@ export class AutogenBiomeSpawner {
         const sDx = Math.cos(subAz);
         const sDz = Math.sin(subAz);
 
-        addLoftedLimb(8, 7, (t) => {
+        addLoftedLimb(6, 5, (t) => {
           const out = Math.pow(t, 1.15) * 0.72;
           return {
             cx: pAnchor.cx + sDx * out,
@@ -815,7 +815,7 @@ export class AutogenBiomeSpawner {
     };
 
     // 1. Shaded Interior Umbrella Core
-    appendLeafSubTuft(0.0, -0.02, 0.0, 0.76, 0.76, 0.76, 0.0, 0.78, 0.65, 18, 12);
+    appendLeafSubTuft(0.0, -0.02, 0.0, 0.76, 0.76, 0.76, 0.0, 0.78, 0.65, 14, 9);
 
     // 2. Six Overlapping Phyllotaxis Peripheral Bough Leaf-Cluster Pads
     for (let k = 0; k < 6; k++) {
@@ -836,8 +836,8 @@ export class AutogenBiomeSpawner {
         az * 0.7,
         ao,
         1.05,
-        12,
-        8
+        9,
+        6
       );
     }
 
@@ -854,8 +854,8 @@ export class AutogenBiomeSpawner {
         az,
         1.06,
         1.30,
-        10,
-        7
+        8,
+        5
       );
     }
 
@@ -878,7 +878,7 @@ export class AutogenBiomeSpawner {
    * - 2-tier Tajug-inspired tropical rain-hood & spire finial!
    */
   static _buildCampusGardenLampGeometry() {
-    const radialSegs = 28;
+    const radialSegs = 18;
     const stations = [
       { y: -1.25, r: 0.15, flute: 0.0, uvV: 0.00, col: [0.14, 0.15, 0.16] },
       { y: 0.0, r: 0.18, flute: 0.0, uvV: 0.06, col: [0.17, 0.18, 0.20] },
@@ -1230,18 +1230,21 @@ export class AutogenBiomeSpawner {
         );
 
         const palmTopH = 5.75 * trunkSy;
-        const topVec = new THREE.Vector3(0.0, palmTopH, 0.0);
         euler.set(leanX, yaw, leanZ);
         quat.setFromEuler(euler);
-        mat.compose(new THREE.Vector3(tree.x, gy, tree.z), quat, new THREE.Vector3(1, 1, 1));
-        topVec.applyMatrix4(mat);
+        pos.set(tree.x, gy, tree.z);
+        scl.set(1.0, 1.0, 1.0);
+        mat.compose(pos, quat, scl);
+        const topVecX = mat.elements[4] * palmTopH + mat.elements[12];
+        const topVecY = mat.elements[5] * palmTopH + mat.elements[13];
+        const topVecZ = mat.elements[6] * palmTopH + mat.elements[14];
 
         // Smooth emerald-green Roystonea regia crownshaft ("pelepah hijau mulus") + apical spear heart
         pushTransform(
           canopyMatrices,
-          topVec.x,
-          topVec.y - 0.18 * s,
-          topVec.z,
+          topVecX,
+          topVecY - 0.18 * s,
+          topVecZ,
           leanX,
           yaw,
           leanZ,
@@ -1255,9 +1258,9 @@ export class AutogenBiomeSpawner {
         );
         pushTransform(
           canopyMatrices,
-          topVec.x,
-          topVec.y + 0.52 * s,
-          topVec.z,
+          topVecX,
+          topVecY + 0.52 * s,
+          topVecZ,
           leanX,
           yaw,
           leanZ,
@@ -1277,7 +1280,7 @@ export class AutogenBiomeSpawner {
           const frondYaw = yaw + (whorlIdx / 5) * Math.PI * 2.0 + (isUpperWhorl ? 0.31 : 0.0);
           const sinY = Math.sin(frondYaw);
           const cosY = Math.cos(frondYaw);
-          const baseY = topVec.y + (isUpperWhorl ? 0.34 : 0.14) * s;
+          const baseY = topVecY + (isUpperWhorl ? 0.34 : 0.14) * s;
           const frondAge = isUpperWhorl ? 1.08 : 0.94;
           const segSpecs = isUpperWhorl
             ? [
@@ -1295,9 +1298,9 @@ export class AutogenBiomeSpawner {
             const tipTint = 1.0 - sg * 0.04;
             pushTransform(
               canopyMatrices,
-              topVec.x + sinY * sp.r * s,
+              topVecX + sinY * sp.r * s,
               baseY + sp.dy * s,
-              topVec.z + cosY * sp.r * s,
+              topVecZ + cosY * sp.r * s,
               sp.pitch,
               frondYaw,
               0.0,

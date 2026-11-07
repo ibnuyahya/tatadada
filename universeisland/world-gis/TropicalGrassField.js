@@ -105,28 +105,63 @@ export class TropicalGrassField {
     const minZ = TropicalGrassField.BAKE_MIN_Z;
     const spanX = TropicalGrassField.BAKE_MAX_X - minX;
     const spanZ = TropicalGrassField.BAKE_MAX_Z - minZ;
+    const stepX = spanX / (cols - 1);
+    const stepZ = spanZ / (rows - 1);
     const minY = TropicalGrassField.HEIGHT_MIN_Y;
     const spanY = TropicalGrassField.HEIGHT_MAX_Y - minY;
 
-    const rawMask = new Float32Array(cols * rows);
-    const data = new Uint8Array(cols * rows * 4);
+    const total = cols * rows;
+    const gyGrid = new Float32Array(total);
+    const dCoastGrid = new Float32Array(total);
+    const rawMask = new Float32Array(total);
+    const data = new Uint8Array(total * 4);
+    const qSea = Math.max(0, Math.min(65535, Math.round(((-1.45 - minY) / spanY) * 65535.0)));
+    const qSeaHi = (qSea >> 8) & 255;
+    const qSeaLo = qSea & 255;
     let sliceT0 = typeof performance !== 'undefined' ? performance.now() : 0;
 
+    // Pass 1: Sample Island Coast SDF & Ground DEM once per inland texel (skipping ~78% open-sea texels in O(1))
     for (let iz = 0; iz < rows; iz++) {
-      const v = iz / (rows - 1);
-      const wz = minZ + v * spanZ;
+      const wz = minZ + iz * stepZ;
+      const zPulauU = wz >= -98.0 && wz <= 478.0;
+      const zPulauI = wz >= 596.0 && wz <= 792.0;
+      const zOpenSea = !zPulauU && !zPulauI;
+      const rowOff = iz * cols;
+
       for (let ix = 0; ix < cols; ix++) {
-        const u = ix / (cols - 1);
-        const wx = minX + u * spanX;
-        const idx = iz * cols + ix;
+        const idx = rowOff + ix;
+        const o = idx * 4;
+        const wx = minX + ix * stepX;
+
+        const xOpenSea =
+          zOpenSea ||
+          (zPulauU && (wx < -380.0 || wx > 112.0)) ||
+          (zPulauI && (wx < -415.0 || wx > 95.0));
+
+        if (xOpenSea) {
+          gyGrid[idx] = -1.45;
+          dCoastGrid[idx] = 20.0;
+          data[o] = qSeaHi;
+          data[o + 1] = qSeaLo;
+          data[o + 3] = 128;
+          continue;
+        }
+
+        const dCoast = TerrainDEMLoader.getIslandCoastDistance(wx, wz);
+        dCoastGrid[idx] = dCoast;
+        if (dCoast > 2.5) {
+          gyGrid[idx] = -1.45;
+          data[o] = qSeaHi;
+          data[o + 1] = qSeaLo;
+          data[o + 3] = 128;
+          continue;
+        }
 
         const gy = TerrainDEMLoader.sampleGroundHeight(wx, wz);
+        gyGrid[idx] = gy;
         const q = Math.max(0, Math.min(65535, Math.round(((gy - minY) / spanY) * 65535.0)));
-        const o = idx * 4;
         data[o] = (q >> 8) & 255;
         data[o + 1] = q & 255;
-
-        rawMask[idx] = TropicalGrassField._isLawnGrassAllowed(wx, wz, gy);
 
         const meadowPatch =
           0.5 +
@@ -134,15 +169,49 @@ export class TropicalGrassField {
           0.18 * Math.cos(wx * 0.23 - wz * 0.19);
         data[o + 3] = Math.max(0, Math.min(255, Math.round(meadowPatch * 255.0)));
       }
-      if (typeof yieldFn === 'function' && (iz & 15) === 15) {
+
+      if (typeof yieldFn === 'function' && (iz & 31) === 31) {
         const now = typeof performance !== 'undefined' ? performance.now() : sliceT0 + 20;
-        if (now - sliceT0 >= 12.0) {
+        if (now - sliceT0 >= 8.0) {
           await yieldFn();
           sliceT0 = typeof performance !== 'undefined' ? performance.now() : 0;
         }
       }
     }
 
+    // Pass 2: Evaluate Lawn Mask using cached gyGrid finite-difference slopes (zero redundant DEM queries!)
+    for (let iz = 0; iz < rows; iz++) {
+      const wz = minZ + iz * stepZ;
+      const rowOff = iz * cols;
+      const izR = iz < rows - 1 ? iz + 1 : iz;
+      const invDz = izR > iz ? 1.0 / stepZ : 0.0;
+
+      for (let ix = 0; ix < cols; ix++) {
+        const idx = rowOff + ix;
+        const dCoast = dCoastGrid[idx];
+        const gy = gyGrid[idx];
+        if (dCoast > -2.45 || gy < -0.04 || gy > 27.5) continue;
+
+        const ixR = ix < cols - 1 ? ix + 1 : ix;
+        const gx = ixR > ix ? Math.abs(gyGrid[rowOff + ixR] - gy) / stepX : 0.0;
+        const gz = Math.abs(gyGrid[izR * cols + ix] - gy) * invDz;
+        const slope = Math.hypot(gx, gz);
+        if (slope > 0.56) continue;
+
+        const wx = minX + ix * stepX;
+        rawMask[idx] = TropicalGrassField._isLawnGrassAllowed(wx, wz, gy, dCoast, slope);
+      }
+
+      if (typeof yieldFn === 'function' && (iz & 63) === 63) {
+        const now = typeof performance !== 'undefined' ? performance.now() : sliceT0 + 20;
+        if (now - sliceT0 >= 8.0) {
+          await yieldFn();
+          sliceT0 = typeof performance !== 'undefined' ? performance.now() : 0;
+        }
+      }
+    }
+
+    // Pass 3: Strict 3x3 morphological border erosion + soft inward taper
     for (let iz = 0; iz < rows; iz++) {
       for (let ix = 0; ix < cols; ix++) {
         const idx = iz * cols + ix;
@@ -189,19 +258,24 @@ export class TropicalGrassField {
     return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
   }
 
-  static _isLawnGrassAllowed(x, z, gy) {
+  static _isLawnGrassAllowed(x, z, gy, precomputedDCoast = null, precomputedSlope = null) {
     // 1. Must be dry inland above coastal stone turap (flat campus datum is gy = 0.00m; water is -1.45m)
-    const dCoast = TerrainDEMLoader.getIslandCoastDistance(x, z);
+    const dCoast =
+      precomputedDCoast !== null ? precomputedDCoast : TerrainDEMLoader.getIslandCoastDistance(x, z);
     if (dCoast > -2.45 || gy < -0.04 || gy > 27.5) return 0.0;
 
     // 2. Freshwater spring, meandering river, lakes, & Mini-Niagara gorge exclusion
     if (TerrainDEMLoader.isFreshwaterExclusion(x, z, 1.05)) return 0.0;
 
     // 3. Steep cliff / rocky volcanic scree exclusion
-    const eps = 0.85;
-    const gx = Math.abs(TerrainDEMLoader.sampleGroundHeight(x + eps, z) - gy) / eps;
-    const gz = Math.abs(TerrainDEMLoader.sampleGroundHeight(x, z + eps) - gy) / eps;
-    if (Math.hypot(gx, gz) > 0.56) return 0.0;
+    if (precomputedSlope !== null) {
+      if (precomputedSlope > 0.56) return 0.0;
+    } else {
+      const eps = 0.85;
+      const gx = Math.abs(TerrainDEMLoader.sampleGroundHeight(x + eps, z) - gy) / eps;
+      const gz = Math.abs(TerrainDEMLoader.sampleGroundHeight(x, z + eps) - gy) / eps;
+      if (Math.hypot(gx, gz) > 0.56) return 0.0;
+    }
 
     // 4. Gedung Rektorat UI, Ceremonial Plaza, Approach, East Brick Turnaround, & Lakeside Promenade
     if (x > -55.8 && x < 55.2 && z > -37.2 && z < 41.2) return 0.0;
@@ -284,33 +358,90 @@ export class TropicalGrassField {
     const minZ = TropicalGrassField.BAKE_MIN_Z;
     const spanX = TropicalGrassField.BAKE_MAX_X - minX;
     const spanZ = TropicalGrassField.BAKE_MAX_Z - minZ;
+    const stepX = spanX / (cols - 1);
+    const stepZ = spanZ / (rows - 1);
     const minY = TropicalGrassField.HEIGHT_MIN_Y;
     const spanY = TropicalGrassField.HEIGHT_MAX_Y - minY;
 
-    const rawMask = new Float32Array(cols * rows);
-    const data = new Uint8Array(cols * rows * 4);
+    const total = cols * rows;
+    const gyGrid = new Float32Array(total);
+    const dCoastGrid = new Float32Array(total);
+    const rawMask = new Float32Array(total);
+    const data = new Uint8Array(total * 4);
+    const qSea = Math.max(0, Math.min(65535, Math.round(((-1.45 - minY) / spanY) * 65535.0)));
+    const qSeaHi = (qSea >> 8) & 255;
+    const qSeaLo = qSea & 255;
 
     for (let iz = 0; iz < rows; iz++) {
-      const v = iz / (rows - 1);
-      const wz = minZ + v * spanZ;
+      const wz = minZ + iz * stepZ;
+      const zPulauU = wz >= -98.0 && wz <= 478.0;
+      const zPulauI = wz >= 596.0 && wz <= 792.0;
+      const zOpenSea = !zPulauU && !zPulauI;
+      const rowOff = iz * cols;
+
       for (let ix = 0; ix < cols; ix++) {
-        const u = ix / (cols - 1);
-        const wx = minX + u * spanX;
-        const idx = iz * cols + ix;
+        const idx = rowOff + ix;
+        const o = idx * 4;
+        const wx = minX + ix * stepX;
+
+        const xOpenSea =
+          zOpenSea ||
+          (zPulauU && (wx < -380.0 || wx > 112.0)) ||
+          (zPulauI && (wx < -415.0 || wx > 95.0));
+
+        if (xOpenSea) {
+          gyGrid[idx] = -1.45;
+          dCoastGrid[idx] = 20.0;
+          data[o] = qSeaHi;
+          data[o + 1] = qSeaLo;
+          data[o + 3] = 128;
+          continue;
+        }
+
+        const dCoast = TerrainDEMLoader.getIslandCoastDistance(wx, wz);
+        dCoastGrid[idx] = dCoast;
+        if (dCoast > 2.5) {
+          gyGrid[idx] = -1.45;
+          data[o] = qSeaHi;
+          data[o + 1] = qSeaLo;
+          data[o + 3] = 128;
+          continue;
+        }
 
         const gy = TerrainDEMLoader.sampleGroundHeight(wx, wz);
+        gyGrid[idx] = gy;
         const q = Math.max(0, Math.min(65535, Math.round(((gy - minY) / spanY) * 65535.0)));
-        const o = idx * 4;
         data[o] = (q >> 8) & 255;
         data[o + 1] = q & 255;
-
-        rawMask[idx] = TropicalGrassField._isLawnGrassAllowed(wx, wz, gy);
 
         const meadowPatch =
           0.5 +
           0.32 * Math.sin(wx * 0.11 + wz * 0.09) +
           0.18 * Math.cos(wx * 0.23 - wz * 0.19);
         data[o + 3] = Math.max(0, Math.min(255, Math.round(meadowPatch * 255.0)));
+      }
+    }
+
+    for (let iz = 0; iz < rows; iz++) {
+      const wz = minZ + iz * stepZ;
+      const rowOff = iz * cols;
+      const izR = iz < rows - 1 ? iz + 1 : iz;
+      const invDz = izR > iz ? 1.0 / stepZ : 0.0;
+
+      for (let ix = 0; ix < cols; ix++) {
+        const idx = rowOff + ix;
+        const dCoast = dCoastGrid[idx];
+        const gy = gyGrid[idx];
+        if (dCoast > -2.45 || gy < -0.04 || gy > 27.5) continue;
+
+        const ixR = ix < cols - 1 ? ix + 1 : ix;
+        const gx = ixR > ix ? Math.abs(gyGrid[rowOff + ixR] - gy) / stepX : 0.0;
+        const gz = Math.abs(gyGrid[izR * cols + ix] - gy) * invDz;
+        const slope = Math.hypot(gx, gz);
+        if (slope > 0.56) continue;
+
+        const wx = minX + ix * stepX;
+        rawMask[idx] = TropicalGrassField._isLawnGrassAllowed(wx, wz, gy, dCoast, slope);
       }
     }
 
@@ -358,15 +489,15 @@ export class TropicalGrassField {
     // 6-Shoot Stoloniferous Sward Patch (Axonopus compressus "Rumput Gajah Mini"):
     // 6 broadleaf curved shoots distributed across a 20 cm Phyllotaxis stolon runner (42 verts, 30 tris per patch)
     // -> 68,000 patches = 408,000 continuous overlapping 3D blades in 1 single draw call with ZERO polka-dot gaps!
-    // Physical-meter Axonopus compressus broadleaf blade (nominal 9.5 cm tall, 2.7 cm wide at base, 2.3 cm arch)
+    // Physical-meter Axonopus compressus broadleaf blade (nominal 9.5 cm tall, 2.96 cm wide at base, 2.4 cm arch)
     const basePos = [
-      -0.0135, 0.000, 0.000,
-       0.0135, 0.000, 0.000,
-      -0.0110, 0.035, 0.004,
-       0.0110, 0.035, 0.004,
-      -0.0068, 0.069, 0.012,
-       0.0068, 0.069, 0.012,
-       0.0000, 0.095, 0.023
+      -0.0148, 0.000, 0.000,
+       0.0148, 0.000, 0.000,
+      -0.0121, 0.035, 0.004,
+       0.0121, 0.035, 0.004,
+      -0.0074, 0.069, 0.012,
+       0.0074, 0.069, 0.012,
+       0.0000, 0.095, 0.024
     ];
     const baseV = [0.00, 0.00, 0.36, 0.36, 0.72, 0.72, 1.00];
     const baseNorm = [
@@ -385,12 +516,12 @@ export class TropicalGrassField {
     ];
 
     const subSpecs = [
-      { yaw: 0.15, hScale: 1.00, splay: 1.02, ox:  0.000, oz:  0.000, tintId: 0.08 },
-      { yaw: 2.55, hScale: 0.92, splay: 1.15, ox:  0.066, oz:  0.024, tintId: 0.25 },
-      { yaw: 4.95, hScale: 0.85, splay: 1.22, ox: -0.046, oz:  0.060, tintId: 0.42 },
-      { yaw: 1.06, hScale: 0.96, splay: 1.10, ox: -0.070, oz: -0.042, tintId: 0.58 },
-      { yaw: 3.46, hScale: 0.81, splay: 1.26, ox:  0.034, oz: -0.080, tintId: 0.75 },
-      { yaw: 5.86, hScale: 0.89, splay: 1.14, ox:  0.092, oz: -0.020, tintId: 0.92 }
+      { yaw: 0.15, hScale: 1.00, splay: 1.05, ox:  0.000, oz:  0.000, tintId: 0.08 },
+      { yaw: 2.55, hScale: 0.92, splay: 1.18, ox:  0.070, oz:  0.026, tintId: 0.25 },
+      { yaw: 4.95, hScale: 0.85, splay: 1.25, ox: -0.049, oz:  0.064, tintId: 0.42 },
+      { yaw: 1.06, hScale: 0.96, splay: 1.13, ox: -0.074, oz: -0.045, tintId: 0.58 },
+      { yaw: 3.46, hScale: 0.81, splay: 1.29, ox:  0.036, oz: -0.085, tintId: 0.75 },
+      { yaw: 5.86, hScale: 0.89, splay: 1.17, ox:  0.097, oz: -0.021, tintId: 0.92 }
     ];
 
     const shootCount = subSpecs.length;
@@ -604,12 +735,12 @@ export class TropicalGrassField {
             'float tgfVisScale = smoothstep(0.24, 0.60, tgfMask) * tgfBoxFade * tgfDistFade * tgfAltFade;',
             'bool tgfHidden = (tgfVisScale <= 0.003);',
             '',
-            'vec3 tgfBaseTurf = tgfEvalTerrainAlbedo(tgfRootXZ.x, tgfRootXZ.y, tgfGroundY);',
             'vec3 tgfWorldPos = vec3(tgfRootXZ.x, tgfGroundY, tgfRootXZ.y);',
             'vec3 tgfWorldNorm = vec3(0.0, 1.0, 0.0);',
-            'vTgfAlbedo = tgfBaseTurf;',
+            'vTgfAlbedo = vec3(0.14, 0.30, 0.08);',
             '',
             'if (!tgfHidden) {',
+            '  vec3 tgfBaseTurf = tgfEvalTerrainAlbedo(tgfRootXZ.x, tgfRootXZ.y, tgfGroundY);',
             '  // Continuous Velvety Rumput Gajah Mini (Axonopus compressus): 6.8 cm - 12.2 cm manicured UI park turf',
             '  float tgfShootSeed = fract(tgfSeed * 11.73 + uv.x * 3.17);',
             '  float tgfHScale = mix(0.72, 1.28, tgfShootSeed) * (0.88 + 0.24 * tgfLush) * tgfVisScale;',

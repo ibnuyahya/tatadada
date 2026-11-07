@@ -45,7 +45,7 @@ if (typeof window !== 'undefined') {
   }
 }
 
-const TOTAL_EXPECTED_TRIS = 4599740;
+const TOTAL_EXPECTED_TRIS = 4642376;
 
 function yieldToBrowserFrame() {
   return new Promise((resolve) => {
@@ -156,7 +156,7 @@ function createPreloaderController() {
 
 async function bootstrapNexusSimulator() {
   if (typeof window !== 'undefined' && window.NexusForensic) {
-    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.39');
+    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.40');
   }
   const preloader = createPreloaderController();
 
@@ -352,12 +352,12 @@ async function bootstrapNexusSimulator() {
   const rotundaFountain = new RotundaDancingFountain();
 
   // Stage 6: Build Dense Southern Highland Rainforest (Pulau U), Sparse Montane Forest (Pulau I) & 64 Photocell Streetlamps
-  await preloader.advance(6, 82, 'Menumbuhkan Hutan Lebat Pulau U, Lereng Gunung Pulau I, & 64 Lampu Sensor Cahaya...', 5020000);
+  await preloader.advance(6, 82, 'Menumbuhkan Hutan Lebat Pulau U, Lereng Gunung Pulau I, & 64 Lampu Sensor Cahaya...', 3951674);
   const biomeGroup = AutogenBiomeSpawner.buildCampusBiome(groundHeightFn, sharedUniforms);
   const solidWorld = SplineCorridorBuilder.buildWorldSolidColliders(biomeGroup);
 
   // Stage 7: Build 69 22-Joint Sivitas Akademika NPCs + Taxi Heli Listrik eVTOL + Cessna & Learjet 3x Sehari + Bus Kuning + Feri + 48 Cats
-  await preloader.advance(7, 92, 'Menghadirkan 69 Sivitas Akademika, Taxi Heli Listrik, Pesawat 3x Sehari, & 48 Kucing...', TOTAL_EXPECTED_TRIS);
+  await preloader.advance(7, 90, 'Menghadirkan 69 Sivitas Akademika, Taxi Heli Listrik, Pesawat 3x Sehari, & 48 Kucing...', TOTAL_EXPECTED_TRIS);
   const sivitasAI = new DynamicTrafficAI(groundHeightFn, sharedUniforms);
   sivitasAI.setSolidWorld(solidWorld);
   const sivitasGroup = sivitasAI.build();
@@ -371,15 +371,15 @@ async function bootstrapNexusSimulator() {
   worldRoot.add(terrainGroup, corridorGroup, rotundaFountain.mesh, biomeGroup, rektoratAsset, sivitasGroup);
 
   // Seamless 1-Draw-Call PBR + Shadow-Mapped Manicured Tropical Campus Turf + View-Aware Dual-Perspective PostFX
-  await preloader.advance(7, 91, 'Menumbuhkan 408.000 Helai Rumput Gajah Mini & Masking Presisi...', TOTAL_EXPECTED_TRIS);
+  await preloader.advance(7, 92, 'Menumbuhkan 288.000 Helai Rumput Gajah Mini & Masking Presisi...', TOTAL_EXPECTED_TRIS);
   const oceanWaterMesh = terrainGroup.children.find((c) => c && c.material === waterMaterial) || null;
   const initTierName = hwGovernor.activeTierId || hwGovernor.activeTier || 'TIER_S';
   const grassField = await TropicalGrassField.createAsync(
     {
-      bladeCount: hwGovernor.isMobileDevice ? 16000 : initTierName === 'TIER_S' ? 68000 : 42000,
+      bladeCount: hwGovernor.isMobileDevice ? 16000 : initTierName === 'TIER_S' ? 48000 : 34000,
       sharedUniforms
     },
-    () => new Promise((resolve) => setTimeout(resolve, 0))
+    yieldToBrowserFrame
   );
   scene.add(grassField.mesh);
   const planarReflHiddenList = [oceanWaterMesh, grassField.mesh].filter(Boolean);
@@ -387,7 +387,7 @@ async function bootstrapNexusSimulator() {
   renderer.getDrawingBufferSize(drawBufSize);
   const postFX = new CinematicPostFX(renderer, drawBufSize.x, drawBufSize.y, {
     msaaSamples: hwGovernor.isMobileDevice ? 0 : 4,
-    planarReflSize: hwGovernor.isMobileDevice ? 384 : initTierName === 'TIER_S' ? 768 : 512,
+    planarReflSize: hwGovernor.isMobileDevice ? 384 : 512,
     planarEnabled: !hwGovernor.isMobileDevice
   });
 
@@ -565,7 +565,7 @@ async function bootstrapNexusSimulator() {
       if (!hwGovernor.isMobileDevice && typeof renderer.compileAsync === 'function') {
         await Promise.race([
           renderer.compileAsync(targetScene, targetCam).catch(() => {}),
-          new Promise((resolve) => setTimeout(resolve, 6000))
+          new Promise((resolve) => setTimeout(resolve, 15000))
         ]);
       } else if (typeof renderer.compile === 'function') {
         renderer.compile(targetScene, targetCam);
@@ -575,8 +575,20 @@ async function bootstrapNexusSimulator() {
     }
   };
 
-  // Collect only renderables whose entire ancestor chain is currently visible (skips hidden rain/fireflies on sunny startup!)
-  // and deduplicate by material+geometry archetype so each unique GPU program compiles once in incremental KHR_parallel slices!
+  // Temporarily expose conditional weather/grass meshes so KHR_parallel_shader_compile pre-warms 100% of GPU programs once!
+  const transientWarmMeshes = [
+    weather.rainAndDripMesh,
+    weather.splashAndMistMesh,
+    weather.fireflyPoints,
+    weather.volcanicPlumeMesh,
+    grassField.mesh
+  ].filter(Boolean);
+  const savedTransientVis = transientWarmMeshes.map((m) => m.visible);
+  for (let i = 0; i < transientWarmMeshes.length; i++) {
+    transientWarmMeshes[i].visible = true;
+  }
+
+  // Collect all active renderables and deduplicate by exact WebGLProgram archetype (unified nexus-omni-v54-uber -> ~11 programs total!)
   const visibleRenderables = [];
   const uniqueWarmRenderables = [];
   const seenWarmKeys = new Set();
@@ -585,10 +597,19 @@ async function bootstrapNexusSimulator() {
     if (node.isMesh || node.isPoints || node.isLine) {
       visibleRenderables.push(node);
       const mats = Array.isArray(node.material) ? node.material : [node.material];
-      const matKey = mats.map((m) => (m ? m.uuid : '')).join('|');
+      const matKey = mats
+        .map((m) => {
+          if (!m) return '';
+          const cKey =
+            typeof m.customProgramCacheKey === 'function' ? m.customProgramCacheKey() : m.uuid;
+          return `${m.type}:${cKey}:${m.flatShading ? 1 : 0}:${m.side}`;
+        })
+        .join('|');
       const instKey = node.isInstancedMesh ? 'I' : 'M';
       const vColKey = node.geometry?.attributes?.color ? 'C' : 'N';
-      const key = `${matKey}:${instKey}:${vColKey}`;
+      const skinKey = node.geometry?.attributes?.aBoneIndices ? 'S' : 'R';
+      const shKey = `${node.receiveShadow ? 1 : 0}${node.castShadow ? 1 : 0}`;
+      const key = `${matKey}:${instKey}:${vColKey}:${skinKey}:${shKey}`;
       if (!seenWarmKeys.has(key)) {
         seenWarmKeys.add(key);
         uniqueWarmRenderables.push(node);
@@ -608,7 +629,7 @@ async function bootstrapNexusSimulator() {
     for (let i = 0; i < visibleRenderables.length; i++) {
       visibleRenderables[i].visible = false;
     }
-    const SLICE_SIZE = hwGovernor.isMobileDevice ? 4 : 8;
+    const SLICE_SIZE = hwGovernor.isMobileDevice ? 3 : 4;
     const totalSlices = Math.ceil(uniqueWarmRenderables.length / SLICE_SIZE);
     for (let sIdx = 0; sIdx < totalSlices; sIdx++) {
       const startI = sIdx * SLICE_SIZE;
@@ -616,18 +637,18 @@ async function bootstrapNexusSimulator() {
       for (let i = startI; i < endI; i++) {
         uniqueWarmRenderables[i].visible = true;
       }
-      const pct = Math.min(99, 93 + Math.floor(((sIdx + 1) / Math.max(1, totalSlices)) * 6));
+      const pct = Math.min(99, 94 + Math.floor(((sIdx + 1) / Math.max(1, totalSlices)) * 5));
       await preloader.advance(
         8,
         pct,
-        `Kompilasi Inkremental Shader GPU (${endI}/${uniqueWarmRenderables.length})...`,
+        `Kompilasi Paralel Shader GPU (${endI}/${uniqueWarmRenderables.length})...`,
         TOTAL_EXPECTED_TRIS
       );
       await compileAsyncSlice(scene, camera, mainSceneRT);
+      await yieldToBrowserFrame();
       for (let i = startI; i < endI; i++) {
         uniqueWarmRenderables[i].visible = false;
       }
-      await yieldToBrowserFrame();
     }
     for (let i = 0; i < visibleRenderables.length; i++) {
       visibleRenderables[i].visible = true;
@@ -636,28 +657,22 @@ async function bootstrapNexusSimulator() {
     await compileAsyncSlice(scene, camera, mainSceneRT);
   }
 
-  // Pre-warm instanced 3D grass field & fullscreen PostFX quad programs with exact runtime RenderTargets
-  if (grassField && grassField.scene) {
-    await compileAsyncSlice(grassField.scene, camera, mainSceneRT);
-    await yieldToBrowserFrame();
-  }
+  // Pre-warm fullscreen PostFX quad programs with exact runtime RenderTargets
   if (postFX && postFX._fsScene && postFX._fsCam && postFX._fsQuad) {
     const bloomRT = postFX.bloomHalfA || null;
     if (postFX._bloomDownMat) {
       postFX._fsQuad.material = postFX._bloomDownMat;
       await compileAsyncSlice(postFX._fsScene, postFX._fsCam, bloomRT);
-      await yieldToBrowserFrame();
     }
     if (postFX._bloomUpMat) {
       postFX._fsQuad.material = postFX._bloomUpMat;
       await compileAsyncSlice(postFX._fsScene, postFX._fsCam, bloomRT);
-      await yieldToBrowserFrame();
     }
     if (postFX._compositeMat) {
       postFX._fsQuad.material = postFX._compositeMat;
       await compileAsyncSlice(postFX._fsScene, postFX._fsCam, null);
-      await yieldToBrowserFrame();
     }
+    await yieldToBrowserFrame();
   }
 
   const isDroneCinemaView = () =>
@@ -671,6 +686,12 @@ async function bootstrapNexusSimulator() {
     duskFactor: weather.uniforms.uDuskFactor.value,
     nightFactor: weather.uniforms.uNightFactor.value
   });
+  // Temporarily disable frustum culling on unique renderable archetypes (including transient weather/night meshes)
+  // during hidden warmup pass so WebGLShadowMap & planar reflection compile 100% of GPU programs before boot completes!
+  const savedWarmFrustumCulled = uniqueWarmRenderables.map((n) => n.frustumCulled);
+  for (let i = 0; i < uniqueWarmRenderables.length; i++) {
+    uniqueWarmRenderables[i].frustumCulled = false;
+  }
   postFX.renderPlanarWaterReflection(
     scene,
     camera,
@@ -679,14 +700,19 @@ async function bootstrapNexusSimulator() {
     planarReflHiddenList
   );
   await yieldToBrowserFrame();
-  postFX.render(scene, camera, null);
-  await yieldToBrowserFrame();
-  postFX.render(scene, camera, grassField.scene);
+  postFX.render(scene, camera);
+  for (let i = 0; i < uniqueWarmRenderables.length; i++) {
+    uniqueWarmRenderables[i].frustumCulled = savedWarmFrustumCulled[i];
+  }
+  for (let i = 0; i < transientWarmMeshes.length; i++) {
+    transientWarmMeshes[i].visible = savedTransientVis[i];
+  }
+  weather._syncParticleVisibility();
   await yieldToBrowserFrame();
 
   // Measure a true steady-state post-compile frame (never feed one-time shader compile time into hwGovernor!)
   const tSteady0 = performance.now();
-  postFX.render(scene, camera, grassField.scene);
+  postFX.render(scene, camera);
   const steadyFrameMs = performance.now() - tSteady0;
   if (steadyFrameMs <= 35.0) {
     hwGovernor.recordWarmupSample(steadyFrameMs);
@@ -2829,6 +2855,7 @@ async function bootstrapNexusSimulator() {
   let forensicUiAccum = 0.0;
   let lastCpuMs = 2.0;
   let lastDrawCalls = 18;
+  let lastAppliedNightIllum = -1.0;
   let firstFrameMarked = false;
 
   function renderLoop(now) {
@@ -2876,8 +2903,11 @@ async function bootstrapNexusSimulator() {
         Math.PI;
       rotundaFountain.update(elapsed, liveSunElevDeg, sharedUniforms, weather.uniforms.uSunDir.value);
 
-      // Continuous C^1 Architectural Window, Garden Lamp, & Helipad Night Illumination + 3D HRTF Physical Acoustic Coupling
-      GedungRektoratUIAsset.setNightIllumination(rektoratAsset, weather.nightIlluminationLevel);
+      // Continuous C^1 Architectural Window, Garden Lamp, & Helipad Night Illumination + 3D HRTF Physical Acoustic Coupling (cached when steady!)
+      if (Math.abs(weather.nightIlluminationLevel - lastAppliedNightIllum) > 0.0015) {
+        lastAppliedNightIllum = weather.nightIlluminationLevel;
+        GedungRektoratUIAsset.setNightIllumination(rektoratAsset, lastAppliedNightIllum);
+      }
 
       sivitasAI.syncOceanState(weather.getSeaWaveHeightMeters(), weather.uniforms.uTime.value);
       sivitasAI.update(dt, elapsed, camera.position);
@@ -2973,8 +3003,8 @@ async function bootstrapNexusSimulator() {
         TerrainDEMLoader.WATER_LEVEL_Y,
         planarReflHiddenList
       );
-      const reflRanThisFrame = Number(weather.uniforms?.uPlanarReflActive?.value || 0) > 0.5;
-      const reflCallsThisFrame = reflRanThisFrame ? renderer.info.render.calls || 0 : 0;
+      const reflRanThisFrame = Boolean(postFX.lastPlanarReflRan);
+      const reflCallsThisFrame = reflRanThisFrame ? postFX.lastPlanarReflCalls || 0 : 0;
       if (sharedUniforms.uVideotronPortalAlpha) {
         sharedUniforms.uVideotronPortalAlpha.value = savedPortalAlpha;
       }
@@ -3116,11 +3146,13 @@ async function bootstrapNexusSimulator() {
     syncTransitionButtonsUI();
   });
 
-  // 2. Stream & Bake 512x512 3D Rain Roof/Canopy Collision Z-Buffer & 1,600 Drip Anchors Asynchronously (< 6ms/frame slices!)
+  // 2. Stream & Bake 768x768 3D Rain Roof/Canopy Collision Z-Buffer & 1,600 Drip Anchors Asynchronously (< 1.5ms once per VSync frame, zero frame drops!)
   scheduleAsyncBackgroundTask(() => {
     const pBake = weather.bakeSceneCollisionFieldAsync(
       [worldRoot],
       {
+        size: 768,
+        sliceBudgetMs: 1.1,
         groundHeightFn,
         freshwaterSurfaceYFn: TerrainDEMLoader.sampleWaterSurfaceY,
         shorelineXFn: TerrainDEMLoader.getShorelinePromenadeX,
@@ -3132,7 +3164,7 @@ async function bootstrapNexusSimulator() {
     if (pBake && typeof pBake.then === 'function') {
       pBake.then(() => {
         if (typeof window !== 'undefined' && window.NexusForensic) {
-          window.NexusForensic.markMilestone('rain_collision_zbuffer_baked', '512x512 Z-buffer atap & kanopi siap');
+          window.NexusForensic.markMilestone('rain_collision_zbuffer_baked', '768x768 Z-buffer atap & kanopi siap (<1.5ms/frame)');
         }
       });
     }

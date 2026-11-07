@@ -25,9 +25,9 @@ export const HARDWARE_TIERS = {
     targetFrameMs: 8.33,
     minPixelRatio: 1.0,
     maxPixelRatio: 1.5,
-    shadowMapSize: 4096,
-    shadowFrustumHalf: 112.0,
-    shadowRefreshStride: 1,
+    shadowMapSize: 2048,
+    shadowFrustumHalf: 108.0,
+    shadowRefreshStride: 3,
     closeDerivativeDistM: 22.0,
     aiFarStaggerDistM: 9999.0
   },
@@ -39,9 +39,9 @@ export const HARDWARE_TIERS = {
     targetFrameMs: 11.11,
     minPixelRatio: 1.0,
     maxPixelRatio: 1.25,
-    shadowMapSize: 4096,
-    shadowFrustumHalf: 108.0,
-    shadowRefreshStride: 2,
+    shadowMapSize: 2048,
+    shadowFrustumHalf: 104.0,
+    shadowRefreshStride: 3,
     closeDerivativeDistM: 18.0,
     aiFarStaggerDistM: 9999.0
   },
@@ -54,8 +54,8 @@ export const HARDWARE_TIERS = {
     minPixelRatio: 0.9,
     maxPixelRatio: 1.05,
     shadowMapSize: 2048,
-    shadowFrustumHalf: 102.0,
-    shadowRefreshStride: 3,
+    shadowFrustumHalf: 100.0,
+    shadowRefreshStride: 4,
     closeDerivativeDistM: 14.0,
     aiFarStaggerDistM: 120.0
   },
@@ -67,9 +67,9 @@ export const HARDWARE_TIERS = {
     targetFrameMs: 16.67,
     minPixelRatio: 0.8,
     maxPixelRatio: 1.0,
-    shadowMapSize: 2048,
-    shadowFrustumHalf: 96.0,
-    shadowRefreshStride: 4,
+    shadowMapSize: 1536,
+    shadowFrustumHalf: 94.0,
+    shadowRefreshStride: 5,
     closeDerivativeDistM: 10.0,
     aiFarStaggerDistM: 95.0
   }
@@ -566,7 +566,7 @@ export class HardwareTelemetryGovernor {
       }
 
       // Clamp focus within Kepulauan UI bounds and snap to world texel grid (eliminates shadow edge swimming!)
-      const texelWorldStep = (halfExt * 2.0) / (cfg.shadowMapSize || 4096) * 4.0;
+      const texelWorldStep = (halfExt * 2.0) / (cfg.shadowMapSize || 2048) * 4.0;
       const snapX = Math.round(fx / texelWorldStep) * texelWorldStep;
       const snapZ = Math.round(fz / texelWorldStep) * texelWorldStep;
 
@@ -584,7 +584,7 @@ export class HardwareTelemetryGovernor {
           sdx - (this._lastSunDirX || 0.0),
           sdy - (this._lastSunDirY || 0.0),
           sdz - (this._lastSunDirZ || 0.0)
-        ) > 0.0012 || Number.isNaN(this._lastSunDirX);
+        ) > 0.0022 || Number.isNaN(this._lastSunDirX);
 
       if (sun.target) {
         sun.target.position.set(snapX, 0.0, snapZ);
@@ -595,14 +595,24 @@ export class HardwareTelemetryGovernor {
 
       if (this.renderer && this.renderer.shadowMap) {
         this.renderer.shadowMap.autoUpdate = false;
-        const stride = Math.max(1, cfg.shadowRefreshStride || 1);
-        if (cellMoved || sunMoved || this._frameCounter % stride === 0) {
-          this.renderer.shadowMap.needsUpdate = true;
-          this._lastShadowSnapX = snapX;
-          this._lastShadowSnapZ = snapZ;
-          this._lastSunDirX = sdx;
-          this._lastSunDirY = sdy;
-          this._lastSunDirZ = sdz;
+        const sunSilent = (Number(sun.intensity) || 0.0) <= 0.001;
+        if (sunSilent) {
+          // Zero shadow-map rasterization at night once cleared after sunset!
+          if (!this._shadowClearedForNight) {
+            this.renderer.shadowMap.needsUpdate = true;
+            this._shadowClearedForNight = true;
+          }
+        } else {
+          this._shadowClearedForNight = false;
+          const stride = Math.max(1, cfg.shadowRefreshStride || 1);
+          if (cellMoved || sunMoved || this._frameCounter % stride === 0) {
+            this.renderer.shadowMap.needsUpdate = true;
+            this._lastShadowSnapX = snapX;
+            this._lastShadowSnapZ = snapZ;
+            this._lastSunDirX = sdx;
+            this._lastSunDirY = sdy;
+            this._lastSunDirZ = sdz;
+          }
         }
       }
     }

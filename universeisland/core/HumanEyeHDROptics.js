@@ -264,6 +264,57 @@ export class HumanEyeHDROptics {
        *   boundary layer cleanly (hazeFactor ~ 9-19%, NEVER 99.9% flat grey silhouettes!),
        *   with 100% unified sky-matched horizon radiance across Land, Architecture, Foliage, & Water!
        */
+      vec3 nexusEvalHorizonSkySRGB(
+        vec3 rayDir,
+        vec3 sunDir,
+        float duskFactor,
+        float nightFactor,
+        float cloudCover,
+        float rainIntensity,
+        float stormFactor,
+        float fogFactor,
+        float lunarSkyScatter
+      ) {
+        float duskC = clamp(duskFactor, 0.0, 1.0);
+        float nightC = clamp(nightFactor, 0.0, 1.0);
+        float cloudC = clamp(cloudCover, 0.0, 1.0);
+        float rainC = clamp(rainIntensity, 0.0, 1.35);
+        float stormC = clamp(stormFactor, 0.0, 1.0);
+        float fogC = clamp(fogFactor, 0.0, 1.0);
+
+        vec2 dirXZ = normalize(rayDir.xz + vec2(1e-5, 0.0));
+        vec2 sunXZ = normalize(sunDir.xz + vec2(1e-5, 0.0));
+        float cosAzSun = dot(dirXZ, sunXZ);
+
+        vec3 dayHorS = vec3(0.62, 0.78, 0.92);
+        vec3 duskHorS = mix(vec3(0.52, 0.56, 0.68), vec3(0.94, 0.47, 0.20), smoothstep(-0.35, 0.85, cosAzSun));
+        vec3 nightHorS = vec3(0.084, 0.122, 0.192) + vec3(0.042, 0.062, 0.104) * clamp(lunarSkyScatter, 0.0, 1.0);
+        vec3 horS = mix(mix(dayHorS, duskHorS, duskC), nightHorS, nightC);
+
+        // Unified Anti-Solar Belt of Venus & Earth's Shadow Arch across Sky, Sea, & Aerial Perspective
+        float overcast = clamp(cloudC * 0.62 + rainC * 0.48, 0.0, 1.0);
+        if (duskC > 0.01 && overcast < 0.88) {
+          float antiSun = clamp(dot(dirXZ, -sunXZ) * 0.5 + 0.5, 0.0, 1.0);
+          float shadowTop = clamp(0.03 + max(0.0, -sunDir.y) * 0.55, 0.02, 0.14);
+          float hEff = clamp(max(0.0, rayDir.y), 0.0, 1.0);
+          float earthShadow = (1.0 - smoothstep(shadowTop * 0.45, shadowTop + 0.05, hEff)) * pow(antiSun, 1.4);
+          float beltOfVenus = exp(-pow((hEff - (shadowTop + 0.055)) / 0.068, 2.0)) * pow(antiSun, 1.25);
+          float clearTwilight = duskC * (1.0 - overcast * 0.85) * (1.0 - nightC * 0.85);
+          horS = mix(horS, vec3(0.11, 0.14, 0.25), earthShadow * clearTwilight * 0.62);
+          horS += vec3(0.42, 0.20, 0.26) * beltOfVenus * clearTwilight * 0.55;
+        }
+
+        vec3 stormHorDay = mix(vec3(0.35, 0.39, 0.44), vec3(0.18, 0.21, 0.26), stormC);
+        stormHorDay *= mix(1.0, 0.22, nightC);
+        horS = mix(horS, stormHorDay, clamp(rainC * 0.74 + stormC * 0.34 + cloudC * 0.12 * (1.0 - fogC * 0.65), 0.0, 0.92));
+
+        if (fogC > 0.002) {
+          vec3 fogDewS = mix(mix(vec3(0.79, 0.85, 0.90), vec3(0.90, 0.66, 0.48), duskC), vec3(0.095, 0.130, 0.195), nightC);
+          horS = mix(horS, fogDewS, fogC * 0.80);
+        }
+        return horS;
+      }
+
       vec3 nexusApplyBoundaryLayerAerialPerspective(
         vec3 hdrLinear,
         vec3 camPos,
@@ -299,22 +350,18 @@ export class HumanEyeHDROptics {
         float hazeFactor = clamp(1.0 - exp(-tauAir), 0.0, mix(0.86, 0.88, fogC));
 
         vec3 rayDir = rayVec / max(dist, 1e-4);
-        float cosAzSun = dot(
-          normalize(rayDir.xz + vec2(1e-5, 0.0)),
-          normalize(sunDir.xz + vec2(1e-5, 0.0))
+        vec3 hazeSRGB = nexusEvalHorizonSkySRGB(
+          vec3(rayDir.x, 0.0, rayDir.z),
+          sunDir,
+          duskC,
+          nightC,
+          cloudC,
+          rainC,
+          clamp(rainC * 0.65, 0.0, 1.0),
+          fogC,
+          0.25 * nightC
         );
-        vec3 dayHorS = vec3(0.60, 0.77, 0.91);
-        vec3 duskHorS = mix(vec3(0.52, 0.56, 0.68), vec3(0.94, 0.47, 0.20), smoothstep(-0.35, 0.85, cosAzSun));
-        vec3 nightHorS = vec3(0.044, 0.068, 0.125);
-        vec3 horBaseS = mix(mix(dayHorS, duskHorS, duskC), nightHorS, nightC);
-
-        vec3 fogDewS = mix(mix(vec3(0.79, 0.85, 0.90), vec3(0.90, 0.66, 0.48), duskC), vec3(0.085, 0.115, 0.175), nightC);
-        horBaseS = mix(horBaseS, fogDewS, fogC * 0.78);
-
-        vec3 stormHorS = mix(vec3(0.42, 0.47, 0.53), vec3(0.24, 0.28, 0.34), clamp(rainC * 0.65, 0.0, 1.0));
-        stormHorS *= mix(1.0, 0.22, nightC);
-        vec3 hazeSRGB = mix(horBaseS, stormHorS, clamp(rainC * 0.72 + cloudC * 0.16 * (1.0 - fogC * 0.65), 0.0, 0.90));
-        vec3 hazeHDR = nexusSRGBToLinear(hazeSRGB) * mix(1.14, 0.72, nightC);
+        vec3 hazeHDR = nexusSRGBToLinear(hazeSRGB) * mix(1.16, 0.76, nightC);
 
         float mieFwd = pow(max(dot(rayDir, sunDir), 0.0), 5.0)
                      * (1.0 - nightC * 0.85)

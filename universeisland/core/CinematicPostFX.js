@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /**
- * NEXUS Omni-Scale Procedural Engine v6.36
+ * NEXUS Omni-Scale Procedural Engine v6.40
  * ./core/CinematicPostFX.js
  *
  * View-Aware Dual-Perspective Optical Pipeline + Real Planar Water Mirror Reflections:
@@ -25,6 +25,7 @@ import * as THREE from 'three';
  *      + Lengyel oblique near-plane clipping at WATER_LEVEL_Y = -1.45m, projecting real 3D
  *      reflections of Gedung Rektorat UI, Jembatan Teksas UI, trees, volcano, & clouds onto
  *      Danau Kenanga, Teluk U, Selat UI, and Kepulauan Seribu lagoons.
+ *    - Motion-aware reflection cadence + shadow-map rebuild suppression + sky star-cull fast-path.
  *
  * 4. CSS3D YOUTUBE VIDEOTRON PORTAL GUARD:
  *    - Strictly preserves alpha < 0.99 punch-through windows so the live CSS3D YouTube Videotron
@@ -36,7 +37,7 @@ export class CinematicPostFX {
     this.width = Math.max(1, Math.floor(width || 1280));
     this.height = Math.max(1, Math.floor(height || 720));
     this.msaaSamples = options.msaaSamples !== undefined ? options.msaaSamples : 4;
-    this.planarReflSize = options.planarReflSize || 768;
+    this.planarReflSize = options.planarReflSize || 512;
     this.planarEnabled = options.planarEnabled !== false;
 
     this.droneCinemaBlend = 0.0;
@@ -44,6 +45,14 @@ export class CinematicPostFX {
     this.activeModeLabel = 'HUMAN_EYE_TRUE_COLOR';
     this.lastWorldDrawCalls = 0;
     this.lastWorldTriangles = 0;
+    this.lastPlanarReflRan = false;
+    this.lastPlanarReflCalls = 0;
+    this._reflFrameCount = 0;
+    this._hasCachedPlanarRefl = false;
+    this._cachedPlanarMatrix = new THREE.Matrix4();
+    this._lastReflCamPos = new THREE.Vector3(1e9, 1e9, 1e9);
+    this._lastReflCamBack = new THREE.Vector3(0, 0, 1);
+    this._lastReflCamUp = new THREE.Vector3(0, 1, 0);
 
     // 1. Hardware 4x MSAA Main Scene RenderTarget (RGBA8 + Alpha preserved for CSS3D Videotron punch-through!)
     this.msaaTarget = new THREE.WebGLRenderTarget(this.width, this.height, {
@@ -339,15 +348,18 @@ export class CinematicPostFX {
    * and binds uPlanarReflTex / uPlanarReflMatrix / uPlanarReflActive on weatherOptics.oceanUniforms.
    */
   renderPlanarWaterReflection(scene, camera, weatherOptics, waterY = -1.45, hiddenDuringRefl = []) {
+    this.lastPlanarReflRan = false;
+    this.lastPlanarReflCalls = 0;
     const oceanU = weatherOptics && (weatherOptics.uniforms || weatherOptics.oceanUniforms);
-    if (!this.planarEnabled || !oceanU || !oceanU.uPlanarReflActive) return;
+    if (!this.planarEnabled || !oceanU || !oceanU.uPlanarReflActive || !this.renderer) return;
 
     camera.updateMatrixWorld();
     this._camWorldPos.setFromMatrixPosition(camera.matrixWorld);
 
-    // Disable planar pass if camera is below water / inside subsea underpass
-    if (this._camWorldPos.y <= waterY + 0.14) {
+    // Disable planar pass if camera is below water / inside subsea underpass or above 540m altitude
+    if (this._camWorldPos.y <= waterY + 0.14 || this._camWorldPos.y > 540.0) {
       oceanU.uPlanarReflActive.value = 0.0;
+      this._hasCachedPlanarRefl = false;
       return;
     }
 
@@ -356,6 +368,30 @@ export class CinematicPostFX {
     this._camRight.set(me[0], me[1], me[2]);
     this._camUp.set(me[4], me[5], me[6]);
     this._camBack.set(me[8], me[9], me[10]);
+
+    // Motion-aware reflection cadence:
+    // - Full 1:1 refresh whenever camera translates >= 2.2cm or rotates >= 0.07 deg (zero lag while flying/orbiting!)
+    // - Stride-2 refresh when camera is stationary/hovering gently (halves idle planar GPU work with 0px projection drift!)
+    const r = this.renderer;
+    const prevShadowNeedsUpdate = Boolean(r.shadowMap && r.shadowMap.needsUpdate);
+    this._reflFrameCount++;
+    const posDeltaSq = this._camWorldPos.distanceToSquared(this._lastReflCamPos);
+    const rotDelta =
+      Math.abs(1.0 - this._camBack.dot(this._lastReflCamBack)) +
+      Math.abs(1.0 - this._camUp.dot(this._lastReflCamUp));
+    const cameraSteady = posDeltaSq < 0.00048 && rotDelta < 0.0000018;
+    // Phase-interleave directional shadow map refresh and planar water reflection refresh during continuous motion (<2.5m/frame)
+    // so both heavy render passes never collide on the same VSync frame!
+    const deferOnShadowFrame = prevShadowNeedsUpdate && posDeltaSq < 6.25 && rotDelta < 0.02;
+    if (
+      this._hasCachedPlanarRefl &&
+      (deferOnShadowFrame || (cameraSteady && this._reflFrameCount % 2 !== 0))
+    ) {
+      oceanU.uPlanarReflTex.value = this.planarReflTarget.texture;
+      oceanU.uPlanarReflMatrix.value.copy(this._cachedPlanarMatrix);
+      oceanU.uPlanarReflActive.value = 1.0;
+      return;
+    }
 
     // Build right-handed (det = +1) mirrored camera basis across horizontal plane y = waterY:
     // R' = (Rx, -Ry, Rz), U' = (-Ux, Uy, -Uz), B' = (Bx, -By, Bz)
@@ -404,10 +440,12 @@ export class CinematicPostFX {
     const cw = py + d0;
     const pe = rc.projectionMatrix.elements;
     const qx = ((cx >= 0.0 ? 1.0 : -1.0) + pe[8]) / pe[0];
-    const qy = ((cy >= 0.0 ? 1.0 : -1.0) + pe[9]) / pe[5];
+    const qy = ((cy >= 0.0 ? 1.0 : -1.0) + pe[9]) + 0.0;
+    const qyNorm = ((cy >= 0.0 ? 1.0 : -1.0) + pe[9]) / pe[5];
+    void qy;
     const qz = -1.0;
     const qw = (1.0 + pe[10]) / pe[14];
-    const denom = cx * qx + cy * qy + cz * qz + cw * qw;
+    const denom = cx * qx + cy * qyNorm + cz * qz + cw * qw;
     if (Math.abs(denom) > 1e-5) {
       const scale = 2.0 / denom;
       pe[2] = cx * scale;
@@ -423,18 +461,34 @@ export class CinematicPostFX {
       if (obj) obj.visible = false;
     }
 
-    const prevTarget = this.renderer.getRenderTarget();
-    const prevClearAlpha = this.renderer.getClearAlpha();
-    this.renderer.setRenderTarget(this.planarReflTarget);
-    this.renderer.setClearAlpha(1.0);
-    this.renderer.clear(true, true, false);
-    this.renderer.render(scene, rc);
-    this.renderer.setClearAlpha(prevClearAlpha);
-    this.renderer.setRenderTarget(prevTarget);
+    const prevTarget = r.getRenderTarget();
+    const prevClearAlpha = r.getClearAlpha();
+    // Never rebuild directional shadow maps inside the planar reflection pass; preserve pending main-pass flag!
+    if (r.shadowMap) r.shadowMap.needsUpdate = false;
+    if (oceanU.uRenderingPlanarRefl) oceanU.uRenderingPlanarRefl.value = 1.0;
 
-    for (let i = 0; i < hiddenDuringRefl.length; i++) {
-      if (hiddenDuringRefl[i]) hiddenDuringRefl[i].visible = prevVis[i];
+    try {
+      r.setRenderTarget(this.planarReflTarget);
+      r.setClearAlpha(1.0);
+      r.clear(true, true, false);
+      r.render(scene, rc);
+      this.lastPlanarReflRan = true;
+      this.lastPlanarReflCalls = r.info?.render?.calls || 0;
+    } finally {
+      if (oceanU.uRenderingPlanarRefl) oceanU.uRenderingPlanarRefl.value = 0.0;
+      if (r.shadowMap) r.shadowMap.needsUpdate = prevShadowNeedsUpdate;
+      r.setClearAlpha(prevClearAlpha);
+      r.setRenderTarget(prevTarget);
+      for (let i = 0; i < hiddenDuringRefl.length; i++) {
+        if (hiddenDuringRefl[i]) hiddenDuringRefl[i].visible = prevVis[i];
+      }
     }
+
+    this._lastReflCamPos.copy(this._camWorldPos);
+    this._lastReflCamBack.copy(this._camBack);
+    this._lastReflCamUp.copy(this._camUp);
+    this._cachedPlanarMatrix.copy(this.planarTextureMatrix);
+    this._hasCachedPlanarRefl = true;
 
     oceanU.uPlanarReflTex.value = this.planarReflTarget.texture;
     oceanU.uPlanarReflMatrix.value.copy(this.planarTextureMatrix);
@@ -505,7 +559,10 @@ export class CinematicPostFX {
     // Pass 4: Final Dual-Mode Composite to Default Framebuffer (Screen)
     this._compositeMat.uniforms.uSceneTex.value = this.msaaTarget.texture;
     this._compositeMat.uniforms.uBloomTex.value = this.bloomHalfB.texture;
-    this._compositeMat.uniforms.uTexelSize.value.set(1.0 / this.width, this.height > 0 ? 1.0 / this.height : 1.0 / 720);
+    this._compositeMat.uniforms.uTexelSize.value.set(
+      1.0 / this.width,
+      this.height > 0 ? 1.0 / this.height : 1.0 / 720
+    );
     this._fsQuad.material = this._compositeMat;
     r.setRenderTarget(null);
     r.setClearAlpha(0.0);

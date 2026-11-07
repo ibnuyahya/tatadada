@@ -74,14 +74,34 @@ export class RainCollisionBake {
   }
 
   /**
-   * Time-sliced asynchronous 512x512 3D Rain Collision Z-Buffer & Drip Anchor baker (< 6ms per frame slice).
-   * Streams reference collision data in the background while the 3D world runs at full 60-120 FPS!
+   * Time-sliced asynchronous 3D Rain Collision Z-Buffer & Drip Anchor baker (~1.5ms per VSync frame).
+   * Yields once per animation frame so the 3D world runs locked at 60-120 FPS with zero frame drops!
    */
-  static async bakeFromHierarchyAsync(roots = [], options = {}, sliceBudgetMs = 6.0) {
-    const gen = RainCollisionBake._bakeGenerator(roots, options, sliceBudgetMs);
+  static async bakeFromHierarchyAsync(roots = [], options = {}, sliceBudgetMs = 1.5) {
+    const budget =
+      options && options.sliceBudgetMs !== undefined ? Number(options.sliceBudgetMs) : sliceBudgetMs;
+    const gen = RainCollisionBake._bakeGenerator(roots, options, budget);
+    const yieldNextFrame = () =>
+      new Promise((resolve) => {
+        if (typeof requestAnimationFrame === 'function') {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            resolve();
+          };
+          const fb = setTimeout(finish, 34);
+          requestAnimationFrame(() => {
+            clearTimeout(fb);
+            setTimeout(finish, 0);
+          });
+        } else {
+          setTimeout(resolve, 0);
+        }
+      });
     let step = gen.next();
     while (!step.done) {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await yieldNextFrame();
       step = gen.next();
     }
     return step.value;
@@ -147,7 +167,7 @@ export class RainCollisionBake {
     // 1. Initialize Dual-Island DEM & 360-Degree Surrounding Ocean Surface (with O(1) Open-Sea AABB & SDF Early-Out!)
     const rawGroundBuf = new Float32Array(totalCells);
     for (let iz = 0; iz < size; iz++) {
-      if (useSlicing && (iz & 15) === 0 && nowFn() - sliceStart >= sliceBudgetMs) {
+      if (useSlicing && iz > 0 && nowFn() - sliceStart >= sliceBudgetMs) {
         yield;
         sliceStart = nowFn();
       }
@@ -235,6 +255,10 @@ export class RainCollisionBake {
     }
 
     for (let iz = 0; iz < size; iz++) {
+      if (useSlicing && (iz & 3) === 3 && nowFn() - sliceStart >= sliceBudgetMs) {
+        yield;
+        sliceStart = nowFn();
+      }
       const rowOffset = iz * size;
       const izD = iz > 0 ? iz - 1 : 0;
       const izU = iz < size - 1 ? iz + 1 : size - 1;
@@ -260,7 +284,7 @@ export class RainCollisionBake {
       }
     }
 
-    // Helper: Rasterize upward-facing triangles of a static Mesh into the 512x512 Z-Buffer
+    // Helper: Rasterize upward-facing triangles of a static Mesh into the Z-Buffer with inner scanline yielding
     function* rasterizeStaticMeshGen(mesh) {
       const geo = mesh.geometry;
       const posAttr = geo?.attributes?.position;
@@ -274,9 +298,10 @@ export class RainCollisionBake {
       const m2 = e[2], m6 = e[6], m10 = e[10], m14 = e[14];
 
       const triCount = idxArr ? Math.floor(idxArr.length / 3) : Math.floor(posAttr.count / 3);
+      let scanOps = 0;
 
       for (let t = 0; t < triCount; t++) {
-        if (useSlicing && (t & 2047) === 0 && nowFn() - sliceStart >= sliceBudgetMs) {
+        if (useSlicing && (t & 511) === 0 && nowFn() - sliceStart >= sliceBudgetMs) {
           yield;
           sliceStart = nowFn();
         }
@@ -337,8 +362,19 @@ export class RainCollisionBake {
         const det = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
         if (Math.abs(det) < 1e-6) continue;
         const invDet = 1.0 / det;
+        const rowSpan = ixMax - ixMin + 1;
 
         for (let iz = izMin; iz <= izMax; iz++) {
+          if (useSlicing) {
+            scanOps += rowSpan;
+            if (scanOps >= 2048) {
+              scanOps = 0;
+              if (nowFn() - sliceStart >= sliceBudgetMs) {
+                yield;
+                sliceStart = nowFn();
+              }
+            }
+          }
           const pz = minZBound + (iz + 0.5) * cellSizeZ;
           const rowOffset = iz * size;
           for (let ix = ixMin; ix <= ixMax; ix++) {
@@ -366,14 +402,18 @@ export class RainCollisionBake {
       }
     }
 
-    // Helper: Rasterize InstancedMesh organic tree foliage canopy ellipsoids
-    const rasterizeInstancedCanopies = (instMesh) => {
+    // Helper: Rasterize InstancedMesh organic tree foliage canopy ellipsoids with per-canopy time slicing
+    function* rasterizeInstancedCanopiesGen(instMesh) {
       const matArr = instMesh.instanceMatrix?.array || instMesh.instanceMatrix;
       if (!matArr) return;
       const count = instMesh.count || Math.floor(matArr.length / 16);
       const pw = instMesh.matrixWorld.elements;
 
       for (let i = 0; i < count; i++) {
+        if (useSlicing && i > 0 && nowFn() - sliceStart >= sliceBudgetMs) {
+          yield;
+          sliceStart = nowFn();
+        }
         const o = i * 16;
         // World center of canopy pad (accounting for parent worldRoot matrix)
         const lx = matArr[o + 12];
@@ -426,7 +466,7 @@ export class RainCollisionBake {
           }
         }
       }
-    };
+    }
 
     // 2. Traverse Roots (prefer medium LOD1 for 250k+ tri monuments; skip dynamic particles/flags/NPCs/water)
     const preferMediumLOD = options.preferMediumLOD !== false;
@@ -498,27 +538,25 @@ export class RainCollisionBake {
     }
 
     for (let c = 0; c < canopyMeshes.length; c++) {
-      rasterizeInstancedCanopies(canopyMeshes[c]);
-      if (useSlicing && nowFn() - sliceStart >= sliceBudgetMs) {
-        yield;
-        sliceStart = nowFn();
-      }
+      yield* rasterizeInstancedCanopiesGen(canopyMeshes[c]);
     }
 
     for (let m = 0; m < staticMeshes.length; m++) {
       yield* rasterizeStaticMeshGen(staticMeshes[m]);
     }
 
-    // 3. Extract 3D Roof-Eave & Tree-Canopy Overhang Drip Edges from Height Discontinuities
-    const rawCandidates = [];
-    const nDirs = [
-      [-1, 0],
-      [1, 0],
-      [0, -1],
-      [0, 1]
-    ];
+    // 3. Extract 3D Roof-Eave & Tree-Canopy Overhang Drip Edges from Height Discontinuities (Zero-GC Flat Float32Array!)
+    let candCap = 8192;
+    let candBuf = new Float32Array(candCap * 7);
+    let candCount = 0;
+    const nDirsX = [-1, 1, 0, 0];
+    const nDirsZ = [0, 0, -1, 1];
 
     for (let iz = 2; iz < size - 2; iz++) {
+      if (useSlicing && (iz & 7) === 7 && nowFn() - sliceStart >= sliceBudgetMs) {
+        yield;
+        sliceStart = nowFn();
+      }
       const wz = minZBound + (iz + 0.5) * cellSizeZ;
       const rowOffset = iz * size;
       for (let ix = 2; ix < size - 2; ix++) {
@@ -532,8 +570,8 @@ export class RainCollisionBake {
         let bestOz = 0;
 
         for (let d = 0; d < 4; d++) {
-          const ox = nDirs[d][0];
-          const oz = nDirs[d][1];
+          const ox = nDirsX[d];
+          const oz = nDirsZ[d];
           const nIdx = (iz + oz) * size + (ix + ox);
           const nh = heightBuf[nIdx];
           const drop = h - nh;
@@ -546,44 +584,52 @@ export class RainCollisionBake {
         }
 
         if (bestDrop > 1.85) {
+          if (candCount >= candCap) {
+            candCap *= 2;
+            const grown = new Float32Array(candCap * 7);
+            grown.set(candBuf);
+            candBuf = grown;
+          }
           const wx = minXBound + (ix + 0.5) * cellSizeX;
           const cls = classBuf[idx];
           const outLen = Math.hypot(bestOx, bestOz) || 1.0;
-          rawCandidates.push({
-            // Nudge 0.56 texel outward past the overhang lip so drips & genting runoff fall unobstructed
-            x: wx + bestOx * cellSizeX * 0.56,
-            y: h - (cls === 3 ? 0.34 : 0.07),
-            z: wz + bestOz * cellSizeZ * 0.56,
-            landingY: bestLandingY,
-            isCanopy: cls === 3 ? 1.0 : 0.0,
-            outX: bestOx / outLen,
-            outZ: bestOz / outLen
-          });
+          const base = candCount * 7;
+          // Nudge 0.56 texel outward past the overhang lip so drips & genting runoff fall unobstructed
+          candBuf[base] = wx + bestOx * cellSizeX * 0.56;
+          candBuf[base + 1] = h - (cls === 3 ? 0.34 : 0.07);
+          candBuf[base + 2] = wz + bestOz * cellSizeZ * 0.56;
+          candBuf[base + 3] = bestLandingY;
+          candBuf[base + 4] = cls === 3 ? 1.0 : 0.0;
+          candBuf[base + 5] = bestOx / outLen;
+          candBuf[base + 6] = bestOz / outLen;
+          candCount++;
         }
       }
     }
 
     // Deterministically stride-pick up to maxDrips evenly across the entire campus & tower
     const dripAnchors = [];
-    if (rawCandidates.length > 0) {
+    if (candCount > 0) {
       // Prime-stride permutation ensures uniform spatial coverage across all roofs & trees
-      const n = rawCandidates.length;
+      const n = candCount;
       const count = Math.min(maxDrips, n);
       const prime = 7919;
       for (let i = 0; i < maxDrips; i++) {
-        const src = rawCandidates[((i * prime) % n + n) % n];
+        const srcBase = (((i * prime) % n + n) % n) * 7;
+        const outX = candBuf[srcBase + 5];
+        const outZ = candBuf[srcBase + 6];
         // Tiny sub-texel jitter along tangent edge (perpendicular to outward eave normal!)
         const jitter = (((i * 37) % 100) / 100 - 0.5) * avgCellSize * 0.42;
-        const tanX = -src.outZ;
-        const tanZ = src.outX;
+        const tanX = -outZ;
+        const tanZ = outX;
         dripAnchors.push({
-          x: src.x + tanX * jitter,
-          y: src.y,
-          z: src.z + tanZ * jitter,
-          landingY: src.landingY,
-          isCanopy: src.isCanopy,
-          outX: src.outX,
-          outZ: src.outZ,
+          x: candBuf[srcBase] + tanX * jitter,
+          y: candBuf[srcBase + 1],
+          z: candBuf[srcBase + 2] + tanZ * jitter,
+          landingY: candBuf[srcBase + 3],
+          isCanopy: candBuf[srcBase + 4],
+          outX,
+          outZ,
           uniqueEdges: count
         });
       }
@@ -607,6 +653,10 @@ export class RainCollisionBake {
     // 4. Pack RGBA8 Collision Texture (NearestFilter avoids 16-bit hi/lo byte carry interpolation spikes!)
     const texData = new Uint8Array(totalCells * 4);
     for (let i = 0; i < totalCells; i++) {
+      if (useSlicing && (i & 8191) === 8191 && nowFn() - sliceStart >= sliceBudgetMs) {
+        yield;
+        sliceStart = nowFn();
+      }
       const o = i * 4;
       const hClamped = Math.max(minY, Math.min(maxY, heightBuf[i]));
       const q = Math.max(0, Math.min(65535, Math.round(((hClamped - minY) / spanY) * 65535)));
@@ -660,7 +710,7 @@ export class RainCollisionBake {
       maxY,
       spanY,
       dripAnchors,
-      rawDripCandidateCount: rawCandidates.length,
+      rawDripCandidateCount: candCount,
       sampleHeightAt
     };
   }
