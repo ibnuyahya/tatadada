@@ -12,7 +12,7 @@ const BOOT_ISO = new Date().toISOString();
 const MAX_RING = 80;
 const MAX_BREADCRUMBS = 120;
 const state = {
-schema: 'whoosh-forensic-v2.5',
+schema: 'whoosh-forensic-v2.6',
 app: 'KCIC Whoosh 350/1000 km/h HSR 3D Simulator',
 bootIso: BOOT_ISO,
 compactJson: false,
@@ -136,6 +136,7 @@ return origConsoleError.apply(console, arguments);
 console.warn = function () {
 try {
 const msg = Array.prototype.map.call(arguments, function (a) { return safeStr(a, 240); }).join(' ');
+if (/cdn\.tailwindcss\.com/i.test(msg)) return;
 pushBounded(state.consoleWarnings, { tMs: elapsedMs(), msg: msg.slice(0, 420) }, 60);
 updateBadgeUI();
 } catch (_e) {}
@@ -224,7 +225,7 @@ if (
 state.errors.length > 0 ||
 state.rejections.length > 0 ||
 criticalCDNFailed ||
-(typeof engineProbeFn === 'function' && engineSnap.threeLoaded === false) ||
+(typeof engineProbeFn === 'function' && engineSnap.graphicsCoreReady === false) ||
 (engineSnap.webgl && engineSnap.webgl.contextAvailable === false) ||
 (engineSnap.webgl && engineSnap.webgl.renderErrorCount > 0) ||
 (gpuOpt && gpuOpt.verdict === 'CRITICAL_CONTEXT_UNHEALTHY') ||
@@ -271,12 +272,12 @@ storage: collectStorageState()
 },
 dependenciesAndDom: {
 importMapPresent: Boolean(document.querySelector('script[type="importmap"]')),
-threeLoaded: Boolean(engineSnap.threeLoaded),
-threeRevision: engineSnap.threeRevision || null,
-tailwindReady: Boolean(window.tailwind || document.querySelector('script[src*="tailwind"]')),
-canvasPresent: Boolean(document.getElementById('webgl-viewport')),
+graphicsCoreReady: Boolean(engineSnap.graphicsCoreReady),
+coreRevision: engineSnap.coreRevision || null,
+uiStylesReady: Boolean(document.head && document.head.querySelector('style')),
+canvasPresent: Boolean(document.getElementById('sim-viewport')),
 bootLoaderVisible: Boolean(bootLoaderEl && getComputedStyle(bootLoaderEl).opacity !== '0'),
-wasmVaultReady: Boolean(engineSnap.worldLogicalAudit && engineSnap.worldLogicalAudit.wasmVaultReady),
+routeVaultReady: Boolean(engineSnap.worldLogicalAudit && engineSnap.worldLogicalAudit.routeVaultReady),
 buildHash: (engineSnap.worldLogicalAudit && engineSnap.worldLogicalAudit.buildHash) || (globalThis.__WHOOSH_BUILD_HASH__ || 'dev-src')
 },
 diagnostics: {
@@ -539,9 +540,26 @@ document.body.removeChild(a);
 URL.revokeObjectURL(url);
 }, 250);
 }
+function revealDiagnosticControls() {
+const fBtn = document.getElementById('forensic-open-btn');
+if (fBtn) {
+fBtn.classList.remove('hidden');
+fBtn.classList.add('flex');
+}
+const fHangar = document.getElementById('btn-open-forensic-hangar');
+if (fHangar) {
+fHangar.classList.remove('hidden');
+fHangar.classList.add('flex');
+}
+const bBtn = document.getElementById('boot-forensic-btn');
+if (bBtn) bBtn.style.display = '';
+const brBtn = document.getElementById('boot-retry-forensic-btn');
+if (brBtn) brBtn.style.display = '';
+}
 function openModal() {
 const modal = document.getElementById('forensic-modal');
 if (!modal) return;
+revealDiagnosticControls();
 state.modalOpen = true;
 modal.classList.remove('hidden');
 modal.classList.add('flex');
@@ -625,6 +643,9 @@ isModalOpen: function () { return state.modalOpen; }
 };
 document.addEventListener('DOMContentLoaded', function () {
 markMilestone('dom_content_loaded');
+if (location.search && location.search.indexOf('diag=1') !== -1) {
+revealDiagnosticControls();
+}
 updateBadgeUI();
 const bindClick = function (id, fn) {
 const el = document.getElementById(id);
@@ -716,7 +737,7 @@ color: #f8fafc;
 .font-mono-tech {
 font-family: 'JetBrains Mono', monospace;
 }
-#webgl-viewport {
+#sim-viewport {
 position: fixed;
 inset: 0;
 width: 100%;
@@ -909,8 +930,8 @@ W
 <div style="font-size:15px;font-weight:900;color:#38bdf8;"><span id="boot-speed-readout">0</span> <span style="font-size:10px;color:#cbd5e1;">KM/H</span></div>
 </div>
 </div>
-<div style="position:relative;width:100%;height:142px;border-radius:16px;overflow:hidden;border:1px solid rgba(148,163,184,0.24);background:#040816;margin-bottom:12px;">
-<canvas id="boot-hero-canvas" width="576" height="142" style="width:100%;height:100%;display:block;"></canvas>
+<div style="position:relative;width:100%;height:168px;border-radius:16px;overflow:hidden;border:1px solid rgba(148,163,184,0.24);background:#040816;margin-bottom:12px;">
+<canvas id="boot-hero-canvas" width="622" height="168" style="width:100%;height:100%;display:block;"></canvas>
 <div class="font-mono-tech" style="position:absolute;top:8px;left:10px;background:rgba(2,6,23,0.76);border:1px solid rgba(244,63,94,0.40);padding:2px 8px;border-radius:999px;font-size:9px;font-weight:800;color:#fda4af;">
 CR400AF / KCIC400AF • 9,75 MW • 27,5 kV AC
 </div>
@@ -920,7 +941,7 @@ DK 0+398 • STASIUN HALIM
 </div>
 <div style="margin-bottom:12px;">
 <div class="font-mono-tech" style="display:flex;justify-content:space-between;align-items:center;font-size:10px;margin-bottom:6px;">
-<span id="boot-status-text" style="color:#e2e8f0;font-weight:700;">Menghubungkan modul simulasi 3D &amp; brankas rute KCIC...</span>
+<span id="boot-status-text" style="color:#e2e8f0;font-weight:700;">Menyiapkan koridor jalur cepat Jakarta–Bandung...</span>
 <span id="boot-pct-text" style="color:#38bdf8;font-weight:900;font-size:12px;">8%</span>
 </div>
 <div style="width:100%;height:9px;background:rgba(15,23,42,0.95);border-radius:999px;border:1px solid rgba(71,85,105,0.55);overflow:hidden;">
@@ -931,7 +952,7 @@ DK 0+398 • STASIUN HALIM
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:6px;">
 <span class="font-mono-tech" style="font-size:9px;font-weight:800;color:#fbbf24;letter-spacing:0.08em;" id="boot-fact-title">WAWASAN WHOOSH #1 • UJI KOIN 350 KM/H</span>
 <div style="display:flex;align-items:center;gap:6px;">
-<button id="boot-forensic-btn" type="button" class="font-mono-tech" style="background:rgba(16,185,129,0.15);border:1px solid rgba(52,211,153,0.42);color:#6ee7b7;border-radius:8px;padding:2px 8px;font-size:9px;font-weight:800;cursor:pointer;" title="Buka Log Forensik &amp; Telemetri JSON [F9]">
+<button id="boot-forensic-btn" type="button" class="font-mono-tech" style="display:none;background:rgba(16,185,129,0.15);border:1px solid rgba(52,211,153,0.42);color:#6ee7b7;border-radius:8px;padding:2px 8px;font-size:9px;font-weight:800;cursor:pointer;" title="Buka Log Forensik &amp; Telemetri JSON [F9]">
 Log Forensik [F9]<span id="boot-forensic-badge"></span>
 </button>
 <button id="boot-next-fact" type="button" class="font-mono-tech" style="background:rgba(56,189,248,0.14);border:1px solid rgba(56,189,248,0.38);color:#7dd3fc;border-radius:8px;padding:2px 8px;font-size:9px;font-weight:800;cursor:pointer;">
@@ -944,9 +965,9 @@ Rel tanpa sambungan <strong>CRTS III Slab Track</strong> menjaga indeks getaran 
 </p>
 </div>
 <div id="boot-retry-wrap" class="hidden" style="margin-top:10px;display:none;align-items:center;justify-content:space-between;gap:8px;background:rgba(127,29,29,0.45);border:1px solid rgba(248,113,113,0.45);border-radius:12px;padding:8px 11px;font-size:11px;color:#fecaca;">
-<span id="boot-retry-msg" style="text-align:left;">Jaringan CDN lambat atau cache lama terdeteksi.</span>
+<span id="boot-retry-msg" style="text-align:left;">Koneksi jaringan lambat atau data lama terdeteksi.</span>
 <div style="display:flex;align-items:center;gap:6px;">
-<button id="boot-retry-forensic-btn" type="button" class="font-mono-tech" style="background:rgba(15,23,42,0.9);color:#6ee7b7;border:1px solid rgba(52,211,153,0.55);border-radius:8px;padding:5px 9px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">
+<button id="boot-retry-forensic-btn" type="button" class="font-mono-tech" style="display:none;background:rgba(15,23,42,0.9);color:#6ee7b7;border:1px solid rgba(52,211,153,0.55);border-radius:8px;padding:5px 9px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">
 Salin Log JSON
 </button>
 <button id="boot-retry-btn" type="button" class="font-mono-tech" style="background:#e11d48;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">
@@ -955,12 +976,12 @@ Muat Ulang Segar
 </div>
 </div>
 <div id="boot-file-warning" class="hidden mt-3 text-left bg-amber-950/80 border border-amber-500/50 rounded-xl p-3 text-[11px] text-amber-200 leading-relaxed">
-<div class="font-extrabold text-amber-300 mb-1">Mode WASM &amp; Web Worker Membutuhkan HTTP Server</div>
-<p>Buka melalui server resmi atau jalankan server lokal <code>http://localhost:8080</code>.</p>
+<div class="font-extrabold text-amber-300 mb-1">Simulasi Membutuhkan Koneksi Server Aktif</div>
+<p>Buka halaman ini melalui alamat web resmi aplikasi.</p>
 </div>
 </div>
 </div>
-<canvas id="webgl-viewport"></canvas>
+<canvas id="sim-viewport"></canvas>
 <div id="cinematic-lens-overlay"></div>
 <canvas id="windshield-fx-canvas"></canvas>
 <header class="fixed top-2 left-2.5 right-2.5 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
@@ -973,7 +994,7 @@ Muat Ulang Segar
 <span class="text-[11px] font-black tracking-wider uppercase bg-gradient-to-r from-rose-300 via-white to-cyan-300 bg-clip-text text-transparent">KCIC WHOOSH 350 KM/H</span>
 <span id="hud-livery-badge" class="text-[9px] font-mono-tech font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 px-1.5 py-0.5 rounded">KCIC400AF Whoosh (8-Car)</span>
 <span id="hud-dk-chainage" class="text-[9px] font-mono-tech font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/35 px-1.5 py-0.5 rounded">DK 0+398 • +28.0 mdpl</span>
-<span id="hud-engine-badge" class="hidden md:inline text-[9px] font-mono-tech font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/35 px-1.5 py-0.5 rounded">WebGL2 • HIGH</span>
+<span id="hud-engine-badge" class="hidden md:inline text-[9px] font-mono-tech font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/35 px-1.5 py-0.5 rounded">VISUAL • TINGGI</span>
 </div>
 <div class="flex items-center gap-2 text-[10px] text-slate-300 mt-0.5 flex-wrap">
 <span class="flex items-center gap-1"><i class="ph-fill ph-map-pin-line text-rose-400"></i> <strong id="hud-biome-name">DK 0–6 • Urban Halim &amp; Jatiwaringin</strong></span>
@@ -1064,10 +1085,10 @@ PAPASAN
 <button id="btn-toggle-audio" title="Mesin Suara Fisik CR400AF VVVF &amp; Terowongan" class="glass-btn active w-8 h-8 rounded-xl flex items-center justify-center text-cyan-300">
 <i id="icon-audio" class="ph-fill ph-speaker-high text-base"></i>
 </button>
-<button id="forensic-open-btn" title="Buka Log Forensik &amp; Rekaman Blackbox 3 Menit (Salin JSON ke Chat) [F9]" class="glass-btn px-2 h-8 rounded-xl flex items-center gap-1 text-[10px] font-mono-tech font-extrabold text-emerald-300 hover:text-white border border-emerald-500/40 relative">
+<button id="forensic-open-btn" title="Buka Log Diagnostik [F9]" class="hidden glass-btn px-2 h-8 rounded-xl items-center gap-1 text-[10px] font-mono-tech font-extrabold text-emerald-300 hover:text-white border border-emerald-500/40 relative">
 <span id="forensic-status-dot" class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
 <i class="ph-bold ph-terminal-window text-sm"></i>
-<span class="hidden xl:inline">Forensik</span>
+<span class="hidden xl:inline">Diagnostik</span>
 <span id="forensic-err-badge" class="hidden px-1 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-extrabold leading-tight">0</span>
 </button>
 <button id="btn-more-menu" title="Menu Lainnya (PiP, Sembunyikan HUD, Panduan Masinis, Reset Sesi)" class="glass-btn w-8 h-8 rounded-xl flex items-center justify-center text-slate-200 hover:text-white border border-slate-700/70">
@@ -1628,29 +1649,29 @@ Berangkat Cepat
 </div>
 <div>
 <div class="flex items-center justify-between mb-1.5">
-<label class="text-slate-300 font-extrabold uppercase tracking-wider">5. Kualitas Engine 3D &amp; Hardware Governor</label>
-<span id="lbl-quality-status" class="font-mono-tech text-[10px] text-cyan-300 font-bold">WebGL2 • HIGH</span>
+<label class="text-slate-300 font-extrabold uppercase tracking-wider">5. Profil Kualitas Visual &amp; Suara</label>
+<span id="lbl-quality-status" class="font-mono-tech text-[10px] text-cyan-300 font-bold">Otomatis • Kualitas Tinggi Presisi</span>
 </div>
 <div class="grid grid-cols-5 gap-1.5">
 <button data-quality="AUTO" class="quality-btn glass-btn active p-2 rounded-xl text-center text-[10px] font-bold">
-<div class="text-cyan-300">AUTO</div>
-<div class="text-[8px] text-slate-400">60-120Hz GPU Pintar</div>
+<div class="text-cyan-300">OTOMATIS</div>
+<div class="text-[8px] text-slate-400">Adaptif 60+ FPS</div>
 </button>
 <button data-quality="ULTRA" class="quality-btn glass-btn p-2 rounded-xl text-center text-[10px] font-bold">
-<div class="text-rose-300">ULTRA</div>
-<div class="text-[8px] text-slate-400">8x MSAA Luxury HDR</div>
+<div class="text-rose-300">SINEMATIK</div>
+<div class="text-[8px] text-slate-400">Detail Maksimal</div>
 </button>
 <button data-quality="HIGH" class="quality-btn glass-btn p-2 rounded-xl text-center text-[10px] font-bold">
-<div class="text-emerald-300">HIGH</div>
-<div class="text-[8px] text-slate-400">4x MSAA Luxury HDR</div>
+<div class="text-emerald-300">TINGGI</div>
+<div class="text-[8px] text-slate-400">Tajam &amp; Presisi</div>
 </button>
 <button data-quality="BALANCED" class="quality-btn glass-btn p-2 rounded-xl text-center text-[10px] font-bold">
-<div class="text-amber-300">BALANCED</div>
-<div class="text-[8px] text-slate-400">2x MSAA Smooth</div>
+<div class="text-amber-300">SEIMBANG</div>
+<div class="text-[8px] text-slate-400">Halus &amp; Stabil</div>
 </button>
 <button data-quality="ECO" class="quality-btn glass-btn p-2 rounded-xl text-center text-[10px] font-bold">
-<div class="text-slate-200">ECO</div>
-<div class="text-[8px] text-slate-400">iGPU Hemat Daya</div>
+<div class="text-slate-200">HEMAT DAYA</div>
+<div class="text-[8px] text-slate-400">Ringan 60+ FPS</div>
 </button>
 </div>
 </div>
@@ -1661,9 +1682,9 @@ Berangkat Cepat
 <i class="ph-bold ph-trash text-sm"></i>
 <span>HAPUS SESI &amp; RESET AWAL</span>
 </button>
-<button id="btn-open-forensic-hangar" type="button" class="px-3.5 py-2.5 rounded-xl glass-btn border border-emerald-500/50 text-emerald-300 hover:text-white font-extrabold text-xs flex items-center gap-1.5" title="Buka Log Forensik &amp; Rekaman Blackbox 3 Menit [F9]">
+<button id="btn-open-forensic-hangar" type="button" class="hidden px-3.5 py-2.5 rounded-xl glass-btn border border-emerald-500/50 text-emerald-300 hover:text-white font-extrabold text-xs items-center gap-1.5" title="Buka Log Diagnostik [F9]">
 <i class="ph-bold ph-terminal-window text-sm"></i>
-<span>LOG FORENSIK 3M [F9]</span>
+<span>LOG DIAGNOSTIK [F9]</span>
 </button>
 </div>
 <button id="btn-apply-hangar" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-cyan-600 text-white font-extrabold text-xs shadow-lg">
@@ -1719,7 +1740,6 @@ TERAPKAN &amp; KEMBALI KE KABIN
 <li><span class="text-white font-bold">[Alt + P]</span> : Jendela Melayang PiP (Hover Tab Lain)</li>
 <li><span class="text-fuchsia-300 font-bold">[Shift + M]</span> : Maglev 550 &amp; Super Maglev 650 km/h (Ludicrous)</li>
 <li><span class="text-orange-300 font-bold">[Shift + R]</span> : Super Rocket 1000 km/h &amp; Retro-Braking</li>
-<li><span class="text-emerald-300 font-bold">[F9]</span> : Log Forensik &amp; Blackbox 3 Menit (JSON)</li>
 </ul>
 </div>
 </div>
@@ -1874,7 +1894,7 @@ if (window.location.protocol === 'file:') {
 const warn = document.getElementById('boot-file-warning');
 const status = document.getElementById('boot-status-text');
 if (warn) warn.classList.remove('hidden');
-if (status) status.textContent = 'Menunggu koneksi HTTP Server...';
+if (status) status.textContent = 'Menunggu koneksi server aktif...';
 return;
 }
 const facts = [
@@ -1933,19 +1953,48 @@ retryWrap.classList.remove('hidden');
 retryWrap.style.display = 'flex';
 }
 }, 9000);
-const onBootError = (msgText) => {
+const onBootError = () => {
 if (!alive) return;
 if (retryWrap && retryMsg) {
-retryMsg.textContent = 'Kendala jaringan/modul: ' + String(msgText || 'Gagal memuat aset');
+retryMsg.textContent = 'Kendala jaringan saat memuat data simulasi. Silakan muat ulang.';
 retryWrap.classList.remove('hidden');
 retryWrap.style.display = 'flex';
 }
 };
-window.addEventListener('error', (e) => { if (e && e.message) onBootError(e.message); });
-window.addEventListener('unhandledrejection', (e) => { if (e && e.reason) onBootError(e.reason.message || e.reason); });
+window.addEventListener('error', (e) => { if (e && e.message) onBootError(); });
+window.addEventListener('unhandledrejection', (e) => { if (e && e.reason) onBootError(); });
 const cvs = document.getElementById('boot-hero-canvas');
 const ctx = cvs ? cvs.getContext('2d') : null;
 let lastT = performance.now();
+const drawBogie = (cx, railY, S, bobY) => {
+const wRad = 4.7 * S;
+const wbHalf = 12.6 * S;
+const wy = railY - wRad;
+// Dark recessed bogie cavity & swan-neck frame
+ctx.fillStyle = '#070b14';
+ctx.fillRect(cx - 21 * S, railY - 10.5 * S + bobY, 42 * S, 7.6 * S);
+// Ø920mm steel wheelsets kissing 60E1 railhead
+for (const ox of [-wbHalf, wbHalf]) {
+ctx.fillStyle = '#334155';
+ctx.beginPath();
+ctx.arc(cx + ox, wy, wRad, 0, Math.PI * 2);
+ctx.fill();
+ctx.strokeStyle = '#94a3b8';
+ctx.lineWidth = Math.max(1, 1.15 * S);
+ctx.beginPath();
+ctx.arc(cx + ox, wy, wRad - 0.8 * S, 0, Math.PI * 2);
+ctx.stroke();
+ctx.fillStyle = '#cbd5e1';
+ctx.beginPath();
+ctx.arc(cx + ox, wy, 1.5 * S, 0, Math.PI * 2);
+ctx.fill();
+}
+// CW350 primary axleboxes + yaw damper beam
+ctx.fillStyle = '#1e293b';
+ctx.fillRect(cx - 17.5 * S, wy - 2.3 * S, 35 * S, 3.6 * S);
+ctx.fillStyle = '#475569';
+ctx.fillRect(cx - 8 * S, wy - 3.6 * S, 16 * S, 2.2 * S);
+};
 const drawHero = (now) => {
 if (!alive) return;
 const dt = Math.min(0.05, Math.max(0.004, (now - lastT) * 0.001));
@@ -1966,8 +2015,23 @@ if (pctEl) pctEl.textContent = pctInt + '%';
 if (spdEl) spdEl.textContent = String(curSpd);
 if (dkEl) dkEl.textContent = 'DK ' + dkKm + '+' + dkM + ' • ' + segTag;
 if (ctx) {
-const W = cvs.width;
-const H = cvs.height;
+// Sync backing store to exact CSS box × DPR so pixels are strictly 1:1 square (zero squash/stretch!)
+const cssW = Math.max(280, Math.round(cvs.clientWidth || 622));
+const cssH = Math.max(140, Math.round(cvs.clientHeight || 168));
+const dpr = Math.min(2, window.devicePixelRatio || 1);
+const targetW = Math.round(cssW * dpr);
+const targetH = Math.round(cssH * dpr);
+if (cvs.width !== targetW || cvs.height !== targetH) {
+cvs.width = targetW;
+cvs.height = targetH;
+}
+ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+const W = cssW;
+const H = cssH;
+const S = Math.min(1.0, Math.max(0.68, W / 560));
+const railY = H - 34;
+const deckY = railY + 1.6;
+const wireY = railY - 54 * S;
 scrollX += (125 + curSpd * 1.85) * dt;
 const sky = ctx.createLinearGradient(0, 0, 0, H);
 sky.addColorStop(0, '#020617');
@@ -1975,9 +2039,9 @@ sky.addColorStop(0.55, '#0f172a');
 sky.addColorStop(1, '#1e1b4b');
 ctx.fillStyle = sky;
 ctx.fillRect(0, 0, W, H);
-const glow = ctx.createRadialGradient(W * 0.78, H * 0.72, 6, W * 0.78, H * 0.72, 190);
+const glow = ctx.createRadialGradient(W * 0.78, railY - 18 * S, 6, W * 0.78, railY - 18 * S, 210 * S);
 glow.addColorStop(0, 'rgba(244,63,94,0.28)');
-glow.addColorStop(0.5, 'rgba(56,189,248,0.10)');
+glow.addColorStop(0.5, 'rgba(56,189,248,0.11)');
 glow.addColorStop(1, 'rgba(2,6,23,0)');
 ctx.fillStyle = glow;
 ctx.fillRect(0, 0, W, H);
@@ -1985,218 +2049,322 @@ ctx.fillRect(0, 0, W, H);
 ctx.fillStyle = 'rgba(226,232,240,0.65)';
 for (let i = 0; i < 18; i++) {
 const sx = (((i * 97 + 31 - scrollX * 0.025) % W) + W) % W;
-const sy = 10 + ((i * 43) % 46);
+const sy = 10 + ((i * 43) % Math.max(32, Math.floor(wireY - 14)));
 ctx.fillRect(sx, sy, 1.5, 1.5);
 }
 // 2. Distant Priangan mountains scrolling right-to-left (`-X`)
 ctx.fillStyle = '#0b1329';
 ctx.beginPath();
 ctx.moveTo(0, H);
-for (let x = 0; x <= W; x += 20) {
+for (let x = 0; x <= W + 20; x += 20) {
 const mx = x + scrollX * 0.10;
-const my = 86 - Math.sin(mx * 0.011) * 18 - Math.cos(mx * 0.027) * 9;
+const my = (railY - 26 * S) - Math.sin(mx * 0.011) * (19 * S) - Math.cos(mx * 0.027) * (9 * S);
 ctx.lineTo(x, my);
 }
 ctx.lineTo(W, H);
 ctx.closePath();
 ctx.fill();
-// 3. Midground corridor skyline / silhouettes scrolling faster right-to-left (`-X`)
+// 3. Midground corridor skyline silhouettes scrolling right-to-left (`-X`)
 const midSpan = 96;
 const midOff = (scrollX * 0.36) % midSpan;
 ctx.fillStyle = 'rgba(15,23,42,0.92)';
 for (let k = -1; k * midSpan - midOff < W + midSpan; k++) {
 const bx = k * midSpan - midOff;
 const idx = ((k + Math.floor((scrollX * 0.36) / midSpan)) % 5 + 5) % 5;
-const bh = 14 + idx * 5;
-const bw = 16 + (idx % 3) * 6;
-ctx.fillRect(bx, 104 - bh, bw, bh);
+const bh = (15 + idx * 5.5) * S;
+const bw = (16 + (idx % 3) * 6) * S;
+ctx.fillRect(bx, deckY - bh, bw, bh);
 }
-// 4. Overhead 27.5 kV catenary contact + messenger wire & masts rushing RIGHT-TO-LEFT (`-X`)!
-ctx.strokeStyle = 'rgba(148,163,184,0.30)';
+// 4. Overhead 27.5 kV OCS catenary messenger + contact wire & H-masts
+const mastSpan = 128 * S;
+const mOff = scrollX % mastSpan;
+ctx.strokeStyle = 'rgba(148,163,184,0.26)';
 ctx.lineWidth = 1;
 ctx.beginPath();
-ctx.moveTo(0, 52);
-ctx.lineTo(W, 52);
+for (let mx = -mOff - mastSpan; mx < W + mastSpan; mx += mastSpan) {
+ctx.moveTo(mx, wireY - 9 * S);
+ctx.quadraticCurveTo(mx + mastSpan * 0.5, wireY - 2.2 * S, mx + mastSpan, wireY - 9 * S);
+}
 ctx.stroke();
-const mastSpan = 108;
-const mOff = scrollX % mastSpan;
+ctx.strokeStyle = 'rgba(203,213,225,0.38)';
+ctx.lineWidth = 1.15;
+ctx.beginPath();
+ctx.moveTo(0, wireY);
+ctx.lineTo(W, wireY);
+ctx.stroke();
 ctx.fillStyle = '#334155';
 for (let mx = -mOff; mx < W + mastSpan; mx += mastSpan) {
-ctx.fillRect(mx, 47, 3, 57);
-ctx.fillRect(mx - 9, 49, 12, 2);
+ctx.fillRect(mx, wireY - 12 * S, 3 * S, (deckY - wireY) + 12 * S);
+ctx.fillRect(mx - 10 * S, wireY - 9 * S, 13 * S, 2 * S);
+ctx.fillRect(mx - 7 * S, wireY - 1.5 * S, 10 * S, 1.4 * S);
 }
-// 5. KCIC Box-Girder Viaduct Deck, Expansion Joints & Concrete Piers locked to 1:1 world speed rushing RIGHT-TO-LEFT (`-X`)!
+// 5. KCIC Precast Box-Girder Viaduct Deck, 60E1 Rail & Concrete Piers
+ctx.fillStyle = '#64748b';
+ctx.fillRect(0, railY, W, 1.6);
 ctx.fillStyle = '#1e293b';
-ctx.fillRect(0, 104, W, 12);
+ctx.fillRect(0, deckY, W, 14);
 ctx.fillStyle = '#334155';
-ctx.fillRect(0, 104, W, 2);
-const pierSpan = 84;
+ctx.fillRect(0, deckY, W, 2.2);
+const pierSpan = 104 * S;
 const pOff = scrollX % pierSpan;
 for (let px = -pOff; px < W + pierSpan; px += pierSpan) {
 ctx.fillStyle = '#0f172a';
-ctx.fillRect(px, 116, 14, 28);
+ctx.fillRect(px, deckY + 14, 16 * S, H - (deckY + 14) + 2);
 ctx.fillStyle = '#475569';
-ctx.fillRect(px + 6, 104, 2, 12);
+ctx.fillRect(px + 7 * S, deckY, 2 * S, 14);
 }
-// Crisp CRTS-III sleeper/fastener ticks rushing RIGHT-TO-LEFT (`-X`) directly beneath the train
-const tickSpan = 18;
+const tickSpan = 18 * S;
 const tOff = scrollX % tickSpan;
-ctx.fillStyle = 'rgba(148,163,184,0.42)';
+ctx.fillStyle = 'rgba(148,163,184,0.45)';
 for (let sx = -tOff; sx < W + tickSpan; sx += tickSpan) {
-ctx.fillRect(sx, 102.5, 4, 1.5);
+ctx.fillRect(sx, railY - 0.8, 4 * S, 1.4);
 }
-// 6. Sleek KCIC400AF surging FORWARD (`+X`) with trailing slipstream & passing air streaks
-const bobY = Math.sin(now * 0.014) * 0.65;
-const tx = 66 + pNorm * 28;
-const ty = 74 + bobY;
+// 6. True 1:1 Scale Coupled KCIC400AF Red Komodo (`M02` + `TC01` Lead Car at authentic 6.60:1 CR400AF ratio!)
+const bobY = Math.sin(now * 0.014) * (0.55 * S);
+const carLen = 272 * S;     // 26.82 m @ 10.15 px/m
+const roofH = 41.2 * S;     // 4.05 m TOR -> 272 / 41.2 = 6.60 : 1 true CR400AF aspect ratio!
+const skirtClear = 3.2 * S; // 0.32 m skirt clearance above railhead
+const roofY = railY - roofH + bobY;
+const skirtY = railY - skirtClear + bobY;
+const bodyH = skirtY - roofY; // 38.0 px tall carbody shell!
+const noseTipX = Math.min(W - 44 * S, Math.max(250 * S, W * 0.86)) + pNorm * (14 * S);
+const tx = noseTipX - carLen;
+const gangwayW = 4.6 * S;
+const mEnd = tx - gangwayW;
+const mStart = -28;
 ctx.save();
-// Trailing aerodynamic slipstream lines streaming backward (`-X`) from rear car
-for (let s = 0; s < 5; s++) {
-const pulse = ((scrollX * 1.4 + s * 47) % 64) * 0.45;
-const len = 36 + (curSpd * 0.24) + (s * 14) + pulse;
-const ly = ty + 5 + s * 4.8;
-const sg = ctx.createLinearGradient(tx - len, ly, tx + 14, ly);
-sg.addColorStop(0, 'rgba(225,29,72,0)');
-sg.addColorStop(1, s % 2 === 0 ? 'rgba(244,63,94,0.55)' : 'rgba(56,189,248,0.45)');
-ctx.fillStyle = sg;
-ctx.fillRect(tx - len, ly, len, 1.8);
+// Bogies & Ø920mm steel wheelsets seated directly on 60E1 railhead (`railY`)
+if (mEnd > 24 * S) {
+drawBogie(mEnd - 44 * S, railY, S, bobY);
 }
-// Dark bogie & underframe shadow
-ctx.fillStyle = '#090d16';
-ctx.fillRect(tx + 10, ty + 23.5, 344, 5.5);
-// Silver-pearl streamlined KCIC400AF body + smooth convex 11.8m aerodynamic nose pointing RIGHT (`+X`)
-const bodyGrad = ctx.createLinearGradient(tx, ty, tx, ty + 26);
+drawBogie(tx + 46 * S, railY, S, bobY);
+drawBogie(tx + 194 * S, railY, S, bobY);
+const bodyGrad = ctx.createLinearGradient(0, roofY, 0, skirtY);
 bodyGrad.addColorStop(0, '#f8fafc');
-bodyGrad.addColorStop(0.55, '#e2e8f0');
-bodyGrad.addColorStop(1, '#cbd5e1');
+bodyGrad.addColorStop(0.52, '#e2e8f0');
+bodyGrad.addColorStop(0.86, '#cbd5e1');
+bodyGrad.addColorStop(1, '#94a3b8');
+// --- 6A. Coupled `M02` Second Coach (entering from left edge + single-arm pantograph) ---
+if (mEnd > 0) {
 ctx.fillStyle = bodyGrad;
-ctx.beginPath();
-ctx.moveTo(tx, ty + 25);
-ctx.lineTo(tx + 344, ty + 25);
-ctx.quadraticCurveTo(tx + 388, ty + 25, tx + 413, ty + 21.2);
-ctx.quadraticCurveTo(tx + 416, ty + 18.8, tx + 408, ty + 16.5);
-ctx.bezierCurveTo(tx + 384, ty + 9.5, tx + 342, ty + 2.5, tx + 292, ty + 2);
-ctx.lineTo(tx, ty + 2);
-ctx.closePath();
-ctx.fill();
-// Warm metallic gunmetal-grey lower skirt & upward-arching nose cowcatcher chin (`4356acf1.jpg`)
+ctx.fillRect(mStart, roofY, mEnd - mStart, bodyH);
+// Lower gunmetal equipment skirt with bogie cutout
 ctx.fillStyle = '#64748b';
-ctx.beginPath();
-ctx.moveTo(tx, ty + 22.8);
-ctx.lineTo(tx + 344, ty + 22.8);
-ctx.quadraticCurveTo(tx + 372, ty + 19.6, tx + 412, ty + 21.4);
-ctx.lineTo(tx + 404, ty + 24.8);
-ctx.lineTo(tx, ty + 25);
-ctx.closePath();
-ctx.fill();
-// Crimson-red roof cantrail + dorsal nose hood sweeping almost to the silver coupler cap (`x = 403`)
+ctx.fillRect(mStart, skirtY - 6.2 * S, mEnd - mStart, 6.2 * S);
+ctx.fillStyle = '#0b1120';
+ctx.fillRect(mEnd - 63 * S, skirtY - 4.4 * S, 38 * S, 4.6 * S);
+// Crimson cantrail roof band
 ctx.fillStyle = '#dc2626';
-ctx.beginPath();
-ctx.moveTo(tx, ty + 2);
-ctx.lineTo(tx + 294, ty + 2);
-ctx.bezierCurveTo(tx + 344, ty + 2.6, tx + 382, ty + 9.2, tx + 403, ty + 15.2);
-ctx.lineTo(tx + 395, ty + 15.8);
-ctx.bezierCurveTo(tx + 372, ty + 9.8, tx + 336, ty + 4.8, tx + 290, ty + 4.2);
-ctx.lineTo(tx, ty + 4.2);
-ctx.closePath();
-ctx.fill();
-// Giant crimson-red `W` wing graphic behind the plug door (`x = tx + 196..252`) + vertical red car-end band (`tx + 8..22`)
-ctx.fillStyle = '#dc2626';
-ctx.fillRect(tx + 8, ty + 3.5, 11, 19.3);
-ctx.fillStyle = '#e2e8f0';
-ctx.fillRect(tx + 19, ty + 3.5, 3, 19.3);
-ctx.fillStyle = '#dc2626';
-ctx.fillRect(tx + 22, ty + 3.5, 6, 19.3);
-ctx.beginPath();
-ctx.moveTo(tx + 190, ty + 3.5);
-ctx.lineTo(tx + 252, ty + 3.5);
-ctx.lineTo(tx + 264, ty + 8.5);
-ctx.lineTo(tx + 248, ty + 8.5);
-ctx.lineTo(tx + 240, ty + 5.2);
-ctx.lineTo(tx + 232, ty + 8.5);
-ctx.lineTo(tx + 218, ty + 8.5);
-ctx.lineTo(tx + 210, ty + 5.2);
-ctx.lineTo(tx + 202, ty + 8.5);
-ctx.closePath();
-ctx.fill();
-// Continuous piano-black window band curving DOWNWARD into a sharp lower-cheek spear + direct red bottom pinstripe!
+ctx.fillRect(mStart, roofY, mEnd - mStart, 4.4 * S);
+// Continuous piano-black window band + red lower pinstripe
+const winBandTop = roofY + 11.8 * S;
+const winBandH = 10.6 * S;
 ctx.fillStyle = '#0f172a';
-ctx.beginPath();
-ctx.moveTo(tx + 28, ty + 8.5);
-ctx.lineTo(tx + 312, ty + 8.5);
-ctx.quadraticCurveTo(tx + 354, ty + 11.2, tx + 388, ty + 18.2);
-ctx.lineTo(tx + 372, ty + 17.8);
-ctx.quadraticCurveTo(tx + 342, ty + 15.2, tx + 306, ty + 15.0);
-ctx.lineTo(tx + 28, ty + 15.0);
-ctx.closePath();
-ctx.fill();
+ctx.fillRect(mStart, winBandTop, mEnd - mStart - 4 * S, winBandH);
 ctx.fillStyle = '#dc2626';
-ctx.beginPath();
-ctx.moveTo(tx + 28, ty + 15.0);
-ctx.lineTo(tx + 306, ty + 15.0);
-ctx.quadraticCurveTo(tx + 344, ty + 15.2, tx + 391, ty + 18.8);
-ctx.quadraticCurveTo(tx + 344, ty + 17.0, tx + 306, ty + 16.8);
-ctx.lineTo(tx + 28, ty + 16.8);
-ctx.closePath();
-ctx.fill();
-// Separate angular cab side window on upper silver cheek (`tx + 346..374`)
-ctx.fillStyle = '#0f172a';
-ctx.beginPath();
-ctx.moveTo(tx + 345, ty + 6.5);
-ctx.lineTo(tx + 373, ty + 10.6);
-ctx.lineTo(tx + 356, ty + 11.2);
-ctx.closePath();
-ctx.fill();
-// Plug door frame (`tx + 268..280`) with oval window + warm glowing cabin windows
-ctx.strokeStyle = '#0f172a';
-ctx.lineWidth = 1.0;
-ctx.strokeRect(tx + 268, ty + 6.2, 11, 14.8);
-ctx.fillStyle = 'rgba(254,243,199,0.78)';
-ctx.fillRect(tx + 271.5, ty + 9.5, 4, 4.5);
-for (const wx of [44, 68, 92, 116, 140, 168, 192, 216, 240, 286, 308, 328]) {
-ctx.fillStyle = 'rgba(254,243,199,0.78)';
-ctx.fillRect(tx + wx, ty + 9.6, 14, 4.2);
+ctx.fillRect(mStart, winBandTop + winBandH, mEnd - mStart - 4 * S, 2.5 * S);
+// Illuminated saloon windows + M02 plug door
+ctx.strokeStyle = '#1e293b';
+ctx.lineWidth = Math.max(0.9, 1.0 * S);
+ctx.strokeRect(mEnd - 22 * S, roofY + 8.5 * S, 12.5 * S, 22.5 * S);
+ctx.fillStyle = 'rgba(254,243,199,0.82)';
+ctx.fillRect(mEnd - 18.2 * S, winBandTop + 1.5 * S, 5 * S, winBandH - 3 * S);
+for (let wx = mEnd - 46 * S; wx > mStart - 16 * S; wx -= 24.5 * S) {
+ctx.fillRect(wx, winBandTop + 1.5 * S, 15.5 * S, winBandH - 3 * S);
 }
-// Single-arm pantograph sliding smoothly along contact wire (`y = 52`)
+// Flush dark EPDM aerodynamic inter-car gangway (`M02` <-> `TC01`)
+ctx.fillStyle = '#0f172a';
+ctx.fillRect(mEnd, roofY + 0.8 * S, gangwayW, bodyH - 1.6 * S);
+ctx.fillStyle = '#334155';
+ctx.fillRect(mEnd + gangwayW * 0.42, roofY + 1.2 * S, 1.0 * S, bodyH - 2.4 * S);
+// Single-arm Faiveley CX-PG 27.5 kV Pantograph on M02 roof HV well reaching `wireY`
+const pBaseX = mEnd - 56 * S;
+if (pBaseX > 8) {
+ctx.fillStyle = '#475569';
+ctx.fillRect(pBaseX - 8 * S, roofY - 1.8 * S, 16 * S, 2.2 * S);
+const midY = (roofY + wireY) * 0.52;
 ctx.strokeStyle = '#cbd5e1';
-ctx.lineWidth = 1.6;
+ctx.lineWidth = Math.max(1.3, 1.7 * S);
 ctx.beginPath();
-ctx.moveTo(tx + 92, ty + 2);
-ctx.lineTo(tx + 80, ty - 11);
-ctx.lineTo(tx + 95, 52);
+ctx.moveTo(pBaseX + 2 * S, roofY - 1.5 * S);
+ctx.lineTo(pBaseX - 11 * S, midY);
+ctx.lineTo(pBaseX + 4 * S, wireY + 0.8 * S);
 ctx.stroke();
-ctx.fillStyle = '#e2e8f0';
-ctx.fillRect(tx + 90, 51, 10, 1.8);
+ctx.fillStyle = '#f1f5f9';
+ctx.fillRect(pBaseX - 2 * S, wireY - 0.8 * S, 12 * S, 2.0 * S);
 if (curSpd > 95 && Math.sin(now * 0.047) > 0.72) {
-const spk = ctx.createRadialGradient(tx + 95, 52, 1, tx + 95, 52, 16);
+const spk = ctx.createRadialGradient(pBaseX + 4 * S, wireY, 1, pBaseX + 4 * S, wireY, 17 * S);
 spk.addColorStop(0, '#ffffff');
 spk.addColorStop(0.35, 'rgba(56,189,248,0.95)');
 spk.addColorStop(1, 'rgba(56,189,248,0)');
 ctx.fillStyle = spk;
 ctx.beginPath();
-ctx.arc(tx + 95, 52, 16, 0, Math.PI * 2);
+ctx.arc(pBaseX + 4 * S, wireY, 17 * S, 0, Math.PI * 2);
 ctx.fill();
 }
-// High-intensity LED headlight cone projecting ahead (`+X`)
-const beam = ctx.createLinearGradient(tx + 406, ty + 19, tx + 502, ty + 19);
-beam.addColorStop(0, 'rgba(186,230,253,0.88)');
+}
+}
+// --- 6B. `TC01` Streamlined Lead Car (`tx .. tx + carLen`, 38px tall × 272px long = true CR400AF profile!) ---
+const noseStart = tx + 150 * S;
+const tipX = tx + carLen;
+ctx.beginPath();
+ctx.moveTo(tx, skirtY);
+ctx.lineTo(tx + 216 * S, skirtY);
+// Sleek aerodynamic cowcatcher chin & rounded coupler nosecone (`y = roofY + 28.5*S`)
+ctx.quadraticCurveTo(tx + 250 * S, skirtY - 0.4 * S, tipX - 3.5 * S, roofY + 32.2 * S);
+ctx.quadraticCurveTo(tipX + 2.2 * S, roofY + 29.0 * S, tipX - 2.8 * S, roofY + 25.4 * S);
+// Smooth convex 11.8 m CR400AF nose & cab windshield arch up to roofline
+ctx.bezierCurveTo(tx + 240 * S, roofY + 11.2 * S, tx + 194 * S, roofY + 0.6 * S, noseStart, roofY);
+ctx.lineTo(tx, roofY);
+ctx.closePath();
+ctx.fillStyle = bodyGrad;
+ctx.fill();
+// Clip interior livery details strictly inside TC01 silhouette
+ctx.save();
+ctx.clip();
+// Warm gunmetal-grey lower aerodynamic skirt & cowcatcher chin
+ctx.fillStyle = '#64748b';
+ctx.beginPath();
+ctx.moveTo(tx, skirtY - 6.2 * S);
+ctx.lineTo(tx + 214 * S, skirtY - 6.2 * S);
+ctx.quadraticCurveTo(tx + 246 * S, skirtY - 8.2 * S, tipX + 2 * S, skirtY - 4.2 * S);
+ctx.lineTo(tipX + 2 * S, skirtY + 2 * S);
+ctx.lineTo(tx, skirtY + 2 * S);
+ctx.closePath();
+ctx.fill();
+// Bogie skirt cutouts on TC01 (`tx + 46*S` & `tx + 194*S`)
+ctx.fillStyle = '#0b1120';
+ctx.fillRect(tx + 27 * S, skirtY - 4.4 * S, 38 * S, 5.0 * S);
+ctx.fillRect(tx + 175 * S, skirtY - 4.4 * S, 38 * S, 5.0 * S);
+// Silver nose coupler hatch cone (`tipX - 13*S .. tipX`)
+ctx.fillStyle = '#e2e8f0';
+ctx.beginPath();
+ctx.moveTo(tipX - 13 * S, roofY + 23.0 * S);
+ctx.lineTo(tipX + 3 * S, roofY + 27.5 * S);
+ctx.lineTo(tipX - 11 * S, roofY + 33.8 * S);
+ctx.closePath();
+ctx.fill();
+// Crimson-red roof cantrail + sweeping KCIC400AF Red Komodo dorsal nose hood
+ctx.fillStyle = '#dc2626';
+ctx.beginPath();
+ctx.moveTo(tx, roofY);
+ctx.lineTo(noseStart + 4 * S, roofY);
+ctx.bezierCurveTo(tx + 196 * S, roofY + 0.6 * S, tx + 240 * S, roofY + 11.2 * S, tipX - 11 * S, roofY + 24.4 * S);
+ctx.lineTo(tipX - 19 * S, roofY + 25.2 * S);
+ctx.bezierCurveTo(tx + 230 * S, roofY + 13.8 * S, tx + 190 * S, roofY + 5.2 * S, noseStart - 4 * S, roofY + 4.4 * S);
+ctx.lineTo(tx, roofY + 4.4 * S);
+ctx.closePath();
+ctx.fill();
+// Red Komodo geometric batik scale accents + bold `W` wing emblem behind cab
+ctx.fillStyle = '#dc2626';
+ctx.fillRect(tx + 5 * S, roofY + 4.2 * S, 8 * S, 27.5 * S);
+ctx.fillRect(tx + 15.5 * S, roofY + 4.2 * S, 4 * S, 27.5 * S);
+ctx.beginPath();
+ctx.moveTo(tx + 106 * S, roofY + 4.2 * S);
+ctx.lineTo(tx + 152 * S, roofY + 4.2 * S);
+ctx.lineTo(tx + 162 * S, roofY + 11.8 * S);
+ctx.lineTo(tx + 148 * S, roofY + 11.8 * S);
+ctx.lineTo(tx + 141 * S, roofY + 6.8 * S);
+ctx.lineTo(tx + 134 * S, roofY + 11.8 * S);
+ctx.lineTo(tx + 123 * S, roofY + 11.8 * S);
+ctx.lineTo(tx + 116 * S, roofY + 6.8 * S);
+ctx.lineTo(tx + 110 * S, roofY + 11.8 * S);
+ctx.closePath();
+ctx.fill();
+// Geometric Komodo scale triangles on upper silver cheek (`tx + 166..196*S`)
+for (let k = 0; k < 4; k++) {
+const kx = tx + (166 + k * 8.2) * S;
+const ky = roofY + (6.6 + k * 1.4) * S;
+ctx.fillStyle = k % 2 === 0 ? '#ef4444' : '#b91c1c';
+ctx.beginPath();
+ctx.moveTo(kx, ky);
+ctx.lineTo(kx + 6.2 * S, ky + 1.2 * S);
+ctx.lineTo(kx + 2.4 * S, ky + 4.4 * S);
+ctx.closePath();
+ctx.fill();
+}
+// Continuous piano-black window band (`10.6 px` tall!) curving into sharp nose cheek spear + red bottom pinstripe
+const wbTop = roofY + 11.8 * S;
+const wbBot = wbTop + 10.6 * S;
+ctx.fillStyle = '#0f172a';
+ctx.beginPath();
+ctx.moveTo(tx + 21 * S, wbTop);
+ctx.lineTo(tx + 178 * S, wbTop);
+ctx.quadraticCurveTo(tx + 214 * S, wbTop + 3.8 * S, tx + 248 * S, roofY + 27.6 * S);
+ctx.lineTo(tx + 232 * S, roofY + 27.2 * S);
+ctx.quadraticCurveTo(tx + 204 * S, wbBot + 0.5 * S, tx + 174 * S, wbBot);
+ctx.lineTo(tx + 21 * S, wbBot);
+ctx.closePath();
+ctx.fill();
+ctx.fillStyle = '#dc2626';
+ctx.beginPath();
+ctx.moveTo(tx + 21 * S, wbBot);
+ctx.lineTo(tx + 174 * S, wbBot);
+ctx.quadraticCurveTo(tx + 206 * S, wbBot + 0.6 * S, tx + 251 * S, roofY + 28.8 * S);
+ctx.quadraticCurveTo(tx + 206 * S, wbBot + 3.2 * S, tx + 174 * S, wbBot + 2.5 * S);
+ctx.lineTo(tx + 21 * S, wbBot + 2.5 * S);
+ctx.closePath();
+ctx.fill();
+// Dark wrap-around cockpit windshield & angular cab side window on upper cheek
+ctx.fillStyle = '#090f1d';
+ctx.beginPath();
+ctx.moveTo(tx + 196 * S, roofY + 6.2 * S);
+ctx.quadraticCurveTo(tx + 218 * S, roofY + 10.5 * S, tx + 234 * S, roofY + 16.8 * S);
+ctx.lineTo(tx + 218 * S, roofY + 17.6 * S);
+ctx.quadraticCurveTo(tx + 205 * S, roofY + 13.6 * S, tx + 194 * S, roofY + 11.4 * S);
+ctx.closePath();
+ctx.fill();
+// Highlight reflection on cockpit glass
+ctx.strokeStyle = 'rgba(186,230,253,0.55)';
+ctx.lineWidth = Math.max(0.8, 1.0 * S);
+ctx.beginPath();
+ctx.moveTo(tx + 201 * S, roofY + 7.8 * S);
+ctx.quadraticCurveTo(tx + 216 * S, roofY + 11.2 * S, tx + 229 * S, roofY + 16.0 * S);
+ctx.stroke();
+// TC01 boarding plug door (`tx + 160..172*S`) + crisp warm saloon windows
+ctx.strokeStyle = '#1e293b';
+ctx.lineWidth = Math.max(0.9, 1.0 * S);
+ctx.strokeRect(tx + 158 * S, roofY + 8.5 * S, 12.5 * S, 22.5 * S);
+ctx.fillStyle = 'rgba(254,243,199,0.84)';
+ctx.fillRect(tx + 161.8 * S, wbTop + 1.5 * S, 5 * S, 7.6 * S);
+for (const wx of [30, 54, 78, 102, 126, 176]) {
+ctx.fillRect(tx + wx * S, wbTop + 1.5 * S, 15.5 * S, 7.6 * S);
+}
+// Bright dual LED headlight cluster on lower nose cheek
+ctx.fillStyle = '#e0f2fe';
+ctx.beginPath();
+ctx.ellipse(tipX - 9.5 * S, roofY + 27.6 * S, 4.2 * S, 1.7 * S, 0.22, 0, Math.PI * 2);
+ctx.fill();
+ctx.restore(); // end TC01 clip
+// Subtle roof highlight outline
+ctx.strokeStyle = 'rgba(248,250,252,0.45)';
+ctx.lineWidth = Math.max(0.8, 0.9 * S);
+ctx.beginPath();
+ctx.moveTo(mStart, roofY + 0.5);
+ctx.lineTo(noseStart, roofY + 0.5);
+ctx.stroke();
+// Volumetric high-intensity LED headlight cone projecting ahead (`+X`)
+const beamEnd = Math.min(W, tipX + 86 * S);
+const beam = ctx.createLinearGradient(tipX - 6 * S, roofY + 28 * S, beamEnd, roofY + 28 * S);
+beam.addColorStop(0, 'rgba(186,230,253,0.85)');
+beam.addColorStop(0.55, 'rgba(56,189,248,0.22)');
 beam.addColorStop(1, 'rgba(56,189,248,0)');
 ctx.fillStyle = beam;
 ctx.beginPath();
-ctx.moveTo(tx + 404, ty + 17.5);
-ctx.lineTo(tx + 502, ty + 8);
-ctx.lineTo(tx + 502, ty + 30);
-ctx.lineTo(tx + 404, ty + 22.5);
+ctx.moveTo(tipX - 6 * S, roofY + 25.5 * S);
+ctx.lineTo(beamEnd, roofY + 14 * S);
+ctx.lineTo(beamEnd, railY + 2 * S);
+ctx.lineTo(tipX - 6 * S, roofY + 30.8 * S);
 ctx.closePath();
 ctx.fill();
-// Foreground high-speed air streaks rushing RIGHT-TO-LEFT (`-X`) past camera!
+// Foreground high-speed aerodynamic slipstream streaks rushing RIGHT-TO-LEFT (`-X`)
 if (curSpd > 25) {
 const streakWrap = W + 160;
-ctx.fillStyle = 'rgba(186,230,253,0.22)';
+ctx.fillStyle = 'rgba(186,230,253,0.20)';
 for (let k = 0; k < 4; k++) {
 const sx = (((k * 167 - scrollX * 1.65) % streakWrap) + streakWrap) % streakWrap - 80;
-const sy = 32 + k * 24;
-ctx.fillRect(sx, sy, 28 + curSpd * 0.10, 1.1);
+const sy = wireY + (8 + k * 14) * S;
+ctx.fillRect(sx, sy, (28 + curSpd * 0.10) * S, 1.1);
 }
 }
 ctx.restore();
@@ -2240,6 +2408,6 @@ delete globalThis._wBoot;
 })();
 </script>
 <script>document.addEventListener('contextmenu',(e)=>{if(e.target&&e.target.tagName==='CANVAS')e.preventDefault();});</script>
-<script type="module" src="./app.bundle.js?v=41d71205b6"></script>
+<script type="module" src="./app.bundle.js?v=5aea96524b"></script>
 </body>
 </html>
