@@ -12,7 +12,7 @@ const BOOT_ISO = new Date().toISOString();
 const MAX_RING = 80;
 const MAX_BREADCRUMBS = 120;
 const state = {
-schema: 'whoosh-forensic-v2.3',
+schema: 'whoosh-forensic-v2.4',
 app: 'KCIC Whoosh 350/1000 km/h HSR 3D Simulator',
 bootIso: BOOT_ISO,
 compactJson: false,
@@ -215,6 +215,7 @@ const r3m = engineSnap.rolling3m || null;
 const r3mOvr = r3m && r3m.forensicSynthesis ? r3m.forensicSynthesis.overall3m : null;
 const wheelAudit = engineSnap.worldLogicalAudit ? engineSnap.worldLogicalAudit.wheelRailSeatingAudit : null;
 const gpuOpt = engineSnap.webgl && engineSnap.webgl.gpuOptimality ? engineSnap.webgl.gpuOptimality : null;
+const audSnap = engineSnap.audio || null;
 const criticalCDNFailed = state.resourceFailures.some(function (r) {
 return /three|bundle|wasm|whoosh\.bin/i.test(r.url || '');
 });
@@ -227,6 +228,7 @@ criticalCDNFailed ||
 (engineSnap.webgl && engineSnap.webgl.contextAvailable === false) ||
 (engineSnap.webgl && engineSnap.webgl.renderErrorCount > 0) ||
 (gpuOpt && gpuOpt.verdict === 'CRITICAL_CONTEXT_UNHEALTHY') ||
+(audSnap && audSnap.verdict === 'CRITICAL_AUDIO_ERROR') ||
 (wheelAudit && wheelAudit.floatingWheels > 0)
 ) {
 healthVerdict = 'CRITICAL_ERROR';
@@ -235,6 +237,7 @@ state.consoleErrors.length > 0 ||
 state.resourceFailures.length > 0 ||
 state.webglCreationErrors.length > 0 ||
 (gpuOpt && (gpuOpt.verdict === 'SUBOPTIMAL_SOFTWARE_FALLBACK' || gpuOpt.verdict === 'CONTEXT_FALLBACK_RECOVERED')) ||
+(audSnap && audSnap.verdict === 'AUDIO_UNDERRUN_OR_OVERLOAD') ||
 (engineSnap.worldLogicalAudit && engineSnap.worldLogicalAudit.auditPassed === false) ||
 (engineSnap.performance && engineSnap.performance.totalFramesRendered > 30 && engineSnap.performance.avgFps < 28) ||
 (r3mOvr && r3mOvr.totalFrames >= 60 && (r3mOvr.avgFps < 34 || r3mOvr.stallsOver50ms >= 8))
@@ -300,6 +303,7 @@ networkResources: collectResourceTimingSummary()
 bootTimeline: state.milestones.slice(),
 rolling3MinuteForensics: engineSnap.rolling3m || null,
 webglAndGpu: engineSnap.webgl || null,
+audioAndDsp: audSnap,
 performance: engineSnap.performance || null,
 worldLogicalAudit: engineSnap.worldLogicalAudit || null,
 engineAndTrainState: engineSnap.engineAndTrain || null,
@@ -367,6 +371,26 @@ const et = report.engineAndTrainState;
 setTxt('fkpi-train', et && et.routePosition && et.tractionAndCtcs3
 ? (et.routePosition.dkLabel + ' • ' + et.tractionAndCtcs3.speedKmh + ' km/h')
 : 'Pra-Simulasi');
+const aud = report.audioAndDsp;
+let audTxt = 'Menunggu Audio';
+if (aud) {
+const ah = aud.hardwareAndContext || {};
+const ad = aud.dspGraphInventory || {};
+const ar = aud.realtimeHealth || {};
+if (aud.verdict === 'CRITICAL_AUDIO_ERROR') {
+audTxt = 'EROR AUDIO';
+} else if (!ah.initialized) {
+audTxt = 'MENUNGGU KLIK UI';
+} else if (ah.muted) {
+audTxt = 'MUTE • ' + (ad.totalPersistentNodes || 0) + ' Node';
+} else if (aud.verdict === 'AUTOPLAY_SUSPENDED') {
+audTxt = 'TERTAHAN AUTOPLAY';
+} else {
+const srKhz = ah.sampleRateHz ? Math.round(ah.sampleRateHz / 1000) + 'kHz' : 'OK';
+audTxt = srKhz + ' • ' + (ar.emaUpdateUs || 0) + 'µs • ' + (ad.activeAudibleSubBuses || 0) + '/' + (ad.totalRailSubBuses || 54) + ' Bus';
+}
+}
+setTxt('fkpi-audio', audTxt);
 if (r3m && r3m.forensicSynthesis) {
 const syn = r3m.forensicSynthesis;
 const byCam = syn.byCameraMode || {};
@@ -1745,7 +1769,7 @@ Format: Rapi (Terbaca)
 </button>
 <span id="forensic-copy-toast" class="text-[11px] font-mono-tech font-bold text-emerald-300 opacity-0 transition-opacity duration-200 ml-auto"></span>
 </div>
-<div class="px-4 sm:px-5 py-2.5 border-b border-slate-800/80 bg-slate-900/50 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-[11px]">
+<div class="px-4 sm:px-5 py-2.5 border-b border-slate-800/80 bg-slate-900/50 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-[11px]">
 <div class="bg-slate-950/85 border border-slate-800 rounded-xl px-2.5 py-1.5">
 <div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Eror &amp; Jaringan</div>
 <div id="fkpi-errors" class="font-mono-tech font-extrabold text-emerald-300 mt-0.5 truncate">0 Eror / 0 Warn</div>
@@ -1757,6 +1781,10 @@ Format: Rapi (Terbaca)
 <div class="bg-slate-950/85 border border-slate-800 rounded-xl px-2.5 py-1.5">
 <div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">GPU &amp; Pipeline</div>
 <div id="fkpi-gpu" class="font-mono-tech font-extrabold text-sky-300 mt-0.5 truncate">-</div>
+</div>
+<div class="bg-slate-950/85 border border-slate-800 rounded-xl px-2.5 py-1.5">
+<div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Audio &amp; DSP</div>
+<div id="fkpi-audio" class="font-mono-tech font-extrabold text-violet-300 mt-0.5 truncate">-</div>
 </div>
 <div class="bg-slate-950/85 border border-slate-800 rounded-xl px-2.5 py-1.5">
 <div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Status Render Pasif</div>
@@ -2209,6 +2237,6 @@ delete globalThis._wBoot;
 })();
 </script>
 <script>document.addEventListener('contextmenu',(e)=>{if(e.target&&e.target.tagName==='CANVAS')e.preventDefault();});</script>
-<script type="module" src="./app.bundle.js?v=1e229d314b"></script>
+<script type="module" src="./app.bundle.js?v=03d3f97305"></script>
 </body>
 </html>
