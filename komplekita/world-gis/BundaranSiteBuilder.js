@@ -128,8 +128,10 @@ export class BundaranSiteBuilder {
       );
     }
 
-    // Build the 7 Verified Culvert Bridges across the ditch + curb aprons
+    // Build the Verified Culvert Bridges across the ditch + curb aprons
+    // (Note: DPPD_Main_Apron is custom-built in DPPDSecondarySubdomains with its exact concrete bridge & radial U-gutter!)
     for (const br of bridgeOpeningsDeg) {
+      if (br.label === 'DPPD_Main_Apron') continue;
       const th0 = br.start * DEG;
       const th1 = br.end * DEG;
       const mat =

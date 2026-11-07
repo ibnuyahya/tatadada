@@ -1,14 +1,16 @@
 import * as THREE from 'three';
 
+const DEG = Math.PI / 180;
+
 /**
- * NEXUS Omni-Scale Procedural Engine v2.0
+ * NEXUS Omni-Scale Procedural Engine v2.0 (Watertight Anti-Clipping Edition)
  * ./core/CameraDirector.js
  *
  * Multi-Angle Class-A Inspection & 6-DOF Free-Flight Camera Director:
  * - Horizon-Locked Nadir 90° View (eps = 0.45m, camera.up = (0,1,0) — Hukum Emas 19)
  * - Adaptive Non-Occluding Viewport Offset (Desktop <= 280px side drawer, Portrait <= 34vh bottom sheet — Hukum Emas 20)
- * - Smooth Exponential Camera Transitions + 6-DOF Drone Flight with Soft Anti-Clipping Spatial Collision
- * - Geodetically Calibrated UI Depok Bundaran Presets (Tri-Angle + Sector & Street View Nodes)
+ * - Full-Envelope Building Volume Anti-Penetration (AABBs + Polar Annular Sectors) enforced in BOTH Orbit & Drone modes
+ *   so the camera can NEVER enter inside any building hull!
  */
 export class CameraDirector {
   constructor(camera, controls, domElement) {
@@ -28,16 +30,30 @@ export class CameraDirector {
     this.pointerDragging = false;
     this.lastPointer = { x: 0, y: 0 };
 
-    // Soft collision constraints (ground + central island building mass envelopes)
+    // Spatial collision boundaries (enforced in both Orbit and Drone modes!)
     this.minElevationY = 1.45;
     this.maxRadiusFromOrigin = 260.0;
     this.collisionSolids = [];
+    this.polarSectors = [
+      // 1. Gedung DPPD (SW Quadrant: +90° .. +180°, r = 38.0 .. 60.8m, y = 0 .. 16.6m)
+      { degMin: 90.0, degMax: 180.0, rMin: 38.0, rMax: 60.8, maxY: 16.6 },
+      // 2. Gedung STP-UI (North Arc: -152° .. -32°, r = 37.8 .. 59.8m, y = 0 .. 27.4m)
+      { degMin: -152.0, degMax: -32.0, rMin: 37.8, rMax: 59.8, maxY: 27.4 },
+      // 3. Gedung ILRC & DRPM (East-to-South Arc: -32° .. +85°, r = 36.2 .. 59.8m, y = 0 .. 27.6m)
+      { degMin: -32.0, degMax: 85.0, rMin: 36.2, rMax: 59.8, maxY: 27.6 }
+    ];
 
     this._bindDroneEvents();
   }
 
   registerCollisionBoxes(boxes) {
     this.collisionSolids = Array.isArray(boxes) ? boxes : [];
+  }
+
+  registerPolarSectors(sectors) {
+    if (Array.isArray(sectors) && sectors.length > 0) {
+      this.polarSectors = sectors;
+    }
   }
 
   /**
@@ -68,11 +84,9 @@ export class CameraDirector {
 
     const isPortraitOrMobile = fullW < 768 || fullW / fullH < 1.0;
     if (isPortraitOrMobile) {
-      // Bottom sheet <= 34vh -> shift optical center upward so 3D object stays clear in top 66vh
       const sheetPx = Math.min(fullH * 0.34, 300);
       this.camera.setViewOffset(fullW, fullH, 0, Math.round(sheetPx * 0.46), fullW, fullH);
     } else {
-      // Left drawer <= 280px -> shift optical center rightward so 3D object stays centered in remaining space
       const drawerPx = 280;
       this.camera.setViewOffset(fullW, fullH, -Math.round(drawerPx * 0.46), 0, fullW, fullH);
     }
@@ -82,12 +96,14 @@ export class CameraDirector {
   flyTo(position, target, durationSec = 0.72) {
     const endPos = position instanceof THREE.Vector3 ? position.clone() : new THREE.Vector3(...position);
     const endTgt = target instanceof THREE.Vector3 ? target.clone() : new THREE.Vector3(...target);
+    this.resolveSoftSpatialCollision(endPos);
     this.camera.up.set(0, 1, 0);
 
     if (durationSec <= 0.01) {
       this.camera.position.copy(endPos);
       this.controls.target.copy(endTgt);
       this.controls.update();
+      this.resolveSoftSpatialCollision(this.camera.position);
       this._syncDroneAnglesFromCamera();
       this.transition = null;
       return;
@@ -177,16 +193,21 @@ export class CameraDirector {
   }
 
   resolveSoftSpatialCollision(pos) {
+    // 1. Ground elevation guard
     if (pos.y < this.minElevationY) {
-      pos.y = THREE.MathUtils.lerp(pos.y, this.minElevationY, 0.65);
+      pos.y = this.minElevationY;
       if (this.droneVelocity.y < 0) this.droneVelocity.y = 0;
     }
+
+    // 2. Outer world boundary guard
     const rHoriz = Math.hypot(pos.x, pos.z);
     if (rHoriz > this.maxRadiusFromOrigin) {
       const s = this.maxRadiusFromOrigin / rHoriz;
       pos.x *= s;
       pos.z *= s;
     }
+
+    // 3. AABB Solid Exclusion (ITTC Perpustakaan Lama + NW Annex)
     for (const box of this.collisionSolids) {
       if (
         pos.x > box.minX && pos.x < box.maxX &&
@@ -199,11 +220,33 @@ export class CameraDirector {
         const dzMax = box.maxZ - pos.z;
         const dyMax = box.maxY - pos.y;
         const minPen = Math.min(dxMin, dxMax, dzMin, dzMax, dyMax);
-        if (minPen === dyMax) pos.y = box.maxY + 0.05;
-        else if (minPen === dxMin) pos.x = box.minX - 0.05;
-        else if (minPen === dxMax) pos.x = box.maxX + 0.05;
-        else if (minPen === dzMin) pos.z = box.minZ - 0.05;
-        else pos.z = box.maxZ + 0.05;
+        if (minPen === dyMax) pos.y = box.maxY + 0.25;
+        else if (minPen === dxMin) pos.x = box.minX - 0.25;
+        else if (minPen === dxMax) pos.x = box.maxX + 0.25;
+        else if (minPen === dzMin) pos.z = box.minZ - 0.25;
+        else pos.z = box.maxZ + 0.25;
+      }
+    }
+
+    // 4. Curved Annular Building Hull Exclusion (DPPD, STP-UI, ILRC/DRPM)
+    //    Ensures neither Orbit camera nor Drone camera can ever enter inside the curved buildings!
+    const r = Math.hypot(pos.x, pos.z);
+    if (r > 1.0) {
+      const deg = Math.atan2(pos.z, pos.x) / DEG;
+      for (const sec of this.polarSectors) {
+        if (deg >= sec.degMin && deg <= sec.degMax && r > sec.rMin && r < sec.rMax && pos.y < sec.maxY) {
+          const dIn = r - sec.rMin;
+          const dOut = sec.rMax - r;
+          const dTop = sec.maxY - pos.y;
+          if (dTop < dIn && dTop < dOut && pos.y > sec.maxY - 4.5) {
+            pos.y = sec.maxY + 0.35;
+          } else {
+            const targetR = dOut <= dIn ? sec.rMax + 0.45 : sec.rMin - 0.45;
+            const scale = targetR / r;
+            pos.x *= scale;
+            pos.z *= scale;
+          }
+        }
       }
     }
   }
@@ -217,6 +260,7 @@ export class CameraDirector {
       const ease = 1.0 - Math.pow(1.0 - rawT, 3);
       this.camera.position.lerpVectors(this.transition.startPos, this.transition.endPos, ease);
       this.controls.target.lerpVectors(this.transition.startTgt, this.transition.endTgt, ease);
+      this.resolveSoftSpatialCollision(this.camera.position);
       this.camera.up.set(0, 1, 0);
       this.controls.update();
       if (rawT >= 1.0) {
@@ -252,9 +296,8 @@ export class CameraDirector {
       this.resolveSoftSpatialCollision(this.camera.position);
     } else {
       this.controls.update();
-      if (this.camera.position.y < 1.15) {
-        this.camera.position.y = 1.15;
-      }
+      // Enforce full building anti-penetration in Orbit mode as well!
+      this.resolveSoftSpatialCollision(this.camera.position);
     }
   }
 }

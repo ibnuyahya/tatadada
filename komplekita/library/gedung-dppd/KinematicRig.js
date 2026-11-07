@@ -1,81 +1,98 @@
 import * as THREE from 'three';
 
 /**
- * NEXUS Omni-Scale Procedural Engine v2.0
+ * NEXUS Omni-Scale Procedural Engine v2.0 (True-Color Photo-Realistic Edition)
  * ./library/gedung-dppd/KinematicRig.js
  *
  * Stage 5 Kinematic Sub-Rig for Gedung DPPD UI:
- * - 11.4m Tapered Silver Flagpole on Circular Concrete Drum Base at Front Center of Forecourt (ref_084, ref_175)
- * - Dynamic Breeze-Animated Merah-Putih Indonesian Flag (dynamicKinematic = true so NexusBatchOptimizer keeps it live)
+ * - Authentic Bare Galvanized Steel Mast on Circular Concrete Drum Base at the Front-Right Corner of the
+ *   Blue ADA Wheelchair Stall (x = -4.38m, z = 67.85m — verified against ref_184, ref_185, ref_190, ref_082;
+ *   NO non-existent Merah-Putih flag blocking the central gable!)
+ * - Dynamic Breeze-Animated Vertical Hanging Cloth Banner ("UI DEPOK" on the right gold ladder frame at
+ *   x = +10.45m, z = 66.92m — verified against ref_084, ref_082)
  */
 export class DPPDKinematicRig {
   static build(localGroup, materials) {
-    // Static Concrete Drum Base + Tapered Pole (batched into static materials = 0 extra draw calls)
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.68, 0.42, 16), materials.architecturalWhite);
-    drum.position.set(0, 0.32, 66.35);
+    // 1. Authentic Circular Concrete Drum Base + Bare Galvanized Steel Pole at Corner of Blue ADA Stall (ref_184, ref_185, ref_082)
+    const poleX = -4.25;
+    const poleZ = 67.25;
+
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.58, 0.36, 16), materials.pavingBlock);
+    drum.position.set(poleX, 0.28, poleZ);
     drum.castShadow = true;
     drum.receiveShadow = true;
     localGroup.add(drum);
 
-    const poleH = 11.4;
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.105, poleH, 10), materials.silverLouver);
-    pole.position.set(0, 0.5 + poleH * 0.5, 66.35);
+    const poleH = 9.2;
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.085, poleH, 10), materials.silverLouver);
+    pole.position.set(poleX, 0.44 + poleH * 0.5, poleZ);
     pole.castShadow = true;
     localGroup.add(pole);
 
-    // Dynamic Merah-Putih Flag with GPU Shader Breeze Wave (1 single dynamic Mesh)
-    const flagUniforms = {
+    // Small pulley cap at top of mast (ref_082)
+    const finial = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.05, 0.12, 8), materials.darkMetal);
+    finial.position.set(poleX, 0.44 + poleH + 0.05, poleZ);
+    localGroup.add(finial);
+
+    // 2. Dynamic Breeze-Animated Vertical Hanging Cloth Banner on Right Gold Ladder Frame (ref_084, ref_082)
+    const bannerUniforms = {
       uTime: { value: 0.0 },
       uWind: { value: 1.0 }
     };
 
-    const flagGeo = new THREE.PlaneGeometry(2.1, 1.36, 16, 8);
-    flagGeo.translate(1.05, 0, 0); // hoist attached at x = 0 along flagpole!
-
-    const flagMat = new THREE.ShaderMaterial({
+    const bannerGeo = new THREE.PlaneGeometry(0.58, 3.85, 6, 18);
+    const bannerMat = new THREE.ShaderMaterial({
       side: THREE.DoubleSide,
-      uniforms: flagUniforms,
+      uniforms: bannerUniforms,
       vertexShader: `
         uniform float uTime;
         uniform float uWind;
         varying vec2 vUv;
-        varying float vWave;
+        varying float vFold;
         void main() {
           vUv = uv;
           vec3 p = position;
-          float pinFactor = smoothstep(0.0, 0.18, uv.x);
-          float w = sin(uv.x * 7.5 - uTime * 3.8) * 0.14 + cos(uv.x * 13.0 + uv.y * 3.0 - uTime * 5.2) * 0.05;
-          p.z += w * pinFactor * uWind;
-          p.y -= 0.08 * pinFactor;
-          vWave = w * pinFactor;
+          // Top edge pinned at uv.y = 1.0, lower cloth drapes & flutters in afternoon breeze (ref_084)
+          float drape = smoothstep(1.0, 0.0, uv.y);
+          float w = sin(uv.y * 6.5 - uTime * 3.2) * 0.09 + cos(uv.x * 5.0 + uv.y * 10.0 - uTime * 4.5) * 0.04;
+          p.z += w * drape * uWind;
+          p.x += (0.12 * drape * drape) + 0.03 * sin(uTime * 2.4) * drape;
+          vFold = w * drape;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
         }
       `,
       fragmentShader: `
         varying vec2 vUv;
-        varying float vWave;
+        varying float vFold;
         void main() {
-          vec3 red = vec3(0.82, 0.10, 0.12);
-          vec3 white = vec3(0.96, 0.97, 0.98);
-          vec3 col = vUv.y >= 0.5 ? red : white;
-          float shade = 0.88 + 0.24 * clamp(vWave * 3.2 + 0.5, 0.0, 1.0);
+          vec3 white = vec3(0.95, 0.96, 0.98);
+          vec3 royalBlue = vec3(0.11, 0.31, 0.65);
+          vec3 gold = vec3(0.92, 0.72, 0.16);
+          vec3 col = white;
+          if (vUv.y > 0.86) {
+            col = gold;
+          } else if (vUv.y < 0.34 && vUv.y > 0.10) {
+            col = royalBlue;
+          } else if (vUv.y <= 0.10) {
+            col = mix(white, gold, step(0.5, fract(vUv.x * 4.0)));
+          }
+          float shade = 0.88 + 0.22 * clamp(vFold * 4.0 + 0.5, 0.0, 1.0);
           gl_FragColor = vec4(col * shade, 1.0);
         }
       `
     });
 
-    const flagMesh = new THREE.Mesh(flagGeo, flagMat);
-    flagMesh.name = 'DPPD_MerahPutihFlag';
-    flagMesh.position.set(0.05, 0.5 + poleH - 0.82, 66.35);
-    flagMesh.rotation.y = 0.35;
-    flagMesh.userData.dynamicKinematic = true;
-    localGroup.add(flagMesh);
+    const bannerMesh = new THREE.Mesh(bannerGeo, bannerMat);
+    bannerMesh.name = 'DPPD_RightHangingClothBanner';
+    bannerMesh.position.set(10.22, 2.32, 66.58);
+    bannerMesh.userData.dynamicKinematic = true;
+    localGroup.add(bannerMesh);
 
     return {
       update(dt, telemetry = {}) {
         const t = telemetry.timeSec ?? (performance.now() * 0.001);
-        flagUniforms.uTime.value = t;
-        flagUniforms.uWind.value = THREE.MathUtils.clamp((telemetry.windSpeed ?? 3.5) / 3.5, 0.35, 2.0);
+        bannerUniforms.uTime.value = t;
+        bannerUniforms.uWind.value = THREE.MathUtils.clamp((telemetry.windSpeed ?? 3.5) / 3.5, 0.35, 2.0);
       }
     };
   }

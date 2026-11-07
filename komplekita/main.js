@@ -171,9 +171,10 @@ class NexusStudioApp {
     this.controls.maxPolarAngle = Math.PI * 0.492;
 
     this.cameraDirector = new CameraDirector(this.camera, this.controls, this.renderer.domElement);
-    // Register soft anti-clipping collision solids for 6-DOF drone flight
+    // Register soft anti-clipping collision solids for both Orbit and 6-DOF Drone flight
     this.cameraDirector.registerCollisionBoxes([
-      { minX: -24.5, maxX: 18.5, minY: 0.0, maxY: 19.2, minZ: -20.0, maxZ: 23.0 } // ITTC central square mass
+      { minX: -25.2, maxX: 19.2, minY: 0.0, maxY: 19.5, minZ: -20.8, maxZ: 23.8 }, // ITTC central square mass
+      { minX: -29.8, maxX: -15.2, minY: 0.0, maxY: 5.2, minZ: -25.5, maxZ: -16.5 } // ITTC NW Annex
     ]);
 
     window.addEventListener('resize', () => {

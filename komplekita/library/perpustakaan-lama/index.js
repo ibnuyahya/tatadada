@@ -3,7 +3,7 @@ import { NexusSSoSTKernel } from '../../core/MasterSurfaceKernels.js';
 import { UI_DPPD_MASTER_PLAN } from '../../world-gis/MasterPlanConfig.js';
 
 /**
- * NEXUS Omni-Scale Procedural Engine v2.0
+ * NEXUS Omni-Scale Procedural Engine v2.0 (True-Color Photo-Realistic & Watertight Edition)
  * ./library/perpustakaan-lama/index.js
  *
  * Class-A Procedural Building Module: ITTC Perpustakaan Lama Universitas Indonesia
@@ -11,10 +11,11 @@ import { UI_DPPD_MASTER_PLAN } from '../../world-gis/MasterPlanConfig.js';
  *
  * Key Architectural Features:
  * - Strictly Cardinal N-S / E-W 42.0m x 42.0m Square Plan (NOT rotated 45°!)
- * - 16.0m x 16.0m Open Central Courtyard with Nested 9.6m x 9.6m Pyramidal Skylight Pavilion (ref_174)
+ * - Solid High-Level Reinforced-Concrete Central Roof Deck ("Atap Coran / Dak Beton" at y = 13.95m, 16.0m x 16.0m)
+ *   surrounded by the 4-Wing Hipped Terracotta Roof (eaveY = 14.20m, ridgeY = 18.80m) and topped by the
+ *   Raised 9.6m x 9.6m Pyramidal Terracotta Monitor / Skylight Roof Cap (ref_174 — zero open pit to ground!)
  * - 4 Full Stories with Bold White Reinforced-Concrete Structural Column Grid (7 bays per side) & Spandrels
- * - Recessed L1 Colonnade + West Portico Canopy facing the 9:00 Main Driveway + L2-L4 Mullioned Ribbon Windows
- * - Watertight Courtyard Limasan / Hipped Terracotta Roof (eaveY = 14.20m, ridgeY = 18.80m) + Ridge Caps
+ * - Recessed L1 Colonnade w/ Solid Ceiling Soffit + West Portico Canopy facing the 9:00 Main Driveway
  * - 1-Story Flat-Roofed NW Courtyard Annex (13.0m x 7.5m, ref_174)
  */
 export class PerpustakaanLamaBuilder {
@@ -27,49 +28,55 @@ export class PerpustakaanLamaBuilder {
     localRoot.position.set(cfg.centerX, 0, cfg.centerZ);
     group.add(localRoot);
 
-    const H = cfg.outerHalf;      // 21.0m
-    const C = cfg.courtyardHalf;  // 8.0m
-    const eaveY = cfg.eaveY;      // 14.20m
+    const H = cfg.outerHalf;     // 21.0m
+    const C = cfg.courtyardHalf; // 8.0m
+    const eaveY = cfg.eaveY;     // 14.20m
     const floorHeights = [0.15, 3.85, 7.30, 10.75, eaveY];
 
-    // 1. Concrete Plinth Base Ring (42.8m x 42.8m minus 15.6m courtyard)
-    PerpustakaanLamaBuilder._addHollowSquareSlab(localRoot, materials.pavingBlock, H + 0.4, C - 0.2, -0.2, 0.24);
+    // 1. Solid Full-Footprint Concrete Plinth Base (42.8m x 42.8m, y = -0.20 .. 0.24m)
+    const plinthSlab = new THREE.Mesh(
+      new THREE.BoxGeometry((H + 0.4) * 2, 0.44, (H + 0.4) * 2),
+      materials.pavingBlock
+    );
+    plinthSlab.position.set(0, 0.02, 0);
+    plinthSlab.receiveShadow = true;
+    localRoot.add(plinthSlab);
 
     // 2. Recessed L1 Core Walls (inset 2.1m behind outer colonnade columns -> half = 18.9m)
-    PerpustakaanLamaBuilder._addHollowSquareWalls(
-      localRoot,
-      materials.windowGlass,
-      H - 2.1,
-      C + 0.35,
-      0.24,
-      floorHeights[1]
+    const l1Core = new THREE.Mesh(
+      new THREE.BoxGeometry((H - 2.1) * 2, floorHeights[1] - 0.24, (H - 2.1) * 2),
+      materials.windowGlass
     );
+    l1Core.position.set(0, 0.24 + (floorHeights[1] - 0.24) * 0.5, 0);
+    l1Core.castShadow = true;
+    l1Core.receiveShadow = true;
+    localRoot.add(l1Core);
 
-    // 3. Upper Stories L2, L3, L4 Recessed Window Curtain Walls (half = H - 0.55m) + Inner Courtyard Glass
-    PerpustakaanLamaBuilder._addHollowSquareWalls(
-      localRoot,
-      materials.windowGlass,
-      H - 0.55,
-      C + 0.35,
-      floorHeights[1],
-      eaveY - 0.35
+    // 3. Upper Stories L2, L3, L4 Recessed Window Curtain Box (half = H - 0.55m, completely watertight!)
+    const upperCore = new THREE.Mesh(
+      new THREE.BoxGeometry((H - 0.55) * 2, eaveY - 0.25 - floorHeights[1], (H - 0.55) * 2),
+      materials.windowGlass
     );
+    upperCore.position.set(0, floorHeights[1] + (eaveY - 0.25 - floorHeights[1]) * 0.5, 0);
+    upperCore.castShadow = true;
+    upperCore.receiveShadow = true;
+    localRoot.add(upperCore);
 
-    // 4. Crisp Projecting White Horizontal Spandrel & Sill Slabs at L2, L3, L4, & Eave Ring Beam
+    // 4. Crisp Projecting White Horizontal Spandrel & Floor Slabs at L2 (solid colonnade ceiling!), L3, L4, & Eave Ring Beam
     for (let f = 1; f <= 4; f++) {
       const ySlab = floorHeights[f];
-      const spandrelH = f === 4 ? 0.55 : 0.92;
-      PerpustakaanLamaBuilder._addHollowSquareSlab(
-        localRoot,
-        materials.architecturalWhite,
-        H + 0.08,
-        C,
-        ySlab - spandrelH * 0.65,
-        ySlab + spandrelH * 0.35
+      const spandrelH = f === 4 ? 0.58 : 0.92;
+      const slab = new THREE.Mesh(
+        new THREE.BoxGeometry((H + 0.08) * 2, spandrelH, (H + 0.08) * 2),
+        materials.architecturalWhite
       );
+      slab.position.set(0, ySlab - spandrelH * 0.15, 0);
+      slab.castShadow = true;
+      slab.receiveShadow = true;
+      localRoot.add(slab);
     }
 
-    // 5. Bold 7-Bay Structural White Concrete Columns (8 columns per side = 28 perimeter columns + 16 courtyard piers)
+    // 5. Bold 7-Bay Structural White Concrete Columns (8 columns per side = 28 perimeter columns) & Window Mullions
     const bays = 7;
     const step = (2 * H) / bays; // 6.0m structural bay
     const colGeo = new THREE.BoxGeometry(0.56, eaveY - 0.15, 0.56);
@@ -103,18 +110,6 @@ export class PerpustakaanLamaBuilder {
           }
         }
       }
-
-      // Inner courtyard structural columns (5 columns per side)
-      for (let ci = 0; ci < 4; ci++) {
-        const cx = -C + ci * ((2 * C) / 4);
-        const cCol = new THREE.Mesh(
-          new THREE.BoxGeometry(0.42, eaveY - 0.15, 0.42),
-          materials.architecturalWhite
-        );
-        cCol.position.set(cx, 0.15 + (eaveY - 0.15) * 0.5, C + 0.18);
-        cCol.castShadow = true;
-        sideGroup.add(cCol);
-      }
     }
 
     // 6. West Entrance Portico Canopy & Steps (facing 9:00 Main Driveway, ref_203)
@@ -136,28 +131,84 @@ export class PerpustakaanLamaBuilder {
     westSteps.receiveShadow = true;
     localRoot.add(westSteps);
 
-    // 7. Nested Central Courtyard Skylight Pavilion (9.6m x 9.6m inside 16m x 16m courtyard, ref_174)
+    // 7. High-Level Flat Reinforced-Concrete Central Roof Deck ("Atap Coran / Dak Beton" at y = 13.95m, ref_174!)
+    //    Replaces the inaccurate 4-story open pit so the central well is a solid concrete roof deck!
+    const roofOut = H + 1.25; // 22.25m outer eave overhang
+    const roofIn = C - 0.85;  // 7.15m inner roof eave opening over the concrete roof deck
+
+    const centralConcreteDeck = new THREE.Mesh(
+      new THREE.BoxGeometry((C + 1.2) * 2, 0.45, (C + 1.2) * 2),
+      materials.pavingBlock
+    );
+    centralConcreteDeck.position.set(0, eaveY - 0.32, 0);
+    centralConcreteDeck.receiveShadow = true;
+    localRoot.add(centralConcreteDeck);
+
+    // White concrete parapet curb & gutter around the inner eave perimeter of the concrete roof deck
+    PerpustakaanLamaBuilder._addHollowSquareSlab(
+      localRoot,
+      materials.architecturalWhite,
+      roofIn + 0.38,
+      roofIn - 0.18,
+      eaveY - 0.25,
+      eaveY + 0.16
+    );
+
+    // Raised Central Clerestory Monitor & Pyramidal Terracotta Roof Cap sitting ON TOP of the Concrete Roof Deck (ref_174)
     const sk = cfg.skylightHalf; // 4.8m
-    const pavWalls = new THREE.Mesh(new THREE.BoxGeometry(sk * 2 - 0.6, 3.9, sk * 2 - 0.6), materials.windowGlass);
-    pavWalls.position.set(0, 2.1, 0);
+    const monBasePad = new THREE.Mesh(
+      new THREE.BoxGeometry((sk + 0.25) * 2, 0.28, (sk + 0.25) * 2),
+      materials.architecturalWhite
+    );
+    monBasePad.position.set(0, eaveY + 0.02, 0);
+    monBasePad.castShadow = true;
+    monBasePad.receiveShadow = true;
+    localRoot.add(monBasePad);
+
+    const pavWalls = new THREE.Mesh(
+      new THREE.BoxGeometry(sk * 2 - 0.3, 0.95, sk * 2 - 0.3),
+      materials.silverLouver
+    );
+    pavWalls.position.set(0, eaveY + 0.62, 0);
+    pavWalls.castShadow = true;
     localRoot.add(pavWalls);
 
-    const pavBeam = new THREE.Mesh(new THREE.BoxGeometry(sk * 2 + 0.2, 0.36, sk * 2 + 0.2), materials.architecturalWhite);
-    pavBeam.position.set(0, 4.12, 0);
+    const pavBeam = new THREE.Mesh(
+      new THREE.BoxGeometry(sk * 2 + 0.15, 0.26, sk * 2 + 0.15),
+      materials.architecturalWhite
+    );
+    pavBeam.position.set(0, eaveY + 1.15, 0);
     localRoot.add(pavBeam);
 
-    // Pyramidal terracotta roof cap over the courtyard pavilion
-    const pyrGeo = new THREE.ConeGeometry((sk + 0.65) * Math.SQRT2, 2.75, 4, 1);
+    // Pyramidal terracotta roof cap over the raised central monitor (y = 15.35 .. 17.30m) + 4 hip ridge caps!
+    const pyrR = (sk + 0.55) * Math.SQRT2;
+    const pyrH = 2.05;
+    const pyrBaseY = eaveY + 1.24;
+    const pyrGeo = new THREE.ConeGeometry(pyrR, pyrH, 4, 1);
     pyrGeo.rotateY(Math.PI * 0.25);
     const pyrRoof = new THREE.Mesh(pyrGeo, materials.terracottaRoof);
-    pyrRoof.position.set(0, 4.28 + 2.75 * 0.5, 0);
+    pyrRoof.position.set(0, pyrBaseY + pyrH * 0.5, 0);
     pyrRoof.castShadow = true;
     pyrRoof.receiveShadow = true;
     localRoot.add(pyrRoof);
 
+    // 4 Ceramic hip ridge caps on the central pyramidal monitor roof
+    const monCorner = sk + 0.52;
+    const monApex = new THREE.Vector3(0, pyrBaseY + pyrH, 0);
+    for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      const cGeo = NexusSSoSTKernel.createRidgeCapStrip(
+        [new THREE.Vector3(sx * monCorner, pyrBaseY, sz * monCorner), monApex],
+        0.10,
+        5
+      );
+      if (cGeo) {
+        const cm = new THREE.Mesh(cGeo, materials.terracottaBrick);
+        cm.castShadow = true;
+        localRoot.add(cm);
+      }
+    }
+
     // 8. Main 4-Wing Courtyard Limasan / Hipped Terracotta Roof (Watertight SSoST)
-    const roofOut = H + 1.25; // 22.25m eave overhang
-    const roofIn = C - 0.85;  // 7.15m inner courtyard eave overhang
     const { roofGeo, soffitGeo, ridgePointsList } = NexusSSoSTKernel.createSquareCourtyardLimasanRoof(
       roofOut,
       roofIn,
@@ -226,7 +277,6 @@ export class PerpustakaanLamaBuilder {
     const yc = 0.5 * (yBot + yTop);
     const bandW = halfOut - halfIn;
 
-    // North & South full-width strips
     for (const signZ of [-1, 1]) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(halfOut * 2, h, bandW), mat);
       m.position.set(0, yc, signZ * (halfIn + bandW * 0.5));
@@ -234,7 +284,6 @@ export class PerpustakaanLamaBuilder {
       m.receiveShadow = true;
       parent.add(m);
     }
-    // East & West strips between North & South
     for (const signX of [-1, 1]) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(bandW, h, halfIn * 2), mat);
       m.position.set(signX * (halfIn + bandW * 0.5), yc, 0);

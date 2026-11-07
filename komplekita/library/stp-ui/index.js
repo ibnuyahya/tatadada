@@ -122,8 +122,12 @@ export class GedungSTPUIBuilder {
       group, materials.windowGlass, thBody0, thBody1, rOut - 0.95, rOut - 0.45, cfg.l1TopY, cfg.l3TopY, 44,
       { bottom: false, uvMetersPerTile: 3.2 }
     );
-    // Projecting L2 soffit & L3 mid-rail & L4 base slab
-    for (const yBand of [cfg.l1TopY, 7.70, cfg.l3TopY]) {
+    // Projecting L2 soffit (full radial depth rIn .. rOut+0.25 so L1 piloti ceiling is 100% closed!) & L3 mid-rail & L4 base slab
+    NexusSSoSTKernel.addCurvedPolarBand(
+      group, materials.architecturalWhite, thBody0, thBody1, rIn, rOut + 0.25, cfg.l1TopY - 0.16, cfg.l1TopY + 0.16, 48,
+      { bottom: true, top: true, uvMetersPerTile: 4.0 }
+    );
+    for (const yBand of [7.70, cfg.l3TopY]) {
       NexusSSoSTKernel.addCurvedPolarBand(
         group, materials.architecturalWhite, thBody0, thBody1, rOut - 0.95, rOut + 0.25, yBand - 0.16, yBand + 0.16, 48,
         { uvMetersPerTile: 4.0 }

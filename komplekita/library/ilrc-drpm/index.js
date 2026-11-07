@@ -114,8 +114,12 @@ export class GedungILRCBuilder {
       group, materials.silverLouver, thStart + 0.01, thEastEnd - 0.01, rOut - 0.55, rOut - 0.08, 5.15, corniceY - 0.80, 34,
       { bottom: false, top: false, uvMetersPerTile: 2.8 }
     );
-    // Projecting Curved White Concrete Floor-Slab Fascias (L2 base 5.15m, L3 9.35m, L4 13.55m)
-    for (const ySlab of [5.15, 9.35, 13.55]) {
+    // Projecting Curved White Concrete Floor-Slab Fascias (L2 base 5.15m full-depth ceiling soffit, L3 9.35m, L4 13.55m)
+    NexusSSoSTKernel.addCurvedPolarBand(
+      group, materials.architecturalWhite, thStart, thEastEnd, rInE, rOut + 0.45, 5.15 - 0.20, 5.15 + 0.20, 36,
+      { bottom: true, top: true, uvMetersPerTile: 3.8 }
+    );
+    for (const ySlab of [9.35, 13.55]) {
       NexusSSoSTKernel.addCurvedPolarBand(
         group, materials.architecturalWhite, thStart, thEastEnd, rOut - 0.8, rOut + 0.45, ySlab - 0.20, ySlab + 0.20, 36,
         { uvMetersPerTile: 3.8 }
@@ -337,7 +341,11 @@ export class GedungILRCBuilder {
       group, materials.silverLouver, thAtriumEnd, thSouthEnd, rInS + 0.5, rOut - 0.15, 9.25, corniceY - 0.80, 20,
       { bottom: false, top: false, uvMetersPerTile: 2.8 }
     );
-    for (const ySlab of [4.95, 9.25, 13.45, 17.05]) {
+    NexusSSoSTKernel.addCurvedPolarBand(
+      group, materials.architecturalWhite, thAtriumEnd, thSouthEnd, rInS, rOut + 0.42, 4.95 - 0.18, 4.95 + 0.18, 22,
+      { bottom: true, top: true, uvMetersPerTile: 3.8 }
+    );
+    for (const ySlab of [9.25, 13.45, 17.05]) {
       NexusSSoSTKernel.addCurvedPolarBand(
         group, materials.architecturalWhite, thAtriumEnd, thSouthEnd, rOut - 0.8, rOut + 0.42, ySlab - 0.18, ySlab + 0.18, 22,
         { uvMetersPerTile: 3.8 }
