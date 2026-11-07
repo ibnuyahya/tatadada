@@ -643,9 +643,7 @@ isModalOpen: function () { return state.modalOpen; }
 };
 document.addEventListener('DOMContentLoaded', function () {
 markMilestone('dom_content_loaded');
-if (location.search && location.search.indexOf('diag=1') !== -1) {
 revealDiagnosticControls();
-}
 updateBadgeUI();
 const bindClick = function (id, fn) {
 const el = document.getElementById(id);
@@ -654,6 +652,14 @@ if (el) el.addEventListener('click', fn);
 bindClick('forensic-open-btn', openModal);
 bindClick('boot-forensic-btn', openModal);
 bindClick('boot-retry-forensic-btn', openModal);
+bindClick('btn-open-forensic-more', function () {
+const mMore = document.getElementById('more-popover-panel');
+if (mMore) {
+mMore.classList.add('hidden');
+mMore.classList.remove('flex');
+}
+openModal();
+});
 bindClick('btn-open-forensic-hangar', function () {
 const mHangar = document.getElementById('modal-hangar');
 if (mHangar) {
@@ -952,7 +958,7 @@ DK 0+398 • STASIUN HALIM
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:6px;">
 <span class="font-mono-tech" style="font-size:9px;font-weight:800;color:#fbbf24;letter-spacing:0.08em;" id="boot-fact-title">WAWASAN WHOOSH #1 • UJI KOIN 350 KM/H</span>
 <div style="display:flex;align-items:center;gap:6px;">
-<button id="boot-forensic-btn" type="button" class="font-mono-tech" style="display:none;background:rgba(16,185,129,0.15);border:1px solid rgba(52,211,153,0.42);color:#6ee7b7;border-radius:8px;padding:2px 8px;font-size:9px;font-weight:800;cursor:pointer;" title="Buka Log Forensik &amp; Telemetri JSON [F9]">
+<button id="boot-forensic-btn" type="button" class="font-mono-tech" style="background:rgba(16,185,129,0.15);border:1px solid rgba(52,211,153,0.42);color:#6ee7b7;border-radius:8px;padding:2px 8px;font-size:9px;font-weight:800;cursor:pointer;" title="Buka Log Forensik &amp; Telemetri JSON [F9]">
 Log Forensik [F9]<span id="boot-forensic-badge"></span>
 </button>
 <button id="boot-next-fact" type="button" class="font-mono-tech" style="background:rgba(56,189,248,0.14);border:1px solid rgba(56,189,248,0.38);color:#7dd3fc;border-radius:8px;padding:2px 8px;font-size:9px;font-weight:800;cursor:pointer;">
@@ -967,7 +973,7 @@ Rel tanpa sambungan <strong>CRTS III Slab Track</strong> menjaga indeks getaran 
 <div id="boot-retry-wrap" class="hidden" style="margin-top:10px;display:none;align-items:center;justify-content:space-between;gap:8px;background:rgba(127,29,29,0.45);border:1px solid rgba(248,113,113,0.45);border-radius:12px;padding:8px 11px;font-size:11px;color:#fecaca;">
 <span id="boot-retry-msg" style="text-align:left;">Koneksi jaringan lambat atau data lama terdeteksi.</span>
 <div style="display:flex;align-items:center;gap:6px;">
-<button id="boot-retry-forensic-btn" type="button" class="font-mono-tech" style="display:none;background:rgba(15,23,42,0.9);color:#6ee7b7;border:1px solid rgba(52,211,153,0.55);border-radius:8px;padding:5px 9px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">
+<button id="boot-retry-forensic-btn" type="button" class="font-mono-tech" style="background:rgba(15,23,42,0.9);color:#6ee7b7;border:1px solid rgba(52,211,153,0.55);border-radius:8px;padding:5px 9px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">
 Salin Log JSON
 </button>
 <button id="boot-retry-btn" type="button" class="font-mono-tech" style="background:#e11d48;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">
@@ -1117,10 +1123,10 @@ Muat Ulang Segar
 <button id="btn-toggle-audio" title="Mesin Suara Fisik CR400AF VVVF &amp; Terowongan" class="glass-btn active w-8 h-8 rounded-xl flex items-center justify-center text-cyan-300">
 <i id="icon-audio" class="ph-fill ph-speaker-high text-base"></i>
 </button>
-<button id="forensic-open-btn" title="Buka Log Diagnostik [F9]" class="hidden glass-btn px-2 h-8 rounded-xl items-center gap-1 text-[10px] font-mono-tech font-extrabold text-emerald-300 hover:text-white border border-emerald-500/40 relative">
+<button id="forensic-open-btn" title="Buka Log Forensik &amp; Telemetri JSON [F9]" class="flex glass-btn px-2 h-8 rounded-xl items-center gap-1 text-[10px] font-mono-tech font-extrabold text-emerald-300 hover:text-white border border-emerald-500/40 relative">
 <span id="forensic-status-dot" class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
 <i class="ph-bold ph-terminal-window text-sm"></i>
-<span class="hidden xl:inline">Diagnostik</span>
+<span class="hidden 2xl:inline">Forensik</span>
 <span id="forensic-err-badge" class="hidden px-1 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-extrabold leading-tight">0</span>
 </button>
 <button id="btn-more-menu" title="Menu Lainnya (PiP, Sembunyikan HUD, Panduan Masinis, Reset Sesi)" class="glass-btn w-8 h-8 rounded-xl flex items-center justify-center text-slate-200 hover:text-white border border-slate-700/70">
@@ -1201,6 +1207,10 @@ Muat Ulang Segar
 <button id="btn-open-manual" title="Buku Pedoman Masinis KCIC Whoosh" class="glass-btn w-full px-3 h-8 rounded-xl flex items-center justify-between text-[10px] font-bold text-amber-200 hover:text-amber-100">
 <span class="flex items-center gap-2"><i class="ph-bold ph-book-open-text text-sm"></i> <span>Pedoman Masinis</span></span>
 <i class="ph-bold ph-caret-right text-xs text-slate-400"></i>
+</button>
+<button id="btn-open-forensic-more" type="button" title="Buka Log Forensik &amp; Telemetri 3 Menit [F9]" class="glass-btn w-full px-3 h-8 rounded-xl flex items-center justify-between text-[10px] font-bold text-emerald-300 hover:text-white border border-emerald-500/35">
+<span class="flex items-center gap-2"><i class="ph-bold ph-terminal-window text-sm"></i> <span>Log Forensik &amp; JSON</span></span>
+<span class="font-mono-tech text-[9px] text-emerald-300/90">F9</span>
 </button>
 <button id="btn-clear-session" title="Hapus Sesi Tersimpan &amp; Ulangi dari Awal (Stasiun Halim DK 0+398)" class="glass-btn w-full px-3 h-8 rounded-xl flex items-center justify-between text-[10px] font-bold text-rose-300 hover:text-rose-100 border border-rose-500/35">
 <span class="flex items-center gap-2"><i class="ph-bold ph-arrow-counter-clockwise text-sm"></i> <span>Reset Sesi Awal</span></span>
@@ -1735,9 +1745,9 @@ Berangkat Cepat
 <i class="ph-bold ph-trash text-sm"></i>
 <span>HAPUS SESI &amp; RESET AWAL</span>
 </button>
-<button id="btn-open-forensic-hangar" type="button" class="hidden px-3.5 py-2.5 rounded-xl glass-btn border border-emerald-500/50 text-emerald-300 hover:text-white font-extrabold text-xs items-center gap-1.5" title="Buka Log Diagnostik [F9]">
+<button id="btn-open-forensic-hangar" type="button" class="flex px-3.5 py-2.5 rounded-xl glass-btn border border-emerald-500/50 text-emerald-300 hover:text-white font-extrabold text-xs items-center gap-1.5" title="Buka Log Forensik &amp; Telemetri JSON [F9]">
 <i class="ph-bold ph-terminal-window text-sm"></i>
-<span>LOG DIAGNOSTIK [F9]</span>
+<span>LOG FORENSIK [F9]</span>
 </button>
 </div>
 <button id="btn-apply-hangar" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-cyan-600 text-white font-extrabold text-xs shadow-lg">
