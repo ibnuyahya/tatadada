@@ -50,7 +50,8 @@ export class MasterSurfaceBuilder {
     const positions = new Float32Array(vertCount * 3);
     const normals = new Float32Array(vertCount * 3);
     const uvs = new Float32Array(vertCount * 2);
-    const indices = [];
+    const indexCount = uSteps * vSteps * 6;
+    const indices = vertCount > 65535 ? new Uint32Array(indexCount) : new Uint16Array(indexCount);
 
     const p = new THREE.Vector3();
     const n = new THREE.Vector3();
@@ -124,18 +125,32 @@ export class MasterSurfaceBuilder {
     const shouldReverse = flipWinding ? crossUV.dot(nMid) >= 0 : crossUV.dot(nMid) < 0;
 
     const stride = vSteps + 1;
+    let iPtr = 0;
     for (let iu = 0; iu < uSteps; iu++) {
+      const rowA = iu * stride;
+      const rowB = rowA + stride;
       for (let iv = 0; iv < vSteps; iv++) {
-        const a = iu * stride + iv;
-        const b = (iu + 1) * stride + iv;
-        const c = (iu + 1) * stride + (iv + 1);
-        const d = iu * stride + (iv + 1);
+        const a = rowA + iv;
+        const b = rowB + iv;
+        const c = b + 1;
+        const d = a + 1;
 
         if (shouldReverse) {
-          indices.push(a, d, c, a, c, b);
+          indices[iPtr] = a;
+          indices[iPtr + 1] = d;
+          indices[iPtr + 2] = c;
+          indices[iPtr + 3] = a;
+          indices[iPtr + 4] = c;
+          indices[iPtr + 5] = b;
         } else {
-          indices.push(a, b, c, a, c, d);
+          indices[iPtr] = a;
+          indices[iPtr + 1] = b;
+          indices[iPtr + 2] = c;
+          indices[iPtr + 3] = a;
+          indices[iPtr + 4] = c;
+          indices[iPtr + 5] = d;
         }
+        iPtr += 6;
       }
     }
 
@@ -143,7 +158,7 @@ export class MasterSurfaceBuilder {
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    geo.setIndex(indices);
+    geo.setIndex(new THREE.BufferAttribute(indices, 1));
     return geo;
   }
 
@@ -305,14 +320,17 @@ export class MasterSurfaceBuilder {
 
   /** 2D Chamfered / Octagonal Box Exact-Style SDF */
   static sdChamferBox2D(x, z, halfW, halfL, chamfer = 0.0) {
-    const ax = Math.abs(x);
-    const az = Math.abs(z);
+    const ax = x < 0.0 ? -x : x;
+    const az = z < 0.0 ? -z : z;
     const dx = ax - halfW;
     const dz = az - halfL;
-    const rectDist = Math.hypot(Math.max(dx, 0.0), Math.max(dz, 0.0)) + Math.min(Math.max(dx, dz), 0.0);
+    const ox = dx > 0.0 ? dx : 0.0;
+    const oz = dz > 0.0 ? dz : 0.0;
+    const maxD = dx > dz ? dx : dz;
+    const rectDist = Math.sqrt(ox * ox + oz * oz) + (maxD < 0.0 ? maxD : 0.0);
     if (chamfer <= 1e-5) return rectDist;
     // Octagonal corner cut plane at 45 degrees
     const cutPlane = (ax + az - (halfW + halfL - chamfer * 1.41421356)) * 0.70710678;
-    return Math.max(rectDist, cutPlane);
+    return rectDist > cutPlane ? rectDist : cutPlane;
   }
 }

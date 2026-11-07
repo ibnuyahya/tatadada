@@ -164,7 +164,7 @@ async function bootstrapNexusSimulator() {
       : 0.0;
   const _bootstrapStartRelMs = Math.max(0.0, _nowBoot() - _bootOriginMs);
   if (typeof window !== 'undefined' && window.NexusForensic) {
-    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.43');
+    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.44');
   }
   const preloader = createPreloaderController();
 
@@ -1035,11 +1035,13 @@ async function bootstrapNexusSimulator() {
     duskFactor: weather.uniforms.uDuskFactor.value,
     nightFactor: weather.uniforms.uNightFactor.value
   });
-  // Temporarily disable frustum culling on all visible renderables (including transient weather/night meshes)
+  // Temporarily disable frustum culling and force visibility on all collected renderables
   // during hidden warmup passes so WebGLShadowMap & planar reflection compile 100% of GPU programs before boot completes!
   const savedWarmFrustumCulled = visibleRenderables.map((n) => n.frustumCulled);
+  const savedPostPrepVis = visibleRenderables.map((n) => n.visible);
   for (let i = 0; i < visibleRenderables.length; i++) {
     visibleRenderables[i].frustumCulled = false;
+    visibleRenderables[i].visible = true;
   }
   _totalWarmCpuMs += Math.max(0.0, _nowBoot() - _tWarmPrep0);
 
@@ -1087,6 +1089,7 @@ async function bootstrapNexusSimulator() {
   }
   for (let i = 0; i < visibleRenderables.length; i++) {
     visibleRenderables[i].frustumCulled = savedWarmFrustumCulled[i];
+    visibleRenderables[i].visible = savedPostPrepVis[i];
   }
   for (let i = 0; i < savedEmptyInstMeshes.length; i++) {
     savedEmptyInstMeshes[i].count = 0;
@@ -3337,6 +3340,8 @@ async function bootstrapNexusSimulator() {
   let secondFrameMarked = false;
   let _tokS16 = null;
   let _tokS16Closed = false;
+  const cullBiomePlanarRefl = (reflProjView, waterY) =>
+    AutogenBiomeSpawner.cullForPlanarReflection(biomeGroup, reflProjView, waterY);
 
   function renderLoop(now) {
     requestAnimationFrame(renderLoop);
@@ -3496,21 +3501,41 @@ async function bootstrapNexusSimulator() {
       if (sharedUniforms.uVideotronPortalAlpha) {
         sharedUniforms.uVideotronPortalAlpha.value = 0.0;
       }
-      const _tF1Refl0 = _tokS17 ? performance.now() : 0.0;
-      postFX.renderPlanarWaterReflection(
-        scene,
-        camera,
-        weather,
-        TerrainDEMLoader.WATER_LEVEL_Y,
-        planarReflHiddenList
-      );
-      const reflRanThisFrame = Boolean(postFX.lastPlanarReflRan);
-      const reflCallsThisFrame = reflRanThisFrame ? postFX.lastPlanarReflCalls || 0 : 0;
-      if (sharedUniforms.uVideotronPortalAlpha) {
-        sharedUniforms.uVideotronPortalAlpha.value = savedPortalAlpha;
+      // Single scene-graph matrixWorld update shared across Planar Reflection + Shadow + Main passes!
+      scene.updateMatrixWorld();
+      camera.updateMatrixWorld();
+      const prevSceneAutoUpdate = scene.matrixWorldAutoUpdate;
+      scene.matrixWorldAutoUpdate = false;
+      let reflRanThisFrame = false;
+      let reflCallsThisFrame = 0;
+      let _tF1Refl0 = 0.0;
+      let _tF1Main0 = 0.0;
+      try {
+        _tF1Refl0 = _tokS17 ? performance.now() : 0.0;
+        postFX.renderPlanarWaterReflection(
+          scene,
+          camera,
+          weather,
+          TerrainDEMLoader.WATER_LEVEL_Y,
+          planarReflHiddenList,
+          cullBiomePlanarRefl
+        );
+        reflRanThisFrame = Boolean(postFX.lastPlanarReflRan);
+        reflCallsThisFrame = reflRanThisFrame ? postFX.lastPlanarReflCalls || 0 : 0;
+        if (sharedUniforms.uVideotronPortalAlpha) {
+          sharedUniforms.uVideotronPortalAlpha.value = savedPortalAlpha;
+        }
+        _tF1Main0 = _tokS17 ? performance.now() : 0.0;
+        AutogenBiomeSpawner.cullForMainAndShadow(
+          biomeGroup,
+          camera,
+          weather.sunLight,
+          shadowRefreshedThisFrame
+        );
+        postFX.render(scene, camera);
+      } finally {
+        scene.matrixWorldAutoUpdate = prevSceneAutoUpdate;
       }
-      const _tF1Main0 = _tokS17 ? performance.now() : 0.0;
-      postFX.render(scene, camera);
       const _tF1Done = performance.now();
       lastCpuMs = _tF1Done - tCpuStart;
       lastDrawCalls = renderer.info.render.calls;

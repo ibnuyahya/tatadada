@@ -488,9 +488,14 @@ export class RainCollisionBake {
 
     // Helper: Rasterize InstancedMesh organic tree foliage canopy ellipsoids with per-canopy time slicing
     function* rasterizeInstancedCanopiesGen(instMesh) {
-      const matArr = instMesh.instanceMatrix?.array || instMesh.instanceMatrix;
+      const matArr =
+        instMesh.userData?.srcInstanceMatrices ||
+        instMesh.instanceMatrix?.array ||
+        instMesh.instanceMatrix;
       if (!matArr) return;
-      const count = instMesh.count || Math.floor(matArr.length / 16);
+      const count =
+        instMesh.userData?.fullInstanceCount ??
+        (instMesh.count || Math.floor(matArr.length / 16));
       const pw = instMesh.matrixWorld.elements;
 
       for (let i = 0; i < count; i++) {

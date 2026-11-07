@@ -153,10 +153,26 @@ function smooth01(a, b, x) {
   return t * t * (3.0 - 2.0 * t);
 }
 
+const _gaitScratchL = { hipRx: 0.0, kneeRx: 0.0, footPitch: 0.0, toeRx: 0.0 };
+const _gaitScratchR = { hipRx: 0.0, kneeRx: 0.0, footPitch: 0.0, toeRx: 0.0 };
+const _armScratchL = { rx: 0.0, ry: 0.0, rz: 0.0, elRx: 0.0, wrRx: 0.0 };
+const _armScratchR = { rx: 0.0, ry: 0.0, rz: 0.0, elRx: 0.0, wrRx: 0.0 };
+let _catLimbUpper = 0.0;
+let _catLimbLower = 0.0;
+
+function setArmPose(dst, rx, ry, rz, elRx, wrRx) {
+  dst.rx = rx;
+  dst.ry = ry;
+  dst.rz = rz;
+  dst.elRx = elRx;
+  dst.wrRx = wrRx;
+  return dst;
+}
+
 /**
  * Evaluates smooth cosine-Hermite interpolated clinical human leg angles at normalized gait cycle u in [0, 1).
  */
-function sampleClinicalLegGait(uRaw, strideScale = 1.0) {
+function sampleClinicalLegGait(uRaw, strideScale = 1.0, out = null) {
   const u = ((uRaw % 1.0) + 1.0) % 1.0;
   let kIdx = 0;
   for (let i = 0; i < CLINICAL_GAIT_KEYS.length - 1; i++) {
@@ -177,6 +193,13 @@ function sampleClinicalLegGait(uRaw, strideScale = 1.0) {
   const footPitch = (kA.footPitch + (kB.footPitch - kA.footPitch) * s) * strideScale;
   const toeRx = (kA.toeBend + (kB.toeBend - kA.toeBend) * s) * strideScale;
 
+  if (out) {
+    out.hipRx = hipRx;
+    out.kneeRx = kneeRx;
+    out.footPitch = footPitch;
+    out.toeRx = toeRx;
+    return out;
+  }
   return { hipRx, kneeRx, footPitch, toeRx };
 }
 
@@ -4098,28 +4121,89 @@ export class DynamicTrafficAI {
     sy = 1.0,
     sz = 1.0
   ) {
-    this._tmpPos.set(lx, ly, lz);
-    this._tmpEuler.set(rx, ry, rz);
-    this._tmpQuat.setFromEuler(this._tmpEuler);
-    this._tmpScale.set(sx, sy, sz);
-    this._tmpLocalMat.compose(this._tmpPos, this._tmpQuat, this._tmpScale);
+    // Inline 'YXZ' local affine 4x3 rotation-scale matrix (R = Ry(ry) * Rx(rx) * Rz(rz)):
+    // Fast-paths pure hinge joints (ry === 0 && rz === 0) with 2 trig calls & 0 Three.js object overhead!
+    let l0, l1, l2, l4, l5, l6, l8, l9, l10;
+    const cx = Math.cos(rx);
+    const sxr = Math.sin(rx);
+    if (ry === 0.0 && rz === 0.0) {
+      l0 = sx;
+      l1 = 0.0;
+      l2 = 0.0;
+      l4 = 0.0;
+      l5 = cx * sy;
+      l6 = sxr * sy;
+      l8 = 0.0;
+      l9 = -sxr * sz;
+      l10 = cx * sz;
+    } else {
+      const cy = Math.cos(ry);
+      const syr = Math.sin(ry);
+      const cz = Math.cos(rz);
+      const szr = Math.sin(rz);
+      const sysx = syr * sxr;
+      const cysx = cy * sxr;
+      l0 = (cy * cz + sysx * szr) * sx;
+      l1 = cx * szr * sx;
+      l2 = (-syr * cz + cysx * szr) * sx;
+      l4 = (-cy * szr + sysx * cz) * sy;
+      l5 = cx * cz * sy;
+      l6 = (syr * szr + cysx * cz) * sy;
+      l8 = syr * cx * sz;
+      l9 = -sxr * sz;
+      l10 = cy * cx * sz;
+    }
 
     const globalJ = npcIdx * JOINTS_PER_NPC + jointId;
     const outOffset = globalJ * 16;
     const wMats = this._jointWorldMatrices;
 
+    let w0, w1, w2, w4, w5, w6, w8, w9, w10, w12, w13, w14;
     if (parentJointId < 0) {
-      const e = this._tmpLocalMat.elements;
-      for (let i = 0; i < 16; i++) wMats[outOffset + i] = e[i];
+      w0 = l0; w1 = l1; w2 = l2;
+      w4 = l4; w5 = l5; w6 = l6;
+      w8 = l8; w9 = l9; w10 = l10;
+      w12 = lx; w13 = ly; w14 = lz;
     } else {
-      const parentOffset = (npcIdx * JOINTS_PER_NPC + parentJointId) * 16;
-      for (let i = 0; i < 16; i++) {
-        this._tmpParentMat.elements[i] = wMats[parentOffset + i];
-      }
-      this._tmpWorldMat.multiplyMatrices(this._tmpParentMat, this._tmpLocalMat);
-      const e = this._tmpWorldMat.elements;
-      for (let i = 0; i < 16; i++) wMats[outOffset + i] = e[i];
+      const pOff = (npcIdx * JOINTS_PER_NPC + parentJointId) * 16;
+      const p0 = wMats[pOff], p1 = wMats[pOff + 1], p2 = wMats[pOff + 2];
+      const p4 = wMats[pOff + 4], p5 = wMats[pOff + 5], p6 = wMats[pOff + 6];
+      const p8 = wMats[pOff + 8], p9 = wMats[pOff + 9], p10 = wMats[pOff + 10];
+      const p12 = wMats[pOff + 12], p13 = wMats[pOff + 13], p14 = wMats[pOff + 14];
+
+      w0 = p0 * l0 + p4 * l1 + p8 * l2;
+      w1 = p1 * l0 + p5 * l1 + p9 * l2;
+      w2 = p2 * l0 + p6 * l1 + p10 * l2;
+
+      w4 = p0 * l4 + p4 * l5 + p8 * l6;
+      w5 = p1 * l4 + p5 * l5 + p9 * l6;
+      w6 = p2 * l4 + p6 * l5 + p10 * l6;
+
+      w8 = p0 * l8 + p4 * l9 + p8 * l10;
+      w9 = p1 * l8 + p5 * l9 + p9 * l10;
+      w10 = p2 * l8 + p6 * l9 + p10 * l10;
+
+      w12 = p0 * lx + p4 * ly + p8 * lz + p12;
+      w13 = p1 * lx + p5 * ly + p9 * lz + p13;
+      w14 = p2 * lx + p6 * ly + p10 * lz + p14;
     }
+
+    wMats[outOffset] = w0;
+    wMats[outOffset + 1] = w1;
+    wMats[outOffset + 2] = w2;
+    wMats[outOffset + 3] = 0.0;
+    wMats[outOffset + 4] = w4;
+    wMats[outOffset + 5] = w5;
+    wMats[outOffset + 6] = w6;
+    wMats[outOffset + 7] = 0.0;
+    wMats[outOffset + 8] = w8;
+    wMats[outOffset + 9] = w9;
+    wMats[outOffset + 10] = w10;
+    wMats[outOffset + 11] = 0.0;
+    wMats[outOffset + 12] = w12;
+    wMats[outOffset + 13] = w13;
+    wMats[outOffset + 14] = w14;
+    wMats[outOffset + 15] = 1.0;
 
     // Compute Skin Matrix S[j] = M_world[j] * Translation(-bx, -by, -bz)
     const bp = BIND_PIVOTS[jointId];
@@ -4127,9 +4211,18 @@ export class DynamicTrafficAI {
     const by = bp[1];
     const bz = bp[2];
     const sMats = this._skinMatrices;
-    for (let i = 0; i < 12; i++) {
-      sMats[outOffset + i] = wMats[outOffset + i];
-    }
+    sMats[outOffset] = wMats[outOffset];
+    sMats[outOffset + 1] = wMats[outOffset + 1];
+    sMats[outOffset + 2] = wMats[outOffset + 2];
+    sMats[outOffset + 3] = 0.0;
+    sMats[outOffset + 4] = wMats[outOffset + 4];
+    sMats[outOffset + 5] = wMats[outOffset + 5];
+    sMats[outOffset + 6] = wMats[outOffset + 6];
+    sMats[outOffset + 7] = 0.0;
+    sMats[outOffset + 8] = wMats[outOffset + 8];
+    sMats[outOffset + 9] = wMats[outOffset + 9];
+    sMats[outOffset + 10] = wMats[outOffset + 10];
+    sMats[outOffset + 11] = 0.0;
     sMats[outOffset + 12] =
       wMats[outOffset + 12] -
       (wMats[outOffset] * bx + wMats[outOffset + 4] * by + wMats[outOffset + 8] * bz);
@@ -6290,20 +6383,22 @@ export class DynamicTrafficAI {
           : steer * 0.65 + 0.10 * Math.sin(t * 0.75);
         headPitch = isDwell ? 0.06 : 0.02 + 0.02 * Math.sin(t * 1.5);
 
-        shL = {
-          rx: -0.70 + 0.24 * gripPush,
-          ry: -0.10 - 0.08 * gripPush,
-          rz: 0.06,
-          elRx: -0.74 - 0.08 * Math.abs(gripPush),
-          wrRx: -0.10
-        };
-        shR = {
-          rx: -0.70 - 0.24 * gripPush,
-          ry: 0.10 - 0.08 * gripPush,
-          rz: -0.06,
-          elRx: -0.74 - 0.08 * Math.abs(gripPush),
-          wrRx: -0.10
-        };
+        shL = setArmPose(
+          _armScratchL,
+          -0.70 + 0.24 * gripPush,
+          -0.10 - 0.08 * gripPush,
+          0.06,
+          -0.74 - 0.08 * Math.abs(gripPush),
+          -0.10
+        );
+        shR = setArmPose(
+          _armScratchR,
+          -0.70 - 0.24 * gripPush,
+          0.10 - 0.08 * gripPush,
+          -0.06,
+          -0.74 - 0.08 * Math.abs(gripPush),
+          -0.10
+        );
       } else {
         // Seated Campus Shuttle Passenger enjoying the breeze, admiring campus, or reading phone/book!
         const lookWave = Math.sin(t * 0.62 + idx * 1.7);
@@ -6315,19 +6410,20 @@ export class DynamicTrafficAI {
           const lookUp = smooth01(0.45, 0.85, Math.abs(lookWave));
           headPitch = 0.26 * (1.0 - lookUp) + 0.02 * lookUp;
           headYaw = 0.28 * lookWave * lookUp;
-          shR = { rx: -0.52, ry: 0.18, rz: -0.12, elRx: -1.18, wrRx: -0.16 };
-          shL = { rx: -0.26, ry: -0.08, rz: 0.10, elRx: -0.86, wrRx: 0.02 };
+          shR = setArmPose(_armScratchR, -0.52, 0.18, -0.12, -1.18, -0.16);
+          shL = setArmPose(_armScratchL, -0.26, -0.08, 0.10, -0.86, 0.02);
         } else {
           headYaw = 0.32 * lookWave;
           headPitch = 0.03 + 0.04 * Math.sin(t * 1.1 + idx);
-          shL = { rx: -0.34, ry: -0.12, rz: 0.11, elRx: -0.96, wrRx: -0.08 };
-          shR = {
-            rx: isRearFacing ? -0.40 : -0.32,
-            ry: 0.12,
-            rz: -0.11,
-            elRx: -0.92,
-            wrRx: -0.06
-          };
+          shL = setArmPose(_armScratchL, -0.34, -0.12, 0.11, -0.96, -0.08);
+          shR = setArmPose(
+            _armScratchR,
+            isRearFacing ? -0.40 : -0.32,
+            0.12,
+            -0.11,
+            -0.92,
+            -0.06
+          );
         }
       }
 
@@ -6432,8 +6528,8 @@ export class DynamicTrafficAI {
       let spineYaw = 0.0;
       let headPitch = 0.04;
       let headYaw = 0.0;
-      let shL = { rx: -0.35, ry: 0.0, rz: 0.08, elRx: -0.95, wrRx: -0.08 };
-      let shR = { rx: -0.35, ry: 0.0, rz: -0.08, elRx: -0.95, wrRx: -0.08 };
+      const shL = setArmPose(_armScratchL, -0.35, 0.0, 0.08, -0.95, -0.08);
+      const shR = setArmPose(_armScratchR, -0.35, 0.0, -0.08, -0.95, -0.08);
 
       if (act === 'READ_OPEN_BOOK') {
         // Seated scholar holding open two-page textbook & scanning lines left-to-right!
@@ -6442,16 +6538,16 @@ export class DynamicTrafficAI {
         const lookUpLake = smooth01(0.82, 0.96, Math.sin(t * 0.23 + idx)); // Occasionally gazes up at Danau Kenanga!
         headPitch = (0.30 + 0.03 * Math.sin(t * 1.8)) * (1.0 - lookUpLake) - 0.04 * lookUpLake;
         headYaw = 0.11 * readScan * (1.0 - lookUpLake) + 0.18 * lookUpLake;
-        shL = { rx: -0.58, ry: -0.18, rz: 0.14, elRx: -1.12, wrRx: -0.22 };
-        shR = { rx: -0.56, ry: 0.18, rz: -0.14, elRx: -1.10 + 0.06 * readScan, wrRx: -0.20 };
+        setArmPose(shL, -0.58, -0.18, 0.14, -1.12, -0.22);
+        setArmPose(shR, -0.56, 0.18, -0.14, -1.10 + 0.06 * readScan, -0.20);
       } else if (act === 'SCROLL_PHONE') {
         spinePitch = 0.11;
         const scrollWave = Math.sin(t * 2.4 + idx);
         const glanceAround = smooth01(0.78, 0.95, Math.sin(t * 0.29 + 1.4));
         headPitch = 0.32 * (1.0 - glanceAround);
         headYaw = 0.24 * Math.sin(t * 0.5) * glanceAround;
-        shR = { rx: -0.54, ry: 0.20, rz: -0.15, elRx: -1.24 + 0.05 * scrollWave, wrRx: -0.18 };
-        shL = { rx: -0.18, ry: -0.08, rz: 0.09, elRx: -0.82, wrRx: 0.05 };
+        setArmPose(shR, -0.54, 0.20, -0.15, -1.24 + 0.05 * scrollWave, -0.18);
+        setArmPose(shL, -0.18, -0.08, 0.09, -0.82, 0.05);
       } else {
         // Two UI friends seated side-by-side on Rotunda bench chatting & pointing at Rektorat Tajug!
         const isLeftFriend = act === 'BENCH_CHAT_LEFT';
@@ -6464,11 +6560,11 @@ export class DynamicTrafficAI {
         headPitch = speakerTurn ? -0.05 + 0.05 * talkW : 0.07 * Math.max(0.0, Math.sin(t * 3.8));
         if (speakerTurn && isLeftFriend) {
           // Pointing/gesturing toward Gedung Rektorat UI spire!
-          shR = { rx: -0.78 - 0.12 * talkW, ry: 0.10, rz: -0.18, elRx: -0.72 + 0.15 * talkW, wrRx: -0.10 };
-          shL = { rx: -0.32, ry: -0.10, rz: 0.10, elRx: -0.92, wrRx: 0.0 };
+          setArmPose(shR, -0.78 - 0.12 * talkW, 0.10, -0.18, -0.72 + 0.15 * talkW, -0.10);
+          setArmPose(shL, -0.32, -0.10, 0.10, -0.92, 0.0);
         } else {
-          shL = { rx: -0.46, ry: -0.15, rz: 0.12, elRx: -1.05, wrRx: -0.12 };
-          shR = { rx: -0.42 + (speakerTurn ? 0.12 * talkW : 0.0), ry: 0.12, rz: -0.12, elRx: -1.02, wrRx: -0.10 };
+          setArmPose(shL, -0.46, -0.15, 0.12, -1.05, -0.12);
+          setArmPose(shR, -0.42 + (speakerTurn ? 0.12 * talkW : 0.0), 0.12, -0.12, -1.02, -0.10);
         }
       }
 
@@ -6551,8 +6647,8 @@ export class DynamicTrafficAI {
     const uL = npc.gaitCycleU;
     const uR = (npc.gaitCycleU + 0.5) % 1.0;
 
-    const gaitL = sampleClinicalLegGait(uL, strideScale);
-    const gaitR = sampleClinicalLegGait(uR, strideScale);
+    const gaitL = sampleClinicalLegGait(uL, strideScale, _gaitScratchL);
+    const gaitR = sampleClinicalLegGait(uR, strideScale, _gaitScratchR);
 
     // Contrapposto Asymmetric Idle Stance when standing (switches stance leg smoothly every ~10s!)
     const idleBlend = 1.0 - walkBlend;
@@ -6645,8 +6741,10 @@ export class DynamicTrafficAI {
     // Vestibular Head Stabilization + Behavior-Specific Gaze & Arm Gestures!
     let targetHeadYaw = npc.turnRate * 0.22; // Head leads corner turns!
     let targetHeadPitch = -waistPitch * 0.45;
-    let customLeftArm = null;
-    let customRightArm = null;
+    let hasCustomLeftArm = false;
+    let hasCustomRightArm = false;
+    const armL = _armScratchL;
+    const armR = _armScratchR;
 
     if (npc.behavior === 'PAIR_ROTUNDA' || npc.behavior === 'PAIR_SE_WALKWAY') {
       // Conversing while walking side-by-side: periodic head turns toward companion + speaking hand gesture!
@@ -6661,21 +6759,11 @@ export class DynamicTrafficAI {
 
       if (isSpeaking && isLookingAtFriend > 0.35 && npc.umbrellaBlend < 0.2 && npc.rainHurryBlend < 0.2) {
         if (npc.pairSide < 0) {
-          customRightArm = {
-            rx: -0.48 - 0.14 * talkOsc,
-            ry: 0.14,
-            rz: -0.12,
-            elRx: -0.96 + 0.18 * Math.cos(t * 4.1),
-            wrRx: -0.12 * talkOsc
-          };
+          setArmPose(armR, -0.48 - 0.14 * talkOsc, 0.14, -0.12, -0.96 + 0.18 * Math.cos(t * 4.1), -0.12 * talkOsc);
+          hasCustomRightArm = true;
         } else {
-          customLeftArm = {
-            rx: -0.46 - 0.14 * talkOsc,
-            ry: -0.14,
-            rz: 0.12,
-            elRx: -0.94 + 0.18 * Math.cos(t * 4.1),
-            wrRx: -0.12 * talkOsc
-          };
+          setArmPose(armL, -0.46 - 0.14 * talkOsc, -0.14, 0.12, -0.94 + 0.18 * Math.cos(t * 4.1), -0.12 * talkOsc);
+          hasCustomLeftArm = true;
         }
       }
     } else if (npc.behavior === 'LAKESIDE_STROLL' && walkBlend < 0.25) {
@@ -6684,13 +6772,8 @@ export class DynamicTrafficAI {
       targetHeadYaw = 0.24 * Math.sin(t * 0.55 + idx) * (1.0 - checkWatch) + 0.22 * checkWatch;
       targetHeadPitch = 0.06 * (1.0 - checkWatch) + 0.32 * checkWatch;
       if (checkWatch > 0.05) {
-        customLeftArm = {
-          rx: -0.58 * checkWatch,
-          ry: -0.35 * checkWatch,
-          rz: 0.10,
-          elRx: -0.25 - 1.05 * checkWatch,
-          wrRx: -0.20 * checkWatch
-        };
+        setArmPose(armL, -0.58 * checkWatch, -0.35 * checkWatch, 0.10, -0.25 - 1.05 * checkWatch, -0.20 * checkWatch);
+        hasCustomLeftArm = true;
       }
     } else if (npc.behavior === 'SEMINAR_CIRCLE') {
       const activeSpeaker = Math.floor(t / 3.8) % npc.memberCount;
@@ -6700,21 +6783,11 @@ export class DynamicTrafficAI {
         targetHeadYaw = 0.24 * talkB;
         targetHeadPitch = -0.03 + 0.05 * talkA;
         if (npc.umbrellaBlend < 0.2) {
-          customRightArm = {
-            rx: -0.56 - 0.16 * talkA,
-            ry: 0.14 * talkB,
-            rz: -0.14,
-            elRx: -1.08 - 0.20 * talkB,
-            wrRx: -0.16 * talkA
-          };
+          setArmPose(armR, -0.56 - 0.16 * talkA, 0.14 * talkB, -0.14, -1.08 - 0.20 * talkB, -0.16 * talkA);
+          hasCustomRightArm = true;
         }
-        customLeftArm = {
-          rx: -0.44 + 0.08 * talkB,
-          ry: -0.12,
-          rz: 0.10,
-          elRx: -1.02,
-          wrRx: -0.10
-        };
+        setArmPose(armL, -0.44 + 0.08 * talkB, -0.12, 0.10, -1.02, -0.10);
+        hasCustomLeftArm = true;
       } else {
         // Attentive listener looking toward current speaker & nodding!
         const rCluster = npc.rCluster || 1.24;
@@ -6725,7 +6798,8 @@ export class DynamicTrafficAI {
         targetHeadYaw = Math.max(-0.55, Math.min(0.55, yawToSpeaker * 0.75));
         targetHeadPitch = 0.08 * Math.max(0.0, Math.sin(t * 3.9 + npc.memberIdx * 1.8));
         if (npc.propType === 'OPEN_BOOK' || npc.propType === 'BOOK') {
-          customLeftArm = { rx: -0.42, ry: -0.14, rz: 0.09, elRx: -1.08, wrRx: -0.12 };
+          setArmPose(armL, -0.42, -0.14, 0.09, -1.08, -0.12);
+          hasCustomLeftArm = true;
         }
       }
     } else if (
@@ -6737,21 +6811,18 @@ export class DynamicTrafficAI {
         smooth01(0.04, 0.22, photoCycle) * (1.0 - 0.62 * smooth01(0.72, 0.88, photoCycle));
       targetHeadPitch = -0.21 * raiseAmt + 0.18 * (1.0 - raiseAmt);
       targetHeadYaw = 0.05 * Math.sin(t * 0.8 + idx);
-      customRightArm = {
-        rx: -0.34 - 0.86 * raiseAmt,
-        ry: 0.18 * raiseAmt,
-        rz: 0.14 * raiseAmt,
-        elRx: -0.82 - 0.26 * (1.0 - raiseAmt),
-        wrRx: -0.18 * raiseAmt
-      };
+      setArmPose(
+        armR,
+        -0.34 - 0.86 * raiseAmt,
+        0.18 * raiseAmt,
+        0.14 * raiseAmt,
+        -0.82 - 0.26 * (1.0 - raiseAmt),
+        -0.18 * raiseAmt
+      );
+      hasCustomRightArm = true;
       if (npc.umbrellaBlend < 0.2) {
-        customLeftArm = {
-          rx: -0.24 - 0.64 * raiseAmt,
-          ry: -0.20 * raiseAmt,
-          rz: -0.12 * raiseAmt,
-          elRx: -0.92,
-          wrRx: 0.0
-        };
+        setArmPose(armL, -0.24 - 0.64 * raiseAmt, -0.20 * raiseAmt, -0.12 * raiseAmt, -0.92, 0.0);
+        hasCustomLeftArm = true;
       }
     } else if (isJogger) {
       // Athletic Runner Arm Pump (elbows flexed ~90 deg, brisk opposite-phase shoulder drive!)
@@ -6761,20 +6832,10 @@ export class DynamicTrafficAI {
       waistPitch += 0.055 * jogBlend;
       targetHeadPitch = -0.06 * jogBlend;
       targetHeadYaw = npc.turnRate * 0.18;
-      customLeftArm = {
-        rx: -0.28 - 0.58 * pumpL * jogBlend,
-        ry: -0.16,
-        rz: 0.09,
-        elRx: -1.48 + 0.16 * pumpL,
-        wrRx: -0.08
-      };
-      customRightArm = {
-        rx: -0.28 - 0.58 * pumpR * jogBlend,
-        ry: 0.16,
-        rz: -0.09,
-        elRx: -1.48 + 0.16 * pumpR,
-        wrRx: -0.08
-      };
+      setArmPose(armL, -0.28 - 0.58 * pumpL * jogBlend, -0.16, 0.09, -1.48 + 0.16 * pumpL, -0.08);
+      setArmPose(armR, -0.28 - 0.58 * pumpR * jogBlend, 0.16, -0.09, -1.48 + 0.16 * pumpR, -0.08);
+      hasCustomLeftArm = true;
+      hasCustomRightArm = true;
     } else if (isTaiChi) {
       // Synchronized Fluid Tai-Chi / Morning Stretching Cycle (Opening Rise -> Cloud-Hands Lateral Sweep!)
       const liftArc = 0.5 - 0.5 * Math.cos(taiChiPhase);
@@ -6783,20 +6844,24 @@ export class DynamicTrafficAI {
       chestYaw = 0.22 * cloudSweep;
       targetHeadYaw = 0.24 * cloudSweep;
       targetHeadPitch = -0.08 * liftArc;
-      customLeftArm = {
-        rx: -0.35 - 1.15 * liftArc,
-        ry: -0.24 * cloudSweep,
-        rz: 0.18 + 0.36 * liftArc,
-        elRx: -0.58 - 0.34 * (1.0 - liftArc),
-        wrRx: -0.18 * Math.sin(taiChiPhase)
-      };
-      customRightArm = {
-        rx: -0.35 - 1.15 * liftArc,
-        ry: -0.24 * cloudSweep,
-        rz: -0.18 - 0.36 * liftArc,
-        elRx: -0.58 - 0.34 * (1.0 - liftArc),
-        wrRx: -0.18 * Math.cos(taiChiPhase)
-      };
+      setArmPose(
+        armL,
+        -0.35 - 1.15 * liftArc,
+        -0.24 * cloudSweep,
+        0.18 + 0.36 * liftArc,
+        -0.58 - 0.34 * (1.0 - liftArc),
+        -0.18 * Math.sin(taiChiPhase)
+      );
+      setArmPose(
+        armR,
+        -0.35 - 1.15 * liftArc,
+        -0.24 * cloudSweep,
+        -0.18 - 0.36 * liftArc,
+        -0.58 - 0.34 * (1.0 - liftArc),
+        -0.18 * Math.cos(taiChiPhase)
+      );
+      hasCustomLeftArm = true;
+      hasCustomRightArm = true;
     } else if (isCalisthenics) {
       // Sudut Calisthenics Street-Workout Biomechanics (Deep Squat Reach, Jumping-Jack Warmup, & Core Twist!)
       if (npc.exercise === 'SQUAT_REACH') {
@@ -6804,57 +6869,27 @@ export class DynamicTrafficAI {
         waistPitch = 0.28 * sq;
         chestPitch = 0.14 * sq;
         targetHeadPitch = -0.16 * sq;
-        customLeftArm = {
-          rx: -0.18 - 1.38 * sq,
-          ry: -0.06,
-          rz: 0.08,
-          elRx: -0.22 - 0.14 * sq,
-          wrRx: -0.08
-        };
-        customRightArm = {
-          rx: -0.18 - 1.38 * sq,
-          ry: 0.06,
-          rz: -0.08,
-          elRx: -0.22 - 0.14 * sq,
-          wrRx: -0.08
-        };
+        setArmPose(armL, -0.18 - 1.38 * sq, -0.06, 0.08, -0.22 - 0.14 * sq, -0.08);
+        setArmPose(armR, -0.18 - 1.38 * sq, 0.06, -0.08, -0.22 - 0.14 * sq, -0.08);
+        hasCustomLeftArm = true;
+        hasCustomRightArm = true;
       } else if (npc.exercise === 'JUMPING_JACK_WARMUP') {
         const jj = 0.5 - 0.5 * Math.cos(calisPhase * 1.6);
         targetHeadPitch = -0.08 * jj;
-        customLeftArm = {
-          rx: -0.12 - 0.35 * jj,
-          ry: 0.0,
-          rz: 0.12 + 2.35 * jj,
-          elRx: -0.22 - 0.20 * jj,
-          wrRx: 0.0
-        };
-        customRightArm = {
-          rx: -0.12 - 0.35 * jj,
-          ry: 0.0,
-          rz: -0.12 - 2.35 * jj,
-          elRx: -0.22 - 0.20 * jj,
-          wrRx: 0.0
-        };
+        setArmPose(armL, -0.12 - 0.35 * jj, 0.0, 0.12 + 2.35 * jj, -0.22 - 0.20 * jj, 0.0);
+        setArmPose(armR, -0.12 - 0.35 * jj, 0.0, -0.12 - 2.35 * jj, -0.22 - 0.20 * jj, 0.0);
+        hasCustomLeftArm = true;
+        hasCustomRightArm = true;
       } else {
         // CORE_TWIST_STRETCH: Dynamic Russian torso rotation & oblique reach
         const tw = Math.sin(calisPhase * 1.15);
         waistYaw = 0.42 * tw;
         chestYaw = 0.36 * tw;
         targetHeadYaw = 0.28 * tw;
-        customLeftArm = {
-          rx: -0.78 - 0.18 * tw,
-          ry: -0.22,
-          rz: 0.14,
-          elRx: -1.32,
-          wrRx: -0.06
-        };
-        customRightArm = {
-          rx: -0.78 + 0.18 * tw,
-          ry: 0.22,
-          rz: -0.14,
-          elRx: -1.32,
-          wrRx: -0.06
-        };
+        setArmPose(armL, -0.78 - 0.18 * tw, -0.22, 0.14, -1.32, -0.06);
+        setArmPose(armR, -0.78 + 0.18 * tw, 0.22, -0.14, -1.32, -0.06);
+        hasCustomLeftArm = true;
+        hasCustomRightArm = true;
       }
     } else if (npc.behavior === 'PLK_SECURITY_OFFICER') {
       const sal = npc.saluteBlend || 0.0;
@@ -6862,13 +6897,8 @@ export class DynamicTrafficAI {
       targetHeadPitch = 0.08 * sal;
       if (sal > 0.02) {
         // Respectful Indonesian Security Greeting Nod / Brim Salute as Shuttle Golf Cart passes!
-        customRightArm = {
-          rx: -1.18 * sal,
-          ry: 0.22 * sal,
-          rz: -0.28 * sal,
-          elRx: -0.18 - 1.56 * sal,
-          wrRx: -0.12 * sal
-        };
+        setArmPose(armR, -1.18 * sal, 0.22 * sal, -0.28 * sal, -0.18 - 1.56 * sal, -0.12 * sal);
+        hasCustomRightArm = true;
       }
     } else {
       // Natural pedestrian sightseeing micro-glances toward Gedung Rektorat UI or Danau Kenanga
@@ -6902,66 +6932,66 @@ export class DynamicTrafficAI {
 
     const armAmp = 0.36 * strideScale * walkBlend;
 
-    let armL = customLeftArm || {
-      rx: -shSinL * armAmp - 0.03,
-      ry: -0.09 * Math.max(0.0, shSinL) * walkBlend, // Subtle natural cross-body medial arc!
-      rz: 0.065 + 0.012 * breathe,
-      elRx: -0.18 - walkBlend * (0.14 + 0.24 * Math.max(0.0, elSinL) * strideScale),
-      wrRx: -0.05 - 0.08 * wrSinL * walkBlend
-    };
-
-    // If holding a closed BOOK in left hand while walking, carry it naturally crooked against hip/waist!
-    if (!customLeftArm && (npc.propType === 'BOOK' || npc.propType === 'OPEN_BOOK')) {
-      armL = {
-        rx: -0.16 - 0.10 * shSinL * walkBlend,
-        ry: -0.14,
-        rz: 0.08,
-        elRx: -0.82 - 0.08 * elSinL * walkBlend,
-        wrRx: -0.08
-      };
+    if (!hasCustomLeftArm) {
+      if (npc.propType === 'BOOK' || npc.propType === 'OPEN_BOOK') {
+        setArmPose(
+          armL,
+          -0.16 - 0.10 * shSinL * walkBlend,
+          -0.14,
+          0.08,
+          -0.82 - 0.08 * elSinL * walkBlend,
+          -0.08
+        );
+      } else {
+        setArmPose(
+          armL,
+          -shSinL * armAmp - 0.03,
+          -0.09 * Math.max(0.0, shSinL) * walkBlend,
+          0.065 + 0.012 * breathe,
+          -0.18 - walkBlend * (0.14 + 0.24 * Math.max(0.0, elSinL) * strideScale),
+          -0.05 - 0.08 * wrSinL * walkBlend
+        );
+      }
     }
 
-    let armR = customRightArm || {
-      rx: -shSinR * armAmp - 0.03,
-      ry: 0.09 * Math.max(0.0, shSinR) * walkBlend,
-      rz: -0.065 - 0.012 * breathe,
-      elRx: -0.18 - walkBlend * (0.14 + 0.24 * Math.max(0.0, elSinR) * strideScale),
-      wrRx: -0.05 - 0.08 * wrSinR * walkBlend
-    };
+    if (!hasCustomRightArm) {
+      setArmPose(
+        armR,
+        -shSinR * armAmp - 0.03,
+        0.09 * Math.max(0.0, shSinR) * walkBlend,
+        -0.065 - 0.012 * breathe,
+        -0.18 - walkBlend * (0.14 + 0.24 * Math.max(0.0, elSinR) * strideScale),
+        -0.05 - 0.08 * wrSinR * walkBlend
+      );
+    }
 
     // Weather Adaptation A: Holding Open 3D Rain Umbrella Overhead!
     if (npc.umbrellaBlend > 0.02) {
       const uB = npc.umbrellaBlend;
       const useLeftForUmbrella = npc.propType === 'PHONE';
       if (useLeftForUmbrella) {
-        armL = {
-          rx: armL.rx * (1.0 - uB) + -0.80 * uB,
-          ry: armL.ry * (1.0 - uB) + -0.22 * uB,
-          rz: armL.rz * (1.0 - uB) + -0.06 * uB,
-          elRx: armL.elRx * (1.0 - uB) + -1.04 * uB,
-          wrRx: armL.wrRx * (1.0 - uB) + 0.14 * uB
-        };
+        armL.rx = armL.rx * (1.0 - uB) + -0.80 * uB;
+        armL.ry = armL.ry * (1.0 - uB) + -0.22 * uB;
+        armL.rz = armL.rz * (1.0 - uB) + -0.06 * uB;
+        armL.elRx = armL.elRx * (1.0 - uB) + -1.04 * uB;
+        armL.wrRx = armL.wrRx * (1.0 - uB) + 0.14 * uB;
       } else {
-        armR = {
-          rx: armR.rx * (1.0 - uB) + -0.80 * uB,
-          ry: armR.ry * (1.0 - uB) + 0.22 * uB,
-          rz: armR.rz * (1.0 - uB) + 0.06 * uB,
-          elRx: armR.elRx * (1.0 - uB) + -1.04 * uB,
-          wrRx: armR.wrRx * (1.0 - uB) + 0.14 * uB
-        };
+        armR.rx = armR.rx * (1.0 - uB) + -0.80 * uB;
+        armR.ry = armR.ry * (1.0 - uB) + 0.22 * uB;
+        armR.rz = armR.rz * (1.0 - uB) + 0.06 * uB;
+        armR.elRx = armR.elRx * (1.0 - uB) + -1.04 * uB;
+        armR.wrRx = armR.wrRx * (1.0 - uB) + 0.14 * uB;
       }
     }
 
     // Weather Adaptation B: Un-umbrellaed Pedestrian Shielding Forehead/Head while Hurrying in Rain!
     if (npc.rainHurryBlend > 0.03) {
       const hB = npc.rainHurryBlend;
-      armL = {
-        rx: armL.rx * (1.0 - hB) + -1.32 * hB,
-        ry: armL.ry * (1.0 - hB) + -0.36 * hB,
-        rz: armL.rz * (1.0 - hB) + 0.18 * hB,
-        elRx: armL.elRx * (1.0 - hB) + -1.48 * hB,
-        wrRx: armL.wrRx * (1.0 - hB) + -0.25 * hB
-      };
+      armL.rx = armL.rx * (1.0 - hB) + -1.32 * hB;
+      armL.ry = armL.ry * (1.0 - hB) + -0.36 * hB;
+      armL.rz = armL.rz * (1.0 - hB) + 0.18 * hB;
+      armL.elRx = armL.elRx * (1.0 - hB) + -1.48 * hB;
+      armL.wrRx = armL.wrRx * (1.0 - hB) + -0.25 * hB;
     }
 
     // === WRITE ALL 22 HIERARCHICAL WORLD & BIND-RELATIVE SKIN MATRICES ===
@@ -7148,38 +7178,106 @@ export class DynamicTrafficAI {
     sy = 1.0,
     sz = 1.0
   ) {
-    this._tmpPos.set(lx, ly, lz);
-    this._tmpEuler.set(rx, ry, rz, 'YXZ');
-    this._tmpQuat.setFromEuler(this._tmpEuler);
-    this._tmpScale.set(sx, sy, sz);
-    this._tmpLocalMat.compose(this._tmpPos, this._tmpQuat, this._tmpScale);
+    let l0, l1, l2, l4, l5, l6, l8, l9, l10;
+    const cx = Math.cos(rx);
+    const sxr = Math.sin(rx);
+    if (ry === 0.0 && rz === 0.0) {
+      l0 = sx;
+      l1 = 0.0;
+      l2 = 0.0;
+      l4 = 0.0;
+      l5 = cx * sy;
+      l6 = sxr * sy;
+      l8 = 0.0;
+      l9 = -sxr * sz;
+      l10 = cx * sz;
+    } else {
+      const cy = Math.cos(ry);
+      const syr = Math.sin(ry);
+      const cz = Math.cos(rz);
+      const szr = Math.sin(rz);
+      const sysx = syr * sxr;
+      const cysx = cy * sxr;
+      l0 = (cy * cz + sysx * szr) * sx;
+      l1 = cx * szr * sx;
+      l2 = (-syr * cz + cysx * szr) * sx;
+      l4 = (-cy * szr + sysx * cz) * sy;
+      l5 = cx * cz * sy;
+      l6 = (syr * szr + cysx * cz) * sy;
+      l8 = syr * cx * sz;
+      l9 = -sxr * sz;
+      l10 = cy * cx * sz;
+    }
 
     const catGlobalBase = this.npcs.length * JOINTS_PER_NPC + catIdx * CAT_JOINTS_PER_CAT;
     const globalJ = catGlobalBase + jointId;
     const outOffset = globalJ * 16;
     const wMats = this._jointWorldMatrices;
 
+    let w0, w1, w2, w4, w5, w6, w8, w9, w10, w12, w13, w14;
     if (parentJointId < 0) {
-      const e = this._tmpLocalMat.elements;
-      for (let i = 0; i < 16; i++) wMats[outOffset + i] = e[i];
+      w0 = l0; w1 = l1; w2 = l2;
+      w4 = l4; w5 = l5; w6 = l6;
+      w8 = l8; w9 = l9; w10 = l10;
+      w12 = lx; w13 = ly; w14 = lz;
     } else {
-      const parentOffset = (catGlobalBase + parentJointId) * 16;
-      for (let i = 0; i < 16; i++) {
-        this._tmpParentMat.elements[i] = wMats[parentOffset + i];
-      }
-      this._tmpWorldMat.multiplyMatrices(this._tmpParentMat, this._tmpLocalMat);
-      const e = this._tmpWorldMat.elements;
-      for (let i = 0; i < 16; i++) wMats[outOffset + i] = e[i];
+      const pOff = (catGlobalBase + parentJointId) * 16;
+      const p0 = wMats[pOff], p1 = wMats[pOff + 1], p2 = wMats[pOff + 2];
+      const p4 = wMats[pOff + 4], p5 = wMats[pOff + 5], p6 = wMats[pOff + 6];
+      const p8 = wMats[pOff + 8], p9 = wMats[pOff + 9], p10 = wMats[pOff + 10];
+      const p12 = wMats[pOff + 12], p13 = wMats[pOff + 13], p14 = wMats[pOff + 14];
+
+      w0 = p0 * l0 + p4 * l1 + p8 * l2;
+      w1 = p1 * l0 + p5 * l1 + p9 * l2;
+      w2 = p2 * l0 + p6 * l1 + p10 * l2;
+
+      w4 = p0 * l4 + p4 * l5 + p8 * l6;
+      w5 = p1 * l4 + p5 * l5 + p9 * l6;
+      w6 = p2 * l4 + p6 * l5 + p10 * l6;
+
+      w8 = p0 * l8 + p4 * l9 + p8 * l10;
+      w9 = p1 * l8 + p5 * l9 + p9 * l10;
+      w10 = p2 * l8 + p6 * l9 + p10 * l10;
+
+      w12 = p0 * lx + p4 * ly + p8 * lz + p12;
+      w13 = p1 * lx + p5 * ly + p9 * lz + p13;
+      w14 = p2 * lx + p6 * ly + p10 * lz + p14;
     }
+
+    wMats[outOffset] = w0;
+    wMats[outOffset + 1] = w1;
+    wMats[outOffset + 2] = w2;
+    wMats[outOffset + 3] = 0.0;
+    wMats[outOffset + 4] = w4;
+    wMats[outOffset + 5] = w5;
+    wMats[outOffset + 6] = w6;
+    wMats[outOffset + 7] = 0.0;
+    wMats[outOffset + 8] = w8;
+    wMats[outOffset + 9] = w9;
+    wMats[outOffset + 10] = w10;
+    wMats[outOffset + 11] = 0.0;
+    wMats[outOffset + 12] = w12;
+    wMats[outOffset + 13] = w13;
+    wMats[outOffset + 14] = w14;
+    wMats[outOffset + 15] = 1.0;
 
     const bp = CAT_BIND_PIVOTS[jointId];
     const bx = bp[0];
     const by = bp[1];
     const bz = bp[2];
     const sMats = this._skinMatrices;
-    for (let i = 0; i < 12; i++) {
-      sMats[outOffset + i] = wMats[outOffset + i];
-    }
+    sMats[outOffset] = wMats[outOffset];
+    sMats[outOffset + 1] = wMats[outOffset + 1];
+    sMats[outOffset + 2] = wMats[outOffset + 2];
+    sMats[outOffset + 3] = 0.0;
+    sMats[outOffset + 4] = wMats[outOffset + 4];
+    sMats[outOffset + 5] = wMats[outOffset + 5];
+    sMats[outOffset + 6] = wMats[outOffset + 6];
+    sMats[outOffset + 7] = 0.0;
+    sMats[outOffset + 8] = wMats[outOffset + 8];
+    sMats[outOffset + 9] = wMats[outOffset + 9];
+    sMats[outOffset + 10] = wMats[outOffset + 10];
+    sMats[outOffset + 11] = 0.0;
     sMats[outOffset + 12] =
       wMats[outOffset + 12] -
       (wMats[outOffset] * bx + wMats[outOffset + 4] * by + wMats[outOffset + 8] * bz);
@@ -7284,20 +7382,32 @@ export class DynamicTrafficAI {
         cat.slopePitch = 0.0;
         cat.slopeRoll = 0.0;
       } else {
-        cat.worldY = this._sampleCatSurfaceY(cat.worldX, cat.worldZ);
-        // Align feline spine & all 4 paws smoothly to hillside / riverbank terrain slope!
-        const probe = 0.20 * s;
-        const sinY = Math.sin(cat.yaw);
-        const cosY = Math.cos(cat.yaw);
-        const yFront = this._sampleCatSurfaceY(cat.worldX + sinY * probe, cat.worldZ + cosY * probe);
-        const yBack = this._sampleCatSurfaceY(cat.worldX - sinY * probe, cat.worldZ - cosY * probe);
-        const yLeft = this._sampleCatSurfaceY(cat.worldX + cosY * probe, cat.worldZ - sinY * probe);
-        const yRight = this._sampleCatSurfaceY(cat.worldX - cosY * probe, cat.worldZ + sinY * probe);
-        // Note: rx < 0 pitches +Z nose UPWARD when yFront > yBack!
-        const targetPitch = -Math.atan2(yFront - yBack, probe * 2.0);
-        const targetRoll = Math.atan2(yRight - yLeft, probe * 2.0);
-        cat.slopePitch = dampScalar(cat.slopePitch, Math.max(-0.45, Math.min(0.45, targetPitch)), 10.0, dt);
-        cat.slopeRoll = dampScalar(cat.slopeRoll, Math.max(-0.35, Math.min(0.35, targetRoll)), 10.0, dt);
+        const movedSlope =
+          cat._lastSlopeX === undefined ||
+          Math.abs(cat.worldX - cat._lastSlopeX) +
+            Math.abs(cat.worldZ - cat._lastSlopeZ) +
+            Math.abs(cat.yaw - cat._lastSlopeYaw) >
+            1e-5;
+        if (movedSlope) {
+          cat._lastSlopeX = cat.worldX;
+          cat._lastSlopeZ = cat.worldZ;
+          cat._lastSlopeYaw = cat.yaw;
+          cat._cachedGroundY = this._sampleCatSurfaceY(cat.worldX, cat.worldZ);
+          // Align feline spine & all 4 paws smoothly to hillside / riverbank terrain slope!
+          const probe = 0.20 * s;
+          const sinY = Math.sin(cat.yaw);
+          const cosY = Math.cos(cat.yaw);
+          const yFront = this._sampleCatSurfaceY(cat.worldX + sinY * probe, cat.worldZ + cosY * probe);
+          const yBack = this._sampleCatSurfaceY(cat.worldX - sinY * probe, cat.worldZ - cosY * probe);
+          const yLeft = this._sampleCatSurfaceY(cat.worldX + cosY * probe, cat.worldZ - sinY * probe);
+          const yRight = this._sampleCatSurfaceY(cat.worldX - cosY * probe, cat.worldZ + sinY * probe);
+          // Note: rx < 0 pitches +Z nose UPWARD when yFront > yBack!
+          cat._cachedTargetPitch = Math.max(-0.45, Math.min(0.45, -Math.atan2(yFront - yBack, probe * 2.0)));
+          cat._cachedTargetRoll = Math.max(-0.35, Math.min(0.35, Math.atan2(yRight - yLeft, probe * 2.0)));
+        }
+        cat.worldY = cat._cachedGroundY;
+        cat.slopePitch = dampScalar(cat.slopePitch, cat._cachedTargetPitch, 10.0, dt);
+        cat.slopeRoll = dampScalar(cat.slopeRoll, cat._cachedTargetRoll, 10.0, dt);
       }
 
       const disp = dt > 1e-5 ? Math.hypot(cat.worldX - prevX, cat.worldZ - prevZ) : 0.0;
@@ -7338,11 +7448,39 @@ export class DynamicTrafficAI {
     const ph = cat.phaseSeed;
     const rainInt = this.sharedUniforms?.uRainIntensity?.value ?? 0.0;
 
-    const dPivot = (childId, parentId) => [
-      bp[childId][0] - bp[parentId][0],
-      bp[childId][1] - bp[parentId][1],
-      bp[childId][2] - bp[parentId][2]
-    ];
+    let relPiv = this._catRelPivots;
+    if (!relPiv) {
+      relPiv = new Float64Array(CAT_JOINTS_PER_CAT * 3);
+      const parents = [
+        -1,
+        CJ_PELVIS,           // CJ_SPINE_MID (1)
+        CJ_SPINE_MID,        // CJ_CHEST (2)
+        CJ_CHEST,            // CJ_NECK (3)
+        CJ_NECK,             // CJ_HEAD (4)
+        CJ_HEAD,             // CJ_EAR_L (5)
+        CJ_HEAD,             // CJ_EAR_R (6)
+        CJ_PELVIS,           // CJ_TAIL_BASE (7)
+        CJ_TAIL_BASE,        // CJ_TAIL_MID (8)
+        CJ_TAIL_MID,         // CJ_TAIL_TIP (9)
+        CJ_CHEST,            // CJ_FRONT_SHOULDER_L (10)
+        CJ_FRONT_SHOULDER_L, // CJ_FRONT_PAW_L (11)
+        CJ_CHEST,            // CJ_FRONT_SHOULDER_R (12)
+        CJ_FRONT_SHOULDER_R, // CJ_FRONT_PAW_R (13)
+        CJ_PELVIS,           // CJ_HIND_HIP_L (14)
+        CJ_HIND_HIP_L,       // CJ_HIND_PAW_L (15)
+        CJ_PELVIS,           // CJ_HIND_HIP_R (16)
+        CJ_HIND_HIP_R        // CJ_HIND_PAW_R (17)
+      ];
+      for (let j = 1; j < CAT_JOINTS_PER_CAT; j++) {
+        const pId = parents[j];
+        if (pId >= 0) {
+          relPiv[j * 3] = bp[j][0] - bp[pId][0];
+          relPiv[j * 3 + 1] = bp[j][1] - bp[pId][1];
+          relPiv[j * 3 + 2] = bp[j][2] - bp[pId][2];
+        }
+      }
+      this._catRelPivots = relPiv;
+    }
 
     // Curious gaze angle toward player or ambient environment scanning
     let gazeYaw = Math.sin(t * 0.85 + ph) * 0.24 + Math.sin(t * 1.9 + ph * 1.7) * 0.08;
@@ -7385,29 +7523,26 @@ export class DynamicTrafficAI {
     const walkBlend = smooth01(0.03, 0.22, cat.liveSpeed);
 
     if ((cat.behavior === 'PROWL_LOOP' || cat.behavior === 'PLAY_STALK') && walkBlend > 0.02) {
-      // --- 4-BEAT QUADRUPED FELINE WALK / TROT BIOMECHANICS ---
+      // --- 4-BEAT QUADRUPED FELINE WALK / TROT BIOMECHANICS (Zero Array Allocation!) ---
       const sampleCatLimb = (phaseOffset, isFore) => {
         const u = ((cat.gaitU + phaseOffset) % 1.0 + 1.0) % 1.0;
-        // u in [0, 0.62]: Stance (paw sweeps front -> back: rx goes -0.34 -> +0.34)
-        // u in [0.62, 1.0]: Swing (paw lifts & reaches forward: rx goes +0.34 -> -0.34 with carpal/hock flex!)
         if (u < 0.62) {
           const st = u / 0.62;
-          const upperRx = (-0.34 + 0.68 * st) * walkBlend;
-          const lowerRx = (isFore ? 0.06 : -0.06) * Math.sin(st * Math.PI) * walkBlend;
-          return [upperRx, lowerRx];
+          _catLimbUpper = (-0.34 + 0.68 * st) * walkBlend;
+          _catLimbLower = (isFore ? 0.06 : -0.06) * Math.sin(st * Math.PI) * walkBlend;
+          return;
         }
         const sw = (u - 0.62) / 0.38;
         const cosSw = 0.5 - 0.5 * Math.cos(sw * Math.PI);
-        const upperRx = (0.34 - 0.68 * cosSw) * walkBlend;
-        const flex = Math.sin(sw * Math.PI) * (isFore ? 0.52 : -0.46) * walkBlend;
-        return [upperRx, flex];
+        _catLimbUpper = (0.34 - 0.68 * cosSw) * walkBlend;
+        _catLimbLower = Math.sin(sw * Math.PI) * (isFore ? 0.52 : -0.46) * walkBlend;
       };
 
       // True lateral-sequence feline 4-beat gait: LH (0.00) -> LF (0.26) -> RH (0.50) -> RF (0.76)
-      [hHipLRx, hPawLRx] = sampleCatLimb(0.0, false);
-      [fShLRx, fPawLRx] = sampleCatLimb(0.26, true);
-      [hHipRRx, hPawRRx] = sampleCatLimb(0.50, false);
-      [fShRRx, fPawRRx] = sampleCatLimb(0.76, true);
+      sampleCatLimb(0.0, false); hHipLRx = _catLimbUpper; hPawLRx = _catLimbLower;
+      sampleCatLimb(0.26, true); fShLRx = _catLimbUpper; fPawLRx = _catLimbLower;
+      sampleCatLimb(0.50, false); hHipRRx = _catLimbUpper; hPawRRx = _catLimbLower;
+      sampleCatLimb(0.76, true); fShRRx = _catLimbUpper; fPawRRx = _catLimbLower;
 
       const bob = Math.sin(cat.gaitU * Math.PI * 4.0) * 0.006 * s * walkBlend;
       pelvisY += bob;
@@ -7515,17 +7650,25 @@ export class DynamicTrafficAI {
       s
     );
 
-    const dSpine = dPivot(CJ_SPINE_MID, CJ_PELVIS);
-    this._writeCatJointWorldMatrix(idx, CJ_SPINE_MID, CJ_PELVIS, dSpine[0], dSpine[1], dSpine[2], spineRx, spineRy, 0.0);
+    this._writeCatJointWorldMatrix(
+      idx,
+      CJ_SPINE_MID,
+      CJ_PELVIS,
+      relPiv[CJ_SPINE_MID * 3],
+      relPiv[CJ_SPINE_MID * 3 + 1],
+      relPiv[CJ_SPINE_MID * 3 + 2],
+      spineRx,
+      spineRy,
+      0.0
+    );
 
-    const dChest = dPivot(CJ_CHEST, CJ_SPINE_MID);
     this._writeCatJointWorldMatrix(
       idx,
       CJ_CHEST,
       CJ_SPINE_MID,
-      dChest[0],
-      dChest[1],
-      dChest[2],
+      relPiv[CJ_CHEST * 3],
+      relPiv[CJ_CHEST * 3 + 1],
+      relPiv[CJ_CHEST * 3 + 2],
       chestRx,
       chestRy,
       0.0,
@@ -7534,50 +7677,21 @@ export class DynamicTrafficAI {
       1.0
     );
 
-    const dNeck = dPivot(CJ_NECK, CJ_CHEST);
-    this._writeCatJointWorldMatrix(idx, CJ_NECK, CJ_CHEST, dNeck[0], dNeck[1], dNeck[2], neckRx, neckRy, 0.0);
-
-    const dHead = dPivot(CJ_HEAD, CJ_NECK);
-    this._writeCatJointWorldMatrix(idx, CJ_HEAD, CJ_NECK, dHead[0], dHead[1], dHead[2], headRx, headRy, headRz);
-
-    const dEarL = dPivot(CJ_EAR_L, CJ_HEAD);
-    this._writeCatJointWorldMatrix(idx, CJ_EAR_L, CJ_HEAD, dEarL[0], dEarL[1], dEarL[2], 0.0, earLRy, -earAirplaneRz);
-
-    const dEarR = dPivot(CJ_EAR_R, CJ_HEAD);
-    this._writeCatJointWorldMatrix(idx, CJ_EAR_R, CJ_HEAD, dEarR[0], dEarR[1], dEarR[2], 0.0, earRRy, earAirplaneRz);
-
-    const dTail0 = dPivot(CJ_TAIL_BASE, CJ_PELVIS);
-    this._writeCatJointWorldMatrix(idx, CJ_TAIL_BASE, CJ_PELVIS, dTail0[0], dTail0[1], dTail0[2], tailBaseRx, tailBaseRy, 0.0);
-
-    const dTail1 = dPivot(CJ_TAIL_MID, CJ_TAIL_BASE);
-    this._writeCatJointWorldMatrix(idx, CJ_TAIL_MID, CJ_TAIL_BASE, dTail1[0], dTail1[1], dTail1[2], tailMidRx, tailMidRy, 0.0);
-
-    const dTail2 = dPivot(CJ_TAIL_TIP, CJ_TAIL_MID);
-    this._writeCatJointWorldMatrix(idx, CJ_TAIL_TIP, CJ_TAIL_MID, dTail2[0], dTail2[1], dTail2[2], tailTipRx, tailTipRy, 0.0);
-
-    const dFShL = dPivot(CJ_FRONT_SHOULDER_L, CJ_CHEST);
-    this._writeCatJointWorldMatrix(idx, CJ_FRONT_SHOULDER_L, CJ_CHEST, dFShL[0], dFShL[1], dFShL[2], fShLRx, 0.0, fShLRz);
-
-    const dFPawL = dPivot(CJ_FRONT_PAW_L, CJ_FRONT_SHOULDER_L);
-    this._writeCatJointWorldMatrix(idx, CJ_FRONT_PAW_L, CJ_FRONT_SHOULDER_L, dFPawL[0], dFPawL[1], dFPawL[2], fPawLRx, 0.0, 0.0);
-
-    const dFShR = dPivot(CJ_FRONT_SHOULDER_R, CJ_CHEST);
-    this._writeCatJointWorldMatrix(idx, CJ_FRONT_SHOULDER_R, CJ_CHEST, dFShR[0], dFShR[1], dFShR[2], fShRRx, 0.0, fShRRz);
-
-    const dFPawR = dPivot(CJ_FRONT_PAW_R, CJ_FRONT_SHOULDER_R);
-    this._writeCatJointWorldMatrix(idx, CJ_FRONT_PAW_R, CJ_FRONT_SHOULDER_R, dFPawR[0], dFPawR[1], dFPawR[2], fPawRRx, 0.0, 0.0);
-
-    const dHHipL = dPivot(CJ_HIND_HIP_L, CJ_PELVIS);
-    this._writeCatJointWorldMatrix(idx, CJ_HIND_HIP_L, CJ_PELVIS, dHHipL[0], dHHipL[1], dHHipL[2], hHipLRx, 0.0, 0.0);
-
-    const dHPawL = dPivot(CJ_HIND_PAW_L, CJ_HIND_HIP_L);
-    this._writeCatJointWorldMatrix(idx, CJ_HIND_PAW_L, CJ_HIND_HIP_L, dHPawL[0], dHPawL[1], dHPawL[2], hPawLRx, 0.0, 0.0);
-
-    const dHHipR = dPivot(CJ_HIND_HIP_R, CJ_PELVIS);
-    this._writeCatJointWorldMatrix(idx, CJ_HIND_HIP_R, CJ_PELVIS, dHHipR[0], dHHipR[1], dHHipR[2], hHipRRx, 0.0, 0.0);
-
-    const dHPawR = dPivot(CJ_HIND_PAW_R, CJ_HIND_HIP_R);
-    this._writeCatJointWorldMatrix(idx, CJ_HIND_PAW_R, CJ_HIND_HIP_R, dHPawR[0], dHPawR[1], dHPawR[2], hPawRRx, 0.0, 0.0);
+    this._writeCatJointWorldMatrix(idx, CJ_NECK, CJ_CHEST, relPiv[CJ_NECK * 3], relPiv[CJ_NECK * 3 + 1], relPiv[CJ_NECK * 3 + 2], neckRx, neckRy, 0.0);
+    this._writeCatJointWorldMatrix(idx, CJ_HEAD, CJ_NECK, relPiv[CJ_HEAD * 3], relPiv[CJ_HEAD * 3 + 1], relPiv[CJ_HEAD * 3 + 2], headRx, headRy, headRz);
+    this._writeCatJointWorldMatrix(idx, CJ_EAR_L, CJ_HEAD, relPiv[CJ_EAR_L * 3], relPiv[CJ_EAR_L * 3 + 1], relPiv[CJ_EAR_L * 3 + 2], 0.0, earLRy, -earAirplaneRz);
+    this._writeCatJointWorldMatrix(idx, CJ_EAR_R, CJ_HEAD, relPiv[CJ_EAR_R * 3], relPiv[CJ_EAR_R * 3 + 1], relPiv[CJ_EAR_R * 3 + 2], 0.0, earRRy, earAirplaneRz);
+    this._writeCatJointWorldMatrix(idx, CJ_TAIL_BASE, CJ_PELVIS, relPiv[CJ_TAIL_BASE * 3], relPiv[CJ_TAIL_BASE * 3 + 1], relPiv[CJ_TAIL_BASE * 3 + 2], tailBaseRx, tailBaseRy, 0.0);
+    this._writeCatJointWorldMatrix(idx, CJ_TAIL_MID, CJ_TAIL_BASE, relPiv[CJ_TAIL_MID * 3], relPiv[CJ_TAIL_MID * 3 + 1], relPiv[CJ_TAIL_MID * 3 + 2], tailMidRx, tailMidRy, 0.0);
+    this._writeCatJointWorldMatrix(idx, CJ_TAIL_TIP, CJ_TAIL_MID, relPiv[CJ_TAIL_TIP * 3], relPiv[CJ_TAIL_TIP * 3 + 1], relPiv[CJ_TAIL_TIP * 3 + 2], tailTipRx, tailTipRy, 0.0);
+    this._writeCatJointWorldMatrix(idx, CJ_FRONT_SHOULDER_L, CJ_CHEST, relPiv[CJ_FRONT_SHOULDER_L * 3], relPiv[CJ_FRONT_SHOULDER_L * 3 + 1], relPiv[CJ_FRONT_SHOULDER_L * 3 + 2], fShLRx, 0.0, fShLRz);
+    this._writeCatJointWorldMatrix(idx, CJ_FRONT_PAW_L, CJ_FRONT_SHOULDER_L, relPiv[CJ_FRONT_PAW_L * 3], relPiv[CJ_FRONT_PAW_L * 3 + 1], relPiv[CJ_FRONT_PAW_L * 3 + 2], fPawLRx, 0.0, 0.0);
+    this._writeCatJointWorldMatrix(idx, CJ_FRONT_SHOULDER_R, CJ_CHEST, relPiv[CJ_FRONT_SHOULDER_R * 3], relPiv[CJ_FRONT_SHOULDER_R * 3 + 1], relPiv[CJ_FRONT_SHOULDER_R * 3 + 2], fShRRx, 0.0, fShRRz);
+    this._writeCatJointWorldMatrix(idx, CJ_FRONT_PAW_R, CJ_FRONT_SHOULDER_R, relPiv[CJ_FRONT_PAW_R * 3], relPiv[CJ_FRONT_PAW_R * 3 + 1], relPiv[CJ_FRONT_PAW_R * 3 + 2], fPawRRx, 0.0, 0.0);
+    this._writeCatJointWorldMatrix(idx, CJ_HIND_HIP_L, CJ_PELVIS, relPiv[CJ_HIND_HIP_L * 3], relPiv[CJ_HIND_HIP_L * 3 + 1], relPiv[CJ_HIND_HIP_L * 3 + 2], hHipLRx, 0.0, 0.0);
+    this._writeCatJointWorldMatrix(idx, CJ_HIND_PAW_L, CJ_HIND_HIP_L, relPiv[CJ_HIND_PAW_L * 3], relPiv[CJ_HIND_PAW_L * 3 + 1], relPiv[CJ_HIND_PAW_L * 3 + 2], hPawLRx, 0.0, 0.0);
+    this._writeCatJointWorldMatrix(idx, CJ_HIND_HIP_R, CJ_PELVIS, relPiv[CJ_HIND_HIP_R * 3], relPiv[CJ_HIND_HIP_R * 3 + 1], relPiv[CJ_HIND_HIP_R * 3 + 2], hHipRRx, 0.0, 0.0);
+    this._writeCatJointWorldMatrix(idx, CJ_HIND_PAW_R, CJ_HIND_HIP_R, relPiv[CJ_HIND_PAW_R * 3], relPiv[CJ_HIND_PAW_R * 3 + 1], relPiv[CJ_HIND_PAW_R * 3 + 2], hPawRRx, 0.0, 0.0);
   }
 
   /**

@@ -25,16 +25,114 @@ export class GateVerifier {
     };
 
     rootGroup.updateMatrixWorld(true);
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
     rootGroup.traverse((obj) => {
       if ((obj.isMesh || obj.isLineSegments) && obj.geometry) {
-        for (const attrName of ['position', 'normal', 'uv']) {
-          const attr = obj.geometry.attributes[attrName];
-          if (!attr) continue;
-          const arr = attr.array;
-          for (let i = 0; i < arr.length; i++) {
-            if (!Number.isFinite(arr[i])) {
-              result.nanCount++;
+        const attrs = obj.geometry.attributes;
+        const posAttr = attrs.position;
+        if (posAttr && posAttr.array) {
+          const pArr = posAttr.array;
+          const pLen = pArr.length;
+          const e = obj.matrixWorld.elements;
+          const m0 = e[0], m1 = e[1], m2 = e[2];
+          const m4 = e[4], m5 = e[5], m6 = e[6];
+          const m8 = e[8], m9 = e[9], m10 = e[10];
+          const m12 = e[12], m13 = e[13], m14 = e[14];
+          const isIdentity =
+            m0 === 1 && m5 === 1 && m10 === 1 && e[15] === 1 &&
+            m1 === 0 && m2 === 0 && m4 === 0 && m6 === 0 &&
+            m8 === 0 && m9 === 0 && m12 === 0 && m13 === 0 && m14 === 0;
+
+          if (obj.isInstancedMesh && obj.instanceMatrix && obj.count > 0) {
+            for (let i = 0; i < pLen; i++) {
+              if (!Number.isFinite(pArr[i])) result.nanCount++;
             }
+            const im = obj.userData?.srcInstanceMatrices || obj.instanceMatrix.array;
+            const ic = obj.userData?.fullInstanceCount ?? obj.count;
+            for (let inst = 0; inst < ic; inst++) {
+              const io = inst * 16;
+              const a0 = m0 * im[io] + m4 * im[io + 1] + m8 * im[io + 2];
+              const a1 = m1 * im[io] + m5 * im[io + 1] + m9 * im[io + 2];
+              const a2 = m2 * im[io] + m6 * im[io + 1] + m10 * im[io + 2];
+              const a4 = m0 * im[io + 4] + m4 * im[io + 5] + m8 * im[io + 6];
+              const a5 = m1 * im[io + 4] + m5 * im[io + 5] + m9 * im[io + 6];
+              const a6 = m2 * im[io + 4] + m6 * im[io + 5] + m10 * im[io + 6];
+              const a8 = m0 * im[io + 8] + m4 * im[io + 9] + m8 * im[io + 10];
+              const a9 = m1 * im[io + 8] + m5 * im[io + 9] + m9 * im[io + 10];
+              const a10 = m2 * im[io + 8] + m6 * im[io + 9] + m10 * im[io + 10];
+              const a12 = m0 * im[io + 12] + m4 * im[io + 13] + m8 * im[io + 14] + m12;
+              const a13 = m1 * im[io + 12] + m5 * im[io + 13] + m9 * im[io + 14] + m13;
+              const a14 = m2 * im[io + 12] + m6 * im[io + 13] + m10 * im[io + 14] + m14;
+              for (let i = 0; i < pLen; i += 3) {
+                const lx = pArr[i], ly = pArr[i + 1], lz = pArr[i + 2];
+                const wx = a0 * lx + a4 * ly + a8 * lz + a12;
+                const wy = a1 * lx + a5 * ly + a9 * lz + a13;
+                const wz = a2 * lx + a6 * ly + a10 * lz + a14;
+                if (wx < minX) minX = wx;
+                if (wx > maxX) maxX = wx;
+                if (wy < minY) minY = wy;
+                if (wy > maxY) maxY = wy;
+                if (wz < minZ) minZ = wz;
+                if (wz > maxZ) maxZ = wz;
+              }
+            }
+          } else if (isIdentity) {
+            for (let i = 0; i < pLen; i += 3) {
+              const x = pArr[i];
+              const y = pArr[i + 1];
+              const z = pArr[i + 2];
+              if (!Number.isFinite(x)) result.nanCount++;
+              else {
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+              }
+              if (!Number.isFinite(y)) result.nanCount++;
+              else {
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+              }
+              if (!Number.isFinite(z)) result.nanCount++;
+              else {
+                if (z < minZ) minZ = z;
+                if (z > maxZ) maxZ = z;
+              }
+            }
+          } else {
+            for (let i = 0; i < pLen; i += 3) {
+              const lx = pArr[i];
+              const ly = pArr[i + 1];
+              const lz = pArr[i + 2];
+              if (!Number.isFinite(lx)) result.nanCount++;
+              if (!Number.isFinite(ly)) result.nanCount++;
+              if (!Number.isFinite(lz)) result.nanCount++;
+              const wx = m0 * lx + m4 * ly + m8 * lz + m12;
+              const wy = m1 * lx + m5 * ly + m9 * lz + m13;
+              const wz = m2 * lx + m6 * ly + m10 * lz + m14;
+              if (Number.isFinite(wx) && Number.isFinite(wy) && Number.isFinite(wz)) {
+                if (wx < minX) minX = wx;
+                if (wx > maxX) maxX = wx;
+                if (wy < minY) minY = wy;
+                if (wy > maxY) maxY = wy;
+                if (wz < minZ) minZ = wz;
+                if (wz > maxZ) maxZ = wz;
+              }
+            }
+          }
+        }
+        const nAttr = attrs.normal;
+        if (nAttr && nAttr.array) {
+          const arr = nAttr.array;
+          for (let i = 0, len = arr.length; i < len; i++) {
+            if (!Number.isFinite(arr[i])) result.nanCount++;
+          }
+        }
+        const uAttr = attrs.uv;
+        if (uAttr && uAttr.array) {
+          const arr = uAttr.array;
+          for (let i = 0, len = arr.length; i < len; i++) {
+            if (!Number.isFinite(arr[i])) result.nanCount++;
           }
         }
       }
@@ -45,25 +143,25 @@ export class GateVerifier {
       result.details.push(`Gate 1 Gagal: Ditemukan ${result.nanCount} nilai NaN/Infinity pada BufferGeometry.`);
     }
 
-    const box = new THREE.Box3().setFromObject(rootGroup);
-    if (!box.isEmpty()) {
-      const size = new THREE.Vector3();
-      box.getSize(size);
-      const aboveGroundHeight = box.max.y;
-      const skirtDepth = Math.max(0, -box.min.y);
+    if (minX <= maxX && minY <= maxY && minZ <= maxZ) {
+      const sizeX = maxX - minX;
+      const sizeY = maxY - minY;
+      const sizeZ = maxZ - minZ;
+      const aboveGroundHeight = maxY;
+      const skirtDepth = Math.max(0, -minY);
 
       result.measuredSize = {
-        width: +size.x.toFixed(4),
+        width: +sizeX.toFixed(4),
         height: +aboveGroundHeight.toFixed(4),
-        totalSpanY: +size.y.toFixed(4),
-        length: +size.z.toFixed(4)
+        totalSpanY: +sizeY.toFixed(4),
+        length: +sizeZ.toFixed(4)
       };
       result.measuredSkirtDepth = +skirtDepth.toFixed(4);
 
       if (expectedDims) {
-        const devW = Math.abs(size.x - expectedDims.width) / Math.max(0.001, expectedDims.width);
+        const devW = Math.abs(sizeX - expectedDims.width) / Math.max(0.001, expectedDims.width);
         const devH = Math.abs(aboveGroundHeight - expectedDims.height) / Math.max(0.001, expectedDims.height);
-        const devL = Math.abs(size.z - expectedDims.length) / Math.max(0.001, expectedDims.length);
+        const devL = Math.abs(sizeZ - expectedDims.length) / Math.max(0.001, expectedDims.length);
 
         result.deviations = {
           widthPct: +(devW * 100).toFixed(3),
@@ -260,7 +358,8 @@ export class GateVerifier {
         const idxCount = obj.geometry.index
           ? obj.geometry.index.count
           : obj.geometry.attributes.position.count;
-        triangleCount += (idxCount / 3) * (obj.count || 1);
+        const instCount = obj.userData?.fullInstanceCount ?? (obj.count || 1);
+        triangleCount += (idxCount / 3) * instCount;
       } else if (obj.isMesh || obj.isLineSegments) {
         const matCount = Array.isArray(obj.material) ? obj.material.length : 1;
         drawCalls += matCount;

@@ -221,6 +221,7 @@ export class TropicalGrassField {
     sliceT0 = tPass1End;
 
     // Pass 2: Evaluate Lawn Mask using cached gyGrid finite-difference slopes (zero redundant DEM queries!)
+    const invDx = 1.0 / stepX;
     for (let iz = 0; iz < rows; iz++) {
       const wz = minZ + iz * stepZ;
       const rowOff = iz * cols;
@@ -234,13 +235,12 @@ export class TropicalGrassField {
         if (dCoast > -2.45 || gy < -0.04 || gy > 27.5) continue;
 
         const ixR = ix < cols - 1 ? ix + 1 : ix;
-        const gx = ixR > ix ? Math.abs(gyGrid[rowOff + ixR] - gy) / stepX : 0.0;
+        const gx = ixR > ix ? Math.abs(gyGrid[rowOff + ixR] - gy) * invDx : 0.0;
         const gz = Math.abs(gyGrid[izR * cols + ix] - gy) * invDz;
-        const slope = Math.hypot(gx, gz);
-        if (slope > 0.56) continue;
+        if (gx * gx + gz * gz > 0.3136) continue;
 
         const wx = minX + ix * stepX;
-        rawMask[idx] = TropicalGrassField._isLawnGrassAllowed(wx, wz, gy, dCoast, slope);
+        rawMask[idx] = TropicalGrassField._isLawnGrassAllowed(wx, wz, gy, dCoast, 0.0);
       }
 
       if (typeof yieldFn === 'function' && (iz & 63) === 63) {
@@ -312,13 +312,23 @@ export class TropicalGrassField {
     return tex;
   }
 
-  static _distToSegment2D(px, pz, ax, az, bx, bz) {
+  static _distToSegment2DSq(px, pz, ax, az, bx, bz) {
     const dx = bx - ax;
     const dz = bz - az;
     const len2 = dx * dx + dz * dz;
-    if (len2 <= 1e-8) return Math.hypot(px - ax, pz - az);
+    if (len2 <= 1e-8) {
+      const ex = px - ax;
+      const ez = pz - az;
+      return ex * ex + ez * ez;
+    }
     const t = Math.max(0.0, Math.min(1.0, ((px - ax) * dx + (pz - az) * dz) / len2));
-    return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
+    const qx = px - (ax + dx * t);
+    const qz = pz - (az + dz * t);
+    return qx * qx + qz * qz;
+  }
+
+  static _distToSegment2D(px, pz, ax, az, bx, bz) {
+    return Math.sqrt(TropicalGrassField._distToSegment2DSq(px, pz, ax, az, bx, bz));
   }
 
   static _isLawnGrassAllowed(x, z, gy, precomputedDCoast = null, precomputedSlope = null) {
@@ -334,7 +344,7 @@ export class TropicalGrassField {
       const eps = 0.85;
       const gx = Math.abs(TerrainDEMLoader.sampleGroundHeight(x + eps, z) - gy) / eps;
       const gz = Math.abs(TerrainDEMLoader.sampleGroundHeight(x, z + eps) - gy) / eps;
-      if (Math.hypot(gx, gz) > 0.56) return 0.0;
+      if (gx * gx + gz * gz > 0.3136) return 0.0;
     }
 
     // 4. Gedung Rektorat UI, Ceremonial Plaza, Approach, East Brick Turnaround, & Lakeside Promenade
@@ -342,15 +352,21 @@ export class TropicalGrassField {
     if (x > -21.8 && x < 16.8 && z >= 38.0 && z <= 73.6) return 0.0;
     if (x > -6.0 && x < 51.0 && z > -54.5 && z <= -33.5) return 0.0;
     if (z >= -67.5 && z <= 55.5 && x > TerrainDEMLoader.getShorelinePromenadeX(z) - 3.95) return 0.0;
-    if (Math.hypot(x - 29.5, z - 29.5) < 9.0) return 0.0;
-    if (Math.hypot(x - 28.4, z - 78.2) < 5.6) return 0.0;
+    {
+      const dx1 = x - 29.5;
+      const dz1 = z - 29.5;
+      if (dx1 * dx1 + dz1 * dz1 < 81.0) return 0.0;
+      const dx2 = x - 28.4;
+      const dz2 = z - 78.2;
+      if (dx2 * dx2 + dz2 * dz2 < 31.36) return 0.0;
+    }
 
     // East Lakeside Brick Turnaround spline ((18,-39)->(31,-40.5)->(44.5,-36.5)->(48.5,-25.5), halfW=4.6 + curb=0.38)
     if (x >= 11.5 && x <= 55.5 && z >= -47.0 && z <= -19.0) {
       if (
-        TropicalGrassField._distToSegment2D(x, z, 18.0, -39.0, 31.0, -40.5) < 5.65 ||
-        TropicalGrassField._distToSegment2D(x, z, 31.0, -40.5, 44.5, -36.5) < 5.65 ||
-        TropicalGrassField._distToSegment2D(x, z, 44.5, -36.5, 48.5, -25.5) < 5.65
+        TropicalGrassField._distToSegment2DSq(x, z, 18.0, -39.0, 31.0, -40.5) < 31.9225 ||
+        TropicalGrassField._distToSegment2DSq(x, z, 31.0, -40.5, 44.5, -36.5) < 31.9225 ||
+        TropicalGrassField._distToSegment2DSq(x, z, 44.5, -36.5, 48.5, -25.5) < 31.9225
       ) {
         return 0.0;
       }
@@ -368,33 +384,53 @@ export class TropicalGrassField {
     //    - Fountain stone planter curb is R = 5.52m -> exclude rRot < 5.85m
     //    - Inner zebra curb is R = 23.35..23.90m, Asphalt is 23.90..33.70m, Outer zebra curb is 33.70..34.25m,
     //      Outer lamp/bench strip + EPDM Jogging Track is 34.90..38.35m -> exclude 22.95m..38.95m!
-    const rRot = Math.hypot(
-      x - SplineCorridorBuilder.ROTUNDA_CX,
-      z - SplineCorridorBuilder.ROTUNDA_CZ
-    );
-    if (rRot < 5.85 || (rRot > 22.95 && rRot < 38.95)) return 0.0;
+    {
+      const rdx = x - SplineCorridorBuilder.ROTUNDA_CX;
+      const rdz = z - SplineCorridorBuilder.ROTUNDA_CZ;
+      const rRotSq = rdx * rdx + rdz * rdz;
+      if (rRotSq < 34.2225 || (rRotSq > 526.7025 && rRotSq < 1517.1025)) return 0.0;
+    }
 
     // Rotunda <-> Jembatan Teksas UI West Forecourt Promenade Connector ((-20.65,135.30)->(-24.6,140.8)->(-28.0,146.8))
     if (x >= -34.0 && x <= -16.5 && z >= 132.5 && z <= 149.5) {
       if (
-        TropicalGrassField._distToSegment2D(x, z, -20.65, 135.3, -24.6, 140.8) < 3.35 ||
-        TropicalGrassField._distToSegment2D(x, z, -24.6, 140.8, -28.0, 146.8) < 3.35
+        TropicalGrassField._distToSegment2DSq(x, z, -20.65, 135.3, -24.6, 140.8) < 11.2225 ||
+        TropicalGrassField._distToSegment2DSq(x, z, -24.6, 140.8, -28.0, 146.8) < 11.2225
       ) {
         return 0.0;
       }
     }
 
     // 7. Helipad concrete deck, Transit Pavilion, Jembatan Teksas plazas/ramps, Calisthenics EPDM Oval, Kiosks, & Muster pads
-    if (Math.hypot(x - TerrainDEMLoader.HELIPAD_CX, z - TerrainDEMLoader.HELIPAD_CZ) < 17.6) return 0.0;
-    if (Math.hypot(x + 84.8, z - 118.2) < 6.4 || Math.hypot(x + 87.2, z - 92.8) < 4.4) return 0.0;
-    if (Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) < 10.2 && z > 132.0 && z < 351.0) return 0.0;
-    if (Math.hypot((x + 62.0) / 17.6, (z - 136.5) / 8.9) < 1.0) return 0.0;
-
-    for (const ks of SplineCorridorBuilder.KIOSK_SPECS) {
-      if (Math.hypot(x - ks.x, z - ks.z) < 4.9) return 0.0;
+    {
+      const hdx = x - TerrainDEMLoader.HELIPAD_CX;
+      const hdz = z - TerrainDEMLoader.HELIPAD_CZ;
+      if (hdx * hdx + hdz * hdz < 309.76) return 0.0;
+      const pdx1 = x + 84.8;
+      const pdz1 = z - 118.2;
+      if (pdx1 * pdx1 + pdz1 * pdz1 < 40.96) return 0.0;
+      const pdx2 = x + 87.2;
+      const pdz2 = z - 92.8;
+      if (pdx2 * pdx2 + pdz2 * pdz2 < 19.36) return 0.0;
+      if (Math.abs(x - TerrainDEMLoader.TEKSAS_BRIDGE_X) < 10.2 && z > 132.0 && z < 351.0) return 0.0;
+      const cdx = (x + 62.0) / 17.6;
+      const cdz = (z - 136.5) / 8.9;
+      if (cdx * cdx + cdz * cdz < 1.0) return 0.0;
     }
-    for (const mp of SplineCorridorBuilder.MUSTER_POINTS) {
-      if (Math.hypot(x - mp.x, z - mp.z) < 3.8) return 0.0;
+
+    const kiosks = SplineCorridorBuilder.KIOSK_SPECS;
+    for (let k = 0, kLen = kiosks.length; k < kLen; k++) {
+      const ks = kiosks[k];
+      const kdx = x - ks.x;
+      const kdz = z - ks.z;
+      if (kdx * kdx + kdz * kdz < 24.01) return 0.0;
+    }
+    const musters = SplineCorridorBuilder.MUSTER_POINTS;
+    for (let m = 0, mLen = musters.length; m < mLen; m++) {
+      const mp = musters[m];
+      const mdx = x - mp.x;
+      const mdz = z - mp.z;
+      if (mdx * mdx + mdz * mdz < 14.44) return 0.0;
     }
 
     // 8. Road corridors, Underpass open-cut ramps, Ferry forecourts, DPPD complex, & ATC tower
@@ -403,8 +439,12 @@ export class TropicalGrassField {
     // 9. Pulau I ICAO Runway RWY 36/18, Taxiway, Aircraft Apron, Volcano Upper Cone, & Mini-Niagara Gorge
     if (z >= 536.0) {
       if (x >= -383.0 && x <= -129.0 && z >= 653.0 && z <= 725.0) return 0.0;
-      if (Math.hypot(x - TerrainDEMLoader.VOLCANO_CX, z - TerrainDEMLoader.VOLCANO_CZ) < 36.5) return 0.0;
-      if (Math.hypot(x - TerrainDEMLoader.NIAGARA_CX, z - TerrainDEMLoader.NIAGARA_CZ) < 22.0) return 0.0;
+      const vdx = x - TerrainDEMLoader.VOLCANO_CX;
+      const vdz = z - TerrainDEMLoader.VOLCANO_CZ;
+      if (vdx * vdx + vdz * vdz < 1332.25) return 0.0;
+      const ndx = x - TerrainDEMLoader.NIAGARA_CX;
+      const ndz = z - TerrainDEMLoader.NIAGARA_CZ;
+      if (ndx * ndx + ndz * ndz < 484.0) return 0.0;
     }
 
     // 10. Freshwater spring, meandering river, lakes, & Mini-Niagara gorge exclusion (checked after fast O(1) AABBs)
@@ -502,11 +542,10 @@ export class TropicalGrassField {
         const ixR = ix < cols - 1 ? ix + 1 : ix;
         const gx = ixR > ix ? Math.abs(gyGrid[rowOff + ixR] - gy) / stepX : 0.0;
         const gz = Math.abs(gyGrid[izR * cols + ix] - gy) * invDz;
-        const slope = Math.hypot(gx, gz);
-        if (slope > 0.56) continue;
+        if (gx * gx + gz * gz > 0.3136) continue;
 
         const wx = minX + ix * stepX;
-        rawMask[idx] = TropicalGrassField._isLawnGrassAllowed(wx, wz, gy, dCoast, slope);
+        rawMask[idx] = TropicalGrassField._isLawnGrassAllowed(wx, wz, gy, dCoast, 0.0);
       }
     }
 
@@ -776,28 +815,36 @@ export class TropicalGrassField {
             '#include <beginnormal_vertex>',
             'vec2 tgfRelFocus = mod(aBladeData.xy - uGrassFocusXZ + TGF_HALF_SPAN, TGF_FIELD_SPAN) - TGF_HALF_SPAN;',
             'vec2 tgfRootXZ = uGrassFocusXZ + tgfRelFocus;',
-            'vec3 tgfLawn = tgfSampleBakedLawn(tgfRootXZ);',
-            'float tgfGroundY = tgfLawn.x;',
-            'float tgfMask = tgfLawn.y;',
-            'float tgfLush = tgfLawn.z;',
-            'float tgfSeed = aBladeData.w;',
-            '',
-            '// Exact float32 analytic circular lawn trimming at Lapangan Rotunda UI (-2.5, 106.5):',
-            '// Inner zebra curb starts at R = 23.35m -> trim cleanly at R = 23.02m (33cm > 9.6cm stolon radius = 0.000% curb bleed!)',
-            'float tgfRotR = length(tgfRootXZ - vec2(-2.5, 106.5));',
-            'if (tgfRotR < 39.20) {',
-            '  float tgfInnerRot = smoothstep(5.82, 6.18, tgfRotR) * (1.0 - smoothstep(22.62, 23.02, tgfRotR));',
-            '  float tgfOuterRot = smoothstep(38.80, 39.20, tgfRotR);',
-            '  tgfMask *= max(tgfInnerRot, tgfOuterRot);',
-            '}',
-            '',
             'float tgfCamDistXZ = length(tgfRootXZ - uCamPos.xz);',
             'float tgfFocusEdge = max(abs(tgfRelFocus.x), abs(tgfRelFocus.y));',
-            'float tgfAltAbove = max(0.0, uCamPos.y - tgfGroundY);',
             'float tgfBoxFade = 1.0 - smoothstep(TGF_HALF_SPAN - 8.5, TGF_HALF_SPAN - 0.6, tgfFocusEdge);',
             'float tgfDistFade = 1.0 - smoothstep(28.0, 43.5, tgfCamDistXZ);',
-            'float tgfAltFade = 1.0 - smoothstep(22.0, 40.0, tgfAltAbove);',
-            'float tgfVisScale = smoothstep(0.24, 0.60, tgfMask) * tgfBoxFade * tgfDistFade * tgfAltFade;',
+            'float tgfPreFade = tgfBoxFade * tgfDistFade;',
+            'float tgfGroundY = 0.0;',
+            'float tgfMask = 0.0;',
+            'float tgfLush = 0.5;',
+            'float tgfAltAbove = 0.0;',
+            'float tgfVisScale = 0.0;',
+            'float tgfSeed = aBladeData.w;',
+            'if (tgfPreFade > 0.003) {',
+            '  vec3 tgfLawn = tgfSampleBakedLawn(tgfRootXZ);',
+            '  tgfGroundY = tgfLawn.x;',
+            '  tgfMask = tgfLawn.y;',
+            '  tgfLush = tgfLawn.z;',
+            '  // Exact float32 analytic circular lawn trimming at Lapangan Rotunda UI (-2.5, 106.5):',
+            '  // Inner zebra curb starts at R = 23.35m -> trim cleanly at R = 23.02m (33cm > 9.6cm stolon radius = 0.000% curb bleed!)',
+            '  vec2 tgfRotD = tgfRootXZ - vec2(-2.5, 106.5);',
+            '  float tgfRotRSq = dot(tgfRotD, tgfRotD);',
+            '  if (tgfRotRSq < 1536.64) {',
+            '    float tgfRotR = sqrt(tgfRotRSq);',
+            '    float tgfInnerRot = smoothstep(5.82, 6.18, tgfRotR) * (1.0 - smoothstep(22.62, 23.02, tgfRotR));',
+            '    float tgfOuterRot = smoothstep(38.80, 39.20, tgfRotR);',
+            '    tgfMask *= max(tgfInnerRot, tgfOuterRot);',
+            '  }',
+            '  tgfAltAbove = max(0.0, uCamPos.y - tgfGroundY);',
+            '  float tgfAltFade = 1.0 - smoothstep(22.0, 40.0, tgfAltAbove);',
+            '  tgfVisScale = smoothstep(0.24, 0.60, tgfMask) * tgfPreFade * tgfAltFade;',
+            '}',
             'bool tgfHidden = (tgfVisScale <= 0.003);',
             '',
             'vec3 tgfWorldPos = vec3(tgfRootXZ.x, tgfGroundY, tgfRootXZ.y);',
@@ -903,10 +950,10 @@ export class TropicalGrassField {
 
   update(camera, _weatherState = null, _sharedSurfaceUniforms = null) {
     if (!camera || !this.uniforms) return;
-    if (this.mesh) {
-      this.mesh.visible = camera.position.y < 44.0;
+    if (camera.position.y >= 44.0) {
+      if (this.mesh) this.mesh.visible = false;
+      return;
     }
-    if (camera.position.y >= 44.0) return;
     this.uniforms.uCamPos.value.copy(camera.position);
 
     camera.getWorldDirection(this._camDirScratch);
@@ -919,10 +966,16 @@ export class TropicalGrassField {
     const dirX = horizLen > 1e-3 ? fx / horizLen : 0.0;
     const dirZ = horizLen > 1e-3 ? fz / horizLen : 0.0;
 
-    this.uniforms.uGrassFocusXZ.value.set(
-      camera.position.x + dirX * aheadDist,
-      camera.position.z + dirZ * aheadDist
-    );
+    const focusX = camera.position.x + dirX * aheadDist;
+    const focusZ = camera.position.z + dirZ * aheadDist;
+    // Skip 1.44M-triangle grass draw call when sailing/flying over open ocean > 43.5m from any island coast
+    // (since field half-diagonal is 28 * sqrt(2) = 39.60m and grass only exists where dCoast <= -2.45m!)
+    if (TerrainDEMLoader.getIslandCoastDistance(focusX, focusZ) > 43.5) {
+      if (this.mesh) this.mesh.visible = false;
+      return;
+    }
+    if (this.mesh) this.mesh.visible = true;
+    this.uniforms.uGrassFocusXZ.value.set(focusX, focusZ);
   }
 
   dispose() {

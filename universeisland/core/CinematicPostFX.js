@@ -347,7 +347,14 @@ export class CinematicPostFX {
    * Renders the real-time planar mirror reflection of the above-water world into planarReflTarget
    * and binds uPlanarReflTex / uPlanarReflMatrix / uPlanarReflActive on weatherOptics.oceanUniforms.
    */
-  renderPlanarWaterReflection(scene, camera, weatherOptics, waterY = -1.45, hiddenDuringRefl = []) {
+  renderPlanarWaterReflection(
+    scene,
+    camera,
+    weatherOptics,
+    waterY = -1.45,
+    hiddenDuringRefl = [],
+    onBeforePlanarRender = null
+  ) {
     this.lastPlanarReflRan = false;
     this.lastPlanarReflCalls = 0;
     const oceanU = weatherOptics && (weatherOptics.uniforms || weatherOptics.oceanUniforms);
@@ -421,10 +428,10 @@ export class CinematicPostFX {
     rc.matrixWorld.copy(this._reflBasisMat);
     rc.matrixWorldInverse.copy(this._reflBasisMat).invert();
 
-    // Build projective UV matrix: bias * P * V_refl
-    this.planarTextureMatrix.copy(this._biasMatrix);
-    this.planarTextureMatrix.multiply(rc.projectionMatrix);
-    this.planarTextureMatrix.multiply(rc.matrixWorldInverse);
+    // Build un-obliqued mirrored P * V_refl + projective UV matrix: bias * (P * V_refl)
+    const reflProjView = this._reflProjViewMat || (this._reflProjViewMat = new THREE.Matrix4());
+    reflProjView.multiplyMatrices(rc.projectionMatrix, rc.matrixWorldInverse);
+    this.planarTextureMatrix.multiplyMatrices(this._biasMatrix, reflProjView);
 
     // Apply Lengyel's oblique near-plane clip (world plane: y >= waterY - 0.14) to projectionMatrix row 2
     const d0 = -(waterY - 0.14);
@@ -448,11 +455,16 @@ export class CinematicPostFX {
       pe[14] = cw * scale;
     }
 
-    const prevVis = [];
+    const prevVis = this._prevVisScratch || (this._prevVisScratch = []);
+    prevVis.length = hiddenDuringRefl.length;
     for (let i = 0; i < hiddenDuringRefl.length; i++) {
       const obj = hiddenDuringRefl[i];
-      prevVis.push(obj ? obj.visible : false);
+      prevVis[i] = obj ? obj.visible : false;
       if (obj) obj.visible = false;
+    }
+
+    if (typeof onBeforePlanarRender === 'function') {
+      onBeforePlanarRender(reflProjView, waterY);
     }
 
     const prevTarget = r.getRenderTarget();

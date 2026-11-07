@@ -1509,6 +1509,384 @@ export class AutogenBiomeSpawner {
     biomeGroup.userData.forestShrubs = forestShrubs;
     biomeGroup.userData.lampCoords = lampCoords;
     biomeGroup.updateMatrixWorld(true);
+    AutogenBiomeSpawner._initFrustumCompactionState(biomeGroup, [
+      trunkInstanced,
+      canopyInstanced,
+      lampInstanced
+    ]);
     return biomeGroup;
+  }
+
+  /**
+   * Precomputes immutable source instance matrices/colors + exact local-to-group bounding spheres
+   * (with +1.35m wind-sway & soft-shadow safety margin) for zero-GC per-pass frustum compaction.
+   * Build-time counts & attributes remain 100% intact for 4-Gate verification & shader pre-warming.
+   */
+  static _initFrustumCompactionState(biomeGroup, instancedList) {
+    const entries = [];
+    for (let m = 0; m < instancedList.length; m++) {
+      const inst = instancedList[m];
+      if (!inst || !inst.instanceMatrix || !inst.geometry) continue;
+      const fullCount = inst.count | 0;
+      if (fullCount <= 0) continue;
+
+      let bx = 0.0, by = 0.0, bz = 0.0, br = 4.0;
+      const posArr = inst.geometry.attributes?.position?.array;
+      if (posArr && posArr.length >= 3) {
+        let minX = Infinity, minY = Infinity, minZ = Infinity;
+        let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+        for (let k = 0, kLen = posArr.length; k < kLen; k += 3) {
+          const px = posArr[k], py = posArr[k + 1], pz = posArr[k + 2];
+          if (px < minX) minX = px;
+          if (px > maxX) maxX = px;
+          if (py < minY) minY = py;
+          if (py > maxY) maxY = py;
+          if (pz < minZ) minZ = pz;
+          if (pz > maxZ) maxZ = pz;
+        }
+        bx = 0.5 * (minX + maxX);
+        by = 0.5 * (minY + maxY);
+        bz = 0.5 * (minZ + maxZ);
+        let maxR2 = 0.0;
+        for (let k = 0, kLen = posArr.length; k < kLen; k += 3) {
+          const dx = posArr[k] - bx;
+          const dy = posArr[k + 1] - by;
+          const dz = posArr[k + 2] - bz;
+          const r2 = dx * dx + dy * dy + dz * dz;
+          if (r2 > maxR2) maxR2 = r2;
+        }
+        br = Math.sqrt(maxR2);
+      } else {
+        if (!inst.geometry.boundingSphere && typeof inst.geometry.computeBoundingSphere === 'function') {
+          inst.geometry.computeBoundingSphere();
+        }
+        const bs = inst.geometry.boundingSphere;
+        bx = bs?.center?.x || 0.0;
+        by = bs?.center?.y || 0.0;
+        bz = bs?.center?.z || 0.0;
+        br = bs?.radius || 4.0;
+      }
+
+      const rawMatArr = inst.instanceMatrix.array || inst.instanceMatrix;
+      if (!rawMatArr || rawMatArr.length < fullCount * 16) continue;
+      const srcMat = new Float32Array(rawMatArr);
+      const rawColArr = inst.instanceColor ? (inst.instanceColor.array || inst.instanceColor) : null;
+      const hasColor = Boolean(rawColArr && rawColArr.length >= fullCount * 3);
+      const srcCol = hasColor ? new Float32Array(rawColArr) : null;
+      const spheres = new Float32Array(fullCount * 4);
+
+      for (let i = 0; i < fullCount; i++) {
+        const o = i * 16;
+        const m0 = srcMat[o], m1 = srcMat[o + 1], m2 = srcMat[o + 2];
+        const m4 = srcMat[o + 4], m5 = srcMat[o + 5], m6 = srcMat[o + 6];
+        const m8 = srcMat[o + 8], m9 = srcMat[o + 9], m10 = srcMat[o + 10];
+        const m12 = srcMat[o + 12], m13 = srcMat[o + 13], m14 = srcMat[o + 14];
+
+        const cx = m0 * bx + m4 * by + m8 * bz + m12;
+        const cy = m1 * bx + m5 * by + m9 * bz + m13;
+        const cz = m2 * bx + m6 * by + m10 * bz + m14;
+
+        const sx2 = m0 * m0 + m1 * m1 + m2 * m2;
+        const sy2 = m4 * m4 + m5 * m5 + m6 * m6;
+        const sz2 = m8 * m8 + m9 * m9 + m10 * m10;
+        const maxScale = Math.sqrt(Math.max(sx2, sy2, sz2));
+
+        const so = i * 4;
+        spheres[so] = cx;
+        spheres[so + 1] = cy;
+        spheres[so + 2] = cz;
+        spheres[so + 3] = br * maxScale + 1.35;
+      }
+
+      inst.frustumCulled = false;
+      inst.userData.fullInstanceCount = fullCount;
+      inst.userData.srcInstanceMatrices = srcMat;
+      if (srcCol) inst.userData.srcInstanceColors = srcCol;
+
+      entries.push({
+        mesh: inst,
+        fullCount,
+        srcMat,
+        srcCol,
+        spheres
+      });
+    }
+
+    biomeGroup.userData._frustumCompaction = {
+      entries,
+      mainProjView: new THREE.Matrix4(),
+      shadowProjView: new THREE.Matrix4(),
+      planesA: new Float32Array(24),
+      planesB: new Float32Array(24)
+    };
+  }
+
+  static _extractFrustumPlanes(projViewMat, outPlanes24) {
+    const me = projViewMat.elements;
+    const m0 = me[0], m1 = me[1], m2 = me[2], m3 = me[3];
+    const m4 = me[4], m5 = me[5], m6 = me[6], m7 = me[7];
+    const m8 = me[8], m9 = me[9], m10 = me[10], m11 = me[11];
+    const m12 = me[12], m13 = me[13], m14 = me[14], m15 = me[15];
+
+    // Right, Left, Bottom, Top, Far, Near (Gribb-Hartmann inward OpenGL clip planes)
+    outPlanes24[0] = m3 - m0; outPlanes24[1] = m7 - m4; outPlanes24[2] = m11 - m8; outPlanes24[3] = m15 - m12;
+    outPlanes24[4] = m3 + m0; outPlanes24[5] = m7 + m4; outPlanes24[6] = m11 + m8; outPlanes24[7] = m15 + m12;
+    outPlanes24[8] = m3 + m1; outPlanes24[9] = m7 + m5; outPlanes24[10] = m11 + m9; outPlanes24[11] = m15 + m13;
+    outPlanes24[12] = m3 - m1; outPlanes24[13] = m7 - m5; outPlanes24[14] = m11 - m9; outPlanes24[15] = m15 - m13;
+    outPlanes24[16] = m3 - m2; outPlanes24[17] = m7 - m6; outPlanes24[18] = m11 - m10; outPlanes24[19] = m15 - m14;
+    outPlanes24[20] = m3 + m2; outPlanes24[21] = m7 + m6; outPlanes24[22] = m11 + m10; outPlanes24[23] = m15 + m14;
+
+    for (let p = 0; p < 24; p += 4) {
+      const nx = outPlanes24[p];
+      const ny = outPlanes24[p + 1];
+      const nz = outPlanes24[p + 2];
+      const invLen = 1.0 / (Math.sqrt(nx * nx + ny * ny + nz * nz) || 1.0);
+      outPlanes24[p] = nx * invLen;
+      outPlanes24[p + 1] = ny * invLen;
+      outPlanes24[p + 2] = nz * invLen;
+      outPlanes24[p + 3] *= invLen;
+    }
+  }
+
+  /**
+   * Compacts all 3 biome InstancedMeshes for the Planar Water Reflection pass:
+   * keeps only instances intersecting the mirrored reflection frustum AND extending above waterY - 0.25m.
+   */
+  static cullForPlanarReflection(biomeGroup, reflUnobliquedProjViewMat, waterY = -1.45) {
+    const fc = biomeGroup?.userData?._frustumCompaction;
+    if (!fc || !reflUnobliquedProjViewMat) return;
+
+    const planes = fc.planesA;
+    AutogenBiomeSpawner._extractFrustumPlanes(reflUnobliquedProjViewMat, planes);
+    const p0 = planes[0], p1 = planes[1], p2 = planes[2], p3 = planes[3];
+    const p4 = planes[4], p5 = planes[5], p6 = planes[6], p7 = planes[7];
+    const p8 = planes[8], p9 = planes[9], p10 = planes[10], p11 = planes[11];
+    const p12 = planes[12], p13 = planes[13], p14 = planes[14], p15 = planes[15];
+    const p16 = planes[16], p17 = planes[17], p18 = planes[18], p19 = planes[19];
+    const p20 = planes[20], p21 = planes[21], p22 = planes[22], p23 = planes[23];
+    const minReflY = waterY - 0.25;
+
+    const entries = fc.entries;
+    for (let eIdx = 0; eIdx < entries.length; eIdx++) {
+      const entry = entries[eIdx];
+      const inst = entry.mesh;
+      const mw = inst.matrixWorld.elements;
+      const ox = mw[12], oy = mw[13], oz = mw[14];
+      const spheres = entry.spheres;
+      const srcMat = entry.srcMat;
+      const srcCol = entry.srcCol;
+      const dstMat = inst.instanceMatrix.array || inst.instanceMatrix;
+      const dstCol = srcCol && inst.instanceColor ? (inst.instanceColor.array || inst.instanceColor) : null;
+      const fullCount = entry.fullCount;
+
+      let vis = 0;
+      for (let i = 0; i < fullCount; i++) {
+        const so = i * 4;
+        const r = spheres[so + 3];
+        const cy = spheres[so + 1] + oy;
+        if (cy + r < minReflY) continue;
+        const cx = spheres[so] + ox;
+        const cz = spheres[so + 2] + oz;
+        const nr = -r;
+        if (
+          p0 * cx + p1 * cy + p2 * cz + p3 < nr ||
+          p4 * cx + p5 * cy + p6 * cz + p7 < nr ||
+          p8 * cx + p9 * cy + p10 * cz + p11 < nr ||
+          p12 * cx + p13 * cy + p14 * cz + p15 < nr ||
+          p16 * cx + p17 * cy + p18 * cz + p19 < nr ||
+          p20 * cx + p21 * cy + p22 * cz + p23 < nr
+        ) {
+          continue;
+        }
+        const s16 = i * 16;
+        const d16 = vis * 16;
+        dstMat[d16] = srcMat[s16];
+        dstMat[d16 + 1] = srcMat[s16 + 1];
+        dstMat[d16 + 2] = srcMat[s16 + 2];
+        dstMat[d16 + 3] = srcMat[s16 + 3];
+        dstMat[d16 + 4] = srcMat[s16 + 4];
+        dstMat[d16 + 5] = srcMat[s16 + 5];
+        dstMat[d16 + 6] = srcMat[s16 + 6];
+        dstMat[d16 + 7] = srcMat[s16 + 7];
+        dstMat[d16 + 8] = srcMat[s16 + 8];
+        dstMat[d16 + 9] = srcMat[s16 + 9];
+        dstMat[d16 + 10] = srcMat[s16 + 10];
+        dstMat[d16 + 11] = srcMat[s16 + 11];
+        dstMat[d16 + 12] = srcMat[s16 + 12];
+        dstMat[d16 + 13] = srcMat[s16 + 13];
+        dstMat[d16 + 14] = srcMat[s16 + 14];
+        dstMat[d16 + 15] = srcMat[s16 + 15];
+        if (dstCol) {
+          const s3 = i * 3;
+          const d3 = vis * 3;
+          dstCol[d3] = srcCol[s3];
+          dstCol[d3 + 1] = srcCol[s3 + 1];
+          dstCol[d3 + 2] = srcCol[s3 + 2];
+        }
+        vis++;
+      }
+
+      inst.count = vis;
+      inst.visible = vis > 0;
+      if (vis > 0) {
+        const matAttr = inst.instanceMatrix;
+        if (typeof matAttr.clearUpdateRanges === 'function') {
+          matAttr.clearUpdateRanges();
+          matAttr.addUpdateRange(0, vis * 16);
+        }
+        matAttr.needsUpdate = true;
+        if (dstCol && inst.instanceColor) {
+          const colAttr = inst.instanceColor;
+          if (typeof colAttr.clearUpdateRanges === 'function') {
+            colAttr.clearUpdateRanges();
+            colAttr.addUpdateRange(0, vis * 3);
+          }
+          colAttr.needsUpdate = true;
+        }
+      }
+    }
+  }
+
+  /**
+   * Compacts all 3 biome InstancedMeshes for the Directional Shadow + Main Camera render pass:
+   * keeps every instance inside (MainCameraFrustum U ActiveSunShadowFrustum) so off-screen trees
+   * casting shadows into the view are 100.000% preserved with ZERO shadow pop or lag!
+   */
+  static cullForMainAndShadow(biomeGroup, mainCamera, sunLight = null, shadowActiveThisFrame = false) {
+    const fc = biomeGroup?.userData?._frustumCompaction;
+    if (!fc || !mainCamera) return;
+
+    fc.mainProjView.multiplyMatrices(mainCamera.projectionMatrix, mainCamera.matrixWorldInverse);
+    const planesA = fc.planesA;
+    AutogenBiomeSpawner._extractFrustumPlanes(fc.mainProjView, planesA);
+    const a0 = planesA[0], a1 = planesA[1], a2 = planesA[2], a3 = planesA[3];
+    const a4 = planesA[4], a5 = planesA[5], a6 = planesA[6], a7 = planesA[7];
+    const a8 = planesA[8], a9 = planesA[9], a10 = planesA[10], a11 = planesA[11];
+    const a12 = planesA[12], a13 = planesA[13], a14 = planesA[14], a15 = planesA[15];
+    const a16 = planesA[16], a17 = planesA[17], a18 = planesA[18], a19 = planesA[19];
+    const a20 = planesA[20], a21 = planesA[21], a22 = planesA[22], a23 = planesA[23];
+
+    let hasShadowFrustum = false;
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0;
+    let b4 = 0, b5 = 0, b6 = 0, b7 = 0;
+    let b8 = 0, b9 = 0, b10 = 0, b11 = 0;
+    let b12 = 0, b13 = 0, b14 = 0, b15 = 0;
+    let b16 = 0, b17 = 0, b18 = 0, b19 = 0;
+    let b20 = 0, b21 = 0, b22 = 0, b23 = 0;
+
+    if (
+      shadowActiveThisFrame &&
+      sunLight &&
+      sunLight.castShadow &&
+      sunLight.shadow &&
+      sunLight.shadow.camera &&
+      (Number(sunLight.intensity) || 0.0) > 0.001
+    ) {
+      if (typeof sunLight.shadow.updateMatrices === 'function') {
+        sunLight.shadow.updateMatrices(sunLight);
+      }
+      const shCam = sunLight.shadow.camera;
+      fc.shadowProjView.multiplyMatrices(shCam.projectionMatrix, shCam.matrixWorldInverse);
+      const planesB = fc.planesB;
+      AutogenBiomeSpawner._extractFrustumPlanes(fc.shadowProjView, planesB);
+      b0 = planesB[0]; b1 = planesB[1]; b2 = planesB[2]; b3 = planesB[3];
+      b4 = planesB[4]; b5 = planesB[5]; b6 = planesB[6]; b7 = planesB[7];
+      b8 = planesB[8]; b9 = planesB[9]; b10 = planesB[10]; b11 = planesB[11];
+      b12 = planesB[12]; b13 = planesB[13]; b14 = planesB[14]; b15 = planesB[15];
+      b16 = planesB[16]; b17 = planesB[17]; b18 = planesB[18]; b19 = planesB[19];
+      b20 = planesB[20]; b21 = planesB[21]; b22 = planesB[22]; b23 = planesB[23];
+      hasShadowFrustum = true;
+    }
+
+    const entries = fc.entries;
+    for (let eIdx = 0; eIdx < entries.length; eIdx++) {
+      const entry = entries[eIdx];
+      const inst = entry.mesh;
+      const mw = inst.matrixWorld.elements;
+      const ox = mw[12], oy = mw[13], oz = mw[14];
+      const spheres = entry.spheres;
+      const srcMat = entry.srcMat;
+      const srcCol = entry.srcCol;
+      const dstMat = inst.instanceMatrix.array || inst.instanceMatrix;
+      const dstCol = srcCol && inst.instanceColor ? (inst.instanceColor.array || inst.instanceColor) : null;
+      const fullCount = entry.fullCount;
+
+      let vis = 0;
+      for (let i = 0; i < fullCount; i++) {
+        const so = i * 4;
+        const cx = spheres[so] + ox;
+        const cy = spheres[so + 1] + oy;
+        const cz = spheres[so + 2] + oz;
+        const nr = -spheres[so + 3];
+
+        const inMain = !(
+          a0 * cx + a1 * cy + a2 * cz + a3 < nr ||
+          a4 * cx + a5 * cy + a6 * cz + a7 < nr ||
+          a8 * cx + a9 * cy + a10 * cz + a11 < nr ||
+          a12 * cx + a13 * cy + a14 * cz + a15 < nr ||
+          a16 * cx + a17 * cy + a18 * cz + a19 < nr ||
+          a20 * cx + a21 * cy + a22 * cz + a23 < nr
+        );
+        if (!inMain) {
+          if (
+            !hasShadowFrustum ||
+            b0 * cx + b1 * cy + b2 * cz + b3 < nr ||
+            b4 * cx + b5 * cy + b6 * cz + b7 < nr ||
+            b8 * cx + b9 * cy + b10 * cz + b11 < nr ||
+            b12 * cx + b13 * cy + b14 * cz + b15 < nr ||
+            b16 * cx + b17 * cy + b18 * cz + b19 < nr ||
+            b20 * cx + b21 * cy + b22 * cz + b23 < nr
+          ) {
+            continue;
+          }
+        }
+
+        const s16 = i * 16;
+        const d16 = vis * 16;
+        dstMat[d16] = srcMat[s16];
+        dstMat[d16 + 1] = srcMat[s16 + 1];
+        dstMat[d16 + 2] = srcMat[s16 + 2];
+        dstMat[d16 + 3] = srcMat[s16 + 3];
+        dstMat[d16 + 4] = srcMat[s16 + 4];
+        dstMat[d16 + 5] = srcMat[s16 + 5];
+        dstMat[d16 + 6] = srcMat[s16 + 6];
+        dstMat[d16 + 7] = srcMat[s16 + 7];
+        dstMat[d16 + 8] = srcMat[s16 + 8];
+        dstMat[d16 + 9] = srcMat[s16 + 9];
+        dstMat[d16 + 10] = srcMat[s16 + 10];
+        dstMat[d16 + 11] = srcMat[s16 + 11];
+        dstMat[d16 + 12] = srcMat[s16 + 12];
+        dstMat[d16 + 13] = srcMat[s16 + 13];
+        dstMat[d16 + 14] = srcMat[s16 + 14];
+        dstMat[d16 + 15] = srcMat[s16 + 15];
+        if (dstCol) {
+          const s3 = i * 3;
+          const d3 = vis * 3;
+          dstCol[d3] = srcCol[s3];
+          dstCol[d3 + 1] = srcCol[s3 + 1];
+          dstCol[d3 + 2] = srcCol[s3 + 2];
+        }
+        vis++;
+      }
+
+      inst.count = vis;
+      inst.visible = vis > 0;
+      if (vis > 0) {
+        const matAttr = inst.instanceMatrix;
+        if (typeof matAttr.clearUpdateRanges === 'function') {
+          matAttr.clearUpdateRanges();
+          matAttr.addUpdateRange(0, vis * 16);
+        }
+        matAttr.needsUpdate = true;
+        if (dstCol && inst.instanceColor) {
+          const colAttr = inst.instanceColor;
+          if (typeof colAttr.clearUpdateRanges === 'function') {
+            colAttr.clearUpdateRanges();
+            colAttr.addUpdateRange(0, vis * 3);
+          }
+          colAttr.needsUpdate = true;
+        }
+      }
+    }
   }
 }
