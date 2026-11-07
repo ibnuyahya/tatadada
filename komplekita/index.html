@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Kompleks Bundaran Gedung DPPD, ITTC, STP-UI &amp; ILRC Universitas Indonesia — NEXUS 3D v2.0</title>
+  <script>
+    // Early-Boot Runtime Forensic Error Guard (Hukum Emas 18)
+    window.__NEXUS_BOOT_ERRORS__ = [];
+    window.addEventListener('error', function (ev) {
+      window.__NEXUS_BOOT_ERRORS__.push({
+        type: 'error',
+        message: ev.message || String(ev),
+        filename: ev.filename || '',
+        lineno: ev.lineno || 0,
+        stack: ev.error && ev.error.stack ? ev.error.stack : ''
+      });
+    });
+    window.addEventListener('unhandledrejection', function (ev) {
+      window.__NEXUS_BOOT_ERRORS__.push({
+        type: 'unhandledrejection',
+        message: ev.reason ? (ev.reason.message || String(ev.reason)) : 'Unhandled rejection'
+      });
+    });
+  </script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <style>
+    :root {
+      --bg-glass: rgba(13, 21, 34, 0.78);
+      --bg-glass-strong: rgba(10, 17, 28, 0.90);
+      --border-subtle: rgba(255, 255, 255, 0.14);
+      --text-primary: #f3f7fc;
+      --text-muted: #9fb0c7;
+      --accent-gold: #f5c438;
+      --accent-blue: #38bdf8;
+      --pass-green: #22c55e;
+      --fail-red: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #bcd4ec;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      color: var(--text-primary);
+    }
+
+    #viewport-container {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Top-Left Floating Launcher Pill (Default Collapsed State — Hukum Emas 20) */
+    #launcher-pill {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 30;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: var(--bg-glass-strong);
+      border: 1px solid var(--border-subtle);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--text-primary);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+
+    #launcher-pill:hover {
+      border-color: var(--accent-gold);
+      transform: translateY(-1px);
+    }
+
+    .ui-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-gold);
+      box-shadow: 0 0 8px var(--accent-gold);
+    }
+
+    .gate-badge {
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .gate-badge.pass {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.45);
+    }
+
+    .gate-badge.warn {
+      background: rgba(239, 68, 68, 0.22);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.5);
+    }
+
+    /* Top-Right Compact Telemetry Badge */
+    #telemetry-hud {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 25;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 11px;
+      border-radius: 999px;
+      background: var(--bg-glass);
+      border: 1px solid var(--border-subtle);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      font-size: 11px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    #active-view-label {
+      color: var(--text-primary);
+      font-weight: 600;
+      max-width: 260px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .hud-sep {
+      opacity: 0.35;
+    }
+
+    .hud-metric {
+      font-variant-numeric: tabular-nums;
+      color: #dbeafe;
+      font-weight: 600;
+    }
+
+    /* Adaptive Non-Occluding Inspector Drawer (Desktop <= 280px side-drawer) */
+    #inspector-drawer {
+      position: fixed;
+      top: 52px;
+      left: 12px;
+      width: 274px;
+      max-width: 280px;
+      max-height: calc(100vh - 66px);
+      z-index: 28;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 14px;
+      background: var(--bg-glass-strong);
+      border: 1px solid var(--border-subtle);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.36);
+      overflow-y: auto;
+      transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+    }
+
+    #inspector-drawer.collapsed {
+      transform: translateX(-310px);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .drawer-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent-gold);
+      letter-spacing: 0.03em;
+    }
+
+    .drawer-close {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: var(--text-muted);
+      border-radius: 6px;
+      padding: 2px 7px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .drawer-close:hover {
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.38);
+    }
+
+    .ctrl-section {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .ctrl-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+
+    .btn-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+    }
+
+    .btn-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 5px;
+    }
+
+    .ctrl-btn {
+      appearance: none;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      color: var(--text-primary);
+      border-radius: 7px;
+      padding: 6px 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.14s ease, border-color 0.14s ease;
+    }
+
+    .ctrl-btn:hover {
+      background: rgba(255, 255, 255, 0.13);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .ctrl-btn.active {
+      background: rgba(245, 196, 56, 0.2);
+      border-color: var(--accent-gold);
+      color: #fffbeb;
+    }
+
+    .sv-select {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 7px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: var(--text-primary);
+      font-size: 11px;
+      font-weight: 500;
+      outline: none;
+    }
+
+    .gate-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .gate-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 5px 7px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .gate-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10.5px;
+      font-weight: 700;
+    }
+
+    .gate-status.pass {
+      color: #4ade80;
+    }
+
+    .gate-status.fail {
+      color: #f87171;
+    }
+
+    .gate-detail {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Portrait / Mobile Bottom-Sheet Layout (<= 34vh — Hukum Emas 20) */
+    @media (max-width: 768px), (max-aspect-ratio: 1/1) {
+      #telemetry-hud {
+        top: auto;
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+        justify-content: space-between;
+      }
+
+      #inspector-drawer {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100vw;
+        max-width: 100vw;
+        max-height: 33vh;
+        border-radius: 16px 16px 0 0;
+      }
+
+      #inspector-drawer.collapsed {
+        transform: translateY(105%);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="viewport-container"></div>
+
+  <!-- Default Collapsed Top-Left Launcher Pill -->
+  <button id="launcher-pill" type="button" aria-expanded="false" title="Buka/Tutup Panel Inspeksi 3D">
+    <span class="ui-dot"></span>
+    <span>BUNDARAN DPPD • ITTC • STP • ILRC UI</span>
+    <span id="pill-gate-badge" class="gate-badge pass">PASS 4/4 GATES</span>
+    <span style="opacity:0.75;">☰</span>
+  </button>
+
+  <!-- Compact Top-Right Telemetry HUD -->
+  <div id="telemetry-hud">
+    <span id="active-view-label">SV-01 • Depan Pelana Utama DPPD</span>
+    <span class="hud-sep">|</span>
+    <span id="hud-fps" class="hud-metric">60 FPS</span>
+    <span class="hud-sep">•</span>
+    <span id="hud-dc" class="hud-metric">21 DC</span>
+    <span class="hud-sep">•</span>
+    <span id="hud-tris" class="hud-metric">0k Tris</span>
+  </div>
+
+  <!-- Adaptive Non-Occluding Inspector Drawer (Default Collapsed) -->
+  <aside id="inspector-drawer" class="collapsed" aria-label="Panel Kontrol Simulasi 3D">
+    <div class="drawer-header">
+      <span class="drawer-title">NEXUS v2.0 • KOMPLEKS BUNDARAN UI</span>
+      <button id="drawer-close-btn" class="drawer-close" type="button">Tutup ✕</button>
+    </div>
+
+    <!-- 1. Mandatory Tri-Angle Orthographic Validation Presets -->
+    <div class="ctrl-section">
+      <span class="ctrl-label">Validasi Orto Tri-Angle (Gate 4)</span>
+      <div class="btn-grid-3">
+        <button class="ctrl-btn" type="button" data-preset="elevasi_horisontal">Elevasi 0°</button>
+        <button class="ctrl-btn" type="button" data-preset="oblique_45">Oblique 45°</button>
+        <button class="ctrl-btn" type="button" data-preset="nadir_zenith_90">Nadir 90°</button>
+      </div>
+    </div>
+
+    <!-- 2. Balanced 4-Building Sector Overviews -->
+    <div class="ctrl-section">
+      <span class="ctrl-label">Fokus 4 Gedung (Dirombak Seimbang)</span>
+      <div class="btn-grid-2">
+        <button class="ctrl-btn" type="button" data-preset="overview_dppd">Gedung DPPD (SW)</button>
+        <button class="ctrl-btn" type="button" data-preset="overview_ittc">ITTC Perpus (Tengah)</button>
+        <button class="ctrl-btn" type="button" data-preset="overview_stp">Gedung STP-UI (Utara)</button>
+        <button class="ctrl-btn" type="button" data-preset="overview_ilrc">Gedung ILRC (SE)</button>
+      </div>
+    </div>
+
+    <!-- 3. Geodetically Calibrated Street View Station Tour (SV-01 .. SV-13) -->
+    <div class="ctrl-section">
+      <span class="ctrl-label">Stasiun Kamera Street View (SV-01 s.d. SV-13)</span>
+      <select id="sv-station-select" class="sv-select" aria-label="Pilih Stasiun Street View">
+        <option value="sv_dppd_front">SV-01 • Depan Pelana Utama DPPD (ref_084)</option>
+        <option value="sv_dppd_totem">SV-02 • Kanopi L1, Ramp &amp; Totem Huawei (ref_184)</option>
+        <option value="sv_dppd_se_wing">SV-03 • Sayap Kanan SE &amp; 3 Palem Raja (ref_078)</option>
+        <option value="sv_dppd_nw_gable">SV-04 • Dinding Pelana Bata NW &amp; Akses Barat (ref_144)</option>
+        <option value="sv_west_ittc">SV-05 • Pintu Masuk Barat → ITTC Perpus Lama (ref_203)</option>
+        <option value="sv_stp_sw_core">SV-06 • Sudut SW Tembaga &amp; Tangga STP-UI (ref_148)</option>
+        <option value="sv_stp_portico">SV-07 • Portico Utara &amp; Planter STP-UI (ref_164)</option>
+        <option value="sv_stp_ne_makara">SV-08 • Puncak Makara Emas &amp; Sirip NE STP-UI (ref_111)</option>
+        <option value="sv_ilrc_east_box">SV-09 • Sayap Louver Timur &amp; Kotak Kaca ILRC (ref_009)</option>
+        <option value="sv_ilrc_drpm_gate">SV-10 • Gerbang Parkir Pimpinan &amp; DRPM (ref_012)</option>
+        <option value="sv_ilrc_atrium">SV-11 • Atrium Terbuka 5 Lantai &amp; Portal ILRC (ref_029)</option>
+        <option value="sv_ilrc_mound">SV-12 • Sayap Selatan &amp; Gundukan Bambu ILRC (ref_033)</option>
+        <option value="sv_ilrc_brick_tower">SV-13 • Menara Bata 6 Lantai &amp; 3 Jendela Tudung (ref_076)</option>
+      </select>
+      <div class="btn-grid-2">
+        <button id="sv-prev-btn" class="ctrl-btn" type="button">◀ Stasiun Sblm</button>
+        <button id="sv-next-btn" class="ctrl-btn" type="button">Stasiun Lanjut ▶</button>
+      </div>
+    </div>
+
+    <!-- 4. Surface Shader & 14:00 WIB / Night GI Lighting Modes -->
+    <div class="ctrl-section">
+      <span class="ctrl-label">Inspeksi Permukaan &amp; Pencahayaan</span>
+      <div class="btn-grid-2">
+        <button class="ctrl-btn active" type="button" data-inspect-mode="realistic_1400">Siang 14:00 WIB</button>
+        <button class="ctrl-btn" type="button" data-inspect-mode="night_gi">Malam (GI Emissive)</button>
+        <button class="ctrl-btn" type="button" data-inspect-mode="clay">Clay Matte</button>
+        <button class="ctrl-btn" type="button" data-inspect-mode="zebra">Zebra SSoST</button>
+      </div>
+    </div>
+
+    <!-- 5. Orbit vs 6-DOF Drone Flight -->
+    <div class="ctrl-section">
+      <span class="ctrl-label">Mode Navigasi Kamera</span>
+      <div class="btn-grid-2">
+        <button class="ctrl-btn active" type="button" data-cam-mode="orbit">Orbit Putar</button>
+        <button class="ctrl-btn" type="button" data-cam-mode="drone">Drone 6-DOF (WASD)</button>
+      </div>
+    </div>
+
+    <!-- 6. Automated 4-Gate Verification Telemetry -->
+    <div class="ctrl-section">
+      <span class="ctrl-label">Status Audit 4-Gate Otomatis</span>
+      <div class="gate-list">
+        <div id="gate-row-1" class="gate-item">
+          <div class="gate-top"><span>Gate 1 • Amplop &amp; 0 NaN</span><span class="gate-status pass">PASS</span></div>
+          <div class="gate-detail">Memeriksa amplop 176×176×27.2m...</div>
+        </div>
+        <div id="gate-row-2" class="gate-item">
+          <div class="gate-top"><span>Gate 2 • Normal &amp; SSoST</span><span class="gate-status pass">PASS</span></div>
+          <div class="gate-detail">Memeriksa orientasi normal...</div>
+        </div>
+        <div id="gate-row-3" class="gate-item">
+          <div class="gate-top"><span>Gate 3 • 0.00m Seam &amp; Rig</span><span class="gate-status pass">PASS</span></div>
+          <div class="gate-detail">Memeriksa kontinuitas subdomain...</div>
+        </div>
+        <div id="gate-row-4" class="gate-item">
+          <div class="gate-top"><span>Gate 4 • &lt;= 25 Draw Calls</span><span class="gate-status pass">PASS</span></div>
+          <div class="gate-detail">Memeriksa batching material...</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
