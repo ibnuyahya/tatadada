@@ -1671,6 +1671,7 @@ export class AudioSynthesizer {
     this._forensic = {
       initAttempts: 0,
       initDurationMs: 0.0,
+      initBreakdownMs: null,
       initErrors: [],
       resumeAttempts: 0,
       resumeFailures: 0,
@@ -2322,7 +2323,8 @@ export class AudioSynthesizer {
     }
 
     f.initAttempts++;
-    const tInit0 = typeof performance !== 'undefined' && performance.now ? performance.now() : 0.0;
+    const nowPerf = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+    const tInit0 = nowPerf();
     try {
       this.ctx = new AudioCtx();
     } catch (ctxErr) {
@@ -2337,6 +2339,7 @@ export class AudioSynthesizer {
       }
       return;
     }
+    const tCtxCreated = nowPerf();
 
     this._installForensicNodeCounters(this.ctx);
     f.lastStateChange = this.ctx.state || 'suspended';
@@ -2347,7 +2350,7 @@ export class AudioSynthesizer {
         f.stateTransitionsCount++;
         f.lastStateChange = st;
         f.clock.prevPerfMs = 0.0;
-        f.clock.prevCtxSec = 0.0;
+        f.clock.prevCtxSec = -1.0;
         if (st === 'running') {
           this._markUnlockedMilestoneIfRunning();
         }
@@ -2355,6 +2358,7 @@ export class AudioSynthesizer {
     }
 
     f._inGraphBuild = true;
+    f._tmpCtxCreateMs = Math.max(0.0, tCtxCreated - tInit0);
     try {
       this._buildPersistentGraph(this.ctx.sampleRate || 48000);
     } catch (graphErr) {
@@ -2363,13 +2367,15 @@ export class AudioSynthesizer {
       this.recordExternalError(graphErr, '_buildPersistentGraph');
     } finally {
       f._inGraphBuild = false;
-      const tInit1 = typeof performance !== 'undefined' && performance.now ? performance.now() : tInit0;
+      const tInit1 = nowPerf();
       f.initDurationMs = Math.max(0.0, +(tInit1 - tInit0).toFixed(2));
       this._markUnlockedMilestoneIfRunning();
     }
   }
 
   _buildPersistentGraph(sr) {
+    const _nowP = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+    const _tG0 = _nowP();
 
     // 0. Master Subsonic Guard (24 Hz) -> ISO 226 Fletcher-Munson Equal-Loudness -> Safety Compressor -> Destination
     this.worldSumGain = this.ctx.createGain();
@@ -2443,6 +2449,7 @@ export class AudioSynthesizer {
     this.convolverMetallic.connect(this.reverbReturnGain);
 
     this.reverbReturnGain.connect(this.worldSumGain);
+    const _tG1 = _nowP();
 
     // 0c. Dolby Atmos 7.1.4 Sub-Buses: (.1) LFE Sub-Bass + Volumetric Object Spread + (.4) Overhead Height Dome
     this.lfeSumGain = this.ctx.createGain();
@@ -2543,6 +2550,7 @@ export class AudioSynthesizer {
       fumarole: this._createBed3DPanner(18.0, 0.80, 900.0),
       turapLap: this._createBed3DPanner(9.0, 0.82, 500.0)
     };
+    const _tG2 = _nowP();
 
     // 1. Procedural 4-Second Seamless Binaural Stereo-Decorrelated Pink-Noise & Droplet Patter Buffers
     const bufferSize = sr * 4;
@@ -2584,6 +2592,7 @@ export class AudioSynthesizer {
       }
     }
     this._patterBuffer = patterBuffer;
+    const _tG3 = _nowP();
 
     // 2. Architectural Weather Occlusion + Priority Sidechain Ducking Sub-Bus
     this.weatherOccFilter = this.ctx.createBiquadFilter();
@@ -3624,6 +3633,14 @@ export class AudioSynthesizer {
     eVoice.form2 = vocForm2;
     eVoice.syllable = vocSyllable;
     this._emitters.npcVoice = eVoice;
+    const _tG4 = _nowP();
+    this._forensic.initBreakdownMs = {
+      audioCtxCreateMs: +(this._forensic._tmpCtxCreateMs || 0).toFixed(2),
+      masterAndDualConvolverIrMs: +Math.max(0.0, _tG1 - _tG0).toFixed(2),
+      atmos714AndBedPannersMs: +Math.max(0.0, _tG2 - _tG1).toFixed(2),
+      pinkAndPatterBuffersMs: +Math.max(0.0, _tG3 - _tG2).toFixed(2),
+      worldVoicesAndEmittersMs: +Math.max(0.0, _tG4 - _tG3).toFixed(2)
+    };
   }
 
   setWeatherAudio(weatherMode) {
@@ -4742,6 +4759,7 @@ export class AudioSynthesizer {
         channelCount,
         channelInterpretation: channelInterp,
         initDurationMs: f.initDurationMs,
+        initBreakdownMs: f.initBreakdownMs,
         initAttempts: f.initAttempts,
         initErrors: f.initErrors.slice(),
         resumeAttempts: f.resumeAttempts,

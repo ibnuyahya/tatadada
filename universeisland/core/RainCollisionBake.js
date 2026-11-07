@@ -65,12 +65,35 @@ export class RainCollisionBake {
    * @param {Object} [options]
    */
   static bakeFromHierarchy(roots = [], options = {}) {
+    const nowFn = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+    const tWall0 = nowFn();
     const gen = RainCollisionBake._bakeGenerator(roots, options, Infinity);
-    let step = gen.next();
+    let totalCpuMs = 0.0;
+    let maxSliceCpuMs = 0.0;
+    let sliceCount = 0;
+    let step = { done: false, value: null };
     while (!step.done) {
+      const tS = nowFn();
       step = gen.next();
+      const dMs = Math.max(0.0, nowFn() - tS);
+      totalCpuMs += dMs;
+      if (dMs > maxSliceCpuMs) maxSliceCpuMs = dMs;
+      sliceCount++;
     }
-    return step.value;
+    const res = step.value;
+    if (res && typeof res === 'object') {
+      const wallMs = Math.max(0.0, nowFn() - tWall0);
+      res.bakeForensics = Object.assign(res.bakeForensics || {}, {
+        mode: 'sync',
+        wallElapsedMs: +wallMs.toFixed(2),
+        totalCpuMs: +totalCpuMs.toFixed(2),
+        sliceCount,
+        avgSliceCpuMs: +(totalCpuMs / Math.max(1, sliceCount)).toFixed(3),
+        maxSliceCpuMs: +maxSliceCpuMs.toFixed(3),
+        sliceBudgetMs: null
+      });
+    }
+    return res;
   }
 
   /**
@@ -78,6 +101,8 @@ export class RainCollisionBake {
    * Yields once per animation frame so the 3D world runs locked at 60-120 FPS with zero frame drops!
    */
   static async bakeFromHierarchyAsync(roots = [], options = {}, sliceBudgetMs = 1.5) {
+    const nowFn = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+    const tWall0 = nowFn();
     const budget =
       options && options.sliceBudgetMs !== undefined ? Number(options.sliceBudgetMs) : sliceBudgetMs;
     const gen = RainCollisionBake._bakeGenerator(roots, options, budget);
@@ -99,12 +124,39 @@ export class RainCollisionBake {
           setTimeout(resolve, 0);
         }
       });
+    let totalCpuMs = 0.0;
+    let maxSliceCpuMs = 0.0;
+    let sliceCount = 0;
+    const tS0 = nowFn();
     let step = gen.next();
+    const d0 = Math.max(0.0, nowFn() - tS0);
+    totalCpuMs += d0;
+    maxSliceCpuMs = d0;
+    sliceCount = 1;
+
     while (!step.done) {
       await yieldNextFrame();
+      const tS = nowFn();
       step = gen.next();
+      const dMs = Math.max(0.0, nowFn() - tS);
+      totalCpuMs += dMs;
+      if (dMs > maxSliceCpuMs) maxSliceCpuMs = dMs;
+      sliceCount++;
     }
-    return step.value;
+    const res = step.value;
+    if (res && typeof res === 'object') {
+      const wallMs = Math.max(0.0, nowFn() - tWall0);
+      res.bakeForensics = Object.assign(res.bakeForensics || {}, {
+        mode: 'async_sliced',
+        wallElapsedMs: +wallMs.toFixed(2),
+        totalCpuMs: +totalCpuMs.toFixed(2),
+        sliceCount,
+        avgSliceCpuMs: +(totalCpuMs / Math.max(1, sliceCount)).toFixed(3),
+        maxSliceCpuMs: +maxSliceCpuMs.toFixed(3),
+        sliceBudgetMs: budget
+      });
+    }
+    return res;
   }
 
   static *_bakeGenerator(roots = [], options = {}, sliceBudgetMs = Infinity) {
@@ -711,6 +763,14 @@ export class RainCollisionBake {
       spanY,
       dripAnchors,
       rawDripCandidateCount: candCount,
+      bakeForensics: {
+        gridSize: `${size}x${size}`,
+        totalCells,
+        canopyMeshCount: canopyMeshes.length,
+        staticMeshCount: staticMeshes.length,
+        rawDripCandidateCount: candCount,
+        dripAnchorCount: dripAnchors.length
+      },
       sampleHeightAt
     };
   }

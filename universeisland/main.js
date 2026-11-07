@@ -155,14 +155,25 @@ function createPreloaderController() {
 }
 
 async function bootstrapNexusSimulator() {
+  const _nowBoot = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+  const _bootOriginMs =
+    typeof window !== 'undefined' &&
+    window.NexusForensic &&
+    typeof window.NexusForensic.getOriginPerfMs === 'function'
+      ? window.NexusForensic.getOriginPerfMs()
+      : 0.0;
+  const _bootstrapStartRelMs = Math.max(0.0, _nowBoot() - _bootOriginMs);
   if (typeof window !== 'undefined' && window.NexusForensic) {
-    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.41');
+    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.42');
   }
   const preloader = createPreloaderController();
 
   // Stage 0: Instant Local Depok WIB Clock + Fire 100% Asynchronous Open-Meteo Telemetry (0ms Blocking Wait!)
+  const _tS01Wall0 = _nowBoot();
   await preloader.advance(0, 10, 'Mengaktifkan Jam WIB Depok & Sinkronisasi Cuaca Asinkron...', 0);
+  const _tS01Import0 = _nowBoot();
   const { DepokLiveWeatherService } = await import('./core/DepokLiveWeatherService.js');
+  const _tS01Cpu0 = _nowBoot();
 
   let latestDepokClock = DepokLiveWeatherService.getDepokWIBClock();
   let latestDepokWeather = DepokLiveWeatherService.buildOfflineDepokFallback();
@@ -171,21 +182,29 @@ async function bootstrapNexusSimulator() {
   preloader.setWeatherBadge(
     `${latestDepokClock.formattedHM} WIB · ${latestDepokWeather.labelId.replace(' (Estimasi Lokal)', '')} (Sinkron Asinkron...)`
   );
+  const _tLiveWeatherStartRelMs = Math.max(0.0, _nowBoot() - _bootOriginMs);
+  let _bootProfilerRef = null;
 
   // Reference weather telemetry streams asynchronously in background — NEVER blocks world loading!
   const liveWeatherPromise = DepokLiveWeatherService.fetchLiveDepokWeather({ timeoutMs: 4500 }).then(
     (data) => {
       latestDepokWeather = data;
       liveWeatherSettled = true;
+      if (_bootProfilerRef) _bootProfilerRef.recordLiveWeatherSettled(data);
       preloader.setWeatherBadge(
         `${data.labelId.replace(' (Estimasi Lokal)', '')} · ${data.temperatureC}°C · RH ${data.humidityPct}%`
       );
       return data;
     }
   );
+  const _tS01End = _nowBoot();
+  const _s01CpuMs = Math.max(0.0, _tS01End - _tS01Cpu0);
+  const _s01ImportMs = Math.max(0.0, _tS01Cpu0 - _tS01Import0);
 
   // Stage 1: Dynamic Parallel Import of NEXUS v5.0 Procedural Modules
+  const _tS02Wall0 = _nowBoot();
   await preloader.advance(1, 20, 'Memuat Modul Mesin Prosedural NEXUS v5.0 & Shader Ultra...', 0);
+  const _tS02Import0 = _nowBoot();
   const [
     { CameraDirector, applyNonOccludingViewportOffset },
     { WeatherOpticsEngine },
@@ -195,7 +214,7 @@ async function bootstrapNexusSimulator() {
     { RotundaDancingFountain },
     { HardwareTelemetryGovernor },
     { CinematicPostFX },
-    { NexusRolling30sRecorder, createForensicReadOnlyProbe },
+    { NexusRolling30sRecorder, NexusBootForensicProfiler, createForensicReadOnlyProbe },
     { FloatingOriginManager },
     { TerrainDEMLoader },
     { SplineCorridorBuilder },
@@ -221,9 +240,52 @@ async function bootstrapNexusSimulator() {
     import('./world-gis/DynamicTrafficAI.js'),
     import('./library/landmark/Gedung_Rektorat_UI/index.js')
   ]);
+  const _tS02End = _nowBoot();
+
+  const bootProfiler = new NexusBootForensicProfiler({ originPerfMs: _bootOriginMs });
+  _bootProfilerRef = bootProfiler;
+  bootProfiler.deferredTasks.liveDepokWeatherFetch.startedAtMs = +_tLiveWeatherStartRelMs.toFixed(2);
+  if (liveWeatherSettled) {
+    bootProfiler.recordLiveWeatherSettled(latestDepokWeather);
+  }
+  bootProfiler.recordPreBootstrapSpan(0.1, _bootstrapStartRelMs);
+  bootProfiler.stages.push({
+    id: 'S01_depok_clock_and_weather_kickoff',
+    category: 'MODULE_LOAD',
+    label: 'Jam WIB Depok & Kickoff Open-Meteo Asinkron',
+    startMs: +Math.max(0.0, _tS01Wall0 - _bootOriginMs).toFixed(2),
+    endMs: +Math.max(0.0, _tS01End - _bootOriginMs).toFixed(2),
+    wallMs: +Math.max(0.0, _tS01End - _tS01Wall0).toFixed(2),
+    cpuMs: +_s01CpuMs.toFixed(2),
+    waitOrYieldMs: +Math.max(0.0, _tS01End - _tS01Wall0 - _s01CpuMs).toFixed(2),
+    addedPrograms: 0,
+    addedGeometries: 0,
+    addedTextures: 0,
+    detail: `Import DepokLiveWeatherService ${_s01ImportMs.toFixed(1)}ms`
+  });
+  bootProfiler.stages.push({
+    id: 'S02_engine_modules_parallel_import',
+    category: 'MODULE_LOAD',
+    label: 'Import Paralel 16 Modul Mesin Prosedural & Dunia',
+    startMs: +Math.max(0.0, _tS02Wall0 - _bootOriginMs).toFixed(2),
+    endMs: +Math.max(0.0, _tS02End - _bootOriginMs).toFixed(2),
+    wallMs: +Math.max(0.0, _tS02End - _tS02Wall0).toFixed(2),
+    cpuMs: null,
+    waitOrYieldMs: +Math.max(0.0, _tS02End - _tS02Wall0).toFixed(2),
+    addedPrograms: 0,
+    addedGeometries: 0,
+    addedTextures: 0,
+    detail: `Promise.all 16 modul ESM (${Math.max(0.0, _tS02End - _tS02Import0).toFixed(1)}ms net/parse)`
+  });
 
   // Stage 2: WebGL2 Human-Eye Physiological HDR Renderer, Instant RTC Spatial Anchor, & PMREM Sky IBL
+  const _tokS03 = bootProfiler.beginStage(
+    'S03_webgl2_context_and_rtc',
+    'RENDERER_INIT',
+    'Konteks WebGL2/ANGLE, Videotron CSS3D & Floating Origin RTC'
+  );
   await preloader.advance(2, 30, 'Menginisialisasi WebGL2 Human-Eye Photoreceptor HDR & Kubah Langit...', 28856);
+  const _tS03Cpu0 = _nowBoot();
   const container = document.getElementById('sim-canvas-wrap');
   const isMobilePlatform = HardwareTelemetryGovernor.detectMobilePlatform();
   const nativeDpr = window.devicePixelRatio || 1;
@@ -314,17 +376,36 @@ async function bootstrapNexusSimulator() {
   controls.maxDistance = 2150;
   controls.target.set(presets.oblique45.target.x, presets.oblique45.target.y, presets.oblique45.target.z);
   controls.update();
+  bootProfiler.attachRenderer(renderer);
+  bootProfiler.endStage(_tokS03, {
+    cpuMs: Math.max(0.0, _nowBoot() - _tS03Cpu0),
+    detail: `Canvas ${renderer.domElement.width}×${renderer.domElement.height} · DPR ${renderer.getPixelRatio().toFixed(2)}×`
+  });
 
+  const _tokS04 = bootProfiler.beginStage(
+    'S04_shared_textures_governor',
+    'RENDERER_INIT',
+    'Tekstur Prosedural Bersama, Hardware Governor & Blackbox 30d'
+  );
   const sharedUniforms = createSharedSurfaceUniforms();
   const hwGovernor = new HardwareTelemetryGovernor(renderer, sharedUniforms);
   hwGovernorRef = hwGovernor;
   const forensicRecorder = new NexusRolling30sRecorder();
+  bootProfiler.endStage(_tokS04, {
+    detail: `${hwGovernor.gpuCleanName || 'WebGL2'} · ${hwGovernor.activeTierId || 'TIER_S'}`
+  });
   if (typeof window !== 'undefined' && window.NexusForensic) {
     window.NexusForensic.markMilestone(
       'webgl2_renderer_ready',
       `${hwGovernor.gpuCleanName || 'WebGL2'} · ${hwGovernor.activeTierId || 'TIER_S'}`
     );
   }
+
+  const _tokS05 = bootProfiler.beginStage(
+    'S05_weather_optics_and_water',
+    'WORLD_BUILD',
+    'Mesin Optik Atmosfer/PMREM, Material Air & Shell AudioSynthesizer'
+  );
   const weather = new WeatherOpticsEngine(scene, {
     shadowMapSize: hwGovernor.getActiveTierConfig().shadowMapSize
   });
@@ -332,36 +413,117 @@ async function bootstrapNexusSimulator() {
   const waterMaterial = weather.createDanauKenangaWaterMaterial();
   const audioSynth = new AudioSynthesizer();
   forensicRecorder.attachAudioForensics(audioSynth, hwGovernor);
+  bootProfiler.endStage(_tokS05, {
+    detail: `ShadowMap ${hwGovernor.getActiveTierConfig().shadowMapSize}px · PMREM Sky IBL`
+  });
 
   // Stage 3: Build Gedung Rektorat UI Class-A Monument (8-Sided Tower + 3-Tier Tajug Pagoda)
+  const _tokS06 = bootProfiler.beginStage(
+    'S06_gedung_rektorat_4gates',
+    'WORLD_BUILD',
+    'Gedung Rektorat UI Kelas-A (Menara Segi-8, Tajug 3-Tumpang & Audit 4-Gate)'
+  );
   await preloader.advance(3, 44, 'Menyusun Menara Segi-8 & Atap Tajug 3-Tumpang Rektorat UI...', 377118);
+  const _tS06Cpu0 = _nowBoot();
   const rektoratAsset = GedungRektoratUIAsset.build({ sharedUniforms });
+  const _s06CpuMs = Math.max(0.0, _nowBoot() - _tS06Cpu0);
+  const _rekGateRep = rektoratAsset?.userData?.gateReport || null;
+  bootProfiler.subBuilders.gedungRektorat4Gates = {
+    cpuMs: +_s06CpuMs.toFixed(2),
+    gate1_EnvelopeAndNaN: Boolean(_rekGateRep?.gate1_EnvelopeAndNaN),
+    gate2_ManifoldNormals: Boolean(_rekGateRep?.gate2_ManifoldNormals),
+    gate3_ZeroGapAndKinematics: Boolean(_rekGateRep?.gate3_ZeroGapAndKinematics),
+    childCount: Array.isArray(rektoratAsset?.children) ? rektoratAsset.children.length : 0
+  };
+  bootProfiler.endStage(_tokS06, {
+    cpuMs: _s06CpuMs,
+    detail: `Menara Segi-8 & Tajug 3-Tumpang (${_s06CpuMs.toFixed(1)}ms CPU)`
+  });
   if (typeof window !== 'undefined' && window.NexusForensic) {
     window.NexusForensic.markMilestone('rektorat_4gates_built', 'Menara Segi-8 & Tajug 3-Tumpang selesai');
   }
 
   // Stage 4: Build Kepulauan UI (Mata Air, Sungai Berkelok, Danau Kecil, & Air Terjun Niagara Mini)
+  const _tokS07 = bootProfiler.beginStage(
+    'S07_terrain_dem_and_ocean',
+    'WORLD_BUILD',
+    'DEM Topografi Pulau U & I, Danau, Sungai, Air Terjun & Samudra Jawa'
+  );
   await preloader.advance(4, 58, 'Membentuk Mata Air, Sungai Berkelok Pulau U & Air Terjun Niagara Mini Pulau I...', 1002000);
+  const _tS07Cpu0 = _nowBoot();
   const { group: terrainGroup, groundHeightFn } = TerrainDEMLoader.buildCampusTerrain(
     waterMaterial,
     sharedUniforms
   );
+  const _s07CpuMs = Math.max(0.0, _nowBoot() - _tS07Cpu0);
+  bootProfiler.endStage(_tokS07, {
+    cpuMs: _s07CpuMs,
+    detail: `Terrain Pulau U & I + Samudra (${_s07CpuMs.toFixed(1)}ms CPU)`
+  });
 
   // Stage 5: Build Plaza Rotunda, Kompleks DPPD–ILRC–STP, Air Mancur Dancing, Jogging/Calisthenics, Jembatan Teksas UI, Underpass, & Dermaga
+  const _tokS08 = bootProfiler.beginStage(
+    'S08_corridors_dppd_and_fountain',
+    'WORLD_BUILD',
+    'Plaza Rotunda, Kompleks DPPD–STP, Jembatan Teksas, Underpass & Air Mancur'
+  );
   await preloader.advance(5, 70, 'Merakit Kompleks DPPD–STP, Air Mancur Dancing, Jogging Track & Jaringan Jalan Pulau U...', 1205000);
+  const _tS08Cpu0 = _nowBoot();
   const corridorGroup = SplineCorridorBuilder.buildRotundaAndPromenades(sharedUniforms);
+  const _tS08Fountain0 = _nowBoot();
   const rotundaFountain = new RotundaDancingFountain();
+  const _tS08End = _nowBoot();
+  const _s08CpuMs = Math.max(0.0, _tS08End - _tS08Cpu0);
+  bootProfiler.endStage(_tokS08, {
+    cpuMs: _s08CpuMs,
+    detail: `Koridor/DPPD ${(_tS08Fountain0 - _tS08Cpu0).toFixed(1)}ms + Air Mancur ${(_tS08End - _tS08Fountain0).toFixed(1)}ms`
+  });
 
   // Stage 6: Build Dense Southern Highland Rainforest (Pulau U), Sparse Montane Forest (Pulau I) & 64 Photocell Streetlamps
+  const _tokS09a = bootProfiler.beginStage(
+    'S09a_biome_trees_and_lamps',
+    'WORLD_BUILD',
+    'Hutan Hujan Tropis Pulau U, Lereng Gunung Pulau I & 64 Lampu Sensor'
+  );
   await preloader.advance(6, 82, 'Menumbuhkan Hutan Lebat Pulau U, Lereng Gunung Pulau I, & 64 Lampu Sensor Cahaya...', 3951674);
+  const _tS09aCpu0 = _nowBoot();
   const biomeGroup = AutogenBiomeSpawner.buildCampusBiome(groundHeightFn, sharedUniforms);
+  const _s09aCpuMs = Math.max(0.0, _nowBoot() - _tS09aCpu0);
+  bootProfiler.endStage(_tokS09a, {
+    cpuMs: _s09aCpuMs,
+    detail: `Bioma hutan & 64 lampu (${_s09aCpuMs.toFixed(1)}ms CPU)`
+  });
+
+  const _tokS09b = bootProfiler.beginStage(
+    'S09b_world_solid_colliders',
+    'WORLD_BUILD',
+    'Kompilasi Collider Fisika Padat 3D Seluruh Kepulauan'
+  );
   const solidWorld = SplineCorridorBuilder.buildWorldSolidColliders(biomeGroup);
+  bootProfiler.subBuilders.solidWorldCollidersCount = Array.isArray(solidWorld?.staticColliders)
+    ? solidWorld.staticColliders.length
+    : 0;
+  bootProfiler.endStage(_tokS09b, {
+    detail: `${bootProfiler.subBuilders.solidWorldCollidersCount} collider padat statis`
+  });
 
   // Stage 7: Build 69 22-Joint Sivitas Akademika NPCs + Taxi Heli Listrik eVTOL + Cessna & Learjet 3x Sehari + Bus Kuning + Feri + 48 Cats
+  const _tokS10 = bootProfiler.beginStage(
+    'S10_sivitas_npcs_cats_fleet',
+    'WORLD_BUILD',
+    '69 Sivitas 22-Sendi, 48 Kucing, Bikun, eVTOL, Pesawat & Armada Laut'
+  );
   await preloader.advance(7, 90, 'Menghadirkan 69 Sivitas Akademika, Taxi Heli Listrik, Pesawat 3x Sehari, & 48 Kucing...', TOTAL_EXPECTED_TRIS);
+  const _tS10Cpu0 = _nowBoot();
   const sivitasAI = new DynamicTrafficAI(groundHeightFn, sharedUniforms);
   sivitasAI.setSolidWorld(solidWorld);
   const sivitasGroup = sivitasAI.build();
+  worldRoot.add(terrainGroup, corridorGroup, rotundaFountain.mesh, biomeGroup, rektoratAsset, sivitasGroup);
+  const _s10CpuMs = Math.max(0.0, _nowBoot() - _tS10Cpu0);
+  bootProfiler.endStage(_tokS10, {
+    cpuMs: _s10CpuMs,
+    detail: `${sivitasAI.npcs.length} sivitas, ${sivitasAI.cats.length} kucing, armada darat/laut/udara (${_s10CpuMs.toFixed(1)}ms CPU)`
+  });
   if (typeof window !== 'undefined' && window.NexusForensic) {
     window.NexusForensic.markMilestone(
       'archipelago_and_sivitas_built',
@@ -369,9 +531,12 @@ async function bootstrapNexusSimulator() {
     );
   }
 
-  worldRoot.add(terrainGroup, corridorGroup, rotundaFountain.mesh, biomeGroup, rektoratAsset, sivitasGroup);
-
   // Seamless 1-Draw-Call PBR + Shadow-Mapped Manicured Tropical Campus Turf + View-Aware Dual-Perspective PostFX
+  const _tokS11 = bootProfiler.beginStage(
+    'S11_tropical_grass_3d',
+    'WORLD_BUILD',
+    'Bake Tekstur Masking Rumput 896×1344 (3-Pass) & Instancing Rumput 3D'
+  );
   await preloader.advance(7, 92, 'Menumbuhkan 288.000 Helai Rumput Gajah Mini & Masking Presisi...', TOTAL_EXPECTED_TRIS);
   const oceanWaterMesh = terrainGroup.children.find((c) => c && c.material === waterMaterial) || null;
   const initTierName = hwGovernor.activeTierId || hwGovernor.activeTier || 'TIER_S';
@@ -383,6 +548,22 @@ async function bootstrapNexusSimulator() {
     yieldToBrowserFrame
   );
   scene.add(grassField.mesh);
+  const _gfInit = grassField.initForensics || null;
+  bootProfiler.subBuilders.tropicalGrass3D = _gfInit;
+  bootProfiler.endStage(_tokS11, {
+    cpuMs: _gfInit ? _gfInit.totalCpuMs : undefined,
+    waitMs: _gfInit ? _gfInit.yieldWaitMs : undefined,
+    detail: _gfInit
+      ? `${_gfInit.bladeCount} rumpun · Bake CPU ${_gfInit.bakeCpuMs}ms (P1 ${_gfInit.pass1DemSdfCpuMs} + P2 ${_gfInit.pass2LawnMaskCpuMs} + P3 ${_gfInit.pass3ErosionCpuMs}) + Inst ${_gfInit.instancePopulateCpuMs}ms · ${_gfInit.yieldCount} yield`
+      : `${grassField.bladeCount} rumpun rumput 3D`
+  });
+
+  const _tokS12 = bootProfiler.beginStage(
+    'S12_postfx_and_initial_sim',
+    'RENDERER_INIT',
+    'Alokasi FBO PostFX/MSAA, Ephemeris Awal & Pengarah Kamera'
+  );
+  const _tS12Cpu0 = _nowBoot();
   const planarReflHiddenList = [oceanWaterMesh, grassField.mesh].filter(Boolean);
   const drawBufSize = new THREE.Vector2();
   renderer.getDrawingBufferSize(drawBufSize);
@@ -391,6 +572,7 @@ async function bootstrapNexusSimulator() {
     planarReflSize: hwGovernor.isMobileDevice ? 384 : 512,
     planarEnabled: !hwGovernor.isMobileDevice
   });
+  const _s12PostFxFboCpuMs = Math.max(0.0, _nowBoot() - _tS12Cpu0);
 
   weather.onThunder = (distanceMeters, intensity) => {
     audioSynth.triggerThunder(distanceMeters, intensity, weather.uniforms.uLightningDir.value);
@@ -398,6 +580,7 @@ async function bootstrapNexusSimulator() {
 
   // Stage 8: Apply Depok WIB Clock & Real-Time Ephemeris Immediately & Compile Specialized GPU Shaders Asynchronously
   await preloader.advance(8, 93, 'Kompilasi Inkremental Shader GPU & Membuka Kepulauan UI...', TOTAL_EXPECTED_TRIS);
+  const _tS12SimCpu0 = _nowBoot();
 
   let isLiveDepok = true;
   latestDepokClock = DepokLiveWeatherService.getDepokWIBClock();
@@ -554,26 +737,61 @@ async function bootstrapNexusSimulator() {
   if (weather.skyMesh) {
     weather.skyMesh.position.copy(camera.position);
   }
+  const _s12SimCpuMs = Math.max(0.0, _nowBoot() - _tS12SimCpu0);
+  const _s12TotalCpuMs = _s12PostFxFboCpuMs + _s12SimCpuMs;
   await yieldToBrowserFrame();
+  bootProfiler.endStage(_tokS12, {
+    cpuMs: _s12TotalCpuMs,
+    detail: `FBO PostFX (${postFX.msaaSamples}× MSAA, Refl ${postFX.planarReflSize}px) ${_s12PostFxFboCpuMs.toFixed(1)}ms + Sim Awal ${_s12SimCpuMs.toFixed(1)}ms`
+  });
 
+  const _tokS13 = bootProfiler.beginStage(
+    'S13_gpu_shader_prewarm',
+    'SHADER_WARMUP',
+    'Pre-Warm Inkremental Shader GPU, PostFX Quad, Planar Refl & Shadow Pass'
+  );
   const tWarm0 = performance.now();
   // Bind the EXACT target WebGLRenderTarget during compileAsync so Three.js WebGLPrograms
   // compiles the true runtime NoColorSpace/MSAA shader key (prevents double-compiling 30+ shaders synchronously on first render!)
   const compileAsyncSlice = async (targetScene, targetCam, targetRT = null) => {
+    const tSliceWall0 = _nowBoot();
+    let syncCallCpuMs = 0.0;
     const prevRT = renderer.getRenderTarget();
     renderer.setRenderTarget(targetRT);
     try {
       if (!hwGovernor.isMobileDevice && typeof renderer.compileAsync === 'function') {
+        const tSync0 = _nowBoot();
+        const pComp = renderer.compileAsync(targetScene, targetCam).catch(() => {});
+        syncCallCpuMs = Math.max(0.0, _nowBoot() - tSync0);
         await Promise.race([
-          renderer.compileAsync(targetScene, targetCam).catch(() => {}),
+          pComp,
           new Promise((resolve) => setTimeout(resolve, 15000))
         ]);
       } else if (typeof renderer.compile === 'function') {
+        const tSync0 = _nowBoot();
         renderer.compile(targetScene, targetCam);
+        syncCallCpuMs = Math.max(0.0, _nowBoot() - tSync0);
       }
     } finally {
       renderer.setRenderTarget(prevRT);
     }
+    return {
+      wallMs: Math.max(0.0, _nowBoot() - tSliceWall0),
+      syncCallCpuMs
+    };
+  };
+
+  const _describeWarmNode = (node) => {
+    if (!node) return 'Node';
+    const rawName = node.name ? String(node.name).trim() : '';
+    const mats = Array.isArray(node.material) ? node.material : [node.material];
+    const m0 = mats[0];
+    const cKey =
+      m0 && typeof m0.customProgramCacheKey === 'function'
+        ? String(m0.customProgramCacheKey() || '').slice(0, 28)
+        : m0?.type || 'Mat';
+    const kind = node.isInstancedMesh ? 'Inst' : node.isPoints ? 'Pts' : 'Mesh';
+    return rawName ? `${rawName.slice(0, 32)} (${kind}:${cKey})` : `${kind}:${cKey}`;
   };
 
   // Temporarily expose conditional weather/grass meshes so KHR_parallel_shader_compile pre-warms 100% of GPU programs once!
@@ -623,7 +841,19 @@ async function bootstrapNexusSimulator() {
       }
     }
   };
+  const _tCollect0 = _nowBoot();
   collectVisibleRenderables(scene);
+  let _totalWarmCpuMs = Math.max(0.0, _nowBoot() - _tCollect0);
+
+  bootProfiler.beginShaderWarmup({
+    compileMode:
+      !hwGovernor.isMobileDevice && typeof renderer.compileAsync === 'function'
+        ? 'KHR_parallel_compileAsync'
+        : 'sync_renderer_compile',
+    msaaSamples: postFX ? postFX.msaaSamples : 0,
+    planarReflSize: postFX ? postFX.planarReflSize : 0,
+    uniqueArchetypesCount: uniqueWarmRenderables.length
+  });
 
   const mainSceneRT = postFX && postFX.msaaTarget ? postFX.msaaTarget : null;
   if (visibleRenderables.length > 0) {
@@ -635,18 +865,33 @@ async function bootstrapNexusSimulator() {
     for (let sIdx = 0; sIdx < totalSlices; sIdx++) {
       const startI = sIdx * SLICE_SIZE;
       const endI = Math.min(uniqueWarmRenderables.length, startI + SLICE_SIZE);
+      const sliceArchetypes = [];
       for (let i = startI; i < endI; i++) {
         uniqueWarmRenderables[i].visible = true;
+        sliceArchetypes.push(_describeWarmNode(uniqueWarmRenderables[i]));
       }
       const pct = Math.min(99, 94 + Math.floor(((sIdx + 1) / Math.max(1, totalSlices)) * 5));
+      const tPreAdv0 = _nowBoot();
       await preloader.advance(
         8,
         pct,
         `Kompilasi Paralel Shader GPU (${endI}/${uniqueWarmRenderables.length})...`,
         TOTAL_EXPECTED_TRIS
       );
-      await compileAsyncSlice(scene, camera, mainSceneRT);
+      const preAdvWaitMs = Math.max(0.0, _nowBoot() - tPreAdv0);
+      const sliceRes = await compileAsyncSlice(scene, camera, mainSceneRT);
+      const tYield0 = _nowBoot();
       await yieldToBrowserFrame();
+      const postSliceYieldMs = Math.max(0.0, _nowBoot() - tYield0);
+      _totalWarmCpuMs += sliceRes.syncCallCpuMs;
+      bootProfiler.recordShaderWarmupStep({
+        stepId: `slice_${sIdx + 1}_of_${totalSlices}`,
+        phase: 'world_archetype_slice',
+        archetypes: sliceArchetypes,
+        wallMs: sliceRes.wallMs,
+        cpuMs: sliceRes.syncCallCpuMs,
+        yieldAfterMs: preAdvWaitMs + postSliceYieldMs
+      });
       for (let i = startI; i < endI; i++) {
         uniqueWarmRenderables[i].visible = false;
       }
@@ -655,25 +900,53 @@ async function bootstrapNexusSimulator() {
       visibleRenderables[i].visible = true;
     }
   } else {
-    await compileAsyncSlice(scene, camera, mainSceneRT);
+    const fallbackSlice = await compileAsyncSlice(scene, camera, mainSceneRT);
+    _totalWarmCpuMs += fallbackSlice.syncCallCpuMs;
+    bootProfiler.recordShaderWarmupStep({
+      stepId: 'slice_fallback_full_scene',
+      phase: 'world_archetype_slice',
+      archetypes: ['FullScene'],
+      wallMs: fallbackSlice.wallMs,
+      cpuMs: fallbackSlice.syncCallCpuMs,
+      yieldAfterMs: 0
+    });
   }
 
   // Pre-warm fullscreen PostFX quad programs with exact runtime RenderTargets
   if (postFX && postFX._fsScene && postFX._fsCam && postFX._fsQuad) {
+    let pfxWallMs = 0.0;
+    let pfxCpuMs = 0.0;
     const bloomRT = postFX.bloomHalfA || null;
     if (postFX._bloomDownMat) {
       postFX._fsQuad.material = postFX._bloomDownMat;
-      await compileAsyncSlice(postFX._fsScene, postFX._fsCam, bloomRT);
+      const r1 = await compileAsyncSlice(postFX._fsScene, postFX._fsCam, bloomRT);
+      pfxWallMs += r1.wallMs;
+      pfxCpuMs += r1.syncCallCpuMs;
     }
     if (postFX._bloomUpMat) {
       postFX._fsQuad.material = postFX._bloomUpMat;
-      await compileAsyncSlice(postFX._fsScene, postFX._fsCam, bloomRT);
+      const r2 = await compileAsyncSlice(postFX._fsScene, postFX._fsCam, bloomRT);
+      pfxWallMs += r2.wallMs;
+      pfxCpuMs += r2.syncCallCpuMs;
     }
     if (postFX._compositeMat) {
       postFX._fsQuad.material = postFX._compositeMat;
-      await compileAsyncSlice(postFX._fsScene, postFX._fsCam, null);
+      const r3 = await compileAsyncSlice(postFX._fsScene, postFX._fsCam, null);
+      pfxWallMs += r3.wallMs;
+      pfxCpuMs += r3.syncCallCpuMs;
     }
+    const tPfxYield0 = _nowBoot();
     await yieldToBrowserFrame();
+    const pfxYieldMs = Math.max(0.0, _nowBoot() - tPfxYield0);
+    _totalWarmCpuMs += pfxCpuMs;
+    bootProfiler.recordShaderWarmupStep({
+      stepId: 'postfx_fullscreen_quads',
+      phase: 'postfx_compile',
+      archetypes: ['BloomDown', 'BloomUp', 'CompositeHVS'],
+      wallMs: pfxWallMs,
+      cpuMs: pfxCpuMs,
+      yieldAfterMs: pfxYieldMs
+    });
   }
 
   const isDroneCinemaView = () =>
@@ -681,6 +954,7 @@ async function bootstrapNexusSimulator() {
     !camDirector.isFPSMode() &&
     !String(camDirector.mode || '').startsWith('FPS_');
 
+  const _tWarmPrep0 = _nowBoot();
   videotron.update(camera, window.innerWidth, window.innerHeight, sharedUniforms);
   grassField.update(camera, { windVec: weather.uniforms.uWindVec.value }, sharedUniforms);
   postFX.updateMode(10.0, isDroneCinemaView(), {
@@ -693,6 +967,9 @@ async function bootstrapNexusSimulator() {
   for (let i = 0; i < uniqueWarmRenderables.length; i++) {
     uniqueWarmRenderables[i].frustumCulled = false;
   }
+  _totalWarmCpuMs += Math.max(0.0, _nowBoot() - _tWarmPrep0);
+
+  const _tWarmRefl0 = _nowBoot();
   postFX.renderPlanarWaterReflection(
     scene,
     camera,
@@ -700,7 +977,21 @@ async function bootstrapNexusSimulator() {
     TerrainDEMLoader.WATER_LEVEL_Y,
     planarReflHiddenList
   );
+  const _warmReflCpuMs = Math.max(0.0, _nowBoot() - _tWarmRefl0);
+  const _tWarmReflYield0 = _nowBoot();
   await yieldToBrowserFrame();
+  const _warmReflYieldMs = Math.max(0.0, _nowBoot() - _tWarmReflYield0);
+  _totalWarmCpuMs += _warmReflCpuMs;
+  bootProfiler.recordShaderWarmupStep({
+    stepId: 'hidden_planar_reflection_warm_pass',
+    phase: 'planar_reflection_render',
+    archetypes: ['PlanarWaterMirrorPass'],
+    wallMs: _warmReflCpuMs,
+    cpuMs: _warmReflCpuMs,
+    yieldAfterMs: _warmReflYieldMs
+  });
+
+  const _tWarmMain0 = _nowBoot();
   postFX.render(scene, camera);
   for (let i = 0; i < uniqueWarmRenderables.length; i++) {
     uniqueWarmRenderables[i].frustumCulled = savedWarmFrustumCulled[i];
@@ -709,7 +1000,19 @@ async function bootstrapNexusSimulator() {
     transientWarmMeshes[i].visible = savedTransientVis[i];
   }
   weather._syncParticleVisibility();
+  const _warmMainCpuMs = Math.max(0.0, _nowBoot() - _tWarmMain0);
+  const _tWarmMainYield0 = _nowBoot();
   await yieldToBrowserFrame();
+  const _warmMainYieldMs = Math.max(0.0, _nowBoot() - _tWarmMainYield0);
+  _totalWarmCpuMs += _warmMainCpuMs;
+  bootProfiler.recordShaderWarmupStep({
+    stepId: 'hidden_main_and_shadow_warm_pass',
+    phase: 'main_and_shadow_render',
+    archetypes: ['MainMSAAScene+PCFShadowMap'],
+    wallMs: _warmMainCpuMs,
+    cpuMs: _warmMainCpuMs,
+    yieldAfterMs: _warmMainYieldMs
+  });
 
   // Measure a true steady-state post-compile frame (never feed one-time shader compile time into hwGovernor!)
   const tSteady0 = performance.now();
@@ -718,10 +1021,27 @@ async function bootstrapNexusSimulator() {
   if (steadyFrameMs <= 35.0) {
     hwGovernor.recordWarmupSample(steadyFrameMs);
   }
+  _totalWarmCpuMs += Math.max(0.0, steadyFrameMs);
+  bootProfiler.recordShaderWarmupStep({
+    stepId: 'steady_calibration_render_pass',
+    phase: 'steady_governor_calibration',
+    archetypes: ['SteadyPostCompileRender'],
+    wallMs: steadyFrameMs,
+    cpuMs: steadyFrameMs,
+    yieldAfterMs: 0
+  });
   const warmupMs = performance.now() - tWarm0;
+  const _warmedProgsCount = Array.isArray(renderer.info?.programs) ? renderer.info.programs.length : 0;
+  bootProfiler.endShaderWarmup(warmupMs, _totalWarmCpuMs);
+  bootProfiler.endStage(_tokS13, {
+    cpuMs: _totalWarmCpuMs,
+    waitMs: Math.max(0.0, warmupMs - _totalWarmCpuMs),
+    detail: `Warmup ${warmupMs.toFixed(1)}ms (CPU ${_totalWarmCpuMs.toFixed(1)}ms) · Programs ${_warmedProgsCount}`
+  });
 
   const liveForensicProbe = createForensicReadOnlyProbe({
     recorder: forensicRecorder,
+    bootProfiler,
     renderer,
     camera,
     postFX,
@@ -744,11 +1064,36 @@ async function bootstrapNexusSimulator() {
     window.NexusForensic.registerEngineProbe(liveForensicProbe);
     window.NexusForensic.markMilestone(
       'shaders_prewarmed_ready',
-      `Warmup ${warmupMs.toFixed(1)}ms · Programs ${Array.isArray(renderer.info?.programs) ? renderer.info.programs.length : 0}`
+      `Warmup ${warmupMs.toFixed(1)}ms · Programs ${_warmedProgsCount}`
     );
   }
+
+  const _tokS14 = bootProfiler.beginStage(
+    'S14_preloader_100_gpu_flush',
+    'FIRST_FRAME_GAP',
+    'Yield Preloader 100%, Flush Antrean GPU Pasca-Warmup & Buka Tirai'
+  );
+  const _tS14Adv0 = _nowBoot();
   await preloader.advance(8, 100, 'Selamat Datang di Kepulauan Universitas Indonesia (Pulau U & I), Depok.', TOTAL_EXPECTED_TRIS);
+  const _s14WaitMs = Math.max(0.0, _nowBoot() - _tS14Adv0);
+  const _tS14Dis0 = _nowBoot();
   preloader.dismiss();
+  const _s14DisCpuMs = Math.max(0.0, _nowBoot() - _tS14Dis0);
+  const _s14Entry = bootProfiler.endStage(_tokS14, {
+    cpuMs: _s14DisCpuMs,
+    waitMs: _s14WaitMs,
+    detail: `rAF/GPU flush ${_s14WaitMs.toFixed(1)}ms + dismiss ${_s14DisCpuMs.toFixed(1)}ms`
+  });
+  if (_s14Entry) {
+    bootProfiler.firstFrameGap.preloader100YieldAndGpuFlushMs = _s14Entry.wallMs;
+  }
+
+  const _tokS15 = bootProfiler.beginStage(
+    'S15_ui_dom_and_viewport_bind',
+    'FIRST_FRAME_GAP',
+    'Inisialisasi Kontrol UI, Sinkronisasi Viewport Awal & DOM Telemetri'
+  );
+  const _tS15Cpu0 = _nowBoot();
 
   const useTouchControls = () =>
     Boolean(isMobilePlatform || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches));
@@ -923,7 +1268,13 @@ async function bootstrapNexusSimulator() {
   pillBtn.addEventListener('click', () => setPanelExpanded(true));
   closeBtn.addEventListener('click', () => setPanelExpanded(false));
   window.addEventListener('resize', syncViewport);
+  const _prevPfxW = postFX.width;
+  const _prevPfxH = postFX.height;
+  const _tInitSyncVp0 = _nowBoot();
   syncViewport();
+  bootProfiler.firstFrameGap.initialSyncViewportCpuMs = +Math.max(0.0, _nowBoot() - _tInitSyncVp0).toFixed(2);
+  bootProfiler.firstFrameGap.postFxResizedOnViewportSync =
+    postFX.width !== _prevPfxW || postFX.height !== _prevPfxH;
 
   // Tabs
   document.querySelectorAll('.tab-btn').forEach((btn) => {
@@ -2694,6 +3045,7 @@ async function bootstrapNexusSimulator() {
   const elForensicSummary = document.getElementById('forensic-60s-summary');
   const elForensicSpark = document.getElementById('forensic-sparkline');
   const elForensicDetail = document.getElementById('forensic-60s-detail');
+  const elForensicBootV25 = document.getElementById('forensic-boot-v25');
   const elForensicSoundV24 = document.getElementById('forensic-sound-v24');
   const elForensic30sDiag = document.getElementById('drawer-forensic-30s-diag');
   const elForensicVerdict = document.getElementById('drawer-forensic-verdict');
@@ -2735,6 +3087,19 @@ async function bootstrapNexusSimulator() {
       elForensicDetail.textContent =
         `Frame ${w.avgFrameMs}ms (P95 ${w.p95FrameMs}ms, Peak ${w.peakFrameMs}ms) · CPU ${w.avgCpuMs}ms · ` +
         `${w.bottleneck} · Prog ${w.programs} · Tex ${w.textures}${heapTxt}`;
+    }
+    if (elForensicBootV25) {
+      const bf = bootProfiler.buildSnapshot({ audioSynth, weather });
+      const bs = bf.summary;
+      const topW = bs.heaviestWallStage ? `${bs.heaviestWallStage.id} (${bs.heaviestWallStage.wallMs}ms)` : 'n/a';
+      const rainSt = bf.deferredBackgroundTasks.rainCollisionZBufferBake;
+      const rainTxt =
+        rainSt.status === 'completed' && rainSt.totalCpuMs !== null
+          ? `RainBake ${rainSt.totalCpuMs}ms CPU`
+          : `RainBake ${rainSt.status}`;
+      elForensicBootV25.textContent =
+        `Boot v2.5 [${bf.verdict}] · 1stFrm ${bs.timeToFirstFrameSubmittedMs}ms (CPU ${bs.totalBootBlockingCpuMs}ms) · ` +
+        `Top #1 ${topW} · Gap ${bf.firstFrameGapBreakdown.totalGapMs}ms · ${rainTxt}`;
     }
     if (elForensicSoundV24 && typeof audioSynth.getForensicSnapshot === 'function') {
       const sf = audioSynth.getForensicSnapshot(hwGovernor);
@@ -2840,8 +3205,10 @@ async function bootstrapNexusSimulator() {
       elHwGpuName.textContent = `GPU: ${hw.gpuRenderer || hw.gpuModel || 'WebGL2 GPU'} (${hw.cpuCores || 8} Core, ${hw.deviceMemoryGB || 8} GB, Target ${hw.targetFps || 120} FPS)`;
     }
   }
+  const _tInitForDom0 = _nowBoot();
   syncHardwareTelemetryDOM();
   syncForensicDOM();
+  bootProfiler.firstFrameGap.initialSyncForensicDomCpuMs = +Math.max(0.0, _nowBoot() - _tInitForDom0).toFixed(2);
 
   document.querySelectorAll('[data-hwmode]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -2870,10 +3237,33 @@ async function bootstrapNexusSimulator() {
   let lastDrawCalls = 18;
   let lastAppliedNightIllum = -1.0;
   let firstFrameMarked = false;
+  let secondFrameMarked = false;
+  let _tokS16 = null;
+  let _tokS16Closed = false;
 
   function renderLoop(now) {
     requestAnimationFrame(renderLoop);
     if (webglContextLost) return;
+    if (!_tokS16Closed && _tokS16) {
+      _tokS16Closed = true;
+      const _s16Entry = bootProfiler.endStage(_tokS16, {
+        pureAsyncIo: true,
+        detail: 'Tunggu rAF pertama dari akhir bootstrap menuju eksekusi renderLoop #1'
+      });
+      if (_s16Entry) {
+        bootProfiler.firstFrameGap.rafQueueWaitToFrame1Ms = _s16Entry.wallMs;
+      }
+    } else if (firstFrameMarked && !secondFrameMarked) {
+      secondFrameMarked = true;
+      bootProfiler.recordSecondFrameEntered();
+    }
+    const _tokS17 = !firstFrameMarked
+      ? bootProfiler.beginStage(
+          'S17_first_frame_cpu_submit',
+          'FIRST_FRAME_GAP',
+          'Simulasi, Planar Reflection & Submit PostFX Frame Pertama'
+        )
+      : null;
     if (prevTime <= 0.0) prevTime = now - 16.667;
     const rawWallSec = (now - prevTime) * 0.001;
     const rawDt =
@@ -3009,6 +3399,7 @@ async function bootstrapNexusSimulator() {
       if (sharedUniforms.uVideotronPortalAlpha) {
         sharedUniforms.uVideotronPortalAlpha.value = 0.0;
       }
+      const _tF1Refl0 = _tokS17 ? performance.now() : 0.0;
       postFX.renderPlanarWaterReflection(
         scene,
         camera,
@@ -3021,12 +3412,34 @@ async function bootstrapNexusSimulator() {
       if (sharedUniforms.uVideotronPortalAlpha) {
         sharedUniforms.uVideotronPortalAlpha.value = savedPortalAlpha;
       }
+      const _tF1Main0 = _tokS17 ? performance.now() : 0.0;
       postFX.render(scene, camera);
-      lastCpuMs = performance.now() - tCpuStart;
+      const _tF1Done = performance.now();
+      lastCpuMs = _tF1Done - tCpuStart;
       lastDrawCalls = renderer.info.render.calls;
 
       if (!firstFrameMarked) {
         firstFrameMarked = true;
+        const _f1SimMs = Math.max(0.0, _tF1Refl0 - tCpuStart);
+        const _f1ReflMs = Math.max(0.0, _tF1Main0 - _tF1Refl0);
+        const _f1MainMs = Math.max(0.0, _tF1Done - _tF1Main0);
+        if (_tokS17) {
+          bootProfiler.endStage(_tokS17, {
+            cpuMs: lastCpuMs,
+            detail: `${lastDrawCalls} calls · Sim ${_f1SimMs.toFixed(1)}ms + Refl ${_f1ReflMs.toFixed(1)}ms + Main ${_f1MainMs.toFixed(1)}ms`
+          });
+        }
+        bootProfiler.recordFirstFrameSubmitted({
+          simAndKinematicsCpuMs: _f1SimMs,
+          planarReflectionCpuMs: _f1ReflMs,
+          planarReflectionRan: reflRanThisFrame,
+          planarReflectionCalls: reflCallsThisFrame,
+          mainPostFxRenderCpuMs: _f1MainMs,
+          shadowUpdated: shadowRefreshedThisFrame,
+          mainCalls: postFX.lastWorldDrawCalls || lastDrawCalls,
+          mainTriangles: postFX.lastWorldTriangles || renderer.info.render.triangles,
+          totalCpuMs: lastCpuMs
+        });
         if (typeof window !== 'undefined' && window.NexusForensic) {
           window.NexusForensic.markMilestone(
             'first_frame_rendered',
@@ -3115,6 +3528,7 @@ async function bootstrapNexusSimulator() {
       rotundaFountain,
       hwGovernor,
       forensicRecorder,
+      bootProfiler,
       forensic: window.NexusForensic || null,
       camDirector,
       sivitasAI,
@@ -3142,6 +3556,19 @@ async function bootstrapNexusSimulator() {
     };
   }
 
+  const _s15CpuMs = Math.max(0.0, _nowBoot() - _tS15Cpu0);
+  const _s15Entry = bootProfiler.endStage(_tokS15, {
+    cpuMs: _s15CpuMs,
+    detail: `DOM/UI bind ${_s15CpuMs.toFixed(1)}ms (syncViewport ${bootProfiler.firstFrameGap.initialSyncViewportCpuMs}ms, FBO resize=${bootProfiler.firstFrameGap.postFxResizedOnViewportSync})`
+  });
+  if (_s15Entry) {
+    bootProfiler.firstFrameGap.uiDomAndViewportBindCpuMs = _s15Entry.cpuMs;
+  }
+  _tokS16 = bootProfiler.beginStage(
+    'S16_raf_wait_to_render_loop',
+    'FIRST_FRAME_GAP',
+    'Antrean Browser rAF Menuju Eksekusi Frame Pertama'
+  );
   requestAnimationFrame(renderLoop);
 
   // --- ASYNCHRONOUS BACKGROUND REFERENCE PIPELINE (RUNS AFTER WORLD IS ALREADY LIVE!) ---
@@ -3161,6 +3588,7 @@ async function bootstrapNexusSimulator() {
 
   // 2. Stream & Bake 768x768 3D Rain Roof/Canopy Collision Z-Buffer & 1,600 Drip Anchors Asynchronously (< 1.5ms once per VSync frame, zero frame drops!)
   scheduleAsyncBackgroundTask(() => {
+    bootProfiler.recordRainBakeStarted();
     const pBake = weather.bakeSceneCollisionFieldAsync(
       [worldRoot],
       {
@@ -3175,9 +3603,15 @@ async function bootstrapNexusSimulator() {
       sharedUniforms
     );
     if (pBake && typeof pBake.then === 'function') {
-      pBake.then(() => {
+      pBake.then((bakeRes) => {
+        const finalBake = bakeRes || weather.collisionBake || null;
+        bootProfiler.recordRainBakeCompleted(finalBake);
         if (typeof window !== 'undefined' && window.NexusForensic) {
-          window.NexusForensic.markMilestone('rain_collision_zbuffer_baked', '768x768 Z-buffer atap & kanopi siap (<1.5ms/frame)');
+          const bf = finalBake && finalBake.bakeForensics ? finalBake.bakeForensics : null;
+          const det = bf
+            ? `768x768 Z-buffer siap (CPU ${bf.totalCpuMs}ms · ${bf.sliceCount} slice · maks ${bf.maxSliceCpuMs}ms/slice · wall ${bf.wallElapsedMs}ms)`
+            : '768x768 Z-buffer atap & kanopi siap (<1.5ms/frame)';
+          window.NexusForensic.markMilestone('rain_collision_zbuffer_baked', det);
         }
       });
     }

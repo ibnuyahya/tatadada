@@ -943,11 +943,621 @@ export class NexusRolling30sRecorder {
 }
 
 /**
+ * Forensik Inisiasi & Boot Granular v2.5 (100% Passive, Zero Runtime Frame Overhead):
+ * Breaks down every initiation stage (HTML/importmap -> WebGL2 -> World Sub-Builders ->
+ * 3D Grass Bake -> Per-Slice & Per-Pass Shader Compilation -> First-Frame Gap -> Deferred Rain/Audio)
+ * into wallMs, blocking cpuMs, yield/GPU waitMs, GPU resource deltas, and automatic bottleneck ranking.
+ */
+export class NexusBootForensicProfiler {
+  constructor(options = {}) {
+    this._nowRaw = () =>
+      typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    this._originPerfMs =
+      typeof options.originPerfMs === 'number' && Number.isFinite(options.originPerfMs)
+        ? options.originPerfMs
+        : typeof window !== 'undefined' &&
+            window.NexusForensic &&
+            typeof window.NexusForensic.getOriginPerfMs === 'function'
+          ? window.NexusForensic.getOriginPerfMs()
+          : this._nowRaw();
+    this.renderer = options.renderer || null;
+    this.stages = [];
+    this.shaderSlices = [];
+    this.shaderMeta = {
+      compileMode: 'unknown',
+      msaaSamplesDuringWarmup: 0,
+      planarReflSizeDuringWarmup: 0,
+      uniqueArchetypesCount: 0,
+      programsBeforeWarmup: 0,
+      programsAfterWarmup: 0,
+      totalWarmupWallMs: 0,
+      totalWarmupCpuMs: 0
+    };
+    this.firstFrameGap = {
+      prewarmReadyAtMs: 0,
+      firstFrameMarkedAtMs: 0,
+      secondFrameStartAtMs: 0,
+      totalGapMs: 0,
+      preloader100YieldAndGpuFlushMs: 0,
+      uiDomAndViewportBindCpuMs: 0,
+      initialSyncViewportCpuMs: 0,
+      postFxResizedOnViewportSync: false,
+      initialSyncForensicDomCpuMs: 0,
+      rafQueueWaitToFrame1Ms: 0,
+      frame1SimAndKinematicsCpuMs: 0,
+      frame1PlanarReflectionCpuMs: 0,
+      frame1PlanarReflectionRan: false,
+      frame1PlanarReflectionCalls: 0,
+      frame1MainPostFxRenderCpuMs: 0,
+      frame1ShadowMapUpdated: false,
+      frame1MainCalls: 0,
+      frame1MainTriangles: 0,
+      frame1TotalCpuMs: 0,
+      programsAtPrewarmEnd: 0,
+      programsAfterFrame1: 0,
+      lateCompiledProgramsCount: 0,
+      lateCompiledPrograms: [],
+      frame1ToFrame2GpuPresentWallMs: null
+    };
+    this.subBuilders = {
+      gedungRektorat4Gates: null,
+      tropicalGrass3D: null,
+      solidWorldCollidersCount: 0
+    };
+    this.deferredTasks = {
+      rainCollisionZBufferBake: {
+        status: 'pending',
+        startedAtMs: null,
+        completedAtMs: null,
+        wallDurationMs: null,
+        totalCpuMs: null,
+        sliceCount: null,
+        avgSliceCpuMs: null,
+        maxSliceCpuMs: null,
+        sliceBudgetMs: null,
+        gridSize: null,
+        staticMeshCount: null,
+        canopyMeshCount: null,
+        rawDripCandidateCount: null
+      },
+      liveDepokWeatherFetch: {
+        status: 'pending',
+        startedAtMs: null,
+        resolvedAtMs: null,
+        elapsedMs: null,
+        isLiveApi: null,
+        labelId: null
+      }
+    };
+    this._knownProgramIds = new Set();
+  }
+
+  relMs() {
+    return Math.max(0.0, +(this._nowRaw() - this._originPerfMs).toFixed(2));
+  }
+
+  attachRenderer(renderer) {
+    this.renderer = renderer || null;
+    this._snapshotProgramDiff(false);
+  }
+
+  _readGpuResourceCounts() {
+    const info = this.renderer && this.renderer.info ? this.renderer.info : null;
+    return {
+      programs: info && Array.isArray(info.programs) ? info.programs.length : 0,
+      geometries: info && info.memory ? info.memory.geometries || 0 : 0,
+      textures: info && info.memory ? info.memory.textures || 0 : 0
+    };
+  }
+
+  _snapshotProgramDiff(recordAsKnown = true) {
+    const progs =
+      this.renderer && this.renderer.info && Array.isArray(this.renderer.info.programs)
+        ? this.renderer.info.programs
+        : [];
+    const added = [];
+    for (let i = 0; i < progs.length; i++) {
+      const p = progs[i];
+      if (!p) continue;
+      const pid = p.id !== undefined ? p.id : i;
+      if (!this._knownProgramIds.has(pid)) {
+        if (recordAsKnown) this._knownProgramIds.add(pid);
+        const rawKey = typeof p.cacheKey === 'string' ? p.cacheKey : '';
+        added.push({
+          id: pid,
+          name: String(p.name || p.type || 'WebGLProgram').slice(0, 72),
+          cacheKeyHead: rawKey ? rawKey.slice(0, 64) : ''
+        });
+      }
+    }
+    if (!recordAsKnown) {
+      for (let i = 0; i < progs.length; i++) {
+        const p = progs[i];
+        if (p) this._knownProgramIds.add(p.id !== undefined ? p.id : i);
+      }
+    }
+    return added;
+  }
+
+  _peekPostFrame1Programs() {
+    if (!(this.firstFrameGap.firstFrameMarkedAtMs > 0)) return [];
+    const progs =
+      this.renderer && this.renderer.info && Array.isArray(this.renderer.info.programs)
+        ? this.renderer.info.programs
+        : [];
+    const postFrame1 = [];
+    for (let i = 0; i < progs.length; i++) {
+      const p = progs[i];
+      if (!p) continue;
+      const pid = p.id !== undefined ? p.id : i;
+      if (!this._knownProgramIds.has(pid)) {
+        const rawKey = typeof p.cacheKey === 'string' ? p.cacheKey : '';
+        postFrame1.push({
+          id: pid,
+          name: String(p.name || p.type || 'WebGLProgram').slice(0, 72),
+          cacheKeyHead: rawKey ? rawKey.slice(0, 64) : ''
+        });
+      }
+    }
+    return postFrame1;
+  }
+
+  recordPreBootstrapSpan(collectorInitRelMs, bootstrapStartRelMs, detail = '') {
+    const s = Math.max(0.0, Number(collectorInitRelMs) || 0.0);
+    const e = Math.max(s, Number(bootstrapStartRelMs) || this.relMs());
+    const w = +(e - s).toFixed(2);
+    this.stages.push({
+      id: 'S00_html_and_importmap',
+      category: 'MODULE_LOAD',
+      label: 'HTML, Early Collector & Three.js Importmap',
+      startMs: +s.toFixed(2),
+      endMs: +e.toFixed(2),
+      wallMs: w,
+      cpuMs: null,
+      waitOrYieldMs: null,
+      addedPrograms: 0,
+      addedGeometries: 0,
+      addedTextures: 0,
+      detail: detail || 'Parse HTML + muat Three.js CDN & modul entry main.js'
+    });
+  }
+
+  beginStage(id, category, label) {
+    const startRel = this.relMs();
+    const startRaw = this._nowRaw();
+    const gpuBefore = this._readGpuResourceCounts();
+    return {
+      id,
+      category,
+      label,
+      startRel,
+      startRaw,
+      gpuBefore
+    };
+  }
+
+  endStage(token, opts = {}) {
+    if (!token) return null;
+    const endRel = this.relMs();
+    const wallMs = Math.max(0.0, +(this._nowRaw() - token.startRaw).toFixed(2));
+    const explicitCpu =
+      typeof opts.cpuMs === 'number' && Number.isFinite(opts.cpuMs) ? Math.max(0.0, opts.cpuMs) : null;
+    const explicitWait =
+      typeof opts.waitMs === 'number' && Number.isFinite(opts.waitMs) ? Math.max(0.0, opts.waitMs) : null;
+    let cpuMs = explicitCpu !== null ? +Math.min(wallMs, explicitCpu).toFixed(2) : wallMs;
+    let waitOrYieldMs =
+      explicitWait !== null
+        ? +Math.min(wallMs, explicitWait).toFixed(2)
+        : explicitCpu !== null
+          ? +Math.max(0.0, wallMs - cpuMs).toFixed(2)
+          : 0.0;
+    if (opts.pureAsyncIo === true && explicitCpu === null) {
+      cpuMs = null;
+      waitOrYieldMs = wallMs;
+    }
+    const gpuAfter = this._readGpuResourceCounts();
+    const entry = {
+      id: token.id,
+      category: token.category,
+      label: token.label,
+      startMs: token.startRel,
+      endMs: endRel,
+      wallMs,
+      cpuMs,
+      waitOrYieldMs,
+      addedPrograms: Math.max(0, gpuAfter.programs - token.gpuBefore.programs),
+      addedGeometries: Math.max(0, gpuAfter.geometries - token.gpuBefore.geometries),
+      addedTextures: Math.max(0, gpuAfter.textures - token.gpuBefore.textures),
+      detail: opts.detail ? String(opts.detail).slice(0, 220) : ''
+    };
+    this.stages.push(entry);
+    return entry;
+  }
+
+  beginShaderWarmup(meta = {}) {
+    const gpuCounts = this._readGpuResourceCounts();
+    this._snapshotProgramDiff(false);
+    this.shaderMeta.compileMode = meta.compileMode || 'unknown';
+    this.shaderMeta.msaaSamplesDuringWarmup = Number(meta.msaaSamples) || 0;
+    this.shaderMeta.planarReflSizeDuringWarmup = Number(meta.planarReflSize) || 0;
+    this.shaderMeta.uniqueArchetypesCount = Number(meta.uniqueArchetypesCount) || 0;
+    this.shaderMeta.programsBeforeWarmup = gpuCounts.programs;
+  }
+
+  recordShaderWarmupStep(stepObj) {
+    const newProgs = this._snapshotProgramDiff(true);
+    const compileWallMs = Math.max(0.0, +(Number(stepObj.wallMs) || 0.0).toFixed(2));
+    const cpuMs = Math.max(0.0, +(Number(stepObj.cpuMs) || 0.0).toFixed(2));
+    const yieldAfterMs = Math.max(0.0, +(Number(stepObj.yieldAfterMs) || 0.0).toFixed(2));
+    this.shaderSlices.push({
+      stepId: String(stepObj.stepId || `step_${this.shaderSlices.length}`),
+      phase: String(stepObj.phase || 'compile_slice'),
+      archetypes: Array.isArray(stepObj.archetypes) ? stepObj.archetypes.slice(0, 8) : [],
+      wallMs: compileWallMs,
+      cpuMs,
+      yieldAfterMs,
+      effectiveCostMs: +(compileWallMs + yieldAfterMs).toFixed(2),
+      addedProgramsCount: newProgs.length,
+      newPrograms: newProgs
+    });
+  }
+
+  endShaderWarmup(totalWallMs, totalCpuMs) {
+    const gpuCounts = this._readGpuResourceCounts();
+    this.shaderMeta.programsAfterWarmup = gpuCounts.programs;
+    this.shaderMeta.totalWarmupWallMs = Math.max(0.0, +(Number(totalWallMs) || 0.0).toFixed(2));
+    this.shaderMeta.totalWarmupCpuMs = Math.max(0.0, +(Number(totalCpuMs) || 0.0).toFixed(2));
+    this.firstFrameGap.prewarmReadyAtMs = this.relMs();
+    this.firstFrameGap.programsAtPrewarmEnd = gpuCounts.programs;
+  }
+
+  recordFirstFrameSubmitted(metrics = {}) {
+    const nowRel = this.relMs();
+    const lateProgs = this._snapshotProgramDiff(true);
+    const gpuCounts = this._readGpuResourceCounts();
+    const g = this.firstFrameGap;
+    g.firstFrameMarkedAtMs = nowRel;
+    g.totalGapMs = +Math.max(0.0, nowRel - (g.prewarmReadyAtMs || 0)).toFixed(2);
+    if (metrics.simAndKinematicsCpuMs !== undefined) {
+      g.frame1SimAndKinematicsCpuMs = +Math.max(0.0, Number(metrics.simAndKinematicsCpuMs) || 0).toFixed(2);
+    }
+    if (metrics.planarReflectionCpuMs !== undefined) {
+      g.frame1PlanarReflectionCpuMs = +Math.max(0.0, Number(metrics.planarReflectionCpuMs) || 0).toFixed(2);
+    }
+    g.frame1PlanarReflectionRan = Boolean(metrics.planarReflectionRan);
+    g.frame1PlanarReflectionCalls = Number(metrics.planarReflectionCalls) || 0;
+    if (metrics.mainPostFxRenderCpuMs !== undefined) {
+      g.frame1MainPostFxRenderCpuMs = +Math.max(0.0, Number(metrics.mainPostFxRenderCpuMs) || 0).toFixed(2);
+    }
+    g.frame1ShadowMapUpdated = Boolean(metrics.shadowUpdated);
+    g.frame1MainCalls = Number(metrics.mainCalls) || 0;
+    g.frame1MainTriangles = Number(metrics.mainTriangles) || 0;
+    if (metrics.totalCpuMs !== undefined) {
+      g.frame1TotalCpuMs = +Math.max(0.0, Number(metrics.totalCpuMs) || 0).toFixed(2);
+    }
+    g.programsAfterFrame1 = gpuCounts.programs;
+    g.lateCompiledProgramsCount = lateProgs.length;
+    g.lateCompiledPrograms = lateProgs;
+    this._frame1SubmittedRaw = this._nowRaw();
+  }
+
+  recordSecondFrameEntered() {
+    if (this.firstFrameGap.frame1ToFrame2GpuPresentWallMs !== null) return;
+    const nowRaw = this._nowRaw();
+    const presentMs =
+      typeof this._frame1SubmittedRaw === 'number'
+        ? Math.max(0.0, +(nowRaw - this._frame1SubmittedRaw).toFixed(2))
+        : 0.0;
+    this.firstFrameGap.secondFrameStartAtMs = this.relMs();
+    this.firstFrameGap.frame1ToFrame2GpuPresentWallMs = presentMs;
+    this.stages.push({
+      id: 'S18_frame1_gpu_present',
+      category: 'FIRST_FRAME_GAP',
+      label: 'Eksekusi GPU & Presentasi Swapchain Frame Pertama',
+      startMs: this.firstFrameGap.firstFrameMarkedAtMs,
+      endMs: this.firstFrameGap.secondFrameStartAtMs,
+      wallMs: presentMs,
+      cpuMs: 0.0,
+      waitOrYieldMs: presentMs,
+      addedPrograms: 0,
+      addedGeometries: 0,
+      addedTextures: 0,
+      detail: 'Interval rAF Frame #1 -> Frame #2 (waktu nyata piksel pertama tampil di layar)'
+    });
+  }
+
+  recordRainBakeStarted() {
+    this.deferredTasks.rainCollisionZBufferBake.status = 'running';
+    this.deferredTasks.rainCollisionZBufferBake.startedAtMs = this.relMs();
+  }
+
+  recordRainBakeCompleted(bakeResult) {
+    const rb = this.deferredTasks.rainCollisionZBufferBake;
+    rb.status = 'completed';
+    rb.completedAtMs = this.relMs();
+    const bf = bakeResult && bakeResult.bakeForensics ? bakeResult.bakeForensics : null;
+    if (bf) {
+      rb.wallDurationMs = bf.wallElapsedMs ?? null;
+      rb.totalCpuMs = bf.totalCpuMs ?? null;
+      rb.sliceCount = bf.sliceCount ?? null;
+      rb.avgSliceCpuMs = bf.avgSliceCpuMs ?? null;
+      rb.maxSliceCpuMs = bf.maxSliceCpuMs ?? null;
+      rb.sliceBudgetMs = bf.sliceBudgetMs ?? null;
+      rb.gridSize = bf.gridSize ?? null;
+      rb.staticMeshCount = bf.staticMeshCount ?? null;
+      rb.canopyMeshCount = bf.canopyMeshCount ?? null;
+      rb.rawDripCandidateCount = bf.rawDripCandidateCount ?? null;
+    }
+  }
+
+  recordLiveWeatherStarted() {
+    this.deferredTasks.liveDepokWeatherFetch.startedAtMs = this.relMs();
+  }
+
+  recordLiveWeatherSettled(liveData) {
+    const lw = this.deferredTasks.liveDepokWeatherFetch;
+    lw.resolvedAtMs = this.relMs();
+    lw.elapsedMs =
+      lw.startedAtMs !== null ? +Math.max(0.0, lw.resolvedAtMs - lw.startedAtMs).toFixed(2) : null;
+    lw.status = liveData && liveData.isLiveApi ? 'live_api_ok' : 'offline_fallback';
+    lw.isLiveApi = Boolean(liveData && liveData.isLiveApi);
+    lw.labelId = liveData && liveData.labelId ? String(liveData.labelId) : null;
+  }
+
+  buildSnapshot(extra = {}) {
+    const audioSynth = extra.audioSynth || null;
+    const firstFrameMs =
+      this.firstFrameGap.firstFrameMarkedAtMs > 0
+        ? this.firstFrameGap.firstFrameMarkedAtMs
+        : this.stages.length > 0
+          ? this.stages[this.stages.length - 1].endMs
+          : this.relMs();
+    let maxStageWallBeforePresent = 0.0;
+    for (let i = 0; i < this.stages.length; i++) {
+      const st0 = this.stages[i];
+      if (st0.id !== 'S18_frame1_gpu_present') {
+        if (st0.endMs > maxStageWallBeforePresent) maxStageWallBeforePresent = st0.endMs;
+        if (st0.wallMs > maxStageWallBeforePresent) maxStageWallBeforePresent = st0.wallMs;
+      }
+    }
+    const denomWall = Math.max(1.0, firstFrameMs, maxStageWallBeforePresent);
+
+    let totalBlockingCpuMs = 0.0;
+    let totalAsyncWaitMs = 0.0;
+    let longMainThreadBlocksOver50ms = 0;
+    let worstCpuStage = null;
+
+    const preFrame2Stages = [];
+    for (let i = 0; i < this.stages.length; i++) {
+      const st = this.stages[i];
+      if (st.id !== 'S18_frame1_gpu_present') {
+        if (typeof st.cpuMs === 'number' && Number.isFinite(st.cpuMs)) {
+          totalBlockingCpuMs += st.cpuMs;
+          if (st.cpuMs >= 50.0) longMainThreadBlocksOver50ms++;
+          if (!worstCpuStage || st.cpuMs > worstCpuStage.cpuMs) {
+            worstCpuStage = st;
+          }
+        }
+        if (typeof st.waitOrYieldMs === 'number' && Number.isFinite(st.waitOrYieldMs)) {
+          totalAsyncWaitMs += st.waitOrYieldMs;
+        }
+        preFrame2Stages.push(st);
+      }
+    }
+
+    const denomCpu = Math.max(1.0, totalBlockingCpuMs);
+    const enrichedStages = this.stages.map((st) => ({
+      id: st.id,
+      category: st.category,
+      label: st.label,
+      startMs: st.startMs,
+      endMs: st.endMs,
+      wallMs: st.wallMs,
+      cpuMs: st.cpuMs,
+      waitOrYieldMs: st.waitOrYieldMs,
+      pctOfFirstFrameWall:
+        st.id === 'S18_frame1_gpu_present' ? null : +((st.wallMs / denomWall) * 100.0).toFixed(1),
+      pctOfBlockingCpu:
+        st.id !== 'S18_frame1_gpu_present' && typeof st.cpuMs === 'number'
+          ? +((st.cpuMs / denomCpu) * 100.0).toFixed(1)
+          : null,
+      addedPrograms: st.addedPrograms,
+      addedGeometries: st.addedGeometries,
+      addedTextures: st.addedTextures,
+      detail: st.detail
+    }));
+
+    const rankedByWall = enrichedStages
+      .filter((s) => s.id !== 'S18_frame1_gpu_present')
+      .slice()
+      .sort((a, b) => b.wallMs - a.wallMs)
+      .slice(0, 6)
+      .map((s, idx) => ({
+        rank: idx + 1,
+        id: s.id,
+        category: s.category,
+        label: s.label,
+        wallMs: s.wallMs,
+        cpuMs: s.cpuMs,
+        waitOrYieldMs: s.waitOrYieldMs,
+        pctOfFirstFrameWall: s.pctOfFirstFrameWall,
+        addedPrograms: s.addedPrograms
+      }));
+
+    const rankedByCpu = enrichedStages
+      .filter((s) => s.id !== 'S18_frame1_gpu_present' && typeof s.cpuMs === 'number' && s.cpuMs > 0)
+      .slice()
+      .sort((a, b) => b.cpuMs - a.cpuMs)
+      .slice(0, 6)
+      .map((s, idx) => ({
+        rank: idx + 1,
+        id: s.id,
+        category: s.category,
+        label: s.label,
+        cpuMs: s.cpuMs,
+        wallMs: s.wallMs,
+        pctOfBlockingCpu: s.pctOfBlockingCpu
+      }));
+
+    const rankedShaderSteps = this.shaderSlices
+      .slice()
+      .sort((a, b) => b.effectiveCostMs - a.effectiveCostMs)
+      .slice(0, 6);
+
+    const audForensic =
+      audioSynth && typeof audioSynth.getForensicSnapshot === 'function'
+        ? audioSynth.getForensicSnapshot(null)
+        : null;
+    const audHc = audForensic && audForensic.hardwareAndContext ? audForensic.hardwareAndContext : null;
+
+    const presentExtraMs = this.firstFrameGap.frame1ToFrame2GpuPresentWallMs || 0;
+    const trueInteractiveMs = +(firstFrameMs + presentExtraMs).toFixed(2);
+
+    let verdict = 'FAST_BOOT';
+    if (trueInteractiveMs >= 20000 || totalBlockingCpuMs >= 3000) {
+      verdict = 'HEAVY_BOOT';
+    } else if (trueInteractiveMs >= 8000 || totalBlockingCpuMs >= 1500) {
+      verdict = 'MODERATE_BOOT';
+    }
+
+    const topWall = rankedByWall[0] || null;
+    const topCpu = rankedByCpu[0] || null;
+    const topShader = rankedShaderSteps[0] || null;
+    let dominantBottleneck = 'BALANCED_STARTUP';
+    if (topWall) {
+      if (topWall.id === 'S13_gpu_shader_prewarm') {
+        dominantBottleneck = 'GPU_SHADER_DRIVER_COMPILE';
+      } else if (topWall.id.startsWith('S14') || topWall.id.startsWith('S16') || topWall.id.startsWith('S17')) {
+        dominantBottleneck = 'POST_PREWARM_GPU_FLUSH_OR_FIRST_FRAME';
+      } else if (topWall.id === 'S11_tropical_grass_3d') {
+        dominantBottleneck = 'GRASS_LAWN_TEXTURE_BAKE_AND_YIELDS';
+      } else if (topWall.category === 'WORLD_BUILD') {
+        dominantBottleneck = 'CPU_PROCEDURAL_WORLD_GEOMETRY';
+      }
+    }
+
+    const findings = [];
+    if (topWall) {
+      findings.push(
+        `Tahap jam-dinding terberat #1: ${topWall.label} (${topWall.wallMs}ms / ${topWall.pctOfFirstFrameWall}% dari waktu menuju frame pertama ${firstFrameMs}ms).`
+      );
+    }
+    if (topCpu) {
+      findings.push(
+        `Blokir CPU main-thread terbesar #1: ${topCpu.label} (${topCpu.cpuMs}ms dari total CPU inisiasi ${totalBlockingCpuMs.toFixed(1)}ms; ${longMainThreadBlocksOver50ms} tahap >50ms).`
+      );
+    }
+    if (topShader) {
+      const pNames = topShader.newPrograms.map((p) => p.name).join(', ') || 'tanpa program baru';
+      findings.push(
+        `Sub-langkah prewarm shader terlambat #1: ${topShader.stepId} (${topShader.effectiveCostMs}ms = compile ${topShader.wallMs}ms + yield ${topShader.yieldAfterMs}ms; +${topShader.addedProgramsCount} prog: ${pNames}).`
+      );
+    }
+    if (this.firstFrameGap.totalGapMs > 250 || this.firstFrameGap.lateCompiledProgramsCount > 0) {
+      const lateNames = this.firstFrameGap.lateCompiledPrograms.map((p) => p.name).join(', ');
+      findings.push(
+        `Jeda pasca-prewarm -> frame 1: ${this.firstFrameGap.totalGapMs}ms (flush preloader ${this.firstFrameGap.preloader100YieldAndGpuFlushMs}ms, UI/viewport ${this.firstFrameGap.uiDomAndViewportBindCpuMs}ms, tunggu rAF ${this.firstFrameGap.rafQueueWaitToFrame1Ms}ms, CPU frame-1 ${this.firstFrameGap.frame1TotalCpuMs}ms, shader telat: +${this.firstFrameGap.lateCompiledProgramsCount}${lateNames ? ' [' + lateNames + ']' : ''}).`
+      );
+    }
+    const postFrame1LateProgs = this._peekPostFrame1Programs();
+    if (postFrame1LateProgs.length > 0) {
+      const pfNames = postFrame1LateProgs.map((p) => `${p.name}#${p.id}`).join(', ');
+      findings.push(
+        `Kompilasi shader susulan pasca-Frame-1 (luput dari prewarm): +${postFrame1LateProgs.length} program [${pfNames}].`
+      );
+    }
+    const rb = this.deferredTasks.rainCollisionZBufferBake;
+    if (rb.status === 'completed' && rb.totalCpuMs !== null) {
+      findings.push(
+        `Rain Z-buffer (${rb.gridSize}): total CPU murni ${rb.totalCpuMs}ms dalam ${rb.sliceCount} slice (maks ${rb.maxSliceCpuMs}ms/slice, bentang dinding ${rb.wallDurationMs}ms).`
+      );
+    }
+    if (audHc && audHc.initialized) {
+      findings.push(
+        `Inisialisasi Web Audio saat diaktifkan: blokir CPU ${audHc.initDurationMs}ms untuk ${audForensic.dspGraphInventory.totalPersistentNodes} node DSP.`
+      );
+    }
+
+    const findStageEnd = (id) => {
+      for (let i = 0; i < enrichedStages.length; i++) {
+        if (enrichedStages[i].id === id) return enrichedStages[i].endMs;
+      }
+      return null;
+    };
+
+    return {
+      forensicVersion: 'v2.5',
+      verdict,
+      dominantBootBottleneck: dominantBottleneck,
+      bootComplete: this.firstFrameGap.firstFrameMarkedAtMs > 0,
+      summary: {
+        timeToBootstrapStartMs: findStageEnd('S00_html_and_importmap'),
+        timeToWebGL2ReadyMs: findStageEnd('S04_shared_textures_governor'),
+        timeToWorldGeometryBuiltMs: findStageEnd('S10_sivitas_npcs_cats_fleet'),
+        timeToGrassAndPostFxReadyMs: findStageEnd('S12_postfx_and_initial_sim'),
+        timeToShadersPrewarmedMs: this.firstFrameGap.prewarmReadyAtMs || findStageEnd('S13_gpu_shader_prewarm'),
+        timeToFirstFrameSubmittedMs: +firstFrameMs.toFixed(2),
+        firstFrameToSecondFramePresentMs: this.firstFrameGap.frame1ToFrame2GpuPresentWallMs,
+        trueTimeToInteractivePixelsMs: trueInteractiveMs,
+        totalBootBlockingCpuMs: +totalBlockingCpuMs.toFixed(2),
+        totalBootAsyncAndGpuWaitMs: +totalAsyncWaitMs.toFixed(2),
+        longMainThreadBlocksOver50ms,
+        heaviestWallStage: topWall,
+        heaviestCpuStage: topCpu
+      },
+      rankedHeaviestByWallMs: rankedByWall,
+      rankedHeaviestByCpuMs: rankedByCpu,
+      stages: enrichedStages,
+      shaderWarmupBreakdown: {
+        compileMode: this.shaderMeta.compileMode,
+        msaaSamplesDuringWarmup: this.shaderMeta.msaaSamplesDuringWarmup,
+        planarReflSizeDuringWarmup: this.shaderMeta.planarReflSizeDuringWarmup,
+        uniqueArchetypesCount: this.shaderMeta.uniqueArchetypesCount,
+        programsBeforeWarmup: this.shaderMeta.programsBeforeWarmup,
+        programsAfterWarmup: this.shaderMeta.programsAfterWarmup,
+        totalCompiledPrograms: Math.max(
+          0,
+          this.shaderMeta.programsAfterWarmup - this.shaderMeta.programsBeforeWarmup
+        ),
+        totalWarmupWallMs: this.shaderMeta.totalWarmupWallMs,
+        totalWarmupCpuMs: this.shaderMeta.totalWarmupCpuMs,
+        postFrame1LateCompiledCount: postFrame1LateProgs.length,
+        postFrame1LateCompiledPrograms: postFrame1LateProgs,
+        rankedSlowestSteps: rankedShaderSteps,
+        steps: this.shaderSlices
+      },
+      firstFrameGapBreakdown: Object.assign({}, this.firstFrameGap),
+      subBuilderDetails: {
+        gedungRektorat4Gates: this.subBuilders.gedungRektorat4Gates,
+        tropicalGrass3D: this.subBuilders.tropicalGrass3D,
+        solidWorldCollidersCount: this.subBuilders.solidWorldCollidersCount
+      },
+      deferredBackgroundTasks: {
+        rainCollisionZBufferBake: Object.assign({}, this.deferredTasks.rainCollisionZBufferBake),
+        liveDepokWeatherFetch: Object.assign({}, this.deferredTasks.liveDepokWeatherFetch),
+        webAudioLazyGraphInit: audHc
+          ? {
+              initialized: audHc.initialized,
+              contextState: audHc.contextState,
+              totalBlockingCpuMs: audHc.initDurationMs,
+              breakdownMs: audHc.initBreakdownMs || null,
+              persistentNodes: audForensic?.dspGraphInventory?.totalPersistentNodes || 0,
+              proceduralBufferMemoryKB: audForensic?.dspGraphInventory?.proceduralBufferMemoryKB || 0
+            }
+          : null
+      },
+      findings
+    };
+  }
+}
+
+/**
  * Pure Read-Only Engine Telemetry Snapshot (NEVER invokes any 3D render pass or mutates 3D state).
  */
 export function createForensicReadOnlyProbe(deps) {
   const {
     recorder,
+    bootProfiler,
     renderer,
     camera,
     postFX,
@@ -1054,7 +1664,13 @@ export function createForensicReadOnlyProbe(deps) {
     const domEl = renderer?.domElement;
     const drawingBufStr = hwSnap?.gpu?.drawingBuffer || `${domEl?.width || 1280}×${domEl?.height || 720}`;
 
+    const bootForensics =
+      bootProfiler && typeof bootProfiler.buildSnapshot === 'function'
+        ? bootProfiler.buildSnapshot({ audioSynth, weather })
+        : null;
+
     return {
+      bootForensics,
       rolling30s: recorder.buildRolling30sSnapshot(),
       soundForensics,
       webgl: {

@@ -64,6 +64,7 @@ export class TropicalGrassField {
       uGrassFocusXZ: { value: new THREE.Vector2(-2.5, 106.0) }
     };
 
+    const tInst0 = typeof performance !== 'undefined' && performance.now ? performance.now() : 0;
     const bladeGeo = TropicalGrassField._buildCurvedBladeGeometry();
     this._populateInstanceAttributes(bladeGeo, this.bladeCount);
     this.material = this._createGrassMaterial(this.sharedUniforms);
@@ -80,6 +81,24 @@ export class TropicalGrassField {
     }
     this.mesh.instanceMatrix.needsUpdate = true;
     this.scene.add(this.mesh);
+    const tInst1 = typeof performance !== 'undefined' && performance.now ? performance.now() : tInst0;
+    const instCpuMs = Math.max(0.0, tInst1 - tInst0);
+    const bakeMeta = (this.bakeTexture && this.bakeTexture.userData && this.bakeTexture.userData.bakeForensics) || null;
+    this.initForensics = {
+      bladeCount: this.bladeCount,
+      curvedBladesTotal: this.bladeCount * 6,
+      bakeGrid: `${this.bakeCols}x${this.bakeRows}`,
+      totalTexels: this.bakeCols * this.bakeRows,
+      bakeCpuMs: bakeMeta ? bakeMeta.totalBakeCpuMs : null,
+      pass1DemSdfCpuMs: bakeMeta ? bakeMeta.pass1CpuMs : null,
+      pass2LawnMaskCpuMs: bakeMeta ? bakeMeta.pass2CpuMs : null,
+      pass3ErosionCpuMs: bakeMeta ? bakeMeta.pass3CpuMs : null,
+      bakeWallMs: bakeMeta ? bakeMeta.bakeWallMs : null,
+      yieldCount: bakeMeta ? bakeMeta.yieldCount : 0,
+      yieldWaitMs: bakeMeta ? bakeMeta.yieldWaitMs : 0,
+      instancePopulateCpuMs: +instCpuMs.toFixed(2),
+      totalCpuMs: +((bakeMeta ? bakeMeta.totalBakeCpuMs : 0) + instCpuMs).toFixed(2)
+    };
   }
 
   /**
@@ -87,6 +106,7 @@ export class TropicalGrassField {
    * DataTexture in ~16ms row slices so startup never blocks the browser main thread!
    */
   static async createAsync(options = {}, yieldFn = null) {
+    const tAll0 = typeof performance !== 'undefined' && performance.now ? performance.now() : 0;
     const cols = options.bakeCols || 896;
     const rows = options.bakeRows || 1344;
     const prebakedTexture = await TropicalGrassField._buildTerrainLawnBakeTextureAsync(
@@ -97,10 +117,21 @@ export class TropicalGrassField {
     if (typeof yieldFn === 'function') {
       await yieldFn();
     }
-    return new TropicalGrassField({ ...options, prebakedTexture });
+    const inst = new TropicalGrassField({ ...options, prebakedTexture });
+    const tAll1 = typeof performance !== 'undefined' && performance.now ? performance.now() : tAll0;
+    if (inst.initForensics) {
+      inst.initForensics.totalCreateWallMs = +Math.max(0.0, tAll1 - tAll0).toFixed(2);
+    }
+    return inst;
   }
 
   static async _buildTerrainLawnBakeTextureAsync(cols, rows, yieldFn = null) {
+    const nowFn = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+    const tBakeWall0 = nowFn();
+    let pass1CpuMs = 0.0;
+    let pass2CpuMs = 0.0;
+    let yieldCount = 0;
+    let yieldWaitMs = 0.0;
     const minX = TropicalGrassField.BAKE_MIN_X;
     const minZ = TropicalGrassField.BAKE_MIN_Z;
     const spanX = TropicalGrassField.BAKE_MAX_X - minX;
@@ -118,7 +149,7 @@ export class TropicalGrassField {
     const qSea = Math.max(0, Math.min(65535, Math.round(((-1.45 - minY) / spanY) * 65535.0)));
     const qSeaHi = (qSea >> 8) & 255;
     const qSeaLo = qSea & 255;
-    let sliceT0 = typeof performance !== 'undefined' ? performance.now() : 0;
+    let sliceT0 = nowFn();
 
     // Pass 1: Sample Island Coast SDF & Ground DEM once per inland texel (skipping ~78% open-sea texels in O(1))
     for (let iz = 0; iz < rows; iz++) {
@@ -171,13 +202,21 @@ export class TropicalGrassField {
       }
 
       if (typeof yieldFn === 'function' && (iz & 31) === 31) {
-        const now = typeof performance !== 'undefined' ? performance.now() : sliceT0 + 20;
+        const now = nowFn();
         if (now - sliceT0 >= 8.0) {
+          pass1CpuMs += Math.max(0.0, now - sliceT0);
+          yieldCount++;
+          const tY0 = now;
           await yieldFn();
-          sliceT0 = typeof performance !== 'undefined' ? performance.now() : 0;
+          const tY1 = nowFn();
+          yieldWaitMs += Math.max(0.0, tY1 - tY0);
+          sliceT0 = tY1;
         }
       }
     }
+    const tPass1End = nowFn();
+    pass1CpuMs += Math.max(0.0, tPass1End - sliceT0);
+    sliceT0 = tPass1End;
 
     // Pass 2: Evaluate Lawn Mask using cached gyGrid finite-difference slopes (zero redundant DEM queries!)
     for (let iz = 0; iz < rows; iz++) {
@@ -203,15 +242,23 @@ export class TropicalGrassField {
       }
 
       if (typeof yieldFn === 'function' && (iz & 63) === 63) {
-        const now = typeof performance !== 'undefined' ? performance.now() : sliceT0 + 20;
+        const now = nowFn();
         if (now - sliceT0 >= 8.0) {
+          pass2CpuMs += Math.max(0.0, now - sliceT0);
+          yieldCount++;
+          const tY0 = now;
           await yieldFn();
-          sliceT0 = typeof performance !== 'undefined' ? performance.now() : 0;
+          const tY1 = nowFn();
+          yieldWaitMs += Math.max(0.0, tY1 - tY0);
+          sliceT0 = tY1;
         }
       }
     }
+    const tPass2End = nowFn();
+    pass2CpuMs += Math.max(0.0, tPass2End - sliceT0);
 
     // Pass 3: Strict 3x3 morphological border erosion + soft inward taper
+    const tPass3Start = tPass2End;
     for (let iz = 0; iz < rows; iz++) {
       for (let ix = 0; ix < cols; ix++) {
         const idx = iz * cols + ix;
@@ -238,6 +285,8 @@ export class TropicalGrassField {
         }
       }
     }
+    const tPass3End = nowFn();
+    const pass3CpuMs = Math.max(0.0, tPass3End - tPass3Start);
 
     const tex = new THREE.DataTexture(data, cols, rows, THREE.RGBAFormat, THREE.UnsignedByteType);
     tex.minFilter = THREE.NearestFilter;
@@ -246,6 +295,18 @@ export class TropicalGrassField {
     tex.wrapT = THREE.ClampToEdgeWrapping;
     tex.generateMipmaps = false;
     tex.needsUpdate = true;
+    const totalBakeCpuMs = pass1CpuMs + pass2CpuMs + pass3CpuMs;
+    tex.userData = Object.assign(tex.userData || {}, {
+      bakeForensics: {
+        pass1CpuMs: +pass1CpuMs.toFixed(2),
+        pass2CpuMs: +pass2CpuMs.toFixed(2),
+        pass3CpuMs: +pass3CpuMs.toFixed(2),
+        totalBakeCpuMs: +totalBakeCpuMs.toFixed(2),
+        bakeWallMs: +Math.max(0.0, nowFn() - tBakeWall0).toFixed(2),
+        yieldCount,
+        yieldWaitMs: +yieldWaitMs.toFixed(2)
+      }
+    });
     return tex;
   }
 
