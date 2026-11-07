@@ -247,7 +247,7 @@ export class WeatherOpticsEngine {
     return out;
   }
 
-  static _islandRadiusAtAngleJS(theta) {
+  static _evalIslandRadiusAnalyticJS(theta) {
     const eastCove = -46.0 * Math.pow(0.5 + 0.5 * Math.cos(theta + 0.25), 4.4);
     const neHeadland = 23.5 * Math.pow(0.5 + 0.5 * Math.cos(theta + 1.04), 8.5);
     const southRotundaLobe = 15.5 * Math.pow(0.5 + 0.5 * Math.cos(theta - 1.12), 2.3);
@@ -257,6 +257,42 @@ export class WeatherOpticsEngine {
       1.20 * Math.cos(5.0 * theta - 0.70) +
       0.55 * Math.sin(8.0 * theta + 1.10);
     return 121.0 + eastCove + neHeadland + southRotundaLobe + swHelipadPeninsula + organicMeander;
+  }
+
+  static _ensureOceanCoastLut() {
+    if (WeatherOpticsEngine._oceanRadiusLut) return;
+    const N = 8192;
+    const TWO_PI = Math.PI * 2.0;
+    const step = TWO_PI / N;
+    const rLut = new Float64Array(N + 1);
+    const invNormLut = new Float64Array(N + 1);
+    const eps = 0.008;
+    for (let i = 0; i <= N; i++) {
+      const th = -Math.PI + i * step;
+      const r0 = WeatherOpticsEngine._evalIslandRadiusAnalyticJS(th);
+      const rP = WeatherOpticsEngine._evalIslandRadiusAnalyticJS(th + eps);
+      const rM = WeatherOpticsEngine._evalIslandRadiusAnalyticJS(th - eps);
+      const slopeRatio = (rP - rM) / (2.0 * eps * Math.max(20.0, r0));
+      rLut[i] = r0;
+      invNormLut[i] = 1.0 / Math.sqrt(1.0 + slopeRatio * slopeRatio);
+    }
+    WeatherOpticsEngine._oceanLutInvStep = N / TWO_PI;
+    WeatherOpticsEngine._oceanRadiusLut = rLut;
+    WeatherOpticsEngine._oceanInvNormLut = invNormLut;
+  }
+
+  static _islandRadiusAtAngleJS(theta) {
+    WeatherOpticsEngine._ensureOceanCoastLut();
+    const TWO_PI = Math.PI * 2.0;
+    let u = theta + Math.PI;
+    if (u < 0.0 || u >= TWO_PI) {
+      u = ((u % TWO_PI) + TWO_PI) % TWO_PI;
+    }
+    const f = u * WeatherOpticsEngine._oceanLutInvStep;
+    const idx = f | 0;
+    const frac = f - idx;
+    const rLut = WeatherOpticsEngine._oceanRadiusLut;
+    return rLut[idx] + (rLut[idx + 1] - rLut[idx]) * frac;
   }
 
   static _evalArchipelagoCoastRawJS(x, z) {
@@ -275,17 +311,20 @@ export class WeatherOpticsEngine {
       const dx = x - -18.0;
       const dz = z - 34.0;
       const r = Math.hypot(dx, dz) + 1e-4;
-      const theta = Math.atan2(dz, dx);
-      const r0 = WeatherOpticsEngine._islandRadiusAtAngleJS(theta);
-      const eps = 0.008;
-      const dRdTh =
-        (WeatherOpticsEngine._islandRadiusAtAngleJS(theta + eps) -
-          WeatherOpticsEngine._islandRadiusAtAngleJS(theta - eps)) /
-        (2.0 * eps);
-      const slopeRatio = dRdTh / Math.max(20.0, r0);
-      const dCampusHead = (r - r0) / Math.sqrt(1.0 + slopeRatio * slopeRatio);
-      const h = Math.max(0.0, 28.0 - Math.abs(dCampusHead - dUHorseshoe)) / 28.0;
-      dU = Math.min(dCampusHead, dUHorseshoe) - h * h * 28.0 * 0.25;
+      if (r - 166.5 < dUHorseshoe + 28.0) {
+        WeatherOpticsEngine._ensureOceanCoastLut();
+        const theta = Math.atan2(dz, dx);
+        const f = (theta + Math.PI) * WeatherOpticsEngine._oceanLutInvStep;
+        const idx = Math.max(0, Math.min(8191, f | 0));
+        const frac = f - idx;
+        const rLut = WeatherOpticsEngine._oceanRadiusLut;
+        const invLut = WeatherOpticsEngine._oceanInvNormLut;
+        const r0 = rLut[idx] + (rLut[idx + 1] - rLut[idx]) * frac;
+        const invNorm = invLut[idx] + (invLut[idx + 1] - invLut[idx]) * frac;
+        const dCampusHead = (r - r0) * invNorm;
+        const h = Math.max(0.0, 28.0 - Math.abs(dCampusHead - dUHorseshoe)) / 28.0;
+        dU = Math.min(dCampusHead, dUHorseshoe) - h * h * 28.0 * 0.25;
+      }
     }
 
     const qx = Math.abs(x + 160.0) - 188.0;
@@ -5495,14 +5534,25 @@ export class WeatherOpticsEngine {
     const sLen = Math.hypot(sx, sy, sz) || 1.0;
 
     // v3.7 Real-Time Jean Meeus Depok Lunar Ephemeris & Unwrapped Sidereal Sky Matrix (0.000° midnight jump!)
-    const astro = evaluateDepokAstronomy(
-      this._baseJD0WIB,
-      this.continuousSolarHour,
-      this.uniforms.uWorldToEqMat.value,
-      this.uniforms.uMoonDir.value,
-      this.uniforms.uMoonPhaseSunDir.value
-    );
-    this._astroState = astro;
+    // Memoized across sub-second steps (< 0.00025h = 0.9s = 0.0037° sidereal rotation) while updating instantly on any slider drag!
+    let astro = this._astroState;
+    if (
+      !astro ||
+      this._lastAstroBaseJD0 !== this._baseJD0WIB ||
+      !Number.isFinite(this._lastAstroContHour) ||
+      Math.abs(this.continuousSolarHour - this._lastAstroContHour) >= 0.00025
+    ) {
+      astro = evaluateDepokAstronomy(
+        this._baseJD0WIB,
+        this.continuousSolarHour,
+        this.uniforms.uWorldToEqMat.value,
+        this.uniforms.uMoonDir.value,
+        this.uniforms.uMoonPhaseSunDir.value
+      );
+      this._astroState = astro;
+      this._lastAstroBaseJD0 = this._baseJD0WIB;
+      this._lastAstroContHour = this.continuousSolarHour;
+    }
     this.uniforms.uMoonIllumFraction.value = astro.illuminatedFraction;
 
     // Smooth shadow-map lunar director (tracks real Moon azimuth while keeping shadow frustum elevation >= 0.42)

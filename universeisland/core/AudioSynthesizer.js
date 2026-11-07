@@ -1667,7 +1667,10 @@ export class AudioSynthesizer {
       surfaceMaterial: 'AIR'
     };
 
-    // Zero-GC Sound Engine & Web Audio DSP Forensic Blackbox State (Tahap 1 v2.4 — Strictly Passive)
+    // Zero-GC Sound Engine & Web Audio DSP Forensic Blackbox + Adaptive Sub-Bus Hibernation State (Tahap 2)
+    this._preferPlaybackBuffer = false;
+    this._hibernationSlots = [];
+    this._hibernationSlotByGain = new Map();
     this._forensic = {
       initAttempts: 0,
       initDurationMs: 0.0,
@@ -1678,7 +1681,7 @@ export class AudioSynthesizer {
       stateTransitionsCount: 0,
       lastStateChange: 'uninitialized',
       unlockedMilestoneSent: false,
-      requestedLatencyHint: 'default_implicit',
+      requestedLatencyHint: 'interactive',
       lastSimPaused: false,
       _inGraphBuild: false,
       nodes: {
@@ -1707,6 +1710,7 @@ export class AudioSynthesizer {
         emaUpdateMs: 0.0,
         maxUpdateMs: 0.0,
         overBudgetFrames: 0,
+        skippedRedundantParamOps: 0,
         updateErrorsCount: 0,
         lastUpdateError: ''
       },
@@ -1902,27 +1906,201 @@ export class AudioSynthesizer {
     }
   }
 
+  setHardwareEfficiencyHint(preferPlaybackBuffer = false) {
+    this._preferPlaybackBuffer = Boolean(preferPlaybackBuffer);
+    if (!this.ctx) {
+      this._forensic.requestedLatencyHint = this._preferPlaybackBuffer ? 'playback' : 'interactive';
+    }
+  }
+
+  _wakeSubBusSlot(slot, nowSec = 0.0) {
+    if (!slot || !slot.hibernated) return;
+    const gParam = slot.gainNode && slot.gainNode.gain ? slot.gainNode.gain : null;
+    if (gParam) {
+      if (typeof gParam._origSetValueAtTime === 'function') {
+        try {
+          gParam._origSetValueAtTime(0.0, nowSec);
+        } catch (_e) {}
+      } else {
+        gParam.value = 0.0;
+      }
+      gParam._lastTau = -1.0;
+    }
+    const links = slot.links;
+    for (let i = 0; i < links.length; i++) {
+      const pair = links[i];
+      if (pair[0] && pair[1]) {
+        try {
+          pair[0].connect(pair[1]);
+        } catch (_e) {}
+      }
+    }
+    slot.hibernated = false;
+    slot.silentSec = 0.0;
+  }
+
+  _hibernateSubBusSlot(slot) {
+    if (!slot || slot.hibernated) return;
+    const sources = slot.uniqueSources;
+    for (let i = 0; i < sources.length; i++) {
+      const s = sources[i];
+      if (s && typeof s.disconnect === 'function') {
+        try {
+          s.disconnect();
+        } catch (_e) {}
+      }
+    }
+    slot.hibernated = true;
+  }
+
+  _registerHibernationSlot(name, kind, gainNode, links) {
+    if (!gainNode || !gainNode.gain || !Array.isArray(links) || links.length === 0) return;
+    const validLinks = [];
+    const uniqueSources = [];
+    for (let i = 0; i < links.length; i++) {
+      const pair = links[i];
+      if (pair && pair[0] && pair[1]) {
+        validLinks.push(pair);
+        if (uniqueSources.indexOf(pair[0]) === -1) {
+          uniqueSources.push(pair[0]);
+        }
+      }
+    }
+    if (validLinks.length === 0) return;
+    const initVal = Number(gainNode.gain.value) || 0.0;
+    const slot = {
+      name,
+      kind,
+      gainNode,
+      links: validLinks,
+      uniqueSources,
+      hibernated: false,
+      // Sub-buses initialized at exact 0.0 have zero ringing tail and can hibernate on frame 1 if unused
+      silentSec: initVal <= 0.0002 ? 0.65 : 0.0
+    };
+    this._hibernationSlots.push(slot);
+    this._hibernationSlotByGain.set(gainNode.gain, slot);
+  }
+
+  _tickSubBusHibernation(safeDt, nowSec) {
+    const slots = this._hibernationSlots;
+    if (!slots || slots.length === 0) return;
+    for (let i = 0; i < slots.length; i++) {
+      const slot = slots[i];
+      const gp = slot.gainNode.gain;
+      const rawVal = gp._lastTgt !== undefined ? gp._lastTgt : gp.value;
+      const wantAudible = this.enabled && Number.isFinite(rawVal) && rawVal > 0.00025;
+      if (wantAudible) {
+        slot.silentSec = 0.0;
+        if (slot.hibernated) {
+          this._wakeSubBusSlot(slot, nowSec);
+        }
+      } else {
+        slot.silentSec += safeDt;
+        if (!slot.hibernated && slot.silentSec >= 0.62) {
+          this._hibernateSubBusSlot(slot);
+        }
+      }
+    }
+  }
+
+  _cleanupTransientNodes(sourceNode, ...auxNodes) {
+    if (!sourceNode) return;
+    sourceNode.onended = () => {
+      if (typeof sourceNode.disconnect === 'function') {
+        try {
+          sourceNode.disconnect();
+        } catch (_e) {}
+      }
+      for (let i = 0; i < auxNodes.length; i++) {
+        const n = auxNodes[i];
+        if (n && typeof n.disconnect === 'function') {
+          try {
+            n.disconnect();
+          } catch (_e) {}
+        }
+      }
+    };
+  }
+
   _installForensicNodeCounters(ctx) {
     if (!ctx || ctx.__nexusSoundForensicWrapped) return;
     ctx.__nexusSoundForensicWrapped = true;
     const f = this._forensic;
     const ns = f.nodes;
 
-    const wrapGainParamPassive = (gainParam) => {
-      if (!gainParam || gainParam.__nexusForensicWrapped) return;
-      gainParam.__nexusForensicWrapped = true;
-      if (typeof gainParam.setTargetAtTime === 'function') {
-        const origTgt = gainParam.setTargetAtTime.bind(gainParam);
-        gainParam.setTargetAtTime = (target, startTime, timeConstant) => {
-          gainParam._lastTgt = target;
+    // Markovian AudioParam deduplicator: skips mathematically identical setTargetAtTime(T, t, tau)
+    // calls on persistent nodes while waking hibernated sub-buses synchronously at 0.0 gain before ramp-up!
+    const wrapPersistentParam = (param, eps = 0.00025, isGainParam = false) => {
+      if (!param || param.__nexusForensicWrapped) return;
+      param.__nexusForensicWrapped = true;
+      param._lastTau = -1.0;
+      param._lastStart = -1.0;
+      if (typeof param.setValueAtTime === 'function') {
+        const origVal = param.setValueAtTime.bind(param);
+        param._origSetValueAtTime = origVal;
+        param.setValueAtTime = (value, startTime) => {
+          if (isGainParam && value > 0.00025 && this.enabled) {
+            const slot = this._hibernationSlotByGain.get(param);
+            if (slot && slot.hibernated) {
+              this._wakeSubBusSlot(slot, Number(startTime) || 0.0);
+            }
+          }
+          param._lastTgt = value;
+          param._lastTau = -1.0;
+          param._lastStart = Number(startTime) || 0.0;
+          return origVal(value, startTime);
+        };
+      }
+      if (typeof param.setTargetAtTime === 'function') {
+        const origTgt = param.setTargetAtTime.bind(param);
+        param.setTargetAtTime = (target, startTime, timeConstant) => {
+          const nowT = Number(startTime) || 0.0;
+          const tau = Number(timeConstant) || 0.05;
+          if (isGainParam && target > 0.00025 && this.enabled) {
+            const slot = this._hibernationSlotByGain.get(param);
+            if (slot && slot.hibernated) {
+              this._wakeSubBusSlot(slot, nowT);
+            }
+          }
+          const prev = param._lastTgt;
+          if (
+            prev !== undefined &&
+            Math.abs(target - prev) <= eps &&
+            param._lastTau > 0.0 &&
+            Math.abs(tau - param._lastTau) <= 0.005 &&
+            nowT >= param._lastStart
+          ) {
+            f.perf.skippedRedundantParamOps++;
+            return param;
+          }
+          param._lastTgt = target;
+          param._lastTau = tau;
+          param._lastStart = nowT;
           return origTgt(target, startTime, timeConstant);
         };
       }
-      if (typeof gainParam.setValueAtTime === 'function') {
-        const origVal = gainParam.setValueAtTime.bind(gainParam);
-        gainParam.setValueAtTime = (value, startTime) => {
-          gainParam._lastTgt = value;
-          return origVal(value, startTime);
+      if (typeof param.cancelScheduledValues === 'function') {
+        const origCancel = param.cancelScheduledValues.bind(param);
+        param.cancelScheduledValues = (cancelTime) => {
+          param._lastTau = -1.0;
+          return origCancel(cancelTime);
+        };
+      }
+      if (typeof param.linearRampToValueAtTime === 'function') {
+        const origLin = param.linearRampToValueAtTime.bind(param);
+        param.linearRampToValueAtTime = (val, endTime) => {
+          param._lastTgt = val;
+          param._lastTau = -1.0;
+          return origLin(val, endTime);
+        };
+      }
+      if (typeof param.exponentialRampToValueAtTime === 'function') {
+        const origExp = param.exponentialRampToValueAtTime.bind(param);
+        param.exponentialRampToValueAtTime = (val, endTime) => {
+          param._lastTgt = val;
+          param._lastTau = -1.0;
+          return origExp(val, endTime);
         };
       }
     };
@@ -1935,8 +2113,25 @@ export class AudioSynthesizer {
         if (f._inGraphBuild) {
           ns.persistentTotal++;
           if (persistentKey && ns[persistentKey] !== undefined) ns[persistentKey]++;
-          if (methodName === 'createGain' && node && node.gain) {
-            wrapGainParamPassive(node.gain);
+          if (node) {
+            if (methodName === 'createGain' && node.gain) {
+              wrapPersistentParam(node.gain, 0.00022, true);
+            } else if (methodName === 'createBiquadFilter') {
+              wrapPersistentParam(node.frequency, 0.25, false);
+              wrapPersistentParam(node.Q, 0.005, false);
+              wrapPersistentParam(node.gain, 0.02, false);
+            } else if (methodName === 'createOscillator') {
+              wrapPersistentParam(node.frequency, 0.15, false);
+            } else if (methodName === 'createStereoPanner' && node.pan) {
+              wrapPersistentParam(node.pan, 0.002, false);
+            } else if (methodName === 'createPanner') {
+              wrapPersistentParam(node.positionX, 0.015, false);
+              wrapPersistentParam(node.positionY, 0.015, false);
+              wrapPersistentParam(node.positionZ, 0.015, false);
+              wrapPersistentParam(node.orientationX, 0.003, false);
+              wrapPersistentParam(node.orientationY, 0.003, false);
+              wrapPersistentParam(node.orientationZ, 0.003, false);
+            }
           }
         } else if (kind === 'source') {
           ns.transientSourceSpawns++;
@@ -2024,6 +2219,18 @@ export class AudioSynthesizer {
       }
     } else if (this.enabled && this.ctx.state === 'running') {
       this._markUnlockedMilestoneIfRunning();
+    }
+    if (this.enabled && this._hibernationSlots && this._hibernationSlots.length > 0) {
+      const nowWake = this.ctx.currentTime;
+      for (let i = 0; i < this._hibernationSlots.length; i++) {
+        const slot = this._hibernationSlots[i];
+        const gp = slot.gainNode.gain;
+        const rawVal = gp._lastTgt !== undefined ? gp._lastTgt : gp.value;
+        if (slot.hibernated && Number.isFinite(rawVal) && rawVal > 0.00025) {
+          this._wakeSubBusSlot(slot, nowWake);
+          gp.setTargetAtTime(rawVal, nowWake, 0.10);
+        }
+      }
     }
     const target = this._targetMasterLinearGain();
     this.masterGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.14);
@@ -2260,16 +2467,31 @@ export class AudioSynthesizer {
 
     let lpL = 0.0;
     let lpR = 0.0;
+    const invSr = 1.0 / sr;
+    const expDecayStep = Math.exp(-2.55 * invSr);
+    const expAttackStep = Math.exp(-42.0 * invSr);
+    let eDecay = 1.0;
+    let eAttack = 1.0;
+    let seed = 0x51a7c9e3 | 0;
+    const invNorm = 1.0 / 2147483648.0;
     for (let i = 0; i < len; i++) {
-      const tSec = i / sr;
-      const hfAlpha = clamp(0.42 - tSec * 0.16, 0.09, 0.42);
-      const wL = Math.random() * 2.0 - 1.0;
-      const wR = Math.random() * 2.0 - 1.0;
+      const tSec = i * invSr;
+      const hfAlpha = tSec >= 2.0625 ? 0.09 : 0.42 - tSec * 0.16;
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      const wL = seed * invNorm;
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      const wR = seed * invNorm;
       lpL += (wL - lpL) * hfAlpha;
       lpR += (wR - lpR) * hfAlpha;
-      const env = Math.exp(-tSec * 2.55) * (1.0 - Math.exp(-tSec * 42.0));
-      left[i] += lpL * env * 0.24;
-      right[i] += lpR * env * 0.24;
+      const env = eDecay * (1.0 - eAttack) * 0.24;
+      left[i] += lpL * env;
+      right[i] += lpR * env;
+      eDecay *= expDecayStep;
+      eAttack *= expAttackStep;
     }
     return ir;
   }
@@ -2298,14 +2520,30 @@ export class AudioSynthesizer {
       right[idx] += earlyTaps[t].gR;
     }
 
+    const invSr = 1.0 / sr;
+    const expDecayStep = Math.exp(-8.4 * invSr);
+    const expAttackStep = Math.exp(-90.0 * invSr);
+    const w1 = 2.0 * Math.PI * 1180.0 * invSr;
+    const w2 = 2.0 * Math.PI * 1890.0 * invSr;
+    let eDecay = 1.0;
+    let eAttack = 1.0;
+    let seed = 0x3b8f264d | 0;
+    const invNorm = 0.24 / 2147483648.0;
     for (let i = 0; i < len; i++) {
-      const tSec = i / sr;
-      const modalShimmer =
-        0.12 * Math.sin(2.0 * Math.PI * 1180.0 * tSec) +
-        0.08 * Math.sin(2.0 * Math.PI * 1890.0 * tSec);
-      const env = Math.exp(-tSec * 8.4) * (1.0 - Math.exp(-tSec * 90.0));
-      left[i] += ((Math.random() * 2.0 - 1.0) * 0.24 + modalShimmer) * env;
-      right[i] += ((Math.random() * 2.0 - 1.0) * 0.24 - modalShimmer) * env;
+      const modalShimmer = 0.12 * Math.sin(w1 * i) + 0.08 * Math.sin(w2 * i);
+      const env = eDecay * (1.0 - eAttack);
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      const nL = seed * invNorm;
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      const nR = seed * invNorm;
+      left[i] += (nL + modalShimmer) * env;
+      right[i] += (nR - modalShimmer) * env;
+      eDecay *= expDecayStep;
+      eAttack *= expAttackStep;
     }
     return ir;
   }
@@ -2325,8 +2563,14 @@ export class AudioSynthesizer {
     f.initAttempts++;
     const nowPerf = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
     const tInit0 = nowPerf();
+    const latencyHint = this._preferPlaybackBuffer ? 'playback' : 'interactive';
+    f.requestedLatencyHint = latencyHint;
     try {
-      this.ctx = new AudioCtx();
+      try {
+        this.ctx = new AudioCtx({ latencyHint });
+      } catch (_optErr) {
+        this.ctx = new AudioCtx();
+      }
     } catch (ctxErr) {
       const msg = String(ctxErr && ctxErr.message ? ctxErr.message : ctxErr).slice(0, 220);
       if (f.initErrors.length < 8) f.initErrors.push(msg);
@@ -2553,15 +2797,22 @@ export class AudioSynthesizer {
     const _tG2 = _nowP();
 
     // 1. Procedural 4-Second Seamless Binaural Stereo-Decorrelated Pink-Noise & Droplet Patter Buffers
+    //    (Synthesized via deterministic 32-bit xorshift PRNG for sub-10ms zero-allocation buffer init)
     const bufferSize = sr * 4;
     const pinkBuffer = this.ctx.createBuffer(2, bufferSize, sr);
+    const invRandSigned = 1.0 / 2147483648.0;
+    const invRandUnit = 1.0 / 4294967296.0;
     for (let ch = 0; ch < 2; ch++) {
       const pinkOut = pinkBuffer.getChannelData(ch);
       let b0 = 0.0;
       let b1 = 0.0;
       let b2 = 0.0;
+      let seed = (ch === 0 ? 0x6d2b79f5 : 0x9e3779b9) | 0;
       for (let i = 0; i < bufferSize; i++) {
-        const white = Math.random() * 2.0 - 1.0;
+        seed ^= seed << 13;
+        seed ^= seed >>> 17;
+        seed ^= seed << 5;
+        const white = seed * invRandSigned;
         b0 = 0.99765 * b0 + white * 0.099046;
         b1 = 0.963 * b1 + white * 0.2965164;
         b2 = 0.57 * b2 + white * 1.0526913;
@@ -2579,12 +2830,24 @@ export class AudioSynthesizer {
     for (let ch = 0; ch < 2; ch++) {
       const patterOut = patterBuffer.getChannelData(ch);
       let env = 0.0;
+      let seed = (ch === 0 ? 0x27d4eb2d : 0x85ebca6b) | 0;
       for (let i = 0; i < bufferSize; i++) {
-        if (Math.random() < 0.0042) {
-          env = Math.min(1.0, env + 0.35 + Math.random() * 0.65);
+        seed ^= seed << 13;
+        seed ^= seed >>> 17;
+        seed ^= seed << 5;
+        const uProb = (seed >>> 0) * invRandUnit;
+        if (uProb < 0.0042) {
+          seed ^= seed << 13;
+          seed ^= seed >>> 17;
+          seed ^= seed << 5;
+          const uAmp = (seed >>> 0) * invRandUnit;
+          env = Math.min(1.0, env + 0.35 + uAmp * 0.65);
         }
         env *= 0.965;
-        patterOut[i] = (Math.random() * 2.0 - 1.0) * env * 0.26;
+        seed ^= seed << 13;
+        seed ^= seed >>> 17;
+        seed ^= seed << 5;
+        patterOut[i] = seed * invRandSigned * env * 0.26;
       }
       for (let k = 0; k < 256; k++) {
         const a = k / 256;
@@ -3633,6 +3896,138 @@ export class AudioSynthesizer {
     eVoice.form2 = vocForm2;
     eVoice.syllable = vocSyllable;
     this._emitters.npcVoice = eVoice;
+
+    // Register all 33 persistent sub-buses for click-free silent hibernation (zero routing/character change when audible!)
+    this._hibernationSlots.length = 0;
+    this._hibernationSlotByGain.clear();
+    const bp = this._bedPanners;
+    this._registerHibernationSlot('campus_breeze', 'env', this.breezeGain, [
+      [this.breezeGain, bp.breeze],
+      [bp.breeze, this.weatherOccFilter]
+    ]);
+    this._registerHibernationSlot('tropical_rain_roar', 'env', this.rainRoarGain, [
+      [this.rainRoarGain, rainFrontSplit],
+      [this.rainRoarGain, rainRearSplit],
+      [bp.rainFront, this.weatherOccFilter],
+      [bp.rainRear, this.weatherOccFilter]
+    ]);
+    this._registerHibernationSlot('raindrop_patter', 'env', this.rainPatterGain, [
+      [this.rainPatterGain, this.worldSumGain]
+    ]);
+    this._registerHibernationSlot('roof_rain_resonance', 'env', this.roofResonanceGain, [
+      [this.roofResonanceGain, this.worldSumGain],
+      [this.roofResonanceGain, this.reverbSendGain]
+    ]);
+    this._registerHibernationSlot('archipelago_surf', 'env', this.surfGain, [
+      [this.surfGain, bp.surf],
+      [this.surfGain, surfLfeSend],
+      [this.surfGain, surfSpreadSend],
+      [bp.surf, this.weatherOccFilter]
+    ]);
+    this._registerHibernationSlot('subsea_tunnel_hum', 'env', this.tunnelHumGain, [
+      [this.tunnelHumGain, this.worldSumGain],
+      [this.tunnelHumGain, this.reverbSendGain],
+      [this.tunnelHumGain, tunLfeSend]
+    ]);
+    this._registerHibernationSlot('nocturnal_cricket', 'env', this.cricketGain, [
+      [this.cricketGain, bp.cricket],
+      [bp.cricket, this.ambientDuckGain]
+    ]);
+    this._registerHibernationSlot(
+      'avata2_cinewhoop_motor',
+      'env',
+      this.avataMotorGain,
+      this.avataPan
+        ? [
+            [this.avataMotorGain, this.avataPan],
+            [this.avataPan, this.worldSumGain],
+            [this.avataPan, this.reverbSendGain]
+          ]
+        : [
+            [this.avataMotorGain, this.worldSumGain],
+            [this.avataMotorGain, this.reverbSendGain]
+          ]
+    );
+    this._registerHibernationSlot('avata2_prop_wash', 'env', this.avataWashGain, [
+      [this.avataWashGain, this.worldSumGain]
+    ]);
+    this._registerHibernationSlot('avata2_prox_whoosh', 'env', this.proxWhooshGain, [
+      [this.proxWhooshGain, this.worldSumGain],
+      [this.proxWhooshGain, this.reverbSendGain]
+    ]);
+    this._registerHibernationSlot('mavic3_aerial_hum', 'env', this.mavicGain, [
+      [this.mavicGain, this.worldSumGain]
+    ]);
+    this._registerHibernationSlot('feline_purr_resonator', 'env', this.catPurrGain, [
+      [this.catPurrGain, this.worldSumGain],
+      [this.catPurrGain, purrLfeSend]
+    ]);
+    this._registerHibernationSlot('rainforest_canopy_rustle', 'env', this.canopyRustleGain, [
+      [this.canopyRustleGain, bp.canopy],
+      [bp.canopy, this.ambientDuckGain]
+    ]);
+    this._registerHibernationSlot('afternoon_tonggeret', 'env', this.tonggeretGain, [
+      [this.tonggeretGain, bp.tonggeret],
+      [bp.tonggeret, this.ambientDuckGain]
+    ]);
+    this._registerHibernationSlot('campus_social_murmur', 'env', this.socialMurmurGain, [
+      [this.socialMurmurGain, bp.social],
+      [bp.social, this.ambientDuckGain],
+      [bp.social, this.reverbSendGain]
+    ]);
+    this._registerHibernationSlot('rotunda_flag_flutter', 'env', this.flagFlutterGain, [
+      [this.flagFlutterGain, bp.flag],
+      [bp.flag, this.weatherOccFilter]
+    ]);
+    this._registerHibernationSlot('teksas_truss_aeolian', 'env', this.trussAeolianGain, [
+      [this.trussAeolianGain, bp.truss],
+      [bp.truss, this.worldSumGain],
+      [bp.truss, this.reverbSendGain]
+    ]);
+    this._registerHibernationSlot('volcano_fumarole_vent', 'env', this.fumaroleGain, [
+      [this.fumaroleGain, bp.fumarole],
+      [this.fumaroleGain, fumLfeSend],
+      [bp.fumarole, this.worldSumGain]
+    ]);
+    this._registerHibernationSlot('danau_turap_lapping', 'env', this.turapLapGain, [
+      [this.turapLapGain, bp.turapLap],
+      [bp.turapLap, this.weatherOccFilter]
+    ]);
+    this._registerHibernationSlot('cockpit_windshield_air', 'env', this.cockpitAirGain, [
+      [this.cockpitAirGain, this.cockpitPanner]
+    ]);
+    this._registerHibernationSlot('cockpit_400hz_avionics', 'env', this.cockpitAvionicsGain, [
+      [this.cockpitAvionicsGain, this.cockpitPanner]
+    ]);
+
+    const emitterDefs = [
+      ['3d_rotunda_fountain', this._emitters.fountain],
+      ['3d_niagara_waterfall', this._emitters.waterfall],
+      ['3d_bikun_yellow_bus', this._emitters.bus],
+      ['3d_golf_cart_ev', this._emitters.cart],
+      ['3d_heli_evtol_pkuie', this._emitters.heli],
+      ['3d_cessna_172_pkuia', this._emitters.cessna],
+      ['3d_citation_learjet_pkuib', this._emitters.learjet],
+      ['3d_catamaran_ferry', this._emitters.ferry],
+      ['3d_flybridge_yacht', this._emitters.yacht],
+      ['3d_coastal_vessel', this._emitters.coastalBoat],
+      ['3d_videotron_line_array', this._emitters.videotron],
+      ['3d_sivitas_npc_voice', this._emitters.npcVoice]
+    ];
+    for (let i = 0; i < emitterDefs.length; i++) {
+      const [eName, emObj] = emitterDefs[i];
+      if (!emObj || !emObj.gain) continue;
+      const eLinks = [
+        [emObj.gain, emObj.directGain],
+        [emObj.panner, this.worldSumGain],
+        [emObj.panner, this.reverbSendGain]
+      ];
+      if (this.atmosSpreadIn && emObj.spreadSend) eLinks.push([emObj.gain, emObj.spreadSend]);
+      if (this.heightDomeIn && emObj.heightSend) eLinks.push([emObj.gain, emObj.heightSend]);
+      if (this.lfeSumGain && emObj.lfeSend) eLinks.push([emObj.gain, emObj.lfeSend]);
+      this._registerHibernationSlot(eName, 'emitter', emObj.gain, eLinks);
+    }
+
     const _tG4 = _nowP();
     this._forensic.initBreakdownMs = {
       audioCtxCreateMs: +(this._forensic._tmpCtxCreateMs || 0).toFixed(2),
@@ -4004,6 +4399,9 @@ export class AudioSynthesizer {
     if (_updMs > 1.5) fp.overBudgetFrames++;
 
     const ctxNowSec = this.ctx ? Number(this.ctx.currentTime) || 0.0 : 0.0;
+    if (this.ctx) {
+      this._tickSubBusHibernation(safeDt, ctxNowSec);
+    }
     this._samplePassiveClockAndLimiter(safeDt, ctxNowSec, _tUpd1, simPaused);
   }
 
@@ -4648,10 +5046,13 @@ export class AudioSynthesizer {
     ];
 
     let activeEnvSubBuses = 0;
+    let hibernatedEnvSubBuses = 0;
     let silentEnvSubBuses = 0;
     let active3DEmitterBuses = 0;
+    let hibernated3DEmitterBuses = 0;
     let silent3DEmitterBuses = 0;
     const activeBusTop = [];
+    const hibernatedBusSample = [];
     const silentBusSample = [];
 
     if (initialized) {
@@ -4659,9 +5060,13 @@ export class AudioSynthesizer {
         const [name, gNode] = envBusEntries[i];
         if (!gNode || !gNode.gain) continue;
         const rawVal = gNode.gain._lastTgt !== undefined ? gNode.gain._lastTgt : gNode.gain.value;
+        const slot = this._hibernationSlotByGain.get(gNode.gain);
         if (this.enabled && Number.isFinite(rawVal) && rawVal > 0.0005) {
           activeEnvSubBuses++;
           if (activeBusTop.length < 10) activeBusTop.push(`${name}:${rawVal.toFixed(3)}`);
+        } else if (slot && slot.hibernated) {
+          hibernatedEnvSubBuses++;
+          if (hibernatedBusSample.length < 10) hibernatedBusSample.push(name);
         } else {
           silentEnvSubBuses++;
           if (silentBusSample.length < 10) silentBusSample.push(name);
@@ -4671,9 +5076,13 @@ export class AudioSynthesizer {
         const [name, gNode] = emitterBusEntries[i];
         if (!gNode || !gNode.gain) continue;
         const rawVal = gNode.gain._lastTgt !== undefined ? gNode.gain._lastTgt : gNode.gain.value;
+        const slot = this._hibernationSlotByGain.get(gNode.gain);
         if (this.enabled && Number.isFinite(rawVal) && rawVal > 0.0005) {
           active3DEmitterBuses++;
           if (activeBusTop.length < 10) activeBusTop.push(`${name}:${rawVal.toFixed(3)}`);
+        } else if (slot && slot.hibernated) {
+          hibernated3DEmitterBuses++;
+          if (hibernatedBusSample.length < 10) hibernatedBusSample.push(name);
         } else {
           silent3DEmitterBuses++;
           if (silentBusSample.length < 10) silentBusSample.push(name);
@@ -4682,6 +5091,7 @@ export class AudioSynthesizer {
     }
 
     const activeAudibleSubBuses = activeEnvSubBuses + active3DEmitterBuses;
+    const hibernatedSubBuses = hibernatedEnvSubBuses + hibernated3DEmitterBuses;
     const silentRunningSubBuses = silentEnvSubBuses + silent3DEmitterBuses;
     const uncleanedAux = Math.max(0, ns.transientAuxCreated - ns.transientAuxDisconnected);
 
@@ -4706,19 +5116,19 @@ export class AudioSynthesizer {
       verdict = 'UNINITIALIZED_AWAITING_GESTURE';
     } else if (muted) {
       verdict = 'MUTED_BY_USER';
-      advisory = `Audio dibisukan pengguna (graf monolitik ${ns.persistentTotal} node & ${silentRunningSubBuses} sub-bus tetap berputar di audio thread).`;
+      advisory = `Audio dibisukan pengguna (${hibernatedSubBuses} sub-bus dihibernasi hemat CPU, ${silentRunningSubBuses} meluruh).`;
     } else if (ctxState === 'suspended' || ctxState === 'interrupted') {
       verdict = 'AUTOPLAY_SUSPENDED';
       advisory = 'Konteks Web Audio tertahan kebijakan Autoplay browser — klik kontrol/kanvas sekali untuk membuka kunci suara.';
     } else if (f.clock.underrunSuspectCount >= 2 || f.perf.emaUpdateMs > 1.8) {
       verdict = 'AUDIO_UNDERRUN_OR_OVERLOAD';
-      advisory = `Terdeteksi ${f.clock.underrunSuspectCount} gejala audio clock lag/underrun (maks ${f.clock.maxLagMs}ms) dengan ${ns.persistentTotal} node monolitik aktif — kandidat kuat optimasi Tier Audio (Tahap 2).`;
+      advisory = `Terdeteksi ${f.clock.underrunSuspectCount} gejala audio clock lag/underrun (maks ${f.clock.maxLagMs}ms; ${hibernatedSubBuses} sub-bus dihibernasi).`;
     } else if (isLowPowerDevice && silentRunningSubBuses >= 15) {
       verdict = 'MONOLITHIC_DSP_UNOPTIMIZED_FOR_DEVICE';
-      advisory = `Audio berjalan lancar, namun ${silentRunningSubBuses} dari ${activeAudibleSubBuses + silentRunningSubBuses} sub-bus DSP diam masih berputar di perangkat hemat daya (${ns.persistentTotal} node kontinu, ${uncleanedAux} aux transien belum diputus).`;
+      advisory = `Audio berjalan lancar, namun ${silentRunningSubBuses} sub-bus diam belum dihibernasi.`;
     } else {
       verdict = 'OPTIMAL_AUDIO_RUNNING';
-      advisory = `Web Audio berjalan sehat (${ctx ? ctx.sampleRate : 0}Hz, update ${Math.round(f.perf.emaUpdateMs * 1000)}µs, ${activeAudibleSubBuses} bus berbunyi / ${silentRunningSubBuses} bus diam berputar, ${uncleanedAux} aux transien tersisa).`;
+      advisory = `Web Audio berjalan sehat (${ctx ? ctx.sampleRate : 0}Hz, latency ${f.requestedLatencyHint}, update ${Math.round(f.perf.emaUpdateMs * 1000)}µs, ${activeAudibleSubBuses} bus berbunyi / ${hibernatedSubBuses} dihibernasi / ${silentRunningSubBuses} transisi, ${uncleanedAux} aux sisa).`;
     }
 
     const acTel = this.getAcousticTelemetry();
@@ -4726,11 +5136,11 @@ export class AudioSynthesizer {
 
     return {
       forensicVersion: 'v2.4',
-      stage: 'STAGE_1_PASSIVE_AUDIT_ZERO_ROUTING_CHANGE',
+      stage: 'STAGE_2_ADAPTIVE_HIBERNATION_ZERO_CHARACTER_LOSS',
       verdict,
       tierProfile: {
-        tierSystemImplemented: false,
-        activeSoundTier: 'MONOLITHIC_SINGLE_TIER',
+        tierSystemImplemented: true,
+        activeSoundTier: this._preferPlaybackBuffer ? 'ADAPTIVE_ATMOS_PLAYBACK_BUFFER' : 'ADAPTIVE_ATMOS_INTERACTIVE',
         mixProfile: this.mixProfile,
         spatialOutputMode: this.spatialOutputMode,
         panningModel: this.spatialOutputMode === 'SPEAKER' ? 'equalpower' : 'HRTF',
@@ -4738,7 +5148,7 @@ export class AudioSynthesizer {
         requestedLatencyHint: f.requestedLatencyHint,
         recommendedDeviceSoundTier: hwGovernor
           ? isLowPowerDevice
-            ? 'ECO_OR_BALANCED'
+            ? 'ADAPTIVE_ATMOS_PLAYBACK_BUFFER'
             : aTier === 'TIER_S'
               ? 'ULTRA_ATMOS_HRTF'
               : 'HIGH_SPATIAL'
@@ -4783,14 +5193,18 @@ export class AudioSynthesizer {
         channelMergers: ns.channelMergers,
         proceduralAudioBuffers: ns.audioBuffersCount,
         proceduralBufferMemoryKB: +(ns.audioBufferBytes / 1024).toFixed(1),
-        totalSubBuses: activeAudibleSubBuses + silentRunningSubBuses,
+        totalSubBuses: activeAudibleSubBuses + hibernatedSubBuses + silentRunningSubBuses,
         activeAudibleSubBuses,
+        hibernatedSubBuses,
         silentRunningSubBuses,
         activeEnvSubBuses,
+        hibernatedEnvSubBuses,
         silentEnvSubBuses,
         active3DEmitterBuses,
+        hibernated3DEmitterBuses,
         silent3DEmitterBuses,
         activeSubBusSample: activeBusTop,
+        hibernatedSubBusSample: hibernatedBusSample,
         silentSubBusSample: silentBusSample,
         transientSourceSpawns: ns.transientSourceSpawns,
         liveTransientSources: ns.liveTransientSources,
@@ -4804,6 +5218,7 @@ export class AudioSynthesizer {
         emaUpdateMs: +f.perf.emaUpdateMs.toFixed(3),
         maxUpdateMs: +f.perf.maxUpdateMs.toFixed(3),
         overBudgetFramesOver1p5ms: f.perf.overBudgetFrames,
+        skippedRedundantParamOps: f.perf.skippedRedundantParamOps,
         updateErrorsCount: f.perf.updateErrorsCount,
         lastUpdateError: f.perf.lastUpdateError || null,
         clockChecks1s: f.clock.checksCount,
@@ -6054,11 +6469,7 @@ export class AudioSynthesizer {
     src.connect(bp);
     bp.connect(g);
     g.connect(pan);
-    src.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(src, bp, g, pan);
     src.start(t0);
     src.stop(t0 + 0.08);
   }
@@ -6237,11 +6648,7 @@ export class AudioSynthesizer {
     g.connect(this.worldSumGain);
     g.connect(this.reverbSendGain);
     if (this.lfeSumGain) g.connect(this.lfeSumGain);
-    src.onended = () => {
-      try {
-        g.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(src, bp, g);
     src.start(t0);
     src.stop(t0 + 0.45);
   }
@@ -6373,12 +6780,7 @@ export class AudioSynthesizer {
     if (surfaceMat === 'TUNNEL_CONCRETE' || surfaceMat === 'BRIDGE_STEEL_WOOD') {
       stepPan.connect(this.reverbSendGain);
     }
-    src.onended = () => {
-      try {
-        stepPan.disconnect();
-        env.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(src, bp, env, stepPan);
     src.start(t0);
     src.stop(t0 + dur + 0.01);
 
@@ -6393,11 +6795,7 @@ export class AudioSynthesizer {
       og.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.08);
       osc.connect(og);
       og.connect(this.worldSumGain);
-      osc.onended = () => {
-        try {
-          og.disconnect();
-        } catch (_e) {}
-      };
+      this._cleanupTransientNodes(osc, og);
       osc.start(t0);
       osc.stop(t0 + 0.09);
     }
@@ -6418,11 +6816,7 @@ export class AudioSynthesizer {
       spSrc.connect(hp);
       hp.connect(sg);
       sg.connect(this.worldSumGain);
-      spSrc.onended = () => {
-        try {
-          sg.disconnect();
-        } catch (_e) {}
-      };
+      this._cleanupTransientNodes(spSrc, hp, sg);
       spSrc.start(t0);
       spSrc.stop(t0 + 0.105);
     }
@@ -6438,6 +6832,16 @@ export class AudioSynthesizer {
     pan.rolloffFactor = inCockpit ? 0.85 : 1.05;
     this._setPannerPosition(pan, gx, gy, gz, t0, true);
     pan.connect(this.worldSumGain);
+
+    let gearPartsDone = 0;
+    const finishGearPan = () => {
+      gearPartsDone++;
+      if (gearPartsDone >= 2) {
+        try {
+          pan.disconnect();
+        } catch (_e) {}
+      }
+    };
 
     // 1. 400 Hz Electro-Hydraulic Pump Whine (1.12s pressure load sweep)
     const pump = this.ctx.createOscillator();
@@ -6457,6 +6861,14 @@ export class AudioSynthesizer {
     pump.connect(pumpBp);
     pumpBp.connect(pumpGain);
     pumpGain.connect(pan);
+    pump.onended = () => {
+      try {
+        pump.disconnect();
+        pumpBp.disconnect();
+        pumpGain.disconnect();
+      } catch (_e) {}
+      finishGearPan();
+    };
     pump.start(t0);
     pump.stop(t0 + 1.16);
 
@@ -6476,9 +6888,10 @@ export class AudioSynthesizer {
     if (this.lfeSumGain) thudGain.connect(this.lfeSumGain);
     thud.onended = () => {
       try {
-        pan.disconnect();
+        thud.disconnect();
         thudGain.disconnect();
       } catch (_e) {}
+      finishGearPan();
     };
     thud.start(tLock);
     thud.stop(tLock + 0.15);
@@ -6513,11 +6926,7 @@ export class AudioSynthesizer {
     g.connect(pan);
     pan.connect(this.worldSumGain);
     pan.connect(this.reverbSendGain);
-    src.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(src, hp, g, pan);
     src.start(t0);
     src.stop(t0 + 0.44);
   }
@@ -6548,6 +6957,7 @@ export class AudioSynthesizer {
     hiss.connect(bp);
     bp.connect(hg);
     hg.connect(pan);
+    this._cleanupTransientNodes(hiss, bp, hg);
     hiss.start(t0);
     hiss.stop(t0 + 0.30);
 
@@ -6563,15 +6973,13 @@ export class AudioSynthesizer {
       cg.gain.exponentialRampToValueAtTime(0.0005, t0 + dt + 0.24);
       osc.connect(cg);
       cg.connect(pan);
+      if (i === 1) {
+        this._cleanupTransientNodes(osc, cg, pan);
+      } else {
+        this._cleanupTransientNodes(osc, cg);
+      }
       osc.start(t0 + dt);
       osc.stop(t0 + dt + 0.26);
-      if (i === 1) {
-        osc.onended = () => {
-          try {
-            pan.disconnect();
-          } catch (_e) {}
-        };
-      }
     }
   }
 
@@ -6595,11 +7003,7 @@ export class AudioSynthesizer {
     g.connect(pan);
     pan.connect(this.worldSumGain);
     pan.connect(this.reverbSendGain);
-    osc.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(osc, g, pan);
     osc.start(t0);
     osc.stop(t0 + 0.18);
   }
@@ -6631,17 +7035,16 @@ export class AudioSynthesizer {
       osc1.connect(g);
       osc2.connect(g);
       g.connect(pan);
+      this._cleanupTransientNodes(osc1);
+      if (k === 1) {
+        this._cleanupTransientNodes(osc2, g, pan);
+      } else {
+        this._cleanupTransientNodes(osc2, g);
+      }
       osc1.start(t0 + dt);
       osc2.start(t0 + dt);
       osc1.stop(t0 + dt + 0.24);
       osc2.stop(t0 + dt + 0.24);
-      if (k === 1) {
-        osc2.onended = () => {
-          try {
-            pan.disconnect();
-          } catch (_e) {}
-        };
-      }
     }
   }
 
@@ -6677,11 +7080,8 @@ export class AudioSynthesizer {
     oscB.connect(lp);
     lp.connect(g);
     g.connect(pan);
-    oscA.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(oscB);
+    this._cleanupTransientNodes(oscA, lp, g, pan);
     oscA.start(t0);
     oscB.start(t0);
     oscA.stop(t0 + dur + 0.03);
@@ -6729,11 +7129,8 @@ export class AudioSynthesizer {
     chirpOsc.connect(cg);
     cg.connect(pan);
     ng.connect(pan);
-    noise.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(chirpOsc, cg);
+    this._cleanupTransientNodes(noise, bp, ng, pan);
     chirpOsc.start(t0);
     chirpOsc.stop(t0 + 0.18);
     noise.start(t0);
@@ -6768,11 +7165,7 @@ export class AudioSynthesizer {
     src.connect(bp);
     bp.connect(g);
     g.connect(pan);
-    src.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(src, bp, g, pan);
     src.start(t0);
     src.stop(t0 + 1.60);
   }
@@ -6798,11 +7191,7 @@ export class AudioSynthesizer {
     g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.95);
     osc.connect(g);
     g.connect(pan);
-    osc.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(osc, g, pan);
     osc.start(t0);
     osc.stop(t0 + 0.98);
   }
@@ -6826,11 +7215,7 @@ export class AudioSynthesizer {
     osc.connect(g);
     g.connect(pan);
     pan.connect(this.worldSumGain);
-    osc.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(osc, g, pan);
     osc.start(t0);
     osc.stop(t0 + 0.17);
   }
@@ -6857,15 +7242,13 @@ export class AudioSynthesizer {
       g.gain.exponentialRampToValueAtTime(0.0005, t0 + dt + 0.028);
       osc.connect(g);
       g.connect(pan);
+      if (k === 1) {
+        this._cleanupTransientNodes(osc, g, pan);
+      } else {
+        this._cleanupTransientNodes(osc, g);
+      }
       osc.start(t0 + dt);
       osc.stop(t0 + dt + 0.034);
-      if (k === 1) {
-        osc.onended = () => {
-          try {
-            pan.disconnect();
-          } catch (_e) {}
-        };
-      }
     }
   }
 
@@ -6895,11 +7278,7 @@ export class AudioSynthesizer {
     src.connect(bp);
     bp.connect(g);
     g.connect(pan);
-    src.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(src, bp, g, pan);
     src.start(t0);
     src.stop(t0 + 0.21);
   }
@@ -6988,16 +7367,13 @@ export class AudioSynthesizer {
         g.gain.exponentialRampToValueAtTime(0.0004, noteStart + pt.decay);
         osc.connect(g);
         g.connect(lp);
+        if (n === totalNotes - 1 && p === 0) {
+          this._cleanupTransientNodes(osc, g, lp, pan);
+        } else {
+          this._cleanupTransientNodes(osc, g);
+        }
         osc.start(noteStart);
         osc.stop(noteStart + pt.decay + 0.04);
-        if (n === totalNotes - 1 && p === 0) {
-          osc.onended = () => {
-            try {
-              lp.disconnect();
-              pan.disconnect();
-            } catch (_e) {}
-          };
-        }
       }
     }
   }
@@ -7026,11 +7402,7 @@ export class AudioSynthesizer {
     g.gain.exponentialRampToValueAtTime(0.0004, t0 + 0.046);
     osc.connect(g);
     g.connect(pan);
-    osc.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(osc, g, pan);
     osc.start(t0);
     osc.stop(t0 + 0.055);
   }
@@ -7059,6 +7431,7 @@ export class AudioSynthesizer {
     tg.gain.exponentialRampToValueAtTime(0.0006, t0 + 0.19);
     thud.connect(tg);
     tg.connect(pan);
+    this._cleanupTransientNodes(thud, tg);
     thud.start(t0);
     thud.stop(t0 + 0.21);
 
@@ -7078,11 +7451,7 @@ export class AudioSynthesizer {
     spray.connect(bp);
     bp.connect(sg);
     sg.connect(pan);
-    spray.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(spray, bp, sg, pan);
     spray.start(t0);
     spray.stop(t0 + 0.41);
   }
@@ -7110,11 +7479,7 @@ export class AudioSynthesizer {
     bp.connect(g);
     g.connect(this.worldSumGain);
     g.connect(this.reverbSendGain);
-    src.onended = () => {
-      try {
-        g.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(src, bp, g);
     src.start(t0);
     src.stop(t0 + 0.65);
   }
@@ -7133,11 +7498,7 @@ export class AudioSynthesizer {
     g.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.065);
     osc.connect(g);
     g.connect(this.worldSumGain);
-    osc.onended = () => {
-      try {
-        g.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(osc, g);
     osc.start(t0);
     osc.stop(t0 + 0.075);
   }
@@ -7156,11 +7517,7 @@ export class AudioSynthesizer {
     g.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.10);
     osc.connect(g);
     g.connect(this.worldSumGain);
-    osc.onended = () => {
-      try {
-        g.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(osc, g);
     osc.start(t0);
     osc.stop(t0 + 0.11);
   }
@@ -7358,15 +7715,13 @@ export class AudioSynthesizer {
       g.gain.exponentialRampToValueAtTime(0.0005, cursor + dur);
       osc.connect(g);
       g.connect(pan);
+      if (n === notes - 1) {
+        this._cleanupTransientNodes(osc, g, pan);
+      } else {
+        this._cleanupTransientNodes(osc, g);
+      }
       osc.start(cursor);
       osc.stop(cursor + dur + 0.01);
-      if (n === notes - 1) {
-        osc.onended = () => {
-          try {
-            pan.disconnect();
-          } catch (_e) {}
-        };
-      }
       cursor += dur + 0.035 + Math.random() * 0.03;
     }
   }
@@ -7400,11 +7755,7 @@ export class AudioSynthesizer {
     bp.connect(g);
     g.connect(pan);
     pan.connect(this.weatherOccFilter);
-    osc.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(osc, bp, g, pan);
     osc.start(t0);
     osc.stop(t0 + 0.23);
   }
@@ -7441,11 +7792,7 @@ export class AudioSynthesizer {
     bp.connect(g);
     g.connect(pan);
     pan.connect(this.worldSumGain);
-    osc.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(osc, bp, g, pan);
     osc.start(t0);
     osc.stop(t0 + 0.38);
   }
@@ -7478,15 +7825,13 @@ export class AudioSynthesizer {
       g.gain.exponentialRampToValueAtTime(0.0005, t0 + n.dt + n.dur);
       osc.connect(g);
       g.connect(pan);
+      if (i === notes.length - 1) {
+        this._cleanupTransientNodes(osc, g, pan);
+      } else {
+        this._cleanupTransientNodes(osc, g);
+      }
       osc.start(t0 + n.dt);
       osc.stop(t0 + n.dt + n.dur + 0.015);
-      if (i === notes.length - 1) {
-        osc.onended = () => {
-          try {
-            pan.disconnect();
-          } catch (_e) {}
-        };
-      }
     }
   }
 
@@ -7525,15 +7870,13 @@ export class AudioSynthesizer {
       osc.connect(bp);
       bp.connect(g);
       g.connect(pan);
+      if (i === syl.length - 1) {
+        this._cleanupTransientNodes(osc, bp, g, pan);
+      } else {
+        this._cleanupTransientNodes(osc, bp, g);
+      }
       osc.start(t0 + s.dt);
       osc.stop(t0 + s.dt + s.dur + 0.02);
-      if (i === syl.length - 1) {
-        osc.onended = () => {
-          try {
-            pan.disconnect();
-          } catch (_e) {}
-        };
-      }
     }
   }
 
@@ -7568,6 +7911,7 @@ export class AudioSynthesizer {
         clickGain.gain.exponentialRampToValueAtTime(0.0005, baseT + 0.048);
         clickOsc.connect(clickGain);
         clickGain.connect(pan);
+        this._cleanupTransientNodes(clickOsc, clickGain);
         clickOsc.start(baseT);
         clickOsc.stop(baseT + 0.055);
 
@@ -7589,15 +7933,13 @@ export class AudioSynthesizer {
         barkOsc.connect(barkBp);
         barkBp.connect(barkGain);
         barkGain.connect(pan);
+        if (r === reps - 1) {
+          this._cleanupTransientNodes(barkOsc, barkBp, barkGain, pan);
+        } else {
+          this._cleanupTransientNodes(barkOsc, barkBp, barkGain);
+        }
         barkOsc.start(barkT);
         barkOsc.stop(barkT + 0.26);
-        if (r === reps - 1) {
-          barkOsc.onended = () => {
-            try {
-              pan.disconnect();
-            } catch (_e) {}
-          };
-        }
       }
       return;
     }
@@ -7619,15 +7961,13 @@ export class AudioSynthesizer {
       g.gain.exponentialRampToValueAtTime(0.0005, t0 + h.dt + h.dur);
       osc.connect(g);
       g.connect(pan);
+      if (i === hoots.length - 1) {
+        this._cleanupTransientNodes(osc, g, pan);
+      } else {
+        this._cleanupTransientNodes(osc, g);
+      }
       osc.start(t0 + h.dt);
       osc.stop(t0 + h.dt + h.dur + 0.02);
-      if (i === hoots.length - 1) {
-        osc.onended = () => {
-          try {
-            pan.disconnect();
-          } catch (_e) {}
-        };
-      }
     }
   }
 
@@ -7652,15 +7992,13 @@ export class AudioSynthesizer {
       g.gain.exponentialRampToValueAtTime(0.0005, t0 + dt + 0.085);
       osc.connect(g);
       g.connect(pan);
+      if (k === 1) {
+        this._cleanupTransientNodes(osc, g, pan);
+      } else {
+        this._cleanupTransientNodes(osc, g);
+      }
       osc.start(t0 + dt);
       osc.stop(t0 + dt + 0.095);
-      if (k === 1) {
-        osc.onended = () => {
-          try {
-            pan.disconnect();
-          } catch (_e) {}
-        };
-      }
     }
   }
 
@@ -7690,11 +8028,7 @@ export class AudioSynthesizer {
     bp.connect(g);
     g.connect(pan);
     pan.connect(this.weatherOccFilter);
-    osc.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(osc, bp, g, pan);
     osc.start(t0);
     osc.stop(t0 + 0.52);
   }
@@ -7716,11 +8050,7 @@ export class AudioSynthesizer {
     osc.connect(g);
     g.connect(pan);
     pan.connect(this.weatherOccFilter);
-    osc.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(osc, g, pan);
     osc.start(t0);
     osc.stop(t0 + 0.15);
   }
@@ -7742,11 +8072,7 @@ export class AudioSynthesizer {
     osc.connect(g);
     g.connect(pan);
     pan.connect(this.weatherOccFilter);
-    osc.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(osc, g, pan);
     osc.start(t0);
     osc.stop(t0 + 0.085);
   }
@@ -7791,11 +8117,8 @@ export class AudioSynthesizer {
     tg.connect(bp);
     bp.connect(g);
     g.connect(pan);
-    noise.onended = () => {
-      try {
-        pan.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(tone, tg);
+    this._cleanupTransientNodes(noise, bp, g, pan);
     noise.start(t0);
     noise.stop(t0 + 0.36);
     tone.start(t0 + 0.03);
@@ -7819,11 +8142,7 @@ export class AudioSynthesizer {
     src.connect(bp);
     bp.connect(g);
     g.connect(this.worldSumGain);
-    src.onended = () => {
-      try {
-        g.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(src, bp, g);
     src.start(t0);
     src.stop(t0 + 0.26);
   }
@@ -7844,11 +8163,7 @@ export class AudioSynthesizer {
     g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.13);
     osc.connect(g);
     g.connect(this.worldSumGain || this.masterGain);
-    osc.onended = () => {
-      try {
-        g.disconnect();
-      } catch (_e) {}
-    };
+    this._cleanupTransientNodes(osc, g);
     osc.start(t0);
     osc.stop(t0 + 0.14);
   }
@@ -7904,6 +8219,7 @@ export class AudioSynthesizer {
         crackSrc.connect(crackHp);
         crackHp.connect(crackGain);
         crackGain.connect(pan);
+        this._cleanupTransientNodes(crackSrc, crackHp, crackGain);
         crackSrc.start(t0);
         crackSrc.stop(t0 + 0.24);
       }
@@ -7929,11 +8245,7 @@ export class AudioSynthesizer {
       noiseSrc.connect(lp);
       lp.connect(rumbleGain);
       rumbleGain.connect(pan);
-      noiseSrc.onended = () => {
-        try {
-          pan.disconnect();
-        } catch (_e) {}
-      };
+      this._cleanupTransientNodes(noiseSrc, lp, rumbleGain, pan);
       noiseSrc.start(t0);
       noiseSrc.stop(t0 + 3.55);
 
@@ -7951,11 +8263,7 @@ export class AudioSynthesizer {
       osc.connect(subGain);
       subGain.connect(this.worldSumGain);
       if (this.lfeSumGain) subGain.connect(this.lfeSumGain);
-      osc.onended = () => {
-        try {
-          subGain.disconnect();
-        } catch (_e) {}
-      };
+      this._cleanupTransientNodes(osc, subGain);
       osc.start(t0);
       osc.stop(t0 + 1.62);
 
@@ -7996,11 +8304,7 @@ export class AudioSynthesizer {
         eSrc.connect(eLp);
         eLp.connect(eGain);
         eGain.connect(ePan);
-        eSrc.onended = () => {
-          try {
-            ePan.disconnect();
-          } catch (_e) {}
-        };
+        this._cleanupTransientNodes(eSrc, eLp, eGain, ePan);
         eSrc.start(te);
         eSrc.stop(te + 2.32);
       }

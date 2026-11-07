@@ -200,9 +200,19 @@ export class RainCollisionBake {
     const spanY = maxY - minY;
 
     const groundHeightFn = typeof options.groundHeightFn === 'function' ? options.groundHeightFn : () => 0.0;
+    const groundHeightWithCoastFn =
+      typeof options.groundHeightWithCoastFn === 'function' ? options.groundHeightWithCoastFn : null;
     const shorelineXFn = typeof options.shorelineXFn === 'function' ? options.shorelineXFn : null;
     const islandCoastDistanceFn =
       typeof options.islandCoastDistanceFn === 'function' ? options.islandCoastDistanceFn : null;
+    const islandUCoastFn =
+      typeof options.islandUCoastFn === 'function' ? options.islandUCoastFn : null;
+    const islandICoastFn =
+      typeof options.islandICoastFn === 'function' ? options.islandICoastFn : null;
+    const hasSplitCoastFastPath = Boolean(
+      islandUCoastFn && islandICoastFn && groundHeightWithCoastFn
+    );
+    const hasAnyIslandCoast = Boolean(islandCoastDistanceFn || hasSplitCoastFastPath);
     const freshwaterSurfaceYFn =
       typeof options.freshwaterSurfaceYFn === 'function' ? options.freshwaterSurfaceYFn : null;
     const waterLevelY = options.waterLevelY !== undefined ? options.waterLevelY : -1.45;
@@ -216,7 +226,7 @@ export class RainCollisionBake {
     // Surface class: 0 = Water, 1 = Horizontal Hard Surface, 2 = Sloped Hard Roof/Batter, 3 = Tree Canopy
     const classBuf = new Uint8Array(totalCells);
 
-    // 1. Initialize Dual-Island DEM & 360-Degree Surrounding Ocean Surface (with O(1) Open-Sea AABB & SDF Early-Out!)
+    // 1. Initialize Dual-Island DEM & 360-Degree Surrounding Ocean Surface (with O(1) Open-Sea AABB & Single-Pass SDF+DEM!)
     const rawGroundBuf = new Float32Array(totalCells);
     for (let iz = 0; iz < size; iz++) {
       if (useSlicing && iz > 0 && nowFn() - sliceStart >= sliceBudgetMs) {
@@ -224,18 +234,22 @@ export class RainCollisionBake {
         sliceStart = nowFn();
       }
       const wz = minZBound + (iz + 0.5) * cellSizeZ;
-      const shoreX = !islandCoastDistanceFn && shorelineXFn ? shorelineXFn(wz) : Infinity;
+      const shoreX = !hasAnyIslandCoast && shorelineXFn ? shorelineXFn(wz) : Infinity;
       const rowOffset = iz * size;
       // Exact Z-band open-sea check when using full archipelago coast SDF
       const zMaybePulauU = wz >= -96.0 && wz <= 474.0;
       const zMaybePulauI = wz >= 599.0 && wz <= 788.0;
-      const zGuaranteedOpenSea = Boolean(islandCoastDistanceFn) && !zMaybePulauU && !zMaybePulauI;
+      const zGuaranteedOpenSea = hasAnyIslandCoast && !zMaybePulauU && !zMaybePulauI;
 
       for (let ix = 0; ix < size; ix++) {
+        if (useSlicing && (ix & 63) === 63 && nowFn() - sliceStart >= sliceBudgetMs) {
+          yield;
+          sliceStart = nowFn();
+        }
         const wx = minXBound + (ix + 0.5) * cellSizeX;
         const idx = rowOffset + ix;
 
-        if (islandCoastDistanceFn) {
+        if (hasAnyIslandCoast) {
           const xOutsideIslands =
             zGuaranteedOpenSea ||
             (zMaybePulauU && (wx < -375.0 || wx > 108.0)) ||
@@ -249,17 +263,35 @@ export class RainCollisionBake {
             classBuf[idx] = 0;
             continue;
           }
-          const dCoast = islandCoastDistanceFn(wx, wz);
-          if (dCoast > 3.55) {
-            rawGroundBuf[idx] = -3.85;
-            heightBuf[idx] = waterLevelY;
-            nxBuf[idx] = 0.0;
-            nyBuf[idx] = 1.0;
-            nzBuf[idx] = 0.0;
-            classBuf[idx] = 0;
-            continue;
+          let dCoast;
+          let gh;
+          if (hasSplitCoastFastPath) {
+            const dU = zMaybePulauU ? islandUCoastFn(wx, wz) : 500.0;
+            const dI = zMaybePulauI ? islandICoastFn(wx, wz) : 500.0;
+            dCoast = dU < dI ? dU : dI;
+            if (dCoast > 3.55) {
+              rawGroundBuf[idx] = -3.85;
+              heightBuf[idx] = waterLevelY;
+              nxBuf[idx] = 0.0;
+              nyBuf[idx] = 1.0;
+              nzBuf[idx] = 0.0;
+              classBuf[idx] = 0;
+              continue;
+            }
+            gh = groundHeightWithCoastFn(wx, wz, dU, dI);
+          } else {
+            dCoast = islandCoastDistanceFn(wx, wz);
+            if (dCoast > 3.55) {
+              rawGroundBuf[idx] = -3.85;
+              heightBuf[idx] = waterLevelY;
+              nxBuf[idx] = 0.0;
+              nyBuf[idx] = 1.0;
+              nzBuf[idx] = 0.0;
+              classBuf[idx] = 0;
+              continue;
+            }
+            gh = groundHeightFn(wx, wz);
           }
-          const gh = groundHeightFn(wx, wz);
           rawGroundBuf[idx] = gh;
           const fwY = dCoast < -4.0 && freshwaterSurfaceYFn ? freshwaterSurfaceYFn(wx, wz) : null;
           if (fwY !== null && Number.isFinite(fwY)) {
@@ -307,7 +339,7 @@ export class RainCollisionBake {
     }
 
     for (let iz = 0; iz < size; iz++) {
-      if (useSlicing && (iz & 3) === 3 && nowFn() - sliceStart >= sliceBudgetMs) {
+      if (useSlicing && iz > 0 && nowFn() - sliceStart >= sliceBudgetMs) {
         yield;
         sliceStart = nowFn();
       }
@@ -353,7 +385,7 @@ export class RainCollisionBake {
       let scanOps = 0;
 
       for (let t = 0; t < triCount; t++) {
-        if (useSlicing && (t & 511) === 0 && nowFn() - sliceStart >= sliceBudgetMs) {
+        if (useSlicing && (t & 63) === 0 && nowFn() - sliceStart >= sliceBudgetMs) {
           yield;
           sliceStart = nowFn();
         }
@@ -419,7 +451,7 @@ export class RainCollisionBake {
         for (let iz = izMin; iz <= izMax; iz++) {
           if (useSlicing) {
             scanOps += rowSpan;
-            if (scanOps >= 2048) {
+            if (scanOps >= 512) {
               scanOps = 0;
               if (nowFn() - sliceStart >= sliceBudgetMs) {
                 yield;
@@ -492,6 +524,10 @@ export class RainCollisionBake {
         const izMax = Math.min(size - 1, Math.floor((cz + rz - minZBound) / cellSizeZ));
 
         for (let iz = izMin; iz <= izMax; iz++) {
+          if (useSlicing && (iz & 3) === 3 && nowFn() - sliceStart >= sliceBudgetMs) {
+            yield;
+            sliceStart = nowFn();
+          }
           const pz = minZBound + (iz + 0.5) * cellSizeZ;
           const dz = (pz - cz) / rz;
           const rowOffset = iz * size;
@@ -585,8 +621,14 @@ export class RainCollisionBake {
     for (let r = 0; r < rootList.length; r++) {
       const root = rootList[r];
       if (!root) continue;
-      root.updateMatrixWorld(true);
+      if (!useSlicing || options.skipRootMatrixUpdate !== true) {
+        root.updateMatrixWorld(true);
+      }
       visitNode(root);
+      if (useSlicing && nowFn() - sliceStart >= sliceBudgetMs) {
+        yield;
+        sliceStart = nowFn();
+      }
     }
 
     for (let c = 0; c < canopyMeshes.length; c++) {
@@ -605,7 +647,7 @@ export class RainCollisionBake {
     const nDirsZ = [0, 0, -1, 1];
 
     for (let iz = 2; iz < size - 2; iz++) {
-      if (useSlicing && (iz & 7) === 7 && nowFn() - sliceStart >= sliceBudgetMs) {
+      if (useSlicing && (iz & 1) === 1 && nowFn() - sliceStart >= sliceBudgetMs) {
         yield;
         sliceStart = nowFn();
       }

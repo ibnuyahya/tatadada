@@ -178,7 +178,9 @@ export class TropicalGrassField {
           continue;
         }
 
-        const dCoast = TerrainDEMLoader.getIslandCoastDistance(wx, wz);
+        const dU = zPulauU ? TerrainDEMLoader.getIslandUCoastDistance(wx, wz) : 120.0;
+        const dI = zPulauI ? TerrainDEMLoader.getIslandICoastDistance(wx, wz) : 120.0;
+        const dCoast = dU < dI ? dU : dI;
         dCoastGrid[idx] = dCoast;
         if (dCoast > 2.5) {
           gyGrid[idx] = -1.45;
@@ -188,7 +190,7 @@ export class TropicalGrassField {
           continue;
         }
 
-        const gy = TerrainDEMLoader.sampleGroundHeight(wx, wz);
+        const gy = TerrainDEMLoader.sampleGroundHeightWithCoast(wx, wz, dU, dI);
         gyGrid[idx] = gy;
         const q = Math.max(0, Math.min(65535, Math.round(((gy - minY) / spanY) * 65535.0)));
         data[o] = (q >> 8) & 255;
@@ -325,10 +327,7 @@ export class TropicalGrassField {
       precomputedDCoast !== null ? precomputedDCoast : TerrainDEMLoader.getIslandCoastDistance(x, z);
     if (dCoast > -2.45 || gy < -0.04 || gy > 27.5) return 0.0;
 
-    // 2. Freshwater spring, meandering river, lakes, & Mini-Niagara gorge exclusion
-    if (TerrainDEMLoader.isFreshwaterExclusion(x, z, 1.05)) return 0.0;
-
-    // 3. Steep cliff / rocky volcanic scree exclusion
+    // 2. Steep cliff / rocky volcanic scree exclusion
     if (precomputedSlope !== null) {
       if (precomputedSlope > 0.56) return 0.0;
     } else {
@@ -408,6 +407,9 @@ export class TropicalGrassField {
       if (Math.hypot(x - TerrainDEMLoader.NIAGARA_CX, z - TerrainDEMLoader.NIAGARA_CZ) < 22.0) return 0.0;
     }
 
+    // 10. Freshwater spring, meandering river, lakes, & Mini-Niagara gorge exclusion (checked after fast O(1) AABBs)
+    if (TerrainDEMLoader.isFreshwaterExclusion(x, z, 1.05)) return 0.0;
+
     // Edge feather near coast & higher elevations
     const coastFeather = Math.min(1.0, Math.max(0.0, (-2.45 - dCoast) / 2.8));
     const altFeather = gy > 20.0 ? Math.max(0.0, 1.0 - (gy - 20.0) / 7.5) : 1.0;
@@ -459,7 +461,9 @@ export class TropicalGrassField {
           continue;
         }
 
-        const dCoast = TerrainDEMLoader.getIslandCoastDistance(wx, wz);
+        const dU = zPulauU ? TerrainDEMLoader.getIslandUCoastDistance(wx, wz) : 120.0;
+        const dI = zPulauI ? TerrainDEMLoader.getIslandICoastDistance(wx, wz) : 120.0;
+        const dCoast = dU < dI ? dU : dI;
         dCoastGrid[idx] = dCoast;
         if (dCoast > 2.5) {
           gyGrid[idx] = -1.45;
@@ -469,7 +473,7 @@ export class TropicalGrassField {
           continue;
         }
 
-        const gy = TerrainDEMLoader.sampleGroundHeight(wx, wz);
+        const gy = TerrainDEMLoader.sampleGroundHeightWithCoast(wx, wz, dU, dI);
         gyGrid[idx] = gy;
         const q = Math.max(0, Math.min(65535, Math.round(((gy - minY) / spanY) * 65535.0)));
         data[o] = (q >> 8) & 255;

@@ -27,7 +27,7 @@ export const HARDWARE_TIERS = {
     maxPixelRatio: 1.5,
     shadowMapSize: 2048,
     shadowFrustumHalf: 108.0,
-    shadowRefreshStride: 3,
+    shadowRefreshStride: 1,
     closeDerivativeDistM: 22.0,
     aiFarStaggerDistM: 9999.0
   },
@@ -41,7 +41,7 @@ export const HARDWARE_TIERS = {
     maxPixelRatio: 1.25,
     shadowMapSize: 2048,
     shadowFrustumHalf: 104.0,
-    shadowRefreshStride: 3,
+    shadowRefreshStride: 1,
     closeDerivativeDistM: 18.0,
     aiFarStaggerDistM: 9999.0
   },
@@ -51,12 +51,12 @@ export const HARDWARE_TIERS = {
     badgeLabel: 'Balanced 60Hz',
     targetFps: 60,
     targetFrameMs: 16.67,
-    minPixelRatio: 0.9,
-    maxPixelRatio: 1.05,
+    minPixelRatio: 0.92,
+    maxPixelRatio: 1.15,
     shadowMapSize: 2048,
     shadowFrustumHalf: 100.0,
-    shadowRefreshStride: 4,
-    closeDerivativeDistM: 14.0,
+    shadowRefreshStride: 1,
+    closeDerivativeDistM: 16.0,
     aiFarStaggerDistM: 120.0
   },
   TIER_C: {
@@ -65,12 +65,12 @@ export const HARDWARE_TIERS = {
     badgeLabel: 'Hemat Daya',
     targetFps: 60,
     targetFrameMs: 16.67,
-    minPixelRatio: 0.8,
+    minPixelRatio: 0.85,
     maxPixelRatio: 1.0,
     shadowMapSize: 1536,
     shadowFrustumHalf: 94.0,
-    shadowRefreshStride: 5,
-    closeDerivativeDistM: 10.0,
+    shadowRefreshStride: 1,
+    closeDerivativeDistM: 12.0,
     aiFarStaggerDistM: 95.0
   }
 };
@@ -171,12 +171,14 @@ export class HardwareTelemetryGovernor {
   static detectMobilePlatform() {
     if (typeof navigator === 'undefined') return false;
     const ua = String(navigator.userAgent || '');
+    const plat = String(navigator.platform || '');
     if (/Android|iPhone|iPad|iPod|Mobile|CriOS|FxiOS/i.test(ua)) return true;
-    if (
-      typeof window !== 'undefined' &&
-      Number(navigator.maxTouchPoints) > 1 &&
-      Math.min(window.innerWidth || 1440, window.innerHeight || 900) < 920
-    ) {
+    // Windows, Linux x86_64, and ChromeOS touchscreen laptops are desktop-class OS platforms, NEVER phones!
+    if (/Win32|Win64|Windows|Linux x86_64|CrOS/i.test(plat) && !/Android/i.test(ua)) {
+      return false;
+    }
+    // iPadOS 13+ desktop-UA mode reports MacIntel with multi-touch
+    if (/MacIntel/i.test(plat) && Number(navigator.maxTouchPoints) > 1) {
       return true;
     }
     return false;
@@ -189,38 +191,43 @@ export class HardwareTelemetryGovernor {
     const r = String(rawRenderer || '').trim();
     const v = String(rawVendor || '').trim();
 
-    // Extract clean human-readable GPU name (strip ANGLE(...) wrapper if present)
-    let cleanName = r;
-    const angleMatch = r.match(/ANGLE\s*\([^,]+,\s*([^,(]+)/i);
+    // Extract clean human-readable GPU name (strip ANGLE(...), (R)/(TM), PCI device IDs, and D3D shader suffixes)
+    const rNorm = r.replace(/\(R\)|\(TM\)|®|™/gi, '').replace(/\s+/g, ' ').trim();
+    let cleanName = rNorm;
+    const angleMatch = rNorm.match(/ANGLE\s*\([^,]+,\s*([^,]+)/i);
     if (angleMatch && angleMatch[1]) {
       cleanName = angleMatch[1].trim();
     }
     cleanName = cleanName
-      .replace(/Direct3D11.*$/i, '')
+      .replace(/\s*\(0x[0-9a-f]+\)/gi, '')
+      .replace(/Direct3D\d*.*$/i, '')
+      .replace(/OpenGL.*$/i, '')
+      .replace(/Vulkan.*$/i, '')
       .replace(/vs_\d+_\d+.*$/i, '')
       .replace(/\s+/g, ' ')
       .trim();
     if (!cleanName) cleanName = isMobile ? 'Mobile WebGL2 GPU' : 'WebGL2 GPU';
 
-    const isSoftware = /SwiftShader|llvmpipe|Software|Microsoft Basic Render/i.test(r);
+    const isSoftware = /SwiftShader|llvmpipe|Software|Microsoft Basic Render/i.test(rNorm);
     const isFlagshipMobile =
-      /Adreno\s*\(TM\)\s*(7[345]\d|8\d\d)|Adreno\s*(7[345]\d|8\d\d)|Immortalis|Mali-G7(15|20|25)|Xclipse\s*9[24]0/i.test(
-        r
+      /Adreno\s*(7[345]\d|8\d\d)|Immortalis|Mali-G7(15|20|25)|Xclipse\s*9[24]0/i.test(
+        rNorm
       );
-    const isMobileGpu = /Adreno|Mali|PowerVR|Xclipse|Maleoon/i.test(r) || isMobile;
+    const isMobileGpu = /Adreno|Mali|PowerVR|Xclipse|Maleoon/i.test(rNorm) || isMobile;
     const isGamingNvidia =
-      /RTX\s*(20[6789]0|30[6789]0|40[6789]0|50[6789]0|A[23456]000)|GTX\s*(10[78]0|1660)/i.test(r);
-    const isLaptopOrEntryNvidia = /RTX\s*(2050|3050|4050)|GTX\s*(1050|1060|1650)|MX\s*\d+/i.test(r);
-    const isGamingAmd = /Radeon\s*RX\s*(6[6789]\d0|7[6789]\d0|5700)/i.test(r);
+      /RTX\s*(20[6789]0|30[6789]0|40[6789]0|50[6789]0|A[23456]000)|GTX\s*(10[78]0|1660)/i.test(rNorm);
+    const isLaptopOrEntryNvidia = /RTX\s*(2050|3050|4050)|GTX\s*(1050|1060|1650)|MX\s*\d+/i.test(rNorm);
+    const isGamingAmd = /Radeon\s*RX\s*(6[6789]\d0|7[6789]\d0|5700)/i.test(rNorm);
     const isHighApuOrArc =
       /Radeon\s*(680M|780M|880M|890M|RX\s*[56][56]00)|Intel.*Arc|Apple\s*M[1234]\s*(Pro|Max|Ultra)/i.test(
-        r
+        rNorm
       );
-    const isAppleBase = /Apple\s*M[1234]\b/i.test(r) && !/Pro|Max|Ultra/i.test(r);
-    const isMainstreamIgpu = /Iris\s*Xe|UHD\s*Graphics\s*(7[357]0)|Radeon\s*(660M|740M|760M|Vega)/i.test(
-      r
-    );
-    const isEntryDesktop = /UHD\s*Graphics\s*(6\d0)|HD\s*Graphics/i.test(r);
+    const isAppleBase = /Apple\s*M[1234]\b/i.test(rNorm) && !/Pro|Max|Ultra/i.test(rNorm);
+    const isEntryDesktop = /UHD\s*Graphics\s*(6\d0)|HD\s*Graphics/i.test(rNorm);
+    const isMainstreamIgpu =
+      !isHighApuOrArc &&
+      !isEntryDesktop &&
+      /Iris\s*(Xe|Plus|Pro)?|UHD\s*Graphics|Radeon\s*(660M|740M|760M|Vega|Graphics)/i.test(rNorm);
 
     if (isSoftware) {
       return {
@@ -565,8 +572,8 @@ export class HardwareTelemetryGovernor {
         }
       }
 
-      // Clamp focus within Kepulauan UI bounds and snap to world texel grid (eliminates shadow edge swimming!)
-      const texelWorldStep = (halfExt * 2.0) / (cfg.shadowMapSize || 2048) * 4.0;
+      // Clamp focus within Kepulauan UI bounds and snap to 1.0 shadow-map texel grid (zero edge swimming & zero step-lag!)
+      const texelWorldStep = (halfExt * 2.0) / (cfg.shadowMapSize || 2048);
       const snapX = Math.round(fx / texelWorldStep) * texelWorldStep;
       const snapZ = Math.round(fz / texelWorldStep) * texelWorldStep;
 

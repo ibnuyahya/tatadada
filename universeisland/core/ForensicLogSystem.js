@@ -876,7 +876,7 @@ export class NexusRolling30sRecorder {
       audSnap30s.realtimeHealth.underrunSuspectCount === 0
     ) {
       improvementOpportunities.push(
-        `Profil DSP Audio (Tahap 1 v2.4): ${audSnap30s.dspGraphInventory.totalPersistentNodes} node kontinu aktif (${audSnap30s.dspGraphInventory.activeAudibleSubBuses} bus berbunyi, ${audSnap30s.dspGraphInventory.silentRunningSubBuses} bus diam berputar, ${audSnap30s.dspGraphInventory.uncleanedTransientAuxNodes} aux transien tersisa) — siap dihemat pada Tier Audio Tahap 2.`
+        `Profil DSP Audio (v2.4): ${audSnap30s.dspGraphInventory.totalPersistentNodes} node kontinu (${audSnap30s.dspGraphInventory.activeAudibleSubBuses} bus berbunyi, ${audSnap30s.dspGraphInventory.hibernatedSubBuses || 0} bus hibernasi, ${audSnap30s.dspGraphInventory.silentRunningSubBuses} bus diam berputar, ${audSnap30s.dspGraphInventory.uncleanedTransientAuxNodes} aux transien tersisa).`
       );
     }
 
@@ -921,12 +921,15 @@ export class NexusRolling30sRecorder {
               verdict: audSnap30s.verdict,
               initialized: audSnap30s.hardwareAndContext.initialized,
               muted: audSnap30s.hardwareAndContext.muted,
+              latencyHint: audSnap30s.hardwareAndContext.latencyHint || 'interactive',
               contextState: audSnap30s.hardwareAndContext.contextState,
               sampleRateHz: audSnap30s.hardwareAndContext.sampleRateHz,
               emaUpdateUs: audSnap30s.realtimeHealth.emaUpdateUs,
               maxUpdateMs: audSnap30s.realtimeHealth.maxUpdateMs,
+              skippedRedundantParamOps: audSnap30s.realtimeHealth.skippedRedundantParamOps || 0,
               persistentNodes: audSnap30s.dspGraphInventory.totalPersistentNodes,
               activeAudibleSubBuses: audSnap30s.dspGraphInventory.activeAudibleSubBuses,
+              hibernatedSubBuses: audSnap30s.dspGraphInventory.hibernatedSubBuses || 0,
               silentRunningSubBuses: audSnap30s.dspGraphInventory.silentRunningSubBuses,
               uncleanedTransientAuxNodes: audSnap30s.dspGraphInventory.uncleanedTransientAuxNodes,
               underrunSuspects: audSnap30s.realtimeHealth.underrunSuspectCount,

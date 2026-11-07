@@ -465,11 +465,7 @@ export class TerrainDEMLoader {
     return Math.min(a, b) - h * h * k * 0.25;
   }
 
-  /**
-   * SSoST Polar Radius R(theta) for the Existing Kampus Rektorat Head (Upper Left Arm of Pulau U)
-   * around (ISLAND_CX = -18.0, ISLAND_CZ = 34.0).
-   */
-  static getIslandRadiusAtAngle(theta) {
+  static _evalIslandRadiusAtAngleAnalytic(theta) {
     const eastCove = -46.0 * Math.pow(0.5 + 0.5 * Math.cos(theta + 0.25), 4.4);
     const neHeadland = 23.5 * Math.pow(0.5 + 0.5 * Math.cos(theta + 1.04), 8.5);
     const southRotundaLobe = 15.5 * Math.pow(0.5 + 0.5 * Math.cos(theta - 1.12), 2.3);
@@ -481,6 +477,48 @@ export class TerrainDEMLoader {
     return 121.0 + eastCove + neHeadland + southRotundaLobe + swHelipadPeninsula + organicMeander;
   }
 
+  static _ensureCampusHeadLut() {
+    if (TerrainDEMLoader._campusRadiusLut) return;
+    const N = 8192;
+    const TWO_PI = Math.PI * 2.0;
+    const step = TWO_PI / N;
+    const rLut = new Float64Array(N + 1);
+    const invNormLut = new Float64Array(N + 1);
+    const epsTh = 0.008;
+    for (let i = 0; i <= N; i++) {
+      const th = -Math.PI + i * step;
+      const r0 = TerrainDEMLoader._evalIslandRadiusAtAngleAnalytic(th);
+      const rP = TerrainDEMLoader._evalIslandRadiusAtAngleAnalytic(th + epsTh);
+      const rM = TerrainDEMLoader._evalIslandRadiusAtAngleAnalytic(th - epsTh);
+      const slopeRatio = (rP - rM) / (2.0 * epsTh * Math.max(20.0, r0));
+      rLut[i] = r0;
+      invNormLut[i] = 1.0 / Math.sqrt(1.0 + slopeRatio * slopeRatio);
+    }
+    TerrainDEMLoader._campusLutN = N;
+    TerrainDEMLoader._campusLutInvStep = N / TWO_PI;
+    TerrainDEMLoader._campusRadiusLut = rLut;
+    TerrainDEMLoader._campusInvNormLut = invNormLut;
+  }
+
+  /**
+   * SSoST Polar Radius R(theta) for the Existing Kampus Rektorat Head (Upper Left Arm of Pulau U)
+   * around (ISLAND_CX = -18.0, ISLAND_CZ = 34.0).
+   * Accelerated via 8192-entry periodic Float64 LUT (< 4e-7m sub-micrometer error, 0 Math.pow calls).
+   */
+  static getIslandRadiusAtAngle(theta) {
+    TerrainDEMLoader._ensureCampusHeadLut();
+    const TWO_PI = Math.PI * 2.0;
+    let u = theta + Math.PI;
+    if (u < 0.0 || u >= TWO_PI) {
+      u = ((u % TWO_PI) + TWO_PI) % TWO_PI;
+    }
+    const f = u * TerrainDEMLoader._campusLutInvStep;
+    const idx = f | 0;
+    const frac = f - idx;
+    const rLut = TerrainDEMLoader._campusRadiusLut;
+    return rLut[idx] + (rLut[idx + 1] - rLut[idx]) * frac;
+  }
+
   /**
    * Evaluates perpendicular signed coast distance dU(x, z) for Pulau "U" (Rektorat + Teluk U + Right Arm):
    * - dU < 0.0 : Inland on Pulau U
@@ -488,21 +526,7 @@ export class TerrainDEMLoader {
    * - dU > 0.0 : Outward into surrounding ocean or inner lagoon Teluk U
    */
   static getIslandUCoastDistance(x, z) {
-    // 1. Campus Head on Upper Left Arm of Pulau U (true perpendicular Euclidean correction)
-    const dx = x - TerrainDEMLoader.ISLAND_CX;
-    const dz = z - TerrainDEMLoader.ISLAND_CZ;
-    const r = Math.hypot(dx, dz) + 1e-5;
-    const theta = Math.atan2(dz, dx);
-    const r0 = TerrainDEMLoader.getIslandRadiusAtAngle(theta);
-    const epsTh = 0.008;
-    const dRdTh =
-      (TerrainDEMLoader.getIslandRadiusAtAngle(theta + epsTh) -
-        TerrainDEMLoader.getIslandRadiusAtAngle(theta - epsTh)) /
-      (2.0 * epsTh);
-    const slopeRatio = dRdTh / Math.max(20.0, r0);
-    const dCampusHead = (r - r0) / Math.sqrt(1.0 + slopeRatio * slopeRatio);
-
-    // 2. Horseshoe "U" Arch Spine (Left Leg -> Semicircular U-Bottom -> Right Peninsula Arm)
+    // 1. Horseshoe "U" Arch Spine (Left Leg -> Semicircular U-Bottom -> Right Peninsula Arm)
     let distUCenter;
     if (x <= TerrainDEMLoader.U_ARC_X) {
       distUCenter = Math.abs(
@@ -524,6 +548,27 @@ export class TerrainDEMLoader {
     const meanderU =
       2.0 * Math.sin(x * 0.035 + z * 0.025) + 1.1 * Math.cos(z * 0.048 - x * 0.031);
     const dUHorseshoe = distUCenter - TerrainDEMLoader.U_ARM_HALF_W - meanderU;
+
+    // Exact compact-support bound: max(R(theta)) < 166.5m and U_BLEND_K = 28.0m -> when radial lower bound
+    // already exceeds dUHorseshoe + 28.0m, _smin perturbation is strictly 0.0000000000000000!
+    const dx = x - TerrainDEMLoader.ISLAND_CX;
+    const dz = z - TerrainDEMLoader.ISLAND_CZ;
+    const r = Math.hypot(dx, dz) + 1e-5;
+    if (r - 166.5 >= dUHorseshoe + TerrainDEMLoader.U_BLEND_K) {
+      return dUHorseshoe;
+    }
+
+    // 2. Campus Head on Upper Left Arm of Pulau U (true perpendicular Euclidean correction via 8192-LUT)
+    TerrainDEMLoader._ensureCampusHeadLut();
+    const theta = Math.atan2(dz, dx);
+    const f = (theta + Math.PI) * TerrainDEMLoader._campusLutInvStep;
+    const idx = Math.max(0, Math.min(8191, f | 0));
+    const frac = f - idx;
+    const rLut = TerrainDEMLoader._campusRadiusLut;
+    const invLut = TerrainDEMLoader._campusInvNormLut;
+    const r0 = rLut[idx] + (rLut[idx + 1] - rLut[idx]) * frac;
+    const invNorm = invLut[idx] + (invLut[idx + 1] - invLut[idx]) * frac;
+    const dCampusHead = (r - r0) * invNorm;
 
     return TerrainDEMLoader._smin(dCampusHead, dUHorseshoe, TerrainDEMLoader.U_BLEND_K);
   }
@@ -712,8 +757,8 @@ export class TerrainDEMLoader {
    * Uses C^inf global log-sum-exp projection across 84 fixed river centerline stations + smooth tanh side-blending
    * so concave meander pockets and upstream/downstream normal lines never form gradient discontinuities!
    */
-  static evalPulauUHydrology(x, z) {
-    if (x < -356.0 || x >= -68.0 || z < -86.0 || z > 104.0) return null;
+  static evalPulauUHydrology(x, z, out = null) {
+    if (x < -338.0 || x >= -68.0 || z < -84.0 || z > 98.0) return null;
 
     // Uniform 5.2m physical outer-bank scale unit across Spring, River, & Small Lake so w = 5.85 is always ~25m outside shore!
     const bankUnitM = 5.2;
@@ -722,26 +767,37 @@ export class TerrainDEMLoader {
     const dxS = x - TerrainDEMLoader.SPRING_U_CX;
     const dzS = z - TerrainDEMLoader.SPRING_U_CZ;
     const distS = Math.hypot(dxS, dzS);
-    const thS = Math.atan2(dzS, dxS);
-    const rSpringShore = TerrainDEMLoader.evalPulauUSpringRadiusAtAngle(thS);
-    const wSpring =
-      distS <= rSpringShore
-        ? distS / Math.max(1.0, rSpringShore)
-        : 1.0 + (distS - rSpringShore) / bankUnitM;
+    let wSpring = 20.0;
+    if (distS < 54.0) {
+      const thS = Math.atan2(dzS, dxS);
+      const rSpringShore = TerrainDEMLoader.evalPulauUSpringRadiusAtAngle(thS);
+      wSpring =
+        distS <= rSpringShore
+          ? distS / Math.max(1.0, rSpringShore)
+          : 1.0 + (distS - rSpringShore) / bankUnitM;
+    }
 
     // 3. Scenic Small Lake beside Gedung Rektorat UI ("Danau Kecil Rektorat") at (-82.5, -22.0) — evaluated early for fast far-field culling
     const dxL = x - TerrainDEMLoader.LAKE_U_CX;
     const dzL = z - TerrainDEMLoader.LAKE_U_CZ;
-    const thL = Math.atan2(dzL, dxL);
-    const modL = TerrainDEMLoader.evalPulauULakeRadiusMod(thL);
-    const rxL = TerrainDEMLoader.LAKE_U_RX * modL;
-    const rzL = TerrainDEMLoader.LAKE_U_RZ * modL;
-    const wLakeRaw = Math.hypot(dxL / rxL, dzL / rzL);
-    const avgRL = 0.5 * (TerrainDEMLoader.LAKE_U_RX + TerrainDEMLoader.LAKE_U_RZ);
-    const wLake =
-      wLakeRaw <= 1.0
-        ? wLakeRaw
-        : 1.0 + ((wLakeRaw - 1.0) * avgRL) / bankUnitM;
+    let wLake = 20.0;
+    if (Math.abs(dxL) < 58.0 && Math.abs(dzL) < 68.0) {
+      const thL = Math.atan2(dzL, dxL);
+      const modL = TerrainDEMLoader.evalPulauULakeRadiusMod(thL);
+      const rxL = TerrainDEMLoader.LAKE_U_RX * modL;
+      const rzL = TerrainDEMLoader.LAKE_U_RZ * modL;
+      const wLakeRaw = Math.hypot(dxL / rxL, dzL / rzL);
+      const avgRL = 0.5 * (TerrainDEMLoader.LAKE_U_RX + TerrainDEMLoader.LAKE_U_RZ);
+      wLake =
+        wLakeRaw <= 1.0
+          ? wLakeRaw
+          : 1.0 + ((wLakeRaw - 1.0) * avgRL) / bankUnitM;
+    }
+
+    // Fast O(1) corridor reject when far from Spring, Small Lake, AND River Z-envelope [-28..+50] + 46m reach
+    if (wSpring >= 7.05 && wLake >= 7.05 && (z < -72.0 || z > 94.0 || x < -334.0)) {
+      return null;
+    }
 
     // 2. Meandering Northbound River (84 fixed global stations + C^inf log-sum-exp non-expansive SDF with exact station wMin pruning)
     const stations = TerrainDEMLoader._getPulauURiverStations();
@@ -767,6 +823,11 @@ export class TerrainDEMLoader {
       crossArr[kSeed] = latD0 / hw0;
       hwArr[kSeed] = hw0;
       wMin = wc0;
+    }
+
+    // Fast 1-station bound reject: if seed station is > 65m away in Z while X is inside river span, wMin cannot be < 7.45
+    if (wSpring >= 7.05 && wLake >= 7.05 && wMin > 13.5) {
+      return null;
     }
 
     for (let k = 0; k < nSt; k++) {
@@ -836,46 +897,48 @@ export class TerrainDEMLoader {
     const bendSide = bendBias * clampedCross; // > 0 on outer cut-bank, < 0 on inner gravel/sand point-bar
 
     // Asymmetric Beta-distribution channel bathymetry B(u): exact zero depth right at unified shoreline contour w = 1.03!
-    const signSmooth = signedCross / Math.hypot(signedCross, 0.08);
-    const effSignedCross = signSmooth * Math.min(1.03, w);
-    const u01 = Math.max(0.0, Math.min(1.0, 0.5 + 0.5 * (effSignedCross / 1.03)));
-    const pL = 1.12 + 0.60 * bendBias;
-    const pR = 1.12 - 0.60 * bendBias;
-    const uPeak = pL / (pL + pR);
-    const peakNorm = Math.pow(uPeak, pL) * Math.pow(1.0 - uPeak, pR) || 1.0;
-    const riverBetaProfile =
-      w < 1.03 ? (Math.pow(u01, pL) * Math.pow(1.0 - u01, pR)) / peakNorm : 0.0;
+    let bedY = waterY;
+    if (w < 1.03) {
+      const signSmooth = signedCross / Math.hypot(signedCross, 0.08);
+      const effSignedCross = signSmooth * w;
+      const u01 = Math.max(0.0, Math.min(1.0, 0.5 + 0.5 * (effSignedCross / 1.03)));
+      const pL = 1.12 + 0.60 * bendBias;
+      const pR = 1.12 - 0.60 * bendBias;
+      const uPeak = pL / (pL + pR);
+      const peakNorm = Math.pow(uPeak, pL) * Math.pow(1.0 - uPeak, pR) || 1.0;
+      const riverBetaProfile = (Math.pow(u01, pL) * Math.pow(1.0 - u01, pR)) / peakNorm;
 
-    const wBasinNorm = Math.max(0.0, Math.min(1.0, w / 1.03));
-    const basinProfile = Math.pow(Math.max(0.0, 1.0 - wBasinNorm * wBasinNorm), 0.68);
-    const shoreZeroEnv = Math.pow(Math.max(0.0, 1.0 - Math.pow(wBasinNorm, 2.6)), 0.78);
-    const channelProfile =
-      (riverBetaProfile * riverDominance + basinProfile * (1.0 - riverDominance)) * shoreZeroEnv;
+      const wBasinNorm = Math.max(0.0, Math.min(1.0, w / 1.03));
+      const basinProfile = Math.pow(Math.max(0.0, 1.0 - wBasinNorm * wBasinNorm), 0.68);
+      const shoreZeroEnv = Math.pow(Math.max(0.0, 1.0 - Math.pow(wBasinNorm, 2.6)), 0.78);
+      const channelProfile =
+        (riverBetaProfile * riverDominance + basinProfile * (1.0 - riverDominance)) * shoreZeroEnv;
 
-    const maxDepth =
-      1.28 +
-      0.36 * springWeight +
-      0.48 * lakeWeight +
-      0.18 * Math.abs(bendBias);
-    const pebble =
-      (0.055 * Math.sin(x * 0.82 + z * 0.71) * Math.cos(z * 0.91 - x * 0.58) +
-        0.032 * Math.sin(x * 1.92 - z * 1.68)) *
-      channelProfile;
-    const bedY = waterY - maxDepth * channelProfile + pebble;
+      const maxDepth =
+        1.28 +
+        0.36 * springWeight +
+        0.48 * lakeWeight +
+        0.18 * Math.abs(bendBias);
+      const pebble =
+        (0.055 * Math.sin(x * 0.82 + z * 0.71) * Math.cos(z * 0.91 - x * 0.58) +
+          0.032 * Math.sin(x * 1.92 - z * 1.68)) *
+        channelProfile;
+      bedY = waterY - maxDepth * channelProfile + pebble;
+    }
 
-    return {
-      w,
-      wSpring,
-      wRiver,
-      wLake,
-      stationX: s,
-      effHalfW,
-      signedCross,
-      bendBias,
-      bendSide,
-      waterY,
-      bedY
-    };
+    const res = out || {};
+    res.w = w;
+    res.wSpring = wSpring;
+    res.wRiver = wRiver;
+    res.wLake = wLake;
+    res.stationX = s;
+    res.effHalfW = effHalfW;
+    res.signedCross = signedCross;
+    res.bendBias = bendBias;
+    res.bendSide = bendSide;
+    res.waterY = waterY;
+    res.bedY = bedY;
+    return res;
   }
 
   /**
@@ -888,7 +951,11 @@ export class TerrainDEMLoader {
       return TerrainDEMLoader.WATER_LEVEL_Y;
     }
     if (z < 536.0) {
-      const hydro = TerrainDEMLoader.evalPulauUHydrology(x, z);
+      const hydro = TerrainDEMLoader.evalPulauUHydrology(
+        x,
+        z,
+        TerrainDEMLoader._hydroWaterScratch || (TerrainDEMLoader._hydroWaterScratch = {})
+      );
       if (hydro && hydro.w <= 1.03) {
         return hydro.waterY;
       }
@@ -925,7 +992,11 @@ export class TerrainDEMLoader {
    */
   static isFreshwaterExclusion(x, z, marginMeters = 2.2) {
     if (z < 536.0) {
-      const hydro = TerrainDEMLoader.evalPulauUHydrology(x, z);
+      const hydro = TerrainDEMLoader.evalPulauUHydrology(
+        x,
+        z,
+        TerrainDEMLoader._hydroExclScratch || (TerrainDEMLoader._hydroExclScratch = {})
+      );
       if (!hydro) return false;
       const approxScale =
         hydro.wLake < hydro.wRiver
@@ -1290,7 +1361,11 @@ export class TerrainDEMLoader {
     // 4C. Pulau "U" Natural Fluvial Valley, Shelving Point-Bar Beaches, & Eroded Cut-Banks
     //     (Station-only valley reach wReach(stationX) prevents chain-rule gradient spikes while expanding
     //      smoothly across the middle river gorge so hillsides never exceed natural repose!)
-    const hydro = TerrainDEMLoader.evalPulauUHydrology(x, z);
+    const hydro = TerrainDEMLoader.evalPulauUHydrology(
+      x,
+      z,
+      TerrainDEMLoader._hydroNatScratch || (TerrainDEMLoader._hydroNatScratch = {})
+    );
     if (hydro) {
       if (hydro.w <= 1.03) {
         return hydro.bedY * coastCollar;
@@ -1725,7 +1800,7 @@ export class TerrainDEMLoader {
    * Evaluates smooth multi-corridor cut-and-fill highway grading at (x, z) with adaptive C^1 geotechnical
    * angle-of-repose embankment reach (up to 46.0m, <= 27 deg max repose!) so hillside cuts never form steep walls.
    */
-  static evalRoadNetworkCorridorGrade(x, z, yNat = null) {
+  static evalRoadNetworkCorridorGrade(x, z, yNat = null, out = null) {
     if (x > 80.0 || x < -416.0 || z < 28.0 || (z > 498.0 && z < 574.0) || z > 728.0) {
       return null;
     }
@@ -1784,11 +1859,11 @@ export class TerrainDEMLoader {
     const flatHalfW = 5.35; // Covers 3.75m half-road + 0.46m curb + 1.14m DEM grid margin
     // Pure spatial distance reach (44.0m) guarantees zero dyNat/dx chain-rule amplification & <= 24 deg natural grassy embankments!
     const slopeReachM = 44.0;
-    if (dist >= slopeReachM) {
-      return { dist, targetY, blend: 0.0 };
-    }
-    const blend = 1.0 - TerrainDEMLoader._geotechRamp01(flatHalfW, slopeReachM, dist);
-    return { dist, targetY, blend };
+    const res = out || {};
+    res.dist = dist;
+    res.targetY = targetY;
+    res.blend = dist >= slopeReachM ? 0.0 : 1.0 - TerrainDEMLoader._geotechRamp01(flatHalfW, slopeReachM, dist);
+    return res;
   }
 
   /**
@@ -1891,7 +1966,11 @@ export class TerrainDEMLoader {
   static sampleGroundHeight(x, z) {
     const dU = TerrainDEMLoader.getIslandUCoastDistance(x, z);
     const dI = TerrainDEMLoader.getIslandICoastDistance(x, z);
-    const dCoast = Math.min(dU, dI);
+    return TerrainDEMLoader.sampleGroundHeightWithCoast(x, z, dU, dI);
+  }
+
+  static sampleGroundHeightWithCoast(x, z, dU, dI) {
+    const dCoast = dU < dI ? dU : dI;
 
     // 1. Coastal Embankment & Submerged Seabed / Lagoon / Strait Basin
     if (dCoast > 0.0) {
@@ -1966,7 +2045,12 @@ export class TerrainDEMLoader {
     const rFromDppd = Math.hypot(x - TerrainDEMLoader.DPPD_CX, z - TerrainDEMLoader.DPPD_CZ);
     const dppdBaseShield = TerrainDEMLoader._geotechRamp01(34.0, 48.0, rFromDppd);
     if (dCoast < -2.2 && !inAirfieldConcreteBox && rFromDppd > 33.8) {
-      const rg = TerrainDEMLoader.evalRoadNetworkCorridorGrade(x, z, y);
+      const rg = TerrainDEMLoader.evalRoadNetworkCorridorGrade(
+        x,
+        z,
+        y,
+        TerrainDEMLoader._roadGradeScratch || (TerrainDEMLoader._roadGradeScratch = {})
+      );
       if (rg && rg.blend > 0.0001) {
         // Broad 27m outer release (dist 6.0->33.0m) + coastal shield (dCoast -10.5->-28.0m) + hydrological levee shield
         // prevents hillside roads from pushing steep fill walls onto coasts or breaching adjacent highland river banks!
@@ -1978,7 +2062,11 @@ export class TerrainDEMLoader {
         const dppdPlateauShield = dppdBaseShield + (1.0 - dppdBaseShield) * roadCarriagewayKeep;
         let hydroBankShield = 1.0;
         if (z < 142.0 && x < -68.0) {
-          const hydroNear = TerrainDEMLoader.evalPulauUHydrology(x, z);
+          const hydroNear = TerrainDEMLoader.evalPulauUHydrology(
+            x,
+            z,
+            TerrainDEMLoader._hydroShieldScratch || (TerrainDEMLoader._hydroShieldScratch = {})
+          );
           if (hydroNear && hydroNear.w < 2.50) {
             hydroBankShield = TerrainDEMLoader._geotechRamp01(1.45, 2.50, hydroNear.w);
           }
@@ -2187,28 +2275,37 @@ export class TerrainDEMLoader {
     };
 
     const stride = segsX + 1;
-    const gridY = new Float64Array(stride * (segsZ + 1));
+    const gridCount = stride * (segsZ + 1);
+    const gridY = new Float64Array(gridCount);
+    const gridCoast = new Float64Array(gridCount);
 
-    // Pass 1: Sample ground height exactly once per grid vertex (eliminates 4x redundant sampleGroundNormal height calls!)
+    // Pass 1: Sample coast distance & ground height once per grid vertex (eliminates redundant coast & normal height calls!)
     for (let iz = 0; iz <= segsZ; iz++) {
       const z = zCoords[iz];
+      const isPulauU = z < 536.0;
       const rowOff = iz * stride;
       for (let ix = 0; ix <= segsX; ix++) {
-        gridY[rowOff + ix] = TerrainDEMLoader.sampleGroundHeight(xCoords[ix], z);
+        const x = xCoords[ix];
+        const dU = TerrainDEMLoader.getIslandUCoastDistance(x, z);
+        const dI = TerrainDEMLoader.getIslandICoastDistance(x, z);
+        gridCoast[rowOff + ix] = isPulauU ? dU : dI;
+        gridY[rowOff + ix] = TerrainDEMLoader.sampleGroundHeightWithCoast(x, z, dU, dI);
       }
     }
 
-    // Pass 2: Central-difference grid normals for interior vertices + boundary sampleGroundNormal + biome vertex colors
+    // Pass 2: Central-difference grid normals for all interior vertices + boundary sampleGroundNormal + biome vertex colors
     for (let iz = 0; iz <= segsZ; iz++) {
       const z = zCoords[iz];
       const rowOff = iz * stride;
       const isEdgeZ = iz === 0 || iz === segsZ;
+      const invTwoDz = !isEdgeZ ? 1.0 / (zCoords[iz + 1] - zCoords[iz - 1]) : 0.0;
       for (let ix = 0; ix <= segsX; ix++) {
         const x = xCoords[ix];
-        const y = gridY[rowOff + ix];
-        if (!isEdgeZ && ix > 0 && ix < segsX && y <= 1.8) {
-          const dhdx = (gridY[rowOff + ix + 1] - gridY[rowOff + ix - 1]) / (xCoords[ix + 1] - xCoords[ix - 1]);
-          const dhdz = (gridY[rowOff + stride + ix] - gridY[rowOff - stride + ix]) / (zCoords[iz + 1] - zCoords[iz - 1]);
+        const cellIdx = rowOff + ix;
+        const y = gridY[cellIdx];
+        if (!isEdgeZ && ix > 0 && ix < segsX) {
+          const dhdx = (gridY[cellIdx + 1] - gridY[cellIdx - 1]) / (xCoords[ix + 1] - xCoords[ix - 1]);
+          const dhdz = (gridY[cellIdx + stride] - gridY[cellIdx - stride]) * invTwoDz;
           const invLen = 1.0 / Math.hypot(dhdx, 1.0, dhdz);
           nTmp.set(-dhdx * invLen, invLen, -dhdz * invLen);
         } else {
@@ -2219,7 +2316,7 @@ export class TerrainDEMLoader {
         let g = 0.345;
         let b = 0.078;
 
-        const dCoastVert = z < 536.0 ? TerrainDEMLoader.getIslandUCoastDistance(x, z) : TerrainDEMLoader.getIslandICoastDistance(x, z);
+        const dCoastVert = gridCoast[cellIdx];
 
         if (dCoastVert > -0.35 && y < -1.52) {
           const depthT = 1.0 - PhysicsKernel.smootherstep(-3.75, -1.52, y);

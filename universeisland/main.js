@@ -164,15 +164,37 @@ async function bootstrapNexusSimulator() {
       : 0.0;
   const _bootstrapStartRelMs = Math.max(0.0, _nowBoot() - _bootOriginMs);
   if (typeof window !== 'undefined' && window.NexusForensic) {
-    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.42');
+    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.43');
   }
   const preloader = createPreloaderController();
 
-  // Stage 0: Instant Local Depok WIB Clock + Fire 100% Asynchronous Open-Meteo Telemetry (0ms Blocking Wait!)
+  // Stage 0 & Stage 1 Unified Parallel Module Pipeline:
+  // Launch all 17 ES6 module imports simultaneously at t=0 so network/disk + parse overlap 100%,
+  // while immediately activating Depok WIB clock & Open-Meteo telemetry as soon as DepokLiveWeatherService resolves!
   const _tS01Wall0 = _nowBoot();
-  await preloader.advance(0, 10, 'Mengaktifkan Jam WIB Depok & Sinkronisasi Cuaca Asinkron...', 0);
   const _tS01Import0 = _nowBoot();
-  const { DepokLiveWeatherService } = await import('./core/DepokLiveWeatherService.js');
+  const _depokWeatherModPromise = import('./core/DepokLiveWeatherService.js');
+  const _engineModulesPromise = Promise.all([
+    import('./core/CameraDirector.js'),
+    import('./core/WeatherOpticsEngine.js'),
+    import('./core/AudioSynthesizer.js'),
+    import('./core/ProceduralTextureFactory.js'),
+    import('./core/VideotronYouTubeEngine.js'),
+    import('./core/RotundaDancingFountain.js'),
+    import('./core/HardwareTelemetryGovernor.js'),
+    import('./core/CinematicPostFX.js'),
+    import('./core/ForensicLogSystem.js'),
+    import('./world-gis/FloatingOriginManager.js'),
+    import('./world-gis/TerrainDEMLoader.js'),
+    import('./world-gis/SplineCorridorBuilder.js'),
+    import('./world-gis/AutogenBiomeSpawner.js'),
+    import('./world-gis/TropicalGrassField.js'),
+    import('./world-gis/DynamicTrafficAI.js'),
+    import('./library/landmark/Gedung_Rektorat_UI/index.js')
+  ]);
+
+  await preloader.advance(0, 10, 'Mengaktifkan Jam WIB Depok & Sinkronisasi Cuaca Asinkron...', 0);
+  const { DepokLiveWeatherService } = await _depokWeatherModPromise;
   const _tS01Cpu0 = _nowBoot();
 
   let latestDepokClock = DepokLiveWeatherService.getDepokWIBClock();
@@ -201,7 +223,7 @@ async function bootstrapNexusSimulator() {
   const _s01CpuMs = Math.max(0.0, _tS01End - _tS01Cpu0);
   const _s01ImportMs = Math.max(0.0, _tS01Cpu0 - _tS01Import0);
 
-  // Stage 1: Dynamic Parallel Import of NEXUS v5.0 Procedural Modules
+  // Stage 1: Await Remaining Parallel Engine & World Modules (Already In-Flight Since t=0!)
   const _tS02Wall0 = _nowBoot();
   await preloader.advance(1, 20, 'Memuat Modul Mesin Prosedural NEXUS v5.0 & Shader Ultra...', 0);
   const _tS02Import0 = _nowBoot();
@@ -222,24 +244,7 @@ async function bootstrapNexusSimulator() {
     { TropicalGrassField },
     { DynamicTrafficAI },
     { GedungRektoratUIAsset }
-  ] = await Promise.all([
-    import('./core/CameraDirector.js'),
-    import('./core/WeatherOpticsEngine.js'),
-    import('./core/AudioSynthesizer.js'),
-    import('./core/ProceduralTextureFactory.js'),
-    import('./core/VideotronYouTubeEngine.js'),
-    import('./core/RotundaDancingFountain.js'),
-    import('./core/HardwareTelemetryGovernor.js'),
-    import('./core/CinematicPostFX.js'),
-    import('./core/ForensicLogSystem.js'),
-    import('./world-gis/FloatingOriginManager.js'),
-    import('./world-gis/TerrainDEMLoader.js'),
-    import('./world-gis/SplineCorridorBuilder.js'),
-    import('./world-gis/AutogenBiomeSpawner.js'),
-    import('./world-gis/TropicalGrassField.js'),
-    import('./world-gis/DynamicTrafficAI.js'),
-    import('./library/landmark/Gedung_Rektorat_UI/index.js')
-  ]);
+  ] = await _engineModulesPromise;
   const _tS02End = _nowBoot();
 
   const bootProfiler = new NexusBootForensicProfiler({ originPerfMs: _bootOriginMs });
@@ -412,6 +417,11 @@ async function bootstrapNexusSimulator() {
   weather.attachRenderer(renderer);
   const waterMaterial = weather.createDanauKenangaWaterMaterial();
   const audioSynth = new AudioSynthesizer();
+  audioSynth.setHardwareEfficiencyHint(
+    hwGovernor.isMobileDevice ||
+      hwGovernor.activeTierId === 'TIER_C' ||
+      /IGPU|INTEGRATED|MOBILE|SOFTWARE/i.test(String(hwGovernor.gpuClass || ''))
+  );
   forensicRecorder.attachAudioForensics(audioSynth, hwGovernor);
   bootProfiler.endStage(_tokS05, {
     detail: `ShadowMap ${hwGovernor.getActiveTierConfig().shadowMapSize}px · PMREM Sky IBL`
@@ -751,26 +761,64 @@ async function bootstrapNexusSimulator() {
     'Pre-Warm Inkremental Shader GPU, PostFX Quad, Planar Refl & Shadow Pass'
   );
   const tWarm0 = performance.now();
-  // Bind the EXACT target WebGLRenderTarget during compileAsync so Three.js WebGLPrograms
-  // compiles the true runtime NoColorSpace/MSAA shader key (prevents double-compiling 30+ shaders synchronously on first render!)
+  // Bind the EXACT target WebGLRenderTarget during shader compilation and poll KHR_parallel_shader_compile
+  // directly via renderer.info.programs + gl.flush() (avoids Three.js r170 compileAsync's infinite setTimeout loop
+  // when a material has currentProgram === undefined, while keeping 100% parallel driver compilation!)
+  const _glWarm = typeof renderer.getContext === 'function' ? renderer.getContext() : null;
+  const _khrParallelExt =
+    _glWarm && typeof _glWarm.getExtension === 'function'
+      ? _glWarm.getExtension('KHR_parallel_shader_compile')
+      : null;
+  const _waitParallelProgramsReady = async (startProgIdx = 0, maxWaitMs = 1800.0) => {
+    if (!_glWarm || !_khrParallelExt || !Array.isArray(renderer.info?.programs)) return;
+    const progs0 = renderer.info.programs;
+    if (progs0.length <= startProgIdx) return;
+    if (typeof _glWarm.flush === 'function') _glWarm.flush();
+    const COMP_ENUM = _khrParallelExt.COMPLETION_STATUS_KHR || 0x91b1;
+    const deadline = _nowBoot() + maxWaitMs;
+    while (_nowBoot() < deadline) {
+      const progs = renderer.info.programs;
+      let allReady = true;
+      for (let pi = startProgIdx; pi < progs.length; pi++) {
+        const pr = progs[pi];
+        if (!pr) continue;
+        // Skip disposed programs (e.g. PMREMGenerator temporary cubemap shaders) whose GL handle is no longer live!
+        if (pr.program && typeof _glWarm.isProgram === 'function' && !_glWarm.isProgram(pr.program)) {
+          continue;
+        }
+        let ready = true;
+        if (pr.program && typeof _glWarm.getProgramParameter === 'function') {
+          const st = _glWarm.getProgramParameter(pr.program, COMP_ENUM);
+          ready = st === null ? true : Boolean(st);
+        } else if (typeof pr.isReady === 'function') {
+          ready = Boolean(pr.isReady());
+        }
+        if (!ready) {
+          allReady = false;
+          break;
+        }
+      }
+      if (allReady) return;
+      if (typeof _glWarm.flush === 'function') _glWarm.flush();
+      await new Promise((r) => setTimeout(r, 5));
+    }
+  };
+
   const compileAsyncSlice = async (targetScene, targetCam, targetRT = null) => {
     const tSliceWall0 = _nowBoot();
     let syncCallCpuMs = 0.0;
     const prevRT = renderer.getRenderTarget();
+    const progsBefore = Array.isArray(renderer.info?.programs) ? renderer.info.programs.length : 0;
     renderer.setRenderTarget(targetRT);
     try {
-      if (!hwGovernor.isMobileDevice && typeof renderer.compileAsync === 'function') {
-        const tSync0 = _nowBoot();
-        const pComp = renderer.compileAsync(targetScene, targetCam).catch(() => {});
-        syncCallCpuMs = Math.max(0.0, _nowBoot() - tSync0);
-        await Promise.race([
-          pComp,
-          new Promise((resolve) => setTimeout(resolve, 15000))
-        ]);
-      } else if (typeof renderer.compile === 'function') {
+      if (typeof renderer.compile === 'function') {
         const tSync0 = _nowBoot();
         renderer.compile(targetScene, targetCam);
+        if (_glWarm && typeof _glWarm.flush === 'function') _glWarm.flush();
         syncCallCpuMs = Math.max(0.0, _nowBoot() - tSync0);
+        if (!hwGovernor.isMobileDevice && _khrParallelExt) {
+          await _waitParallelProgramsReady(progsBefore, 8000.0);
+        }
       }
     } finally {
       renderer.setRenderTarget(prevRT);
@@ -794,7 +842,8 @@ async function bootstrapNexusSimulator() {
     return rawName ? `${rawName.slice(0, 32)} (${kind}:${cKey})` : `${kind}:${cKey}`;
   };
 
-  // Temporarily expose conditional weather/grass meshes so KHR_parallel_shader_compile pre-warms 100% of GPU programs once!
+  // Temporarily expose conditional weather/grass meshes and non-empty InstancedMesh count
+  // so KHR_parallel_shader_compile pre-warms 100% of active GPU programs without compiling unused hidden helpers!
   const transientWarmMeshes = [
     weather.rainAndDripMesh,
     weather.splashAndMistMesh,
@@ -806,6 +855,13 @@ async function bootstrapNexusSimulator() {
   for (let i = 0; i < transientWarmMeshes.length; i++) {
     transientWarmMeshes[i].visible = true;
   }
+  const savedEmptyInstMeshes = [];
+  scene.traverse((n) => {
+    if (n && n.visible !== false && n.isInstancedMesh && n.count === 0) {
+      savedEmptyInstMeshes.push(n);
+      n.count = 1;
+    }
+  });
 
   // Collect all active renderables and deduplicate by exact WebGLProgram archetype (unified nexus-omni-v54-uber -> ~11 programs total!)
   const visibleRenderables = [];
@@ -826,9 +882,17 @@ async function bootstrapNexusSimulator() {
         .join('|');
       const instKey = node.isInstancedMesh ? 'I' : 'M';
       const vColKey = node.geometry?.attributes?.color ? 'C' : 'N';
+      const uvKey = node.geometry?.attributes?.uv ? 'U' : '0';
+      const nrmKey = node.geometry?.attributes?.normal ? 'N' : '0';
+      const tanKey = node.geometry?.attributes?.tangent ? 'T' : '0';
       const skinKey = node.geometry?.attributes?.aBoneIndices ? 'S' : 'R';
+      const depthKey = node.customDepthMaterial
+        ? typeof node.customDepthMaterial.customProgramCacheKey === 'function'
+          ? node.customDepthMaterial.customProgramCacheKey()
+          : node.customDepthMaterial.uuid
+        : '0';
       const shKey = `${node.receiveShadow ? 1 : 0}${node.castShadow ? 1 : 0}`;
-      const key = `${matKey}:${instKey}:${vColKey}:${skinKey}:${shKey}`;
+      const key = `${matKey}:${instKey}:${vColKey}:${uvKey}:${nrmKey}:${tanKey}:${skinKey}:${depthKey}:${shKey}`;
       if (!seenWarmKeys.has(key)) {
         seenWarmKeys.add(key);
         uniqueWarmRenderables.push(node);
@@ -912,29 +976,39 @@ async function bootstrapNexusSimulator() {
     });
   }
 
-  // Pre-warm fullscreen PostFX quad programs with exact runtime RenderTargets
-  if (postFX && postFX._fsScene && postFX._fsCam && postFX._fsQuad) {
-    let pfxWallMs = 0.0;
+  // Pre-warm fullscreen PostFX quad programs in a single parallel batch with exact runtime RenderTargets
+  if (postFX && postFX._fsScene && postFX._fsCam && postFX._fsQuad && typeof renderer.compile === 'function') {
+    const tPfxWall0 = _nowBoot();
     let pfxCpuMs = 0.0;
+    const prevRT = renderer.getRenderTarget();
+    const pfxProgStart = Array.isArray(renderer.info?.programs) ? renderer.info.programs.length : 0;
     const bloomRT = postFX.bloomHalfA || null;
-    if (postFX._bloomDownMat) {
-      postFX._fsQuad.material = postFX._bloomDownMat;
-      const r1 = await compileAsyncSlice(postFX._fsScene, postFX._fsCam, bloomRT);
-      pfxWallMs += r1.wallMs;
-      pfxCpuMs += r1.syncCallCpuMs;
+    try {
+      const tPfxSync0 = _nowBoot();
+      if (postFX._bloomDownMat) {
+        renderer.setRenderTarget(bloomRT);
+        postFX._fsQuad.material = postFX._bloomDownMat;
+        renderer.compile(postFX._fsScene, postFX._fsCam);
+      }
+      if (postFX._bloomUpMat) {
+        renderer.setRenderTarget(bloomRT);
+        postFX._fsQuad.material = postFX._bloomUpMat;
+        renderer.compile(postFX._fsScene, postFX._fsCam);
+      }
+      if (postFX._compositeMat) {
+        renderer.setRenderTarget(null);
+        postFX._fsQuad.material = postFX._compositeMat;
+        renderer.compile(postFX._fsScene, postFX._fsCam);
+      }
+      if (_glWarm && typeof _glWarm.flush === 'function') _glWarm.flush();
+      pfxCpuMs = Math.max(0.0, _nowBoot() - tPfxSync0);
+      if (!hwGovernor.isMobileDevice && _khrParallelExt) {
+        await _waitParallelProgramsReady(pfxProgStart, 4000.0);
+      }
+    } finally {
+      renderer.setRenderTarget(prevRT);
     }
-    if (postFX._bloomUpMat) {
-      postFX._fsQuad.material = postFX._bloomUpMat;
-      const r2 = await compileAsyncSlice(postFX._fsScene, postFX._fsCam, bloomRT);
-      pfxWallMs += r2.wallMs;
-      pfxCpuMs += r2.syncCallCpuMs;
-    }
-    if (postFX._compositeMat) {
-      postFX._fsQuad.material = postFX._compositeMat;
-      const r3 = await compileAsyncSlice(postFX._fsScene, postFX._fsCam, null);
-      pfxWallMs += r3.wallMs;
-      pfxCpuMs += r3.syncCallCpuMs;
-    }
+    const pfxWallMs = Math.max(0.0, _nowBoot() - tPfxWall0);
     const tPfxYield0 = _nowBoot();
     await yieldToBrowserFrame();
     const pfxYieldMs = Math.max(0.0, _nowBoot() - tPfxYield0);
@@ -961,11 +1035,11 @@ async function bootstrapNexusSimulator() {
     duskFactor: weather.uniforms.uDuskFactor.value,
     nightFactor: weather.uniforms.uNightFactor.value
   });
-  // Temporarily disable frustum culling on unique renderable archetypes (including transient weather/night meshes)
-  // during hidden warmup pass so WebGLShadowMap & planar reflection compile 100% of GPU programs before boot completes!
-  const savedWarmFrustumCulled = uniqueWarmRenderables.map((n) => n.frustumCulled);
-  for (let i = 0; i < uniqueWarmRenderables.length; i++) {
-    uniqueWarmRenderables[i].frustumCulled = false;
+  // Temporarily disable frustum culling on all visible renderables (including transient weather/night meshes)
+  // during hidden warmup passes so WebGLShadowMap & planar reflection compile 100% of GPU programs before boot completes!
+  const savedWarmFrustumCulled = visibleRenderables.map((n) => n.frustumCulled);
+  for (let i = 0; i < visibleRenderables.length; i++) {
+    visibleRenderables[i].frustumCulled = false;
   }
   _totalWarmCpuMs += Math.max(0.0, _nowBoot() - _tWarmPrep0);
 
@@ -992,9 +1066,30 @@ async function bootstrapNexusSimulator() {
   });
 
   const _tWarmMain0 = _nowBoot();
+  // Ensure sunLight shadow pass compiles all MeshDepthMaterial variants even if simulator boots at night WIB!
+  const _sunWarm = weather.sunLight || null;
+  const _savedSunVis = _sunWarm ? _sunWarm.visible : true;
+  const _savedSunCast = _sunWarm ? _sunWarm.castShadow : true;
+  const _savedSunInt = _sunWarm ? _sunWarm.intensity : 1.0;
+  if (_sunWarm) {
+    _sunWarm.visible = true;
+    _sunWarm.castShadow = true;
+    if (_sunWarm.intensity < 0.1) _sunWarm.intensity = 0.1;
+  }
+  if (renderer.shadowMap) {
+    renderer.shadowMap.needsUpdate = true;
+  }
   postFX.render(scene, camera);
-  for (let i = 0; i < uniqueWarmRenderables.length; i++) {
-    uniqueWarmRenderables[i].frustumCulled = savedWarmFrustumCulled[i];
+  if (_sunWarm) {
+    _sunWarm.visible = _savedSunVis;
+    _sunWarm.castShadow = _savedSunCast;
+    _sunWarm.intensity = _savedSunInt;
+  }
+  for (let i = 0; i < visibleRenderables.length; i++) {
+    visibleRenderables[i].frustumCulled = savedWarmFrustumCulled[i];
+  }
+  for (let i = 0; i < savedEmptyInstMeshes.length; i++) {
+    savedEmptyInstMeshes[i].count = 0;
   }
   for (let i = 0; i < transientWarmMeshes.length; i++) {
     transientWarmMeshes[i].visible = savedTransientVis[i];
@@ -2622,7 +2717,9 @@ async function bootstrapNexusSimulator() {
     camera.updateMatrixWorld();
     const cx = camera.position.x;
     const cz = camera.position.z;
-    const coastDist = TerrainDEMLoader.getIslandCoastDistance(cx, cz);
+    const dUCam = TerrainDEMLoader.getIslandUCoastDistance(cx, cz);
+    const dICam = TerrainDEMLoader.getIslandICoastDistance(cx, cz);
+    const coastDist = Math.min(dUCam, dICam);
     const seaDirX =
       TerrainDEMLoader.getIslandCoastDistance(cx + 4.0, cz) -
       TerrainDEMLoader.getIslandCoastDistance(cx - 4.0, cz);
@@ -2655,7 +2752,7 @@ async function bootstrapNexusSimulator() {
       coastDist,
       seaDirX,
       seaDirZ,
-      groundY: groundHeightFn(cx, cz),
+      groundY: TerrainDEMLoader.sampleGroundHeightWithCoast(cx, cz, dUCam, dICam),
       riverZ: TerrainDEMLoader.evalPulauURiverCenterZ(cx),
       videotronPlaying: Boolean(videotron && !videotron.isMuted && videotron.isPlaying),
       sivitasAI,
@@ -3109,7 +3206,7 @@ async function bootstrapNexusSimulator() {
       const srTxt = hc.initialized ? `${hc.sampleRateHz}Hz` : 'Siaga';
       elForensicSoundV24.textContent =
         `Sound v2.4 [${sf.verdict}] · ${srTxt} · DSP ${dg.totalPersistentNodes}n ` +
-        `(${dg.activeAudibleSubBuses} aktif / ${dg.silentRunningSubBuses} diam, ${dg.uncleanedTransientAuxNodes} aux) · ` +
+        `(${dg.activeAudibleSubBuses} aktif / ${dg.hibernatedSubBuses || 0} hib / ${dg.silentRunningSubBuses} diam, ${dg.uncleanedTransientAuxNodes} aux) · ` +
         `CPU ${rh.emaUpdateUs}µs · Drift ${rh.lastClockDriftMs}ms (Und ${rh.underrunSuspectCount}) · Lim ${rh.currentLimiterReductionDb}dB`;
     }
 
@@ -3595,9 +3692,13 @@ async function bootstrapNexusSimulator() {
         size: 768,
         sliceBudgetMs: 1.1,
         groundHeightFn,
+        groundHeightWithCoastFn: TerrainDEMLoader.sampleGroundHeightWithCoast,
         freshwaterSurfaceYFn: TerrainDEMLoader.sampleWaterSurfaceY,
         shorelineXFn: TerrainDEMLoader.getShorelinePromenadeX,
         islandCoastDistanceFn: TerrainDEMLoader.getIslandCoastDistance,
+        islandUCoastFn: TerrainDEMLoader.getIslandUCoastDistance,
+        islandICoastFn: TerrainDEMLoader.getIslandICoastDistance,
+        skipRootMatrixUpdate: true,
         waterLevelY: TerrainDEMLoader.WATER_LEVEL_Y
       },
       sharedUniforms

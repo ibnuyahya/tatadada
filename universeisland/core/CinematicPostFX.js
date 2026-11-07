@@ -371,7 +371,7 @@ export class CinematicPostFX {
 
     // Motion-aware reflection cadence:
     // - Full 1:1 refresh whenever camera translates >= 2.2cm or rotates >= 0.07 deg (zero lag while flying/orbiting!)
-    // - Stride-2 refresh when camera is stationary/hovering gently (halves idle planar GPU work with 0px projection drift!)
+    // - Stride-2 refresh ONLY when camera is stationary/hovering gently (halves idle planar GPU work with 0px projection drift!)
     const r = this.renderer;
     const prevShadowNeedsUpdate = Boolean(r.shadowMap && r.shadowMap.needsUpdate);
     this._reflFrameCount++;
@@ -380,13 +380,7 @@ export class CinematicPostFX {
       Math.abs(1.0 - this._camBack.dot(this._lastReflCamBack)) +
       Math.abs(1.0 - this._camUp.dot(this._lastReflCamUp));
     const cameraSteady = posDeltaSq < 0.00048 && rotDelta < 0.0000018;
-    // Phase-interleave directional shadow map refresh and planar water reflection refresh during continuous motion (<2.5m/frame)
-    // so both heavy render passes never collide on the same VSync frame!
-    const deferOnShadowFrame = prevShadowNeedsUpdate && posDeltaSq < 6.25 && rotDelta < 0.02;
-    if (
-      this._hasCachedPlanarRefl &&
-      (deferOnShadowFrame || (cameraSteady && this._reflFrameCount % 2 !== 0))
-    ) {
+    if (this._hasCachedPlanarRefl && cameraSteady && this._reflFrameCount % 2 !== 0) {
       oceanU.uPlanarReflTex.value = this.planarReflTarget.texture;
       oceanU.uPlanarReflMatrix.value.copy(this._cachedPlanarMatrix);
       oceanU.uPlanarReflActive.value = 1.0;
