@@ -12,7 +12,7 @@ const BOOT_ISO = new Date().toISOString();
 const MAX_RING = 80;
 const MAX_BREADCRUMBS = 120;
 const state = {
-schema: 'whoosh-forensic-v2.4',
+schema: 'whoosh-forensic-v2.5',
 app: 'KCIC Whoosh 350/1000 km/h HSR 3D Simulator',
 bootIso: BOOT_ISO,
 compactJson: false,
@@ -377,17 +377,20 @@ if (aud) {
 const ah = aud.hardwareAndContext || {};
 const ad = aud.dspGraphInventory || {};
 const ar = aud.realtimeHealth || {};
+const at = aud.tierProfile || {};
 if (aud.verdict === 'CRITICAL_AUDIO_ERROR') {
 audTxt = 'EROR AUDIO';
 } else if (!ah.initialized) {
-audTxt = 'MENUNGGU KLIK UI';
+audTxt = (at.activeSoundTier || 'AUTO') + ' • SIAP (KLIK UI)';
 } else if (ah.muted) {
-audTxt = 'MUTE • ' + (ad.totalPersistentNodes || 0) + ' Node';
+audTxt = ah.contextState === 'suspended'
+? ('MUTE • SUSPEND 0% (' + (at.activeSoundTier || 'AUTO') + ')')
+: ('MUTE • ' + (ad.totalPersistentNodes || 0) + ' Node');
 } else if (aud.verdict === 'AUTOPLAY_SUSPENDED') {
 audTxt = 'TERTAHAN AUTOPLAY';
 } else {
-const srKhz = ah.sampleRateHz ? Math.round(ah.sampleRateHz / 1000) + 'kHz' : 'OK';
-audTxt = srKhz + ' • ' + (ar.emaUpdateUs || 0) + 'µs • ' + (ad.activeAudibleSubBuses || 0) + '/' + (ad.totalRailSubBuses || 54) + ' Bus';
+const tierBadge = (at.activeSoundTier || 'HIGH') + (at.panningModel === 'HRTF' ? ' HRTF' : '');
+audTxt = tierBadge + ' • ' + (ar.emaUpdateUs || 0) + 'µs • ' + (ad.activeAudibleSubBuses || 0) + ' Aktif/' + (ad.sleepingDisconnectedSubBuses || 0) + ' Tidur';
 }
 }
 setTxt('fkpi-audio', audTxt);
@@ -2237,6 +2240,6 @@ delete globalThis._wBoot;
 })();
 </script>
 <script>document.addEventListener('contextmenu',(e)=>{if(e.target&&e.target.tagName==='CANVAS')e.preventDefault();});</script>
-<script type="module" src="./app.bundle.js?v=03d3f97305"></script>
+<script type="module" src="./app.bundle.js?v=41d71205b6"></script>
 </body>
 </html>
