@@ -287,13 +287,14 @@ export class ProceduralTextureFactory {
       return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
     };
     const fbmCloud = (x, y) => {
-      // Billowy multi-octave cumulus turbulence normalized to full [0..1] dynamic range
+      // 5-octave isotropic cumulus turbulence with crisp fine-scale cloud edges
       const n0 = noise2(x, y);
-      const n1 = noise2(x * 2.13 + 13.7, y * 2.13 + 7.3);
-      const n2 = noise2(x * 4.31 - 9.2, y * 4.31 + 21.4);
-      const n3 = noise2(x * 8.65 + 5.1, y * 8.65 - 14.8);
-      const raw = 0.50 * n0 + 0.26 * n1 + 0.15 * n2 + 0.09 * n3;
-      return Math.max(0.0, Math.min(1.0, (raw - 0.36) / 0.30));
+      const n1 = noise2(x * 2.07 + 13.7, y * 2.07 + 7.3);
+      const n2 = noise2(x * 4.23 - 9.2, y * 4.23 + 21.4);
+      const n3 = noise2(x * 8.51 + 5.1, y * 8.51 - 14.8);
+      const n4 = noise2(x * 17.1 - 11.4, y * 17.1 + 6.9);
+      const raw = 0.46 * n0 + 0.25 * n1 + 0.15 * n2 + 0.09 * n3 + 0.05 * n4;
+      return Math.max(0.0, Math.min(1.0, (raw - 0.37) / 0.29));
     };
     const smoothstep = (e0, e1, x) => {
       const t = Math.max(0.0, Math.min(1.0, (x - e0) / (e1 - e0)));
@@ -340,36 +341,30 @@ export class ProceduralTextureFactory {
           gSky += 242.0 * mieGlow * 0.32;
           bSky += 205.0 * mieGlow * 0.20;
 
-          // 3. True 3D Planar-Projected Volumetric Cumulus + Cirrus Clouds (zero pole distortion!)
-          if (elev > 0.012) {
-            const invH = 1.0 / (elev + 0.22);
-            const cu = dx * invH * 1.45 + 3.4;
-            const cv = dz * invH * 1.45 - 1.8;
-
-            // High-altitude delicate cirrus wisps
-            const cirrus = smoothstep(0.52, 0.68, noise2(cu * 0.75 + cv * 0.45, cv * 1.9 - cu * 0.3)) * 0.28 * smoothstep(0.06, 0.32, elev);
-            rSky = rSky * (1.0 - cirrus) + 248.0 * cirrus;
-            gSky = gSky * (1.0 - cirrus) + 251.0 * cirrus;
-            bSky = bSky * (1.0 - cirrus) + 255.0 * cirrus;
+          // 3. True 3D Spherical-Cap Volumetric Cumulus Clouds (isotropic, zero radial streaks or pole distortion!)
+          if (elev > 0.015) {
+            const invH = 1.0 / Math.pow(elev + 0.46, 0.60);
+            const cu = dx * invH * 2.45 + 3.4;
+            const cv = dz * invH * 2.45 - 1.8;
 
             // Volumetric Cumulus Cloud Layer with 3D directional solar self-shadowing
             const rawDensity = fbmCloud(cu, cv);
-            const horizonFade = smoothstep(0.015, 0.15, elev);
-            const cloudMask = smoothstep(0.32, 0.68, rawDensity) * horizonFade;
+            const horizonFade = smoothstep(0.02, 0.18, elev) * (1.0 - 0.35 * smoothstep(0.68, 0.98, elev));
+            const cloudMask = smoothstep(0.36, 0.72, rawDensity) * horizonFade;
 
             if (cloudMask > 0.005) {
               // Sample density slightly toward sun direction for Beer-Lambert volumetric self-shadowing
-              const sunSample = fbmCloud(cu + sx * 0.28, cv + sz * 0.28);
-              const lightTrans = Math.max(0.0, Math.min(1.0, 1.0 - Math.max(0.0, sunSample - rawDensity * 0.90) * 2.2));
-              const topBright = smoothstep(0.34, 0.78, rawDensity);
-              const litFactor = Math.max(0.18, Math.min(1.0, 0.50 * lightTrans + 0.50 * topBright + mieGlow * 0.35));
+              const sunSample = fbmCloud(cu + sx * 0.24, cv + sz * 0.24);
+              const lightTrans = Math.max(0.0, Math.min(1.0, 1.0 - Math.max(0.0, sunSample - rawDensity * 0.90) * 2.1));
+              const topBright = smoothstep(0.36, 0.80, rawDensity);
+              const litFactor = Math.max(0.22, Math.min(1.0, 0.50 * lightTrans + 0.50 * topBright + mieGlow * 0.35));
 
-              // Cloud base = cool blue-grey shadow (152, 174, 198); Cloud crown = warm sunlit ivory (255, 253, 249)
-              const cR = 152.0 + (255.0 - 152.0) * litFactor;
-              const cG = 174.0 + (253.0 - 174.0) * litFactor;
-              const cB = 198.0 + (249.0 - 198.0) * litFactor;
+              // Cloud base = soft silver-blue shadow (162, 184, 208); Cloud crown = warm sunlit ivory (255, 253, 249)
+              const cR = 162.0 + (255.0 - 162.0) * litFactor;
+              const cG = 184.0 + (253.0 - 184.0) * litFactor;
+              const cB = 208.0 + (249.0 - 208.0) * litFactor;
 
-              const alpha = Math.min(0.95, cloudMask * 1.05);
+              const alpha = Math.min(0.92, cloudMask * 0.94);
               rSky = rSky * (1.0 - alpha) + cR * alpha;
               gSky = gSky * (1.0 - alpha) + cG * alpha;
               bSky = bSky * (1.0 - alpha) + cB * alpha;
@@ -420,6 +415,9 @@ export class ProceduralTextureFactory {
     const skyTex = new THREE.CanvasTexture(bgCanvas);
     skyTex.mapping = THREE.EquirectangularReflectionMapping;
     skyTex.colorSpace = THREE.SRGBColorSpace;
+    skyTex.generateMipmaps = false;
+    skyTex.minFilter = THREE.LinearFilter;
+    skyTex.magFilter = THREE.LinearFilter;
     skyTex.needsUpdate = true;
 
     envRT.texture.userData = { skyBackgroundTexture: skyTex };
