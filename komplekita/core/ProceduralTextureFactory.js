@@ -269,9 +269,9 @@ export class ProceduralTextureFactory {
 
     // Fast deterministic 2D value noise + 4-octave FBM evaluated on 3D planar-projected sky coordinates
     const hash2 = (ix, iy) => {
-      let n = (ix * 374761393 + iy * 668265263) ^ 0x5bf03635;
-      n = (n ^ (n >> 13)) * 1274126177;
-      return ((n ^ (n >> 16)) >>> 0) / 4294967295.0;
+      let h = Math.imul(ix | 0, 374761393) + Math.imul(iy | 0, 668265263);
+      h = Math.imul(h ^ (h >>> 13), 1274126177);
+      return ((h ^ (h >>> 16)) >>> 0) / 4294967295.0;
     };
     const noise2 = (x, y) => {
       const ix = Math.floor(x);
@@ -287,13 +287,13 @@ export class ProceduralTextureFactory {
       return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
     };
     const fbmCloud = (x, y) => {
-      // Billowy multi-octave cumulus turbulence with crisp cauliflower cloud edges
+      // Billowy multi-octave cumulus turbulence normalized to full [0..1] dynamic range
       const n0 = noise2(x, y);
       const n1 = noise2(x * 2.13 + 13.7, y * 2.13 + 7.3);
       const n2 = noise2(x * 4.31 - 9.2, y * 4.31 + 21.4);
       const n3 = noise2(x * 8.65 + 5.1, y * 8.65 - 14.8);
-      const billow = 1.0 - Math.abs(2.0 * n1 - 1.0) * 0.38;
-      return 0.50 * n0 + 0.25 * n1 * billow + 0.15 * n2 + 0.10 * n3;
+      const raw = 0.50 * n0 + 0.26 * n1 + 0.15 * n2 + 0.09 * n3;
+      return Math.max(0.0, Math.min(1.0, (raw - 0.36) / 0.30));
     };
     const smoothstep = (e0, e1, x) => {
       const t = Math.max(0.0, Math.min(1.0, (x - e0) / (e1 - e0)));
@@ -355,14 +355,14 @@ export class ProceduralTextureFactory {
             // Volumetric Cumulus Cloud Layer with 3D directional solar self-shadowing
             const rawDensity = fbmCloud(cu, cv);
             const horizonFade = smoothstep(0.015, 0.15, elev);
-            const cloudMask = smoothstep(0.455, 0.575, rawDensity) * horizonFade;
+            const cloudMask = smoothstep(0.32, 0.68, rawDensity) * horizonFade;
 
             if (cloudMask > 0.005) {
               // Sample density slightly toward sun direction for Beer-Lambert volumetric self-shadowing
-              const sunSample = fbmCloud(cu + sx * 0.26, cv + sz * 0.26);
-              const lightTrans = Math.max(0.0, Math.min(1.0, 1.0 - Math.max(0.0, sunSample - rawDensity * 0.94) * 5.2));
-              const topBright = smoothstep(0.46, 0.61, rawDensity);
-              const litFactor = Math.max(0.16, Math.min(1.0, 0.52 * lightTrans + 0.48 * topBright + mieGlow * 0.35));
+              const sunSample = fbmCloud(cu + sx * 0.28, cv + sz * 0.28);
+              const lightTrans = Math.max(0.0, Math.min(1.0, 1.0 - Math.max(0.0, sunSample - rawDensity * 0.90) * 2.2));
+              const topBright = smoothstep(0.34, 0.78, rawDensity);
+              const litFactor = Math.max(0.18, Math.min(1.0, 0.50 * lightTrans + 0.50 * topBright + mieGlow * 0.35));
 
               // Cloud base = cool blue-grey shadow (152, 174, 198); Cloud crown = warm sunlit ivory (255, 253, 249)
               const cR = 152.0 + (255.0 - 152.0) * litFactor;
