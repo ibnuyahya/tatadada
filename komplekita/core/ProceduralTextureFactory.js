@@ -30,6 +30,9 @@ export class ProceduralTextureFactory {
     const isTerrain = !!opts.isTerrain;
     const isMasonry = !!opts.isMasonry;
     const isRoof = !!opts.isRoof;
+    const isGlass = !!opts.isGlass;
+    const isMetal = !!opts.isMetal;
+    const isAsphalt = !!opts.isAsphalt;
 
     material.onBeforeCompile = (shader) => {
       shader.uniforms.uInspectMode = sharedUniforms.uInspectMode;
@@ -94,64 +97,136 @@ export class ProceduralTextureFactory {
           `
           if (uInspectMode == 0) {
             vec3 wNorm = normalize(vNexusWorldNorm);
-            vec3 sunDir = normalize(vec3(-0.41, 0.85, 0.32));
-            float camDist = length(cameraPosition - vNexusWorldPos);
-            // Distance-Adaptive Multi-LOD Close-Up Micro-Detail Factor (active at FPV Runner eye-level < 38m)
-            float closeUpLod = 1.0 - smoothstep(6.0, 38.0, camDist);
-            float microGrain = (nxNoise(vNexusWorldPos.xz * 18.5 + vNexusWorldPos.xy * 14.0) - 0.5) * 0.11 * closeUpLod;
+            vec3 sunDir = normalize(vec3(-0.67, 0.63, 0.39));
+            vec3 viewVec = cameraPosition - vNexusWorldPos;
+            float camDist = length(viewVec);
+            vec3 viewDir = viewVec / max(0.001, camDist);
+            float ndv = clamp(dot(wNorm, viewDir), 0.0, 1.0);
+            vec3 halfVec = normalize(sunDir + viewDir);
+            float ndh = clamp(dot(wNorm, halfVec), 0.0, 1.0);
+            float ndl = clamp(dot(wNorm, sunDir), 0.0, 1.0);
+
+            // Distance-Adaptive Multi-LOD Close-Up Micro-Detail Factor (active at FPV Runner eye-level < 44m)
+            float closeUpLod = 1.0 - smoothstep(6.0, 44.0, camDist);
+            float microGrain = (nxNoise(vNexusWorldPos.xz * 18.5 + vNexusWorldPos.xy * 14.0) - 0.5) * 0.10 * closeUpLod;
+
+            ${isGlass ? `
+              // Physically-Based Architectural Low-E Coated Float Glass Optics:
+              // 1. Distinguish dark anodized aluminum mullion/transom frames from glass panes
+              float frameMask = smoothstep(0.025, 0.075, dot(gl_FragColor.rgb, vec3(0.333)));
+              // 2. Subtle float-glass panel warble per 1.8m x 3.6m architectural bay
+              vec2 bayId = floor(vec2((vNexusWorldPos.x + vNexusWorldPos.z) * 0.55, vNexusWorldPos.y * 0.28));
+              vec2 paneWarble = (vec2(nxHash(bayId), nxHash(bayId + vec2(17.3, 9.1))) - 0.5) * 0.022;
+              vec3 glassNorm = normalize(wNorm + vec3(paneWarble.x, paneWarble.y * 0.5, paneWarble.x));
+              float glassNdv = clamp(dot(glassNorm, viewDir), 0.0, 1.0);
+
+              // 3. Schlick Dielectric + Low-E Oxide Coating Fresnel Reflectance (F0 = 0.09 -> 0.96 at grazing angle)
+              float fresnel = 0.09 + 0.87 * pow(1.0 - glassNdv, 4.2);
+
+              // 4. Parallax-Shifted 3D Interior Room Depth behind the glass pane
+              vec2 parallaxUv = vec2((vNexusWorldPos.x - vNexusWorldPos.z) * 0.42, vNexusWorldPos.y * 0.30) - viewDir.xy * 0.38;
+              float ceilGrid = smoothstep(0.72, 0.94, fract(parallaxUv.y)) * (0.65 + 0.35 * step(0.15, fract(parallaxUv.x * 2.0)));
+              float roomHash = nxHash(floor(parallaxUv));
+              vec3 roomTint = mix(vec3(0.07, 0.11, 0.15), vec3(0.18, 0.24, 0.29), roomHash);
+              vec3 ceilLight = vec3(0.52, 0.58, 0.64) * ceilGrid * (0.45 + 0.55 * step(0.35, roomHash));
+              vec3 interiorCol = mix(gl_FragColor.rgb * 0.55, roomTint + ceilLight, 0.68);
+
+              // 5. Analytic Sky, Cumulus Cloud, Campus Tree Canopy & Solar GGX Reflection on Glass
+              vec3 reflDir = reflect(-viewDir, glassNorm);
+              float skyElev = clamp(reflDir.y, 0.0, 1.0);
+              vec3 skyRefl = mix(vec3(0.78, 0.87, 0.95), vec3(0.24, 0.50, 0.80), pow(skyElev, 0.58));
+              vec2 cloudReflUv = reflDir.xz / max(0.22, reflDir.y + 0.26) * 1.35;
+              float cloudRefl = smoothstep(0.46, 0.76, nxFbm(cloudReflUv));
+              skyRefl = mix(skyRefl, vec3(0.97, 0.98, 1.00), cloudRefl * 0.78 * smoothstep(0.02, 0.25, reflDir.y));
+              vec3 treeGroundRefl = mix(vec3(0.22, 0.30, 0.18), vec3(0.36, 0.44, 0.30), nxFbm(reflDir.xz * 4.5));
+              vec3 envRefl = mix(treeGroundRefl, skyRefl, smoothstep(-0.08, 0.14, reflDir.y));
+
+              // Crisp solar specular highlight on glass
+              float sunGlint = pow(max(0.0, dot(reflDir, sunDir)), 110.0) * 1.65;
+              vec3 finalGlass = mix(interiorCol, envRefl, fresnel) + vec3(1.0, 0.97, 0.90) * sunGlint;
+              gl_FragColor.rgb = mix(gl_FragColor.rgb, finalGlass, frameMask);
+            ` : ''}
 
             ${isTerrain ? `
-              // World-space macro FBM variation + close-up grass/soil blade micro-detail
+              // World-space macro FBM variation + close-up grass/soil blade micro-detail & waxy cuticle sheen
               float macro1 = nxFbm(vNexusWorldPos.xz * 0.11);
               float macro2 = nxFbm(vNexusWorldPos.xz * 0.37 + vec2(19.3, 7.1));
               float bladeMicro = (nxFbm(vNexusWorldPos.xz * 9.5) - 0.45) * 0.16 * closeUpLod;
-              vec3 dryTint = vec3(1.12, 0.98, 0.78);
+              vec3 dryTint = vec3(1.10, 0.98, 0.80);
               vec3 lushTint = vec3(0.86, 1.04, 0.84);
               gl_FragColor.rgb *= mix(lushTint, dryTint, smoothstep(0.28, 0.74, macro1));
               gl_FragColor.rgb *= (0.90 + 0.20 * macro2 + bladeMicro);
+              float turfSheen = pow(1.0 - ndv, 3.5) * 0.08 * ndl;
+              gl_FragColor.rgb += vec3(0.95, 1.0, 0.82) * turfSheen;
             ` : ''}
 
             ${isRoof ? `
-              // Natural tropical ceramic roof tile weathering, course shadow & close-up glaze sheen
+              // Glazed Ceramic Terracotta Roof Tile Physics: Clearcoat Fresnel + Convex Tile Specular Sheen + Course AO
               float roofPatina = nxFbm(vNexusWorldPos.xz * 0.24);
               float mossPatch = smoothstep(0.58, 0.82, nxFbm(vNexusWorldPos.xz * 0.45 + vec2(4.2, 9.8)));
-              float tileCourseWave = sin((vNexusWorldPos.y * 14.0 + vNexusWorldPos.x * 3.0 + vNexusWorldPos.z * 3.0)) * 0.045 * closeUpLod;
+              float tileCourseWave = sin((vNexusWorldPos.y * 14.0 + vNexusWorldPos.x * 3.0 + vNexusWorldPos.z * 3.0)) * 0.048 * closeUpLod;
+              float ceramicGlaze = (0.04 + 0.26 * pow(1.0 - ndv, 3.8)) * (0.4 + 0.6 * ndl) + pow(ndh, 32.0) * 0.18 * ndl;
               gl_FragColor.rgb *= (0.88 + 0.22 * roofPatina + tileCourseWave);
-              gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(0.76, 0.82, 0.68), mossPatch * 0.28);
+              gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(0.76, 0.82, 0.68), mossPatch * 0.25);
+              gl_FragColor.rgb += vec3(1.0, 0.93, 0.86) * ceramicGlaze;
+            ` : ''}
+
+            ${isMetal ? `
+              // Anisotropic Brushed Metallic Sheen (Copper-Bronze ACP & Anodized Aluminum Louvers)
+              float brushGrain = (nxNoise(vec2(vNexusWorldPos.x * 24.0 + vNexusWorldPos.z * 24.0, vNexusWorldPos.y * 6.0)) - 0.5) * 0.08 * closeUpLod;
+              float anisoSpec = pow(ndh, 24.0) * 0.22 * ndl;
+              gl_FragColor.rgb *= (1.0 + brushGrain);
+              gl_FragColor.rgb += gl_FragColor.rgb * anisoSpec;
+            ` : ''}
+
+            ${isAsphalt ? `
+              // Hot-Mix Tropical Asphalt Physics: Basalt Aggregate Micro-Glint + Wheel-Track Bitumen Sheen
+              float rRadial = length(vNexusWorldPos.xz);
+              float track1 = exp(-pow((rRadial - 73.4) * 0.85, 2.0));
+              float track2 = exp(-pow((rRadial - 77.2) * 0.85, 2.0));
+              float wheelWear = clamp(track1 + track2, 0.0, 1.0);
+              float aggSparkle = step(0.82, nxNoise(vNexusWorldPos.xz * 26.0)) * 0.09 * closeUpLod * ndl;
+              float bitumenSheen = pow(1.0 - ndv, 3.2) * (0.06 + 0.08 * wheelWear) * (0.4 + 0.6 * ndl);
+              gl_FragColor.rgb *= (0.94 - 0.07 * wheelWear + microGrain * 1.1);
+              gl_FragColor.rgb += vec3(0.88, 0.91, 0.96) * (bitumenSheen + aggSparkle);
             ` : ''}
 
             ${isMasonry ? `
-              // Subtle vertical tropical rain-streak patina, plinth base moisture & close-up stucco/stone pore relief
+              // Oren-Nayar Rough Mineral Plaster / Batu-Kali Retro-Diffuse + Tropical Rain-Wash Patina
               float streak = nxFbm(vec2(vNexusWorldPos.x * 0.6 + vNexusWorldPos.z * 0.6, vNexusWorldPos.y * 0.22));
-              float baseDamp = 1.0 - 0.18 * (1.0 - smoothstep(0.0, 1.8, max(0.0, vNexusWorldPos.y)));
-              gl_FragColor.rgb *= (0.93 + 0.12 * streak + microGrain) * baseDamp;
+              float baseDamp = 1.0 - 0.20 * (1.0 - smoothstep(0.0, 1.85, max(0.0, vNexusWorldPos.y)));
+              float roughRetro = 0.96 + 0.08 * pow(1.0 - ndv, 2.0) * ndl;
+              gl_FragColor.rgb *= (0.93 + 0.12 * streak + microGrain) * baseDamp * roughRetro;
             ` : `
-              gl_FragColor.rgb *= (1.0 + microGrain * 0.65);
+              gl_FragColor.rgb *= (1.0 + microGrain * 0.55);
             `}
 
             ${isFoliage ? `
-              // Procedural leaf-cluster micro-relief & warm afternoon sun subsurface scatter
+              // Waxy Cuticle Sky Sheen + Warm Afternoon Chlorophyll Subsurface Scattering + Deep Canopy Self-Shadow
               float leafCluster = nxFbm(vNexusWorldPos.xz * 1.45 + vec2(vNexusWorldPos.y * 1.2));
               float leafMicro = nxNoise(vNexusWorldPos.xy * 4.2 + vNexusWorldPos.z * 3.7);
               float sunScatter = pow(clamp(dot(wNorm, sunDir) * 0.5 + 0.5, 0.0, 1.0), 1.6);
-              vec3 sunLeafGlow = vec3(1.14, 1.18, 0.82);
-              gl_FragColor.rgb *= (0.76 + 0.36 * leafCluster) * (0.88 + 0.24 * leafMicro);
-              gl_FragColor.rgb *= mix(vec3(0.86, 0.92, 0.96), sunLeafGlow, sunScatter * 0.55);
-              float canopyHeightAO = smoothstep(0.8, 5.5, vNexusWorldPos.y);
-              gl_FragColor.rgb *= (0.78 + 0.22 * canopyHeightAO);
+              float backScatter = pow(clamp(dot(-viewDir, sunDir), 0.0, 1.0), 3.0) * 0.22;
+              vec3 sunLeafGlow = vec3(1.14, 1.18, 0.80);
+              gl_FragColor.rgb *= (0.72 + 0.40 * leafCluster) * (0.86 + 0.26 * leafMicro);
+              gl_FragColor.rgb *= mix(vec3(0.80, 0.88, 0.94), sunLeafGlow, clamp(sunScatter * 0.58 + backScatter, 0.0, 1.0));
+              float canopyHeightAO = smoothstep(0.6, 5.8, vNexusWorldPos.y);
+              gl_FragColor.rgb *= (0.72 + 0.28 * canopyHeightAO);
             ` : `
-              // Ground-plane Contact AO (natural grounding shadow where walls/curbs meet terrain)
-              float groundProx = clamp((vNexusWorldPos.y + 0.12) / 2.2, 0.0, 1.0);
-              float contactAO = mix(0.80, 1.0, smoothstep(0.0, 1.0, groundProx));
-              gl_FragColor.rgb *= contactAO;
+              // Multi-Scale Ground-Plane & Architectural Eave Contact AO (deepens shadow grounding)
+              float groundProx = clamp((vNexusWorldPos.y + 0.08) / 2.4, 0.0, 1.0);
+              float contactAO = mix(0.74, 1.0, smoothstep(0.0, 1.0, groundProx));
+              // Cool sky-dome tint in surfaces facing away from the sun
+              vec3 shadowCoolTint = mix(vec3(0.91, 0.95, 1.02), vec3(1.02, 1.00, 0.98), ndl);
+              gl_FragColor.rgb *= contactAO * shadowCoolTint;
             `}
 
-            // True-Color Filmic Contrast & Atmospheric Dehaze
-            vec3 dehazed = pow(max(gl_FragColor.rgb, vec3(0.0)), vec3(1.05)) * 1.03;
+            // Eye-Soothing True-Color Filmic Contrast & Atmospheric Dehaze
+            vec3 dehazed = pow(max(gl_FragColor.rgb, vec3(0.0)), vec3(1.04)) * 1.02;
             gl_FragColor.rgb = mix(gl_FragColor.rgb, dehazed, uDehazeStrength);
           } else if (uInspectMode == 1) {
             vec3 nrm = normalize(vNexusWorldNorm);
-            vec3 sunDir = normalize(vec3(-0.42, 0.86, 0.28));
+            vec3 sunDir = normalize(vec3(-0.67, 0.63, 0.39));
             float ndl = clamp(dot(nrm, sunDir), 0.0, 1.0);
             float hemi = 0.5 + 0.5 * nrm.y;
             vec3 clay = vec3(0.80, 0.79, 0.77) * (0.42 + 0.52 * ndl + 0.18 * hemi);
@@ -175,48 +250,160 @@ export class ProceduralTextureFactory {
   }
 
   /**
-   * Builds a photorealistic 14:00 WIB UI Depok Tropical Afternoon Sky Texture (with soft cumulus clouds & horizon haze)
-   * plus a prefiltered PMREM Environment Map for realistic glass/metal reflections and GI skylight.
+   * Builds a True-3D Spherical Ray-Marched UI Depok Tropical Sky & Volumetric Cumulus Cloud Dome
+   * (zero equirectangular pole pinching or radial streaks, natural Rayleigh/Mie scattering soothing to the human eye,
+   * and 3D self-shadowed cumulus + cirrus clouds) plus a prefiltered PMREM Environment Map for physically accurate reflections.
    */
   static createAfternoonEnvironmentMap(renderer) {
-    const skyCanvas = this._makeCanvas(1024, 512);
+    const W = 1024;
+    const H = 512;
+    const skyCanvas = this._makeCanvas(W, H);
     const ctx = skyCanvas.getContext('2d');
+    const bgCanvas = this._makeCanvas(W, H);
+    const bctx = bgCanvas.getContext('2d');
 
-    // Equirectangular sky + ground gradient (top half = sky, bottom half = Depok foliage/earth bounce)
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, 262);
-    skyGrad.addColorStop(0.00, '#4f86c6'); // zenith tropical blue
-    skyGrad.addColorStop(0.45, '#7aaae0'); // mid sky
-    skyGrad.addColorStop(0.82, '#bfd6ee'); // warm afternoon sky
-    skyGrad.addColorStop(0.98, '#e6eef7'); // Depok humid horizon mist
-    skyGrad.addColorStop(1.00, '#dde6ef');
-    ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, 1024, 262);
+    const pmremImg = ctx.createImageData(W, H);
+    const bgImg = bctx.createImageData(W, H);
+    const pData = pmremImg.data;
+    const bData = bgImg.data;
 
-    // Soft tropical cumulus cloud bands near horizon & mid-altitude
-    for (let i = 0; i < 65; i++) {
-      const cx = (i * 173) % 1024;
-      const cy = 115 + ((i * 47) % 130);
-      const rx = 48 + (i % 60);
-      const ry = 14 + (i % 24);
-      const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, rx);
-      const alpha = 0.08 + (i % 5) * 0.025;
-      g.addColorStop(0, `rgba(255, 253, 248, ${alpha})`);
-      g.addColorStop(0.6, `rgba(242, 247, 252, ${alpha * 0.55})`);
-      g.addColorStop(1, 'rgba(225, 236, 248, 0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-      ctx.fill();
+    // Fast deterministic 2D value noise + 4-octave FBM evaluated on 3D planar-projected sky coordinates
+    const hash2 = (ix, iy) => {
+      let n = (ix * 374761393 + iy * 668265263) ^ 0x5bf03635;
+      n = (n ^ (n >> 13)) * 1274126177;
+      return ((n ^ (n >> 16)) >>> 0) / 4294967295.0;
+    };
+    const noise2 = (x, y) => {
+      const ix = Math.floor(x);
+      const iy = Math.floor(y);
+      const fx = x - ix;
+      const fy = y - iy;
+      const ux = fx * fx * (3.0 - 2.0 * fx);
+      const uy = fy * fy * (3.0 - 2.0 * fy);
+      const a = hash2(ix, iy);
+      const b = hash2(ix + 1, iy);
+      const c = hash2(ix, iy + 1);
+      const d = hash2(ix + 1, iy + 1);
+      return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+    };
+    const fbmCloud = (x, y) => {
+      let v = 0.0;
+      v += 0.520 * noise2(x, y);
+      v += 0.260 * noise2(x * 2.07 + 13.7, y * 2.07 + 7.3);
+      v += 0.130 * noise2(x * 4.19 - 9.2, y * 4.19 + 21.4);
+      v += 0.065 * noise2(x * 8.35 + 5.1, y * 8.35 - 14.8);
+      return v;
+    };
+    const smoothstep = (e0, e1, x) => {
+      const t = Math.max(0.0, Math.min(1.0, (x - e0) / (e1 - e0)));
+      return t * t * (3.0 - 2.0 * t);
+    };
+
+    // Normalized afternoon sun direction matching WeatherOpticsEngine (-98, 92, 56)
+    const sunLen = Math.hypot(-98, 92, 56);
+    const sx = -98 / sunLen;
+    const sy = 92 / sunLen;
+    const sz = 56 / sunLen;
+
+    for (let y = 0; y < H; y++) {
+      const phi = (0.5 - (y + 0.5) / H) * Math.PI;
+      const sinPhi = Math.sin(phi);
+      const cosPhi = Math.cos(phi);
+
+      for (let x = 0; x < W; x++) {
+        const theta = (((x + 0.5) / W) * 2.0 - 1.0) * Math.PI;
+        const dx = cosPhi * Math.cos(theta);
+        const dy = sinPhi;
+        const dz = cosPhi * Math.sin(theta);
+        const idx = (y * W + x) * 4;
+
+        if (dy >= -0.02) {
+          const elev = Math.max(0.0, dy);
+          // 1. Eye-soothing Rayleigh + Mie tropical sky gradient (Zenith cobalt -> Mid azure -> Warm horizon mist)
+          const tZenith = Math.pow(elev, 0.52);
+          const tHorizon = Math.pow(1.0 - elev, 3.4);
+
+          let rSky = 42.0 * tZenith + 96.0 * (1.0 - tZenith);
+          let gSky = 106.0 * tZenith + 162.0 * (1.0 - tZenith);
+          let bSky = 178.0 * tZenith + 224.0 * (1.0 - tZenith);
+
+          // Humid Depok tropical horizon mist blend
+          rSky = rSky * (1.0 - tHorizon) + 214.0 * tHorizon;
+          gSky = gSky * (1.0 - tHorizon) + 230.0 * tHorizon;
+          bSky = bSky * (1.0 - tHorizon) + 245.0 * tHorizon;
+
+          // 2. Solar Mie Aureole & Soft Golden Glow around Sun
+          const sunDot = Math.max(0.0, dx * sx + dy * sy + dz * sz);
+          const mieGlow = Math.pow(sunDot, 7.5) * 0.24 + Math.pow(sunDot, 64.0) * 0.42;
+          rSky += 255.0 * mieGlow * 0.36;
+          gSky += 242.0 * mieGlow * 0.32;
+          bSky += 205.0 * mieGlow * 0.20;
+
+          // 3. True 3D Planar-Projected Volumetric Cumulus + Cirrus Clouds (zero pole distortion!)
+          if (elev > 0.015) {
+            const invH = 1.0 / (elev + 0.24);
+            const cu = dx * invH * 1.65 + 3.4;
+            const cv = dz * invH * 1.65 - 1.8;
+
+            // High-altitude delicate cirrus wisps
+            const cirrus = smoothstep(0.58, 0.78, noise2(cu * 0.65 + cv * 0.45, cv * 1.8 - cu * 0.3)) * 0.24 * smoothstep(0.08, 0.35, elev);
+            rSky = rSky * (1.0 - cirrus) + 246.0 * cirrus;
+            gSky = gSky * (1.0 - cirrus) + 250.0 * cirrus;
+            bSky = bSky * (1.0 - cirrus) + 255.0 * cirrus;
+
+            // Volumetric Cumulus Cloud Layer with 3D directional solar self-shadowing
+            const rawDensity = fbmCloud(cu, cv);
+            const horizonFade = smoothstep(0.02, 0.18, elev);
+            const cloudMask = smoothstep(0.49, 0.73, rawDensity) * horizonFade;
+
+            if (cloudMask > 0.005) {
+              // Sample density slightly toward sun direction for Beer-Lambert volumetric self-shadowing
+              const sunSample = fbmCloud(cu + sx * 0.22, cv + sz * 0.22);
+              const lightTrans = Math.max(0.0, Math.min(1.0, 1.0 - Math.max(0.0, sunSample - rawDensity * 0.88) * 3.4));
+              const topBright = smoothstep(0.50, 0.78, rawDensity);
+              const litFactor = Math.max(0.18, Math.min(1.0, 0.48 * lightTrans + 0.52 * topBright + mieGlow * 0.35));
+
+              // Cloud base = cool blue-grey shadow (158, 178, 202); Cloud crown = warm sunlit ivory (255, 253, 248)
+              const cR = 158.0 + (255.0 - 158.0) * litFactor;
+              const cG = 178.0 + (252.0 - 178.0) * litFactor;
+              const cB = 202.0 + (247.0 - 202.0) * litFactor;
+
+              const alpha = cloudMask * 0.90;
+              rSky = rSky * (1.0 - alpha) + cR * alpha;
+              gSky = gSky * (1.0 - alpha) + cG * alpha;
+              bSky = bSky * (1.0 - alpha) + cB * alpha;
+            }
+          }
+
+          const fr = Math.min(255, Math.max(0, Math.round(rSky)));
+          const fg = Math.min(255, Math.max(0, Math.round(gSky)));
+          const fb = Math.min(255, Math.max(0, Math.round(bSky)));
+
+          pData[idx] = bData[idx] = fr;
+          pData[idx + 1] = bData[idx + 1] = fg;
+          pData[idx + 2] = bData[idx + 2] = fb;
+          pData[idx + 3] = bData[idx + 3] = 255;
+        } else {
+          // Lower hemisphere:
+          // - PMREM gets rich campus foliage & terracotta ground bounce for physically accurate window/metal lower reflections
+          // - Background skyTex gets soft aerial-perspective horizon mist for oblique/nadir views
+          const down = Math.min(1.0, Math.max(0.0, -dy));
+          const tGnd = Math.pow(down, 0.45);
+          pData[idx] = Math.round(168 * (1 - tGnd) + 58 * tGnd);
+          pData[idx + 1] = Math.round(186 * (1 - tGnd) + 74 * tGnd);
+          pData[idx + 2] = Math.round(162 * (1 - tGnd) + 50 * tGnd);
+          pData[idx + 3] = 255;
+
+          bData[idx] = Math.round(212 * (1 - tGnd) + 162 * tGnd);
+          bData[idx + 1] = Math.round(228 * (1 - tGnd) + 184 * tGnd);
+          bData[idx + 2] = Math.round(244 * (1 - tGnd) + 206 * tGnd);
+          bData[idx + 3] = 255;
+        }
+      }
     }
 
-    // Bottom hemisphere for PMREM reflection bounce: lush campus tree canopy & warm terracotta earth bounce
-    const gndGrad = ctx.createLinearGradient(0, 256, 0, 512);
-    gndGrad.addColorStop(0.00, '#c8d4c2');
-    gndGrad.addColorStop(0.12, '#5a6e4c');
-    gndGrad.addColorStop(0.50, '#445638');
-    gndGrad.addColorStop(1.00, '#2e3b27');
-    ctx.fillStyle = gndGrad;
-    ctx.fillRect(0, 260, 1024, 252);
+    ctx.putImageData(pmremImg, 0, 0);
+    bctx.putImageData(bgImg, 0, 0);
 
     const pmremSourceTex = new THREE.CanvasTexture(skyCanvas);
     pmremSourceTex.mapping = THREE.EquirectangularReflectionMapping;
@@ -229,25 +416,11 @@ export class ProceduralTextureFactory {
     pmremSourceTex.dispose();
     pmrem.dispose();
 
-    // Now paint clean atmospheric aerial-perspective mist in the lower hemisphere of the background sky dome
-    // so Oblique 45° and Nadir 90° views have a natural horizon sky backdrop around the island plinth!
-    const bgCanvas = this._makeCanvas(1024, 512);
-    const bctx = bgCanvas.getContext('2d');
-    bctx.drawImage(skyCanvas, 0, 0);
-    const mistGrad = bctx.createLinearGradient(0, 252, 0, 512);
-    mistGrad.addColorStop(0.00, '#dde6ef');
-    mistGrad.addColorStop(0.18, '#cedbe8');
-    mistGrad.addColorStop(0.55, '#b8cadc');
-    mistGrad.addColorStop(1.00, '#9fb6cd');
-    bctx.fillStyle = mistGrad;
-    bctx.fillRect(0, 254, 1024, 258);
-
     const skyTex = new THREE.CanvasTexture(bgCanvas);
     skyTex.mapping = THREE.EquirectangularReflectionMapping;
     skyTex.colorSpace = THREE.SRGBColorSpace;
     skyTex.needsUpdate = true;
 
-    // Attach skyTex so WeatherOpticsEngine can use it directly as scene.background!
     envRT.texture.userData = { skyBackgroundTexture: skyTex };
     return envRT.texture;
   }
@@ -508,10 +681,10 @@ export class ProceduralTextureFactory {
     const copperACP = inject(new THREE.MeshStandardMaterial({
       name: 'CopperBronzeACP',
       map: this._toTexture(copC, true, 1, 1),
-      roughness: 0.34,
-      metalness: 0.62,
-      envMapIntensity: 1.25
-    }));
+      roughness: 0.28,
+      metalness: 0.68,
+      envMapIntensity: 1.38
+    }), { isMetal: true });
 
     // 6. Anodized Silver-Grey Horizontal Sun-Louvers (ILRC East & South L2-L5 Louver Screens — ref_009, ref_029)
     const louvC = this._makeCanvas(512, 512);
@@ -548,11 +721,12 @@ export class ProceduralTextureFactory {
       map: this._toTexture(louvC, true, 1, 1),
       bumpMap: this._toTexture(louvB, false, 1, 1),
       bumpScale: 0.038,
-      roughness: 0.38,
-      metalness: 0.56
-    }));
+      roughness: 0.32,
+      metalness: 0.64,
+      envMapIntensity: 1.28
+    }), { isMetal: true });
 
-    // 7. Reflective Architectural Window Glass + True #000000 Passive Night Emissive Mask (Hukum Emas 16)
+    // 7. Physically-Based Low-E Architectural Float Glass + True #000000 Passive Night Emissive Mask (Hukum Emas 16)
     const winColC = this._makeCanvas(512, 512);
     const winEmiC = this._makeCanvas(512, 512);
     {
@@ -596,8 +770,8 @@ export class ProceduralTextureFactory {
             }
           }
 
-          // Horizontal awning transom bar at 68% height
-          cx.fillStyle = '#131a22';
+          // Horizontal awning transom bar at 68% height (dark anodized frame)
+          cx.fillStyle = '#070a0e';
           cx.fillRect(x, y + h * 0.68, w, 6);
 
           if ((c + r * 2) % 3 !== 1) {
@@ -606,7 +780,7 @@ export class ProceduralTextureFactory {
           }
         }
       }
-      cx.strokeStyle = '#141b22';
+      cx.strokeStyle = '#070a0e';
       cx.lineWidth = 10;
       for (let c = 0; c <= cols; c++) {
         cx.beginPath(); cx.moveTo(c * cw, 0); cx.lineTo(c * cw, 512); cx.stroke();
@@ -621,10 +795,10 @@ export class ProceduralTextureFactory {
       emissive: new THREE.Color(0xffffff),
       emissiveMap: this._toTexture(winEmiC, true, 1, 1),
       emissiveIntensity: 0.0,
-      roughness: 0.11,
-      metalness: 0.78,
-      envMapIntensity: 1.55
-    }));
+      roughness: 0.06,
+      metalness: 0.14,
+      envMapIntensity: 1.85
+    }), { isGlass: true });
 
     // 8. Weathered Batu-Kali Rubble Stone Retaining Wall (DPPD Toe Wall, Cheek Walls, & Perimeter Ditch — ref_084, ref_184)
     const stoneC = this._makeCanvas(512, 512);
@@ -742,10 +916,10 @@ export class ProceduralTextureFactory {
       name: 'AsphaltRoad',
       map: this._toTexture(aspC, true, 1, 1),
       bumpMap: this._toTexture(aspB, false, 1, 1),
-      bumpScale: 0.015,
-      roughness: 0.86,
-      metalness: 0.02
-    }));
+      bumpScale: 0.018,
+      roughness: 0.82,
+      metalness: 0.03
+    }), { isAsphalt: true });
 
     // 12. Black-and-White Striped Roundabout Concrete Curb (ref_195, ref_144)
     const curbC = this._makeCanvas(256, 64);
@@ -761,7 +935,7 @@ export class ProceduralTextureFactory {
       map: this._toTexture(curbC, true, 1, 1),
       roughness: 0.78,
       metalness: 0.02
-    }));
+    }), { isMasonry: true });
 
     // 13. Natural UI Depok Tropical Grass Turf (modulated by World-Space FBM in shader for olive/dry-grass realism — ref_084, ref_195)
     const grassC = this._makeCanvas(512, 512);
@@ -807,17 +981,17 @@ export class ProceduralTextureFactory {
     const darkMetal = inject(new THREE.MeshStandardMaterial({
       name: 'DarkBronzeMetal',
       color: new THREE.Color(0x282524),
-      roughness: 0.42,
-      metalness: 0.62
-    }));
+      roughness: 0.36,
+      metalness: 0.68
+    }), { isMetal: true });
 
     // 16. UI Gold/Brass & Yellow Road Marking Material
     const goldAccent = inject(new THREE.MeshStandardMaterial({
       name: 'UIGoldBrassAndRoadYellow',
       color: new THREE.Color(0xe2a818),
-      roughness: 0.38,
-      metalness: 0.45
-    }));
+      roughness: 0.34,
+      metalness: 0.52
+    }), { isMetal: true });
 
     // 17. Tropical Foliage Canopy Material (with leaf-cluster normal & sun-scatter shader)
     const foliageC = this._makeCanvas(256, 256);

@@ -23,20 +23,24 @@ export class CameraDirector {
     this.transition = null;
 
     // Proportional Human-Scale FPV Runner State (Validated: 1.68m adult -> 1.55m running eye height above road surface y=0.02m -> y=1.57m)
+    // Calibrated to Human Binocular Optical Characteristics (~77.5° vertical / ~109° horizontal FOV, VOR gaze stabilization,
+    // ~76% dominant forward curve-tangent fixation + ~24% occasional diagonal head-turn "sesekali noleh").
     this.runner = {
       personHeightM: 1.68,
       eyeHeightAboveRoadM: 1.55,
       roadSurfaceY: 0.02,
-      trackRadiusM: 72.45,       // Inner runner lane on Ring Road (0.95m outside rInnerCurb = 71.50m)
-      baseSpeedMps: 4.65,        // Brisk jogging pace (~16.7 km/h visual tour speed; Shift = 9.5 m/s sprint)
-      thetaRad: 126.0 * DEG,     // Starts at SE-Front of Gedung DPPD jogging toward main gable -> NW -> ITTC -> STP -> ILRC
+      trackRadiusM: 76.80,       // Outer jogging lane on Ring Road (between rCenterDash=75.50m and rAsphaltOut=79.50m)
+      baseSpeedMps: 3.85,        // Natural human running pace (~13.9 km/h; Shift = 7.6 m/s sprint)
+      thetaRad: 112.0 * DEG,     // Starts on SE Ring Road curving forward toward Gedung DPPD -> West Gate -> ITTC -> STP -> ILRC
       stepPhase: 0.0,
       gazeClock: 0.0,
-      currentLookPos: new THREE.Vector3(0, 6.2, 55.0),
+      glanceWeight: 0.0,
+      forceGlanceMode: null,     // null = automatic cycle, true = force glance, false = force forward
+      currentLookPos: new THREE.Vector3(-42.0, 2.45, 58.0),
       userYawOffset: 0.0,
       userPitchOffset: 0.0,
       idleSinceDragSec: 10.0,
-      activeLandmarkLabel: '🏃 FPV Runner (Eye 1.57m) • Menatap Fasad & Kanopi Gedung DPPD'
+      activeLandmarkLabel: '🏃 FPV Lari (Eye 1.57m) • Fokus ke Depan — Gedung DPPD'
     };
 
     // 6-DOF Drone state
@@ -85,6 +89,19 @@ export class CameraDirector {
   }
 
   /**
+   * Computes natural human-eye rectilinear vertical FOV (~77.5° vertical / ~109° horizontal on 16:9 widescreen),
+   * eliminating telephoto zoom compression while keeping peripheral optical flow natural.
+   */
+  _computeHumanEyeVerticalFov() {
+    const fullW = Math.max(1, window.innerWidth || 1280);
+    const fullH = Math.max(1, window.innerHeight || 720);
+    const aspect = Math.max(0.55, fullW / fullH);
+    const targetHorizRad = 109.0 * DEG;
+    const vFovRad = 2.0 * Math.atan(Math.tan(targetHorizRad * 0.5) / Math.max(1.18, aspect));
+    return THREE.MathUtils.clamp(vFovRad / DEG, 76.0, 88.0);
+  }
+
+  /**
    * Hukum Emas 20: Adaptive Non-Occluding Viewport Frustum Offset.
    */
   applyNonOccludingViewportOffset(collapsed = this.drawerCollapsed) {
@@ -92,6 +109,9 @@ export class CameraDirector {
     const fullW = Math.max(1, window.innerWidth);
     const fullH = Math.max(1, window.innerHeight);
     this.camera.aspect = fullW / fullH;
+    if (this.mode === 'runner') {
+      this.camera.fov = this._computeHumanEyeVerticalFov();
+    }
 
     if (collapsed) {
       this.camera.clearViewOffset();
@@ -157,7 +177,7 @@ export class CameraDirector {
     if (nextMode === 'runner') {
       this.controls.enabled = false;
       this.transition = null;
-      this.camera.fov = 60.0; // Natural human eye perspective FOV
+      this.camera.fov = this._computeHumanEyeVerticalFov(); // Natural wide human binocular FOV (~77.5° V / ~109° H)
       this.applyNonOccludingViewportOffset(this.drawerCollapsed);
       this.runner.userYawOffset = 0.0;
       this.runner.userPitchOffset = 0.0;
@@ -178,11 +198,19 @@ export class CameraDirector {
     }
   }
 
-  setRunnerStationAngle(deg) {
+  setRunnerStationAngle(deg, forceGlance = null) {
     this.setMode('runner');
     this.runner.thetaRad = deg * DEG;
-    const arch = this._evaluateRunnerArchitecturalTarget(this.runner.thetaRad, this.runner.gazeClock);
-    this.runner.currentLookPos.copy(arch.target);
+    this.runner.forceGlanceMode = forceGlance;
+    const arch = this._evaluateRunnerArchitecturalTarget(this.runner.thetaRad, this.runner.gazeClock, 1.0);
+    const lookAheadTheta = this.runner.thetaRad + 0.42;
+    const roadAheadTarget = new THREE.Vector3(
+      71.8 * Math.cos(lookAheadTheta),
+      2.45,
+      71.8 * Math.sin(lookAheadTheta)
+    );
+    const w = forceGlance === true ? 1.0 : 0.0;
+    this.runner.currentLookPos.lerpVectors(roadAheadTarget, arch.target, w);
     this._updateRunnerStep(0.001);
   }
 
@@ -233,95 +261,85 @@ export class CameraDirector {
   }
 
   /**
-   * Evaluates the nearest architectural landmark along the 360° roundabout for the FPV Runner to admire
-   * ("sambil lihat-lihat ke bangunan") with human-proportional upward gaze pitch.
+   * Evaluates a natural diagonal forward-inward architectural target (~34°–42° from the forward running tangent,
+   * never a flat 90° sideways stare) for when the runner occasionally turns their head ("sesekali noleh").
    */
-  _evaluateRunnerArchitecturalTarget(thetaRad, gazeClock) {
+  _evaluateRunnerArchitecturalTarget(thetaRad, gazeClock, dirSign = 1.0) {
     // Normalize angle to [-180°, +180°]
     let deg = ((thetaRad / DEG) % 360 + 540) % 360 - 180;
-    // Vertical architectural scan wave (pans smoothly between ground portico/doors and upper roof/crown)
-    const vertScan = 0.5 + 0.5 * Math.sin(gazeClock * 1.15);
-    const horizScan = Math.sin(gazeClock * 0.72) * 5.5 * DEG;
+    const vertScan = 0.5 + 0.5 * Math.sin(gazeClock * 0.85);
+    const diagLead = 18.0 * DEG * dirSign;
 
-    let rLook = 54.5;
-    let thLook = thetaRad + horizScan;
-    let yLook = 6.5;
-    let label = '🏃 FPV Runner (Eye 1.57m) • Keliling Bundaran UI';
+    let rLook = 55.5;
+    let thLook = thetaRad + diagLead;
+    let yLook = 5.6;
+    let shortName = 'Bundaran UI';
 
-    if (deg >= 114.0 && deg < 158.0) {
-      // Front of Gedung DPPD (eks-KSDP): gaze at Central A-Frame Gable, L1 Terracotta Canopy, Ramp & Huawei Totem
-      thLook = 135.5 * DEG + Math.sin(gazeClock * 0.85) * 6.5 * DEG;
-      rLook = 56.5;
-      yLook = THREE.MathUtils.lerp(3.4, 9.2, vertScan);
-      label = '🏃 FPV Run (Eye 1.57m) • Menatap Pelana Utama & Kanopi Gedung DPPD';
-    } else if (deg >= 158.0 || deg < -165.0) {
-      // NW Salmon-Brick Gable of DPPD & West Entrance to ITTC Perpustakaan Lama
-      if (deg >= 158.0 && deg < 174.0) {
-        thLook = 166.5 * DEG;
-        rLook = 52.0;
-        yLook = THREE.MathUtils.lerp(4.2, 8.8, vertScan);
-        label = '🏃 FPV Run (Eye 1.57m) • Menatap Dinding Pelana Bata NW DPPD';
+    if (deg >= 106.0 && deg < 156.0) {
+      thLook = THREE.MathUtils.lerp(thetaRad + diagLead, 136.0 * DEG, 0.65);
+      rLook = 56.0;
+      yLook = THREE.MathUtils.lerp(4.4, 7.6, vertScan);
+      shortName = 'Pelana Utama & Kanopi Gedung DPPD';
+    } else if (deg >= 156.0 || deg < -162.0) {
+      if (deg >= 156.0 && deg < 172.0) {
+        thLook = 168.0 * DEG;
+        rLook = 53.5;
+        yLook = THREE.MathUtils.lerp(4.5, 7.8, vertScan);
+        shortName = 'Dinding Pelana Bata NW DPPD';
       } else {
-        // Looking straight East down the West Driveway toward ITTC Perpustakaan Lama (42x42m, H=18.8m)
-        const ittcY = THREE.MathUtils.lerp(5.2, 12.8, vertScan);
+        const ittcY = THREE.MathUtils.lerp(5.0, 9.8, vertScan);
         return {
-          target: new THREE.Vector3(-18.0, ittcY, 1.5 + Math.sin(gazeClock * 0.8) * 6.0),
-          label: '🏃 FPV Run (Eye 1.57m) • Menatap Gerbang Barat & ITTC Perpustakaan Lama'
+          target: new THREE.Vector3(-22.0, ittcY, 2.0),
+          forwardLabel: '🏃 FPV Lari (Eye 1.57m) • Fokus ke Depan — Arah Gerbang Barat & STP-UI',
+          glanceLabel: '🏃 FPV Lari (Eye 1.57m) • Menoleh ke ITTC Perpustakaan Lama'
         };
       }
-    } else if (deg >= -165.0 && deg < -112.0) {
-      // SW Copper Core & Curved White Facade of Gedung STP-UI (8 Stories, H=26.8m)
-      thLook = Math.max(-145.0 * DEG, thetaRad + 6.0 * DEG + horizScan);
-      rLook = 54.0;
-      yLook = THREE.MathUtils.lerp(6.8, 16.5, vertScan);
-      label = '🏃 FPV Run (Eye 1.57m) • Menatap Fasad Tembaga & Jendela Kotak STP-UI';
-    } else if (deg >= -112.0 && deg < -66.0) {
-      // North Portico, "STP-UI" Sloped Planter & 8-Story Tower of Gedung STP-UI
-      thLook = -88.0 * DEG + Math.sin(gazeClock * 0.9) * 7.0 * DEG;
+    } else if (deg >= -162.0 && deg < -110.0) {
+      thLook = thetaRad + diagLead;
+      rLook = 55.5;
+      yLook = THREE.MathUtils.lerp(5.8, 11.2, vertScan);
+      shortName = 'Fasad Tembaga & Jendela Kotak STP-UI';
+    } else if (deg >= -110.0 && deg < -64.0) {
+      thLook = THREE.MathUtils.lerp(thetaRad + diagLead, -88.0 * DEG, 0.60);
       rLook = 56.0;
-      yLook = THREE.MathUtils.lerp(4.2, 15.8, vertScan);
-      label = '🏃 FPV Run (Eye 1.57m) • Menatap Portico Utara & Planter Gedung STP-UI';
-    } else if (deg >= -66.0 && deg < -31.0) {
-      // NE L8 Gold UI Makara Frieze ("SCIENCE TECHNO PARK UNIVERSITAS INDONESIA") & Copper Fins
-      thLook = -48.5 * DEG + Math.sin(gazeClock * 0.75) * 5.0 * DEG;
+      yLook = THREE.MathUtils.lerp(4.8, 10.5, vertScan);
+      shortName = 'Portico Utara & Planter Gedung STP-UI';
+    } else if (deg >= -64.0 && deg < -28.0) {
+      thLook = THREE.MathUtils.lerp(thetaRad + diagLead, -46.0 * DEG, 0.60);
       rLook = 55.5;
-      yLook = THREE.MathUtils.lerp(9.5, 21.0, vertScan);
-      label = '🏃 FPV Run (Eye 1.57m) • Menatap Makara Emas L8 & Sirip NE STP-UI';
-    } else if (deg >= -31.0 && deg < 24.0) {
-      // East Louvered Wing & L4-L5 Cantilevered Glass Box of Gedung ILRC
-      thLook = (deg > -2.0 && deg < 18.0) ? 8.5 * DEG : thetaRad + 4.0 * DEG + horizScan;
+      yLook = THREE.MathUtils.lerp(7.5, 13.5, vertScan);
+      shortName = 'Makara Emas & Sirip Tembaga STP-UI';
+    } else if (deg >= -28.0 && deg < 24.0) {
+      thLook = thetaRad + diagLead;
       rLook = 55.5;
-      yLook = THREE.MathUtils.lerp(5.8, 15.2, vertScan);
-      label = '🏃 FPV Run (Eye 1.57m) • Menatap Sayap Louver & Kotak Kaca Gedung ILRC';
-    } else if (deg >= 24.0 && deg < 50.0) {
-      // DRPM Breezeway & 5-Story Open-Air SE Atrium + Koral-Sikat Ramp of Gedung ILRC
-      thLook = 41.0 * DEG + Math.sin(gazeClock * 0.85) * 4.5 * DEG;
-      rLook = 53.0;
-      yLook = THREE.MathUtils.lerp(4.6, 14.5, vertScan);
-      label = '🏃 FPV Run (Eye 1.57m) • Menatap Atrium Terbuka 5 Lantai & Portal ILRC';
-    } else if (deg >= 50.0 && deg < 73.0) {
-      // South Curved Wing & Bamboo-Staked Mound of Gedung ILRC
-      thLook = thetaRad - 3.0 * DEG + horizScan;
-      rLook = 55.0;
-      yLook = THREE.MathUtils.lerp(5.2, 14.0, vertScan);
-      label = '🏃 FPV Run (Eye 1.57m) • Menatap Sayap Selatan & Gundukan Bambu ILRC';
-    } else if (deg >= 73.0 && deg < 93.0) {
-      // 6-Story Red-Brick South End Tower & 3 Hooded Windows of ILRC/DRPM (H=27.2m)
-      thLook = 79.5 * DEG;
+      yLook = THREE.MathUtils.lerp(5.4, 10.6, vertScan);
+      shortName = 'Sayap Louver & Kotak Kaca Gedung ILRC';
+    } else if (deg >= 24.0 && deg < 52.0) {
+      thLook = THREE.MathUtils.lerp(thetaRad + diagLead, 41.0 * DEG, 0.65);
       rLook = 53.5;
-      yLook = THREE.MathUtils.lerp(8.0, 19.5, vertScan);
-      label = '🏃 FPV Run (Eye 1.57m) • Menatap Menara Bata 6 Lantai & Jendela Tudung ILRC';
+      yLook = THREE.MathUtils.lerp(4.6, 10.2, vertScan);
+      shortName = 'Atrium Terbuka 5 Lantai & Portal ILRC';
+    } else if (deg >= 52.0 && deg < 74.0) {
+      thLook = thetaRad + diagLead;
+      rLook = 55.5;
+      yLook = THREE.MathUtils.lerp(5.0, 10.0, vertScan);
+      shortName = 'Sayap Selatan & Gundukan Bambu ILRC';
+    } else if (deg >= 74.0 && deg < 96.0) {
+      thLook = THREE.MathUtils.lerp(thetaRad + diagLead, 81.0 * DEG, 0.65);
+      rLook = 54.5;
+      yLook = THREE.MathUtils.lerp(6.8, 12.8, vertScan);
+      shortName = 'Menara Bata 6 Lantai & Jendela Tudung ILRC';
     } else {
-      // SE Hipped Wing & 3 Royal Palms of Gedung DPPD (+93° .. +114°)
-      thLook = thetaRad + 5.0 * DEG + horizScan;
-      rLook = 55.0;
-      yLook = THREE.MathUtils.lerp(4.5, 9.5, vertScan);
-      label = '🏃 FPV Run (Eye 1.57m) • Menatap Sayap Tenggara & 3 Palem Raja DPPD';
+      thLook = thetaRad + diagLead;
+      rLook = 55.5;
+      yLook = THREE.MathUtils.lerp(4.6, 8.2, vertScan);
+      shortName = 'Sayap Tenggara & Palem Raja Gedung DPPD';
     }
 
     return {
       target: new THREE.Vector3(rLook * Math.cos(thLook), yLook, rLook * Math.sin(thLook)),
-      label
+      forwardLabel: `🏃 FPV Lari (Eye 1.57m) • Fokus ke Depan — ${shortName}`,
+      glanceLabel: `🏃 FPV Lari (Eye 1.57m) • Menoleh ke ${shortName}`
     };
   }
 
@@ -331,44 +349,68 @@ export class CameraDirector {
     let dirSign = 1.0;
     if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) dirSign = -1.0;
 
-    const speedMps = (isSprint ? 9.2 : rState.baseSpeedMps) * dirSign;
+    const speedMps = (isSprint ? 7.6 : rState.baseSpeedMps) * dirSign;
     const omega = speedMps / rState.trackRadiusM;
     rState.thetaRad = (rState.thetaRad + omega * clampedDt) % (Math.PI * 2);
     rState.gazeClock += clampedDt;
 
-    // 2.82 Hz running stride cadence (~169 steps/min) scaled with speed
-    const stepFreqHz = isSprint ? 3.55 : 2.82;
+    // 2.68 Hz natural running stride cadence (~161 steps/min) scaled with speed
+    const stepFreqHz = isSprint ? 3.35 : 2.68;
     rState.stepPhase += clampedDt * stepFreqHz * Math.PI * 2;
 
-    // Authentic biomechanical running eye oscillation around 1.57m world elevation (1.55m above road surface y=0.02m):
-    // - Vertical double-step bounce: ±3.4cm
-    // - Lateral step sway: ±2.2cm
-    const vertBounce = (Math.abs(Math.sin(rState.stepPhase * 0.5)) - 0.5) * 0.068;
-    const latSway = Math.cos(rState.stepPhase * 0.5) * 0.022;
-    const headRoll = Math.sin(rState.stepPhase * 0.5) * 0.0075;
+    // Vestibulo-Ocular Reflex (VOR) stabilized running eye kinematics around 1.57m world elevation:
+    // Subtle vertical stride translation (±2.0cm) and lateral step shift (±1.4cm) with minimal torsional roll (±0.22°)
+    const vertBounce = (Math.abs(Math.sin(rState.stepPhase * 0.5)) - 0.5) * 0.040;
+    const latSway = Math.cos(rState.stepPhase * 0.5) * 0.014;
+    const headRoll = Math.sin(rState.stepPhase * 0.5) * 0.0038;
 
     const curR = rState.trackRadiusM + latSway;
-    const eyeY = rState.roadSurfaceY + rState.eyeHeightAboveRoadM + vertBounce; // 1.57m ± 0.034m
+    const eyeY = rState.roadSurfaceY + rState.eyeHeightAboveRoadM + vertBounce; // 1.57m ± 0.020m
     const camX = curR * Math.cos(rState.thetaRad);
     const camZ = curR * Math.sin(rState.thetaRad);
     this.camera.position.set(camX, eyeY, camZ);
 
-    // Evaluate architectural landmark target & forward road-curve target
-    const arch = this._evaluateRunnerArchitecturalTarget(rState.thetaRad, rState.gazeClock);
-    rState.activeLandmarkLabel = arch.label;
-
-    const lookAheadTheta = rState.thetaRad + 0.34 * dirSign;
+    // 1. Dominant Forward Gaze Target (~76% of cycle):
+    //    Fixates ~32m ahead along the curving Ring Road near the inner lane tangent (Land & Lee curve-steering optics),
+    //    keeping the horizon comfortable (+1.8°..+2.8° pitch) while the curving road AND upcoming building fill the wide FOV!
+    const lookAheadTheta = rState.thetaRad + (0.42 + Math.sin(rState.gazeClock * 0.45) * 0.03) * dirSign;
+    const forwardRadius = 71.8;
+    const forwardHorizonY = 2.45 + Math.sin(rState.gazeClock * 0.55) * 0.28;
     const roadAheadTarget = new THREE.Vector3(
-      (rState.trackRadiusM - 2.2) * Math.cos(lookAheadTheta),
-      eyeY + 1.85,
-      (rState.trackRadiusM - 2.2) * Math.sin(lookAheadTheta)
+      forwardRadius * Math.cos(lookAheadTheta),
+      forwardHorizonY,
+      forwardRadius * Math.sin(lookAheadTheta)
     );
 
-    // Natural head-turning cycle: 90% admiring the buildings inward/upward, 10% slight diagonal glance along the upcoming facade
-    const roadGlanceWave = Math.pow(0.5 + 0.5 * Math.sin(rState.gazeClock * 0.65), 4.0) * 0.10;
-    const desiredTarget = new THREE.Vector3().lerpVectors(arch.target, roadAheadTarget, roadGlanceWave);
+    // 2. Occasional Diagonal Architectural Glance Target (~24% of cycle — "sesekali noleh"):
+    const arch = this._evaluateRunnerArchitecturalTarget(rState.thetaRad, rState.gazeClock, dirSign);
 
-    const smoothFactor = 1.0 - Math.exp(-4.2 * clampedDt);
+    // 12.0-second human gaze cycle:
+    // - 0.00 .. 0.62 (7.44s): 100% looking forward down the curving road
+    // - 0.62 .. 0.70 (0.96s): smooth head-turn inward toward landmark
+    // - 0.70 .. 0.84 (1.68s): admiring architectural glance ("noleh")
+    // - 0.84 .. 0.92 (0.96s): smooth head-turn back to forward running path
+    // - 0.92 .. 1.00 (0.96s): 100% looking forward
+    const cyclePhase = (rState.gazeClock % 12.0) / 12.0;
+    let glanceWeight = 0.0;
+    if (rState.forceGlanceMode === true) {
+      glanceWeight = 1.0;
+    } else if (rState.forceGlanceMode === false) {
+      glanceWeight = 0.0;
+    } else if (cyclePhase >= 0.62 && cyclePhase < 0.70) {
+      const u = (cyclePhase - 0.62) / 0.08;
+      glanceWeight = u * u * (3.0 - 2.0 * u);
+    } else if (cyclePhase >= 0.70 && cyclePhase < 0.84) {
+      glanceWeight = 1.0;
+    } else if (cyclePhase >= 0.84 && cyclePhase < 0.92) {
+      const u = 1.0 - (cyclePhase - 0.84) / 0.08;
+      glanceWeight = u * u * (3.0 - 2.0 * u);
+    }
+    rState.glanceWeight = glanceWeight;
+    rState.activeLandmarkLabel = glanceWeight >= 0.35 ? arch.glanceLabel : arch.forwardLabel;
+
+    const desiredTarget = new THREE.Vector3().lerpVectors(roadAheadTarget, arch.target, glanceWeight);
+    const smoothFactor = 1.0 - Math.exp(-4.8 * clampedDt);
     rState.currentLookPos.lerp(desiredTarget, smoothFactor);
 
     // Decay manual mouse-look offset smoothly after 3.2s of idle

@@ -405,7 +405,7 @@ class NexusStudioApp {
 
       this.cameraDirector.update(dt);
       this.asset.updateKinematics(dt, { timeSec, windSpeed: 3.6 });
-      this.weatherEngine.update(timeSec);
+      this.weatherEngine.update(timeSec, this.camera);
 
       this.renderer.render(this.scene, this.camera);
 

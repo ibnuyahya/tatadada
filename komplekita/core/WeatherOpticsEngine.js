@@ -16,38 +16,44 @@ export class WeatherOpticsEngine {
     this.materials = materialBank;
     this.mode = 'afternoon_1400';
 
-    this.bgAfternoonColor = new THREE.Color(0xdbe7f4);
+    this.bgAfternoonColor = new THREE.Color(0xcfe2f5);
     this.bgNightColor = new THREE.Color(0x0b1324);
     this.skyTexture = scene.environment?.userData?.skyBackgroundTexture || null;
 
     this.scene.background = this.skyTexture || this.bgAfternoonColor.clone();
-    this.scene.fog = new THREE.FogExp2(0xdce6f2, 0.00115);
-    this.renderer.toneMappingExposure = 1.04;
+    if ('environmentIntensity' in this.scene) {
+      this.scene.environmentIntensity = 0.68;
+    }
+    this.scene.fog = new THREE.FogExp2(0xd4e4f4, 0.00095);
+    this.renderer.toneMappingExposure = 0.96;
 
-    // 1. Hemisphere Sky-to-Turf Bounce Light (eliminates pitch-black underexposed loggias)
-    this.hemiLight = new THREE.HemisphereLight(0xf2f7ff, 0x6f7c5c, 1.38);
+    // 1. Balanced Hemisphere Sky-to-Turf Bounce Light (preserves rich shadow contrast while preventing pitch-black crevices)
+    this.hemiLight = new THREE.HemisphereLight(0xdcebff, 0x586847, 0.78);
     this.hemiLight.position.set(0, 120, 0);
     this.scene.add(this.hemiLight);
 
-    // 2. 14:00 WIB Sun (slightly WNW of zenith, casting natural 2 PM Depok shadows)
-    this.sunLight = new THREE.DirectionalLight(0xfff7e6, 1.56);
-    this.sunLight.position.set(-64, 136, 36);
+    // 2. Realistic Afternoon Sun (~39.5° elevation from WNW, casting crisp dimensional shadows across roads, curbs, trees & facades)
+    this.sunOffset = new THREE.Vector3(-98, 92, 56);
+    this.sunLight = new THREE.DirectionalLight(0xfff5de, 2.38);
+    this.sunLight.position.copy(this.sunOffset);
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.set(2048, 2048);
-    this.sunLight.shadow.camera.near = 20;
-    this.sunLight.shadow.camera.far = 290;
-    const d = 96;
+    this.sunLight.shadow.mapSize.set(4096, 4096);
+    this.sunLight.shadow.camera.near = 24;
+    this.sunLight.shadow.camera.far = 265;
+    const d = 78;
     this.sunLight.shadow.camera.left = -d;
     this.sunLight.shadow.camera.right = d;
     this.sunLight.shadow.camera.top = d;
     this.sunLight.shadow.camera.bottom = -d;
-    this.sunLight.shadow.bias = -0.00032;
-    this.sunLight.shadow.normalBias = 0.02;
+    this.sunLight.shadow.bias = -0.00014;
+    this.sunLight.shadow.normalBias = 0.011;
+    this.sunLight.shadow.radius = 1.25;
     this.scene.add(this.sunLight);
+    this.scene.add(this.sunLight.target);
 
-    // 3. Soft Opposite Sky Fill Light (prevents black coal shadows on East/SE walls)
-    this.skyFillLight = new THREE.DirectionalLight(0xdbeafe, 0.62);
-    this.skyFillLight.position.set(78, 84, -58);
+    // 3. Subtle Opposite Sky Fill Light (cool skylight fill in shadow zones)
+    this.skyFillLight = new THREE.DirectionalLight(0xc8e0fb, 0.30);
+    this.skyFillLight.position.set(78, 72, -58);
     this.scene.add(this.skyFillLight);
 
     // 4. Subtle GPU Atmospheric Pollen/Light Motes (1 single Points draw call)
@@ -130,27 +136,41 @@ export class WeatherOpticsEngine {
       if (this.moteUniforms) this.moteUniforms.uOpacity.value = 0.14;
     } else {
       this.scene.background = this.skyTexture || this.bgAfternoonColor.clone();
-      this.scene.fog.color.setHex(0xdce6f2);
-      this.scene.fog.density = 0.00115;
-      this.hemiLight.color.setHex(0xf2f7ff);
-      this.hemiLight.groundColor.setHex(0x6f7c5c);
-      this.hemiLight.intensity = 1.38;
-      this.sunLight.color.setHex(0xfff7e6);
-      this.sunLight.intensity = 1.56;
-      this.sunLight.position.set(-64, 136, 36);
-      this.skyFillLight.intensity = 0.62;
-      this.renderer.toneMappingExposure = 1.04;
+      if ('environmentIntensity' in this.scene) {
+        this.scene.environmentIntensity = 0.68;
+      }
+      this.scene.fog.color.setHex(0xd4e4f4);
+      this.scene.fog.density = 0.00095;
+      this.hemiLight.color.setHex(0xdcebff);
+      this.hemiLight.groundColor.setHex(0x586847);
+      this.hemiLight.intensity = 0.78;
+      this.sunLight.color.setHex(0xfff5de);
+      this.sunLight.intensity = 2.38;
+      this.sunLight.position.copy(this.sunOffset);
+      this.skyFillLight.intensity = 0.30;
+      this.renderer.toneMappingExposure = 0.96;
       if (this.materials?.windowGlass) {
         this.materials.windowGlass.emissiveIntensity = 0.0;
-        this.materials.windowGlass.envMapIntensity = 1.55;
+        this.materials.windowGlass.envMapIntensity = 1.85;
       }
-      if (this.moteUniforms) this.moteUniforms.uOpacity.value = 0.18;
+      if (this.moteUniforms) this.moteUniforms.uOpacity.value = 0.16;
     }
   }
 
-  update(timeSec) {
+  update(timeSec, camera = null) {
     if (this.moteUniforms) {
       this.moteUniforms.uTime.value = timeSec;
+    }
+    if (camera && this.mode !== 'night_gi') {
+      // Snap shadow camera target in 4.0m increments toward the active ground-level sector for razor-sharp close-up shadows
+      const isLow = camera.position.y < 36.0;
+      const cx = isLow ? Math.round((camera.position.x * 0.36) / 4.0) * 4.0 : 0.0;
+      const cz = isLow ? Math.round((camera.position.z * 0.36) / 4.0) * 4.0 : 0.0;
+      if (this.sunLight.target.position.x !== cx || this.sunLight.target.position.z !== cz) {
+        this.sunLight.target.position.set(cx, 0.0, cz);
+        this.sunLight.position.set(cx + this.sunOffset.x, this.sunOffset.y, cz + this.sunOffset.z);
+        this.sunLight.target.updateMatrixWorld();
+      }
     }
   }
 }

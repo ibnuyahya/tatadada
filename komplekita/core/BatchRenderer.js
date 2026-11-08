@@ -42,6 +42,12 @@ export class NexusBatchOptimizer {
       }
 
       if (blockedByParent || !obj.visible || obj.userData.dynamicKinematic || obj.isInstancedMesh || obj.isLOD) {
+        if (obj.isMesh || obj.isInstancedMesh) {
+          if (!obj.userData.noShadow) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+          }
+        }
         if (obj.geometry) keptGeometries.add(obj.geometry);
         return;
       }
@@ -113,6 +119,8 @@ export class NexusBatchOptimizer {
         if (single.geometry && !single.geometry.attributes.normal) {
           single.geometry.computeVertexNormals();
         }
+        single.castShadow = true;
+        single.receiveShadow = true;
         keptGeometries.add(single.geometry);
         return;
       }
@@ -276,8 +284,8 @@ export class NexusBatchOptimizer {
 
       const batchedMesh = new THREE.Mesh(batchedGeo, mat);
       batchedMesh.name = `NexusBatched_${mat.name || 'Material'}`;
-      batchedMesh.castShadow = anyCastShadow;
-      batchedMesh.receiveShadow = anyReceiveShadow;
+      batchedMesh.castShadow = true;
+      batchedMesh.receiveShadow = true;
       rootGroup.add(batchedMesh);
     });
 
