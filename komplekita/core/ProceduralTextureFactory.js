@@ -287,12 +287,13 @@ export class ProceduralTextureFactory {
       return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
     };
     const fbmCloud = (x, y) => {
-      let v = 0.0;
-      v += 0.520 * noise2(x, y);
-      v += 0.260 * noise2(x * 2.07 + 13.7, y * 2.07 + 7.3);
-      v += 0.130 * noise2(x * 4.19 - 9.2, y * 4.19 + 21.4);
-      v += 0.065 * noise2(x * 8.35 + 5.1, y * 8.35 - 14.8);
-      return v;
+      // Billowy multi-octave cumulus turbulence with crisp cauliflower cloud edges
+      const n0 = noise2(x, y);
+      const n1 = noise2(x * 2.13 + 13.7, y * 2.13 + 7.3);
+      const n2 = noise2(x * 4.31 - 9.2, y * 4.31 + 21.4);
+      const n3 = noise2(x * 8.65 + 5.1, y * 8.65 - 14.8);
+      const billow = 1.0 - Math.abs(2.0 * n1 - 1.0) * 0.38;
+      return 0.50 * n0 + 0.25 * n1 * billow + 0.15 * n2 + 0.10 * n3;
     };
     const smoothstep = (e0, e1, x) => {
       const t = Math.max(0.0, Math.min(1.0, (x - e0) / (e1 - e0)));
@@ -340,35 +341,35 @@ export class ProceduralTextureFactory {
           bSky += 205.0 * mieGlow * 0.20;
 
           // 3. True 3D Planar-Projected Volumetric Cumulus + Cirrus Clouds (zero pole distortion!)
-          if (elev > 0.015) {
-            const invH = 1.0 / (elev + 0.24);
-            const cu = dx * invH * 1.65 + 3.4;
-            const cv = dz * invH * 1.65 - 1.8;
+          if (elev > 0.012) {
+            const invH = 1.0 / (elev + 0.22);
+            const cu = dx * invH * 1.45 + 3.4;
+            const cv = dz * invH * 1.45 - 1.8;
 
             // High-altitude delicate cirrus wisps
-            const cirrus = smoothstep(0.58, 0.78, noise2(cu * 0.65 + cv * 0.45, cv * 1.8 - cu * 0.3)) * 0.24 * smoothstep(0.08, 0.35, elev);
-            rSky = rSky * (1.0 - cirrus) + 246.0 * cirrus;
-            gSky = gSky * (1.0 - cirrus) + 250.0 * cirrus;
+            const cirrus = smoothstep(0.52, 0.68, noise2(cu * 0.75 + cv * 0.45, cv * 1.9 - cu * 0.3)) * 0.28 * smoothstep(0.06, 0.32, elev);
+            rSky = rSky * (1.0 - cirrus) + 248.0 * cirrus;
+            gSky = gSky * (1.0 - cirrus) + 251.0 * cirrus;
             bSky = bSky * (1.0 - cirrus) + 255.0 * cirrus;
 
             // Volumetric Cumulus Cloud Layer with 3D directional solar self-shadowing
             const rawDensity = fbmCloud(cu, cv);
-            const horizonFade = smoothstep(0.02, 0.18, elev);
-            const cloudMask = smoothstep(0.49, 0.73, rawDensity) * horizonFade;
+            const horizonFade = smoothstep(0.015, 0.15, elev);
+            const cloudMask = smoothstep(0.455, 0.575, rawDensity) * horizonFade;
 
             if (cloudMask > 0.005) {
               // Sample density slightly toward sun direction for Beer-Lambert volumetric self-shadowing
-              const sunSample = fbmCloud(cu + sx * 0.22, cv + sz * 0.22);
-              const lightTrans = Math.max(0.0, Math.min(1.0, 1.0 - Math.max(0.0, sunSample - rawDensity * 0.88) * 3.4));
-              const topBright = smoothstep(0.50, 0.78, rawDensity);
-              const litFactor = Math.max(0.18, Math.min(1.0, 0.48 * lightTrans + 0.52 * topBright + mieGlow * 0.35));
+              const sunSample = fbmCloud(cu + sx * 0.26, cv + sz * 0.26);
+              const lightTrans = Math.max(0.0, Math.min(1.0, 1.0 - Math.max(0.0, sunSample - rawDensity * 0.94) * 5.2));
+              const topBright = smoothstep(0.46, 0.61, rawDensity);
+              const litFactor = Math.max(0.16, Math.min(1.0, 0.52 * lightTrans + 0.48 * topBright + mieGlow * 0.35));
 
-              // Cloud base = cool blue-grey shadow (158, 178, 202); Cloud crown = warm sunlit ivory (255, 253, 248)
-              const cR = 158.0 + (255.0 - 158.0) * litFactor;
-              const cG = 178.0 + (252.0 - 178.0) * litFactor;
-              const cB = 202.0 + (247.0 - 202.0) * litFactor;
+              // Cloud base = cool blue-grey shadow (152, 174, 198); Cloud crown = warm sunlit ivory (255, 253, 249)
+              const cR = 152.0 + (255.0 - 152.0) * litFactor;
+              const cG = 174.0 + (253.0 - 174.0) * litFactor;
+              const cB = 198.0 + (249.0 - 198.0) * litFactor;
 
-              const alpha = cloudMask * 0.90;
+              const alpha = Math.min(0.95, cloudMask * 1.05);
               rSky = rSky * (1.0 - alpha) + cR * alpha;
               gSky = gSky * (1.0 - alpha) + cG * alpha;
               bSky = bSky * (1.0 - alpha) + cB * alpha;

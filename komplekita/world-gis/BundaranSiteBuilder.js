@@ -191,12 +191,12 @@ export class BundaranSiteBuilder {
       group.add(totSign);
 
       // Blue "➔ MASUK" directional sign on white post (ref_203)
-      const mskPost = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 1.75, 8), materials.architecturalWhite);
-      mskPost.position.set(-65.2, 0.98, -5.6);
+      const mskPost = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 1.38, 8), materials.architecturalWhite);
+      mskPost.position.set(-65.2, 0.78, -5.6);
       group.add(mskPost);
 
       const mskSign = new THREE.Mesh(
-        ProceduralTextureFactory.createAtlasBox(0.76, 0.54, 0.06, 938, 716, 86, 60),
+        ProceduralTextureFactory.createAtlasBox(0.76, 0.54, 0.08, 938, 716, 86, 60),
         materials.signAtlasMat
       );
       mskSign.position.set(-65.2, 1.68, -5.6);

@@ -147,12 +147,12 @@ export class GedungILRCBuilder {
     // East Wing Roundabout Traffic Sign & Twin-Arm V-Post Garden Lamp (+9.2°..+11.5°, ref_009)
     {
       const sr = 11.5 * DEG;
-      const signPost = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 2.35, 8), materials.darkMetal);
-      signPost.position.set(68.8 * Math.cos(sr), 1.25, 68.8 * Math.sin(sr));
+      const signPost = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 1.88, 8), materials.darkMetal);
+      signPost.position.set(68.8 * Math.cos(sr), 1.02, 68.8 * Math.sin(sr));
       group.add(signPost);
 
       const signBoard = new THREE.Mesh(
-        ProceduralTextureFactory.createAtlasBox(0.72, 0.72, 0.06, 938, 716, 86, 60),
+        ProceduralTextureFactory.createAtlasBox(0.72, 0.72, 0.08, 938, 716, 86, 60),
         materials.signAtlasMat
       );
       signBoard.position.set(68.8 * Math.cos(sr), 2.28, 68.8 * Math.sin(sr));
