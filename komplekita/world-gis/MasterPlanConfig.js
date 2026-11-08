@@ -66,9 +66,9 @@ export const UI_DPPD_MASTER_PLAN = {
       rBermToe: 66.8,
       l1TopY: 3.72,
       eaveY: 6.45,
-      wingRidgeY: 12.85,
+      wingRidgeY: 13.55,
       gableHalfWidth: 11.2,
-      gablePeakY: 12.85
+      gablePeakY: 13.55
     },
 
     // 3. Gedung STP-UI (Science Techno Park) — North Arc (-150° WNW across -90° North to -34° ENE)

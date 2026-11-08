@@ -198,8 +198,9 @@ class NexusStudioApp {
     this.asset = new BundaranKompleksAsset(this.materials);
     this.scene.add(this.asset.root);
 
-    // 5. Initial Camera View: SV-01 DPPD Main Front Facade (ref_084) with Drawer Collapsed (Hukum Emas 20)
-    this.cameraDirector.applyPreset(BUNDARAN_CAMERA_PRESETS.sv_dppd_front, 0.0);
+    // 5. Initial Default Camera View: Proportional Human-Scale FPV Runner Mode (1.68m person -> 1.57m eye level)
+    //    Jogging around the Bundaran complex while looking around at the buildings (with Drawer Collapsed — Hukum Emas 20)
+    this.cameraDirector.setMode('runner');
     this.cameraDirector.applyNonOccludingViewportOffset(true);
 
     // 6. Pre-warm GPU Shaders & Execute Automated 4-Gate Verification after first render pass
@@ -373,12 +374,15 @@ class NexusStudioApp {
       });
     });
 
-    // Camera Mode (Orbit vs 6-DOF Drone)
+      // Camera Mode (FPV Runner vs Orbit vs 6-DOF Drone)
     document.querySelectorAll('[data-cam-mode]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const mode = btn.getAttribute('data-cam-mode');
         this.cameraDirector.setMode(mode);
         document.querySelectorAll('[data-cam-mode]').forEach((b) => b.classList.toggle('active', b === btn));
+        if (mode === 'runner') {
+          document.querySelectorAll('[data-preset]').forEach((b) => b.classList.remove('active'));
+        }
       });
     });
   }
@@ -391,6 +395,7 @@ class NexusStudioApp {
     const fpsEl = document.getElementById('hud-fps');
     const dcEl = document.getElementById('hud-dc');
     const trisEl = document.getElementById('hud-tris');
+    const viewLabelEl = document.getElementById('active-view-label');
 
     const animate = (now) => {
       requestAnimationFrame(animate);
@@ -413,6 +418,9 @@ class NexusStudioApp {
         if (fpsEl) fpsEl.textContent = `${fps} FPS`;
         if (dcEl) dcEl.textContent = `${calls} DC`;
         if (trisEl) trisEl.textContent = `${(tris / 1000).toFixed(1)}k Tris`;
+        if (viewLabelEl && this.cameraDirector.mode === 'runner') {
+          viewLabelEl.textContent = this.cameraDirector.runner.activeLandmarkLabel;
+        }
         frameCount = 0;
         fpsAccum = 0;
       }

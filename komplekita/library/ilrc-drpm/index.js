@@ -114,6 +114,13 @@ export class GedungILRCBuilder {
       group, materials.silverLouver, thStart + 0.01, thEastEnd - 0.01, rOut - 0.55, rOut - 0.08, 5.15, corniceY - 0.80, 34,
       { bottom: false, top: false, uvMetersPerTile: 2.8 }
     );
+    // True-3D Projecting Horizontal Aluminum Sun-Louver Blades across East Wing L2-L5 (physical 0.22m depth!)
+    for (let ly = 5.85; ly <= corniceY - 1.35; ly += 1.05) {
+      NexusSSoSTKernel.addCurvedPolarBand(
+        group, materials.silverLouver, thStart + 0.01, thEastEnd - 0.01, rOut - 0.10, rOut + 0.14, ly - 0.035, ly + 0.035, 34,
+        { bottom: true, top: true, uvMetersPerTile: 3.0 }
+      );
+    }
     // Projecting Curved White Concrete Floor-Slab Fascias (L2 base 5.15m full-depth ceiling soffit, L3 9.35m, L4 13.55m)
     NexusSSoSTKernel.addCurvedPolarBand(
       group, materials.architecturalWhite, thStart, thEastEnd, rInE, rOut + 0.45, 5.15 - 0.20, 5.15 + 0.20, 36,
@@ -250,7 +257,7 @@ export class GedungILRCBuilder {
       ilrcSign.position.set(0, 4.40, 0.54);
       portalGroup.add(ilrcSign);
 
-      // 3 Open-Air White Horizontal Corridor Bridges (L3, L4, L5) w/ Black Metal Pipe Handrails (ref_024, ref_029)
+      // 3 Open-Air White Horizontal Corridor Bridges (L3, L4, L5) w/ 3D Tubular Handrails & Vertical Balusters (ref_024, ref_029)
       for (const by of [9.35, 13.35, 17.35]) {
         const brParapet = new THREE.Mesh(new THREE.BoxGeometry(spanW + 0.2, 1.12, 2.2), materials.architecturalWhite);
         brParapet.position.set(0, by, -2.1);
@@ -258,9 +265,16 @@ export class GedungILRCBuilder {
         brParapet.receiveShadow = true;
         portalGroup.add(brParapet);
 
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(spanW + 0.1, 0.07, 0.07), materials.darkMetal);
-        rail.position.set(0, by + 0.82, -1.08);
-        portalGroup.add(rail);
+        for (const ry of [by + 0.84, by + 0.68]) {
+          const rail = new THREE.Mesh(new THREE.BoxGeometry(spanW + 0.1, 0.055, 0.055), materials.darkMetal);
+          rail.position.set(0, ry, -1.08);
+          portalGroup.add(rail);
+        }
+        for (let bx = -3.6; bx <= 3.6; bx += 1.2) {
+          const post = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.36, 0.05), materials.darkMetal);
+          post.position.set(bx, by + 0.70, -1.08);
+          portalGroup.add(post);
+        }
       }
 
       // Axial Brown Koral-Sikat Pebble-Grid Approach Ramp + Blue ADA Bay + Bollards (z = 0.5 .. 11.2m -> r = 57.5..68.4m)
@@ -336,11 +350,17 @@ export class GedungILRCBuilder {
       { bottom: false, uvMetersPerTile: 3.0 }
     );
 
-    // L3–L5 Horizontal Silver Louvers + Projecting Curved White Floor Bands (y = 9.25 .. 20.45m, ref_028, ref_049)
+    // L3–L5 Horizontal Silver Louvers + 3D Projecting Louver Blades + Curved White Floor Bands (y = 9.25 .. 20.45m, ref_028, ref_049)
     NexusSSoSTKernel.addCurvedPolarBand(
       group, materials.silverLouver, thAtriumEnd, thSouthEnd, rInS + 0.5, rOut - 0.15, 9.25, corniceY - 0.80, 20,
       { bottom: false, top: false, uvMetersPerTile: 2.8 }
     );
+    for (let ly = 9.95; ly <= corniceY - 1.35; ly += 1.05) {
+      NexusSSoSTKernel.addCurvedPolarBand(
+        group, materials.silverLouver, thAtriumEnd + 0.01, thSouthEnd - 0.01, rOut - 0.16, rOut + 0.12, ly - 0.035, ly + 0.035, 20,
+        { bottom: true, top: true, uvMetersPerTile: 3.0 }
+      );
+    }
     NexusSSoSTKernel.addCurvedPolarBand(
       group, materials.architecturalWhite, thAtriumEnd, thSouthEnd, rInS, rOut + 0.42, 4.95 - 0.18, 4.95 + 0.18, 22,
       { bottom: true, top: true, uvMetersPerTile: 3.8 }

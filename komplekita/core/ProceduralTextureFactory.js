@@ -95,31 +95,39 @@ export class ProceduralTextureFactory {
           if (uInspectMode == 0) {
             vec3 wNorm = normalize(vNexusWorldNorm);
             vec3 sunDir = normalize(vec3(-0.41, 0.85, 0.32));
+            float camDist = length(cameraPosition - vNexusWorldPos);
+            // Distance-Adaptive Multi-LOD Close-Up Micro-Detail Factor (active at FPV Runner eye-level < 38m)
+            float closeUpLod = 1.0 - smoothstep(6.0, 38.0, camDist);
+            float microGrain = (nxNoise(vNexusWorldPos.xz * 18.5 + vNexusWorldPos.xy * 14.0) - 0.5) * 0.11 * closeUpLod;
 
             ${isTerrain ? `
-              // World-space macro FBM variation: eliminates tiling & creates natural Depok turf olive/dry soil patches
+              // World-space macro FBM variation + close-up grass/soil blade micro-detail
               float macro1 = nxFbm(vNexusWorldPos.xz * 0.11);
               float macro2 = nxFbm(vNexusWorldPos.xz * 0.37 + vec2(19.3, 7.1));
+              float bladeMicro = (nxFbm(vNexusWorldPos.xz * 9.5) - 0.45) * 0.16 * closeUpLod;
               vec3 dryTint = vec3(1.12, 0.98, 0.78);
               vec3 lushTint = vec3(0.86, 1.04, 0.84);
               gl_FragColor.rgb *= mix(lushTint, dryTint, smoothstep(0.28, 0.74, macro1));
-              gl_FragColor.rgb *= (0.90 + 0.20 * macro2);
+              gl_FragColor.rgb *= (0.90 + 0.20 * macro2 + bladeMicro);
             ` : ''}
 
             ${isRoof ? `
-              // Natural tropical ceramic roof tile weathering & ridge highlight
+              // Natural tropical ceramic roof tile weathering, course shadow & close-up glaze sheen
               float roofPatina = nxFbm(vNexusWorldPos.xz * 0.24);
               float mossPatch = smoothstep(0.58, 0.82, nxFbm(vNexusWorldPos.xz * 0.45 + vec2(4.2, 9.8)));
-              gl_FragColor.rgb *= (0.88 + 0.22 * roofPatina);
+              float tileCourseWave = sin((vNexusWorldPos.y * 14.0 + vNexusWorldPos.x * 3.0 + vNexusWorldPos.z * 3.0)) * 0.045 * closeUpLod;
+              gl_FragColor.rgb *= (0.88 + 0.22 * roofPatina + tileCourseWave);
               gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(0.76, 0.82, 0.68), mossPatch * 0.28);
             ` : ''}
 
             ${isMasonry ? `
-              // Subtle vertical tropical rain-streak patina & plinth base moisture
+              // Subtle vertical tropical rain-streak patina, plinth base moisture & close-up stucco/stone pore relief
               float streak = nxFbm(vec2(vNexusWorldPos.x * 0.6 + vNexusWorldPos.z * 0.6, vNexusWorldPos.y * 0.22));
               float baseDamp = 1.0 - 0.18 * (1.0 - smoothstep(0.0, 1.8, max(0.0, vNexusWorldPos.y)));
-              gl_FragColor.rgb *= (0.93 + 0.12 * streak) * baseDamp;
-            ` : ''}
+              gl_FragColor.rgb *= (0.93 + 0.12 * streak + microGrain) * baseDamp;
+            ` : `
+              gl_FragColor.rgb *= (1.0 + microGrain * 0.65);
+            `}
 
             ${isFoliage ? `
               // Procedural leaf-cluster micro-relief & warm afternoon sun subsurface scatter
@@ -1167,19 +1175,40 @@ export class ProceduralTextureFactory {
   }
 
   /**
-   * Helper returning PlaneGeometry pre-mapped to an exact logical sub-rectangle [x0, y0, w, h] of the Signage Atlas.
+   * Helper returning a True-3D Volumetric Signage Plaque (BoxGeometry with physical thickness depthMeters = 0.048m)
+   * pre-mapped to an exact logical sub-rectangle [xPx, yPx, wPx, hPx] of the Signage Atlas on front/back faces
+   * and dark-bronze frame return edges on the 4 side faces (zero paper-thin 2D planes!).
    */
-  static createAtlasSignPlane(widthMeters, heightMeters, xPx, yPx, wPx, hPx) {
-    const geo = new THREE.PlaneGeometry(widthMeters, heightMeters, 1, 1);
+  static createAtlasSignPlane(widthMeters, heightMeters, xPx, yPx, wPx, hPx, depthMeters = 0.048) {
+    const geo = new THREE.BoxGeometry(widthMeters, heightMeters, depthMeters);
     const u0 = (xPx + 1.5) / 1024;
     const u1 = (xPx + wPx - 1.5) / 1024;
     const vTop = 1.0 - (yPx + 1.5) / 1024;
     const vBot = 1.0 - (yPx + hPx - 1.5) / 1024;
+
+    // Dark-slate/bronze frame edge UV region inside Tile 4 border (xPx: 8..24, yPx: 536..552)
+    const eu0 = 10 / 1024;
+    const eu1 = 22 / 1024;
+    const evTop = 1.0 - 536 / 1024;
+    const evBot = 1.0 - 552 / 1024;
+
     const uv = geo.attributes.uv;
-    uv.setXY(0, u0, vTop);
-    uv.setXY(1, u1, vTop);
-    uv.setXY(2, u0, vBot);
-    uv.setXY(3, u1, vBot);
+    // Faces 0..3 (+X, -X, +Y, -Y return edges): dark frame border UV
+    for (let f = 0; f < 4; f++) {
+      const base = f * 4;
+      uv.setXY(base, eu0, evTop);
+      uv.setXY(base + 1, eu1, evTop);
+      uv.setXY(base + 2, eu0, evBot);
+      uv.setXY(base + 3, eu1, evBot);
+    }
+    // Face 4 (+Z front face) & Face 5 (-Z back face): crisp signage atlas rect
+    for (const f of [4, 5]) {
+      const base = f * 4;
+      uv.setXY(base, u0, vTop);
+      uv.setXY(base + 1, u1, vTop);
+      uv.setXY(base + 2, u0, vBot);
+      uv.setXY(base + 3, u1, vBot);
+    }
     uv.needsUpdate = true;
     return geo;
   }

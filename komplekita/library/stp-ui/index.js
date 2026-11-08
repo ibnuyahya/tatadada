@@ -284,23 +284,41 @@ export class GedungSTPUIBuilder {
         const s = Math.sin(rad);
         const yaw = Math.atan2(c, s);
 
-        const surround = new THREE.Mesh(new THREE.BoxGeometry(ww + 0.30, wh + 0.28, 0.30), materials.architecturalWhite);
-        surround.position.set((rOut - 0.25) * c, yc, (rOut - 0.25) * s);
+        const surround = new THREE.Mesh(new THREE.BoxGeometry(ww + 0.34, wh + 0.30, 0.42), materials.architecturalWhite);
+        surround.position.set((rOut - 0.20) * c, yc, (rOut - 0.20) * s);
         surround.rotation.y = yaw;
         surround.castShadow = true;
         group.add(surround);
 
         const pane = new THREE.Mesh(new THREE.BoxGeometry(ww, wh, 0.34), materials.windowGlass);
-        pane.position.set((rOut - 0.24) * c, yc, (rOut - 0.24) * s);
+        pane.position.set((rOut - 0.22) * c, yc, (rOut - 0.22) * s);
         pane.rotation.y = yaw;
         group.add(pane);
+
+        // 3D Horizontal Awning Transom Bar inside the protruding window box
+        const transom = new THREE.Mesh(new THREE.BoxGeometry(ww + 0.04, 0.06, 0.38), materials.darkMetal);
+        transom.position.set((rOut - 0.20) * c, yc + wh * 0.16, (rOut - 0.20) * s);
+        transom.rotation.y = yaw;
+        group.add(transom);
       }
     }
 
     // 7. NE L8 High-Level Signage Frieze: Gold UI Makara + "SCIENCE TECHNO PARK / UNIVERSITAS INDONESIA" (th = -59.5°..-37°, ref_111)
+    //    Includes 3D Curved Backing Slab, Top/Bottom 3D Trim Mouldings, & 3D Raised Gold Makara Disc Relief!
     {
       const sTh0 = -59.5 * DEG;
       const sTh1 = -37.0 * DEG;
+      NexusSSoSTKernel.addCurvedPolarBand(
+        group, materials.architecturalWhite, sTh0 - 0.2 * DEG, sTh1 + 0.2 * DEG, rOut - 0.42, rOut - 0.17, 22.62, 25.14, 16,
+        { bottom: true, top: true, uvMetersPerTile: 3.5 }
+      );
+      // 3D Raised Gold UI Makara Relief Emblem on the right/east end of the frieze (th = -39.1°, y = 23.88m, ref_111)
+      const makTh = -39.1 * DEG;
+      const makDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.86, 0.12, 16), materials.goldAccent);
+      makDisc.rotation.x = Math.PI * 0.5;
+      makDisc.rotation.z = -Math.atan2(Math.cos(makTh), Math.sin(makTh));
+      makDisc.position.set((rOut - 0.13) * Math.cos(makTh), 23.88, (rOut - 0.13) * Math.sin(makTh));
+      group.add(makDisc);
       const signGeo = NexusSSoSTKernel.sliceSubdomainFromMaster(
         (u, v, p, n) => {
           const th = sTh0 + u * (sTh1 - sTh0);
@@ -420,10 +438,23 @@ export class GedungSTPUIBuilder {
         portGroup.add(vLeg);
       }
     }
+
+    // L1 North Main Lobby Double Glass Entrance Doors, Dark Anodized Frame, & 4 Stainless Bollards (ref_164!)
+    const lobbyDoorFrame = new THREE.Mesh(new THREE.BoxGeometry(4.2, 3.25, 0.28), materials.darkMetal);
+    lobbyDoorFrame.position.set(0, 1.78, -0.32);
+    portGroup.add(lobbyDoorFrame);
+    const lobbyDoorGlass = new THREE.Mesh(new THREE.BoxGeometry(3.85, 3.02, 0.32), materials.windowGlass);
+    lobbyDoorGlass.position.set(0, 1.78, -0.30);
+    portGroup.add(lobbyDoorGlass);
+    for (const bx of [-4.2, -1.8, 1.8, 4.2]) {
+      const bollard = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.08, 0.82, 10), materials.silverLouver);
+      bollard.position.set(bx, 0.52, canD - 0.55);
+      portGroup.add(bollard);
+    }
   }
 
   static _buildNorthLandscapeProps(parent, materials, thPortico) {
-    // A. Sloped White Concrete Wedge Planter w/ "STP-UI" Topiary Mound & Pedestrian Ramp Bridge (ref_164!)
+    // A. Sloped White Concrete Wedge Planter w/ 3D Raised Rim Walls, "STP-UI" Topiary Mound & Pedestrian Ramp Bridge (ref_164!)
     const thPlanter = thPortico - 3.5 * DEG; // Slightly left/west of portico center as seen in ref_164!
     const c = Math.cos(thPlanter);
     const s = Math.sin(thPlanter);
@@ -434,11 +465,17 @@ export class GedungSTPUIBuilder {
     planterGroup.rotation.y = yaw;
     parent.add(planterGroup);
 
-    // White concrete sloped retaining walls framing the "STP-UI" hedge mound (ref_164)
+    // White concrete sloped retaining walls + 3D raised side/front/back rim curbs framing the "STP-UI" hedge mound (ref_164)
     const wedgeBase = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.62, 3.2), materials.architecturalWhite);
     wedgeBase.position.set(0, 0.31, 0);
     wedgeBase.castShadow = true;
     planterGroup.add(wedgeBase);
+    for (const sx of [-3.68, 3.68]) {
+      const sideRim = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.42, 3.2), materials.architecturalWhite);
+      sideRim.position.set(sx, 0.68, 0);
+      sideRim.rotation.x = 0.20;
+      planterGroup.add(sideRim);
+    }
 
     const mound = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.54, 2.6), materials.lushGrass);
     mound.position.set(0, 0.56, 0.08);

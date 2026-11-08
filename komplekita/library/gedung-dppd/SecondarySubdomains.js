@@ -65,10 +65,19 @@ export class DPPDSecondarySubdomains {
     winBand.position.set(0, l1TopY + 1.78, 57.73);
     localGroup.add(winBand);
 
-    // Horizontal dark transom bar dividing upper window pane from lower awning pane (ref_184)
-    const winTransom = new THREE.Mesh(new THREE.BoxGeometry(21.0, 0.08, 0.36), materials.darkMetal);
-    winTransom.position.set(0, l1TopY + 1.36, 57.76);
-    localGroup.add(winTransom);
+    // Horizontal dark transom bar + top/bottom 3D window frame sills on L2 11-Bay Window Band (ref_184)
+    for (const wy of [l1TopY + 0.86, l1TopY + 1.36, l1TopY + 2.70]) {
+      const winFrameBar = new THREE.Mesh(new THREE.BoxGeometry(21.0, 0.08, 0.38), materials.darkMetal);
+      winFrameBar.position.set(0, wy, 57.76);
+      localGroup.add(winFrameBar);
+    }
+    // 22 Vertical Dark Aluminum Sub-Mullions inside the 11 Window Bays (2 panes per bay, ref_184!)
+    for (let i = 0; i < 11; i++) {
+      const bx = -10.45 + ((i + 0.5) / 11) * 20.9;
+      const subMul = new THREE.Mesh(new THREE.BoxGeometry(0.055, 1.88, 0.36), materials.darkMetal);
+      subMul.position.set(bx, l1TopY + 1.78, 57.76);
+      localGroup.add(subMul);
+    }
 
     // 12 Crisp Vertical Cream Piers forming 11 Symmetrical Window Bays (5 Left + 1 Center + 5 Right, ref_084, ref_184)
     for (let i = 0; i <= 11; i++) {
@@ -177,7 +186,7 @@ export class DPPDSecondarySubdomains {
     localGroup.add(dppdPlaque);
 
     // 4. Full-Width Straight Continuous L1 Terracotta Portico Canopy + 4 Cream Columns (ref_084, ref_184, ref_185)
-    //    (Strictly straight continuous terracotta canopy roof — no Street-View-chevron central gablet artifact!)
+    //    Upgraded with True-3D Stepped Tile Courses, 40 Sculpted 3D Eave Drip-Tile Nosings, Side Verge Caps & Recessed Downlights!
     const canW = 21.64;
     const canZIn = 57.55;
     const canZOut = 60.45;
@@ -190,14 +199,65 @@ export class DPPDSecondarySubdomains {
     canRoof.receiveShadow = true;
     localGroup.add(canRoof);
 
+    // 6 Stepped 3D Terracotta Tile Course Overlap Bars across L1 Canopy Slope (true 3D tile relief!)
+    for (let k = 0; k < 6; k++) {
+      const tk = k / 6;
+      const cz = canZOut - tk * canDepth;
+      const cy = 3.36 + tk * 0.43 + 0.08;
+      const courseBar = new THREE.Mesh(new THREE.BoxGeometry(canW + 0.04, 0.036, (canDepth / 6) + 0.04), materials.terracottaRoof);
+      courseBar.position.set(0, cy, cz - (canDepth / 12));
+      courseBar.rotation.x = 0.15;
+      courseBar.castShadow = true;
+      localGroup.add(courseBar);
+    }
+
+    // 42 Sculpted 3D Ceramic Eave Drip-Tile Nosings ("Genteng Cucuran Kanopi 3D") along the front lip of the L1 Canopy!
+    for (let i = 0; i < 42; i++) {
+      const tx = -canW * 0.5 + 0.26 + (i / 41) * (canW - 0.52);
+      const eaveTile = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.065, 0.18), materials.terracottaRoof);
+      eaveTile.position.set(tx, 3.39, canZOut + 0.04);
+      eaveTile.rotation.x = 0.18;
+      localGroup.add(eaveTile);
+    }
+
+    // 3D Terracotta Side Verge Caps & Rainwater Downspouts at Left & Right Ends of L1 Canopy
+    for (const sgn of [-1, 1]) {
+      const verge = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.20, canDepth + 0.22), materials.terracottaRoof);
+      verge.position.set(sgn * (canW * 0.5 + 0.02), 3.58, 0.5 * (canZIn + canZOut));
+      verge.rotation.x = 0.15;
+      localGroup.add(verge);
+
+      const downspout = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 3.25, 8), materials.darkMetal);
+      downspout.position.set(sgn * 10.48, 1.82, 57.32);
+      localGroup.add(downspout);
+    }
+
     // Top ridge flashing along wall-canopy junction
-    const canFlashing = new THREE.Mesh(new THREE.BoxGeometry(canW, 0.10, 0.16), materials.terracottaBrick);
-    canFlashing.position.set(0, 3.80, canZIn + 0.06);
+    const canFlashing = new THREE.Mesh(new THREE.BoxGeometry(canW, 0.12, 0.18), materials.terracottaBrick);
+    canFlashing.position.set(0, 3.82, canZIn + 0.06);
     localGroup.add(canFlashing);
 
     const canSoffit = new THREE.Mesh(new THREE.BoxGeometry(canW - 0.06, 0.10, canDepth + 0.02), materials.creamStucco);
     canSoffit.position.set(0, 3.28, 0.5 * (canZIn + canZOut));
     localGroup.add(canSoffit);
+
+    // 4 Recessed 3D Downlight Fixtures in L1 Portico Ceiling Soffit + Porch Doormat & Waiting Chair (ref_184!)
+    for (const lx of [-6.2, -2.2, 2.2, 6.2]) {
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.06, 10), materials.goldAccent);
+      lamp.position.set(lx, 3.22, 0.5 * (canZIn + canZOut));
+      localGroup.add(lamp);
+    }
+    const doormat = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.03, 0.95), materials.darkMetal);
+    doormat.position.set(0, 0.48, zL1Wall + 0.92);
+    localGroup.add(doormat);
+
+    // Receptionist/Security Chair under the KSDP UI Sign (visible in ref_184!)
+    const chairSeat = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.06, 0.48), materials.darkMetal);
+    chairSeat.position.set(2.35, 0.92, zL1Wall + 0.68);
+    localGroup.add(chairSeat);
+    const chairBack = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.48, 0.06), materials.darkMetal);
+    chairBack.position.set(2.35, 1.18, zL1Wall + 0.46);
+    localGroup.add(chairBack);
 
     const canFascia = new THREE.Mesh(new THREE.BoxGeometry(canW + 0.04, 0.20, 0.10), materials.darkMetal);
     canFascia.position.set(0, 3.32, canZOut + 0.05);
@@ -473,15 +533,16 @@ export class DPPDSecondarySubdomains {
         localGroup.add(mesh);
       };
 
-      // 1. Upper horizontal plastered side wall closing the L1 portico under the canopy (z = 56.2 .. 59.85m, y = 3.58m, ref_184)
-      buildWingSegment(56.2, l1TopY - 0.14, 59.85, l1TopY - 0.14, materials.creamStucco);
-      // 2. Sloped plastered cheek wall descending alongside the terracotta stairs & grass berm (z = 59.85m, y = 3.58m -> z = 63.65m, y = 0.68m, ref_184!)
-      buildWingSegment(59.85, l1TopY - 0.14, 63.65, 0.68, materials.creamStucco);
+      // 1. Upper plastered side wall closing the L1 portico right underneath the sloping L1 terracotta canopy (z = 56.2 .. 60.45m, y = 3.52m -> 3.24m, ref_184)
+      buildWingSegment(56.2, 3.54, 57.55, 3.54, materials.creamStucco);
+      buildWingSegment(57.55, 3.54, 60.45, 3.24, materials.creamStucco);
+      // 2. Sloped plastered cheek wall descending from the front eave of the L1 canopy alongside the stairs (z = 60.45m, y = 3.24m -> z = 63.65m, y = 0.68m, ref_184!)
+      buildWingSegment(60.45, 3.24, 63.65, 0.68, materials.creamStucco);
       // 3. Low weathered stone/concrete coping cap along the sloped cheek wall (ref_184)
-      const capLen = Math.hypot(63.65 - 59.85, (l1TopY - 0.14) - 0.68);
-      const capAng = Math.atan2((l1TopY - 0.14) - 0.68, 63.65 - 59.85);
+      const capLen = Math.hypot(63.65 - 60.45, 3.24 - 0.68);
+      const capAng = Math.atan2(3.24 - 0.68, 63.65 - 60.45);
       const coping = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.08, capLen + 0.08), materials.stoneRetaining);
-      coping.position.set(wx, 0.5 * ((l1TopY - 0.14) + 0.68) + 0.03, 0.5 * (59.85 + 63.65));
+      coping.position.set(wx, 0.5 * (3.24 + 0.68) + 0.03, 0.5 * (60.45 + 63.65));
       coping.rotation.x = capAng;
       localGroup.add(coping);
 

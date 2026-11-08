@@ -131,6 +131,38 @@ export class PerpustakaanLamaBuilder {
     westSteps.receiveShadow = true;
     localRoot.add(westSteps);
 
+    // West Main Entrance Double Glass Doors, Dark Frame, & Tubular Step Handrails (ref_203!)
+    const westDoorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.24, 3.15, 3.60), materials.darkMetal);
+    westDoorFrame.position.set(-H + 1.85, 1.72, 0);
+    localRoot.add(westDoorFrame);
+    const westDoorGlass = new THREE.Mesh(new THREE.BoxGeometry(0.28, 2.92, 3.28), materials.windowGlass);
+    westDoorGlass.position.set(-H + 1.83, 1.72, 0);
+    localRoot.add(westDoorGlass);
+    for (const rz of [-6.2, 6.2]) {
+      const railBar = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.06, 0.06), materials.darkMetal);
+      railBar.position.set(-H - 1.9, 0.96, rz);
+      localRoot.add(railBar);
+      for (const rx of [-H - 3.6, -H - 0.3]) {
+        const railPost = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.82, 0.06), materials.darkMetal);
+        railPost.position.set(rx, 0.56, rz);
+        localRoot.add(railPost);
+      }
+    }
+
+    // 3D Outdoor Split-AC Condenser Units along L2 & L3 Spandrel Ledges (ref_202, ref_203)
+    const acBoxGeo = new THREE.BoxGeometry(0.84, 0.58, 0.36);
+    for (const side of [-1, 1]) {
+      for (const posC of [-15.0, -3.0, 9.0]) {
+        const acNS = new THREE.Mesh(acBoxGeo, materials.architecturalWhite);
+        acNS.position.set(posC, 8.15, side * (H + 0.18));
+        localRoot.add(acNS);
+        const acEW = new THREE.Mesh(acBoxGeo, materials.architecturalWhite);
+        acEW.rotation.y = Math.PI * 0.5;
+        acEW.position.set(side * (H + 0.18), 11.60, posC);
+        localRoot.add(acEW);
+      }
+    }
+
     // 7. High-Level Flat Reinforced-Concrete Central Roof Deck ("Atap Coran / Dak Beton" at y = 13.95m, ref_174!)
     //    Replaces the inaccurate 4-story open pit so the central well is a solid concrete roof deck!
     const roofOut = H + 1.25; // 22.25m outer eave overhang
@@ -180,14 +212,32 @@ export class PerpustakaanLamaBuilder {
     pavBeam.position.set(0, eaveY + 1.15, 0);
     localRoot.add(pavBeam);
 
-    // Pyramidal terracotta roof cap over the raised central monitor (y = 15.35 .. 17.30m) + 4 hip ridge caps!
-    const pyrR = (sk + 0.55) * Math.SQRT2;
+    // Pyramidal 3D Stepped Terracotta Roof Cap over the raised central monitor (y = 15.44 .. 17.49m) + 4 hip ridge caps!
+    const pyrHalf = sk + 0.55;
     const pyrH = 2.05;
     const pyrBaseY = eaveY + 1.24;
-    const pyrGeo = new THREE.ConeGeometry(pyrR, pyrH, 4, 1);
-    pyrGeo.rotateY(Math.PI * 0.25);
+    const pyrApex = [0, pyrBaseY + pyrH, 0];
+    const mSW = [-pyrHalf, pyrBaseY, pyrHalf];
+    const mSE = [pyrHalf, pyrBaseY, pyrHalf];
+    const mNE = [pyrHalf, pyrBaseY, -pyrHalf];
+    const mNW = [-pyrHalf, pyrBaseY, -pyrHalf];
+    const pPos = [], pNorm = [], pUv = [];
+    for (const [cA, cB] of [[mSW, mSE], [mSE, mNE], [mNE, mNW], [mNW, mSW]]) {
+      NexusSSoSTKernel.pushThickSteppedRoofQuad(pPos, pNorm, pUv, cA, cB, pyrApex, pyrApex, {
+        uvTileMeters: 1.7,
+        courses: 7,
+        stepHeight: 0.026,
+        slabThickness: 0.10,
+        eaveNosings: true
+      });
+    }
+    const pyrGeo = new THREE.BufferGeometry();
+    pyrGeo.setAttribute('position', new THREE.Float32BufferAttribute(pPos, 3));
+    pyrGeo.setAttribute('normal', new THREE.Float32BufferAttribute(pNorm, 3));
+    pyrGeo.setAttribute('uv', new THREE.Float32BufferAttribute(pUv, 2));
+    pyrGeo.computeBoundingBox();
+    pyrGeo.computeBoundingSphere();
     const pyrRoof = new THREE.Mesh(pyrGeo, materials.terracottaRoof);
-    pyrRoof.position.set(0, pyrBaseY + pyrH * 0.5, 0);
     pyrRoof.castShadow = true;
     pyrRoof.receiveShadow = true;
     localRoot.add(pyrRoof);

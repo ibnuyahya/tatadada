@@ -232,21 +232,41 @@ export class BundaranSiteBuilder {
       { bottom: false, uvMetersPerTile: 1.8 }
     );
 
-    // 9. Clean Galvanized Curved-Arm Perimeter Streetlights (12 poles around outer curb)
+    // 9. Clean Galvanized Curved-Arm Perimeter Streetlights w/ 3D Concrete Base Pedestals, LED Luminaires, & Curb Storm Drains
     for (let i = 0; i < 12; i++) {
       const th = (i / 12) * Math.PI * 2 + 0.18;
       const rPole = rr.rOuterCurb + 0.85;
       const px = rPole * Math.cos(th);
       const pz = rPole * Math.sin(th);
+
+      // 3D Octagonal Concrete Pedestal Base
+      const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 0.52, 8), materials.pavingBlock);
+      ped.position.set(px, 0.36, pz);
+      ped.castShadow = true;
+      group.add(ped);
+
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 8.2, 8), materials.darkMetal);
-      pole.position.set(px, 4.2, pz);
+      pole.position.set(px, 4.3, pz);
       pole.castShadow = true;
       group.add(pole);
 
       const arm = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.09, 0.12), materials.darkMetal);
-      arm.position.set(px - Math.cos(th) * 0.82, 8.2, pz - Math.sin(th) * 0.82);
+      arm.position.set(px - Math.cos(th) * 0.82, 8.3, pz - Math.sin(th) * 0.82);
       arm.rotation.y = -th;
       group.add(arm);
+
+      // 3D Die-Cast LED Cobra-Head Luminaire Housing + Warm Lens Underside
+      const lampHead = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.12, 0.26), materials.architecturalWhite);
+      lampHead.position.set(px - Math.cos(th) * 1.56, 8.28, pz - Math.sin(th) * 1.56);
+      lampHead.rotation.y = -th;
+      group.add(lampHead);
+
+      // 3D Cast-Iron Storm-Drain Curb Inlet Grate on the asphalt edge
+      const rGrate = rr.rAsphaltOut - 0.24;
+      const grate = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.05, 0.68), materials.darkMetal);
+      grate.position.set(rGrate * Math.cos(th), 0.025, rGrate * Math.sin(th));
+      grate.rotation.y = -th;
+      group.add(grate);
     }
 
     // 10. Organic Multi-Lobe Tropical Campus Trees & Curved Parabolic Palms (ONLY 2 InstancedMeshes!)
@@ -486,7 +506,14 @@ export class BundaranSiteBuilder {
         const rgt0 = [cosY * r0 - perpX * w0, y0 - 0.08, sinY * r0 - perpZ * w0];
         const rgt1 = [cosY * r1 - perpX * w1, y1 - 0.08, sinY * r1 - perpZ * w1];
 
-        const pushTri = (a, b, c) => {
+        const c0Bot = [cosY * r0, y0 - 0.02, sinY * r0];
+        const c1Bot = [cosY * r1, y1 - 0.02, sinY * r1];
+        const l0Bot = [cosY * r0 + perpX * w0, y0 - 0.13, sinY * r0 + perpZ * w0];
+        const l1Bot = [cosY * r1 + perpX * w1, y1 - 0.13, sinY * r1 + perpZ * w1];
+        const rgt0Bot = [cosY * r0 - perpX * w0, y0 - 0.13, sinY * r0 - perpZ * w0];
+        const rgt1Bot = [cosY * r1 - perpX * w1, y1 - 0.13, sinY * r1 - perpZ * w1];
+
+        const pushTriSigned = (a, b, c, wantUp = true) => {
           const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
           const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
           let nx = uy * vz - uz * vy;
@@ -494,8 +521,8 @@ export class BundaranSiteBuilder {
           let nz = ux * vy - uy * vx;
           const nl = Math.hypot(nx, ny, nz) || 1;
           nx /= nl; ny /= nl; nz /= nl;
-          if (ny < 0) {
-            return pushTri(a, c, b);
+          if ((wantUp && ny < 0) || (!wantUp && ny > 0)) {
+            return pushTriSigned(a, c, b, wantUp);
           }
           for (const pt of [a, b, c]) {
             pos.push(pt[0], pt[1], pt[2]);
@@ -504,11 +531,17 @@ export class BundaranSiteBuilder {
           }
         };
 
-        // Left & right leaflets of the V-ribbed frond
-        pushTri(c0, l0, l1);
-        pushTri(c0, l1, c1);
-        pushTri(c0, c1, rgt1);
-        pushTri(c0, rgt1, rgt0);
+        // Top sun-lit leaflets of the V-ribbed frond (visible from above & oblique)
+        pushTriSigned(c0, l0, l1, true);
+        pushTriSigned(c0, l1, c1, true);
+        pushTriSigned(c0, c1, rgt1, true);
+        pushTriSigned(c0, rgt1, rgt0, true);
+
+        // 3D Thickened Underside leaflets & central rachis keel (visible from FPV Runner eye level below!)
+        pushTriSigned(c0Bot, l1Bot, l0Bot, false);
+        pushTriSigned(c0Bot, c1Bot, l1Bot, false);
+        pushTriSigned(c0Bot, rgt1Bot, c1Bot, false);
+        pushTriSigned(c0Bot, rgt0Bot, rgt1Bot, false);
       }
     }
 

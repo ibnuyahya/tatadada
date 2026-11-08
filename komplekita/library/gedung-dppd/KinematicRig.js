@@ -35,14 +35,14 @@ export class DPPDKinematicRig {
     localGroup.add(finial);
 
     // 2. Dynamic Breeze-Animated Vertical Hanging Cloth Banner on Right Gold Ladder Frame (ref_084, ref_082)
+    //    Built as a True-3D Thickened Cloth Slab (BoxGeometry depth = 0.028m) + Top & Bottom Horizontal Gold Mounting Bars!
     const bannerUniforms = {
       uTime: { value: 0.0 },
       uWind: { value: 1.0 }
     };
 
-    const bannerGeo = new THREE.PlaneGeometry(0.58, 3.85, 6, 18);
+    const bannerGeo = new THREE.BoxGeometry(0.58, 3.85, 0.028, 6, 18, 1);
     const bannerMat = new THREE.ShaderMaterial({
-      side: THREE.DoubleSide,
       uniforms: bannerUniforms,
       vertexShader: `
         uniform float uTime;
@@ -52,9 +52,10 @@ export class DPPDKinematicRig {
         void main() {
           vUv = uv;
           vec3 p = position;
-          // Top edge pinned at uv.y = 1.0, lower cloth drapes & flutters in afternoon breeze (ref_084)
-          float drape = smoothstep(1.0, 0.0, uv.y);
-          float w = sin(uv.y * 6.5 - uTime * 3.2) * 0.09 + cos(uv.x * 5.0 + uv.y * 10.0 - uTime * 4.5) * 0.04;
+          float normY = clamp((p.y + 1.925) / 3.85, 0.0, 1.0);
+          // Top edge pinned at normY = 1.0, lower 3D cloth slab drapes & flutters in afternoon breeze (ref_084)
+          float drape = smoothstep(1.0, 0.0, normY);
+          float w = sin(normY * 6.5 - uTime * 3.2) * 0.09 + cos(p.x * 5.0 + normY * 10.0 - uTime * 4.5) * 0.04;
           p.z += w * drape * uWind;
           p.x += (0.12 * drape * drape) + 0.03 * sin(uTime * 2.4) * drape;
           vFold = w * drape;
@@ -87,6 +88,14 @@ export class DPPDKinematicRig {
     bannerMesh.position.set(10.22, 2.32, 66.58);
     bannerMesh.userData.dynamicKinematic = true;
     localGroup.add(bannerMesh);
+
+    // 3D Horizontal Top & Bottom Weighted Banner Mounting Rods clamping the banner to the gold truss
+    for (const ry of [4.24, 0.42]) {
+      const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.68, 8), materials.goldAccent);
+      rod.rotation.z = Math.PI * 0.5;
+      rod.position.set(10.25, ry, 66.58);
+      localGroup.add(rod);
+    }
 
     return {
       update(dt, telemetry = {}) {

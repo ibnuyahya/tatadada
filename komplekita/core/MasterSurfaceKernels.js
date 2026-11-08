@@ -330,56 +330,163 @@ export class NexusSSoSTKernel {
   }
 
   /**
-   * Builds a watertight 4-wing Courtyard Hip/Limasan Roof (for ITTC Perpustakaan Lama 34m x 34m w/ 14m courtyard).
+   * Pushes a True-3D Thickened & Stepped-Course Terracotta Roof Quad (or Triangle when p2==p3)
+   * into (pos, norm, uvs) buffers.
+   * - Generates 3D overlapping horizontal tile courses with physical step lips (stepHeight = 0.028m)
+   * - Generates 3D solid slab thickness along the eave edge, ridge edge, and side verges (slabThickness = 0.11m)
+   * - Generates 3D corrugated ceramic eave drip-tile nosings ("profil gelombang genteng cucuran 3D") along the eave edge!
+   */
+  static pushThickSteppedRoofQuad(pos, norm, uvs, inP0, inP1, inP2, inP3, opts = {}) {
+    const tileM = opts.uvTileMeters || 1.8;
+    const courses = opts.courses || 9;
+    const stepH = opts.stepHeight ?? 0.028;
+    const slabThick = opts.slabThickness ?? 0.10;
+    const addEaveNosings = opts.eaveNosings !== false;
+
+    let p0 = inP0;
+    let p1 = inP1;
+    let p2 = inP2;
+    let p3 = inP3;
+
+    const v0 = new THREE.Vector3(...p0);
+    const v1 = new THREE.Vector3(...p1);
+    const v2 = new THREE.Vector3(...p2);
+    const v3 = new THREE.Vector3(...p3);
+
+    // Ensure upward normal (+Y) while keeping (p0, p1) at the lower eave and (p3, p2) at the upper ridge
+    const e1 = new THREE.Vector3().subVectors(v1, v0);
+    const e2 = new THREE.Vector3().subVectors(v3, v0);
+    if (e2.lengthSq() < 1e-6) e2.subVectors(v2, v0);
+    const fn = new THREE.Vector3().crossVectors(e1, e2).normalize();
+    if (fn.y < 0) {
+      p0 = inP1;
+      p1 = inP0;
+      p2 = inP3;
+      p3 = inP2;
+      fn.negate();
+    }
+
+    const downDir = new THREE.Vector3(
+      0.5 * (p0[0] + p1[0] - p2[0] - p3[0]),
+      0.5 * (p0[1] + p1[1] - p2[1] - p3[1]),
+      0.5 * (p0[2] + p1[2] - p2[2] - p3[2])
+    ).normalize();
+
+    const emitTri = (a, b, c, nVec) => {
+      for (const pt of [a, b, c]) {
+        pos.push(pt[0], pt[1], pt[2]);
+        norm.push(nVec.x, nVec.y, nVec.z);
+        uvs.push(pt[0] / tileM, (pt[2] + pt[1]) / tileM);
+      }
+    };
+    const emitQuad = (a, b, c, d, nVec) => {
+      emitTri(a, b, c, nVec);
+      emitTri(a, c, d, nVec);
+    };
+
+    const lerp3 = (a, b, t) => [
+      a[0] + (b[0] - a[0]) * t,
+      a[1] + (b[1] - a[1]) * t,
+      a[2] + (b[2] - a[2]) * t
+    ];
+    const offset3 = (a, n, dist) => [
+      a[0] + n.x * dist,
+      a[1] + n.y * dist,
+      a[2] + n.z * dist
+    ];
+
+    // 1. Stepped 3D overlapping tile courses from eave (t=0) to ridge (t=1)
+    for (let k = 0; k < courses; k++) {
+      const t0 = k / courses;
+      const t1 = (k + 1) / courses;
+      const lBotBase = lerp3(p0, p3, t0);
+      const rBotBase = lerp3(p1, p2, t0);
+      const lTopBase = lerp3(p0, p3, t1);
+      const rTopBase = lerp3(p1, p2, t1);
+
+      const lBotUp = offset3(lBotBase, fn, stepH);
+      const rBotUp = offset3(rBotBase, fn, stepH);
+      const lTopUp = offset3(lTopBase, fn, 0.005);
+      const rTopUp = offset3(rTopBase, fn, 0.005);
+
+      // Upper weathered ceramic tile slope of course k
+      emitQuad(lBotUp, rBotUp, rTopUp, lTopUp, fn);
+
+      // 3D vertical front overlap lip of course k (gives visible depth to every tile row!)
+      const lBotLow = offset3(lBotBase, fn, k === 0 ? -slabThick : 0.003);
+      const rBotLow = offset3(rBotBase, fn, k === 0 ? -slabThick : 0.003);
+      emitQuad(lBotLow, rBotLow, rBotUp, lBotUp, downDir);
+    }
+
+    // 2. Solid 3D Slab Side Verges & Underside Back-Face Thickness
+    const b0 = offset3(p0, fn, -slabThick);
+    const b1 = offset3(p1, fn, -slabThick);
+    const b2 = offset3(p2, fn, -slabThick);
+    const b3 = offset3(p3, fn, -slabThick);
+    const t0 = offset3(p0, fn, stepH);
+    const t1 = offset3(p1, fn, stepH);
+    const t2 = offset3(p2, fn, 0.005);
+    const t3 = offset3(p3, fn, 0.005);
+
+    const botNorm = fn.clone().negate();
+    emitQuad(b0, b3, b2, b1, botNorm);
+
+    const sideLNorm = new THREE.Vector3().crossVectors(fn, new THREE.Vector3().subVectors(new THREE.Vector3(...p3), new THREE.Vector3(...p0))).normalize();
+    const sideRNorm = new THREE.Vector3().crossVectors(new THREE.Vector3().subVectors(new THREE.Vector3(...p2), new THREE.Vector3(...p1)), fn).normalize();
+    emitQuad(b3, b0, t0, t3, sideLNorm);
+    emitQuad(b1, b2, t2, t1, sideRNorm);
+
+    // 3. 3D Corrugated Ceramic Eave Drip-Tile Nosings ("genteng list cucuran 3D") along the eave edge (p0 -> p1)
+    const eaveLen = Math.hypot(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]);
+    if (addEaveNosings && eaveLen > 0.6) {
+      const tilePitch = 0.34;
+      const nTiles = Math.min(64, Math.max(2, Math.floor(eaveLen / tilePitch)));
+      const eaveTang = new THREE.Vector3(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]).normalize();
+      for (let i = 0; i < nTiles; i++) {
+        const uA = (i + 0.14) / nTiles;
+        const uB = (i + 0.86) / nTiles;
+        const eA = lerp3(p0, p1, uA);
+        const eB = lerp3(p0, p1, uB);
+        const eBackA = lerp3(eA, lerp3(p3, p2, 0.5 * (uA + uB)), 0.055);
+        const eBackB = lerp3(eB, lerp3(p3, p2, 0.5 * (uA + uB)), 0.055);
+
+        const crownH = stepH + 0.034;
+        const fA = offset3(eA, fn, crownH);
+        const fB = offset3(eB, fn, crownH);
+        const fBotA = offset3(eA, fn, -0.02);
+        const fBotB = offset3(eB, fn, -0.02);
+        const bkA = offset3(eBackA, fn, stepH * 0.6);
+        const bkB = offset3(eBackB, fn, stepH * 0.6);
+
+        // Front lip, top arch, and side cheeks of each 3D ceramic eave tile
+        emitQuad(fBotA, fBotB, fB, fA, downDir);
+        emitQuad(fA, fB, bkB, bkA, fn);
+        emitTri(fBotA, fA, bkA, eaveTang.clone().negate());
+        emitTri(fBotB, bkB, fB, eaveTang);
+      }
+    }
+  }
+
+  /**
+   * Builds a watertight 4-wing Courtyard Hip/Limasan Roof (for ITTC Perpustakaan Lama 42m x 42m w/ 16m courtyard).
    * Outer eave square: [-halfOut, +halfOut], Inner courtyard eave square: [-halfIn, +halfIn],
    * Continuous square ridge loop at halfRidge = 0.5*(halfOut + halfIn) at y = ridgeY, eaves at y = eaveY.
-   * Includes flat underside soffit and returns { roofGeo, soffitGeo, ridgePointsList }.
+   * Includes 3D stepped tile courses, 3D slab thickness, 3D corrugated eave tile nosings, and flat underside soffit.
    */
   static createSquareCourtyardLimasanRoof(halfOut, halfIn, eaveY, ridgeY, uvTileMeters = 2.0) {
     const halfRidge = 0.5 * (halfOut + halfIn);
     const pos = [];
     const norm = [];
     const uvs = [];
-    const vA = new THREE.Vector3();
-    const vB = new THREE.Vector3();
-    const vC = new THREE.Vector3();
-    const e1 = new THREE.Vector3();
-    const e2 = new THREE.Vector3();
-    const fn = new THREE.Vector3();
 
     const pushQuad = (p0, p1, p2, p3) => {
-      vA.set(p0[0], p0[1], p0[2]);
-      vB.set(p1[0], p1[1], p1[2]);
-      vC.set(p2[0], p2[1], p2[2]);
-      e1.subVectors(vB, vA);
-      e2.subVectors(vC, vA);
-      fn.crossVectors(e1, e2).normalize();
-      if (fn.y < 0) {
-        // Flip winding so roof normal points upward (+Y)
-        return pushQuad(p0, p3, p2, p1);
-      }
-      const uLenBottom = Math.hypot(p1[0] - p0[0], p1[2] - p0[2]) / uvTileMeters;
-      const uLenTop = Math.hypot(p2[0] - p3[0], p2[2] - p3[2]) / uvTileMeters;
-      const slopeLen = Math.hypot(
-        0.5 * (p2[0] + p3[0] - p0[0] - p1[0]),
-        p2[1] - p0[1],
-        0.5 * (p2[2] + p3[2] - p0[2] - p1[2])
-      ) / uvTileMeters;
-      const uTrim = 0.5 * (uLenBottom - uLenTop);
-
-      const triVerts = [
-        [p0, [0, 0]],
-        [p1, [uLenBottom, 0]],
-        [p2, [uLenBottom - uTrim, slopeLen]],
-        [p0, [0, 0]],
-        [p2, [uLenBottom - uTrim, slopeLen]],
-        [p3, [uTrim, slopeLen]]
-      ];
-      for (const [pt, uv] of triVerts) {
-        pos.push(pt[0], pt[1], pt[2]);
-        norm.push(fn.x, fn.y, fn.z);
-        uvs.push(uv[0], uv[1]);
-      }
+      NexusSSoSTKernel.pushThickSteppedRoofQuad(pos, norm, uvs, p0, p1, p2, p3, {
+        uvTileMeters,
+        courses: 10,
+        stepHeight: 0.030,
+        slabThickness: 0.12,
+        eaveNosings: true
+      });
     };
 
     // 4 cardinal directions: South (+Z), East (+X), North (-Z), West (-X)
@@ -425,7 +532,7 @@ export class NexusSSoSTKernel {
     const addSoffitTrap = (a, b, c, d) => {
       const tris = [a, c, b, a, d, c];
       for (const pt of tris) {
-        sPos.push(pt[0], eaveY - 0.02, pt[2]);
+        sPos.push(pt[0], eaveY - 0.12, pt[2]);
         sNorm.push(0, -1, 0);
         sUv.push(pt[0] / 3.0, pt[2] / 3.0);
       }
@@ -442,7 +549,7 @@ export class NexusSSoSTKernel {
     soffitGeo.computeBoundingBox();
     soffitGeo.computeBoundingSphere();
 
-    const toV3 = (arr) => new THREE.Vector3(arr[0], arr[1] + 0.04, arr[2]);
+    const toV3 = (arr) => new THREE.Vector3(arr[0], arr[1] + 0.055, arr[2]);
     const ridgePointsList = [
       // Main top ridge loop (4 segments)
       [toV3(rSW), toV3(rSE)],

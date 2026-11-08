@@ -261,24 +261,18 @@ export class DPPDPrimaryStructure {
     const uvs = [];
     const ridgeCaps = [];
 
-    const pushTri = (a, b, c, tileM = 1.8) => {
-      const vA = new THREE.Vector3(...a);
-      const vB = new THREE.Vector3(...b);
-      const vC = new THREE.Vector3(...c);
-      const fn = new THREE.Vector3().subVectors(vB, vA).cross(new THREE.Vector3().subVectors(vC, vA)).normalize();
-      if (fn.y < 0) {
-        return pushTri(a, c, b, tileM);
-      }
-      for (const pt of [a, b, c]) {
-        pos.push(pt[0], pt[1], pt[2]);
-        norm.push(fn.x, fn.y, fn.z);
-        uvs.push(pt[0] / tileM, (pt[2] + pt[1]) / tileM);
-      }
+    const pushQuad = (a, b, c, d, tileM = 1.8, opts = {}) => {
+      NexusSSoSTKernel.pushThickSteppedRoofQuad(pos, norm, uvs, a, b, c, d, {
+        uvTileMeters: tileM,
+        courses: opts.courses || 10,
+        stepHeight: opts.stepHeight ?? 0.028,
+        slabThickness: opts.slabThickness ?? 0.08,
+        eaveNosings: opts.eaveNosings !== false
+      });
     };
 
-    const pushQuad = (a, b, c, d, tileM = 1.8) => {
-      pushTri(a, b, c, tileM);
-      pushTri(a, c, d, tileM);
+    const pushTri = (a, b, c, tileM = 1.8, opts = {}) => {
+      pushQuad(a, b, c, c, tileM, opts);
     };
 
     const ptPol = (r, a, y) => [r * Math.sin(a), y, r * Math.cos(a)];
@@ -370,9 +364,9 @@ export class DPPDPrimaryStructure {
     const vEaveL = ptPol(rEaveOut, -alphaEaveVal, eaveY);
     const vEaveR = ptPol(rEaveOut, alphaEaveVal, eaveY);
 
-    // Left & Right 100% Planar Gable Slopes
-    pushQuad(fLeft, vEaveL, bPeak, fPeak, 1.7);
-    pushQuad(vEaveR, fRight, fPeak, bPeak, 1.7);
+    // Left & Right 100% Planar Gable Slopes with 12 3D Stepped Tile Courses & Corrugated Eave Nosings
+    pushQuad(fLeft, vEaveL, bPeak, fPeak, 1.7, { courses: 12, stepHeight: 0.030, slabThickness: 0.08, eaveNosings: true });
+    pushQuad(vEaveR, fRight, fPeak, bPeak, 1.7, { courses: 12, stepHeight: 0.030, slabThickness: 0.08, eaveNosings: true });
 
     // Main Gable Center Ridge Cap (from front apex to T-junction on main curved ridge)
     ridgeCaps.push([new THREE.Vector3(...fPeak), new THREE.Vector3(...bPeak)]);
@@ -392,21 +386,22 @@ export class DPPDPrimaryStructure {
     // Eave Soffits & Dark Fascia Boards along Wing Roofs
     const toPhi = (alpha) => Math.PI * 0.5 - alpha;
     NexusSSoSTKernel.addCurvedPolarBand(
-      parent, materials.creamStucco, toPhi(alphaSE), toPhi(alphaNW), rEaveIn, rEaveOut, eaveY - 0.14, eaveY - 0.01, 42,
+      parent, materials.creamStucco, toPhi(alphaSE), toPhi(alphaNW), rEaveIn, rEaveOut, eaveY - 0.18, eaveY - 0.08, 42,
       { top: true, bottom: true, outer: true, inner: true, startCap: true, endCap: true, castShadow: false }
     );
     NexusSSoSTKernel.addCurvedPolarBand(
-      parent, materials.darkMetal, toPhi(alphaSE), toPhi(alphaEaveVal - 0.2 * DEG), rEaveOut - 0.08, rEaveOut + 0.04, eaveY - 0.24, eaveY + 0.04, 18,
+      parent, materials.darkMetal, toPhi(alphaSE), toPhi(alphaEaveVal - 0.2 * DEG), rEaveOut - 0.08, rEaveOut + 0.04, eaveY - 0.24, eaveY + 0.02, 18,
       { bottom: false, uvMetersPerTile: 3.0 }
     );
     NexusSSoSTKernel.addCurvedPolarBand(
-      parent, materials.darkMetal, toPhi(-alphaEaveVal + 0.2 * DEG), toPhi(alphaNW), rEaveOut - 0.08, rEaveOut + 0.04, eaveY - 0.24, eaveY + 0.04, 18,
+      parent, materials.darkMetal, toPhi(-alphaEaveVal + 0.2 * DEG), toPhi(alphaNW), rEaveOut - 0.08, rEaveOut + 0.04, eaveY - 0.24, eaveY + 0.02, 18,
       { bottom: false, uvMetersPerTile: 3.0 }
     );
 
     // 3D Ceramic Ridge Caps along Wing & Gable Ridges/Hips
     for (const pts of ridgeCaps) {
-      const cGeo = NexusSSoSTKernel.createRidgeCapStrip(pts, 0.12, 6);
+      const raisedPts = pts.map((p) => new THREE.Vector3(p.x, p.y + 0.035, p.z));
+      const cGeo = NexusSSoSTKernel.createRidgeCapStrip(raisedPts, 0.14, 6);
       if (cGeo) {
         const cm = new THREE.Mesh(cGeo, materials.terracottaBrick);
         cm.castShadow = true;
@@ -415,14 +410,14 @@ export class DPPDPrimaryStructure {
     }
 
     // E. Full-Depth Watertight Cream Gable Attic Prism + Ceiling Soffit Slab (eliminates thin floating triangle!)
-    //    Extends from tympZFront = 57.95m back to tympZBack = 55.20m (strictly 26cm below roof plane so zero white shows on top!)
+    //    Extends from tympZFront = 57.95m back to tympZBack = 55.20m (strictly 32cm below roof plane so zero white shows on top!)
     const tympZFront = 57.95;
     const tympZBack = 55.20;
     const tympDepth = tympZFront - tympZBack;
     const tympShape = new THREE.Shape();
-    tympShape.moveTo(-gableHalfW + 0.05, eaveY - 0.12);
-    tympShape.lineTo(gableHalfW - 0.05, eaveY - 0.12);
-    tympShape.lineTo(0, wingRidgeY - 0.26);
+    tympShape.moveTo(-gableHalfW + 0.05, eaveY - 0.16);
+    tympShape.lineTo(gableHalfW - 0.05, eaveY - 0.16);
+    tympShape.lineTo(0, wingRidgeY - 0.32);
     tympShape.closePath();
 
     const tympGeo = new THREE.ExtrudeGeometry(tympShape, { depth: tympDepth, bevelEnabled: false });
@@ -432,15 +427,15 @@ export class DPPDPrimaryStructure {
     tympMesh.receiveShadow = true;
     parent.add(tympMesh);
 
-    // Solid Horizontal Gable Eave Ceiling Soffit closing the underside from z = 54.0m to zFront = 59.35m
+    // Solid Horizontal Gable Eave Ceiling Soffit closing the underside strictly from vEaveL[2] (57.44m) to zFront (59.35m)
     const gableBaseSoffit = new THREE.Mesh(
-      new THREE.BoxGeometry(gHalfOut * 2 - 0.12, 0.16, zFront - 54.0),
+      new THREE.BoxGeometry(gHalfOut * 2 - 0.16, 0.14, zFront - vEaveL[2]),
       materials.creamStucco
     );
-    gableBaseSoffit.position.set(0, eaveY - 0.14, 0.5 * (54.0 + zFront));
+    gableBaseSoffit.position.set(0, eaveY - 0.18, 0.5 * (vEaveL[2] + zFront));
     parent.add(gableBaseSoffit);
 
-    // Deep front gable overhang soffit (18cm below terracotta roof!) & crisp dark terracotta-brown bargeboards
+    // Deep front gable overhang soffit (24cm below terracotta roof!) & 3D ceramic verge tile caps + dark bargeboards
     for (const sgn of [-1, 1]) {
       const xa = sgn * gHalfOut;
       const ya = eaveY;
@@ -454,33 +449,34 @@ export class DPPDPrimaryStructure {
         new THREE.BoxGeometry(slopeLen - 0.30, 0.06, soffitDepth),
         materials.creamStucco
       );
-      soffit.position.set(0.5 * (xa + xb), 0.5 * (ya + yb) - 0.22, tympZFront + soffitDepth * 0.5 - 0.12);
+      soffit.position.set(0.5 * (xa + xb), 0.5 * (ya + yb) - 0.24, tympZFront + soffitDepth * 0.5 - 0.12);
       soffit.rotation.z = ang;
       parent.add(soffit);
 
       const barge = new THREE.Mesh(
-        new THREE.BoxGeometry(slopeLen + 0.14, 0.26, 0.16),
+        new THREE.BoxGeometry(slopeLen + 0.14, 0.24, 0.16),
         materials.darkMetal
       );
-      barge.position.set(0.5 * (xa + xb), 0.5 * (ya + yb) - 0.04, zFront + 0.02);
+      barge.position.set(0.5 * (xa + xb), 0.5 * (ya + yb) - 0.11, zFront + 0.01);
       barge.rotation.z = ang;
       parent.add(barge);
 
       const vergeCap = new THREE.Mesh(
-        new THREE.BoxGeometry(slopeLen + 0.18, 0.10, 0.24),
+        new THREE.BoxGeometry(slopeLen + 0.18, 0.12, 0.28),
         materials.terracottaRoof
       );
-      vergeCap.position.set(0.5 * (xa + xb), 0.5 * (ya + yb) + 0.08, zFront + 0.01);
+      vergeCap.position.set(0.5 * (xa + xb), 0.5 * (ya + yb) + 0.06, zFront + 0.02);
       vergeCap.rotation.z = ang;
+      vergeCap.castShadow = true;
       parent.add(vergeCap);
 
-      // Horizontal side eave fascia board connecting wing fascia at vEaveL/R (z = 57.42m) to front gable corner (z = 60.85m)
+      // Horizontal side eave fascia board connecting wing fascia at vEaveL/R (z = 57.42m) to front gable corner (z = 59.35m)
       const sideFasciaLen = zFront - vEaveL[2] + 0.08;
       const sideFascia = new THREE.Mesh(
-        new THREE.BoxGeometry(0.12, 0.26, sideFasciaLen),
+        new THREE.BoxGeometry(0.12, 0.24, sideFasciaLen),
         materials.darkMetal
       );
-      sideFascia.position.set(sgn * (gHalfOut - 0.04), eaveY - 0.10, 0.5 * (vEaveL[2] + zFront));
+      sideFascia.position.set(sgn * (gHalfOut - 0.04), eaveY - 0.12, 0.5 * (vEaveL[2] + zFront));
       parent.add(sideFascia);
     }
 
