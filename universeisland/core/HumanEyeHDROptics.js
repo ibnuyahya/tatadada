@@ -289,18 +289,21 @@ export class HumanEyeHDROptics {
         float stormC = clamp(stormFactor, 0.0, 1.0);
         float fogC = clamp(fogFactor, 0.0, 1.0);
         float gMode = clamp(uGenshinMode, 0.0, 1.0);
+        float fMode = clamp(-uGenshinMode, 0.0, 1.0);
 
         vec2 dirXZ = normalize(rayDir.xz + vec2(1e-5, 0.0));
         vec2 sunXZ = normalize(sunDir.xz + vec2(1e-5, 0.0));
         float cosAzSun = dot(dirXZ, sunXZ);
 
-        vec3 dayHorS = mix(vec3(0.62, 0.78, 0.92), vec3(0.55, 0.80, 0.96), gMode * 0.85);
+        vec3 dayHorS = mix(mix(vec3(0.62, 0.78, 0.92), vec3(0.55, 0.80, 0.96), gMode * 0.85), vec3(0.52, 0.73, 0.95), fMode * 0.78);
         vec3 duskHorPBR = mix(vec3(0.52, 0.56, 0.68), vec3(0.94, 0.47, 0.20), smoothstep(-0.35, 0.85, cosAzSun));
         vec3 duskHorGenshin = mix(vec3(0.58, 0.49, 0.86), vec3(1.00, 0.52, 0.28), smoothstep(-0.35, 0.85, cosAzSun));
-        vec3 duskHorS = mix(duskHorPBR, duskHorGenshin, gMode * 0.88);
+        vec3 duskHorForza = mix(vec3(0.42, 0.50, 0.72), vec3(0.99, 0.43, 0.15), smoothstep(-0.35, 0.85, cosAzSun));
+        vec3 duskHorS = mix(mix(duskHorPBR, duskHorGenshin, gMode * 0.88), duskHorForza, fMode * 0.82);
         vec3 nightHorPBR = vec3(0.084, 0.122, 0.192) + vec3(0.042, 0.062, 0.104) * clamp(lunarSkyScatter, 0.0, 1.0);
         vec3 nightHorGenshin = vec3(0.095, 0.168, 0.345) + vec3(0.055, 0.095, 0.175) * clamp(lunarSkyScatter, 0.0, 1.0);
-        vec3 nightHorS = mix(nightHorPBR, nightHorGenshin, gMode * 0.78);
+        vec3 nightHorForza = vec3(0.068, 0.105, 0.182) + vec3(0.038, 0.058, 0.102) * clamp(lunarSkyScatter, 0.0, 1.0);
+        vec3 nightHorS = mix(mix(nightHorPBR, nightHorGenshin, gMode * 0.78), nightHorForza, fMode * 0.75);
         vec3 horS = mix(mix(dayHorS, duskHorS, duskC), nightHorS, nightC);
 
         // Unified Anti-Solar Belt of Venus & Earth's Shadow Arch across Sky, Sea, & Aerial Perspective
@@ -357,10 +360,11 @@ export class HumanEyeHDROptics {
         float nightC = clamp(nightFactor, 0.0, 1.0);
         float fogC = clamp(fogFactor, 0.0, 1.0);
         float gMode = clamp(uGenshinMode, 0.0, 1.0);
+        float fMode = clamp(-uGenshinMode, 0.0, 1.0);
 
         float sigmaBL = 0.00028 + 0.00105 * rainC + 0.00024 * cloudC + 0.00245 * fogC;
         float tauAir = effDist * (sigmaBL * clamp(meanBL, 0.0, 1.0) + 0.000038 + 0.00012 * fogC);
-        tauAir *= mix(1.0, 1.36, gMode);
+        tauAir *= mix(mix(1.0, 1.36, gMode), 0.88, fMode);
         float hazeFactor = clamp(1.0 - exp(-tauAir), 0.0, mix(0.86, 0.88, fogC));
 
         vec3 rayDir = rayVec / max(dist, 1e-4);
@@ -453,14 +457,16 @@ export class HumanEyeHDROptics {
         float shadowToe = hvsGlare.z;
         float whitePt = max(2.2, hvsGlare.w);
         float gMode = clamp(uGenshinMode, 0.0, 1.0);
+        float fMode = clamp(-uGenshinMode, 0.0, 1.0);
+        whitePt *= (1.0 + 0.16 * fMode);
 
         // 1. Dynamic Pupillary & Retinal Gain + Zero-Preserving Bipolar Shadow-Toe Micro-Lift
-        vec3 c = max(hdrLinear, vec3(0.0)) * (eyeGain * mix(1.0, 1.08, gMode));
-        c += (shadowToe + 0.022 * gMode) * (c / (c + vec3(0.11))) * mix(vec3(1.0), vec3(0.78, 0.90, 1.14), gMode);
+        vec3 c = max(hdrLinear, vec3(0.0)) * (eyeGain * mix(mix(1.0, 1.08, gMode), 1.04, fMode));
+        c += (shadowToe * (1.0 - 0.34 * fMode) + 0.022 * gMode) * (c / (c + vec3(0.11))) * mix(vec3(1.0), vec3(0.78, 0.90, 1.14), gMode);
 
         // 2. Spencer-Shirley Intraocular Ciliary Solar Scatter & Plasma Lightning Veil
         float cosSun = max(dot(rayFromCam, sunDir), 0.0);
-        float ciliaryScatter = (pow(cosSun, 5.0) * (0.026 + 0.018 * gMode) + pow(cosSun, 24.0) * (0.062 + 0.032 * gMode)) * sunGlareVis;
+        float ciliaryScatter = (pow(cosSun, 5.0) * (0.026 + 0.018 * gMode + 0.012 * fMode) + pow(cosSun, 24.0) * (0.062 + 0.032 * gMode + 0.028 * fMode)) * sunGlareVis;
         c += sunColor * ciliaryScatter + vec3(0.62, 0.76, 1.0) * lightningVeil * 0.075;
 
         // 3. AgX-Inspired Cross-Talk Inset + Normalized Naka-Rushton Photoreceptor Response
@@ -478,8 +484,8 @@ export class HumanEyeHDROptics {
         );
         vec3 cInset = mix(AGX_INSET * c, c, gMode * 0.55);
 
-        float sigma = mix(0.57, 0.50, gMode);
-        float effSlope = mix(nSlope, max(1.02, nSlope * 0.93), gMode);
+        float sigma = mix(mix(0.57, 0.50, gMode), 0.54, fMode);
+        float effSlope = mix(mix(nSlope, max(1.02, nSlope * 0.93), gMode), nSlope * 1.08, fMode);
         float sigmaPow = pow(sigma, effSlope);
         float normScale = (pow(whitePt, effSlope) + sigmaPow) / pow(whitePt, effSlope);
 
@@ -489,7 +495,7 @@ export class HumanEyeHDROptics {
         vec3 cConeBleach = nexusNakaRushtonVec3(cInset, effSlope, sigmaPow, normScale);
 
         // Smooth filmic highlight shoulder desaturation above Y > 0.30
-        float bleachT = smoothstep(0.28, 1.65, lumIn) * 0.78 * mix(1.0, 0.52, gMode);
+        float bleachT = smoothstep(0.28, 1.65, lumIn) * 0.78 * mix(mix(1.0, 0.52, gMode), 0.85, fMode);
         vec3 mappedInset = mix(cHuePreserved, cConeBleach, bleachT);
         vec3 mapped = max(vec3(0.0), mix(AGX_OUTSET * mappedInset, mappedInset, smoothstep(0.45, 0.96, lumNR) * 0.72));
 
@@ -500,7 +506,9 @@ export class HumanEyeHDROptics {
         float satEst = (maxCh - minCh) / max(maxCh, 1e-4);
         // Protect already-saturated pigments from over-boosting while keeping subtle mineral/earth nuances rich
         float chromaGuard = (1.0 - 0.68 * smoothstep(0.58, 0.96, lumOut)) * (1.0 - 0.32 * smoothstep(0.55, 0.92, satEst));
-        float effChroma = mix(1.0, huntChroma, chromaGuard) * mix(1.0, 1.16, gMode * (1.0 - 0.55 * smoothstep(0.65, 0.96, lumOut)));
+        float effChroma = mix(1.0, huntChroma, chromaGuard)
+                        * mix(1.0, 1.16, gMode * (1.0 - 0.55 * smoothstep(0.65, 0.96, lumOut)))
+                        * mix(1.0, 1.13, fMode * (1.0 - 0.45 * smoothstep(0.68, 0.96, lumOut)));
         mapped = max(vec3(0.0), vec3(lumOut) + (mapped - vec3(lumOut)) * effChroma);
 
         // Genshin Warm-Sunlit / Cool-Cerulean-Shadow Split-Tone Grading (Tahap 1)
@@ -511,6 +519,16 @@ export class HumanEyeHDROptics {
           vec3 warmLitG = mapped * vec3(1.045, 1.018, 0.955);
           mapped = mix(mapped, coolShadowG, shadowMaskG * gMode * 0.52);
           mapped = mix(mapped, warmLitG, litMaskG * gMode * 0.48);
+        }
+
+        // ForzaTech Next-Gen Photorealistic HDR Polarized Sky-Shadow & Crisp Solar Highlight Grading
+        if (fMode > 0.001) {
+          float shadowMaskF = (1.0 - smoothstep(0.05, 0.44, lumOut)) * (1.0 - purkinjeMix * 0.80);
+          float litMaskF = smoothstep(0.40, 0.92, lumOut) * (1.0 - purkinjeMix * 0.80);
+          vec3 deepShadowF = mapped * vec3(0.88, 0.93, 1.06);
+          vec3 crispLitF = mapped * vec3(1.035, 1.012, 0.975);
+          mapped = mix(mapped, deepShadowF, shadowMaskF * fMode * 0.38);
+          mapped = mix(mapped, crispLitF, litMaskF * fMode * 0.34);
         }
 
         // 5. Purkinje Mesopic/Scotopic Rod Shift (507nm blue-cyan rod sensitivity below cone threshold)

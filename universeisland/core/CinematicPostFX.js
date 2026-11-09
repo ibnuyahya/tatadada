@@ -261,12 +261,14 @@ export class CinematicPostFX {
 
         void main() {
           vec4 sceneSample = texture2D(uSceneTex, vUv);
+          float gMode = clamp(uGenshinMode, 0.0, 1.0);
+          float fMode = clamp(-uGenshinMode, 0.0, 1.0);
 
-          // Preserve CSS3D YouTube Videotron punch-through alpha while coupling Dual-Kawase bloom & Genshin halation!
+          // Preserve CSS3D YouTube Videotron punch-through alpha while coupling Dual-Kawase bloom & Genshin/Forza halation!
           if (sceneSample.a < 0.99) {
             vec3 bLin = srgbToLin(texture2D(uBloomTex, vUv).rgb);
-            float bW = (mix(0.085, 0.22, uDroneCinemaBlend) + 0.16 * uNightFactor + 0.08 * uDuskFactor + 0.15 * uGenshinMode) * 0.45;
-            vec3 bTint = mix(vec3(1.0), vec3(1.05, 1.01, 0.94), uGenshinMode * 0.65);
+            float bW = (mix(0.085, 0.22, uDroneCinemaBlend) + 0.16 * uNightFactor + 0.08 * uDuskFactor + 0.15 * gMode + 0.11 * fMode) * 0.45;
+            vec3 bTint = mix(vec3(1.0), vec3(1.05, 1.01, 0.94), gMode * 0.65);
             vec3 bSrgb = linToSrgb(bLin * bTint * bW);
             vec3 pRgb = clamp(sceneSample.rgb + bSrgb, 0.0, 1.0);
             float pAlpha = clamp(sceneSample.a + dot(bSrgb, vec3(0.2126, 0.7152, 0.0722)) * 0.18, 0.032, 0.94);
@@ -286,24 +288,39 @@ export class CinematicPostFX {
           float lumaBlur = dot(blurCross, vec3(0.2126, 0.7152, 0.0722));
           float localDiff = lumaCenter - lumaBlur;
           float haloGuard = 1.0 - smoothstep(0.08, 0.28, abs(localDiff));
-          float acuityStrength = mix(0.11, 0.14, uDroneCinemaBlend) * haloGuard;
+          float acuityStrength = mix(mix(0.11, 0.14, uDroneCinemaBlend), 0.175, fMode) * haloGuard;
           colLin = max(vec3(0.0), colLin + colLin * (localDiff / max(lumaCenter, 0.04)) * acuityStrength);
 
           // Dual-Kawase Highlight Scatter + Nocturnal/Dusk Emissive Videotron & Streetlamp Halation:
           vec3 bloomLin = srgbToLin(texture2D(uBloomTex, vUv).rgb);
-          float bloomWeight = mix(0.085, 0.22, uDroneCinemaBlend) + 0.16 * uNightFactor + 0.08 * uDuskFactor + 0.15 * uGenshinMode;
-          vec3 bloomTint = mix(vec3(1.0), vec3(1.05, 1.01, 0.94), uGenshinMode * 0.65);
+          float bloomWeight = mix(0.085, 0.22, uDroneCinemaBlend) + 0.16 * uNightFactor + 0.08 * uDuskFactor + 0.15 * gMode + 0.11 * fMode;
+          vec3 bloomTint = mix(vec3(1.0), vec3(1.05, 1.01, 0.94), gMode * 0.65);
           colLin += bloomLin * bloomTint * bloomWeight;
 
           // === GENSHIN IMPACT / UFOTABLE ANIME SPLIT-TONE & HALATION POLISH ===
-          if (uGenshinMode > 0.002) {
+          if (gMode > 0.002) {
             float lumaG = dot(colLin, vec3(0.2126, 0.7152, 0.0722));
             float gShadowMask = (1.0 - smoothstep(0.0, 0.34, lumaG)) * (1.0 - uNightFactor * 0.35);
             float gHiMask = smoothstep(0.30, 0.90, lumaG);
             vec3 gShadowTint = vec3(0.90, 0.97, 1.12);
             vec3 gHiTint = mix(vec3(1.045, 1.015, 0.955), vec3(1.08, 0.99, 0.90), uDuskFactor);
             vec3 gPolished = colLin * mix(vec3(1.0), gShadowTint, gShadowMask * 0.58) * mix(vec3(1.0), gHiTint, gHiMask * 0.52);
-            colLin = mix(colLin, max(vec3(0.0), gPolished), uGenshinMode);
+            colLin = mix(colLin, max(vec3(0.0), gPolished), gMode);
+          } else if (fMode > 0.002) {
+            // === FORZA HORIZON 6 / FORZATECH PHOTOREALISTIC HDR POLISH ===
+            vec3 forzaLin = colLin;
+            float lumaF = dot(forzaLin, vec3(0.2126, 0.7152, 0.0722));
+            float skyMarineDom = clamp((max(forzaLin.b, forzaLin.g * 0.90) - forzaLin.r) / max(lumaF + 0.04, 0.04), 0.0, 1.0);
+            forzaLin = mix(vec3(lumaF), forzaLin, 1.0 + 0.14 * skyMarineDom + 0.06);
+            vec3 fSCurve = forzaLin * forzaLin * (3.0 - 2.0 * clamp(forzaLin, 0.0, 1.0));
+            forzaLin = mix(forzaLin, fSCurve, 0.25 * (1.0 - smoothstep(0.70, 1.0, lumaF)));
+            float fShadowMask = (1.0 - smoothstep(0.0, 0.26, lumaF)) * (1.0 - uNightFactor * 0.45);
+            float fHiMask = smoothstep(0.28, 0.90, lumaF);
+            vec3 fShadowTint = vec3(0.91, 0.96, 1.08);
+            vec3 fHiTint = mix(vec3(1.04, 1.01, 0.96), vec3(1.08, 0.98, 0.89), uDuskFactor);
+            forzaLin *= mix(vec3(1.0), fShadowTint, fShadowMask * 0.52);
+            forzaLin *= mix(vec3(1.0), fHiTint, fHiMask * 0.50);
+            colLin = mix(colLin, max(vec3(0.0), forzaLin), fMode);
           }
 
           // === DRONE CINEMA COLOR GRADE (Strictly 0.0 in Human-Eye Mode -> 100% True-Color Preserved!) ===
@@ -355,13 +372,15 @@ export class CinematicPostFX {
     if (Math.abs(this.targetDroneCinemaBlend - this.droneCinemaBlend) < 0.001) {
       this.droneCinemaBlend = this.targetDroneCinemaBlend;
     }
-    this.genshinMode = Math.max(0.0, Math.min(1.0, Number(genshinMode) || 0.0));
+    this.genshinMode = Math.max(-1.0, Math.min(1.0, Number(genshinMode) || 0.0));
     this.activeModeLabel =
-      this.genshinMode > 0.5
-        ? 'GENSHIN_ANIME_STYLIZED_HDR'
-        : this.droneCinemaBlend > 0.5
-          ? 'DRONE_MAVIC3_CINEMA_GRADE'
-          : 'HUMAN_EYE_TRUE_COLOR';
+      this.genshinMode < -0.5
+        ? 'FORZA_HORIZON6_PHOTOREAL_HDR'
+        : this.genshinMode > 0.5
+          ? 'GENSHIN_ANIME_STYLIZED_HDR'
+          : this.droneCinemaBlend > 0.5
+            ? 'DRONE_MAVIC3_CINEMA_GRADE'
+            : 'HUMAN_EYE_TRUE_COLOR';
 
     this._compositeMat.uniforms.uDroneCinemaBlend.value = this.droneCinemaBlend;
     this._compositeMat.uniforms.uGenshinMode.value = this.genshinMode;

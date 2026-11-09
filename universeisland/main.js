@@ -590,8 +590,10 @@ async function bootstrapNexusSimulator() {
   });
   const _s12PostFxFboCpuMs = Math.max(0.0, _nowBoot() - _tS12Cpu0);
 
-  weather.onThunder = (distanceMeters, intensity) => {
-    audioSynth.triggerThunder(distanceMeters, intensity, weather.uniforms.uLightningDir.value);
+  weather.onThunder = (distanceMeters, intensity, immediate = false) => {
+    audioSynth.triggerThunder(distanceMeters, intensity, weather.uniforms.uLightningDir.value, {
+      immediate: Boolean(immediate)
+    });
   };
 
   // Stage 8: Apply Depok WIB Clock & Real-Time Ephemeris Immediately & Compile Specialized GPU Shaders Asynchronously
@@ -2690,19 +2692,22 @@ async function bootstrapNexusSimulator() {
   }
   syncTransitionButtonsUI();
 
-  // SSoST Visual Preset & Zebra Inspection Mode (PBR Natural | ✨ Genshin Stylized HDR | Zebra)
+  // SSoST Visual Preset & Zebra Inspection Mode (PBR Natural | 🏎️ Forza Horizon 6 | ✨ Genshin Stylized HDR | Zebra)
   const qdockGenshinBtn = document.getElementById('btn-qdock-genshin');
   const inspectButtons = Array.from(document.querySelectorAll('[data-inspect]'));
+  let permalinkDirty = false;
 
   function setVisualInspectPreset(modeKey, playChime = false) {
     const key = String(modeKey);
     const isGenshin = key === 'GENSHIN';
+    const isForza = key === 'FORZA';
     const isZebra = key === '1' || key === '2';
+    const modeVal = isGenshin ? 1.0 : isForza ? -1.0 : 0.0;
     if (sharedUniforms.uGenshinMode) {
-      sharedUniforms.uGenshinMode.value = isGenshin ? 1.0 : 0.0;
+      sharedUniforms.uGenshinMode.value = modeVal;
     }
     if (weather.uniforms && weather.uniforms.uGenshinMode) {
-      weather.uniforms.uGenshinMode.value = isGenshin ? 1.0 : 0.0;
+      weather.uniforms.uGenshinMode.value = modeVal;
     }
     sharedUniforms.uZebraInspectMode.value = isZebra ? Number(key) : 0;
     weather._applyContinuousCelestialAndFog(sharedUniforms);
@@ -2711,10 +2716,12 @@ async function bootstrapNexusSimulator() {
       b.classList.toggle('active', b.dataset.inspect === key);
     });
     if (qdockGenshinBtn) {
-      qdockGenshinBtn.classList.toggle('active', isGenshin);
+      qdockGenshinBtn.classList.toggle('active', isGenshin || isForza);
+      qdockGenshinBtn.textContent = isForza ? '\uD83C\uDFCE\uFE0F Forza' : '\u2728 Genshin';
     }
+    permalinkDirty = true;
     if (playChime) {
-      audioSynth.playUiChime(isGenshin ? 680 : 540);
+      audioSynth.playUiChime(isGenshin ? 680 : isForza ? 610 : 540);
     }
   }
 
@@ -2726,8 +2733,9 @@ async function bootstrapNexusSimulator() {
 
   if (qdockGenshinBtn) {
     qdockGenshinBtn.addEventListener('click', () => {
-      const curGenshin = (sharedUniforms.uGenshinMode && sharedUniforms.uGenshinMode.value > 0.5);
-      setVisualInspectPreset(curGenshin ? '0' : 'GENSHIN', true);
+      const curVal = sharedUniforms.uGenshinMode ? sharedUniforms.uGenshinMode.value : 0.0;
+      const nextKey = curVal > 0.5 ? 'FORZA' : curVal < -0.5 ? '0' : 'GENSHIN';
+      setVisualInspectPreset(nextKey, true);
     });
   }
 
@@ -2741,6 +2749,7 @@ async function bootstrapNexusSimulator() {
   const audioMixBtns = Array.from(document.querySelectorAll('[data-audiomix]'));
   const spatialModeBtn = document.getElementById('btn-spatial-mode');
   const bellAuditionBtn = document.getElementById('btn-bell-audition');
+  const thunderAuditionBtn = document.getElementById('btn-thunder-audition');
   const spectrumBarEls = Array.from(document.querySelectorAll('#acoustic-spectrum-bars > i'));
   const spectrumScratch8 = new Uint8Array(8);
   const atmosRadarCanvas = document.getElementById('atmos-radar-canvas');
@@ -3080,6 +3089,28 @@ async function bootstrapNexusSimulator() {
     });
   }
 
+  if (thunderAuditionBtn) {
+    thunderAuditionBtn.addEventListener('click', () => {
+      dismissWelcomeToast();
+      if (!audioSynth.enabled) {
+        if (audioSynth.getMasterVolume() < 0.05) {
+          audioSynth.setMasterVolume(0.8);
+          if (audioVolSlider) audioVolSlider.value = '80';
+        }
+        audioSynth.toggle(true);
+      }
+      updateAcousticWorldNow(0.016);
+      if (weather && typeof weather.triggerManualLightningStrike === 'function') {
+        weather.triggerManualLightningStrike(camera);
+      } else {
+        audioSynth.triggerThunder(195, 1.48, weather.uniforms.uLightningDir.value, { immediate: true });
+      }
+      window.NexusForensic?.logBreadcrumb('thunder_audition', '195m_5layer_shockwave');
+      syncAudioButtonsDOM();
+      syncAcousticTelemetryDOM();
+    });
+  }
+
   if (audioBtn) audioBtn.addEventListener('click', toggleMasterAudio);
   if (qdockAudioBtn) qdockAudioBtn.addEventListener('click', toggleMasterAudio);
   if (avataAudioBtn) avataAudioBtn.addEventListener('click', toggleMasterAudio);
@@ -3185,7 +3216,6 @@ async function bootstrapNexusSimulator() {
   let geoToastOverrideUntilMs = 0;
   let lastGeoAlertShownMs = 0;
   let activeSpotPresetKey = '';
-  let permalinkDirty = false;
   let lastPermalinkSyncMs = 0;
   let isApplyingPermalink = false;
 
@@ -3267,9 +3297,19 @@ async function bootstrapNexusSimulator() {
       params.set('wv', weather.getSeaWaveHeightMeters().toFixed(2));
     }
 
-    const isGenshin = Boolean(sharedUniforms.uGenshinMode && sharedUniforms.uGenshinMode.value > 0.5);
+    const gModeVal = Number(sharedUniforms.uGenshinMode?.value || 0);
+    const isGenshin = gModeVal > 0.5;
+    const isForza = gModeVal < -0.5;
     const zebraMode = Number(sharedUniforms.uZebraInspectMode?.value || 0);
-    const visTag = isGenshin ? 'genshin' : zebraMode === 1 ? 'zebra1' : zebraMode === 2 ? 'zebra2' : 'pbr';
+    const visTag = isGenshin
+      ? 'genshin'
+      : isForza
+        ? 'forza'
+        : zebraMode === 1
+          ? 'zebra1'
+          : zebraMode === 2
+            ? 'zebra2'
+            : 'pbr';
     params.set('vis', visTag);
 
     const vtState = videotron && typeof videotron.getState === 'function' ? videotron.getState() : null;
@@ -3335,11 +3375,13 @@ async function bootstrapNexusSimulator() {
       arrivalActive = false;
       dismissWelcomeToast();
 
-      // 1. Visual Preset (pbr | genshin | zebra1 | zebra2)
+      // 1. Visual Preset (pbr | forza | genshin | zebra1 | zebra2)
       if (params.has('vis')) {
         const v = String(params.get('vis') || '').toLowerCase();
         if (v === 'genshin' || v === 'anime' || v === '1') {
           setVisualInspectPreset('GENSHIN', false);
+        } else if (v === 'forza' || v === 'fh6' || v === 'forza6') {
+          setVisualInspectPreset('FORZA', false);
         } else if (v === 'zebra1' || v === 'zebra') {
           setVisualInspectPreset('1', false);
         } else if (v === 'zebra2') {

@@ -6506,13 +6506,36 @@ export class WeatherOpticsEngine {
     this.uniforms.uLightningSeed.value = 1.0 + (Math.floor(Math.abs(timeSec * 17.37) + 1.0) % 991);
     this.lightningClock = 0.0;
 
-    const isTriple = Math.cos(timeSec * 7.9) > 0.15;
-    const peakIntensity = 0.85 + 0.30 * (0.5 + 0.5 * Math.sin(timeSec * 19.1));
+    const isTriple = Math.cos(timeSec * 7.9) > 0.05;
+    const peakIntensity = 0.98 + 0.38 * (0.5 + 0.5 * Math.sin(timeSec * 19.1));
     this.lightningStrokeProfile = { isTriple, peakIntensity, az };
 
-    const distMeters = 320 + Math.abs(Math.sin(timeSec * 23.4)) * 1030;
+    const distMeters = 185 + Math.abs(Math.sin(timeSec * 23.4)) * 540;
     if (typeof this.onThunder === 'function') {
-      this.onThunder(distMeters, peakIntensity);
+      this.onThunder(distMeters, peakIntensity, false);
+    }
+  }
+
+  /**
+   * Triggers an immediate on-demand lightning bolt in front of the active camera
+   * and dispatches an instant close-range thunder detonation (for UI audition & testing).
+   */
+  triggerManualLightningStrike(camera = null) {
+    const nowSec = performance.now() * 0.001;
+    let dx = 0.55;
+    let dz = -0.82;
+    if (camera && camera.matrixWorld && camera.matrixWorld.elements) {
+      const e = camera.matrixWorld.elements;
+      dx = -e[8] + (Math.sin(nowSec * 11.3) * 0.18);
+      dz = -e[10] + (Math.cos(nowSec * 11.3) * 0.18);
+    }
+    this.uniforms.uLightningDir.value.set(dx, 0.36, dz).normalize();
+    this.uniforms.uLightningSeed.value = 1.0 + (Math.floor(Math.abs(nowSec * 37.13) + 7.0) % 991);
+    this.lightningClock = 0.0;
+    this.lightningStrokeProfile = { isTriple: true, peakIntensity: 1.38, az: Math.atan2(dz, dx) };
+    this.uniforms.uLightningFlash.value = 1.22;
+    if (typeof this.onThunder === 'function') {
+      this.onThunder(195, 1.48, true);
     }
   }
 
