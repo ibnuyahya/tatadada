@@ -164,7 +164,7 @@ async function bootstrapNexusSimulator() {
       : 0.0;
   const _bootstrapStartRelMs = Math.max(0.0, _nowBoot() - _bootOriginMs);
   if (typeof window !== 'undefined' && window.NexusForensic) {
-    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.45');
+    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.46');
   }
   const preloader = createPreloaderController();
 

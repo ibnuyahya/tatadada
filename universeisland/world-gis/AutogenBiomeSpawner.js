@@ -377,8 +377,8 @@ export class AutogenBiomeSpawner {
         const tx = dppdCx + Math.cos(th) * r;
         const tz = dppdCz + Math.sin(th) * r;
         const hSp = hash01(1950 + ring * 31 + k);
-        const species = hSp < 0.48 ? 'TREMBESI' : hSp < 0.84 ? 'MAHONI' : 'PALEM_RAJA';
-        const scale = (species === 'PALEM_RAJA' ? 1.05 : 1.08) + hash01(2010 + ring * 37 + k) * 0.18;
+        const species = hSp < 0.56 ? 'TREMBESI' : 'MAHONI';
+        const scale = 1.08 + hash01(2010 + ring * 37 + k) * 0.18;
         const yaw = hash01(2070 + ring * 41 + k) * Math.PI * 2.0;
         tryAddTree(species, tx, tz, scale, yaw, 9.6);
       }

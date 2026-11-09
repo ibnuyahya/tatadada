@@ -153,7 +153,7 @@ export const GEDUNG_REKTORAT_UI_META = {
     // Hero Front-Oblique Architectural View of Kompleks Kantor DPPD, ITTC, STP-UI (8-Story Tower), & ILRC on Pulau U facing Rektorat
     kompleksDPPD: {
       pos: { x: -206.0, y: 24.5, z: 276.0 },
-      target: { x: -255.0, y: 12.0, z: 329.0 }
+      target: { x: -255.0, y: 9.5, z: 329.0 }
     },
     // Centerpiece View of Compact Physics-Accurate Dancing Fountain at Lapangan Rotunda UI with Gedung Rektorat UI Backdrop
     airMancurRotunda: {
