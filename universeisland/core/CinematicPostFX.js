@@ -150,7 +150,10 @@ export class CinematicPostFX {
         varying vec2 vUv;
 
         vec3 extractBright(vec4 s) {
-          if (s.a < 0.99) return vec3(0.0);
+          if (s.a < 0.99) {
+            // 1.47-Million-Diode SMD P8 Videotron LED Array Volumetric Bloom Driver!
+            return vec3(0.95, 1.26, 1.74) + pow(max(s.rgb, vec3(0.0)), vec3(2.2)) * 1.65;
+          }
           vec3 lin = pow(max(s.rgb, vec3(0.0)), vec3(2.2));
           if (uIsFirstPass < 0.5) return lin;
           float luma = dot(lin, vec3(0.2126, 0.7152, 0.0722));
@@ -262,10 +265,12 @@ export class CinematicPostFX {
           // Preserve CSS3D YouTube Videotron punch-through alpha while coupling Dual-Kawase bloom & Genshin halation!
           if (sceneSample.a < 0.99) {
             vec3 bLin = srgbToLin(texture2D(uBloomTex, vUv).rgb);
-            float bW = (mix(0.075, 0.22, uDroneCinemaBlend) + 0.15 * uGenshinMode) * 0.65;
+            float bW = (mix(0.085, 0.22, uDroneCinemaBlend) + 0.16 * uNightFactor + 0.08 * uDuskFactor + 0.15 * uGenshinMode) * 0.45;
             vec3 bTint = mix(vec3(1.0), vec3(1.05, 1.01, 0.94), uGenshinMode * 0.65);
-            vec3 pRgb = clamp(sceneSample.rgb + linToSrgb(bLin * bTint * bW), 0.0, 1.0);
-            gl_FragColor = vec4(pRgb, sceneSample.a);
+            vec3 bSrgb = linToSrgb(bLin * bTint * bW);
+            vec3 pRgb = clamp(sceneSample.rgb + bSrgb, 0.0, 1.0);
+            float pAlpha = clamp(sceneSample.a + dot(bSrgb, vec3(0.2126, 0.7152, 0.0722)) * 0.18, 0.032, 0.94);
+            gl_FragColor = vec4(pRgb, pAlpha);
             return;
           }
 
@@ -284,12 +289,9 @@ export class CinematicPostFX {
           float acuityStrength = mix(0.11, 0.14, uDroneCinemaBlend) * haloGuard;
           colLin = max(vec3(0.0), colLin + colLin * (localDiff / max(lumaCenter, 0.04)) * acuityStrength);
 
-          // Dual-Kawase Highlight Scatter:
-          // - Human-Eye (blend = 0.0): subtle physiological ciliary scatter strictly on intense highlights (0.075)
-          // - Drone Cinema (blend = 1.0): lush Hasselblad cinema halation bloom (0.22)
-          // - Genshin Mode (uGenshinMode = 1.0): dreamy anime soft-knee halation glow (+0.15)
+          // Dual-Kawase Highlight Scatter + Nocturnal/Dusk Emissive Videotron & Streetlamp Halation:
           vec3 bloomLin = srgbToLin(texture2D(uBloomTex, vUv).rgb);
-          float bloomWeight = mix(0.075, 0.22, uDroneCinemaBlend) + 0.15 * uGenshinMode;
+          float bloomWeight = mix(0.085, 0.22, uDroneCinemaBlend) + 0.16 * uNightFactor + 0.08 * uDuskFactor + 0.15 * uGenshinMode;
           vec3 bloomTint = mix(vec3(1.0), vec3(1.05, 1.01, 0.94), uGenshinMode * 0.65);
           colLin += bloomLin * bloomTint * bloomWeight;
 

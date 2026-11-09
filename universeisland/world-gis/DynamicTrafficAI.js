@@ -7920,6 +7920,25 @@ export class DynamicTrafficAI {
           }
         }
 
+        // Landasan Pacu RWY 36/18 Pulau I & Gyrocopter/Helipad FATO No-Wandering Zone containment
+        if (p.x > -376.5 && p.x < -133.5 && p.z > 694.5 && p.z < 721.5) {
+          p.z = p.z <= 708.0 ? 694.5 : 721.5;
+        }
+        const dFatoU = Math.hypot(p.x - -104.0, p.z - 106.5);
+        if (dFatoU < 14.5) {
+          const nx = dFatoU > 1e-4 ? (p.x - -104.0) / dFatoU : 0.0;
+          const nz = dFatoU > 1e-4 ? (p.z - 106.5) / dFatoU : -1.0;
+          p.x = -104.0 + nx * 14.5;
+          p.z = 106.5 + nz * 14.5;
+        }
+        const dFatoI = Math.hypot(p.x - -278.5, p.z - 675.0);
+        if (dFatoI < 10.2) {
+          const nx = dFatoI > 1e-4 ? (p.x - -278.5) / dFatoI : 0.0;
+          const nz = dFatoI > 1e-4 ? (p.z - 675.0) / dFatoI : -1.0;
+          p.x = -278.5 + nx * 10.2;
+          p.z = 675.0 + nz * 10.2;
+        }
+
         npc.worldX = p.x;
         npc.worldZ = p.z;
       }
@@ -7964,6 +7983,11 @@ export class DynamicTrafficAI {
             if (isPerched && sc.isBench) continue;
             PhysicsKernel.depenetrateHorizontalCylinder(p, minY, maxY, 0.155, sc);
           }
+        }
+
+        // Landasan Pacu RWY 36/18 No-Wandering Zone for terrestrial cats
+        if (p.x > -376.5 && p.x < -133.5 && p.z > 694.5 && p.z < 721.5) {
+          p.z = p.z <= 708.0 ? 694.5 : 721.5;
         }
 
         cat.worldX = p.x;

@@ -8169,9 +8169,29 @@ export class AudioSynthesizer {
   }
 
   /**
-   * Synthesizes 3D Binaural HRTF rolling thunder propagating at the speed of sound (c = 343 m/s)
-   * from the exact lightning discharge azimuth (`dirVec` or cached `uLightningDir`), with close-range
-   * N-wave plasma crack, atmospheric high-frequency absorption, cloud echoes, & tunnel occlusion!
+   * Builds or returns cached non-linear plasma/shockwave saturation curve for thunder WaveShaperNodes.
+   * Zero AudioContext buffer allocation (preserves proceduralAudioBuffers === 4 invariant).
+   */
+  static _getThunderWaveShaperCurve() {
+    if (!AudioSynthesizer._thunderShaperCurve) {
+      const n = 1024;
+      const curve = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const x = (i * 2.0) / (n - 1) - 1.0;
+        // Asymmetric acoustic shockwave compression (sharp positive N-wave peak + warm low-order harmonics)
+        curve[i] = Math.tanh(x * 2.85) * 0.88 + Math.tanh((x + 0.14) * 5.2) * 0.12;
+      }
+      AudioSynthesizer._thunderShaperCurve = curve;
+    }
+    return AudioSynthesizer._thunderShaperCurve;
+  }
+
+  /**
+   * Synthesizes 4-Stage Physical 3D Binaural HRTF Lightning & Rolling Thunder propagating at c = 343 m/s:
+   * - Stage 0: Supersonic Stepped-Leader Multi-Snap Plasma Whip-Crack (< 880 m)
+   * - Stage 1: Tortuous-Channel Non-Linear Waveshaped Jagged Thunder Peals (16-point dynamic envelope + 132 Hz chest resonance)
+   * - Stage 2: Dual-Pulse Infrasonic & Sub-Bass N-Wave Cylindrical Shockwave (92 Hz -> 29 Hz + .1 LFE blast)
+   * - Stage 3: Multi-Path Topographic & Monumental 3D HRTF Rolling Echoes (Gunung Api Pulau I & Menara Rektorat UI)
    */
   triggerThunder(distanceMeters = 650, intensity = 1.0, dirVec = null) {
     if (!this.enabled || !this.ctx || !this._pinkBuffer) return;
@@ -8184,17 +8204,18 @@ export class AudioSynthesizer {
       if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
       const t0 = this.ctx.currentTime;
       const occMult = this._zoneState ? clamp(0.28 + 0.72 * this._zoneState.weatherOcclusionGain, 0.28, 1.0) : 1.0;
-      const distAtten = clamp(740.0 / Math.max(250.0, distanceMeters), 0.28, 1.20);
-      const peakGain = Math.min(1.75, intensity * distAtten * 1.42) * occMult;
-      this._thunderDuckTimer = Math.max(this._thunderDuckTimer, clamp(2.4 * distAtten, 0.8, 2.6));
+      const distAtten = clamp(780.0 / Math.max(220.0, distanceMeters), 0.30, 1.28);
+      const peakGain = Math.min(1.92, intensity * distAtten * 1.54) * occMult;
+      const closeFactor = clamp((920.0 - distanceMeters) / 680.0, 0.0, 1.0);
+      this._thunderDuckTimer = Math.max(this._thunderDuckTimer, clamp(2.65 * distAtten, 0.9, 2.85));
 
       // 3D HRTF Strike Origin in Sky Dome + .4 Overhead Height Dome + .1 LFE Shockwave
       const pan = this.ctx.createPanner();
       pan.panningModel = this.spatialOutputMode === 'SPEAKER' ? 'equalpower' : 'HRTF';
       pan.distanceModel = 'inverse';
-      pan.refDistance = 180.0;
-      pan.maxDistance = 4000.0;
-      pan.rolloffFactor = 0.35;
+      pan.refDistance = 185.0;
+      pan.maxDistance = 4200.0;
+      pan.rolloffFactor = 0.34;
       const strikeX = this._lis.x + lx * distanceMeters;
       const strikeY = this._lis.y + Math.max(85.0, distanceMeters * 0.28);
       const strikeZ = this._lis.z + lz * distanceMeters;
@@ -8203,72 +8224,154 @@ export class AudioSynthesizer {
       pan.connect(this.reverbSendGain);
       if (this.heightDomeIn) pan.connect(this.heightDomeIn);
 
-      // 0. Close-Strike High-Voltage N-Wave Plasma Crack (< 620 m)
-      if (distanceMeters < 620 && occMult > 0.45) {
+      const shaperCurve = AudioSynthesizer._getThunderWaveShaperCurve();
+
+      // STAGE 0. Supersonic Stepped-Leader Multi-Snap Plasma Whip-Crack (< 880 m)
+      if (distanceMeters < 880 && occMult > 0.38) {
         const crackSrc = this.ctx.createBufferSource();
         crackSrc.buffer = this._patterBuffer || this._pinkBuffer;
-        crackSrc.playbackRate.value = 1.45;
-        const crackHp = this.ctx.createBiquadFilter();
-        crackHp.type = 'bandpass';
-        crackHp.frequency.setValueAtTime(1450, t0);
-        crackHp.Q.setValueAtTime(0.9, t0);
+        crackSrc.playbackRate.value = 1.28 + closeFactor * 0.34;
+
+        const crackBp = this.ctx.createBiquadFilter();
+        crackBp.type = 'bandpass';
+        crackBp.frequency.setValueAtTime((1150 + closeFactor * 1150) * occMult, t0);
+        crackBp.frequency.exponentialRampToValueAtTime(340, t0 + 0.30);
+        crackBp.Q.setValueAtTime(0.75, t0);
+
+        const crackShaper = typeof this.ctx.createWaveShaper === 'function' ? this.ctx.createWaveShaper() : null;
+        if (crackShaper) {
+          crackShaper.curve = shaperCurve;
+          crackShaper.oversample = '2x';
+        }
+
         const crackGain = this.ctx.createGain();
+        const cPeak = peakGain * (0.58 + 0.44 * closeFactor);
         crackGain.gain.setValueAtTime(0.001, t0);
-        crackGain.gain.linearRampToValueAtTime(peakGain * 0.72, t0 + 0.012);
-        crackGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.22);
-        crackSrc.connect(crackHp);
-        crackHp.connect(crackGain);
+        // Snap 1: Primary leader return stroke
+        crackGain.gain.linearRampToValueAtTime(cPeak * 0.92, t0 + 0.005);
+        crackGain.gain.exponentialRampToValueAtTime(Math.max(0.002, cPeak * 0.18), t0 + 0.024);
+        // Snap 2: Secondary dart-leader fork (+28ms)
+        crackGain.gain.linearRampToValueAtTime(cPeak * 1.05, t0 + 0.031);
+        crackGain.gain.exponentialRampToValueAtTime(Math.max(0.002, cPeak * 0.24), t0 + 0.062);
+        // Snap 3: Main channel acoustic N-wave tear (+68ms)
+        crackGain.gain.linearRampToValueAtTime(cPeak * 0.78, t0 + 0.072);
+        crackGain.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.31);
+
+        crackSrc.connect(crackBp);
+        if (crackShaper) {
+          crackBp.connect(crackShaper);
+          crackShaper.connect(crackGain);
+          this._cleanupTransientNodes(crackSrc, crackBp, crackShaper, crackGain);
+        } else {
+          crackBp.connect(crackGain);
+          this._cleanupTransientNodes(crackSrc, crackBp, crackGain);
+        }
         crackGain.connect(pan);
-        this._cleanupTransientNodes(crackSrc, crackHp, crackGain);
         crackSrc.start(t0);
-        crackSrc.stop(t0 + 0.24);
+        crackSrc.stop(t0 + 0.33);
       }
 
-      // 1. Filtered Cumulonimbus Acoustic Rumble & Secondary Cloud-Layer Echo Swell
+      // STAGE 1. Tortuous-Channel Non-Linear Jagged Thunder Peals ("JDERRR — GLUDUK-GLUDUK-BERRR!")
       const noiseSrc = this.ctx.createBufferSource();
       noiseSrc.buffer = this._pinkBuffer;
-      noiseSrc.playbackRate.value = 0.54 + Math.random() * 0.24;
+      noiseSrc.playbackRate.value = 0.44 + Math.random() * 0.16;
+
+      // Chest-thump low-mid resonance filter (118–142 Hz thunder body)
+      const bodyPeak = this.ctx.createBiquadFilter();
+      bodyPeak.type = 'peaking';
+      bodyPeak.frequency.setValueAtTime(128, t0);
+      bodyPeak.frequency.exponentialRampToValueAtTime(64, t0 + 3.6);
+      bodyPeak.Q.setValueAtTime(1.35, t0);
+      if (bodyPeak.gain) bodyPeak.gain.setValueAtTime(7.5, t0);
 
       const lp = this.ctx.createBiquadFilter();
       lp.type = 'lowpass';
-      const initialCutoff = (distanceMeters < 580 ? 1680 : 660) * occMult;
-      lp.frequency.setValueAtTime(Math.max(180, initialCutoff), t0);
-      lp.frequency.exponentialRampToValueAtTime(88, t0 + 2.9);
+      const initialCutoff = (distanceMeters < 620 ? 1850 : 780) * occMult;
+      lp.frequency.setValueAtTime(Math.max(190, initialCutoff), t0);
+      lp.frequency.exponentialRampToValueAtTime(320, t0 + 0.85);
+      lp.frequency.linearRampToValueAtTime(480 * occMult, t0 + 1.28);
+      lp.frequency.exponentialRampToValueAtTime(58, t0 + 3.85);
+
+      const rumbleShaper = typeof this.ctx.createWaveShaper === 'function' ? this.ctx.createWaveShaper() : null;
+      if (rumbleShaper) {
+        rumbleShaper.curve = shaperCurve;
+        rumbleShaper.oversample = '2x';
+      }
 
       const rumbleGain = this.ctx.createGain();
-      rumbleGain.gain.setValueAtTime(0.001, t0);
-      rumbleGain.gain.linearRampToValueAtTime(peakGain, t0 + 0.045);
-      rumbleGain.gain.exponentialRampToValueAtTime(peakGain * 0.46, t0 + 0.38);
-      rumbleGain.gain.linearRampToValueAtTime(peakGain * 0.64, t0 + 0.74);
-      rumbleGain.gain.exponentialRampToValueAtTime(0.0008, t0 + 3.45);
+      const rumbleDuration = 3.95;
+      if (typeof rumbleGain.gain.setValueCurveAtTime === 'function') {
+        const jitters = [
+          0.001,
+          1.00,
+          0.42,
+          0.88,
+          0.31,
+          0.76 + (Math.random() - 0.5) * 0.14,
+          0.28,
+          0.62 + (Math.random() - 0.5) * 0.12,
+          0.22,
+          0.48,
+          0.19,
+          0.34,
+          0.12,
+          0.18,
+          0.05,
+          0.0008
+        ];
+        const envCurve = new Float32Array(jitters.length);
+        for (let k = 0; k < jitters.length; k++) {
+          envCurve[k] = Math.max(0.0005, jitters[k] * peakGain);
+        }
+        rumbleGain.gain.setValueCurveAtTime(envCurve, t0, rumbleDuration);
+      } else {
+        rumbleGain.gain.setValueAtTime(0.001, t0);
+        rumbleGain.gain.linearRampToValueAtTime(peakGain, t0 + 0.038);
+        rumbleGain.gain.exponentialRampToValueAtTime(peakGain * 0.38, t0 + 0.28);
+        rumbleGain.gain.linearRampToValueAtTime(peakGain * 0.84, t0 + 0.52);
+        rumbleGain.gain.exponentialRampToValueAtTime(peakGain * 0.29, t0 + 0.92);
+        rumbleGain.gain.linearRampToValueAtTime(peakGain * 0.66, t0 + 1.24);
+        rumbleGain.gain.exponentialRampToValueAtTime(0.0008, t0 + rumbleDuration);
+      }
 
-      noiseSrc.connect(lp);
-      lp.connect(rumbleGain);
+      noiseSrc.connect(bodyPeak);
+      bodyPeak.connect(lp);
+      if (rumbleShaper) {
+        lp.connect(rumbleShaper);
+        rumbleShaper.connect(rumbleGain);
+        this._cleanupTransientNodes(noiseSrc, bodyPeak, lp, rumbleShaper, rumbleGain, pan);
+      } else {
+        lp.connect(rumbleGain);
+        this._cleanupTransientNodes(noiseSrc, bodyPeak, lp, rumbleGain, pan);
+      }
       rumbleGain.connect(pan);
-      this._cleanupTransientNodes(noiseSrc, lp, rumbleGain, pan);
       noiseSrc.start(t0);
-      noiseSrc.stop(t0 + 3.55);
+      noiseSrc.stop(t0 + rumbleDuration + 0.08);
 
-      // 2. Sub-Bass Acoustic Shockwave Thump (34–68 Hz)
+      // STAGE 2. Dual-Pulse Infrasonic & Sub-Bass Cylindrical Shockwave (92 Hz -> 29 Hz + .1 LFE)
       const osc = this.ctx.createOscillator();
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(66, t0);
-      osc.frequency.exponentialRampToValueAtTime(34, t0 + 1.45);
+      osc.frequency.setValueAtTime(92, t0);
+      osc.frequency.exponentialRampToValueAtTime(42, t0 + 0.26);
+      osc.frequency.setValueAtTime(68, t0 + 0.31);
+      osc.frequency.exponentialRampToValueAtTime(29, t0 + 2.15);
 
       const subGain = this.ctx.createGain();
       subGain.gain.setValueAtTime(0.001, t0);
-      subGain.gain.linearRampToValueAtTime(peakGain * 0.44, t0 + 0.06);
-      subGain.gain.exponentialRampToValueAtTime(0.0008, t0 + 1.55);
+      subGain.gain.linearRampToValueAtTime(peakGain * 0.58, t0 + 0.028);
+      subGain.gain.exponentialRampToValueAtTime(Math.max(0.002, peakGain * 0.18), t0 + 0.27);
+      subGain.gain.linearRampToValueAtTime(peakGain * 0.46, t0 + 0.34);
+      subGain.gain.exponentialRampToValueAtTime(0.0008, t0 + 2.22);
 
       osc.connect(subGain);
       subGain.connect(this.worldSumGain);
       if (this.lfeSumGain) subGain.connect(this.lfeSumGain);
       this._cleanupTransientNodes(osc, subGain);
       osc.start(t0);
-      osc.stop(t0 + 1.62);
+      osc.stop(t0 + 2.28);
 
-      // 3. Iterasi 3: Multi-Path Topographic & Monumental 3D HRTF Thunder Echoes
-      //    (Gunung Api Pulau I flank & Menara Gedung Rektorat UI concrete spire)
+      // STAGE 3. Multi-Path Topographic & Monumental 3D HRTF Thunder Echoes
+      //          (Gunung Api Pulau I flank & Menara Gedung Rektorat UI concrete spire)
       const echoes = AudioSynthesizer.computeMultiPathEchoes(
         strikeX,
         strikeY,
@@ -8284,29 +8387,31 @@ export class AudioSynthesizer {
         const ePan = this.ctx.createPanner();
         ePan.panningModel = this.spatialOutputMode === 'SPEAKER' ? 'equalpower' : 'HRTF';
         ePan.distanceModel = 'inverse';
-        ePan.refDistance = 140.0;
-        ePan.rolloffFactor = 0.32;
+        ePan.refDistance = 145.0;
+        ePan.rolloffFactor = 0.30;
         this._setPannerPosition(ePan, ec.rx, ec.ry, ec.rz, te, true);
         ePan.connect(this.worldSumGain);
 
         const eSrc = this.ctx.createBufferSource();
         eSrc.buffer = this._pinkBuffer;
-        eSrc.playbackRate.value = 0.48 + eIdx * 0.08;
+        eSrc.playbackRate.value = 0.42 + eIdx * 0.07;
         const eLp = this.ctx.createBiquadFilter();
         eLp.type = 'lowpass';
         eLp.frequency.setValueAtTime(ec.cutoffHz * occMult, te);
-        eLp.frequency.exponentialRampToValueAtTime(82, te + 2.1);
+        eLp.frequency.exponentialRampToValueAtTime(68, te + 2.45);
         const eGain = this.ctx.createGain();
-        const ePeak = peakGain * ec.gainMult * 0.55;
+        const ePeak = peakGain * ec.gainMult * 0.62;
         eGain.gain.setValueAtTime(0.0005, te);
-        eGain.gain.linearRampToValueAtTime(Math.max(0.002, ePeak), te + 0.14);
-        eGain.gain.exponentialRampToValueAtTime(0.0005, te + 2.25);
+        eGain.gain.linearRampToValueAtTime(Math.max(0.002, ePeak), te + 0.11);
+        eGain.gain.exponentialRampToValueAtTime(Math.max(0.001, ePeak * 0.36), te + 0.48);
+        eGain.gain.linearRampToValueAtTime(Math.max(0.002, ePeak * 0.54), te + 0.76);
+        eGain.gain.exponentialRampToValueAtTime(0.0005, te + 2.55);
         eSrc.connect(eLp);
         eLp.connect(eGain);
         eGain.connect(ePan);
         this._cleanupTransientNodes(eSrc, eLp, eGain, ePan);
         eSrc.start(te);
-        eSrc.stop(te + 2.32);
+        eSrc.stop(te + 2.62);
       }
     }, delaySec * 1000);
 

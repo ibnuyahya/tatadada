@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { PhysicsKernel } from './PhysicsKernel.js';
 
+export { PhysicsKernel };
+
 /**
  * NEXUS Omni-Scale Procedural Engine v2.0 (v4.0 — Hard 3D Solid-Body Non-Penetration Camera Solver)
  * ./core/CameraDirector.js
@@ -94,7 +96,8 @@ export function resolveSoftSpatialCollision(
   dt = 0.016,
   prevPos = null,
   physicsContext = null,
-  isWalk = false
+  isWalk = false,
+  enforceDroneNfz = false
 ) {
   void dt;
   const ctx = physicsContext || null;
@@ -116,6 +119,7 @@ export function resolveSoftSpatialCollision(
     bottomOffset: isWalk ? 1.68 : safetyRadius,
     topOffset: isWalk ? 0.24 : safetyRadius,
     isWalk,
+    enforceDroneNfz: Boolean(enforceDroneNfz || ctx?.enforceDroneNfz),
     groundHeightFn: ctx?.groundHeightFn || null,
     walkableHeightFn: ctx?.walkableHeightFn || null,
     coastDistFn: ctx?.coastDistFn || null,
@@ -364,8 +368,8 @@ export class CameraDirector {
       nodes: [
         [-46.0, 10.5, 426.0, 14.0, 0, -32.0, 48.0, 698.0, 0.36, 0],
         [-134.0, 9.8, 536.0, 15.0, 0, -32.0, 49.0, 698.0, 0.38, 0],
-        [-258.0, 9.5, 642.0, 13.8, 0, -32.0, 48.0, 698.0, 0.36, 0],
-        [-332.0, 7.6, 712.0, 11.6, 0, -32.0, 49.0, 698.0, 0.42, 0]
+        [-252.0, 10.2, 636.0, 13.8, 0, -32.0, 48.0, 698.0, 0.36, 0],
+        [-332.0, 8.8, 686.0, 11.6, 4, -32.0, 49.0, 698.0, 0.42, 0]
       ]
     },
 
@@ -443,20 +447,20 @@ export class CameraDirector {
         [-356.0, -6.12, 620.0, 14.8, 2, -356.0, 0.0, 660.0, 0.0, 0],
         [-356.0, -1.8, 648.0, 13.6, 2, -356.0, 4.0, 680.0, 0.0, 0],
         [-356.0, 3.1, 672.0, 12.8, 2, -32.0, 48.0, 698.0, 0.0, 0],
-        [-356.0, 7.2, 688.0, 12.2, 4, -32.0, 48.0, 698.0, 0.30, 0],
-        [-332.0, 7.6, 712.0, 11.4, 0, -32.0, 49.0, 698.0, 0.42, 0]
+        [-352.0, 7.4, 682.0, 12.2, 4, -32.0, 48.0, 698.0, 0.30, 0],
+        [-332.0, 8.8, 686.0, 11.4, 4, -32.0, 49.0, 698.0, 0.42, 0]
       ]
     },
 
-    // --- FROM G_PULAU_I_RUNWAY_E ([-332, 7.6, 712] facing East toward 60m Gunung Api!) ---
+    // --- FROM G_PULAU_I_RUNWAY_E ([-332, 8.8, 686] South Apron Corridor facing East toward 60m Gunung Api, outside Runway NFZ!) ---
     {
       id: 'M11_GUNUNG_API_CRATER_AND_NIAGARA_PLUNGE',
       from: 'G_PULAU_I_RUNWAY_E',
       to: 'G_PULAU_I_NORTH',
       sigZone: 'PULAU_I',
       nodes: [
-        [-232.0, 6.8, 715.0, 11.2, 0, -32.0, 50.0, 698.0, 0.44, 0],
-        [-136.0, 21.5, 718.0, 10.6, 0, -32.0, 53.0, 698.0, 0.42, 0],
+        [-232.0, 10.4, 686.0, 11.2, 4, -32.0, 50.0, 698.0, 0.44, 0],
+        [-124.0, 23.5, 692.0, 10.6, 0, -32.0, 53.0, 698.0, 0.42, 0],
         [-74.0, 47.5, 720.0, 10.0, 0, -32.0, 58.5, 698.0, 0.36, 0],
         [-28.0, 65.5, 701.0, 9.8, 0, -32.0, 46.0, 692.0, 0.26, 1],
         [-35.0, 50.5, 666.0, 11.6, 4, -48.0, 14.0, 636.0, 0.0, 0],
@@ -470,7 +474,7 @@ export class CameraDirector {
       to: 'G_PULAU_I_NORTH',
       sigZone: 'PULAU_I',
       nodes: [
-        [-228.0, 8.6, 710.0, 11.6, 0, -32.0, 50.0, 698.0, 0.44, 0],
+        [-228.0, 10.2, 686.0, 11.6, 4, -32.0, 50.0, 698.0, 0.44, 0],
         [-128.0, 12.5, 594.0, 11.6, 0, -38.0, 46.0, 682.0, 0.46, 0],
         [-56.0, 11.8, 608.0, 11.2, 4, -44.0, 36.0, 660.0, 0.38, 0],
         [-48.0, 28.5, 644.0, 11.0, 4, -34.0, 56.0, 686.0, 0.28, 0],
@@ -513,9 +517,9 @@ export class CameraDirector {
       sigZone: 'UNDERPASS',
       nodes: [
         [-165.0, 14.5, 636.0, 13.8, 0, -233.5, 14.0, 665.5, 0.28, 0],
-        [-296.0, 18.5, 706.0, 13.0, 0, -356.0, 4.0, 672.0, 0.20, 0],
-        [-350.0, 11.2, 704.0, 12.4, 4, -356.0, 4.0, 672.0, 0.0, 0],
-        [-356.0, 7.2, 688.0, 12.2, 4, -356.0, 2.0, 660.0, 0.0, 0],
+        [-296.0, 16.5, 686.0, 13.0, 4, -356.0, 4.0, 672.0, 0.20, 0],
+        [-348.0, 10.8, 686.0, 12.4, 4, -356.0, 4.0, 672.0, 0.0, 0],
+        [-356.0, 6.8, 680.0, 12.2, 4, -356.0, 2.0, 660.0, 0.0, 0],
         [-356.0, 3.1, 672.0, 13.0, 2, -356.0, -3.0, 635.0, 0.0, 0],
         [-356.0, -1.8, 648.0, 14.2, 2, -356.0, -6.12, 600.0, 0.0, 0],
         [-356.0, -6.12, 620.0, 15.2, 2, -356.0, -6.12, 525.0, 0.0, 0],
@@ -2654,7 +2658,8 @@ export class CameraDirector {
         clampedDt,
         this._prevCamPos,
         ctx,
-        false
+        false,
+        true
       );
     }
 
@@ -3080,7 +3085,8 @@ export class CameraDirector {
       clampedDt,
       this._prevCamPos,
       ctx,
-      false
+      false,
+      true
     );
 
     // Easy-Acro 360° Stunt Overlay (Barrel Roll Left/Right, Backflip, Split-S Dive)

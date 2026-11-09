@@ -228,7 +228,7 @@ async function bootstrapNexusSimulator() {
   await preloader.advance(1, 20, 'Memuat Modul Mesin Prosedural NEXUS v5.0 & Shader Ultra...', 0);
   const _tS02Import0 = _nowBoot();
   const [
-    { CameraDirector, applyNonOccludingViewportOffset },
+    { CameraDirector, applyNonOccludingViewportOffset, PhysicsKernel },
     { WeatherOpticsEngine },
     { AudioSynthesizer },
     { createSharedSurfaceUniforms },
@@ -3172,8 +3172,334 @@ async function bootstrapNexusSimulator() {
       syncViewport();
       syncQuickDockAndContextDOM();
       audioSynth.playUiChime(560);
+      return;
+    }
+    if (e.code === 'KeyL') {
+      copyPermalinkToClipboard();
     }
   });
+
+  // --- ROBUST BIDIRECTIONAL PERMALINK ENGINE & AVIATION NFZ / NO-WANDERING HUD TOAST ---
+  const geoToastEl = document.getElementById('nexus-geo-toast');
+  const qdockPermalinkBtn = document.getElementById('btn-qdock-permalink');
+  let geoToastOverrideUntilMs = 0;
+  let lastGeoAlertShownMs = 0;
+  let activeSpotPresetKey = '';
+  let permalinkDirty = false;
+  let lastPermalinkSyncMs = 0;
+  let isApplyingPermalink = false;
+
+  presetBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      activeSpotPresetKey = btn.dataset.preset || '';
+      permalinkDirty = true;
+    });
+  });
+
+  function showGeoOrPermalinkToast(text, isPermalink = false, durationMs = 3200) {
+    if (!geoToastEl) return;
+    const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    geoToastEl.textContent = text;
+    geoToastEl.classList.toggle('is-permalink', Boolean(isPermalink));
+    geoToastEl.classList.remove('is-hidden');
+    if (isPermalink) {
+      geoToastOverrideUntilMs = now + durationMs;
+    }
+  }
+
+  function syncGeoZoneWarningDOM() {
+    if (!geoToastEl) return;
+    const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    if (now < geoToastOverrideUntilMs) return;
+    const st = PhysicsKernel?.lastGeoZoneStatus;
+    if (st && st.active && now - st.timestampMs < 1600) {
+      geoToastEl.textContent = st.labelId;
+      geoToastEl.classList.remove('is-permalink', 'is-hidden');
+      if (now - lastGeoAlertShownMs > 1800) {
+        lastGeoAlertShownMs = now;
+        if (audioSynth && audioSynth.enabled) {
+          audioSynth.playUiChime(320);
+        }
+      }
+    } else {
+      geoToastEl.classList.add('is-hidden');
+    }
+  }
+
+  function buildPermalinkHash() {
+    const params = new URLSearchParams();
+    const mode = camDirector.mode || 'DRONE_6DOF';
+    params.set('m', mode);
+    if (activeSpotPresetKey && mode === 'ORBIT') {
+      params.set('spot', activeSpotPresetKey);
+    }
+    const px = Number(camera.position.x) || 0;
+    const py = Number(camera.position.y) || 0;
+    const pz = Number(camera.position.z) || 0;
+    params.set('p', `${px.toFixed(2)},${py.toFixed(2)},${pz.toFixed(2)}`);
+
+    if (mode === 'ORBIT' && controls && controls.target) {
+      const tx = Number(controls.target.x) || 0;
+      const ty = Number(controls.target.y) || 0;
+      const tz = Number(controls.target.z) || 0;
+      params.set('t', `${tx.toFixed(2)},${ty.toFixed(2)},${tz.toFixed(2)}`);
+    } else if (!camDirector.isFPSMode()) {
+      const yaw = Number(camDirector.yaw) || 0;
+      const pitch = Number(camDirector.pitch) || 0;
+      const roll = Number(camDirector.roll) || 0;
+      params.set('a', `${yaw.toFixed(3)},${pitch.toFixed(3)},${roll.toFixed(3)}`);
+      if (mode === 'DRONE_AVATA2_FPV') {
+        params.set('free', camDirector.avataAutoFreestyle ? '0' : '1');
+        if (camDirector.avataFlightProfile === 'ACRO') params.set('acro', '1');
+      } else if (mode === 'DRONE_6DOF') {
+        params.set('free', camDirector._droneManualEngaged ? '1' : '0');
+      }
+    } else {
+      params.set('sub', String(camDirector.fpsSubjectOffset || 0));
+    }
+
+    params.set('live', isLiveDepok ? '1' : '0');
+    if (!isLiveDepok) {
+      params.set('tm', weather.currentSolarHour.toFixed(2));
+      params.set('wx', (weather.getWeatherSpectrum() * 100.0).toFixed(1));
+    }
+    if (weather.isManualSeaState()) {
+      params.set('wv', weather.getSeaWaveHeightMeters().toFixed(2));
+    }
+
+    const isGenshin = Boolean(sharedUniforms.uGenshinMode && sharedUniforms.uGenshinMode.value > 0.5);
+    const zebraMode = Number(sharedUniforms.uZebraInspectMode?.value || 0);
+    const visTag = isGenshin ? 'genshin' : zebraMode === 1 ? 'zebra1' : zebraMode === 2 ? 'zebra2' : 'pbr';
+    params.set('vis', visTag);
+
+    const vtState = videotron && typeof videotron.getState === 'function' ? videotron.getState() : null;
+    if (vtState && vtState.videoId && vtState.videoId !== 'N5vSW33FwQQ') {
+      params.set('vt', vtState.videoId);
+    }
+    return params.toString();
+  }
+
+  function getPermalinkURL() {
+    const hash = buildPermalinkHash();
+    if (typeof window === 'undefined' || !window.location) return `#${hash}`;
+    const base = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+    return `${base}#${hash}`;
+  }
+
+  function syncPermalinkReplaceState(force = false) {
+    if (isApplyingPermalink || typeof window === 'undefined' || !window.history?.replaceState) return;
+    const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    if (!force && (!permalinkDirty || now - lastPermalinkSyncMs < 1200)) return;
+    permalinkDirty = false;
+    lastPermalinkSyncMs = now;
+    const hash = buildPermalinkHash();
+    try {
+      window.history.replaceState(null, '', `#${hash}`);
+    } catch (_e) {
+      // Ignore file:// or sandboxed history restrictions
+    }
+  }
+
+  function applyPermalinkFromURL(customInput = null) {
+    if (typeof window === 'undefined') return false;
+    let raw = '';
+    if (typeof customInput === 'string' && customInput.trim().length > 0) {
+      const s = customInput.trim();
+      const hIdx = s.indexOf('#');
+      const qIdx = s.indexOf('?');
+      if (hIdx >= 0) raw = s.slice(hIdx + 1);
+      else if (qIdx >= 0) raw = s.slice(qIdx + 1);
+      else raw = s.replace(/^[#?]/, '');
+    } else {
+      const h = (window.location.hash || '').replace(/^#/, '');
+      const q = (window.location.search || '').replace(/^\?/, '');
+      raw = h && h.includes('=') ? h : q;
+    }
+    if (!raw || !raw.includes('=')) return false;
+
+    const params = new URLSearchParams(raw);
+    const hasAnyKey =
+      params.has('m') ||
+      params.has('spot') ||
+      params.has('p') ||
+      params.has('live') ||
+      params.has('tm') ||
+      params.has('wx') ||
+      params.has('wv') ||
+      params.has('vis') ||
+      params.has('vt');
+    if (!hasAnyKey) return false;
+
+    isApplyingPermalink = true;
+    try {
+      arrivalActive = false;
+      dismissWelcomeToast();
+
+      // 1. Visual Preset (pbr | genshin | zebra1 | zebra2)
+      if (params.has('vis')) {
+        const v = String(params.get('vis') || '').toLowerCase();
+        if (v === 'genshin' || v === 'anime' || v === '1') {
+          setVisualInspectPreset('GENSHIN', false);
+        } else if (v === 'zebra1' || v === 'zebra') {
+          setVisualInspectPreset('1', false);
+        } else if (v === 'zebra2') {
+          setVisualInspectPreset('2', false);
+        } else {
+          setVisualInspectPreset('0', false);
+        }
+      }
+
+      // 2. Live Depok vs Manual Solar Time, Weather Spectrum, & Sea Wave Height
+      if (params.has('live')) {
+        isLiveDepok = params.get('live') === '1' || params.get('live') === 'true';
+      } else if (params.has('tm') || params.has('wx')) {
+        isLiveDepok = false;
+      }
+
+      if (!isLiveDepok) {
+        if (params.has('tm')) {
+          const tmVal = Number(params.get('tm'));
+          if (Number.isFinite(tmVal)) {
+            weather.setContinuousTimeHours(Math.max(0.0, Math.min(24.0, tmVal)), sharedUniforms, {
+              immediate: true
+            });
+          }
+        }
+        if (params.has('wx')) {
+          const wxVal = Number(params.get('wx'));
+          if (Number.isFinite(wxVal)) {
+            const u01 = Math.max(0.0, Math.min(1.0, wxVal > 1.001 ? wxVal / 100.0 : wxVal));
+            weather.setWeatherSpectrum(u01, sharedUniforms, { immediate: true });
+          }
+        }
+      }
+
+      if (params.has('wv')) {
+        const wvRaw = String(params.get('wv') || '').toLowerCase();
+        if (wvRaw === 'auto') {
+          weather.setSeaWaveHeightMeters(null, { auto: true, immediate: true });
+        } else {
+          const wvVal = Number(wvRaw);
+          if (Number.isFinite(wvVal)) {
+            weather.setSeaWaveHeightMeters(Math.max(0.0, Math.min(3.0, wvVal)), { immediate: true });
+          }
+        }
+      }
+
+      weather.update(0.016, camera, sharedUniforms);
+      GedungRektoratUIAsset.setNightIllumination(rektoratAsset, weather.nightIlluminationLevel);
+      updateDepokTelemetryDOM();
+      syncTransitionButtonsUI();
+
+      // 3. Camera Mode, Spot Preset, & Exact 3D Coordinates / Angles
+      const spotKey = params.get('spot') || '';
+      const modeParam = params.get('m') || (spotKey ? 'ORBIT' : '');
+      if (spotKey && presets[spotKey]) {
+        activeSpotPresetKey = spotKey;
+        presetBtns.forEach((b) => b.classList.toggle('active', b.dataset.preset === spotKey));
+        camDirector.applyOrthoPreset(spotKey, presets, { immediate: true });
+      } else if (modeParam) {
+        const subOff = Number(params.get('sub')) || 0;
+        camDirector.setMode(modeParam, { immediate: true, subjectOffset: subOff });
+      }
+
+      if (params.has('p')) {
+        const parts = String(params.get('p'))
+          .split(',')
+          .map((n) => Number(n));
+        if (parts.length === 3 && parts.every((n) => Number.isFinite(n))) {
+          camDirector.cancelTransition();
+          camera.position.set(parts[0], parts[1], parts[2]);
+          camDirector.syncPreviousCameraPosition();
+        }
+      }
+
+      if (params.has('t') && controls && controls.target) {
+        const tParts = String(params.get('t'))
+          .split(',')
+          .map((n) => Number(n));
+        if (tParts.length === 3 && tParts.every((n) => Number.isFinite(n))) {
+          controls.target.set(tParts[0], tParts[1], tParts[2]);
+          camera.lookAt(controls.target);
+          controls.update();
+        }
+      }
+
+      if (params.has('a') && camDirector.mode !== 'ORBIT' && !camDirector.isFPSMode()) {
+        const aParts = String(params.get('a'))
+          .split(',')
+          .map((n) => Number(n));
+        if (aParts.length >= 2 && aParts.every((n) => Number.isFinite(n))) {
+          camDirector.yaw = aParts[0];
+          camDirector.pitch = aParts[1];
+          camDirector.roll = Number.isFinite(aParts[2]) ? aParts[2] : 0.0;
+          if (camDirector.mode === 'DRONE_6DOF') {
+            camDirector._droneManualEngaged = params.get('free') !== '0';
+          } else if (camDirector.mode === 'DRONE_AVATA2_FPV') {
+            camDirector.avataAutoFreestyle = params.get('free') === '0';
+            if (params.get('acro') === '1') camDirector.avataFlightProfile = 'ACRO';
+          }
+          const eul = new THREE.Euler(camDirector.pitch, camDirector.yaw, camDirector.roll, 'YXZ');
+          camera.quaternion.setFromEuler(eul);
+        }
+      }
+
+      // 4. Custom Videotron YouTube Video ID / URL
+      if (params.has('vt') && videotron && typeof videotron.loadSource === 'function') {
+        const vtVal = String(params.get('vt') || '').trim();
+        if (vtVal) {
+          videotron.loadSource(vtVal);
+        }
+      }
+
+      syncQuickDockAndContextDOM();
+      syncFPSStatusDOM();
+      syncViewport();
+      return true;
+    } finally {
+      isApplyingPermalink = false;
+    }
+  }
+
+  async function copyPermalinkToClipboard() {
+    syncPermalinkReplaceState(true);
+    const fullUrl = getPermalinkURL();
+    let copied = false;
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(fullUrl);
+        copied = true;
+      } catch (_e) {
+        copied = false;
+      }
+    }
+    if (audioSynth && audioSynth.enabled) {
+      audioSynth.playUiChime(720);
+    }
+    showGeoOrPermalinkToast(
+      copied
+        ? '🔗 Permalink Disalin! (Posisi Kamera 3D, Cuaca, Waktu & Shader Tersimpan di URL)'
+        : '🔗 URL Permalink Diperbarui pada Bilah Alamat Browser',
+      true,
+      3400
+    );
+    return fullUrl;
+  }
+
+  if (qdockPermalinkBtn) {
+    qdockPermalinkBtn.addEventListener('click', () => {
+      copyPermalinkToClipboard();
+    });
+  }
+
+  window.addEventListener('hashchange', () => {
+    if (!isApplyingPermalink) {
+      applyPermalinkFromURL();
+    }
+  });
+
+  // Apply initial URL Permalink if user opened a shared link (#m=... or ?m=...)
+  applyPermalinkFromURL();
 
   // Hardware Profiler, Substantive 30s Forensic Blackbox, 60s Ring Buffer, & Adaptive 120-FPS Governor Controls
   const elHwTier = document.getElementById('sim-hw-tier');
@@ -3641,6 +3967,11 @@ async function bootstrapNexusSimulator() {
         syncTransitionButtonsUI();
         syncFPSStatusDOM();
         syncAcousticTelemetryDOM();
+        syncGeoZoneWarningDOM();
+        if (!arrivalActive) {
+          permalinkDirty = true;
+          syncPermalinkReplaceState(false);
+        }
       }
 
       // Strictly 1 Hz Forensic GPU + 30s/60s Ring Buffer DOM update ONLY when Forensik tab is open (Zero Bloat!)
@@ -3720,7 +4051,11 @@ async function bootstrapNexusSimulator() {
       },
       setGenshinMode(enabled) {
         setVisualInspectPreset(enabled ? 'GENSHIN' : '0', false);
-      }
+      },
+      buildPermalinkHash,
+      getPermalinkURL,
+      applyPermalinkFromURL,
+      copyPermalinkToClipboard
     };
   }
 

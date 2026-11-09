@@ -1138,6 +1138,214 @@ export class PhysicsKernel {
     return 0.0;
   }
 
+  static lastGeoZoneStatus = {
+    active: false,
+    zoneId: '',
+    labelId: '',
+    timestampMs: 0
+  };
+
+  static _recordGeoZoneAlert(zoneId, labelId) {
+    const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    PhysicsKernel.lastGeoZoneStatus.active = true;
+    PhysicsKernel.lastGeoZoneStatus.zoneId = zoneId;
+    PhysicsKernel.lastGeoZoneStatus.labelId = labelId;
+    PhysicsKernel.lastGeoZoneStatus.timestampMs = now;
+  }
+
+  /**
+   * Enforces Aviation No-Fly Zone (NFZ) for Drones & No-Wandering Zone for Pedestrians
+   * around Landasan Pacu RWY 36/18 Pulau I, VIP Helipad / Gyrocopter FATO, and live aircraft/gyrocopter bubbles.
+   */
+  static resolveAviationNoFlyAndNoWanderZone(
+    p,
+    pPrev,
+    vel,
+    radius,
+    isWalk,
+    enforceDroneNfz,
+    dynamicColliders,
+    cancelInwardVel
+  ) {
+    void pPrev;
+    let hit = false;
+
+    // 1. PEDESTRIAN NO-WANDERING ZONE (Landasan Pacu RWY 36/18 Strip & Gyrocopter/Helipad FATO)
+    if (isWalk) {
+      const rMinX = -376.0 - radius;
+      const rMaxX = -134.0 + radius;
+      const rMinZ = 695.0 - radius;
+      const rMaxZ = 721.0 + radius;
+      if (p.x > rMinX && p.x < rMaxX && p.z > rMinZ && p.z < rMaxZ) {
+        const dSouth = p.z - rMinZ;
+        const dNorth = rMaxZ - p.z;
+        const dWest = p.x - rMinX;
+        const dEast = rMaxX - p.x;
+        const minD = Math.min(dSouth, dNorth, dWest, dEast);
+        if (minD === dSouth) {
+          p.z = rMinZ;
+          cancelInwardVel(0, 0, -1);
+        } else if (minD === dNorth) {
+          p.z = rMaxZ;
+          cancelInwardVel(0, 0, 1);
+        } else if (minD === dWest) {
+          p.x = rMinX;
+          cancelInwardVel(-1, 0, 0);
+        } else {
+          p.x = rMaxX;
+          cancelInwardVel(1, 0, 0);
+        }
+        PhysicsKernel._recordGeoZoneAlert(
+          'NO_WANDER_RUNWAY',
+          '⛔ ZONA TERLARANG PEJALAN KAKI · LANDASAN PACU RWY 36/18 AKTIF (PESAWAT & GYROCOPTER)'
+        );
+        hit = true;
+      }
+
+      // Helipad / Gyrocopter FATO Pads (Pulau U VIP & Pulau I Heliport)
+      const fatoPads = [
+        { cx: -104.0, cz: 106.5, r: 14.2 },
+        { cx: -278.5, cz: 675.0, r: 9.8 }
+      ];
+      for (let i = 0; i < fatoPads.length; i++) {
+        const pad = fatoPads[i];
+        const dx = p.x - pad.cx;
+        const dz = p.z - pad.cz;
+        const d = Math.hypot(dx, dz);
+        const reqR = pad.r + radius;
+        if (d < reqR) {
+          const nx = d > 1e-4 ? dx / d : 0.0;
+          const nz = d > 1e-4 ? dz / d : -1.0;
+          p.x = pad.cx + nx * reqR;
+          p.z = pad.cz + nz * reqR;
+          cancelInwardVel(nx, 0, nz);
+          PhysicsKernel._recordGeoZoneAlert(
+            'NO_WANDER_FATO',
+            '⛔ ZONA TERLARANG PEJALAN KAKI · AREA FATO GYROCOPTER / HELIPAD AKTIF'
+          );
+          hit = true;
+        }
+      }
+      return hit;
+    }
+
+    // 2. DRONE NO-FLY ZONE (NFZ — Landasan Pacu RWY 36/18, Gyrocopter FATO Cylinders, & Live Aircraft Bubbles)
+    if (!enforceDroneNfz) return false;
+
+    // 2A. Landasan Pacu RWY 36/18 Active Airspace Box (x in [-374, -136], z in [696, 720], y <= 46.0m)
+    const nfzMinX = -374.0 - radius;
+    const nfzMaxX = -136.0 + radius;
+    const nfzMinZ = 696.0 - radius;
+    const nfzMaxZ = 720.0 + radius;
+    const nfzMaxY = 46.0 + radius;
+    if (p.x > nfzMinX && p.x < nfzMaxX && p.z > nfzMinZ && p.z < nfzMaxZ && p.y < nfzMaxY) {
+      const dSouth = p.z - nfzMinZ;
+      const dNorth = nfzMaxZ - p.z;
+      const dWest = p.x - nfzMinX;
+      const dEast = nfzMaxX - p.x;
+      const dTop = nfzMaxY - p.y;
+      if (p.y > 38.0 && dTop <= Math.min(dSouth, dNorth, dWest, dEast)) {
+        p.y = nfzMaxY;
+        cancelInwardVel(0, 1, 0);
+      } else {
+        const minH = Math.min(dSouth, dNorth, dWest, dEast);
+        if (minH === dSouth) {
+          p.z = nfzMinZ;
+          cancelInwardVel(0, 0, -1);
+        } else if (minH === dNorth) {
+          p.z = nfzMaxZ;
+          cancelInwardVel(0, 0, 1);
+        } else if (minH === dWest) {
+          p.x = nfzMinX;
+          cancelInwardVel(-1, 0, 0);
+        } else {
+          p.x = nfzMaxX;
+          cancelInwardVel(1, 0, 0);
+        }
+      }
+      PhysicsKernel._recordGeoZoneAlert(
+        'NFZ_RUNWAY_RWY36',
+        '✈️ DRONE NO-FLY ZONE (NFZ) · KORIDOR LANDASAN PACU RWY 36/18 (< 46m AGL)'
+      );
+      hit = true;
+    }
+
+    // 2B. VIP Helipad & Gyrocopter FATO Airspace Cylinders
+    const nfzCylinders = [
+      { cx: -104.0, cz: 106.5, r: 13.5, maxY: 28.0 },
+      { cx: -278.5, cz: 675.0, r: 9.5, maxY: 28.0 }
+    ];
+    for (let i = 0; i < nfzCylinders.length; i++) {
+      const cyl = nfzCylinders[i];
+      const reqR = cyl.r + radius;
+      const reqY = cyl.maxY + radius;
+      if (p.y < reqY) {
+        const dx = p.x - cyl.cx;
+        const dz = p.z - cyl.cz;
+        const d = Math.hypot(dx, dz);
+        if (d < reqR) {
+          const dTop = reqY - p.y;
+          const dRad = reqR - d;
+          if (p.y > cyl.maxY - 4.0 && dTop < dRad) {
+            p.y = reqY;
+            cancelInwardVel(0, 1, 0);
+          } else {
+            const nx = d > 1e-4 ? dx / d : 0.0;
+            const nz = d > 1e-4 ? dz / d : -1.0;
+            p.x = cyl.cx + nx * reqR;
+            p.z = cyl.cz + nz * reqR;
+            cancelInwardVel(nx, 0, nz);
+          }
+          PhysicsKernel._recordGeoZoneAlert(
+            'NFZ_GYROCOPTER_FATO',
+            '🚁 DRONE NO-FLY ZONE (NFZ) · ZONA FATO GYROCOPTER / HELIPAD VIP'
+          );
+          hit = true;
+        }
+      }
+    }
+
+    // 2C. Live Moving Aircraft & Gyrocopter 3D Airspace Safety Bubble
+    if (Array.isArray(dynamicColliders)) {
+      for (let i = 0; i < dynamicColliders.length; i++) {
+        const dc = dynamicColliders[i];
+        if (!dc || dc.enabled === false) continue;
+        const id = dc.id || '';
+        if (
+          id !== 'Dyn_Cessna172_PKUIA' &&
+          id !== 'Dyn_CitationLearjet_PKUIB' &&
+          id !== 'Dyn_HeliTaxiEVTOL'
+        ) {
+          continue;
+        }
+        const cx = Number.isFinite(dc.cx) ? dc.cx : 0.0;
+        const cy = Number.isFinite(dc.cy) ? dc.cy : 0.5 * ((dc.bMinY || 0) + (dc.bMaxY || 4));
+        const cz = Number.isFinite(dc.cz) ? dc.cz : 0.0;
+        const bubbleR = (id === 'Dyn_HeliTaxiEVTOL' ? 11.5 : 14.5) + radius;
+        const dx = p.x - cx;
+        const dy = p.y - cy;
+        const dz = p.z - cz;
+        const d = Math.hypot(dx, dy, dz);
+        if (d < bubbleR) {
+          const nx = d > 1e-4 ? dx / d : 0.0;
+          const ny = d > 1e-4 ? dy / d : 1.0;
+          const nz = d > 1e-4 ? dz / d : 0.0;
+          p.x = cx + nx * bubbleR;
+          p.y = cy + ny * bubbleR;
+          p.z = cz + nz * bubbleR;
+          cancelInwardVel(nx, ny, nz);
+          PhysicsKernel._recordGeoZoneAlert(
+            'NFZ_AIRCRAFT_BUBBLE',
+            '⚠️ DRONE NO-FLY ZONE (NFZ) · ZONA AMAN PESAWAT / GYROCOPTER AKTIF'
+          );
+          hit = true;
+        }
+      }
+    }
+
+    return hit;
+  }
+
   /**
    * Hard Iterative 3D Camera & Drone Non-Penetration Solver (3 Gauss-Seidel passes + Sub-Stepped Sweep).
    * Guarantees 0.000m penetration into buildings, roofs, columns, trees, lamps, bridges, underpass walls/vault,
@@ -1151,6 +1359,7 @@ export class PhysicsKernel {
       bottomOffset = radius,
       topOffset = radius,
       isWalk = false,
+      enforceDroneNfz = false,
       groundHeightFn = null,
       walkableHeightFn = null,
       coastDistFn = null,
@@ -1179,6 +1388,23 @@ export class PhysicsKernel {
 
     const solveSinglePosition = (p, pPrev) => {
       for (let iter = 0; iter < 3; iter++) {
+        // 0. Aviation Drone No-Fly Zone (NFZ) & Pedestrian Runway No-Wandering Zone
+        if (
+          (isWalk || enforceDroneNfz) &&
+          PhysicsKernel.resolveAviationNoFlyAndNoWanderZone(
+            p,
+            pPrev,
+            vel,
+            radius,
+            isWalk,
+            enforceDroneNfz,
+            dynamicColliders,
+            cancelInwardVel
+          )
+        ) {
+          hitAny = true;
+        }
+
         // 1. Underpass Bawah Laut Two-Regime Topological Solids (Retaining Walls, Headwalls, Bore Walls, Vault Ceiling)
         if (
           underpassConfig &&
