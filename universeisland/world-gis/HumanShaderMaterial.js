@@ -201,6 +201,7 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
       uniforms.uFleetKinematics || { value: new THREE.Vector4(0.0, 0.0, 0.0, 0.0) };
     shader.uniforms.uHvsParams = uniforms.uHvsParams || hvsFallback.uHvsParams;
     shader.uniforms.uHvsGlare = uniforms.uHvsGlare || hvsFallback.uHvsGlare;
+    shader.uniforms.uGenshinMode = uniforms.uGenshinMode || hvsFallback.uGenshinMode;
 
     shader.vertexShader = [
       'attribute vec3 aHumanMeta;',
@@ -902,6 +903,17 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
           '        gl_FragColor.rgb += lampTintH * (attH * pow(max(0.0, dot(N, hVecL)), spExp) * 0.55);',
           '      }',
           '    }',
+          '  }',
+          '  // Tahap 3: Genshin Impact Anime Character, Feline, & Vehicle Cel-Shading + Crisp Sunlit Fresnel Rim-Light',
+          '  if (uGenshinMode > 0.001 && abs(mClsP - 0.90) > 0.03 && abs(mClsP - 1.70) > 0.03 && abs(mClsP - 1.80) > 0.03 && abs(mClsP - 1.95) > 0.03) {',
+          '    float gModeH = clamp(uGenshinMode, 0.0, 1.0);',
+          '    float gHalfH = NdotL * 0.5 + 0.5;',
+          '    float gCelH = smoothstep(0.42, 0.54, gHalfH);',
+          '    vec3 gCoolShadowH = diffuseColor.rgb * vec3(0.28, 0.38, 0.64) * (1.0 - gCelH) * dayFactor * 0.72;',
+          '    vec3 gWarmLitH = diffuseColor.rgb * uSunColor * vec3(1.12, 1.04, 0.92) * gCelH * 0.24 * dayFactor;',
+          '    float gCharRim = smoothstep(0.56, 0.84, 1.0 - NdotV) * clamp(NdotL * 0.65 + 0.35, 0.0, 1.0) * clamp(N.y + 0.55, 0.0, 1.0);',
+          '    vec3 gRimColH = mix(vec3(0.62, 0.88, 1.20), uSunColor * vec3(1.35, 1.18, 0.92), gCelH);',
+          '    gl_FragColor.rgb += (gCoolShadowH + gWarmLitH + gRimColH * gCharRim * 0.34 * dayFactor) * gModeH;',
           '  }',
           '}',
           'if (uZebraInspectMode < 0.5) {',

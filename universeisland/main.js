@@ -414,6 +414,12 @@ async function bootstrapNexusSimulator() {
   const weather = new WeatherOpticsEngine(scene, {
     shadowMapSize: hwGovernor.getActiveTierConfig().shadowMapSize
   });
+  if (sharedUniforms.uGenshinMode) {
+    weather.uniforms.uGenshinMode = sharedUniforms.uGenshinMode;
+    if (weather.skyMesh && weather.skyMesh.material && weather.skyMesh.material.uniforms) {
+      weather.skyMesh.material.uniforms.uGenshinMode = sharedUniforms.uGenshinMode;
+    }
+  }
   weather.attachRenderer(renderer);
   const waterMaterial = weather.createDanauKenangaWaterMaterial();
   const audioSynth = new AudioSynthesizer();
@@ -2684,14 +2690,46 @@ async function bootstrapNexusSimulator() {
   }
   syncTransitionButtonsUI();
 
-  // SSoST Zebra Inspection Mode
-  document.querySelectorAll('[data-inspect]').forEach((btn) => {
+  // SSoST Visual Preset & Zebra Inspection Mode (PBR Natural | ✨ Genshin Stylized HDR | Zebra)
+  const qdockGenshinBtn = document.getElementById('btn-qdock-genshin');
+  const inspectButtons = Array.from(document.querySelectorAll('[data-inspect]'));
+
+  function setVisualInspectPreset(modeKey, playChime = false) {
+    const key = String(modeKey);
+    const isGenshin = key === 'GENSHIN';
+    const isZebra = key === '1' || key === '2';
+    if (sharedUniforms.uGenshinMode) {
+      sharedUniforms.uGenshinMode.value = isGenshin ? 1.0 : 0.0;
+    }
+    if (weather.uniforms && weather.uniforms.uGenshinMode) {
+      weather.uniforms.uGenshinMode.value = isGenshin ? 1.0 : 0.0;
+    }
+    sharedUniforms.uZebraInspectMode.value = isZebra ? Number(key) : 0;
+    weather._applyContinuousCelestialAndFog(sharedUniforms);
+
+    inspectButtons.forEach((b) => {
+      b.classList.toggle('active', b.dataset.inspect === key);
+    });
+    if (qdockGenshinBtn) {
+      qdockGenshinBtn.classList.toggle('active', isGenshin);
+    }
+    if (playChime) {
+      audioSynth.playUiChime(isGenshin ? 680 : 540);
+    }
+  }
+
+  inspectButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('[data-inspect]').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      sharedUniforms.uZebraInspectMode.value = Number(btn.dataset.inspect);
+      setVisualInspectPreset(btn.dataset.inspect, true);
     });
   });
+
+  if (qdockGenshinBtn) {
+    qdockGenshinBtn.addEventListener('click', () => {
+      const curGenshin = (sharedUniforms.uGenshinMode && sharedUniforms.uGenshinMode.value > 0.5);
+      setVisualInspectPreset(curGenshin ? '0' : 'GENSHIN', true);
+    });
+  }
 
   // 3D Binaural HRTF & Physical Acoustic Engine (Unified Across Drawer, Quick Dock, & Avata 2 HUD)
   const audioBtn = document.getElementById('btn-audio');
@@ -3486,10 +3524,15 @@ async function bootstrapNexusSimulator() {
       videotron.update(camera, window.innerWidth, window.innerHeight, sharedUniforms);
       grassField.update(camera, { windVec: weather.uniforms.uWindVec.value }, sharedUniforms);
       const droneCinemaNow = isDroneCinemaView();
-      postFX.updateMode(dt, droneCinemaNow, {
-        duskFactor: weather.uniforms.uDuskFactor.value,
-        nightFactor: weather.uniforms.uNightFactor.value
-      });
+      postFX.updateMode(
+        dt,
+        droneCinemaNow,
+        {
+          duskFactor: weather.uniforms.uDuskFactor.value,
+          nightFactor: weather.uniforms.uNightFactor.value
+        },
+        sharedUniforms.uGenshinMode ? sharedUniforms.uGenshinMode.value : 0.0
+      );
       renderer.getDrawingBufferSize(drawBufSize);
       if (drawBufSize.x !== postFX.width || drawBufSize.y !== postFX.height) {
         postFX.setSize(drawBufSize.x, drawBufSize.y);
@@ -3674,6 +3717,9 @@ async function bootstrapNexusSimulator() {
       },
       stopArrival() {
         arrivalActive = false;
+      },
+      setGenshinMode(enabled) {
+        setVisualInspectPreset(enabled ? 'GENSHIN' : '0', false);
       }
     };
   }

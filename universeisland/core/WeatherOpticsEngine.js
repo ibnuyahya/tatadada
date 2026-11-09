@@ -676,6 +676,7 @@ export class WeatherOpticsEngine {
       uCollisionReady: { value: 0.0 },
       uHvsParams: hvsUniforms.uHvsParams,
       uHvsGlare: hvsUniforms.uHvsGlare,
+      uGenshinMode: hvsUniforms.uGenshinMode,
       uPlanarReflTex: { value: fallbackPlanarTex },
       uPlanarReflMatrix: { value: new THREE.Matrix4() },
       uPlanarReflActive: { value: 0.0 },
@@ -1231,8 +1232,11 @@ export class WeatherOpticsEngine {
 
         // Deep Pelagic Jerlov IB Java Sea volume + subtle wind-swell mottling before horizon extinction
         float overcastDesatS = clamp(rainIntensity * 0.65 + stormFactor * 0.25, 0.0, 1.0);
-        vec3 pelagicDay = mix(vec3(0.015, 0.064, 0.118), vec3(0.011, 0.038, 0.075), overcastDesatS);
-        vec3 pelagicCol = mix(pelagicDay, vec3(0.010, 0.020, 0.042), nightFactor);
+        float gModeFar = clamp(uGenshinMode, 0.0, 1.0);
+        vec3 pelagicDayPBR = mix(vec3(0.015, 0.064, 0.118), vec3(0.011, 0.038, 0.075), overcastDesatS);
+        vec3 pelagicDayGenshin = mix(vec3(0.022, 0.125, 0.265), vec3(0.016, 0.075, 0.165), overcastDesatS);
+        vec3 pelagicDay = mix(pelagicDayPBR, pelagicDayGenshin, gModeFar * 0.85);
+        vec3 pelagicCol = mix(pelagicDay, mix(vec3(0.010, 0.020, 0.042), vec3(0.016, 0.045, 0.105), gModeFar * 0.75), nightFactor);
         vec2 worldSeaXZ = dirXZ * dSeaM;
         float swellTex = (farSeaFbm3(worldSeaXZ * 0.0045 - windPhase * 0.025) - 0.5)
                        * (1.0 - smoothstep(3500.0, 24000.0, dSeaM));
@@ -1497,6 +1501,7 @@ export class WeatherOpticsEngine {
         uWindPhase: this.uniforms.uWindPhase,
         uHvsParams: this.uniforms.uHvsParams,
         uHvsGlare: this.uniforms.uHvsGlare,
+        uGenshinMode: this.uniforms.uGenshinMode,
         uRenderingPlanarRefl: this.uniforms.uRenderingPlanarRefl
       },
       vertexShader: /* glsl */ `
@@ -1685,17 +1690,20 @@ export class WeatherOpticsEngine {
           // 1. FULL-FEATURE RAYLEIGH + OZONE CHAPPUIS + BORTLE CLASS 1-2 ISLAND NIGHT ATMOSPHERE
           //    Zero urban orange skyglow pollution! Only pure dark oceanic cosmos, subtle 557.7nm natural
           //    airglow near the marine horizon, and physical lunar Rayleigh scatter when the Moon is risen.
-          vec3 dayZenith = vec3(0.12, 0.36, 0.74);
-          vec3 dayHorizon = vec3(0.62, 0.78, 0.92);
+          float gSkyMode = clamp(uGenshinMode, 0.0, 1.0);
+          vec3 dayZenith = mix(vec3(0.12, 0.36, 0.74), vec3(0.09, 0.35, 0.82), gSkyMode * 0.88);
+          vec3 dayHorizon = mix(vec3(0.62, 0.78, 0.92), vec3(0.55, 0.80, 0.96), gSkyMode * 0.85);
 
           // Stratospheric Ozone Chappuis absorption deepens twilight zenith to royal cobalt-indigo
-          vec3 duskZenith = vec3(0.10, 0.15, 0.38);
-          vec3 duskHorizon = mix(vec3(0.52, 0.56, 0.68), vec3(0.94, 0.47, 0.20), smoothstep(-0.35, 0.85, cosSun));
+          vec3 duskZenith = mix(vec3(0.10, 0.15, 0.38), vec3(0.24, 0.18, 0.56), gSkyMode * 0.85);
+          vec3 duskHorizonPBR = mix(vec3(0.52, 0.56, 0.68), vec3(0.94, 0.47, 0.20), smoothstep(-0.35, 0.85, cosSun));
+          vec3 duskHorizonGenshin = mix(vec3(0.58, 0.49, 0.86), vec3(1.00, 0.52, 0.28), smoothstep(-0.35, 0.85, cosSun));
+          vec3 duskHorizon = mix(duskHorizonPBR, duskHorizonGenshin, gSkyMode * 0.88);
 
           float lunarSkyScatter = clamp(moonDir.y, 0.0, 1.0) * uMoonIllumFraction * (1.0 - overcast * 0.75);
           // Calibrated IEC-sRGB tropical midnight sapphire-navy sky (maps through sRGB->Linear->HVS to natural deep navy #111A2A, NEVER pitch-black (0,0,0)!)
-          vec3 bortle1Zenith = vec3(0.056, 0.086, 0.145) + vec3(0.038, 0.058, 0.098) * lunarSkyScatter;
-          vec3 bortle1Horizon = vec3(0.084, 0.122, 0.192) + vec3(0.042, 0.062, 0.104) * lunarSkyScatter;
+          vec3 bortle1Zenith = mix(vec3(0.056, 0.086, 0.145), vec3(0.068, 0.125, 0.265), gSkyMode * 0.75) + vec3(0.038, 0.058, 0.098) * lunarSkyScatter;
+          vec3 bortle1Horizon = mix(vec3(0.084, 0.122, 0.192), vec3(0.095, 0.168, 0.345), gSkyMode * 0.78) + vec3(0.042, 0.062, 0.104) * lunarSkyScatter;
 
           vec3 zenith = mix(mix(dayZenith, duskZenith, uDuskFactor), bortle1Zenith, uNightFactor);
           vec3 horizon = mix(mix(dayHorizon, duskHorizon, uDuskFactor), bortle1Horizon, uNightFactor);
@@ -2009,15 +2017,19 @@ export class WeatherOpticsEngine {
               0.10,
               1.0
             );
+            // Tahap 3: Genshin Painterly Cel-Sculpted Cumulus Billows
+            selfLit = mix(selfLit, smoothstep(0.24, 0.66, selfLit) * 0.88 + 0.12, gSkyMode * 0.65);
             float powderEffect = 1.0 - exp(-cloudDensityTotal * 3.4 * (1.0 - uStormFactor * 0.45));
             float multiScatter = 0.21 * powderEffect * (0.38 + 0.62 * selfLit) * (1.0 - uStormFactor * 0.55);
             float forwardScatter = pow(max(cosTheta, 0.0), 8.0) * 0.38 * (1.0 - dLow * 0.66);
             // Crisp diffraction silver-lining rim around sunlit cauliflower cumulus edges!
-            float silverEdge = pow(max(cosTheta, 0.0), 14.0) * smoothstep(0.04, 0.34, cloudDensityTotal) * exp(-cloudDensityTotal * 2.35) * 0.84;
+            float silverEdge = pow(max(cosTheta, 0.0), mix(14.0, 9.0, gSkyMode)) * smoothstep(0.04, 0.34, cloudDensityTotal) * exp(-cloudDensityTotal * 2.35) * (0.84 + 0.72 * gSkyMode);
 
-            vec3 litCloudDay = mix(vec3(0.98, 0.99, 1.0), vec3(0.99, 0.62, 0.36), uDuskFactor);
-            vec3 darkBaseDay = mix(vec3(0.47, 0.53, 0.61), vec3(0.13, 0.16, 0.22), clamp(uRainIntensity * 0.65 + uStormFactor * 0.55, 0.0, 1.0));
-            darkBaseDay = mix(darkBaseDay, vec3(0.36, 0.23, 0.27), uDuskFactor * (1.0 - uStormFactor * 0.6));
+            vec3 litCloudDay = mix(mix(vec3(0.98, 0.99, 1.0), vec3(1.00, 0.98, 0.94), gSkyMode * 0.65), vec3(0.99, 0.62, 0.36), uDuskFactor);
+            vec3 darkBasePBR = mix(vec3(0.47, 0.53, 0.61), vec3(0.13, 0.16, 0.22), clamp(uRainIntensity * 0.65 + uStormFactor * 0.55, 0.0, 1.0));
+            vec3 darkBaseGenshin = mix(vec3(0.56, 0.66, 0.88), vec3(0.22, 0.28, 0.44), clamp(uRainIntensity * 0.65 + uStormFactor * 0.55, 0.0, 1.0));
+            vec3 darkBaseDay = mix(darkBasePBR, darkBaseGenshin, gSkyMode * 0.78);
+            darkBaseDay = mix(darkBaseDay, mix(vec3(0.36, 0.23, 0.27), vec3(0.52, 0.34, 0.58), gSkyMode * 0.80), uDuskFactor * (1.0 - uStormFactor * 0.6));
 
             vec3 scatterTint = mix(vec3(1.0, 0.96, 0.86), vec3(1.0, 0.64, 0.32), uDuskFactor);
             vec3 cloudColDay = mix(darkBaseDay, litCloudDay, clamp(selfLit + multiScatter, 0.0, 1.0)) + scatterTint * (forwardScatter + silverEdge);
@@ -2046,9 +2058,9 @@ export class WeatherOpticsEngine {
                 }
               }
               float shaftContrast = smoothstep(0.18, 0.82, shaftTrans) * (1.0 - cloudDensityTotal * 0.58);
-              float godRay = pow(max(0.0, cosSun), 4.8) * shaftContrast * smoothstep(0.03, 0.48, uCloudCover);
+              float godRay = pow(max(0.0, cosSun), mix(4.8, 3.6, gSkyMode)) * shaftContrast * smoothstep(0.03, 0.48, uCloudCover);
               vec3 rayCol = mix(vec3(0.48, 0.42, 0.26), vec3(0.96, 0.50, 0.20), uDuskFactor);
-              skyCol += rayCol * godRay * solarHaloVis * (1.0 - uRainIntensity) * (1.0 - uNightFactor) * 0.34;
+              skyCol += rayCol * godRay * solarHaloVis * (1.0 - uRainIntensity) * (1.0 - uNightFactor) * (0.34 + 0.28 * gSkyMode);
             }
           }
 
@@ -3939,6 +3951,7 @@ export class WeatherOpticsEngine {
         uVesselWakes: this.uniforms.uVesselWakes,
         uHvsParams: this.uniforms.uHvsParams,
         uHvsGlare: this.uniforms.uHvsGlare,
+        uGenshinMode: this.uniforms.uGenshinMode,
         uPlanarReflTex: this.uniforms.uPlanarReflTex,
         uPlanarReflMatrix: this.uniforms.uPlanarReflMatrix,
         uPlanarReflActive: this.uniforms.uPlanarReflActive,
@@ -4229,6 +4242,7 @@ export class WeatherOpticsEngine {
 
             // Emerald-jade translucent rollover brink (tDrop < 0.22) -> aerated roaring white cataract -> plunge boil!
             vec3 jadeBrink = mix(vec3(0.045, 0.295, 0.275), vec3(0.115, 0.485, 0.445), chuteA);
+            jadeBrink = mix(jadeBrink, mix(vec3(0.085, 0.540, 0.620), vec3(0.180, 0.720, 0.780), chuteA), clamp(uGenshinMode, 0.0, 1.0) * 0.85);
             jadeBrink = mix(jadeBrink, vec3(0.018, 0.045, 0.068), uNightFactor);
 
             float aeration = clamp(
@@ -4427,12 +4441,15 @@ export class WeatherOpticsEngine {
 
             // 2. Luminous Clear Tropical Stream & Campus Lake Volume Scattering + Subsurface Glow (ZERO dark swamp ink!)
             float optDepth = effDepth * (1.0 + 0.34 / max(0.28, viewDirR.y));
+            float gModeR = clamp(uGenshinMode, 0.0, 1.0);
             vec3 shallowScatter = isSpring ? vec3(0.072, 0.355, 0.332)
                                 : isPlungePool ? vec3(0.076, 0.380, 0.362)
                                 : vec3(0.070, 0.302, 0.258);
             vec3 deepScatter = isSpring ? vec3(0.036, 0.205, 0.212)
                              : isPlungePool ? vec3(0.040, 0.228, 0.236)
                              : vec3(0.038, 0.182, 0.180);
+            shallowScatter = mix(shallowScatter, vec3(0.095, 0.585, 0.620), gModeR * 0.85);
+            deepScatter = mix(deepScatter, vec3(0.045, 0.365, 0.480), gModeR * 0.85);
 
             // Natural rainstorm alluvial silt warming (stays luminous silvery-olive, never pitch-black!)
             if (!isSpring && uRainIntensity > 0.05) {
@@ -4768,14 +4785,35 @@ export class WeatherOpticsEngine {
           }
 
           float overcastDesat = clamp(uRainIntensity * 0.65 + uStormFactor * 0.25, 0.0, 1.0);
-          vec3 shallowTurquoise = mix(vec3(0.068, 0.285, 0.262), vec3(0.045, 0.155, 0.162), overcastDesat);
+          float gModeW = clamp(uGenshinMode, 0.0, 1.0);
+          vec3 shallowTurquoise = mix(
+            mix(vec3(0.068, 0.285, 0.262), vec3(0.088, 0.465, 0.500), gModeW * 0.86),
+            vec3(0.045, 0.155, 0.162),
+            overcastDesat * (1.0 - gModeW * 0.55)
+          );
           if (seribuReef.x > 0.004) {
-            vec3 reefTurquoise = mix(vec3(0.078, 0.415, 0.388), vec3(0.048, 0.215, 0.218), overcastDesat);
+            vec3 reefTurquoise = mix(
+              mix(vec3(0.078, 0.415, 0.388), vec3(0.110, 0.550, 0.580), gModeW * 0.86),
+              vec3(0.048, 0.215, 0.218),
+              overcastDesat * (1.0 - gModeW * 0.55)
+            );
             shallowTurquoise = mix(shallowTurquoise, reefTurquoise, seribuReef.x * 0.88);
           }
-          vec3 shelfEmerald     = mix(vec3(0.028, 0.152, 0.194), vec3(0.021, 0.088, 0.118), overcastDesat);
-          vec3 straitTeal       = mix(vec3(0.018, 0.094, 0.152), vec3(0.014, 0.058, 0.094), overcastDesat);
-          vec3 deepPelagic      = mix(vec3(0.013, 0.058, 0.114), vec3(0.010, 0.036, 0.072), overcastDesat);
+          vec3 shelfEmerald     = mix(
+            mix(vec3(0.028, 0.152, 0.194), vec3(0.042, 0.310, 0.430), gModeW * 0.85),
+            vec3(0.021, 0.088, 0.118),
+            overcastDesat * (1.0 - gModeW * 0.55)
+          );
+          vec3 straitTeal       = mix(
+            mix(vec3(0.018, 0.094, 0.152), vec3(0.028, 0.205, 0.360), gModeW * 0.85),
+            vec3(0.014, 0.058, 0.094),
+            overcastDesat * (1.0 - gModeW * 0.55)
+          );
+          vec3 deepPelagic      = mix(
+            mix(vec3(0.013, 0.058, 0.114), vec3(0.020, 0.125, 0.265), gModeW * 0.85),
+            vec3(0.010, 0.036, 0.072),
+            overcastDesat * (1.0 - gModeW * 0.55)
+          );
 
           shallowTurquoise = mix(shallowTurquoise, vec3(0.015, 0.030, 0.052), uNightFactor);
           shelfEmerald     = mix(shelfEmerald,     vec3(0.012, 0.024, 0.046), uNightFactor);
@@ -4930,6 +4968,24 @@ export class WeatherOpticsEngine {
           vec3 glitter = glitterTint * (specTight + specGlitter) * directCelVisO;
           col += glitter / (1.0 + glitter * 0.42);
 
+          // 4B. GENSHIN IMPACT / FONTAINE PROCEDURAL ANIME 4-POINT STAR SUN-GLINT SPARKLES
+          if (gModeW > 0.001 && distCam < 520.0) {
+            vec2 spGrid = vWorldPos.xz * 2.15 + vec2(uTime * 0.16, -uTime * 0.13);
+            vec2 spId = floor(spGrid);
+            vec2 spUv = fract(spGrid) - 0.5;
+            float spHash = fract(sin(dot(spId, vec2(127.1, 311.7))) * 43758.5453);
+            float spFlicker = max(0.0, sin(uTime * (3.2 + spHash * 2.8) + spHash * 6.2831));
+            spFlicker = pow(spFlicker, 5.0) * step(0.62, spHash);
+            float starCross = max(
+              (1.0 - smoothstep(0.0, 0.42, abs(spUv.x) * 4.5 + abs(spUv.y))) * (1.0 - smoothstep(0.0, 0.09, abs(spUv.x))),
+              (1.0 - smoothstep(0.0, 0.42, abs(spUv.y) * 4.5 + abs(spUv.x))) * (1.0 - smoothstep(0.0, 0.09, abs(spUv.y)))
+            );
+            float starCore = 1.0 - smoothstep(0.0, 0.16, length(spUv));
+            float sunGlintMask = smoothstep(0.55, 0.96, hDotN) * directCelVisO * waveSelfShadow * smoothstep(520.0, 95.0, distCam);
+            float gSparkle = (starCross * 0.85 + starCore * 1.15) * spFlicker * sunGlintMask * gModeW;
+            col += mix(vec3(1.0, 0.98, 0.86), vec3(0.75, 0.96, 1.0), 0.35) * gSparkle * 1.45;
+          }
+
           // 5. 4-LAYER PHOTOGRAPHIC SEA FOAM, BREAKING BORES, LANGMUIR WINDROWS, & STORM SPINDRIFT SPRAY (ZERO HEXAGONS!)
           float foamBand = 1.0 - smoothstep(150.0, 560.0, distCam);
           float totalFoam = clamp(wakeFoam, 0.0, 0.92);
@@ -5017,10 +5073,13 @@ export class WeatherOpticsEngine {
           }
 
           if (totalFoam > 0.004) {
+            // Genshin Fontaine crisp cel-edged foam ribbon when uGenshinMode > 0
+            totalFoam = mix(totalFoam, smoothstep(0.18, 0.34, totalFoam) * 0.94, gModeW * 0.62);
             // Natural pearlescent aerated bubble lace blending smoothly into crisp sunlit white plunging crest core (ZERO neon cyan!)
             float denseCore = smoothstep(0.18, 0.68, totalFoam);
             float foamSunLit = mix(0.76, 1.0, waveSelfShadow);
             vec3 aeratedLace = mix(col * 0.32 + vec3(0.50, 0.58, 0.62), vec3(0.95, 0.97, 0.98), denseCore) * foamSunLit;
+            aeratedLace = mix(aeratedLace, mix(vec3(0.72, 0.92, 0.98), vec3(0.99, 1.0, 1.0), smoothstep(0.25, 0.58, totalFoam)), gModeW * 0.75);
             vec3 foamCol = mix(mix(aeratedLace, vec3(0.94, 0.68, 0.50), uDuskFactor), vec3(0.18, 0.24, 0.33) * (0.55 + 0.45 * denseCore), uNightFactor);
             foamCol = mix(foamCol, foamCol * 0.76, clamp(uRainIntensity * 0.45 + uStormFactor * 0.25, 0.0, 0.45));
             foamCol += vec3(0.70, 0.82, 1.0) * uLightningFlash * 0.85;
@@ -5601,8 +5660,29 @@ export class WeatherOpticsEngine {
     const sunAboveLimb = WeatherOpticsEngine._smoothstep(-0.026, 0.026, sunElev);
     this.uniforms.uSolarDirectTrans.value = this._smoothedSolarDirectTrans * sunAboveLimb;
 
+    const gMode = Math.max(
+      0.0,
+      Math.min(
+        1.0,
+        Number(
+          (sharedSurfaceUniforms && sharedSurfaceUniforms.uGenshinMode
+            ? sharedSurfaceUniforms.uGenshinMode.value
+            : this.uniforms.uGenshinMode
+              ? this.uniforms.uGenshinMode.value
+              : 0.0) || 0.0
+        )
+      )
+    );
+    if (this.uniforms.uGenshinMode) {
+      this.uniforms.uGenshinMode.value = gMode;
+    }
+
     // Sun / Dusk / Moon directional color
     this._colTmpA.copy(this._colDaySun).lerp(this._colDuskSun, duskF);
+    if (gMode > 0.001) {
+      this._colTmpB.setHex(0xfff4d6);
+      this._colTmpA.lerp(this._colTmpB, gMode * (1.0 - duskF * 0.65));
+    }
     this._colTmpA.lerp(this._colStormTint, stormMix * 0.65);
     this._baseSunColor.copy(this._colTmpA).lerp(this._colNightMoon, moonBlend);
 
@@ -5611,10 +5691,14 @@ export class WeatherOpticsEngine {
     const directSunFactor = 0.015 + 0.985 * this._smoothedSolarDirectTrans;
     const lunarClearFactor = Math.max(0.05, 1.0 - rainNow * 0.85 - stormNow * 0.65 - Math.max(0.0, cloudNow - 0.45) * 1.10);
     const dayDuskInt = (2.52 * (1.0 - duskF) + 1.92 * duskF) * solarFade * directSunFactor;
-    this._baseSunIntensity = dayDuskInt * overcastAtten + 0.34 * lunarFade * overcastAtten * lunarClearFactor;
+    this._baseSunIntensity = (dayDuskInt * overcastAtten + 0.34 * lunarFade * overcastAtten * lunarClearFactor) * (1.0 + 0.12 * gMode);
 
     // Hemisphere Sky & Ground colors (Hukum Emas 13: dark night bounce prevents washed-out passive concrete)
     this._colHemiSky.setHex(0xdbeeff);
+    if (gMode > 0.001) {
+      this._colTmpB.setHex(0x7ecfff);
+      this._colHemiSky.lerp(this._colTmpB, gMode * 0.78);
+    }
     this._colTmpB.setHex(0xffc99e);
     this._colHemiSky.lerp(this._colTmpB, duskF);
     this._colTmpB.setHex(0x768396);
@@ -5624,6 +5708,10 @@ export class WeatherOpticsEngine {
     this.hemiLight.color.copy(this._colHemiSky);
 
     this._colHemiGnd.setHex(0x4c5349);
+    if (gMode > 0.001) {
+      this._colTmpB.setHex(0x3a6a7d);
+      this._colHemiGnd.lerp(this._colTmpB, gMode * 0.74);
+    }
     this._colTmpB.setHex(0x3b332e);
     this._colHemiGnd.lerp(this._colTmpB, duskF);
     this._colTmpB.setHex(0x0c1017);
@@ -5632,10 +5720,14 @@ export class WeatherOpticsEngine {
 
     const cloudDiffusedSun = solarFade * (1.0 - this._smoothedSolarDirectTrans) * overcastAtten;
     const dayHemi = (0.66 * (1.0 - duskF) + 0.42 * duskF) * (0.68 + 0.32 * overcastAtten) + 0.22 * cloudDiffusedSun;
-    this._baseHemiIntensity = dayHemi * (1.0 - nightF) + 0.20 * nightF;
-    this._baseFillIntensity = ((0.35 * overcastAtten * (1.0 - duskF * 0.42)) + 0.14 * cloudDiffusedSun) * (1.0 - nightF) + 0.10 * nightF;
+    this._baseHemiIntensity = (dayHemi * (1.0 - nightF) + 0.20 * nightF) * (1.0 + 0.26 * gMode * (1.0 - nightF));
+    this._baseFillIntensity = (((0.35 * overcastAtten * (1.0 - duskF * 0.42)) + 0.14 * cloudDiffusedSun) * (1.0 - nightF) + 0.10 * nightF) * (1.0 + 0.48 * gMode * (1.0 - nightF));
     this.fillLight.position.copy(this._baseFillPos);
     this.fillLight.color.setHex(0x9ec5eb);
+    if (gMode > 0.001) {
+      this._colTmpB.setHex(0x66b8ff);
+      this.fillLight.color.lerp(this._colTmpB, gMode * 0.82);
+    }
     this.fillLight.intensity = this._baseFillIntensity;
 
     // Isotropic FogExp2 disabled (density = 0.0) in favor of unified 3D Boundary-Layer Aerial Perspective!

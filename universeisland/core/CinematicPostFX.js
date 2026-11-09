@@ -42,6 +42,7 @@ export class CinematicPostFX {
 
     this.droneCinemaBlend = 0.0;
     this.targetDroneCinemaBlend = 0.0;
+    this.genshinMode = 0.0;
     this.activeModeLabel = 'HUMAN_EYE_TRUE_COLOR';
     this.lastWorldDrawCalls = 0;
     this.lastWorldTriangles = 0;
@@ -222,6 +223,7 @@ export class CinematicPostFX {
         uBloomTex: { value: null },
         uTexelSize: { value: new THREE.Vector2(1 / 1280, 1 / 720) },
         uDroneCinemaBlend: { value: 0.0 },
+        uGenshinMode: { value: 0.0 },
         uDuskFactor: { value: 0.0 },
         uNightFactor: { value: 0.0 }
       },
@@ -241,6 +243,7 @@ export class CinematicPostFX {
         uniform sampler2D uBloomTex;
         uniform vec2 uTexelSize;
         uniform float uDroneCinemaBlend;
+        uniform float uGenshinMode;
         uniform float uDuskFactor;
         uniform float uNightFactor;
         varying vec2 vUv;
@@ -280,9 +283,22 @@ export class CinematicPostFX {
           // Dual-Kawase Highlight Scatter:
           // - Human-Eye (blend = 0.0): subtle physiological ciliary scatter strictly on intense highlights (0.075)
           // - Drone Cinema (blend = 1.0): lush Hasselblad cinema halation bloom (0.22)
+          // - Genshin Mode (uGenshinMode = 1.0): dreamy anime soft-knee halation glow (+0.15)
           vec3 bloomLin = srgbToLin(texture2D(uBloomTex, vUv).rgb);
-          float bloomWeight = mix(0.075, 0.22, uDroneCinemaBlend);
-          colLin += bloomLin * bloomWeight;
+          float bloomWeight = mix(0.075, 0.22, uDroneCinemaBlend) + 0.15 * uGenshinMode;
+          vec3 bloomTint = mix(vec3(1.0), vec3(1.05, 1.01, 0.94), uGenshinMode * 0.65);
+          colLin += bloomLin * bloomTint * bloomWeight;
+
+          // === GENSHIN IMPACT / UFOTABLE ANIME SPLIT-TONE & HALATION POLISH ===
+          if (uGenshinMode > 0.002) {
+            float lumaG = dot(colLin, vec3(0.2126, 0.7152, 0.0722));
+            float gShadowMask = (1.0 - smoothstep(0.0, 0.34, lumaG)) * (1.0 - uNightFactor * 0.35);
+            float gHiMask = smoothstep(0.30, 0.90, lumaG);
+            vec3 gShadowTint = vec3(0.90, 0.97, 1.12);
+            vec3 gHiTint = mix(vec3(1.045, 1.015, 0.955), vec3(1.08, 0.99, 0.90), uDuskFactor);
+            vec3 gPolished = colLin * mix(vec3(1.0), gShadowTint, gShadowMask * 0.58) * mix(vec3(1.0), gHiTint, gHiMask * 0.52);
+            colLin = mix(colLin, max(vec3(0.0), gPolished), uGenshinMode);
+          }
 
           // === DRONE CINEMA COLOR GRADE (Strictly 0.0 in Human-Eye Mode -> 100% True-Color Preserved!) ===
           if (uDroneCinemaBlend > 0.002) {
@@ -326,17 +342,23 @@ export class CinematicPostFX {
    * - isDroneCinema = false -> Human-Eye True-Color Photorealistic Perception (uDroneCinemaBlend -> 0.0)
    * - isDroneCinema = true  -> Drone Aerial Cinema Color-Graded Perception (uDroneCinemaBlend -> 1.0)
    */
-  updateMode(dt, isDroneCinema, weatherState = null) {
+  updateMode(dt, isDroneCinema, weatherState = null, genshinMode = 0.0) {
     this.targetDroneCinemaBlend = isDroneCinema ? 1.0 : 0.0;
     const rate = 1.0 - Math.exp(-Math.max(0.0, dt || 0.016) * 5.2);
     this.droneCinemaBlend += (this.targetDroneCinemaBlend - this.droneCinemaBlend) * rate;
     if (Math.abs(this.targetDroneCinemaBlend - this.droneCinemaBlend) < 0.001) {
       this.droneCinemaBlend = this.targetDroneCinemaBlend;
     }
+    this.genshinMode = Math.max(0.0, Math.min(1.0, Number(genshinMode) || 0.0));
     this.activeModeLabel =
-      this.droneCinemaBlend > 0.5 ? 'DRONE_MAVIC3_CINEMA_GRADE' : 'HUMAN_EYE_TRUE_COLOR';
+      this.genshinMode > 0.5
+        ? 'GENSHIN_ANIME_STYLIZED_HDR'
+        : this.droneCinemaBlend > 0.5
+          ? 'DRONE_MAVIC3_CINEMA_GRADE'
+          : 'HUMAN_EYE_TRUE_COLOR';
 
     this._compositeMat.uniforms.uDroneCinemaBlend.value = this.droneCinemaBlend;
+    this._compositeMat.uniforms.uGenshinMode.value = this.genshinMode;
     if (weatherState) {
       this._compositeMat.uniforms.uDuskFactor.value = weatherState.duskFactor || 0.0;
       this._compositeMat.uniforms.uNightFactor.value = weatherState.nightFactor || 0.0;
@@ -532,8 +554,9 @@ export class CinematicPostFX {
 
     // Pass 1: Downsample MSAA -> Half-Res bright highlights
     // Human-Eye uses higher threshold (0.93) for pure physiological highlight scatter;
-    // Drone Cinema uses softer cinema halation threshold (0.77).
-    const thresh = 0.93 - 0.16 * this.droneCinemaBlend;
+    // Drone Cinema uses softer cinema halation threshold (0.77);
+    // Genshin Mode uses dreamy anime halation threshold (0.68).
+    const thresh = Math.max(0.66, 0.93 - 0.16 * this.droneCinemaBlend - 0.19 * this.genshinMode);
     this._bloomDownMat.uniforms.uTex.value = this.msaaTarget.texture;
     this._bloomDownMat.uniforms.uTexelSize.value.set(1.0 / this.width, 1.0 / this.height);
     this._bloomDownMat.uniforms.uThreshold.value = thresh;
