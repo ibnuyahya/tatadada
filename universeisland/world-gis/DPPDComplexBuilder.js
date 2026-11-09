@@ -361,10 +361,19 @@ export class DPPDComplexBuilder {
       courtyardGranite: mkLin([0.52, 0.51, 0.48]),
       curbStriped: mkLin([0.92, 0.93, 0.95], 'Z'),
 
-      // Calibrated Macbeth/Hasselblad Architectural & Vehicle Palette
+      // Calibrated Macbeth/Hasselblad Architectural & 206-Photo Ground-Truth Bundaran Palette
       terracottaRoof: mk(0x8a3424),
       terracottaRidge: mk(0x662216),
       terracottaFloor: mk(0x9e4634),
+      salmonBrick: mk(0xb84a39),
+      warmTaupeSoffit: mk(0xb88972),
+      stoneRetaining: mk(0x52504c),
+      darkChannel: mk(0x272a2e),
+      koralSikat: mk(0x735844),
+      bambooStake: mk(0x9c824c),
+      dryLeafMound: mk(0x6b4c35),
+      silverLouver: mk(0xc4cbd4),
+      kanBlue: mk(0x1c4f9c),
       creamWall: mk(0xece6d6),
       warmStonePanel: mk(0xe0dbd0),
       facadeWhite: mk(0xeeede8),
@@ -413,19 +422,144 @@ export class DPPDComplexBuilder {
     G: ['01111', '10000', '10000', '10111', '10001', '10001', '01111'],
     H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
     I: ['01110', '00100', '00100', '00100', '00100', '00100', '01110'],
+    J: ['00111', '00010', '00010', '00010', '10010', '10010', '01100'],
     K: ['10001', '10010', '10100', '11000', '10100', '10010', '10001'],
     L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
     M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
     N: ['10001', '11001', '10101', '10011', '10001', '10001', '10001'],
     O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
     P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+    Q: ['01110', '10001', '10001', '10001', '10101', '10010', '01101'],
     R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
     S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
     T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
     U: ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
     V: ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
-    '-': ['00000', '00000', '00000', '01110', '00000', '00000', '00000']
+    W: ['10001', '10001', '10001', '10101', '10101', '11011', '10001'],
+    X: ['10001', '10001', '01010', '00100', '01010', '10001', '10001'],
+    Y: ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],
+    Z: ['11111', '00001', '00010', '00100', '01000', '10000', '11111'],
+    '-': ['00000', '00000', '00000', '01110', '00000', '00000', '00000'],
+    '/': ['00001', '00010', '00010', '00100', '01000', '01000', '10000'],
+    '.': ['00000', '00000', '00000', '00000', '00000', '01100', '01100']
   };
+
+  /**
+   * Builds a polar sloped ribbon surface between (rIn, yIn) and (rOut, yOut) across [th0, th1].
+   */
+  static _buildPolarSlopedRibbonGeo(th0, th1, rIn, yIn, rOut, yOut, segs = 28) {
+    return DPPDComplexBuilder._sliceSubdomain(
+      (u, v, p, n) => {
+        const th = th0 + u * (th1 - th0);
+        const r = rIn + v * (rOut - rIn);
+        const y = yIn + v * (yOut - yIn);
+        const c = Math.cos(th);
+        const s = Math.sin(th);
+        p.set(r * c, y, r * s);
+        const dr = rOut - rIn;
+        const dy = yOut - yIn;
+        const len = Math.hypot(dr, dy) || 1.0;
+        const nr = -dy / len;
+        const ny = dr / len;
+        if (ny >= 0) {
+          n.set(nr * c, ny, nr * s).normalize();
+        } else {
+          n.set(-nr * c, -ny, -nr * s).normalize();
+        }
+      },
+      0, 1, 0, 1, segs, 1
+    );
+  }
+
+  /**
+   * Builds a watertight 4-wing square courtyard Limasan / Hipped roof + eave soffit + 12 ridge/hip/valley line pairs
+   * for ITTC Perpustakaan Lama (ref_174, ref_203).
+   */
+  static _buildSquareCourtyardLimasanRoof(halfOut, halfIn, eaveY, ridgeY) {
+    const rMid = 0.5 * (halfOut + halfIn);
+    const pos = [];
+    const norm = [];
+    const uvs = [];
+    const idx = [];
+    let vCount = 0;
+
+    const addQuad = (a, b, c, d) => {
+      const vA = new THREE.Vector3(...a);
+      const vB = new THREE.Vector3(...b);
+      const vC = new THREE.Vector3(...c);
+      const fn = new THREE.Vector3().subVectors(vB, vA).cross(new THREE.Vector3().subVectors(vC, vA)).normalize();
+      if (fn.y < 0) fn.negate();
+      const base = vCount;
+      for (const pt of [a, b, c, d]) {
+        pos.push(pt[0], pt[1], pt[2]);
+        norm.push(fn.x, fn.y, fn.z);
+        uvs.push(0.5, 0.5);
+      }
+      // Ensure upward normal winding
+      const rawCrossY =
+        (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+      if (rawCrossY >= 0) {
+        idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      } else {
+        idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+      }
+      vCount += 4;
+    };
+
+    // 4 Outer Slopes (S, E, N, W) + 4 Inner Courtyard Slopes (S, E, N, W)
+    const oSW = [-halfOut, eaveY, halfOut];
+    const oSE = [halfOut, eaveY, halfOut];
+    const oNE = [halfOut, eaveY, -halfOut];
+    const oNW = [-halfOut, eaveY, -halfOut];
+
+    const rSW = [-rMid, ridgeY, rMid];
+    const rSE = [rMid, ridgeY, rMid];
+    const rNE = [rMid, ridgeY, -rMid];
+    const rNW = [-rMid, ridgeY, -rMid];
+
+    const iSW = [-halfIn, eaveY, halfIn];
+    const iSE = [halfIn, eaveY, halfIn];
+    const iNE = [halfIn, eaveY, -halfIn];
+    const iNW = [-halfIn, eaveY, -halfIn];
+
+    // Outer 4 trapezoidal slopes
+    addQuad(oSW, oSE, rSE, rSW);
+    addQuad(oSE, oNE, rNE, rSE);
+    addQuad(oNE, oNW, rNW, rNE);
+    addQuad(oNW, oSW, rSW, rNW);
+
+    // Inner 4 trapezoidal slopes pitching down toward the central concrete deck
+    addQuad(rSW, rSE, iSE, iSW);
+    addQuad(rSE, rNE, iNE, iSE);
+    addQuad(rNE, rNW, iNW, iNE);
+    addQuad(rNW, rSW, iSW, iNW);
+
+    const roofGeo = new THREE.BufferGeometry();
+    roofGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+    roofGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(norm), 3));
+    roofGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2));
+    roofGeo.setIndex(idx);
+
+    const ridgePairs = [
+      // 4 main horizontal ridges
+      [new THREE.Vector3(...rSW), new THREE.Vector3(...rSE)],
+      [new THREE.Vector3(...rSE), new THREE.Vector3(...rNE)],
+      [new THREE.Vector3(...rNE), new THREE.Vector3(...rNW)],
+      [new THREE.Vector3(...rNW), new THREE.Vector3(...rSW)],
+      // 4 outer corner hips
+      [new THREE.Vector3(...oSW), new THREE.Vector3(...rSW)],
+      [new THREE.Vector3(...oSE), new THREE.Vector3(...rSE)],
+      [new THREE.Vector3(...oNE), new THREE.Vector3(...rNE)],
+      [new THREE.Vector3(...oNW), new THREE.Vector3(...rNW)],
+      // 4 inner corner valleys
+      [new THREE.Vector3(...iSW), new THREE.Vector3(...rSW)],
+      [new THREE.Vector3(...iSE), new THREE.Vector3(...rSE)],
+      [new THREE.Vector3(...iNE), new THREE.Vector3(...rNE)],
+      [new THREE.Vector3(...iNW), new THREE.Vector3(...rNW)]
+    ];
+
+    return { roofGeo, ridgePairs };
+  }
 
   static _addCurved3DText(parent, text, radius, thStart, yBase, charHeight, depth, mat, dirSign = -1.0) {
     const pxH = charHeight / 7.0;
@@ -932,9 +1066,67 @@ export class DPPDComplexBuilder {
       }
     }
 
+    // 1B. Open Rubble-Stone Perimeter Drainage Channel ("Saluran Batu Kali", r = 51.05 .. 51.95)
+    //     + 7 Ground-Truth Driveway/Pedestrian Bridges & "DILARANG PARKIR" Warning Sign (ref_164, ref_184, ref_202)
+    {
+      const ditchSectorsDeg = [
+        [-138.0, -93.0],
+        [-78.0, -9.0],
+        [-1.0, 29.5],
+        [40.5, 86.0],
+        [93.0, 127.0],
+        [143.0, 198.0]
+      ];
+      for (const [d0, d1] of ditchSectorsDeg) {
+        const t0 = (d0 * Math.PI) / 180.0;
+        const t1 = (d1 * Math.PI) / 180.0;
+        const segs = Math.max(6, Math.round((d1 - d0) / 4.5));
+        DPPDComplexBuilder._addCurvedBand(dppdGroup, mats.stoneRetaining, t0, t1, 50.88, 51.12, 0.02, 0.24, segs);
+        DPPDComplexBuilder._addCurvedBand(dppdGroup, mats.stoneRetaining, t0, t1, 51.84, 52.08, 0.02, 0.24, segs);
+        DPPDComplexBuilder._addCurvedBand(dppdGroup, mats.darkChannel, t0, t1, 51.10, 51.86, 0.01, 0.06, segs);
+      }
+
+      // 6 Concrete / Steel-Grate / Pebble-Grid Bridges across the Perimeter Ditch (7th is DPPD main forecourt bridge)
+      const bridgeSpecs = [
+        [-122.0, 4.5, mats.concreteCurb],   // STP-UI NW Exit Bridge
+        [-84.0, 6.2, mats.courtyardGranite], // STP-UI Main Portico Bridge
+        [-89.5, 2.6, mats.darkIron],        // STP-UI Pedestrian Steel Grate Bridge (ref_164)
+        [-4.5, 4.4, mats.concreteCurb],     // ILRC East Portico Bridge
+        [24.0, 4.6, mats.concreteCurb],     // DRPM Breezeway Loop Gate Bridge (ref_012)
+        [35.0, 5.2, mats.koralSikat]        // ILRC Atrium Koral-Sikat Pebble-Grid Ramp Bridge (ref_024)
+      ];
+      for (const [bDeg, bSpanDeg, bMat] of bridgeSpecs) {
+        const bt0 = ((bDeg - bSpanDeg * 0.5) * Math.PI) / 180.0;
+        const bt1 = ((bDeg + bSpanDeg * 0.5) * Math.PI) / 180.0;
+        DPPDComplexBuilder._addCurvedBand(dppdGroup, bMat, bt0, bt1, 50.65, 52.86, 0.06, 0.22, 4);
+      }
+
+      // Yellow/Black "DILARANG PARKIR DI SEPANJANG JALAN INI" Signboard at West/East Gate (ref_202, ref_203)
+      const thWarn = (-142.5 * Math.PI) / 180.0;
+      const warnGrp = new THREE.Group();
+      warnGrp.position.set(50.2 * Math.cos(thWarn), 0.0, 50.2 * Math.sin(thWarn));
+      warnGrp.rotation.y = -thWarn;
+      for (const pz of [-0.42, 0.42]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.55, 6), mats.darkIron);
+        post.position.set(0, 0.78, pz);
+        warnGrp.add(post);
+      }
+      const warnBoard = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.68, 1.18), mats.uiYellowFascia);
+      warnBoard.position.set(0.04, 1.32, 0);
+      const warnHeader = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.20, 1.14), mats.darkIron);
+      warnHeader.position.set(0.045, 1.54, 0);
+      warnGrp.add(warnBoard, warnHeader);
+      dppdGroup.add(warnGrp);
+    }
+
     // =========================================================================
-    // 2. GEDUNG DPPD UI — STRICTLY 2 STORIES (2 LANTAI: L1 VERANDAH ARCADE + L2 RIBBON WINDOWS)
-    //    Front Heritage Nusantara Pavilion facing Gedung Rektorat UI (0, 0) across Teluk U!
+    // 2. GEDUNG DPPD UI (eks-KSDP) — 206-PHOTO GROUND-TRUTH 2-STORY HERITAGE PAVILION
+    //    Facing Gedung Rektorat UI (0, 0) across Teluk U:
+    //    - Two-tier sloped green grass berm ("Talud Rumput") & Batu-Kali rubble-stone toe retaining wall
+    //    - NW Asymmetrical Salmon-Brick Triangular Gable End Wall w/ white frame & sloped cheek-wall (ref_144, ref_202)
+    //    - SE Hipped Roof End + Watertight Central Steep A-Frame Gable w/ 11-Bay Ribbon Windows, Dish & AC
+    //    - L1 Stepped-Tile Portico Canopy, Authentic Stair/Grey-Step/Twin-Curb ADA Ramp Sequence,
+    //      UI–Huawei Brass Monolith Totem, Gold Box-Truss Banner Frames, Campus Map Plaque & 3 SE Royal Palms
     // =========================================================================
     const alphaMin = (DPPDComplexBuilder.DPPD_ALPHA_MIN_DEG * Math.PI) / 180.0;
     const alphaMax = (DPPDComplexBuilder.DPPD_ALPHA_MAX_DEG * Math.PI) / 180.0;
@@ -942,30 +1134,72 @@ export class DPPDComplexBuilder {
     const dppdTh0 = Math.PI * 0.5 - alphaMax;
     const dppdTh1 = Math.PI * 0.5 - alphaMin;
 
-    // 2A. Raised Granite & Terracotta Verandah Plinth (y = -0.35 .. 0.65)
+    // 2A. Raised Granite & Terracotta Verandah Plinth (y = -0.35 .. 0.68)
     DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.granitePlinth, dppdTh0, dppdTh1, 28.4, 44.8, -0.35, 0.55, 44);
     DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.terracottaFloor, dppdTh0, dppdTh1, 28.5, 44.7, 0.55, 0.68, 44);
 
-    // Low Manicured Front Stone Planter Beds & Shrubs (y = 0.0 .. 0.92 — NEVER buries Lantai 1!)
+    // Ground-Truth Two-Tier Sloped Green Grass Berm ("Talud Rumput" 32° Slope) & Batu-Kali Toe Retaining Wall
+    // flanking the central forecourt (alpha = -43.8° .. -13.2° on NW and +13.2° .. +43.8° on SE, ref_084, ref_184, ref_185!)
     for (const [degA, degB] of [
-      [-43.5, -13.5],
-      [13.5, 43.5]
+      [-43.8, -13.2],
+      [13.2, 43.8]
     ]) {
       const tA = Math.PI * 0.5 - (degB * Math.PI) / 180.0;
       const tB = Math.PI * 0.5 - (degA * Math.PI) / 180.0;
-      DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.granitePlinth, tA, tB, 44.75, 46.55, 0.0, 0.72, 20);
-      DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.mulchSoil, tA, tB, 44.95, 46.35, 0.70, 0.78, 20);
-      for (let sh = 0; sh < 9; sh++) {
-        const thS = tA + ((sh + 0.5) / 9) * (tB - tA);
-        const bush = new THREE.Mesh(new THREE.SphereGeometry(0.72, 10, 8), mats.LushShrub);
-        bush.scale.set(1.25, 0.72, 1.0);
-        bush.position.set(45.65 * Math.cos(thS), 1.02, 45.65 * Math.sin(thS));
+
+      // Upper sloped grass berm (r = 44.35, y = 3.25 -> r = 47.05, y = 1.48)
+      const upperBerm = new THREE.Mesh(
+        DPPDComplexBuilder._buildPolarSlopedRibbonGeo(tA, tB, 44.35, 3.25, 47.05, 1.48, 22),
+        mats.campusGrass
+      );
+      entranceGroup.add(upperBerm);
+
+      // Mid-slope grey stone terrace curb step (r = 46.95 .. 47.25, y = 1.22 .. 1.54)
+      DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.stoneRetaining, tA, tB, 46.95, 47.25, 1.22, 1.54, 22);
+
+      // Lower sloped grass apron (r = 47.20, y = 1.34 -> r = 49.65, y = 0.72)
+      const lowerBerm = new THREE.Mesh(
+        DPPDComplexBuilder._buildPolarSlopedRibbonGeo(tA, tB, 47.20, 1.34, 49.65, 0.72, 22),
+        mats.campusGrass
+      );
+      entranceGroup.add(lowerBerm);
+
+      // Vertical Batu-Kali rubble-stone toe retaining wall (r = 49.50 .. 49.88, y = 0.04 .. 0.74) + coping cap
+      DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.stoneRetaining, tA, tB, 49.50, 49.88, 0.04, 0.74, 22);
+      DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.concreteTrim, tA, tB, 49.46, 49.92, 0.72, 0.80, 22);
+
+      // Ornamental shrub clusters along the mid-berm terrace (ref_084)
+      for (let sh = 0; sh < 6; sh++) {
+        const thS = tA + ((sh + 0.5) / 6) * (tB - tA);
+        const bush = new THREE.Mesh(new THREE.SphereGeometry(0.68, 8, 6), mats.LushShrub);
+        bush.scale.set(1.22, 0.78, 1.05);
+        bush.position.set(46.25 * Math.cos(thS), 2.15, 46.25 * Math.sin(thS));
         entranceGroup.add(bush);
       }
     }
 
-    // 2B. LANTAI 1 (y = 0.68 .. 6.25) & LANTAI 2 (y = 6.25 .. 11.75) Curved Masonry & Glazed Walls
-    // Recessed L1 wall (r = 29.0 .. 43.0) creating a shaded 1.7m Nusantara front verandah colonnade at r = 44.3!
+    // Sloped White Concrete Berm Cheek-Walls at NW (-44°) & SE (+44°) Ends + Plastered Forecourt Wing Walls ("Pipi Tangga")
+    for (const sgn of [-1, 1]) {
+      const endA = sgn * alphaMax;
+      const cheekGrp = new THREE.Group();
+      cheekGrp.rotation.y = endA;
+      const cheekGeo = DPPDComplexBuilder._buildPolygonPrismGeo(
+        [
+          [44.2, 0.15],
+          [49.8, 0.15],
+          [49.8, 0.78],
+          [44.2, 3.35]
+        ],
+        0.34
+      );
+      const cheekMesh = new THREE.Mesh(cheekGeo, mats.whiteMullion);
+      cheekMesh.rotation.y = Math.PI * 0.5;
+      cheekMesh.position.x = -0.17;
+      cheekGrp.add(cheekMesh);
+      entranceGroup.add(cheekGrp);
+    }
+
+    // 2B. LANTAI 1 (y = 0.68 .. 6.25) & LANTAI 2 LOGGIA COLONNADE (y = 6.25 .. 11.75) Curved Masonry & Glazed Walls
     DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.creamWall, dppdTh0, dppdTh1, 29.0, 43.0, 0.68, 1.85, 44);
     DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.windowGlass, dppdTh0, dppdTh1, 29.15, 42.85, 1.85, 5.35, 44);
     DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.creamWall, dppdTh0, dppdTh1, 29.0, 43.2, 5.35, 6.10, 44);
@@ -973,12 +1207,12 @@ export class DPPDComplexBuilder {
     // Projecting L1/L2 Inter-Story White Spandrel Slab & Tropical Sunshade Drip Cornice (y = 6.10 .. 6.65)
     DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.whiteMullion, dppdTh0, dppdTh1, 28.55, 44.85, 6.10, 6.65, 48);
 
-    // LANTAI 2 Wall, Mullioned Ribbon Windows, & Top Eave Ring Beam (y = 6.65 .. 11.75)
-    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.creamWall, dppdTh0, dppdTh1, 28.85, 43.95, 6.65, 7.65, 44);
-    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.windowGlass, dppdTh0, dppdTh1, 29.05, 43.75, 7.65, 10.85, 44);
+    // LANTAI 2 Recessed Loggia Wall, Mullioned Ribbon Windows, & Top Eave Ring Beam (y = 6.65 .. 11.75)
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.creamWall, dppdTh0, dppdTh1, 28.85, 43.65, 6.65, 7.65, 44);
+    DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.windowGlass, dppdTh0, dppdTh1, 29.05, 43.45, 7.65, 10.85, 44);
     DPPDComplexBuilder._addCurvedBand(entranceGroup, mats.whiteMullion, dppdTh0, dppdTh1, 28.55, 44.65, 10.85, 11.75, 48);
 
-    // 2C. Rhythmic L1 Colonnade Pillars, L1 & L2 Window Mullions, & Architectural AC Louver Grilles (Outer + Inner!)
+    // 2C. Rhythmic L1 & L2 Loggia Square Columns, Window Mullions, & 3D Split-AC Condenser Units w/ Dark Fan Grilles (ref_084, ref_184)
     const dppdBays = 22;
     for (let i = 0; i <= dppdBays; i++) {
       const alpha = alphaMin + (i / dppdBays) * (alphaMax - alphaMin);
@@ -988,36 +1222,37 @@ export class DPPDComplexBuilder {
       const cA = Math.cos(alpha);
 
       if (!inCenterGable) {
-        // Outer L1 Nusantara Verandah Square Column + Stone Base & Capital
-        const col = new THREE.Mesh(new THREE.BoxGeometry(0.62, 5.45, 0.62), mats.whiteMullion);
+        // Outer L1 Nusantara Verandah Square Column + Stone Base
+        const col = new THREE.Mesh(new THREE.BoxGeometry(0.58, 5.45, 0.58), mats.creamWall);
         col.position.set(44.25 * sA, 3.38, 44.25 * cA);
         col.rotation.y = alpha;
         entranceGroup.add(col);
 
-        const colBase = new THREE.Mesh(new THREE.BoxGeometry(0.80, 0.55, 0.80), mats.granitePlinth);
+        const colBase = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.55, 0.76), mats.granitePlinth);
         colBase.position.set(44.25 * sA, 0.95, 44.25 * cA);
         colBase.rotation.y = alpha;
         entranceGroup.add(colBase);
 
-        // Outer L1 & L2 Masonry Pier + White Window Mullions
-        const pierL1 = new THREE.Mesh(new THREE.BoxGeometry(0.54, 4.65, 0.42), mats.creamWall);
+        // Outer L2 Recessed Loggia Square Cream Column (ref_084, ref_184)
+        const colL2 = new THREE.Mesh(new THREE.BoxGeometry(0.46, 4.25, 0.46), mats.creamWall);
+        colL2.position.set(44.25 * sA, 8.78, 44.25 * cA);
+        colL2.rotation.y = alpha;
+        entranceGroup.add(colL2);
+
+        // Outer L1 & L2 Masonry Pier
+        const pierL1 = new THREE.Mesh(new THREE.BoxGeometry(0.52, 4.65, 0.42), mats.creamWall);
         pierL1.position.set(42.92 * sA, 3.55, 42.92 * cA);
         pierL1.rotation.y = alpha;
         entranceGroup.add(pierL1);
-
-        const pierL2 = new THREE.Mesh(new THREE.BoxGeometry(0.56, 4.25, 0.46), mats.creamWall);
-        pierL2.position.set(43.85 * sA, 8.78, 43.85 * cA);
-        pierL2.rotation.y = alpha;
-        entranceGroup.add(pierL2);
       }
 
-      // Inner Courtyard L1 & L2 Pilasters (facing Plaza Taman Inovasi Tengah!)
+      // Inner Courtyard L1 & L2 Pilasters (facing ITTC Perpustakaan Lama!)
       const inPier = new THREE.Mesh(new THREE.BoxGeometry(0.54, 10.45, 0.46), mats.creamWall);
       inPier.position.set(28.92 * sA, 5.90, 28.92 * cA);
       inPier.rotation.y = alpha;
       entranceGroup.add(inPier);
 
-      // Sub-mullions & neat L2 AC louver grilles inside each bay
+      // Sub-mullions & 3D outdoor split-AC condenser units with dark circular fan grilles inside each bay
       if (i < dppdBays) {
         const aMid = alpha + (0.5 / dppdBays) * (alphaMax - alphaMin);
         const degMid = (aMid * 180.0) / Math.PI;
@@ -1033,19 +1268,18 @@ export class DPPDComplexBuilder {
             entranceGroup.add(m1);
 
             const m2 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 3.20, 0.24), mats.whiteMullion);
-            m2.position.set(43.82 * Math.sin(aSub), 9.25, 43.82 * Math.cos(aSub));
+            m2.position.set(43.52 * Math.sin(aSub), 9.25, 43.52 * Math.cos(aSub));
             m2.rotation.y = aSub;
             entranceGroup.add(m2);
           }
 
-          // Neat architectural louvered AC box tucked beneath L2 sill on alternating bays
           if (i % 2 === 0) {
-            const acBox = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.72, 0.48), mats.whiteMullion);
+            const acBox = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.74, 0.48), mats.whiteMullion);
             acBox.position.set(44.12 * sm, 7.12, 44.12 * cm);
             acBox.rotation.y = aMid;
             entranceGroup.add(acBox);
 
-            const acGrille = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.52, 12), mats.darkAnodized);
+            const acGrille = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.52, 10), mats.darkAnodized);
             acGrille.rotation.x = Math.PI * 0.5;
             acGrille.position.set(44.14 * sm, 7.12, 44.14 * cm);
             acGrille.rotation.y = aMid;
@@ -1053,7 +1287,6 @@ export class DPPDComplexBuilder {
           }
         }
 
-        // Inner courtyard window mullions
         const mIn1 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 3.50, 0.22), mats.whiteMullion);
         mIn1.position.set(29.08 * sm, 3.60, 29.08 * cm);
         mIn1.rotation.y = aMid;
@@ -1066,25 +1299,57 @@ export class DPPDComplexBuilder {
       }
     }
 
-    // Clean Single Watertight 2-Story End-Wall Fenestration at alphaMin (-44°) & alphaMax (+44°)
-    for (const endAlpha of [alphaMin, alphaMax]) {
-      const endGroup = new THREE.Group();
-      endGroup.rotation.y = endAlpha;
-      entranceGroup.add(endGroup);
-      const sgn = endAlpha > 0 ? 1 : -1;
+    // NW Asymmetrical Salmon-Terracotta Brick Triangular Gable End Wall at alphaMin (-44°, ref_144, ref_202!)
+    // + SE End-Wall Fenestration at alphaMax (+44°, ref_071, ref_079)
+    {
+      const nwGroup = new THREE.Group();
+      nwGroup.rotation.y = alphaMin;
+      entranceGroup.add(nwGroup);
+
+      // Salmon-terracotta brick lower wall (r = 28.8 .. 44.6, y = 0.55 .. 11.75)
+      const nwBrickWall = new THREE.Mesh(new THREE.BoxGeometry(0.42, 11.20, 15.8), mats.salmonBrick);
+      nwBrickWall.position.set(-0.08, 6.15, 36.7);
+      nwGroup.add(nwBrickWall);
+
+      // White reinforced-concrete horizontal spandrel beams & 4 vertical pilasters framing the salmon brick (ref_144, ref_202)
+      for (const by of [6.35, 11.55]) {
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.48, 16.0), mats.whiteMullion);
+        beam.position.set(-0.10, by, 36.7);
+        nwGroup.add(beam);
+      }
+      for (let p = 0; p <= 3; p++) {
+        const pz = 29.0 + (p / 3) * 15.4;
+        const pil = new THREE.Mesh(new THREE.BoxGeometry(0.50, 11.20, 0.48), mats.whiteMullion);
+        pil.position.set(-0.10, 6.15, pz);
+        nwGroup.add(pil);
+      }
+      // High horizontal clerestory window slots & yellow MEP conduit pipes (ref_144, ref_202)
+      for (const wz of [33.2, 40.2]) {
+        const cw = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.95, 3.8), mats.windowGlass);
+        cw.position.set(-0.10, 5.15, wz);
+        nwGroup.add(cw);
+        const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 11.0, 6), mats.uiYellowFascia);
+        pipe.position.set(-0.28, 6.0, wz + 2.1);
+        nwGroup.add(pipe);
+      }
+
+      // SE End Wall (+44°) clean fenestration
+      const seGroup = new THREE.Group();
+      seGroup.rotation.y = alphaMax;
+      entranceGroup.add(seGroup);
       for (const rW of [33.0, 39.2]) {
         for (const yW of [3.55, 9.20]) {
           const frame = new THREE.Mesh(new THREE.BoxGeometry(0.24, 3.10, 3.80), mats.whiteMullion);
-          frame.position.set(sgn * 0.08, yW, rW);
-          endGroup.add(frame);
+          frame.position.set(0.08, yW, rW);
+          seGroup.add(frame);
           const pane = new THREE.Mesh(new THREE.BoxGeometry(0.28, 2.75, 3.45), mats.windowGlass);
-          pane.position.set(sgn * 0.10, yW, rW);
-          endGroup.add(pane);
+          pane.position.set(0.10, yW, rW);
+          seGroup.add(pane);
         }
       }
     }
 
-    // Rear Courtyard Portal Canopy on Gedung DPPD (alpha = 0°, r = 26.2 .. 29.0) facing Plaza Taman Inovasi Tengah
+    // Rear Courtyard Portal Canopy on Gedung DPPD (alpha = 0°, r = 26.2 .. 29.0) facing ITTC Perpustakaan Lama
     const rearCanopy = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.42, 3.2), mats.whiteMullion);
     rearCanopy.position.set(0, 5.85, 27.4);
     entranceGroup.add(rearCanopy);
@@ -1151,14 +1416,16 @@ export class DPPDComplexBuilder {
       entranceGroup.add(hipBeam);
     }
 
-    // 2E. Central 2-Story Front Nusantara Gable Pavilion, UI Makara Pediment, 1-Story Portico, Stairs, Ramp & Flagpole!
+    // 2E. Central 2-Story Front Nusantara Gable Pavilion (11-Bay Ribbon Windows + Mini Satellite Dish + Split-AC),
+    //     L1 Stepped-Tile Portico Canopy, Authentic Stair/Grey-Step/Twin-Curb ADA Ramp Sequence,
+    //     UI–Huawei Brass Monolith Totem, Gold Box-Truss Banner Frames, & Campus Map Plaque (ref_084, ref_184, ref_185!)
     const gHalfW = 8.4;
     const gZBack = 35.8;
     const gZFront = 45.4;
     const gEaveY = 11.75;
     const gPeakY = 18.05;
 
-    // 2-Story Front Central Projection Block (L1 Grand Entrance Doors + L2 Conference Ribbon Windows)
+    // 2-Story Front Central Projection Block
     const centerBlock = new THREE.Mesh(
       new THREE.BoxGeometry(gHalfW * 2.0, 11.05, gZFront - gZBack),
       mats.creamWall
@@ -1180,26 +1447,56 @@ export class DPPDComplexBuilder {
     centerTopBeam.position.set(0, 11.36, (gZBack + gZFront) * 0.5 + 0.15);
     entranceGroup.add(centerTopBeam);
 
-    // Front L1 Grand Glazed Entrance Lobby & L2 5-Bay Conference Windows
+    // Front L1 Grand Glazed Entrance Lobby & L2 11-Bay Dark-Framed Ribbon Windows w/ Horizontal Transom Bar (ref_184!)
     const l1LobbyGlass = new THREE.Mesh(new THREE.BoxGeometry(11.6, 4.55, 0.30), mats.windowGlass);
     l1LobbyGlass.position.set(0, 3.15, gZFront + 0.04);
     entranceGroup.add(l1LobbyGlass);
 
-    const l2RibbonGlass = new THREE.Mesh(new THREE.BoxGeometry(13.6, 3.25, 0.30), mats.windowGlass);
+    const l2RibbonGlass = new THREE.Mesh(new THREE.BoxGeometry(14.2, 3.25, 0.30), mats.windowGlass);
     l2RibbonGlass.position.set(0, 9.22, gZFront + 0.04);
     entranceGroup.add(l2RibbonGlass);
 
-    for (let m = -3; m <= 3; m++) {
-      const mx = m * 2.24;
-      const mul2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 3.40, 0.38), mats.whiteMullion);
-      mul2.position.set(mx, 9.22, gZFront + 0.08);
+    // Horizontal mid-height transom bar across the 11-bay L2 ribbon windows (ref_184)
+    const l2Transom = new THREE.Mesh(new THREE.BoxGeometry(14.3, 0.12, 0.36), mats.darkAnodized);
+    l2Transom.position.set(0, 9.35, gZFront + 0.06);
+    entranceGroup.add(l2Transom);
+
+    // 12 vertical mullions forming the 11-bay L2 ribbon window
+    for (let m = 0; m <= 11; m++) {
+      const mx = -7.1 + (m / 11) * 14.2;
+      const mul2 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 3.35, 0.36), mats.darkAnodized);
+      mul2.position.set(mx, 9.22, gZFront + 0.07);
       entranceGroup.add(mul2);
-      if (Math.abs(m) <= 2) {
-        const mul1 = new THREE.Mesh(new THREE.BoxGeometry(0.24, 4.65, 0.38), mats.whiteMullion);
-        mul1.position.set(m * 2.85, 3.15, gZFront + 0.08);
-        entranceGroup.add(mul1);
-      }
     }
+    for (let m = -2; m <= 2; m++) {
+      const mul1 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 4.65, 0.36), mats.whiteMullion);
+      mul1.position.set(m * 2.85, 3.15, gZFront + 0.07);
+      entranceGroup.add(mul1);
+    }
+
+    // White Mini-Satellite Dish on Left L2 Pier & White Split-AC Condenser on Right L2 Pier (ref_184!)
+    const satDish = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.14, 0.14, 10), mats.whiteMullion);
+    satDish.rotation.x = Math.PI * 0.42;
+    satDish.position.set(-7.65, 9.45, gZFront + 0.28);
+    entranceGroup.add(satDish);
+
+    const rightPierAc = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.66, 0.42), mats.whiteMullion);
+    rightPierAc.position.set(7.65, 7.65, gZFront + 0.24);
+    const rightPierFan = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.45, 10), mats.darkAnodized);
+    rightPierFan.rotation.x = Math.PI * 0.5;
+    rightPierFan.position.set(7.65, 7.65, gZFront + 0.25);
+    entranceGroup.add(rightPierAc, rightPierFan);
+
+    // Eye-level Wall Signage flanking L1 Entrance Doors ("GEDUNG KSDP UI" right & "GEDUNG DPPD UI" left, ref_184!)
+    const ksdpBoard = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.68, 0.12), mats.whiteMullion);
+    ksdpBoard.position.set(3.85, 2.55, gZFront + 0.18);
+    entranceGroup.add(ksdpBoard);
+    DPPDComplexBuilder._addPlanar3DText(entranceGroup, 'KSDP UI', 3.85, 2.38, gZFront + 0.26, 0.34, 0.08, mats.darkAnodized);
+
+    const dppdBoard = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.68, 0.12), mats.darkAnodized);
+    dppdBoard.position.set(-3.85, 2.55, gZFront + 0.18);
+    entranceGroup.add(dppdBoard);
+    DPPDComplexBuilder._addPlanar3DText(entranceGroup, 'DPPD UI', -3.85, 2.38, gZFront + 0.26, 0.34, 0.08, mats.brassSign);
 
     // Proportional Triangular Gable Pediment + Overhanging Sloped Terracotta Roof Planes + Timber Bargeboards
     const gableWallGeo = DPPDComplexBuilder._buildPolygonPrismGeo(
@@ -1278,124 +1575,168 @@ export class DPPDComplexBuilder {
     mainGableRidge.position.set(0, gPeakY + 0.14, (gZBack + gZFront) * 0.5 + 0.35);
     entranceGroup.add(mainGableRidge);
 
-    // 1-Story Front Drop-Off Portico Canopy, 4 Sculpted Columns, Ceremonial Terracotta Steps, Accessible Ramp, & Flagpole
-    const porchPodium = new THREE.Mesh(new THREE.BoxGeometry(12.8, 0.68, 4.6), mats.terracottaFloor);
-    porchPodium.position.set(0, 0.34, 47.6);
+    // 1-Story Continuous Stepped-Tile Terracotta Portico Canopy, 4 Square Cream Columns, Plastered Wing Walls ("Pipi Tangga"),
+    // & Authentic Left-to-Right Stair / Central Grey Stone Steps / Twin-Curb ADA Ramp Sequence (ref_184, ref_185!)
+    const porchPodium = new THREE.Mesh(new THREE.BoxGeometry(16.8, 0.58, 3.8), mats.terracottaFloor);
+    porchPodium.position.set(0, 0.30, 47.2);
     entranceGroup.add(porchPodium);
 
-    for (let st = 0; st < 3; st++) {
-      const step = new THREE.Mesh(
-        new THREE.BoxGeometry(8.8 + st * 0.5, 0.22, 0.55),
-        st % 2 === 0 ? mats.terracottaFloor : mats.concreteCurb
-      );
-      step.position.set(0, 0.56 - st * 0.21, 50.15 + st * 0.48);
-      entranceGroup.add(step);
+    // Forecourt weathered grey paving apron & driveway bridge with open radial concrete U-gutter ("Selokan Beton", ref_184)
+    const forecourtApron = new THREE.Mesh(new THREE.BoxGeometry(17.2, 0.14, 3.4), mats.sidewalkPaver);
+    forecourtApron.position.set(0, 0.09, 50.6);
+    entranceGroup.add(forecourtApron);
+
+    const dppdDriveBridge = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.16, 2.6), mats.concreteCurb);
+    dppdDriveBridge.position.set(0.35, 0.10, 51.85);
+    entranceGroup.add(dppdDriveBridge);
+
+    // Open Radial Concrete U-Gutter ("Selokan Beton") with twin raised white concrete lips at left edge of bridge (ref_184)
+    for (const dx of [-0.16, 0.16]) {
+      const gLip = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.22, 2.5), mats.whiteMullion);
+      gLip.position.set(-3.35 + dx, 0.15, 51.85);
+      entranceGroup.add(gLip);
     }
 
-    // Inclusive Blue-Tile Disability Ramp on West (+X in entranceGroup) flank of portico
-    const ramp = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.22, 3.6), mats.disabilityBlue);
-    ramp.position.set(5.45, 0.34, 50.3);
-    ramp.rotation.x = 0.16;
-    entranceGroup.add(ramp);
-    for (const rx of [4.62, 6.28]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.85, 3.5), mats.galvSteel);
-      rail.position.set(rx, 0.86, 50.3);
-      entranceGroup.add(rail);
+    // Plastered masonry forecourt wing walls ("Pipi Tangga") with stone coping along x = ±8.55m (ref_184)
+    for (const sgn of [-1, 1]) {
+      const pipi = new THREE.Mesh(new THREE.BoxGeometry(0.34, 1.35, 4.8), mats.creamWall);
+      pipi.position.set(sgn * 8.55, 0.72, 47.8);
+      pipi.rotation.x = 0.18;
+      const pipiCap = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.10, 4.9), mats.stoneRetaining);
+      pipiCap.position.set(sgn * 8.55, 1.42, 47.8);
+      pipiCap.rotation.x = 0.18;
+      entranceGroup.add(pipi, pipiCap);
     }
 
-    for (const px of [-5.2, -1.85, 1.85, 5.2]) {
-      const pCol = new THREE.Mesh(new THREE.BoxGeometry(0.58, 5.05, 0.58), mats.whiteMullion);
-      pCol.position.set(px, 3.18, 49.45);
+    // Authentic Left-to-Right Stair, Central Grey Stone Steps, & Twin-Curb ADA Ramp Sequence (z = 49.0 .. 50.4, ref_184!):
+    // A. Left Wide Terracotta Stairs (x = -8.3 .. -1.6)
+    for (let st = 0; st < 4; st++) {
+      const sh = 0.12 * (4 - st);
+      const stepL = new THREE.Mesh(new THREE.BoxGeometry(6.6, sh, 0.36), mats.terracottaFloor);
+      stepL.position.set(-4.95, 0.08 + sh * 0.5, 49.15 + st * 0.34);
+      entranceGroup.add(stepL);
+    }
+    // B. Central Narrow Grey Stone Steps (x = -1.5 .. -0.3, ref_184 center!)
+    for (let st = 0; st < 4; st++) {
+      const sh = 0.12 * (4 - st);
+      const stepC = new THREE.Mesh(new THREE.BoxGeometry(1.18, sh, 0.36), mats.stoneRetaining);
+      stepC.position.set(-0.90, 0.08 + sh * 0.5, 49.15 + st * 0.34);
+      entranceGroup.add(stepC);
+    }
+    // C. Central Gently Sloped Terracotta Approach Deck (x = -0.25 .. +2.65)
+    const centerApproach = new THREE.Mesh(new THREE.BoxGeometry(2.85, 0.14, 1.45), mats.terracottaFloor);
+    centerApproach.position.set(1.20, 0.30, 49.65);
+    centerApproach.rotation.x = 0.18;
+    entranceGroup.add(centerApproach);
+    // D. Twin Parallel Sloped Red-Brick Ramp Walls w/ White Coping framing the ADA Wheelchair Ramp (x = +2.75 .. +4.15, ref_184!)
+    for (const rx of [2.75, 4.15]) {
+      const rCurb = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.32, 1.55), mats.salmonBrick);
+      rCurb.position.set(rx, 0.38, 49.65);
+      rCurb.rotation.x = 0.18;
+      const rCap = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.06, 1.58), mats.whiteMullion);
+      rCap.position.set(rx, 0.56, 49.65);
+      rCap.rotation.x = 0.18;
+      entranceGroup.add(rCurb, rCap);
+    }
+    const adaRamp = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.14, 1.50), mats.terracottaFloor);
+    adaRamp.position.set(3.45, 0.30, 49.65);
+    adaRamp.rotation.x = 0.18;
+    entranceGroup.add(adaRamp);
+    // E. Right Wide Terracotta Stairs (x = +4.30 .. +8.30)
+    for (let st = 0; st < 4; st++) {
+      const sh = 0.12 * (4 - st);
+      const stepR = new THREE.Mesh(new THREE.BoxGeometry(3.95, sh, 0.36), mats.terracottaFloor);
+      stepR.position.set(6.30, 0.08 + sh * 0.5, 49.15 + st * 0.34);
+      entranceGroup.add(stepR);
+    }
+
+    // 4 Square Cream Portico Columns supporting the L1 Stepped-Tile Terracotta Canopy (ref_184)
+    for (const px of [-6.6, -1.45, 1.45, 6.6]) {
+      const pCol = new THREE.Mesh(new THREE.BoxGeometry(0.42, 4.85, 0.42), mats.creamWall);
+      pCol.position.set(px, 3.02, 48.85);
       entranceGroup.add(pCol);
-      const pBase = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.58, 0.76), mats.granitePlinth);
-      pBase.position.set(px, 0.96, 49.45);
+      const pBase = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.48, 0.58), mats.granitePlinth);
+      pBase.position.set(px, 0.82, 48.85);
       entranceGroup.add(pBase);
     }
 
-    const porchSlab = new THREE.Mesh(new THREE.BoxGeometry(13.6, 0.46, 5.2), mats.whiteMullion);
-    porchSlab.position.set(0, 5.82, 47.85);
-    entranceGroup.add(porchSlab);
+    // L1 Continuous Sloped Terracotta Portico Canopy w/ 6 Stepped Tile Courses & 28 Sculpted Eave Drip-Tile Nosings (ref_184)
+    const canW = 16.8;
+    const canSoffit = new THREE.Mesh(new THREE.BoxGeometry(canW, 0.18, 3.8), mats.creamWall);
+    canSoffit.position.set(0, 5.42, 47.35);
+    entranceGroup.add(canSoffit);
 
-    // Symmetrical Nusantara Gabled Portico Roof (aligned 100% flush with main central gable axis!)
-    const pHalfW = 6.55;
-    const pZBack = 45.30;
-    const pZFront = 50.45;
-    const pEaveY = 6.05;
-    const pPeakY = 8.28;
-    const porchPediment = new THREE.Mesh(
-      DPPDComplexBuilder._buildPolygonPrismGeo(
-        [
-          [-pHalfW, pEaveY],
-          [pHalfW, pEaveY],
-          [0.0, pPeakY - 0.18]
-        ],
-        pZFront - pZBack
-      ),
-      mats.creamWall
-    );
-    porchPediment.position.z = pZBack;
-    entranceGroup.add(porchPediment);
+    const canRoof = new THREE.Mesh(new THREE.BoxGeometry(canW + 0.2, 0.18, 4.0), mats.terracottaRoof);
+    canRoof.position.set(0, 5.72, 47.35);
+    canRoof.rotation.x = 0.14;
+    entranceGroup.add(canRoof);
 
-    const porchInset = new THREE.Mesh(
-      DPPDComplexBuilder._buildPolygonPrismGeo(
-        [
-          [-pHalfW + 1.15, pEaveY + 0.28],
-          [pHalfW - 1.15, pEaveY + 0.28],
-          [0.0, pPeakY - 0.68]
-        ],
-        0.16
-      ),
-      mats.warmStonePanel
-    );
-    porchInset.position.z = pZFront - 0.04;
-    entranceGroup.add(porchInset);
-
-    const pSlopeLen = Math.hypot(pHalfW + 0.65, pPeakY - pEaveY + 0.22);
-    const pSlopeAng = Math.atan2(pPeakY - pEaveY, pHalfW);
-    for (const sgn of [-1, 1]) {
-      const pSlope = new THREE.Mesh(
-        new THREE.BoxGeometry(pSlopeLen, 0.24, pZFront - pZBack + 1.10),
-        mats.terracottaRoof
-      );
-      pSlope.position.set(
-        sgn * (pHalfW + 0.65) * 0.48,
-        (pEaveY + pPeakY) * 0.5 - 0.04,
-        (pZBack + pZFront) * 0.5 + 0.18
-      );
-      pSlope.rotation.z = -sgn * pSlopeAng;
-      entranceGroup.add(pSlope);
-
-      const pBarge = new THREE.Mesh(
-        new THREE.BoxGeometry(pSlopeLen + 0.08, 0.30, 0.18),
-        mats.darkWoodFascia
-      );
-      pBarge.position.set(
-        sgn * (pHalfW + 0.65) * 0.48,
-        (pEaveY + pPeakY) * 0.5 - 0.08,
-        pZFront + 0.72
-      );
-      pBarge.rotation.z = -sgn * pSlopeAng;
-      entranceGroup.add(pBarge);
+    for (let k = 0; k < 6; k++) {
+      const tk = k / 6;
+      const courseBar = new THREE.Mesh(new THREE.BoxGeometry(canW + 0.24, 0.05, 0.68), mats.terracottaRoof);
+      courseBar.position.set(0, 5.52 + tk * 0.46, 49.15 - tk * 3.6);
+      courseBar.rotation.x = 0.14;
+      entranceGroup.add(courseBar);
     }
-    const porchRidge = new THREE.Mesh(
-      new THREE.BoxGeometry(0.40, 0.30, pZFront - pZBack + 1.25),
-      mats.terracottaRidge
-    );
-    porchRidge.position.set(0, pPeakY + 0.10, (pZBack + pZFront) * 0.5 + 0.18);
-    entranceGroup.add(porchRidge);
+    for (let i = 0; i < 28; i++) {
+      const tx = -canW * 0.5 + 0.30 + (i / 27) * (canW - 0.60);
+      const dripTile = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.22), mats.terracottaRidge);
+      dripTile.position.set(tx, 5.48, 49.36);
+      dripTile.rotation.x = 0.18;
+      entranceGroup.add(dripTile);
+    }
 
     // Photocell warm portico downlights (v = -890.0)
-    for (const lx of [-3.5, 0.0, 3.5]) {
-      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.08, 0.65), mats.warmLuminaire);
-      lamp.position.set(lx, 5.56, 48.2);
+    for (const lx of [-4.8, -1.6, 1.6, 4.8]) {
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.08, 0.48), mats.warmLuminaire);
+      lamp.position.set(lx, 5.31, 47.5);
       entranceGroup.add(lamp);
     }
 
-    // Ceremonial Merah-Putih Flagpole & Pair of Framing Royal Palms (clear of portico, windows, & crosswalk!)
-    const flagPedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.82, 0.72, 16), mats.granitePlinth);
+    // Left Forecourt: Sky-Blue ADA Wheelchair Stall + Orange Cone + Stone Pedestal + UI–Huawei Brass Monolith Totem (ref_184!)
+    const blueStall = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.05, 2.2), mats.disabilityBlue);
+    blueStall.position.set(-5.4, 0.16, 50.85);
+    entranceGroup.add(blueStall);
+
+    const huaweiPlinth = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.26, 0.38), mats.darkAnodized);
+    huaweiPlinth.position.set(-6.15, 0.26, 51.65);
+    const huaweiBody = new THREE.Mesh(new THREE.BoxGeometry(1.08, 2.15, 0.22), mats.brassSign);
+    huaweiBody.position.set(-6.15, 1.46, 51.65);
+    entranceGroup.add(huaweiPlinth, huaweiBody);
+    DPPDComplexBuilder._addPlanar3DText(entranceGroup, 'HUAWEI', -6.15, 1.72, 51.78, 0.26, 0.06, mats.darkAnodized);
+    DPPDComplexBuilder._addPlanar3DText(entranceGroup, 'UI', -6.15, 1.22, 51.78, 0.28, 0.06, mats.darkAnodized);
+
+    // Right Forecourt: Twin Gold Box-Truss Banner Frames (perpendicular to facade) + Stainless Campus Map Plaque (ref_084, ref_184!)
+    for (const bx of [4.45, 8.15]) {
+      const tPad = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.62), mats.darkAnodized);
+      tPad.position.set(bx, 0.22, 51.25);
+      entranceGroup.add(tPad);
+      for (const lz of [-0.20, 0.20]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 4.6, 0.06), mats.brassSign);
+        leg.position.set(bx, 2.52, 51.25 + lz);
+        entranceGroup.add(leg);
+      }
+      for (let r = 0; r < 8; r++) {
+        const rung = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.44), mats.brassSign);
+        rung.position.set(bx, 0.65 + r * 0.56, 51.25);
+        entranceGroup.add(rung);
+      }
+    }
+    const mapPlinth = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.22, 0.50), mats.darkAnodized);
+    mapPlinth.position.set(6.30, 0.22, 51.15);
+    const mapPost = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.10, 1.15, 8), mats.silverLouver);
+    mapPost.position.set(6.30, 0.82, 51.15);
+    const mapFrame = new THREE.Mesh(new THREE.BoxGeometry(1.42, 1.02, 0.14), mats.silverLouver);
+    mapFrame.position.set(6.30, 1.75, 51.15);
+    const mapBoard = new THREE.Mesh(new THREE.BoxGeometry(1.24, 0.84, 0.16), mats.darkFriezeGlass);
+    mapBoard.position.set(6.30, 1.75, 51.16);
+    entranceGroup.add(mapPlinth, mapPost, mapFrame, mapBoard);
+
+    // Ceremonial Merah-Putih Flagpole on 2-Tier Concrete Drum Base & Framing Royal Palms (ref_071, ref_184)
+    const flagPedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.82, 0.72, 12), mats.granitePlinth);
     flagPedestal.position.set(-9.85, 0.36, 49.6);
     entranceGroup.add(flagPedestal);
-    const flagPole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.13, 11.2, 10), mats.whiteMullion);
+    const flagPole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.13, 11.2, 8), mats.whiteMullion);
     flagPole.position.set(-9.85, 6.15, 49.6);
     entranceGroup.add(flagPole);
     const flagRed = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.62, 0.06), mats.hydrantRed);
@@ -1407,13 +1748,20 @@ export class DPPDComplexBuilder {
 
     entranceGroup.add(DPPDComplexBuilder._buildRoyalPalm(mats, -13.6, 0.0, 48.0, 11.4));
     entranceGroup.add(DPPDComplexBuilder._buildRoyalPalm(mats, 13.6, 0.0, 48.0, 11.4));
+    // 3rd SE Royal Palm along the SE corner lawn (ref_071)
+    entranceGroup.add(DPPDComplexBuilder._buildRoyalPalm(mats, 21.5, 0.0, 45.2, 10.8));
 
     // =========================================================================
-    // 3. GEDUNG ILRC UI — STRICTLY 6 STORIES WITH 100% UNIFORM FLAT ROOFLINE (RATA TINGGINYA!)
-    //    Modeled directly after real Gedung ILRC UI Depok photos:
-    //    - 100.0% continuous, razor-level horizontal top white crown fascia & parapet (y = 36.25 from end to end — ZERO stepped wings or rooftop boxes!)
-    //    - 6 continuous curved precast-white horizontal spandrel & sunshade bands (outer wings + inner courtyard!)
-    //    - Central 6-story symmetrical terracotta-brick twin-pier glazed atrium entrance portal terminating cleanly underneath the flat top crown fascia!
+    // 3. GEDUNG ILRC & DRPM UI — 6 STORIES WITH 206-PHOTO GROUND-TRUTH FIDELITY
+    //    Modeled directly after real Gedung ILRC & DRPM UI Depok photos (ref_025..ref_032, ref_081..ref_090):
+    //    - 100.0% continuous, razor-level horizontal top white crown fascia & parapet (y = 36.25 from end to end)
+    //    - 6 continuous curved precast-white horizontal spandrel & sunshade bands + projecting 3D silver aluminum louver blades
+    //    - L4-L5 cantilevered 3-sided glass observation box on the East Wing (ref_026)
+    //    - East Drop-Off Portico Canopy (+4.5°) + DRPM L1 Open Breezeway, 4 Manila Palms & Open Black Iron Picket Gate (+24°)
+    //    - Central 6-story symmetrical terracotta-brick twin-pier glazed atrium portal (+35°) with warm taupe-terracotta soffit,
+    //      3 open-air white horizontal corridor bridges at L3/L4/L5, KAN accreditation emblem, koral sikat pebble-grid ramp & open iron gate
+    //    - South Wing bamboo-staked brown dry-leaf mound (+44°..+64°) & South-end burnt-brick tower with cantilevered SE sunshade fins
+    //      and 3 stacked protruding hooded window boxes (+74°, ref_088-ref_090)
     // =========================================================================
     const ilrcTh0 = (DPPDComplexBuilder.ILRC_START_DEG * Math.PI) / 180.0;
     const ilrcTh1 = (DPPDComplexBuilder.ILRC_END_DEG * Math.PI) / 180.0;
@@ -1438,15 +1786,14 @@ export class DPPDComplexBuilder {
       ilrcCenterTh - 0.17,
       ilrcCenterTh + 0.17,
       ilrcROut,
-      52.8,
+      50.85,
       0.02,
       0.16,
       16
     );
     DPPDComplexBuilder._addCurvedBand(contextGroup, mats.windowGlass, ilrcTh0, ilrcTh1, ilrcRIn + 0.45, ilrcROut - 0.55, 0.48, 5.80, 48);
 
-    // Build all 6 clearly countable floor slabs, spandrel bands, & projecting sunshade ledges (L1..L6)!
-    // Outer sunshades terminate cleanly against the twin terracotta portal piers while inner courtyard bands run full-arc!
+    // Build all 6 clearly countable floor slabs, spandrel bands, projecting sunshade ledges & 3D silver aluminum louver blades (L1..L6)!
     for (let fl = 0; fl < 6; fl++) {
       const yTop = ilrcFloorTops[fl];
       const yBot = fl === 0 ? 0.48 : ilrcFloorTops[fl - 1];
@@ -1469,6 +1816,32 @@ export class DPPDComplexBuilder {
           yTop - 0.85,
           48
         );
+
+        // Projecting 3D silver-aluminum horizontal sunshade louver blades above L2..L6 ribbon windows (ref_025, ref_030, ref_085)
+        for (const lvOff of [-1.28, -1.04]) {
+          DPPDComplexBuilder._addCurvedBand(
+            contextGroup,
+            mats.silverLouver,
+            ilrcTh0 + 0.015,
+            rPierTh0 - 0.01,
+            ilrcROut + 0.05,
+            ilrcROut + 0.66,
+            yTop + lvOff,
+            yTop + lvOff + 0.08,
+            20
+          );
+          DPPDComplexBuilder._addCurvedBand(
+            contextGroup,
+            mats.silverLouver,
+            lPierTh1 + 0.01,
+            ilrcTh1 - 0.015,
+            ilrcROut + 0.05,
+            ilrcROut + 0.66,
+            yTop + lvOff,
+            yTop + lvOff + 0.08,
+            20
+          );
+        }
       }
 
       // Inner courtyard projecting sunshade ledge (continuous full arc)
@@ -1483,7 +1856,7 @@ export class DPPDComplexBuilder {
         yTop,
         48
       );
-      // Outer right & left wing projecting curved sunshade ledges (flanking the twin terracotta piers cleanly, matching real photo!)
+      // Outer right & left wing projecting curved sunshade ledges (flanking the twin terracotta piers cleanly)
       DPPDComplexBuilder._addCurvedBand(
         contextGroup,
         mats.facadeWhite,
@@ -1523,8 +1896,17 @@ export class DPPDComplexBuilder {
       }
     }
 
+    // L4-L5 Cantilevered 3-Sided Glass Observation Box on East Wing (+7°..+14°, ref_026)
+    {
+      const cTh0 = (7.0 * Math.PI) / 180.0;
+      const cTh1 = (14.0 * Math.PI) / 180.0;
+      DPPDComplexBuilder._addCurvedBand(contextGroup, mats.facadeWhite, cTh0, cTh1, ilrcROut, ilrcROut + 1.65, 17.35, 17.85, 8);
+      DPPDComplexBuilder._addCurvedBand(contextGroup, mats.facadeWhite, cTh0, cTh1, ilrcROut, ilrcROut + 1.65, 28.25, 28.75, 8);
+      DPPDComplexBuilder._addCurvedBand(contextGroup, mats.windowGlass, cTh0 + 0.004, cTh1 - 0.004, ilrcROut + 0.15, ilrcROut + 1.52, 17.85, 28.25, 8);
+      DPPDComplexBuilder._addCurvedBand(contextGroup, mats.darkAnodized, cTh0, cTh1, ilrcROut + 1.48, ilrcROut + 1.62, 23.00, 23.30, 8);
+    }
+
     // 100.0% FLAT, CONTINUOUS, UNBROKEN FULL-ARC TOP ROOF CROWN FASCIA & COPING (y = 34.15 .. 36.25 across ENTIRE ilrcTh0..ilrcTh1!)
-    // Zero rooftop penthouse hump, zero raised central signboard box, zero stepped wing — 0.00m height variation from end to end!
     DPPDComplexBuilder._addCurvedBand(
       contextGroup,
       mats.facadeWhite,
@@ -1607,33 +1989,119 @@ export class DPPDComplexBuilder {
       }
     }
 
-    // Both ILRC End Walls (ilrcTh0 & ilrcTh1): Clean Precast-White Stair-Core Frame & 6-Story Glazed Stairwell Slot
-    // Terminates flush at y = 34.15 right beneath the continuous 34.15..36.25 flat roof crown (zero corner height step!)
-    for (const [thEnd, sgn] of [
-      [ilrcTh0, -1],
-      [ilrcTh1, 1]
+    // Both ILRC End Walls (ilrcTh0 & ilrcTh1):
+    // - North-East End (ilrcTh0 = -4°): Precast-white stair-core frame + Ground-level grey metal Gardu utility box (ref_025)
+    // - South End (ilrcTh1 = +74°): Tall burnt-brick end tower with cantilevered SE horizontal sunshade slab fins & 3 stacked protruding hooded window boxes (ref_088-ref_090)
+    for (const [thEnd, sgn, isSouthEnd] of [
+      [ilrcTh0, -1, false],
+      [ilrcTh1, 1, true]
     ]) {
       const endGrp = new THREE.Group();
       endGrp.rotation.y = -thEnd;
       contextGroup.add(endGrp);
 
-      const stairTrim = new THREE.Mesh(new THREE.BoxGeometry(8.4, 34.15, 0.36), mats.facadeWhite);
-      stairTrim.position.set(37.4, 17.075, sgn * 0.16);
+      const stairTrim = new THREE.Mesh(
+        new THREE.BoxGeometry(8.8, 34.15, 0.42),
+        isSouthEnd ? mats.ilrcBrickPortal : mats.facadeWhite
+      );
+      stairTrim.position.set(37.4, 17.075, sgn * 0.18);
       endGrp.add(stairTrim);
 
-      const stairGlass = new THREE.Mesh(new THREE.BoxGeometry(3.0, 31.2, 0.44), mats.windowGlass);
-      stairGlass.position.set(37.4, 17.6, sgn * 0.20);
+      const stairGlass = new THREE.Mesh(new THREE.BoxGeometry(3.0, 31.2, 0.48), mats.windowGlass);
+      stairGlass.position.set(37.4, 17.6, sgn * 0.22);
       endGrp.add(stairGlass);
 
       for (let fl = 0; fl < 6; fl++) {
-        const bar = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.32, 0.50), mats.facadeWhite);
-        bar.position.set(37.4, ilrcFloorTops[fl] - 0.42, sgn * 0.22);
+        const bar = new THREE.Mesh(
+          new THREE.BoxGeometry(isSouthEnd ? 9.4 : 3.4, 0.36, isSouthEnd ? 1.15 : 0.50),
+          mats.facadeWhite
+        );
+        bar.position.set(37.4, ilrcFloorTops[fl] - 0.42, sgn * (isSouthEnd ? 0.52 : 0.24));
         endGrp.add(bar);
+      }
+
+      if (isSouthEnd) {
+        // 3 Stacked Protruding Hooded Window Boxes on South Burnt-Brick Tower (L3, L4, L5 — ref_088, ref_090)
+        for (const flIdx of [2, 3, 4]) {
+          const yC = ilrcFloorTops[flIdx] - 2.65;
+          const hoodBox = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.2, 0.92), mats.facadeWhite);
+          hoodBox.position.set(40.4, yC, sgn * 0.52);
+          endGrp.add(hoodBox);
+          const hoodGlass = new THREE.Mesh(new THREE.BoxGeometry(2.1, 1.7, 0.98), mats.windowGlass);
+          hoodGlass.position.set(40.4, yC, sgn * 0.55);
+          endGrp.add(hoodGlass);
+        }
+      } else {
+        // Ground-level grey metal electrical utility cabinet (Gardu) at NE corner lawn (-6.5°, ref_025)
+        const gardu = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.1, 1.2), mats.galvSteel);
+        gardu.position.set(46.2, 1.05, -2.4);
+        const garduPlinth = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.28, 1.5), mats.granitePlinth);
+        garduPlinth.position.set(46.2, 0.14, -2.4);
+        endGrp.add(gardu, garduPlinth);
       }
     }
 
-    // ICONIC ILRC 6-STORY SYMMETRICAL TERRACOTTA-BRICK TWIN-PIER MONUMENTAL ATRIUM PORTAL (at +35°, matching real photo!)
-    // Both piers rise from y = 0.0 to y = 34.15 — terminating cleanly UNDERNEATH the continuous flat white top crown fascia!
+    // East Wing Drop-Off Portico Canopy (+4.5°, ref_026) & DRPM L1 Breezeway + 4 Manila Palms + Open Black Iron Picket Gate (+24°, ref_027-ref_032)
+    {
+      const eastPortTh = (4.5 * Math.PI) / 180.0;
+      DPPDComplexBuilder._addCurvedBand(
+        contextGroup,
+        mats.facadeWhite,
+        eastPortTh - 0.055,
+        eastPortTh + 0.055,
+        ilrcROut + 0.1,
+        ilrcROut + 3.4,
+        4.65,
+        5.15,
+        8
+      );
+      for (const sgn of [-1, 1]) {
+        const thC = eastPortTh + sgn * 0.042;
+        const eCol = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.26, 4.65, 10), mats.facadeWhite);
+        eCol.position.set((ilrcROut + 2.95) * Math.cos(thC), 2.32, (ilrcROut + 2.95) * Math.sin(thC));
+        contextGroup.add(eCol);
+      }
+
+      // DRPM Entrance Approach Apron (+21°..+26°), Open Black Iron Picket Gate & "P PARKIR KHUSUS PIMPINAN" Signpost (ref_027-ref_032)
+      const drpmTh = (23.2 * Math.PI) / 180.0;
+      DPPDComplexBuilder._addCurvedBand(
+        contextGroup,
+        mats.courtyardGranite,
+        drpmTh - 0.048,
+        drpmTh + 0.048,
+        ilrcROut,
+        50.85,
+        0.02,
+        0.15,
+        8
+      );
+      for (const sgn of [-1, 1]) {
+        const gTh = drpmTh + sgn * 0.046;
+        const gateLeaf = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.35, 0.10), mats.darkIron);
+        gateLeaf.position.set(49.2 * Math.cos(gTh), 0.72, 49.2 * Math.sin(gTh));
+        gateLeaf.rotation.y = -gTh + sgn * 0.35;
+        contextGroup.add(gateLeaf);
+      }
+      const pSignTh = drpmTh - 0.058;
+      const pPost = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.1, 8), mats.galvSteel);
+      pPost.position.set(48.2 * Math.cos(pSignTh), 1.05, 48.2 * Math.sin(pSignTh));
+      const pBoard = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.62, 0.48), mats.kanBlue);
+      pBoard.position.set(48.2 * Math.cos(pSignTh), 1.95, 48.2 * Math.sin(pSignTh));
+      pBoard.rotation.y = -pSignTh;
+      contextGroup.add(pPost, pBoard);
+
+      // 4 Clumping Manila Palms along the DRPM East-Central Berm (+15°, +19°, +26.5°, +29.5° — ref_028-ref_030)
+      for (const palmDeg of [15.0, 19.0, 26.5, 29.5]) {
+        const thP = (palmDeg * Math.PI) / 180.0;
+        contextGroup.add(
+          DPPDComplexBuilder._buildRoyalPalm(mats, 46.8 * Math.cos(thP), 0.0, 46.8 * Math.sin(thP), 6.8)
+        );
+      }
+    }
+
+    // ICONIC ILRC 6-STORY SYMMETRICAL TERRACOTTA-BRICK TWIN-PIER MONUMENTAL ATRIUM PORTAL (at +35°, ref_081-ref_086!)
+    // Includes warm taupe-terracotta atrium soffit ceiling, 3 open-air white horizontal corridor bridges at L3/L4/L5,
+    // KAN accreditation emblem plaque, koral sikat pebble-grid ramp & open black iron picket gate!
     for (const [pThA, pThB] of [
       [rPierTh0, rPierTh1],
       [lPierTh0, lPierTh1]
@@ -1650,6 +2118,33 @@ export class DPPDComplexBuilder {
         6
       );
     }
+    // Warm Taupe-Terracotta Portal Header & Atrium Soffit Ceiling between the Twin Piers (ref_083)
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.warmTaupeSoffit,
+      rPierTh0,
+      lPierTh1,
+      ilrcRIn + 2.6,
+      ilrcROut + 0.86,
+      32.95,
+      34.15,
+      12
+    );
+    // 3 Open-Air White Horizontal Atrium Corridor Bridges at L3, L4, L5 (ref_083)
+    for (const flBridge of [2, 3, 4]) {
+      const yBr = ilrcFloorTops[flBridge - 1];
+      DPPDComplexBuilder._addCurvedBand(
+        contextGroup,
+        mats.facadeWhite,
+        rPierTh1,
+        lPierTh0,
+        ilrcMidR - 1.2,
+        ilrcROut - 0.65,
+        yBr - 0.35,
+        yBr + 1.05,
+        10
+      );
+    }
     // Recessed 6-story central glass atrium curtain wall + vertical mullions between the twin terracotta piers
     DPPDComplexBuilder._addCurvedBand(
       contextGroup,
@@ -1659,7 +2154,7 @@ export class DPPDComplexBuilder {
       ilrcROut - 0.58,
       ilrcROut + 0.06,
       0.48,
-      34.15,
+      32.95,
       12
     );
     for (const frac of [-0.5, 0.0, 0.5]) {
@@ -1670,7 +2165,7 @@ export class DPPDComplexBuilder {
       contextGroup.add(aMul);
     }
 
-    // Projecting ILRC Ground-Floor Drop-Off Canopy + Photocell Downlights!
+    // Projecting ILRC Ground-Floor Drop-Off Canopy + Photocell Downlights + KAN Emblem Plaque + Koral Sikat Ramp!
     DPPDComplexBuilder._addCurvedBand(
       contextGroup,
       mats.ilrcBrickPortal,
@@ -1704,11 +2199,64 @@ export class DPPDComplexBuilder {
       5.54,
       8
     );
+    // Koral Sikat (washed-pebble concrete grid) driveway apron & open black iron picket gate at +35° (ref_081, ref_086)
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.koralSikat,
+      ilrcCenterTh - 0.12,
+      ilrcCenterTh + 0.12,
+      ilrcROut + 0.4,
+      50.82,
+      0.04,
+      0.19,
+      12
+    );
     for (const sgn of [-1, 1]) {
       const thP = ilrcCenterTh + sgn * 0.11;
       const cCol = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.34, 5.55, 12), mats.ilrcBrickPortal);
       cCol.position.set((ilrcROut + 4.1) * Math.cos(thP), 2.78, (ilrcROut + 4.1) * Math.sin(thP));
       contextGroup.add(cCol);
+
+      const gLeaf = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.35, 0.10), mats.darkIron);
+      gLeaf.position.set(49.5 * Math.cos(thP), 0.72, 49.5 * Math.sin(thP));
+      gLeaf.rotation.y = -thP + sgn * 0.42;
+      contextGroup.add(gLeaf);
+    }
+    // KAN Accreditation Emblem Plaque on right terracotta portal pier (ref_084)
+    {
+      const kanTh = (rPierTh0 + rPierTh1) * 0.5;
+      const kanPlaque = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.15, 1.55), mats.facadeWhite);
+      kanPlaque.position.set((ilrcROut + 0.86) * Math.cos(kanTh), 9.2, (ilrcROut + 0.86) * Math.sin(kanTh));
+      kanPlaque.rotation.y = -kanTh;
+      const kanBadge = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.68, 0.98), mats.kanBlue);
+      kanBadge.position.set((ilrcROut + 0.88) * Math.cos(kanTh), 9.2, (ilrcROut + 0.88) * Math.sin(kanTh));
+      kanBadge.rotation.y = -kanTh;
+      contextGroup.add(kanPlaque, kanBadge);
+    }
+
+    // South Wing Landscaped Berm with Bamboo-Staked Brown Dry-Leaf Composting Mound (+45°..+63°, ref_086-ref_089)
+    {
+      const leafTh0 = (46.0 * Math.PI) / 180.0;
+      const leafTh1 = (62.0 * Math.PI) / 180.0;
+      DPPDComplexBuilder._addCurvedBand(
+        contextGroup,
+        mats.dryLeafMound,
+        leafTh0,
+        leafTh1,
+        45.2,
+        48.8,
+        0.04,
+        0.52,
+        14
+      );
+      for (let st = 0; st <= 10; st++) {
+        const thSt = leafTh0 + (st / 10) * (leafTh1 - leafTh0);
+        for (const rSt of [45.15, 48.85]) {
+          const stake = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.95, 6), mats.bambooStake);
+          stake.position.set(rSt * Math.cos(thSt), 0.48, rSt * Math.sin(thSt));
+          contextGroup.add(stake);
+        }
+      }
     }
 
     // UI Makara + Left-to-Right 3D "GEDUNG ILRC UI" Signage mounted directly on the continuous flat y = 34.15..36.05 crown fascia!
@@ -1735,17 +2283,19 @@ export class DPPDComplexBuilder {
     );
 
     // =========================================================================
-    // 4. GEDUNG STP-UI — STRICTLY 8 STORIES (8 LANTAI: L1 LOBBY + L2-L3 COPPER DIAGRID + L4-L7 WHITE/BOX + L8 CROWN)
-    //    Modeled directly after real Gedung Science Techno Park UI Depok photos:
-    //    - Wrapping Copper-Terracotta ACP Vertical End Frames & Overhanging Top Roof Cornice
-    //    - L2-L3 Angled Copper-ACP V-Diagrid Screen over 2-Story Mullioned Glazing
-    //    - L4-L7 4 Crisp Curved White Spandrel Floors with Staggered Dark Box-Window Accent Frames
+    // 4. GEDUNG STP-UI — 8 STORIES WITH 206-PHOTO GROUND-TRUTH FIDELITY
+    //    Modeled directly after real Gedung Science Techno Park UI Depok photos (ref_008..ref_023, ref_076..ref_078):
+    //    - Wrapping Copper-Terracotta ACP Vertical End Frames & Overhanging Top Roof Cornice + 8-Story Scissor-Stair Cores
+    //    - L1 NW Dark Industrial Louver Wall (-131°..-92°) & Glazed Exhibition Lobby (-92°..-46°)
+    //    - L2-L3 Angled Copper-ACP V-Diagrid Screen + Vertical Copper-Tube Louver Fins in alternating bays
+    //    - L4-L7 4 Crisp Curved White Spandrel Floors with Staggered Dark Box-Window Accent Frames + L4-L8 Vertical Copper-Fin Louver Bays
     //    - L8 Dark-Glazed Penthouse Frieze bearing Golden UI Makara + High-Contrast 3D "SCIENCE TECHNO PARK / UNIVERSITAS INDONESIA"
-    //    - Full 8-Story Inner Courtyard & End-Wall Spandrels/Mullions (ZERO black void wall!)
+    //    - Angled V-Strut Drop-Off Portico Canopy (-89°) with Warm Taupe Soffit & 4 Stainless Bollards
+    //    - Sloped White Concrete "STP-UI" Wedge Planter (-86°), Black/Yellow Directory Totem (-76°), & Red Fire-Hydrant Pipeline (-128°..-76°)
     // =========================================================================
     const stpTh0 = (DPPDComplexBuilder.STP_START_DEG * Math.PI) / 180.0;
     const stpTh1 = (DPPDComplexBuilder.STP_END_DEG * Math.PI) / 180.0;
-    const stpCenterTh = 0.5 * (stpTh0 + stpTh1); // -84°
+    const stpCenterTh = 0.5 * (stpTh0 + stpTh1); // -89°
     const stpRIn = 31.2;
     const stpROut = 43.8;
     const stpWingPad = 0.036; // Angular width of left & right copper-ACP framing pilasters
@@ -1754,9 +2304,20 @@ export class DPPDComplexBuilder {
     // Exact 8 countable floor ceiling heights:
     const stpFloorTops = [6.85, 12.45, 18.05, 23.45, 28.85, 34.25, 39.65, 45.25];
 
-    // Plinth & L1 Recessed Dark-Glazed Exhibition Lobby
+    // Plinth & L1 Recessed Dark-Glazed Exhibition Lobby + L1 NW Dark Industrial Louver Wall (-131°..-94°, ref_014-ref_016)
     DPPDComplexBuilder._addCurvedBand(contextGroup, mats.granitePlinth, stpTh0, stpTh1, stpRIn - 0.3, stpROut + 0.3, -0.35, 0.48, 52);
     DPPDComplexBuilder._addCurvedBand(contextGroup, mats.windowGlass, stpInnerTh0, stpInnerTh1, stpRIn + 0.4, stpROut - 0.55, 0.48, 6.10, 48);
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
+      mats.darkAnodized,
+      stpInnerTh0 + 0.02,
+      stpCenterTh - 0.14,
+      stpROut - 0.42,
+      stpROut + 0.04,
+      0.85,
+      5.95,
+      18
+    );
     DPPDComplexBuilder._addCurvedBand(contextGroup, mats.copperACP, stpInnerTh0, stpInnerTh1, stpRIn - 0.35, stpROut + 0.48, 6.10, 6.85, 48);
 
     // L2 & L3 Glazed Podium + Intermediate L2 Floor Slab + Top L3 Copper Podium Belt
@@ -1777,7 +2338,7 @@ export class DPPDComplexBuilder {
       );
     }
 
-    // Signature L2-L3 Angled Copper-Terracotta ACP V-Diagrid Structural Ribs (matching real STP-UI facade!)
+    // Signature L2-L3 Angled Copper-Terracotta ACP V-Diagrid Structural Ribs + Vertical Copper-Tube Louver Fins (ref_014-ref_020)
     const diagBays = 16;
     for (let b = 0; b < diagBays; b++) {
       const tA = stpInnerTh0 + (b / diagBays) * (stpInnerTh1 - stpInnerTh0);
@@ -1793,6 +2354,17 @@ export class DPPDComplexBuilder {
       );
       DPPDComplexBuilder._orientBeamAlongZ(rib, pStart, pEnd, 0.0);
       contextGroup.add(rib);
+
+      // Vertical copper-tube louver fins inside alternating L2-L3 podium bays (ref_016, ref_018)
+      if (b % 2 === 1) {
+        for (const fSub of [0.25, 0.50, 0.75]) {
+          const thL = tA + fSub * (tB - tA);
+          const lFin = new THREE.Mesh(new THREE.BoxGeometry(0.32, 10.45, 0.14), mats.copperACP);
+          lFin.position.set((stpROut + 0.16) * Math.cos(thL), 12.10, (stpROut + 0.16) * Math.sin(thL));
+          lFin.rotation.y = -thL;
+          contextGroup.add(lFin);
+        }
+      }
     }
 
     // L4, L5, L6, L7 (4 Crisp White-Stone Curved Stories with Staggered Dark Box-Window Accent Frames & Sunshade Fins!)
@@ -1824,7 +2396,7 @@ export class DPPDComplexBuilder {
         yTop - 0.68,
         52
       );
-      // Continuous curved sunshade fin cleanly bounded inside [stpInnerTh0, stpInnerTh1] (ZERO floating ribs past end walls!)
+      // Continuous curved sunshade fin cleanly bounded inside [stpInnerTh0, stpInnerTh1]
       DPPDComplexBuilder._addCurvedBand(
         contextGroup,
         mats.facadeWhite,
@@ -1862,8 +2434,18 @@ export class DPPDComplexBuilder {
       }
     }
 
+    // L4-L8 Vertical Copper-Fin Louver Screen Bays adjacent to the NW & SW End Copper Framing Wings (ref_008, ref_014)
+    for (const baseTh of [stpInnerTh0 + 0.012, stpInnerTh1 - 0.072]) {
+      for (let f = 0; f < 5; f++) {
+        const thFin = baseTh + f * 0.014;
+        const cFin = new THREE.Mesh(new THREE.BoxGeometry(0.48, 27.10, 0.16), mats.copperACP);
+        cFin.position.set((stpROut + 0.32) * Math.cos(thFin), 31.65, (stpROut + 0.32) * Math.sin(thFin));
+        cFin.rotation.y = -thFin;
+        contextGroup.add(cFin);
+      }
+    }
+
     // L8 (Top 8th-Floor Dark-Glazed Crown Frieze: y = 39.65 .. 45.25)
-    // Outer side uses darkFriezeGlass backing under signage + night-lit window slots so white 3D letters pop in bright daylight!
     DPPDComplexBuilder._addCurvedBand(
       contextGroup,
       mats.windowGlass,
@@ -2007,7 +2589,7 @@ export class DPPDComplexBuilder {
       contextGroup.add(outMul);
     }
 
-    // Both STP-UI End Walls (stpTh0 & stpTh1): Articulated 8-Story Glazed Stair/Elevator Core & Floor Transoms!
+    // Both STP-UI End Walls (stpTh0 & stpTh1): Articulated 8-Story Glazed Scissor-Stair / Elevator Core & Vertical Copper Louver Screen!
     for (const [thEnd, sgn] of [
       [stpTh0, -1],
       [stpTh1, 1]
@@ -2023,6 +2605,12 @@ export class DPPDComplexBuilder {
       const coreGlass = new THREE.Mesh(new THREE.BoxGeometry(3.8, 42.4, 0.44), mats.windowGlass);
       coreGlass.position.set(37.5, 23.2, sgn * 0.18);
       endGrp.add(coreGlass);
+
+      for (const xFin of [36.1, 37.5, 38.9]) {
+        const endFin = new THREE.Mesh(new THREE.BoxGeometry(0.18, 42.4, 0.56), mats.copperACP);
+        endFin.position.set(xFin, 23.2, sgn * 0.24);
+        endGrp.add(endFin);
+      }
 
       for (let fl = 0; fl < 8; fl++) {
         const bar = new THREE.Mesh(new THREE.BoxGeometry(8.8, 0.42, 0.50), mats.copperACP);
@@ -2065,7 +2653,7 @@ export class DPPDComplexBuilder {
       -1.0
     );
 
-    // STP-UI Grand L1 Drop-Off Canopy Portico at stpCenterTh (-84°) + Photocell Downlights + "STP-UI" 3D Canopy Letters!
+    // STP-UI Grand L1 Drop-Off Canopy Portico at stpCenterTh (-89°) + Angled V-Strut Columns + Warm Taupe Soffit + 4 Stainless Bollards!
     DPPDComplexBuilder._addCurvedBand(
       contextGroup,
       mats.copperACP,
@@ -2079,13 +2667,24 @@ export class DPPDComplexBuilder {
     );
     DPPDComplexBuilder._addCurvedBand(
       contextGroup,
+      mats.warmTaupeSoffit,
+      stpCenterTh - 0.135,
+      stpCenterTh + 0.135,
+      stpROut + 0.3,
+      stpROut + 5.25,
+      5.70,
+      5.85,
+      14
+    );
+    DPPDComplexBuilder._addCurvedBand(
+      contextGroup,
       mats.warmLuminaire,
       stpCenterTh - 0.11,
       stpCenterTh + 0.11,
       stpROut + 1.4,
       stpROut + 4.5,
-      5.78,
-      5.84,
+      5.64,
+      5.70,
       10
     );
     DPPDComplexBuilder._addCurvedBand(
@@ -2094,16 +2693,30 @@ export class DPPDComplexBuilder {
       stpCenterTh - 0.18,
       stpCenterTh + 0.18,
       stpROut,
-      52.8,
+      50.85,
       0.02,
       0.16,
       16
     );
     for (const sgn of [-1, 1]) {
       const thP = stpCenterTh + sgn * 0.115;
-      const pCol = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 5.85, 12), mats.darkAnodized);
-      pCol.position.set((stpROut + 4.7) * Math.cos(thP), 2.95, (stpROut + 4.7) * Math.sin(thP));
-      contextGroup.add(pCol);
+      const baseX = (stpROut + 4.7) * Math.cos(thP);
+      const baseZ = (stpROut + 4.7) * Math.sin(thP);
+      // Signature angled V-strut portico support columns (ref_020, ref_077)
+      for (const vAng of [-0.022, 0.022]) {
+        pStart.set(baseX, 0.12, baseZ);
+        pEnd.set((stpROut + 4.55) * Math.cos(thP + vAng), 5.75, (stpROut + 4.55) * Math.sin(thP + vAng));
+        const vCol = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, pStart.distanceTo(pEnd)), mats.darkAnodized);
+        DPPDComplexBuilder._orientBeamAlongZ(vCol, pStart, pEnd, 0.0);
+        contextGroup.add(vCol);
+      }
+    }
+    // 4 Stainless Security Bollards flanking the STP-UI Lobby Drop-Off Apron (ref_020)
+    for (const bOff of [-0.13, -0.045, 0.045, 0.13]) {
+      const thB = stpCenterTh + bOff;
+      const bol = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.92, 10), mats.galvSteel);
+      bol.position.set((stpROut + 2.2) * Math.cos(thB), 0.52, (stpROut + 2.2) * Math.sin(thB));
+      contextGroup.add(bol);
     }
     DPPDComplexBuilder._addCurved3DText(
       contextGroup,
@@ -2117,9 +2730,81 @@ export class DPPDComplexBuilder {
       -1.0
     );
 
+    // Sloped White Concrete "STP-UI" Monumental Wedge Planter (-82°, ref_021) + Black/Yellow Directory Totem (-75°, ref_023)
+    // + Exposed Red Fire-Hydrant Pipeline & Twin Red Pillar Hydrants (-126°..-76°, ref_014-ref_019)
+    {
+      const wedgeTh = (-81.5 * Math.PI) / 180.0;
+      const wedgeGrp = new THREE.Group();
+      wedgeGrp.position.set(49.2 * Math.cos(wedgeTh), 0.0, 49.2 * Math.sin(wedgeTh));
+      wedgeGrp.rotation.y = -wedgeTh;
+      const wBase = new THREE.Mesh(new THREE.BoxGeometry(1.35, 1.15, 4.2), mats.facadeWhite);
+      wBase.position.y = 0.58;
+      wBase.rotation.z = -0.14;
+      const wCap = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.16, 4.3), mats.granitePlinth);
+      wCap.position.y = 0.10;
+      wedgeGrp.add(wBase, wCap);
+      contextGroup.add(wedgeGrp);
+      DPPDComplexBuilder._addCurved3DText(
+        contextGroup,
+        'STP-UI',
+        49.94,
+        wedgeTh + 0.025,
+        0.42,
+        0.52,
+        0.10,
+        mats.darkAnodized,
+        -1.0
+      );
+
+      // Black & UI-Yellow Vertical Directory Signboard Totem at -75° (ref_023)
+      const dirTh = (-75.0 * Math.PI) / 180.0;
+      const dirTotem = new THREE.Group();
+      dirTotem.position.set(49.4 * Math.cos(dirTh), 0.0, 49.4 * Math.sin(dirTh));
+      dirTotem.rotation.y = -dirTh;
+      const dPlinth = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.35, 1.45), mats.granitePlinth);
+      dPlinth.position.y = 0.18;
+      const dBody = new THREE.Mesh(new THREE.BoxGeometry(0.36, 2.55, 1.25), mats.darkAnodized);
+      dBody.position.y = 1.60;
+      const dHeader = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.42, 1.28), mats.uiYellowFascia);
+      dHeader.position.y = 2.72;
+      dirTotem.add(dPlinth, dBody, dHeader);
+      contextGroup.add(dirTotem);
+
+      // Exposed Red Fire-Hydrant Pipeline & 2 Red Pillar Hydrants along NW Perimeter Lawn (-125°..-96°, ref_014-ref_019)
+      const hPipeTh0 = (-125.0 * Math.PI) / 180.0;
+      const hPipeTh1 = (-96.0 * Math.PI) / 180.0;
+      DPPDComplexBuilder._addCurvedBand(
+        contextGroup,
+        mats.flagRed,
+        hPipeTh0,
+        hPipeTh1,
+        48.55,
+        48.72,
+        0.28,
+        0.42,
+        14
+      );
+      for (const hDeg of [-122.0, -98.0]) {
+        const thH = (hDeg * Math.PI) / 180.0;
+        const hyd = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.95, 10), mats.flagRed);
+        hyd.position.set(48.64 * Math.cos(thH), 0.50, 48.64 * Math.sin(thH));
+        const hydCap = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.16, 0.16, 10), mats.brassSign);
+        hydCap.position.set(48.64 * Math.cos(thH), 1.02, 48.64 * Math.sin(thH));
+        contextGroup.add(hyd, hydCap);
+      }
+    }
+
     // =========================================================================
-    // 5. PLAZA TAMAN INOVASI TENGAH (OPEN LANDSCAPED CENTRAL COURTYARD REPLACING 4-STORY BOX!)
-    //    Concentric Granite/Terracotta Plaza, UI Makara Monument, Covered Link Pergolas, Trees, Benches & Bollards
+    // 5. GEDUNG ITTC / PERPUSTAKAAN LAMA UI (CENTRAL 4-STORY SQUARE COURTYARD HERITAGE BUILDING)
+    //    Modeled directly after real Gedung ITTC / Perpustakaan Lama UI Depok photos (ref_004..ref_007, ref_057..ref_066)
+    //    and aerial drone imagery:
+    //    - Square courtyard footprint (halfOuter = 13.5m, halfInner = 5.0m, eaveY = 12.60m, ridgeY = 15.10m)
+    //    - 4-wing pitched terracotta Limasan roof with 12 articulated ridge/hip/valley caps
+    //    - High-level flat concrete central roof deck (Atap Coran) + raised silver-louvered clerestory skylight monitor
+    //      crowned by a pyramidal terracotta roof cap (apex y = 15.85m, leaving 6.76m vertical clearance under Avata 2 FPV!)
+    //    - 7-bay white reinforced-concrete column grid & horizontal spandrel beams across L1-L4 + L2/L3 split-AC condenser units
+    //    - West entrance portico canopy & NW 1-story flat-roofed annex wing (w = 7.4m, d = 4.2m, h = 3.5m)
+    //    - Surrounded by the walkable granite/terracotta courtyard ring (r = 16.5..31.2m), radial spokes, shade trees & benches
     // =========================================================================
     const courtyardOuterPad = new THREE.Mesh(
       new THREE.CylinderGeometry(31.2, 31.2, 0.16, 64),
@@ -2129,53 +2814,189 @@ export class DPPDComplexBuilder {
     dppdGroup.add(courtyardOuterPad);
 
     const courtyardBrickRing = new THREE.Mesh(
-      new THREE.CylinderGeometry(19.5, 19.5, 0.18, 56),
+      new THREE.CylinderGeometry(24.6, 24.6, 0.18, 56),
       mats.terracottaFloor
     );
     courtyardBrickRing.position.y = 0.03;
     dppdGroup.add(courtyardBrickRing);
 
     const courtyardInnerGranite = new THREE.Mesh(
-      new THREE.CylinderGeometry(16.8, 16.8, 0.20, 56),
+      new THREE.CylinderGeometry(18.2, 18.2, 0.20, 56),
       mats.courtyardGranite
     );
     courtyardInnerGranite.position.y = 0.04;
     dppdGroup.add(courtyardInnerGranite);
 
-    // Central Tiered Botanical Planter & Sculptural UI Makara Innovation Obelisk (r = 0 .. 4.8)
-    const centerPlanterRim = new THREE.Mesh(new THREE.CylinderGeometry(4.8, 5.1, 0.72, 32), mats.granitePlinth);
-    centerPlanterRim.position.y = 0.38;
-    dppdGroup.add(centerPlanterRim);
-    const centerPlanterGrass = new THREE.Mesh(new THREE.CylinderGeometry(4.4, 4.4, 0.76, 32), mats.campusGrass);
-    centerPlanterGrass.position.y = 0.40;
-    dppdGroup.add(centerPlanterGrass);
+    // 4-Story Square Courtyard Building: Gedung ITTC / Perpustakaan Lama UI
+    {
+      const ittcGroup = new THREE.Group();
+      dppdGroup.add(ittcGroup);
 
-    const obeliskBase = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.85, 1.15, 8), mats.granitePlinth);
-    obeliskBase.position.y = 1.15;
-    dppdGroup.add(obeliskBase);
-    const obeliskShaft = new THREE.Mesh(new THREE.BoxGeometry(1.35, 3.85, 1.35), mats.copperACP);
-    obeliskShaft.position.y = 3.45;
-    obeliskShaft.rotation.y = Math.PI * 0.25;
-    dppdGroup.add(obeliskShaft);
-    const obeliskCrown = DPPDComplexBuilder._buildUIMakaraEmblem(mats, 1.05);
-    obeliskCrown.position.set(0, 5.95, 0);
-    obeliskCrown.rotation.y = Math.PI * 0.75; // Faces Gedung DPPD & Rektorat axis
-    dppdGroup.add(obeliskCrown);
+      const hOut = 13.5;
+      const hIn = 5.0;
+      const ittcFlTops = [3.40, 6.50, 9.60, 12.60];
 
-    // 3 Radial Granite Promenade Spokes linking Center Plaza to DPPD (+135°), ILRC (+35°), & STP-UI (-89°)
+      // Stepped stone foundation plinth
+      const ittcPlinth = new THREE.Mesh(new THREE.BoxGeometry(hOut * 2 + 0.9, 0.44, hOut * 2 + 0.9), mats.granitePlinth);
+      ittcPlinth.position.y = 0.22;
+      ittcGroup.add(ittcPlinth);
+
+      // 4 Wings (North, South, East, West) forming the square courtyard massing
+      const wingSpecs = [
+        { cx: 0, cz: -9.25, sx: 27.0, sz: 8.5 },
+        { cx: 0, cz: 9.25, sx: 27.0, sz: 8.5 },
+        { cx: -9.25, cz: 0, sx: 8.5, sz: 10.0 },
+        { cx: 9.25, cz: 0, sx: 8.5, sz: 10.0 }
+      ];
+
+      for (let fl = 0; fl < 4; fl++) {
+        const yBot = fl === 0 ? 0.44 : ittcFlTops[fl - 1];
+        const yTop = ittcFlTops[fl];
+        const flH = yTop - yBot;
+
+        for (const w of wingSpecs) {
+          // Recessed dark window glazing core
+          const glassCore = new THREE.Mesh(
+            new THREE.BoxGeometry(w.sx - 0.36, flH - 0.95, w.sz - 0.36),
+            mats.windowGlass
+          );
+          glassCore.position.set(w.cx, yBot + 0.65 + (flH - 0.95) * 0.5, w.cz);
+          ittcGroup.add(glassCore);
+
+          // White concrete sill spandrel band
+          const sillBand = new THREE.Mesh(
+            new THREE.BoxGeometry(w.sx + 0.08, 0.72, w.sz + 0.08),
+            mats.facadeWhite
+          );
+          sillBand.position.set(w.cx, yBot + 0.36, w.cz);
+          ittcGroup.add(sillBand);
+
+          // Projecting white horizontal floor slab / sunshade cornice
+          const sunSlab = new THREE.Mesh(
+            new THREE.BoxGeometry(w.sx + 0.56, 0.34, w.sz + 0.56),
+            mats.whiteMullion
+          );
+          sunSlab.position.set(w.cx, yTop - 0.17, w.cz);
+          ittcGroup.add(sunSlab);
+        }
+      }
+
+      // 7-Bay White Reinforced-Concrete Structural Column Grid & Dark Window Mullions on All 4 Outer Facades + Split-AC Units
+      for (let b = 0; b <= 7; b++) {
+        const t = -hOut + (b / 7) * (hOut * 2);
+        for (const sgn of [-1, 1]) {
+          const colNS = new THREE.Mesh(new THREE.BoxGeometry(0.42, 12.2, 0.46), mats.facadeWhite);
+          colNS.position.set(t, 6.50, sgn * hOut);
+          const colEW = new THREE.Mesh(new THREE.BoxGeometry(0.46, 12.2, 0.42), mats.facadeWhite);
+          colEW.position.set(sgn * hOut, 6.50, t);
+          ittcGroup.add(colNS, colEW);
+
+          if (b < 7) {
+            const tMid = t + hOut / 7;
+            const mulNS = new THREE.Mesh(new THREE.BoxGeometry(0.16, 11.8, 0.22), mats.darkAnodized);
+            mulNS.position.set(tMid, 6.50, sgn * (hOut - 0.08));
+            const mulEW = new THREE.Mesh(new THREE.BoxGeometry(0.22, 11.8, 0.16), mats.darkAnodized);
+            mulEW.position.set(sgn * (hOut - 0.08), 6.50, tMid);
+            ittcGroup.add(mulNS, mulEW);
+
+            // Exterior Split-AC Condenser Units mounted on L2 & L3 spandrel ledges (ref_057-ref_062)
+            if (b % 2 === 1) {
+              for (const yAc of [4.15, 7.25]) {
+                const acBox = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.48, 0.34), mats.warmStonePanel);
+                acBox.position.set(tMid, yAc, sgn * (hOut + 0.18));
+                ittcGroup.add(acBox);
+              }
+            }
+          }
+        }
+      }
+
+      // 4-Wing Pitched Terracotta Limasan Roof with Overhanging Eaves (14.45m outer, 4.35m inner, eaveY = 12.60m, ridgeY = 15.10m)
+      const eaveFascia = new THREE.Mesh(new THREE.BoxGeometry(28.9, 0.32, 28.9), mats.facadeWhite);
+      eaveFascia.position.y = 12.52;
+      ittcGroup.add(eaveFascia);
+
+      const { roofGeo: limasanRoofGeo } = DPPDComplexBuilder._buildSquareCourtyardLimasanRoof(14.45, 4.35, 12.60, 15.10);
+      const limasanRoofMesh = new THREE.Mesh(limasanRoofGeo, mats.terracottaRoof);
+      ittcGroup.add(limasanRoofMesh);
+
+      // 12 Articulated Terracotta Ridge, Outer Hip & Inner Valley Caps on the 4-Wing Limasan Roof
+      for (const sgnX of [-1, 1]) {
+        const rNS = new THREE.Mesh(new THREE.BoxGeometry(18.6, 0.26, 0.36), mats.terracottaRidge);
+        rNS.position.set(0, 15.14, sgnX * 9.25);
+        const rEW = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.26, 18.6), mats.terracottaRidge);
+        rEW.position.set(sgnX * 9.25, 15.14, 0);
+        ittcGroup.add(rNS, rEW);
+
+        for (const sgnZ of [-1, 1]) {
+          // Outer corner hip cap
+          pStart.set(sgnX * 14.45, 12.62, sgnZ * 14.45);
+          pEnd.set(sgnX * 9.25, 15.14, sgnZ * 9.25);
+          const hipCap = new THREE.Mesh(
+            new THREE.BoxGeometry(0.32, 0.24, pStart.distanceTo(pEnd) + 0.15),
+            mats.terracottaRidge
+          );
+          DPPDComplexBuilder._orientBeamAlongZ(hipCap, pStart, pEnd, 0.0);
+          ittcGroup.add(hipCap);
+
+          // Inner courtyard valley cap
+          pStart.set(sgnX * 4.35, 12.62, sgnZ * 4.35);
+          pEnd.set(sgnX * 9.25, 15.14, sgnZ * 9.25);
+          const valCap = new THREE.Mesh(
+            new THREE.BoxGeometry(0.28, 0.22, pStart.distanceTo(pEnd) + 0.10),
+            mats.terracottaRidge
+          );
+          DPPDComplexBuilder._orientBeamAlongZ(valCap, pStart, pEnd, 0.0);
+          ittcGroup.add(valCap);
+        }
+      }
+
+      // High-Level Flat Concrete Central Roof Deck (Atap Coran, y = 13.05m) + Raised Clerestory Skylight Monitor
+      // & Pyramidal Terracotta Roof Cap (apex y = 15.85m — verified in aerial drone imagery!)
+      const atapCoran = new THREE.Mesh(new THREE.BoxGeometry(9.6, 0.42, 9.6), mats.ilrcConcrete);
+      atapCoran.position.y = 13.05;
+      const monitorLouver = new THREE.Mesh(new THREE.BoxGeometry(5.6, 1.15, 5.6), mats.silverLouver);
+      monitorLouver.position.y = 13.82;
+      const monitorCap = new THREE.Mesh(new THREE.ConeGeometry(4.45, 1.45, 4), mats.terracottaRoof);
+      monitorCap.position.y = 15.12;
+      monitorCap.rotation.y = Math.PI * 0.25;
+      ittcGroup.add(atapCoran, monitorLouver, monitorCap);
+
+      // West Entrance Portico Canopy (facing STP-UI / West promenade)
+      const westCanopy = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.34, 6.4), mats.facadeWhite);
+      westCanopy.position.set(-14.6, 3.65, 0);
+      const westLight = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.08, 4.8), mats.warmLuminaire);
+      westLight.position.set(-14.5, 3.46, 0);
+      ittcGroup.add(westCanopy, westLight);
+      for (const czCol of [-2.6, 2.6]) {
+        const wCol = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 3.48, 10), mats.facadeWhite);
+        wCol.position.set(-15.6, 1.74, czCol);
+        ittcGroup.add(wCol);
+      }
+
+      // NW 1-Story Flat-Roofed Annex Wing (w = 7.4m, d = 4.2m, h = 3.50m — ref_004-ref_007, ref_057-ref_066)
+      const nwAnnex = new THREE.Mesh(new THREE.BoxGeometry(7.4, 3.30, 4.2), mats.facadeWhite);
+      nwAnnex.position.set(-9.6, 1.85, -15.4);
+      const nwAnnexRoof = new THREE.Mesh(new THREE.BoxGeometry(7.9, 0.32, 4.7), mats.ilrcConcrete);
+      nwAnnexRoof.position.set(-9.6, 3.56, -15.4);
+      const nwAnnexGlass = new THREE.Mesh(new THREE.BoxGeometry(5.8, 1.75, 4.32), mats.windowGlass);
+      nwAnnexGlass.position.set(-9.6, 2.05, -15.4);
+      ittcGroup.add(nwAnnex, nwAnnexRoof, nwAnnexGlass);
+    }
+
+    // 3 Radial Granite Promenade Spokes linking Courtyard Ring (r = 18.2..28.5m) to DPPD (+135°), ILRC (+35°), & STP-UI (-89°)
     for (const spokeDeg of [135.0, 35.0, -89.0]) {
       const thS = (spokeDeg * Math.PI) / 180.0;
-      const spoke = new THREE.Mesh(new THREE.BoxGeometry(23.0, 0.06, 4.2), mats.whiteMullion);
-      spoke.position.set(16.8 * Math.cos(thS), 0.13, 16.8 * Math.sin(thS));
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(11.6, 0.06, 4.2), mats.whiteMullion);
+      spoke.position.set(23.2 * Math.cos(thS), 0.13, 23.2 * Math.sin(thS));
       spoke.rotation.y = -thS;
       dppdGroup.add(spoke);
     }
 
     // Open Landscaped Granite Courtyard Gateway Promenades between DPPD, ILRC, & STP-UI
-    // (Zero 1-story side roofs abutting ILRC so Gedung ILRC's 6-story flat-top silhouette stays 100% pure on both flanks!)
     for (const [degA, degB, rOutProm] of [
       [74.5, 90.5, 44.2],
-      [-36.0, -12.0, 52.8],
+      [-36.0, -12.0, 50.85],
       [-151.5, -134.5, 35.2]
     ]) {
       const t0 = (Math.min(degA, degB) * Math.PI) / 180.0;
@@ -2183,28 +3004,28 @@ export class DPPDComplexBuilder {
       DPPDComplexBuilder._addCurvedBand(contextGroup, mats.courtyardGranite, t0, t1, 30.6, rOutProm, 0.02, 0.15, 16);
     }
 
-    // 4 Landscaped Courtyard Planter Islands with Shade Trees, Teak Benches, & Warm Photocell Bollards
+    // 4 Landscaped Courtyard Planter Islands with Shade Trees, Teak Benches, & Warm Photocell Bollards (at r = 22.8m around ITTC!)
     const courtyardTreeAnglesDeg = [82.0, -24.0, -138.0, 172.0];
     for (const cDeg of courtyardTreeAnglesDeg) {
       const th = (cDeg * Math.PI) / 180.0;
-      const rIsle = 12.2;
+      const rIsle = 22.8;
       const px = rIsle * Math.cos(th);
       const pz = rIsle * Math.sin(th);
 
-      const planter = new THREE.Mesh(new THREE.CylinderGeometry(2.65, 2.85, 0.52, 20), mats.granitePlinth);
+      const planter = new THREE.Mesh(new THREE.CylinderGeometry(2.35, 2.55, 0.52, 20), mats.granitePlinth);
       planter.position.set(px, 0.34, pz);
       contextGroup.add(planter);
 
-      const turf = new THREE.Mesh(new THREE.CylinderGeometry(2.35, 2.35, 0.56, 20), mats.campusGrass);
+      const turf = new THREE.Mesh(new THREE.CylinderGeometry(2.05, 2.05, 0.56, 20), mats.campusGrass);
       turf.position.set(px, 0.36, pz);
       contextGroup.add(turf);
 
       contextGroup.add(DPPDComplexBuilder._buildCourtyardTree(mats, px, 0.55, pz, 1.05));
 
-      // Teak-and-concrete courtyard bench facing center monument
+      // Teak-and-concrete courtyard bench facing ITTC courtyard promenade
       const bench = new THREE.Group();
-      bench.position.set((rIsle - 3.35) * Math.cos(th), 0.14, (rIsle - 3.35) * Math.sin(th));
-      bench.rotation.y = -th + Math.PI * 0.5;
+      bench.position.set((rIsle + 3.15) * Math.cos(th), 0.14, (rIsle + 3.15) * Math.sin(th));
+      bench.rotation.y = -th - Math.PI * 0.5;
       const seat = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 0.62), mats.teakBench);
       seat.position.y = 0.46;
       const back = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.46, 0.10), mats.teakBench);
@@ -2221,8 +3042,8 @@ export class DPPDComplexBuilder {
     // 8 Photocell Warm Courtyard Garden Bollard Lamps (v = -890.0)
     for (let b = 0; b < 8; b++) {
       const th = (b / 8) * Math.PI * 2.0 + 0.2;
-      const bx = 22.8 * Math.cos(th);
-      const bz = 22.8 * Math.sin(th);
+      const bx = 25.4 * Math.cos(th);
+      const bz = 25.4 * Math.sin(th);
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 1.05, 10), mats.darkIron);
       post.position.set(bx, 0.62, bz);
       const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.24, 10), mats.warmLuminaire);
@@ -2234,10 +3055,10 @@ export class DPPDComplexBuilder {
     // 6. EAST VISITOR PARKING BAY (MATCHING ASPHALT!), HALTE BIKUN DPPD-STP,
     //    BELVEDERE OVERLOOK FACING REKTORAT, & RING-ROAD PHOTOCELL STREETLAMPS
     // =========================================================================
-    // East Visitor Parking Bay (th = -170° .. -140°, r = 35.5 .. 52.8) — same Pulau U asphalt color!
+    // East Visitor Parking Bay (th = -170° .. -140°, r = 35.8 .. 50.8) — same Pulau U asphalt color!
     const parkTh0 = (-170.0 * Math.PI) / 180.0;
     const parkTh1 = (-140.0 * Math.PI) / 180.0;
-    DPPDComplexBuilder._addCurvedBand(contextGroup, mats.asphaltCrown, parkTh0, parkTh1, 35.8, 52.85, 0.02, 0.085, 18);
+    DPPDComplexBuilder._addCurvedBand(contextGroup, mats.asphaltCrown, parkTh0, parkTh1, 35.8, 50.82, 0.02, 0.085, 18);
     for (let st = 0; st <= 5; st++) {
       const thLine = parkTh0 + 0.05 + (st / 5) * (parkTh1 - parkTh0 - 0.10);
       const stallLine = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.03, 0.18), mats.whiteEdgeLine);
@@ -2256,7 +3077,7 @@ export class DPPDComplexBuilder {
       );
     }
 
-    // Campus Entrance Security Post & Monolith Sign cleanly INSIDE inner lawn at th = -136° (ZERO obstruction on ring road!)
+    // Campus Entrance Security Post & Monolith Sign cleanly INSIDE inner lawn at th = -175° (ZERO obstruction on ring road!)
     {
       const thSign = (-175.0 * Math.PI) / 180.0;
       const sx = 49.2 * Math.cos(thSign);
@@ -2337,13 +3158,13 @@ export class DPPDComplexBuilder {
       }
     }
 
-    // 10 Ring-Road Campus Streetlamps along Inner Lawn Shoulder (r = 51.6, photocell warm luminaires v = -890.0)
+    // 10 Ring-Road Campus Streetlamps along Inner Lawn Shoulder (r = 52.3, photocell warm luminaires v = -890.0)
     for (let k = 0; k < 10; k++) {
       const deg = -168.0 + k * 36.0;
       if (Math.abs(deg - 135.0) < 12.0 || Math.abs(deg - -156.0) < 12.0) continue;
       const th = (deg * Math.PI) / 180.0;
       const lamp = new THREE.Group();
-      lamp.position.set(51.6 * Math.cos(th), 0.0, 51.6 * Math.sin(th));
+      lamp.position.set(52.3 * Math.cos(th), 0.0, 52.3 * Math.sin(th));
       lamp.rotation.y = -th;
 
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.17, 7.6, 8), mats.darkIron);
@@ -2475,7 +3296,7 @@ export class DPPDComplexBuilder {
 
   /**
    * Returns exact world-space solid-body colliders for Kompleks DPPD (2 Lantai),
-   * Gedung ILRC (6 Lantai), Gedung STP-UI (8 Lantai), Plaza Taman Inovasi Tengah,
+   * Gedung ILRC & DRPM (6 Lantai), Gedung STP-UI (8 Lantai), Gedung ITTC / Perpustakaan Lama (4 Lantai),
    * Halte Bikun DPPD-STP, & Parked Campus Vehicles.
    */
   static getSolidColliders() {
@@ -2484,27 +3305,37 @@ export class DPPDComplexBuilder {
     const baseY = TerrainDEMLoader.DPPD_PLATEAU_Y;
     const rotEntrance = -0.25 * Math.PI;
 
-    // 1. Plaza Taman Inovasi Tengah — Central Makara Obelisk & Planter Ring (open walkable plaza around it!)
+    // 1. Gedung ITTC / Perpustakaan Lama UI — Central 4-Story Square Courtyard Heritage Building + NW 1-Story Annex
     cols.push({
       id: 'DPPD_Courtyard_CentralMonument',
       type: 'CYL',
       x: TerrainDEMLoader.DPPD_CX,
       z: TerrainDEMLoader.DPPD_CZ,
-      r: 5.0 * s,
+      r: 13.8 * s,
       minY: baseY,
-      maxY: baseY + 6.5 * s
+      maxY: baseY + 15.85 * s
+    });
+    const nwAnnexW = DPPDComplexBuilder.localToWorld(-9.6, 0, -15.4, 0.0);
+    cols.push({
+      id: 'DPPD_ITTC_NWAnnex',
+      type: 'CYL',
+      x: nwAnnexW.x,
+      z: nwAnnexW.z,
+      r: 3.8 * s,
+      minY: baseY,
+      maxY: baseY + 3.8 * s
     });
 
     const courtyardTreeAnglesDeg = [82.0, -24.0, -138.0, 172.0];
     courtyardTreeAnglesDeg.forEach((cDeg, idx) => {
       const th = (cDeg * Math.PI) / 180.0;
-      const wp = DPPDComplexBuilder.localToWorld(12.2 * Math.cos(th), 0, 12.2 * Math.sin(th), 0.0);
+      const wp = DPPDComplexBuilder.localToWorld(22.8 * Math.cos(th), 0, 22.8 * Math.sin(th), 0.0);
       cols.push({
         id: `DPPD_Courtyard_PlanterTree_${idx}`,
         type: 'CYL',
         x: wp.x,
         z: wp.z,
-        r: 2.85 * s,
+        r: 2.55 * s,
         minY: baseY,
         maxY: baseY + 4.4 * s
       });
@@ -2583,7 +3414,7 @@ export class DPPDComplexBuilder {
       maxY: baseY + 18.2 * s
     });
 
-    // 3. Gedung STP-UI — 8-Story Curved Innovation Tower (-132° .. -36°) + Drop-Off Portico
+    // 3. Gedung STP-UI — 8-Story Curved Innovation Tower (-134° .. -44°) + Drop-Off Portico
     const stpTh0 = (DPPDComplexBuilder.STP_START_DEG * Math.PI) / 180.0;
     const stpTh1 = (DPPDComplexBuilder.STP_END_DEG * Math.PI) / 180.0;
     for (let k = 0; k < 9; k++) {
@@ -2616,7 +3447,7 @@ export class DPPDComplexBuilder {
       maxY: baseY + 6.8 * s
     });
 
-    // 4. Gedung ILRC UI — 6-Story Flat-Roofed Curved Research Laboratory (-4° .. +74°) + Twin-Pier Atrium Portal
+    // 4. Gedung ILRC & DRPM UI — 6-Story Flat-Roofed Curved Research Laboratory (-4° .. +74°) + Twin-Pier Atrium Portal
     const ilrcTh0 = (DPPDComplexBuilder.ILRC_START_DEG * Math.PI) / 180.0;
     const ilrcTh1 = (DPPDComplexBuilder.ILRC_END_DEG * Math.PI) / 180.0;
     for (let k = 0; k < 8; k++) {

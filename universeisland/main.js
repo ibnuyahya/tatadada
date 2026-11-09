@@ -45,7 +45,7 @@ if (typeof window !== 'undefined') {
   }
 }
 
-const TOTAL_EXPECTED_TRIS = 4642376;
+const TOTAL_EXPECTED_TRIS = 4655186;
 
 function yieldToBrowserFrame() {
   return new Promise((resolve) => {
@@ -164,7 +164,7 @@ async function bootstrapNexusSimulator() {
       : 0.0;
   const _bootstrapStartRelMs = Math.max(0.0, _nowBoot() - _bootOriginMs);
   if (typeof window !== 'undefined' && window.NexusForensic) {
-    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.44');
+    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.45');
   }
   const preloader = createPreloaderController();
 
