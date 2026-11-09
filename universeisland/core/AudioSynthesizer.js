@@ -378,7 +378,7 @@ export class AudioSynthesizer {
     if (inTeksasSpan) {
       return {
         zoneId: 'TEKSAS_TRUSS',
-        labelId: 'Lorong Jembatan Teksas',
+        labelId: 'Lorong Jembatan Surya',
         reverbSend: 0.40,
         cathedralSend: 0.11,
         metallicSend: 0.36,
@@ -405,7 +405,7 @@ export class AudioSynthesizer {
               ? 'Kokpit Kedap Heli eVTOL'
               : camMode === 'FPS_PILOT'
                 ? 'Kokpit Kedap Pesawat/eVTOL'
-                : 'Kabin Bis Kuning UI',
+                : 'Kabin Shuttle Pulau',
         reverbSend: isPressurizedJet ? 0.18 : 0.21,
         cathedralSend: 0.04,
         metallicSend: 0.20,
@@ -421,7 +421,7 @@ export class AudioSynthesizer {
     if (isGolfCanopy) {
       return {
         zoneId: 'GOLF_CANOPY',
-        labelId: isYachtOpenHelm ? 'Kanopi Anjungan Mini Yacht' : 'Kanopi Mobil Golf UI',
+        labelId: isYachtOpenHelm ? 'Kanopi Anjungan Mini Yacht' : 'Kanopi Mobil Golf Pulau',
         reverbSend: 0.17,
         cathedralSend: 0.05,
         metallicSend: 0.15,
@@ -521,7 +521,7 @@ export class AudioSynthesizer {
     if (h >= 6.50 && h < 10.50) {
       return {
         phaseId: 'MORNING',
-        labelId: 'Pagi Kampus',
+        labelId: 'Pagi Pulau',
         birdWeight: 1.0,
         tonggeretWeight: 0.10,
         cricketWeight: 0.0,
@@ -531,7 +531,7 @@ export class AudioSynthesizer {
     if (h >= 10.50 && h < 14.50) {
       return {
         phaseId: 'DAY',
-        labelId: 'Siang Akademik',
+        labelId: 'Siang Tropis',
         birdWeight: 0.68,
         tonggeretWeight: 0.30,
         cricketWeight: 0.0,
@@ -628,7 +628,7 @@ export class AudioSynthesizer {
     if (Math.abs(x - -356.0) <= 6.2 && z >= 322.0 && z <= 628.0 && y < -1.85) {
       return {
         biomeId: 'SUBSEA_UNDERPASS_BORE',
-        labelId: 'Terowongan Bawah Laut UI',
+        labelId: 'Terowongan Bawah Laut Selat',
         canopyWeight: 0.0,
         socialWeight: 0.0,
         flagWeight: 0.0,
@@ -638,11 +638,11 @@ export class AudioSynthesizer {
       };
     }
 
-    // 2. Jembatan Teksas Span
+    // 2. Jembatan Surya Span
     if (Math.abs(x - -28.0) <= 5.5 && z >= 165.0 && z <= 325.0 && y < 18.5) {
       return {
         biomeId: 'TEKSAS_BRIDGE_SPAN',
-        labelId: 'Bentang Jembatan Teksas',
+        labelId: 'Bentang Jembatan Surya',
         canopyWeight: 0.08,
         socialWeight: 0.22 * altGroundFade,
         flagWeight: 0.0,
@@ -694,11 +694,11 @@ export class AudioSynthesizer {
       };
     }
 
-    // 6. Kios & Taman Bangku Kampus UI (checked before Dermaga/Rotunda so kiosk corners resolve cleanly)
+    // 6. Kios & Taman Bangku Pulau U (checked before Dermaga/Rotunda so kiosk corners resolve cleanly)
     if (dKiosk <= 16.5 && y < 10.5) {
       return {
         biomeId: 'CAMPUS_KIOSK_BENCH',
-        labelId: 'Kios & Taman Bangku UI',
+        labelId: 'Kios & Taman Bangku',
         canopyWeight: 0.42 * altGroundFade,
         socialWeight: Math.max(0.85, socialWeight),
         flagWeight,
@@ -708,11 +708,11 @@ export class AudioSynthesizer {
       };
     }
 
-    // 7. Dermaga Feri Selat UI (Pulau U & Pulau I Piers)
+    // 7. Dermaga Feri Selat Universe (Pulau U & Pulau I Piers)
     if ((dDermagaU <= 32.0 || dDermagaI <= 32.0) && y < 18.0) {
       return {
         biomeId: 'DERMAGA_HARBOUR',
-        labelId: 'Dermaga Feri Selat UI',
+        labelId: 'Dermaga Feri Selat',
         canopyWeight: 0.12 * altGroundFade,
         socialWeight: 0.36 * altGroundFade,
         flagWeight: 0.0,
@@ -722,11 +722,11 @@ export class AudioSynthesizer {
       };
     }
 
-    // 8. Lapangan 15 Bendera Fakultas
+    // 8. Lapangan 15 Bendera Pulau U
     if (dFlag <= 18.5 && y < 18.5) {
       return {
         biomeId: 'FLAG_CLOISTER',
-        labelId: 'Lapangan 15 Bendera UI',
+        labelId: 'Lapangan 15 Bendera',
         canopyWeight: 0.28 * altGroundFade,
         socialWeight: Math.max(0.32, socialWeight),
         flagWeight: Math.max(0.85, flagWeight),
@@ -736,11 +736,11 @@ export class AudioSynthesizer {
       };
     }
 
-    // 9. Plaza Videotron UI
+    // 9. Plaza Videotron Universe
     if (dVideotron <= 20.0 && y < 18.5) {
       return {
         biomeId: 'VIDEOTRON_PLAZA',
-        labelId: 'Plaza Videotron UI',
+        labelId: 'Plaza Videotron 3D',
         canopyWeight: 0.30 * altGroundFade,
         socialWeight: Math.max(0.55, socialWeight),
         flagWeight,
@@ -778,11 +778,11 @@ export class AudioSynthesizer {
       };
     }
 
-    // 12. Pelataran Gedung Rektorat UI
+    // 12. Pelataran Menara Utama Universe
     if (dRektorat <= 36.0 && y < 28.0) {
       return {
         biomeId: 'REKTORAT_COURTYARD',
-        labelId: 'Pelataran Gedung Rektorat',
+        labelId: 'Pelataran Menara Utama',
         canopyWeight: 0.24 * altGroundFade,
         socialWeight: Math.max(0.62, socialWeight),
         flagWeight,
@@ -792,11 +792,11 @@ export class AudioSynthesizer {
       };
     }
 
-    // 13. Kompleks Bundar DPPD–STP
+    // 13. Kompleks Bundar Nexus–UTP
     if (dDppd <= 38.0 && y < 26.0) {
       return {
         biomeId: 'DPPD_STP_ACADEMIC',
-        labelId: 'Kompleks Bundar DPPD–STP',
+        labelId: 'Kompleks Bundar Nexus–UTP',
         canopyWeight: 0.38 * altGroundFade,
         socialWeight: Math.max(0.66, socialWeight),
         flagWeight: 0.0,
@@ -841,11 +841,11 @@ export class AudioSynthesizer {
       };
     }
 
-    // 16. Hutan Kota Tropis UI (South Pulau U Rainforest & Pulau I Green Hills)
+    // 16. Hutan Tropis Universe Island (South Pulau U Rainforest & Pulau I Green Hills)
     const overLand = coastDist <= 4.0;
     return {
       biomeId: 'TROPICAL_RAINFOREST',
-      labelId: 'Hutan Kota Tropis UI',
+      labelId: 'Hutan Tropis Universe',
       canopyWeight: (overLand ? 0.92 : 0.15) * altGroundFade,
       socialWeight,
       flagWeight,
@@ -1196,19 +1196,19 @@ export class AudioSynthesizer {
     }
     if (camMode === 'WALK_SIVITAS') {
       res.perspectiveId = 'HUMAN_WALK_EAR';
-      res.perspectiveLabel = 'Telinga Jalan Sivitas';
+      res.perspectiveLabel = 'Telinga Jalan Kaki';
       res.earHeightClass = 'HUMAN_EAR';
       return res;
     }
     if (camMode === 'FPS_JOGGER') {
       res.perspectiveId = 'JOGGER_TRACK_EAR';
-      res.perspectiveLabel = 'Pelari Lintasan UI';
+      res.perspectiveLabel = 'Pelari Lintasan Pulau';
       res.earHeightClass = 'HUMAN_EAR';
       return res;
     }
     if (camMode === 'FPS_CHAT_NPC') {
       res.perspectiveId = 'SOCIAL_CIRCLE_EAR';
-      res.perspectiveLabel = 'Dialog Lingkar Sivitas';
+      res.perspectiveLabel = 'Dialog Lingkar Warga';
       res.earHeightClass = 'HUMAN_EAR';
       return res;
     }
@@ -1220,7 +1220,7 @@ export class AudioSynthesizer {
     }
     if (camMode === 'FPS_BUS_DRIVER') {
       res.perspectiveId = 'BUS_CABIN_DRIVER';
-      res.perspectiveLabel = 'Kokpit Sopir Bis UI';
+      res.perspectiveLabel = 'Kokpit Sopir Shuttle';
       res.coMovingEntity = 'bus';
       res.earHeightClass = 'VEHICLE_CABIN';
       return res;
@@ -1279,7 +1279,7 @@ export class AudioSynthesizer {
         res.earHeightClass = 'AIRCRAFT_COCKPIT';
       } else if (kind === 'ferry') {
         res.perspectiveId = 'CAPTAIN_BRIDGE_FERRY';
-        res.perspectiveLabel = 'Anjungan Feri Katamaran UI';
+        res.perspectiveLabel = 'Anjungan Feri Katamaran';
         res.coMovingEntity = 'ferry';
         res.earHeightClass = 'MARINE_BRIDGE';
       } else if (kind === 'yacht') {
@@ -1646,7 +1646,7 @@ export class AudioSynthesizer {
       zoneLabel: 'Ruang Terbuka HRTF',
       zoneLabelId: 'Ruang Terbuka HRTF',
       microBiomeId: 'TROPICAL_RAINFOREST',
-      microBiomeLabel: 'Hutan Kota Tropis UI',
+      microBiomeLabel: 'Hutan Tropis Universe Island',
       diurnalPhase: 'DAY',
       diurnalLabel: 'Siang Akademik',
       reverbCharacter: 'OPEN_COURTYARD_IR',
@@ -5304,7 +5304,7 @@ export class AudioSynthesizer {
       this._vtStageGain01 = clamp(vtScore, 0.0, 1.0);
       if (vtScore > bestScore && vtProx > 0.25) {
         bestScore = vtScore;
-        bestLabel = 'Videotron UI (Array)';
+        bestLabel = 'Videotron Universe (Array)';
         bestDoppler = 1.0;
       }
       if (audioReady && this._emitters.videotron) {
@@ -5381,7 +5381,7 @@ export class AudioSynthesizer {
       const isMoving = curSpd >= 0.35;
       if (wasInit && isMoving !== tr.wasMoving && distM < 68.0 && tr.doorCooldown <= 0.0) {
         tr.doorCooldown = 4.2;
-        this._recordSfxEvent('BUS_DOOR_CHIME', 'Pintu & Chime Bis UI');
+        this._recordSfxEvent('BUS_DOOR_CHIME', 'Pintu & Chime Shuttle');
         if (sfxLive) {
           const doorX = isBusCabin ? lx - Math.cos(yaw) * 1.15 + Math.sin(yaw) * 1.25 : tr.x;
           const doorY = isBusCabin ? ly - 0.35 : tr.y;
@@ -5394,14 +5394,14 @@ export class AudioSynthesizer {
       // State-transition SFX: Underpass Ramp Grade-Change Suspension Thump
       if (wasInit && Math.abs(curPitch - prevPitch) > 0.036 && curSpd > 1.8 && distM < 52.0 && tr.suspCooldown <= 0.0) {
         tr.suspCooldown = 3.5;
-        this._recordSfxEvent('BUS_SUSPENSION_THUMP', 'Suspensi Ramp Bis UI');
+        this._recordSfxEvent('BUS_SUSPENSION_THUMP', 'Suspensi Ramp Shuttle');
         if (sfxLive) this._triggerSuspensionThump3D(srcX, srcY - 0.35, srcZ);
       }
 
       // State-transition SFX: Pneumatic Air-Brake Hiss (during active deceleration while rolling)
       if (wasInit && curSpd >= 0.40 && accel < -2.6 && distM < 58.0 && tr.brakeCooldown <= 0.0) {
         tr.brakeCooldown = 6.5;
-        this._recordSfxEvent('BUS_AIR_BRAKE', 'Rem Angin Bis UI');
+        this._recordSfxEvent('BUS_AIR_BRAKE', 'Rem Angin Shuttle');
         if (sfxLive) this._triggerAirBrakeHiss(srcX, srcY - 0.25, srcZ);
       }
 
@@ -5414,7 +5414,7 @@ export class AudioSynthesizer {
       tr.emitGain01 = clamp(busProx * (0.20 + spdNorm * 0.58) * occGain, 0.0, 1.0);
       if (score > bestScore) {
         bestScore = score;
-        bestLabel = isBusCabin ? 'Kabina Bis Kuning UI' : 'Bis Kuning UI';
+        bestLabel = isBusCabin ? 'Kabin Shuttle Pulau' : 'Shuttle Trans Pulau';
         bestDoppler = doppler;
       }
 
@@ -5498,7 +5498,7 @@ export class AudioSynthesizer {
       tr.prevPhase = curPhase;
       if ((phaseChanged || (wasInit && accel < -1.55)) && distM < 58.0 && tr.bellCooldown <= 0.0) {
         tr.bellCooldown = 4.0;
-        this._recordSfxEvent('CART_COURTESY_BELL', 'Bel Mobil Golf UI');
+        this._recordSfxEvent('CART_COURTESY_BELL', 'Bel Mobil Golf Pulau');
         if (sfxLive) {
           const bellX = isCartDriver ? lx + Math.sin(yaw) * 0.95 : tr.x;
           const bellY = isCartDriver ? ly - 0.25 : tr.y + 0.25;
@@ -5877,7 +5877,7 @@ export class AudioSynthesizer {
       if (prevFP && prevFP !== curFP) {
         const dF = Math.hypot(lx - ferry.worldX, ly - ferry.worldY, lz - ferry.worldZ);
         if (dF < 280.0) {
-          this._recordSfxEvent('FERRY_MARINE_HORN', 'Klakson Feri Selat UI');
+          this._recordSfxEvent('FERRY_MARINE_HORN', 'Klakson Feri Selat');
           if (sfxLive) this._triggerMarineHorn3D(ferry.worldX, ferry.worldY + 3.2, ferry.worldZ, curFP === 'CRUISE');
         }
       }
@@ -5932,7 +5932,7 @@ export class AudioSynthesizer {
       tr.emitGain01 = clamp(score, 0.0, 1.0);
       if (score > bestScore) {
         bestScore = score;
-        bestLabel = isFerryBridge ? 'Waterjet Buritan Feri UI' : 'Feri Katamaran UI';
+        bestLabel = isFerryBridge ? 'Waterjet Buritan Feri' : 'Feri Katamaran Selat';
         bestDoppler = doppler;
       }
       if (audioReady && this._emitters.ferry) {
@@ -6071,7 +6071,7 @@ export class AudioSynthesizer {
         tr.emitGain01 = clamp(score, 0.0, 1.0);
         if (score > bestScore) {
           bestScore = score;
-          bestLabel = isFishing ? 'Perahu Nelayan UI' : 'Kapal Patroli Pesisir';
+          bestLabel = isFishing ? 'Perahu Nelayan Selat' : 'Kapal Patroli Pesisir';
           bestDoppler = met.doppler;
         }
         if (audioReady && this._emitters.coastalBoat) {
@@ -6191,7 +6191,7 @@ export class AudioSynthesizer {
         const vScore = vProx * 0.90 * socialFocusBoost * vOcc.gainMult;
         if (vScore > bestScore && vProx > 0.28) {
           bestScore = vScore;
-          bestLabel = 'Dialog Sivitas 3D';
+          bestLabel = 'Dialog Warga 3D';
           bestDoppler = 1.0;
         }
 
@@ -6262,7 +6262,7 @@ export class AudioSynthesizer {
     if (this._voiceStageState && this._voiceStageState.active) {
       this._pushAtmosObject(
         'NPC_VOICE',
-        'Dialog Sivitas 3D',
+        'Dialog Warga 3D',
         'VOICE',
         this._voiceStageState.x,
         this._voiceStageState.y,
@@ -6319,15 +6319,15 @@ export class AudioSynthesizer {
 
     // 4. Videotron Speaker Array & Dynamic Transit / Aviation / Marine Fleet
     if ((this._vtStageGain01 || 0) > 0.02) {
-      this._pushAtmosObject('VIDEOTRON', 'Videotron UI', 'OBJECT', 28.4, 7.6, 78.2, this._vtStageGain01, 3.6, 0.12);
+      this._pushAtmosObject('VIDEOTRON', 'Videotron 3D', 'OBJECT', 28.4, 7.6, 78.2, this._vtStageGain01, 3.6, 0.12);
     }
     if (sivitasAI) {
       const trs = this._entityTracks;
       if (sivitasAI.interIslandBus && (trs.bus.emitGain01 || 0) > 0.01) {
-        this._pushAtmosObject('BUS', 'Bis Kuning UI', 'TRANSIT', trs.bus.emitX, trs.bus.emitY, trs.bus.emitZ, trs.bus.emitGain01, 3.2, 0.34);
+        this._pushAtmosObject('BUS', 'Shuttle Pulau', 'TRANSIT', trs.bus.emitX, trs.bus.emitY, trs.bus.emitZ, trs.bus.emitGain01, 3.2, 0.34);
       }
       if (sivitasAI.golfCart && (trs.cart.emitGain01 || 0) > 0.01) {
-        this._pushAtmosObject('CART', 'Mobil Golf UI', 'TRANSIT', trs.cart.emitX, trs.cart.emitY, trs.cart.emitZ, trs.cart.emitGain01, 1.8, 0.05);
+        this._pushAtmosObject('CART', 'Mobil Golf', 'TRANSIT', trs.cart.emitX, trs.cart.emitY, trs.cart.emitZ, trs.cart.emitGain01, 1.8, 0.05);
       }
       if (sivitasAI.heliTaxi && (trs.heli.emitGain01 || 0) > 0.01) {
         this._pushAtmosObject('HELI', 'Heli eVTOL', 'AIR', trs.heli.emitX, trs.heli.emitY, trs.heli.emitZ, trs.heli.emitGain01, 4.2, 0.38);
@@ -6339,7 +6339,7 @@ export class AudioSynthesizer {
         this._pushAtmosObject('LEARJET', 'Learjet PK-UIB', 'AIR', trs.learjet.emitX, trs.learjet.emitY, trs.learjet.emitZ, trs.learjet.emitGain01, 5.2, 0.52);
       }
       if (sivitasAI.shuttleFerry && (trs.ferry.emitGain01 || 0) > 0.01) {
-        this._pushAtmosObject('FERRY', 'Feri Selat UI', 'MARINE', trs.ferry.emitX, trs.ferry.emitY, trs.ferry.emitZ, trs.ferry.emitGain01, 6.5, 0.44);
+        this._pushAtmosObject('FERRY', 'Feri Selat', 'MARINE', trs.ferry.emitX, trs.ferry.emitY, trs.ferry.emitZ, trs.ferry.emitGain01, 6.5, 0.44);
       }
       if (sivitasAI.miniYacht && (trs.yacht.emitGain01 || 0) > 0.01) {
         this._pushAtmosObject('YACHT', 'Mini Yacht', 'MARINE', trs.yacht.emitX, trs.yacht.emitY, trs.yacht.emitZ, trs.yacht.emitGain01, 3.4, 0.22);
@@ -6375,10 +6375,10 @@ export class AudioSynthesizer {
         this._pushAtmosObject('FUMAROLE', 'Kawah Gunung Api', 'BED', anc.fumarole.x, anc.fumarole.y, anc.fumarole.z, biome.fumaroleWeight * 0.65 * cabinInsul, 14.0, 0.48);
       }
       if (biome.flagWeight * cabinInsul > 0.08) {
-        this._pushAtmosObject('FLAG', 'Tiang Bendera UI', 'BED', anc.flag.x, anc.flag.y, anc.flag.z, biome.flagWeight * 0.45 * cabinInsul, 3.5, 0.0);
+        this._pushAtmosObject('FLAG', 'Tiang Bendera', 'BED', anc.flag.x, anc.flag.y, anc.flag.z, biome.flagWeight * 0.45 * cabinInsul, 3.5, 0.0);
       }
       if (biome.trussAeolianWeight * cabinInsul > 0.08) {
-        this._pushAtmosObject('TRUSS', 'Rangka Teksas UI', 'BED', anc.truss.x, anc.truss.y, anc.truss.z, biome.trussAeolianWeight * 0.42 * cabinInsul, 4.8, 0.0);
+        this._pushAtmosObject('TRUSS', 'Rangka Jembatan Surya', 'BED', anc.truss.x, anc.truss.y, anc.truss.z, biome.trussAeolianWeight * 0.42 * cabinInsul, 4.8, 0.0);
       }
     }
 
@@ -6539,7 +6539,7 @@ export class AudioSynthesizer {
             }
           }
           if (bestNpc) {
-            this._recordSfxEvent('NPC_UMBRELLA_OPEN', 'Buka Payung Sivitas');
+            this._recordSfxEvent('NPC_UMBRELLA_OPEN', 'Buka Payung Warga');
             if (sfxLive) this._triggerUmbrellaOpen3D(bestNpc.worldX, (bestNpc.worldY || 0) + 1.65, bestNpc.worldZ);
           }
         }
@@ -6562,7 +6562,7 @@ export class AudioSynthesizer {
             }
           }
           if (photoNpc) {
-            this._recordSfxEvent('NPC_CAMERA_SHUTTER', 'Klik Kamera Sivitas');
+            this._recordSfxEvent('NPC_CAMERA_SHUTTER', 'Klik Kamera Warga');
             if (sfxLive) {
               this._triggerCameraShutter3D(photoNpc.worldX, (photoNpc.worldY || 0) + 1.48, photoNpc.worldZ);
             }
@@ -7292,7 +7292,7 @@ export class AudioSynthesizer {
    */
   triggerCampusBell(noteCount = 2) {
     const count = clamp(Math.round(Number(noteCount) || 2), 1, 4);
-    this._recordSfxEvent('REKTORAT_CARILLON_BELL', 'Lonceng Menara Rektorat UI');
+    this._recordSfxEvent('REKTORAT_CARILLON_BELL', 'Lonceng Menara Utama Universe');
     if (this.enabled && this.ctx && this.ctx.state === 'running') {
       this._triggerRektoratCarillon3D(count);
     }

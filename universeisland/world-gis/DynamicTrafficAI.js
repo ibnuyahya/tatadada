@@ -781,7 +781,7 @@ export class DynamicTrafficAI {
       wheelSpinRad: c.wheelSpinRad,
       phase: c.phase,
       targetStopIdx: c.targetStopIdx,
-      stopName: c.stops[c.targetStopIdx]?.name || 'Halte UI',
+      stopName: c.stops[c.targetStopIdx]?.name || 'Halte Pulau U',
       onboardPassengers: onboardCount,
       driverIndex: c.seatOccupant[0]
     };
@@ -1005,7 +1005,7 @@ export class DynamicTrafficAI {
       }
       applyErgonomicGlancePitch(fr, -0.105);
       const inTunnel = TerrainDEMLoader.isInsideEnclosedUnderpass(b.worldX, b.worldY + 1.5, b.worldZ);
-      const busStopName = b.stops?.[b.targetStopIdx]?.name || 'Halte Dermaga UI';
+      const busStopName = b.stops?.[b.targetStopIdx]?.name || 'Halte Dermaga Pulau';
       const busSub =
         b.phase === 'DWELL'
           ? `Berhenti di ${busStopName} (Pintu Lipat Terbuka)`
@@ -1022,7 +1022,7 @@ export class DynamicTrafficAI {
         subjectKind: 'bus',
         subjectIndex: 0,
         subjectCount: 1,
-        label: 'FPS: Supir Bis Kuning Listrik UI',
+        label: 'FPS: Supir Shuttle Listrik Pulau',
         subLabel: busSub
       };
     }
@@ -1033,7 +1033,7 @@ export class DynamicTrafficAI {
       const fr = drvNpc
         ? extractMatrixFrame(drvNpc.index * JOINTS_PER_NPC + J_HEAD, 0.0, 0.088, 0.165)
         : extractMatrixFrame(this._cartJointBase + CART_J_CHASSIS, -0.34, 1.48, 0.72);
-      const stopName = c.stops[c.targetStopIdx]?.name || 'Halte Kampus UI';
+      const stopName = c.stops[c.targetStopIdx]?.name || 'Halte Pulau U';
       return {
         mode,
         ...fr,
@@ -1044,7 +1044,7 @@ export class DynamicTrafficAI {
         subjectKind: 'golf_cart',
         subjectIndex: 0,
         subjectCount: 1,
-        label: 'FPS: Supir Mobil Golf Listrik UI',
+        label: 'FPS: Supir Mobil Golf Listrik',
         subLabel: c.phase === 'DWELL' ? `Berhenti di ${stopName}` : `Menuju ${stopName}`
       };
     }
@@ -1071,7 +1071,7 @@ export class DynamicTrafficAI {
           subjectKind: 'evtol',
           subjectIndex: slotSel,
           subjectCount: 6,
-          label: `FPS: Pilot Taxi Heli eVTOL UI (${h.registration})`,
+          label: `FPS: Pilot Taxi Heli eVTOL (${h.registration})`,
           subLabel: `Kokpit 3/5 • Shuttle VIP Pulau U ↔ Pulau I • Fase: ${h.phase}`
         };
       }
@@ -1079,7 +1079,7 @@ export class DynamicTrafficAI {
         const f = this.shuttleFerry;
         const fr = extractMatrixFrame(this._shuttleFerryJointIndex + FERRY_J_HULL, 0.0, 3.64, 3.68);
         applyErgonomicGlancePitch(fr, -0.095);
-        const fPhase = f.phase === 'DOCKED_DWELL' ? 'Sandar Dermaga' : 'Berlayar Lintas Selat UI';
+        const fPhase = f.phase === 'DOCKED_DWELL' ? 'Sandar Dermaga' : 'Berlayar Lintas Selat Universe';
         return {
           mode,
           ...fr,
@@ -1090,7 +1090,7 @@ export class DynamicTrafficAI {
           subjectKind: 'ferry',
           subjectIndex: slotSel,
           subjectCount: 6,
-          label: 'FPS: Kapten Feri Katamaran Listrik UI',
+          label: 'FPS: Kapten Feri Katamaran Listrik',
           subLabel: `Anjungan 4/5 • Dermaga U ↔ Dermaga I • ${fPhase}`
         };
       }
@@ -1108,8 +1108,8 @@ export class DynamicTrafficAI {
           subjectKind: 'yacht',
           subjectIndex: slotSel,
           subjectCount: 6,
-          label: 'FPS: Nakhoda Flybridge Mini-Yacht UI',
-          subLabel: 'Flybridge 5/5 • Pelayaran Teluk U & Jembatan Teksas'
+          label: 'FPS: Nakhoda Flybridge Mini-Yacht',
+          subLabel: 'Flybridge 5/5 • Pelayaran Teluk U & Jembatan Surya'
         };
       }
 
@@ -1177,12 +1177,12 @@ export class DynamicTrafficAI {
       ).normalize();
       const trackName =
         npc.jogTrack === 'ROTUNDA_OUTER' || npc.jogTrack === 'ROTUNDA_INNER'
-          ? 'Lapangan Rotunda UI'
+          ? 'Plaza Rotunda Universe'
           : npc.jogTrack === 'TELUK_U_OVAL'
             ? 'Jogging Track & Calisthenics Teluk U'
             : npc.jogTrack === 'DPPD_RING'
-              ? 'Lingkar Kompleks DPPD–STP'
-              : 'Promenade Danau Kenanga';
+              ? 'Lingkar Kompleks Nexus–UTP'
+              : 'Promenade Laguna Utama';
       return {
         mode,
         eyePos: headFr.eyePos,
@@ -1245,7 +1245,7 @@ export class DynamicTrafficAI {
         subjectIndex: sel,
         subjectCount: chatters.length,
         label: `FPS: Orang Ngobrol (${sel + 1}/${chatters.length})`,
-        subLabel: npc.chatLocationLabel || 'Diskusi Sivitas Akademika UI'
+        subLabel: npc.chatLocationLabel || 'Diskusi Warga Universe Island'
       };
     }
 
@@ -1275,7 +1275,7 @@ export class DynamicTrafficAI {
       ).normalize();
       const zoneName =
         cat.zone === 'CAMPUS'
-          ? 'Area Rektorat & Rotunda UI'
+          ? 'Area Menara Utama & Rotunda'
           : cat.zone === 'ISLAND_I'
             ? 'Pulau I & Air Terjun'
             : 'Taman & Tepian Sungai Pulau U';
@@ -1352,7 +1352,7 @@ export class DynamicTrafficAI {
     const stopsRaw = [
       {
         id: 0,
-        name: 'Halte Gerbang Rektorat',
+        name: 'Halte Gerbang Menara Utama',
         roadPt: [-2.5, 76.3],
         waitSpots: [
           [-2.5, 71.1],
@@ -1385,7 +1385,7 @@ export class DynamicTrafficAI {
       },
       {
         id: 3,
-        name: 'Halte Koridor Barat Rektorat',
+        name: 'Halte Koridor Barat Menara',
         roadPt: [-60.2, 24.0],
         waitSpots: [
           [-55.3, 24.0],
@@ -2368,7 +2368,7 @@ export class DynamicTrafficAI {
         memberIdx: 0,
         memberCount: 4,
         chatGroupOrder: 1,
-        chatLocationLabel: 'Pelataran Gedung Rektorat UI',
+        chatLocationLabel: 'Pelataran Menara Utama Universe',
         archetype: 'DOSEN_BATIK_MAROON',
         hairStyle: 'HAIR_PARTED',
         hasGlasses: true,
@@ -2385,7 +2385,7 @@ export class DynamicTrafficAI {
         memberIdx: 1,
         memberCount: 4,
         chatGroupOrder: 1,
-        chatLocationLabel: 'Pelataran Gedung Rektorat UI',
+        chatLocationLabel: 'Pelataran Menara Utama Universe',
         archetype: 'MAHASISWA_JAKUN',
         hairStyle: 'HAIR_WAVY',
         heightScale: 1.0,
@@ -2401,7 +2401,7 @@ export class DynamicTrafficAI {
         memberIdx: 2,
         memberCount: 4,
         chatGroupOrder: 1,
-        chatLocationLabel: 'Pelataran Gedung Rektorat UI',
+        chatLocationLabel: 'Pelataran Menara Utama Universe',
         archetype: 'MAHASISWI_HIJAB_JAKUN',
         hijabCol: HUMAN_PALETTE.HIJAB_CREAM,
         heightScale: 0.92,
@@ -2417,7 +2417,7 @@ export class DynamicTrafficAI {
         memberIdx: 3,
         memberCount: 4,
         chatGroupOrder: 1,
-        chatLocationLabel: 'Pelataran Gedung Rektorat UI',
+        chatLocationLabel: 'Pelataran Menara Utama Universe',
         archetype: 'MAHASISWI_PONYTAIL_JAKUN',
         hasGlasses: true,
         heightScale: 0.95,
@@ -3073,7 +3073,7 @@ export class DynamicTrafficAI {
         memberIdx: 0,
         memberCount: 3,
         chatGroupOrder: 0,
-        chatLocationLabel: 'Taman Air Mancur Rotunda UI',
+        chatLocationLabel: 'Taman Air Mancur Rotunda',
         archetype: 'MAHASISWA_JAKUN',
         hairStyle: 'HAIR_WAVY',
         heightScale: 1.01,
@@ -3089,7 +3089,7 @@ export class DynamicTrafficAI {
         memberIdx: 1,
         memberCount: 3,
         chatGroupOrder: 0,
-        chatLocationLabel: 'Taman Air Mancur Rotunda UI',
+        chatLocationLabel: 'Taman Air Mancur Rotunda',
         archetype: 'MAHASISWI_HIJAB_JAKUN',
         hijabCol: HUMAN_PALETTE.HIJAB_MAROON,
         hasGlasses: true,
@@ -3106,7 +3106,7 @@ export class DynamicTrafficAI {
         memberIdx: 2,
         memberCount: 3,
         chatGroupOrder: 0,
-        chatLocationLabel: 'Taman Air Mancur Rotunda UI',
+        chatLocationLabel: 'Taman Air Mancur Rotunda',
         archetype: 'DOSEN_BATIK_INDIGO',
         hairStyle: 'HAIR_PARTED',
         hasGlasses: true,
@@ -3123,7 +3123,7 @@ export class DynamicTrafficAI {
         memberIdx: 0,
         memberCount: 3,
         chatGroupOrder: 2,
-        chatLocationLabel: 'Forecourt Kompleks DPPD & STP-UI',
+        chatLocationLabel: 'Forecourt Kompleks Nexus & Techno Park',
         archetype: 'DOSEN_BATIK_EMERALD',
         hairStyle: 'HAIR_PARTED',
         hasGlasses: true,
@@ -3139,7 +3139,7 @@ export class DynamicTrafficAI {
         memberIdx: 1,
         memberCount: 3,
         chatGroupOrder: 2,
-        chatLocationLabel: 'Forecourt Kompleks DPPD & STP-UI',
+        chatLocationLabel: 'Forecourt Kompleks Nexus & Techno Park',
         archetype: 'MAHASISWA_JAKUN',
         hairStyle: 'HAIR_PARTED',
         heightScale: 1.00,
@@ -3155,7 +3155,7 @@ export class DynamicTrafficAI {
         memberIdx: 2,
         memberCount: 3,
         chatGroupOrder: 2,
-        chatLocationLabel: 'Forecourt Kompleks DPPD & STP-UI',
+        chatLocationLabel: 'Forecourt Kompleks Nexus & Techno Park',
         archetype: 'MAHASISWI_PONYTAIL_JAKUN',
         heightScale: 0.95,
         propType: 'BOOK',
@@ -5370,7 +5370,7 @@ export class DynamicTrafficAI {
         } else if (u < 0.75) {
           // 5. CRUISE_CIRCUIT: Wide scenic banked archipelago circuit over Pulau U, DPPD, Rektorat, & Selat UI
           ac.phase = 'CRUISE_CIRCUIT';
-          ac.phaseLabel = 'Jelajah Kepulauan UI';
+          ac.phaseLabel = 'Jelajah Universe Island';
           const f = (u - 0.31) / 0.44;
           const uPrev = Math.max(0.0, f - 0.008);
           const uNext = Math.min(1.0, f + 0.008);

@@ -1579,8 +1579,8 @@ export class SecondarySubdomains {
 
   /**
    * Constructs a unified local-space (+Z outward normal) 3D Bas-Relief Sculpture BufferGeometry
-   * of the Universitas Indonesia Makara Crest (Outer Medallion Ring, Kalpataru Tree of Knowledge,
-   * 7 Curving Branches, 9 Banyan Leaf Domes, & 5 Water-of-Knowledge Base Scrolls).
+   * of the Universe Island Celestial Star-Compass Crest (Outer Medallion Ring, Inner Orbital Ring,
+   * 8 Celestial Starburst Compass Rays, Central Sun-Core & 8 Orbital Satellites, + 3 Archipelago Wave Scrolls).
    */
   static _createMakara3DReliefGeometry() {
     const positions = [];
@@ -1614,86 +1614,72 @@ export class SecondarySubdomains {
       }
     };
 
-    // 1. 3D Circular Outer Medallion Torus Ring (R = 1.48m, tube = 0.075m)
-    const ringSegs = 48;
-    const tubeSegs = 8;
-    const ringBase = positions.length / 3;
-    for (let i = 0; i <= ringSegs; i++) {
-      const th = (i / ringSegs) * Math.PI * 2.0;
-      const cTh = Math.cos(th);
-      const sTh = Math.sin(th);
-      for (let j = 0; j <= tubeSegs; j++) {
-        const ph = -Math.PI * 0.5 + (j / tubeSegs) * Math.PI; // Front-facing half-torus relief!
-        const cPh = Math.cos(ph);
-        const sPh = Math.sin(ph);
-        const rad = 1.48 + 0.075 * sPh;
-        const px = cTh * rad;
-        const py = sTh * rad;
-        const pz = 0.075 * cPh;
-        positions.push(px, py, pz);
-        normals.push(cTh * sPh, sTh * sPh, cPh);
-        uvs.push(i / ringSegs, j / tubeSegs);
+    const appendHalfTorusRing = (majorR, tubeR, ringSegs, tubeSegs, cyOff = 0.0, czOff = 0.0) => {
+      const ringBase = positions.length / 3;
+      for (let i = 0; i <= ringSegs; i++) {
+        const th = (i / ringSegs) * Math.PI * 2.0;
+        const cTh = Math.cos(th);
+        const sTh = Math.sin(th);
+        for (let j = 0; j <= tubeSegs; j++) {
+          const ph = -Math.PI * 0.5 + (j / tubeSegs) * Math.PI;
+          const cPh = Math.cos(ph);
+          const sPh = Math.sin(ph);
+          const rad = majorR + tubeR * sPh;
+          positions.push(cTh * rad, cyOff + sTh * rad, czOff + tubeR * cPh);
+          normals.push(cTh * sPh, sTh * sPh, cPh);
+          uvs.push(i / ringSegs, j / tubeSegs);
+        }
       }
-    }
-    const rStride = tubeSegs + 1;
-    for (let i = 0; i < ringSegs; i++) {
-      for (let j = 0; j < tubeSegs; j++) {
-        const a = ringBase + i * rStride + j;
-        const b = ringBase + (i + 1) * rStride + j;
-        const c = ringBase + (i + 1) * rStride + (j + 1);
-        const d = ringBase + i * rStride + (j + 1);
-        indices.push(a, b, c, a, c, d);
+      const rStride = tubeSegs + 1;
+      for (let i = 0; i < ringSegs; i++) {
+        for (let j = 0; j < tubeSegs; j++) {
+          const a = ringBase + i * rStride + j;
+          const b = ringBase + (i + 1) * rStride + j;
+          const c = ringBase + (i + 1) * rStride + (j + 1);
+          const d = ringBase + i * rStride + (j + 1);
+          indices.push(a, b, c, a, c, d);
+        }
       }
+    };
+
+    // 1. Outer Medallion Half-Torus Ring (R = 1.48m) & Inner Celestial Orbit Ring (R = 0.90m)
+    appendHalfTorusRing(1.48, 0.075, 56, 8, 0.0, 0.0);
+    appendHalfTorusRing(0.90, 0.046, 48, 8, 0.06, 0.015);
+
+    // 2. 8 Sculpted 3D Celestial Starburst Compass Rays (4 Primary Cardinal + 4 Intercardinal)
+    for (let r = 0; r < 8; r++) {
+      const ang = (r * Math.PI) / 4.0;
+      const isCardinal = r % 2 === 0;
+      const rayLen = isCardinal ? 1.24 : 0.88;
+      const baseR = isCardinal ? 0.135 : 0.095;
+      const rayGeo = new THREE.ConeGeometry(baseR, rayLen, 12, 2);
+      rayGeo.scale(1.0, 1.0, 0.48);
+      rayGeo.translate(0.0, rayLen * 0.5 + 0.06, 0.0);
+      rayGeo.rotateZ(ang);
+      rayGeo.translate(0.0, 0.06, 0.042);
+      appendGeo(rayGeo);
     }
 
-    // 2. Sculpted Central Kalpataru Tree Trunk & Flared Roots
-    const trunk = new THREE.CylinderGeometry(0.11, 0.22, 1.32, 14, 4);
-    trunk.scale(1.0, 1.0, 0.55);
-    trunk.translate(0.0, -0.22, 0.04);
-    appendGeo(trunk);
+    // 3. Central Celestial Sun-Core Dome & 8 Orbital Archipelago Nodes
+    const coreDome = new THREE.SphereGeometry(0.30, 20, 12);
+    coreDome.scale(1.0, 1.0, 0.42);
+    coreDome.translate(0.0, 0.06, 0.055);
+    appendGeo(coreDome);
 
-    // 3. 7 Curving 3D Relief Branches Radiating into the Crown
-    const branchSpecs = [
-      { x: -0.42, y: -0.05, len: 0.78, rotZ: 0.85 },
-      { x: 0.42, y: -0.05, len: 0.78, rotZ: -0.85 },
-      { x: -0.48, y: 0.34, len: 0.82, rotZ: 0.62 },
-      { x: 0.48, y: 0.34, len: 0.82, rotZ: -0.62 },
-      { x: -0.32, y: 0.68, len: 0.62, rotZ: 0.38 },
-      { x: 0.32, y: 0.68, len: 0.62, rotZ: -0.38 },
-      { x: 0.0, y: 0.74, len: 0.58, rotZ: 0.0 }
-    ];
-    for (const br of branchSpecs) {
-      const bGeo = new THREE.CylinderGeometry(0.042, 0.075, br.len, 10, 1);
-      bGeo.scale(1.0, 1.0, 0.5);
-      bGeo.rotateZ(br.rotZ);
-      bGeo.translate(br.x, br.y, 0.035);
-      appendGeo(bGeo);
+    for (let k = 0; k < 8; k++) {
+      const ang = (k * Math.PI) / 4.0 + Math.PI / 8.0;
+      const orbR = k % 2 === 0 ? 0.90 : 1.18;
+      const orb = new THREE.SphereGeometry(k % 2 === 0 ? 0.105 : 0.082, 14, 8);
+      orb.scale(1.0, 1.0, 0.40);
+      orb.translate(Math.cos(ang) * orbR, 0.06 + Math.sin(ang) * orbR, 0.036);
+      appendGeo(orb);
     }
 
-    // 4. 9 Sculpted 3D Banyan Leaf-Cluster Relief Domes (Makara Kalpataru Canopy)
-    const foliageNodes = [
-      { x: 0.0, y: 1.06, r: 0.34 },
-      { x: -0.44, y: 0.94, r: 0.28 },
-      { x: 0.44, y: 0.94, r: 0.28 },
-      { x: -0.78, y: 0.62, r: 0.27 },
-      { x: 0.78, y: 0.62, r: 0.27 },
-      { x: -0.86, y: 0.16, r: 0.25 },
-      { x: 0.86, y: 0.16, r: 0.25 },
-      { x: -0.38, y: 0.48, r: 0.26 },
-      { x: 0.38, y: 0.48, r: 0.26 }
-    ];
-    for (const fn of foliageNodes) {
-      const dome = new THREE.SphereGeometry(fn.r, 14, 8);
-      dome.scale(1.0, 0.88, 0.34);
-      dome.translate(fn.x, fn.y, 0.03);
-      appendGeo(dome);
-    }
-
-    // 5. 5 Sculpted 3D Water-of-Knowledge Base Scroll Waves beneath the Kalpataru Roots
-    for (let w = 0; w < 5; w++) {
-      const wy = -0.96 - w * 0.095;
-      const ww = 1.55 - w * 0.22;
-      const scroll = new THREE.BoxGeometry(ww, 0.055, 0.085);
+    // 4. 3 Twin-Archipelago Strait Wave Scrolls at the Medallion Base
+    for (let w = 0; w < 3; w++) {
+      const wy = -0.98 - w * 0.115;
+      const ww = 1.46 - w * 0.28;
+      const scroll = new THREE.BoxGeometry(ww, 0.055, 0.082);
       scroll.translate(0.0, wy, 0.04);
       appendGeo(scroll);
     }

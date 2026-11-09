@@ -129,7 +129,7 @@ export class DepokLiveWeatherService {
     if (code >= 95) {
       return {
         weatherMode: 'STORM',
-        labelId: 'Badai Petir Depok',
+        labelId: 'Badai Petir Tropis',
         cloudCoverNorm: Math.max(0.92, clouds / 100.0)
       };
     }
@@ -138,7 +138,7 @@ export class DepokLiveWeatherService {
     if ((code >= 63 && code <= 67) || (code >= 81 && code <= 82) || precip >= 2.2) {
       return {
         weatherMode: 'RAIN',
-        labelId: code >= 65 || code === 82 || precip >= 4.5 ? 'Hujan Deras Depok' : 'Hujan Kampus UI',
+        labelId: code >= 65 || code === 82 || precip >= 4.5 ? 'Hujan Deras Pulau' : 'Hujan Tropis',
         cloudCoverNorm: Math.max(0.86, clouds / 100.0)
       };
     }
@@ -147,7 +147,7 @@ export class DepokLiveWeatherService {
     if (code === 61 || code === 62 || code === 80 || precip >= 0.85) {
       return {
         weatherMode: 'SHOWER',
-        labelId: 'Hujan Ringan Depok',
+        labelId: 'Hujan Ringan',
         cloudCoverNorm: Math.max(0.78, clouds / 100.0)
       };
     }
@@ -156,7 +156,7 @@ export class DepokLiveWeatherService {
     if ((code >= 51 && code <= 57) || precip >= 0.08) {
       return {
         weatherMode: 'MIST',
-        labelId: 'Gerimis Kampus UI',
+        labelId: 'Gerimis Tropis',
         cloudCoverNorm: Math.max(0.68, clouds / 100.0)
       };
     }
@@ -165,7 +165,7 @@ export class DepokLiveWeatherService {
     if (code >= 45 && code <= 48) {
       return {
         weatherMode: 'FOGGY',
-        labelId: 'Kabut Embun Depok',
+        labelId: 'Kabut Pesisir',
         cloudCoverNorm: Math.max(0.72, clouds / 100.0)
       };
     }
@@ -174,7 +174,7 @@ export class DepokLiveWeatherService {
     if (windKmh >= 24.0) {
       return {
         weatherMode: 'WINDY',
-        labelId: 'Angin Kencang Depok',
+        labelId: 'Angin Kencang Selat',
         cloudCoverNorm: Math.max(0.36, Math.min(0.68, clouds / 100.0))
       };
     }
@@ -183,7 +183,7 @@ export class DepokLiveWeatherService {
     if (code === 3 || clouds >= 82) {
       return {
         weatherMode: 'OVERCAST',
-        labelId: 'Mendung Depok',
+        labelId: 'Mendung Tropis',
         cloudCoverNorm: Math.max(0.82, Math.min(0.94, clouds / 100.0))
       };
     }
@@ -220,7 +220,7 @@ export class DepokLiveWeatherService {
       ok: false,
       isLiveApi: false,
       source: 'DEPOK_CLIMATOLOGY_FALLBACK',
-      locationName: 'Kampus UI Depok',
+      locationName: 'Universe Island',
       weatherMode: classified.weatherMode,
       labelId: `${classified.labelId} (Estimasi Lokal)`,
       wmoCode: 2,
@@ -290,7 +290,7 @@ export class DepokLiveWeatherService {
         ok: true,
         isLiveApi: true,
         source: 'LIVE_OPEN_METEO',
-        locationName: 'Kampus UI Depok',
+        locationName: 'Universe Island',
         weatherMode: classified.weatherMode,
         labelId: classified.labelId,
         wmoCode,

@@ -1029,26 +1029,26 @@ export class CameraDirector {
     if (z >= 149.0 && z <= 342.0 && Math.abs(x - -28.0) <= 3.6) {
       const bD = this.physicsContext?.bridgeDeckFn ? this.physicsContext.bridgeDeckFn(-28.0, z) : null;
       if (bD !== null && y >= bD - 0.2 && y <= bD + 3.4) {
-        return 'LORONG JEMBATAN TEKSAS';
+        return 'LORONG JEMBATAN SURYA';
       }
       if (bD !== null && y < bD - 0.5) {
-        return 'KOLONG JEMBATAN TEKSAS';
+        return 'KOLONG JEMBATAN SURYA';
       }
     }
     if (z > 590.0) {
       if (Math.hypot(x - -32.0, z - 698.0) < 58.0 && y > 32.0) return 'KAWAH GUNUNG API I';
       if (Math.hypot(x - -44.0, z - 643.0) < 42.0) return 'AIR TERJUN NIAGARA MINI';
       if (Math.abs(z - 708.0) < 28.0 && x >= -380.0 && x <= -130.0) return 'LANDASAN PACU PULAU I';
-      return 'PULAU I · BANDARA UI';
+      return 'PULAU I · BANDARA UNIVERSE';
     }
-    if (z > 465.0 && z <= 590.0) return 'SELAT UI & DERMAGA';
-    if (Math.hypot(x - -255.0, z - 329.0) < 88.0) return 'KOMPLEKS DPPD · STP UI';
+    if (z > 465.0 && z <= 590.0) return 'SELAT UNIVERSE & DERMAGA';
+    if (Math.hypot(x - -255.0, z - 329.0) < 88.0) return 'KOMPLEKS NEXUS · TECHNO PARK';
     if (Math.hypot(x - -104.0, z - 106.5) < 42.0) return 'HELIPAD VIP PULAU U';
-    if (Math.hypot(x - -2.5, z - 106.5) < 42.0) return 'AIR MANCUR ROTUNDA UI';
-    if (Math.hypot(x - 28.4, z - 78.2) < 30.0) return 'VIDEOTRON YOUTUBE UI';
-    if (Math.hypot(x, z) < 68.0 && y > 24.0) return 'PUNCAK TAJUG REKTORAT';
-    if (z >= 145.0 && z <= 335.0 && x > -135.0) return 'TELUK U · KAMPUS DEPOK';
-    return 'PULAU U · REKTORAT UI';
+    if (Math.hypot(x - -2.5, z - 106.5) < 42.0) return 'AIR MANCUR ROTUNDA';
+    if (Math.hypot(x - 28.4, z - 78.2) < 30.0) return 'VIDEOTRON UNIVERSE 3D';
+    if (Math.hypot(x, z) < 68.0 && y > 24.0) return 'PUNCAK MENARA UTAMA';
+    if (z >= 145.0 && z <= 335.0 && x > -135.0) return 'TELUK U · UNIVERSE ISLAND';
+    return 'PULAU U · MENARA UTAMA';
   }
 
   setAvataStickInput(partial = {}) {

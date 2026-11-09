@@ -1652,23 +1652,23 @@ export function injectOmniScaleSurfaceShader(
           '    vec3 premulOverlay = (glintRGB + rivGlintRGB + smdRadGlow + genshinTintVeil) * (1.0 - airVeil) + (veilColSRGB + smdRadTint * (0.26 * nightScrC + 0.18 * rainScrC)) * airVeil;',
           '    gl_FragColor = vec4(clamp(premulOverlay, 0.0, 1.0), clamp(maskAlpha, 0.032, 1.0));',
           '  } else {',
-          '    // Rich Procedural UI Campus Broadcast SMD Display (Active when YouTube iframe is offline / pre-handshake / headless)',
+          '    // Rich Procedural Universe Island Broadcast SMD Display (Active when YouTube iframe is offline / pre-handshake / headless)',
           '    float waveA = 0.5 + 0.5 * sin(scrUV.x * 5.2 - uTime * 1.15 + scrUV.y * 2.4);',
           '    float waveB = 0.5 + 0.5 * cos(scrUV.x * 8.4 + uTime * 0.82 - scrUV.y * 3.1);',
           '    vec3 uiNavy = mix(vec3(0.04, 0.09, 0.22), vec3(0.09, 0.24, 0.48), waveA * 0.72 + waveB * 0.28);',
           '    vec3 uiGold = vec3(0.96, 0.78, 0.18);',
           '    vec3 uiWhite = vec3(0.94, 0.96, 1.0);',
-          '    // Center Makara Sunburst Ring + Stylized Gedung Rektorat Tajug Silhouette + Live Equalizer Bars',
+          '    // Center 8-Ray Star-Compass Ring + Stylized Menara Utama Silhouette + Live Equalizer Bars',
           '    vec2 mUV = (scrUV - vec2(0.50, 0.55)) * vec2(1.778, 1.0);',
           '    float mR = length(mUV);',
           '    float mAng = atan(mUV.y, mUV.x);',
-          '    float sunRays = smoothstep(0.32, 0.16, mR) * step(0.16, mR) * (0.55 + 0.45 * cos(mAng * 13.0 - uTime * 0.65));',
+          '    float sunRays = smoothstep(0.32, 0.16, mR) * step(0.16, mR) * (0.55 + 0.45 * cos(mAng * 8.0 - uTime * 0.65));',
           '    float crestRing = (1.0 - smoothstep(0.008, 0.020, abs(mR - 0.235))) + (1.0 - smoothstep(0.006, 0.015, abs(mR - 0.165))) * 0.75;',
           '    float tajugTier1 = step(abs(mUV.x), max(0.0, (0.64 - scrUV.y) * 0.85)) * step(0.45, scrUV.y) * step(scrUV.y, 0.64);',
           '    float tajugTier2 = step(abs(mUV.x), max(0.0, (0.73 - scrUV.y) * 0.58)) * step(0.61, scrUV.y) * step(scrUV.y, 0.73);',
           '    float tajugSpire = step(abs(mUV.x), 0.012) * step(0.70, scrUV.y) * step(scrUV.y, 0.79);',
           '    float tajugMask = clamp(tajugTier1 + tajugTier2 + tajugSpire, 0.0, 1.0);',
-          '    // Top Header Bar ("UI BROADCAST · KAMPUS DEPOK") & Bottom Scrolling Ticker Strip',
+          '    // Top Header Bar ("UNIVERSE BROADCAST · PULAU U & I") & Bottom Scrolling Ticker Strip',
           '    float topBar = smoothstep(0.845, 0.858, scrUV.y);',
           '    float botBar = 1.0 - smoothstep(0.135, 0.148, scrUV.y);',
           '    float goldRule = (1.0 - smoothstep(0.004, 0.010, abs(scrUV.y - 0.845))) + (1.0 - smoothstep(0.004, 0.010, abs(scrUV.y - 0.145)));',
@@ -2255,12 +2255,12 @@ export function createAtriumDiamondGlassTextures() {
 }
 
 /**
- * 9. 1024x1024 Sculpted Bas-Relief Makara UI Emblem on Crisp Off-White Concrete Crown Panel
+ * 9. 2048x2048 Sculpted Bas-Relief Universe Island Star-Compass Emblem on Crisp Off-White Crown Panel
  */
 export function createMakaraEmblemTextures() {
-  const drawMakaraMotif = (ctx, w, h, isEmissive) => {
+  const drawUniverseStarMotif = (ctx, w, h, isEmissive) => {
     const cx = w * 0.5;
-    const cy = h * 0.52;
+    const cy = h * 0.50;
     const rOuter = Math.min(w, h) * 0.36;
 
     if (isEmissive) {
@@ -2278,7 +2278,7 @@ export function createMakaraEmblemTextures() {
       ctx.lineWidth = w * 0.006;
       ctx.strokeRect(w * 0.075, h * 0.075, w * 0.85, h * 0.85);
 
-      const shGrad = ctx.createRadialGradient(cx, cy + 8, rOuter * 0.3, cx, cy + 8, rOuter * 1.08);
+      const shGrad = ctx.createRadialGradient(cx, cy + 8, rOuter * 0.25, cx, cy + 8, rOuter * 1.08);
       shGrad.addColorStop(0.0, 'rgba(84, 79, 70, 0.36)');
       shGrad.addColorStop(0.85, 'rgba(84, 79, 70, 0.20)');
       shGrad.addColorStop(1.0, 'rgba(84, 79, 70, 0.0)');
@@ -2289,61 +2289,80 @@ export function createMakaraEmblemTextures() {
     }
 
     const reliefMain = isEmissive ? '#ffd24c' : '#857f73';
-    const reliefHighlight = isEmissive ? '#fff0a6' : '#b2ab9c';
+    const reliefHighlight = isEmissive ? '#fff2b2' : '#b5ae9f';
     const reliefShadow = isEmissive ? '#c99322' : '#585349';
 
+    // Outer & Inner Celestial Orbital Rings
     ctx.strokeStyle = reliefShadow;
-    ctx.lineWidth = w * 0.036;
+    ctx.lineWidth = w * 0.034;
     ctx.beginPath();
     ctx.arc(cx, cy + 3, rOuter * 0.92, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.strokeStyle = reliefMain;
-    ctx.lineWidth = w * 0.026;
+    ctx.lineWidth = w * 0.025;
     ctx.beginPath();
     ctx.arc(cx, cy, rOuter * 0.92, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.fillStyle = reliefMain;
-    ctx.beginPath();
-    ctx.moveTo(cx - rOuter * 0.12, cy + rOuter * 0.62);
-    ctx.quadraticCurveTo(cx - rOuter * 0.05, cy, cx - rOuter * 0.06, cy - rOuter * 0.46);
-    ctx.lineTo(cx + rOuter * 0.06, cy - rOuter * 0.46);
-    ctx.quadraticCurveTo(cx + rOuter * 0.05, cy, cx + rOuter * 0.12, cy + rOuter * 0.62);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = reliefHighlight;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy - rOuter * 0.62, rOuter * 0.11, rOuter * 0.19, 0, 0, Math.PI * 2);
-    ctx.fill();
-
     ctx.strokeStyle = reliefMain;
-    ctx.lineWidth = w * 0.028;
-    for (let tier = 0; tier < 4; tier++) {
-      const yB = cy - rOuter * (0.34 - tier * 0.21);
-      const span = rOuter * (0.34 + tier * 0.13);
-      for (const sign of [-1, 1]) {
-        ctx.beginPath();
-        ctx.moveTo(cx, yB + rOuter * 0.06);
-        ctx.quadraticCurveTo(cx + sign * span * 0.55, yB - rOuter * 0.1, cx + sign * span, yB - rOuter * 0.02);
-        ctx.stroke();
+    ctx.lineWidth = w * 0.015;
+    ctx.beginPath();
+    ctx.arc(cx, cy - rOuter * 0.03, rOuter * 0.56, 0, Math.PI * 2);
+    ctx.stroke();
 
-        ctx.fillStyle = reliefHighlight;
-        ctx.beginPath();
-        ctx.arc(cx + sign * span, yB - rOuter * 0.02, rOuter * 0.072, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    // 8-Pointed Universe Star-Compass Rays
+    for (let r = 0; r < 8; r++) {
+      const ang = (r * Math.PI) / 4.0 - Math.PI * 0.5;
+      const isCard = r % 2 === 0;
+      const tipR = rOuter * (isCard ? 0.84 : 0.62);
+      const shoulderR = rOuter * (isCard ? 0.19 : 0.14);
+      const aL = ang - 0.26;
+      const aR = ang + 0.26;
+
+      ctx.fillStyle = isCard ? reliefHighlight : reliefMain;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - rOuter * 0.03);
+      ctx.lineTo(cx + Math.cos(aL) * shoulderR, cy - rOuter * 0.03 + Math.sin(aL) * shoulderR);
+      ctx.lineTo(cx + Math.cos(ang) * tipR, cy - rOuter * 0.03 + Math.sin(ang) * tipR);
+      ctx.lineTo(cx + Math.cos(aR) * shoulderR, cy - rOuter * 0.03 + Math.sin(aR) * shoulderR);
+      ctx.closePath();
+      ctx.fill();
     }
 
-    ctx.strokeStyle = reliefHighlight;
-    ctx.lineWidth = w * 0.03;
+    // Central Compass Sun-Core & 4 Orbital Satellite Nodes
+    ctx.fillStyle = reliefShadow;
     ctx.beginPath();
-    ctx.arc(cx, cy + rOuter * 0.44, rOuter * 0.38, 0.16 * Math.PI, 0.84 * Math.PI);
+    ctx.arc(cx, cy - rOuter * 0.03, rOuter * 0.20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = reliefHighlight;
+    ctx.beginPath();
+    ctx.arc(cx, cy - rOuter * 0.03, rOuter * 0.13, 0, Math.PI * 2);
+    ctx.fill();
+
+    for (let k = 0; k < 4; k++) {
+      const ang = (k * Math.PI) / 2.0 + Math.PI / 4.0;
+      ctx.fillStyle = reliefHighlight;
+      ctx.beginPath();
+      ctx.arc(
+        cx + Math.cos(ang) * rOuter * 0.56,
+        cy - rOuter * 0.03 + Math.sin(ang) * rOuter * 0.56,
+        rOuter * 0.055,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+
+    // Twin-Archipelago Strait Wave Arc at Base
+    ctx.strokeStyle = reliefHighlight;
+    ctx.lineWidth = w * 0.024;
+    ctx.beginPath();
+    ctx.arc(cx, cy + rOuter * 0.36, rOuter * 0.42, 0.18 * Math.PI, 0.82 * Math.PI);
     ctx.stroke();
   };
 
-  const map = makeProceduralCanvasTexture(2048, 2048, (ctx, w, h) => drawMakaraMotif(ctx, w, h, false), 1, 1);
-  const emissiveMap = makeProceduralCanvasTexture(2048, 2048, (ctx, w, h) => drawMakaraMotif(ctx, w, h, true), 1, 1);
+  const map = makeProceduralCanvasTexture(2048, 2048, (ctx, w, h) => drawUniverseStarMotif(ctx, w, h, false), 1, 1);
+  const emissiveMap = makeProceduralCanvasTexture(2048, 2048, (ctx, w, h) => drawUniverseStarMotif(ctx, w, h, true), 1, 1);
   return { map, emissiveMap };
 }

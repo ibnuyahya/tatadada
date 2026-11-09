@@ -164,7 +164,7 @@ async function bootstrapNexusSimulator() {
       : 0.0;
   const _bootstrapStartRelMs = Math.max(0.0, _nowBoot() - _bootOriginMs);
   if (typeof window !== 'undefined' && window.NexusForensic) {
-    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Kepulauan UI v6.46');
+    window.NexusForensic.markMilestone('bootstrap_start', 'Memulai bootstrap Universe Island v6.51');
   }
   const preloader = createPreloaderController();
 
@@ -193,7 +193,7 @@ async function bootstrapNexusSimulator() {
     import('./library/landmark/Gedung_Rektorat_UI/index.js')
   ]);
 
-  await preloader.advance(0, 10, 'Mengaktifkan Jam WIB Depok & Sinkronisasi Cuaca Asinkron...', 0);
+  await preloader.advance(0, 10, 'Mengaktifkan Jam WIB & Sinkronisasi Cuaca Tropis Asinkron...', 0);
   const { DepokLiveWeatherService } = await _depokWeatherModPromise;
   const _tS01Cpu0 = _nowBoot();
 
@@ -257,7 +257,7 @@ async function bootstrapNexusSimulator() {
   bootProfiler.stages.push({
     id: 'S01_depok_clock_and_weather_kickoff',
     category: 'MODULE_LOAD',
-    label: 'Jam WIB Depok & Kickoff Open-Meteo Asinkron',
+    label: 'Jam WIB & Kickoff Telemetri Cuaca Tropis Asinkron',
     startMs: +Math.max(0.0, _tS01Wall0 - _bootOriginMs).toFixed(2),
     endMs: +Math.max(0.0, _tS01End - _bootOriginMs).toFixed(2),
     wallMs: +Math.max(0.0, _tS01End - _tS01Wall0).toFixed(2),
@@ -433,13 +433,13 @@ async function bootstrapNexusSimulator() {
     detail: `ShadowMap ${hwGovernor.getActiveTierConfig().shadowMapSize}px · PMREM Sky IBL`
   });
 
-  // Stage 3: Build Gedung Rektorat UI Class-A Monument (8-Sided Tower + 3-Tier Tajug Pagoda)
+  // Stage 3: Build Menara Utama Universe Class-A Monument (8-Sided Tower + 3-Tier Nusantara Spire)
   const _tokS06 = bootProfiler.beginStage(
     'S06_gedung_rektorat_4gates',
     'WORLD_BUILD',
-    'Gedung Rektorat UI Kelas-A (Menara Segi-8, Tajug 3-Tumpang & Audit 4-Gate)'
+    'Menara Utama Universe Kelas-A (Menara Segi-8, Atap 3-Tumpang & Audit 4-Gate)'
   );
-  await preloader.advance(3, 44, 'Menyusun Menara Segi-8 & Atap Tajug 3-Tumpang Rektorat UI...', 377118);
+  await preloader.advance(3, 44, 'Menyusun Menara Segi-8 & Mahkota Bintang Menara Utama Universe...', 377118);
   const _tS06Cpu0 = _nowBoot();
   const rektoratAsset = GedungRektoratUIAsset.build({ sharedUniforms });
   const _s06CpuMs = Math.max(0.0, _nowBoot() - _tS06Cpu0);
@@ -477,13 +477,13 @@ async function bootstrapNexusSimulator() {
     detail: `Terrain Pulau U & I + Samudra (${_s07CpuMs.toFixed(1)}ms CPU)`
   });
 
-  // Stage 5: Build Plaza Rotunda, Kompleks DPPD–ILRC–STP, Air Mancur Dancing, Jogging/Calisthenics, Jembatan Teksas UI, Underpass, & Dermaga
+  // Stage 5: Build Plaza Rotunda, Kompleks Nexus–UTP, Air Mancur Dancing, Jogging/Calisthenics, Jembatan Surya, Underpass, & Dermaga
   const _tokS08 = bootProfiler.beginStage(
     'S08_corridors_dppd_and_fountain',
     'WORLD_BUILD',
-    'Plaza Rotunda, Kompleks DPPD–STP, Jembatan Teksas, Underpass & Air Mancur'
+    'Plaza Rotunda, Kompleks Nexus–UTP, Jembatan Surya, Underpass & Air Mancur'
   );
-  await preloader.advance(5, 70, 'Merakit Kompleks DPPD–STP, Air Mancur Dancing, Jogging Track & Jaringan Jalan Pulau U...', 1205000);
+  await preloader.advance(5, 70, 'Merakit Kompleks Nexus–UTP, Air Mancur Dancing, Jogging Track & Jaringan Jalan Pulau U...', 1205000);
   const _tS08Cpu0 = _nowBoot();
   const corridorGroup = SplineCorridorBuilder.buildRotundaAndPromenades(sharedUniforms);
   const _tS08Fountain0 = _nowBoot();
@@ -492,7 +492,7 @@ async function bootstrapNexusSimulator() {
   const _s08CpuMs = Math.max(0.0, _tS08End - _tS08Cpu0);
   bootProfiler.endStage(_tokS08, {
     cpuMs: _s08CpuMs,
-    detail: `Koridor/DPPD ${(_tS08Fountain0 - _tS08Cpu0).toFixed(1)}ms + Air Mancur ${(_tS08End - _tS08Fountain0).toFixed(1)}ms`
+    detail: `Koridor/Nexus ${(_tS08Fountain0 - _tS08Cpu0).toFixed(1)}ms + Air Mancur ${(_tS08End - _tS08Fountain0).toFixed(1)}ms`
   });
 
   // Stage 6: Build Dense Southern Highland Rainforest (Pulau U), Sparse Montane Forest (Pulau I) & 64 Photocell Streetlamps
@@ -523,13 +523,13 @@ async function bootstrapNexusSimulator() {
     detail: `${bootProfiler.subBuilders.solidWorldCollidersCount} collider padat statis`
   });
 
-  // Stage 7: Build 69 22-Joint Sivitas Akademika NPCs + Taxi Heli Listrik eVTOL + Cessna & Learjet 3x Sehari + Bus Kuning + Feri + 48 Cats
+  // Stage 7: Build 69 22-Joint Warga Pulau NPCs + Taxi Heli Listrik eVTOL + Cessna & Learjet 3x Sehari + Shuttle Listrik + Feri + 48 Cats
   const _tokS10 = bootProfiler.beginStage(
     'S10_sivitas_npcs_cats_fleet',
     'WORLD_BUILD',
-    '69 Sivitas 22-Sendi, 48 Kucing, Bikun, eVTOL, Pesawat & Armada Laut'
+    '69 Warga 22-Sendi, 48 Kucing, Shuttle, eVTOL, Pesawat & Armada Laut'
   );
-  await preloader.advance(7, 90, 'Menghadirkan 69 Sivitas Akademika, Taxi Heli Listrik, Pesawat 3x Sehari, & 48 Kucing...', TOTAL_EXPECTED_TRIS);
+  await preloader.advance(7, 90, 'Menghadirkan 69 Warga Pulau, Taxi Heli Listrik, Pesawat 3x Sehari, & 48 Kucing...', TOTAL_EXPECTED_TRIS);
   const _tS10Cpu0 = _nowBoot();
   const sivitasAI = new DynamicTrafficAI(groundHeightFn, sharedUniforms);
   sivitasAI.setSolidWorld(solidWorld);
@@ -538,12 +538,12 @@ async function bootstrapNexusSimulator() {
   const _s10CpuMs = Math.max(0.0, _nowBoot() - _tS10Cpu0);
   bootProfiler.endStage(_tokS10, {
     cpuMs: _s10CpuMs,
-    detail: `${sivitasAI.npcs.length} sivitas, ${sivitasAI.cats.length} kucing, armada darat/laut/udara (${_s10CpuMs.toFixed(1)}ms CPU)`
+    detail: `${sivitasAI.npcs.length} warga, ${sivitasAI.cats.length} kucing, armada darat/laut/udara (${_s10CpuMs.toFixed(1)}ms CPU)`
   });
   if (typeof window !== 'undefined' && window.NexusForensic) {
     window.NexusForensic.markMilestone(
       'archipelago_and_sivitas_built',
-      `${sivitasAI.npcs.length} sivitas, ${sivitasAI.cats.length} kucing, armada darat/laut/udara siap`
+      `${sivitasAI.npcs.length} warga, ${sivitasAI.cats.length} kucing, armada darat/laut/udara siap`
     );
   }
 
@@ -597,7 +597,7 @@ async function bootstrapNexusSimulator() {
   };
 
   // Stage 8: Apply Depok WIB Clock & Real-Time Ephemeris Immediately & Compile Specialized GPU Shaders Asynchronously
-  await preloader.advance(8, 93, 'Kompilasi Inkremental Shader GPU & Membuka Kepulauan UI...', TOTAL_EXPECTED_TRIS);
+  await preloader.advance(8, 93, 'Kompilasi Inkremental Shader GPU & Membuka Universe Island...', TOTAL_EXPECTED_TRIS);
   const _tS12SimCpu0 = _nowBoot();
 
   let isLiveDepok = true;
@@ -1180,7 +1180,7 @@ async function bootstrapNexusSimulator() {
     'Yield Preloader 100%, Flush Antrean GPU Pasca-Warmup & Buka Tirai'
   );
   const _tS14Adv0 = _nowBoot();
-  await preloader.advance(8, 100, 'Selamat Datang di Kepulauan Universitas Indonesia (Pulau U & I), Depok.', TOTAL_EXPECTED_TRIS);
+  await preloader.advance(8, 100, 'Selamat Datang di Universe Island (Pulau U & I).', TOTAL_EXPECTED_TRIS);
   const _s14WaitMs = Math.max(0.0, _nowBoot() - _tS14Adv0);
   const _tS14Dis0 = _nowBoot();
   preloader.dismiss();
@@ -1437,10 +1437,23 @@ async function bootstrapNexusSimulator() {
     ) {
       return 'GUNUNG_NIAGARA';
     }
-    if (m.startsWith('M04_') || m.startsWith('M07_') || z.includes('STP') || z.includes('DPPD')) {
+    if (
+      m.startsWith('M04_') ||
+      m.startsWith('M07_') ||
+      z.includes('STP') ||
+      z.includes('DPPD') ||
+      z.includes('NEXUS') ||
+      z.includes('TECHNO')
+    ) {
       return 'DPPD_CANYON';
     }
-    if (m.startsWith('M21_') || m.startsWith('M22_') || z.includes('REKTORAT') || z.includes('TAJUG')) {
+    if (
+      m.startsWith('M21_') ||
+      m.startsWith('M22_') ||
+      z.includes('REKTORAT') ||
+      z.includes('TAJUG') ||
+      z.includes('MENARA')
+    ) {
       return 'REKTORAT';
     }
     return '';
@@ -1482,7 +1495,7 @@ async function bootstrapNexusSimulator() {
     if (avataOsdZoneEl) {
       avataOsdZoneEl.textContent = tel.apasActive
         ? `APAS 360° · ${tel.zoneLabel}`
-        : tel.zoneLabel || 'KEPULAUAN UI';
+        : tel.zoneLabel || 'UNIVERSE ISLAND';
       avataOsdZoneEl.classList.toggle('apas-active', Boolean(tel.apasActive));
     }
     if (avataOsdAttitudeEl) {
@@ -1723,8 +1736,8 @@ async function bootstrapNexusSimulator() {
         } else if (mode === 'WALK_SIVITAS') {
           if (ctxTitleEl) {
             ctxTitleEl.textContent = useTouchControls()
-              ? 'Jalan Sivitas · Stik Kiri & Geser'
-              : 'Jalan Sivitas · WASD + Shift';
+              ? 'Jalan Kaki · Stik Kiri & Geser'
+              : 'Jalan Kaki · WASD + Shift';
           }
           if (ctxPrevBtn) ctxPrevBtn.style.display = 'none';
           if (ctxNextBtn) ctxNextBtn.style.display = 'none';
@@ -2125,7 +2138,7 @@ async function bootstrapNexusSimulator() {
       vtBadgeEl.textContent = (state.badgeLabelId || 'SINGLE 16:9').toUpperCase();
     }
     if (vtTitleEl) {
-      vtTitleEl.textContent = state.title || 'Videotron Kampus UI';
+      vtTitleEl.textContent = state.title || 'Videotron Universe Island';
     }
     vtModeBtns.forEach((b) => {
       b.classList.toggle('active', b.dataset.vtmode === state.formatMode);
@@ -2274,7 +2287,7 @@ async function bootstrapNexusSimulator() {
     }
     if (liveWeatherEl && latestDepokWeather) {
       if (isLiveDepok) {
-        const srcTag = latestDepokWeather.isLiveApi ? 'Open-Meteo Depok' : 'Klimatologi Depok';
+        const srcTag = latestDepokWeather.isLiveApi ? 'Telemetri Tropis' : 'Klimatologi Tropis';
         liveWeatherEl.textContent =
           `${latestDepokWeather.labelId.replace(' (Estimasi Lokal)', '')} · ` +
           `${latestDepokWeather.temperatureC}°C · RH ${latestDepokWeather.humidityPct}% · ` +
@@ -2284,7 +2297,7 @@ async function bootstrapNexusSimulator() {
         const seaH = weather.getSeaWaveHeightMeters();
         liveWeatherEl.textContent =
           `Simulasi: ${spec.labelId} (${spec.percent}%) · Ombak ${seaH.toFixed(2)}m · ` +
-          `Rill Depok: ${latestDepokClock.formattedHM} (${latestDepokWeather.temperatureC}°C)`;
+          `Cuaca Rill: ${latestDepokClock.formattedHM} (${latestDepokWeather.temperatureC}°C)`;
       }
     }
   }
@@ -2425,7 +2438,7 @@ async function bootstrapNexusSimulator() {
       weather.setWeather(latestDepokWeather.weatherMode, {
         cloudCoverNorm: latestDepokWeather.cloudCoverNorm
       });
-      hwGovernor.logEvent('ATMOS', 'Sinkron Live Depok');
+      hwGovernor.logEvent('ATMOS', 'Sinkron Live Universe Island');
       syncTransitionButtonsUI();
 
       // Refresh live Open-Meteo telemetry in background if older than 45 seconds
@@ -2620,22 +2633,22 @@ async function bootstrapNexusSimulator() {
       if (isLiveDepok) {
         if (liveBadgeTextEl) {
           liveBadgeTextEl.textContent = latestDepokWeather.isLiveApi
-            ? 'LIVE KAMPUS UI DEPOK'
-            : 'WAKTU RILL DEPOK (WIB)';
+            ? 'LIVE UNIVERSE ISLAND'
+            : 'WAKTU RILL TROPIS (WIB)';
         }
         if (anyTrans && dominantAxis) {
           liveBtnEl.classList.add('is-transitioning');
           liveBtnEl.style.setProperty('--trans-pct', `${dominantAxis.pct}%`);
-          if (titleEl) titleEl.textContent = 'Menyelaraskan ke Kondisi Rill Depok...';
+          if (titleEl) titleEl.textContent = 'Menyelaraskan ke Cuaca Tropis Rill...';
           if (subEl) subEl.textContent = `${dominantAxis.pct}% · Sisa ${dominantAxis.rem} dtk`;
         } else {
           liveBtnEl.classList.add('active');
-          if (titleEl) titleEl.textContent = '● Sinkron Rill Kampus UI Depok';
+          if (titleEl) titleEl.textContent = '● Sinkron Cuaca Tropis Rill';
           if (subEl) subEl.textContent = 'Jam WIB & Cuaca Langsung Aktif';
         }
       } else {
         if (liveBadgeTextEl) liveBadgeTextEl.textContent = 'MODE SPEKTRUM MANUAL';
-        if (titleEl) titleEl.textContent = '↻ Kembali ke Waktu & Cuaca Rill Depok';
+        if (titleEl) titleEl.textContent = '↻ Kembali ke Waktu & Cuaca Tropis Rill';
         if (subEl) {
           subEl.textContent =
             anyTrans && dominantAxis
@@ -2656,10 +2669,10 @@ async function bootstrapNexusSimulator() {
         pillBtn.style.setProperty('--pill-pct', '0%');
         if (isLiveDepok) {
           const cleanWeather = latestDepokWeather.labelId.replace(' (Estimasi Lokal)', '');
-          pillLabelEl.textContent = `LIVE Depok · ${latestDepokClock.formattedHM} · ${cleanWeather}`;
+          pillLabelEl.textContent = `LIVE Universe · ${latestDepokClock.formattedHM} · ${cleanWeather}`;
         } else {
           const wibHm = WeatherOpticsEngine.formatSolarHourWIB(weather.currentSolarHour);
-          pillLabelEl.textContent = `Kepulauan UI · ${wibHm} WIB · ${specEval.labelId}`;
+          pillLabelEl.textContent = `Universe Island · ${wibHm} WIB · ${specEval.labelId}`;
         }
       }
     }
@@ -3313,7 +3326,7 @@ async function bootstrapNexusSimulator() {
     params.set('vis', visTag);
 
     const vtState = videotron && typeof videotron.getState === 'function' ? videotron.getState() : null;
-    if (vtState && vtState.videoId && vtState.videoId !== 'N5vSW33FwQQ') {
+    if (vtState && vtState.videoId && vtState.videoId !== VideotronYouTubeEngine.DEFAULT_VIDEO_ID) {
       params.set('vt', vtState.videoId);
     }
     return params.toString();

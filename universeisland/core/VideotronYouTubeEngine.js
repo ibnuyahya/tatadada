@@ -52,11 +52,11 @@ export class VideotronYouTubeEngine {
     metersPerPixel: 0.01
   });
 
-  static DEFAULT_VIDEO_ID = 'N5vSW33FwQQ';
-  static DEFAULT_EMBED_URL = 'https://www.youtube.com/embed/N5vSW33FwQQ?rel=0';
+  static DEFAULT_VIDEO_ID = '6stlCkUDG_s';
+  static DEFAULT_EMBED_URL = 'https://www.youtube.com/embed/6stlCkUDG_s?rel=0';
   static DEFAULT_EMBED_HTML =
     '<div style="left: 0; width: 100%; height: 0; position: relative; padding-bottom: 56.25%;">' +
-    '<iframe src="https://www.youtube.com/embed/N5vSW33FwQQ?rel=0" ' +
+    '<iframe src="https://www.youtube.com/embed/6stlCkUDG_s?rel=0" ' +
     'style="top: 0; left: 0; width: 100%; height: 100%; position: absolute; border: 0;" ' +
     'allowfullscreen scrolling="no" ' +
     'allow="accelerometer *; clipboard-write *; encrypted-media *; gyroscope *; picture-in-picture *; web-share *;" ' +
@@ -595,8 +595,8 @@ export class VideotronYouTubeEngine {
     iframe.setAttribute(
       'title',
       isBackLayer
-        ? 'Videotron Kampus UI — Lapis Belakang Full-Width Blur'
-        : 'Videotron Kampus UI — Pemutar Utama YouTube'
+        ? 'Videotron Universe Island — Lapis Belakang Full-Width Blur'
+        : 'Videotron Universe Island — Pemutar Utama YouTube'
     );
     if (isBackLayer) {
       iframe.setAttribute('tabindex', '-1');
@@ -1060,7 +1060,7 @@ export class VideotronYouTubeEngine {
       formatMode: this.formatMode,
       activeLayout: layout,
       badgeLabelId,
-      title: this.activeTitle || this.parsed.sourceLabel || 'Videotron Kampus UI',
+      title: this.activeTitle || this.parsed.sourceLabel || 'Videotron Universe Island',
       isPlaying: this.isPlaying,
       isMuted: this.isMuted,
       volume: this.volume,

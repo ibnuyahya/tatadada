@@ -12,7 +12,7 @@
 
 export const GEDUNG_REKTORAT_UI_META = {
   id: 'GEDUNG_REKTORAT_UI_DEPOK',
-  name: 'Gedung Pusat Administrasi Universitas Indonesia (Rektorat UI Depok — Mavic Digital Twin)',
+  name: 'Menara Utama Universe Island (Pulau U & I — Mavic Digital Twin)',
   category: 'LANDMARK',
   kernelType: 'HYBRID_SSOST',
   scaleUnit: 'METER',

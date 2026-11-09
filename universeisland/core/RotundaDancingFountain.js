@@ -540,7 +540,7 @@ export class RotundaDancingFountain {
     w3 /= wSum;
     w4 /= wSum;
 
-    if (tC < 16.0) this.currentActName = 'Act I: UI Makara Golden Crown Waltz';
+    if (tC < 16.0) this.currentActName = 'Act I: Universe Star-Compass Golden Waltz';
     else if (tC < 32.0) this.currentActName = 'Act II: Emerald-Aqua Double Helix';
     else if (tC < 48.0) this.currentActName = 'Act III: Amethyst-Magenta Cathedral Arches';
     else this.currentActName = 'Act IV: Nusantara Peony Finale';

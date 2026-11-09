@@ -45,7 +45,7 @@ const DEG = Math.PI / 180;
 
 const UI_DPPD_MASTER_PLAN = {
   id: 'UI_DEPOK_BUNDARAN_DPPD_STP_ILRC_V2',
-  name: 'Kompleks Bundaran Gedung DPPD (eks-KSDP), ITTC, STP-UI & ILRC Universitas Indonesia',
+  name: 'Kompleks Bundaran Nexus Digital Hub, Perpustakaan Pusaka, Universe Techno Park & Lab Terpadu',
   gpsOrigin: {
     lat: -6.365429,
     lon: 106.826801,
@@ -149,7 +149,7 @@ function polarPreset(label, sector, rCam, camDeg, yCam, rTgt, tgtDeg, yTgt, fov 
 
 const BUNDARAN_CAMERA_PRESETS = {
   // Mandatory Tri-Angle Validation Presets (Gate 4)
-  elevasi_horisontal: polarPreset('Elevasi 0° — Fasad Utama DPPD', 'tri', 82.0, 135.5, 3.6, 54.0, 135.5, 6.8, 54),
+  elevasi_horisontal: polarPreset('Elevasi 0° — Fasad Utama Nexus', 'tri', 82.0, 135.5, 3.6, 54.0, 135.5, 6.8, 54),
   oblique_45: {
     label: 'Oblique 45° — Ikhtisar Bundaran',
     sector: 'tri',
@@ -167,36 +167,36 @@ const BUNDARAN_CAMERA_PRESETS = {
   },
 
   // Sector Overviews
-  overview_dppd: polarPreset('Gedung DPPD (Barat Daya)', 'dppd', 84.0, 135.5, 6.5, 52.0, 135.5, 7.2, 54),
+  overview_dppd: polarPreset('Gedung Nexus U (Barat Daya)', 'dppd', 84.0, 135.5, 6.5, 52.0, 135.5, 7.2, 54),
   overview_ittc: {
-    label: 'ITTC Perpustakaan Lama (Tengah)',
+    label: 'Digital Hub (Tengah)',
     sector: 'ittc',
     fov: 52,
     pos: [-66.0, 26.0, 8.0],
     target: [-3.0, 8.5, 1.5]
   },
-  overview_stp: polarPreset('Gedung STP-UI (Utara)', 'stp', 88.0, -86.0, 11.0, 52.0, -88.0, 13.5, 58),
-  overview_ilrc: polarPreset('Gedung ILRC & Atrium (Tenggara)', 'ilrc', 86.0, 41.0, 9.0, 52.0, 41.0, 10.5, 56),
+  overview_stp: polarPreset('Universe Techno Park (Utara)', 'stp', 88.0, -86.0, 11.0, 52.0, -88.0, 13.5, 58),
+  overview_ilrc: polarPreset('Integrated Lab & Atrium (Tenggara)', 'ilrc', 86.0, 41.0, 9.0, 52.0, 41.0, 10.5, 56),
 
   // Calibrated Street View Node Stations (Clockwise / Counter-Clockwise Ring Road Tour)
-  sv_dppd_front: polarPreset('SV-01 • Depan Pelana Utama DPPD (ref_084)', 'dppd', 76.5, 135.5, 2.3, 55.0, 135.5, 7.2, 62),
-  sv_dppd_totem: polarPreset('SV-02 • Kanopi L1, Ramp & Totem Huawei (ref_184)', 'dppd', 73.5, 142.0, 2.2, 57.0, 136.5, 4.5, 58),
+  sv_dppd_front: polarPreset('SV-01 • Depan Pelana Utama Nexus (ref_084)', 'dppd', 76.5, 135.5, 2.3, 55.0, 135.5, 7.2, 62),
+  sv_dppd_totem: polarPreset('SV-02 • Kanopi L1, Ramp & Totem Lab (ref_184)', 'dppd', 73.5, 142.0, 2.2, 57.0, 136.5, 4.5, 58),
   sv_dppd_se_wing: polarPreset('SV-03 • Sayap Kanan SE & 3 Palem Raja (ref_078)', 'dppd', 76.5, 112.0, 2.3, 55.0, 118.0, 6.0, 60),
   sv_dppd_nw_gable: polarPreset('SV-04 • Dinding Pelana Bata NW & Akses Barat (ref_144)', 'dppd', 76.5, 174.0, 2.4, 54.0, 168.0, 6.2, 58),
   sv_west_ittc: {
-    label: 'SV-05 • Pintu Masuk Barat → ITTC Perpustakaan Lama (ref_203)',
+    label: 'SV-05 • Pintu Masuk Barat → Digital Hub (ref_203)',
     sector: 'ittc',
     fov: 62,
     pos: [-76.8, 2.3, -2.8],
     target: [-24.0, 6.8, -0.5]
   },
-  sv_stp_sw_core: polarPreset('SV-06 • Sudut SW Tembaga & Tangga STP-UI (ref_148)', 'stp', 77.5, -146.0, 2.6, 54.0, -135.0, 13.0, 64),
-  sv_stp_portico: polarPreset('SV-07 • Portico Utara & Planter STP-UI (ref_164)', 'stp', 78.5, -90.5, 2.2, 56.0, -89.0, 7.8, 68),
-  sv_stp_ne_makara: polarPreset('SV-08 • Puncak Makara Emas & Sirip NE STP-UI (ref_111)', 'stp', 77.5, -40.0, 2.6, 54.0, -52.0, 15.0, 68),
-  sv_ilrc_east_box: polarPreset('SV-09 • Sayap Louver Timur & Kotak Kaca ILRC (ref_009)', 'ilrc', 77.0, 6.0, 2.4, 55.0, 8.0, 9.8, 60),
-  sv_ilrc_drpm_gate: polarPreset('SV-10 • Gerbang Parkir Pimpinan & DRPM (ref_012)', 'ilrc', 77.0, 28.0, 2.3, 55.0, 30.0, 7.5, 60),
-  sv_ilrc_atrium: polarPreset('SV-11 • Atrium Terbuka 5 Lantai & Portal ILRC (ref_029)', 'ilrc', 76.5, 41.0, 2.4, 52.0, 41.0, 10.5, 62),
-  sv_ilrc_mound: polarPreset('SV-12 • Sayap Selatan & Gundukan Bambu ILRC (ref_033)', 'ilrc', 76.5, 60.0, 2.3, 55.0, 58.0, 8.5, 60),
+  sv_stp_sw_core: polarPreset('SV-06 • Sudut SW Tembaga & Tangga Techno Park (ref_148)', 'stp', 77.5, -146.0, 2.6, 54.0, -135.0, 13.0, 64),
+  sv_stp_portico: polarPreset('SV-07 • Portico Utara & Planter Techno Park (ref_164)', 'stp', 78.5, -90.5, 2.2, 56.0, -89.0, 7.8, 68),
+  sv_stp_ne_makara: polarPreset('SV-08 • Puncak Bintang Emas & Sirip NE Techno Park (ref_111)', 'stp', 77.5, -40.0, 2.6, 54.0, -52.0, 15.0, 68),
+  sv_ilrc_east_box: polarPreset('SV-09 • Sayap Louver Timur & Kotak Kaca Lab Terpadu (ref_009)', 'ilrc', 77.0, 6.0, 2.4, 55.0, 8.0, 9.8, 60),
+  sv_ilrc_drpm_gate: polarPreset('SV-10 • Gerbang Parkir Pimpinan & Riset (ref_012)', 'ilrc', 77.0, 28.0, 2.3, 55.0, 30.0, 7.5, 60),
+  sv_ilrc_atrium: polarPreset('SV-11 • Atrium Terbuka 5 Lantai & Portal Lab Terpadu (ref_029)', 'ilrc', 76.5, 41.0, 2.4, 52.0, 41.0, 10.5, 62),
+  sv_ilrc_mound: polarPreset('SV-12 • Sayap Selatan & Gundukan Bambu Lab Terpadu (ref_033)', 'ilrc', 76.5, 60.0, 2.3, 55.0, 58.0, 8.5, 60),
   sv_ilrc_brick_tower: polarPreset('SV-13 • Menara Bata 6 Lantai & 3 Jendela Tudung (ref_076)', 'ilrc', 76.8, 86.0, 2.4, 54.0, 79.0, 12.5, 60)
 };
 
@@ -896,45 +896,45 @@ class ProceduralTextureFactory {
     const cGrass = [0.22, 0.39, 0.15];
 
     if (y >= 410 && y <= 440 && x < 200) {
-      // Tile 3A: DPPD L1 Entrance Cream Wall Lettering ("GEDUNG / KSDP UI")
+      // Tile 3A: Nexus L1 Entrance Cream Wall Lettering ("GEDUNG / NEXUS U")
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, 0, 0, w, h, depthMeters, cCream);
       ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'GEDUNG', 0, h * 0.18, depthMeters * 0.6, w * 0.66, h * 0.28, 0.028, cDark);
-      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'KSDP UI', 0, -h * 0.20, depthMeters * 0.6, w * 0.76, h * 0.28, 0.028, cDark);
+      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'NEXUS U', 0, -h * 0.20, depthMeters * 0.6, w * 0.76, h * 0.28, 0.028, cDark);
     } else if (y >= 410 && y <= 440 && x >= 500) {
-      // Tile 3B: DPPD Maroon/Gold Plaque ("GEDUNG DPPD UI")
+      // Tile 3B: Nexus Maroon/Gold Plaque ("DIGITAL HUB")
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, 0, 0, w, h, depthMeters, cMaroon);
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, -w * 0.36, 0, depthMeters * 0.6, h * 0.46, h * 0.54, 0.025, cGold);
-      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'GEDUNG DPPD UI', w * 0.08, h * 0.08, depthMeters * 0.6, w * 0.72, h * 0.30, 0.028, cGold);
+      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'DIGITAL HUB', w * 0.08, h * 0.08, depthMeters * 0.6, w * 0.72, h * 0.30, 0.028, cGold);
     } else if (y >= 150 && y <= 200) {
-      // Tile 1: STP-UI L1 Silver Portico Fascia ("SCIENCE TECHNO PARK UNIVERSITAS INDONESIA")
+      // Tile 1: UTP L1 Silver Portico Fascia ("UNIVERSE TECHNO PARK")
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, 0, 0, w, h, depthMeters, cSilver);
-      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'SCIENCE TECHNO PARK UI', 0, 0, depthMeters * 0.6, w * 0.88, h * 0.42, 0.028, cDark);
+      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'UNIVERSE TECHNO PARK', 0, 0, depthMeters * 0.6, w * 0.88, h * 0.42, 0.028, cDark);
     } else if (y >= 265 && y <= 360) {
-      // Tile 2: ILRC Atrium White Portal Beam ("INTEGRATED LABORATORY AND RESEARCH CENTER")
+      // Tile 2: Atrium White Portal Beam ("INTEGRATED LABORATORY / UNIVERSE ISLAND")
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, 0, 0, w, h, depthMeters, cWhite);
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, -w * 0.14, h * 0.24, depthMeters * 0.6, h * 0.32, h * 0.32, 0.025, cGold);
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, w * 0.14, h * 0.24, depthMeters * 0.6, h * 0.44, h * 0.26, 0.025, cBlue);
       ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'INTEGRATED LABORATORY', 0, -h * 0.06, depthMeters * 0.6, w * 0.86, h * 0.20, 0.026, cDark);
-      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'UNIVERSITAS INDONESIA', 0, -h * 0.32, depthMeters * 0.6, w * 0.72, h * 0.18, 0.024, cDark);
+      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'UNIVERSE ISLAND', 0, -h * 0.32, depthMeters * 0.6, w * 0.66, h * 0.18, 0.024, cDark);
     } else if (x === 0 && y === 528) {
-      // Tile 4: Black & Yellow STP Directory Totem
+      // Tile 4: Black & Gold Techno Park Directory Totem
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, 0, 0, w, h, depthMeters, cDark);
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, -h * 0.38, depthMeters * 0.55, w * 0.98, h * 0.22, 0.02, cGold);
-      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'STP UI', 0, h * 0.34, depthMeters * 0.6, w * 0.72, h * 0.11, 0.022, cWhite);
+      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'UTP UV', 0, h * 0.34, depthMeters * 0.6, w * 0.72, h * 0.11, 0.022, cWhite);
     } else if (x >= 335 && x <= 355 && y === 528) {
-      // Tile 5: Brushed Gold/Brass UI-Huawei Training Center Totem
+      // Tile 5: Brushed Gold/Brass Nexus Innovation Lab Totem
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, 0, 0, w, h, depthMeters, cBrass);
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, -h * 0.42, depthMeters * 0.55, w, h * 0.15, 0.02, cDark);
-      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'UI - HUAWEI', 0, h * 0.12, depthMeters * 0.6, w * 0.80, h * 0.08, 0.02, cDark);
+      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'NEXUS LAB', 0, h * 0.12, depthMeters * 0.6, w * 0.80, h * 0.08, 0.02, cDark);
     } else if (x === 680 && y === 528) {
-      // Tile 6A: DRPM "P PARKIR KHUSUS PIMPINAN" Sign
+      // Tile 6A: VIP "P" Parking Sign
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, 0, 0, w, h, depthMeters, cWhite);
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, h * 0.14, depthMeters * 0.55, w * 0.86, h * 0.54, 0.02, cBlue);
       ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'P', 0, h * 0.14, depthMeters * 0.65, w * 0.42, h * 0.38, 0.024, cWhite);
     } else if (x === 852 && y === 528) {
-      // Tile 6B: Planter Topiary "STP-UI" on Lush Hedge Green + Brass 3D Letters
+      // Tile 6B: Planter Topiary "UTP-UV" on Lush Hedge Green + Brass 3D Letters
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, 0, 0, w, h, depthMeters, cGrass);
-      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'STP-UI', 0, 0, depthMeters * 0.65, w * 0.82, h * 0.54, 0.055, cGold);
+      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'UTP-UV', 0, 0, depthMeters * 0.65, w * 0.82, h * 0.54, 0.055, cGold);
     } else if (x === 852 && y === 652) {
       // Tile 6C: Blue ADA Wheelchair Parking Stall
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, 0, 0, w, h, depthMeters, cBlue);
@@ -946,10 +946,10 @@ class ProceduralTextureFactory {
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, 0, depthMeters * 0.55, w * 0.90, h * 0.86, 0.02, cBlue);
       ProceduralTextureFactory._push3DText(pos, norm, uvs, col, '> MASUK', 0, 0, depthMeters * 0.65, w * 0.76, h * 0.34, 0.022, cWhite);
     } else if (x === 680 && y === 776) {
-      // Tile 7A: DPPD Relief Campus Map Directory Board
+      // Tile 7A: Universe Island Relief Map Directory Board
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, 0, 0, w, h, depthMeters, cSandMap);
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, -h * 0.05, depthMeters * 0.6, h * 0.38, h * 0.38, 0.025, cMaroon);
-      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'PETA KAMPUS UI', 0, h * 0.34, depthMeters * 0.6, w * 0.78, h * 0.14, 0.02, cDark);
+      ProceduralTextureFactory._push3DText(pos, norm, uvs, col, 'PETA UNIVERSE', 0, h * 0.34, depthMeters * 0.6, w * 0.78, h * 0.14, 0.02, cDark);
     } else if (x === 864 && y === 776) {
       // Tile 7B: ILRC Vertical Navy/Black Banner with Gold UI Makara
       ProceduralTextureFactory._pushColoredBox(pos, norm, uvs, col, 0, 0, 0, w, h, depthMeters, cNavy);

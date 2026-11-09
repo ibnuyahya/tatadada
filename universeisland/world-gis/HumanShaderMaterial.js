@@ -328,23 +328,25 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
       '  vec2 bits = vec2(0.0);',
       '  if (ch == 1) bits = vec2(17966.0, 575025.0);',      // U
       '  else if (ch == 2) bits = vec2(4238.0, 462980.0);',  // I
-      '  else if (ch == 3) bits = vec2(17982.0, 1001022.0);',// B
-      '  else if (ch == 4) bits = vec2(21073.0, 576152.0);', // K
+      '  else if (ch == 3) bits = vec2(4228.0, 1020036.0);', // T
+      '  else if (ch == 4) bits = vec2(21073.0, 1001022.0);',// R
       '  else if (ch == 5) bits = vec2(17969.0, 583347.0);', // N
       '  else if (ch == 6) bits = vec2(0.0, 14.0);',         // -
       '  else if (ch == 7) bits = vec2(16912.0, 1001022.0);',// P
       '  else if (ch == 8) bits = vec2(16927.0, 541200.0);', // L
       '  else if (ch == 9) bits = vec2(17969.0, 476735.0);', // A
+      '  else if (ch == 10) bits = vec2(1086.0, 508430.0);', // S
+      '  else if (ch == 11) bits = vec2(17732.0, 575025.0);',// V
       '  float word = (cy < 3) ? bits.x : bits.y;',
       '  int bIdx = ((cy < 3) ? cy : (cy - 3)) * 5 + (4 - cx);',
       '  return mod(floor(word / exp2(float(bIdx)) + 0.001), 2.0);',
       '}',
       'int humanBikunRouteChar(int slot) {',
-      '  if (slot == 0) return 3;',  // B
-      '  if (slot == 1) return 2;',  // I
-      '  if (slot == 2) return 4;',  // K
-      '  if (slot == 3) return 1;',  // U
-      '  if (slot == 4) return 5;',  // N
+      '  if (slot == 0) return 3;',  // T
+      '  if (slot == 1) return 4;',  // R
+      '  if (slot == 2) return 9;',  // A
+      '  if (slot == 3) return 5;',  // N
+      '  if (slot == 4) return 10;', // S
       '  if (slot == 5) return 0;',  // space
       '  if (slot == 6) return 6;',  // -
       '  if (slot == 7) return 0;',  // space
@@ -775,7 +777,7 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
           '      float dMode = vHumanMeta.z;',
           '      float dispPow = mix(0.88, 1.25, lampOn);',
           '      if (abs(dMode - 2.0) < 0.06) {',
-          '        // Crisp 5x7 Bitmap Amber LED Dot-Matrix Bus Route Header ("UI BIKUN - PULAU I")',
+          '        // Crisp 5x7 Bitmap Amber LED Dot-Matrix Bus Route Header ("UV | TRANS - PULAU I")',
           '        vec2 ledGrid = vec2(dispUV2.x * 112.0, dispUV2.y * 9.0);',
           '        vec2 ledCell2 = fract(ledGrid) - 0.5;',
           '        float dotMask = 1.0 - smoothstep(0.22, 0.42, length(ledCell2));',
@@ -787,7 +789,7 @@ export function createPhotorealHumanMaterial(sharedUniforms = null) {
           '          if (gx >= 2 && gx <= 6) {',
           '            glyphOn = humanLedGlyph5x7(1, gx - 2, gy);', // U
           '          } else if (gx >= 8 && gx <= 12) {',
-          '            glyphOn = humanLedGlyph5x7(2, gx - 8, gy);', // I
+          '            glyphOn = humanLedGlyph5x7(11, gx - 8, gy);', // V
           '          } else if (gx == 15) {',
           '            glyphOn = 0.85;', // Vertical separator bar
           '          } else if (gx >= 19 && gx < 109) {',
