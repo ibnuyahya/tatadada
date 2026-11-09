@@ -490,6 +490,7 @@ export class VideotronYouTubeEngine {
     this.backThumbEl = null;
     this.backIframeWrapEl = null;
     this.frontLayerEl = null;
+    this.opticalGlazeEl = null;
     this.frontIframe = null;
     this.backIframe = null;
     this.iframeReady = false;
@@ -497,7 +498,19 @@ export class VideotronYouTubeEngine {
     this._lastPerspStr = '';
     this._lastViewOffsetStr = '';
     this._lastCamTransformStr = '';
+    this._lastOpticalFilterStr = '';
+    this._lastOpticalGlazeStr = '';
     this._lastDisplayVisible = null;
+    this.lastOpticalState = {
+      distMeters: 24.0,
+      blurPx: 0.0,
+      contrast: 1.0,
+      brightness: 1.0,
+      saturate: 1.0,
+      sepia: 0.0,
+      airVeil: 0.0,
+      genshinMode: 0.0
+    };
 
     this._boundOnMessage = this._handleYouTubePostMessage.bind(this);
   }
@@ -700,8 +713,13 @@ export class VideotronYouTubeEngine {
     const frontLayerEl = document.createElement('div');
     frontLayerEl.className = 'vt-front-layer';
 
+    // Layer 3: Optical Weather, Atmospheric Haze, SMD LED Pitch & Shader (PBR / Genshin) Glaze Overlay
+    const opticalGlazeEl = document.createElement('div');
+    opticalGlazeEl.className = 'vt-optical-glaze';
+
     surfaceEl.appendChild(backBlurLayerEl);
     surfaceEl.appendChild(frontLayerEl);
+    surfaceEl.appendChild(opticalGlazeEl);
     objectEl.appendChild(surfaceEl);
     cameraEl.appendChild(objectEl);
     viewEl.appendChild(cameraEl);
@@ -716,6 +734,7 @@ export class VideotronYouTubeEngine {
     this.backThumbEl = backThumbEl;
     this.backIframeWrapEl = backIframeWrapEl;
     this.frontLayerEl = frontLayerEl;
+    this.opticalGlazeEl = opticalGlazeEl;
 
     if (typeof window !== 'undefined') {
       window.removeEventListener('message', this._boundOnMessage);
@@ -1083,6 +1102,81 @@ export class VideotronYouTubeEngine {
   }
 
   /**
+   * Computes deterministic physical + stylized optical parameters for the CSS3D YouTube surface
+   * across viewing distance, rain/storm, fog, dusk/night, and Genshin vs PBR shader presets.
+   */
+  static computeOpticalFilterState(distMeters, env = {}) {
+    const d = Math.max(0.0, Number(distMeters) || 0.0);
+    const rain = Math.max(0.0, Math.min(1.35, Number(env.rainIntensity) || 0.0));
+    const fog = Math.max(0.0, Math.min(1.0, Number(env.fogFactor) || 0.0));
+    const cloud = Math.max(0.0, Math.min(1.0, Number(env.cloudCover) || 0.0));
+    const dusk = Math.max(0.0, Math.min(1.0, Number(env.duskFactor) || 0.0));
+    const night = Math.max(0.0, Math.min(1.0, Number(env.nightFactor) || 0.0));
+    const genshin = Math.max(0.0, Math.min(1.0, Number(env.genshinMode) || 0.0));
+
+    const effClear = Math.max(0.0, d - 12.0);
+    const effWeather = Math.max(0.0, d - 3.5);
+    const tauClear = effClear * (0.00032 + 0.00028 * cloud) * (1.0 + 0.42 * genshin);
+    const tauWeather = effWeather * (0.0046 * rain + 0.0088 * fog);
+    const airVeil = Math.max(0.0, Math.min(0.88, 1.0 - Math.exp(-(tauClear + tauWeather))));
+
+    // Mie forward-scattering Point-Spread Function (PSF) blur through rain sheets, fog, and long air paths
+    const distSoft = Math.max(0.0, Math.min(1.0, (d - 42.0) / 220.0));
+    const weatherDistScale = Math.max(0.28, Math.min(1.75, (d - 3.0) / 48.0));
+    const blurPx = Math.max(
+      0.0,
+      Math.min(
+        3.2,
+        distSoft * 0.65 +
+          Math.min(1.35, rain) * 1.15 * weatherDistScale +
+          fog * 1.65 * weatherDistScale
+      )
+    );
+
+    // Contrast, saturation, brightness & warmth across weather, time-of-day, and Genshin anime preset
+    const contrast = Math.max(
+      0.62,
+      Math.min(
+        1.25,
+        (0.97 + 0.09 * night + 0.08 * genshin) *
+          (1.0 - 0.22 * fog - 0.14 * Math.min(1.0, rain) - 0.14 * airVeil)
+      )
+    );
+    const saturate = Math.max(
+      0.55,
+      Math.min(
+        1.55,
+        (1.0 + 0.10 * dusk + 0.08 * night + 0.32 * genshin) *
+          (1.0 - 0.28 * fog - 0.18 * Math.min(1.0, rain) - 0.16 * airVeil)
+      )
+    );
+    const brightness = Math.max(
+      0.72,
+      Math.min(
+        1.18,
+        (0.97 + 0.09 * night + 0.05 * genshin) *
+          (1.0 - 0.08 * Math.min(1.0, rain) - 0.05 * fog)
+      )
+    );
+    const sepia = Math.max(0.0, Math.min(0.22, dusk * 0.12 * (1.0 - genshin * 0.35)));
+
+    return {
+      distMeters: d,
+      blurPx,
+      contrast,
+      brightness,
+      saturate,
+      sepia,
+      airVeil,
+      genshinMode: genshin,
+      rainIntensity: rain,
+      fogFactor: fog,
+      duskFactor: dusk,
+      nightFactor: night
+    };
+  }
+
+  /**
    * Synchronizes the CSS3D Videotron transform & WebGL punch-through uniform every animation frame (0 GC!).
    */
   update(camera, viewportW, viewportH, sharedUniforms = null) {
@@ -1094,6 +1188,7 @@ export class VideotronYouTubeEngine {
 
     // 1. Visibility & Optical Back-Face / Subterranean / Studio-Inspect Gating
     this._toCamTmp.subVectors(camera.position, this._screenWorldCenter);
+    const distMeters = this._toCamTmp.length();
     const facingDot = this._toCamTmp.dot(this._fwd);
     const inSubseaTunnel = camera.position.y < -2.2;
     const inspectMode =
@@ -1117,6 +1212,63 @@ export class VideotronYouTubeEngine {
       }
       if (sharedUniforms.uVideotronShortMode) {
         sharedUniforms.uVideotronShortMode.value = this.activeLayout === 'SHORT_2LAYER_BLUR' ? 1.0 : 0.0;
+      }
+    }
+
+    // 1B. Synchronize Optical Filter & Atmospheric/Weather/Genshin Glaze on CSS3D Surface
+    const rainVal = sharedUniforms?.uRainIntensity ? Number(sharedUniforms.uRainIntensity.value) || 0.0 : 0.0;
+    const fogVal = sharedUniforms?.uFogFactor ? Number(sharedUniforms.uFogFactor.value) || 0.0 : 0.0;
+    const cloudVal = sharedUniforms?.uCloudCover ? Number(sharedUniforms.uCloudCover.value) || 0.0 : 0.22;
+    const duskVal = sharedUniforms?.uDuskFactor ? Number(sharedUniforms.uDuskFactor.value) || 0.0 : 0.0;
+    const nightVal = sharedUniforms?.uNightFactor ? Number(sharedUniforms.uNightFactor.value) || 0.0 : 0.0;
+    const genshinVal = sharedUniforms?.uGenshinMode ? Number(sharedUniforms.uGenshinMode.value) || 0.0 : 0.0;
+
+    const opt = VideotronYouTubeEngine.computeOpticalFilterState(distMeters, {
+      rainIntensity: rainVal,
+      fogFactor: fogVal,
+      cloudCover: cloudVal,
+      duskFactor: duskVal,
+      nightFactor: nightVal,
+      genshinMode: genshinVal
+    });
+    this.lastOpticalState = opt;
+
+    if (this.surfaceEl) {
+      const filterStr =
+        `blur(${opt.blurPx.toFixed(2)}px) ` +
+        `contrast(${opt.contrast.toFixed(2)}) ` +
+        `brightness(${opt.brightness.toFixed(2)}) ` +
+        `saturate(${opt.saturate.toFixed(2)})` +
+        (opt.sepia > 0.01 ? ` sepia(${opt.sepia.toFixed(2)})` : '');
+      if (filterStr !== this._lastOpticalFilterStr) {
+        this._lastOpticalFilterStr = filterStr;
+        this.surfaceEl.style.filter = filterStr;
+      }
+    }
+
+    if (this.opticalGlazeEl) {
+      const veilAlpha = Math.max(0.0, Math.min(0.72, opt.airVeil * 0.52 + fogVal * 0.18 + Math.min(1.0, rainVal) * 0.12));
+      const genshinGlowAlpha = genshinVal * 0.18;
+      const glazeKey = `${veilAlpha.toFixed(2)}|${duskVal.toFixed(2)}|${nightVal.toFixed(2)}|${genshinGlowAlpha.toFixed(2)}`;
+      if (glazeKey !== this._lastOpticalGlazeStr) {
+        this._lastOpticalGlazeStr = glazeKey;
+        const rVeil = Math.round(
+          (1.0 - nightVal) * (duskVal > 0.1 ? 235 * duskVal + 148 * (1 - duskVal) : 148 + 18 * genshinVal) +
+            nightVal * (22 + 12 * genshinVal)
+        );
+        const gVeil = Math.round(
+          (1.0 - nightVal) * (duskVal > 0.1 ? 142 * duskVal + 186 * (1 - duskVal) : 186 + 22 * genshinVal) +
+            nightVal * (34 + 18 * genshinVal)
+        );
+        const bVeil = Math.round(
+          (1.0 - nightVal) * (duskVal > 0.1 ? 110 * duskVal + 224 * (1 - duskVal) : 224 + 24 * genshinVal) +
+            nightVal * (64 + 28 * genshinVal)
+        );
+        this.opticalGlazeEl.style.backgroundColor = `rgba(${rVeil}, ${gVeil}, ${bVeil}, ${veilAlpha.toFixed(3)})`;
+        this.opticalGlazeEl.style.boxShadow =
+          genshinVal > 0.1
+            ? `inset 0 0 44px rgba(255, 236, 188, ${(genshinGlowAlpha * 0.85).toFixed(3)}), inset 0 0 18px rgba(120, 205, 255, ${genshinGlowAlpha.toFixed(3)})`
+            : 'inset 0 0 24px rgba(4, 10, 22, 0.24)';
       }
     }
 

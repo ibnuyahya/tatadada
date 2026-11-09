@@ -259,9 +259,13 @@ export class CinematicPostFX {
         void main() {
           vec4 sceneSample = texture2D(uSceneTex, vUv);
 
-          // Preserve CSS3D YouTube Videotron punch-through window 100% untouched!
+          // Preserve CSS3D YouTube Videotron punch-through alpha while coupling Dual-Kawase bloom & Genshin halation!
           if (sceneSample.a < 0.99) {
-            gl_FragColor = sceneSample;
+            vec3 bLin = srgbToLin(texture2D(uBloomTex, vUv).rgb);
+            float bW = (mix(0.075, 0.22, uDroneCinemaBlend) + 0.15 * uGenshinMode) * 0.65;
+            vec3 bTint = mix(vec3(1.0), vec3(1.05, 1.01, 0.94), uGenshinMode * 0.65);
+            vec3 pRgb = clamp(sceneSample.rgb + linToSrgb(bLin * bTint * bW), 0.0, 1.0);
+            gl_FragColor = vec4(pRgb, sceneSample.a);
             return;
           }
 
