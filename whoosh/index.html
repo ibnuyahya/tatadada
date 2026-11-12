@@ -1133,12 +1133,15 @@ Muat Ulang Segar
 <div id="hud-route-progress-fill" class="absolute top-1/2 -translate-y-1/2 left-0 h-[2.5px] bg-gradient-to-r from-rose-500 via-rose-400 to-cyan-300 rounded-full shadow-[0_0_6px_rgba(244,63,94,0.8)]" style="width: 0%;"></div>
 <div id="hud-route-train-dot" class="absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 w-3.5 h-2 rounded-full bg-white border-[1.5px] border-rose-500 shadow-[0_0_9px_#38bdf8]" style="left: 0%;"></div>
 </div>
-<div class="mx-[12.5%] flex items-center gap-1.5 mt-0.5">
-<span class="text-[8px] text-rose-500 leading-none">◀</span>
+<div class="mx-[6%] flex items-center gap-1.5 mt-0.5">
+<span id="hud-route-arrow-l" class="text-[8px] text-rose-500/60 leading-none transition-colors">◀</span>
 <div class="flex-1 h-[1.5px] bg-rose-500/85"></div>
 <span id="hud-route-total-live" class="text-[9px] font-mono-tech font-extrabold text-rose-300 tracking-tight whitespace-nowrap">0,4 / 142,3 km • ETA 11:03</span>
 <div class="flex-1 h-[1.5px] bg-rose-500/85"></div>
-<span class="text-[8px] text-rose-500 leading-none">▶</span>
+<span id="hud-route-arrow-r" class="text-[8px] text-rose-400 leading-none transition-colors">▶</span>
+<button id="btn-hud-route-dir" type="button" title="Klik untuk ganti arah perjalanan: Halim → Tegalluar (G1215) ⇄ Tegalluar → Halim (G1218)" class="ml-0.5 px-1.5 py-0.5 rounded-md text-[8.5px] font-mono-tech font-extrabold bg-rose-500/20 hover:bg-rose-500/35 text-rose-200 border border-rose-400/45 transition cursor-pointer whitespace-nowrap flex items-center gap-0.5 shadow-sm">
+<span id="lbl-hud-route-dir">HLM ➔ TGL</span> <span class="text-cyan-300">⇄</span>
+</button>
 </div>
 </div>
 <div class="relative glass-panel rounded-2xl px-2.5 py-1.5 flex items-center gap-1.5 pointer-events-auto whitespace-nowrap">
@@ -1231,6 +1234,10 @@ Muat Ulang Segar
 </div>
 <div id="more-popover-panel" class="hidden absolute top-full right-0 mt-2 w-64 glass-panel rounded-2xl p-2.5 border border-slate-700/80 shadow-2xl z-40 flex-col gap-1.5 whitespace-normal">
 <div class="px-1 pb-1.5 border-b border-slate-800/80 flex flex-col gap-1.5">
+<button id="btn-more-route-dir" type="button" class="glass-btn w-full px-2.5 h-7 rounded-lg flex items-center justify-between text-[10px] font-bold text-rose-200 hover:text-white border border-rose-500/40" title="Ganti Arah Perjalanan: Halim → Tegalluar (Jalur 1) ⇄ Tegalluar → Halim (Jalur 2)">
+<span class="flex items-center gap-1.5"><i class="ph-bold ph-arrows-left-right text-sm text-cyan-300"></i> <span id="lbl-more-route-dir">Rute: Halim ➔ Tegalluar</span></span>
+<span id="badge-more-route-dir" class="font-mono-tech text-[9px] text-emerald-300">G1215</span>
+</button>
 <label for="select-quick-checkpoint" class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Lompat Cepat Segmen Rute</label>
 <select id="select-quick-checkpoint" class="w-full bg-slate-900/95 text-[10px] font-mono-tech text-cyan-300 border border-slate-700 rounded-lg px-2 py-1.5 cursor-pointer" title="Lompat Cepat Segmen Rute Aktual (DK 0 – DK 142,3)">
 <option value="0">DK 0+398 • Stasiun Halim</option>
@@ -1430,9 +1437,14 @@ S+ PRESISI PERON!
 <i class="ph-fill ph-door-open text-amber-400 text-base"></i>
 <span>Tekan <strong>[DOORS / O]</strong> untuk membuka pintu kereta di peron</span>
 </span>
+<div class="flex items-center gap-1.5 shrink-0">
+<button id="btn-eval-turnaround" type="button" class="hidden shrink-0 glass-btn px-2.5 py-1 rounded-lg text-[10px] font-bold text-cyan-300 hover:text-white border border-cyan-500/45" title="Putar balik rangkaian untuk perjalanan arah sebaliknya">
+⇄ Putar Balik: Tegalluar → Halim
+</button>
 <button id="btn-depart-early" class="hidden shrink-0 glass-btn px-2.5 py-1 rounded-lg text-[10px] font-bold text-amber-300 hover:text-white border border-amber-500/40" title="Percepat sisa waktu henti stasiun (opsional untuk uji cepat)">
 Berangkat Cepat
 </button>
+</div>
 </div>
 <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
 <div id="eval-boarding-progress" class="h-full bg-emerald-400 transition-all duration-150" style="width: 0%"></div>
@@ -1677,11 +1689,11 @@ Berangkat Cepat
 <div class="grid grid-cols-2 gap-2">
 <button data-service="ALL_STOP" class="service-btn glass-btn active p-2.5 rounded-xl text-left">
 <div class="font-extrabold text-emerald-300">Reguler Berhenti Tiap Stasiun (~46 Menit Riil)</div>
-<div class="text-[10px] text-slate-300 mt-0.5">Halim → Karawang → Padalarang → Tegalluar</div>
+<div id="lbl-service-allstop-desc" class="text-[10px] text-slate-300 mt-0.5">Halim → Karawang → Padalarang → Tegalluar</div>
 </button>
 <button data-service="EXPRESS" class="service-btn glass-btn p-2.5 rounded-xl text-left">
 <div class="font-extrabold text-amber-300">Express Langsung G1xxx (~29 Menit ke Padalarang)</div>
-<div class="text-[10px] text-slate-300 mt-0.5">Halim → Melintas Langsung Karawang 350 km/h → Padalarang → Tegalluar</div>
+<div id="lbl-service-express-desc" class="text-[10px] text-slate-300 mt-0.5">Halim → Melintas Langsung Karawang 350 km/h → Padalarang → Tegalluar</div>
 </button>
 </div>
 </div>
@@ -2547,6 +2559,6 @@ delete globalThis._wBoot;
 })();
 </script>
 <script>document.addEventListener('contextmenu',(e)=>{if(e.target&&e.target.tagName==='CANVAS')e.preventDefault();});</script>
-<script type="module" src="./app.bundle.js?v=ed6760b2e7"></script>
+<script type="module" src="./app.bundle.js?v=c7840dc749"></script>
 </body>
 </html>
